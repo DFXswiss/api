@@ -7,6 +7,7 @@ import { Blockchain } from '../shared/enums/blockchain.enum';
 import { EvmUtil } from '../shared/evm/evm.util';
 import {
   BrokerbotBuyPriceDto,
+  BrokerbotCurrency,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
@@ -84,46 +85,65 @@ export class RealUnitBlockchainService {
 
   // --- Brokerbot Methods ---
 
-  async getBrokerbotPrice(): Promise<BrokerbotPriceDto> {
-    const { priceInCHF, availableShares } = await this.fetchPrice();
+  async getBrokerbotPrice(currency: BrokerbotCurrency = BrokerbotCurrency.CHF): Promise<BrokerbotPriceDto> {
+    const { priceInCHF, priceInEUR, availableShares } = await this.fetchPrice();
+    const price = currency === BrokerbotCurrency.EUR ? priceInEUR : priceInCHF;
     return {
-      pricePerShare: priceInCHF.toString(),
+      pricePerShare: price.toString(),
+      currency,
       availableShares,
     };
   }
 
-  async getBrokerbotBuyPrice(shares: number): Promise<BrokerbotBuyPriceDto> {
-    const { priceInCHF, availableShares } = await this.fetchPrice();
-    const totalPrice = priceInCHF * shares;
+  async getBrokerbotBuyPrice(
+    shares: number,
+    currency: BrokerbotCurrency = BrokerbotCurrency.CHF,
+  ): Promise<BrokerbotBuyPriceDto> {
+    const { priceInCHF, priceInEUR, availableShares } = await this.fetchPrice();
+    const price = currency === BrokerbotCurrency.EUR ? priceInEUR : priceInCHF;
+    const totalPrice = price * shares;
 
     return {
       shares,
       totalPrice: totalPrice.toString(),
-      pricePerShare: priceInCHF.toString(),
+      pricePerShare: price.toString(),
+      currency,
       availableShares,
     };
   }
 
-  async getBrokerbotShares(amountChf: string): Promise<BrokerbotSharesDto> {
-    const { priceInCHF, availableShares } = await this.fetchPrice();
-    const shares = Math.floor(parseFloat(amountChf) / priceInCHF);
+  async getBrokerbotShares(
+    amount: string,
+    currency: BrokerbotCurrency = BrokerbotCurrency.CHF,
+  ): Promise<BrokerbotSharesDto> {
+    const { priceInCHF, priceInEUR, availableShares } = await this.fetchPrice();
+    const price = currency === BrokerbotCurrency.EUR ? priceInEUR : priceInCHF;
+    const shares = Math.floor(parseFloat(amount) / price);
 
     return {
-      amount: amountChf,
+      amount,
       shares,
-      pricePerShare: priceInCHF.toString(),
+      pricePerShare: price.toString(),
+      currency,
       availableShares,
     };
   }
 
-  async getBrokerbotInfo(brokerbotAddr: string, realuAddr: string, zchfAddr: string): Promise<BrokerbotInfoDto> {
-    const { priceInCHF, availableShares } = await this.fetchPrice();
+  async getBrokerbotInfo(
+    brokerbotAddr: string,
+    realuAddr: string,
+    zchfAddr: string,
+    currency: BrokerbotCurrency = BrokerbotCurrency.CHF,
+  ): Promise<BrokerbotInfoDto> {
+    const { priceInCHF, priceInEUR, availableShares } = await this.fetchPrice();
+    const price = currency === BrokerbotCurrency.EUR ? priceInEUR : priceInCHF;
 
     return {
       brokerbotAddress: brokerbotAddr,
       tokenAddress: realuAddr,
       baseCurrencyAddress: zchfAddr,
-      pricePerShare: priceInCHF.toString(),
+      pricePerShare: price.toString(),
+      currency,
       buyingEnabled: availableShares > 0,
       sellingEnabled: true,
       availableShares,

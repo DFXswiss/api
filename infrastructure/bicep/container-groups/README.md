@@ -13,6 +13,7 @@ Container Instances are:
 - hb-deuro-usdt: Hummingbot (dEURO/USDT)
 - hb-jusd-usdt: Hummingbot (JUSD/BTC)
 - hb-deps-usdt: Hummingbot (dEPS/USDT)
+- hb-keep-market: Hummingbot (Cross pair bot to keep a certain 24h volumen)
 - rk: RangeKeeper Liquidity Bot
 
 ### Fileshare

@@ -1,8 +1,9 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { BrokerbotCurrency } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
+import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
-import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -184,6 +185,7 @@ describe('RealUnitService', () => {
         tokenAddress: realuAsset.chainId,
         baseCurrencyAddress: zchfAsset.chainId,
         pricePerShare: '100',
+        currency: BrokerbotCurrency.CHF,
         buyingEnabled: true,
         sellingEnabled: true,
         availableShares: 500,
@@ -214,6 +216,21 @@ describe('RealUnitService', () => {
         '0xBrokerbotAddress',
         '0xRealuChainId',
         '0xZchfChainId',
+        undefined,
+      );
+    });
+
+    it('should pass currency parameter to blockchainService', async () => {
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuAsset).mockResolvedValueOnce(zchfAsset);
+      blockchainService.getBrokerbotInfo.mockResolvedValue({} as any);
+
+      await service.getBrokerbotInfo(BrokerbotCurrency.EUR);
+
+      expect(blockchainService.getBrokerbotInfo).toHaveBeenCalledWith(
+        '0xBrokerbotAddress',
+        '0xRealuChainId',
+        '0xZchfChainId',
+        BrokerbotCurrency.EUR,
       );
     });
 
@@ -224,6 +241,7 @@ describe('RealUnitService', () => {
         tokenAddress: '0xRealuChainId',
         baseCurrencyAddress: '0xZchfChainId',
         pricePerShare: '100',
+        currency: BrokerbotCurrency.CHF,
         buyingEnabled: true,
         sellingEnabled: true,
         availableShares: 500,

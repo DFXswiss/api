@@ -16,6 +16,8 @@ import { Response } from 'express';
 import { Config, Environment } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
+  BrokerbotCurrency,
+  BrokerbotCurrencyQueryDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
@@ -244,9 +246,15 @@ export class RealUnitController {
     summary: 'Get Brokerbot info',
     description: 'Retrieves general information about the REALU Brokerbot (addresses, settings)',
   })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
   @ApiOkResponse({ type: BrokerbotInfoDto })
-  async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
-    return this.realunitService.getBrokerbotInfo();
+  async getBrokerbotInfo(@Query() { currency }: BrokerbotCurrencyQueryDto): Promise<BrokerbotInfoDto> {
+    return this.realunitService.getBrokerbotInfo(currency);
   }
 
   @Get('brokerbot/price')
@@ -254,9 +262,15 @@ export class RealUnitController {
     summary: 'Get current Brokerbot price',
     description: 'Retrieves the current price per REALU share from the Brokerbot smart contract',
   })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
   @ApiOkResponse({ type: BrokerbotPriceDto })
-  async getBrokerbotPrice(): Promise<BrokerbotPriceDto> {
-    return this.realunitService.getBrokerbotPrice();
+  async getBrokerbotPrice(@Query() { currency }: BrokerbotCurrencyQueryDto): Promise<BrokerbotPriceDto> {
+    return this.realunitService.getBrokerbotPrice(currency);
   }
 
   @Get('brokerbot/buyPrice')
@@ -265,20 +279,38 @@ export class RealUnitController {
     description: 'Calculates the total cost to buy a specific number of REALU shares (includes price increment)',
   })
   @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to buy' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
   @ApiOkResponse({ type: BrokerbotBuyPriceDto })
-  async getBrokerbotBuyPrice(@Query('shares') shares: number): Promise<BrokerbotBuyPriceDto> {
-    return this.realunitService.getBrokerbotBuyPrice(Number(shares));
+  async getBrokerbotBuyPrice(
+    @Query('shares') shares: number,
+    @Query() { currency }: BrokerbotCurrencyQueryDto,
+  ): Promise<BrokerbotBuyPriceDto> {
+    return this.realunitService.getBrokerbotBuyPrice(Number(shares), currency);
   }
 
   @Get('brokerbot/shares')
   @ApiOperation({
     summary: 'Get shares for amount',
-    description: 'Calculates how many REALU shares can be purchased for a given CHF amount',
+    description: 'Calculates how many REALU shares can be purchased for a given amount',
   })
-  @ApiQuery({ name: 'amount', type: String, description: 'Amount in CHF (e.g., "1000.50")' })
+  @ApiQuery({ name: 'amount', type: String, description: 'Amount in specified currency (e.g., "1000.50")' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
   @ApiOkResponse({ type: BrokerbotSharesDto })
-  async getBrokerbotShares(@Query('amount') amount: string): Promise<BrokerbotSharesDto> {
-    return this.realunitService.getBrokerbotShares(amount);
+  async getBrokerbotShares(
+    @Query('amount') amount: string,
+    @Query() { currency }: BrokerbotCurrencyQueryDto,
+  ): Promise<BrokerbotSharesDto> {
+    return this.realunitService.getBrokerbotShares(amount, currency);
   }
 
   // --- Buy Payment Info Endpoint ---

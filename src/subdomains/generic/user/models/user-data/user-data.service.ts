@@ -31,7 +31,7 @@ import {
   DefaultPaymentLinkConfig,
   PaymentLinkConfig,
 } from 'src/subdomains/core/payment-link/entities/payment-link.config';
-import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { KycAddress, KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -197,22 +197,33 @@ export class UserDataService {
       { ...where, organization: { name: Util.contains(name) } },
     ];
 
-    const nameParts = name.split(' ');
-    const first = nameParts.shift();
-    const last = nameParts.pop();
+    const nameParts = name
+      .split(' ')
+      .filter((p) => p)
+      .slice(0, 5);
+    const namePartsWithoutTitles = nameParts.filter((p) => !p.endsWith('.'));
 
-    if (last)
-      wheres.push({
-        ...where,
-        firstname: Util.contains(first),
-        surname: Util.contains([...nameParts, last].join(' ')),
-      });
-    if (nameParts.length)
-      wheres.push({
-        ...where,
-        firstname: Util.contains([first, ...nameParts].join(' ')),
-        surname: Util.contains(last),
-      });
+    // try all split points on original input and additionally without title-like words (e.g. "Dr.", "Prof.")
+    const splitVariants = [nameParts];
+    if (namePartsWithoutTitles.length < nameParts.length && namePartsWithoutTitles.length >= 2)
+      splitVariants.push(namePartsWithoutTitles);
+
+    for (const parts of splitVariants) {
+      const joined = parts.join(' ');
+      if (joined !== name) {
+        wheres.push({ ...where, verifiedName: Util.contains(joined) });
+      }
+
+      for (let i = 1; i < parts.length && i < 5; i++) {
+        const firstPart = parts.slice(0, i).join(' ');
+        const lastPart = parts.slice(i).join(' ');
+
+        wheres.push(
+          { ...where, firstname: Util.contains(firstPart), surname: Util.contains(lastPart) },
+          { ...where, firstname: Util.contains(lastPart), surname: Util.contains(firstPart) },
+        );
+      }
+    }
 
     return this.userDataRepo.find({ where: wheres });
   }
@@ -602,15 +613,21 @@ export class UserDataService {
   }
 
   async updateUserName(userData: UserData, dto: UserNameDto) {
+    const update: Partial<UserData> = {
+      firstname: transliterate(dto.firstName),
+      surname: transliterate(dto.lastName),
+    };
+
+    await this.userDataRepo.update(userData.id, update);
+    Object.assign(userData, update);
+
     for (const user of userData.users) {
       this.siftService.updateAccount({
         $user_id: user.id.toString(),
         $time: Date.now(),
-        $name: `${dto.firstName} ${dto.lastName}`,
+        $name: `${update.firstname} ${update.surname}`,
       } as CreateAccount);
     }
-
-    await this.userDataRepo.update(userData.id, { firstname: dto.firstName, surname: dto.lastName });
   }
 
   async deactivateUserData(userData: UserData): Promise<void> {
@@ -771,6 +788,40 @@ export class UserDataService {
       phone,
       previousPhone,
     });
+  }
+
+  // --- ADDRESS UPDATE --- //
+  async updateUserAddress(userData: UserData, address: KycAddress): Promise<void> {
+    const country = await this.countryService.getCountry(address.country.id);
+    if (!country) throw new BadRequestException('Country not found');
+    if (!country.isEnabled(userData.kycType))
+      throw new BadRequestException(`Country not allowed for ${userData.kycType}`);
+
+    const update: Partial<UserData> = {
+      street: transliterate(address.street),
+      houseNumber: transliterate(address.houseNumber),
+      location: transliterate(address.city),
+      zip: transliterate(address.zip),
+      country,
+    };
+
+    await this.userDataRepo.update(userData.id, update);
+    Object.assign(userData, update);
+
+    // update Sift
+    for (const user of userData.users) {
+      this.siftService.updateAccount({
+        $user_id: user.id.toString(),
+        $time: Date.now(),
+        $billing_address: {
+          $name: `${userData.firstname} ${userData.surname}`,
+          $address_1: `${update.street} ${update.houseNumber}`,
+          $city: update.location,
+          $country: country.symbol,
+          $zipcode: update.zip,
+        },
+      });
+    }
   }
 
   // --- SETTINGS UPDATE --- //

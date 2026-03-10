@@ -5,12 +5,14 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { Config, Environment, GetConfig } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
+  BrokerbotCurrency,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
@@ -270,21 +272,26 @@ export class RealUnitService {
 
   // --- Brokerbot Methods ---
 
-  async getBrokerbotPrice(): Promise<BrokerbotPriceDto> {
-    return this.blockchainService.getBrokerbotPrice();
+  async getBrokerbotPrice(currency?: BrokerbotCurrency): Promise<BrokerbotPriceDto> {
+    return this.blockchainService.getBrokerbotPrice(currency);
   }
 
-  async getBrokerbotBuyPrice(shares: number): Promise<BrokerbotBuyPriceDto> {
-    return this.blockchainService.getBrokerbotBuyPrice(shares);
+  async getBrokerbotBuyPrice(shares: number, currency?: BrokerbotCurrency): Promise<BrokerbotBuyPriceDto> {
+    return this.blockchainService.getBrokerbotBuyPrice(shares, currency);
   }
 
-  async getBrokerbotShares(amountChf: string): Promise<BrokerbotSharesDto> {
-    return this.blockchainService.getBrokerbotShares(amountChf);
+  async getBrokerbotShares(amount: string, currency?: BrokerbotCurrency): Promise<BrokerbotSharesDto> {
+    return this.blockchainService.getBrokerbotShares(amount, currency);
   }
 
-  async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
+  async getBrokerbotInfo(currency?: BrokerbotCurrency): Promise<BrokerbotInfoDto> {
     const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
-    return this.blockchainService.getBrokerbotInfo(this.getBrokerbotAddress(), realuAsset.chainId, zchfAsset.chainId);
+    return this.blockchainService.getBrokerbotInfo(
+      this.getBrokerbotAddress(),
+      realuAsset.chainId,
+      zchfAsset.chainId,
+      currency,
+    );
   }
 
   // --- Buy Payment Info Methods ---
@@ -410,14 +417,24 @@ export class RealUnitService {
 
     // Aktionariat API aufrufen
     const fiat = await this.fiatService.getFiat(request.sourceId);
-    const aktionariatResponse = [Environment.DEV, Environment.LOC].includes(Config.environment)
-      ? { reference: `DEV-${request.id}-${Date.now()}`, mock: true }
-      : await this.blockchainService.requestPaymentInstructions({
-          currency: fiat.name,
-          address: request.user.address,
-          shares: Math.floor(request.estimatedAmount),
-          price: Math.round(request.amount * 100),
-        });
+
+    let aktionariatResponse: { reference: string; [key: string]: any };
+    try {
+      aktionariatResponse = [Environment.DEV, Environment.LOC].includes(Config.environment)
+        ? { reference: `DEV-${request.id}-${Date.now()}`, mock: true }
+        : await this.blockchainService.requestPaymentInstructions({
+            currency: fiat.name,
+            address: request.user.address,
+            shares: Math.floor(request.estimatedAmount),
+            price: Math.round(request.amount * 100),
+          });
+    } catch (error) {
+      const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
+      this.logger.error(
+        `Failed to request payment instructions from Aktionariat for request ${requestId} (currency: ${fiat.name}, shares: ${Math.floor(request.estimatedAmount)}, price: ${Math.round(request.amount * 100)}): ${message}`,
+      );
+      throw new ServiceUnavailableException(`Aktionariat API error: ${message}`);
+    }
 
     // Status + Response speichern
     await this.transactionRequestService.confirmTransactionRequest(request, JSON.stringify(aktionariatResponse));

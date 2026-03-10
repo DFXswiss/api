@@ -576,6 +576,7 @@ export class PaymentQuoteService {
     }
 
     try {
+      const icpClient = this.internetComputerService.getDefaultClient();
       const userPrincipal = transferInfo.sender;
       const paymentAccount = this.paymentBalanceService.getPaymentAccount(Blockchain.INTERNET_COMPUTER);
       const paymentAddress = this.paymentBalanceService.getDepositAddress(Blockchain.INTERNET_COMPUTER);
@@ -589,19 +590,9 @@ export class PaymentQuoteService {
         return;
       }
 
-      const canisterId =
-        activation.asset.type === AssetType.COIN
-          ? Config.blockchain.internetComputer.internetComputerLedgerCanisterId
-          : activation.asset.chainId;
-
       await Util.retry(
         async () => {
-          const result = await this.internetComputerService.checkAllowance(
-            userPrincipal,
-            paymentAddress,
-            canisterId,
-            activation.asset.decimals,
-          );
+          const result = await icpClient.checkAllowance(userPrincipal, paymentAddress, activation.asset);
           if (result.allowance < activation.amount) {
             throw new Error(`Insufficient allowance: ${result.allowance}, need ${activation.amount}`);
           }
@@ -610,13 +601,12 @@ export class PaymentQuoteService {
         2000,
       );
 
-      const txId = await this.internetComputerService.transferFromWithAccount(
+      const txId = await icpClient.transferFromWithAccount(
         paymentAccount,
         userPrincipal,
         paymentAddress,
         activation.amount,
-        canisterId,
-        activation.asset.decimals,
+        activation.asset,
       );
 
       quote.txInBlockchain(txId);
