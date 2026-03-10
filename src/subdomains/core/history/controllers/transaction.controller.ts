@@ -728,7 +728,7 @@ export class TransactionController {
 
     const uidParam = uid ?? orderUid;
     if (uidParam) {
-      tx = uidParam.startsWith(Config.prefixes.transactionUidPrefix)
+      tx = Config.formats.transactionUid.test(uidParam)
         ? await this.transactionService.getTransactionByUid(uidParam, relations)
         : ((await this.transactionService.getTransactionByRequestUid(uidParam, relations)) ??
           (await this.transactionRequestService.getTransactionRequestByUid(uidParam, { user: { userData: true } })));
