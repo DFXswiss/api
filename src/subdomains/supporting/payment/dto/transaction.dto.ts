@@ -256,6 +256,21 @@ export class TransactionDetailDto extends TransactionDto {
 
   @ApiPropertyOptional()
   targetAccount?: string;
+
+  @ApiPropertyOptional({ description: 'Contract address of the source asset (for tokens)' })
+  sourceChainId?: string;
+
+  @ApiPropertyOptional({ description: 'Contract address of the destination asset (for tokens)' })
+  destinationChainId?: string;
+
+  @ApiPropertyOptional({ description: 'EVM chain ID of the source asset (e.g. 1 for Ethereum)' })
+  sourceEvmChainId?: number;
+
+  @ApiPropertyOptional({ description: 'EVM chain ID of the destination asset (e.g. 1 for Ethereum)' })
+  destinationEvmChainId?: number;
+
+  @ApiPropertyOptional({ description: 'Deposit address for crypto input transactions' })
+  depositAddress?: string;
 }
 
 export class TransactionTarget {
