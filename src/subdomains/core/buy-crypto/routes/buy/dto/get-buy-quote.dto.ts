@@ -11,18 +11,18 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetInDto } from 'src/shared/models/asset/dto/asset.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatInDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 
 export class GetBuyQuoteDto {
-  @ApiProperty({ type: EntityDto, description: 'Source currency' })
+  @ApiProperty({ type: FiatInDto, description: 'Source currency (by ID or name)' })
   @IsNotEmptyObject()
   @ValidateNested()
-  @Type(() => EntityDto)
+  @Type(() => FiatInDto)
   currency: Fiat;
 
   @ApiProperty({ type: AssetInDto, description: 'Target asset' })
@@ -64,4 +64,9 @@ export class GetBuyQuoteDto {
   @IsOptional()
   @IsString()
   wallet: string;
+
+  @ApiPropertyOptional({ description: 'Country code (ISO 3166-1 alpha-2, e.g. DE, CH, US)' })
+  @IsOptional()
+  @IsString()
+  country?: string;
 }

@@ -33,6 +33,10 @@ import { UnsignedTxDto } from 'src/subdomains/core/sell-crypto/route/dto/unsigne
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { DepositDtoMapper } from 'src/subdomains/supporting/address-pool/deposit/dto/deposit-dto.mapper';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import {
+  QuoteErrorUtil,
+  QuoteException,
+} from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.util';
 import { TransactionDto } from 'src/subdomains/supporting/payment/dto/transaction.dto';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -89,13 +93,15 @@ export class SwapController {
   @Put('/quote')
   @ApiOkResponse({ type: SwapQuoteDto })
   async getSwapQuote(@Body() dto: GetSwapQuoteDto): Promise<SwapQuoteDto> {
-    const {
-      amount: sourceAmount,
-      sourceAsset,
-      targetAsset,
-      targetAmount,
-      specialCode,
-    } = await this.paymentInfoService.swapCheck(dto);
+    let checkedDto: GetSwapQuoteDto;
+    try {
+      checkedDto = await this.paymentInfoService.swapCheck(dto, undefined, true);
+    } catch (e) {
+      if (e instanceof QuoteException) return QuoteErrorUtil.createErrorQuote(e);
+      throw e;
+    }
+
+    const { amount: sourceAmount, sourceAsset, targetAsset, targetAmount, specialCode } = checkedDto;
 
     const {
       exchangeRate,
@@ -107,6 +113,7 @@ export class SwapController {
       maxVolumeTarget,
       isValid,
       error,
+      errors,
       feeSource,
       feeTarget,
       priceSteps,
@@ -121,6 +128,8 @@ export class SwapController {
       undefined,
       dto.wallet,
       specialCode ? [specialCode] : [],
+      undefined,
+      undefined,
     );
 
     return {
@@ -137,6 +146,7 @@ export class SwapController {
       priceSteps,
       isValid,
       error,
+      errors: QuoteErrorUtil.mapToStructuredErrors(errors, minVolume, minVolumeTarget, maxVolume, maxVolumeTarget),
     };
   }
 

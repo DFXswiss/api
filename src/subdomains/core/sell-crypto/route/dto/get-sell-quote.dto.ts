@@ -10,10 +10,10 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetInDto } from 'src/shared/models/asset/dto/asset.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { FiatInDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { XOR } from 'src/shared/validators/xor.validator';
 
 export class GetSellQuoteDto {
@@ -30,10 +30,10 @@ export class GetSellQuoteDto {
   @IsNumber()
   amount: number;
 
-  @ApiProperty({ type: EntityDto, description: 'Target currency' })
+  @ApiProperty({ type: FiatInDto, description: 'Target currency (by ID or name)' })
   @IsNotEmptyObject()
   @ValidateNested()
-  @Type(() => EntityDto)
+  @Type(() => FiatInDto)
   currency: Fiat;
 
   @ApiPropertyOptional({ description: 'Amount in target currency' })
@@ -57,4 +57,9 @@ export class GetSellQuoteDto {
   @IsOptional()
   @IsString()
   wallet: string;
+
+  @ApiPropertyOptional({ description: 'Country code (ISO 3166-1 alpha-2, e.g. DE, CH, US)' })
+  @IsOptional()
+  @IsString()
+  country?: string;
 }

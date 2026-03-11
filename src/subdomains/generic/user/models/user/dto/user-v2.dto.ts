@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsNotEmptyObject, ValidateNested } from 'class-validator';
+import { IsEnum, IsOptional, ValidateNested } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -10,6 +10,7 @@ import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AccountType } from '../../user-data/account-type.enum';
 import { KycLevel } from '../../user-data/user-data.enum';
+import { RefPayoutFrequency } from '../user.enum';
 import { TradingLimit, VolumeInformation } from './user.dto';
 
 export class VolumesDto {
@@ -50,11 +51,16 @@ export class ReferralDto {
 }
 
 export class UpdateRefDto {
-  @ApiProperty({ type: EntityDto, description: 'Referral payout asset' })
-  @IsNotEmptyObject()
+  @ApiPropertyOptional({ type: EntityDto, description: 'Referral payout asset' })
+  @IsOptional()
   @ValidateNested()
   @Type(() => EntityDto)
-  payoutAsset: Asset;
+  payoutAsset?: Asset;
+
+  @ApiPropertyOptional({ enum: RefPayoutFrequency, description: 'Referral payout frequency' })
+  @IsOptional()
+  @IsEnum(RefPayoutFrequency)
+  payoutFrequency?: RefPayoutFrequency;
 }
 
 export class UserAddressDto {
