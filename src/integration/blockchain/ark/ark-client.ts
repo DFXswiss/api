@@ -20,7 +20,6 @@ export class ArkClient extends BlockchainClient {
 
   private wallet: AsyncField<Wallet>;
   private readonly cachedAddress: AsyncField<string>;
-  private reconnectAttempt = 0;
 
   constructor() {
     super();
@@ -66,15 +65,27 @@ export class ArkClient extends BlockchainClient {
 
   async getTransaction(txId: string): Promise<ArkTransaction> {
     return this.call(async (wallet) => {
-      const vtxos = await wallet.getVtxos();
-      const vtxo = vtxos.find((v) => v.txid === txId);
+      // Finalize any pending transactions, then check if the tx is settled
+      const { finalized } = await wallet.finalizePendingTxs();
+      const isConfirmed = finalized.some((id) => id === txId);
 
-      const isConfirmed = vtxo != null;
+      // Also check VTXOs for incoming transactions
+      if (!isConfirmed) {
+        const vtxos = await wallet.getVtxos();
+        const hasVtxo = vtxos.some((v) => v.txid === txId);
+
+        return {
+          txid: txId,
+          blockhash: hasVtxo ? 'confirmed' : undefined,
+          confirmations: hasVtxo ? 1 : 0,
+          fee: 0,
+        };
+      }
 
       return {
         txid: txId,
-        blockhash: isConfirmed ? 'confirmed' : undefined,
-        confirmations: isConfirmed ? 1 : 0,
+        blockhash: 'confirmed',
+        confirmations: 1,
         fee: 0,
       };
     });
@@ -93,30 +104,6 @@ export class ArkClient extends BlockchainClient {
     });
 
     return wallet;
-  }
-
-  private reconnectWallet(): void {
-    const delay = Math.min(1000 * 2 ** this.reconnectAttempt, 60_000);
-    this.reconnectAttempt++;
-
-    this.logger.warn(`Ark connection lost, reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempt})`);
-
-    this.wallet = new AsyncField(
-      () =>
-        new Promise<void>((resolve) => setTimeout(resolve, delay))
-          .then(() => this.initializeWallet())
-          .then((wallet) => {
-            this.reconnectAttempt = 0;
-            this.logger.info('Ark wallet reconnected successfully');
-            return wallet;
-          })
-          .catch((e: Error) => {
-            this.logger.error('Ark wallet reconnect failed', e);
-            this.reconnectWallet();
-            throw e;
-          }),
-      true,
-    );
   }
 
   // --- FEE METHODS (near-zero for Ark L2) --- //
