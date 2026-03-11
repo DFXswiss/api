@@ -18,10 +18,9 @@ import { RegisterStrategy } from './base/register.strategy';
 const NATIVE_BATCH_SIZE = 2000;
 const ICRC_BATCH_SIZE = 2000;
 const SETTING_KEY = 'icpLastScannedBlocks';
-const NATIVE_BLOCK_KEY = 'native';
 
 interface IcpScanState {
-  [key: string]: number; // 'native' or canisterId → last scanned block
+  [key: string]: number; // asset ID → last scanned block
 }
 
 @Injectable()
@@ -116,8 +115,9 @@ export class InternetComputerStrategy extends RegisterStrategy {
         accountIdMap.set(accountId, principal);
       }
 
+      const stateKey = asset.id.toString();
       const chainLength = toBlock ?? (await this.payInInternetComputerService.getBlockHeight());
-      const lastScanned = persistProgress ? scanState[NATIVE_BLOCK_KEY] : undefined;
+      const lastScanned = persistProgress ? scanState[stateKey] : undefined;
 
       // Cold start (no setting): scan last batch; explicit fromBlock or existing setting: resume from there
       const startBlock =
@@ -132,7 +132,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
       );
 
       if (persistProgress && highestBlock > (lastScanned ?? 0)) {
-        scanState[NATIVE_BLOCK_KEY] = highestBlock;
+        scanState[stateKey] = highestBlock;
       }
 
       return newEntries;
@@ -214,9 +214,10 @@ export class InternetComputerStrategy extends RegisterStrategy {
           continue;
         }
 
+        const stateKey = asset.id.toString();
         const decimals = asset.decimals;
         const chainLength = await this.payInInternetComputerService.getIcrcBlockHeight(canisterId);
-        const lastScanned = persistProgress ? scanState[canisterId] : undefined;
+        const lastScanned = persistProgress ? scanState[stateKey] : undefined;
 
         // Cold start (no setting): scan last batch; explicit fromBlock or existing setting: resume from there
         const startBlock =
@@ -236,7 +237,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
         entries.push(...newEntries);
 
         if (persistProgress && highestBlock > (lastScanned ?? 0)) {
-          scanState[canisterId] = highestBlock;
+          scanState[stateKey] = highestBlock;
         }
       } catch (e) {
         this.logger.error(`Failed to fetch ICRC transfers for ${asset.uniqueName ?? asset.name}:`, e);
