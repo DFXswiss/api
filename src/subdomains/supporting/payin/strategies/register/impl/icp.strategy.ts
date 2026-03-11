@@ -5,19 +5,20 @@ import { InternetComputerUtil } from 'src/integration/blockchain/icp/icp.util';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
 import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/deposit.service';
-import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { Like, Not } from 'typeorm';
 import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInInternetComputerService } from '../../../services/payin-icp.service';
 import { RegisterStrategy } from './base/register.strategy';
 
+const NATIVE_BATCH_SIZE = 2000;
 const ICRC_BATCH_SIZE = 2000;
+const SETTING_ICP_NATIVE_BLOCK = 'icpLastScannedBlock';
+const SETTING_ICP_ICRC_BLOCK_PREFIX = 'icpLastScannedBlock:';
 
 @Injectable()
 export class InternetComputerStrategy extends RegisterStrategy {
@@ -27,8 +28,8 @@ export class InternetComputerStrategy extends RegisterStrategy {
 
   constructor(
     private readonly payInInternetComputerService: PayInInternetComputerService,
-    private readonly transactionRequestService: TransactionRequestService,
     private readonly depositService: DepositService,
+    private readonly settingService: SettingService,
   ) {
     super();
 
@@ -43,44 +44,34 @@ export class InternetComputerStrategy extends RegisterStrategy {
   //*** JOBS ***//
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
-    // Native ICP: per-address Rosetta calls — only active TR addresses + payment address
-    const nativeAddresses = await this.transactionRequestService.getActiveDepositAddresses(
-      Util.hoursBefore(1),
-      this.blockchain,
-    );
-    if (this.paymentAddress) nativeAddresses.push(this.paymentAddress);
-
-    // ICRC tokens: global ledger scan — all known deposit addresses
     const allDeposits = await this.depositService.getUsedDepositsByBlockchain(this.blockchain);
     const allDepositAddresses = allDeposits.map((d) => d.address);
+
     if (this.paymentAddress && !allDepositAddresses.includes(this.paymentAddress)) {
       allDepositAddresses.push(this.paymentAddress);
     }
 
-    await this.processNewPayInEntries(
-      nativeAddresses.map((a) => BlockchainAddress.create(a, this.blockchain)),
-      allDepositAddresses.map((a) => BlockchainAddress.create(a, this.blockchain)),
-    );
+    await this.processNewPayInEntries(allDepositAddresses, true);
   }
 
   async pollAddress(depositAddress: BlockchainAddress, fromBlock?: number, toBlock?: number): Promise<void> {
     if (depositAddress.blockchain !== this.blockchain)
       throw new Error(`Invalid blockchain: ${depositAddress.blockchain}`);
 
-    return this.processNewPayInEntries([depositAddress], [depositAddress], fromBlock, toBlock);
+    return this.processNewPayInEntries([depositAddress.address], false, fromBlock, toBlock);
   }
 
   //*** HELPER METHODS ***//
   private async processNewPayInEntries(
-    nativeAddresses: BlockchainAddress[],
-    icrcAddresses: BlockchainAddress[],
+    depositAddresses: string[],
+    persistProgress: boolean,
     fromBlock?: number,
     toBlock?: number,
   ): Promise<void> {
     const log = this.createNewLogObject();
 
-    const nativeEntries = await this.getNativeEntries(nativeAddresses, fromBlock, toBlock);
-    const icrcEntries = await this.getIcrcTokenEntries(icrcAddresses, fromBlock, toBlock);
+    const nativeEntries = await this.getNativeEntries(depositAddresses, persistProgress, fromBlock, toBlock);
+    const icrcEntries = await this.getIcrcTokenEntries(depositAddresses, persistProgress, fromBlock, toBlock);
 
     const newEntries = [...nativeEntries, ...icrcEntries];
 
@@ -91,56 +82,108 @@ export class InternetComputerStrategy extends RegisterStrategy {
     this.printInputLog(log, 'omitted', this.blockchain);
   }
 
-  // --- Native ICP (Rosetta per-address history) --- //
+  // --- Native ICP (global query_blocks scan) --- //
   private async getNativeEntries(
-    depositAddresses: BlockchainAddress[],
+    depositAddresses: string[],
+    persistProgress: boolean,
     fromBlock?: number,
     toBlock?: number,
   ): Promise<PayInEntry[]> {
-    const asset = await this.assetService.getNativeAsset(this.blockchain);
+    try {
+      const asset = await this.assetService.getNativeAsset(this.blockchain);
 
-    const entries: PayInEntry[] = [];
-
-    for (const da of depositAddresses) {
-      try {
-        const accountId = InternetComputerUtil.accountIdentifier(da.address);
-        const lastBlock = fromBlock ?? (await this.getLastCheckedNativeBlockHeight(da)) + 1;
-
-        const transfers = await this.payInInternetComputerService.getNativeTransfersForAddress(accountId);
-
-        for (const transfer of transfers) {
-          if (transfer.blockIndex < lastBlock) continue;
-          if (toBlock !== undefined && transfer.blockIndex > toBlock) continue;
-          if (transfer.to !== accountId) continue;
-
-          entries.push({
-            senderAddresses: transfer.from,
-            receiverAddress: BlockchainAddress.create(da.address, this.blockchain),
-            txId: transfer.blockIndex.toString(),
-            txType: this.getTxType(da.address),
-            blockHeight: transfer.blockIndex,
-            amount: transfer.amount,
-            asset,
-          });
-        }
-      } catch (e) {
-        this.logger.error(`Failed to fetch native transfers for ${da.address}:`, e);
+      // Build AccountIdentifier → Principal map
+      const accountIdMap = new Map<string, string>();
+      for (const principal of depositAddresses) {
+        const accountId = InternetComputerUtil.accountIdentifier(principal);
+        accountIdMap.set(accountId, principal);
       }
+
+      const chainLength = toBlock ?? (await this.payInInternetComputerService.getBlockHeight());
+      const lastScanned = persistProgress ? await this.getLastScannedBlock(SETTING_ICP_NATIVE_BLOCK) : undefined;
+
+      // Cold start (no setting): scan last batch; explicit fromBlock or existing setting: resume from there
+      const startBlock =
+        fromBlock ?? (lastScanned === undefined ? Math.max(0, chainLength - NATIVE_BATCH_SIZE) : lastScanned + 1);
+      if (startBlock >= chainLength) return [];
+
+      const { newEntries, highestBlock } = await this.fetchNativeTransfersBatched(
+        asset,
+        startBlock,
+        chainLength,
+        accountIdMap,
+      );
+
+      if (persistProgress && highestBlock > (lastScanned ?? 0)) {
+        await this.setLastScannedBlock(SETTING_ICP_NATIVE_BLOCK, highestBlock);
+      }
+
+      return newEntries;
+    } catch (e) {
+      this.logger.error('Failed to fetch native ICP transfers:', e);
+      return [];
+    }
+  }
+
+  private async fetchNativeTransfersBatched(
+    asset: Asset,
+    startBlock: number,
+    chainLength: number,
+    accountIdMap: Map<string, string>,
+  ): Promise<{ newEntries: PayInEntry[]; highestBlock: number }> {
+    const newEntries: PayInEntry[] = [];
+    let cursor = startBlock;
+    let highestBlock = startBlock;
+
+    while (cursor < chainLength) {
+      const count = Math.min(NATIVE_BATCH_SIZE, chainLength - cursor);
+      const result = await this.payInInternetComputerService.getTransfers(cursor, count);
+
+      for (const transfer of result.transfers) {
+        const matchedPrincipal = accountIdMap.get(transfer.to);
+        if (!matchedPrincipal) continue;
+
+        newEntries.push({
+          senderAddresses: transfer.from,
+          receiverAddress: BlockchainAddress.create(matchedPrincipal, this.blockchain),
+          txId: transfer.blockIndex.toString(),
+          txType: this.getTxType(matchedPrincipal),
+          blockHeight: transfer.blockIndex,
+          amount: transfer.amount,
+          asset,
+        });
+      }
+
+      if (result.lastBlockIndex > highestBlock) {
+        highestBlock = result.lastBlockIndex;
+      }
+
+      const nextCursor = result.lastBlockIndex + 1;
+
+      if (nextCursor <= cursor) {
+        this.logger.warn(`ICP native: cursor stuck at ${cursor}, skipping to ${cursor + count}`);
+        cursor += count;
+      } else {
+        cursor = nextCursor;
+      }
+
+      if (result.rawTransactionCount === 0) break;
     }
 
-    return entries;
+    return { newEntries, highestBlock };
   }
 
   // --- ICRC token transfers (global ledger, filtered client-side) --- //
   private async getIcrcTokenEntries(
-    depositAddresses: BlockchainAddress[],
+    depositAddresses: string[],
+    persistProgress: boolean,
     fromBlock?: number,
     toBlock?: number,
   ): Promise<PayInEntry[]> {
     const tokenAssets = await this.assetService.getTokens(this.blockchain);
     if (!tokenAssets.length) return [];
 
-    const principalSet = new Set(depositAddresses.map((da) => da.address));
+    const principalSet = new Set(depositAddresses);
     const entries: PayInEntry[] = [];
 
     for (const asset of tokenAssets) {
@@ -153,16 +196,18 @@ export class InternetComputerStrategy extends RegisterStrategy {
           continue;
         }
 
+        const settingKey = SETTING_ICP_ICRC_BLOCK_PREFIX + canisterId;
         const decimals = asset.decimals;
         const chainLength = await this.payInInternetComputerService.getIcrcBlockHeight(canisterId);
-        const lastBlock = fromBlock ?? (await this.getLastCheckedIcrcBlockHeight(canisterId));
+        const lastScanned = persistProgress ? await this.getLastScannedBlock(settingKey) : undefined;
 
-        // Cold start: scan last batch to catch recent transfers; afterwards resume from last recorded block
-        const startBlock = lastBlock > 0 ? lastBlock + (fromBlock ? 0 : 1) : Math.max(0, chainLength - ICRC_BATCH_SIZE);
+        // Cold start (no setting): scan last batch; explicit fromBlock or existing setting: resume from there
+        const startBlock =
+          fromBlock ?? (lastScanned === undefined ? Math.max(0, chainLength - ICRC_BATCH_SIZE) : lastScanned + 1);
         const endBlock = toBlock ?? chainLength;
         if (startBlock >= endBlock) continue;
 
-        const newEntries = await this.fetchIcrcTransfersBatched(
+        const { newEntries, highestBlock } = await this.fetchIcrcTransfersBatched(
           asset,
           canisterId,
           decimals,
@@ -172,6 +217,10 @@ export class InternetComputerStrategy extends RegisterStrategy {
         );
 
         entries.push(...newEntries);
+
+        if (persistProgress && highestBlock > (lastScanned ?? 0)) {
+          await this.setLastScannedBlock(settingKey, highestBlock);
+        }
       } catch (e) {
         this.logger.error(`Failed to fetch ICRC transfers for ${asset.uniqueName ?? asset.name}:`, e);
       }
@@ -187,9 +236,10 @@ export class InternetComputerStrategy extends RegisterStrategy {
     startBlock: number,
     chainLength: number,
     principalSet: Set<string>,
-  ): Promise<PayInEntry[]> {
-    const entries: PayInEntry[] = [];
+  ): Promise<{ newEntries: PayInEntry[]; highestBlock: number }> {
+    const newEntries: PayInEntry[] = [];
     let cursor = startBlock;
+    let highestBlock = startBlock;
 
     while (cursor < chainLength) {
       const count = Math.min(ICRC_BATCH_SIZE, chainLength - cursor);
@@ -198,7 +248,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
       for (const transfer of result.transfers) {
         if (!principalSet.has(transfer.to)) continue;
 
-        entries.push({
+        newEntries.push({
           senderAddresses: transfer.from,
           receiverAddress: BlockchainAddress.create(transfer.to, this.blockchain),
           txId: `${canisterId}:${transfer.blockIndex}`,
@@ -207,6 +257,10 @@ export class InternetComputerStrategy extends RegisterStrategy {
           amount: transfer.amount,
           asset,
         });
+      }
+
+      if (result.lastBlockIndex > highestBlock) {
+        highestBlock = result.lastBlockIndex;
       }
 
       const nextCursor = result.lastBlockIndex + 1;
@@ -221,30 +275,17 @@ export class InternetComputerStrategy extends RegisterStrategy {
       if (result.rawTransactionCount === 0) break;
     }
 
-    return entries;
+    return { newEntries, highestBlock };
   }
 
-  // --- DB-based block height lookups --- //
-  private async getLastCheckedNativeBlockHeight(depositAddress: BlockchainAddress): Promise<number> {
-    return this.payInRepository
-      .findOne({
-        select: { id: true, blockHeight: true },
-        where: { address: depositAddress, inTxId: Not(Like('%:%')) },
-        order: { blockHeight: 'DESC' },
-        loadEagerRelations: false,
-      })
-      .then((input) => input?.blockHeight ?? 0);
+  // --- Settings-based block height persistence --- //
+  private async getLastScannedBlock(settingKey: string): Promise<number | undefined> {
+    const value = await this.settingService.get(settingKey);
+    return value === undefined ? undefined : Number(value);
   }
 
-  private async getLastCheckedIcrcBlockHeight(canisterId: string): Promise<number> {
-    return this.payInRepository
-      .findOne({
-        select: { id: true, blockHeight: true },
-        where: { inTxId: Like(`${canisterId}:%`) },
-        order: { blockHeight: 'DESC' },
-        loadEagerRelations: false,
-      })
-      .then((input) => input?.blockHeight ?? 0);
+  private async setLastScannedBlock(settingKey: string, blockHeight: number): Promise<void> {
+    await this.settingService.set(settingKey, blockHeight.toString());
   }
 
   private getTxType(resolvedAddress: string): PayInType {
