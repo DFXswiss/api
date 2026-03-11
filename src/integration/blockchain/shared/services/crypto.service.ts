@@ -180,6 +180,7 @@ export class CryptoService {
     if (CryptoService.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
     if (CryptoService.isLightningAddress(address)) return [Blockchain.LIGHTNING];
     if (CryptoService.isSparkAddress(address)) return [Blockchain.SPARK];
+    if (CryptoService.isArkAddress(address)) return [Blockchain.ARK];
     if (CryptoService.isFiroAddress(address)) return [Blockchain.FIRO];
     if (CryptoService.isMoneroAddress(address)) return [Blockchain.MONERO];
     if (CryptoService.isZanoAddress(address)) return [Blockchain.ZANO];
@@ -210,6 +211,10 @@ export class CryptoService {
 
   private static isSparkAddress(address: string): boolean {
     return RegExp(`^(${Config.sparkAddressFormat})$`).test(address);
+  }
+
+  private static isArkAddress(address: string): boolean {
+    return RegExp(`^(${Config.arkAddressFormat})$`).test(address);
   }
 
   public static isFiroAddress(address: string): boolean {

@@ -150,6 +150,7 @@ export class Configuration {
   bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
   lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
   sparkAddressFormat = 'spark1[a-z0-9]{6,250}';
+  arkAddressFormat = 'ark1[a-z0-9]{6,500}';
   firoAddressFormat = 'a[a-zA-HJ-NP-Z0-9]{33}';
   moneroAddressFormat = '[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}';
   ethereumAddressFormat = '0x\\w{40}';
@@ -164,7 +165,7 @@ export class Configuration {
   zanoAddressFormat = 'Z[a-zA-Z0-9]{96}|iZ[a-zA-Z0-9]{106}';
   internetComputerPrincipalFormat = '[a-z0-9]{5}(-[a-z0-9]{5})*(-[a-z0-9]{1,5})?';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.firoAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}|${this.internetComputerPrincipalFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.arkAddressFormat}|${this.firoAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}|${this.internetComputerPrincipalFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
@@ -660,7 +661,7 @@ export class Configuration {
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
 
-    manualMethods: ['TaprootAsset', 'Spark'],
+    manualMethods: ['TaprootAsset', 'Spark', 'Ark'],
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
@@ -904,6 +905,10 @@ export class Configuration {
     },
     spark: {
       sparkWalletSeed: process.env.SPARK_WALLET_SEED,
+    },
+    ark: {
+      arkPrivateKey: process.env.ARK_PRIVATE_KEY,
+      arkServerUrl: process.env.ARK_SERVER_URL ?? 'https://arkade.computer',
     },
     firo: {
       node: {
