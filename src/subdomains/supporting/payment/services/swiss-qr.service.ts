@@ -458,7 +458,6 @@ export class SwissQRService {
     const sellTransactions = tableDataWithType.filter((t) => t.type === TransactionType.SELL);
     const buyTotal = buyTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
     const sellTotal = sellTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
-    const grandTotal = sellTotal - buyTotal;
 
     const rows: PDFRow[] = [];
 
