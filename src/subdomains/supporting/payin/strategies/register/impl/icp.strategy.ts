@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { IcpTransfer, IcpTransferQueryResult } from 'src/integration/blockchain/icp/dto/icp.dto';
 import { InternetComputerUtil } from 'src/integration/blockchain/icp/icp.util';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -15,12 +16,23 @@ import { PayInEntry } from '../../../interfaces';
 import { PayInInternetComputerService } from '../../../services/payin-icp.service';
 import { RegisterStrategy } from './base/register.strategy';
 
-const NATIVE_BATCH_SIZE = 2000;
-const ICRC_BATCH_SIZE = 2000;
+const BATCH_SIZE = 2000;
 const SETTING_KEY = 'icpLastScannedBlocks';
 
 interface IcpScanState {
   [key: string]: number; // asset ID → last scanned block
+}
+
+interface ScanConfig {
+  asset: Asset;
+  label: string;
+  scanState: IcpScanState;
+  persistProgress: boolean;
+  chainLength: number;
+  fromBlock?: number;
+  toBlock?: number;
+  fetchFn: (cursor: number, count: number) => Promise<IcpTransferQueryResult>;
+  matchFn: (transfer: IcpTransfer) => { address: string; txId: string } | undefined;
 }
 
 @Injectable()
@@ -115,79 +127,26 @@ export class InternetComputerStrategy extends RegisterStrategy {
         accountIdMap.set(accountId, principal);
       }
 
-      const stateKey = asset.id.toString();
       const chainLength = toBlock ?? (await this.payInInternetComputerService.getBlockHeight());
-      const lastScanned = persistProgress ? scanState[stateKey] : undefined;
 
-      // Cold start (no setting): scan last batch; explicit fromBlock or existing setting: resume from there
-      const startBlock =
-        fromBlock ?? (lastScanned === undefined ? Math.max(0, chainLength - NATIVE_BATCH_SIZE) : lastScanned + 1);
-      if (startBlock >= chainLength) return [];
-
-      const { newEntries, highestBlock } = await this.fetchNativeTransfersBatched(
+      return await this.scanAndCollect({
         asset,
-        startBlock,
+        label: 'ICP native',
+        scanState,
+        persistProgress,
         chainLength,
-        accountIdMap,
-      );
-
-      if (persistProgress && highestBlock > (lastScanned ?? 0)) {
-        scanState[stateKey] = highestBlock;
-      }
-
-      return newEntries;
+        fromBlock,
+        toBlock,
+        fetchFn: (cursor, count) => this.payInInternetComputerService.getTransfers(cursor, count),
+        matchFn: (transfer) => {
+          const principal = accountIdMap.get(transfer.to);
+          return principal ? { address: principal, txId: transfer.blockIndex.toString() } : undefined;
+        },
+      });
     } catch (e) {
       this.logger.error('Failed to fetch native ICP transfers:', e);
       return [];
     }
-  }
-
-  private async fetchNativeTransfersBatched(
-    asset: Asset,
-    startBlock: number,
-    chainLength: number,
-    accountIdMap: Map<string, string>,
-  ): Promise<{ newEntries: PayInEntry[]; highestBlock: number }> {
-    const newEntries: PayInEntry[] = [];
-    let cursor = startBlock;
-    let highestBlock = startBlock;
-
-    while (cursor < chainLength) {
-      const count = Math.min(NATIVE_BATCH_SIZE, chainLength - cursor);
-      const result = await this.payInInternetComputerService.getTransfers(cursor, count);
-
-      for (const transfer of result.transfers) {
-        const matchedPrincipal = accountIdMap.get(transfer.to);
-        if (!matchedPrincipal) continue;
-
-        newEntries.push({
-          senderAddresses: transfer.from,
-          receiverAddress: BlockchainAddress.create(matchedPrincipal, this.blockchain),
-          txId: transfer.blockIndex.toString(),
-          txType: this.getTxType(matchedPrincipal),
-          blockHeight: transfer.blockIndex,
-          amount: transfer.amount,
-          asset,
-        });
-      }
-
-      if (result.lastBlockIndex > highestBlock) {
-        highestBlock = result.lastBlockIndex;
-      }
-
-      const nextCursor = result.lastBlockIndex + 1;
-
-      if (nextCursor <= cursor) {
-        this.logger.warn(`ICP native: cursor stuck at ${cursor}, skipping to ${cursor + count}`);
-        cursor += count;
-      } else {
-        cursor = nextCursor;
-      }
-
-      if (result.rawTransactionCount === 0) break;
-    }
-
-    return { newEntries, highestBlock };
   }
 
   // --- ICRC token transfers (global ledger, filtered client-side) --- //
@@ -214,31 +173,26 @@ export class InternetComputerStrategy extends RegisterStrategy {
           continue;
         }
 
-        const stateKey = asset.id.toString();
         const decimals = asset.decimals;
         const chainLength = await this.payInInternetComputerService.getIcrcBlockHeight(canisterId);
-        const lastScanned = persistProgress ? scanState[stateKey] : undefined;
 
-        // Cold start (no setting): scan last batch; explicit fromBlock or existing setting: resume from there
-        const startBlock =
-          fromBlock ?? (lastScanned === undefined ? Math.max(0, chainLength - ICRC_BATCH_SIZE) : lastScanned + 1);
-        const endBlock = toBlock ?? chainLength;
-        if (startBlock >= endBlock) continue;
-
-        const { newEntries, highestBlock } = await this.fetchIcrcTransfersBatched(
+        const newEntries = await this.scanAndCollect({
           asset,
-          canisterId,
-          decimals,
-          startBlock,
-          endBlock,
-          principalSet,
-        );
+          label: `ICRC ${asset.name}`,
+          scanState,
+          persistProgress,
+          chainLength,
+          fromBlock,
+          toBlock,
+          fetchFn: (cursor, count) =>
+            this.payInInternetComputerService.getIcrcTransfers(canisterId, decimals, cursor, count),
+          matchFn: (transfer) =>
+            principalSet.has(transfer.to)
+              ? { address: transfer.to, txId: `${canisterId}:${transfer.blockIndex}` }
+              : undefined,
+        });
 
         entries.push(...newEntries);
-
-        if (persistProgress && highestBlock > (lastScanned ?? 0)) {
-          scanState[stateKey] = highestBlock;
-        }
       } catch (e) {
         this.logger.error(`Failed to fetch ICRC transfers for ${asset.uniqueName ?? asset.name}:`, e);
       }
@@ -247,30 +201,60 @@ export class InternetComputerStrategy extends RegisterStrategy {
     return entries;
   }
 
-  private async fetchIcrcTransfersBatched(
+  // --- Scan with cold-start + persistence --- //
+  private async scanAndCollect(config: ScanConfig): Promise<PayInEntry[]> {
+    const { asset, label, scanState, persistProgress, chainLength, fromBlock, toBlock, fetchFn, matchFn } = config;
+    const stateKey = asset.id.toString();
+    const lastScanned = persistProgress ? scanState[stateKey] : undefined;
+
+    // Cold start (no setting): scan last batch; explicit fromBlock or existing setting: resume from there
+    const startBlock =
+      fromBlock ?? (lastScanned === undefined ? Math.max(0, chainLength - BATCH_SIZE) : lastScanned + 1);
+    const endBlock = toBlock ?? chainLength;
+    if (startBlock >= endBlock) return [];
+
+    const { newEntries, highestBlock } = await this.fetchTransfersBatched(
+      asset,
+      label,
+      startBlock,
+      endBlock,
+      fetchFn,
+      matchFn,
+    );
+
+    if (persistProgress && highestBlock > (lastScanned ?? 0)) {
+      scanState[stateKey] = highestBlock;
+    }
+
+    return newEntries;
+  }
+
+  // --- Shared batched scan loop --- //
+  private async fetchTransfersBatched(
     asset: Asset,
-    canisterId: string,
-    decimals: number,
+    label: string,
     startBlock: number,
     chainLength: number,
-    principalSet: Set<string>,
+    fetchFn: (cursor: number, count: number) => Promise<IcpTransferQueryResult>,
+    matchFn: (transfer: IcpTransfer) => { address: string; txId: string } | undefined,
   ): Promise<{ newEntries: PayInEntry[]; highestBlock: number }> {
     const newEntries: PayInEntry[] = [];
     let cursor = startBlock;
     let highestBlock = startBlock;
 
     while (cursor < chainLength) {
-      const count = Math.min(ICRC_BATCH_SIZE, chainLength - cursor);
-      const result = await this.payInInternetComputerService.getIcrcTransfers(canisterId, decimals, cursor, count);
+      const count = Math.min(BATCH_SIZE, chainLength - cursor);
+      const result = await fetchFn(cursor, count);
 
       for (const transfer of result.transfers) {
-        if (!principalSet.has(transfer.to)) continue;
+        const match = matchFn(transfer);
+        if (!match) continue;
 
         newEntries.push({
           senderAddresses: transfer.from,
-          receiverAddress: BlockchainAddress.create(transfer.to, this.blockchain),
-          txId: `${canisterId}:${transfer.blockIndex}`,
-          txType: this.getTxType(transfer.to),
+          receiverAddress: BlockchainAddress.create(match.address, this.blockchain),
+          txId: match.txId,
+          txType: this.getTxType(match.address),
           blockHeight: transfer.blockIndex,
           amount: transfer.amount,
           asset,
@@ -284,7 +268,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
       const nextCursor = result.lastBlockIndex + 1;
 
       if (nextCursor <= cursor) {
-        this.logger.warn(`ICRC ${asset.name}: cursor stuck at ${cursor}, skipping to ${cursor + count}`);
+        this.logger.warn(`${label}: cursor stuck at ${cursor}, skipping to ${cursor + count}`);
         cursor += count;
       } else {
         cursor = nextCursor;
