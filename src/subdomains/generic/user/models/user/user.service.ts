@@ -55,7 +55,7 @@ import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { UpdateMailStatus } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
-import { UserAddressType, UserStatus } from './user.enum';
+import { RefPayoutFrequency, UserAddressType, UserStatus } from './user.enum';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -152,7 +152,9 @@ export class UserService {
   }
 
   async getOpenRefCreditUser(): Promise<User[]> {
-    return this.userRepo
+    const isFirstDayOfMonth = new Date().getDate() === 1;
+
+    const query = this.userRepo
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('user.refAsset', 'refAsset')
@@ -161,8 +163,12 @@ export class UserService {
       .andWhere('userData.status NOT IN (:...userDataStatus)', {
         userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
       })
-      .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED })
-      .getMany();
+      .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED });
+
+    if (!isFirstDayOfMonth)
+      query.andWhere('user.refPayoutFrequency = :frequency', { frequency: RefPayoutFrequency.DAILY });
+
+    return query.getMany();
   }
 
   async getRefUser(ref: string): Promise<User> {
@@ -194,20 +200,25 @@ export class UserService {
   }
 
   async updateRef(userId: number, dto: UpdateRefDto): Promise<ReferralDto> {
-    const [user, refAsset] = await Promise.all([
-      this.userRepo.findOne({ where: { id: userId }, relations: { wallet: true } }),
-      this.assetService.getAssetById(dto.payoutAsset.id),
-    ]);
-
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: { wallet: true } });
     if (!user) throw new NotFoundException('User not found');
-    if (user.addressType !== UserAddressType.EVM)
-      throw new BadRequestException('Ref asset can only be set for EVM addresses');
 
-    if (!refAsset) throw new BadRequestException('Asset not found');
-    if (refAsset.refEnabled === false) throw new BadRequestException('Asset is not enabled for ref payout');
-    if (!user.blockchains.includes(refAsset.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
+    if (dto.payoutAsset) {
+      if (user.addressType !== UserAddressType.EVM)
+        throw new BadRequestException('Ref asset can only be set for EVM addresses');
 
-    user.refAsset = refAsset;
+      const refAsset = await this.assetService.getAssetById(dto.payoutAsset.id);
+      if (!refAsset) throw new BadRequestException('Asset not found');
+      if (refAsset.refEnabled === false) throw new BadRequestException('Asset is not enabled for ref payout');
+      if (!user.blockchains.includes(refAsset.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
+
+      user.refAsset = refAsset;
+    }
+
+    if (dto.payoutFrequency) {
+      user.refPayoutFrequency = dto.payoutFrequency;
+    }
+
     const savedUser = await this.userRepo.save(user);
 
     return this.mapRefDtoV2(savedUser);

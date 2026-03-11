@@ -27,6 +27,11 @@ export enum UserAddressType {
   OTHER = 'Other',
 }
 
+export enum RefPayoutFrequency {
+  DAILY = 'Daily',
+  MONTHLY = 'Monthly',
+}
+
 export enum WalletType {
   METAMASK = 'MetaMask',
   RABBY = 'Rabby',

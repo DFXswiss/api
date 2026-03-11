@@ -56,6 +56,22 @@ export class SparkClient extends BlockchainClient {
     this.cachedAddress = new AsyncField(() => this.wallet.then((w) => w.getSparkAddress()), true);
   }
 
+  private async call<T>(operation: (wallet: SparkWallet) => Promise<T>): Promise<T> {
+    try {
+      const wallet = await this.wallet;
+      return await operation(wallet);
+    } catch (e) {
+      if (e?.message?.includes('Channel has been shut down')) {
+        this.logger.info('Spark channel shut down, reinitializing wallet...');
+        this.wallet.reset();
+        this.cachedAddress.reset();
+        const wallet = await this.wallet;
+        return operation(wallet);
+      }
+      throw e;
+    }
+  }
+
   get walletAddress(): string {
     return this.cachedAddress.value;
   }
@@ -63,44 +79,43 @@ export class SparkClient extends BlockchainClient {
   // --- TRANSACTION METHODS --- //
 
   async sendTransaction(to: string, amount: number): Promise<{ txid: string; fee: number }> {
-    const wallet = await this.wallet;
+    return this.call(async (wallet) => {
+      const amountSats = Math.round(amount * 1e8);
 
-    await this.syncLeaves(wallet);
+      await this.syncLeaves(wallet);
 
-    const amountSats = Math.round(amount * 1e8);
+      const result = await wallet.transfer({
+        amountSats,
+        receiverSparkAddress: to,
+      });
 
-    const result = await wallet.transfer({
-      amountSats,
-      receiverSparkAddress: to,
+      return { txid: result.id, fee: 0 };
     });
-
-    return { txid: result.id, fee: 0 };
   }
 
   async getTransaction(txId: string): Promise<SparkTransaction> {
-    const wallet = await this.wallet;
+    return this.call(async (wallet) => {
+      await this.syncLeaves(wallet);
 
-    await this.syncLeaves(wallet);
+      const transfer = await wallet.getTransfer(txId);
 
-    const transfer = await wallet.getTransfer(txId);
+      if (!transfer) {
+        throw new Error(`Transaction ${txId} not found`);
+      }
 
-    if (!transfer) {
-      throw new Error(`Transaction ${txId} not found`);
-    }
+      // Outgoing: complete once sender key is tweaked (funds left our wallet)
+      // Incoming: complete once receiver has claimed
+      const isConfirmed = ['TRANSFER_STATUS_SENDER_KEY_TWEAKED', 'TRANSFER_STATUS_COMPLETED'].includes(transfer.status);
 
-    // Outgoing: complete once sender key is tweaked (funds left our wallet)
-    // Incoming: complete once receiver has claimed
-    const isConfirmed =
-      transfer.status === 'TRANSFER_STATUS_SENDER_KEY_TWEAKED' || transfer.status === 'TRANSFER_STATUS_COMPLETED';
-
-    return {
-      txid: transfer.id,
-      blockhash: isConfirmed ? 'confirmed' : undefined,
-      confirmations: isConfirmed ? 1 : 0,
-      time: transfer.createdTime ? Math.floor(transfer.createdTime.getTime() / 1000) : undefined,
-      blocktime: transfer.updatedTime ? Math.floor(transfer.updatedTime.getTime() / 1000) : undefined,
-      fee: 0,
-    };
+      return {
+        txid: transfer.id,
+        blockhash: isConfirmed ? 'confirmed' : undefined,
+        confirmations: isConfirmed ? 1 : 0,
+        time: transfer.createdTime ? Math.floor(transfer.createdTime.getTime() / 1000) : undefined,
+        blocktime: transfer.updatedTime ? Math.floor(transfer.updatedTime.getTime() / 1000) : undefined,
+        fee: 0,
+      };
+    });
   }
 
   async getTransfers(limit = 100, offset = 0): Promise<SparkTransfer[]> {
@@ -192,8 +207,7 @@ export class SparkClient extends BlockchainClient {
 
   async isHealthy(): Promise<boolean> {
     try {
-      const wallet = await this.wallet;
-      return wallet != null;
+      return await this.call(async (wallet) => wallet != null);
     } catch {
       return false;
     }
@@ -202,13 +216,13 @@ export class SparkClient extends BlockchainClient {
   // --- BLOCKCHAIN CLIENT INTERFACE --- //
 
   async getNativeCoinBalance(): Promise<number> {
-    const wallet = await this.wallet;
+    return this.call(async (wallet) => {
+      const { balance } = await wallet.getBalance();
 
-    await this.syncLeaves(wallet);
+      await this.syncLeaves(wallet);
 
-    const { balance } = await wallet.getBalance();
-
-    return Number(balance) / 1e8;
+      return Number(balance) / 1e8;
+    });
   }
 
   async getNativeCoinBalanceForAddress(_address: string): Promise<number> {

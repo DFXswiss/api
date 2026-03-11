@@ -941,7 +941,7 @@ export class RealUnitService {
       depositAddress: sellPaymentInfo.depositAddress,
       amount: sellPaymentInfo.amount,
       tokenAddress: realuAsset.chainId,
-      chainId: EvmUtil.getChainId(realuAsset.blockchain),
+      chainId: realuAsset.evmChainId,
 
       // Fee Info
       fees: sellPaymentInfo.fees,

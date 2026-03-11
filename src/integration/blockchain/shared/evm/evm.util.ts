@@ -57,6 +57,13 @@ export class EvmUtil {
     return this.blockchainToChainIdMap.get(blockchain);
   }
 
+  static getBlockchain(chainId: number): Blockchain | undefined {
+    for (const [blockchain, id] of this.blockchainToChainIdMap.entries()) {
+      if (id === chainId) return blockchain;
+    }
+    return undefined;
+  }
+
   static createWallet({ seed, index }: WalletAccount, provider?: ethers.providers.JsonRpcProvider): ethers.Wallet {
     const wallet = ethers.Wallet.fromMnemonic(seed, this.getPathFor(index));
     return provider ? wallet.connect(provider) : wallet;
