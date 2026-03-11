@@ -17,8 +17,12 @@ import { RegisterStrategy } from './base/register.strategy';
 
 const NATIVE_BATCH_SIZE = 2000;
 const ICRC_BATCH_SIZE = 2000;
-const SETTING_ICP_NATIVE_BLOCK = 'icpLastScannedBlock';
-const SETTING_ICP_ICRC_BLOCK_PREFIX = 'icpLastScannedBlock:';
+const SETTING_KEY = 'icpLastScannedBlocks';
+const NATIVE_BLOCK_KEY = 'native';
+
+interface IcpScanState {
+  [key: string]: number; // 'native' or canisterId → last scanned block
+}
 
 @Injectable()
 export class InternetComputerStrategy extends RegisterStrategy {
@@ -70,13 +74,25 @@ export class InternetComputerStrategy extends RegisterStrategy {
   ): Promise<void> {
     const log = this.createNewLogObject();
 
-    const nativeEntries = await this.getNativeEntries(depositAddresses, persistProgress, fromBlock, toBlock);
-    const icrcEntries = await this.getIcrcTokenEntries(depositAddresses, persistProgress, fromBlock, toBlock);
+    const scanState = persistProgress ? await this.getScanState() : {};
+
+    const nativeEntries = await this.getNativeEntries(depositAddresses, scanState, persistProgress, fromBlock, toBlock);
+    const icrcEntries = await this.getIcrcTokenEntries(
+      depositAddresses,
+      scanState,
+      persistProgress,
+      fromBlock,
+      toBlock,
+    );
 
     const newEntries = [...nativeEntries, ...icrcEntries];
 
     if (newEntries.length) {
       await this.createPayInsAndSave(newEntries, log);
+    }
+
+    if (persistProgress) {
+      await this.saveScanState(scanState);
     }
 
     this.printInputLog(log, 'omitted', this.blockchain);
@@ -85,6 +101,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
   // --- Native ICP (global query_blocks scan) --- //
   private async getNativeEntries(
     depositAddresses: string[],
+    scanState: IcpScanState,
     persistProgress: boolean,
     fromBlock?: number,
     toBlock?: number,
@@ -100,7 +117,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
       }
 
       const chainLength = toBlock ?? (await this.payInInternetComputerService.getBlockHeight());
-      const lastScanned = persistProgress ? await this.getLastScannedBlock(SETTING_ICP_NATIVE_BLOCK) : undefined;
+      const lastScanned = persistProgress ? scanState[NATIVE_BLOCK_KEY] : undefined;
 
       // Cold start (no setting): scan last batch; explicit fromBlock or existing setting: resume from there
       const startBlock =
@@ -115,7 +132,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
       );
 
       if (persistProgress && highestBlock > (lastScanned ?? 0)) {
-        await this.setLastScannedBlock(SETTING_ICP_NATIVE_BLOCK, highestBlock);
+        scanState[NATIVE_BLOCK_KEY] = highestBlock;
       }
 
       return newEntries;
@@ -176,6 +193,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
   // --- ICRC token transfers (global ledger, filtered client-side) --- //
   private async getIcrcTokenEntries(
     depositAddresses: string[],
+    scanState: IcpScanState,
     persistProgress: boolean,
     fromBlock?: number,
     toBlock?: number,
@@ -196,10 +214,9 @@ export class InternetComputerStrategy extends RegisterStrategy {
           continue;
         }
 
-        const settingKey = SETTING_ICP_ICRC_BLOCK_PREFIX + canisterId;
         const decimals = asset.decimals;
         const chainLength = await this.payInInternetComputerService.getIcrcBlockHeight(canisterId);
-        const lastScanned = persistProgress ? await this.getLastScannedBlock(settingKey) : undefined;
+        const lastScanned = persistProgress ? scanState[canisterId] : undefined;
 
         // Cold start (no setting): scan last batch; explicit fromBlock or existing setting: resume from there
         const startBlock =
@@ -219,7 +236,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
         entries.push(...newEntries);
 
         if (persistProgress && highestBlock > (lastScanned ?? 0)) {
-          await this.setLastScannedBlock(settingKey, highestBlock);
+          scanState[canisterId] = highestBlock;
         }
       } catch (e) {
         this.logger.error(`Failed to fetch ICRC transfers for ${asset.uniqueName ?? asset.name}:`, e);
@@ -279,13 +296,12 @@ export class InternetComputerStrategy extends RegisterStrategy {
   }
 
   // --- Settings-based block height persistence --- //
-  private async getLastScannedBlock(settingKey: string): Promise<number | undefined> {
-    const value = await this.settingService.get(settingKey);
-    return value === undefined ? undefined : Number(value);
+  private async getScanState(): Promise<IcpScanState> {
+    return (await this.settingService.getObj<IcpScanState>(SETTING_KEY)) ?? {};
   }
 
-  private async setLastScannedBlock(settingKey: string, blockHeight: number): Promise<void> {
-    await this.settingService.set(settingKey, blockHeight.toString());
+  private async saveScanState(state: IcpScanState): Promise<void> {
+    await this.settingService.setObj<IcpScanState>(SETTING_KEY, state);
   }
 
   private getTxType(resolvedAddress: string): PayInType {
