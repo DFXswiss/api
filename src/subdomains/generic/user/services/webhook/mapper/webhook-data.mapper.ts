@@ -1,4 +1,3 @@
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import {
   BuyCryptoExtended,
@@ -33,16 +32,9 @@ export class WebhookDataMapper {
   }
 
   static mapCryptoFiatData(payment: BuyFiatExtended): PaymentWebhookData {
-    const inputAsset = payment.inputAssetEntity as Asset;
-
     return {
       ...TransactionDtoMapper.mapBuyFiatTransactionDetail(payment),
       dfxReference: payment.id,
-      sourceChainId: inputAsset.chainId,
-      destinationChainId: null,
-      sourceEvmChainId: inputAsset.evmChainId ?? null,
-      destinationEvmChainId: null,
-      depositAddress: payment.cryptoInput?.address?.address ?? null,
     };
   }
 
@@ -50,40 +42,20 @@ export class WebhookDataMapper {
     return {
       ...TransactionDtoMapper.mapBuyFiatTransactionDetail(payment),
       dfxReference: payment.id,
-      sourceChainId: null,
-      destinationChainId: null,
-      sourceEvmChainId: null,
-      destinationEvmChainId: null,
-      depositAddress: null,
     };
   }
 
   static mapCryptoCryptoData(payment: BuyCryptoExtended): PaymentWebhookData {
-    const inputAsset = payment.inputAssetEntity as Asset;
-    const outputAsset = payment.outputAsset;
-
     return {
       ...TransactionDtoMapper.mapBuyCryptoTransactionDetail(payment),
       dfxReference: payment.id,
-      sourceChainId: inputAsset.chainId,
-      destinationChainId: outputAsset?.chainId ?? null,
-      sourceEvmChainId: inputAsset.evmChainId ?? null,
-      destinationEvmChainId: outputAsset?.evmChainId ?? null,
-      depositAddress: payment.cryptoInput?.address?.address ?? null,
     };
   }
 
   static mapFiatCryptoData(payment: BuyCryptoExtended): PaymentWebhookData {
-    const outputAsset = payment.outputAsset;
-
     return {
       ...TransactionDtoMapper.mapBuyCryptoTransactionDetail(payment),
       dfxReference: payment.id,
-      sourceChainId: null,
-      destinationChainId: outputAsset?.chainId ?? null,
-      sourceEvmChainId: null,
-      destinationEvmChainId: outputAsset?.evmChainId ?? null,
-      depositAddress: null,
     };
   }
 

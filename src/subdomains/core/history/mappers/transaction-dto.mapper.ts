@@ -109,10 +109,18 @@ export class TransactionDtoMapper {
   }
 
   static mapBuyCryptoTransactionDetail(buyCrypto: BuyCryptoExtended): TransactionDetailDto {
+    const inputAsset = isAsset(buyCrypto.inputAssetEntity) ? buyCrypto.inputAssetEntity : null;
+    const outputAsset = buyCrypto.outputAsset;
+
     return {
       ...this.mapBuyCryptoTransaction(buyCrypto),
       sourceAccount: buyCrypto.bankTx?.iban,
       targetAccount: buyCrypto.user?.address,
+      sourceChainId: inputAsset?.chainId ?? null,
+      destinationChainId: outputAsset?.chainId ?? null,
+      sourceEvmChainId: inputAsset?.evmChainId ?? null,
+      destinationEvmChainId: outputAsset?.evmChainId ?? null,
+      depositAddress: buyCrypto.cryptoInput?.address?.address ?? null,
     };
   }
 
@@ -172,10 +180,17 @@ export class TransactionDtoMapper {
   }
 
   static mapBuyFiatTransactionDetail(buyFiat: BuyFiatExtended): TransactionDetailDto {
+    const inputAsset = isAsset(buyFiat.inputAssetEntity) ? buyFiat.inputAssetEntity : null;
+
     return {
       ...this.mapBuyFiatTransaction(buyFiat),
       sourceAccount: null,
       targetAccount: buyFiat.bankTx?.iban,
+      sourceChainId: inputAsset?.chainId ?? null,
+      destinationChainId: null,
+      sourceEvmChainId: inputAsset?.evmChainId ?? null,
+      destinationEvmChainId: null,
+      depositAddress: buyFiat.cryptoInput?.address?.address ?? null,
     };
   }
 
@@ -225,10 +240,18 @@ export class TransactionDtoMapper {
   }
 
   static mapTxRequestTransactionDetail(txRequest: TransactionRequestExtended): TransactionDetailDto {
+    const sourceAsset = isAsset(txRequest.sourceAssetEntity) ? txRequest.sourceAssetEntity : null;
+    const targetAsset = isAsset(txRequest.targetAssetEntity) ? txRequest.targetAssetEntity : null;
+
     return {
       ...this.mapTxRequestTransaction(txRequest),
       sourceAccount: null,
       targetAccount: txRequest.route.targetAccount,
+      sourceChainId: sourceAsset?.chainId ?? null,
+      destinationChainId: targetAsset?.chainId ?? null,
+      sourceEvmChainId: sourceAsset?.evmChainId ?? null,
+      destinationEvmChainId: targetAsset?.evmChainId ?? null,
+      depositAddress: null,
     };
   }
 
@@ -286,6 +309,11 @@ export class TransactionDtoMapper {
       ...this.mapReferralReward(refReward),
       sourceAccount: null,
       targetAccount: refReward.user?.address,
+      sourceChainId: null,
+      destinationChainId: refReward.outputAsset?.chainId ?? null,
+      sourceEvmChainId: null,
+      destinationEvmChainId: refReward.outputAsset?.evmChainId ?? null,
+      depositAddress: null,
     };
   }
 
