@@ -7,8 +7,8 @@ import { TronService } from 'src/integration/blockchain/tron/services/tron.servi
 import { TatumWebhookService } from 'src/integration/tatum/services/tatum-webhook.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/deposit.service';
-import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { PayInBitcoinService } from '../../../services/payin-bitcoin.service';
 import { PayInInternetComputerService } from '../../../services/payin-icp.service';
 import { PayInMoneroService } from '../../../services/payin-monero.service';
@@ -83,11 +83,7 @@ describe('RegisterStrategyRegistry', () => {
     (ConfigModule as Record<string, unknown>).Config = { payment: { internetComputerSeed: 'test' } };
     jest.spyOn(InternetComputerUtil, 'createWallet').mockReturnValue({ address: 'test-principal' } as never);
     jest.spyOn(InternetComputerUtil, 'accountIdentifier').mockReturnValue('test-account-id');
-    icpStrategy = new IcpStrategy(
-      mock<PayInInternetComputerService>(),
-      mock<TransactionRequestService>(),
-      mock<DepositService>(),
-    );
+    icpStrategy = new IcpStrategy(mock<PayInInternetComputerService>(), mock<DepositService>(), mock<SettingService>());
 
     registry = new RegisterStrategyRegistryWrapper(
       bitcoinStrategy,
