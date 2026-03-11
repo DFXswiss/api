@@ -248,14 +248,6 @@ export class TransactionDto extends UnassignedTransactionDto {
 
   @ApiPropertyOptional({ type: NetworkStartTxDto })
   networkStartTx?: NetworkStartTxDto;
-}
-
-export class TransactionDetailDto extends TransactionDto {
-  @ApiPropertyOptional()
-  sourceAccount?: string;
-
-  @ApiPropertyOptional()
-  targetAccount?: string;
 
   @ApiPropertyOptional({ description: 'Contract address of the source asset (for tokens)' })
   sourceChainId?: string;
@@ -271,6 +263,14 @@ export class TransactionDetailDto extends TransactionDto {
 
   @ApiPropertyOptional({ description: 'Deposit address for crypto input transactions' })
   depositAddress?: string;
+}
+
+export class TransactionDetailDto extends TransactionDto {
+  @ApiPropertyOptional()
+  sourceAccount?: string;
+
+  @ApiPropertyOptional()
+  targetAccount?: string;
 }
 
 export class TransactionTarget {
