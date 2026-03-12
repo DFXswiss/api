@@ -8,7 +8,6 @@ import {
   IsObject,
   IsOptional,
   IsString,
-  ValidateIf,
   ValidateNested,
 } from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
@@ -46,16 +45,9 @@ export class UpdateUserDto {
   preferredPhoneTimes?: PhoneCallPreferredTime[];
 
   @ApiPropertyOptional()
-  @IsNotEmpty()
-  @ValidateIf((a: UpdateUserDto) => Boolean(a.rejectPhoneCall || !a.repeatPhoneCall))
+  @IsOptional()
   @IsBoolean()
-  rejectPhoneCall?: boolean;
-
-  @ApiPropertyOptional()
-  @IsNotEmpty()
-  @ValidateIf((a: UpdateUserDto) => Boolean(a.repeatPhoneCall || !a.rejectPhoneCall))
-  @IsBoolean()
-  repeatPhoneCall?: boolean;
+  acceptCall?: boolean;
 }
 
 export class UpdateUserMailDto {

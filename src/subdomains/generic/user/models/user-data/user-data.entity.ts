@@ -508,10 +508,10 @@ export class UserData extends IEntity {
       language: dto.language ?? this.language,
       currency: dto.currency ?? this.currency,
       phoneCallTimes: dto.preferredPhoneTimes ? dto.preferredPhoneTimes.join(';') : undefined,
-      phoneCallStatus: dto.rejectPhoneCall
-        ? PhoneCallStatus.USER_REJECTED
-        : dto.repeatPhoneCall
-          ? PhoneCallStatus.REPEAT
+      phoneCallStatus: dto.acceptCall
+        ? PhoneCallStatus.REPEAT
+        : dto.acceptCall === false
+          ? PhoneCallStatus.USER_REJECTED
           : undefined,
     };
 

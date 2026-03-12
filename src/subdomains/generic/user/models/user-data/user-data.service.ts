@@ -757,7 +757,7 @@ export class UserDataService {
     if (
       userData.phoneCallStatus &&
       userData.phoneCallStatus !== PhoneCallStatus.UNAVAILABLE &&
-      (dto.rejectPhoneCall || dto.repeatPhoneCall)
+      (dto.acceptCall || dto.acceptCall === false)
     )
       throw new BadRequestException('Phone call status is already set');
 
