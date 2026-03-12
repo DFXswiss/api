@@ -41,6 +41,8 @@ import {
   LegalEntity,
   LimitPeriod,
   Moderator,
+  PhoneCallPreferredTime,
+  PhoneCallStatus,
   RiskStatus,
   SignatoryPower,
   UserDataStatus,
@@ -245,6 +247,12 @@ export class UserData extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   phoneCallIpCountryCheckDate?: Date;
+
+  @Column({ length: 256, nullable: true })
+  phoneCallTimes: string; // PhoneCallPreferredTimes array
+
+  @Column({ length: 256, nullable: true })
+  phoneCallStatus: PhoneCallStatus;
 
   @Column({ type: 'datetime2', nullable: true })
   tradeApprovalDate?: Date;
@@ -498,11 +506,21 @@ export class UserData extends IEntity {
     const update: Partial<UserData> = {
       language: dto.language ?? this.language,
       currency: dto.currency ?? this.currency,
+      phoneCallTimes: dto.preferredPhoneTimes ? dto.preferredPhoneTimes.join(';') : undefined,
+      phoneCallStatus: dto.acceptCall
+        ? PhoneCallStatus.REPEAT
+        : dto.acceptCall === false
+          ? PhoneCallStatus.USER_REJECTED
+          : undefined,
     };
 
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  get phoneCallTimesObject(): PhoneCallPreferredTime[] {
+    return this.phoneCallTimes ? (this.phoneCallTimes?.split(';') as PhoneCallPreferredTime[]) : [];
   }
 
   get hasValidNameCheckDate(): boolean {

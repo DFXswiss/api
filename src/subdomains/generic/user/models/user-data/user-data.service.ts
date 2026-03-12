@@ -66,7 +66,7 @@ import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
 import { UserData } from './user-data.entity';
-import { KycLevel, TradeApprovalReason, UserDataStatus } from './user-data.enum';
+import { KycLevel, PhoneCallStatus, TradeApprovalReason, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -841,6 +841,15 @@ export class UserDataService {
       dto.currency = await this.fiatService.getFiat(dto.currency.id);
       if (!dto.currency) throw new BadRequestException('Currency not found');
     }
+
+    if (
+      userData.phoneCallStatus &&
+      ![PhoneCallStatus.UNAVAILABLE, PhoneCallStatus.USER_REJECTED, PhoneCallStatus.REPEAT].includes(
+        userData.phoneCallStatus,
+      ) &&
+      (dto.acceptCall || dto.acceptCall === false)
+    )
+      throw new BadRequestException('Phone call status is already set');
 
     // check phone
     if (dto.phone && dto.phone !== userData.phone) {

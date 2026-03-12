@@ -64,7 +64,7 @@ export class Recommendation extends IEntity {
   }
 
   get url(): string {
-    return `${Config.frontend.services}/recommendation`;
+    return `${Config.frontend.services}/account?a=recommendation`;
   }
 
   get loginUrl(): string {

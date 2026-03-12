@@ -16,6 +16,7 @@ import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
 import { CustomerAuthor } from './entities/support-message.entity';
 import { Department } from './enums/department.enum';
+import { SupportIssueType } from './enums/support-issue.enum';
 import { SupportIssueService } from './services/support-issue.service';
 
 @ApiTags('Support')
@@ -30,7 +31,14 @@ export class SupportIssueController {
     @GetJwt() jwt: JwtPayload | undefined,
     @Body() dto: CreateSupportIssueDto,
   ): Promise<SupportIssueDto> {
-    const input: CreateSupportIssueDto = { ...dto, author: CustomerAuthor, department: Department.SUPPORT };
+    const input: CreateSupportIssueDto = {
+      ...dto,
+      author: CustomerAuthor,
+      department:
+        dto.type === SupportIssueType.VERIFICATION_CALL || dto.limitRequest
+          ? Department.COMPLIANCE
+          : Department.SUPPORT,
+    };
     return jwt?.account
       ? this.supportIssueService.createIssue(jwt.account, input)
       : this.supportIssueService.createTransactionRequestIssue(input);
