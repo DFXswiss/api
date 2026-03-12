@@ -1,26 +1,39 @@
 import { Injectable } from '@nestjs/common';
-import { IcpTransferQueryResult } from 'src/integration/blockchain/icp/dto/icp.dto';
+import { IcpTransfer, IcpTransferQueryResult } from 'src/integration/blockchain/icp/dto/icp.dto';
+import { InternetComputerClient } from 'src/integration/blockchain/icp/icp-client';
 import { InternetComputerService } from 'src/integration/blockchain/icp/services/icp.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 
 @Injectable()
 export class PayInInternetComputerService {
-  constructor(private readonly internetComputerService: InternetComputerService) {}
+  private readonly client: InternetComputerClient;
+
+  constructor(internetComputerService: InternetComputerService) {
+    this.client = internetComputerService.getDefaultClient();
+  }
 
   getWalletAddress(): string {
-    return this.internetComputerService.getWalletAddress();
+    return this.client.walletAddress;
   }
 
   async getBlockHeight(): Promise<number> {
-    return this.internetComputerService.getBlockHeight();
+    return this.client.getBlockHeight();
   }
 
   async getTransfers(start: number, count: number): Promise<IcpTransferQueryResult> {
-    return this.internetComputerService.getTransfers(start, count);
+    return this.client.getTransfers(start, count);
+  }
+
+  async getNativeTransfersForAddress(
+    accountIdentifier: string,
+    maxBlock?: number,
+    limit?: number,
+  ): Promise<IcpTransfer[]> {
+    return this.client.getNativeTransfersForAddress(accountIdentifier, maxBlock, limit);
   }
 
   async getIcrcBlockHeight(canisterId: string): Promise<number> {
-    return this.internetComputerService.getIcrcBlockHeight(canisterId);
+    return this.client.getIcrcBlockHeight(canisterId);
   }
 
   async getIcrcTransfers(
@@ -29,27 +42,27 @@ export class PayInInternetComputerService {
     start: number,
     count: number,
   ): Promise<IcpTransferQueryResult> {
-    return this.internetComputerService.getIcrcTransfers(canisterId, decimals, start, count);
+    return this.client.getIcrcTransfers(canisterId, decimals, start, count);
   }
 
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
-    return this.internetComputerService.getNativeCoinBalanceForAddress(address);
+    return this.client.getNativeCoinBalanceForAddress(address);
   }
 
   async getTokenBalance(asset: Asset, address: string): Promise<number> {
-    return this.internetComputerService.getTokenBalance(asset, address);
+    return this.client.getTokenBalance(asset, address);
   }
 
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    return this.internetComputerService.getCurrentGasCostForCoinTransaction();
+    return this.client.getCurrentGasCostForCoinTransaction();
   }
 
   async sendNativeCoinFromDepositWallet(accountIndex: number, toAddress: string, amount: number): Promise<string> {
-    return this.internetComputerService.sendNativeCoinFromDepositWallet(accountIndex, toAddress, amount);
+    return this.client.sendNativeCoinFromDepositWallet(accountIndex, toAddress, amount);
   }
 
   async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
-    return this.internetComputerService.getCurrentGasCostForTokenTransaction(token);
+    return this.client.getCurrentGasCostForTokenTransaction(token);
   }
 
   async sendTokenFromDepositWallet(
@@ -58,10 +71,10 @@ export class PayInInternetComputerService {
     token: Asset,
     amount: number,
   ): Promise<string> {
-    return this.internetComputerService.sendTokenFromDepositWallet(accountIndex, toAddress, token, amount);
+    return this.client.sendTokenFromDepositWallet(accountIndex, toAddress, token, amount);
   }
 
   async checkTransactionCompletion(blockIndex: string, _minConfirmations?: number): Promise<boolean> {
-    return this.internetComputerService.isTxComplete(blockIndex);
+    return this.client.isTxComplete(blockIndex);
   }
 }

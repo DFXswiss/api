@@ -8,6 +8,8 @@ import { LiquidityOrderRepository } from '../repositories/liquidity-order.reposi
 
 @Injectable()
 export class DexLightningService {
+  private static readonly ROUTING_RESERVE_FACTOR = 0.99; // 1% reserve for routing fees
+
   private readonly lightningClient: LightningClient;
 
   constructor(
@@ -21,7 +23,7 @@ export class DexLightningService {
     const pendingAmount = await this.getPendingAmount();
     const availableAmount = await this.lightningClient.getAvailableBalance();
 
-    return [inputAmount, availableAmount - pendingAmount];
+    return [inputAmount, availableAmount * DexLightningService.ROUTING_RESERVE_FACTOR - pendingAmount];
   }
 
   private async getPendingAmount(): Promise<number> {

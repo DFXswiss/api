@@ -261,6 +261,10 @@ export class LogJobService {
     const pendingPayIns = await this.payInService.getPendingPayIns();
     const pendingBuyFiat = await this.buyFiatService.getPendingTransactions();
     const pendingBuyCrypto = await this.buyCryptoService.getPendingTransactions();
+    const payoutSentBuyCryptoIds = await this.payoutService.getRecentPayoutSentCorrelationIds(
+      PayoutOrderContext.BUY_CRYPTO,
+    );
+    const filteredPendingBuyCrypto = pendingBuyCrypto.filter((tx) => !payoutSentBuyCryptoIds.has(tx.id.toString()));
     const pendingBankTx = await this.bankTxService.getPendingTx();
     const pendingBankTxRepeat = await this.bankTxRepeatService.getPendingTx();
     const pendingBankTxReturn = await this.bankTxReturnService.getPendingTx();
@@ -793,7 +797,7 @@ export class LogJobService {
       }
 
       // total pending balance
-      const totalPlusPending =
+      let totalPlusPending =
         cryptoInput +
         exchangeOrder +
         bridgeOrder +
@@ -803,13 +807,26 @@ export class LogJobService {
         (useUnfilteredTx ? fromScryptUnfiltered : fromScrypt) +
         (useUnfilteredTx ? toScryptUnfiltered : toScrypt);
 
+      // Clamp totalPlusPending to prevent negative plus balances
+      // This catches any negative values from unfiltered Kraken/Scrypt or other components
+      if (totalPlusPending < 0) {
+        errors.push(`totalPlusPending < 0`);
+        this.logger.verbose(
+          `Error in financial log, totalPlusPending < 0 for asset: ${curr.id}, totalPlusPending: ${totalPlusPending}. ` +
+            `Components: cryptoInput=${cryptoInput}, exchangeOrder=${exchangeOrder}, bridgeOrder=${bridgeOrder}, ` +
+            `olky=${pendingOlkyYapealAmount}, kraken=${useUnfilteredTx ? fromKrakenUnfiltered : fromKraken}+${useUnfilteredTx ? toKrakenUnfiltered : toKraken}, ` +
+            `scrypt=${useUnfilteredTx ? fromScryptUnfiltered : fromScrypt}+${useUnfilteredTx ? toScryptUnfiltered : toScrypt}`,
+        );
+        totalPlusPending = 0;
+      }
+
       const totalPlus = liquidity + totalPlusPending + (totalCustomBalance ?? 0);
 
       // minus
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       const { input: buyFiat, output: buyFiatPass } = this.getPendingAmounts([curr], pendingBuyFiat);
-      const { input: buyCrypto, output: buyCryptoPass } = this.getPendingAmounts([curr], pendingBuyCrypto);
+      const { input: buyCrypto, output: buyCryptoPass } = this.getPendingAmounts([curr], filteredPendingBuyCrypto);
 
       const bankTxNull = this.getPendingAmounts(
         [curr],

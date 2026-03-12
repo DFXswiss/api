@@ -12,6 +12,7 @@ export interface IcpTransferQueryResult {
   transfers: IcpTransfer[];
   lastBlockIndex: number;
   chainLength: number;
+  rawTransactionCount: number;
 }
 
 // --- Candid query_blocks response types (ICP native ledger) ---
@@ -63,6 +64,31 @@ export interface CandidIcrcGetTransactionsResponse {
   first_index: bigint;
   log_length: bigint;
   transactions: CandidIcrcTransaction[];
+}
+
+// --- Rosetta API response types ---
+
+export interface RosettaTransactionsResponse {
+  transactions: RosettaTransactionEntry[];
+  total_count: number;
+  next_offset?: number;
+}
+
+export interface RosettaTransactionEntry {
+  block_identifier: { index: number; hash: string };
+  transaction: {
+    transaction_identifier: { hash: string };
+    operations: RosettaOperation[];
+    metadata: { block_height: number; memo: number; timestamp: number };
+  };
+}
+
+export interface RosettaOperation {
+  operation_identifier: { index: number };
+  type: string;
+  status: string;
+  account: { address: string };
+  amount?: { value: string; currency: { symbol: string; decimals: number } };
 }
 
 // --- Typed raw ledger interfaces (for Actor.createActor results) ---

@@ -1,6 +1,9 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
+import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
+import { InternetComputerClient } from 'src/integration/blockchain/icp/icp-client';
 import { InternetComputerUtil } from 'src/integration/blockchain/icp/icp.util';
 import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -10,7 +13,6 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { SolanaClient } from 'src/integration/blockchain/solana/solana-client';
 import { SolanaUtil } from 'src/integration/blockchain/solana/solana.util';
-import { InternetComputerClient } from 'src/integration/blockchain/icp/icp-client';
 import { TronClient } from 'src/integration/blockchain/tron/tron-client';
 import { TronUtil } from 'src/integration/blockchain/tron/tron.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -46,6 +48,7 @@ export class PaymentBalanceService implements OnModuleInit {
   constructor(
     private readonly assetService: AssetService,
     private readonly blockchainRegistryService: BlockchainRegistryService,
+    private readonly bitcoinFeeService: BitcoinFeeService,
   ) {}
 
   onModuleInit() {
@@ -161,7 +164,7 @@ export class PaymentBalanceService implements OnModuleInit {
   }
 
   async forwardDeposits() {
-    const chainsWithoutForwarding = [Blockchain.BITCOIN, Blockchain.FIRO, ...this.chainsWithoutPaymentBalance];
+    const chainsWithoutForwarding = [Blockchain.FIRO, ...this.chainsWithoutPaymentBalance];
 
     const paymentAssets = await this.assetService
       .getPaymentAssets()
@@ -181,16 +184,51 @@ export class PaymentBalanceService implements OnModuleInit {
   }
 
   private async forwardDeposit(asset: Asset, balance: number): Promise<string> {
+    if (asset.blockchain === Blockchain.BITCOIN) {
+      return this.forwardBitcoinDeposit();
+    }
+
+    if (asset.blockchain === Blockchain.INTERNET_COMPUTER) {
+      return this.forwardInternetComputerDeposit(asset, balance);
+    }
+
     const account = this.getPaymentAccount(asset.blockchain);
-    const client = this.blockchainRegistryService.getClient(asset.blockchain) as
-      | EvmClient
-      | SolanaClient
-      | TronClient
-      | InternetComputerClient;
+    const client = this.blockchainRegistryService.getClient(asset.blockchain) as EvmClient | SolanaClient | TronClient;
 
     return asset.type === AssetType.COIN
       ? client.sendNativeCoinFromAccount(account, client.walletAddress, balance)
       : client.sendTokenFromAccount(account, client.walletAddress, asset, balance);
+  }
+
+  private async forwardInternetComputerDeposit(asset: Asset, balance: number): Promise<string> {
+    const account = this.getPaymentAccount(asset.blockchain);
+    const client = this.blockchainRegistryService.getClient(asset.blockchain) as InternetComputerClient;
+
+    const forwardFee =
+      asset.type === AssetType.COIN
+        ? await client.getCurrentGasCostForCoinTransaction()
+        : await client.getCurrentGasCostForTokenTransaction(asset);
+
+    const sendAmount = balance - forwardFee;
+    if (sendAmount <= 0) throw new Error(`Insufficient balance for ICP forward: balance=${balance}, fee=${forwardFee}`);
+
+    return asset.type === AssetType.COIN
+      ? client.sendNativeCoinFromAccount(account, client.walletAddress, sendAmount)
+      : client.sendTokenFromAccount(account, client.walletAddress, asset, sendAmount);
+  }
+
+  private async forwardBitcoinDeposit(): Promise<string> {
+    const client = this.blockchainRegistryService.getBitcoinClient(Blockchain.BITCOIN, BitcoinNodeType.BTC_INPUT);
+    const outputAddress = Config.blockchain.default.btcOutput.address;
+    const feeRate = await this.bitcoinFeeService.getSendFeeRate();
+
+    // sweep all payment UTXOs: amount 0 = use full UTXO balance, fee subtracted from output
+    return client.sendManyFromAddress(
+      [Config.payment.bitcoinAddress],
+      [{ addressTo: outputAddress, amount: 0 }],
+      feeRate,
+      [0],
+    );
   }
 
   getPaymentAccount(chain: Blockchain): WalletAccount {

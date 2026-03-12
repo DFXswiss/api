@@ -504,7 +504,6 @@ export class UserData extends IEntity {
 
   setUserDataSettings(dto: UpdateUserDto): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      phone: dto.phone ?? this.phone,
       language: dto.language ?? this.language,
       currency: dto.currency ?? this.currency,
       phoneCallTimes: dto.preferredPhoneTimes ? dto.preferredPhoneTimes.join(';') : undefined,
@@ -666,7 +665,7 @@ export class UserData extends IEntity {
   }
 
   getStep(stepId: number): KycStep | undefined {
-    return this.kycSteps.find((s) => s.id === stepId);
+    return (this.kycSteps ?? []).find((s) => s.id === stepId);
   }
 
   getStepOrThrow(stepId: number): KycStep {
@@ -677,7 +676,7 @@ export class UserData extends IEntity {
   }
 
   getStepsWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep[] {
-    return this.kycSteps.filter(
+    return (this.kycSteps ?? []).filter(
       (s) =>
         (!name || s.name === name) &&
         (!type || s.type === type) &&
@@ -705,7 +704,7 @@ export class UserData extends IEntity {
   }
 
   get hasStepsInProgress(): boolean {
-    return this.kycSteps.some((s) => s.isInProgress);
+    return (this.kycSteps ?? []).some((s) => s.isInProgress);
   }
 
   getNextSequenceNumber(stepName: KycStepName, stepType?: KycStepType): number {

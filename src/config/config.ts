@@ -47,6 +47,7 @@ export class Configuration {
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
   defaultRef = '000-000';
+  defaultWalletId = 1;
   transactionRefundExpirySeconds = 300; // 5 minutes - enough time to fill out the refund form
   refRewardManualCheckLimit = 3000; // EUR
   txRequestWaitingExpiryDays = 7;
@@ -148,7 +149,7 @@ export class Configuration {
 
   bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
   lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
-  sparkAddressFormat = 'sp1[a-z0-9]{6,87}';
+  sparkAddressFormat = 'spark1[a-z0-9]{6,250}';
   firoAddressFormat = 'a[a-zA-HJ-NP-Z0-9]{33}';
   moneroAddressFormat = '[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}';
   ethereumAddressFormat = '0x\\w{40}';
@@ -985,6 +986,7 @@ export class Configuration {
     },
     internetComputer: {
       internetComputerHost: 'https://ic0.app',
+      internetComputerRosettaApiUrl: process.env.ICP_ROSETTA_API_URL ?? 'https://rosetta-api.internetcomputer.org',
       internetComputerWalletSeed: process.env.ICP_WALLET_SEED,
       internetComputerLedgerCanisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai',
       transferFee: 0.0001,

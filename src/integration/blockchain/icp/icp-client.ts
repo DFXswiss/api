@@ -3,8 +3,9 @@ import { IcpLedgerCanister } from '@dfinity/ledger-icp';
 import { IcrcLedgerCanister } from '@dfinity/ledger-icrc';
 import { Principal } from '@dfinity/principal';
 import { Config, GetConfig } from 'src/config/config';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
@@ -17,30 +18,43 @@ import {
   IcpTransfer,
   IcpTransferQueryResult,
   IcrcRawLedger,
+  RosettaTransactionsResponse,
 } from './dto/icp.dto';
 import { InternetComputerWallet } from './icp-wallet';
 import { icpNativeLedgerIdlFactory, icrcLedgerIdlFactory } from './icp.idl';
 import { InternetComputerUtil } from './icp.util';
 
+const ROSETTA_NETWORK_ID = { blockchain: 'Internet Computer', network: '00000000000000020101' };
+
 export class InternetComputerClient extends BlockchainClient {
   private readonly logger = new DfxLogger(InternetComputerClient);
 
   private readonly host: string;
+  private readonly rosettaApiUrl: string;
   private readonly seed: string;
   private readonly wallet: InternetComputerWallet;
   private readonly agent: HttpAgent;
   private readonly nativeLedger: IcrcLedgerCanister;
   private readonly transferFee: number;
 
+  private readonly http: HttpService;
   private readonly nativeRawLedger: IcpNativeRawLedger;
   private readonly icrcRawLedgers: Map<string, IcrcRawLedger> = new Map();
 
-  constructor() {
+  constructor(http: HttpService) {
     super();
 
-    const { internetComputerHost, internetComputerWalletSeed, internetComputerLedgerCanisterId, transferFee } =
-      GetConfig().blockchain.internetComputer;
+    this.http = http;
+
+    const {
+      internetComputerHost,
+      internetComputerRosettaApiUrl,
+      internetComputerWalletSeed,
+      internetComputerLedgerCanisterId,
+      transferFee,
+    } = GetConfig().blockchain.internetComputer;
     this.host = internetComputerHost;
+    this.rosettaApiUrl = internetComputerRosettaApiUrl;
     this.seed = internetComputerWalletSeed;
     this.transferFee = transferFee;
 
@@ -174,7 +188,7 @@ export class InternetComputerClient extends BlockchainClient {
       lastIndex = start - 1;
     }
 
-    return { transfers, lastBlockIndex: lastIndex, chainLength };
+    return { transfers, lastBlockIndex: lastIndex, chainLength, rawTransactionCount: response.blocks.length };
   }
 
   private mapBlockToTransfer(block: CandidBlock, index: number): IcpTransfer | undefined {
@@ -192,6 +206,44 @@ export class InternetComputerClient extends BlockchainClient {
       memo: block.transaction.memo,
       timestamp: Number(block.timestamp.timestamp_nanos / 1000000000n),
     };
+  }
+
+  // --- Per-address transfers via Rosetta /search/transactions ---
+
+  async getNativeTransfersForAddress(accountIdentifier: string, maxBlock?: number, limit = 50): Promise<IcpTransfer[]> {
+    const url = `${this.rosettaApiUrl}/search/transactions`;
+
+    const body: Record<string, unknown> = {
+      network_identifier: ROSETTA_NETWORK_ID,
+      account_identifier: { address: accountIdentifier },
+      limit,
+    };
+    if (maxBlock !== undefined) body.max_block = maxBlock;
+
+    const response = await this.http.post<RosettaTransactionsResponse>(url, body);
+
+    const transfers: IcpTransfer[] = [];
+
+    for (const entry of response.transactions) {
+      const ops = entry.transaction.operations.filter((op) => op.type === 'TRANSACTION' && op.status === 'COMPLETED');
+
+      const creditOp = ops.find((op) => op.amount && BigInt(op.amount.value) > 0n);
+      const debitOp = ops.find((op) => op.amount && BigInt(op.amount.value) < 0n);
+
+      if (!creditOp?.amount || !debitOp?.amount) continue;
+
+      transfers.push({
+        blockIndex: entry.block_identifier.index,
+        from: debitOp.account.address,
+        to: creditOp.account.address,
+        amount: InternetComputerUtil.fromSmallestUnit(BigInt(creditOp.amount.value)),
+        fee: 0,
+        memo: BigInt(entry.transaction.metadata.memo),
+        timestamp: Math.floor(entry.transaction.metadata.timestamp / 1_000_000_000),
+      });
+    }
+
+    return transfers;
   }
 
   // --- Block height & transfers (ICRC-3, for ck-tokens) ---
@@ -225,9 +277,23 @@ export class InternetComputerClient extends BlockchainClient {
       if (transfer) transfers.push(transfer);
     }
 
-    const lastIndex = response.transactions.length > 0 ? firstIndex + response.transactions.length - 1 : start - 1;
+    let lastIndex: number;
 
-    return { transfers, lastBlockIndex: lastIndex, chainLength: Number(response.log_length) };
+    if (response.transactions.length > 0) {
+      lastIndex = firstIndex + response.transactions.length - 1;
+    } else if (firstIndex > start) {
+      lastIndex = firstIndex - 1;
+      this.logger.info(`Skipping archived ICRC blocks ${start}-${lastIndex}, next query starts at ${firstIndex}`);
+    } else {
+      lastIndex = start - 1;
+    }
+
+    return {
+      transfers,
+      lastBlockIndex: lastIndex,
+      chainLength: Number(response.log_length),
+      rawTransactionCount: response.transactions.length,
+    };
   }
 
   private mapIcrcTransaction(tx: CandidIcrcTransaction, index: number, decimals: number): IcpTransfer | undefined {
@@ -247,6 +313,11 @@ export class InternetComputerClient extends BlockchainClient {
 
   async isTxComplete(txId: string): Promise<boolean> {
     try {
+      // TxHash from external sources: 64 hex chars
+      if (/^[a-f0-9]{64}$/i.test(txId)) {
+        return await this.isTxHashComplete(txId);
+      }
+
       // Token txIds have format "canisterId:blockIndex"
       const parts = txId.split(':');
       if (parts.length === 2) {
@@ -266,6 +337,17 @@ export class InternetComputerClient extends BlockchainClient {
     }
   }
 
+  private async isTxHashComplete(txHash: string): Promise<boolean> {
+    const url = `${this.rosettaApiUrl}/search/transactions`;
+    const response = await this.http.post<RosettaTransactionsResponse>(url, {
+      network_identifier: ROSETTA_NETWORK_ID,
+      transaction_identifier: { hash: txHash },
+    });
+
+    const tx = response.transactions[0];
+    return tx?.transaction.operations.every((op) => op.status === 'COMPLETED') ?? false;
+  }
+
   // --- Send native coin ---
 
   async sendNativeCoinFromDex(toAddress: string, amount: number): Promise<string> {
@@ -274,13 +356,7 @@ export class InternetComputerClient extends BlockchainClient {
 
   async sendNativeCoinFromAccount(account: WalletAccount, toAddress: string, amount: number): Promise<string> {
     const wallet = InternetComputerWallet.fromSeed(account.seed, account.index);
-    const balance = await this.getNativeCoinBalanceForAddress(wallet.address);
-
-    const sendAmount = Math.min(amount, balance) - this.transferFee;
-    if (sendAmount <= 0)
-      throw new Error(`Insufficient balance for payment forward: balance=${balance}, fee=${this.transferFee}`);
-
-    return this.sendNativeCoin(wallet, toAddress, sendAmount);
+    return this.sendNativeCoin(wallet, toAddress, amount);
   }
 
   async sendNativeCoinFromDepositWallet(accountIndex: number, toAddress: string, amount: number): Promise<string> {
@@ -311,14 +387,7 @@ export class InternetComputerClient extends BlockchainClient {
 
   async sendTokenFromAccount(account: WalletAccount, toAddress: string, token: Asset, amount: number): Promise<string> {
     const wallet = InternetComputerWallet.fromSeed(account.seed, account.index);
-    const balance = await this.getTokenBalance(token, wallet.address);
-    const fee = await this.getCurrentGasCostForTokenTransaction(token);
-
-    const sendAmount = Math.min(amount, balance) - fee;
-    if (sendAmount <= 0)
-      throw new Error(`Insufficient token balance for payment forward: balance=${balance}, fee=${fee}`);
-
-    return this.sendToken(wallet, toAddress, token, sendAmount);
+    return this.sendToken(wallet, toAddress, token, amount);
   }
 
   async sendTokenFromDepositWallet(
@@ -362,9 +431,10 @@ export class InternetComputerClient extends BlockchainClient {
   async checkAllowance(
     ownerPrincipal: string,
     spenderPrincipal: string,
-    canisterId: string,
-    decimals: number,
+    asset: Asset,
   ): Promise<{ allowance: number; expiresAt?: number }> {
+    const canisterId = this.getCanisterId(asset);
+
     const tokenLedger = IcrcLedgerCanister.create({
       agent: this.agent,
       canisterId: Principal.fromText(canisterId),
@@ -377,7 +447,7 @@ export class InternetComputerClient extends BlockchainClient {
     });
 
     return {
-      allowance: InternetComputerUtil.fromSmallestUnit(result.allowance, decimals),
+      allowance: InternetComputerUtil.fromSmallestUnit(result.allowance, asset.decimals),
       expiresAt: result.expires_at?.[0] ? Number(result.expires_at[0]) : undefined,
     };
   }
@@ -387,11 +457,12 @@ export class InternetComputerClient extends BlockchainClient {
     ownerPrincipal: string,
     toAddress: string,
     amount: number,
-    canisterId: string,
-    decimals: number,
+    asset: Asset,
   ): Promise<string> {
     const wallet = InternetComputerWallet.fromSeed(account.seed, account.index);
     const agent = wallet.getAgent(this.host);
+
+    const canisterId = this.getCanisterId(asset);
 
     const tokenLedger = IcrcLedgerCanister.create({
       agent,
@@ -401,11 +472,16 @@ export class InternetComputerClient extends BlockchainClient {
     const blockIndex = await tokenLedger.transferFrom({
       from: { owner: Principal.fromText(ownerPrincipal), subaccount: [] },
       to: { owner: Principal.fromText(toAddress), subaccount: [] },
-      amount: InternetComputerUtil.toSmallestUnit(amount, decimals),
+      amount: InternetComputerUtil.toSmallestUnit(amount, asset.decimals),
     });
 
-    const isNative = canisterId === Config.blockchain.internetComputer.internetComputerLedgerCanisterId;
-    return isNative ? blockIndex.toString() : `${canisterId}:${blockIndex}`;
+    return asset.type === AssetType.COIN ? blockIndex.toString() : `${canisterId}:${blockIndex}`;
+  }
+
+  private getCanisterId(asset: Asset): string {
+    return asset.type === AssetType.COIN
+      ? Config.blockchain.internetComputer.internetComputerLedgerCanisterId
+      : asset.chainId;
   }
 
   // --- Misc ---

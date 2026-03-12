@@ -2,31 +2,25 @@ import { Principal } from '@dfinity/principal';
 import { Injectable } from '@nestjs/common';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import nacl from 'tweetnacl';
-import { WalletAccount } from '../../shared/evm/domain/wallet-account';
 import { SignatureException } from '../../shared/exceptions/signature.exception';
 import { BlockchainService } from '../../shared/util/blockchain.service';
-import { IcpTransferQueryResult } from '../dto/icp.dto';
 import { InternetComputerClient } from '../icp-client';
 
 @Injectable()
 export class InternetComputerService extends BlockchainService {
   private readonly client: InternetComputerClient;
 
-  constructor() {
+  constructor(private readonly http: HttpService) {
     super();
 
-    this.client = new InternetComputerClient();
+    this.client = new InternetComputerClient(this.http);
   }
 
   getDefaultClient(): InternetComputerClient {
     return this.client;
-  }
-
-  getWalletAddress(): string {
-    return this.client.walletAddress;
   }
 
   getPaymentRequest(address: string, amount: number): string {
@@ -85,95 +79,5 @@ export class InternetComputerService extends BlockchainService {
     } catch {
       return false;
     }
-  }
-
-  async getBlockHeight(): Promise<number> {
-    return this.client.getBlockHeight();
-  }
-
-  async getTransfers(start: number, count: number): Promise<IcpTransferQueryResult> {
-    return this.client.getTransfers(start, count);
-  }
-
-  async getIcrcBlockHeight(canisterId: string): Promise<number> {
-    return this.client.getIcrcBlockHeight(canisterId);
-  }
-
-  async getIcrcTransfers(
-    canisterId: string,
-    decimals: number,
-    start: number,
-    count: number,
-  ): Promise<IcpTransferQueryResult> {
-    return this.client.getIcrcTransfers(canisterId, decimals, start, count);
-  }
-
-  async getNativeCoinBalance(): Promise<number> {
-    return this.client.getNativeCoinBalance();
-  }
-
-  async getNativeCoinBalanceForAddress(address: string): Promise<number> {
-    return this.client.getNativeCoinBalanceForAddress(address);
-  }
-
-  async getTokenBalance(asset: Asset, address?: string): Promise<number> {
-    return this.client.getTokenBalance(asset, address ?? this.client.walletAddress);
-  }
-
-  async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    return this.client.getCurrentGasCostForCoinTransaction();
-  }
-
-  async getCurrentGasCostForTokenTransaction(token?: Asset): Promise<number> {
-    return this.client.getCurrentGasCostForTokenTransaction(token);
-  }
-
-  async sendNativeCoinFromDex(toAddress: string, amount: number): Promise<string> {
-    return this.client.sendNativeCoinFromDex(toAddress, amount);
-  }
-
-  async sendNativeCoinFromDepositWallet(accountIndex: number, toAddress: string, amount: number): Promise<string> {
-    return this.client.sendNativeCoinFromDepositWallet(accountIndex, toAddress, amount);
-  }
-
-  async sendTokenFromDex(toAddress: string, token: Asset, amount: number): Promise<string> {
-    return this.client.sendTokenFromDex(toAddress, token, amount);
-  }
-
-  async sendTokenFromDepositWallet(
-    accountIndex: number,
-    toAddress: string,
-    token: Asset,
-    amount: number,
-  ): Promise<string> {
-    return this.client.sendTokenFromDepositWallet(accountIndex, toAddress, token, amount);
-  }
-
-  async checkAllowance(
-    ownerPrincipal: string,
-    spenderPrincipal: string,
-    canisterId: string,
-    decimals: number,
-  ): Promise<{ allowance: number; expiresAt?: number }> {
-    return this.client.checkAllowance(ownerPrincipal, spenderPrincipal, canisterId, decimals);
-  }
-
-  async transferFromWithAccount(
-    account: WalletAccount,
-    ownerPrincipal: string,
-    toAddress: string,
-    amount: number,
-    canisterId: string,
-    decimals: number,
-  ): Promise<string> {
-    return this.client.transferFromWithAccount(account, ownerPrincipal, toAddress, amount, canisterId, decimals);
-  }
-
-  async isTxComplete(blockIndex: string): Promise<boolean> {
-    return this.client.isTxComplete(blockIndex);
-  }
-
-  async getTxActualFee(blockIndex: string): Promise<number> {
-    return this.client.getTxActualFee(blockIndex);
   }
 }

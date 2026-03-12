@@ -27,10 +27,7 @@ export abstract class InternetComputerStrategy extends PayoutStrategy {
   async estimateFee(asset: Asset): Promise<FeeResult> {
     const gasPerTransaction = await this.txFees.get(asset.id.toString(), () => this.getCurrentGasForTransaction(asset));
 
-    // ICP tokens use Reverse Gas Model: fee is paid in the token itself
-    const feeAsset = asset.type === AssetType.TOKEN ? asset : await this.feeAsset();
-
-    return { asset: feeAsset, amount: gasPerTransaction };
+    return { asset, amount: gasPerTransaction };
   }
 
   async estimateBlockchainFee(asset: Asset): Promise<FeeResult> {
@@ -62,8 +59,7 @@ export abstract class InternetComputerStrategy extends PayoutStrategy {
         if (isComplete) {
           order.complete();
 
-          // ICP tokens use Reverse Gas Model: fee is paid in the token itself
-          const feeAsset = isToken ? order.asset : await this.feeAsset();
+          const feeAsset = order.asset;
           const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
           order.recordPayoutFee(feeAsset, payoutFee, price.convert(payoutFee, Config.defaultVolumeDecimal));
 

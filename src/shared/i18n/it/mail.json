@@ -97,7 +97,8 @@
                 "manual_check_phone_rejected": "La telefonata non è andata a buon fine o è stata rifiutata.",
                 "merge_incomplete": "L'e-mail di conferma non è stata accettata",
                 "intermediary_without_sender": "La banca mittente (Wise/Revolut) ha trasmesso solo il nome della banca, non il nome del titolare del conto. DFX non può quindi verificare il mittente effettivo e non può elaborare la transazione.",
-                "name_too_short": "Il tuo nome è troppo corto per l'elaborazione bancaria. Le banche richiedono almeno 4 lettere nel nome del titolare del conto."
+                "name_too_short": "Il tuo nome è troppo corto per l'elaborazione bancaria. Le banche richiedono almeno 4 lettere nel nome del titolare del conto.",
+                "asset_input_not_allowed": "L'asset non è al momento disponibile per lo scambio su DFX"
             },
             "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"
         },
