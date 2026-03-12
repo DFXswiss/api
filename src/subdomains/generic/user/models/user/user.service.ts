@@ -309,7 +309,7 @@ export class UserService {
   async updateUserV1(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
     const user = await this.userRepo.findOne({
       where: { id },
-      relations: { userData: { users: true, kycSteps: true }, wallet: true },
+      relations: { userData: { users: true }, wallet: true },
     });
     if (!user) throw new NotFoundException('User not found');
 
@@ -322,7 +322,7 @@ export class UserService {
   async updateUser(userDataId: number, dto: UpdateUserDto, userId?: number): Promise<UserV2Dto> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
-      relations: { users: { wallet: true }, kycSteps: true },
+      relations: { users: { wallet: true } },
     });
     if (!userData) throw new NotFoundException('User not found');
 

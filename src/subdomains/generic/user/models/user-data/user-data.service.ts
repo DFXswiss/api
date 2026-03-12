@@ -787,6 +787,10 @@ export class UserDataService {
 
     // create KYC step
     if (createStep) {
+      if (!userData.kycSteps) {
+        userData.kycSteps = await this.kycService.getStepsByUserData(userData.id);
+      }
+
       await this.kycService.createCustomKycStep(userData, KycStepName.PHONE_CHANGE, ReviewStatus.COMPLETED, {
         phone,
         previousPhone,
