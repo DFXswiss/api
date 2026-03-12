@@ -216,7 +216,7 @@
                 "line1": "Abbiamo ricevuto il tuo deposito.",
                 "line2": "Ti contatteremo a breve al numero {phone}.",
                 "line3": "Una volta chiariti tutti i dubbi, la transazione verrà elaborata automaticamente.",
-                "line4": "Qui puoi specificare l'orario che preferisci per la telefonata: [url:https://app.dfx.swiss/settings]",
+                "line4": "Qui puoi specificare l'orario che preferisci per la telefonata: [url:https://app.dfx.swiss/settings?a=call]",
                 "line5": "Se invece si desidera richiedere un rimborso:<br>[url:clicca qui]"
             },
             "merge_incomplete": {
@@ -243,7 +243,7 @@
                 "line1": "Abbiamo ricevuto il tuo deposito.",
                 "line2": "Ti contatteremo a breve al numero {phone}.",
                 "line3": "Una volta chiariti tutti i dubbi, la transazione verrà elaborata automaticamente.",
-                "line4": "Qui puoi specificare l'orario che preferisci per la telefonata: [url:https://app.dfx.swiss/settings]",
+                "line4": "Qui puoi specificare l'orario che preferisci per la telefonata: [url:https://app.dfx.swiss/settings?a=call]",
                 "line5": "Se invece si desidera richiedere un rimborso:<br>[url:clicca qui]"
             },
             "manual_check_ip_country_phone": {
@@ -252,7 +252,7 @@
                 "line1": "Abbiamo ricevuto il tuo deposito.",
                 "line2": "Ti contatteremo a breve al numero {phone}.",
                 "line3": "Una volta chiariti tutti i dubbi, la transazione verrà elaborata automaticamente.",
-                "line4": "Qui puoi specificare l'orario che preferisci per la telefonata: [url:https://app.dfx.swiss/settings]",
+                "line4": "Qui puoi specificare l'orario che preferisci per la telefonata: [url:https://app.dfx.swiss/settings?a=call]",
                 "line5": "Se invece si desidera richiedere un rimborso:<br>[url:clicca qui]"
             }
         },

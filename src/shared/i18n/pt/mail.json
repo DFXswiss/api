@@ -216,7 +216,7 @@
                 "line1": "We have received your deposit.",
                 "line2": "We will contact you shortly at {phone}.",
                 "line3": "Once all questions have been clarified, your transaction will be processed automatically.",
-                "line4": "You can specify your preferred time for the phone call here: [url:https://app.dfx.swiss/settings]",
+                "line4": "You can specify your preferred time for the phone call here: [url:https://app.dfx.swiss/settings?a=call]",
                 "line5": "If you would like to request a refund instead:<br>[url:click here]"
             },
             "merge_incomplete": {
@@ -243,7 +243,7 @@
                 "line1": "We have received your deposit.",
                 "line2": "We will contact you shortly at {phone}.",
                 "line3": "Once all questions have been clarified, your transaction will be processed automatically.",
-                "line4": "You can specify your preferred time for the phone call here: [url:https://app.dfx.swiss/settings]",
+                "line4": "You can specify your preferred time for the phone call here: [url:https://app.dfx.swiss/settings?a=call]",
                 "line5": "If you would like to request a refund instead:<br>[url:click here]"
             },
             "manual_check_ip_country_phone": {
@@ -252,7 +252,7 @@
                 "line1": "We have received your deposit.",
                 "line2": "We will contact you shortly at {phone}.",
                 "line3": "Once all questions have been clarified, your transaction will be processed automatically.",
-                "line4": "You can specify your preferred time for the phone call here: [url:https://app.dfx.swiss/settings]",
+                "line4": "You can specify your preferred time for the phone call here: [url:https://app.dfx.swiss/settings?a=call]",
                 "line5": "If you would like to request a refund instead:<br>[url:click here]"
             }
         },

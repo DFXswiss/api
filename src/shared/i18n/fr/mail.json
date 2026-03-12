@@ -216,7 +216,7 @@
                 "line1": "Nous avons bien reçu votre acompte.",
                 "line2": "Nous vous contacterons sous peu au {phone}.",
                 "line3": "Une fois toutes les questions clarifiées, votre transaction sera traitée automatiquement.",
-                "line4": "Vous pouvez indiquer ici l'heure à laquelle vous souhaitez recevoir l'appel téléphonique: [url:https://app.dfx.swiss/settings]",
+                "line4": "Vous pouvez indiquer ici l'heure à laquelle vous souhaitez recevoir l'appel téléphonique: [url:https://app.dfx.swiss/settings?a=call]",
                 "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
             },
             "merge_incomplete": {
@@ -243,7 +243,7 @@
                 "line1": "Nous avons bien reçu votre acompte.",
                 "line2": "Nous vous contacterons sous peu au {phone}.",
                 "line3": "Une fois toutes les questions clarifiées, votre transaction sera traitée automatiquement.",
-                "line4": "Vous pouvez indiquer ici l'heure à laquelle vous souhaitez recevoir l'appel téléphonique: [url:https://app.dfx.swiss/settings]",
+                "line4": "Vous pouvez indiquer ici l'heure à laquelle vous souhaitez recevoir l'appel téléphonique: [url:https://app.dfx.swiss/settings?a=call]",
                 "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
             },
             "manual_check_ip_country_phone": {
@@ -252,7 +252,7 @@
                 "line1": "Nous avons bien reçu votre acompte.",
                 "line2": "Nous vous contacterons sous peu au {phone}.",
                 "line3": "Une fois toutes les questions clarifiées, votre transaction sera traitée automatiquement.",
-                "line4": "Vous pouvez indiquer ici l'heure à laquelle vous souhaitez recevoir l'appel téléphonique: [url:https://app.dfx.swiss/settings]",
+                "line4": "Vous pouvez indiquer ici l'heure à laquelle vous souhaitez recevoir l'appel téléphonique: [url:https://app.dfx.swiss/settings?a=call]",
                 "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
             }
         },

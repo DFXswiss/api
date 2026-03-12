@@ -216,7 +216,7 @@
                 "line1": "Hemos recibido su depósito.",
                 "line2": "Nos pondremos en contacto con usted en breve en el {phone}.",
                 "line3": "Una vez que se hayan aclarado todas las preguntas, su transacción se procesará automáticamente.",
-                "line4": "Aquí puede especificar la hora que prefiera para la llamada telefónica: [url:https://app.dfx.swiss/settings]",
+                "line4": "Aquí puede especificar la hora que prefiera para la llamada telefónica: [url:https://app.dfx.swiss/settings?a=call]",
                 "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
             },
             "merge_incomplete": {
@@ -243,7 +243,7 @@
                 "line1": "Hemos recibido su depósito.",
                 "line2": "Nos pondremos en contacto con usted en breve en el {phone}.",
                 "line3": "Una vez que se hayan aclarado todas las preguntas, su transacción se procesará automáticamente.",
-                "line4": "Aquí puede especificar la hora que prefiera para la llamada telefónica: [url:https://app.dfx.swiss/settings]",
+                "line4": "Aquí puede especificar la hora que prefiera para la llamada telefónica: [url:https://app.dfx.swiss/settings?a=call]",
                 "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
             },
             "manual_check_ip_country_phone": {
@@ -252,7 +252,7 @@
                 "line1": "Hemos recibido su depósito.",
                 "line2": "Nos pondremos en contacto con usted en breve en el {phone}.",
                 "line3": "Una vez que se hayan aclarado todas las preguntas, su transacción se procesará automáticamente.",
-                "line4": "Aquí puede especificar la hora que prefiera para la llamada telefónica: [url:https://app.dfx.swiss/settings]",
+                "line4": "Aquí puede especificar la hora que prefiera para la llamada telefónica: [url:https://app.dfx.swiss/settings?a=call]",
                 "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
             }
         },
