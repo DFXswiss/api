@@ -143,8 +143,14 @@ export class UnassignedTransactionDto {
   @ApiPropertyOptional({ description: 'Fiat ID for buy transactions, asset ID otherwise' })
   inputAssetId?: number;
 
+  @ApiPropertyOptional({ description: 'Contract address of the input asset (for tokens)' })
+  inputChainId?: string;
+
   @ApiPropertyOptional({ enum: Blockchain })
   inputBlockchain?: Blockchain;
+
+  @ApiPropertyOptional({ description: 'EVM chain ID of the input asset (e.g. 1 for Ethereum)' })
+  inputEvmChainId?: number;
 
   @ApiPropertyOptional({ enum: PaymentMethodSwagger })
   inputPaymentMethod?: PaymentMethod;
@@ -154,6 +160,9 @@ export class UnassignedTransactionDto {
 
   @ApiPropertyOptional()
   inputTxUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Deposit address for crypto input transactions' })
+  depositAddress?: string;
 
   @ApiPropertyOptional({ description: 'Chargeback address or chargeback IBAN' })
   chargebackTarget?: string;
@@ -216,8 +225,14 @@ export class TransactionDto extends UnassignedTransactionDto {
   @ApiPropertyOptional({ description: 'Fiat ID for sell transactions, asset ID otherwise' })
   outputAssetId?: number;
 
+  @ApiPropertyOptional({ description: 'Contract address of the output asset (for tokens)' })
+  outputChainId?: string;
+
   @ApiPropertyOptional({ enum: Blockchain })
   outputBlockchain?: Blockchain;
+
+  @ApiPropertyOptional({ description: 'EVM chain ID of the output asset (e.g. 1 for Ethereum)' })
+  outputEvmChainId?: number;
 
   @ApiPropertyOptional({ enum: PaymentMethodSwagger })
   outputPaymentMethod?: PaymentMethod;
@@ -248,21 +263,6 @@ export class TransactionDto extends UnassignedTransactionDto {
 
   @ApiPropertyOptional({ type: NetworkStartTxDto })
   networkStartTx?: NetworkStartTxDto;
-
-  @ApiPropertyOptional({ description: 'Contract address of the source asset (for tokens)' })
-  sourceChainId?: string;
-
-  @ApiPropertyOptional({ description: 'Contract address of the destination asset (for tokens)' })
-  destinationChainId?: string;
-
-  @ApiPropertyOptional({ description: 'EVM chain ID of the source asset (e.g. 1 for Ethereum)' })
-  sourceEvmChainId?: number;
-
-  @ApiPropertyOptional({ description: 'EVM chain ID of the destination asset (e.g. 1 for Ethereum)' })
-  destinationEvmChainId?: number;
-
-  @ApiPropertyOptional({ description: 'Deposit address for crypto input transactions' })
-  depositAddress?: string;
 }
 
 export class TransactionDetailDto extends TransactionDto {

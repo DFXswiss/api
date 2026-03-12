@@ -57,14 +57,18 @@ export class TransactionDtoMapper {
       inputAmount: Util.roundReadable(buyCrypto.inputAmount, amountType(buyCrypto.inputAssetEntity)),
       inputAsset: buyCrypto.inputAssetEntity.name,
       inputAssetId: buyCrypto.inputAssetEntity.id,
+      inputChainId: inputAsset?.chainId ?? null,
       inputBlockchain: buyCrypto.cryptoInput?.asset.blockchain,
+      inputEvmChainId: inputAsset?.evmChainId ?? null,
       inputPaymentMethod: buyCrypto.paymentMethodIn,
       ...(buyCrypto.outputAmount ? buyCrypto.exchangeRate : null),
       outputAmount:
         buyCrypto.outputAmount != null ? Util.roundReadable(buyCrypto.outputAmount, AmountType.ASSET) : null,
       outputAsset: buyCrypto.outputAsset?.name,
       outputAssetId: buyCrypto.outputAsset?.id,
+      outputChainId: outputAsset?.chainId ?? null,
       outputBlockchain: buyCrypto.outputAsset?.blockchain,
+      outputEvmChainId: outputAsset?.evmChainId ?? null,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       priceSteps: buyCrypto.priceStepsObject,
       feeAmount: buyCrypto.totalFeeAmount
@@ -79,6 +83,7 @@ export class TransactionDtoMapper {
       inputTxUrl: buyCrypto?.cryptoInput
         ? txExplorerUrl(buyCrypto.cryptoInput.asset.blockchain, buyCrypto.cryptoInput.inTxId)
         : null,
+      depositAddress: buyCrypto.cryptoInput?.address?.address ?? null,
       outputTxId: buyCrypto.txId,
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.txId) : null,
       outputDate: buyCrypto.outputDate,
@@ -106,11 +111,6 @@ export class TransactionDtoMapper {
             asset: buyCrypto.networkStartAsset,
           }
         : null,
-      sourceChainId: inputAsset?.chainId ?? null,
-      destinationChainId: outputAsset?.chainId ?? null,
-      sourceEvmChainId: inputAsset?.evmChainId ?? null,
-      destinationEvmChainId: outputAsset?.evmChainId ?? null,
-      depositAddress: buyCrypto.cryptoInput?.address?.address ?? null,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -141,13 +141,17 @@ export class TransactionDtoMapper {
       inputAmount: Util.roundReadable(buyFiat.inputAmount, amountType(buyFiat.inputAssetEntity)),
       inputAsset: buyFiat.inputAssetEntity.name,
       inputAssetId: buyFiat.inputAssetEntity.id,
+      inputChainId: inputAsset?.chainId ?? null,
       inputBlockchain: buyFiat.cryptoInput?.asset.blockchain,
+      inputEvmChainId: inputAsset?.evmChainId ?? null,
       inputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       ...(buyFiat.outputAmount ? buyFiat.exchangeRate : null),
       outputAmount: buyFiat.outputAmount != null ? Util.roundReadable(buyFiat.outputAmount, AmountType.FIAT) : null,
       outputAsset: buyFiat.outputAsset?.name,
       outputAssetId: buyFiat.outputAsset?.id,
+      outputChainId: null,
       outputBlockchain: null,
+      outputEvmChainId: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
       outputDate: buyFiat.outputDate,
       priceSteps: buyFiat.priceStepsObject,
@@ -163,6 +167,7 @@ export class TransactionDtoMapper {
       inputTxUrl: buyFiat?.cryptoInput
         ? txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId)
         : null,
+      depositAddress: buyFiat.cryptoInput?.address?.address ?? null,
       outputTxId: buyFiat.bankTx?.remittanceInfo ?? null,
       outputTxUrl: null,
       chargebackAmount: buyFiat.chargebackAmount,
@@ -176,11 +181,6 @@ export class TransactionDtoMapper {
       chargebackDate: buyFiat.chargebackDate,
       date: buyFiat.transaction.created,
       externalTransactionId: buyFiat.transaction.externalId,
-      sourceChainId: inputAsset?.chainId ?? null,
-      destinationChainId: null,
-      sourceEvmChainId: inputAsset?.evmChainId ?? null,
-      destinationEvmChainId: null,
-      depositAddress: buyFiat.cryptoInput?.address?.address ?? null,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -212,12 +212,16 @@ export class TransactionDtoMapper {
       inputAmount: Util.roundReadable(txRequest.amount, amountType(txRequest.sourceAssetEntity)),
       inputAsset: txRequest.sourceAssetEntity.name,
       inputAssetId: txRequest.sourceAssetEntity.id,
+      inputChainId: sourceAsset?.chainId ?? null,
       inputBlockchain: sourceAsset?.blockchain ?? null,
+      inputEvmChainId: sourceAsset?.evmChainId ?? null,
       inputPaymentMethod: txRequest.sourcePaymentMethod,
       outputAmount: null,
       outputAsset: txRequest.targetAssetEntity?.name,
       outputAssetId: txRequest.targetAssetEntity?.id,
+      outputChainId: targetAsset?.chainId ?? null,
       outputBlockchain: targetAsset?.blockchain ?? null,
+      outputEvmChainId: targetAsset?.evmChainId ?? null,
       outputPaymentMethod: txRequest.targetPaymentMethod,
       priceSteps: null,
       feeAmount: fees?.total,
@@ -225,6 +229,7 @@ export class TransactionDtoMapper {
       fees,
       inputTxId: null,
       inputTxUrl: null,
+      depositAddress: null,
       outputTxId: null,
       outputTxUrl: null,
       outputDate: null,
@@ -236,11 +241,6 @@ export class TransactionDtoMapper {
       date: txRequest.created,
       externalTransactionId: null,
       networkStartTx: null,
-      sourceChainId: sourceAsset?.chainId ?? null,
-      destinationChainId: targetAsset?.chainId ?? null,
-      sourceEvmChainId: sourceAsset?.evmChainId ?? null,
-      destinationEvmChainId: targetAsset?.evmChainId ?? null,
-      depositAddress: null,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -269,7 +269,9 @@ export class TransactionDtoMapper {
       inputAmount: null,
       inputAsset: null,
       inputAssetId: null,
+      inputChainId: null,
       inputBlockchain: null,
+      inputEvmChainId: null,
       inputPaymentMethod: null,
       exchangeRate: null,
       rate: null,
@@ -279,7 +281,9 @@ export class TransactionDtoMapper {
           : null,
       outputAsset: refReward.outputAsset.name,
       outputAssetId: refReward.outputAsset?.id,
+      outputChainId: refReward.outputAsset?.chainId ?? null,
       outputBlockchain: refReward.targetBlockchain,
+      outputEvmChainId: refReward.outputAsset?.evmChainId ?? null,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       outputDate: refReward.outputDate,
       priceSteps: null,
@@ -288,6 +292,7 @@ export class TransactionDtoMapper {
       fees: null,
       inputTxId: null,
       inputTxUrl: null,
+      depositAddress: null,
       outputTxId: refReward.txId,
       outputTxUrl: refReward.txId ? txExplorerUrl(refReward.targetBlockchain, refReward.txId) : null,
       chargebackAmount: undefined,
@@ -298,11 +303,6 @@ export class TransactionDtoMapper {
       chargebackTxUrl: undefined,
       chargebackDate: undefined,
       date: refReward.transaction.created,
-      sourceChainId: null,
-      destinationChainId: refReward.outputAsset?.chainId ?? null,
-      sourceEvmChainId: null,
-      destinationEvmChainId: refReward.outputAsset?.evmChainId ?? null,
-      depositAddress: null,
     };
 
     return Object.assign(new TransactionDto(), dto);
