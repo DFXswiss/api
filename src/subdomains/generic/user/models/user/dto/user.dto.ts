@@ -26,7 +26,7 @@ export const PhoneCallStatusMapper: {
   [key in PhoneCallStatus]: UserPhoneCallStatus;
 } = {
   [PhoneCallStatus.REPEAT]: UserPhoneCallStatus.REPEAT,
-  [PhoneCallStatus.REJECTED]: UserPhoneCallStatus.FAILED,
+  [PhoneCallStatus.USER_REJECTED]: UserPhoneCallStatus.REJECTED,
   [PhoneCallStatus.UNAVAILABLE]: UserPhoneCallStatus.UNAVAILABLE,
   [PhoneCallStatus.FAILED]: UserPhoneCallStatus.FAILED,
   [PhoneCallStatus.COMPLETED]: UserPhoneCallStatus.COMPLETED,

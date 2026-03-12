@@ -154,7 +154,7 @@ export class SupportIssueService {
         await this.userDataService.updateUserDataInternal(userData, {
           phoneCallStatus:
             dto.reason === SupportIssueReason.REJECT_CALL
-              ? PhoneCallStatus.REJECTED
+              ? PhoneCallStatus.USER_REJECTED
               : dto.reason === SupportIssueReason.REPEAT_CALL
                 ? PhoneCallStatus.REPEAT
                 : undefined,
