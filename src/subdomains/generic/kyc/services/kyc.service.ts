@@ -271,7 +271,7 @@ export class KycService {
 
         if (entity.isCompleted) {
           await this.completeIdent(entity, nationality);
-          await this.checkDfxApproval(entity);
+          await this.checkDfxApproval(entity.userData, entity);
         }
       } catch (e) {
         this.logger.error(`Failed to auto review ident step ${entity.id}:`, e);
@@ -316,7 +316,7 @@ export class KycService {
 
         if (entity.isCompleted) {
           await this.completeFinancialData(entity);
-          await this.checkDfxApproval(entity);
+          await this.checkDfxApproval(entity.userData, entity);
         }
       } catch (e) {
         this.logger.error(`Failed to auto review financialData step ${entity.id}:`, e);
@@ -364,7 +364,7 @@ export class KycService {
 
         if (entity.isCompleted) {
           await this.completeRecommendation(entity.userData);
-          await this.checkDfxApproval(entity);
+          await this.checkDfxApproval(entity.userData, entity);
         }
       } catch (e) {
         this.logger.error(`Failed to auto review recommendation step ${entity.id}:`, e);
@@ -372,13 +372,13 @@ export class KycService {
     }
   }
 
-  async checkDfxApproval(kycStep: KycStep): Promise<void> {
+  async checkDfxApproval(userData: UserData, kycStep?: KycStep): Promise<void> {
     const expiredSteps = [
-      ...kycStep.userData.getStepsWith(KycStepName.IDENT, KycStepType.SUMSUB_AUTO),
-      ...kycStep.userData.getStepsWith(KycStepName.IDENT, KycStepType.AUTO),
-      ...kycStep.userData.getStepsWith(KycStepName.IDENT, KycStepType.VIDEO),
-      ...kycStep.userData.getStepsWith(KycStepName.IDENT, KycStepType.SUMSUB_VIDEO),
-      ...kycStep.userData.getStepsWith(KycStepName.FINANCIAL_DATA),
+      ...userData.getStepsWith(KycStepName.IDENT, KycStepType.SUMSUB_AUTO),
+      ...userData.getStepsWith(KycStepName.IDENT, KycStepType.AUTO),
+      ...userData.getStepsWith(KycStepName.IDENT, KycStepType.VIDEO),
+      ...userData.getStepsWith(KycStepName.IDENT, KycStepType.SUMSUB_VIDEO),
+      ...userData.getStepsWith(KycStepName.FINANCIAL_DATA),
     ].filter(
       (s) =>
         (s?.isInProgress || s?.isInReview || s?.isCompleted) && Util.daysDiff(s.created) > Config.kyc.kycStepExpiry,
@@ -389,35 +389,33 @@ export class KycService {
         await this.kycStepRepo.update(...expiredStep.update(ReviewStatus.OUTDATED, undefined, KycError.EXPIRED_STEP));
       }
 
-      kycStep.userData = await this.userDataService.getUserData(kycStep.userData.id, { kycSteps: true });
+      userData = await this.userDataService.getUserData(userData.id, { kycSteps: true });
 
       // initiate next step
-      await this.updateProgress(kycStep.userData, true, false);
+      await this.updateProgress(userData, true, false);
 
-      return this.kycNotificationService.kycStepReminder(kycStep.userData);
+      return this.kycNotificationService.kycStepReminder(userData);
     }
 
-    const missingCompletedSteps = requiredKycSteps(kycStep.userData).filter(
-      (rs) => !kycStep.userData.hasCompletedStep(rs),
-    );
+    const missingCompletedSteps = requiredKycSteps(userData).filter((rs) => !userData.hasCompletedStep(rs));
 
     if (
       (missingCompletedSteps.length === 2 &&
-        missingCompletedSteps.every((s) => s === kycStep.name || s === KycStepName.DFX_APPROVAL)) ||
+        missingCompletedSteps.every((s) => s === kycStep?.name || s === KycStepName.DFX_APPROVAL)) ||
       (missingCompletedSteps.length === 1 &&
         missingCompletedSteps[0] === KycStepName.DFX_APPROVAL &&
-        kycStep.name !== KycStepName.DFX_APPROVAL)
+        (!kycStep || kycStep.name !== KycStepName.DFX_APPROVAL))
     ) {
-      const approvalStep = kycStep.userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
+      const approvalStep = userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
       if (approvalStep?.isOnHold) {
         await this.kycStepRepo.update(...approvalStep.manualReview());
       } else if (!approvalStep) {
-        const newStep = await this.initiateStep(kycStep.userData, KycStepName.DFX_APPROVAL).catch((e) => {
+        const newStep = await this.initiateStep(userData, KycStepName.DFX_APPROVAL).catch((e) => {
           if (e.message.includes('Cannot insert duplicate key'))
             return this.kycStepRepo.findOneBy({
               name: KycStepName.DFX_APPROVAL,
               status: ReviewStatus.ON_HOLD,
-              userData: { id: kycStep.userData.id },
+              userData: { id: userData.id },
             });
 
           throw e;
@@ -1518,7 +1516,7 @@ export class KycService {
         await this.kycStepRepo.update(...kycStep.update(ReviewStatus.MANUAL_REVIEW, data, comment));
       } else {
         await this.kycStepRepo.update(...kycStep.update(ReviewStatus.COMPLETED, data));
-        await this.checkDfxApproval(kycStep);
+        await this.checkDfxApproval(kycStep.userData, kycStep);
       }
     } else {
       if (errors.some((e) => KycStepIgnoringErrors.includes(e))) {
@@ -1527,7 +1525,7 @@ export class KycService {
         await this.kycStepRepo.update(...kycStep.manualReview(comment));
       } else {
         await this.kycStepRepo.update(...kycStep.complete());
-        await this.checkDfxApproval(kycStep);
+        await this.checkDfxApproval(kycStep.userData, kycStep);
       }
     }
 
