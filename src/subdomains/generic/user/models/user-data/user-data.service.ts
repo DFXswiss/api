@@ -618,6 +618,8 @@ export class UserDataService {
       surname: transliterate(dto.lastName),
     };
 
+    if (userData.verifiedName) update.verifiedName = `${update.firstname} ${update.surname}`;
+
     await this.userDataRepo.update(userData.id, update);
     Object.assign(userData, update);
 
