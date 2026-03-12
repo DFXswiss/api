@@ -458,7 +458,6 @@ export class SwissQRService {
     const sellTransactions = tableDataWithType.filter((t) => t.type === TransactionType.SELL);
     const buyTotal = buyTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
     const sellTotal = sellTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
-    const grandTotal = sellTotal - buyTotal;
 
     const rows: PDFRow[] = [];
 
@@ -578,45 +577,6 @@ export class SwissQRService {
         padding: 5,
       });
     }
-
-    rows.push({
-      columns: [{ text: '' }],
-      height: 10,
-    });
-
-    rows.push({
-      columns: [
-        { text: '', width: mm2pt(30) },
-        { text: this.translate('invoice.table.vat_row.vat_label', language) },
-        { text: '', width: mm2pt(25) },
-        { text: '0%', width: mm2pt(30) },
-      ],
-      padding: 5,
-    });
-
-    rows.push({
-      columns: [
-        { text: '', width: mm2pt(30) },
-        { text: this.translate('invoice.table.vat_row.vat_amount_label', language) },
-        { text: '', width: mm2pt(25) },
-        { text: `${billData.currency} 0.00`, width: mm2pt(30) },
-      ],
-      padding: 5,
-    });
-
-    rows.push({
-      columns: [
-        { text: '', width: mm2pt(30) },
-        {
-          fontName: 'Helvetica-Bold',
-          text: this.translate('invoice.table.invoice_total_row.invoice_total_label', language),
-        },
-        { text: '', width: mm2pt(25) },
-        { fontName: 'Helvetica-Bold', text: `${billData.currency} ${grandTotal.toFixed(2)}`, width: mm2pt(30) },
-      ],
-      height: 40,
-      padding: 5,
-    });
 
     if (!skipTermsAndConditions) {
       rows.push({ columns: [this.getTermsAndConditions(language)] });

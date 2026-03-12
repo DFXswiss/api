@@ -754,7 +754,7 @@ export class UserDataService {
   }
 
   // --- PHONE UPDATE --- //
-  async updatePhone(userData: UserData, phone: string): Promise<void> {
+  async updatePhone(userData: UserData, phone: string, createStep = true): Promise<void> {
     if (userData.kycLevel !== KycLevel.LEVEL_0 && !phone)
       throw new BadRequestException('KYC already started, user data deletion not allowed');
 
@@ -784,10 +784,12 @@ export class UserDataService {
     }
 
     // create KYC step
-    await this.kycService.createCustomKycStep(userData, KycStepName.PHONE_CHANGE, ReviewStatus.COMPLETED, {
-      phone,
-      previousPhone,
-    });
+    if (createStep) {
+      await this.kycService.createCustomKycStep(userData, KycStepName.PHONE_CHANGE, ReviewStatus.COMPLETED, {
+        phone,
+        previousPhone,
+      });
+    }
   }
 
   // --- ADDRESS UPDATE --- //

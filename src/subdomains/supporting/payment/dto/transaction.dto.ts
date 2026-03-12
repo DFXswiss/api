@@ -143,8 +143,14 @@ export class UnassignedTransactionDto {
   @ApiPropertyOptional({ description: 'Fiat ID for buy transactions, asset ID otherwise' })
   inputAssetId?: number;
 
+  @ApiPropertyOptional({ description: 'Contract address of the input asset (for tokens)' })
+  inputChainId?: string;
+
   @ApiPropertyOptional({ enum: Blockchain })
   inputBlockchain?: Blockchain;
+
+  @ApiPropertyOptional({ description: 'EVM chain ID of the input asset (e.g. 1 for Ethereum)' })
+  inputEvmChainId?: number;
 
   @ApiPropertyOptional({ enum: PaymentMethodSwagger })
   inputPaymentMethod?: PaymentMethod;
@@ -154,6 +160,9 @@ export class UnassignedTransactionDto {
 
   @ApiPropertyOptional()
   inputTxUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Deposit address for crypto input transactions' })
+  depositAddress?: string;
 
   @ApiPropertyOptional({ description: 'Chargeback address or chargeback IBAN' })
   chargebackTarget?: string;
@@ -216,8 +225,14 @@ export class TransactionDto extends UnassignedTransactionDto {
   @ApiPropertyOptional({ description: 'Fiat ID for sell transactions, asset ID otherwise' })
   outputAssetId?: number;
 
+  @ApiPropertyOptional({ description: 'Contract address of the output asset (for tokens)' })
+  outputChainId?: string;
+
   @ApiPropertyOptional({ enum: Blockchain })
   outputBlockchain?: Blockchain;
+
+  @ApiPropertyOptional({ description: 'EVM chain ID of the output asset (e.g. 1 for Ethereum)' })
+  outputEvmChainId?: number;
 
   @ApiPropertyOptional({ enum: PaymentMethodSwagger })
   outputPaymentMethod?: PaymentMethod;

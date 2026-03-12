@@ -3,17 +3,20 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { InternetComputerUtil } from 'src/integration/blockchain/icp/icp.util';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
-import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
-import { Not, Like } from 'typeorm';
+import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/deposit.service';
 import { PayInType } from '../../../entities/crypto-input.entity';
 import { PayInEntry } from '../../../interfaces';
 import { PayInInternetComputerService } from '../../../services/payin-icp.service';
 import { RegisterStrategy } from './base/register.strategy';
+
+const BATCH_SIZE = 2000;
+const SETTING_KEY = 'icpLastScannedBlocks';
 
 @Injectable()
 export class InternetComputerStrategy extends RegisterStrategy {
@@ -23,7 +26,8 @@ export class InternetComputerStrategy extends RegisterStrategy {
 
   constructor(
     private readonly payInInternetComputerService: PayInInternetComputerService,
-    private readonly transactionRequestService: TransactionRequestService,
+    private readonly depositService: DepositService,
+    private readonly settingService: SettingService,
   ) {
     super();
 
@@ -38,90 +42,144 @@ export class InternetComputerStrategy extends RegisterStrategy {
   //*** JOBS ***//
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
-    const activeDepositAddresses = await this.transactionRequestService.getActiveDepositAddresses(
-      Util.hoursBefore(1),
-      this.blockchain,
-    );
+    const allDeposits = await this.depositService.getUsedDepositsByBlockchain(this.blockchain);
+    const allDepositAddresses = allDeposits.map((d) => d.address);
 
-    if (this.paymentAddress) activeDepositAddresses.push(this.paymentAddress);
+    if (this.paymentAddress && !allDepositAddresses.includes(this.paymentAddress)) {
+      allDepositAddresses.push(this.paymentAddress);
+    }
 
-    await this.processNewPayInEntries(activeDepositAddresses.map((a) => BlockchainAddress.create(a, this.blockchain)));
+    await this.processNewPayInEntries(allDepositAddresses, true);
   }
 
   async pollAddress(depositAddress: BlockchainAddress, fromBlock?: number, toBlock?: number): Promise<void> {
     if (depositAddress.blockchain !== this.blockchain)
       throw new Error(`Invalid blockchain: ${depositAddress.blockchain}`);
 
-    return this.processNewPayInEntries([depositAddress], fromBlock, toBlock);
+    return this.processNewPayInEntries([depositAddress.address], false, fromBlock, toBlock);
   }
 
   //*** HELPER METHODS ***//
   private async processNewPayInEntries(
-    depositAddresses: BlockchainAddress[],
+    depositAddresses: string[],
+    persistProgress: boolean,
     fromBlock?: number,
     toBlock?: number,
   ): Promise<void> {
     const log = this.createNewLogObject();
+    const scanState: Record<string, number> = persistProgress ? await this.getScanState() : {};
+    const assets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
 
-    const newEntries = await this.getNativeEntries(depositAddresses, fromBlock, toBlock);
+    const newEntries: PayInEntry[] = [];
+    for (const asset of assets) {
+      try {
+        const entries = await this.scanLedger(asset, scanState, depositAddresses, fromBlock, toBlock);
+        newEntries.push(...entries);
+      } catch (e) {
+        this.logger.error(`Failed to scan ${asset.name}:`, e);
+      }
+    }
 
     if (newEntries.length) {
       await this.createPayInsAndSave(newEntries, log);
     }
 
+    if (persistProgress && Object.keys(scanState).length) {
+      await this.saveScanState(scanState);
+    }
+
     this.printInputLog(log, 'omitted', this.blockchain);
   }
 
-  // --- Native ICP (Rosetta per-address history) --- //
-  private async getNativeEntries(
-    depositAddresses: BlockchainAddress[],
+  // --- Generic ledger scanner --- //
+  private async scanLedger(
+    asset: Asset,
+    scanState: Record<string, number>,
+    depositAddresses: string[],
     fromBlock?: number,
     toBlock?: number,
   ): Promise<PayInEntry[]> {
-    const asset = await this.assetService.getNativeAsset(this.blockchain);
+    const isNative = asset.type === AssetType.COIN;
+    const canisterId = asset.chainId;
+
+    if (!isNative && !asset.decimals) {
+      this.logger.error(`Asset ${asset.name} has no decimals configured, skipping`);
+      return [];
+    }
+
+    // Build address lookup: maps transfer.to → principal address
+    const addressLookup = new Map(
+      depositAddresses.map((p) => [isNative ? InternetComputerUtil.accountIdentifier(p) : p, p]),
+    );
+
+    // Determine block range
+    const stateKey = asset.id.toString();
+    const lastScanned = scanState[stateKey];
+
+    const chainLength = isNative
+      ? await this.payInInternetComputerService.getBlockHeight()
+      : await this.payInInternetComputerService.getIcrcBlockHeight(canisterId);
+
+    const endBlock = toBlock ?? chainLength;
+    const startBlock = fromBlock ?? (lastScanned === undefined ? Math.max(0, endBlock - BATCH_SIZE) : lastScanned + 1);
+
+    if (startBlock >= endBlock) return [];
 
     const entries: PayInEntry[] = [];
+    let cursor = startBlock;
+    let highestBlock = startBlock;
 
-    for (const da of depositAddresses) {
-      try {
-        const accountId = InternetComputerUtil.accountIdentifier(da.address);
-        const lastBlock = fromBlock ?? (await this.getLastCheckedNativeBlockHeight(da)) + 1;
+    while (cursor < endBlock) {
+      const count = Math.min(BATCH_SIZE, endBlock - cursor);
 
-        const transfers = await this.payInInternetComputerService.getNativeTransfersForAddress(accountId);
+      const result = isNative
+        ? await this.payInInternetComputerService.getTransfers(cursor, count)
+        : await this.payInInternetComputerService.getIcrcTransfers(canisterId, asset.decimals, cursor, count);
 
-        for (const transfer of transfers) {
-          if (transfer.blockIndex < lastBlock) continue;
-          if (toBlock !== undefined && transfer.blockIndex > toBlock) continue;
-          if (transfer.to !== accountId) continue;
+      for (const transfer of result.transfers) {
+        const matchedAddress = addressLookup.get(transfer.to);
+        if (!matchedAddress) continue;
 
-          entries.push({
-            senderAddresses: transfer.from,
-            receiverAddress: BlockchainAddress.create(da.address, this.blockchain),
-            txId: transfer.blockIndex.toString(),
-            txType: this.getTxType(da.address),
-            blockHeight: transfer.blockIndex,
-            amount: transfer.amount,
-            asset,
-          });
-        }
-      } catch (e) {
-        this.logger.error(`Failed to fetch native transfers for ${da.address}:`, e);
+        entries.push({
+          senderAddresses: transfer.from,
+          receiverAddress: BlockchainAddress.create(matchedAddress, this.blockchain),
+          txId: isNative ? transfer.blockIndex.toString() : `${canisterId}:${transfer.blockIndex}`,
+          txType: this.getTxType(matchedAddress),
+          blockHeight: transfer.blockIndex,
+          amount: transfer.amount,
+          asset,
+        });
       }
+
+      highestBlock = Math.max(highestBlock, result.lastBlockIndex);
+
+      // Advance cursor, handling stuck cursor edge case
+      const nextCursor = result.lastBlockIndex + 1;
+      if (nextCursor <= cursor) {
+        this.logger.warn(`${asset.name}: cursor stuck at ${cursor}, skipping batch`);
+        cursor += BATCH_SIZE;
+      } else {
+        cursor = nextCursor;
+      }
+
+      if (result.rawTransactionCount === 0) break;
+    }
+
+    // Update scan state
+    if (highestBlock > (lastScanned ?? 0)) {
+      scanState[stateKey] = highestBlock;
     }
 
     return entries;
   }
 
-  // --- DB-based block height lookups --- //
-  private async getLastCheckedNativeBlockHeight(depositAddress: BlockchainAddress): Promise<number> {
-    return this.payInRepository
-      .findOne({
-        select: { id: true, blockHeight: true },
-        where: { address: depositAddress, inTxId: Not(Like('%:%')) },
-        order: { blockHeight: 'DESC' },
-        loadEagerRelations: false,
-      })
-      .then((input) => input?.blockHeight ?? 0);
+  // --- Settings persistence --- //
+  private async getScanState(): Promise<Record<string, number>> {
+    return (await this.settingService.getObj<Record<string, number>>(SETTING_KEY)) ?? {};
+  }
+
+  private async saveScanState(state: Record<string, number>): Promise<void> {
+    await this.settingService.setObj(SETTING_KEY, state);
   }
 
   private getTxType(resolvedAddress: string): PayInType {

@@ -12,6 +12,7 @@ export interface IcpTransferQueryResult {
   transfers: IcpTransfer[];
   lastBlockIndex: number;
   chainLength: number;
+  rawTransactionCount: number;
 }
 
 // --- Candid query_blocks response types (ICP native ledger) ---
