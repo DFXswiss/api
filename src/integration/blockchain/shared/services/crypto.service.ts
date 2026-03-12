@@ -17,6 +17,7 @@ import { InternetComputerService } from '../../icp/services/icp.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';
 import { MoneroService } from '../../monero/services/monero.service';
 import { SolanaService } from '../../solana/services/solana.service';
+import { ArkService } from '../../ark/ark.service';
 import { SparkService } from '../../spark/spark.service';
 import { TronService } from '../../tron/services/tron.service';
 import { ZanoService } from '../../zano/services/zano.service';
@@ -36,6 +37,7 @@ export class CryptoService {
     private readonly bitcoinService: BitcoinService,
     private readonly lightningService: LightningService,
     private readonly sparkService: SparkService,
+    private readonly arkService: ArkService,
     private readonly firoService: FiroService,
     private readonly moneroService: MoneroService,
     private readonly zanoService: ZanoService,
@@ -67,6 +69,9 @@ export class CryptoService {
 
       case Blockchain.SPARK:
         return this.sparkService.getPaymentRequest(address, amount);
+
+      case Blockchain.ARK:
+        return this.arkService.getPaymentRequest(address, amount);
 
       case Blockchain.FIRO:
         return this.firoService.getPaymentRequest(address, amount);
@@ -122,6 +127,9 @@ export class CryptoService {
 
       case Blockchain.SPARK:
         return UserAddressType.SPARK;
+
+      case Blockchain.ARK:
+        return UserAddressType.ARK;
 
       case Blockchain.FIRO:
         return UserAddressType.FIRO;
@@ -284,6 +292,7 @@ export class CryptoService {
       if (detectedBlockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
       if (detectedBlockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
       if (detectedBlockchain === Blockchain.SPARK) return await this.verifySpark(message, address, signature);
+      if (detectedBlockchain === Blockchain.ARK) return await this.verifyArk(message, address, signature);
       if (detectedBlockchain === Blockchain.FIRO)
         return this.verifyBitcoinBased(message, address, signature, CryptoService.firoMessagePrefix);
       if (detectedBlockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
@@ -373,6 +382,10 @@ export class CryptoService {
 
   private async verifySpark(message: string, address: string, signature: string): Promise<boolean> {
     return this.sparkService.verifySignature(message, address, signature);
+  }
+
+  private async verifyArk(message: string, address: string, signature: string): Promise<boolean> {
+    return this.arkService.verifySignature(message, address, signature);
   }
 
   private async verifyMonero(message: string, address: string, signature: string): Promise<boolean> {
