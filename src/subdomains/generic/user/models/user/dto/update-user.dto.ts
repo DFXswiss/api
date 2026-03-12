@@ -1,9 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsArray,
   IsBoolean,
   IsEmail,
-  IsEnum,
   IsNotEmpty,
   IsObject,
   IsOptional,
@@ -41,7 +41,7 @@ export class UpdateUserDto {
 
   @ApiPropertyOptional({ type: String, isArray: true })
   @IsOptional()
-  @IsEnum(PhoneCallPreferredTime)
+  @IsArray()
   preferredPhoneTimes?: PhoneCallPreferredTime[];
 
   @ApiPropertyOptional()
