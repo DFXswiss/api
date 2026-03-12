@@ -15,7 +15,7 @@ import { UserStatus } from '../user.enum';
 import { LinkedUserOutDto } from './linked-user.dto';
 
 export enum UserPhoneCallStatus {
-  REPEAT = 'Repeat',
+  ACCEPTED = 'Accepted',
   REJECTED = 'Rejected',
   UNAVAILABLE = 'Unavailable',
   COMPLETED = 'Completed',
@@ -25,7 +25,7 @@ export enum UserPhoneCallStatus {
 export const PhoneCallStatusMapper: {
   [key in PhoneCallStatus]: UserPhoneCallStatus;
 } = {
-  [PhoneCallStatus.REPEAT]: UserPhoneCallStatus.REPEAT,
+  [PhoneCallStatus.REPEAT]: UserPhoneCallStatus.ACCEPTED,
   [PhoneCallStatus.USER_REJECTED]: UserPhoneCallStatus.REJECTED,
   [PhoneCallStatus.UNAVAILABLE]: UserPhoneCallStatus.UNAVAILABLE,
   [PhoneCallStatus.FAILED]: UserPhoneCallStatus.FAILED,
