@@ -114,6 +114,15 @@ export class KycChangeNameData {
   lastName: string;
 }
 
+export class KycChangePhoneData {
+  @ApiProperty({ description: 'New phone number' })
+  @IsNotEmpty()
+  @IsString()
+  @Transform(DfxPhoneTransform)
+  @IsDfxPhone()
+  phone: string;
+}
+
 export class KycPersonalData {
   @ApiProperty({ enum: AccountType })
   @IsNotEmpty()

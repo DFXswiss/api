@@ -51,6 +51,7 @@ import {
   KycBeneficialData,
   KycChangeAddressData,
   KycChangeNameData,
+  KycChangePhoneData,
   KycContactData,
   KycFileData,
   KycLegalEntityData,
@@ -770,6 +771,19 @@ export class KycService {
       firstName: result.firstName,
       lastName: result.lastName,
     });
+  }
+
+  async updatePhoneChangeData(kycHash: string, stepId: number, data: KycChangePhoneData): Promise<KycStepBase> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    await this.userDataService.updatePhone(user, data.phone, false);
+
+    await this.kycStepRepo.update(...kycStep.complete({ phone: data.phone }));
+    await this.createStepLog(user, kycStep);
+    await this.updateProgress(user, false);
+
+    return KycStepMapper.toStepBase(kycStep);
   }
 
   async getFinancialData(kycHash: string, ip: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {

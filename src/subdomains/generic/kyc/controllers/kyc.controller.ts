@@ -43,6 +43,7 @@ import {
   KycBeneficialData,
   KycChangeAddressData,
   KycChangeNameData,
+  KycChangePhoneData,
   KycContactData,
   KycFileData,
   KycLegalEntityData,
@@ -264,6 +265,17 @@ export class KycController {
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('name-change', data.fileName);
     return this.kycService.updateNameChangeData(code, +id, data);
+  }
+
+  @Put('data/phone/:id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async updatePhoneChangeData(
+    @Headers(CodeHeaderName) code: string,
+    @Param('id') id: string,
+    @Body() data: KycChangePhoneData,
+  ): Promise<KycStepBase> {
+    return this.kycService.updatePhoneChangeData(code, +id, data);
   }
 
   @Put('data/confirmation/:id')
