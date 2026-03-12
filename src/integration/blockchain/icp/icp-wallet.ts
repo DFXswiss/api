@@ -41,6 +41,11 @@ export class InternetComputerWallet {
   }
 
   getAgent(host: string): HttpAgent {
-    return HttpAgent.createSync({ identity: this.identity, host, verifyQuerySignatures: false });
+    return HttpAgent.createSync({
+      identity: this.identity,
+      host,
+      verifyQuerySignatures: false,
+      shouldSyncTime: true,
+    });
   }
 }
