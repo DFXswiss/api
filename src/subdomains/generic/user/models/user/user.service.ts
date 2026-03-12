@@ -51,7 +51,7 @@ import { UserDtoMapper } from './dto/user-dto.mapper';
 import { UserNameDto } from './dto/user-name.dto';
 import { UserProfileDto } from './dto/user-profile.dto';
 import { ReferralDto, UpdateRefDto, UserV2Dto } from './dto/user-v2.dto';
-import { PhoneCallStatusMapper, UserDetailDto, UserDetails } from './dto/user.dto';
+import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { UpdateMailStatus } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
@@ -675,10 +675,6 @@ export class UserService {
       apiFilterCT: ApiKeyService.getFilterArray(user.userData?.apiFilterCT ?? user.apiFilterCT),
       ...(detailed ? await this.getUserDetails(user) : undefined),
       linkedAddresses: detailed ? await this.getAllLinkedUsers(user.id) : undefined,
-      preferredPhoneTimes: user.userData?.phoneCallTimesObject,
-      phoneCallStatus: user.userData?.phoneCallStatus
-        ? PhoneCallStatusMapper[user.userData.phoneCallStatus]
-        : undefined,
     };
   }
 
