@@ -9,9 +9,9 @@ import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AccountType } from '../../user-data/account-type.enum';
-import { KycLevel } from '../../user-data/user-data.enum';
+import { KycLevel, PhoneCallPreferredTime } from '../../user-data/user-data.enum';
 import { RefPayoutFrequency } from '../user.enum';
-import { TradingLimit, VolumeInformation } from './user.dto';
+import { TradingLimit, UserPhoneCallStatus, VolumeInformation } from './user.dto';
 
 export class VolumesDto {
   @ApiProperty({ type: VolumeInformation, description: 'Total buy volume in CHF' })
@@ -104,6 +104,12 @@ export class UserKycDto {
 
   @ApiProperty()
   dataComplete: boolean;
+
+  @ApiProperty({ enum: PhoneCallPreferredTime, isArray: true })
+  preferredPhoneTimes: PhoneCallPreferredTime[];
+
+  @ApiProperty({ enum: UserPhoneCallStatus })
+  phoneCallStatus: UserPhoneCallStatus;
 }
 
 export class UserPaymentLinkDto {
