@@ -237,6 +237,7 @@ export class KycService {
                 KycError.NATIONALITY_NOT_MATCHING,
                 KycError.IP_COUNTRY_MISMATCH,
                 KycError.COUNTRY_IP_COUNTRY_MISMATCH,
+                KycError.RESIDENCE_PERMIT_CHECK_REQUIRED,
               ].includes(e),
             )
           )
