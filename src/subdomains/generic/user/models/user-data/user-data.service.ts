@@ -139,6 +139,11 @@ export class UserDataService {
       : this.userDataRepo.findOne(request);
   }
 
+  async getUserDataByIds(ids: number[]): Promise<UserData[]> {
+    if (!ids.length) return [];
+    return this.userDataRepo.find({ where: { id: In(ids) } });
+  }
+
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
     if (!Config.formats.kycHash.test(kycHash)) throw new UnauthorizedException('Invalid KYC hash');
 
