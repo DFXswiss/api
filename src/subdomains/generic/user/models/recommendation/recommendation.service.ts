@@ -283,6 +283,46 @@ export class RecommendationService {
     return this.updateRecommendationInternal(entity, { isConfirmed: true, confirmationDate: new Date() });
   }
 
+  async getRecommendationsByKycStepIdsOrUserDataId(
+    kycStepIds: number[],
+    userDataId: number,
+  ): Promise<Recommendation[]> {
+    const results: Recommendation[] = [];
+
+    // Search by kycStepId
+    if (kycStepIds.length) {
+      const byStep = await this.recommendationRepo.find({
+        where: kycStepIds.map((id) => ({ kycStep: { id } })),
+        relations: { recommender: true, recommended: true },
+      });
+      results.push(...byStep);
+    }
+
+    // Also search by recommendedId (for mail invitations where kycStepId is null)
+    const byRecommended = await this.recommendationRepo.find({
+      where: { recommended: { id: userDataId } },
+      relations: { recommender: true, recommended: true },
+    });
+    results.push(...byRecommended.filter((r) => !results.some((e) => e.id === r.id)));
+
+    return results;
+  }
+
+  async getAllRecommendationsByRecommenderId(recommenderId: number): Promise<Recommendation[]> {
+    return this.recommendationRepo.find({
+      where: { recommender: { id: recommenderId } },
+      relations: { recommended: true, recommender: true },
+      order: { id: 'DESC' },
+    });
+  }
+
+  async getRecommendationsByRecommendedId(recommendedId: number): Promise<Recommendation[]> {
+    return this.recommendationRepo.find({
+      where: { recommended: { id: recommendedId } },
+      relations: { recommended: true, recommender: true },
+    });
+  }
+
   // --- NOTIFICATIONS --- //
   private async sendInvitationMail(entity: Recommendation): Promise<void> {
     try {

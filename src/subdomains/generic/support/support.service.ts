@@ -27,10 +27,13 @@ import { Transaction } from 'src/subdomains/supporting/payment/entities/transact
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { KycStep } from '../kyc/entities/kyc-step.entity';
+import { KycStepName } from '../kyc/enums/kyc-step-name.enum';
 import { KycFileService } from '../kyc/services/kyc-file.service';
 import { KycService } from '../kyc/services/kyc.service';
 import { BankData } from '../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
+import { Recommendation } from '../user/models/recommendation/recommendation.entity';
+import { RecommendationService } from '../user/models/recommendation/recommendation.service';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { User } from '../user/models/user/user.entity';
@@ -44,6 +47,11 @@ import {
   KycFileListEntry,
   KycFileYearlyStats,
   KycStepSupportInfo,
+  RecommendationEntry,
+  RecommendationGraph,
+  RecommendationGraphEdge,
+  RecommendationGraphNode,
+  RecommendationUserInfo,
   SellSupportInfo,
   TransactionListEntry,
   TransactionSupportInfo,
@@ -83,6 +91,7 @@ export class SupportService {
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly settingService: SettingService,
+    private readonly recommendationService: RecommendationService,
   ) {}
 
   async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
@@ -100,10 +109,38 @@ export class SupportService {
       this.sellService.getSellsByUserDataId(id),
     ]);
 
+    // Load recommendation data for Recommendation steps
+    const recommendationStepIds = kycSteps
+      .filter((s) => s.name === KycStepName.RECOMMENDATION)
+      .map((s) => s.id);
+    const recommendations = await this.recommendationService.getRecommendationsByKycStepIdsOrUserDataId(
+      recommendationStepIds,
+      id,
+    );
+    // Map by kycStepId first, then fall back to first recommendation for this userData
+    const recommendationByStep = new Map(
+      recommendations.filter((r) => r.kycStep?.id).map((r) => [r.kycStep.id, r]),
+    );
+    const fallbackRecommendation = recommendations[0];
+
+    // Load all recommendations by the recommender (to show the full network)
+    const recommenderId = fallbackRecommendation?.recommender?.id;
+    const allByRecommender = recommenderId
+      ? await this.recommendationService.getAllRecommendationsByRecommenderId(recommenderId)
+      : [];
+
     return {
       userData,
       kycFiles,
-      kycSteps: kycSteps.map((s) => this.toKycStepSupportInfo(s)),
+      kycSteps: kycSteps.map((s) =>
+        this.toKycStepSupportInfo(
+          s,
+          s.name === KycStepName.RECOMMENDATION
+            ? recommendationByStep.get(s.id) ?? fallbackRecommendation
+            : undefined,
+          s.name === KycStepName.RECOMMENDATION ? allByRecommender : undefined,
+        ),
+      ),
       transactions: transactions.map((t) => this.toTransactionSupportInfo(t)),
       users: users.map((u) => this.toUserSupportInfo(u)),
       bankDatas: bankDatas.map((b) => this.toBankDataSupportInfo(b)),
@@ -207,13 +244,33 @@ export class SupportService {
     };
   }
 
-  private toKycStepSupportInfo(step: KycStep): KycStepSupportInfo {
+  private toKycStepSupportInfo(
+    step: KycStep,
+    recommendation?: Recommendation,
+    allByRecommender?: Recommendation[],
+  ): KycStepSupportInfo {
+    const toUserInfo = (ud?: UserData): RecommendationUserInfo | undefined =>
+      ud ? { id: ud.id, firstname: ud.firstname, surname: ud.surname } : undefined;
+
+    const toEntry = (r: Recommendation): RecommendationEntry => ({
+      id: r.id,
+      recommended: toUserInfo(r.recommended) ?? { id: 0 },
+      isConfirmed: r.isConfirmed,
+      confirmationDate: r.confirmationDate,
+      created: r.created,
+    });
+
     return {
       id: step.id,
       name: step.name,
       type: step.type,
       status: step.status,
       sequenceNumber: step.sequenceNumber,
+      result: step.result,
+      comment: step.comment,
+      recommender: toUserInfo(recommendation?.recommender),
+      recommended: toUserInfo(recommendation?.recommended),
+      allRecommendations: allByRecommender?.map(toEntry),
       created: step.created,
     };
   }
@@ -267,6 +324,63 @@ export class SupportService {
       fiatName: sell.fiat?.name,
       volume: sell.annualVolume,
     };
+  }
+
+  async getRecommendationGraph(userDataId: number): Promise<RecommendationGraph> {
+    const visitedUsers = new Set<number>();
+    const visitedRecs = new Map<number, Recommendation>();
+    const queue: number[] = [userDataId];
+
+    // BFS: traverse all connected recommendations in both directions
+    while (queue.length > 0) {
+      const currentId = queue.shift();
+      if (visitedUsers.has(currentId)) continue;
+      visitedUsers.add(currentId);
+
+      // Find all recommendations where this user is recommender OR recommended
+      const [asRecommender, asRecommended] = await Promise.all([
+        this.recommendationService.getAllRecommendationsByRecommenderId(currentId),
+        this.recommendationService.getRecommendationsByRecommendedId(currentId),
+      ]);
+
+      for (const rec of [...asRecommender, ...asRecommended]) {
+        if (visitedRecs.has(rec.id)) continue;
+        visitedRecs.set(rec.id, rec);
+
+        if (rec.recommender?.id && !visitedUsers.has(rec.recommender.id)) queue.push(rec.recommender.id);
+        if (rec.recommended?.id && !visitedUsers.has(rec.recommended.id)) queue.push(rec.recommended.id);
+      }
+    }
+
+    // Collect all user IDs and load their data
+    const allUserIds = [...visitedUsers];
+    const userDatas = await Promise.all(
+      allUserIds.map((id) => this.userDataService.getUserData(id)),
+    );
+
+    const nodes: RecommendationGraphNode[] = userDatas.filter(Boolean).map((ud) => ({
+      id: ud.id,
+      firstname: ud.firstname,
+      surname: ud.surname,
+      kycStatus: ud.kycStatus,
+      kycLevel: ud.kycLevel,
+      tradeApprovalDate: ud.tradeApprovalDate,
+    }));
+
+    const edges: RecommendationGraphEdge[] = [...visitedRecs.values()]
+      .filter((r) => r.recommender?.id && r.recommended?.id)
+      .map((r) => ({
+        id: r.id,
+        recommenderId: r.recommender.id,
+        recommendedId: r.recommended.id,
+        method: r.method,
+        type: r.type,
+        isConfirmed: r.isConfirmed,
+        confirmationDate: r.confirmationDate,
+        created: r.created,
+      }));
+
+    return { nodes, edges, rootId: userDataId };
   }
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
