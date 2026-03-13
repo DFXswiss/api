@@ -1,11 +1,21 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsEmail, IsNotEmpty, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
+import {
+  IsArray,
+  IsBoolean,
+  IsEmail,
+  IsNotEmpty,
+  IsObject,
+  IsOptional,
+  IsString,
+  ValidateNested,
+} from 'class-validator';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Language } from 'src/shared/models/language/language.entity';
 import { Util } from 'src/shared/utils/util';
 import { DfxPhoneTransform, IsDfxPhone } from '../../user-data/is-dfx-phone.validator';
+import { PhoneCallPreferredTime } from '../../user-data/user-data.enum';
 
 export class UpdateUserDto {
   @ApiPropertyOptional()
@@ -28,6 +38,16 @@ export class UpdateUserDto {
   @ValidateNested()
   @Type(() => EntityDto)
   currency?: Fiat;
+
+  @ApiPropertyOptional({ type: String, isArray: true })
+  @IsOptional()
+  @IsArray()
+  preferredPhoneTimes?: PhoneCallPreferredTime[];
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  acceptCall?: boolean;
 }
 
 export class UpdateUserMailDto {

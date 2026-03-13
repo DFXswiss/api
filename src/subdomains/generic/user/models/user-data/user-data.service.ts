@@ -66,7 +66,7 @@ import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
 import { UserData } from './user-data.entity';
-import { KycLevel, TradeApprovalReason, UserDataStatus } from './user-data.enum';
+import { KycLevel, PhoneCallStatus, TradeApprovalReason, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -137,6 +137,11 @@ export class UserDataService {
     return useCachedValues
       ? this.userDataRepo.findOneCached(JSON.stringify(request), request)
       : this.userDataRepo.findOne(request);
+  }
+
+  async getUserDataByIds(ids: number[]): Promise<UserData[]> {
+    if (!ids.length) return [];
+    return this.userDataRepo.find({ where: { id: In(ids) } });
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
@@ -618,6 +623,8 @@ export class UserDataService {
       surname: transliterate(dto.lastName),
     };
 
+    if (userData.verifiedName) update.verifiedName = `${update.firstname} ${update.surname}`;
+
     await this.userDataRepo.update(userData.id, update);
     Object.assign(userData, update);
 
@@ -785,6 +792,10 @@ export class UserDataService {
 
     // create KYC step
     if (createStep) {
+      if (!userData.kycSteps) {
+        userData.kycSteps = await this.kycService.getStepsByUserData(userData.id);
+      }
+
       await this.kycService.createCustomKycStep(userData, KycStepName.PHONE_CHANGE, ReviewStatus.COMPLETED, {
         phone,
         previousPhone,
@@ -839,6 +850,15 @@ export class UserDataService {
       dto.currency = await this.fiatService.getFiat(dto.currency.id);
       if (!dto.currency) throw new BadRequestException('Currency not found');
     }
+
+    if (
+      userData.phoneCallStatus &&
+      ![PhoneCallStatus.UNAVAILABLE, PhoneCallStatus.USER_REJECTED, PhoneCallStatus.REPEAT].includes(
+        userData.phoneCallStatus,
+      ) &&
+      (dto.acceptCall || dto.acceptCall === false)
+    )
+      throw new BadRequestException('Phone call status is already set');
 
     // check phone
     if (dto.phone && dto.phone !== userData.phone) {
