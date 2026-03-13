@@ -307,7 +307,10 @@ export class UserService {
   }
 
   async updateUserV1(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
+    const user = await this.userRepo.findOne({
+      where: { id },
+      relations: { userData: { users: true }, wallet: true },
+    });
     if (!user) throw new NotFoundException('User not found');
 
     // update
