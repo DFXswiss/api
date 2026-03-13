@@ -229,15 +229,16 @@ export class SolanaClient extends BlockchainClient {
     const fromTokenAccount = await SolanaToken.getAssociatedTokenAddress(mintPublicKey, fromPublicKey);
     const toTokenAccount = await SolanaToken.getAssociatedTokenAddress(mintPublicKey, toPublicKey);
 
-    const isTokenAccountAvailable = await this.checkTokenAccount(toAddress, mintAddress);
-
     const transaction = new Solana.Transaction();
 
-    if (!isTokenAccountAvailable) {
-      transaction.add(
-        SolanaToken.createAssociatedTokenAccountInstruction(fromPublicKey, toTokenAccount, toPublicKey, mintPublicKey),
-      );
-    }
+    transaction.add(
+      SolanaToken.createAssociatedTokenAccountIdempotentInstruction(
+        fromPublicKey,
+        toTokenAccount,
+        toPublicKey,
+        mintPublicKey,
+      ),
+    );
 
     transaction.add(
       SolanaToken.createTransferInstruction(
