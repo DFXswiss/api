@@ -33,6 +33,7 @@ import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notificat
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { CustodyProviderService } from '../custody-provider/custody-provider.service';
+import { RecommendationMethod, RecommendationType } from '../recommendation/recommendation.entity';
 import { RecommendationService } from '../recommendation/recommendation.service';
 import { UserData } from '../user-data/user-data.entity';
 import { KycType, TradeApprovalReason, UserDataStatus } from '../user-data/user-data.enum';
@@ -179,7 +180,16 @@ export class AuthService {
 
     if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, user.userData);
 
-    if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, wallet);
+    if (!user.userData.tradeApprovalDate) {
+      await this.checkPendingRecommendation(user.userData, wallet);
+    } else {
+      const recommendation = await this.recommendationService.getUserDataRecommendation(user.userData.id, {
+        isConfirmed: true,
+        type: RecommendationType.INVITATION,
+        method: RecommendationMethod.MAIL,
+      });
+      await this.recommendationService.setRecommenderRefCode(recommendation);
+    }
 
     await this.checkIpBlacklistFor(user.userData, userIp);
 

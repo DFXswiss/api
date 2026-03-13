@@ -10,7 +10,7 @@ import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull, MoreThan } from 'typeorm';
+import { FindOptionsWhere, IsNull, MoreThan } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { KycLevel, KycType, TradeApprovalReason, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
@@ -75,9 +75,6 @@ export class RecommendationService {
           })
         : undefined;
 
-    if (recommended?.tradeApprovalDate)
-      await this.userDataService.createTradeApprovalLog(recommended, TradeApprovalReason.MAIL_INVITATION);
-
     const entity = await this.createRecommendationInternal(
       RecommendationType.INVITATION,
       dto.recommendedMail ? RecommendationMethod.MAIL : RecommendationMethod.RECOMMENDATION_CODE,
@@ -102,6 +99,12 @@ export class RecommendationService {
         isConfirmed: true,
         confirmationDate: new Date(),
       });
+
+      if (recommended.tradeApprovalDate) {
+        await this.userDataService.createTradeApprovalLog(recommended, TradeApprovalReason.MAIL_INVITATION);
+
+        await this.setRecommenderRefCode(entity);
+      }
     }
 
     if (dto.recommendedMail) await this.sendInvitationMail(entity);
@@ -228,18 +231,22 @@ export class RecommendationService {
         TradeApprovalReason.RECOMMENDATION_CONFIRMED,
       );
 
-      const refCode =
-        entity.kycStep && entity.method === RecommendationMethod.REF_CODE
-          ? entity.kycStep.getResult<KycRecommendationData>().key
-          : (entity.recommender.users.find((u) => u.ref)?.ref ?? Config.defaultRef);
-
-      for (const user of entity.recommended.users ??
-        (await this.userService.getAllUserDataUsers(entity.recommended.id))) {
-        if (user.usedRef === Config.defaultRef) await this.userService.updateUserInternal(user, { usedRef: refCode });
-      }
+      await this.setRecommenderRefCode(entity);
     }
 
     return this.recommendationRepo.save(entity);
+  }
+
+  async setRecommenderRefCode(entity: Recommendation): Promise<void> {
+    const refCode =
+      entity.kycStep && entity.method === RecommendationMethod.REF_CODE
+        ? entity.kycStep.getResult<KycRecommendationData>().key
+        : (entity.recommender.users.find((u) => u.ref)?.ref ?? Config.defaultRef);
+
+    for (const user of entity.recommended.users ??
+      (await this.userService.getAllUserDataUsers(entity.recommended.id))) {
+      if (user.usedRef === Config.defaultRef) await this.userService.updateUserInternal(user, { usedRef: refCode });
+    }
   }
 
   async getAndCheckRecommendationByCode(code: string): Promise<Recommendation> {
@@ -260,10 +267,23 @@ export class RecommendationService {
     return entity;
   }
 
-  async getAllRecommendationForUserData(userDataId: number): Promise<Recommendation[]> {
+  async getAllRecommendationForUserData(recommenderId: number): Promise<Recommendation[]> {
     return this.recommendationRepo.find({
-      where: { recommender: { id: userDataId } },
+      where: { recommender: { id: recommenderId } },
       relations: { recommended: true, recommender: true },
+    });
+  }
+
+  async getUserDataRecommendation(
+    userDataId: number,
+    where: FindOptionsWhere<Recommendation>,
+  ): Promise<Recommendation> {
+    return this.recommendationRepo.findOne({
+      where: { recommended: { id: userDataId }, ...where },
+      relations: {
+        recommended: { users: true },
+        recommender: { users: true },
+      },
     });
   }
 
