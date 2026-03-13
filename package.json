@@ -27,6 +27,7 @@
   },
   "dependencies": {
     "@arbitrum/sdk": "^3.7.3",
+    "@arkade-os/sdk": "^0.4.3",
     "@azure/storage-blob": "^12.29.1",
     "@blockfrost/blockfrost-js": "^6.1.0",
     "@buildonspark/spark-sdk": "^0.6.7",
@@ -173,7 +174,8 @@
     "rootDir": "src",
     "moduleNameMapper": {
       "^src/(.*)$": "<rootDir>/$1",
-      "^@dfinity/(ledger-icp|ledger-icrc|utils)$": "<rootDir>/integration/blockchain/icp/__mocks__/dfinity-$1.mock.ts"
+      "^@dfinity/(ledger-icp|ledger-icrc|utils)$": "<rootDir>/integration/blockchain/icp/__mocks__/dfinity-$1.mock.ts",
+      "^@arkade-os/sdk$": "<rootDir>/integration/blockchain/ark/__mocks__/arkade-sdk.mock.ts"
     },
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {

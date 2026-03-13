@@ -31,6 +31,7 @@ export class MexcService extends ExchangeService {
     Bitcoin: 'BTC',
     Lightning: undefined,
     Spark: undefined,
+    Ark: undefined,
     Firo: 'XZC',
     Monero: 'XMR',
     Zano: 'ZANO',

@@ -9,6 +9,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { SolanaService } from 'src/integration/blockchain/solana/services/solana.service';
+import { ArkService } from 'src/integration/blockchain/ark/ark.service';
 import { SparkService } from 'src/integration/blockchain/spark/spark.service';
 import { TronService } from 'src/integration/blockchain/tron/services/tron.service';
 import { ZanoService } from 'src/integration/blockchain/zano/services/zano.service';
@@ -26,6 +27,7 @@ describe('CryptoService', () => {
         { provide: BitcoinService, useValue: createMock<BitcoinService>() },
         { provide: LightningService, useValue: createMock<LightningService>() },
         { provide: SparkService, useValue: createMock<SparkService>() },
+        { provide: ArkService, useValue: createMock<ArkService>() },
         { provide: FiroService, useValue: createMock<FiroService>() },
         { provide: MoneroService, useValue: createMock<MoneroService>() },
         { provide: ZanoService, useValue: createMock<ZanoService>() },

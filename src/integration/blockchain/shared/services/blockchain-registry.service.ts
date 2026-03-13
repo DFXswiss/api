@@ -24,6 +24,8 @@ import { PolygonService } from '../../polygon/polygon.service';
 import { SepoliaService } from '../../sepolia/sepolia.service';
 import { SolanaService } from '../../solana/services/solana.service';
 import { SolanaClient } from '../../solana/solana-client';
+import { ArkClient } from '../../ark/ark-client';
+import { ArkService } from '../../ark/ark.service';
 import { SparkClient } from '../../spark/spark-client';
 import { SparkService } from '../../spark/spark.service';
 import { TronService } from '../../tron/services/tron.service';
@@ -41,6 +43,7 @@ type BlockchainClientType =
   | BitcoinClient
   | BitcoinTestnet4Client
   | SparkClient
+  | ArkClient
   | FiroClient
   | MoneroClient
   | ZanoClient
@@ -54,6 +57,7 @@ type BlockchainServiceType =
   | BitcoinService
   | BitcoinTestnet4Service
   | SparkService
+  | ArkService
   | FiroService
   | MoneroService
   | ZanoService
@@ -69,6 +73,7 @@ const COIN_ONLY_BLOCKCHAINS = new Set([
   Blockchain.BITCOIN_TESTNET4,
   Blockchain.LIGHTNING,
   Blockchain.SPARK,
+  Blockchain.ARK,
   Blockchain.FIRO,
   Blockchain.MONERO,
 ]);
@@ -87,6 +92,7 @@ export class BlockchainRegistryService {
     private readonly bitcoinService: BitcoinService,
     private readonly lightningService: LightningService,
     private readonly sparkService: SparkService,
+    private readonly arkService: ArkService,
     private readonly firoService: FiroService,
     private readonly moneroService: MoneroService,
     private readonly zanoService: ZanoService,
@@ -155,6 +161,8 @@ export class BlockchainRegistryService {
         return this.bitcoinTestnet4Service;
       case Blockchain.SPARK:
         return this.sparkService;
+      case Blockchain.ARK:
+        return this.arkService;
       case Blockchain.FIRO:
         return this.firoService;
       case Blockchain.MONERO:

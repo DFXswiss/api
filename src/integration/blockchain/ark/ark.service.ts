@@ -1,19 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { Bech32mService } from '../shared/bech32m/bech32m.service';
-import { SparkClient, SparkTransaction } from './spark-client';
+import { ArkClient, ArkTransaction } from './ark-client';
 
 @Injectable()
-export class SparkService extends Bech32mService {
-  readonly defaultPrefix = 'spark';
+export class ArkService extends Bech32mService {
+  readonly defaultPrefix = 'ark';
 
-  private readonly client: SparkClient;
+  private readonly client: ArkClient;
 
   constructor() {
     super();
-    this.client = new SparkClient();
+    this.client = new ArkClient();
   }
 
-  getDefaultClient(): SparkClient {
+  getDefaultClient(): ArkClient {
     return this.client;
   }
 
@@ -27,7 +27,7 @@ export class SparkService extends Bech32mService {
     return this.client.sendTransaction(to, amount);
   }
 
-  async getTransaction(txId: string): Promise<SparkTransaction> {
+  async getTransaction(txId: string): Promise<ArkTransaction> {
     return this.client.getTransaction(txId);
   }
 

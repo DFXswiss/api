@@ -22,6 +22,7 @@ export class KrakenService extends ExchangeService {
     Bitcoin: false,
     Lightning: undefined,
     Spark: undefined,
+    Ark: undefined,
     Firo: undefined,
     Monero: false,
     Zano: undefined,

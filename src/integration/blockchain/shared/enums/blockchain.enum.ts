@@ -2,6 +2,7 @@ export enum Blockchain {
   BITCOIN = 'Bitcoin',
   LIGHTNING = 'Lightning',
   SPARK = 'Spark',
+  ARK = 'Ark',
   FIRO = 'Firo',
   MONERO = 'Monero',
   ZANO = 'Zano',
