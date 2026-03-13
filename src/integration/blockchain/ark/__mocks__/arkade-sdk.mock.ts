@@ -117,9 +117,7 @@ function minimalScriptNum(n: number): Uint8Array {
 function buildExitScript(pubKey: Uint8Array, csvTimelock: RelativeTimelock = DEFAULT_TIMELOCK): Uint8Array {
   // <sequence> OP_CHECKSEQUENCEVERIFY OP_DROP <pubkey> OP_CHECKSIG
   const sequence = bip68.encode(
-    csvTimelock.type === 'blocks'
-      ? { blocks: Number(csvTimelock.value) }
-      : { seconds: Number(csvTimelock.value) },
+    csvTimelock.type === 'blocks' ? { blocks: Number(csvTimelock.value) } : { seconds: Number(csvTimelock.value) },
   );
   const seqBytes = minimalScriptNum(sequence);
   const pushOp = seqBytes.length === 1 ? [] : [seqBytes.length]; // OP_N for 1 byte, else explicit push

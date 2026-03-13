@@ -41,14 +41,20 @@ export class ArkService extends Bech32mService {
             const sig = secp256k1.Signature.fromBytes(signatureBytes, 'compact').addRecoveryBit(recovery);
             const xOnlyKey = sig.recoverPublicKey(messageHash).toBytes(true).slice(1);
 
-            const baseOpts = { pubKey: xOnlyKey, serverPubKey: decoded.serverPubKey, ...(csvTimelock && { csvTimelock }) };
+            const baseOpts = {
+              pubKey: xOnlyKey,
+              serverPubKey: decoded.serverPubKey,
+              ...(csvTimelock && { csvTimelock }),
+            };
 
             // Try DefaultVtxo (non-delegated address)
             if (this.tweakedKeyMatches(new DefaultVtxo.Script(baseOpts), decoded.vtxoTaprootKey)) return true;
 
             // Try DelegateVtxo for each known delegate pubkey
             for (const delegatePubKey of delegatePubKeys) {
-              if (this.tweakedKeyMatches(new DelegateVtxo.Script({ ...baseOpts, delegatePubKey }), decoded.vtxoTaprootKey))
+              if (
+                this.tweakedKeyMatches(new DelegateVtxo.Script({ ...baseOpts, delegatePubKey }), decoded.vtxoTaprootKey)
+              )
                 return true;
             }
           } catch {
