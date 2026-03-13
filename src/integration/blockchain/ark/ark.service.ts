@@ -1,15 +1,19 @@
 import { Injectable } from '@nestjs/common';
-import { ArkAddress, DefaultVtxo } from '@arkade-os/sdk';
+import { ArkAddress, DefaultVtxo, DelegateVtxo } from '@arkade-os/sdk';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
+import { GetConfig } from 'src/config/config';
 import { Bech32mService } from '../shared/bech32m/bech32m.service';
 import { ArkClient, ArkTransaction } from './ark-client';
+
+type CsvTimelock = { value: bigint; type: 'seconds' | 'blocks' } | undefined;
 
 @Injectable()
 export class ArkService extends Bech32mService {
   readonly defaultPrefix = 'ark';
 
   private readonly client: ArkClient;
+  private serverInfo: { exitDelay: bigint; delegatePubKeys: Uint8Array[] } | null | undefined;
 
   constructor() {
     super();
@@ -28,22 +32,28 @@ export class ArkService extends Bech32mService {
       const decoded = ArkAddress.decode(address);
       const messageHash = sha256(new TextEncoder().encode(message));
       const signatureBytes = Buffer.from(signatureHex, 'hex');
+      const csvTimelocks = await this.getCsvTimelocks();
+      const delegatePubKeys = await this.getDelegatePubKeys();
 
-      for (let recovery = 0; recovery <= 3; recovery++) {
-        try {
-          const sig = secp256k1.Signature.fromBytes(signatureBytes, 'compact').addRecoveryBit(recovery);
-          const xOnlyKey = sig.recoverPublicKey(messageHash).toBytes(true).slice(1);
+      for (const csvTimelock of csvTimelocks) {
+        for (let recovery = 0; recovery <= 3; recovery++) {
+          try {
+            const sig = secp256k1.Signature.fromBytes(signatureBytes, 'compact').addRecoveryBit(recovery);
+            const xOnlyKey = sig.recoverPublicKey(messageHash).toBytes(true).slice(1);
 
-          const vtxoScript = new DefaultVtxo.Script({
-            pubKey: xOnlyKey,
-            serverPubKey: decoded.serverPubKey,
-          });
+            const baseOpts = { pubKey: xOnlyKey, serverPubKey: decoded.serverPubKey, ...(csvTimelock && { csvTimelock }) };
 
-          if (Buffer.from(vtxoScript.tweakedPublicKey).equals(Buffer.from(decoded.vtxoTaprootKey))) {
-            return true;
+            // Try DefaultVtxo (non-delegated address)
+            if (this.tweakedKeyMatches(new DefaultVtxo.Script(baseOpts), decoded.vtxoTaprootKey)) return true;
+
+            // Try DelegateVtxo for each known delegate pubkey
+            for (const delegatePubKey of delegatePubKeys) {
+              if (this.tweakedKeyMatches(new DelegateVtxo.Script({ ...baseOpts, delegatePubKey }), decoded.vtxoTaprootKey))
+                return true;
+            }
+          } catch {
+            continue;
           }
-        } catch {
-          continue;
         }
       }
     } catch {
@@ -51,6 +61,60 @@ export class ArkService extends Bech32mService {
     }
 
     return false;
+  }
+
+  private tweakedKeyMatches(vtxoScript: { tweakedPublicKey: Uint8Array }, target: Uint8Array): boolean {
+    return Buffer.from(vtxoScript.tweakedPublicKey).equals(Buffer.from(target));
+  }
+
+  private async getCsvTimelocks(): Promise<CsvTimelock[]> {
+    const timelocks: CsvTimelock[] = [undefined];
+
+    const info = await this.getServerInfo();
+    if (info) {
+      timelocks.push({
+        value: info.exitDelay,
+        type: info.exitDelay < 512n ? 'blocks' : 'seconds',
+      });
+    }
+
+    return timelocks;
+  }
+
+  private async getDelegatePubKeys(): Promise<Uint8Array[]> {
+    const info = await this.getServerInfo();
+    return info?.delegatePubKeys ?? [];
+  }
+
+  private async getServerInfo(): Promise<{ exitDelay: bigint; delegatePubKeys: Uint8Array[] } | null> {
+    if (this.serverInfo !== undefined) return this.serverInfo;
+
+    try {
+      const { arkServerUrl } = GetConfig().blockchain.ark;
+
+      const infoRes = await fetch(`${arkServerUrl}/v1/info`);
+      const info = await infoRes.json();
+      const exitDelay = BigInt(info.unilateralExitDelay);
+
+      // Fetch known delegate pubkeys
+      const delegatePubKeys: Uint8Array[] = [];
+      const delegatorUrls = ['https://delegate.arkade.money'];
+      for (const url of delegatorUrls) {
+        try {
+          const res = await fetch(`${url}/v1/delegator/info`);
+          const data = await res.json();
+          if (data?.pubkey) delegatePubKeys.push(Buffer.from(data.pubkey, 'hex').subarray(1));
+        } catch {
+          // delegator unreachable
+        }
+      }
+
+      this.serverInfo = { exitDelay, delegatePubKeys };
+      return this.serverInfo;
+    } catch {
+      this.serverInfo = null;
+      return null;
+    }
   }
 
   async isHealthy(): Promise<boolean> {
