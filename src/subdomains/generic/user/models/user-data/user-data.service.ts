@@ -1195,7 +1195,7 @@ export class UserDataService {
 
     // Adapt slave kyc step sequenceNumber
     const sequenceNumberOffset = master.kycSteps.length ? Util.minObjValue(master.kycSteps, 'sequenceNumber') - 100 : 0;
-    const kycStepMerge = slave.kycSteps?.length;
+    const kycStepMerge = !!slave.kycSteps?.length;
     for (const kycStep of slave.kycSteps) {
       await this.kycAdminService.updateKycStepInternal(
         kycStep.update(
