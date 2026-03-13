@@ -105,7 +105,7 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
       );
     });
 
-    it('should use dto creditor data when provided (override)', async () => {
+    it('should use chargeback creditor if set', async () => {
       const dto = {
         chargebackAllowedDate: new Date(),
         chargebackAllowedBy: 'Admin',
@@ -127,12 +127,12 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
         mockBankTxReturn.id,
         false,
         expect.objectContaining({
-          name: 'Override Name',
-          address: 'Override Address',
-          houseNumber: '99',
-          zip: '9999',
-          city: 'Override City',
-          country: 'DE',
+          name: 'Max Mustermann',
+          address: 'Hauptstrasse',
+          houseNumber: '42',
+          zip: '3000',
+          city: 'Bern',
+          country: 'CH',
         }),
       );
     });
