@@ -4,10 +4,11 @@ import { Util } from 'src/shared/utils/util';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Between, Brackets, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
+import { Between, Brackets, FindOptionsRelations, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionInternalDto } from '../dto/input/update-transaction-internal.dto';
 import { UpdateTransactionDto } from '../dto/update-transaction.dto';
+import { TransactionRequestType } from '../entities/transaction-request.entity';
 import { Transaction, TransactionSourceType } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
 import { SpecialExternalAccountService } from './special-external-account.service';
@@ -190,22 +191,34 @@ export class TransactionService {
     });
   }
 
-  async getTransactionsForUser(userId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
-    return this.repo.find({
-      where: { user: { id: userId }, type: Not(IsNull()), created: Between(from, to) },
-      relations: {
-        buyCrypto: {
-          buy: true,
-          cryptoRoute: true,
-          bankTx: true,
-          checkoutTx: true,
-          cryptoInput: true,
-          chargebackOutput: true,
-        },
-        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
-        refReward: true,
-      },
-    });
+  async getTransactionsForUsers(
+    userIds: number[],
+    from = new Date(0),
+    to = new Date(),
+    limit?: number,
+  ): Promise<Transaction[]> {
+    return Util.doInBatchesWithLimit(
+      userIds,
+      (batch, remaining) =>
+        this.repo.find({
+          where: { user: { id: In(batch) }, type: Not(IsNull()), created: Between(from, to) },
+          relations: {
+            buyCrypto: {
+              buy: true,
+              cryptoRoute: true,
+              bankTx: true,
+              checkoutTx: true,
+              cryptoInput: true,
+              chargebackOutput: true,
+            },
+            buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
+            refReward: true,
+          },
+          take: remaining,
+        }),
+      100,
+      limit,
+    );
   }
 
   async getManualRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
@@ -257,30 +270,16 @@ export class TransactionService {
   }
 
   async getByAssetId(assetId: number, limit = 50, offset = 0): Promise<Transaction[]> {
-    return this.repo
-      .createQueryBuilder('transaction')
-      .select('transaction')
-      .leftJoinAndSelect('transaction.request', 'request')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('transaction.userData', 'userData')
-      .where('transaction.type IS NOT NULL')
-      .andWhere(
-        new Brackets((qb) =>
-          qb
-            .where('request.type = :buyType AND request.targetId = :assetId', {
-              buyType: 'Buy',
-              assetId,
-            })
-            .orWhere('request.type = :sellType AND request.sourceId = :assetId', {
-              sellType: 'Sell',
-              assetId,
-            }),
-        ),
-      )
-      .orderBy('transaction.created', 'DESC')
-      .take(limit)
-      .skip(offset)
-      .getMany();
+    return this.repo.find({
+      where: [
+        { type: Not(IsNull()), request: { type: TransactionRequestType.BUY, targetId: assetId } },
+        { type: Not(IsNull()), request: { type: TransactionRequestType.SELL, sourceId: assetId } },
+      ],
+      order: { created: 'DESC' },
+      take: limit,
+      skip: offset,
+      relations: { request: true, user: true, userData: true },
+    });
   }
 
   async getTransactionByKey(key: string, value: any): Promise<Transaction> {

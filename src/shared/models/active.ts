@@ -11,8 +11,16 @@ export function isFiat(active: Active): active is Fiat {
   return active instanceof Fiat;
 }
 
+export function isFiatDto(activeDto: ActiveDto): activeDto is FiatDto {
+  return activeDto instanceof FiatDto;
+}
+
 export function isAsset(active: Active): active is Asset {
   return active instanceof Asset;
+}
+
+export function isAssetDto(activeDto: ActiveDto): activeDto is AssetDto {
+  return activeDto instanceof AssetDto;
 }
 
 export function amountType(active: Active): AmountType {

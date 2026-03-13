@@ -1,16 +1,4 @@
-import {
-  BadRequestException,
-  Body,
-  Controller,
-  Get,
-  HttpStatus,
-  Param,
-  Post,
-  Put,
-  Query,
-  Res,
-  UseGuards,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpStatus, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiAcceptedResponse,
@@ -28,6 +16,8 @@ import { Response } from 'express';
 import { Config, Environment } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
+  BrokerbotCurrency,
+  BrokerbotCurrencyQueryDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSharesDto,
@@ -40,24 +30,27 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { PdfBrand } from 'src/shared/utils/pdf.util';
+import { Util } from 'src/shared/utils/util';
 import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BalancePdfService } from '../../balance/services/balance-pdf.service';
-import { TxStatementType } from '../../payment/dto/transaction-helper/tx-statement-details.dto';
 import { SwissQRService } from '../../payment/services/swiss-qr.service';
-import { TransactionHelper } from '../../payment/services/transaction-helper';
+import { PriceCurrency, PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAdminQueryDto, RealUnitQuoteDto, RealUnitTransactionDto } from '../dto/realunit-admin.dto';
 import {
   RealUnitBalancePdfDto,
   RealUnitMultiReceiptPdfDto,
   RealUnitSingleReceiptPdfDto,
+  ReceiptCurrency,
 } from '../dto/realunit-pdf.dto';
 import {
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationResponseDto,
+  RealUnitRegisterWalletDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationResponseDto,
   RealUnitRegistrationStatus,
+  RealUnitWalletStatusDto,
 } from '../dto/realunit-registration.dto';
 import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from '../dto/realunit-sell.dto';
 import {
@@ -68,6 +61,7 @@ import {
   HistoricalPriceQueryDto,
   HoldersDto,
   HoldersQueryDto,
+  RealUnitBuyConfirmDto,
   RealUnitBuyDto,
   RealUnitPaymentInfoDto,
   TimeFrame,
@@ -82,8 +76,8 @@ export class RealUnitController {
     private readonly realunitService: RealUnitService,
     private readonly balancePdfService: BalancePdfService,
     private readonly userService: UserService,
-    private readonly transactionHelper: TransactionHelper,
     private readonly swissQrService: SwissQRService,
+    private readonly pricingService: PricingService,
   ) {}
 
   @Get('account/:address')
@@ -153,7 +147,7 @@ export class RealUnitController {
     return this.realunitService.getRealUnitInfo();
   }
 
-  // --- Balance PDF Endpoint ---
+  // --- PDF Endpoints ---
 
   @Post('balance/pdf')
   @ApiBearerAuth()
@@ -174,55 +168,75 @@ export class RealUnitController {
     return { pdfData };
   }
 
-  // --- Receipt PDF Endpoint ---
-
   @Post('transactions/receipt/single')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
-    description: 'Generates a PDF receipt for a completed RealUnit transaction',
+    summary: 'Generate receipt from blockchain transaction',
+    description: 'Generates a PDF receipt for any RealUnit transaction found in blockchain history',
   })
-  @ApiParam({ name: 'id', description: 'Transaction ID' })
   @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
-  @ApiBadRequestResponse({ description: 'Transaction not found or not a RealUnit transaction' })
-  async generateReceipt(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitSingleReceiptPdfDto): Promise<PdfDto> {
+  @ApiBadRequestResponse({ description: 'Transaction not found or not a transfer' })
+  async generateHistoryReceipt(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitSingleReceiptPdfDto): Promise<PdfDto> {
     const user = await this.userService.getUser(jwt.user, { userData: true });
+    const currency = dto.currency ?? ReceiptCurrency.CHF;
+    const historyEvent = await this.realunitService.getHistoryEventByTxHash(jwt.address, dto.txHash);
+    const realuAsset = await this.realunitService.getRealuAsset();
+    const price = await this.pricingService.getPriceAt(realuAsset, PriceCurrency[currency], historyEvent.timestamp);
+    const isIncoming = Util.equalsIgnoreCase(historyEvent.transfer.to, jwt.address);
 
-    const txStatementDetails = await this.transactionHelper.getTxStatementDetails(
-      user.userData.id,
-      dto.transactionId,
-      TxStatementType.RECEIPT,
+    const pdfData = await this.swissQrService.createTxFromBlockchainReceipt(
+      historyEvent,
+      user.userData,
+      realuAsset,
+      price.convert(1),
+      currency,
+      isIncoming,
+      PdfBrand.REALUNIT,
     );
 
-    if (!Config.invoice.currencies.includes(txStatementDetails.currency)) {
-      throw new BadRequestException('PDF receipt is only available for CHF and EUR transactions');
-    }
-
-    return { pdfData: await this.swissQrService.createTxStatement(txStatementDetails, PdfBrand.REALUNIT) };
+    return { pdfData };
   }
 
   @Post('transactions/receipt/multi')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
-    description: 'Generates a single PDF receipt for multiple completed RealUnit transactions',
+    summary: 'Generate multi-receipt from blockchain transactions',
+    description: 'Generates a single PDF receipt for multiple RealUnit transactions found in blockchain history',
   })
   @ApiOkResponse({ type: PdfDto, description: 'Receipt PDF (base64 encoded)' })
-  @ApiBadRequestResponse({ description: 'Transaction not found, currency mismatch, or not a RealUnit transaction' })
-  async generateMultiReceipt(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitMultiReceiptPdfDto): Promise<PdfDto> {
+  @ApiBadRequestResponse({ description: 'Transaction not found or not a transfer' })
+  async generateHistoryMultiReceipt(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitMultiReceiptPdfDto,
+  ): Promise<PdfDto> {
     const user = await this.userService.getUser(jwt.user, { userData: true });
+    const currency = dto.currency ?? ReceiptCurrency.CHF;
+    const historyEvents = await this.realunitService.getHistoryEventsByTxHashes(jwt.address, dto.txHashes);
+    const realuAsset = await this.realunitService.getRealuAsset();
 
-    const txStatementDetails = await this.transactionHelper.getTxStatementDetailsMulti(
-      user.userData.id,
-      dto.transactionIds,
-      TxStatementType.RECEIPT,
+    const receipts = await Promise.all(
+      historyEvents.map(async (event) => {
+        const price = await this.pricingService.getPriceAt(realuAsset, PriceCurrency[currency], event.timestamp);
+        const isIncoming = Util.equalsIgnoreCase(event.transfer.to, jwt.address);
+        return {
+          historyEvent: event,
+          fiatPrice: price.convert(1),
+          isIncoming,
+        };
+      }),
     );
 
-    if (txStatementDetails.length > 0 && !Config.invoice.currencies.includes(txStatementDetails[0].currency)) {
-      throw new BadRequestException('PDF receipt is only available for CHF and EUR transactions');
-    }
+    const pdfData = await this.swissQrService.createTxFromBlockchainMultiReceipt(
+      receipts,
+      user.userData,
+      realuAsset,
+      currency,
+      PdfBrand.REALUNIT,
+    );
 
-    return { pdfData: await this.swissQrService.createMultiTxStatement(txStatementDetails, PdfBrand.REALUNIT) };
+    return { pdfData };
   }
 
   // --- Brokerbot Endpoints ---
@@ -232,9 +246,15 @@ export class RealUnitController {
     summary: 'Get Brokerbot info',
     description: 'Retrieves general information about the REALU Brokerbot (addresses, settings)',
   })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
   @ApiOkResponse({ type: BrokerbotInfoDto })
-  async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
-    return this.realunitService.getBrokerbotInfo();
+  async getBrokerbotInfo(@Query() { currency }: BrokerbotCurrencyQueryDto): Promise<BrokerbotInfoDto> {
+    return this.realunitService.getBrokerbotInfo(currency);
   }
 
   @Get('brokerbot/price')
@@ -242,9 +262,15 @@ export class RealUnitController {
     summary: 'Get current Brokerbot price',
     description: 'Retrieves the current price per REALU share from the Brokerbot smart contract',
   })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
   @ApiOkResponse({ type: BrokerbotPriceDto })
-  async getBrokerbotPrice(): Promise<BrokerbotPriceDto> {
-    return this.realunitService.getBrokerbotPrice();
+  async getBrokerbotPrice(@Query() { currency }: BrokerbotCurrencyQueryDto): Promise<BrokerbotPriceDto> {
+    return this.realunitService.getBrokerbotPrice(currency);
   }
 
   @Get('brokerbot/buyPrice')
@@ -253,20 +279,38 @@ export class RealUnitController {
     description: 'Calculates the total cost to buy a specific number of REALU shares (includes price increment)',
   })
   @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to buy' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
   @ApiOkResponse({ type: BrokerbotBuyPriceDto })
-  async getBrokerbotBuyPrice(@Query('shares') shares: number): Promise<BrokerbotBuyPriceDto> {
-    return this.realunitService.getBrokerbotBuyPrice(Number(shares));
+  async getBrokerbotBuyPrice(
+    @Query('shares') shares: number,
+    @Query() { currency }: BrokerbotCurrencyQueryDto,
+  ): Promise<BrokerbotBuyPriceDto> {
+    return this.realunitService.getBrokerbotBuyPrice(Number(shares), currency);
   }
 
   @Get('brokerbot/shares')
   @ApiOperation({
     summary: 'Get shares for amount',
-    description: 'Calculates how many REALU shares can be purchased for a given CHF amount',
+    description: 'Calculates how many REALU shares can be purchased for a given amount',
   })
-  @ApiQuery({ name: 'amount', type: String, description: 'Amount in CHF (e.g., "1000.50")' })
+  @ApiQuery({ name: 'amount', type: String, description: 'Amount in specified currency (e.g., "1000.50")' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
   @ApiOkResponse({ type: BrokerbotSharesDto })
-  async getBrokerbotShares(@Query('amount') amount: string): Promise<BrokerbotSharesDto> {
-    return this.realunitService.getBrokerbotShares(amount);
+  async getBrokerbotShares(
+    @Query('amount') amount: string,
+    @Query() { currency }: BrokerbotCurrencyQueryDto,
+  ): Promise<BrokerbotSharesDto> {
+    return this.realunitService.getBrokerbotShares(amount, currency);
   }
 
   // --- Buy Payment Info Endpoint ---
@@ -289,9 +333,9 @@ export class RealUnitController {
   @Put('buy/:id/confirm')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard)
-  @ApiOkResponse()
-  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
-    await this.realunitService.confirmBuy(jwt.user, +id);
+  @ApiOkResponse({ type: RealUnitBuyConfirmDto, description: 'Payment confirmed' })
+  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<RealUnitBuyConfirmDto> {
+    return this.realunitService.confirmBuy(jwt.user, +id);
   }
 
   // --- Sell Payment Info Endpoints ---
@@ -332,6 +376,22 @@ export class RealUnitController {
     return this.realunitService.confirmSell(jwt.user, +id, dto);
   }
 
+  // --- Wallet Status Endpoint ---
+
+  @Get('wallet/status')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get wallet status and user data',
+    description:
+      'Returns registration status for the connected wallet and user data if available. Can be used to check registration, get data for account merge, or display user profile.',
+  })
+  @ApiOkResponse({ type: RealUnitWalletStatusDto })
+  async getWalletStatus(@GetJwt() jwt: JwtPayload): Promise<RealUnitWalletStatusDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true } });
+    return this.realunitService.getAddressWalletStatus(user.userData, jwt.address);
+  }
+
   // --- Registration Endpoints ---
 
   @Get('register/status')
@@ -362,7 +422,7 @@ export class RealUnitController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: RealUnitEmailRegistrationDto,
   ): Promise<RealUnitEmailRegistrationResponseDto> {
-    const status = await this.realunitService.registerEmail(jwt.account, jwt.address, dto);
+    const status = await this.realunitService.registerEmail(jwt.account, dto);
     return { status };
   }
 
@@ -377,7 +437,7 @@ export class RealUnitController {
   @ApiOkResponse({ type: RealUnitRegistrationResponseDto })
   @ApiAcceptedResponse({
     type: RealUnitRegistrationResponseDto,
-    description: 'Registration accepted, manual review needed or forwarding to Aktionariat failed',
+    description: 'Registration accepted or forwarding to Aktionariat failed',
   })
   @ApiBadRequestResponse({
     description: 'Invalid signature, wallet mismatch, email registration not completed, or data mismatch',
@@ -395,24 +455,28 @@ export class RealUnitController {
     res.status(statusCode).json(response);
   }
 
-  @Post('register')
+  @Post('register/wallet')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  @ApiOperation({ summary: 'Register for RealUnit' })
-  @ApiOkResponse({ type: RealUnitRegistrationResponseDto, description: 'Registration completed successfully' })
+  @ApiOperation({
+    summary: 'Complete RealUnit registration for given wallet address that is already owned by a user',
+    description: 'Completes a registration using existing data from the wallet status endpoint with a new signature.',
+  })
+  @ApiOkResponse({ type: RealUnitRegistrationResponseDto })
   @ApiAcceptedResponse({
     type: RealUnitRegistrationResponseDto,
-    description: 'Registration accepted, pending manual review',
+    description: 'Registration accepted or forwarding to Aktionariat failed',
   })
-  @ApiBadRequestResponse({ description: 'Invalid signature or wallet does not belong to user' })
-  async register(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitRegistrationDto, @Res() res: Response): Promise<void> {
-    const needsReview = await this.realunitService.register(jwt.account, dto);
-
-    const response: RealUnitRegistrationResponseDto = {
-      status: needsReview ? RealUnitRegistrationStatus.PENDING_REVIEW : RealUnitRegistrationStatus.COMPLETED,
-    };
-
-    res.status(needsReview ? HttpStatus.ACCEPTED : HttpStatus.OK).json(response);
+  @ApiBadRequestResponse({ description: 'No pending registration, invalid signature, or wallet mismatch' })
+  async completeRegistrationForWalletAddress(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitRegisterWalletDto,
+    @Res() res: Response,
+  ): Promise<void> {
+    const status = await this.realunitService.completeRegistrationForWalletAddress(jwt.account, dto);
+    const response: RealUnitRegistrationResponseDto = { status };
+    const statusCode = status === RealUnitRegistrationStatus.COMPLETED ? HttpStatus.CREATED : HttpStatus.ACCEPTED;
+    res.status(statusCode).json(response);
   }
 
   // --- Admin Endpoints ---
@@ -422,7 +486,7 @@ export class RealUnitController {
   @ApiExcludeEndpoint()
   @ApiOperation({ summary: 'Get RealUnit quotes' })
   @ApiOkResponse({ type: [RealUnitQuoteDto], description: 'List of open RealUnit requests (quotes)' })
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getAdminQuotes(@Query() { limit, offset }: RealUnitAdminQueryDto): Promise<RealUnitQuoteDto[]> {
     return this.realunitService.getAdminQuotes(limit, offset);
   }
@@ -432,7 +496,7 @@ export class RealUnitController {
   @ApiExcludeEndpoint()
   @ApiOperation({ summary: 'Get RealUnit transactions' })
   @ApiOkResponse({ type: [RealUnitTransactionDto], description: 'List of completed RealUnit transactions' })
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getAdminTransactions(@Query() { limit, offset }: RealUnitAdminQueryDto): Promise<RealUnitTransactionDto[]> {
     return this.realunitService.getAdminTransactions(limit, offset);
   }
@@ -443,7 +507,7 @@ export class RealUnitController {
   @ApiOperation({ summary: 'Confirm payment received for a open RealUnit request (quote)' })
   @ApiParam({ name: 'id', description: 'Transaction request ID' })
   @ApiOkResponse({ description: 'Payment confirmed and shares allocated' })
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async confirmPaymentReceived(@Param('id') id: string): Promise<void> {
     await this.realunitService.confirmPaymentReceived(+id);
   }
@@ -451,7 +515,7 @@ export class RealUnitController {
   @Put('admin/registration/:kycStepId/forward')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async forwardRegistration(@Param('kycStepId') kycStepId: string): Promise<void> {
     await this.realunitService.forwardRegistrationToAktionariat(+kycStepId);
   }

@@ -3,8 +3,11 @@ import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
-import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
+import { FiroClient } from 'src/integration/blockchain/firo/firo-client';
+import { FiroService } from 'src/integration/blockchain/firo/services/firo.service';
+import { InternetComputerUtil } from 'src/integration/blockchain/icp/icp.util';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -29,6 +32,7 @@ import { CreateDepositDto } from './dto/create-deposit.dto';
 export class DepositService {
   private readonly bitcoinClient: BitcoinClient;
   private readonly lightningClient: LightningClient;
+  private readonly firoClient: FiroClient;
   private readonly moneroClient: MoneroClient;
 
   constructor(
@@ -37,10 +41,12 @@ export class DepositService {
     private readonly tatumWebhookService: TatumWebhookService,
     bitcoinService: BitcoinService,
     lightningService: LightningService,
+    firoService: FiroService,
     moneroService: MoneroService,
   ) {
     this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
     this.lightningClient = lightningService.getDefaultClient();
+    this.firoClient = firoService.getDefaultClient();
     this.moneroClient = moneroService.getDefaultClient();
   }
 
@@ -87,6 +93,8 @@ export class DepositService {
       return this.createEvmDeposits(blockchain, count);
     } else if (blockchain === Blockchain.LIGHTNING) {
       return this.createLightningDeposits(blockchain, count);
+    } else if (blockchain === Blockchain.FIRO) {
+      return this.createFiroDeposits(blockchain, count);
     } else if (blockchain === Blockchain.MONERO) {
       return this.createMoneroDeposits(blockchain, count);
     } else if (blockchain === Blockchain.ZANO) {
@@ -97,6 +105,8 @@ export class DepositService {
       return this.createTronDeposits(blockchain, count);
     } else if (blockchain === Blockchain.CARDANO) {
       return this.createCardanoDeposits(blockchain, count);
+    } else if (blockchain === Blockchain.INTERNET_COMPUTER) {
+      return this.createInternetComputerDeposits(blockchain, count);
     }
 
     throw new BadRequestException(`Deposit creation for ${blockchain} not possible.`);
@@ -197,6 +207,17 @@ export class DepositService {
     }
   }
 
+  private async createFiroDeposits(blockchain: Blockchain, count: number): Promise<void> {
+    const client = this.firoClient;
+    const label = Util.isoDate(new Date());
+
+    for (let i = 0; i < count; i++) {
+      const address = await client.createAddress(label, 'legacy');
+      const deposit = Deposit.create(address, [blockchain]);
+      await this.depositRepo.save(deposit);
+    }
+  }
+
   private async createMoneroDeposits(blockchain: Blockchain, count: number): Promise<void> {
     for (let i = 0; i < count; i++) {
       const moneroAddress = await this.moneroClient.createAddress();
@@ -265,6 +286,22 @@ export class DepositService {
 
       if (accountIndex !== 0) {
         const wallet = CardanoUtil.createWallet(Config.blockchain.cardano.walletAccount(accountIndex));
+        const deposit = Deposit.create(wallet.address, [blockchain], accountIndex);
+        await this.depositRepo.save(deposit);
+      }
+    }
+  }
+
+  private async createInternetComputerDeposits(blockchain: Blockchain, count: number): Promise<void> {
+    const nextDepositIndex = await this.getNextDepositIndex([blockchain]);
+
+    for (let i = 0; i < count; i++) {
+      const accountIndex = nextDepositIndex + i;
+
+      if (accountIndex !== 0) {
+        const wallet = InternetComputerUtil.createWallet(
+          Config.blockchain.internetComputer.walletAccount(accountIndex),
+        );
         const deposit = Deposit.create(wallet.address, [blockchain], accountIndex);
         await this.depositRepo.save(deposit);
       }

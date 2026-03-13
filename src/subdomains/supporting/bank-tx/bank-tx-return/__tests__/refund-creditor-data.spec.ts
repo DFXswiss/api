@@ -37,6 +37,7 @@ describe('BankTxReturnService - refundBankTx Creditor Data', () => {
     id: 1,
     chargebackIban: 'CH9300762011623852957',
     chargebackAmount: 50,
+    chargebackAsset: 'CHF',
     chargebackCreditorData: JSON.stringify(mockCreditorData),
     amlCheck: CheckStatus.FAIL,
     outputAmount: null,

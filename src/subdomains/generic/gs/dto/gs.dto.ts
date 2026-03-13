@@ -88,7 +88,7 @@ export const DebugBlockedCols: Record<string, string[]> = {
     'country',
   ],
   checkout_tx: ['cardName', 'ip', 'cardBin', 'cardLast4', 'cardFingerPrint', 'cardIssuer', 'cardIssuerCountry', 'raw'],
-  virtual_iban: ['iban', 'bban', 'label'],
+  virtual_iban: ['label'],
   kyc_step: ['result'],
   kyc_file: ['name', 'uid'],
   kyc_log: ['comment', 'ipAddress', 'result', 'pdfUrl'],

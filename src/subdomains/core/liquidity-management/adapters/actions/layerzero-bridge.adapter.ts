@@ -39,7 +39,7 @@ const LAYERZERO_OFT_ADAPTERS: Record<string, { ethereum: string; citrea: string 
 };
 
 // Citrea LayerZero Endpoint ID
-const CITREA_LZ_ENDPOINT_ID = 30291;
+const CITREA_LZ_ENDPOINT_ID = 30403;
 
 export enum LayerZeroBridgeCommands {
   DEPOSIT = 'deposit', // Ethereum -> Citrea
@@ -103,11 +103,12 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
 
       // Find transfer from the Citrea OFT contract matching the expected amount (with 5% tolerance)
       const expectedAmount = order.inputAmount;
+      const zeroAddress = '0x0000000000000000000000000000000000000000';
       const matchingTransfer = transfers.find((t) => {
         const receivedAmount = EvmUtil.fromWeiAmount(t.value, asset.decimals);
         return (
           t.contractAddress?.toLowerCase() === asset.chainId.toLowerCase() &&
-          t.from?.toLowerCase() === oftAdapter.citrea.toLowerCase() &&
+          t.from?.toLowerCase() === zeroAddress &&
           Math.abs(receivedAmount - expectedAmount) / expectedAmount < 0.05
         );
       });
@@ -235,10 +236,15 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
     }
 
     // Execute the send transaction
+    const nonce = await this.ethereumClient.getNextNonce();
+
     const sendTx = await oftAdapter.send(sendParam, { nativeFee, lzTokenFee: 0 }, wallet.address, {
       value: nativeFee,
       gasLimit: 500000, // Set a reasonable gas limit for OFT transfers
+      nonce,
     });
+
+    this.ethereumClient.incrementNonce(nonce);
 
     return sendTx.hash;
   }

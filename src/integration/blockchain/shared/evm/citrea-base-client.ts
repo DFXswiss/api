@@ -215,6 +215,7 @@ export abstract class CitreaBaseClient extends EvmClient {
     const weiMinAmountOut = EvmUtil.toWeiAmount(minAmountOut, decimalsOut);
     const deadline = Math.floor(Date.now() / 1000) + 60 * 20; // 20 minutes
     const gasPrice = await this.getRecommendedGasPrice();
+    const nonce = await this.getNonce(this.walletAddress);
 
     const actualTokenIn = isInputNativeCoin ? ethers.constants.AddressZero : tokenIn;
     const actualTokenOut = isOutputNativeCoin ? ethers.constants.AddressZero : tokenOut;
@@ -227,8 +228,10 @@ export abstract class CitreaBaseClient extends EvmClient {
       weiMinAmountOut,
       this.wallet.address,
       deadline,
-      { gasPrice, ...(isInputNativeCoin ? { value: weiAmountIn } : {}) },
+      { gasPrice, nonce, ...(isInputNativeCoin ? { value: weiAmountIn } : {}) },
     );
+
+    this.setNonce(this.walletAddress, nonce + 1);
 
     return tx.hash;
   }

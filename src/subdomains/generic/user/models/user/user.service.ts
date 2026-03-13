@@ -32,7 +32,14 @@ import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-met
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
-import { KycLevel, KycState, KycType, Moderator, UserDataStatus } from '../user-data/user-data.enum';
+import {
+  KycLevel,
+  KycState,
+  KycType,
+  Moderator,
+  TradeApprovalReason,
+  UserDataStatus,
+} from '../user-data/user-data.enum';
 import { UserDataRepository } from '../user-data/user-data.repository';
 import { WalletService } from '../wallet/wallet.service';
 import { LinkedUserOutDto } from './dto/linked-user.dto';
@@ -48,7 +55,7 @@ import { UserDetailDto, UserDetails } from './dto/user.dto';
 import { UpdateMailStatus } from './dto/verify-mail.dto';
 import { VolumeQuery } from './dto/volume-query.dto';
 import { User } from './user.entity';
-import { UserAddressType, UserStatus } from './user.enum';
+import { RefPayoutFrequency, UserAddressType, UserStatus } from './user.enum';
 import { UserRepository } from './user.repository';
 
 @Injectable()
@@ -145,7 +152,9 @@ export class UserService {
   }
 
   async getOpenRefCreditUser(): Promise<User[]> {
-    return this.userRepo
+    const isFirstDayOfMonth = new Date().getDate() === 1;
+
+    const query = this.userRepo
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('user.refAsset', 'refAsset')
@@ -154,8 +163,12 @@ export class UserService {
       .andWhere('userData.status NOT IN (:...userDataStatus)', {
         userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
       })
-      .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED })
-      .getMany();
+      .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED });
+
+    if (!isFirstDayOfMonth)
+      query.andWhere('user.refPayoutFrequency = :frequency', { frequency: RefPayoutFrequency.DAILY });
+
+    return query.getMany();
   }
 
   async getRefUser(ref: string): Promise<User> {
@@ -187,20 +200,25 @@ export class UserService {
   }
 
   async updateRef(userId: number, dto: UpdateRefDto): Promise<ReferralDto> {
-    const [user, refAsset] = await Promise.all([
-      this.userRepo.findOne({ where: { id: userId }, relations: { wallet: true } }),
-      this.assetService.getAssetById(dto.payoutAsset.id),
-    ]);
-
+    const user = await this.userRepo.findOne({ where: { id: userId }, relations: { wallet: true } });
     if (!user) throw new NotFoundException('User not found');
-    if (user.addressType !== UserAddressType.EVM)
-      throw new BadRequestException('Ref asset can only be set for EVM addresses');
 
-    if (!refAsset) throw new BadRequestException('Asset not found');
-    if (refAsset.refEnabled === false) throw new BadRequestException('Asset is not enabled for ref payout');
-    if (!user.blockchains.includes(refAsset.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
+    if (dto.payoutAsset) {
+      if (user.addressType !== UserAddressType.EVM)
+        throw new BadRequestException('Ref asset can only be set for EVM addresses');
 
-    user.refAsset = refAsset;
+      const refAsset = await this.assetService.getAssetById(dto.payoutAsset.id);
+      if (!refAsset) throw new BadRequestException('Asset not found');
+      if (refAsset.refEnabled === false) throw new BadRequestException('Asset is not enabled for ref payout');
+      if (!user.blockchains.includes(refAsset.blockchain)) throw new BadRequestException('Asset blockchain mismatch');
+
+      user.refAsset = refAsset;
+    }
+
+    if (dto.payoutFrequency) {
+      user.refPayoutFrequency = dto.payoutFrequency;
+    }
+
     const savedUser = await this.userRepo.save(user);
 
     return this.mapRefDtoV2(savedUser);
@@ -233,11 +251,14 @@ export class UserService {
       addressType: CryptoService.getAddressType(data.address),
     });
     const userIsActive = data.userData?.status === UserDataStatus.ACTIVE;
+    const lastExistingUsedRef = data.userData?.users
+      ? Util.sort(data.userData.users, 'id', 'DESC').find((u) => u.usedRef !== Config.defaultRef)?.usedRef
+      : undefined;
 
     user.ip = data.ip;
     user.ipCountry = this.geoLocationService.getCountry(data.ip);
     user.wallet = data.wallet ?? (await this.walletService.getDefault());
-    user.usedRef = await this.checkRef(user, data.usedRef);
+    user.usedRef = await this.checkRef(user, data.usedRef, lastExistingUsedRef);
     user.origin = data.origin;
     user.custodyProvider = data.custodyProvider;
     if (userIsActive) user.status = UserStatus.ACTIVE;
@@ -258,6 +279,12 @@ export class UserService {
         wallet: user.wallet,
         tradeApprovalDate: user.wallet?.autoTradeApproval ? new Date() : undefined,
       }));
+
+    if (!data.userData && user.userData.tradeApprovalDate)
+      await this.userDataService.createTradeApprovalLog(
+        user.userData,
+        TradeApprovalReason.AUTO_TRADE_APPROVAL_USER_DATA_CREATED,
+      );
 
     if (user.userData.status === UserDataStatus.KYC_ONLY)
       await this.userDataService.updateUserDataInternal(user.userData, { status: UserDataStatus.NA });
@@ -280,7 +307,10 @@ export class UserService {
   }
 
   async updateUserV1(id: number, dto: UpdateUserDto): Promise<UserDetailDto> {
-    const user = await this.userRepo.findOne({ where: { id }, relations: { userData: { users: true }, wallet: true } });
+    const user = await this.userRepo.findOne({
+      where: { id },
+      relations: { userData: { users: true }, wallet: true },
+    });
     if (!user) throw new NotFoundException('User not found');
 
     // update
@@ -584,14 +614,14 @@ export class UserService {
     await this.userDataRepo.activateUserData(userData);
   }
 
-  private async checkRef(user: User, usedRef: string): Promise<string> {
-    const refUser = await this.getRefUser(usedRef);
-    return usedRef === null ||
-      usedRef === user.ref ||
-      (usedRef && !refUser) ||
-      user?.userData?.id === refUser?.userData?.id
-      ? Config.defaultRef
-      : usedRef;
+  private async checkRef(user: User, usedRef?: string, existingUsedRef?: string): Promise<string> {
+    if (usedRef) {
+      const refUser = await this.getRefUser(usedRef);
+      const isValidRef = usedRef !== user.ref && refUser && user?.userData?.id !== refUser?.userData?.id;
+      if (isValidRef) return usedRef;
+    }
+
+    return existingUsedRef ?? Config.defaultRef;
   }
 
   public async getTotalRefRewards(): Promise<number> {

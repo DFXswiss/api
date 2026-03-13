@@ -11,13 +11,17 @@
 Container Instances are:
 
 - hb-deuro-usdt: Hummingbot (dEURO/USDT)
-- hb-deuro-btc: Hummingbot (dEURO/BTC)
+- hb-jusd-usdt: Hummingbot (JUSD/BTC)
 - hb-deps-usdt: Hummingbot (dEPS/USDT)
-- hb-deps-btc: Hummingbot (dEPS/BTC)
+- hb-keep-market: Hummingbot (Cross pair bot to keep a certain 24h volumen)
+- rk: RangeKeeper Liquidity Bot
 
 ### Fileshare
 
-Each Container Instance uses its own fileshare, which is mounted to `/mnt/hummingbot`.
+Each Container Instance uses its own fileshare:
+
+- Hummingbot instances: mounted to `/mnt/hummingbot`
+- RangeKeeper: mounted to `/app/data` (contains `.env` with sensitive config and `state.json` for persistence)
 
 ### Entrypoint
 
@@ -28,9 +32,8 @@ There is an entrypoint script in the container to setup the individual environme
 Connect to the running container:
 
 - az container exec --resource-group rg-dfx-api-dev --name ci-dfx-hb-deuro-usdt-dev --exec-command /bin/bash
-- az container exec --resource-group rg-dfx-api-dev --name ci-dfx-hb-deuro-btc-dev --exec-command /bin/bash
+- az container exec --resource-group rg-dfx-api-dev --name ci-dfx-hb-jusd-usdt-dev --exec-command /bin/bash
 - az container exec --resource-group rg-dfx-api-dev --name ci-dfx-hb-deps-usdt-dev --exec-command /bin/bash
-- az container exec --resource-group rg-dfx-api-dev --name ci-dfx-hb-deps-btc-dev --exec-command /bin/bash
 
 Start the Hummingbot within the container:
 

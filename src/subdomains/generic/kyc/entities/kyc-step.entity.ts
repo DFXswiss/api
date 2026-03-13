@@ -133,6 +133,15 @@ export class KycStep extends IEntity {
 
       case KycStepName.PAYMENT_AGREEMENT:
         return { url: `${apiUrl}/data/payment/${this.id}`, type: UrlType.API };
+
+      case KycStepName.PHONE_CHANGE:
+        return { url: `${apiUrl}/data/phone/${this.id}`, type: UrlType.API };
+
+      case KycStepName.ADDRESS_CHANGE:
+        return { url: `${apiUrl}/data/address/${this.id}`, type: UrlType.API };
+
+      case KycStepName.NAME_CHANGE:
+        return { url: `${apiUrl}/data/name/${this.id}`, type: UrlType.API };
     }
   }
 
@@ -212,7 +221,7 @@ export class KycStep extends IEntity {
     const update: Partial<KycStep> = {
       status,
       result: this.setResult(result),
-      comment: comment ?? this.comment,
+      comment: this.addComment(comment),
       sequenceNumber,
     };
 
@@ -352,6 +361,10 @@ export class KycStep extends IEntity {
     if (result !== undefined) this.result = typeof result === 'string' ? result : JSON.stringify(result);
 
     return this.result;
+  }
+
+  addComment(comment: string): string | undefined {
+    return [this.comment, comment].filter((c) => c).join(';');
   }
 
   get resultData(): IdentResultData {

@@ -123,7 +123,7 @@ export class HistoryService {
     const transactions =
       user instanceof UserData
         ? await this.transactionService.getTransactionsForAccount(user.id, query.from, query.to)
-        : await this.transactionService.getTransactionsForUser(user.id, query.from, query.to);
+        : await this.transactionService.getTransactionsForUsers([user.id], query.from, query.to);
 
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;

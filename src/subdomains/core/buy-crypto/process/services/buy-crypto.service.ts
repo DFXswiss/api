@@ -279,15 +279,19 @@ export class BuyCryptoService {
         if (!dto.chargebackCreditorName && !entity.creditorData)
           throw new BadRequestException('Creditor data is required for chargeback');
 
+        const inputCurrency = await this.transactionHelper.getRefundInputCurrency(entity);
+        const chargebackIban = dto.chargebackIban ?? entity.chargebackIban;
+        const chargebackCurrency = await this.transactionHelper.getRefundCurrency(inputCurrency, chargebackIban);
+
         update.chargebackOutput = await this.fiatOutputService.createInternal(
           FiatOutputType.BUY_CRYPTO_FAIL,
           { buyCrypto: entity },
           entity.id,
           false,
           {
-            iban: dto.chargebackIban ?? entity.chargebackIban,
+            iban: chargebackIban,
             amount: entity.chargebackAmount ?? entity.bankTx.amount,
-            currency: entity.bankTx.currency,
+            currency: chargebackCurrency.name,
             name: dto.chargebackCreditorName ?? entity.creditorData?.name,
             address: dto.chargebackCreditorAddress ?? entity.creditorData?.address,
             houseNumber: dto.chargebackCreditorHouseNumber ?? entity.creditorData?.houseNumber,
@@ -451,6 +455,7 @@ export class BuyCryptoService {
       return this.refundCryptoInput(buyCrypto, {
         refundUserId: dto.refundUser?.id,
         chargebackAmount: dto.chargebackAmount,
+        chargebackCurrency: dto.chargebackAsset,
         chargebackAllowedDate: dto.chargebackAllowedDate,
         chargebackAllowedBy: dto.chargebackAllowedBy,
       });
@@ -458,6 +463,7 @@ export class BuyCryptoService {
     return this.refundBankTx(buyCrypto, {
       refundIban: dto.refundIban,
       chargebackAmount: dto.chargebackAmount,
+      chargebackCurrency: dto.chargebackAsset,
       chargebackAllowedDate: dto.chargebackAllowedDate,
       chargebackAllowedBy: dto.chargebackAllowedBy,
     });
@@ -466,7 +472,7 @@ export class BuyCryptoService {
   async refundCheckoutTx(buyCrypto: BuyCrypto, dto: CheckoutTxRefund): Promise<void> {
     const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount ?? buyCrypto.inputAmount;
 
-    TransactionUtilService.validateRefund(buyCrypto, { chargebackAmount });
+    TransactionUtilService.validateRefund(buyCrypto, { chargebackAmount, assetMismatch: false });
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
       dto.chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
@@ -477,6 +483,8 @@ export class BuyCryptoService {
       ...buyCrypto.chargebackFillUp(
         undefined,
         chargebackAmount,
+        chargebackAmount,
+        dto.chargebackCurrency,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
@@ -499,7 +507,7 @@ export class BuyCryptoService {
 
     const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount;
 
-    TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount });
+    TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount, assetMismatch: false });
 
     let blockchainFee: number;
     if (dto.chargebackAllowedDate && chargebackAmount) {
@@ -515,6 +523,8 @@ export class BuyCryptoService {
       ...buyCrypto.chargebackFillUp(
         refundUser.address ?? buyCrypto.chargebackIban,
         chargebackAmount,
+        chargebackAmount,
+        dto.chargebackCurrency,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
@@ -530,12 +540,15 @@ export class BuyCryptoService {
       throw new BadRequestException('You have to define a chargebackIban');
 
     const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount;
+    const chargebackReferenceAmount = dto.chargebackReferenceAmount ?? buyCrypto.chargebackReferenceAmount;
     const chargebackIban = dto.refundIban ?? buyCrypto.chargebackIban;
+    const chargebackAsset = dto.chargebackCurrency ?? buyCrypto.chargebackAsset;
 
     TransactionUtilService.validateRefund(buyCrypto, {
       refundIban: chargebackIban,
       chargebackAmount,
-      chargebackAmountInInputAsset: dto.chargebackAmountInInputAsset,
+      chargebackReferenceAmount,
+      assetMismatch: chargebackAsset && chargebackAsset !== buyCrypto.inputAsset,
     });
 
     if (
@@ -550,7 +563,7 @@ export class BuyCryptoService {
     if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
       throw new BadRequestException('Creditor data is required for chargeback');
 
-    if (dto.chargebackAllowedDate && chargebackAmount)
+    if (dto.chargebackAllowedDate && chargebackAmount && (dto.chargebackCurrency || buyCrypto.chargebackAsset))
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BUY_CRYPTO_FAIL,
         { buyCrypto },
@@ -559,7 +572,7 @@ export class BuyCryptoService {
         {
           iban: chargebackIban,
           amount: chargebackAmount,
-          currency: dto.chargebackCurrency ?? buyCrypto.bankTx?.currency,
+          currency: dto.chargebackCurrency ?? buyCrypto.chargebackAsset,
           ...creditorData,
         },
       );
@@ -567,7 +580,9 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
         chargebackIban,
+        chargebackReferenceAmount,
         chargebackAmount,
+        chargebackAsset,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,

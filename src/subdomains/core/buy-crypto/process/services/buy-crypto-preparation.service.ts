@@ -21,6 +21,7 @@ import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import {
   PriceCurrency,
@@ -54,6 +55,7 @@ export class BuyCryptoPreparationService {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly bankTxService: BankTxService,
     private readonly virtualIbanService: VirtualIbanService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -108,7 +110,7 @@ export class BuyCryptoPreparationService {
           isPayment,
         );
 
-        const { users, refUser, bankData, blacklist, banks, ipLogCountries, multiAccountBankNames } =
+        const { users, refUser, bankData, blacklist, phoneCallList, banks, ipLogCountries, multiAccountBankNames } =
           await this.amlService.getAmlCheckInput(entity);
         if (!users.length || (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW)) continue;
 
@@ -180,6 +182,7 @@ export class BuyCryptoPreparationService {
             last365dVolume,
             bankData,
             blacklist,
+            phoneCallList,
             banks,
             ibanCountry,
             refUser,
@@ -295,6 +298,10 @@ export class BuyCryptoPreparationService {
             referenceChfPrice.convert(fee.total, 2),
           ),
         );
+
+        if (entity.feeAmountChf != null) {
+          await this.transactionService.updateInternal(entity.transaction, { feeAmountInChf: entity.feeAmountChf });
+        }
 
         if (entity.amlCheck === CheckStatus.FAIL) {
           // create sift transaction (non-blocking)
@@ -416,6 +423,10 @@ export class BuyCryptoPreparationService {
             [conversionStep, outputStep],
           ),
         );
+
+        if (entity.feeAmountChf != null) {
+          await this.transactionService.updateInternal(entity.transaction, { feeAmountInChf: entity.feeAmountChf });
+        }
 
         if (entity.amlCheck === CheckStatus.FAIL) return;
 

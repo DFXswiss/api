@@ -174,6 +174,9 @@ export class PaymentActivationService {
         return this.createLightningRequest(payment, transferInfo, expirySec);
 
       case Blockchain.BITCOIN:
+      case Blockchain.FIRO:
+      case Blockchain.MONERO:
+      case Blockchain.ZANO:
       case Blockchain.ETHEREUM:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
@@ -181,11 +184,10 @@ export class PaymentActivationService {
       case Blockchain.GNOSIS:
       case Blockchain.POLYGON:
       case Blockchain.BINANCE_SMART_CHAIN:
-      case Blockchain.MONERO:
-      case Blockchain.ZANO:
       case Blockchain.SOLANA:
       case Blockchain.TRON:
-      case Blockchain.CARDANO: {
+      case Blockchain.CARDANO:
+      case Blockchain.INTERNET_COMPUTER: {
         const address = this.paymentBalanceService.getDepositAddress(transferInfo.method);
         if (address) return this.createPaymentRequest(address, transferInfo, 'DFX Payment');
 

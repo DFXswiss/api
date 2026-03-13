@@ -187,3 +187,74 @@ export class RealUnitRegistrationDto extends AktionariatRegistrationDto {
   @Type(() => KycPersonalData)
   kycData: KycPersonalData;
 }
+
+export class RealUnitUserDataDto {
+  @ApiProperty()
+  email: string;
+
+  @ApiProperty({ description: 'Full name' })
+  name: string;
+
+  @ApiProperty({ enum: RealUnitUserType })
+  type: RealUnitUserType;
+
+  @ApiProperty({ description: 'Phone number in international format' })
+  phoneNumber: string;
+
+  @ApiProperty({ description: 'Birthday in yyyy-mm-dd format' })
+  birthday: string;
+
+  @ApiProperty({ description: '2-letter country code' })
+  nationality: string;
+
+  @ApiProperty({ description: 'Street address including house number' })
+  addressStreet: string;
+
+  @ApiProperty()
+  addressPostalCode: string;
+
+  @ApiProperty()
+  addressCity: string;
+
+  @ApiProperty({ description: '2-letter country code' })
+  addressCountry: string;
+
+  @ApiProperty({ description: 'Whether the user has Swiss tax residence' })
+  swissTaxResidence: boolean;
+
+  @ApiProperty({ enum: RealUnitLanguage })
+  lang: RealUnitLanguage;
+
+  @ApiPropertyOptional({ type: [CountryAndTin] })
+  countryAndTINs?: CountryAndTin[];
+
+  @ApiProperty({ type: KycPersonalData })
+  kycData: KycPersonalData;
+}
+
+export class RealUnitWalletStatusDto {
+  @ApiProperty({ description: 'Whether the wallet is registered for RealUnit' })
+  isRegistered: boolean;
+
+  @ApiPropertyOptional({ type: RealUnitUserDataDto, description: 'User data if available' })
+  userData?: RealUnitUserDataDto;
+}
+
+export class RealUnitRegisterWalletDto {
+  @ApiProperty({ description: 'Ethereum wallet address (0x...)' })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^0x[a-fA-F0-9]{40}$/, { message: 'walletAddress must be a valid Ethereum address' })
+  walletAddress: string;
+
+  @ApiProperty({ description: 'EIP-712 signature of the registration data' })
+  @IsNotEmpty()
+  @IsString()
+  signature: string;
+
+  @ApiProperty({ description: 'Registration date in yyyy-mm-dd format (must be today)' })
+  @IsNotEmpty()
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'registrationDate must be in yyyy-mm-dd format' })
+  registrationDate: string;
+}

@@ -122,7 +122,13 @@ export class BankTxReturnService {
       type: TransactionTypeInternal.BANK_TX_RETURN,
     });
 
-    entity = this.bankTxReturnRepo.create({ bankTx, transaction, userData: bankTx.transaction.userData });
+    entity = this.bankTxReturnRepo.create({
+      bankTx,
+      transaction,
+      userData: bankTx.transaction.userData,
+      inputAmount: bankTx.amount,
+      inputAsset: bankTx.currency,
+    });
 
     return this.bankTxReturnRepo.save(entity);
   }
@@ -176,6 +182,7 @@ export class BankTxReturnService {
     return this.refundBankTx(bankTxReturn, {
       refundIban: dto.refundIban,
       chargebackAmount: dto.chargebackAmount,
+      chargebackCurrency: dto.chargebackAsset,
       chargebackAllowedDate: dto.chargebackAllowedDate,
       chargebackAllowedBy: dto.chargebackAllowedBy,
     });
@@ -183,14 +190,17 @@ export class BankTxReturnService {
 
   async refundBankTx(bankTxReturn: BankTxReturn, dto: BankTxRefund): Promise<void> {
     const chargebackAmount = dto.chargebackAmount ?? bankTxReturn.chargebackAmount;
+    const chargebackReferenceAmount = dto.chargebackReferenceAmount ?? bankTxReturn.chargebackReferenceAmount;
     const chargebackIban = dto.refundIban ?? bankTxReturn.chargebackIban;
+    const chargebackAsset = dto.chargebackCurrency ?? bankTxReturn.chargebackAsset;
 
     if (!chargebackIban) throw new BadRequestException('You have to define a chargebackIban');
 
     TransactionUtilService.validateRefund(bankTxReturn, {
       refundIban: chargebackIban,
       chargebackAmount,
-      chargebackAmountInInputAsset: dto.chargebackAmountInInputAsset,
+      chargebackReferenceAmount: dto.chargebackReferenceAmount,
+      assetMismatch: chargebackAsset && chargebackAsset !== bankTxReturn.inputAsset,
     });
 
     if (
@@ -205,7 +215,7 @@ export class BankTxReturnService {
     if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
       throw new BadRequestException('Creditor data is required for chargeback');
 
-    if (dto.chargebackAllowedDate && chargebackAmount) {
+    if (dto.chargebackAllowedDate && chargebackAmount && (dto.chargebackCurrency || bankTxReturn.chargebackAsset)) {
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BANK_TX_RETURN,
         { bankTxReturn },
@@ -214,7 +224,7 @@ export class BankTxReturnService {
         {
           iban: chargebackIban,
           amount: chargebackAmount,
-          currency: dto.chargebackCurrency ?? bankTxReturn.bankTx?.currency,
+          currency: dto.chargebackCurrency ?? bankTxReturn.chargebackAsset,
           ...creditorData,
         },
       );
@@ -223,7 +233,9 @@ export class BankTxReturnService {
     await this.bankTxReturnRepo.update(
       ...bankTxReturn.chargebackFillUp(
         chargebackIban,
+        chargebackReferenceAmount,
         chargebackAmount,
+        chargebackAsset,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,

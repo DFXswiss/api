@@ -35,19 +35,29 @@ export const PaymentLinkBlockchains = [
   Blockchain.GNOSIS,
   Blockchain.BINANCE_SMART_CHAIN,
   Blockchain.BITCOIN,
+  Blockchain.FIRO,
   Blockchain.ZANO,
   Blockchain.BINANCE_PAY,
   Blockchain.KUCOIN_PAY,
   Blockchain.SOLANA,
   Blockchain.TRON,
   Blockchain.CARDANO,
+  Blockchain.INTERNET_COMPUTER,
 ].filter((b) => !TestBlockchains.includes(b));
 
 // --- EXPLORERS --- //
 export function txExplorerUrl(blockchain: Blockchain, txId: string): string | undefined {
   const baseUrl = BlockchainExplorerUrls[blockchain];
   const txPath = TxPaths[blockchain];
-  return baseUrl && txPath ? `${baseUrl}/${txPath}/${txId}` : undefined;
+  if (!baseUrl || !txPath) return undefined;
+
+  // ICP token txIds have format "canisterId:blockIndex" — extract block index only
+  if (blockchain === Blockchain.INTERNET_COMPUTER && txId.includes(':')) {
+    const blockIndex = txId.split(':')[1];
+    return `${baseUrl}/${txPath}/${blockIndex}`;
+  }
+
+  return `${baseUrl}/${txPath}/${txId}`;
 }
 
 export function assetExplorerUrl(asset: Asset): string | undefined {
@@ -68,6 +78,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.BITCOIN]: 'https://mempool.space',
   [Blockchain.LIGHTNING]: undefined,
   [Blockchain.SPARK]: 'https://sparkscan.io',
+  [Blockchain.FIRO]: 'https://explorer.firo.org',
   [Blockchain.MONERO]: 'https://xmrscan.org',
   [Blockchain.ZANO]: 'https://explorer.zano.org',
   [Blockchain.ETHEREUM]: 'https://etherscan.io',
@@ -87,6 +98,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.LIQUID]: 'https://blockstream.info/liquid',
   [Blockchain.ARWEAVE]: 'https://arscan.io',
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
+  [Blockchain.INTERNET_COMPUTER]: 'https://dashboard.internetcomputer.org',
   [Blockchain.RAILGUN]: 'https://railgun-explorer.com',
   [Blockchain.BINANCE_PAY]: undefined,
   [Blockchain.KUCOIN_PAY]: undefined,
@@ -106,6 +118,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.BITCOIN]: 'tx',
   [Blockchain.LIGHTNING]: undefined,
   [Blockchain.SPARK]: 'tx',
+  [Blockchain.FIRO]: 'tx',
   [Blockchain.MONERO]: 'tx',
   [Blockchain.ZANO]: 'transaction',
   [Blockchain.ETHEREUM]: 'tx',
@@ -125,6 +138,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.LIQUID]: 'tx',
   [Blockchain.ARWEAVE]: 'tx',
   [Blockchain.CARDANO]: 'transaction',
+  [Blockchain.INTERNET_COMPUTER]: 'transaction',
   [Blockchain.RAILGUN]: 'transaction',
   [Blockchain.BINANCE_PAY]: undefined,
   [Blockchain.KUCOIN_PAY]: undefined,
@@ -147,6 +161,7 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.BITCOIN:
     case Blockchain.BITCOIN_TESTNET4:
     case Blockchain.LIGHTNING:
+    case Blockchain.FIRO:
     case Blockchain.MONERO:
       return undefined;
 
@@ -167,6 +182,9 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.CARDANO:
       return asset.chainId ? `token/${asset.chainId}` : undefined;
 
+    case Blockchain.INTERNET_COMPUTER:
+      return asset.chainId ? `canister/${asset.chainId}` : undefined;
+
     case Blockchain.TRON:
       return asset.chainId ? `token20/${asset.chainId}` : undefined;
   }
@@ -182,6 +200,7 @@ function addressPaths(blockchain: Blockchain): string | undefined {
     case Blockchain.DEFICHAIN:
     case Blockchain.BITCOIN:
     case Blockchain.BITCOIN_TESTNET4:
+    case Blockchain.FIRO:
     case Blockchain.ETHEREUM:
     case Blockchain.BINANCE_SMART_CHAIN:
     case Blockchain.OPTIMISM:
@@ -198,6 +217,7 @@ function addressPaths(blockchain: Blockchain): string | undefined {
     case Blockchain.CARDANO:
       return 'address';
 
+    case Blockchain.INTERNET_COMPUTER:
     case Blockchain.SOLANA:
       return 'account';
   }

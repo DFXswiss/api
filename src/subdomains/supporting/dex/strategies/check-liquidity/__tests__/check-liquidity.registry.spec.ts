@@ -1,6 +1,6 @@
 import { mock } from 'jest-mock-extended';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
-import { BitcoinService } from 'src/integration/blockchain/bitcoin/node/bitcoin.service';
+import { BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -9,6 +9,7 @@ import { DexArbitrumService } from '../../../services/dex-arbitrum.service';
 import { DexBaseService } from '../../../services/dex-base.service';
 import { DexBitcoinService } from '../../../services/dex-bitcoin.service';
 import { DexBscService } from '../../../services/dex-bsc.service';
+import { DexCardanoService } from '../../../services/dex-cardano.service';
 import { DexEthereumService } from '../../../services/dex-ethereum.service';
 import { DexGnosisService } from '../../../services/dex-gnosis.service';
 import { DexLightningService } from '../../../services/dex-lightning.service';
@@ -18,7 +19,8 @@ import { DexPolygonService } from '../../../services/dex-polygon.service';
 import { DexSolanaService } from '../../../services/dex-solana.service';
 import { DexTronService } from '../../../services/dex-tron.service';
 import { DexZanoService } from '../../../services/dex-zano.service';
-import { DexCardanoService } from '../../../services/dex-cardano.service';
+import { DexFiroService } from '../../../services/dex-firo.service';
+import { DexIcpService } from '../../../services/dex-icp.service';
 import { ArbitrumCoinStrategy } from '../impl/arbitrum-coin.strategy';
 import { ArbitrumTokenStrategy } from '../impl/arbitrum-token.strategy';
 import { BaseCoinStrategy } from '../impl/base-coin.strategy';
@@ -27,6 +29,8 @@ import { CheckLiquidityStrategyRegistry } from '../impl/base/check-liquidity.str
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscCoinStrategy } from '../impl/bsc-coin.strategy';
 import { BscTokenStrategy } from '../impl/bsc-token.strategy';
+import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
+import { CardanoTokenStrategy } from '../impl/cardano-token.strategy';
 import { EthereumCoinStrategy } from '../impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy } from '../impl/ethereum-token.strategy';
 import { GnosisCoinStrategy } from '../impl/gnosis-coin.strategy';
@@ -43,8 +47,9 @@ import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 import { TronTokenStrategy } from '../impl/tron-token.strategy';
 import { ZanoCoinStrategy } from '../impl/zano-coin.strategy';
 import { ZanoTokenStrategy } from '../impl/zano-token.strategy';
-import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
-import { CardanoTokenStrategy } from '../impl/cardano-token.strategy';
+import { FiroCoinStrategy } from '../impl/firo-coin.strategy';
+import { IcpCoinStrategy } from '../impl/icp-coin.strategy';
+import { IcpTokenStrategy } from '../impl/icp-token.strategy';
 
 describe('CheckLiquidityStrategies', () => {
   let bitcoinService: BitcoinService;
@@ -54,6 +59,7 @@ describe('CheckLiquidityStrategies', () => {
   let monero: MoneroStrategy;
   let zanoCoin: ZanoCoinStrategy;
   let zanoToken: ZanoTokenStrategy;
+  let firoCoin: FiroCoinStrategy;
   let arbitrumCoin: ArbitrumCoinStrategy;
   let arbitrumToken: ArbitrumTokenStrategy;
   let bscCoin: BscCoinStrategy;
@@ -74,6 +80,8 @@ describe('CheckLiquidityStrategies', () => {
   let tronToken: TronTokenStrategy;
   let cardanoCoin: CardanoCoinStrategy;
   let cardanoToken: CardanoTokenStrategy;
+  let icpCoin: IcpCoinStrategy;
+  let icpToken: IcpTokenStrategy;
 
   let register: CheckLiquidityStrategyRegistryWrapper;
 
@@ -86,6 +94,7 @@ describe('CheckLiquidityStrategies', () => {
     monero = new MoneroStrategy(mock<AssetService>(), mock<DexMoneroService>());
     zanoCoin = new ZanoCoinStrategy(mock<AssetService>(), mock<DexZanoService>());
     zanoToken = new ZanoTokenStrategy(mock<AssetService>(), mock<DexZanoService>());
+    firoCoin = new FiroCoinStrategy(mock<AssetService>(), mock<DexFiroService>());
     arbitrumCoin = new ArbitrumCoinStrategy(mock<AssetService>(), mock<DexArbitrumService>());
     arbitrumToken = new ArbitrumTokenStrategy(mock<AssetService>(), mock<DexArbitrumService>());
     bscCoin = new BscCoinStrategy(mock<AssetService>(), mock<DexBscService>());
@@ -106,6 +115,8 @@ describe('CheckLiquidityStrategies', () => {
     tronToken = new TronTokenStrategy(mock<AssetService>(), mock<DexTronService>());
     cardanoCoin = new CardanoCoinStrategy(mock<AssetService>(), mock<DexCardanoService>());
     cardanoToken = new CardanoTokenStrategy(mock<AssetService>(), mock<DexCardanoService>());
+    icpCoin = new IcpCoinStrategy(mock<AssetService>(), mock<DexIcpService>());
+    icpToken = new IcpTokenStrategy(mock<AssetService>(), mock<DexIcpService>());
 
     register = new CheckLiquidityStrategyRegistryWrapper(
       bitcoin,
@@ -113,6 +124,7 @@ describe('CheckLiquidityStrategies', () => {
       monero,
       zanoCoin,
       zanoToken,
+      firoCoin,
       arbitrumCoin,
       arbitrumToken,
       bscCoin,
@@ -133,6 +145,8 @@ describe('CheckLiquidityStrategies', () => {
       tronToken,
       cardanoCoin,
       cardanoToken,
+      icpCoin,
+      icpToken,
     );
   });
 
@@ -170,6 +184,12 @@ describe('CheckLiquidityStrategies', () => {
         );
 
         expect(strategy).toBeInstanceOf(ZanoTokenStrategy);
+      });
+
+      it('gets FIRO_COIN strategy', () => {
+        const strategy = register.getCheckLiquidityStrategy(createCustomAsset({ blockchain: Blockchain.FIRO }));
+
+        expect(strategy).toBeInstanceOf(FiroCoinStrategy);
       });
 
       it('gets ARBITRUM_COIN strategy', () => {
@@ -332,6 +352,22 @@ describe('CheckLiquidityStrategies', () => {
         expect(strategy).toBeInstanceOf(CardanoTokenStrategy);
       });
 
+      it('gets ICP_COIN strategy', () => {
+        const strategy = register.getCheckLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.INTERNET_COMPUTER, type: AssetType.COIN }),
+        );
+
+        expect(strategy).toBeInstanceOf(IcpCoinStrategy);
+      });
+
+      it('gets ICP_TOKEN strategy', () => {
+        const strategy = register.getCheckLiquidityStrategy(
+          createCustomAsset({ blockchain: Blockchain.INTERNET_COMPUTER, type: AssetType.TOKEN }),
+        );
+
+        expect(strategy).toBeInstanceOf(IcpTokenStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const strategy = register.getCheckLiquidityStrategy(
           createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }),
@@ -350,6 +386,7 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     monero: MoneroStrategy,
     zanoCoin: ZanoCoinStrategy,
     zanoToken: ZanoTokenStrategy,
+    firoCoin: FiroCoinStrategy,
     arbitrumCoin: ArbitrumCoinStrategy,
     arbitrumToken: ArbitrumTokenStrategy,
     bscCoin: BscCoinStrategy,
@@ -370,6 +407,8 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     tronToken: TronTokenStrategy,
     cardanoCoin: CardanoCoinStrategy,
     cardanoToken: CardanoTokenStrategy,
+    icpCoin: IcpCoinStrategy,
+    icpToken: IcpTokenStrategy,
   ) {
     super();
 
@@ -378,6 +417,7 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     this.add({ blockchain: Blockchain.MONERO }, monero);
     this.add({ blockchain: Blockchain.ZANO, assetType: AssetType.COIN }, zanoCoin);
     this.add({ blockchain: Blockchain.ZANO, assetType: AssetType.TOKEN }, zanoToken);
+    this.add({ blockchain: Blockchain.FIRO }, firoCoin);
 
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.COIN }, arbitrumCoin);
     this.add({ blockchain: Blockchain.ARBITRUM, assetType: AssetType.TOKEN }, arbitrumToken);
@@ -399,5 +439,7 @@ class CheckLiquidityStrategyRegistryWrapper extends CheckLiquidityStrategyRegist
     this.add({ blockchain: Blockchain.TRON, assetType: AssetType.TOKEN }, tronToken);
     this.add({ blockchain: Blockchain.CARDANO, assetType: AssetType.COIN }, cardanoCoin);
     this.add({ blockchain: Blockchain.CARDANO, assetType: AssetType.TOKEN }, cardanoToken);
+    this.add({ blockchain: Blockchain.INTERNET_COMPUTER, assetType: AssetType.COIN }, icpCoin);
+    this.add({ blockchain: Blockchain.INTERNET_COMPUTER, assetType: AssetType.TOKEN }, icpToken);
   }
 }

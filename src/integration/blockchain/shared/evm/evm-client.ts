@@ -877,6 +877,14 @@ export abstract class EvmClient extends BlockchainClient {
     return tx.hash;
   }
 
+  async getNextNonce(): Promise<number> {
+    return this.getNonce(this.walletAddress);
+  }
+
+  incrementNonce(nonce: number): void {
+    this.setNonce(this.walletAddress, nonce + 1);
+  }
+
   protected async getNonce(address: string): Promise<number> {
     const nonceEntry = this.nonce.get(address);
     const cachedNonce = (nonceEntry?.date > Util.minutesBefore(10) && nonceEntry.value) || 0;

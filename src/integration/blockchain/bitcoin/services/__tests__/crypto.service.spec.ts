@@ -2,6 +2,8 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test } from '@nestjs/testing';
 import { ArweaveService } from 'src/integration/blockchain/arweave/services/arweave.service';
 import { CardanoService } from 'src/integration/blockchain/cardano/services/cardano.service';
+import { FiroService } from 'src/integration/blockchain/firo/services/firo.service';
+import { InternetComputerService } from 'src/integration/blockchain/icp/services/icp.service';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
@@ -14,7 +16,7 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
-import { BitcoinService } from '../../node/bitcoin.service';
+import { BitcoinService } from '../bitcoin.service';
 
 describe('CryptoService', () => {
   beforeEach(async () => {
@@ -24,6 +26,7 @@ describe('CryptoService', () => {
         { provide: BitcoinService, useValue: createMock<BitcoinService>() },
         { provide: LightningService, useValue: createMock<LightningService>() },
         { provide: SparkService, useValue: createMock<SparkService>() },
+        { provide: FiroService, useValue: createMock<FiroService>() },
         { provide: MoneroService, useValue: createMock<MoneroService>() },
         { provide: ZanoService, useValue: createMock<ZanoService>() },
         { provide: SolanaService, useValue: createMock<SolanaService>() },
@@ -31,6 +34,7 @@ describe('CryptoService', () => {
         { provide: CardanoService, useValue: createMock<CardanoService>() },
         { provide: ArweaveService, useValue: createMock<ArweaveService>() },
         { provide: RailgunService, useValue: createMock<RailgunService>() },
+        { provide: InternetComputerService, useValue: createMock<InternetComputerService>() },
         { provide: BlockchainRegistryService, useValue: createMock<BlockchainRegistryService>() },
         TestUtil.provideConfig(),
       ],
@@ -119,6 +123,10 @@ describe('CryptoService', () => {
     expect(
       CryptoService.getAddressType('LNNID030D98A1D3F824E316D31E74A743C852547E9D100F5B1A9AA9E23CA6A24879233B'),
     ).toEqual(UserAddressType.LN_NID);
+  });
+
+  it('should return Blockchain.FIRO for address a8MuyHBKL3nYZKAa82x13FxqtExP2sQCqu', () => {
+    expect(CryptoService.getBlockchainsBasedOn('a8MuyHBKL3nYZKAa82x13FxqtExP2sQCqu')).toEqual([Blockchain.FIRO]);
   });
 
   it('should return Blockchain.ETHEREUM and Blockchain.BINANCE_SMART_CHAIN for address 0x2d84553B3A4753009A314106d58F0CC21f441234', () => {
@@ -284,6 +292,18 @@ describe('CryptoService', () => {
   it('should return UserAddressType.CARDANO for address stake1uxuejpadqz7gtt9r7jk3xkqnzvd4xx7yazz0wgsry6srgvc075tzy', () => {
     expect(CryptoService.getAddressType('stake1uxuejpadqz7gtt9r7jk3xkqnzvd4xx7yazz0wgsry6srgvc075tzy')).toEqual(
       UserAddressType.CARDANO,
+    );
+  });
+
+  it('should return Blockchain.INTERNET_COMPUTER for address rjyxf-rur4n-jwk64-rsslr-kppnq-irqqy-s2wil-peeif-k3syc-intp2-uae', () => {
+    expect(
+      CryptoService.getBlockchainsBasedOn('rjyxf-rur4n-jwk64-rsslr-kppnq-irqqy-s2wil-peeif-k3syc-intp2-uae'),
+    ).toEqual([Blockchain.INTERNET_COMPUTER]);
+  });
+
+  it('should return UserAddressType.INTERNET_COMPUTER for address rjyxf-rur4n-jwk64-rsslr-kppnq-irqqy-s2wil-peeif-k3syc-intp2-uae', () => {
+    expect(CryptoService.getAddressType('rjyxf-rur4n-jwk64-rsslr-kppnq-irqqy-s2wil-peeif-k3syc-intp2-uae')).toEqual(
+      UserAddressType.INTERNET_COMPUTER,
     );
   });
 

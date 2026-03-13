@@ -41,6 +41,8 @@ import {
   LegalEntity,
   LimitPeriod,
   Moderator,
+  PhoneCallPreferredTime,
+  PhoneCallStatus,
   RiskStatus,
   SignatoryPower,
   UserDataStatus,
@@ -245,6 +247,12 @@ export class UserData extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   phoneCallIpCountryCheckDate?: Date;
+
+  @Column({ length: 256, nullable: true })
+  phoneCallTimes: string; // PhoneCallPreferredTimes array
+
+  @Column({ length: 256, nullable: true })
+  phoneCallStatus: PhoneCallStatus;
 
   @Column({ type: 'datetime2', nullable: true })
   tradeApprovalDate?: Date;
@@ -496,14 +504,23 @@ export class UserData extends IEntity {
 
   setUserDataSettings(dto: UpdateUserDto): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      phone: dto.phone ?? this.phone,
       language: dto.language ?? this.language,
       currency: dto.currency ?? this.currency,
+      phoneCallTimes: dto.preferredPhoneTimes ? dto.preferredPhoneTimes.join(';') : undefined,
+      phoneCallStatus: dto.acceptCall
+        ? PhoneCallStatus.REPEAT
+        : dto.acceptCall === false
+          ? PhoneCallStatus.USER_REJECTED
+          : undefined,
     };
 
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  get phoneCallTimesObject(): PhoneCallPreferredTime[] {
+    return this.phoneCallTimes ? (this.phoneCallTimes?.split(';') as PhoneCallPreferredTime[]) : [];
   }
 
   get hasValidNameCheckDate(): boolean {
@@ -639,12 +656,16 @@ export class UserData extends IEntity {
 
   // --- KYC PROCESS --- //
 
+  get isPersonalAccount(): boolean {
+    return !this.accountType || this.accountType === AccountType.PERSONAL;
+  }
+
   get hasSuspiciousMail(): boolean {
     return (this.mail?.split('@')[0].match(/\d/g) ?? []).length > 2;
   }
 
   getStep(stepId: number): KycStep | undefined {
-    return this.kycSteps.find((s) => s.id === stepId);
+    return (this.kycSteps ?? []).find((s) => s.id === stepId);
   }
 
   getStepOrThrow(stepId: number): KycStep {
@@ -655,7 +676,7 @@ export class UserData extends IEntity {
   }
 
   getStepsWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep[] {
-    return this.kycSteps.filter(
+    return (this.kycSteps ?? []).filter(
       (s) =>
         (!name || s.name === name) &&
         (!type || s.type === type) &&
@@ -683,7 +704,7 @@ export class UserData extends IEntity {
   }
 
   get hasStepsInProgress(): boolean {
-    return this.kycSteps.some((s) => s.isInProgress);
+    return (this.kycSteps ?? []).some((s) => s.isInProgress);
   }
 
   getNextSequenceNumber(stepName: KycStepName, stepType?: KycStepType): number {
@@ -741,7 +762,7 @@ export class UserData extends IEntity {
 
   get requiredKycFields(): string[] {
     return ['accountType', 'mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
-      !this.accountType || this.accountType === AccountType.PERSONAL
+      this.isPersonalAccount
         ? []
         : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
     );
@@ -752,9 +773,7 @@ export class UserData extends IEntity {
   }
 
   get requiredInvoiceFields(): string[] {
-    return ['accountType'].concat(
-      !this.accountType || this.accountType === AccountType.PERSONAL ? ['firstname', 'surname'] : ['organizationName'],
-    );
+    return ['accountType'].concat(this.isPersonalAccount ? ['firstname', 'surname'] : ['organizationName']);
   }
 
   get isInvoiceDataComplete(): boolean {

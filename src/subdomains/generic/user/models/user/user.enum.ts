@@ -14,6 +14,7 @@ export enum UserAddressType {
   LND_HUB = 'LNDHUB',
   UMA = 'UMA',
   SPARK = 'Spark',
+  FIRO = 'Firo',
   MONERO = 'Monero',
   LIQUID = 'Liquid',
   ARWEAVE = 'Arweave',
@@ -21,8 +22,14 @@ export enum UserAddressType {
   CARDANO = 'Cardano',
   SOLANA = 'Solana',
   TRON = 'Tron',
+  INTERNET_COMPUTER = 'InternetComputer',
   ZANO = 'Zano',
   OTHER = 'Other',
+}
+
+export enum RefPayoutFrequency {
+  DAILY = 'Daily',
+  MONTHLY = 'Monthly',
 }
 
 export enum WalletType {

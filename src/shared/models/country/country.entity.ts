@@ -57,6 +57,12 @@ export class Country extends IEntity {
   @Column({ default: AmlRule.DEFAULT })
   amlRule: AmlRule;
 
+  @Column({ default: false })
+  manualReviewRequired: boolean;
+
+  @Column({ default: false })
+  manualReviewRequiredOrganization: boolean;
+
   @Column({ length: 'MAX', nullable: true })
   enabledKycDocuments: string; // semicolon separated KycDocuments
 

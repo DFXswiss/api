@@ -68,6 +68,9 @@ export class Transaction extends IEntity {
   @Column({ type: 'float', nullable: true })
   amountInChf: number;
 
+  @Column({ type: 'float', nullable: true })
+  feeAmountInChf: number;
+
   @Column({ type: 'datetime2', nullable: true })
   eventDate: Date;
 

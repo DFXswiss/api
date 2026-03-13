@@ -9,6 +9,7 @@ import { PrepareStrategyRegistry } from '../impl/base/prepare.strategy-registry'
 import { BitcoinStrategy } from '../impl/bitcoin.strategy';
 import { BscStrategy } from '../impl/bsc.strategy';
 import { CardanoStrategy } from '../impl/cardano.strategy';
+import { InternetComputerStrategy as IcpStrategy } from '../impl/icp.strategy';
 import { EthereumStrategy } from '../impl/ethereum.strategy';
 import { GnosisStrategy } from '../impl/gnosis.strategy';
 import { LightningStrategy } from '../impl/lightning.strategy';
@@ -18,12 +19,14 @@ import { PolygonStrategy } from '../impl/polygon.strategy';
 import { SolanaStrategy } from '../impl/solana.strategy';
 import { TronStrategy } from '../impl/tron.strategy';
 import { ZanoStrategy } from '../impl/zano.strategy';
+import { FiroStrategy } from '../impl/firo.strategy';
 
 describe('PrepareStrategyRegistry', () => {
   let bitcoinStrategy: BitcoinStrategy;
   let lightningStrategy: LightningStrategy;
   let moneroStrategy: MoneroStrategy;
   let zanoStrategy: ZanoStrategy;
+  let firoStrategy: FiroStrategy;
   let ethereumStrategy: EthereumStrategy;
   let bscStrategy: BscStrategy;
   let arbitrumStrategy: ArbitrumStrategy;
@@ -34,6 +37,7 @@ describe('PrepareStrategyRegistry', () => {
   let solanaStrategy: SolanaStrategy;
   let tronStrategy: TronStrategy;
   let cardanoStrategy: CardanoStrategy;
+  let icpStrategy: IcpStrategy;
 
   let registry: PrepareStrategyRegistryWrapper;
 
@@ -42,6 +46,7 @@ describe('PrepareStrategyRegistry', () => {
     lightningStrategy = new LightningStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     moneroStrategy = new MoneroStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     zanoStrategy = new ZanoStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
+    firoStrategy = new FiroStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
 
     ethereumStrategy = new EthereumStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     bscStrategy = new BscStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
@@ -53,12 +58,14 @@ describe('PrepareStrategyRegistry', () => {
     solanaStrategy = new SolanaStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     tronStrategy = new TronStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
     cardanoStrategy = new CardanoStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
+    icpStrategy = new IcpStrategy(mock<AssetService>(), mock<PayoutOrderRepository>());
 
     registry = new PrepareStrategyRegistryWrapper(
       bitcoinStrategy,
       lightningStrategy,
       moneroStrategy,
       zanoStrategy,
+      firoStrategy,
       ethereumStrategy,
       bscStrategy,
       arbitrumStrategy,
@@ -69,6 +76,7 @@ describe('PrepareStrategyRegistry', () => {
       solanaStrategy,
       tronStrategy,
       cardanoStrategy,
+      icpStrategy,
     );
   });
 
@@ -96,6 +104,12 @@ describe('PrepareStrategyRegistry', () => {
         const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.ZANO }));
 
         expect(strategy).toBeInstanceOf(ZanoStrategy);
+      });
+
+      it('gets FIRO strategy for FIRO', () => {
+        const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.FIRO }));
+
+        expect(strategy).toBeInstanceOf(FiroStrategy);
       });
 
       it('gets ETHEREUM strategy for ETHERUM', () => {
@@ -158,6 +172,12 @@ describe('PrepareStrategyRegistry', () => {
         expect(strategy).toBeInstanceOf(CardanoStrategy);
       });
 
+      it('gets ICP strategy for INTERNET_COMPUTER', () => {
+        const strategy = registry.getPrepareStrategy(createCustomAsset({ blockchain: Blockchain.INTERNET_COMPUTER }));
+
+        expect(strategy).toBeInstanceOf(IcpStrategy);
+      });
+
       it('fails to get strategy for non-supported Blockchain', () => {
         const testCall = () =>
           registry.getPrepareStrategy(createCustomAsset({ blockchain: 'NewBlockchain' as Blockchain }));
@@ -175,6 +195,7 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     lightningStrategy: LightningStrategy,
     moneroStrategy: MoneroStrategy,
     zanoStrategy: ZanoStrategy,
+    firoStrategy: FiroStrategy,
     ethereumStrategy: EthereumStrategy,
     bscStrategy: BscStrategy,
     arbitrumStrategy: ArbitrumStrategy,
@@ -185,6 +206,7 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     solanaStrategy: SolanaStrategy,
     tronStrategy: TronStrategy,
     cardanoStrategy: CardanoStrategy,
+    icpStrategy: IcpStrategy,
   ) {
     super();
 
@@ -192,6 +214,7 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     this.add(Blockchain.LIGHTNING, lightningStrategy);
     this.add(Blockchain.MONERO, moneroStrategy);
     this.add(Blockchain.ZANO, zanoStrategy);
+    this.add(Blockchain.FIRO, firoStrategy);
 
     this.add(Blockchain.ETHEREUM, ethereumStrategy);
     this.add(Blockchain.BINANCE_SMART_CHAIN, bscStrategy);
@@ -203,5 +226,6 @@ class PrepareStrategyRegistryWrapper extends PrepareStrategyRegistry {
     this.add(Blockchain.SOLANA, solanaStrategy);
     this.add(Blockchain.TRON, tronStrategy);
     this.add(Blockchain.CARDANO, cardanoStrategy);
+    this.add(Blockchain.INTERNET_COMPUTER, icpStrategy);
   }
 }

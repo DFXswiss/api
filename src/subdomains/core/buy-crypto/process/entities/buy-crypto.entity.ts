@@ -218,7 +218,13 @@ export class BuyCrypto extends IEntity {
   chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })
-  chargebackAmount?: number;
+  chargebackReferenceAmount?: number; // inputAsset
+
+  @Column({ type: 'float', nullable: true })
+  chargebackAmount?: number; // chargebackAsset
+
+  @Column({ length: 256, nullable: true })
+  chargebackAsset?: string;
 
   @Column({ length: 256, nullable: true })
   chargebackAllowedBy?: string;
@@ -526,7 +532,9 @@ export class BuyCrypto extends IEntity {
 
   chargebackFillUp(
     chargebackIban: string,
+    chargebackReferenceAmount: number,
     chargebackAmount: number,
+    chargebackAsset: string,
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
@@ -542,7 +550,9 @@ export class BuyCrypto extends IEntity {
       chargebackAllowedDate,
       chargebackAllowedDateUser,
       chargebackIban,
+      chargebackReferenceAmount,
       chargebackAmount,
+      chargebackAsset,
       chargebackOutput,
       chargebackAllowedBy,
       chargebackRemittanceInfo,
@@ -604,6 +614,7 @@ export class BuyCrypto extends IEntity {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
+    phoneCallList: SpecialExternalAccount[],
     banks: Bank[],
     ibanCountry: Country,
     refUser?: User,
@@ -622,6 +633,7 @@ export class BuyCrypto extends IEntity {
         last365dVolume,
         bankData,
         blacklist,
+        phoneCallList,
         ibanCountry,
         refUser,
         banks,

@@ -47,3 +47,6 @@ thunder-tests/env
 .claude/settings.local.json
 .api.pid
 CLAUDE.md
+
+# Forge build artifacts
+test-contracts/

@@ -20,6 +20,7 @@ export interface TransferInfo {
   quoteUniqueId: string;
   tx?: string;
   hex?: string;
+  sender?: string;
   referId?: string;
 }
 

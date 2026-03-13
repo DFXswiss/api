@@ -15,6 +15,26 @@ export enum RiskStatus {
   RELEASED = 'Released',
 }
 
+export enum PhoneCallPreferredTime {
+  H_9_TO_10 = 'H9To10',
+  H_10_TO_11 = 'H10To11',
+  H_11_TO_12 = 'H11To12',
+  H_12_TO_13 = 'H12To13',
+  H_13_TO_14 = 'H13To14',
+  H_14_TO_15 = 'H14To15',
+  H_15_TO_16 = 'H15To16',
+  H_9_TO_16 = 'H9To16',
+}
+
+export enum PhoneCallStatus {
+  REPEAT = 'Repeat',
+  USER_REJECTED = 'UserRejected',
+  UNAVAILABLE = 'Unavailable',
+  FAILED = 'Failed',
+  COMPLETED = 'Completed',
+  SUSPICIOUS = 'Suspicious',
+}
+
 export enum KycLevel {
   // automatic levels
   LEVEL_0 = 0, // nothing
@@ -82,4 +102,14 @@ export enum UserDataStatus {
 
 export enum Moderator {
   WENDEL = 'Wendel',
+}
+
+export enum TradeApprovalReason {
+  USER_DATA_MERGE = 'UserDataMerge',
+  ORGANIZATION = 'Organization',
+  KYC_STEP_COMPLETED = 'KycStepCompleted',
+  MAIL_INVITATION = 'MailInvitation',
+  RECOMMENDATION_CONFIRMED = 'RecommendationConfirmed',
+  AUTO_TRADE_APPROVAL_USER_DATA_CREATED = 'AutoTradeApprovalUserDataCreated',
+  AUTO_TRADE_APPROVAL_LOGIN = 'AutoTradeApprovalLogin',
 }

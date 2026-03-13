@@ -1,5 +1,20 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsInt, IsNotEmpty, IsString, ValidateIf } from 'class-validator';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+
+export class FiatInDto {
+  @ApiPropertyOptional({ description: 'Fiat currency ID' })
+  @IsNotEmpty()
+  @ValidateIf((f: FiatInDto) => Boolean(f.id || !f.name))
+  @IsInt()
+  id?: number;
+
+  @ApiPropertyOptional({ description: 'Fiat currency code (e.g. EUR, USD, CHF)' })
+  @IsNotEmpty()
+  @ValidateIf((f: FiatInDto) => Boolean(f.name || !f.id))
+  @IsString()
+  name?: string;
+}
 
 export class FiatDto {
   @ApiProperty()
