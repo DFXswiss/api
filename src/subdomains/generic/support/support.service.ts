@@ -110,17 +110,13 @@ export class SupportService {
     ]);
 
     // Load recommendation data for Recommendation steps
-    const recommendationStepIds = kycSteps
-      .filter((s) => s.name === KycStepName.RECOMMENDATION)
-      .map((s) => s.id);
+    const recommendationStepIds = kycSteps.filter((s) => s.name === KycStepName.RECOMMENDATION).map((s) => s.id);
     const recommendations = await this.recommendationService.getRecommendationsByKycStepIdsOrUserDataId(
       recommendationStepIds,
       id,
     );
     // Map by kycStepId first, then fall back to first recommendation for this userData
-    const recommendationByStep = new Map(
-      recommendations.filter((r) => r.kycStep?.id).map((r) => [r.kycStep.id, r]),
-    );
+    const recommendationByStep = new Map(recommendations.filter((r) => r.kycStep?.id).map((r) => [r.kycStep.id, r]));
     const fallbackRecommendation = recommendations[0];
 
     // Load all recommendations by the recommender (to show the full network)
@@ -136,7 +132,7 @@ export class SupportService {
         this.toKycStepSupportInfo(
           s,
           s.name === KycStepName.RECOMMENDATION
-            ? recommendationByStep.get(s.id) ?? fallbackRecommendation
+            ? (recommendationByStep.get(s.id) ?? fallbackRecommendation)
             : undefined,
           s.name === KycStepName.RECOMMENDATION ? allByRecommender : undefined,
         ),
