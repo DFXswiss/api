@@ -108,7 +108,7 @@ export class KycAdminService {
           break;
       }
 
-      await this.kycService.checkDfxApproval(kycStep);
+      await this.kycService.checkDfxApproval(kycStep.userData, kycStep);
     }
   }
 
