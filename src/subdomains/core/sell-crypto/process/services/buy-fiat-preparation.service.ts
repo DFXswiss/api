@@ -6,6 +6,8 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BlockAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { CustodyOrderStatus } from 'src/subdomains/core/custody/enums/custody';
+import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -46,6 +48,7 @@ export class BuyFiatPreparationService {
     private readonly buyFiatNotificationService: BuyFiatNotificationService,
     private readonly fiatOutputService: FiatOutputService,
     private readonly transactionService: TransactionService,
+    private readonly custodyOrderService: CustodyOrderService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -379,6 +382,14 @@ export class BuyFiatPreparationService {
 
         if (entity.transaction)
           await this.transactionService.completeTransaction(entity.transaction.id, entity.outputDate);
+
+        // complete custody order
+        const custodyOrder = await this.custodyOrderService.getCustodyOrderByTx(entity);
+        if (custodyOrder) {
+          await this.custodyOrderService.updateCustodyOrderInternal(custodyOrder, {
+            status: CustodyOrderStatus.COMPLETED,
+          });
+        }
 
         // send webhook
         await this.buyFiatService.triggerWebhook(entity);
