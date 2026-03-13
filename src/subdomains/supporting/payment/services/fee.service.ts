@@ -198,6 +198,8 @@ export class FeeService {
   async addFeeInternal(userData: UserData, feeId: number): Promise<void> {
     const cachedFee = await this.getFee(feeId);
 
+    cachedFee.verifyForUser(userData.accountType, userData.wallet, userData.id);
+
     await this.feeRepo.update(...cachedFee.increaseUsage(userData.accountType));
 
     await this.userDataService.addFee(userData, cachedFee.id);
