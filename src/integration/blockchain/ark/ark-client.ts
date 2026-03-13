@@ -4,6 +4,7 @@ import { GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncField } from 'src/shared/utils/async-field';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
+import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 
 export interface ArkTransaction {
@@ -161,7 +162,7 @@ export class ArkClient extends BlockchainClient {
     throw new Error('Method not implemented');
   }
 
-  async sendSignedTransaction(): Promise<any> {
+  async sendSignedTransaction(_tx: string): Promise<SignedTransactionResponse> {
     throw new Error('Method not implemented');
   }
 }

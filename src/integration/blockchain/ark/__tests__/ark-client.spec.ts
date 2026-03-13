@@ -221,7 +221,7 @@ describe('ArkClient', () => {
     });
 
     it('sendSignedTransaction should throw', async () => {
-      await expect(client.sendSignedTransaction()).rejects.toThrow('Method not implemented');
+      await expect(client.sendSignedTransaction('0x')).rejects.toThrow('Method not implemented');
     });
   });
 });

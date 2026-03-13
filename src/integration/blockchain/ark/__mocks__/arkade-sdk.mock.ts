@@ -15,7 +15,7 @@ export class Wallet {
     return 'mock-txid';
   }
 
-  async getVtxos(): Promise<any[]> {
+  async getVtxos(): Promise<unknown[]> {
     return [];
   }
 
