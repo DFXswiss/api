@@ -327,12 +327,13 @@ export class SupportService {
   }
 
   async getRecommendationGraph(userDataId: number): Promise<RecommendationGraph> {
+    const MAX_NODES = 500;
     const visitedUsers = new Set<number>();
     const visitedRecs = new Map<number, Recommendation>();
     const queue: number[] = [userDataId];
 
-    // BFS: traverse all connected recommendations in both directions
-    while (queue.length > 0) {
+    // BFS: traverse all connected recommendations in both directions (capped)
+    while (queue.length > 0 && visitedUsers.size < MAX_NODES) {
       const currentId = queue.shift();
       if (visitedUsers.has(currentId)) continue;
       visitedUsers.add(currentId);
@@ -352,13 +353,11 @@ export class SupportService {
       }
     }
 
-    // Collect all user IDs and load their data
+    // Batch-load all user data
     const allUserIds = [...visitedUsers];
-    const userDatas = await Promise.all(
-      allUserIds.map((id) => this.userDataService.getUserData(id)),
-    );
+    const userDatas = await this.userDataService.getUserDataByIds(allUserIds);
 
-    const nodes: RecommendationGraphNode[] = userDatas.filter(Boolean).map((ud) => ({
+    const nodes: RecommendationGraphNode[] = userDatas.map((ud) => ({
       id: ud.id,
       firstname: ud.firstname,
       surname: ud.surname,
