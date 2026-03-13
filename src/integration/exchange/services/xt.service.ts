@@ -15,6 +15,7 @@ export class XtService extends ExchangeService {
     Bitcoin: undefined,
     Lightning: undefined,
     Spark: undefined,
+    Ark: undefined,
     Firo: undefined,
     Monero: undefined,
     Zano: undefined,

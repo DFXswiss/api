@@ -14,6 +14,7 @@ export enum UserAddressType {
   LND_HUB = 'LNDHUB',
   UMA = 'UMA',
   SPARK = 'Spark',
+  ARK = 'Ark',
   FIRO = 'Firo',
   MONERO = 'Monero',
   LIQUID = 'Liquid',

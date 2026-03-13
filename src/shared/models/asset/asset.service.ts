@@ -221,6 +221,14 @@ export class AssetService {
     });
   }
 
+  async getArkCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'BTC',
+      blockchain: Blockchain.ARK,
+      type: AssetType.COIN,
+    });
+  }
+
   async getFiroCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'FIRO',

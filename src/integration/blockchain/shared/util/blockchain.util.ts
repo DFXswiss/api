@@ -78,6 +78,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.BITCOIN]: 'https://mempool.space',
   [Blockchain.LIGHTNING]: undefined,
   [Blockchain.SPARK]: 'https://sparkscan.io',
+  [Blockchain.ARK]: 'https://explorer.arkade.sh',
   [Blockchain.FIRO]: 'https://explorer.firo.org',
   [Blockchain.MONERO]: 'https://xmrscan.org',
   [Blockchain.ZANO]: 'https://explorer.zano.org',
@@ -118,6 +119,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.BITCOIN]: 'tx',
   [Blockchain.LIGHTNING]: undefined,
   [Blockchain.SPARK]: 'tx',
+  [Blockchain.ARK]: 'tx',
   [Blockchain.FIRO]: 'tx',
   [Blockchain.MONERO]: 'tx',
   [Blockchain.ZANO]: 'transaction',
@@ -161,6 +163,8 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.BITCOIN:
     case Blockchain.BITCOIN_TESTNET4:
     case Blockchain.LIGHTNING:
+    case Blockchain.SPARK:
+    case Blockchain.ARK:
     case Blockchain.FIRO:
     case Blockchain.MONERO:
       return undefined;
@@ -200,6 +204,8 @@ function addressPaths(blockchain: Blockchain): string | undefined {
     case Blockchain.DEFICHAIN:
     case Blockchain.BITCOIN:
     case Blockchain.BITCOIN_TESTNET4:
+    case Blockchain.SPARK:
+    case Blockchain.ARK:
     case Blockchain.FIRO:
     case Blockchain.ETHEREUM:
     case Blockchain.BINANCE_SMART_CHAIN:
