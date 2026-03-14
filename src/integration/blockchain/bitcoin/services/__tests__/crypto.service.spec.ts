@@ -83,6 +83,22 @@ describe('CryptoService', () => {
     );
   });
 
+  it('should return Blockchain.BITCOIN for SP address sp1qqgste7k9hx0qftg6qmwlkqtwuy6cycyavzmzj85c6qdfhjdpdjtdgqjuexzk6murw56suy3e0rd2cgqvycxttddwsvgxe2usfpxumr70xc9pkqwv', () => {
+    expect(
+      CryptoService.getBlockchainsBasedOn(
+        'sp1qqgste7k9hx0qftg6qmwlkqtwuy6cycyavzmzj85c6qdfhjdpdjtdgqjuexzk6murw56suy3e0rd2cgqvycxttddwsvgxe2usfpxumr70xc9pkqwv',
+      ),
+    ).toEqual([Blockchain.BITCOIN]);
+  });
+
+  it('should return UserAddressType.BITCOIN_SILENT_PAYMENT for SP address sp1qqgste7k9hx0qftg6qmwlkqtwuy6cycyavzmzj85c6qdfhjdpdjtdgqjuexzk6murw56suy3e0rd2cgqvycxttddwsvgxe2usfpxumr70xc9pkqwv', () => {
+    expect(
+      CryptoService.getAddressType(
+        'sp1qqgste7k9hx0qftg6qmwlkqtwuy6cycyavzmzj85c6qdfhjdpdjtdgqjuexzk6murw56suy3e0rd2cgqvycxttddwsvgxe2usfpxumr70xc9pkqwv',
+      ),
+    ).toEqual(UserAddressType.BITCOIN_SILENT_PAYMENT);
+  });
+
   it('should return Blockchain.LIGHTNING for address LNURL1DP68GURN8GHJ7VF3XSEKXC3JX3SK2TNY9EMX7MR5V9NK2CTSWQHXJME0D3H82UNVWQHKZURF9AMRZTMVDE6HYMP0X5LU9EJM', () => {
     expect(
       CryptoService.getBlockchainsBasedOn(
