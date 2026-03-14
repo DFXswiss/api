@@ -21,7 +21,7 @@ describe('verifySilentPayment', () => {
   // Construct SP address: version 0 + B_scan (33 bytes) + B_spend (33 bytes)
   const spPayload = Buffer.concat([bScanPub, bSpendPub]);
   const spWords = [0, ...bech32m.toWords(spPayload)];
-  const spAddress = bech32m.encode('sp1', spWords, 1023);
+  const spAddress = bech32m.encode('sp', spWords, 1023);
 
   // Mirrors CryptoService.verifySilentPayment() logic (including try-catch)
   function verifySilentPayment(message: string, address: string, signature: string): boolean {
