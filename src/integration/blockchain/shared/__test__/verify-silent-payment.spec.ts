@@ -1,6 +1,7 @@
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha256';
 import { bech32m } from 'bech32';
+import { CryptoService } from '../services/crypto.service';
 
 /**
  * Tests for Silent Payment (BIP-352) signature verification logic.
@@ -8,7 +9,7 @@ import { bech32m } from 'bech32';
  * Simulates the full Cake Wallet → DFX API flow:
  * 1. Construct a SP address from known b_scan + b_spend keypairs
  * 2. Sign a Bitcoin message with b_spend private key (Cake Wallet side)
- * 3. Verify: decode SP address, recover pubkey from signature, compare to B_spend (DFX API side)
+ * 3. Verify via CryptoService.verifySilentPayment() (DFX API side)
  */
 describe('verifySilentPayment', () => {
   // Deterministic test keypairs
@@ -23,40 +24,9 @@ describe('verifySilentPayment', () => {
   const spWords = [0, ...bech32m.toWords(spPayload)];
   const spAddress = bech32m.encode('sp', spWords, 1023);
 
-  // Mirrors CryptoService.verifySilentPayment() logic (including try-catch)
-  function verifySilentPayment(message: string, address: string, signature: string): boolean {
-    try {
-      const decoded = bech32m.decode(address, 1023);
-      const dataBytes = Buffer.from(bech32m.fromWords(decoded.words.slice(1)));
-      if (dataBytes.length !== 66) return false;
-      const bSpend = dataBytes.subarray(33, 66);
-
-      const prefix = '\x18Bitcoin Signed Message:\n';
-      const msgBytes = Buffer.from(message, 'utf8');
-      const varint = encodeVarint(msgBytes.length);
-      const prefixBytes = Buffer.from(prefix, 'utf8');
-      const payload = Buffer.concat([prefixBytes, varint, msgBytes]);
-      const msgHash = sha256(sha256(payload));
-
-      const sigBuf = Buffer.from(signature, 'base64');
-      if (sigBuf.length !== 65) return false;
-      const recoveryFlag = sigBuf[0];
-      const recoveryId = (recoveryFlag >= 31 ? recoveryFlag - 31 : recoveryFlag - 27) & 3;
-      const r = sigBuf.subarray(1, 33);
-      const s = sigBuf.subarray(33, 65);
-      const sig = new secp256k1.Signature(
-        BigInt('0x' + Buffer.from(r).toString('hex')),
-        BigInt('0x' + Buffer.from(s).toString('hex')),
-      ).addRecoveryBit(recoveryId);
-
-      const recoveredPoint = sig.recoverPublicKey(msgHash);
-      const recoveredBytes = recoveredPoint.toRawBytes(true);
-
-      return Buffer.from(recoveredBytes).equals(Buffer.from(bSpend));
-    } catch {
-      return false;
-    }
-  }
+  // Access private static method for unit testing
+  const verifySilentPayment = (message: string, address: string, signature: string): boolean =>
+    (CryptoService as any).verifySilentPayment(message, address, signature);
 
   // Simulates Cake Wallet signing
   function signBitcoinMessage(message: string, privKeyHex: string): string {

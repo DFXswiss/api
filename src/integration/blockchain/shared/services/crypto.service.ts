@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { Verifier } from 'bip322-js';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha256';
 import { bech32m } from 'bech32';
+import { Verifier } from 'bip322-js';
 import { verify } from 'bitcoinjs-message';
 import { isEthereumAddress } from 'class-validator';
 import { verifyMessage } from 'ethers/lib/utils';
@@ -294,7 +294,7 @@ export class CryptoService {
       if (EvmBlockchains.includes(detectedBlockchain))
         return await this.verifyEthereumBased(message, address, signature, blockchain ?? detectedBlockchain);
       if (detectedBlockchain === Blockchain.BITCOIN) {
-        if (address.startsWith('sp1')) return this.verifySilentPayment(message, address, signature);
+        if (address.startsWith('sp1')) return CryptoService.verifySilentPayment(message, address, signature);
         return this.verifyBitcoinBased(message, address, signature, null);
       }
       if (detectedBlockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
@@ -436,7 +436,7 @@ export class CryptoService {
     return this.railgunService.verifySignature(message, address, signature);
   }
 
-  private verifySilentPayment(message: string, address: string, signature: string): boolean {
+  private static verifySilentPayment(message: string, address: string, signature: string): boolean {
     try {
       // 1. Decode SP address (bech32m) to extract B_spend public key
       const decoded = bech32m.decode(address, 1023);
@@ -448,7 +448,7 @@ export class CryptoService {
       // 2. Compute Bitcoin Message hash: double-SHA256(prefix + varint(len) + message)
       const prefix = '\x18Bitcoin Signed Message:\n';
       const msgBytes = Buffer.from(message, 'utf8');
-      const varint = this.encodeVarint(msgBytes.length);
+      const varint = CryptoService.encodeVarint(msgBytes.length);
       const prefixBytes = Buffer.from(prefix, 'utf8');
       const payload = Buffer.concat([prefixBytes, varint, msgBytes]);
       const msgHash = sha256(sha256(payload));
@@ -476,7 +476,7 @@ export class CryptoService {
     }
   }
 
-  private encodeVarint(n: number): Buffer {
+  private static encodeVarint(n: number): Buffer {
     if (n < 0xfd) return Buffer.from([n]);
     if (n <= 0xffff) {
       const buf = Buffer.alloc(3);
