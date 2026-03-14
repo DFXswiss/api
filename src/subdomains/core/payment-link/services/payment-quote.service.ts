@@ -392,8 +392,11 @@ export class PaymentQuoteService {
           break;
 
         case Blockchain.BITCOIN:
-        case Blockchain.FIRO:
           await this.doBitcoinBasedHexPayment(transferInfo.method, transferInfo, quote);
+          break;
+
+        case Blockchain.FIRO:
+          await this.doFiroPayment(transferInfo, quote);
           break;
 
         case Blockchain.INTERNET_COMPUTER:
@@ -505,6 +508,63 @@ export class PaymentQuoteService {
     );
 
     return result.isValid ? undefined : result.error;
+  }
+
+  private async doFiroPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+    // handle HEX (transparent wallets like Electrum)
+    if (transferInfo.hex) {
+      return this.doBitcoinBasedHexPayment(Blockchain.FIRO, transferInfo, quote);
+    }
+
+    try {
+      // handle TX ID (Firo Spark wallets can't export signed hex)
+      if (transferInfo.tx) {
+        return await this.doFiroTxIdPayment(transferInfo.tx, quote);
+      }
+
+      throw new BadRequestException('Firo payment requires either hex or tx');
+    } catch (e) {
+      quote.txFailed(e.message);
+    }
+  }
+
+  private async doFiroTxIdPayment(txId: string, quote: PaymentQuote): Promise<void> {
+    const client = this.blockchainRegistryService.getClient(Blockchain.FIRO) as BitcoinBasedClient;
+    const paymentAddress = this.paymentBalanceService.getDepositAddress(Blockchain.FIRO);
+    const tryCount = Config.payment.defaultFiroTxIdPaymentTryCount;
+
+    for (let i = 0; i < tryCount; i++) {
+      const rawTx = await client.getRawTx(txId);
+      if (rawTx) {
+        // Firo uses `addresses` (array), not `address` (string)
+        const outputToPayment = rawTx.vout.find((o) => o.scriptPubKey?.addresses?.includes(paymentAddress));
+
+        if (!outputToPayment) {
+          quote.txFailed(`Transaction does not pay to payment address ${paymentAddress}`);
+          return;
+        }
+
+        const activation = (quote.activations ?? [])
+          .filter((a) => a.method === Blockchain.FIRO)
+          .find((a) => a.asset.type === AssetType.COIN);
+
+        if (activation && Math.abs(outputToPayment.value - activation.amount) > 0.00000001) {
+          quote.txFailed(`Amount mismatch: got ${outputToPayment.value}, expected ${activation.amount}`);
+          return;
+        }
+
+        if (rawTx.confirmations > 0) {
+          quote.txInBlockchain(txId);
+        } else {
+          quote.txInMempool(txId);
+        }
+        return;
+      }
+
+      await Util.delay(1000);
+    }
+
+    throw new BadRequestException(`Transaction ${txId} not found on Firo node`);
   }
 
   private async doBitcoinBasedHexPayment(

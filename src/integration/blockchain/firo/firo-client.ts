@@ -19,6 +19,8 @@ import { FiroRawTransaction } from './rpc';
  * - getrawtransaction: boolean verbose, no multi-level verbosity, no prevout in result
  */
 export class FiroClient extends BitcoinBasedClient {
+  private depositAddressProvider: () => Promise<string[]> = async () => [];
+
   constructor(http: HttpService, url: string) {
     const firoConfig = GetConfig().blockchain.firo;
 
@@ -40,6 +42,10 @@ export class FiroClient extends BitcoinBasedClient {
     return Config.payment.firoAddress;
   }
 
+  setDepositAddressProvider(provider: () => Promise<string[]>): void {
+    this.depositAddressProvider = provider;
+  }
+
   // --- RPC Overrides for Firo compatibility --- //
 
   // Firo's getnewaddress only accepts an optional account parameter, no address type
@@ -48,12 +54,12 @@ export class FiroClient extends BitcoinBasedClient {
   }
 
   // Firo's account-based getbalance with '' returns only the default account, which can be negative.
-  // Use listunspent filtered to the liquidity and payment addresses for an accurate spendable balance.
+  // Use listunspent filtered to all non-deposit addresses for an accurate spendable balance.
   async getBalance(): Promise<number> {
-    const utxos = await this.getUtxoForAddresses(
-      [this.walletAddress, this.paymentAddress],
-      this.nodeConfig.allowUnconfirmedUtxos,
-    );
+    const nonDepositAddresses = await this.getNonDepositAddresses();
+    if (!nonDepositAddresses.length) return 0;
+
+    const utxos = await this.getUtxoForAddresses(nonDepositAddresses, this.nodeConfig.allowUnconfirmedUtxos);
 
     return this.roundAmount(utxos?.reduce((sum, u) => sum + u.amount, 0) ?? 0);
   }
@@ -94,7 +100,7 @@ export class FiroClient extends BitcoinBasedClient {
     vout: number,
     feeRate: number,
   ): Promise<{ outTxId: string; feeAmount: number }> {
-    const feeAmount = (feeRate * 225) / 1e8;
+    const feeAmount = (feeRate * Config.blockchain.firo.transparentTxSize) / 1e8;
     const sendAmount = this.roundAmount(amount - feeAmount);
 
     const outTxId = await this.buildSignAndBroadcast([{ txid: txId, vout }], { [addressTo]: sendAmount });
@@ -102,9 +108,11 @@ export class FiroClient extends BitcoinBasedClient {
     return { outTxId, feeAmount };
   }
 
-  // Delegates to sendManyFromAddress using the liquidity and payment addresses.
+  // Delegates to sendManyFromAddress using all non-deposit addresses.
   async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
-    return this.sendManyFromAddress([this.walletAddress, this.paymentAddress], payload, feeRate);
+    const fromAddresses = await this.getNonDepositAddresses();
+    if (!fromAddresses.length) throw new Error('No non-deposit addresses with UTXOs available');
+    return this.sendManyFromAddress(fromAddresses, payload, feeRate);
   }
 
   // Use UTXOs from the specified addresses to avoid spending deposit UTXOs.
@@ -114,10 +122,10 @@ export class FiroClient extends BitcoinBasedClient {
     payload: { addressTo: string; amount: number }[],
     feeRate: number,
   ): Promise<string> {
-    const outputs = payload.reduce(
-      (acc, p) => ({ ...acc, [p.addressTo]: this.roundAmount(p.amount) }),
-      {} as Record<string, number>,
-    );
+    const outputs: Record<string, number> = {};
+    for (const p of payload) {
+      outputs[p.addressTo] = this.roundAmount((outputs[p.addressTo] ?? 0) + p.amount);
+    }
     const outputTotal = payload.reduce((sum, p) => sum + p.amount, 0);
 
     const utxos = await this.getUtxoForAddresses(fromAddresses, this.nodeConfig.allowUnconfirmedUtxos);
@@ -126,7 +134,8 @@ export class FiroClient extends BitcoinBasedClient {
       throw new Error('No UTXOs available on the specified addresses');
     }
 
-    // Select UTXOs to cover outputs + estimated fee (225 bytes per input, 34 per output, 10 overhead)
+    // Select UTXOs to cover outputs + estimated fee
+    const { inputSize, outputSize, txOverhead } = Config.blockchain.firo;
     const sortedUtxos = utxos.sort((a, b) => b.amount - a.amount);
     const selectedInputs: { txid: string; vout: number }[] = [];
     let inputTotal = 0;
@@ -135,14 +144,14 @@ export class FiroClient extends BitcoinBasedClient {
       selectedInputs.push({ txid: utxo.txid, vout: utxo.vout });
       inputTotal += utxo.amount;
 
-      const estimatedSize = selectedInputs.length * 225 + (payload.length + 1) * 34 + 10;
+      const estimatedSize = selectedInputs.length * inputSize + (payload.length + 1) * outputSize + txOverhead;
       const estimatedFee = (feeRate * estimatedSize) / 1e8;
 
       if (inputTotal >= outputTotal + estimatedFee) break;
     }
 
     // Calculate final fee and change
-    const txSize = selectedInputs.length * 225 + (payload.length + 1) * 34 + 10;
+    const txSize = selectedInputs.length * inputSize + (payload.length + 1) * outputSize + txOverhead;
     const fee = (feeRate * txSize) / 1e8;
 
     if (inputTotal < outputTotal + fee) {
@@ -202,6 +211,57 @@ export class FiroClient extends BitcoinBasedClient {
     } catch {
       return null;
     }
+  }
+
+  // --- Spark Methods --- //
+
+  async verifySparkSignature(address: string, message: string, signature: string): Promise<boolean> {
+    return this.callNode(() => this.rpc.call<boolean>('verifymessagewithsparkaddress', [address, signature, message]));
+  }
+
+  // Mints transparent FIRO to Spark addresses using all non-deposit UTXOs.
+  // Change goes to a random wallet address (mintspark limitation), but these stray UTXOs
+  // are automatically consumed in subsequent mints since we use all non-deposit addresses.
+  async mintSpark(recipients: { address: string; amount: number }[]): Promise<string> {
+    const fromAddresses = await this.getNonDepositAddresses();
+    if (!fromAddresses.length) throw new Error('No non-deposit addresses with UTXOs available');
+
+    const sparkAddresses: Record<string, { amount: number; memo: string }> = {};
+    for (const r of recipients) {
+      sparkAddresses[r.address] = {
+        amount: this.roundAmount((sparkAddresses[r.address]?.amount ?? 0) + r.amount),
+        memo: '',
+      };
+    }
+
+    const mintTxIds = await this.callNode(
+      () => this.rpc.call<string[]>('mintspark', [sparkAddresses, false, fromAddresses]),
+      true,
+    );
+
+    if (!mintTxIds?.length) {
+      throw new Error('mintspark returned no transaction IDs');
+    }
+
+    if (mintTxIds.length > 1) {
+      this.logger.warn(`mintspark returned ${mintTxIds.length} TXIDs, only tracking first: ${mintTxIds[0]}`);
+    }
+
+    return mintTxIds[0];
+  }
+
+  private async getNonDepositAddresses(): Promise<string[]> {
+    const utxos = await this.getUtxo(this.nodeConfig.allowUnconfirmedUtxos);
+    const depositSet = new Set(await this.depositAddressProvider());
+
+    const addresses = new Set<string>();
+    for (const utxo of utxos) {
+      if (!depositSet.has(utxo.address)) {
+        addresses.add(utxo.address);
+      }
+    }
+
+    return [...addresses];
   }
 
   // Firo does not support testmempoolaccept RPC.

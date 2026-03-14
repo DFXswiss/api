@@ -152,6 +152,7 @@ export class Configuration {
   sparkAddressFormat = 'spark1[a-z0-9]{6,250}';
   arkAddressFormat = 'ark1[a-z0-9]{6,500}';
   firoAddressFormat = 'a[a-zA-HJ-NP-Z0-9]{33}';
+  firoSparkAddressFormat = 'sm1[a-z0-9]{100,500}';
   moneroAddressFormat = '[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}';
   ethereumAddressFormat = '0x\\w{40}';
   liquidAddressFormat = '(VTp|VJL)[a-zA-HJ-NP-Z0-9]{77}';
@@ -165,7 +166,7 @@ export class Configuration {
   zanoAddressFormat = 'Z[a-zA-Z0-9]{96}|iZ[a-zA-Z0-9]{106}';
   internetComputerPrincipalFormat = '[a-z0-9]{5}(-[a-z0-9]{5})*(-[a-z0-9]{1,5})?';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.arkAddressFormat}|${this.firoAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}|${this.internetComputerPrincipalFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.arkAddressFormat}|${this.firoSparkAddressFormat}|${this.firoAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}|${this.internetComputerPrincipalFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
@@ -173,6 +174,7 @@ export class Configuration {
   lightningSignatureFormat = '[a-z0-9]{104}';
   lightningCustodialSignatureFormat = '[a-z0-9]{140,146}';
   firoSignatureFormat = '(.{87}=|[A-Za-z0-9+/]+={0,2})';
+  firoSparkSignatureFormat = '[a-f0-9]{260}';
   moneroSignatureFormat = 'SigV\\d[0-9a-zA-Z]{88}';
   ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
   arweaveSignatureFormat = '[\\w\\-]{683}';
@@ -183,7 +185,7 @@ export class Configuration {
   zanoSignatureFormat = '[a-f0-9]{128}';
   internetComputerSignatureFormat = '[a-f0-9]{128,144}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.firoSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}|${this.internetComputerSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.firoSignatureFormat}|${this.firoSparkSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}|${this.internetComputerSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
   cardanoKeyFormat = '.*';
@@ -655,6 +657,7 @@ export class Configuration {
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
+    defaultFiroTxIdPaymentTryCount: +(process.env.PAYMENT_FIRO_TX_TRY_COUNT ?? 5),
 
     defaultForexFee: 0.01,
     addressForexFee: 0.02,
@@ -918,6 +921,11 @@ export class Configuration {
       password: process.env.FIRO_NODE_PASSWORD,
       walletPassword: process.env.FIRO_NODE_WALLET_PASSWORD,
       walletAddress: process.env.FIRO_WALLET_ADDRESS,
+      transparentTxSize: 225, // bytes (Legacy P2PKH, no SegWit, 1-in-1-out)
+      sparkMintTxSize: 480, // bytes (mintspark with SchnorrProof, 1 recipient)
+      inputSize: 225, // bytes per input for coin selection fee estimation
+      outputSize: 34, // bytes per P2PKH output
+      txOverhead: 10, // bytes fixed transaction overhead
       allowUnconfirmedUtxos: process.env.FIRO_ALLOW_UNCONFIRMED_UTXOS === 'true',
       cpfpFeeMultiplier: +(process.env.FIRO_CPFP_FEE_MULTIPLIER ?? '2.0'),
       defaultFeeMultiplier: +(process.env.FIRO_DEFAULT_FEE_MULTIPLIER ?? '1.5'),
