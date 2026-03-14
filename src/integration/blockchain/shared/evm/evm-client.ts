@@ -631,7 +631,7 @@ export abstract class EvmClient extends BlockchainClient {
   ): number {
     let sqrtPriceRatio = +sqrtPriceX96After / +sqrtPriceX96Before;
     if (!token0IsIn) sqrtPriceRatio = 1 / sqrtPriceRatio;
-    return Math.abs(1 - sqrtPriceRatio);
+    return Math.abs(1 - sqrtPriceRatio * sqrtPriceRatio);
   }
 
   private async poolQuote(
