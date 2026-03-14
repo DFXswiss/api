@@ -10,3 +10,39 @@ export class FinancialLogEntryDto {
 export class FinancialLogResponseDto {
   entries: FinancialLogEntryDto[];
 }
+
+export class FinancialChangesEntryDto {
+  timestamp: Date;
+  total: number;
+  plus: {
+    total: number;
+    buyCrypto: number;
+    buyFiat: number;
+    paymentLink: number;
+    trading: number;
+  };
+  minus: {
+    total: number;
+    ref: { total: number; amount: number; fee: number };
+    binance: { total: number; withdraw: number; trading: number };
+    blockchain: { total: number; txIn: number; txOut: number; trading: number };
+  };
+}
+
+export class FinancialChangesResponseDto {
+  entries: FinancialChangesEntryDto[];
+}
+
+export class BalanceByGroupDto {
+  name: string;
+  plusBalanceChf: number;
+  minusBalanceChf: number;
+  netBalanceChf: number;
+  assets?: Record<string, number>;
+}
+
+export class LatestBalanceResponseDto {
+  timestamp: Date;
+  byType: BalanceByGroupDto[];
+  byBlockchain: BalanceByGroupDto[];
+}

@@ -5,7 +5,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DashboardFinancialService } from './dashboard-financial.service';
-import { FinancialLogResponseDto } from './dto/financial-log.dto';
+import { FinancialChangesEntryDto, FinancialChangesResponseDto, FinancialLogResponseDto, LatestBalanceResponseDto } from './dto/financial-log.dto';
 
 @ApiTags('dashboard')
 @Controller('dashboard/financial')
@@ -24,5 +24,35 @@ export class DashboardFinancialController {
     const sample = dailySample !== 'false';
 
     return this.dashboardFinancialService.getFinancialLog(fromDate, sample);
+  }
+
+  @Get('latest')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async getLatestBalance(): Promise<LatestBalanceResponseDto> {
+    return this.dashboardFinancialService.getLatestBalance();
+  }
+
+  @Get('changes/latest')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async getLatestChanges(): Promise<FinancialChangesEntryDto> {
+    return this.dashboardFinancialService.getLatestFinancialChanges();
+  }
+
+  @Get('changes')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async getFinancialChanges(
+    @Query('from') from?: string,
+    @Query('dailySample') dailySample?: string,
+  ): Promise<FinancialChangesResponseDto> {
+    const fromDate = from ? new Date(from) : undefined;
+    const sample = dailySample !== 'false';
+
+    return this.dashboardFinancialService.getFinancialChanges(fromDate, sample);
   }
 }

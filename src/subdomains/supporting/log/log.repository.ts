@@ -40,6 +40,56 @@ export class LogRepository extends BaseRepository<Log> {
     await Util.doInBatches(logIdsToBeDeleted, async (batch: number[]) => this.delete(batch), 100);
   }
 
+  async getLatestFinancialLog(): Promise<Log | undefined> {
+    return this.findOne({
+      where: { system: 'LogService', subsystem: 'FinancialDataLog', severity: LogSeverity.INFO },
+      order: { id: 'DESC' },
+    });
+  }
+
+  async getLatestFinancialChangesLog(): Promise<Log | undefined> {
+    return this.findOne({
+      where: { system: 'LogService', subsystem: 'FinancialChangesLog', severity: LogSeverity.INFO },
+      order: { id: 'DESC' },
+    });
+  }
+
+  async getFinancialChangesLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
+    if (dailySample) {
+      const subQuery = this.createQueryBuilder('subLog')
+        .select('MAX(subLog.id)', 'max_id')
+        .where('subLog.system = :system')
+        .andWhere('subLog.subsystem = :subsystem')
+        .andWhere('subLog.severity = :severity')
+        .groupBy('CAST(subLog.created AS DATE)');
+
+      let query = this.createQueryBuilder('log')
+        .where('log.system = :system', { system: 'LogService' })
+        .andWhere('log.subsystem = :subsystem', { subsystem: 'FinancialChangesLog' })
+        .andWhere('log.severity = :severity', { severity: LogSeverity.INFO })
+        .andWhere(`log.id IN (${subQuery.getQuery()})`)
+        .orderBy('log.created', 'ASC');
+
+      if (from) {
+        query = query.andWhere('log.created >= :from', { from });
+      }
+
+      return query.getMany();
+    }
+
+    const where: any = {
+      system: 'LogService',
+      subsystem: 'FinancialChangesLog',
+      severity: LogSeverity.INFO,
+    };
+
+    if (from) {
+      where.created = MoreThanOrEqual(from);
+    }
+
+    return this.find({ where, order: { created: 'ASC' } });
+  }
+
   async getFinancialLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
     if (dailySample) {
       const subQuery = this.createQueryBuilder('subLog')
