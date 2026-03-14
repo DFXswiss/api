@@ -188,7 +188,7 @@ export class AuthService {
         type: RecommendationType.INVITATION,
         method: RecommendationMethod.MAIL,
       });
-      await this.recommendationService.setRecommenderRefCode(recommendation);
+      if (recommendation) await this.recommendationService.setRecommenderRefCode(recommendation);
     }
 
     await this.checkIpBlacklistFor(user.userData, userIp);
