@@ -38,6 +38,10 @@ export class BalancePdfService {
     private readonly i18n: I18nService,
   ) {}
 
+  getSupportedBlockchains(): Blockchain[] {
+    return SUPPORTED_BLOCKCHAINS;
+  }
+
   async generateBalancePdf(dto: GetBalancePdfDto, brand: PdfBrand = PdfBrand.DFX): Promise<string> {
     if (!SUPPORTED_BLOCKCHAINS.includes(dto.blockchain)) {
       throw new BadRequestException(

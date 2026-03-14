@@ -20,6 +20,7 @@ import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
   KycFileListEntry,
   KycFileYearlyStats,
+  RecommendationGraph,
   TransactionListEntry,
   UserDataSupportInfoDetails,
   UserDataSupportInfoResult,
@@ -61,6 +62,14 @@ export class SupportController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async getTransactionList(@Query() query: TransactionListQuery): Promise<TransactionListEntry[]> {
     return this.supportService.getTransactionList(query);
+  }
+
+  @Get('recommendation-graph/:id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getRecommendationGraph(@Param('id') id: string): Promise<RecommendationGraph> {
+    return this.supportService.getRecommendationGraph(+id);
   }
 
   @Get(':id')

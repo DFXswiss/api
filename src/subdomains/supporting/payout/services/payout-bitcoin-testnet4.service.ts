@@ -34,7 +34,7 @@ export class PayoutBitcoinTestnet4Service extends PayoutBitcoinBasedService {
   async getPayoutCompletionData(_context: PayoutOrderContext, payoutTxId: string): Promise<[boolean, number]> {
     const transaction = await this.client.getTx(payoutTxId);
 
-    const isComplete = transaction && transaction.blockhash && transaction.confirmations > 0;
+    const isComplete = transaction != null;
     const payoutFee = isComplete ? -(transaction.fee ?? 0) : 0;
 
     return [isComplete, payoutFee];

@@ -48,12 +48,31 @@ export class TransactionSupportInfo {
   created: Date;
 }
 
+export class RecommendationUserInfo {
+  id: number;
+  firstname?: string;
+  surname?: string;
+}
+
+export class RecommendationEntry {
+  id: number;
+  recommended: RecommendationUserInfo;
+  isConfirmed?: boolean;
+  confirmationDate?: Date;
+  created: Date;
+}
+
 export class KycStepSupportInfo {
   id: number;
   name: string;
   type?: string;
   status: string;
   sequenceNumber: number;
+  result?: string;
+  comment?: string;
+  recommender?: RecommendationUserInfo;
+  recommended?: RecommendationUserInfo;
+  allRecommendations?: RecommendationEntry[];
   created: Date;
 }
 
@@ -123,6 +142,32 @@ export class KycFileYearlyStats {
   closedDuringYear: number;
   endCount: number;
   highestFileNr: number;
+}
+
+export class RecommendationGraphNode {
+  id: number;
+  firstname?: string;
+  surname?: string;
+  kycStatus?: string;
+  kycLevel?: number;
+  tradeApprovalDate?: Date;
+}
+
+export class RecommendationGraphEdge {
+  id: number;
+  recommenderId: number;
+  recommendedId: number;
+  method: string;
+  type: string;
+  isConfirmed?: boolean;
+  confirmationDate?: Date;
+  created: Date;
+}
+
+export class RecommendationGraph {
+  nodes: RecommendationGraphNode[];
+  edges: RecommendationGraphEdge[];
+  rootId: number;
 }
 
 export class UserDataSupportInfoDetails {

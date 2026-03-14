@@ -11,6 +11,7 @@ import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
 import { UserProfileDto } from './user-profile.dto';
 import { ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
+import { PhoneCallStatusMapper } from './user.dto';
 
 export class UserDtoMapper {
   static mapUser(userData: UserData, activeUserId?: number): UserV2Dto {
@@ -28,6 +29,8 @@ export class UserDtoMapper {
         hash: userData.kycHash,
         level: userData.kycLevelDisplay,
         dataComplete: userData.isDataComplete,
+        phoneCallStatus: userData.phoneCallStatus ? PhoneCallStatusMapper[userData.phoneCallStatus] : undefined,
+        preferredPhoneTimes: userData.phoneCallTimesObject,
       },
       volumes: this.mapVolumes(userData),
       addresses: userData.users

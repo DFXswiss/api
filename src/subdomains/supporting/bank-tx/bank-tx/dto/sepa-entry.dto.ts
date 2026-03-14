@@ -1,6 +1,7 @@
 import { ChargeRecord, SepaAddress, SepaAgent, SepaAmount, SepaCdi } from './sepa.dto';
 
 export interface SepaEntry {
+  AcctSvcrRef: string;
   BookgDt: {
     Dt: string;
   };

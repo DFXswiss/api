@@ -15,6 +15,8 @@ import { EthereumService } from '../../ethereum/ethereum.service';
 import { FiroClient } from '../../firo/firo-client';
 import { FiroService } from '../../firo/services/firo.service';
 import { GnosisService } from '../../gnosis/gnosis.service';
+import { InternetComputerClient } from '../../icp/icp-client';
+import { InternetComputerService } from '../../icp/services/icp.service';
 import { MoneroClient } from '../../monero/monero-client';
 import { MoneroService } from '../../monero/services/monero.service';
 import { OptimismService } from '../../optimism/optimism.service';
@@ -22,6 +24,8 @@ import { PolygonService } from '../../polygon/polygon.service';
 import { SepoliaService } from '../../sepolia/sepolia.service';
 import { SolanaService } from '../../solana/services/solana.service';
 import { SolanaClient } from '../../solana/solana-client';
+import { ArkClient } from '../../ark/ark-client';
+import { ArkService } from '../../ark/ark.service';
 import { SparkClient } from '../../spark/spark-client';
 import { SparkService } from '../../spark/spark.service';
 import { TronService } from '../../tron/services/tron.service';
@@ -39,24 +43,28 @@ type BlockchainClientType =
   | BitcoinClient
   | BitcoinTestnet4Client
   | SparkClient
+  | ArkClient
   | FiroClient
   | MoneroClient
   | ZanoClient
   | SolanaClient
   | TronClient
-  | CardanoClient;
+  | CardanoClient
+  | InternetComputerClient;
 
 type BlockchainServiceType =
   | EvmService
   | BitcoinService
   | BitcoinTestnet4Service
   | SparkService
+  | ArkService
   | FiroService
   | MoneroService
   | ZanoService
   | SolanaService
   | TronService
-  | CardanoService;
+  | CardanoService
+  | InternetComputerService;
 
 type CoinOnlyServiceType = BlockchainServiceType | LightningService;
 
@@ -65,6 +73,7 @@ const COIN_ONLY_BLOCKCHAINS = new Set([
   Blockchain.BITCOIN_TESTNET4,
   Blockchain.LIGHTNING,
   Blockchain.SPARK,
+  Blockchain.ARK,
   Blockchain.FIRO,
   Blockchain.MONERO,
 ]);
@@ -83,12 +92,14 @@ export class BlockchainRegistryService {
     private readonly bitcoinService: BitcoinService,
     private readonly lightningService: LightningService,
     private readonly sparkService: SparkService,
+    private readonly arkService: ArkService,
     private readonly firoService: FiroService,
     private readonly moneroService: MoneroService,
     private readonly zanoService: ZanoService,
     private readonly solanaService: SolanaService,
     private readonly tronService: TronService,
     private readonly cardanoService: CardanoService,
+    private readonly internetComputerService: InternetComputerService,
     private readonly citreaService: CitreaService,
     private readonly citreaTestnetService: CitreaTestnetService,
     private readonly bitcoinTestnet4Service: BitcoinTestnet4Service,
@@ -150,6 +161,8 @@ export class BlockchainRegistryService {
         return this.bitcoinTestnet4Service;
       case Blockchain.SPARK:
         return this.sparkService;
+      case Blockchain.ARK:
+        return this.arkService;
       case Blockchain.FIRO:
         return this.firoService;
       case Blockchain.MONERO:
@@ -162,6 +175,8 @@ export class BlockchainRegistryService {
         return this.tronService;
       case Blockchain.CARDANO:
         return this.cardanoService;
+      case Blockchain.INTERNET_COMPUTER:
+        return this.internetComputerService;
       case Blockchain.CITREA:
         return this.citreaService;
       case Blockchain.CITREA_TESTNET:

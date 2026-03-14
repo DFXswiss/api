@@ -221,6 +221,14 @@ export class AssetService {
     });
   }
 
+  async getArkCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'BTC',
+      blockchain: Blockchain.ARK,
+      type: AssetType.COIN,
+    });
+  }
+
   async getFiroCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'FIRO',
@@ -281,6 +289,14 @@ export class AssetService {
     return this.getAssetByQuery({
       name: 'ADA',
       blockchain: Blockchain.CARDANO,
+      type: AssetType.COIN,
+    });
+  }
+
+  async getInternetComputerCoin(): Promise<Asset> {
+    return this.getAssetByQuery({
+      name: 'ICP',
+      blockchain: Blockchain.INTERNET_COMPUTER,
       type: AssetType.COIN,
     });
   }

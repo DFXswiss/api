@@ -15,6 +15,7 @@ import { PayoutBitcoinTestnet4Service } from './services/payout-bitcoin-testnet4
 import { PayoutBitcoinService } from './services/payout-bitcoin.service';
 import { PayoutBscService } from './services/payout-bsc.service';
 import { PayoutCardanoService } from './services/payout-cardano.service';
+import { PayoutInternetComputerService } from './services/payout-icp.service';
 import { PayoutCitreaTestnetService } from './services/payout-citrea-testnet.service';
 import { PayoutCitreaService } from './services/payout-citrea.service';
 import { PayoutEthereumService } from './services/payout-ethereum.service';
@@ -27,6 +28,7 @@ import { PayoutOptimismService } from './services/payout-optimism.service';
 import { PayoutPolygonService } from './services/payout-polygon.service';
 import { PayoutSepoliaService } from './services/payout-sepolia.service';
 import { PayoutSolanaService } from './services/payout-solana.service';
+import { PayoutArkService } from './services/payout-ark.service';
 import { PayoutSparkService } from './services/payout-spark.service';
 import { PayoutTronService } from './services/payout-tron.service';
 import { PayoutZanoService } from './services/payout-zano.service';
@@ -42,6 +44,8 @@ import { BscCoinStrategy as BscCoinStrategyPO } from './strategies/payout/impl/b
 import { BscTokenStrategy as BscTokenStrategyPO } from './strategies/payout/impl/bsc-token.strategy';
 import { CardanoCoinStrategy as CardanoCoinStrategyPO } from './strategies/payout/impl/cardano-coin.strategy';
 import { CardanoTokenStrategy as CardanoTokenStrategyPO } from './strategies/payout/impl/cardano-token.strategy';
+import { InternetComputerCoinStrategy as InternetComputerCoinStrategyPO } from './strategies/payout/impl/icp-coin.strategy';
+import { InternetComputerTokenStrategy as InternetComputerTokenStrategyPO } from './strategies/payout/impl/icp-token.strategy';
 import { CitreaCoinStrategy as CitreaCoinStrategyPO } from './strategies/payout/impl/citrea-coin.strategy';
 import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyPO } from './strategies/payout/impl/citrea-testnet-coin.strategy';
 import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyPO } from './strategies/payout/impl/citrea-testnet-token.strategy';
@@ -61,6 +65,7 @@ import { SepoliaCoinStrategy as SepoliaCoinStrategyPO } from './strategies/payou
 import { SepoliaTokenStrategy as SepoliaTokenStrategyPO } from './strategies/payout/impl/sepolia-token.strategy';
 import { SolanaCoinStrategy as SolanaCoinStrategyPO } from './strategies/payout/impl/solana-coin.strategy';
 import { SolanaTokenStrategy as SolanaTokenStrategyPO } from './strategies/payout/impl/solana-token.strategy';
+import { ArkStrategy as ArkStrategyPO } from './strategies/payout/impl/ark.strategy';
 import { SparkStrategy as SparkStrategyPO } from './strategies/payout/impl/spark.strategy';
 import { TronCoinStrategy as TronCoinStrategyPO } from './strategies/payout/impl/tron-coin.strategy';
 import { TronTokenStrategy as TronTokenStrategyPO } from './strategies/payout/impl/tron-token.strategy';
@@ -73,6 +78,7 @@ import { BitcoinTestnet4Strategy as BitcoinTestnet4StrategyPR } from './strategi
 import { BitcoinStrategy as BitcoinStrategyPR } from './strategies/prepare/impl/bitcoin.strategy';
 import { BscStrategy as BscStrategyPR } from './strategies/prepare/impl/bsc.strategy';
 import { CardanoStrategy as CardanoStrategyPR } from './strategies/prepare/impl/cardano.strategy';
+import { InternetComputerStrategy as InternetComputerStrategyPR } from './strategies/prepare/impl/icp.strategy';
 import { CitreaTestnetStrategy as CitreaTestnetStrategyPR } from './strategies/prepare/impl/citrea-testnet.strategy';
 import { CitreaStrategy as CitreaStrategyPR } from './strategies/prepare/impl/citrea.strategy';
 import { EthereumStrategy as EthereumStrategyPR } from './strategies/prepare/impl/ethereum.strategy';
@@ -84,6 +90,7 @@ import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/imp
 import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/polygon.strategy';
 import { SepoliaStrategy as SepoliaStrategyPR } from './strategies/prepare/impl/sepolia.strategy';
 import { SolanaStrategy as SolanaStrategyPR } from './strategies/prepare/impl/solana.strategy';
+import { ArkStrategy as ArkStrategyPR } from './strategies/prepare/impl/ark.strategy';
 import { SparkStrategy as SparkStrategyPR } from './strategies/prepare/impl/spark.strategy';
 import { TronStrategy as TronStrategyPR } from './strategies/prepare/impl/tron.strategy';
 import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.strategy';
@@ -106,6 +113,7 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     PayoutBitcoinService,
     PayoutLightningService,
     PayoutSparkService,
+    PayoutArkService,
     PayoutFiroService,
     PayoutMoneroService,
     PayoutZanoService,
@@ -120,6 +128,7 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     PayoutSolanaService,
     PayoutTronService,
     PayoutCardanoService,
+    PayoutInternetComputerService,
     PayoutCitreaService,
     PayoutCitreaTestnetService,
     PayoutBitcoinTestnet4Service,
@@ -131,6 +140,8 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     LightningStrategyPO,
     SparkStrategyPR,
     SparkStrategyPO,
+    ArkStrategyPR,
+    ArkStrategyPO,
     FiroStrategyPR,
     FiroStrategyPO,
     MoneroStrategyPR,
@@ -171,6 +182,9 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     CardanoStrategyPR,
     CardanoCoinStrategyPO,
     CardanoTokenStrategyPO,
+    InternetComputerStrategyPR,
+    InternetComputerCoinStrategyPO,
+    InternetComputerTokenStrategyPO,
     CitreaStrategyPR,
     CitreaCoinStrategyPO,
     CitreaTokenStrategyPO,
@@ -187,6 +201,7 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     PayoutMoneroService,
     PayoutZanoService,
     PayoutSparkService,
+    PayoutArkService,
     PayoutSolanaService,
   ],
 })

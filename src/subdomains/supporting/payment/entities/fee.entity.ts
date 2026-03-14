@@ -208,8 +208,9 @@ export class Fee extends IEntity {
     );
   }
 
-  verifyForUser(accountType: AccountType, wallet?: Wallet): void {
-    if (this.isExpired()) throw new BadRequestException('Discount code is expired');
+  verifyForUser(accountType: AccountType, wallet?: Wallet, userDataId?: number): void {
+    if (!this.active) throw new BadRequestException('Fee is not active');
+    if (this.isExpired(userDataId)) throw new BadRequestException('Discount code is expired');
     if (this.accountType && this.accountType !== accountType)
       throw new BadRequestException('Account Type not matching');
     if (this.wallet && wallet && this.wallet.id !== wallet.id) throw new BadRequestException('Wallet not matching');

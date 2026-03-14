@@ -133,6 +133,15 @@ export class KycStep extends IEntity {
 
       case KycStepName.PAYMENT_AGREEMENT:
         return { url: `${apiUrl}/data/payment/${this.id}`, type: UrlType.API };
+
+      case KycStepName.PHONE_CHANGE:
+        return { url: `${apiUrl}/data/phone/${this.id}`, type: UrlType.API };
+
+      case KycStepName.ADDRESS_CHANGE:
+        return { url: `${apiUrl}/data/address/${this.id}`, type: UrlType.API };
+
+      case KycStepName.NAME_CHANGE:
+        return { url: `${apiUrl}/data/name/${this.id}`, type: UrlType.API };
     }
   }
 

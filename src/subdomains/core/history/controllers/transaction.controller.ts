@@ -435,6 +435,8 @@ export class TransactionController {
     const refundData = this.refundList.get(transaction.id);
     if (!refundData) throw new BadRequestException('Request refund data first');
     if (!this.isRefundDataValid(refundData)) throw new BadRequestException('Refund data request invalid');
+    if (refundData.refundTarget && dto.refundTarget)
+      throw new BadRequestException('RefundTarget is already set with refundData');
 
     await this.executeRefund(transaction, transaction.targetEntity, refundData, dto);
 
@@ -597,7 +599,7 @@ export class TransactionController {
     if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
 
     return this.buyCryptoService.refundBankTx(targetEntity, {
-      refundIban: dto.refundTarget ?? refundData.refundTarget,
+      refundIban: refundData.refundTarget ?? dto.refundTarget,
       creditorData: dto.creditorData,
       chargebackReferenceAmount: refundData.refundPrice.invert().convert(refundData.refundAmount),
       ...refundDto,
@@ -615,19 +617,18 @@ export class TransactionController {
   private async getRefundTarget(transaction: Transaction): Promise<string | undefined> {
     if (transaction.refundTargetEntity instanceof BuyFiat) return transaction.refundTargetEntity.chargebackAddress;
 
-    // For bank transactions, always return the original IBAN - refund must go to the sender
-    if (transaction.bankTx?.iban) return transaction.bankTx.iban;
+    try {
+      if (transaction.bankTx && (await this.validateIban(transaction.bankTx.iban))) return transaction.bankTx.iban;
+    } catch (_) {
+      return transaction.refundTargetEntity instanceof BankTx
+        ? undefined
+        : transaction.refundTargetEntity?.chargebackIban;
+    }
 
-    // For BuyCrypto with checkout (card), return masked card number
-    if (transaction.refundTargetEntity instanceof BuyCrypto && transaction.refundTargetEntity.checkoutTx)
-      return `${transaction.refundTargetEntity.checkoutTx.cardBin}****${transaction.refundTargetEntity.checkoutTx.cardLast4}`;
-
-    // For other cases, return existing chargeback IBAN
-    if (transaction.refundTargetEntity instanceof BankTx) return transaction.bankTx?.iban;
-    if (transaction.refundTargetEntity instanceof BuyCrypto) return transaction.refundTargetEntity.chargebackIban;
-    if (transaction.refundTargetEntity instanceof BankTxReturn) return transaction.refundTargetEntity.chargebackIban;
-
-    return undefined;
+    if (transaction.refundTargetEntity instanceof BuyCrypto)
+      return transaction.refundTargetEntity.checkoutTx
+        ? `${transaction.refundTargetEntity.checkoutTx.cardBin}****${transaction.refundTargetEntity.checkoutTx.cardLast4}`
+        : transaction.refundTargetEntity.chargebackIban;
   }
 
   private async validateIban(iban: string): Promise<boolean> {
@@ -725,17 +726,23 @@ export class TransactionController {
 
     let tx: Transaction | TransactionRequest;
     if (id) tx = await this.transactionService.getTransactionById(+id, relations);
-    if (uid)
-      tx =
-        (await this.transactionService.getTransactionByUid(uid, relations)) ??
-        (await this.transactionRequestService.getTransactionRequestByUid(uid, { user: { userData: true } }));
-    if (orderUid) tx = await this.transactionService.getTransactionByRequestUid(orderUid, relations);
+
+    const uidParam = uid ?? orderUid;
+    if (uidParam) {
+      tx = Config.formats.transactionUid.test(uidParam)
+        ? await this.transactionService.getTransactionByUid(uidParam, relations)
+        : ((await this.transactionService.getTransactionByRequestUid(uidParam, relations)) ??
+          (await this.transactionRequestService.getTransactionRequestByUid(uidParam, { user: { userData: true } })));
+    }
+
     if (orderId)
       tx =
         (await this.transactionService.getTransactionByRequestId(+orderId, relations)) ??
         (await this.transactionRequestService.getTransactionRequest(+orderId, { user: { userData: true } }));
+
     if (externalId && accountId)
       tx = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
+
     if (ckoId) tx = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
     return tx;

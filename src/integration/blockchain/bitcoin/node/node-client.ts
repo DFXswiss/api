@@ -158,6 +158,11 @@ export abstract class NodeClient extends BlockchainClient {
     return this.callNode(() => this.rpc.listUnspent(minConf), true);
   }
 
+  async getUtxoForAddresses(addresses: string[], includeUnconfirmed = false): Promise<UTXO[]> {
+    const minConf = includeUnconfirmed ? 0 : 1;
+    return this.callNode(() => this.rpc.listUnspent(minConf, 9999999, addresses), true);
+  }
+
   async getBalance(): Promise<number> {
     // Include unconfirmed UTXOs when configured
     // Bitcoin Core's getbalances returns: trusted (confirmed + own unconfirmed), untrusted_pending (others' unconfirmed), immature (coinbase)

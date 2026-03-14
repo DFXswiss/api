@@ -31,6 +31,10 @@ import { VirtualIbanDto } from 'src/subdomains/supporting/bank/virtual-iban/dto/
 import { VirtualIbanMapper } from 'src/subdomains/supporting/bank/virtual-iban/dto/virtual-iban.mapper';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import {
+  QuoteErrorUtil,
+  QuoteException,
+} from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.util';
 import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -85,14 +89,15 @@ export class BuyController {
   @Put('/quote')
   @ApiOkResponse({ type: BuyQuoteDto })
   async getBuyQuote(@Body() dto: GetBuyQuoteDto): Promise<BuyQuoteDto> {
-    const {
-      amount: sourceAmount,
-      currency,
-      asset,
-      targetAmount,
-      paymentMethod,
-      specialCode,
-    } = await this.paymentInfoService.buyCheck(dto);
+    let checkedDto: GetBuyQuoteDto;
+    try {
+      checkedDto = await this.paymentInfoService.buyCheck(dto, undefined, undefined, true);
+    } catch (e) {
+      if (e instanceof QuoteException) return QuoteErrorUtil.createErrorQuote(e);
+      throw e;
+    }
+
+    const { amount: sourceAmount, currency, asset, targetAmount, paymentMethod, specialCode } = checkedDto;
 
     const {
       rate,
@@ -107,6 +112,7 @@ export class BuyController {
       feeTarget,
       isValid,
       error,
+      errors,
       priceSteps,
     } = await this.transactionHelper.getTxDetails(
       sourceAmount,
@@ -119,6 +125,8 @@ export class BuyController {
       undefined,
       dto.wallet,
       specialCode ? [specialCode] : [],
+      undefined,
+      dto.country,
     );
 
     return {
@@ -136,6 +144,7 @@ export class BuyController {
       priceSteps,
       isValid,
       error,
+      errors: QuoteErrorUtil.mapToStructuredErrors(errors, minVolume, minVolumeTarget, maxVolume, maxVolumeTarget),
     };
   }
 

@@ -1,12 +1,18 @@
+import * as IbanTools from 'ibantools';
 import { Config, Environment } from 'src/config/config';
-import { Active } from 'src/shared/models/active';
+import { Active, isAsset } from 'src/shared/models/active';
 import { Country } from 'src/shared/models/country/country.entity';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { BankData, BankDataVerificationError } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import {
+  KycLevel,
+  KycType,
+  PhoneCallStatus,
+  UserDataStatus,
+} from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -52,12 +58,18 @@ export class AmlHelperService {
     )
       return errors;
 
+    if (isAsset(inputAsset) && inputAsset.name === 'REALU') errors.push(AmlError.ASSET_INPUT_NOT_ALLOWED);
+
     if (
       !DisabledProcess(Process.TRADE_APPROVAL_DATE) &&
       !entity.userData.tradeApprovalDate &&
       !entity.wallet.autoTradeApproval
     )
-      errors.push(AmlError.TRADE_APPROVAL_DATE_MISSING);
+      errors.push(
+        [PhoneCallStatus.USER_REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+          ? AmlError.USER_DATA_FAILED_CALL
+          : AmlError.TRADE_APPROVAL_DATE_MISSING,
+      );
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
     if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
     if (entity.user.isDeleted) errors.push(AmlError.USER_DELETED);
@@ -89,7 +101,11 @@ export class AmlHelperService {
       errors.push(AmlError.YEARLY_LIMIT_WO_KYC_REACHED);
     if (entity.userData.hasIpRisk && !entity.userData.phoneCallIpCheckDate) {
       if (entity.userData.kycLevel >= KycLevel.LEVEL_50) {
-        errors.push(AmlError.IP_PHONE_VERIFICATION_NEEDED);
+        errors.push(
+          [PhoneCallStatus.USER_REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+            ? AmlError.USER_DATA_FAILED_CALL
+            : AmlError.IP_PHONE_VERIFICATION_NEEDED,
+        );
       } else {
         errors.push(AmlError.IP_BLACKLISTED_WITHOUT_KYC);
       }
@@ -195,7 +211,11 @@ export class AmlHelperService {
             ![l, entity.userData.country.symbol].every((c) => Config.allowedBorderRegions.includes(c)),
         )
       )
-        errors.push(AmlError.IP_COUNTRY_MISMATCH);
+        errors.push(
+          [PhoneCallStatus.USER_REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+            ? AmlError.USER_DATA_FAILED_CALL
+            : AmlError.IP_COUNTRY_MISMATCH,
+        );
 
       if (
         entity.userData.hasSuspiciousMail &&
@@ -218,10 +238,14 @@ export class AmlHelperService {
         (entity.bankTx || entity.checkoutTx) &&
         entity.userData.phone &&
         entity.userData.birthday &&
-        (!entity.userData.accountType || entity.userData.accountType === AccountType.PERSONAL) &&
+        entity.userData.isPersonalAccount &&
         Util.yearsDiff(entity.userData.birthday) > 55
       )
-        errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
+        errors.push(
+          [PhoneCallStatus.USER_REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+            ? AmlError.USER_DATA_FAILED_CALL
+            : AmlError.PHONE_VERIFICATION_NEEDED,
+        );
 
       if (entity.bankTx) {
         // bank
@@ -252,28 +276,46 @@ export class AmlHelperService {
         )
           errors.push(AmlError.BIC_BLACKLISTED);
         if (
-          blacklist.some((b) =>
-            b.matches(
-              [
-                SpecialExternalAccountType.BANNED_IBAN,
-                SpecialExternalAccountType.BANNED_IBAN_BUY,
-                SpecialExternalAccountType.BANNED_IBAN_AML,
-              ],
-              entity.bankTx.iban,
-            ),
+          blacklist.some(
+            (b) =>
+              b.matches(
+                [
+                  SpecialExternalAccountType.BANNED_IBAN,
+                  SpecialExternalAccountType.BANNED_IBAN_BUY,
+                  SpecialExternalAccountType.BANNED_IBAN_AML,
+                ],
+                entity.bankTx.iban,
+              ) ||
+              b.matches(
+                [
+                  SpecialExternalAccountType.BANNED_BLZ,
+                  SpecialExternalAccountType.BANNED_BLZ_BUY,
+                  SpecialExternalAccountType.BANNED_BLZ_AML,
+                ],
+                IbanTools.extractIBAN(entity.bankTx.iban).bankIdentifier,
+              ),
           )
         )
           errors.push(AmlError.IBAN_BLACKLISTED);
 
         if (
+          !entity.userData.phoneCallCheckDate &&
+          entity.userData.isPersonalAccount &&
           phoneCallList.some((b) =>
             b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BIC_BUY], entity.bankTx.bic),
           )
         )
           errors.push(AmlError.BIC_PHONE_VERIFICATION_NEEDED);
         if (
-          phoneCallList.some((b) =>
-            b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY], entity.bankTx.iban),
+          !entity.userData.phoneCallCheckDate &&
+          entity.userData.isPersonalAccount &&
+          phoneCallList.some(
+            (b) =>
+              b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY], entity.bankTx.iban) ||
+              b.matches(
+                [SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BLZ_BUY],
+                IbanTools.extractIBAN(entity.bankTx.iban).bankIdentifier,
+              ),
           )
         )
           errors.push(AmlError.IBAN_PHONE_VERIFICATION_NEEDED);
@@ -328,15 +370,24 @@ export class AmlHelperService {
       if (entity.sell.fiat.name === 'CHF' && !Config.isDomesticIban(entity.sell.iban))
         errors.push(AmlError.ABROAD_CHF_NOT_ALLOWED);
       if (
-        blacklist.some((b) =>
-          b.matches(
-            [
-              SpecialExternalAccountType.BANNED_IBAN,
-              SpecialExternalAccountType.BANNED_IBAN_SELL,
-              SpecialExternalAccountType.BANNED_IBAN_AML,
-            ],
-            entity.sell.iban,
-          ),
+        blacklist.some(
+          (b) =>
+            b.matches(
+              [
+                SpecialExternalAccountType.BANNED_IBAN,
+                SpecialExternalAccountType.BANNED_IBAN_SELL,
+                SpecialExternalAccountType.BANNED_IBAN_AML,
+              ],
+              entity.sell.iban,
+            ) ||
+            b.matches(
+              [
+                SpecialExternalAccountType.BANNED_BLZ,
+                SpecialExternalAccountType.BANNED_BLZ_SELL,
+                SpecialExternalAccountType.BANNED_BLZ_AML,
+              ],
+              IbanTools.extractIBAN(entity.sell.iban).bankIdentifier,
+            ),
         )
       )
         errors.push(AmlError.IBAN_BLACKLISTED);
@@ -438,12 +489,12 @@ export class AmlHelperService {
         break;
 
       case AmlRule.RULE_16:
-        if (
-          entity instanceof BuyCrypto &&
-          entity.userData.accountType === AccountType.PERSONAL &&
-          !entity.userData.phoneCallCheckDate
-        )
-          errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
+        if (entity instanceof BuyCrypto && entity.userData.isPersonalAccount && !entity.userData.phoneCallCheckDate)
+          errors.push(
+            [PhoneCallStatus.USER_REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+              ? AmlError.USER_DATA_FAILED_CALL
+              : AmlError.PHONE_VERIFICATION_NEEDED,
+          );
         break;
     }
 

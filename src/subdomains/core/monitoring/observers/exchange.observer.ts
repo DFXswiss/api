@@ -64,25 +64,18 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
       blockchain: Blockchain.ETHEREUM,
       type: AssetType.TOKEN,
     });
-    const btc = await this.assetService.getAssetByQuery({
-      name: 'BTC',
-      blockchain: Blockchain.BITCOIN,
-      type: AssetType.COIN,
-    });
 
     const xtDeurUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'DEURO');
-    const xtDeurBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'BTC', 'DEURO');
     const xtDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'DEPS');
-    const xtDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'BTC', 'DEPS');
+    const xtJusdUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'JUSD');
 
     const referenceDeurUsdtPrice = await this.pricingService.getPrice(
       usdt,
       PriceCurrency.EUR,
       PriceValidity.VALID_ONLY,
     );
-    const referenceDeurBtcPrice = await this.pricingService.getPrice(btc, PriceCurrency.EUR, PriceValidity.VALID_ONLY);
     const referenceDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'USDT', 'DEPS');
-    const referenceDepsBtcPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'BTC', 'DEPS');
+    const referenceJusdUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.JUICE, 'USDT', 'JUSD');
 
     return [
       {
@@ -90,16 +83,12 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
         deviation: Util.round(xtDeurUsdtPrice.price / referenceDeurUsdtPrice.price - 1, 3),
       },
       {
-        name: 'XT-dEURO-BTC',
-        deviation: Util.round(xtDeurBtcPrice.price / referenceDeurBtcPrice.price - 1, 3),
-      },
-      {
         name: 'XT-DEPS-USDT',
         deviation: Util.round(xtDepsUsdtPrice.price / referenceDepsUsdtPrice.price - 1, 3),
       },
       {
-        name: 'XT-DEPS-BTC',
-        deviation: Util.round(xtDepsBtcPrice.price / referenceDepsBtcPrice.price - 1, 3),
+        name: 'XT-JUSD-USDT',
+        deviation: Util.round(xtJusdUsdtPrice.price / referenceJusdUsdtPrice.price - 1, 3),
       },
     ];
   }

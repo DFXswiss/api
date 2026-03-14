@@ -1,10 +1,10 @@
 import { SparkWallet } from '@buildonspark/spark-sdk';
-import { Injectable } from '@nestjs/common';
 import { Currency } from '@uniswap/sdk-core';
 import { GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncField } from 'src/shared/utils/async-field';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
+import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 
 export interface SparkTransaction {
@@ -14,6 +14,22 @@ export interface SparkTransaction {
   time?: number;
   blocktime?: number;
   fee?: number;
+}
+
+export enum SparkTransferDirection {
+  INCOMING = 'INCOMING',
+  OUTGOING = 'OUTGOING',
+}
+
+export interface SparkTransfer {
+  id: string;
+  amountSats: number;
+  status: string;
+  direction: SparkTransferDirection;
+  senderSparkAddress?: string;
+  receiverSparkAddress?: string;
+  createdTime?: Date;
+  updatedTime?: Date;
 }
 
 export interface SparkNodeInfo {
@@ -27,24 +43,34 @@ export interface SparkFeeEstimate {
   blocks: number;
 }
 
-@Injectable()
 export class SparkClient extends BlockchainClient {
   private readonly logger = new DfxLogger(SparkClient);
 
-  private readonly wallet: AsyncField<SparkWallet>;
+  private wallet: AsyncField<SparkWallet>;
   private readonly cachedAddress: AsyncField<string>;
+  private reconnectAttempt = 0;
 
   constructor() {
     super();
 
-    this.wallet = new AsyncField(() =>
-      SparkWallet.initialize({
-        mnemonicOrSeed: GetConfig().blockchain.spark.sparkWalletSeed,
-        accountNumber: 0,
-        options: { network: 'MAINNET' },
-      }).then((r) => r.wallet),
-    );
+    this.wallet = new AsyncField(() => this.initializeWallet(), true);
     this.cachedAddress = new AsyncField(() => this.wallet.then((w) => w.getSparkAddress()), true);
+  }
+
+  private async call<T>(operation: (wallet: SparkWallet) => Promise<T>): Promise<T> {
+    try {
+      const wallet = await this.wallet;
+      return await operation(wallet);
+    } catch (e) {
+      if (e?.message?.includes('Channel has been shut down')) {
+        this.logger.info('Spark channel shut down, reinitializing wallet...');
+        this.wallet.reset();
+        this.cachedAddress.reset();
+        const wallet = await this.wallet;
+        return operation(wallet);
+      }
+      throw e;
+    }
   }
 
   get walletAddress(): string {
@@ -54,37 +80,118 @@ export class SparkClient extends BlockchainClient {
   // --- TRANSACTION METHODS --- //
 
   async sendTransaction(to: string, amount: number): Promise<{ txid: string; fee: number }> {
-    const wallet = await this.wallet;
+    return this.call(async (wallet) => {
+      const amountSats = Math.round(amount * 1e8);
 
-    const amountSats = Math.round(amount * 1e8);
+      await this.syncLeaves(wallet);
 
-    const result = await wallet.transfer({
-      amountSats,
-      receiverSparkAddress: to,
+      const result = await wallet.transfer({
+        amountSats,
+        receiverSparkAddress: to,
+      });
+
+      return { txid: result.id, fee: 0 };
     });
-
-    return { txid: result.id, fee: 0 };
   }
 
   async getTransaction(txId: string): Promise<SparkTransaction> {
-    const wallet = await this.wallet;
-    const transfer = await wallet.getTransfer(txId);
+    return this.call(async (wallet) => {
+      await this.syncLeaves(wallet);
 
-    if (!transfer) {
-      throw new Error(`Transaction ${txId} not found`);
+      const transfer = await wallet.getTransfer(txId);
+
+      if (!transfer) {
+        throw new Error(`Transaction ${txId} not found`);
+      }
+
+      // Outgoing: complete once sender key is tweaked (funds left our wallet)
+      // Incoming: complete once receiver has claimed
+      const isConfirmed = ['TRANSFER_STATUS_SENDER_KEY_TWEAKED', 'TRANSFER_STATUS_COMPLETED'].includes(transfer.status);
+
+      return {
+        txid: transfer.id,
+        blockhash: isConfirmed ? 'confirmed' : undefined,
+        confirmations: isConfirmed ? 1 : 0,
+        time: transfer.createdTime ? Math.floor(transfer.createdTime.getTime() / 1000) : undefined,
+        blocktime: transfer.updatedTime ? Math.floor(transfer.updatedTime.getTime() / 1000) : undefined,
+        fee: 0,
+      };
+    });
+  }
+
+  async getTransfers(limit = 100, offset = 0): Promise<SparkTransfer[]> {
+    const wallet = await this.wallet;
+    const result = await wallet.getTransfers(limit, offset);
+
+    return result.transfers.map((t) => ({
+      id: t.id,
+      amountSats: t.totalValue,
+      status: t.status,
+      direction: t.transferDirection as SparkTransferDirection,
+      senderSparkAddress: t.senderIdentityPublicKey,
+      receiverSparkAddress: t.receiverIdentityPublicKey,
+      createdTime: t.createdTime,
+      updatedTime: t.updatedTime,
+    }));
+  }
+
+  async getIncomingTransfers(limit = 100, offset = 0): Promise<SparkTransfer[]> {
+    const transfers = await this.getTransfers(limit, offset);
+
+    // Filter only completed incoming transfers
+    return transfers.filter(
+      (t) => t.status === 'TRANSFER_STATUS_COMPLETED' && t.direction === SparkTransferDirection.INCOMING,
+    );
+  }
+
+  // --- WALLET INITIALIZATION --- //
+
+  private initializeWallet(): Promise<SparkWallet> {
+    return SparkWallet.initialize({
+      mnemonicOrSeed: GetConfig().blockchain.spark.sparkWalletSeed,
+      accountNumber: 0,
+      options: { network: 'MAINNET' },
+    }).then(({ wallet }) => {
+      wallet.on('stream:disconnected', () => this.reconnectWallet());
+      return this.syncLeaves(wallet);
+    });
+  }
+
+  private reconnectWallet(): void {
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempt, 60_000);
+    this.reconnectAttempt++;
+
+    this.logger.warn(`Spark stream disconnected, reconnecting in ${delay / 1000}s (attempt ${this.reconnectAttempt})`);
+
+    this.wallet = new AsyncField(
+      () =>
+        new Promise<void>((resolve) => setTimeout(resolve, delay))
+          .then(() => this.initializeWallet())
+          .then((wallet) => {
+            this.reconnectAttempt = 0;
+            this.logger.info('Spark wallet reconnected successfully');
+            return wallet;
+          })
+          .catch((e: Error) => {
+            this.logger.error('Spark wallet reconnect failed', e);
+            this.reconnectWallet();
+            throw e;
+          }),
+      true,
+    );
+  }
+
+  // --- SYNC METHODS --- //
+
+  private async syncLeaves(wallet: SparkWallet): Promise<SparkWallet> {
+    // SDK bug: internal this.leaves cache is not synced on initialization or after deposits
+    // optimizeLeaves() fetches fresh leaves from network and updates the cache at the start,
+    // even when no optimization swaps are needed - consume generator to trigger sync
+    for await (const _ of wallet.optimizeLeaves()) {
+      /* Consume generator - sync happens at generator start */
     }
 
-    // SPARK uses final confirmation - either confirmed (1) or not (0)
-    const isConfirmed = transfer.status === 'TRANSFER_STATUS_COMPLETED';
-
-    return {
-      txid: transfer.id,
-      blockhash: isConfirmed ? 'confirmed' : undefined,
-      confirmations: isConfirmed ? 1 : 0,
-      time: transfer.createdTime ? Math.floor(transfer.createdTime.getTime() / 1000) : undefined,
-      blocktime: transfer.updatedTime ? Math.floor(transfer.updatedTime.getTime() / 1000) : undefined,
-      fee: 0,
-    };
+    return wallet;
   }
 
   // --- FEE METHODS (always 0 for Spark L2) --- //
@@ -101,8 +208,7 @@ export class SparkClient extends BlockchainClient {
 
   async isHealthy(): Promise<boolean> {
     try {
-      const wallet = await this.wallet;
-      return wallet != null;
+      return await this.call(async (wallet) => wallet != null);
     } catch {
       return false;
     }
@@ -111,11 +217,13 @@ export class SparkClient extends BlockchainClient {
   // --- BLOCKCHAIN CLIENT INTERFACE --- //
 
   async getNativeCoinBalance(): Promise<number> {
-    const wallet = await this.wallet;
+    return this.call(async (wallet) => {
+      const { balance } = await wallet.getBalance();
 
-    const { balance } = await wallet.getBalance();
+      await this.syncLeaves(wallet);
 
-    return Number(balance) / 1e8;
+      return Number(balance) / 1e8;
+    });
   }
 
   async getNativeCoinBalanceForAddress(_address: string): Promise<number> {
@@ -143,7 +251,7 @@ export class SparkClient extends BlockchainClient {
     throw new Error('Method not implemented');
   }
 
-  async sendSignedTransaction(): Promise<any> {
+  async sendSignedTransaction(_tx: string): Promise<SignedTransactionResponse> {
     throw new Error('Method not implemented');
   }
 }

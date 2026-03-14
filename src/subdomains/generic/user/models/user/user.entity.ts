@@ -18,7 +18,7 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { CustodyProvider } from '../custody-provider/custody-provider.entity';
-import { UserAddressType, UserStatus, WalletType } from './user.enum';
+import { RefPayoutFrequency, UserAddressType, UserStatus, WalletType } from './user.enum';
 
 @Entity()
 export class User extends IEntity {
@@ -126,6 +126,9 @@ export class User extends IEntity {
 
   @Column({ type: 'float', default: 0.25 })
   refFeePercent: number;
+
+  @Column({ length: 256, default: RefPayoutFrequency.DAILY })
+  refPayoutFrequency: RefPayoutFrequency;
 
   @Column({ type: 'float', default: 0 })
   refVolume: number; // EUR
