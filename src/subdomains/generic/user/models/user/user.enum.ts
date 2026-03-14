@@ -8,6 +8,7 @@ export enum UserStatus {
 export enum UserAddressType {
   BITCOIN_LEGACY = 'BitcoinLegacy',
   BITCOIN_BECH32 = 'BitcoinBech32',
+  BITCOIN_SILENT_PAYMENT = 'BitcoinSilentPayment',
   EVM = 'EVM',
   LN_URL = 'LNURL',
   LN_NID = 'LNNID',

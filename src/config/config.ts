@@ -147,7 +147,7 @@ export class Configuration {
     github: 'https://github.com/DFXswiss/api#dfx-api',
   };
 
-  bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
+  bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}|sp1[a-z0-9]{2,256}';
   lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
   sparkAddressFormat = 'spark1[a-z0-9]{6,250}';
   arkAddressFormat = 'ark1[a-z0-9]{6,500}';
