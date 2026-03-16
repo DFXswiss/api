@@ -76,6 +76,13 @@ export class KycStepSupportInfo {
   created: Date;
 }
 
+export class KycLogSupportInfo {
+  id: number;
+  type: string;
+  comment?: string;
+  created: Date;
+}
+
 export class BankDataSupportInfo {
   id: number;
   iban: string;
@@ -174,6 +181,7 @@ export class UserDataSupportInfoDetails {
   userData: UserData;
   kycFiles: KycFile[];
   kycSteps: KycStepSupportInfo[];
+  kycLogs: KycLogSupportInfo[];
   transactions: TransactionSupportInfo[];
   users: UserSupportInfo[];
   bankDatas: BankDataSupportInfo[];

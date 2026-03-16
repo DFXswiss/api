@@ -26,9 +26,11 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { KycLog } from '../kyc/entities/kyc-log.entity';
 import { KycStep } from '../kyc/entities/kyc-step.entity';
 import { KycStepName } from '../kyc/enums/kyc-step-name.enum';
 import { KycFileService } from '../kyc/services/kyc-file.service';
+import { KycLogService } from '../kyc/services/kyc-log.service';
 import { KycService } from '../kyc/services/kyc.service';
 import { BankData } from '../user/models/bank-data/bank-data.entity';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
@@ -46,6 +48,7 @@ import {
   ComplianceSearchType,
   KycFileListEntry,
   KycFileYearlyStats,
+  KycLogSupportInfo,
   KycStepSupportInfo,
   RecommendationEntry,
   RecommendationGraph,
@@ -82,6 +85,7 @@ export class SupportService {
     private readonly bankTxService: BankTxService,
     private readonly payInService: PayInService,
     private readonly kycFileService: KycFileService,
+    private readonly kycLogService: KycLogService,
     private readonly kycService: KycService,
     private readonly bankDataService: BankDataService,
     private readonly bankTxReturnService: BankTxReturnService,
@@ -99,9 +103,10 @@ export class SupportService {
     if (!userData) throw new NotFoundException(`User not found`);
 
     // Load all related data in parallel
-    const [kycFiles, kycSteps, transactions, users, bankDatas, buyRoutes, sellRoutes] = await Promise.all([
+    const [kycFiles, kycSteps, kycLogs, transactions, users, bankDatas, buyRoutes, sellRoutes] = await Promise.all([
       this.kycFileService.getUserDataKycFiles(id),
       this.kycService.getStepsByUserData(id),
+      this.kycLogService.getLogsByUserDataId(id),
       this.transactionService.getTransactionsByUserDataId(id),
       this.userService.getAllUserDataUsers(id),
       this.bankDataService.getBankDatasByUserData(id),
@@ -137,6 +142,7 @@ export class SupportService {
           s.name === KycStepName.RECOMMENDATION ? allByRecommender : undefined,
         ),
       ),
+      kycLogs: kycLogs.map((l) => this.toKycLogSupportInfo(l)),
       transactions: transactions.map((t) => this.toTransactionSupportInfo(t)),
       users: users.map((u) => this.toUserSupportInfo(u)),
       bankDatas: bankDatas.map((b) => this.toBankDataSupportInfo(b)),
@@ -268,6 +274,15 @@ export class SupportService {
       recommended: toUserInfo(recommendation?.recommended),
       allRecommendations: allByRecommender?.map(toEntry),
       created: step.created,
+    };
+  }
+
+  private toKycLogSupportInfo(log: KycLog): KycLogSupportInfo {
+    return {
+      id: log.id,
+      type: log.type,
+      comment: log.comment,
+      created: log.created,
     };
   }
 
