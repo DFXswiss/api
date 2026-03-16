@@ -22,6 +22,9 @@ export class Webhook extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   lastTryDate?: Date;
 
+  @Column({ type: 'datetime2', nullable: true })
+  nextTryDate?: Date;
+
   @Column({ length: 'MAX', nullable: true })
   error?: string;
 
