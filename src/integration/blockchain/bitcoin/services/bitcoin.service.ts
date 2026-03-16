@@ -62,7 +62,7 @@ export class BitcoinService extends BlockchainService {
     return `bitcoin:${address}?amount=${Util.numberToFixedString(amount)}&label=${label}`;
   }
 
-  verifySilentPaymentSignature(message: string, address: string, signature: string): boolean {
+  static verifySilentPaymentSignature(message: string, address: string, signature: string): boolean {
     try {
       // 1. Decode SP address (bech32m) to extract B_spend public key
       const decoded = bech32m.decode(address, 1023);
@@ -74,7 +74,7 @@ export class BitcoinService extends BlockchainService {
       // 2. Compute Bitcoin Message hash: double-SHA256(prefix + varint(len) + message)
       const prefix = '\x18Bitcoin Signed Message:\n';
       const msgBytes = Buffer.from(message, 'utf8');
-      const varint = this.encodeVarint(msgBytes.length);
+      const varint = BitcoinService.encodeVarint(msgBytes.length);
       const prefixBytes = Buffer.from(prefix, 'utf8');
       const payload = Buffer.concat([prefixBytes, varint, msgBytes]);
       const msgHash = sha256(sha256(payload));
@@ -102,7 +102,7 @@ export class BitcoinService extends BlockchainService {
     }
   }
 
-  private encodeVarint(n: number): Buffer {
+  private static encodeVarint(n: number): Buffer {
     if (n < 0xfd) return Buffer.from([n]);
     if (n <= 0xffff) {
       const buf = Buffer.alloc(3);

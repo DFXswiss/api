@@ -24,10 +24,8 @@ describe('verifySilentPayment', () => {
   const spWords = [0, ...bech32m.toWords(spPayload)];
   const spAddress = bech32m.encode('sp', spWords, 1023);
 
-  // Create instance for testing
-  const bitcoinService = new BitcoinService(null);
   const verifySilentPayment = (message: string, address: string, signature: string): boolean =>
-    bitcoinService.verifySilentPaymentSignature(message, address, signature);
+    BitcoinService.verifySilentPaymentSignature(message, address, signature);
 
   // Simulates Cake Wallet signing
   function signBitcoinMessage(message: string, privKeyHex: string): string {
