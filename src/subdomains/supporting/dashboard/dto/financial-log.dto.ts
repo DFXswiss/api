@@ -23,6 +23,8 @@ export class FinancialChangesEntryDto {
   };
   minus: {
     total: number;
+    bank: number;
+    kraken: { total: number; withdraw: number; trading: number };
     ref: { total: number; amount: number; fee: number };
     binance: { total: number; withdraw: number; trading: number };
     blockchain: { total: number; txIn: number; txOut: number; trading: number };
