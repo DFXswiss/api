@@ -29,7 +29,9 @@ export class DashboardFinancialService {
     ]);
 
     const btcAssetId = btcAsset?.id;
-    const entries = logs.map((log) => this.mapLogToEntry(log, btcAssetId)).filter((e): e is FinancialLogEntryDto => e != null);
+    const entries = logs
+      .map((log) => this.mapLogToEntry(log, btcAssetId))
+      .filter((e): e is FinancialLogEntryDto => e != null);
 
     return { entries };
   }
