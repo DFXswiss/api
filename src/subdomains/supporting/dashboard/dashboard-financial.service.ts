@@ -23,9 +23,13 @@ export class DashboardFinancialService {
   ) {}
 
   async getFinancialLog(from?: Date, dailySample?: boolean): Promise<FinancialLogResponseDto> {
-    const logs = await this.logService.getFinancialLogs(from, dailySample);
+    const [logs, btcAsset] = await Promise.all([
+      this.logService.getFinancialLogs(from, dailySample),
+      this.assetService.getBtcCoin(),
+    ]);
 
-    const entries = logs.map((log) => this.mapLogToEntry(log)).filter((e): e is FinancialLogEntryDto => e != null);
+    const btcAssetId = btcAsset?.id;
+    const entries = logs.map((log) => this.mapLogToEntry(log, btcAssetId)).filter((e): e is FinancialLogEntryDto => e != null);
 
     return { entries };
   }
@@ -108,7 +112,12 @@ export class DashboardFinancialService {
     const latest = await this.logService.getLatestFinancialLog();
     if (!latest) return undefined;
 
-    const financeLog: FinanceLog = JSON.parse(latest.message);
+    let financeLog: FinanceLog;
+    try {
+      financeLog = JSON.parse(latest.message);
+    } catch {
+      return undefined;
+    }
 
     // By type (from existing balancesByFinancialType)
     const byType: BalanceByGroupDto[] = [];
@@ -199,11 +208,11 @@ export class DashboardFinancialService {
     return { timestamp: latest.created, byType, byBlockchain };
   }
 
-  private mapLogToEntry(log: Log): FinancialLogEntryDto | undefined {
+  private mapLogToEntry(log: Log, btcAssetId?: number): FinancialLogEntryDto | undefined {
     try {
       const financeLog: FinanceLog = JSON.parse(log.message);
 
-      const btcPriceChf = this.extractBtcPrice(financeLog);
+      const btcPriceChf = this.extractBtcPrice(financeLog, btcAssetId);
 
       const balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }> = {};
       if (financeLog.balancesByFinancialType) {
@@ -228,15 +237,9 @@ export class DashboardFinancialService {
     }
   }
 
-  private extractBtcPrice(financeLog: FinanceLog): number {
-    if (!financeLog.assets) return 0;
+  private extractBtcPrice(financeLog: FinanceLog, btcAssetId?: number): number {
+    if (!financeLog.assets || !btcAssetId) return 0;
 
-    for (const [, asset] of Object.entries(financeLog.assets)) {
-      if (asset.priceChf > 50000) {
-        return asset.priceChf;
-      }
-    }
-
-    return 0;
+    return financeLog.assets[btcAssetId]?.priceChf ?? 0;
   }
 }
