@@ -46,6 +46,6 @@ import { RefRewardService } from './reward/services/ref-reward.service';
     RefRewardOutService,
     RefRewardJobService,
   ],
-  exports: [RefService, RefRewardService],
+  exports: [RefService, RefRewardService, RefRewardRepository],
 })
 export class ReferralModule {}
