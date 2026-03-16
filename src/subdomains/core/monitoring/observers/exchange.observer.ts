@@ -59,11 +59,18 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
   // *** HELPER METHODS *** //
 
   private async getXtPriceDeviation(): Promise<ExchangeDeviationData[]> {
-    const usdt = await this.assetService.getAssetByQuery({
-      name: 'USDT',
-      blockchain: Blockchain.ETHEREUM,
-      type: AssetType.TOKEN,
-    });
+    const [usdt, jusd] = await Promise.all([
+      this.assetService.getAssetByQuery({
+        name: 'USDT',
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+      }),
+      await this.assetService.getAssetByQuery({
+        name: 'JUSD',
+        blockchain: Blockchain.CITREA,
+        type: AssetType.TOKEN,
+      }),
+    ]);
 
     const xtDeurUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'DEURO');
     const xtDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'DEPS');
@@ -75,7 +82,7 @@ export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
       PriceValidity.VALID_ONLY,
     );
     const referenceDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'USDT', 'DEPS');
-    const referenceJusdUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.JUICE, 'USDT', 'JUSD');
+    const referenceJusdUsdtPrice = await this.pricingService.getPrice(usdt, jusd, PriceValidity.VALID_ONLY);
 
     return [
       {
