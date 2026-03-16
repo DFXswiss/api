@@ -11,7 +11,7 @@ import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter
 import { AccountType } from '../../user-data/account-type.enum';
 import { KycLevel, PhoneCallPreferredTime } from '../../user-data/user-data.enum';
 import { RefPayoutFrequency } from '../user.enum';
-import { TradingLimit, UserPhoneCallStatus, VolumeInformation } from './user.dto';
+import { TradingLimit, VolumeInformation } from './user.dto';
 
 export class VolumesDto {
   @ApiProperty({ type: VolumeInformation, description: 'Total buy volume in CHF' })
@@ -108,8 +108,8 @@ export class UserKycDto {
   @ApiProperty({ enum: PhoneCallPreferredTime, isArray: true })
   preferredPhoneTimes: PhoneCallPreferredTime[];
 
-  @ApiProperty({ enum: UserPhoneCallStatus })
-  phoneCallStatus: UserPhoneCallStatus;
+  @ApiPropertyOptional()
+  phoneCallAccepted: boolean;
 }
 
 export class UserPaymentLinkDto {

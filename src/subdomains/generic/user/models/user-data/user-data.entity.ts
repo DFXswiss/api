@@ -254,6 +254,9 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   phoneCallStatus: PhoneCallStatus;
 
+  @Column({ nullable: true })
+  phoneCallAccepted?: boolean;
+
   @Column({ type: 'datetime2', nullable: true })
   tradeApprovalDate?: Date;
 
@@ -507,11 +510,11 @@ export class UserData extends IEntity {
       language: dto.language ?? this.language,
       currency: dto.currency ?? this.currency,
       phoneCallTimes: dto.preferredPhoneTimes ? dto.preferredPhoneTimes.join(';') : undefined,
-      phoneCallStatus: dto.acceptCall
-        ? PhoneCallStatus.REPEAT
-        : dto.acceptCall === false
+      phoneCallStatus:
+        dto.acceptCall === false && (!this.phoneCallStatus || PhoneCallStatus.UNAVAILABLE === this.phoneCallStatus)
           ? PhoneCallStatus.USER_REJECTED
           : undefined,
+      phoneCallAccepted: dto.acceptCall,
     };
 
     Object.assign(this, update);
