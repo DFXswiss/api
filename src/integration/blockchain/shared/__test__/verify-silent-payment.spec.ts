@@ -1,7 +1,7 @@
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha256';
 import { bech32m } from 'bech32';
-import { CryptoService } from '../services/crypto.service';
+import { BitcoinService } from '../../bitcoin/services/bitcoin.service';
 
 /**
  * Tests for Silent Payment (BIP-352) signature verification logic.
@@ -9,7 +9,7 @@ import { CryptoService } from '../services/crypto.service';
  * Simulates the full Cake Wallet → DFX API flow:
  * 1. Construct a SP address from known b_scan + b_spend keypairs
  * 2. Sign a Bitcoin message with b_spend private key (Cake Wallet side)
- * 3. Verify via CryptoService.verifySilentPayment() (DFX API side)
+ * 3. Verify via BitcoinService.verifySilentPaymentSignature() (DFX API side)
  */
 describe('verifySilentPayment', () => {
   // Deterministic test keypairs
@@ -24,9 +24,8 @@ describe('verifySilentPayment', () => {
   const spWords = [0, ...bech32m.toWords(spPayload)];
   const spAddress = bech32m.encode('sp', spWords, 1023);
 
-  // Access private static method for unit testing
   const verifySilentPayment = (message: string, address: string, signature: string): boolean =>
-    (CryptoService as any).verifySilentPayment(message, address, signature);
+    BitcoinService.verifySilentPaymentSignature(message, address, signature);
 
   // Simulates Cake Wallet signing
   function signBitcoinMessage(message: string, privKeyHex: string): string {
