@@ -1,5 +1,5 @@
-module.exports = class UpdateChargebackBankFeeRate1773681554000 {
-  name = 'UpdateChargebackBankFeeRate1773681554000';
+module.exports = class UpdateChargebackBankFeeRate1773700300000 {
+  name = 'UpdateChargebackBankFeeRate1773700300000';
 
   async up(queryRunner) {
     await queryRunner.query(`
