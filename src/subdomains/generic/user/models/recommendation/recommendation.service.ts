@@ -150,6 +150,12 @@ export class RecommendationService {
           if (user.wallet.id === Config.defaultWalletId)
             await this.userService.updateUserInternal(user, { wallet: recommender });
         }
+
+        const existingRecommendations = await this.recommendationRepo.countBy({ recommended: { id: userData.id } });
+        if (existingRecommendations > Config.recommendation.maxRecommendationPerMail)
+          throw new BadRequestException('Max amount of recommendations for this account reached');
+
+        await this.createRecommendationInternal(RecommendationType.REQUEST, method, undefined, userData, kycStep);
       } else {
         // create new recommendation
         const recommender = Config.formats.ref.test(key)
@@ -190,13 +196,13 @@ export class RecommendationService {
   private async createRecommendationInternal(
     type: RecommendationType,
     method: RecommendationMethod,
-    recommender: UserData,
+    recommender: UserData | undefined,
     recommended?: UserData,
     kycStep?: KycStep,
     recommendedAlias?: string,
     recommendedMail?: string,
   ): Promise<Recommendation> {
-    const hash = Util.createHash(new Date().toISOString() + recommender.id).toUpperCase();
+    const hash = Util.createHash(new Date().toISOString() + (recommender?.id ?? Util.randomId())).toUpperCase();
 
     const entity = this.recommendationRepo.create({
       kycStep,
