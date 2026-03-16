@@ -1,7 +1,4 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { secp256k1 } from '@noble/curves/secp256k1';
-import { sha256 } from '@noble/hashes/sha256';
-import { bech32m } from 'bech32';
 import { Verifier } from 'bip322-js';
 import { verify } from 'bitcoinjs-message';
 import { isEthereumAddress } from 'class-validator';
@@ -12,6 +9,7 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
+import { ArkService } from '../../ark/ark.service';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { BitcoinService } from '../../bitcoin/services/bitcoin.service';
 import { CardanoService } from '../../cardano/services/cardano.service';
@@ -20,7 +18,6 @@ import { InternetComputerService } from '../../icp/services/icp.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';
 import { MoneroService } from '../../monero/services/monero.service';
 import { SolanaService } from '../../solana/services/solana.service';
-import { ArkService } from '../../ark/ark.service';
 import { SparkService } from '../../spark/spark.service';
 import { TronService } from '../../tron/services/tron.service';
 import { ZanoService } from '../../zano/services/zano.service';
@@ -294,7 +291,8 @@ export class CryptoService {
       if (EvmBlockchains.includes(detectedBlockchain))
         return await this.verifyEthereumBased(message, address, signature, blockchain ?? detectedBlockchain);
       if (detectedBlockchain === Blockchain.BITCOIN) {
-        if (address.startsWith('sp1')) return CryptoService.verifySilentPayment(message, address, signature);
+        if (CryptoService.getAddressType(address) === UserAddressType.BITCOIN_SILENT_PAYMENT)
+          return this.bitcoinService.verifySilentPaymentSignature(message, address, signature);
         return this.verifyBitcoinBased(message, address, signature, null);
       }
       if (detectedBlockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
@@ -434,59 +432,5 @@ export class CryptoService {
 
   private async verifyRailgun(message: string, address: string, signature: string): Promise<boolean> {
     return this.railgunService.verifySignature(message, address, signature);
-  }
-
-  private static verifySilentPayment(message: string, address: string, signature: string): boolean {
-    try {
-      // 1. Decode SP address (bech32m) to extract B_spend public key
-      const decoded = bech32m.decode(address, 1023);
-      const dataBytes = Buffer.from(bech32m.fromWords(decoded.words.slice(1)));
-      // SP address payload: 33 bytes B_scan + 33 bytes B_spend
-      if (dataBytes.length !== 66) return false;
-      const bSpend = dataBytes.subarray(33, 66);
-
-      // 2. Compute Bitcoin Message hash: double-SHA256(prefix + varint(len) + message)
-      const prefix = '\x18Bitcoin Signed Message:\n';
-      const msgBytes = Buffer.from(message, 'utf8');
-      const varint = CryptoService.encodeVarint(msgBytes.length);
-      const prefixBytes = Buffer.from(prefix, 'utf8');
-      const payload = Buffer.concat([prefixBytes, varint, msgBytes]);
-      const msgHash = sha256(sha256(payload));
-
-      // 3. Decode signature: base64 -> 65 bytes (recoveryId + r + s)
-      const sigBuf = Buffer.from(signature, 'base64');
-      if (sigBuf.length !== 65) return false;
-      const recoveryFlag = sigBuf[0];
-      // Bitcoin signed message recovery: flag 27-30 = uncompressed, 31-34 = compressed
-      const recoveryId = (recoveryFlag >= 31 ? recoveryFlag - 31 : recoveryFlag - 27) & 3;
-      const r = sigBuf.subarray(1, 33);
-      const s = sigBuf.subarray(33, 65);
-      const sig = new secp256k1.Signature(
-        BigInt('0x' + Buffer.from(r).toString('hex')),
-        BigInt('0x' + Buffer.from(s).toString('hex')),
-      ).addRecoveryBit(recoveryId);
-
-      // 4. Recover public key and compare to B_spend
-      const recoveredPoint = sig.recoverPublicKey(msgHash);
-      const recoveredBytes = recoveredPoint.toRawBytes(true); // compressed
-
-      return Buffer.from(recoveredBytes).equals(Buffer.from(bSpend));
-    } catch {
-      return false;
-    }
-  }
-
-  private static encodeVarint(n: number): Buffer {
-    if (n < 0xfd) return Buffer.from([n]);
-    if (n <= 0xffff) {
-      const buf = Buffer.alloc(3);
-      buf[0] = 0xfd;
-      buf.writeUInt16LE(n, 1);
-      return buf;
-    }
-    const buf = Buffer.alloc(5);
-    buf[0] = 0xfe;
-    buf.writeUInt32LE(n, 1);
-    return buf;
   }
 }
