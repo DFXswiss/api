@@ -10,6 +10,7 @@ export enum RecommendationType {
 }
 
 export enum RecommendationMethod {
+  WALLET = 'Wallet',
   REF_CODE = 'RefCode',
   MAIL = 'Mail',
   RECOMMENDATION_CODE = 'RecommendationCode',

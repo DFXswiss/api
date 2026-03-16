@@ -238,7 +238,9 @@ export class KycOperationalData {
 }
 
 export class KycRecommendationData {
-  @ApiProperty({ description: 'Recommendation data: ref-code or recommendation-code or mail of existing user' })
+  @ApiProperty({
+    description: 'Recommendation data: ref-code or recommendation-code or mail of existing user or wallet name',
+  })
   @IsNotEmpty()
   @IsString()
   key: string;
