@@ -995,7 +995,7 @@ export class LogJobService {
 
     // total amounts
     const totalPlus = buyCryptoFee + buyFiatFee + paymentLinkFee + tradingOrderProfit;
-    const totalMinus = bankTxFee + totalKrakenFee + totalBinanceFee + totalRefReward;
+    const totalMinus = bankTxFee + totalKrakenFee + totalBinanceFee + totalRefReward + totalBlockchainFee;
 
     return {
       total: totalPlus - totalMinus,

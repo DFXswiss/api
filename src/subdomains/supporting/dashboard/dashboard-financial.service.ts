@@ -87,6 +87,12 @@ export class DashboardFinancialService {
         },
         minus: {
           total: changes.minus?.total ?? 0,
+          bank: changes.minus?.bank ?? 0,
+          kraken: {
+            total: changes.minus?.kraken?.total ?? 0,
+            withdraw: changes.minus?.kraken?.withdraw ?? 0,
+            trading: changes.minus?.kraken?.trading ?? 0,
+          },
           ref: {
             total: changes.minus?.ref?.total ?? 0,
             amount: changes.minus?.ref?.amount ?? 0,
