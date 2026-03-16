@@ -33,6 +33,7 @@ export enum PhoneCallStatus {
   FAILED = 'Failed',
   COMPLETED = 'Completed',
   SUSPICIOUS = 'Suspicious',
+  MANUAL_CHECK = 'ManualCheck',
 }
 
 export enum KycLevel {
