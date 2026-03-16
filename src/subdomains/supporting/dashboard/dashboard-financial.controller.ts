@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, NotFoundException, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -37,7 +37,9 @@ export class DashboardFinancialController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getLatestBalance(): Promise<LatestBalanceResponseDto> {
-    return this.dashboardFinancialService.getLatestBalance();
+    const result = await this.dashboardFinancialService.getLatestBalance();
+    if (!result) throw new NotFoundException('No financial data available');
+    return result;
   }
 
   @Get('changes/latest')
@@ -45,7 +47,9 @@ export class DashboardFinancialController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getLatestChanges(): Promise<FinancialChangesEntryDto> {
-    return this.dashboardFinancialService.getLatestFinancialChanges();
+    const result = await this.dashboardFinancialService.getLatestFinancialChanges();
+    if (!result) throw new NotFoundException('No financial changes available');
+    return result;
   }
 
   @Get('ref-recipients')
