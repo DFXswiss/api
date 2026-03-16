@@ -49,12 +49,14 @@ export class SparkClient extends BlockchainClient {
   private wallet: AsyncField<SparkWallet>;
   private readonly cachedAddress: AsyncField<string>;
   private reconnectAttempt = 0;
+  private tokenOptimizationInterval?: NodeJS.Timeout;
 
   constructor() {
     super();
 
     this.wallet = new AsyncField(() => this.initializeWallet(), true);
     this.cachedAddress = new AsyncField(() => this.wallet.then((w) => w.getSparkAddress()), true);
+    this.startTokenOptimization();
   }
 
   private async call<T>(operation: (wallet: SparkWallet) => Promise<T>): Promise<T> {
@@ -150,11 +152,25 @@ export class SparkClient extends BlockchainClient {
     return SparkWallet.initialize({
       mnemonicOrSeed: GetConfig().blockchain.spark.sparkWalletSeed,
       accountNumber: 0,
-      options: { network: 'MAINNET' },
+      options: {
+        network: 'MAINNET',
+        tokenOptimizationOptions: { enabled: false },
+      },
     }).then(({ wallet }) => {
       wallet.on('stream:disconnected', () => this.reconnectWallet());
       return this.syncLeaves(wallet);
     });
+  }
+
+  private startTokenOptimization(): void {
+    if (this.tokenOptimizationInterval) clearInterval(this.tokenOptimizationInterval);
+
+    const intervalMs = 5 * 60 * 1000; // 5 minutes
+    this.tokenOptimizationInterval = setInterval(() => {
+      this.call((wallet) => wallet.optimizeTokenOutputs()).catch((e) => {
+        this.logger.warn('Token optimization failed, will retry on next interval:', e);
+      });
+    }, intervalMs);
   }
 
   private reconnectWallet(): void {
