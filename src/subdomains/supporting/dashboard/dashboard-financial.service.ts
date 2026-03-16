@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { RefRewardRepository } from '../../core/referral/reward/ref-reward.repository';
 import { Log } from '../log/log.entity';
 import { LogService } from '../log/log.service';
 import { FinanceLog } from '../log/dto/log.dto';
@@ -10,6 +11,7 @@ import {
   FinancialLogEntryDto,
   FinancialLogResponseDto,
   LatestBalanceResponseDto,
+  RefRewardRecipientDto,
 } from './dto/financial-log.dto';
 
 @Injectable()
@@ -17,6 +19,7 @@ export class DashboardFinancialService {
   constructor(
     private readonly logService: LogService,
     private readonly assetService: AssetService,
+    private readonly refRewardRepo: RefRewardRepository,
   ) {}
 
   async getFinancialLog(from?: Date, dailySample?: boolean): Promise<FinancialLogResponseDto> {
@@ -25,6 +28,24 @@ export class DashboardFinancialService {
     const entries = logs.map((log) => this.mapLogToEntry(log)).filter((e): e is FinancialLogEntryDto => e != null);
 
     return { entries };
+  }
+
+  async getRefRewardRecipients(from?: Date): Promise<RefRewardRecipientDto[]> {
+    const query = this.refRewardRepo
+      .createQueryBuilder('r')
+      .innerJoin('r.user', 'u')
+      .select('u.userDataId', 'userDataId')
+      .addSelect('COUNT(*)', 'count')
+      .addSelect('ROUND(SUM(r.amountInChf), 0)', 'totalChf')
+      .where('r.status != :excluded', { excluded: 'UserSwitch' })
+      .groupBy('u.userDataId')
+      .orderBy('totalChf', 'DESC');
+
+    if (from) {
+      query.andWhere('r.created >= :from', { from });
+    }
+
+    return query.getRawMany();
   }
 
   async getLatestFinancialChanges(): Promise<FinancialChangesEntryDto | undefined> {
@@ -118,7 +139,8 @@ export class DashboardFinancialService {
 
         if (!blockchainTotals[blockchain]) blockchainTotals[blockchain] = { plus: 0, assets: {} };
         blockchainTotals[blockchain].plus += plusChf;
-        blockchainTotals[blockchain].assets[assetName] = (blockchainTotals[blockchain].assets[assetName] ?? 0) + Math.round(plusChf);
+        blockchainTotals[blockchain].assets[assetName] =
+          (blockchainTotals[blockchain].assets[assetName] ?? 0) + Math.round(plusChf);
       }
     }
 
@@ -145,7 +167,13 @@ export class DashboardFinancialService {
         }
         if (assetOther > 0) filteredAssets['Other'] = assetOther;
 
-        byBlockchain.push({ name, plusBalanceChf: rounded, minusBalanceChf: 0, netBalanceChf: rounded, assets: filteredAssets });
+        byBlockchain.push({
+          name,
+          plusBalanceChf: rounded,
+          minusBalanceChf: 0,
+          netBalanceChf: rounded,
+          assets: filteredAssets,
+        });
       }
     }
 
@@ -159,7 +187,13 @@ export class DashboardFinancialService {
         else otherAssetOther += v;
       }
       if (otherAssetOther > 0) filteredOtherAssets['Other'] = otherAssetOther;
-      byBlockchain.push({ name: 'Other', plusBalanceChf: otherTotal, minusBalanceChf: 0, netBalanceChf: otherTotal, assets: filteredOtherAssets });
+      byBlockchain.push({
+        name: 'Other',
+        plusBalanceChf: otherTotal,
+        minusBalanceChf: 0,
+        netBalanceChf: otherTotal,
+        assets: filteredOtherAssets,
+      });
     }
 
     return { timestamp: latest.created, byType, byBlockchain };

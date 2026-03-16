@@ -41,6 +41,12 @@ export class BalanceByGroupDto {
   assets?: Record<string, number>;
 }
 
+export class RefRewardRecipientDto {
+  userDataId: number;
+  count: number;
+  totalChf: number;
+}
+
 export class LatestBalanceResponseDto {
   timestamp: Date;
   byType: BalanceByGroupDto[];
