@@ -50,3 +50,6 @@ CLAUDE.md
 
 # Forge build artifacts
 test-contracts/
+
+# Test results
+test-results/
