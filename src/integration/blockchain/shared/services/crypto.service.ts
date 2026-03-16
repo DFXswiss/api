@@ -9,6 +9,7 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
+import { ArkService } from '../../ark/ark.service';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { BitcoinService } from '../../bitcoin/services/bitcoin.service';
 import { CardanoService } from '../../cardano/services/cardano.service';
@@ -17,7 +18,6 @@ import { InternetComputerService } from '../../icp/services/icp.service';
 import { LiquidHelper } from '../../liquid/liquid-helper';
 import { MoneroService } from '../../monero/services/monero.service';
 import { SolanaService } from '../../solana/services/solana.service';
-import { ArkService } from '../../ark/ark.service';
 import { SparkService } from '../../spark/spark.service';
 import { TronService } from '../../tron/services/tron.service';
 import { ZanoService } from '../../zano/services/zano.service';
@@ -118,6 +118,7 @@ export class CryptoService {
 
     switch (blockchain) {
       case Blockchain.BITCOIN:
+        if (address.startsWith('sp1')) return UserAddressType.BITCOIN_SILENT_PAYMENT;
         if (address.startsWith('bc1')) return UserAddressType.BITCOIN_BECH32;
         return UserAddressType.BITCOIN_LEGACY;
 
@@ -289,7 +290,11 @@ export class CryptoService {
     try {
       if (EvmBlockchains.includes(detectedBlockchain))
         return await this.verifyEthereumBased(message, address, signature, blockchain ?? detectedBlockchain);
-      if (detectedBlockchain === Blockchain.BITCOIN) return this.verifyBitcoinBased(message, address, signature, null);
+      if (detectedBlockchain === Blockchain.BITCOIN) {
+        if (CryptoService.getAddressType(address) === UserAddressType.BITCOIN_SILENT_PAYMENT)
+          return BitcoinService.verifySilentPaymentSignature(message, address, signature);
+        return this.verifyBitcoinBased(message, address, signature, null);
+      }
       if (detectedBlockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
       if (detectedBlockchain === Blockchain.SPARK) return await this.verifySpark(message, address, signature);
       if (detectedBlockchain === Blockchain.ARK) return await this.verifyArk(message, address, signature);
