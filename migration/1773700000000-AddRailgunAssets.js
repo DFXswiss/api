@@ -98,8 +98,7 @@ module.exports = class AddRailgunAssets1773700000000 {
             )
         `);
         // --- Add all Railgun assets to base fees ---
-        // Tier2 base fees with explicit asset lists (BuyCrypto, BuyFiat, CryptoCrypto)
-        const feeIds = [4, 5, 6, 10, 11, 12, 16, 17, 18];
+        const feeIds = [7, 8, 10, 17, 18, 19, 26, 27, 28];
         const railgunAssets = await queryRunner.query(
             `SELECT "id" FROM "dbo"."asset" WHERE "blockchain" = 'Railgun'`,
         );
@@ -116,8 +115,7 @@ module.exports = class AddRailgunAssets1773700000000 {
 
     async down(queryRunner) {
         // Remove from base fees first
-        // Tier2 base fees with explicit asset lists (BuyCrypto, BuyFiat, CryptoCrypto)
-        const feeIds = [4, 5, 6, 10, 11, 12, 16, 17, 18];
+        const feeIds = [7, 8, 10, 17, 18, 19, 26, 27, 28];
         const railgunAssets = await queryRunner.query(
             `SELECT "id" FROM "dbo"."asset" WHERE "blockchain" = 'Railgun'`,
         );
