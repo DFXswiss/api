@@ -292,7 +292,7 @@ export class CryptoService {
         return await this.verifyEthereumBased(message, address, signature, blockchain ?? detectedBlockchain);
       if (detectedBlockchain === Blockchain.BITCOIN) {
         if (CryptoService.getAddressType(address) === UserAddressType.BITCOIN_SILENT_PAYMENT)
-          return this.bitcoinService.verifySilentPaymentSignature(message, address, signature);
+          return BitcoinService.verifySilentPaymentSignature(message, address, signature);
         return this.verifyBitcoinBased(message, address, signature, null);
       }
       if (detectedBlockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
