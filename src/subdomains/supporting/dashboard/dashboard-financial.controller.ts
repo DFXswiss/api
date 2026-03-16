@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -26,7 +26,7 @@ export class DashboardFinancialController {
     @Query('from') from?: string,
     @Query('dailySample') dailySample?: string,
   ): Promise<FinancialLogResponseDto> {
-    const fromDate = from ? new Date(from) : undefined;
+    const fromDate = this.parseDate(from);
     const sample = dailySample !== 'false';
 
     return this.dashboardFinancialService.getFinancialLog(fromDate, sample);
@@ -53,8 +53,7 @@ export class DashboardFinancialController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getRefRewardRecipients(@Query('from') from?: string): Promise<RefRewardRecipientDto[]> {
-    const fromDate = from ? new Date(from) : undefined;
-    return this.dashboardFinancialService.getRefRewardRecipients(fromDate);
+    return this.dashboardFinancialService.getRefRewardRecipients(this.parseDate(from));
   }
 
   @Get('changes')
@@ -65,9 +64,15 @@ export class DashboardFinancialController {
     @Query('from') from?: string,
     @Query('dailySample') dailySample?: string,
   ): Promise<FinancialChangesResponseDto> {
-    const fromDate = from ? new Date(from) : undefined;
     const sample = dailySample !== 'false';
 
-    return this.dashboardFinancialService.getFinancialChanges(fromDate, sample);
+    return this.dashboardFinancialService.getFinancialChanges(this.parseDate(from), sample);
+  }
+
+  private parseDate(value?: string): Date | undefined {
+    if (!value) return undefined;
+    const date = new Date(value);
+    if (isNaN(date.getTime())) throw new BadRequestException(`Invalid date: ${value}`);
+    return date;
   }
 }

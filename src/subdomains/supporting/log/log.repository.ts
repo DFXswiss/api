@@ -58,16 +58,14 @@ export class LogRepository extends BaseRepository<Log> {
     if (dailySample) {
       const subQuery = this.createQueryBuilder('subLog')
         .select('MAX(subLog.id)', 'max_id')
-        .where('subLog.system = :system')
-        .andWhere('subLog.subsystem = :subsystem')
-        .andWhere('subLog.severity = :severity')
+        .where('subLog.system = :system', { system: 'LogService' })
+        .andWhere('subLog.subsystem = :subsystem', { subsystem: 'FinancialChangesLog' })
+        .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO })
         .groupBy('CAST(subLog.created AS DATE)');
 
       let query = this.createQueryBuilder('log')
-        .where('log.system = :system', { system: 'LogService' })
-        .andWhere('log.subsystem = :subsystem', { subsystem: 'FinancialChangesLog' })
-        .andWhere('log.severity = :severity', { severity: LogSeverity.INFO })
-        .andWhere(`log.id IN (${subQuery.getQuery()})`)
+        .where(`log.id IN (${subQuery.getQuery()})`)
+        .setParameters(subQuery.getParameters())
         .orderBy('log.created', 'ASC');
 
       if (from) {
@@ -94,16 +92,14 @@ export class LogRepository extends BaseRepository<Log> {
     if (dailySample) {
       const subQuery = this.createQueryBuilder('subLog')
         .select('MAX(subLog.id)', 'max_id')
-        .where('subLog.system = :system')
-        .andWhere('subLog.subsystem = :subsystem')
-        .andWhere('subLog.severity = :severity')
+        .where('subLog.system = :system', { system: 'LogService' })
+        .andWhere('subLog.subsystem = :subsystem', { subsystem: 'FinancialDataLog' })
+        .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO })
         .groupBy('CAST(subLog.created AS DATE)');
 
       let query = this.createQueryBuilder('log')
-        .where('log.system = :system', { system: 'LogService' })
-        .andWhere('log.subsystem = :subsystem', { subsystem: 'FinancialDataLog' })
-        .andWhere('log.severity = :severity', { severity: LogSeverity.INFO })
-        .andWhere(`log.id IN (${subQuery.getQuery()})`)
+        .where(`log.id IN (${subQuery.getQuery()})`)
+        .setParameters(subQuery.getParameters())
         .orderBy('log.created', 'ASC');
 
       if (from) {
