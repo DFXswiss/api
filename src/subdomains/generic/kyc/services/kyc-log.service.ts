@@ -5,6 +5,7 @@ import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
 import { FileType } from '../dto/kyc-file.dto';
 import { ContentType } from '../enums/content-type.enum';
+import { KycLog } from '../entities/kyc-log.entity';
 import { KycLogType } from '../enums/kyc.enum';
 import { KycLogRepository } from '../repositories/kyc-log.repository';
 import { KycDocumentService } from './integration/kyc-document.service';
@@ -87,6 +88,14 @@ export class KycLogService {
     });
 
     await this.kycLogRepo.save(entity);
+  }
+
+  async getLogsByUserDataId(userDataId: number): Promise<KycLog[]> {
+    return this.kycLogRepo
+      .createQueryBuilder('log')
+      .where('log.userDataId = :userDataId', { userDataId })
+      .orderBy('log.created', 'DESC')
+      .getMany();
   }
 
   async createKycFileLog(log: string, user?: UserData) {

@@ -1,9 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { Util } from 'src/shared/utils/util';
-import { EntityManager } from 'typeorm';
+import { EntityManager, FindOptionsWhere, MoreThanOrEqual } from 'typeorm';
 import { LogCleanupSetting } from './dto/create-log.dto';
-import { Log } from './log.entity';
+import { Log, LogSeverity } from './log.entity';
 
 @Injectable()
 export class LogRepository extends BaseRepository<Log> {
@@ -38,5 +38,87 @@ export class LogRepository extends BaseRepository<Log> {
     const logIdsToBeDeleted = await query.getRawMany<{ log_id: number }>().then((i) => i.map((i) => i.log_id));
 
     await Util.doInBatches(logIdsToBeDeleted, async (batch: number[]) => this.delete(batch), 100);
+  }
+
+  async getLatestFinancialLog(): Promise<Log | undefined> {
+    return this.findOne({
+      where: { system: 'LogService', subsystem: 'FinancialDataLog', severity: LogSeverity.INFO },
+      order: { id: 'DESC' },
+    });
+  }
+
+  async getLatestFinancialChangesLog(): Promise<Log | undefined> {
+    return this.findOne({
+      where: { system: 'LogService', subsystem: 'FinancialChangesLog', severity: LogSeverity.INFO },
+      order: { id: 'DESC' },
+    });
+  }
+
+  async getFinancialChangesLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
+    if (dailySample) {
+      const subQuery = this.createQueryBuilder('subLog')
+        .select('MAX(subLog.id)', 'max_id')
+        .where('subLog.system = :system', { system: 'LogService' })
+        .andWhere('subLog.subsystem = :subsystem', { subsystem: 'FinancialChangesLog' })
+        .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO })
+        .groupBy('CAST(subLog.created AS DATE)');
+
+      let query = this.createQueryBuilder('log')
+        .where(`log.id IN (${subQuery.getQuery()})`)
+        .setParameters(subQuery.getParameters())
+        .orderBy('log.created', 'ASC');
+
+      if (from) {
+        query = query.andWhere('log.created >= :from', { from });
+      }
+
+      return query.getMany();
+    }
+
+    const where: FindOptionsWhere<Log> = {
+      system: 'LogService',
+      subsystem: 'FinancialChangesLog',
+      severity: LogSeverity.INFO,
+    };
+
+    if (from) {
+      where.created = MoreThanOrEqual(from);
+    }
+
+    return this.find({ where, order: { created: 'ASC' } });
+  }
+
+  async getFinancialLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
+    if (dailySample) {
+      const subQuery = this.createQueryBuilder('subLog')
+        .select('MAX(subLog.id)', 'max_id')
+        .where('subLog.system = :system', { system: 'LogService' })
+        .andWhere('subLog.subsystem = :subsystem', { subsystem: 'FinancialDataLog' })
+        .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO })
+        .groupBy('CAST(subLog.created AS DATE)');
+
+      let query = this.createQueryBuilder('log')
+        .where(`log.id IN (${subQuery.getQuery()})`)
+        .setParameters(subQuery.getParameters())
+        .orderBy('log.created', 'ASC');
+
+      if (from) {
+        query = query.andWhere('log.created >= :from', { from });
+      }
+
+      return query.getMany();
+    }
+
+    const where: FindOptionsWhere<Log> = {
+      system: 'LogService',
+      subsystem: 'FinancialDataLog',
+      severity: LogSeverity.INFO,
+    };
+
+    if (from) {
+      where.created = MoreThanOrEqual(from);
+    }
+
+    return this.find({ where, order: { created: 'ASC' } });
   }
 }

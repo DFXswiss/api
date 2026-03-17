@@ -13,7 +13,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { Equal } from 'typeorm';
+import { Equal, Not } from 'typeorm';
 import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
@@ -28,7 +28,12 @@ import { CustodyOrderDto } from '../dto/output/custody-order.dto';
 import { CustodyBalance } from '../entities/custody-balance.entity';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
 import { CustodyOrder } from '../entities/custody-order.entity';
-import { CustodyOrderStepCommand, CustodyOrderStepContext, CustodyOrderType } from '../enums/custody';
+import {
+  CustodyOrderStatus,
+  CustodyOrderStepCommand,
+  CustodyOrderStepContext,
+  CustodyOrderType,
+} from '../enums/custody';
 import { CustodyOrderResponseDtoMapper } from '../mappers/custody-order-response-dto.mapper';
 import { GetCustodyOrderDtoMapper } from '../mappers/get-custody-order-dto.mapper';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
@@ -219,6 +224,15 @@ export class CustodyOrderService {
     if (userId != order.user.id) throw new ForbiddenException('Order is not from current user');
 
     await this.custodyOrderRepo.update(...order.confirm());
+  }
+
+  async getOrdersForSupport(): Promise<CustodyOrder[]> {
+    return this.custodyOrderRepo.find({
+      where: { status: Not(CustodyOrderStatus.CREATED) },
+      relations: { user: { userData: true }, inputAsset: true, outputAsset: true },
+      order: { created: 'DESC' },
+      take: 20,
+    });
   }
 
   async approveOrder(orderId: number): Promise<void> {
