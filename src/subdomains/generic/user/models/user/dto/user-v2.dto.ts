@@ -9,9 +9,27 @@ import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
 import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { AccountType } from '../../user-data/account-type.enum';
-import { KycLevel, PhoneCallPreferredTime } from '../../user-data/user-data.enum';
+import { KycLevel, PhoneCallPreferredTime, PhoneCallStatus } from '../../user-data/user-data.enum';
 import { RefPayoutFrequency } from '../user.enum';
 import { TradingLimit, VolumeInformation } from './user.dto';
+
+export enum UserPhoneCallStatus {
+  UNAVAILABLE = 'Unavailable',
+  COMPLETED = 'Completed',
+  FAILED = 'Failed',
+}
+
+export const PhoneCallStatusMapper: {
+  [key in PhoneCallStatus]: UserPhoneCallStatus;
+} = {
+  [PhoneCallStatus.REPEAT]: undefined,
+  [PhoneCallStatus.USER_REJECTED]: undefined,
+  [PhoneCallStatus.MANUAL_CHECK]: undefined,
+  [PhoneCallStatus.UNAVAILABLE]: UserPhoneCallStatus.UNAVAILABLE,
+  [PhoneCallStatus.FAILED]: UserPhoneCallStatus.FAILED,
+  [PhoneCallStatus.COMPLETED]: UserPhoneCallStatus.COMPLETED,
+  [PhoneCallStatus.SUSPICIOUS]: UserPhoneCallStatus.FAILED,
+};
 
 export class VolumesDto {
   @ApiProperty({ type: VolumeInformation, description: 'Total buy volume in CHF' })
@@ -110,6 +128,9 @@ export class UserKycDto {
 
   @ApiPropertyOptional()
   phoneCallAccepted: boolean;
+
+  @ApiPropertyOptional({ enum: UserPhoneCallStatus })
+  phoneCallStatus: UserPhoneCallStatus;
 }
 
 export class UserPaymentLinkDto {
