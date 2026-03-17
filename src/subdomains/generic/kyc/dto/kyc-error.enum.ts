@@ -36,7 +36,7 @@ export enum KycError {
   DENIED_RECOMMENDATION = 'DeniedRecommendation',
   RECOMMENDER_BLOCKED = 'RecommenderBlocked',
 
-  // FinancialData errors
+  // FinancialData errors/reasons
   MISSING_INFO = 'MissingInfo',
   RISKY_BUSINESS = 'RiskyBusiness',
   INCORRECT_INFO = 'IncorrectInfo',
@@ -50,6 +50,8 @@ export enum KycError {
   // DfxApproval errors
   BANK_RECALL_FEE_NOT_PAID = 'BankRecallFeeNotPaid',
   OPEN_SANCTIONED_NAME_CHECK = 'OpenSanctionedNameCheck',
+  RISK_ACCEPTED = 'RiskAccepted',
+  NO_GWG_RISK = 'NoGwgRisk',
 
   // Deactivated userData errors
   USER_DATA_DEACTIVATED = 'UserDataDeactivated',
@@ -95,6 +97,8 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.RESIDENCE_PERMIT_CHECK_REQUIRED]: undefined,
   [KycError.EXPIRED_STEP]: 'Your documents are expired',
   [KycError.MANUAL_REVIEW_REQUIRED]: undefined,
+  [KycError.RISK_ACCEPTED]: undefined,
+  [KycError.NO_GWG_RISK]: undefined,
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {
