@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { InternetComputerUtil } from 'src/integration/blockchain/icp/icp.util';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -62,6 +63,17 @@ export class InternetComputerCoinStrategy extends InternetComputerStrategy {
       payIn.destinationAddress.address,
       amount,
     );
+  }
+
+  protected async tryRecoverForwardTxId(payIn: CryptoInput): Promise<string | null> {
+    const depositAccountId = InternetComputerUtil.accountIdentifier(payIn.address.address);
+    const destinationAccountId = InternetComputerUtil.accountIdentifier(payIn.destinationAddress.address);
+
+    const transfers = await this.payInInternetComputerService.getNativeTransfersForAddress(depositAccountId);
+
+    const match = transfers.findLast((tx) => tx.from === depositAccountId && tx.to === destinationAccountId);
+
+    return match ? match.blockIndex.toString() : null;
   }
 
   private async calcSendingAmount(payIn: CryptoInput): Promise<number> {

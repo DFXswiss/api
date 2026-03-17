@@ -43,6 +43,7 @@ export abstract class InternetComputerStrategy extends SendStrategy {
   protected abstract checkPreparation(payIn: CryptoInput): Promise<boolean>;
   protected abstract prepareSend(payIn: CryptoInput, estimatedNativeFee: number): Promise<void>;
   protected abstract sendTransfer(payIn: CryptoInput, type: SendType): Promise<string>;
+  protected abstract tryRecoverForwardTxId(payIn: CryptoInput): Promise<string | null>;
 
   async doSend(payIns: CryptoInput[], type: SendType): Promise<void> {
     for (const payIn of payIns) {
@@ -74,7 +75,23 @@ export abstract class InternetComputerStrategy extends SendStrategy {
         }
 
         if (payIn.status === PayInStatus.PREPARED) {
-          const outTxId = await this.sendTransfer(payIn, type);
+          let outTxId: string;
+
+          try {
+            outTxId = await this.sendTransfer(payIn, type);
+          } catch (sendError) {
+            // transfer may have committed on-chain despite SDK error (e.g. timeout, UnknownError)
+            const recoveredTxId = await this.tryRecoverForwardTxId(payIn);
+
+            if (recoveredTxId) {
+              this.logger.warn(
+                `Recovered forward txId for ${this.blockchain} input ${payIn.id}: ${recoveredTxId} (original error: ${sendError.message})`,
+              );
+              outTxId = recoveredTxId;
+            } else {
+              throw sendError;
+            }
+          }
 
           // persist outTxId immediately to prevent double-forward if subsequent steps fail
           payIn.outTxId = outTxId;
@@ -82,13 +99,17 @@ export abstract class InternetComputerStrategy extends SendStrategy {
 
           try {
             await this.updatePayInWithSendData(payIn, type, outTxId, payIn.forwardFeeAmount);
-            await this.payInRepo.save(payIn);
           } catch (updateError) {
+            // pricing failed — fee amounts from prepareSend are still valid, mark as forwarded
+            // so confirmation check picks it up
+            payIn.forward(outTxId);
             this.logger.warn(
               `Failed to finalize ${this.blockchain} input ${payIn.id} after forward (outTxId=${outTxId}):`,
               updateError,
             );
           }
+
+          await this.payInRepo.save(payIn);
         }
       } catch (e) {
         if (e.message.includes('No maximum fee provided')) continue;

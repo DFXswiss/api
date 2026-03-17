@@ -66,6 +66,29 @@ export class InternetComputerTokenStrategy extends InternetComputerStrategy {
     );
   }
 
+  protected async tryRecoverForwardTxId(payIn: CryptoInput): Promise<string | null> {
+    const canisterId = payIn.asset.chainId;
+    if (!canisterId) return null;
+
+    const depositAddress = payIn.address.address;
+    const destinationAddress = payIn.destinationAddress.address;
+
+    const blockHeight = await this.payInInternetComputerService.getIcrcBlockHeight(canisterId);
+    const scanCount = 200;
+    const start = Math.max(0, blockHeight - scanCount);
+
+    const { transfers } = await this.payInInternetComputerService.getIcrcTransfers(
+      canisterId,
+      payIn.asset.decimals,
+      start,
+      scanCount,
+    );
+
+    const match = transfers.findLast((tx) => tx.from === depositAddress && tx.to === destinationAddress);
+
+    return match ? `${canisterId}:${match.blockIndex}` : null;
+  }
+
   private async calcSendingAmount(payIn: CryptoInput): Promise<number> {
     const balance = await this.payInInternetComputerService.getTokenBalance(payIn.asset, payIn.address.address);
     const amount = Math.min(payIn.sendingAmount, balance) - payIn.forwardFeeAmount;
