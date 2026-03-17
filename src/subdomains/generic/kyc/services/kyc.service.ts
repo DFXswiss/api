@@ -468,7 +468,18 @@ export class KycService {
 
   async initializeProcess(userData: UserData): Promise<UserData> {
     const user = await this.getUser(userData.kycHash);
-    if (user.getStepsWith(KycStepName.CONTACT_DATA).length > 0) return user;
+
+    const contactSteps = user.getStepsWith(KycStepName.CONTACT_DATA);
+    if (contactSteps.length > 0) {
+      // Complete pending ContactData step if user now has an email
+      const pendingStep = contactSteps.find((s) => s.isInProgress);
+      if (pendingStep && user.mail) {
+        const result = await this.trySetMail(user, pendingStep, user.mail);
+        await this.kycStepRepo.update(...result);
+        await this.updateProgress(user, false);
+      }
+      return user;
+    }
 
     return this.updateProgress(user, true, false);
   }
