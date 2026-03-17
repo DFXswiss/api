@@ -468,9 +468,37 @@ export class KycService {
 
   async initializeProcess(userData: UserData): Promise<UserData> {
     const user = await this.getUser(userData.kycHash);
-    if (user.getStepsWith(KycStepName.CONTACT_DATA).length > 0) return user;
+
+    const contactSteps = user.getStepsWith(KycStepName.CONTACT_DATA);
+    if (contactSteps.length > 0) {
+      // Complete pending ContactData step if user now has an email
+      const pendingStep = contactSteps.find((s) => s.isInProgress);
+      if (pendingStep && user.mail) {
+        const result = await this.trySetMail(user, pendingStep, user.mail);
+        await this.kycStepRepo.update(...result);
+        await this.createStepLog(user, pendingStep);
+        await this.updateProgress(user, false);
+      }
+      return user;
+    }
 
     return this.updateProgress(user, true, false);
+  }
+
+  async failContactStepForMail(userData: UserData, mail: string, error: string): Promise<void> {
+    try {
+      const user = await this.getUser(userData.kycHash);
+      const pendingStep = user.getStepsWith(KycStepName.CONTACT_DATA).find((s) => s.isInProgress);
+      if (!pendingStep) return;
+
+      const kycError = error.includes('account merge request sent')
+        ? KycError.USER_DATA_MERGE_REQUESTED
+        : KycError.USER_DATA_EXISTING;
+      await this.kycStepRepo.update(...pendingStep.fail({ mail }, kycError));
+      await this.createStepLog(user, pendingStep);
+    } catch (e) {
+      this.logger.error(`Failed to update ContactData step for account ${userData.id}:`, e);
+    }
   }
 
   public getMailFailedReason(comment: string, language: string): string {
