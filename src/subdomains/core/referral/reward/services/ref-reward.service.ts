@@ -239,4 +239,22 @@ export class RefRewardService {
       cryptoCurrency: v.outputAsset.dexName,
     }));
   }
+
+  async getRewardRecipients(from?: Date): Promise<{ userDataId: number; count: number; totalChf: number }[]> {
+    const query = this.rewardRepo
+      .createQueryBuilder('r')
+      .innerJoin('r.user', 'u')
+      .select('u.userDataId', 'userDataId')
+      .addSelect('COUNT(*)', 'count')
+      .addSelect('ROUND(SUM(r.amountInChf), 0)', 'totalChf')
+      .where('r.status != :excluded', { excluded: RewardStatus.USER_SWITCH })
+      .groupBy('u.userDataId')
+      .orderBy('totalChf', 'DESC');
+
+    if (from) {
+      query.andWhere('r.created >= :from', { from });
+    }
+
+    return query.getRawMany();
+  }
 }

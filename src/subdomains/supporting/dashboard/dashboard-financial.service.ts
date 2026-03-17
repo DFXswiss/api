@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { RefRewardRepository } from '../../core/referral/reward/ref-reward.repository';
+import { RefRewardService } from '../../core/referral/reward/services/ref-reward.service';
 import { Log } from '../log/log.entity';
 import { LogService } from '../log/log.service';
 import { FinanceLog } from '../log/dto/log.dto';
@@ -19,7 +19,7 @@ export class DashboardFinancialService {
   constructor(
     private readonly logService: LogService,
     private readonly assetService: AssetService,
-    private readonly refRewardRepo: RefRewardRepository,
+    private readonly refRewardService: RefRewardService,
   ) {}
 
   async getFinancialLog(from?: Date, dailySample?: boolean): Promise<FinancialLogResponseDto> {
@@ -37,21 +37,7 @@ export class DashboardFinancialService {
   }
 
   async getRefRewardRecipients(from?: Date): Promise<RefRewardRecipientDto[]> {
-    const query = this.refRewardRepo
-      .createQueryBuilder('r')
-      .innerJoin('r.user', 'u')
-      .select('u.userDataId', 'userDataId')
-      .addSelect('COUNT(*)', 'count')
-      .addSelect('ROUND(SUM(r.amountInChf), 0)', 'totalChf')
-      .where('r.status != :excluded', { excluded: 'UserSwitch' })
-      .groupBy('u.userDataId')
-      .orderBy('totalChf', 'DESC');
-
-    if (from) {
-      query.andWhere('r.created >= :from', { from });
-    }
-
-    return query.getRawMany();
+    return this.refRewardService.getRewardRecipients(from);
   }
 
   async getLatestFinancialChanges(): Promise<FinancialChangesEntryDto | undefined> {
