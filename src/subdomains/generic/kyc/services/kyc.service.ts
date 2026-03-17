@@ -476,6 +476,7 @@ export class KycService {
       if (pendingStep && user.mail) {
         const result = await this.trySetMail(user, pendingStep, user.mail);
         await this.kycStepRepo.update(...result);
+        await this.createStepLog(user, pendingStep);
         await this.updateProgress(user, false);
       }
       return user;
