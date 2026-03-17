@@ -205,9 +205,10 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With optimal matching: 3 senders (312h old) match 3 receivers (310h old), 1 sender (309h) remains
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx.slice(7),
-      receiver: receiverTx.slice(7),
+      sender: [senderTx[10]], // Only 142409 remains unmatched
+      receiver: [],
     });
   });
 
@@ -228,9 +229,10 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With optimal matching: sender (27h) and receiver (26h) match perfectly (same amount, receiver after sender, < 5d)
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx,
-      receiver: receiverTx,
+      sender: [],
+      receiver: [],
     });
   });
 
@@ -265,9 +267,13 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With optimal matching: all 3 senders match all 3 receivers optimally
+    // sender[0] (8d) ↔ receiver[0] (6d): 2d apart
+    // sender[1] (8d) ↔ receiver[1] (5d): 3d apart
+    // sender[2] (7d) ↔ receiver[2] (5d): 2d apart
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: [senderTx[2]],
-      receiver: [receiverTx[2]],
+      sender: [],
+      receiver: [],
     });
   });
 
@@ -302,9 +308,11 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With optimal matching: sender[1] (17d) matches receiver[1] (16d), sender[2] (7d) matches receiver[2] (6d)
+    // First pair filtered by 21d rule
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx.slice(1),
-      receiver: receiverTx.slice(1),
+      sender: [],
+      receiver: [],
     });
   });
 
@@ -331,9 +339,13 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With optimal matching:
+    // sender[0] filtered out (>= 21d)
+    // sender[1] (17d, 19999.0) matches receiver[1] (16d, 19999.0)
+    // receiver[0] stays unmatched (amount mismatch: 47543.81 vs 47520.04)
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: [senderTx[1]],
-      receiver: [receiverTx[1]],
+      sender: [],
+      receiver: [receiverTx[0]],
     });
   });
 
@@ -362,11 +374,13 @@ describe('LogJobService', () => {
       }),
     ];
 
-    // Matching finds sender id=3 (oldest sender that's still older than receiver at 18d)
-    // Filter keeps only senders with id >= 3
+    // With optimal matching:
+    // receiver[0] filtered out (>= 21d)
+    // receiver[1] (18d) matches sender[1] (19d, temporally closest: 1d apart)
+    // sender[0] and sender[2] remain unmatched (sorted by id: [1, 3])
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: [senderTx[0]], // Only id=3 remains after matching
-      receiver: [receiverTx[1]],
+      sender: [senderTx[2], senderTx[0]], // id=1 and id=3 remain unmatched, sorted by id
+      receiver: [],
     });
   });
 
@@ -460,9 +474,163 @@ describe('LogJobService', () => {
       }),
     ];
 
+    // With optimal matching: 3 senders (312h old) match 3 receivers (310h old)
     expect(service.filterSenderPendingList(senderTx, receiverTx)).toMatchObject({
-      sender: senderTx.slice(7),
-      receiver: receiverTx.slice(7),
+      sender: [],
+      receiver: [],
+    });
+  });
+
+  describe('Optimal Transaction Matching', () => {
+    it('should match transactions by exact reference (endToEndId ↔ txId) first', () => {
+      const now = new Date();
+
+      // Bank transaction with exact reference
+      const senderWithRef = createCustomBankTx({
+        id: 191175,
+        created: new Date(now.getTime() - 2 * 60 * 1000), // 2 minutes ago
+        valueDate: new Date(now.getTime() - 2 * 60 * 1000),
+        instructedAmount: 40000,
+        amount: 40000,
+        endToEndId: 'E2E-79792',
+      });
+
+      // Bank transaction without matching reference
+      const senderWithoutRef = createCustomBankTx({
+        id: 190594,
+        created: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000), // 5 days ago
+        valueDate: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000),
+        instructedAmount: 40000,
+        amount: 40000,
+      });
+
+      // Exchange transaction with matching reference
+      const receiverWithRef = createCustomExchangeTx({
+        id: 125970,
+        created: now,
+        amount: 40000,
+        txId: 'DEPOSIT-79792',
+      });
+
+      const senderTx = [senderWithoutRef, senderWithRef]; // Older sender first
+      const receiverTx = [receiverWithRef];
+
+      const result = service.filterSenderPendingList(senderTx, receiverTx);
+
+      // senderWithRef should be matched due to exact reference
+      // senderWithoutRef should remain unmatched
+      expect(result.sender).toHaveLength(1);
+      expect(result.sender[0].id).toBe(190594);
+      expect(result.receiver).toHaveLength(0);
+    });
+
+    it('should prefer temporally closer matches when no exact reference exists', () => {
+      const baseTime = new Date('2026-03-02T10:00:00Z');
+
+      // Two senders with different temporal distances to receiver
+      const senderFarAway = createCustomBankTx({
+        id: 190001,
+        created: new Date(baseTime.getTime() - 5 * 24 * 60 * 60 * 1000), // 5 days before
+        valueDate: new Date(baseTime.getTime() - 5 * 24 * 60 * 60 * 1000),
+        instructedAmount: 40000,
+        amount: 40000,
+      });
+
+      const senderClose = createCustomBankTx({
+        id: 191001,
+        created: new Date(baseTime.getTime() - 10 * 60 * 1000), // 10 minutes before
+        valueDate: new Date(baseTime.getTime() - 10 * 60 * 1000),
+        instructedAmount: 40000,
+        amount: 40000,
+      });
+
+      // One receiver
+      const receiver1 = createCustomExchangeTx({
+        id: 125001,
+        created: baseTime,
+        amount: 40000,
+      });
+
+      const senderTx = [senderFarAway, senderClose];
+      const receiverTx = [receiver1];
+
+      const result = service.filterSenderPendingList(senderTx, receiverTx);
+
+      // senderClose should be matched (temporally closer)
+      // senderFarAway should remain unmatched
+      expect(result.sender).toHaveLength(1);
+      expect(result.sender[0].id).toBe(190001); // Far away sender is unmatched
+      expect(result.receiver).toHaveLength(0);
+    });
+
+    it('should handle multiple matches optimally', () => {
+      const baseTime = new Date('2026-03-02T10:00:00Z');
+
+      const sender1 = createCustomBankTx({
+        id: 191001,
+        created: new Date(baseTime.getTime() - 30 * 60 * 1000), // 30 min before
+        valueDate: new Date(baseTime.getTime() - 30 * 60 * 1000),
+        instructedAmount: 40000,
+        amount: 40000,
+      });
+
+      const sender2 = createCustomBankTx({
+        id: 191002,
+        created: new Date(baseTime.getTime() - 20 * 60 * 1000), // 20 min before
+        valueDate: new Date(baseTime.getTime() - 20 * 60 * 1000),
+        instructedAmount: 40000,
+        amount: 40000,
+      });
+
+      const receiver1 = createCustomExchangeTx({
+        id: 125001,
+        created: new Date(baseTime.getTime() - 25 * 60 * 1000), // 25 min before (closer to sender1)
+        amount: 40000,
+      });
+
+      const receiver2 = createCustomExchangeTx({
+        id: 125002,
+        created: baseTime, // Now (closer to sender2)
+        amount: 40000,
+      });
+
+      const senderTx = [sender1, sender2];
+      const receiverTx = [receiver1, receiver2];
+
+      const result = service.filterSenderPendingList(senderTx, receiverTx);
+
+      // Both should be matched optimally
+      expect(result.sender).toHaveLength(0);
+      expect(result.receiver).toHaveLength(0);
+    });
+
+    it('should handle transactions outside 5-day tolerance correctly', () => {
+      const baseTime = new Date('2026-03-02T10:00:00Z');
+
+      // Sender outside 5-day tolerance
+      const senderTooOld = createCustomBankTx({
+        id: 190001,
+        created: new Date(baseTime.getTime() - 6 * 24 * 60 * 60 * 1000), // 6 days before
+        valueDate: new Date(baseTime.getTime() - 6 * 24 * 60 * 60 * 1000),
+        instructedAmount: 40000,
+        amount: 40000,
+      });
+
+      const receiver = createCustomExchangeTx({
+        id: 125001,
+        created: baseTime,
+        amount: 40000,
+      });
+
+      const senderTx = [senderTooOld];
+      const receiverTx = [receiver];
+
+      const result = service.filterSenderPendingList(senderTx, receiverTx);
+
+      // Should not match (outside tolerance)
+      expect(result.sender).toHaveLength(1);
+      expect(result.sender[0].id).toBe(190001);
+      expect(result.receiver).toHaveLength(1);
     });
   });
 });
