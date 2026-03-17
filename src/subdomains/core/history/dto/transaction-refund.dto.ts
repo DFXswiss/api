@@ -36,12 +36,12 @@ export class CreditorDataDto {
 }
 
 export class TransactionRefundDto {
-  @ApiProperty({ description: 'Refund address or refund IBAN' })
-  @IsNotEmpty()
+  @ApiPropertyOptional({ description: 'Refund address or refund IBAN' })
+  @IsOptional()
   @IsString()
   @Transform(Util.trimAll)
   @Transform(Util.sanitize)
-  refundTarget: string;
+  refundTarget?: string;
 
   @ApiPropertyOptional({ description: 'Creditor data (required for bank refunds)' })
   @IsOptional()
