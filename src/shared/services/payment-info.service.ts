@@ -48,10 +48,7 @@ export class PaymentInfoService {
       throw this.createError('Asset blockchain mismatch', QuoteError.ASSET_UNSUPPORTED, forQuote);
 
     if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.CARD) {
-      if (!dto.currency.cardSellable)
-        throw this.createError('Currency not sellable via Card', QuoteError.CURRENCY_UNSUPPORTED, forQuote);
-      if (!dto.asset.cardBuyable)
-        throw this.createError('Asset not buyable via Card', QuoteError.ASSET_UNSUPPORTED, forQuote);
+      throw this.createError('Card payments are not supported', QuoteError.PAYMENT_METHOD_NOT_ALLOWED, forQuote);
     } else if ('paymentMethod' in dto && dto.paymentMethod === FiatPaymentMethod.INSTANT) {
       if (!dto.currency.instantSellable)
         throw this.createError('Currency not sellable via Instant', QuoteError.CURRENCY_UNSUPPORTED, forQuote);
