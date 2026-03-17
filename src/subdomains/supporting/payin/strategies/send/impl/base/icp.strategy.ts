@@ -75,9 +75,20 @@ export abstract class InternetComputerStrategy extends SendStrategy {
 
         if (payIn.status === PayInStatus.PREPARED) {
           const outTxId = await this.sendTransfer(payIn, type);
-          await this.updatePayInWithSendData(payIn, type, outTxId, payIn.forwardFeeAmount);
 
+          // persist outTxId immediately to prevent double-forward if subsequent steps fail
+          payIn.outTxId = outTxId;
           await this.payInRepo.save(payIn);
+
+          try {
+            await this.updatePayInWithSendData(payIn, type, outTxId, payIn.forwardFeeAmount);
+            await this.payInRepo.save(payIn);
+          } catch (updateError) {
+            this.logger.warn(
+              `Failed to finalize ${this.blockchain} input ${payIn.id} after forward (outTxId=${outTxId}):`,
+              updateError,
+            );
+          }
         }
       } catch (e) {
         if (e.message.includes('No maximum fee provided')) continue;

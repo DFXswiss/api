@@ -124,28 +124,23 @@ export class InternetComputerClient extends BlockchainClient {
     return Promise.all(
       assets.map(async (asset) => {
         const canisterId = asset.chainId;
-        if (!canisterId) return { owner: ownerPrincipal, contractAddress: '', balance: 0 };
+        if (!canisterId) throw new Error(`No canister ID for asset ${asset.uniqueName}`);
 
-        try {
-          const tokenLedger = IcrcLedgerCanister.create({
-            agent: this.agent,
-            canisterId: Principal.fromText(canisterId),
-          });
+        const tokenLedger = IcrcLedgerCanister.create({
+          agent: this.agent,
+          canisterId: Principal.fromText(canisterId),
+        });
 
-          const balance = await tokenLedger.balance({
-            owner: Principal.fromText(ownerPrincipal),
-            certified: false,
-          });
+        const balance = await tokenLedger.balance({
+          owner: Principal.fromText(ownerPrincipal),
+          certified: false,
+        });
 
-          return {
-            owner: ownerPrincipal,
-            contractAddress: canisterId,
-            balance: InternetComputerUtil.fromSmallestUnit(balance, asset.decimals),
-          };
-        } catch (e) {
-          this.logger.error(`Failed to get token balance for ${canisterId}:`, e);
-          return { owner: ownerPrincipal, contractAddress: canisterId, balance: 0 };
-        }
+        return {
+          owner: ownerPrincipal,
+          contractAddress: canisterId,
+          balance: InternetComputerUtil.fromSmallestUnit(balance, asset.decimals),
+        };
       }),
     );
   }
