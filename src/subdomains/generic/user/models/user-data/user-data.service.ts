@@ -731,6 +731,8 @@ export class UserDataService {
       if (mergeRequested) errorMessage += ' - account merge request sent';
     }
 
+    await this.kycLogService.createLogInternal(userData, KycLogType.MAIL_CHANGE, `Failed: ${userData.mail} -> ${mail} (${errorMessage})`);
+
     throw new ConflictException(errorMessage);
   }
 
