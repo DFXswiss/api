@@ -51,10 +51,9 @@ export function txExplorerUrl(blockchain: Blockchain, txId: string): string | un
   const txPath = TxPaths[blockchain];
   if (!baseUrl || !txPath) return undefined;
 
-  // ICP token txIds have format "canisterId:blockIndex" — extract block index only
+  // ICP token txIds have format "canisterId:blockIndex"
   if (blockchain === Blockchain.INTERNET_COMPUTER && txId.includes(':')) {
-    const blockIndex = txId.split(':')[1];
-    return `${baseUrl}/${txPath}/${blockIndex}`;
+    return icpTokenTxUrl(baseUrl, txPath, txId);
   }
 
   return `${baseUrl}/${txPath}/${txId}`;
@@ -72,6 +71,20 @@ export function addressExplorerUrl(blockchain: Blockchain, address: string): str
 }
 
 // --- HELPERS --- //
+
+// ICP token canister ID to dashboard path mapping
+const IcpTokenDashboardPaths: Record<string, string> = {
+  'mxzaz-hqaaa-aaaar-qaada-cai': 'bitcoin', // ckBTC
+};
+
+function icpTokenTxUrl(baseUrl: string, txPath: string, txId: string): string | undefined {
+  const [canisterId, blockIndex] = txId.split(':');
+
+  const tokenPath = IcpTokenDashboardPaths[canisterId];
+  if (!tokenPath) return undefined;
+
+  return `${baseUrl}/${tokenPath}/${txPath}/${blockIndex}`;
+}
 
 const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.DEFICHAIN]: 'https://defiscan.live',
