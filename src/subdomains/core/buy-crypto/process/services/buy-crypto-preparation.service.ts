@@ -312,7 +312,7 @@ export class BuyCryptoPreparationService {
         if (isFirstRun) {
           await this.buyCryptoService.updateBuyVolume([entity.buy?.id]);
           await this.buyCryptoService.updateCryptoRouteVolume([entity.cryptoRoute?.id]);
-          await this.buyCryptoService.updateRefVolume([entity.usedRef]);
+          await this.buyCryptoService.updateRefVolume([entity.usedRef, entity.usedPartnerRef]);
         }
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} fee and fiat reference refresh:`, e);

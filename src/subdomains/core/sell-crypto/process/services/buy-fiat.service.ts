@@ -589,7 +589,7 @@ export class BuyFiatService {
       .createQueryBuilder('buyFiat')
       .select('SUM(amountInEur)', 'volume')
       .addSelect('SUM(partnerFeeAmount * (amountInEur/inputAmount ))', 'credit')
-      .where('usedPartnerFeeRef = :ref', { ref })
+      .where('usedPartnerRef = :ref', { ref })
       .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 

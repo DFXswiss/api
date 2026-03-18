@@ -346,7 +346,7 @@ export class FeeService {
 
     if (specialFee)
       return {
-        fees: [specialFee],
+        fees: [specialFee, partnerFee].filter((e) => e != null),
         dfx: { rate: specialFee.rate, fixed: specialFee.fixed ?? 0 },
         bank: { rate: 0, fixed: 0 },
         partner: partnerFeeSpec,
@@ -362,7 +362,7 @@ export class FeeService {
 
     if (customFee)
       return {
-        fees: [customFee],
+        fees: [customFee, partnerFee].filter((e) => e != null),
         dfx: { rate: customFee.rate, fixed: customFee.fixed ?? 0 },
         bank: { rate: 0, fixed: 0 },
         partner: partnerFeeSpec,
@@ -404,7 +404,7 @@ export class FeeService {
     if (baseFee.rate + combinedExtraFeeRate < 0) {
       this.logger.warn(`Discount is higher than base fee for user data ${userDataId}`);
       return {
-        fees: [baseFee],
+        fees: [baseFee, partnerFee].filter((e) => e != null),
         dfx: { rate: baseFee.rate, fixed: baseFee.fixed },
         bank: bankFeeSpec,
         partner: partnerFeeSpec,
@@ -414,7 +414,7 @@ export class FeeService {
     }
 
     return {
-      fees: [baseFee, discountFee, ...additiveFees].filter((e) => e != null),
+      fees: [baseFee, discountFee, ...additiveFees, partnerFee].filter((e) => e != null),
       dfx: { rate: baseFee.rate + combinedExtraFeeRate, fixed: Math.max(baseFee.fixed + combinedExtraFixedFee, 0) },
       bank: bankFeeSpec,
       partner: partnerFeeSpec,
