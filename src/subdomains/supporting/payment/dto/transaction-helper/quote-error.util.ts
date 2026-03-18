@@ -1,3 +1,4 @@
+import { FeeDto } from '../fee.dto';
 import { QuoteError } from './quote-error.enum';
 import { StructuredErrorDto } from './structured-error.dto';
 
@@ -11,8 +12,8 @@ interface ErrorQuote {
   maxVolume: number;
   minVolumeTarget: number;
   maxVolumeTarget: number;
-  fees: { rate: number; fixed: number; network: number; min: number; dfx: number; bank: number; total: number };
-  feesTarget: { rate: number; fixed: number; network: number; min: number; dfx: number; bank: number; total: number };
+  fees: FeeDto;
+  feesTarget: FeeDto;
   priceSteps: [];
   isValid: false;
   /** @deprecated Use `errors` instead */
@@ -64,7 +65,7 @@ export class QuoteErrorUtil {
 
   static createErrorQuote(error: QuoteError | QuoteException): ErrorQuote {
     const quoteError = error instanceof QuoteException ? error.error : error;
-    const emptyFee = { rate: 0, fixed: 0, network: 0, min: 0, dfx: 0, bank: 0, total: 0 };
+    const emptyFee: FeeDto = { rate: 0, fixed: 0, network: 0, min: 0, dfx: 0, bank: 0, total: 0, platform: 0 };
 
     return {
       feeAmount: 0,
