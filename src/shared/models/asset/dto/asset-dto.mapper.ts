@@ -24,8 +24,8 @@ export class AssetDtoMapper {
       sellable: asset.sellable,
       instantBuyable: asset.instantBuyable,
       instantSellable: asset.instantSellable,
-      cardBuyable: asset.cardBuyable,
-      cardSellable: asset.cardSellable,
+      cardBuyable: false,
+      cardSellable: false,
       blockchain: asset.blockchain,
       sortOrder: asset.sortOrder,
     };

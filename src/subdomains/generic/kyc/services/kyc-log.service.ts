@@ -91,11 +91,10 @@ export class KycLogService {
   }
 
   async getLogsByUserDataId(userDataId: number): Promise<KycLog[]> {
-    return this.kycLogRepo
-      .createQueryBuilder('log')
-      .where('log.userDataId = :userDataId', { userDataId })
-      .orderBy('log.created', 'DESC')
-      .getMany();
+    return this.kycLogRepo.find({
+      where: { userData: { id: userDataId } },
+      order: { created: 'DESC' },
+    });
   }
 
   async createKycFileLog(log: string, user?: UserData) {

@@ -731,6 +731,8 @@ export class UserDataService {
       if (mergeRequested) errorMessage += ' - account merge request sent';
     }
 
+    await this.kycService.failContactStepForMail(userData, mail, errorMessage);
+
     throw new ConflictException(errorMessage);
   }
 
