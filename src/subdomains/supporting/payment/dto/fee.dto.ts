@@ -85,6 +85,8 @@ export function toFeeDto(amounts: FeeAmountsDto, spec: TxSpec): FeeDto {
     dfx: amounts.dfx,
     platform: amounts.partner,
     bank: amounts.bank,
+    bankFixed: amounts.bankFixed,
+    bankPercent: amounts.bankPercent,
     total: amounts.total,
   });
 }
