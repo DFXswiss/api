@@ -27,6 +27,12 @@ export class FeeDto {
   @ApiProperty({ description: 'Bank fee amount' })
   bank: number; // final bank fee addition
 
+  @ApiPropertyOptional({ description: 'Bank fixed fee amount' })
+  bankFixed?: number;
+
+  @ApiPropertyOptional({ description: 'Bank percent fee amount' })
+  bankPercent?: number;
+
   @ApiProperty({ description: 'Total fee amount (DFX + bank + network fee)' })
   total: number;
 }
@@ -37,6 +43,8 @@ export interface InternalFeeDto {
   rate: number;
   fixed: number;
   bank: number;
+  bankFixed: number;
+  bankPercent: number;
   partner: number;
   network: number;
   networkStart?: number;
@@ -47,6 +55,8 @@ export interface InternalFeeDto {
 export interface FeeAmountsDto {
   dfx: number;
   bank: number;
+  bankFixed: number;
+  bankPercent: number;
   partner: number;
   total: number;
 }
