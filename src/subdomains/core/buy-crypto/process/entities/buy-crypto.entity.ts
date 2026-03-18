@@ -726,7 +726,7 @@ export class BuyCrypto extends IEntity {
       refFactor: null,
       usedFees: null,
       networkStartFeeAmount: null,
-      status: null,
+      status: BuyCryptoStatus.CREATED,
     };
 
     Object.assign(this, update);

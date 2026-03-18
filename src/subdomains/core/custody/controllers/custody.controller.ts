@@ -16,6 +16,7 @@ import { GetCustodyPdfDto } from '../dto/input/get-custody-pdf.dto';
 import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
 import { CustodyBalanceDto, CustodyHistoryDto } from '../dto/output/custody-balance.dto';
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
+import { CustodyOrderListEntry } from '../dto/output/custody-order-list-entry.dto';
 import { CustodyOrderService } from '../services/custody-order.service';
 import { CustodyPdfService } from '../services/custody-pdf.service';
 import { CustodyService } from '../services/custody.service';
@@ -103,6 +104,14 @@ export class CustodyAdminController {
     if (!asset) throw new NotFoundException('Asset not found');
 
     return this.service.updateCustodyBalance(asset, user);
+  }
+
+  @Get('orders')
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async getOrders(): Promise<CustodyOrderListEntry[]> {
+    return this.custodyOrderService
+      .getOrdersForSupport()
+      .then((orders) => orders.map(CustodyOrderListEntry.fromEntity));
   }
 
   @Post('order/:id/approve')

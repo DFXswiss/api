@@ -473,10 +473,14 @@ export class BuyCryptoPreparationService {
     };
     const entities = await this.buyCryptoRepo.find({
       where: [
-        // Bank refund: requires creditorData for FiatOutput
-        { ...baseRequest, chargebackIban: Not(IsNull()), chargebackCreditorData: Not(IsNull()) },
-        // Checkout refund: no creditorData needed
+        {
+          ...baseRequest,
+          bankTx: { id: Not(IsNull()) },
+          chargebackIban: Not(IsNull()),
+          chargebackCreditorData: Not(IsNull()),
+        },
         { ...baseRequest, checkoutTx: { id: Not(IsNull()) } },
+        { ...baseRequest, cryptoInput: { id: Not(IsNull()) }, chargebackIban: Not(IsNull()) },
       ],
       relations: { checkoutTx: true, bankTx: true, cryptoInput: true, transaction: { userData: true } },
     });
