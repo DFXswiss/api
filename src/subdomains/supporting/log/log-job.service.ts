@@ -228,8 +228,9 @@ export class LogJobService {
             return { blockchain: b, balances: [] };
           }
 
-          const balances = await this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) =>
-            b.flat(),
+          const balances = await Util.timeout(
+            this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) => b.flat()),
+            30000,
           );
           return { blockchain: b, balances };
         } catch (e) {
