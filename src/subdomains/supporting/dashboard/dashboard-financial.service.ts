@@ -138,12 +138,34 @@ export class DashboardFinancialService {
         const asset = assetMap.get(Number(idStr));
         const blockchain = asset?.blockchain ?? 'Unknown';
         const assetName = asset?.name ?? 'Unknown';
-        const plusChf = (assetData.plusBalance?.total ?? 0) * assetData.priceChf;
 
-        if (!blockchainTotals[blockchain]) blockchainTotals[blockchain] = { plus: 0, assets: {} };
-        blockchainTotals[blockchain].plus += plusChf;
-        blockchainTotals[blockchain].assets[assetName] =
-          (blockchainTotals[blockchain].assets[assetName] ?? 0) + Math.round(plusChf);
+        if ((blockchain as string) === 'Scrypt') {
+          const spotTotal =
+            (assetData.plusBalance?.liquidity?.total ?? 0) + (assetData.plusBalance?.custom?.total ?? 0);
+          const pendingTotal = assetData.plusBalance?.pending?.total ?? 0;
+          const spotChf = spotTotal * assetData.priceChf;
+          const pendingChf = pendingTotal * assetData.priceChf;
+
+          if (spotChf > 0) {
+            if (!blockchainTotals['Scrypt Spot']) blockchainTotals['Scrypt Spot'] = { plus: 0, assets: {} };
+            blockchainTotals['Scrypt Spot'].plus += spotChf;
+            blockchainTotals['Scrypt Spot'].assets[assetName] =
+              (blockchainTotals['Scrypt Spot'].assets[assetName] ?? 0) + Math.round(spotChf);
+          }
+          if (pendingChf > 0) {
+            if (!blockchainTotals['Scrypt Pending']) blockchainTotals['Scrypt Pending'] = { plus: 0, assets: {} };
+            blockchainTotals['Scrypt Pending'].plus += pendingChf;
+            blockchainTotals['Scrypt Pending'].assets[assetName] =
+              (blockchainTotals['Scrypt Pending'].assets[assetName] ?? 0) + Math.round(pendingChf);
+          }
+        } else {
+          const plusChf = (assetData.plusBalance?.total ?? 0) * assetData.priceChf;
+
+          if (!blockchainTotals[blockchain]) blockchainTotals[blockchain] = { plus: 0, assets: {} };
+          blockchainTotals[blockchain].plus += plusChf;
+          blockchainTotals[blockchain].assets[assetName] =
+            (blockchainTotals[blockchain].assets[assetName] ?? 0) + Math.round(plusChf);
+        }
       }
     }
 

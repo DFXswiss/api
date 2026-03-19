@@ -228,8 +228,9 @@ export class LogJobService {
             return { blockchain: b, balances: [] };
           }
 
-          const balances = await this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) =>
-            b.flat(),
+          const balances = await Util.timeout(
+            this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) => b.flat()),
+            30000,
           );
           return { blockchain: b, balances };
         } catch (e) {
@@ -452,13 +453,13 @@ export class LogJobService {
 
       const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
-      // plus (use availableAmount to avoid double-counting with pending exchange orders)
-      const liquidity = (curr.balance?.availableAmount ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
+      // plus
+      const liquidity = (curr.balance?.amount ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
 
       const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING, Blockchain.ZANO].includes(curr.blockchain)
         ? 0
         : pendingPayIns.reduce((sum, tx) => sum + (tx.asset.id === curr.id ? tx.amount : 0), 0);
-      const exchangeOrder = pendingExchangeOrders.reduce((sum, tx) => {
+      const rawExchangeOrder = pendingExchangeOrders.reduce((sum, tx) => {
         if (tx.pipeline.rule.targetAsset.id !== curr.id) return sum;
 
         // for transfer/deposit: only count when action.system matches the target asset's exchange
@@ -468,6 +469,13 @@ export class LogJobService {
 
         return sum + tx.inputAmount;
       }, 0);
+
+      // Deduct locked exchange funds from exchangeOrder to avoid double-counting:
+      // amount includes locked funds (e.g. Scrypt pending withdrawals) that may also
+      // appear as exchangeOrder. For exchanges without such overlap (e.g. XT trading
+      // orders), lockedAmount > exchangeOrder so this just clamps to 0.
+      const lockedAmount = (curr.balance?.amount ?? 0) - (curr.balance?.availableAmount ?? curr.balance?.amount ?? 0);
+      const exchangeOrder = Math.max(0, rawExchangeOrder - lockedAmount);
       const bridgeOrder = pendingBridgeOrders.reduce(
         (sum, tx) => sum + (tx.pipeline.rule.targetAsset.id === curr.id ? tx.inputAmount : 0),
         0,
