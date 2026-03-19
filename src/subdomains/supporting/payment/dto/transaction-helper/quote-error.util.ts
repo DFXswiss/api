@@ -65,7 +65,7 @@ export class QuoteErrorUtil {
 
   static createErrorQuote(error: QuoteError | QuoteException): ErrorQuote {
     const quoteError = error instanceof QuoteException ? error.error : error;
-    const emptyFee: FeeDto = { rate: 0, fixed: 0, network: 0, min: 0, dfx: 0, bank: 0, bankFixed: 0, bankPercent: 0, total: 0, platform: 0 };
+    const emptyFee: FeeDto = { rate: 0, fixed: 0, network: 0, min: 0, dfx: 0, bank: 0, bankFixed: 0, bankVariable: 0, total: 0, platform: 0 };
 
     return {
       feeAmount: 0,
