@@ -7,10 +7,10 @@ import { Blockchain } from '../shared/enums/blockchain.enum';
 import { EvmUtil } from '../shared/evm/evm.util';
 import {
   BrokerbotBuyPriceDto,
+  BrokerbotBuySharesDto,
   BrokerbotCurrency,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
-  BrokerbotSharesDto,
 } from './dto/realunit-broker.dto';
 
 const BROKERBOT_ABI = parseAbi([
@@ -112,10 +112,10 @@ export class RealUnitBlockchainService {
     };
   }
 
-  async getBrokerbotShares(
+  async getBrokerbotBuyShares(
     amount: string,
     currency: BrokerbotCurrency = BrokerbotCurrency.CHF,
-  ): Promise<BrokerbotSharesDto> {
+  ): Promise<BrokerbotBuySharesDto> {
     const { priceInCHF, priceInEUR, availableShares } = await this.fetchPrice();
     const price = currency === BrokerbotCurrency.EUR ? priceInEUR : priceInCHF;
     const shares = Math.floor(parseFloat(amount) / price);

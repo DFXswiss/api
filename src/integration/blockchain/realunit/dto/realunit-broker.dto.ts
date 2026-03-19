@@ -45,7 +45,7 @@ export class BrokerbotBuyPriceDto {
   availableShares: number;
 }
 
-export class BrokerbotSharesDto {
+export class BrokerbotBuySharesDto {
   @ApiProperty({ description: 'Amount in specified currency' })
   amount: string;
 

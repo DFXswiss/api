@@ -12,12 +12,12 @@ import { request } from 'graphql-request';
 import { Config, Environment, GetConfig } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
+  BrokerbotBuySharesDto,
   BrokerbotCurrency,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSellPriceDto,
   BrokerbotSellSharesDto,
-  BrokerbotSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -285,8 +285,8 @@ export class RealUnitService {
     return this.blockchainService.getBrokerbotBuyPrice(shares, currency);
   }
 
-  async getBrokerbotShares(amount: string, currency?: BrokerbotCurrency): Promise<BrokerbotSharesDto> {
-    return this.blockchainService.getBrokerbotShares(amount, currency);
+  async getBrokerbotBuyShares(amount: string, currency?: BrokerbotCurrency): Promise<BrokerbotBuySharesDto> {
+    return this.blockchainService.getBrokerbotBuyShares(amount, currency);
   }
 
   async getBrokerbotInfo(currency?: BrokerbotCurrency): Promise<BrokerbotInfoDto> {

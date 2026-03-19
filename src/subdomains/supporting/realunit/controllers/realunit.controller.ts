@@ -16,13 +16,13 @@ import { Response } from 'express';
 import { Config, Environment } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
+  BrokerbotBuySharesDto,
   BrokerbotCurrency,
   BrokerbotCurrencyQueryDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
   BrokerbotSellPriceDto,
   BrokerbotSellSharesDto,
-  BrokerbotSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -295,7 +295,7 @@ export class RealUnitController {
     return this.realunitService.getBrokerbotBuyPrice(Number(shares), currency);
   }
 
-  @Get('brokerbot/shares')
+  @Get('brokerbot/buyShares')
   @ApiOperation({
     summary: 'Get shares for amount',
     description: 'Calculates how many REALU shares can be purchased for a given amount',
@@ -307,12 +307,12 @@ export class RealUnitController {
     required: false,
     description: 'Currency for prices (CHF or EUR)',
   })
-  @ApiOkResponse({ type: BrokerbotSharesDto })
-  async getBrokerbotShares(
+  @ApiOkResponse({ type: BrokerbotBuySharesDto })
+  async getBrokerbotBuyShares(
     @Query('amount') amount: string,
     @Query() { currency }: BrokerbotCurrencyQueryDto,
-  ): Promise<BrokerbotSharesDto> {
-    return this.realunitService.getBrokerbotShares(amount, currency);
+  ): Promise<BrokerbotBuySharesDto> {
+    return this.realunitService.getBrokerbotBuyShares(amount, currency);
   }
 
   @Get('brokerbot/sellPrice')
@@ -320,7 +320,8 @@ export class RealUnitController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
     summary: 'Get sell price for shares including fees',
-    description: 'Calculates the estimated payout when selling a specific number of REALU shares, including user-specific fees',
+    description:
+      'Calculates the estimated payout when selling a specific number of REALU shares, including user-specific fees',
   })
   @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to sell' })
   @ApiQuery({

@@ -215,7 +215,7 @@ describe('RealUnitBlockchainService', () => {
     });
 
     it('should calculate shares from CHF amount by default', async () => {
-      const result = await service.getBrokerbotShares('1000');
+      const result = await service.getBrokerbotBuyShares('1000');
 
       expect(result.amount).toBe('1000');
       expect(result.shares).toBe(10);
@@ -224,7 +224,7 @@ describe('RealUnitBlockchainService', () => {
     });
 
     it('should calculate shares from EUR amount when currency is EUR', async () => {
-      const result = await service.getBrokerbotShares('920', BrokerbotCurrency.EUR);
+      const result = await service.getBrokerbotBuyShares('920', BrokerbotCurrency.EUR);
 
       expect(result.amount).toBe('920');
       expect(result.shares).toBe(10);
