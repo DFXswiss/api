@@ -10,24 +10,29 @@ export class LiquidityBalance extends IEntity {
   @Column({ type: 'float', nullable: true })
   amount?: number;
 
+  @Column({ type: 'float', nullable: true })
+  availableAmount?: number;
+
   @Column({ default: true })
   isDfxOwned: boolean;
 
   // --- FACTORY METHODS --- //
 
-  static create(target: Asset, amount: number): LiquidityBalance {
+  static create(target: Asset, amount: number, availableAmount?: number): LiquidityBalance {
     const balance = new LiquidityBalance();
 
     balance.asset = target;
     balance.amount = amount;
+    balance.availableAmount = availableAmount;
 
     return balance;
   }
 
   // --- PUBLIC API --- //
 
-  updateBalance(amount: number): this {
+  updateBalance(amount: number, availableAmount?: number): this {
     this.amount = amount;
+    this.availableAmount = availableAmount;
 
     return this;
   }

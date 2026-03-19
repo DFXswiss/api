@@ -81,6 +81,17 @@ export class ScryptService extends PricingProvider {
     return totalBalances;
   }
 
+  async getAvailableBalances(): Promise<Record<string, number>> {
+    const balances = await this.balances;
+
+    const availableBalances: Record<string, number> = {};
+    for (const balance of balances.values()) {
+      availableBalances[balance.Currency] = parseFloat(balance.AvailableAmount) || 0;
+    }
+
+    return availableBalances;
+  }
+
   async getAvailableBalance(currency: string): Promise<number> {
     const balances = await this.balances;
 

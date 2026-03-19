@@ -83,6 +83,18 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return totalBalances;
   }
 
+  async getAvailableBalances(): Promise<Dictionary<number>> {
+    const balances = await this.getBalances().then((b) => b.free);
+
+    const availableBalances = {};
+    for (const [asset, amount] of Object.entries(balances)) {
+      const [base, suffix] = asset.split('.');
+      if (!suffix || suffix === 'F') availableBalances[base] = (availableBalances[base] ?? 0) + amount;
+    }
+
+    return availableBalances;
+  }
+
   async getAvailableBalance(currency: string): Promise<number> {
     return this.getBalances().then((b) => b.free[currency] ?? 0);
   }
