@@ -20,6 +20,8 @@ import {
   BrokerbotCurrencyQueryDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
+  BrokerbotSellPriceDto,
+  BrokerbotSellSharesDto,
   BrokerbotSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -311,6 +313,46 @@ export class RealUnitController {
     @Query() { currency }: BrokerbotCurrencyQueryDto,
   ): Promise<BrokerbotSharesDto> {
     return this.realunitService.getBrokerbotShares(amount, currency);
+  }
+
+  @Get('brokerbot/sellPrice')
+  @ApiOperation({
+    summary: 'Get sell price for shares including fees',
+    description: 'Calculates the estimated payout when selling a specific number of REALU shares, including DFX fees',
+  })
+  @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to sell' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
+  @ApiOkResponse({ type: BrokerbotSellPriceDto })
+  async getBrokerbotSellPrice(
+    @Query('shares') shares: number,
+    @Query() { currency }: BrokerbotCurrencyQueryDto,
+  ): Promise<BrokerbotSellPriceDto> {
+    return this.realunitService.getBrokerbotSellPrice(Number(shares), currency);
+  }
+
+  @Get('brokerbot/sellShares')
+  @ApiOperation({
+    summary: 'Get shares needed to receive target amount including fees',
+    description: 'Calculates how many REALU shares need to be sold to receive a target amount after fees',
+  })
+  @ApiQuery({ name: 'amount', type: Number, description: 'Target amount to receive after fees (e.g., 1000.50)' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
+  @ApiOkResponse({ type: BrokerbotSellSharesDto })
+  async getBrokerbotSellShares(
+    @Query('amount') amount: number,
+    @Query() { currency }: BrokerbotCurrencyQueryDto,
+  ): Promise<BrokerbotSellSharesDto> {
+    return this.realunitService.getBrokerbotSellShares(Number(amount), currency);
   }
 
   // --- Buy Payment Info Endpoint ---

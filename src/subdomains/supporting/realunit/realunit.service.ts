@@ -15,6 +15,8 @@ import {
   BrokerbotCurrency,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
+  BrokerbotSellPriceDto,
+  BrokerbotSellSharesDto,
   BrokerbotSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
@@ -44,9 +46,10 @@ import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -124,6 +127,7 @@ export class RealUnitService {
     private readonly accountMergeService: AccountMergeService,
     private readonly devService: RealUnitDevService,
     private readonly swissQrService: SwissQRService,
+    private readonly feeService: FeeService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -293,6 +297,89 @@ export class RealUnitService {
       zchfAsset.chainId,
       currency,
     );
+  }
+
+  async getBrokerbotSellPrice(shares: number, currency?: BrokerbotCurrency): Promise<BrokerbotSellPriceDto> {
+    const currencyName = currency ?? BrokerbotCurrency.CHF;
+
+    // Get REALU asset and target fiat
+    const [realuAsset, fiat] = await Promise.all([this.getRealuAsset(), this.fiatService.getFiatByName(currencyName)]);
+
+    // Get price from Aktionariat API
+    const { pricePerShare: pricePerShareStr } = await this.blockchainService.getBrokerbotPrice(currencyName);
+    const pricePerShare = parseFloat(pricePerShareStr);
+    const grossAmount = pricePerShare * shares;
+
+    // Get default fee for sell (REALU -> fiat)
+    const fee = await this.feeService.getDefaultFee({
+      from: realuAsset,
+      to: fiat,
+      paymentMethodIn: CryptoPaymentMethod.CRYPTO,
+      paymentMethodOut: FiatPaymentMethod.BANK,
+      bankIn: undefined,
+      specialCodes: [],
+      allowCachedBlockchainFee: true,
+    });
+
+    // Calculate fees and net amount
+    const totalFee = grossAmount * fee.rate + fee.fixed + fee.network;
+    const estimatedAmount = Math.max(grossAmount - totalFee, 0);
+
+    // Calculate rate (what you get per share after fees)
+    const rate = shares > 0 ? estimatedAmount / shares : 0;
+
+    return {
+      shares,
+      pricePerShare: Util.round(rate, 8),
+      estimatedAmount: Util.round(estimatedAmount, 2),
+      currency: currencyName,
+    };
+  }
+
+  async getBrokerbotSellShares(targetAmount: number, currency?: BrokerbotCurrency): Promise<BrokerbotSellSharesDto> {
+    const currencyName = currency ?? BrokerbotCurrency.CHF;
+
+    // Get REALU asset and target fiat
+    const [realuAsset, fiat] = await Promise.all([this.getRealuAsset(), this.fiatService.getFiatByName(currencyName)]);
+
+    // Get price from Aktionariat API
+    const { pricePerShare: pricePerShareStr } = await this.blockchainService.getBrokerbotPrice(currencyName);
+    const pricePerShare = parseFloat(pricePerShareStr);
+
+    // Get default fee for sell (REALU -> fiat)
+    const fee = await this.feeService.getDefaultFee({
+      from: realuAsset,
+      to: fiat,
+      paymentMethodIn: CryptoPaymentMethod.CRYPTO,
+      paymentMethodOut: FiatPaymentMethod.BANK,
+      bankIn: undefined,
+      specialCodes: [],
+      allowCachedBlockchainFee: true,
+    });
+
+    // Calculate shares needed: targetAmount = grossAmount - fees
+    // targetAmount = grossAmount - (grossAmount * rate + fixed + network)
+    // targetAmount = grossAmount * (1 - rate) - fixed - network
+    // grossAmount = (targetAmount + fixed + network) / (1 - rate)
+    const divisor = 1 - fee.rate;
+    const grossAmountRaw = divisor > 0 ? (targetAmount + fee.fixed + fee.network) / divisor : targetAmount;
+
+    const shares = Math.max(1, Math.ceil(grossAmountRaw / pricePerShare));
+    const actualGrossAmount = shares * pricePerShare;
+
+    // Recalculate actual estimated amount with rounded shares
+    const totalFee = actualGrossAmount * fee.rate + fee.fixed + fee.network;
+    const estimatedAmount = actualGrossAmount - totalFee;
+
+    // Calculate rate
+    const rate = shares > 0 ? estimatedAmount / shares : 0;
+
+    return {
+      targetAmount,
+      shares,
+      pricePerShare: Util.round(rate, 8),
+      currency: currencyName,
+    };
   }
 
   // --- Buy Payment Info Methods ---
