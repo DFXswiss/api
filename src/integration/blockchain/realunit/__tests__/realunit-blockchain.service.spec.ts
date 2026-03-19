@@ -133,7 +133,7 @@ describe('RealUnitBlockchainService', () => {
 
       const result = await service.getBrokerbotInfo('0xBB', '0xR', '0xZ');
 
-      expect(result.pricePerShare).toBe('123.45');
+      expect(result.pricePerShare).toBe(123.45);
       expect(result.currency).toBe(BrokerbotCurrency.CHF);
       expect(result.availableShares).toBe(200);
     });
@@ -143,7 +143,7 @@ describe('RealUnitBlockchainService', () => {
 
       const result = await service.getBrokerbotInfo('0xBB', '0xR', '0xZ', BrokerbotCurrency.EUR);
 
-      expect(result.pricePerShare).toBe('114');
+      expect(result.pricePerShare).toBe(114);
       expect(result.currency).toBe(BrokerbotCurrency.EUR);
     });
 
@@ -172,7 +172,7 @@ describe('RealUnitBlockchainService', () => {
     it('should return CHF price by default', async () => {
       const result = await service.getBrokerbotPrice();
 
-      expect(result.pricePerShare).toBe('100.5');
+      expect(result.pricePerShare).toBe(100.5);
       expect(result.currency).toBe(BrokerbotCurrency.CHF);
       expect(result.availableShares).toBe(500);
     });
@@ -180,7 +180,7 @@ describe('RealUnitBlockchainService', () => {
     it('should return EUR price when currency is EUR', async () => {
       const result = await service.getBrokerbotPrice(BrokerbotCurrency.EUR);
 
-      expect(result.pricePerShare).toBe('92.3');
+      expect(result.pricePerShare).toBe(92.3);
       expect(result.currency).toBe(BrokerbotCurrency.EUR);
     });
   });
@@ -194,8 +194,8 @@ describe('RealUnitBlockchainService', () => {
       const result = await service.getBrokerbotBuyPrice(10);
 
       expect(result.shares).toBe(10);
-      expect(result.totalPrice).toBe('1000');
-      expect(result.pricePerShare).toBe('100');
+      expect(result.totalPrice).toBe(1000);
+      expect(result.pricePerShare).toBe(100);
       expect(result.currency).toBe(BrokerbotCurrency.CHF);
     });
 
@@ -203,8 +203,8 @@ describe('RealUnitBlockchainService', () => {
       const result = await service.getBrokerbotBuyPrice(10, BrokerbotCurrency.EUR);
 
       expect(result.shares).toBe(10);
-      expect(result.totalPrice).toBe('920');
-      expect(result.pricePerShare).toBe('92');
+      expect(result.totalPrice).toBe(920);
+      expect(result.pricePerShare).toBe(92);
       expect(result.currency).toBe(BrokerbotCurrency.EUR);
     });
   });
@@ -215,20 +215,20 @@ describe('RealUnitBlockchainService', () => {
     });
 
     it('should calculate shares from CHF amount by default', async () => {
-      const result = await service.getBrokerbotBuyShares('1000');
+      const result = await service.getBrokerbotBuyShares(1000);
 
-      expect(result.amount).toBe('1000');
+      expect(result.amount).toBe(1000);
       expect(result.shares).toBe(10);
-      expect(result.pricePerShare).toBe('100');
+      expect(result.pricePerShare).toBe(100);
       expect(result.currency).toBe(BrokerbotCurrency.CHF);
     });
 
     it('should calculate shares from EUR amount when currency is EUR', async () => {
-      const result = await service.getBrokerbotBuyShares('920', BrokerbotCurrency.EUR);
+      const result = await service.getBrokerbotBuyShares(920, BrokerbotCurrency.EUR);
 
-      expect(result.amount).toBe('920');
+      expect(result.amount).toBe(920);
       expect(result.shares).toBe(10);
-      expect(result.pricePerShare).toBe('92');
+      expect(result.pricePerShare).toBe(92);
       expect(result.currency).toBe(BrokerbotCurrency.EUR);
     });
   });

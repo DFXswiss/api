@@ -89,7 +89,7 @@ export class RealUnitBlockchainService {
     const { priceInCHF, priceInEUR, availableShares } = await this.fetchPrice();
     const price = currency === BrokerbotCurrency.EUR ? priceInEUR : priceInCHF;
     return {
-      pricePerShare: price.toString(),
+      pricePerShare: price,
       currency,
       availableShares,
     };
@@ -105,25 +105,25 @@ export class RealUnitBlockchainService {
 
     return {
       shares,
-      totalPrice: totalPrice.toString(),
-      pricePerShare: price.toString(),
+      totalPrice,
+      pricePerShare: price,
       currency,
       availableShares,
     };
   }
 
   async getBrokerbotBuyShares(
-    amount: string,
+    amount: number,
     currency: BrokerbotCurrency = BrokerbotCurrency.CHF,
   ): Promise<BrokerbotBuySharesDto> {
     const { priceInCHF, priceInEUR, availableShares } = await this.fetchPrice();
     const price = currency === BrokerbotCurrency.EUR ? priceInEUR : priceInCHF;
-    const shares = Math.floor(parseFloat(amount) / price);
+    const shares = Math.floor(amount / price);
 
     return {
       amount,
       shares,
-      pricePerShare: price.toString(),
+      pricePerShare: price,
       currency,
       availableShares,
     };
@@ -142,7 +142,7 @@ export class RealUnitBlockchainService {
       brokerbotAddress: brokerbotAddr,
       tokenAddress: realuAddr,
       baseCurrencyAddress: zchfAddr,
-      pricePerShare: price.toString(),
+      pricePerShare: price,
       currency,
       buyingEnabled: availableShares > 0,
       sellingEnabled: true,

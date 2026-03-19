@@ -309,7 +309,7 @@ export class RealUnitController {
   })
   @ApiOkResponse({ type: BrokerbotBuySharesDto })
   async getBrokerbotBuyShares(
-    @Query('amount') amount: string,
+    @Query('amount') amount: number,
     @Query() { currency }: BrokerbotCurrencyQueryDto,
   ): Promise<BrokerbotBuySharesDto> {
     return this.realunitService.getBrokerbotBuyShares(amount, currency);

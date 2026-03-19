@@ -285,7 +285,7 @@ export class RealUnitService {
     return this.blockchainService.getBrokerbotBuyPrice(shares, currency);
   }
 
-  async getBrokerbotBuyShares(amount: string, currency?: BrokerbotCurrency): Promise<BrokerbotBuySharesDto> {
+  async getBrokerbotBuyShares(amount: number, currency?: BrokerbotCurrency): Promise<BrokerbotBuySharesDto> {
     return this.blockchainService.getBrokerbotBuyShares(amount, currency);
   }
 
@@ -307,8 +307,7 @@ export class RealUnitService {
     const currencyName = currency ?? BrokerbotCurrency.CHF;
     const [realuAsset, fiat] = await Promise.all([this.getRealuAsset(), this.fiatService.getFiatByName(currencyName)]);
 
-    const { pricePerShare: pricePerShareStr } = await this.blockchainService.getBrokerbotPrice(currencyName);
-    const pricePerShare = parseFloat(pricePerShareStr);
+    const { pricePerShare } = await this.blockchainService.getBrokerbotPrice(currencyName);
     const grossAmount = pricePerShare * shares;
 
     const fee = await this.feeService.getUserFee({
@@ -342,8 +341,7 @@ export class RealUnitService {
     const currencyName = currency ?? BrokerbotCurrency.CHF;
     const [realuAsset, fiat] = await Promise.all([this.getRealuAsset(), this.fiatService.getFiatByName(currencyName)]);
 
-    const { pricePerShare: pricePerShareStr } = await this.blockchainService.getBrokerbotPrice(currencyName);
-    const pricePerShare = parseFloat(pricePerShareStr);
+    const { pricePerShare } = await this.blockchainService.getBrokerbotPrice(currencyName);
 
     const fee = await this.feeService.getUserFee({
       user,
