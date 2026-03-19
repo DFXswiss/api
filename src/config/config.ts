@@ -990,7 +990,7 @@ export class Configuration {
       }),
     },
     internetComputer: {
-      internetComputerHost: 'https://ic0.app',
+      internetComputerHost: 'https://icp-api.io',
       internetComputerRosettaApiUrl: process.env.ICP_ROSETTA_API_URL ?? 'https://rosetta-api.internetcomputer.org',
       internetComputerWalletSeed: process.env.ICP_WALLET_SEED,
       internetComputerLedgerCanisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai',

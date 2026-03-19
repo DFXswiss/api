@@ -10,8 +10,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
 import { UserProfileDto } from './user-profile.dto';
-import { ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
-import { PhoneCallStatusMapper } from './user.dto';
+import { PhoneCallStatusMapper, ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
 
 export class UserDtoMapper {
   static mapUser(userData: UserData, activeUserId?: number): UserV2Dto {
@@ -29,6 +28,7 @@ export class UserDtoMapper {
         hash: userData.kycHash,
         level: userData.kycLevelDisplay,
         dataComplete: userData.isDataComplete,
+        phoneCallAccepted: userData.phoneCallAccepted,
         phoneCallStatus: userData.phoneCallStatus ? PhoneCallStatusMapper[userData.phoneCallStatus] : undefined,
         preferredPhoneTimes: userData.phoneCallTimesObject,
       },

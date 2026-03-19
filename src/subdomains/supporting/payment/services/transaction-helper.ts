@@ -232,7 +232,7 @@ export class TransactionHelper implements OnModuleInit {
 
     const sourceSpecs = await this.getSourceSpecs(fromReference, specs, PriceValidity.VALID_ONLY);
 
-    const { dfx, bank, total } = this.calculateTotalFee(
+    const { dfx, bank, bankFixed, bankPercent, total } = this.calculateTotalFee(
       inputReferenceAmount,
       fee.rate,
       fee.bankRate,
@@ -246,6 +246,8 @@ export class TransactionHelper implements OnModuleInit {
       total,
       dfx,
       bank,
+      bankFixed,
+      bankPercent,
     };
   }
 
@@ -823,6 +825,8 @@ export class TransactionHelper implements OnModuleInit {
       dfx: this.convertFee(sourceFees.dfx, price, to),
       total: this.convertFee(sourceFees.total, price, to),
       bank: this.convertFee(sourceFees.bank, price, to),
+      bankFixed: this.convertFee(sourceFees.bankFixed, price, to),
+      bankPercent: this.convertFee(sourceFees.bankPercent, price, to),
     };
 
     return {
@@ -915,14 +919,17 @@ export class TransactionHelper implements OnModuleInit {
     bankRate: number,
     { fee: { fixed, min, network, networkStart, bankFixed } }: TxSpec,
     roundingActive: Active,
-  ): { dfx: number; bank: number; total: number } {
-    const bank = amount * bankRate + bankFixed;
+  ): { dfx: number; bank: number; bankFixed: number; bankPercent: number; total: number } {
+    const bankPercentAmount = amount * bankRate;
+    const bank = bankPercentAmount + bankFixed;
     const dfx = Math.max(amount * rate + fixed, min);
     const total = dfx + bank + network + (networkStart ?? 0);
 
     return {
       dfx: Util.roundReadable(dfx, feeAmountType(roundingActive)),
       bank: Util.roundReadable(bank, feeAmountType(roundingActive)),
+      bankFixed: Util.roundReadable(bankFixed, feeAmountType(roundingActive)),
+      bankPercent: Util.roundReadable(bankPercentAmount, feeAmountType(roundingActive)),
       total: Util.roundReadable(total, feeAmountType(roundingActive)),
     };
   }
