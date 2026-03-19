@@ -375,8 +375,8 @@ export class TransactionDtoMapper {
           ? Util.roundReadable(entity.bankFixedFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
       bankVariable:
-        entity.bankVariableFeeAmount != null
-          ? Util.roundReadable(entity.bankVariableFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
+        entity.bankPercentFeeAmount != null
+          ? Util.roundReadable(entity.bankPercentFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
       fixed:
         entity.absoluteFeeAmount != null
