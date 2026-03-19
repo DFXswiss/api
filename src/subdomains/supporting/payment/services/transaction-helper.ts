@@ -242,7 +242,7 @@ export class TransactionHelper implements OnModuleInit {
       fees: fee.fees,
       partner: amounts.partner,
       bankFixed: amounts.bankFixed,
-      bankVariable: amounts.bankVariable,
+      bankPercent: amounts.bankPercent,
       payoutRefBonus: fee.payoutRefBonus,
     };
   }
@@ -818,7 +818,7 @@ export class TransactionHelper implements OnModuleInit {
       dfx: this.convertFee(sourceFees.dfx, price, to),
       bank: this.convertFee(sourceFees.bank, price, to),
       bankFixed: this.convertFee(sourceFees.bankFixed, price, to),
-      bankVariable: this.convertFee(sourceFees.bankVariable, price, to),
+      bankPercent: this.convertFee(sourceFees.bankPercent, price, to),
       partner: this.convertFee(sourceFees.partner, price, to),
       total: this.convertFee(sourceFees.total, price, to),
     };
@@ -907,9 +907,9 @@ export class TransactionHelper implements OnModuleInit {
     roundingActive: Active,
   ): FeeAmountsDto {
     const dfxAmount = Math.max(this.calculateFee(amount, dfx), min);
-    const bankVariableAmount = amount * bank.rate;
+    const bankPercentAmount = amount * bank.rate;
     const bankFixedAmount = bank.fixed;
-    const bankAmount = bankVariableAmount + bankFixedAmount;
+    const bankAmount = bankPercentAmount + bankFixedAmount;
     const partnerAmount = this.calculateFee(amount, partner);
     const totalAmount = dfxAmount + partnerAmount + bankAmount + network + (networkStart ?? 0);
 
@@ -917,7 +917,7 @@ export class TransactionHelper implements OnModuleInit {
       dfx: Util.roundReadable(dfxAmount, feeAmountType(roundingActive)),
       bank: Util.roundReadable(bankAmount, feeAmountType(roundingActive)),
       bankFixed: Util.roundReadable(bankFixedAmount, feeAmountType(roundingActive)),
-      bankVariable: Util.roundReadable(bankVariableAmount, feeAmountType(roundingActive)),
+      bankPercent: Util.roundReadable(bankPercentAmount, feeAmountType(roundingActive)),
       partner: Util.roundReadable(partnerAmount, feeAmountType(roundingActive)),
       total: Util.roundReadable(totalAmount, feeAmountType(roundingActive)),
     };

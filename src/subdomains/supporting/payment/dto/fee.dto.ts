@@ -44,7 +44,7 @@ export interface InternalFeeDto {
   fixed: number;
   bank: number;
   bankFixed: number;
-  bankVariable: number;
+  bankPercent: number;
   partner: number;
   network: number;
   networkStart?: number;
@@ -56,7 +56,7 @@ export interface FeeAmountsDto {
   dfx: number;
   bank: number;
   bankFixed: number;
-  bankVariable: number;
+  bankPercent: number;
   partner: number;
   total: number;
 }
@@ -86,7 +86,7 @@ export function toFeeDto(amounts: FeeAmountsDto, spec: TxSpec): FeeDto {
     platform: amounts.partner,
     bank: amounts.bank,
     bankFixed: amounts.bankFixed,
-    bankVariable: amounts.bankVariable,
+    bankVariable: amounts.bankPercent,
     total: amounts.total,
   });
 }
