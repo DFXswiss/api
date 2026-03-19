@@ -299,19 +299,20 @@ export class RealUnitService {
     );
   }
 
-  async getBrokerbotSellPrice(shares: number, currency?: BrokerbotCurrency): Promise<BrokerbotSellPriceDto> {
+  async getBrokerbotSellPrice(
+    user: User,
+    shares: number,
+    currency?: BrokerbotCurrency,
+  ): Promise<BrokerbotSellPriceDto> {
     const currencyName = currency ?? BrokerbotCurrency.CHF;
-
-    // Get REALU asset and target fiat
     const [realuAsset, fiat] = await Promise.all([this.getRealuAsset(), this.fiatService.getFiatByName(currencyName)]);
 
-    // Get price from Aktionariat API
     const { pricePerShare: pricePerShareStr } = await this.blockchainService.getBrokerbotPrice(currencyName);
     const pricePerShare = parseFloat(pricePerShareStr);
     const grossAmount = pricePerShare * shares;
 
-    // Get default fee for sell (REALU -> fiat)
-    const fee = await this.feeService.getDefaultFee({
+    const fee = await this.feeService.getUserFee({
+      user,
       from: realuAsset,
       to: fiat,
       paymentMethodIn: CryptoPaymentMethod.CRYPTO,
@@ -321,33 +322,31 @@ export class RealUnitService {
       allowCachedBlockchainFee: true,
     });
 
-    // Calculate fees and net amount
     const totalFee = grossAmount * fee.rate + fee.fixed + fee.network;
     const estimatedAmount = Math.max(grossAmount - totalFee, 0);
-
-    // Calculate rate (what you get per share after fees)
-    const rate = shares > 0 ? estimatedAmount / shares : 0;
+    const pricePerShareAfterFees = shares > 0 ? estimatedAmount / shares : 0;
 
     return {
       shares,
-      pricePerShare: Util.round(rate, 8),
+      pricePerShare: Util.round(pricePerShareAfterFees, 2),
       estimatedAmount: Util.round(estimatedAmount, 2),
       currency: currencyName,
     };
   }
 
-  async getBrokerbotSellShares(targetAmount: number, currency?: BrokerbotCurrency): Promise<BrokerbotSellSharesDto> {
+  async getBrokerbotSellShares(
+    user: User,
+    targetAmount: number,
+    currency?: BrokerbotCurrency,
+  ): Promise<BrokerbotSellSharesDto> {
     const currencyName = currency ?? BrokerbotCurrency.CHF;
-
-    // Get REALU asset and target fiat
     const [realuAsset, fiat] = await Promise.all([this.getRealuAsset(), this.fiatService.getFiatByName(currencyName)]);
 
-    // Get price from Aktionariat API
     const { pricePerShare: pricePerShareStr } = await this.blockchainService.getBrokerbotPrice(currencyName);
     const pricePerShare = parseFloat(pricePerShareStr);
 
-    // Get default fee for sell (REALU -> fiat)
-    const fee = await this.feeService.getDefaultFee({
+    const fee = await this.feeService.getUserFee({
+      user,
       from: realuAsset,
       to: fiat,
       paymentMethodIn: CryptoPaymentMethod.CRYPTO,
@@ -358,26 +357,20 @@ export class RealUnitService {
     });
 
     // Calculate shares needed: targetAmount = grossAmount - fees
-    // targetAmount = grossAmount - (grossAmount * rate + fixed + network)
-    // targetAmount = grossAmount * (1 - rate) - fixed - network
-    // grossAmount = (targetAmount + fixed + network) / (1 - rate)
     const divisor = 1 - fee.rate;
     const grossAmountRaw = divisor > 0 ? (targetAmount + fee.fixed + fee.network) / divisor : targetAmount;
-
     const shares = Math.max(1, Math.ceil(grossAmountRaw / pricePerShare));
-    const actualGrossAmount = shares * pricePerShare;
 
     // Recalculate actual estimated amount with rounded shares
+    const actualGrossAmount = shares * pricePerShare;
     const totalFee = actualGrossAmount * fee.rate + fee.fixed + fee.network;
     const estimatedAmount = actualGrossAmount - totalFee;
-
-    // Calculate rate
-    const rate = shares > 0 ? estimatedAmount / shares : 0;
+    const pricePerShareAfterFees = shares > 0 ? estimatedAmount / shares : 0;
 
     return {
       targetAmount,
       shares,
-      pricePerShare: Util.round(rate, 8),
+      pricePerShare: Util.round(pricePerShareAfterFees, 2),
       currency: currencyName,
     };
   }

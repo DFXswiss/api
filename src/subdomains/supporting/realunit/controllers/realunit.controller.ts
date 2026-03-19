@@ -316,9 +316,11 @@ export class RealUnitController {
   }
 
   @Get('brokerbot/sellPrice')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
     summary: 'Get sell price for shares including fees',
-    description: 'Calculates the estimated payout when selling a specific number of REALU shares, including DFX fees',
+    description: 'Calculates the estimated payout when selling a specific number of REALU shares, including user-specific fees',
   })
   @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to sell' })
   @ApiQuery({
@@ -329,16 +331,20 @@ export class RealUnitController {
   })
   @ApiOkResponse({ type: BrokerbotSellPriceDto })
   async getBrokerbotSellPrice(
+    @GetJwt() jwt: JwtPayload,
     @Query('shares') shares: number,
     @Query() { currency }: BrokerbotCurrencyQueryDto,
   ): Promise<BrokerbotSellPriceDto> {
-    return this.realunitService.getBrokerbotSellPrice(Number(shares), currency);
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+    return this.realunitService.getBrokerbotSellPrice(user, Number(shares), currency);
   }
 
   @Get('brokerbot/sellShares')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
     summary: 'Get shares needed to receive target amount including fees',
-    description: 'Calculates how many REALU shares need to be sold to receive a target amount after fees',
+    description: 'Calculates how many REALU shares need to be sold to receive a target amount after user-specific fees',
   })
   @ApiQuery({ name: 'amount', type: Number, description: 'Target amount to receive after fees (e.g., 1000.50)' })
   @ApiQuery({
@@ -349,10 +355,12 @@ export class RealUnitController {
   })
   @ApiOkResponse({ type: BrokerbotSellSharesDto })
   async getBrokerbotSellShares(
+    @GetJwt() jwt: JwtPayload,
     @Query('amount') amount: number,
     @Query() { currency }: BrokerbotCurrencyQueryDto,
   ): Promise<BrokerbotSellSharesDto> {
-    return this.realunitService.getBrokerbotSellShares(Number(amount), currency);
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+    return this.realunitService.getBrokerbotSellShares(user, Number(amount), currency);
   }
 
   // --- Buy Payment Info Endpoint ---
