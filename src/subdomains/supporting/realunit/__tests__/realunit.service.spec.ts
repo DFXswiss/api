@@ -17,6 +17,7 @@ import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -162,6 +163,7 @@ describe('RealUnitService', () => {
         { provide: AccountMergeService, useValue: {} },
         { provide: RealUnitDevService, useValue: {} },
         { provide: SwissQRService, useValue: {} },
+        { provide: FeeService, useValue: {} },
       ],
     }).compile();
 
