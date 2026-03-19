@@ -167,6 +167,12 @@ export class BuyCrypto extends IEntity {
   bankFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
+  bankFixedFeeAmount?: number; //inputReferenceAsset
+
+  @Column({ type: 'float', nullable: true })
+  bankPercentFeeAmount?: number; //inputReferenceAsset
+
+  @Column({ type: 'float', nullable: true })
   partnerFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
@@ -597,6 +603,8 @@ export class BuyCrypto extends IEntity {
             totalFeeAmountChf,
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
+            bankFixedFeeAmount: fee.bankFixed,
+            bankPercentFeeAmount: fee.bankPercent,
             partnerFeeAmount: fee.partner,
             usedPartnerRef: fee.partner ? partnerFee.wallet.owner.ref : undefined,
             inputReferenceAmountMinusFee,
@@ -720,6 +728,8 @@ export class BuyCrypto extends IEntity {
       totalFeeAmountChf: null,
       blockchainFee: null,
       bankFeeAmount: null,
+      bankFixedFeeAmount: null,
+      bankPercentFeeAmount: null,
       inputReferenceAmountMinusFee: null,
       usedRef: null,
       refProvision: null,
