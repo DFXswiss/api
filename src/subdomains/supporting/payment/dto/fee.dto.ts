@@ -30,8 +30,8 @@ export class FeeDto {
   @ApiPropertyOptional({ description: 'Bank fixed fee amount' })
   bankFixed?: number;
 
-  @ApiPropertyOptional({ description: 'Bank percent fee amount' })
-  bankPercent?: number;
+  @ApiPropertyOptional({ description: 'Bank variable fee amount' })
+  bankVariable?: number;
 
   @ApiProperty({ description: 'Total fee amount (DFX + bank + network fee)' })
   total: number;
@@ -44,7 +44,7 @@ export interface InternalFeeDto {
   fixed: number;
   bank: number;
   bankFixed: number;
-  bankPercent: number;
+  bankVariable: number;
   partner: number;
   network: number;
   networkStart?: number;
@@ -56,7 +56,7 @@ export interface FeeAmountsDto {
   dfx: number;
   bank: number;
   bankFixed: number;
-  bankPercent: number;
+  bankVariable: number;
   partner: number;
   total: number;
 }
@@ -86,7 +86,7 @@ export function toFeeDto(amounts: FeeAmountsDto, spec: TxSpec): FeeDto {
     platform: amounts.partner,
     bank: amounts.bank,
     bankFixed: amounts.bankFixed,
-    bankPercent: amounts.bankPercent,
+    bankVariable: amounts.bankVariable,
     total: amounts.total,
   });
 }
