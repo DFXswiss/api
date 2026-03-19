@@ -452,8 +452,8 @@ export class LogJobService {
 
       const manualLiqPosition = manualLiqPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
-      // plus
-      const liquidity = (curr.balance?.amount ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
+      // plus (use availableAmount to avoid double-counting with pending exchange orders)
+      const liquidity = (curr.balance?.availableAmount ?? 0) + (paymentDepositBalance ?? 0) + (manualLiqPosition ?? 0);
 
       const cryptoInput = [Blockchain.MONERO, Blockchain.LIGHTNING, Blockchain.ZANO].includes(curr.blockchain)
         ? 0
