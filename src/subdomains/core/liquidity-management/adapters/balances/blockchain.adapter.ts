@@ -25,6 +25,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
   private readonly logger = new DfxLogger(BlockchainAdapter);
 
   private readonly refreshInterval = 45; // seconds
+  private readonly balanceTimeout = 30000; // ms
 
   private readonly balanceCache = new Map<number, number>();
   private readonly updateCalls = new Map<Blockchain, Promise<void>>();
@@ -71,7 +72,12 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   private async updateCacheFor(blockchain: Blockchain, assets: Asset[]): Promise<void> {
     if (!this.updateCalls.has(blockchain)) {
-      this.updateCalls.set(blockchain, this.updateBalancesFor(blockchain, assets));
+      const call = Util.timeout(this.updateBalancesFor(blockchain, assets), this.balanceTimeout).catch((e) => {
+        this.logger.error(`Timeout updating balances for ${blockchain}:`, e);
+        this.invalidateCacheFor(assets);
+        this.updateCalls.delete(blockchain);
+      });
+      this.updateCalls.set(blockchain, call);
     }
 
     return this.updateCalls.get(blockchain);
