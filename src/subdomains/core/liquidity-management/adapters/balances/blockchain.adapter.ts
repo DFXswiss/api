@@ -72,11 +72,14 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   private async updateCacheFor(blockchain: Blockchain, assets: Asset[]): Promise<void> {
     if (!this.updateCalls.has(blockchain)) {
-      const call = Util.timeout(this.updateBalancesFor(blockchain, assets), this.balanceTimeout).catch((e) => {
-        this.logger.error(`Timeout updating balances for ${blockchain}:`, e);
-        this.invalidateCacheFor(assets);
-        this.updateCalls.delete(blockchain);
-      });
+      const call = Util.timeout(this.updateBalancesFor(blockchain, assets), this.balanceTimeout)
+        .catch((e) => {
+          this.logger.error(`Timeout updating balances for ${blockchain}:`, e);
+          this.invalidateCacheFor(assets);
+        })
+        .finally(() => {
+          this.updateCalls.delete(blockchain);
+        });
       this.updateCalls.set(blockchain, call);
     }
 
@@ -128,8 +131,6 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       this.updateTimestamps.set(blockchain, updated);
     } catch (e) {
       this.logger.error(`Failed to update balances for ${blockchain}:`, e);
-    } finally {
-      this.updateCalls.delete(blockchain);
     }
   }
 
