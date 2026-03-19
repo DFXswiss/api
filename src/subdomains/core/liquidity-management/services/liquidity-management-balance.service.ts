@@ -86,7 +86,7 @@ export class LiquidityManagementBalanceService implements OnModuleInit {
         if (existingBalance) {
           if (existingBalance.updated > startDate) continue;
 
-          existingBalance.updateBalance(balance.amount ?? 0);
+          existingBalance.updateBalance(balance.amount ?? 0, balance.availableAmount);
           await this.balanceRepo.save(existingBalance);
 
           continue;
