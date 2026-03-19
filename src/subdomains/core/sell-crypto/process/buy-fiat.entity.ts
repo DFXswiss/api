@@ -121,6 +121,12 @@ export class BuyFiat extends IEntity {
   bankFeeAmount?: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
+  bankFixedFeeAmount?: number; //inputAsset
+
+  @Column({ type: 'float', nullable: true })
+  bankPercentFeeAmount?: number; //inputAsset
+
+  @Column({ type: 'float', nullable: true })
   partnerFeeAmount?: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
@@ -320,6 +326,8 @@ export class BuyFiat extends IEntity {
             totalFeeAmountChf,
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
+            bankFixedFeeAmount: fee.bankFixed,
+            bankPercentFeeAmount: fee.bankPercent,
             partnerFeeAmount: fee.partner,
             usedPartnerRef: fee.partner ? partnerFee.wallet.owner.ref : undefined,
             inputReferenceAmountMinusFee,
@@ -496,6 +504,8 @@ export class BuyFiat extends IEntity {
       priceDefinitionAllowedDate: null,
       usedFees: null,
       bankFeeAmount: null,
+      bankFixedFeeAmount: null,
+      bankPercentFeeAmount: null,
     };
 
     Object.assign(this, update);
