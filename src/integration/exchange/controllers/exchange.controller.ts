@@ -50,7 +50,7 @@ export class ExchangeController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getBalance(@Param('exchange') exchange: string): Promise<Balances> {
-    return this.call(exchange, (e) => e.getBalances());
+    return this.call(exchange, (e) => e.getRawBalances());
   }
 
   @Get(':exchange/price')

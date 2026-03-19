@@ -1,6 +1,7 @@
 import { BadRequestException, Inject, OnModuleInit } from '@nestjs/common';
 import BigNumber from 'bignumber.js';
 import {
+  Balance,
   Balances,
   ConstructorArgs,
   Dictionary,
@@ -67,36 +68,30 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.exchange.name;
   }
 
-  async getBalances(): Promise<Balances> {
+  async getRawBalances(): Promise<Balances> {
     return this.callApi((e) => e.fetchBalance());
   }
 
-  async getTotalBalances(): Promise<Dictionary<number>> {
-    const balances = await this.getBalances().then((b) => b.total);
+  async getBalances(): Promise<{ total: Dictionary<number>; available: Dictionary<number> }> {
+    const balances = await this.getRawBalances();
 
-    const totalBalances = {};
-    for (const [asset, amount] of Object.entries(balances)) {
-      const [base, suffix] = asset.split('.');
-      if (!suffix || suffix === 'F') totalBalances[base] = (totalBalances[base] ?? 0) + amount;
-    }
-
-    return totalBalances;
+    return {
+      total: this.aggregateBalances(balances.total),
+      available: this.aggregateBalances(balances.free),
+    };
   }
 
-  async getAvailableBalances(): Promise<Dictionary<number>> {
-    const balances = await this.getBalances().then((b) => b.free);
-
-    const availableBalances = {};
+  private aggregateBalances(balances: Balance): Dictionary<number> {
+    const result: Dictionary<number> = {};
     for (const [asset, amount] of Object.entries(balances)) {
       const [base, suffix] = asset.split('.');
-      if (!suffix || suffix === 'F') availableBalances[base] = (availableBalances[base] ?? 0) + amount;
+      if (!suffix || suffix === 'F') result[base] = (result[base] ?? 0) + (amount as number);
     }
-
-    return availableBalances;
+    return result;
   }
 
   async getAvailableBalance(currency: string): Promise<number> {
-    return this.getBalances().then((b) => b.free[currency] ?? 0);
+    return this.getRawBalances().then((b) => b.free[currency] ?? 0);
   }
 
   async getPrice(from: string, to: string): Promise<Price> {

@@ -23,7 +23,7 @@ export class LiquidityBalance extends IEntity {
 
     balance.asset = target;
     balance.amount = amount;
-    balance.availableAmount = availableAmount;
+    balance.availableAmount = availableAmount ?? amount;
 
     return balance;
   }
@@ -32,7 +32,7 @@ export class LiquidityBalance extends IEntity {
 
   updateBalance(amount: number, availableAmount?: number): this {
     this.amount = amount;
-    this.availableAmount = availableAmount;
+    this.availableAmount = availableAmount ?? amount;
 
     return this;
   }
