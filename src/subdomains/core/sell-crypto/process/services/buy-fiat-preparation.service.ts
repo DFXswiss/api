@@ -223,7 +223,7 @@ export class BuyFiatPreparationService {
 
         if (isFirstRun) {
           await this.buyFiatService.updateSellVolume([entity.sell?.id]);
-          await this.buyFiatService.updateRefVolume([entity.usedRef]);
+          await this.buyFiatService.updateRefVolume([entity.usedRef, entity.usedPartnerRef]);
         }
       } catch (e) {
         this.logger.error(`Error during buy-fiat ${entity.id} fee and fiat reference refresh:`, e);

@@ -27,7 +27,7 @@ import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
-import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { FeeInfo } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { Between, FindOptionsRelations, Not } from 'typeorm';
@@ -158,7 +158,7 @@ export class UserService {
       .createQueryBuilder('user')
       .leftJoinAndSelect('user.userData', 'userData')
       .leftJoinAndSelect('user.refAsset', 'refAsset')
-      .where('user.refCredit - user.paidRefCredit > 0')
+      .where('user.partnerRefCredit + user.refCredit - user.paidRefCredit > 0')
       .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DELETED] })
       .andWhere('userData.status NOT IN (:...userDataStatus)', {
         userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
@@ -521,7 +521,7 @@ export class UserService {
     bankOut: CardBankName | IbanBankName,
     from: Active,
     to: Active,
-  ): Promise<InternalFeeDto> {
+  ): Promise<FeeInfo> {
     const user = await this.getUser(userId, { userData: true });
     if (!user) throw new NotFoundException('User not found');
 
@@ -595,12 +595,20 @@ export class UserService {
     };
   }
 
-  async updateRefVolume(ref: string, volume: number, credit: number): Promise<void> {
+  async updateRefVolume(
+    ref: string,
+    volume: number,
+    credit: number,
+    partnerVolume?: number,
+    partnerCredit?: number,
+  ): Promise<void> {
     await this.userRepo.update(
       { ref },
       {
         refVolume: Util.round(volume, Config.defaultVolumeDecimal),
         refCredit: Util.round(credit, Config.defaultVolumeDecimal),
+        partnerRefVolume: Util.round(partnerVolume, Config.defaultVolumeDecimal),
+        partnerRefCredit: Util.round(partnerCredit, Config.defaultVolumeDecimal),
       },
     );
   }
@@ -699,8 +707,8 @@ export class UserService {
     return {
       ref: user.ref,
       refFeePercent: user.refFeePercent,
-      refVolume: user.refVolume,
-      refCredit: user.refCredit,
+      refVolume: user.totalRefVolume,
+      refCredit: user.totalRefCredit,
       paidRefCredit: user.paidRefCredit,
       ...(await this.getRefUserCounts(user)),
     };
