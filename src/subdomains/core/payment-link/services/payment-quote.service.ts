@@ -29,7 +29,7 @@ import {
   PaymentQuoteStatus,
   PaymentQuoteTxStates,
   PaymentStandard,
-  TxIdBlockchains,
+  UnverifiedTxIdBlockchains,
 } from '../enums';
 import { PaymentQuoteRepository } from '../repositories/payment-quote.repository';
 
@@ -399,12 +399,16 @@ export class PaymentQuoteService {
           await this.doFiroPayment(transferInfo, quote);
           break;
 
+        case Blockchain.SOLANA:
+          await this.doVerifiedTxIdPayment(Blockchain.SOLANA, transferInfo, quote);
+          break;
+
         case Blockchain.INTERNET_COMPUTER:
           await this.doIcpPayment(transferInfo, quote);
           break;
 
         default:
-          if (TxIdBlockchains.includes(transferInfo.method as Blockchain)) {
+          if (UnverifiedTxIdBlockchains.includes(transferInfo.method as Blockchain)) {
             await this.doTxIdPayment(transferInfo, quote);
           } else {
             throw new BadRequestException(`Invalid method ${transferInfo.method} for hex payment`);
@@ -628,9 +632,45 @@ export class PaymentQuoteService {
     }
   }
 
+  private async waitForTxConfirmation(method: Blockchain, txId: string): Promise<void> {
+    const client = this.blockchainRegistryService.getClient(method);
+
+    await Util.retry(
+      async () => {
+        const isComplete = await client.isTxComplete(txId);
+        if (!isComplete) throw new Error('not confirmed');
+      },
+      Config.payment.defaultTxConfirmationTryCount,
+      1000,
+    );
+  }
+
+  private async doVerifiedTxIdPayment(
+    method: Blockchain,
+    transferInfo: TransferInfo,
+    quote: PaymentQuote,
+  ): Promise<void> {
+    try {
+      if (!transferInfo.tx) {
+        quote.txFailed('Transaction Id not found');
+        return;
+      }
+
+      await this.waitForTxConfirmation(method, transferInfo.tx);
+
+      quote.txInBlockchain(transferInfo.tx);
+    } catch (e) {
+      quote.txFailed(
+        e.message === 'not confirmed'
+          ? `Transaction ${transferInfo.tx} not confirmed in blockchain ${method}`
+          : e.message,
+      );
+    }
+  }
+
   private async doIcpPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     if (!transferInfo.sender) {
-      return this.doTxIdPayment(transferInfo, quote);
+      return this.doVerifiedTxIdPayment(Blockchain.INTERNET_COMPUTER, transferInfo, quote);
     }
 
     try {

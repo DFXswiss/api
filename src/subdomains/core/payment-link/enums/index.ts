@@ -96,11 +96,9 @@ export enum PaymentMerchantStatus {
 }
 
 // Blockchains where user broadcasts tx and sends txId (not signed hex)
-export const TxIdBlockchains = [
-  Blockchain.MONERO,
-  Blockchain.ZANO,
-  Blockchain.SOLANA,
-  Blockchain.TRON,
-  Blockchain.CARDANO,
-  Blockchain.INTERNET_COMPUTER,
-];
+export const UnverifiedTxIdBlockchains = [Blockchain.MONERO, Blockchain.ZANO, Blockchain.TRON, Blockchain.CARDANO];
+
+// Blockchains where user broadcasts tx and sends txId, API verifies tx confirmation
+export const VerifiedTxIdBlockchains = [Blockchain.SOLANA, Blockchain.INTERNET_COMPUTER];
+
+export const TxIdBlockchains = [...UnverifiedTxIdBlockchains, ...VerifiedTxIdBlockchains];

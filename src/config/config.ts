@@ -657,6 +657,7 @@ export class Configuration {
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
+    defaultTxConfirmationTryCount: +(process.env.PAYMENT_TX_CONFIRMATION_TRY_COUNT ?? 15),
     defaultFiroTxIdPaymentTryCount: +(process.env.PAYMENT_FIRO_TX_TRY_COUNT ?? 5),
 
     defaultForexFee: 0.01,
