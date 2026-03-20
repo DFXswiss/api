@@ -179,9 +179,7 @@ export class ExchangeTxService {
 
     // Spread fee in quote currency
     const spreadFee =
-      entity.side === 'buy'
-        ? entity.amount * (entity.price - marketRate)
-        : entity.amount * (marketRate - entity.price);
+      entity.side === 'buy' ? entity.amount * (entity.price - marketRate) : entity.amount * (marketRate - entity.price);
 
     entity.feeAmount = Util.round(spreadFee, Config.defaultVolumeDecimal);
     entity.feeCurrency = quoteCurrency;
