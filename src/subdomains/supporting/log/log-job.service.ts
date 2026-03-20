@@ -395,7 +395,10 @@ export class LogJobService {
 
     // EUR: Bank -> Scrypt
     const eurSenderScryptBankTx = recentScryptBankTx.filter(
-      (b) => eurBankIbans.includes(b.accountIban) && b.creditDebitIndicator === BankTxIndicator.DEBIT,
+      (b) =>
+        eurBankIbans.includes(b.accountIban) &&
+        b.creditDebitIndicator === BankTxIndicator.DEBIT &&
+        b.instructedCurrency,
     );
     const eurReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
       (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'EUR' && k.txId,
@@ -1140,6 +1143,16 @@ export class LogJobService {
         : filtered21ReceiverTx.length;
 
       filtered21ReceiverTx = filtered21ReceiverTx.slice(filtered21ReceiverTx.length - senderTxLength);
+    } else if (filtered21ReceiverTx.length === filtered21SenderTx.length && filtered21SenderTx.length > 0) {
+      const newestReceiverDate = filtered21ReceiverTx.reduce(
+        (max, r) => (r.created > max ? r.created : max),
+        filtered21ReceiverTx[0].created,
+      );
+      const unmatchedCount = filtered21SenderTx.filter((s) => s.created > newestReceiverDate).length;
+
+      if (unmatchedCount > 0) {
+        filtered21ReceiverTx = filtered21ReceiverTx.slice(unmatchedCount);
+      }
     }
 
     return {
