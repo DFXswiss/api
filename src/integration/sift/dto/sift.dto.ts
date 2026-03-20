@@ -1040,6 +1040,7 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.INTERMEDIARY_WITHOUT_SENDER]: DeclineCategory.RISKY,
   [AmlReason.NAME_TOO_SHORT]: DeclineCategory.OTHER,
   [AmlReason.ASSET_INPUT_NOT_ALLOWED]: DeclineCategory.INVALID,
+  [AmlReason.MANUAL_CHECK_SPECIAL_EXTERNAL_PHONE]: DeclineCategory.RISKY,
 };
 
 export interface ScoreRsponse {

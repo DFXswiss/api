@@ -5,6 +5,8 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
@@ -43,16 +45,28 @@ export class AmlService {
     private readonly transactionService: TransactionService,
     private readonly ipLogService: IpLogService,
     private readonly kycService: KycService,
+    private readonly kycLogService: KycLogService,
   ) {}
 
-  async postProcessing(entity: BuyFiat | BuyCrypto, last30dVolume: number | undefined): Promise<void> {
+  async postProcessing(
+    entity: BuyFiat | BuyCrypto,
+    last30dVolume: number | undefined,
+    isFirstRun = false,
+  ): Promise<void> {
     if (entity.cryptoInput) await this.payInService.updatePayInAction(entity.cryptoInput.id, entity.amlCheck);
 
-    if (
-      [CheckStatus.PENDING, CheckStatus.GSHEET].includes(entity.amlCheck) &&
-      entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED
-    )
-      await this.userDataService.checkOrTriggerVideoIdent(entity.userData);
+    if ([CheckStatus.PENDING, CheckStatus.GSHEET].includes(entity.amlCheck)) {
+      if (entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
+        await this.userDataService.checkOrTriggerVideoIdent(entity.userData);
+      if (isFirstRun && entity.amlReason === AmlReason.MANUAL_CHECK_SPECIAL_EXTERNAL_PHONE) {
+        await this.kycLogService.createLogInternal(
+          entity.userData,
+          KycLogType.KYC,
+          `Reset phoneCallSpecialExternalCheckDate ${entity.userData.phoneCallSpecialExternalCheckDate}`,
+        );
+        await this.userDataService.updateUserDataInternal(entity.userData, { phoneCallSpecialExternalCheckDate: null });
+      }
+    }
 
     if (entity.amlCheck === CheckStatus.PASS) {
       if (entity.user.status === UserStatus.NA) await this.userService.activateUser(entity.user, entity.userData);

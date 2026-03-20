@@ -96,6 +96,7 @@ export class BuyCryptoPreparationService {
         if (entity.cryptoInput && !entity.cryptoInput.isConfirmed) continue;
 
         const amlCheckBefore = entity.amlCheck;
+        const isFirstRun = entity.amlCheck == null;
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
         const inputReferenceCurrency =
@@ -192,7 +193,7 @@ export class BuyCryptoPreparationService {
           ),
         );
 
-        await this.amlService.postProcessing(entity, last30dVolume);
+        await this.amlService.postProcessing(entity, last30dVolume, isFirstRun);
 
         if (amlCheckBefore !== entity.amlCheck) await this.buyCryptoWebhookService.triggerWebhook(entity);
 
