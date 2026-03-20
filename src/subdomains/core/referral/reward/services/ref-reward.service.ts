@@ -207,6 +207,18 @@ export class RefRewardService {
     return volume ?? 0;
   }
 
+  async getInProgressRefRewardVolumeEur(): Promise<number> {
+    const { volume } = await this.rewardRepo
+      .createQueryBuilder('refReward')
+      .select('SUM(amountInEur)', 'volume')
+      .where('status NOT IN (:...status)', {
+        status: [RewardStatus.COMPLETE, RewardStatus.FAILED, RewardStatus.USER_SWITCH],
+      })
+      .getRawOne<{ volume: number }>();
+
+    return volume ?? 0;
+  }
+
   // --- HELPER METHODS --- //
   async updatePaidRefCredit(userIds: number[]): Promise<void> {
     userIds = userIds.filter((u, j) => userIds.indexOf(u) === j).filter((i) => i); // distinct, not null
