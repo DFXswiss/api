@@ -66,9 +66,11 @@ export class AmlHelperService {
       !entity.wallet.autoTradeApproval
     )
       errors.push(
-        [PhoneCallStatus.USER_REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+        entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
           ? AmlError.USER_DATA_FAILED_CALL
-          : AmlError.TRADE_APPROVAL_DATE_MISSING,
+          : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
+            ? AmlError.USER_DATA_REJECTED_CALL
+            : AmlError.TRADE_APPROVAL_DATE_MISSING,
       );
     if (entity.inputReferenceAmount < minVolume * 0.9) errors.push(AmlError.MIN_VOLUME_NOT_REACHED);
     if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
@@ -102,9 +104,11 @@ export class AmlHelperService {
     if (entity.userData.hasIpRisk && !entity.userData.phoneCallIpCheckDate) {
       if (entity.userData.kycLevel >= KycLevel.LEVEL_50) {
         errors.push(
-          [PhoneCallStatus.USER_REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+          entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
             ? AmlError.USER_DATA_FAILED_CALL
-            : AmlError.IP_PHONE_VERIFICATION_NEEDED,
+            : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
+              ? AmlError.USER_DATA_REJECTED_CALL
+              : AmlError.IP_PHONE_VERIFICATION_NEEDED,
         );
       } else {
         errors.push(AmlError.IP_BLACKLISTED_WITHOUT_KYC);
@@ -212,9 +216,11 @@ export class AmlHelperService {
         )
       )
         errors.push(
-          [PhoneCallStatus.USER_REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+          entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
             ? AmlError.USER_DATA_FAILED_CALL
-            : AmlError.IP_COUNTRY_MISMATCH,
+            : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
+              ? AmlError.USER_DATA_REJECTED_CALL
+              : AmlError.IP_COUNTRY_MISMATCH,
         );
 
       if (
@@ -242,9 +248,11 @@ export class AmlHelperService {
         Util.yearsDiff(entity.userData.birthday) > 55
       )
         errors.push(
-          [PhoneCallStatus.USER_REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+          entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
             ? AmlError.USER_DATA_FAILED_CALL
-            : AmlError.PHONE_VERIFICATION_NEEDED,
+            : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
+              ? AmlError.USER_DATA_REJECTED_CALL
+              : AmlError.PHONE_VERIFICATION_NEEDED,
         );
 
       if (entity.bankTx) {
@@ -491,9 +499,11 @@ export class AmlHelperService {
       case AmlRule.RULE_16:
         if (entity instanceof BuyCrypto && entity.userData.isPersonalAccount && !entity.userData.phoneCallCheckDate)
           errors.push(
-            [PhoneCallStatus.USER_REJECTED, PhoneCallStatus.FAILED].includes(entity.userData.phoneCallStatus)
+            entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
               ? AmlError.USER_DATA_FAILED_CALL
-              : AmlError.PHONE_VERIFICATION_NEEDED,
+              : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
+                ? AmlError.USER_DATA_REJECTED_CALL
+                : AmlError.PHONE_VERIFICATION_NEEDED,
           );
         break;
     }
