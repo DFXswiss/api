@@ -632,6 +632,16 @@ export class UserService {
       .then((r) => r.paidRefCredit);
   }
 
+  public async getTotalOpenRefCredit(): Promise<number> {
+    const { openCredit } = await this.userRepo
+      .createQueryBuilder('user')
+      .select('SUM(user.refCredit - user.paidRefCredit)', 'openCredit')
+      .where('user.refCredit - user.paidRefCredit > 0')
+      .getRawOne<{ openCredit: number }>();
+
+    return openCredit ?? 0;
+  }
+
   // --- API KEY --- //
   async deleteApiKey(userId: number): Promise<void> {
     await this.userRepo.update(userId, { apiKeyCT: null });
