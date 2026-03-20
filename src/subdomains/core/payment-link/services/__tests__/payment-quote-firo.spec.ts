@@ -132,13 +132,10 @@ describe('PaymentQuoteService - doFiroTxIdPayment', () => {
     mockGetRawTx.mockResolvedValueOnce(rawTx);
 
     const quote = createQuoteMock();
-    await service['doFiroTxIdPayment'](TX_ID, quote);
-
-    expect(quote.status).toBe(PaymentQuoteStatus.TX_FAILED);
-    expect(quote.errorMessage).toContain('does not pay to payment address');
+    await expect(service['doFiroTxIdPayment'](TX_ID, quote)).rejects.toThrow('does not pay to payment address');
   });
 
-  it('should fail on amount mismatch', async () => {
+  it('should fail on amount too small', async () => {
     const rawTx = createRawTx(); // vout[0].value = 1.5
     mockGetRawTx.mockResolvedValueOnce(rawTx);
 
@@ -147,12 +144,22 @@ describe('PaymentQuoteService - doFiroTxIdPayment', () => {
     ] as PaymentQuote['activations'];
 
     const quote = createQuoteMock(activations);
+    await expect(service['doFiroTxIdPayment'](TX_ID, quote)).rejects.toThrow('Amount too small');
+  });
+
+  it('should succeed when amount is overpaid', async () => {
+    const rawTx = createRawTx();
+    rawTx.vout[0].value = 2.0; // overpaid (expected 1.5)
+    mockGetRawTx.mockResolvedValueOnce(rawTx);
+
+    const activations = [
+      { method: Blockchain.FIRO, asset: { type: AssetType.COIN }, amount: 1.5 },
+    ] as PaymentQuote['activations'];
+
+    const quote = createQuoteMock(activations);
     await service['doFiroTxIdPayment'](TX_ID, quote);
 
-    expect(quote.status).toBe(PaymentQuoteStatus.TX_FAILED);
-    expect(quote.errorMessage).toContain('Amount mismatch');
-    expect(quote.errorMessage).toContain('1.5');
-    expect(quote.errorMessage).toContain('2');
+    expect(quote.status).toBe(PaymentQuoteStatus.TX_MEMPOOL);
   });
 
   it('should succeed when amount matches within tolerance', async () => {

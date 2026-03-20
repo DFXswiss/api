@@ -1,6 +1,7 @@
 import { Config, GetConfig } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { BitcoinBasedClient, TestMempoolResult } from '../bitcoin/node/bitcoin-based-client';
+import { UTXO } from '../bitcoin/node/dto/bitcoin-transaction.dto';
 import { Block, NodeClientConfig } from '../bitcoin/node/node-client';
 import { FiroRawTransaction } from './rpc';
 
@@ -56,12 +57,9 @@ export class FiroClient extends BitcoinBasedClient {
   // Firo's account-based getbalance with '' returns only the default account, which can be negative.
   // Use listunspent filtered to all non-deposit addresses for an accurate spendable balance.
   async getBalance(): Promise<number> {
-    const nonDepositAddresses = await this.getNonDepositAddresses();
-    if (!nonDepositAddresses.length) return 0;
+    const { utxos } = await this.getNonDepositUtxos();
 
-    const utxos = await this.getUtxoForAddresses(nonDepositAddresses, this.nodeConfig.allowUnconfirmedUtxos);
-
-    return this.roundAmount(utxos?.reduce((sum, u) => sum + u.amount, 0) ?? 0);
+    return this.roundAmount(utxos.reduce((sum, u) => sum + u.amount, 0));
   }
 
   // Firo's getblock uses boolean verbose, not int verbosity (0/1/2)
@@ -108,11 +106,12 @@ export class FiroClient extends BitcoinBasedClient {
     return { outTxId, feeAmount };
   }
 
-  // Delegates to sendManyFromAddress using all non-deposit addresses.
+  // Delegates to sendManyWithUtxos using all non-deposit UTXOs.
   async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
-    const fromAddresses = await this.getNonDepositAddresses();
-    if (!fromAddresses.length) throw new Error('No non-deposit addresses with UTXOs available');
-    return this.sendManyFromAddress(fromAddresses, payload, feeRate);
+    const { utxos } = await this.getNonDepositUtxos();
+    if (!utxos.length) throw new Error('No non-deposit addresses with UTXOs available');
+
+    return this.sendManyWithUtxos(utxos, payload, feeRate);
   }
 
   // Use UTXOs from the specified addresses to avoid spending deposit UTXOs.
@@ -122,15 +121,22 @@ export class FiroClient extends BitcoinBasedClient {
     payload: { addressTo: string; amount: number }[],
     feeRate: number,
   ): Promise<string> {
+    const utxos = await this.getUtxoForAddresses(fromAddresses, this.nodeConfig.allowUnconfirmedUtxos);
+    return this.sendManyWithUtxos(utxos, payload, feeRate);
+  }
+
+  private async sendManyWithUtxos(
+    utxos: UTXO[],
+    payload: { addressTo: string; amount: number }[],
+    feeRate: number,
+  ): Promise<string> {
     const outputs: Record<string, number> = {};
     for (const p of payload) {
       outputs[p.addressTo] = this.roundAmount((outputs[p.addressTo] ?? 0) + p.amount);
     }
     const outputTotal = payload.reduce((sum, p) => sum + p.amount, 0);
 
-    const utxos = await this.getUtxoForAddresses(fromAddresses, this.nodeConfig.allowUnconfirmedUtxos);
-
-    if (!utxos || utxos.length === 0) {
+    if (utxos.length === 0) {
       throw new Error('No UTXOs available on the specified addresses');
     }
 
@@ -251,17 +257,25 @@ export class FiroClient extends BitcoinBasedClient {
   }
 
   private async getNonDepositAddresses(): Promise<string[]> {
-    const utxos = await this.getUtxo(this.nodeConfig.allowUnconfirmedUtxos);
+    const { addresses } = await this.getNonDepositUtxos();
+    return addresses;
+  }
+
+  private async getNonDepositUtxos(): Promise<{ addresses: string[]; utxos: UTXO[] }> {
+    const allUtxos = await this.getUtxo(this.nodeConfig.allowUnconfirmedUtxos);
     const depositSet = new Set(await this.depositAddressProvider());
 
-    const addresses = new Set<string>();
-    for (const utxo of utxos) {
+    const addressSet = new Set<string>();
+    const utxos: UTXO[] = [];
+
+    for (const utxo of allUtxos) {
       if (!depositSet.has(utxo.address)) {
-        addresses.add(utxo.address);
+        addressSet.add(utxo.address);
+        utxos.push(utxo);
       }
     }
 
-    return [...addresses];
+    return { addresses: [...addressSet], utxos };
   }
 
   // Firo does not support testmempoolaccept RPC.

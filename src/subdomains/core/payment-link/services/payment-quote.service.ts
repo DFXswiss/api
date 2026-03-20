@@ -533,38 +533,36 @@ export class PaymentQuoteService {
     const paymentAddress = this.paymentBalanceService.getDepositAddress(Blockchain.FIRO);
     const tryCount = Config.payment.defaultFiroTxIdPaymentTryCount;
 
-    for (let i = 0; i < tryCount; i++) {
-      const rawTx = await client.getRawTx(txId);
-      if (rawTx) {
-        // Firo uses `addresses` (array), not `address` (string)
-        const outputToPayment = rawTx.vout.find((o) => o.scriptPubKey?.addresses?.includes(paymentAddress));
+    const rawTx = await Util.retry(
+      async () => {
+        const tx = await client.getRawTx(txId);
+        if (!tx) throw new NotFoundException(`Transaction ${txId} not found on Firo node`);
+        return tx;
+      },
+      tryCount,
+      1000,
+    );
 
-        if (!outputToPayment) {
-          quote.txFailed(`Transaction does not pay to payment address ${paymentAddress}`);
-          return;
-        }
+    // Firo uses `addresses` (array), not `address` (string)
+    const outputToPayment = rawTx.vout.find((o) => o.scriptPubKey?.addresses?.includes(paymentAddress));
 
-        const activation = (quote.activations ?? [])
-          .filter((a) => a.method === Blockchain.FIRO)
-          .find((a) => a.asset.type === AssetType.COIN);
-
-        if (activation && Math.abs(outputToPayment.value - activation.amount) > 0.00000001) {
-          quote.txFailed(`Amount mismatch: got ${outputToPayment.value}, expected ${activation.amount}`);
-          return;
-        }
-
-        if (rawTx.confirmations > 0) {
-          quote.txInBlockchain(txId);
-        } else {
-          quote.txInMempool(txId);
-        }
-        return;
-      }
-
-      await Util.delay(1000);
+    if (!outputToPayment) {
+      throw new BadRequestException(`Transaction does not pay to payment address ${paymentAddress}`);
     }
 
-    throw new BadRequestException(`Transaction ${txId} not found on Firo node`);
+    const activation = (quote.activations ?? [])
+      .filter((a) => a.method === Blockchain.FIRO)
+      .find((a) => a.asset.type === AssetType.COIN);
+
+    if (activation && outputToPayment.value < activation.amount - 0.00000001) {
+      throw new BadRequestException(`Amount too small: got ${outputToPayment.value}, expected ${activation.amount}`);
+    }
+
+    if ((rawTx.confirmations ?? 0) > 0) {
+      quote.txInBlockchain(txId);
+    } else {
+      quote.txInMempool(txId);
+    }
   }
 
   private async doBitcoinBasedHexPayment(
