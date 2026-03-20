@@ -216,8 +216,8 @@
                 "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
                 "line1": "Wir haben deine Einzahlung erhalten.",
                 "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei dir melden.",
-                "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
-                "line4": "Du kannst eine bevorzugte Uhrzeit für das Telefongespräch selber hier angeben: [url:https://app.dfx.swiss/settings?a=call]",
+                "line3": "Stimme dem Gespräch zu und wähle deine bevorzugte Uhrzeit für das Telefongespräch hier aus: [url:https://app.dfx.swiss/settings?a=call]",
+                "line4": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
                 "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             },
             "merge_incomplete": {
@@ -243,8 +243,8 @@
                 "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
                 "line1": "Wir haben deine Einzahlung erhalten.",
                 "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei dir melden.",
-                "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
-                "line4": "Du kannst eine bevorzugte Uhrzeit für das Telefongespräch selber hier angeben: [url:https://app.dfx.swiss/settings?a=call]",
+                "line3": "Stimme dem Gespräch zu und wähle deine bevorzugte Uhrzeit für das Telefongespräch hier aus: [url:https://app.dfx.swiss/settings?a=call]",
+                "line4": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
                 "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             },
             "manual_check_ip_country_phone": {
@@ -252,8 +252,8 @@
                 "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
                 "line1": "Wir haben deine Einzahlung erhalten.",
                 "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei dir melden.",
-                "line3": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
-                "line4": "Du kannst eine bevorzugte Uhrzeit für das Telefongespräch selber hier angeben: [url:https://app.dfx.swiss/settings?a=call]",
+                "line3": "Stimme dem Gespräch zu und wähle deine bevorzugte Uhrzeit für das Telefongespräch hier aus: [url:https://app.dfx.swiss/settings?a=call]",
+                "line4": "Wenn alle Fragen geklärt sind, wird deine Transaktion automatisch weiterverarbeitet.",
                 "line5": "Wenn du stattdessen eine Rückzahlung anfordern möchtest:<br>[url:Klick hier]"
             }
         },

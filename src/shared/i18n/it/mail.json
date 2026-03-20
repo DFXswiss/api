@@ -216,8 +216,8 @@
                 "salutation": "È richiesta una verifica manuale tramite telefono.",
                 "line1": "Abbiamo ricevuto il tuo deposito.",
                 "line2": "Ti contatteremo a breve al numero {phone}.",
-                "line3": "Una volta chiariti tutti i dubbi, la transazione verrà elaborata automaticamente.",
-                "line4": "Qui puoi specificare l'orario che preferisci per la telefonata: [url:https://app.dfx.swiss/settings?a=call]",
+                "line3": "Accetta la chiamata e seleziona qui l'orario che preferisci per la telefonata: [url:https://app.dfx.swiss/settings?a=call]",
+                "line4": "Una volta chiariti tutti i dubbi, la transazione verrà elaborata automaticamente.",
                 "line5": "Se invece si desidera richiedere un rimborso:<br>[url:clicca qui]"
             },
             "merge_incomplete": {
@@ -243,8 +243,8 @@
                 "salutation": "È richiesta una verifica manuale tramite telefono.",
                 "line1": "Abbiamo ricevuto il tuo deposito.",
                 "line2": "Ti contatteremo a breve al numero {phone}.",
-                "line3": "Una volta chiariti tutti i dubbi, la transazione verrà elaborata automaticamente.",
-                "line4": "Qui puoi specificare l'orario che preferisci per la telefonata: [url:https://app.dfx.swiss/settings?a=call]",
+                "line3": "Accetta la chiamata e seleziona qui l'orario che preferisci per la telefonata: [url:https://app.dfx.swiss/settings?a=call]",
+                "line4": "Una volta chiariti tutti i dubbi, la transazione verrà elaborata automaticamente.",
                 "line5": "Se invece si desidera richiedere un rimborso:<br>[url:clicca qui]"
             },
             "manual_check_ip_country_phone": {
@@ -252,8 +252,8 @@
                 "salutation": "È richiesta una verifica manuale tramite telefono.",
                 "line1": "Abbiamo ricevuto il tuo deposito.",
                 "line2": "Ti contatteremo a breve al numero {phone}.",
-                "line3": "Una volta chiariti tutti i dubbi, la transazione verrà elaborata automaticamente.",
-                "line4": "Qui puoi specificare l'orario che preferisci per la telefonata: [url:https://app.dfx.swiss/settings?a=call]",
+                "line3": "Accetta la chiamata e seleziona qui l'orario che preferisci per la telefonata: [url:https://app.dfx.swiss/settings?a=call]",
+                "line4": "Una volta chiariti tutti i dubbi, la transazione verrà elaborata automaticamente.",
                 "line5": "Se invece si desidera richiedere un rimborso:<br>[url:clicca qui]"
             }
         },
