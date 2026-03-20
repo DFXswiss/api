@@ -420,25 +420,13 @@ export class LogJobService {
       (b) => eurBankIbans.includes(b.accountIban) && b.creditDebitIndicator === BankTxIndicator.CREDIT,
     );
 
-    // sender and receiver data for Bank -> Scrypt
-    const { sender: recentChfYapealScryptTx, receiver: recentChfBankTxScrypt } = this.filterSenderPendingList(
-      chfSenderScryptBankTx,
-      chfReceiverScryptExchangeTx,
-    );
-    const { sender: recentEurBankToScryptTx, receiver: recentEurBankTxScrypt } = this.filterSenderPendingList(
-      eurSenderScryptBankTx,
-      eurReceiverScryptExchangeTx,
-    );
+    // Bank -> Scrypt: 1:1 matching, unmatched senders only
+    const recentChfYapealScryptTx = this.getUnmatchedSenders(chfSenderScryptBankTx, chfReceiverScryptExchangeTx);
+    const recentEurBankToScryptTx = this.getUnmatchedSenders(eurSenderScryptBankTx, eurReceiverScryptExchangeTx);
 
-    // sender and receiver data for Scrypt -> Bank
-    const { sender: recentChfScryptYapealTx, receiver: recentChfScryptBankTx } = this.filterSenderPendingList(
-      chfSenderScryptExchangeTx,
-      chfReceiverScryptBankTx,
-    );
-    const { sender: recentEurScryptToBankTx, receiver: recentEurScryptBankTx } = this.filterSenderPendingList(
-      eurSenderScryptExchangeTx,
-      eurReceiverScryptBankTx,
-    );
+    // Scrypt -> Bank: 1:1 matching, unmatched senders only
+    const recentChfScryptYapealTx = this.getUnmatchedSenders(chfSenderScryptExchangeTx, chfReceiverScryptBankTx);
+    const recentEurScryptToBankTx = this.getUnmatchedSenders(eurSenderScryptExchangeTx, eurReceiverScryptBankTx);
 
     // assetLog
     return assets.reduce((prev, curr) => {
@@ -596,55 +584,38 @@ export class LogJobService {
               [...recentChfYapealScryptTx, ...recentEurBankToScryptTx],
               BankTxType.SCRYPT,
             );
-      const pendingChfBankScryptMinusAmount = this.getPendingBankAmount(
-        [curr],
-        recentChfBankTxScrypt,
-        ExchangeTxType.DEPOSIT,
-        yapealChfBank.iban,
-      );
-      const pendingEurBankScryptMinusAmount = isScryptEurAsset
-        ? this.getPendingBankAmount([curr], recentEurBankTxScrypt, ExchangeTxType.DEPOSIT)
-        : isEurBankAsset
-          ? 0
-          : this.getPendingBankAmount([curr], recentEurBankTxScrypt, ExchangeTxType.DEPOSIT, yapealEurBank.iban);
+      // With 1:1 matching, matched receivers are already excluded from sender lists — no minus needed
+      const pendingChfBankScryptMinusAmount = 0;
+      const pendingEurBankScryptMinusAmount = 0;
 
-      // unfiltered lists
+      // unfiltered lists (1:1 matching)
       const pendingBankScryptPlusAmountUnfiltered = isScryptEurAsset
         ? this.getPendingBankAmount(
             eurBankAssets,
-            eurSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.bankTxId),
+            this.getUnmatchedSenders(
+              eurSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.bankTxId),
+              eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
+            ),
             BankTxType.SCRYPT,
           )
         : isEurBankAsset
           ? 0
           : this.getPendingBankAmount(
               [curr],
-              [
-                ...chfSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.bankTxId),
-                ...eurSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.bankTxId),
-              ],
+              this.getUnmatchedSenders(
+                [
+                  ...chfSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.bankTxId),
+                  ...eurSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.bankTxId),
+                ],
+                [
+                  ...chfReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.exchangeTxId),
+                  ...eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
+                ],
+              ),
               BankTxType.SCRYPT,
             );
-      const pendingChfBankScryptMinusAmountUnfiltered = this.getPendingBankAmount(
-        [curr],
-        chfReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.exchangeTxId),
-        ExchangeTxType.DEPOSIT,
-        yapealChfBank.iban,
-      );
-      const pendingEurBankScryptMinusAmountUnfiltered = isScryptEurAsset
-        ? this.getPendingBankAmount(
-            [curr],
-            eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
-            ExchangeTxType.DEPOSIT,
-          )
-        : isEurBankAsset
-          ? 0
-          : this.getPendingBankAmount(
-              [curr],
-              eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
-              ExchangeTxType.DEPOSIT,
-              yapealEurBank.iban,
-            );
+      const pendingChfBankScryptMinusAmountUnfiltered = 0;
+      const pendingEurBankScryptMinusAmountUnfiltered = 0;
 
       // Scrypt to Bank //
 
@@ -660,17 +631,16 @@ export class LogJobService {
         : isEurBankAsset
           ? 0
           : this.getPendingBankAmount([curr], recentEurScryptToBankTx, ExchangeTxType.WITHDRAWAL, yapealEurBank.iban);
-      const pendingScryptBankMinusAmount = isScryptEurAsset
-        ? this.getPendingBankAmount(eurBankAssets, recentEurScryptBankTx, BankTxType.SCRYPT)
-        : isEurBankAsset
-          ? 0
-          : this.getPendingBankAmount([curr], [...recentChfScryptBankTx, ...recentEurScryptBankTx], BankTxType.SCRYPT);
+      const pendingScryptBankMinusAmount = 0;
 
-      // unfiltered lists
+      // unfiltered lists (1:1 matching)
       const pendingChfScryptBankPlusAmountUnfiltered = financeLogPairIds?.fromScrypt?.chf?.exchangeTxId
         ? this.getPendingBankAmount(
             [curr],
-            chfSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.exchangeTxId),
+            this.getUnmatchedSenders(
+              chfSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.exchangeTxId),
+              chfReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.bankTxId),
+            ),
             ExchangeTxType.WITHDRAWAL,
             yapealChfBank.iban,
           )
@@ -679,7 +649,10 @@ export class LogJobService {
         ? financeLogPairIds?.fromScrypt?.eur?.exchangeTxId
           ? this.getPendingBankAmount(
               [curr],
-              eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
+              this.getUnmatchedSenders(
+                eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
+                eurReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.bankTxId),
+              ),
               ExchangeTxType.WITHDRAWAL,
             )
           : 0
@@ -688,31 +661,15 @@ export class LogJobService {
           : financeLogPairIds?.fromScrypt?.eur?.exchangeTxId
             ? this.getPendingBankAmount(
                 [curr],
-                eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
+                this.getUnmatchedSenders(
+                  eurSenderScryptExchangeTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.exchangeTxId),
+                  eurReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.bankTxId),
+                ),
                 ExchangeTxType.WITHDRAWAL,
                 yapealEurBank.iban,
               )
             : 0;
-      const pendingScryptBankMinusAmountUnfiltered = isScryptEurAsset
-        ? financeLogPairIds?.fromScrypt?.eur?.bankTxId
-          ? this.getPendingBankAmount(
-              eurBankAssets,
-              eurReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.bankTxId),
-              BankTxType.SCRYPT,
-            )
-          : 0
-        : isEurBankAsset
-          ? 0
-          : financeLogPairIds?.fromScrypt?.chf?.bankTxId || financeLogPairIds?.fromScrypt?.eur?.bankTxId
-            ? this.getPendingBankAmount(
-                [curr],
-                [
-                  ...chfReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.chf.bankTxId),
-                  ...eurReceiverScryptBankTx.filter((t) => t.id >= financeLogPairIds.fromScrypt.eur.bankTxId),
-                ],
-                BankTxType.SCRYPT,
-              )
-            : 0;
+      const pendingScryptBankMinusAmountUnfiltered = 0;
 
       const fromKrakenUnfiltered =
         pendingChfKrakenYapealPlusAmountUnfiltered +
@@ -1100,6 +1057,37 @@ export class LogJobService {
     );
   }
 
+  public getUnmatchedSenders(
+    senderTx: (BankTx | ExchangeTx)[],
+    receiverTx: (BankTx | ExchangeTx)[],
+  ): (BankTx | ExchangeTx)[] {
+    if (!senderTx.length || !receiverTx.length) return [...senderTx];
+
+    const sortedSenders = [...senderTx].sort((a, b) => a.id - b.id);
+    const sortedReceivers = [...receiverTx].sort((a, b) => a.id - b.id);
+    const matchedSenderIds = new Set<number>();
+
+    for (const receiver of sortedReceivers) {
+      const receiverAmount = receiver instanceof BankTx ? receiver.instructedAmount : receiver.amount;
+
+      const match = sortedSenders.find((s) => {
+        if (matchedSenderIds.has(s.id)) return false;
+
+        const senderAmount = s instanceof BankTx ? s.instructedAmount : s.amount;
+        const senderDate = s instanceof BankTx ? s.valueDate : s.created;
+        const daysDiff = Math.abs(Util.daysDiff(senderDate, receiver.created));
+
+        return s instanceof BankTx
+          ? senderAmount === receiverAmount && daysDiff <= 5 && receiver.created > s.created
+          : senderAmount === receiverAmount && receiver.created > s.created;
+      });
+
+      if (match) matchedSenderIds.add(match.id);
+    }
+
+    return sortedSenders.filter((s) => !matchedSenderIds.has(s.id));
+  }
+
   public filterSenderPendingList(
     senderTx: (BankTx | ExchangeTx)[],
     receiverTx: (BankTx | ExchangeTx)[] | undefined,
@@ -1143,16 +1131,6 @@ export class LogJobService {
         : filtered21ReceiverTx.length;
 
       filtered21ReceiverTx = filtered21ReceiverTx.slice(filtered21ReceiverTx.length - senderTxLength);
-    } else if (filtered21ReceiverTx.length === filtered21SenderTx.length && filtered21SenderTx.length > 0) {
-      const newestReceiverDate = filtered21ReceiverTx.reduce(
-        (max, r) => (r.created > max ? r.created : max),
-        filtered21ReceiverTx[0].created,
-      );
-      const unmatchedCount = filtered21SenderTx.filter((s) => s.created > newestReceiverDate).length;
-
-      if (unmatchedCount > 0) {
-        filtered21ReceiverTx = filtered21ReceiverTx.slice(unmatchedCount);
-      }
     }
 
     return {
