@@ -94,10 +94,10 @@
                 "manual_check_phone": "Non siamo riusciti a contattarti al numero di telefono che ci hai fornito. Puoi richiedere tu stesso una richiamata e indicare l'orario che preferisci per la telefonata qui: [url:https://app.dfx.swiss/settings?a=call]",
                 "manual_check_ip_phone": "Non siamo riusciti a contattarti al numero di telefono che ci hai fornito. Puoi richiedere tu stesso una richiamata e indicare l'orario che preferisci per la telefonata qui: [url:https://app.dfx.swiss/settings?a=call]",
                 "manual_check_ip_country_phone": "Non siamo riusciti a contattarti al numero di telefono che ci hai fornito. Puoi richiedere tu stesso una richiamata e indicare l'orario che preferisci per la telefonata qui: [url:https://app.dfx.swiss/settings?a=call]",
-                "manual_check_phone_rejected": "La telefonata non è andata a buon fine o è stata rifiutata.",
+                "manual_check_phone_rejected": "La chiamata non è andata a buon fine, è stata rifiutata oppure non l'hai accettata",
                 "merge_incomplete": "L'e-mail di conferma non è stata accettata",
-                "intermediary_without_sender": "La banca mittente (Wise/Revolut) ha trasmesso solo il nome della banca, non il nome del titolare del conto. DFX non può quindi verificare il mittente effettivo e non può elaborare la transazione.",
-                "name_too_short": "Il tuo nome è troppo corto per l'elaborazione bancaria. Le banche richiedono almeno 4 lettere nel nome del titolare del conto.",
+                "intermediary_without_sender": "La banca mittente (Wise/Revolut) ha trasmesso solo il nome della banca, non il nome del titolare del conto. DFX non può quindi verificare il mittente effettivo e non può elaborare la transazione",
+                "name_too_short": "Il tuo nome è troppo corto per l'elaborazione bancaria. Le banche richiedono almeno 4 lettere nel nome del titolare del conto",
                 "asset_input_not_allowed": "L'asset non è al momento disponibile per lo scambio su DFX"
             },
             "kyc_start": "Potete iniziare il processo KYC qui:<br>[url:{urlText}]"

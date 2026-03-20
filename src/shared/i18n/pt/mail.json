@@ -94,10 +94,10 @@
                 "manual_check_phone": "We were unable to reach you at the phone number you provided. You can request a callback and a preferred time for the phone call yourself here: [url:https://app.dfx.swiss/settings?a=call]",
                 "manual_check_ip_phone": "We were unable to reach you at the phone number you provided. You can request a callback and a preferred time for the phone call yourself here: [url:https://app.dfx.swiss/settings?a=call]",
                 "manual_check_ip_country_phone": "We were unable to reach you at the phone number you provided. You can request a callback and a preferred time for the phone call yourself here: [url:https://app.dfx.swiss/settings?a=call]",
-                "manual_check_phone_rejected": "The phone call was unsuccessful or rejected",
+                "manual_check_phone_rejected": "The call was unsuccessful, was rejected, or you did not accept the call",
                 "merge_incomplete": "The email confirmation was not accepted",
-                "intermediary_without_sender": "O banco remetente (Wise/Revolut) transmitiu apenas o nome do banco, não o nome do titular da conta. Portanto, a DFX não pode verificar o remetente real e não pode processar a transação.",
-                "name_too_short": "O seu nome é muito curto para o processamento bancário. Os bancos exigem pelo menos 4 letras no nome do titular da conta.",
+                "intermediary_without_sender": "O banco remetente (Wise/Revolut) transmitiu apenas o nome do banco, não o nome do titular da conta. Portanto, a DFX não pode verificar o remetente real e não pode processar a transação",
+                "name_too_short": "O seu nome é muito curto para o processamento bancário. Os bancos exigem pelo menos 4 letras no nome do titular da conta",
                 "asset_input_not_allowed": "The asset is currently not available for trading with DFX"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
