@@ -843,7 +843,8 @@ export class TransactionHelper implements OnModuleInit {
     const inputAmountNormal =
       (outputAmount + dfx.fixed + bank.fixed + partner.fixed + network + networkStart) /
       (1 - (dfx.rate + bank.rate + partner.rate));
-    const inputAmountWithMinFee = outputAmount + network + bank.fixed + partner.fixed + networkStart + min;
+    const inputAmountWithMinFee =
+      (outputAmount + network + bank.fixed + partner.fixed + networkStart + min) / (1 - (bank.rate + partner.rate));
 
     return Math.max(inputAmountNormal, inputAmountWithMinFee);
   }
