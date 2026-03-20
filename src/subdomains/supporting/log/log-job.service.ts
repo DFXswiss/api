@@ -1061,9 +1061,12 @@ export class LogJobService {
     senderTx: (BankTx | ExchangeTx)[],
     receiverTx: (BankTx | ExchangeTx)[],
   ): (BankTx | ExchangeTx)[] {
-    if (!senderTx.length || !receiverTx.length) return [...senderTx];
+    const before21Days = Util.daysBefore(21);
+    const recentSenders = senderTx.filter((s) => s.created > before21Days);
 
-    const sortedSenders = [...senderTx].sort((a, b) => a.id - b.id);
+    if (!recentSenders.length || !receiverTx.length) return [...recentSenders];
+
+    const sortedSenders = [...recentSenders].sort((a, b) => a.id - b.id);
     const sortedReceivers = [...receiverTx].sort((a, b) => a.id - b.id);
     const matchedSenderIds = new Set<number>();
 
