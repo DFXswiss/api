@@ -1,5 +1,5 @@
-import { CustodyOrderStatus, CustodyOrderType } from '../../enums/custody';
 import { CustodyOrder } from '../../entities/custody-order.entity';
+import { CustodyOrderStatus, CustodyOrderType } from '../../enums/custody';
 
 export class CustodyOrderListEntry {
   id: number;
@@ -20,9 +20,9 @@ export class CustodyOrderListEntry {
       id: order.id,
       type: order.type,
       status: order.status,
-      inputAmount: order.inputAmount ?? tr?.amount,
+      inputAmount: order.inputAmount ?? tr?.estimatedAmount,
       inputAsset: order.inputAsset?.name,
-      outputAmount: order.outputAmount ?? tr?.estimatedAmount,
+      outputAmount: order.outputAmount ?? tr?.amount,
       outputAsset: order.outputAsset?.name,
       userDataId: order.user?.userData?.id,
       userName: order.user?.userData?.verifiedName,

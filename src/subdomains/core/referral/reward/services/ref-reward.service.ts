@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -70,6 +70,7 @@ export class RefRewardService {
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
     private readonly transactionService: TransactionService,
+    private readonly settingService: SettingService,
   ) {}
 
   async createManualRefReward(dto: CreateManualRefRewardDto): Promise<void> {
@@ -90,12 +91,14 @@ export class RefRewardService {
       PriceValidity.VALID_ONLY,
     );
 
+    const refRewardManualCheckLimit = await this.settingService.getObj<number>('refRewardManualCheckLimit', 3000);
+
     const entity = this.rewardRepo.create({
       user,
       targetAddress: user.address,
       outputAsset: asset,
       sourceTransaction,
-      status: dto.amountInEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
+      status: dto.amountInEur > refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
       targetBlockchain: asset.blockchain,
       amountInChf: eurChfPrice.convert(dto.amountInEur, 8),
       amountInEur: dto.amountInEur,
@@ -151,10 +154,12 @@ export class RefRewardService {
 
         if (!(refCreditEur >= minCredit)) continue;
 
+        const refRewardManualCheckLimit = await this.settingService.getObj<number>('refRewardManualCheckLimit', 3000);
+
         const entity = this.rewardRepo.create({
           outputAsset: payoutAsset,
           user,
-          status: refCreditEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
+          status: refCreditEur > refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
           targetAddress: user.address,
           targetBlockchain: blockchain,
           amountInChf: eurChfPrice.convert(refCreditEur, 8),
