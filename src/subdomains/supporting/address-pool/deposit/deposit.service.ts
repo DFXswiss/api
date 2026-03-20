@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
@@ -29,7 +29,7 @@ import { Deposit } from './deposit.entity';
 import { CreateDepositDto } from './dto/create-deposit.dto';
 
 @Injectable()
-export class DepositService {
+export class DepositService implements OnModuleInit {
   private readonly bitcoinClient: BitcoinClient;
   private readonly lightningClient: LightningClient;
   private readonly firoClient: FiroClient;
@@ -48,6 +48,15 @@ export class DepositService {
     this.lightningClient = lightningService.getDefaultClient();
     this.firoClient = firoService.getDefaultClient();
     this.moneroClient = moneroService.getDefaultClient();
+  }
+
+  onModuleInit(): void {
+    if (this.firoClient) {
+      this.firoClient.setDepositAddressProvider(async () => {
+        const deposits = await this.getUsedDepositsByBlockchain(Blockchain.FIRO);
+        return deposits.map((d) => d.address);
+      });
+    }
   }
 
   async getDeposit(id: number): Promise<Deposit> {
