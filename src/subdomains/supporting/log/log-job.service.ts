@@ -602,16 +602,16 @@ export class LogJobService {
           ? 0
           : this.getPendingBankAmount(
               [curr],
-              this.getUnmatchedSenders(
-                [
-                  ...chfSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.bankTxId),
-                  ...eurSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.bankTxId),
-                ],
-                [
-                  ...chfReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.exchangeTxId),
-                  ...eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
-                ],
-              ),
+              [
+                ...this.getUnmatchedSenders(
+                  chfSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.bankTxId),
+                  chfReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.chf?.exchangeTxId),
+                ),
+                ...this.getUnmatchedSenders(
+                  eurSenderScryptBankTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.bankTxId),
+                  eurReceiverScryptExchangeTx.filter((t) => t.id >= financeLogPairIds?.toScrypt?.eur?.exchangeTxId),
+                ),
+              ],
               BankTxType.SCRYPT,
             );
       const pendingChfBankScryptMinusAmountUnfiltered = 0;
