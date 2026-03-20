@@ -56,7 +56,35 @@ export class ExchangeTxService {
         externalId: transaction.externalId,
         type: transaction.type,
       });
+
+      // Preserve calculated spread fee for Scrypt (DTO's feeAmount=0 would overwrite it)
+      const preservedSpreadFee =
+        entity?.exchange === ExchangeName.SCRYPT && entity.feeAmountChf != null
+          ? { feeAmount: entity.feeAmount, feeCurrency: entity.feeCurrency, feeAmountChf: entity.feeAmountChf }
+          : undefined;
+
       entity = entity ? Object.assign(entity, transaction) : this.exchangeTxRepo.create(transaction);
+
+      if (preservedSpreadFee) {
+        entity.feeAmount = preservedSpreadFee.feeAmount;
+        entity.feeCurrency = preservedSpreadFee.feeCurrency;
+        entity.feeAmountChf = preservedSpreadFee.feeAmountChf;
+      }
+
+      // Calculate spread fee for new Scrypt trades
+      if (
+        entity.exchange === ExchangeName.SCRYPT &&
+        entity.type === ExchangeTxType.TRADE &&
+        entity.price &&
+        entity.amount &&
+        entity.feeAmountChf == null
+      ) {
+        try {
+          await this.calculateSpreadFee(entity);
+        } catch (e) {
+          this.logger.warn(`Failed to calculate spread fee for Scrypt trade ${entity.externalId}:`, e);
+        }
+      }
 
       if (entity.feeAmount && !entity.feeAmountChf) {
         if (entity.feeCurrency === 'CHF') {
@@ -117,6 +145,47 @@ export class ExchangeTxService {
       exchange,
       created: !minId ? MoreThan(Util.daysBefore(21)) : undefined,
     });
+  }
+
+  private async calculateSpreadFee(entity: ExchangeTx): Promise<void> {
+    const [baseCurrency, quoteCurrency] = entity.symbol.split('/');
+    const tradeDate = entity.externalCreated ?? entity.created;
+
+    // Resolve base asset (e.g., USDT, BTC)
+    const baseAsset = await this.assetService.getAssetByQuery({
+      name: baseCurrency,
+      blockchain: undefined,
+      type: undefined,
+    });
+    if (!baseAsset) return;
+
+    // Resolve quote currency (fiat like CHF/EUR, or asset like USDT)
+    const quoteActive =
+      (await this.fiatService.getFiatByName(quoteCurrency)) ??
+      (await this.assetService.getAssetByQuery({
+        name: quoteCurrency,
+        blockchain: undefined,
+        type: undefined,
+      }));
+    if (!quoteActive) return;
+
+    // Get historical market rate: quote per base (e.g., 0.858 EUR per USDT)
+    const marketPrice = await this.pricingService.getPriceAt(quoteActive, baseAsset, tradeDate);
+    const marketRate = marketPrice.price;
+
+    // Get base price in CHF for fee conversion
+    const basePriceChf = await this.pricingService.getPriceAt(PriceCurrency.CHF, baseAsset, tradeDate);
+    const quotePriceChf = basePriceChf.price / marketRate;
+
+    // Spread fee in quote currency
+    const spreadFee =
+      entity.side === 'buy'
+        ? entity.amount * (entity.price - marketRate)
+        : entity.amount * (marketRate - entity.price);
+
+    entity.feeAmount = Util.round(spreadFee, Config.defaultVolumeDecimal);
+    entity.feeCurrency = quoteCurrency;
+    entity.feeAmountChf = Util.round(spreadFee * quotePriceChf, Config.defaultVolumeDecimal);
   }
 
   private async getSyncSinceDate(exchange: ExchangeName): Promise<Date> {
