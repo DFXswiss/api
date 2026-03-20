@@ -19,7 +19,7 @@ export class BrokerbotCurrencyQueryDto {
 
 export class BrokerbotPriceDto {
   @ApiProperty({ description: 'Current price per share' })
-  pricePerShare: string;
+  pricePerShare: number;
 
   @ApiProperty({ description: 'Currency of the price', enum: BrokerbotCurrency })
   currency: BrokerbotCurrency;
@@ -33,10 +33,10 @@ export class BrokerbotBuyPriceDto {
   shares: number;
 
   @ApiProperty({ description: 'Total cost' })
-  totalPrice: string;
+  totalPrice: number;
 
   @ApiProperty({ description: 'Price per share' })
-  pricePerShare: string;
+  pricePerShare: number;
 
   @ApiProperty({ description: 'Currency of the prices', enum: BrokerbotCurrency })
   currency: BrokerbotCurrency;
@@ -45,15 +45,15 @@ export class BrokerbotBuyPriceDto {
   availableShares: number;
 }
 
-export class BrokerbotSharesDto {
+export class BrokerbotBuySharesDto {
   @ApiProperty({ description: 'Amount in specified currency' })
-  amount: string;
+  amount: number;
 
   @ApiProperty({ description: 'Number of shares that can be purchased' })
   shares: number;
 
   @ApiProperty({ description: 'Price per share' })
-  pricePerShare: string;
+  pricePerShare: number;
 
   @ApiProperty({ description: 'Currency of the prices', enum: BrokerbotCurrency })
   currency: BrokerbotCurrency;
@@ -73,7 +73,7 @@ export class BrokerbotInfoDto {
   baseCurrencyAddress: string;
 
   @ApiProperty({ description: 'Current price per share' })
-  pricePerShare: string;
+  pricePerShare: number;
 
   @ApiProperty({ description: 'Currency of the price', enum: BrokerbotCurrency })
   currency: BrokerbotCurrency;
@@ -86,4 +86,32 @@ export class BrokerbotInfoDto {
 
   @ApiProperty({ description: 'Available shares for purchase' })
   availableShares: number;
+}
+
+export class BrokerbotSellPriceDto {
+  @ApiProperty({ description: 'Number of shares to sell' })
+  shares: number;
+
+  @ApiProperty({ description: 'Price per share (including fees)' })
+  pricePerShare: number;
+
+  @ApiProperty({ description: 'Estimated amount after fees' })
+  estimatedAmount: number;
+
+  @ApiProperty({ description: 'Currency of the prices', enum: BrokerbotCurrency })
+  currency: BrokerbotCurrency;
+}
+
+export class BrokerbotSellSharesDto {
+  @ApiProperty({ description: 'Target amount to receive after fees' })
+  targetAmount: number;
+
+  @ApiProperty({ description: 'Number of shares needed to sell' })
+  shares: number;
+
+  @ApiProperty({ description: 'Price per share (including fees)' })
+  pricePerShare: number;
+
+  @ApiProperty({ description: 'Currency of the prices', enum: BrokerbotCurrency })
+  currency: BrokerbotCurrency;
 }
