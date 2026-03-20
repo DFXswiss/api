@@ -147,6 +147,26 @@ describe('CryptoService', () => {
     expect(CryptoService.getBlockchainsBasedOn('a8MuyHBKL3nYZKAa82x13FxqtExP2sQCqu')).toEqual([Blockchain.FIRO]);
   });
 
+  it('should return UserAddressType.FIRO for address a8MuyHBKL3nYZKAa82x13FxqtExP2sQCqu', () => {
+    expect(CryptoService.getAddressType('a8MuyHBKL3nYZKAa82x13FxqtExP2sQCqu')).toEqual(UserAddressType.FIRO);
+  });
+
+  it('should return Blockchain.FIRO for Spark address sm1qqp4u87yjmcd0mwfph0pg6jannk3z0wmhuzzuxgcrthqf0jrq9dqg8ht02gv2rssle7kgehhrglqn540rk8entqlsw3jmjrfrsc4xvz8u90q0z2uxe8zzpmzqx7qzf3', () => {
+    expect(
+      CryptoService.getBlockchainsBasedOn(
+        'sm1qqp4u87yjmcd0mwfph0pg6jannk3z0wmhuzzuxgcrthqf0jrq9dqg8ht02gv2rssle7kgehhrglqn540rk8entqlsw3jmjrfrsc4xvz8u90q0z2uxe8zzpmzqx7qzf3',
+      ),
+    ).toEqual([Blockchain.FIRO]);
+  });
+
+  it('should return UserAddressType.FIRO_SPARK for Spark address sm1qqp4u87yjmcd0mwfph0pg6jannk3z0wmhuzzuxgcrthqf0jrq9dqg8ht02gv2rssle7kgehhrglqn540rk8entqlsw3jmjrfrsc4xvz8u90q0z2uxe8zzpmzqx7qzf3', () => {
+    expect(
+      CryptoService.getAddressType(
+        'sm1qqp4u87yjmcd0mwfph0pg6jannk3z0wmhuzzuxgcrthqf0jrq9dqg8ht02gv2rssle7kgehhrglqn540rk8entqlsw3jmjrfrsc4xvz8u90q0z2uxe8zzpmzqx7qzf3',
+      ),
+    ).toEqual(UserAddressType.FIRO_SPARK);
+  });
+
   it('should return Blockchain.ETHEREUM and Blockchain.BINANCE_SMART_CHAIN for address 0x2d84553B3A4753009A314106d58F0CC21f441234', () => {
     expect(CryptoService.getBlockchainsBasedOn('0x2d84553B3A4753009A314106d58F0CC21f441234')).toEqual([
       Blockchain.ETHEREUM,
