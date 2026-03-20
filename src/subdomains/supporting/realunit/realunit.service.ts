@@ -321,7 +321,10 @@ export class RealUnitService {
       allowCachedBlockchainFee: true,
     });
 
-    const totalFee = grossAmount * fee.rate + fee.fixed + fee.network;
+    const feeRate = fee.dfx.rate + fee.bank.rate + fee.partner.rate;
+    const feeFixed = fee.dfx.fixed + fee.bank.fixed + fee.partner.fixed;
+
+    const totalFee = grossAmount * feeRate + feeFixed + fee.network;
     const estimatedAmount = Math.max(grossAmount - totalFee, 0);
     const pricePerShareAfterFees = shares > 0 ? estimatedAmount / shares : 0;
 
@@ -354,14 +357,17 @@ export class RealUnitService {
       allowCachedBlockchainFee: true,
     });
 
+    const feeRate = fee.dfx.rate + fee.bank.rate + fee.partner.rate;
+    const feeFixed = fee.dfx.fixed + fee.bank.fixed + fee.partner.fixed;
+
     // Calculate shares needed: targetAmount = grossAmount - fees
-    const divisor = 1 - fee.rate;
-    const grossAmountRaw = divisor > 0 ? (targetAmount + fee.fixed + fee.network) / divisor : targetAmount;
+    const divisor = 1 - feeRate;
+    const grossAmountRaw = divisor > 0 ? (targetAmount + feeFixed + fee.network) / divisor : targetAmount;
     const shares = Math.max(1, Math.ceil(grossAmountRaw / pricePerShare));
 
     // Recalculate actual estimated amount with rounded shares
     const actualGrossAmount = shares * pricePerShare;
-    const totalFee = actualGrossAmount * fee.rate + fee.fixed + fee.network;
+    const totalFee = actualGrossAmount * feeRate + feeFixed + fee.network;
     const estimatedAmount = actualGrossAmount - totalFee;
     const pricePerShareAfterFees = shares > 0 ? estimatedAmount / shares : 0;
 
