@@ -108,7 +108,7 @@ export class AmlHelperService {
             ? AmlError.USER_DATA_FAILED_CALL
             : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
               ? AmlError.USER_DATA_REJECTED_CALL
-              : AmlError.PHONE_VERIFICATION_NEEDED,
+              : AmlError.IP_PHONE_VERIFICATION_NEEDED,
         );
       } else {
         errors.push(AmlError.IP_BLACKLISTED_WITHOUT_KYC);
