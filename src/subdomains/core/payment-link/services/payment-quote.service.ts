@@ -640,7 +640,7 @@ export class PaymentQuoteService {
         const isComplete = await client.isTxComplete(txId);
         if (!isComplete) throw new Error('not confirmed');
       },
-      Config.payment.defaultEvmHexPaymentTryCount,
+      Config.payment.defaultTxConfirmationTryCount,
       1000,
     );
   }
