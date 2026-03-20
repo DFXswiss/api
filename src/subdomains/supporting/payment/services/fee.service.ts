@@ -331,13 +331,6 @@ export class FeeService {
     ]);
     const blockchainFee = fromFee + toFee;
 
-    // get partner fee
-    const partnerFee = Util.minObj(
-      fees.filter((fee) => fee.type === FeeType.PARTNER),
-      'rate',
-    );
-    const partnerFeeSpec = { rate: partnerFee?.rate ?? 0, fixed: partnerFee?.fixed ?? 0 };
-
     // get min special fee
     const specialFee = Util.minObj(
       fees.filter((fee) => fee.type === FeeType.SPECIAL),
@@ -346,26 +339,33 @@ export class FeeService {
 
     if (specialFee)
       return {
-        fees: [specialFee, partnerFee].filter((e) => e != null),
+        fees: [specialFee],
         dfx: { rate: specialFee.rate, fixed: specialFee.fixed ?? 0 },
         bank: { rate: 0, fixed: 0 },
-        partner: partnerFeeSpec,
+        partner: { rate: 0, fixed: 0 },
         payoutRefBonus: specialFee.payoutRefBonus,
         network: Math.min(specialFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
       };
 
+    // get partner fee
+    const partnerFee = Util.minObj(
+      fees.filter((fee) => fee.type === FeeType.PARTNER),
+      'rate',
+    );
+    const partnerFeeSpec = { rate: partnerFee?.rate ?? 0, fixed: partnerFee?.fixed ?? 0 };
+
     // get min custom fee
     const customFee = Util.minObj(
-      fees.filter((fee) => fee.type === FeeType.CUSTOM),
+      fees.filter((fee) => [FeeType.CUSTOM, FeeType.CUSTOM_PARTNER].includes(fee.type)),
       'rate',
     );
 
     if (customFee)
       return {
-        fees: [customFee, partnerFee].filter((e) => e != null),
+        fees: [customFee],
         dfx: { rate: customFee.rate, fixed: customFee.fixed ?? 0 },
         bank: { rate: 0, fixed: 0 },
-        partner: partnerFeeSpec,
+        partner: customFee.type === FeeType.CUSTOM_PARTNER ? partnerFeeSpec : { rate: 0, fixed: 0 },
         network: Math.min(customFee.blockchainFactor * blockchainFee, Config.maxBlockchainFee),
         payoutRefBonus: customFee.payoutRefBonus,
       };
