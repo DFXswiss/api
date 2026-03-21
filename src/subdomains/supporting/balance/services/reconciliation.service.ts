@@ -219,8 +219,8 @@ export class ReconciliationService {
       (tx) => getBase(tx) !== dexName && getQuote(tx) === dexName && tx.side?.toLowerCase() === 'sell',
     );
 
-    // Fee outflows in this asset
-    const feeTxs = trades.filter((tx) => tx.feeCurrency === dexName && (tx.feeAmount ?? 0) > 0);
+    // Fee outflows in this asset (from trades, withdrawals, and deposits)
+    const feeTxs = exchangeTxs.filter((tx) => tx.feeCurrency === dexName && (tx.feeAmount ?? 0) > 0);
 
     const toItem = (tx: ExchangeTx, amountFn: (tx: ExchangeTx) => number): FlowItemDto => ({
       id: tx.id,
@@ -239,7 +239,7 @@ export class ReconciliationService {
       this.buildFlowGroup('Withdrawal', withdrawals, (tx) => toItem(tx, (t) => t.amount ?? 0)),
       this.buildFlowGroup('TradeSell', baseSells, (tx) => toItem(tx, (t) => t.amount ?? 0)),
       this.buildFlowGroup('TradeBuyQuoteOutflow', quoteBuys, (tx) => toItem(tx, (t) => t.cost ?? 0)),
-      this.buildFlowGroup('TradeFee', feeTxs, (tx) => toItem(tx, (t) => t.feeAmount ?? 0)),
+      this.buildFlowGroup('Fee', feeTxs, (tx) => toItem(tx, (t) => t.feeAmount ?? 0)),
     ];
 
     return [inflows, outflows];
@@ -329,6 +329,7 @@ export class ReconciliationService {
       .where('tx.type = :type', { type: ExchangeTxType.WITHDRAWAL })
       .andWhere('tx.currency = :currency', { currency: dexName })
       .andWhere('tx.txId IS NOT NULL')
+      .andWhere("tx.address NOT LIKE 'lnbc%'")
       .andWhere('tx.created BETWEEN :from AND :to', { from, to })
       .getMany();
   }
