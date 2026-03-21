@@ -110,7 +110,7 @@ export class ReconciliationService {
     try {
       const data: FinanceLog = JSON.parse(log.message);
       const assetLog = data.assets?.[assetId.toString()];
-      return assetLog?.plusBalance?.liquidity?.liquidityBalance?.total ?? assetLog?.plusBalance?.liquidity?.total ?? 0;
+      return assetLog?.plusBalance?.liquidity?.liquidityBalance?.total ?? 0;
     } catch {
       return 0;
     }
