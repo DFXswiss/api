@@ -371,7 +371,7 @@ export class LogJobService {
       (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
     );
     const chfReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
-      (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'CHF',
+      (k) => k.type === ExchangeTxType.DEPOSIT && k.status !== 'failed' && k.currency === 'CHF',
     );
 
     // sender and receiver data
@@ -401,12 +401,12 @@ export class LogJobService {
         b.instructedCurrency,
     );
     const eurReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
-      (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'EUR' && k.txId,
+      (k) => k.type === ExchangeTxType.DEPOSIT && k.status !== 'failed' && k.currency === 'EUR',
     );
 
     // CHF: Scrypt -> Yapeal
     const chfSenderScryptExchangeTx = recentScryptExchangeTx.filter(
-      (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status === 'ok' && k.currency === 'CHF',
+      (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status !== 'failed' && k.currency === 'CHF',
     );
     const chfReceiverScryptBankTx = recentScryptBankTx.filter(
       (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.CREDIT,
@@ -414,7 +414,7 @@ export class LogJobService {
 
     // EUR: Scrypt -> Bank
     const eurSenderScryptExchangeTx = recentScryptExchangeTx.filter(
-      (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status === 'ok' && k.currency === 'EUR',
+      (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status !== 'failed' && k.currency === 'EUR',
     );
     const eurReceiverScryptBankTx = recentScryptBankTx.filter(
       (b) => eurBankIbans.includes(b.accountIban) && b.creditDebitIndicator === BankTxIndicator.CREDIT,
@@ -1061,34 +1061,26 @@ export class LogJobService {
     senderTx: (BankTx | ExchangeTx)[],
     receiverTx: (BankTx | ExchangeTx)[],
   ): (BankTx | ExchangeTx)[] {
-    const before21Days = Util.daysBefore(21);
-    const recentSenders = senderTx.filter((s) => s.created > before21Days);
+    const before7Days = Util.daysBefore(7);
+    const recentSenders = senderTx.filter((s) => s.created > before7Days);
 
     if (!recentSenders.length || !receiverTx.length) return [...recentSenders];
 
-    const sortedSenders = [...recentSenders].sort((a, b) => a.id - b.id);
-    const sortedReceivers = [...receiverTx].sort((a, b) => a.id - b.id);
-    const matchedSenderIds = new Set<number>();
-
-    for (const receiver of sortedReceivers) {
-      const receiverAmount = receiver instanceof BankTx ? receiver.instructedAmount : receiver.amount;
-
-      const match = sortedSenders.find((s) => {
-        if (matchedSenderIds.has(s.id)) return false;
-
-        const senderAmount = s instanceof BankTx ? s.instructedAmount : s.amount;
-        const senderDate = s instanceof BankTx ? s.valueDate : s.created;
-        const daysDiff = Math.abs(Util.daysDiff(senderDate, receiver.created));
-
-        return s instanceof BankTx
-          ? senderAmount === receiverAmount && daysDiff <= 5 && receiver.created > s.created
-          : senderAmount === receiverAmount && receiver.created > s.created;
-      });
-
-      if (match) matchedSenderIds.add(match.id);
+    const receiverRefs = new Set<string>();
+    for (const r of receiverTx) {
+      const ref = this.getTxReference(r);
+      if (ref) receiverRefs.add(ref);
     }
 
-    return sortedSenders.filter((s) => !matchedSenderIds.has(s.id));
+    return recentSenders.filter((s) => {
+      const ref = this.getTxReference(s);
+      return !ref || !receiverRefs.has(ref);
+    });
+  }
+
+  private getTxReference(tx: BankTx | ExchangeTx): string | undefined {
+    if (tx instanceof BankTx) return tx.remittanceInfo?.trim() || undefined;
+    return tx.txId?.trim() || undefined;
   }
 
   public filterSenderPendingList(
