@@ -1079,8 +1079,11 @@ export class LogJobService {
   }
 
   private getTxReference(tx: BankTx | ExchangeTx): string | undefined {
-    if (tx instanceof BankTx) return tx.remittanceInfo?.trim() || undefined;
-    return tx.txId?.trim() || undefined;
+    const raw = tx instanceof BankTx ? tx.remittanceInfo?.trim() : tx.txId?.trim();
+    if (!raw) return undefined;
+
+    const match = raw.match(/\d+$/);
+    return match?.[0];
   }
 
   public filterSenderPendingList(
