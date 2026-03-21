@@ -7,12 +7,12 @@ module.exports = class DisableInactiveAssetsLogging1774122167180 {
       `UPDATE "dbo"."liquidity_management_rule" SET "status" = 'Disabled' WHERE "id" IN (292, 293, 297)`,
     );
 
-    // Delete liquidity balances for Kaleido/CHF and XT/BTC, XT/USDC, XT/SOL
-    await queryRunner.query(`DELETE FROM "dbo"."liquidity_balance" WHERE "id" IN (233, 288, 289, 293)`);
+    // Delete liquidity balances for Kaleido/CHF, MaerkiBaumann/USD, XT/BTC, XT/USDC, XT/SOL
+    await queryRunner.query(`DELETE FROM "dbo"."liquidity_balance" WHERE "id" IN (217, 233, 288, 289, 293)`);
 
-    // Disable Sumixx assets (cardBuyable + instantBuyable)
+    // Disable Sumixx and Talium assets (cardBuyable + instantBuyable + buyable)
     await queryRunner.query(
-      `UPDATE "dbo"."asset" SET "cardBuyable" = 0, "instantBuyable" = 0 WHERE "id" IN (304, 305, 306, 307)`,
+      `UPDATE "dbo"."asset" SET "buyable" = 0, "cardBuyable" = 0, "instantBuyable" = 0 WHERE "id" IN (238, 304, 305, 306, 307)`,
     );
   }
 
@@ -20,6 +20,11 @@ module.exports = class DisableInactiveAssetsLogging1774122167180 {
     // Re-enable Sumixx assets
     await queryRunner.query(
       `UPDATE "dbo"."asset" SET "cardBuyable" = 1, "instantBuyable" = 1 WHERE "id" IN (304, 305, 306, 307)`,
+    );
+
+    // Re-enable Talium/DMCS
+    await queryRunner.query(
+      `UPDATE "dbo"."asset" SET "buyable" = 1, "cardBuyable" = 1, "instantBuyable" = 1 WHERE "id" = 238`,
     );
 
     // Re-enable XT liquidity management rules (restore original status)
