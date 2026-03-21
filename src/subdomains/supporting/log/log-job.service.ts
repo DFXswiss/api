@@ -62,6 +62,9 @@ export class LogJobService {
 
   private readonly unavailableClientWarningsLogged = new Set<Blockchain>();
 
+  private paymentBalanceCache: Map<number, BlockchainTokenBalance> = new Map();
+  private paymentBalanceCacheTime: Date = new Date(0);
+
   constructor(
     private readonly tradingRuleService: TradingRuleService,
     private readonly assetService: AssetService,
@@ -241,7 +244,11 @@ export class LogJobService {
     );
 
     // payment deposit address balance (Monero/Lightning have no separated balance)
-    const paymentDepositBalances = await this.paymentBalanceService.getPaymentBalances(assets, true);
+    if (Util.minutesDiff(this.paymentBalanceCacheTime) >= 60) {
+      this.paymentBalanceCache = await this.paymentBalanceService.getPaymentBalances(assets, true);
+      this.paymentBalanceCacheTime = new Date();
+    }
+    const paymentDepositBalances = this.paymentBalanceCache;
 
     // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
