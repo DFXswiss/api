@@ -105,7 +105,7 @@ export class CryptoService {
         return this.cardanoService.getPaymentRequest(address, amount);
 
       case Blockchain.INTERNET_COMPUTER:
-        return this.internetComputerService.getPaymentRequest(address, amount);
+        return this.internetComputerService.getPaymentRequest(address, amount, asset);
 
       default:
         return undefined;
