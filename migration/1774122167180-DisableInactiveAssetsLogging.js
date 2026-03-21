@@ -7,8 +7,18 @@ module.exports = class DisableInactiveAssetsLogging1774122167180 {
       `UPDATE "dbo"."liquidity_management_rule" SET "status" = 'Disabled' WHERE "id" IN (292, 293, 297)`,
     );
 
+    // Disable Kraken liquidity management rules
+    await queryRunner.query(
+      `UPDATE "dbo"."liquidity_management_rule" SET "status" = 'Disabled' WHERE "id" IN (193, 194, 197, 199, 200, 202, 207, 209, 211, 213, 214, 215, 242, 248, 306)`,
+    );
+
     // Delete liquidity balances for Kaleido/CHF, MaerkiBaumann/USD, XT/BTC, XT/USDC, XT/SOL
     await queryRunner.query(`DELETE FROM "dbo"."liquidity_balance" WHERE "id" IN (217, 233, 288, 289, 293)`);
+
+    // Delete liquidity balances for Kraken
+    await queryRunner.query(
+      `DELETE FROM "dbo"."liquidity_balance" WHERE "id" IN (202, 203, 204, 205, 206, 207, 208, 209, 210, 211, 212, 213, 235, 241, 302)`,
+    );
 
     // Disable Sumixx and Talium assets (cardBuyable + instantBuyable + buyable)
     await queryRunner.query(
@@ -31,6 +41,14 @@ module.exports = class DisableInactiveAssetsLogging1774122167180 {
     await queryRunner.query(`UPDATE "dbo"."liquidity_management_rule" SET "status" = 'Active' WHERE "id" = 292`);
     await queryRunner.query(
       `UPDATE "dbo"."liquidity_management_rule" SET "status" = 'Inactive' WHERE "id" IN (293, 297)`,
+    );
+
+    // Re-enable Kraken liquidity management rules (restore original status)
+    await queryRunner.query(
+      `UPDATE "dbo"."liquidity_management_rule" SET "status" = 'Active' WHERE "id" IN (193, 211, 215, 248)`,
+    );
+    await queryRunner.query(
+      `UPDATE "dbo"."liquidity_management_rule" SET "status" = 'Inactive' WHERE "id" IN (194, 197, 199, 200, 202, 207, 209, 213, 214, 242, 306)`,
     );
   }
 };
