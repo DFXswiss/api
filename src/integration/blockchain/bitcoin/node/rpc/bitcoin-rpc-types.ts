@@ -124,6 +124,7 @@ export interface RawTransactionScriptPubKey {
   hex: string;
   type: string;
   address?: string;
+  addresses?: string[]; // Firo and older Bitcoin Core forks
 }
 
 export interface RawTransactionPrevout {

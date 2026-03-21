@@ -29,7 +29,7 @@ import {
   PaymentQuoteStatus,
   PaymentQuoteTxStates,
   PaymentStandard,
-  TxIdBlockchains,
+  UnverifiedTxIdBlockchains,
 } from '../enums';
 import { PaymentQuoteRepository } from '../repositories/payment-quote.repository';
 
@@ -392,8 +392,15 @@ export class PaymentQuoteService {
           break;
 
         case Blockchain.BITCOIN:
-        case Blockchain.FIRO:
           await this.doBitcoinBasedHexPayment(transferInfo.method, transferInfo, quote);
+          break;
+
+        case Blockchain.FIRO:
+          await this.doFiroPayment(transferInfo, quote);
+          break;
+
+        case Blockchain.SOLANA:
+          await this.doVerifiedTxIdPayment(Blockchain.SOLANA, transferInfo, quote);
           break;
 
         case Blockchain.INTERNET_COMPUTER:
@@ -401,7 +408,7 @@ export class PaymentQuoteService {
           break;
 
         default:
-          if (TxIdBlockchains.includes(transferInfo.method as Blockchain)) {
+          if (UnverifiedTxIdBlockchains.includes(transferInfo.method as Blockchain)) {
             await this.doTxIdPayment(transferInfo, quote);
           } else {
             throw new BadRequestException(`Invalid method ${transferInfo.method} for hex payment`);
@@ -507,6 +514,61 @@ export class PaymentQuoteService {
     return result.isValid ? undefined : result.error;
   }
 
+  private async doFiroPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
+    // handle HEX (transparent wallets like Electrum)
+    if (transferInfo.hex) {
+      return this.doBitcoinBasedHexPayment(Blockchain.FIRO, transferInfo, quote);
+    }
+
+    try {
+      // handle TX ID (Firo Spark wallets can't export signed hex)
+      if (transferInfo.tx) {
+        return await this.doFiroTxIdPayment(transferInfo.tx, quote);
+      }
+
+      throw new BadRequestException('Firo payment requires either hex or tx');
+    } catch (e) {
+      quote.txFailed(e.message);
+    }
+  }
+
+  private async doFiroTxIdPayment(txId: string, quote: PaymentQuote): Promise<void> {
+    const client = this.blockchainRegistryService.getClient(Blockchain.FIRO) as BitcoinBasedClient;
+    const paymentAddress = this.paymentBalanceService.getDepositAddress(Blockchain.FIRO);
+    const tryCount = Config.payment.defaultFiroTxIdPaymentTryCount;
+
+    const rawTx = await Util.retry(
+      async () => {
+        const tx = await client.getRawTx(txId);
+        if (!tx) throw new NotFoundException(`Transaction ${txId} not found on Firo node`);
+        return tx;
+      },
+      tryCount,
+      1000,
+    );
+
+    // Firo uses `addresses` (array), not `address` (string)
+    const outputToPayment = rawTx.vout.find((o) => o.scriptPubKey?.addresses?.includes(paymentAddress));
+
+    if (!outputToPayment) {
+      throw new BadRequestException(`Transaction does not pay to payment address ${paymentAddress}`);
+    }
+
+    const activation = (quote.activations ?? [])
+      .filter((a) => a.method === Blockchain.FIRO)
+      .find((a) => a.asset.type === AssetType.COIN);
+
+    if (activation && outputToPayment.value < activation.amount - 0.00000001) {
+      throw new BadRequestException(`Amount too small: got ${outputToPayment.value}, expected ${activation.amount}`);
+    }
+
+    if ((rawTx.confirmations ?? 0) > 0) {
+      quote.txInBlockchain(txId);
+    } else {
+      quote.txInMempool(txId);
+    }
+  }
+
   private async doBitcoinBasedHexPayment(
     method: Blockchain,
     transferInfo: TransferInfo,
@@ -570,9 +632,45 @@ export class PaymentQuoteService {
     }
   }
 
+  private async waitForTxConfirmation(method: Blockchain, txId: string): Promise<void> {
+    const client = this.blockchainRegistryService.getClient(method);
+
+    await Util.retry(
+      async () => {
+        const isComplete = await client.isTxComplete(txId);
+        if (!isComplete) throw new Error('not confirmed');
+      },
+      Config.payment.defaultTxConfirmationTryCount,
+      1000,
+    );
+  }
+
+  private async doVerifiedTxIdPayment(
+    method: Blockchain,
+    transferInfo: TransferInfo,
+    quote: PaymentQuote,
+  ): Promise<void> {
+    try {
+      if (!transferInfo.tx) {
+        quote.txFailed('Transaction Id not found');
+        return;
+      }
+
+      await this.waitForTxConfirmation(method, transferInfo.tx);
+
+      quote.txInBlockchain(transferInfo.tx);
+    } catch (e) {
+      quote.txFailed(
+        e.message === 'not confirmed'
+          ? `Transaction ${transferInfo.tx} not confirmed in blockchain ${method}`
+          : e.message,
+      );
+    }
+  }
+
   private async doIcpPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     if (!transferInfo.sender) {
-      return this.doTxIdPayment(transferInfo, quote);
+      return this.doVerifiedTxIdPayment(Blockchain.INTERNET_COMPUTER, transferInfo, quote);
     }
 
     try {

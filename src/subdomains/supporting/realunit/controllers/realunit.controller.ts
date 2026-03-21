@@ -16,11 +16,13 @@ import { Response } from 'express';
 import { Config, Environment } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
+  BrokerbotBuySharesDto,
   BrokerbotCurrency,
   BrokerbotCurrencyQueryDto,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
-  BrokerbotSharesDto,
+  BrokerbotSellPriceDto,
+  BrokerbotSellSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -293,7 +295,7 @@ export class RealUnitController {
     return this.realunitService.getBrokerbotBuyPrice(Number(shares), currency);
   }
 
-  @Get('brokerbot/shares')
+  @Get('brokerbot/buyShares')
   @ApiOperation({
     summary: 'Get shares for amount',
     description: 'Calculates how many REALU shares can be purchased for a given amount',
@@ -305,12 +307,61 @@ export class RealUnitController {
     required: false,
     description: 'Currency for prices (CHF or EUR)',
   })
-  @ApiOkResponse({ type: BrokerbotSharesDto })
-  async getBrokerbotShares(
-    @Query('amount') amount: string,
+  @ApiOkResponse({ type: BrokerbotBuySharesDto })
+  async getBrokerbotBuyShares(
+    @Query('amount') amount: number,
     @Query() { currency }: BrokerbotCurrencyQueryDto,
-  ): Promise<BrokerbotSharesDto> {
-    return this.realunitService.getBrokerbotShares(amount, currency);
+  ): Promise<BrokerbotBuySharesDto> {
+    return this.realunitService.getBrokerbotBuyShares(amount, currency);
+  }
+
+  @Get('brokerbot/sellPrice')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get sell price for shares including fees',
+    description:
+      'Calculates the estimated payout when selling a specific number of REALU shares, including user-specific fees',
+  })
+  @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to sell' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
+  @ApiOkResponse({ type: BrokerbotSellPriceDto })
+  async getBrokerbotSellPrice(
+    @GetJwt() jwt: JwtPayload,
+    @Query('shares') shares: number,
+    @Query() { currency }: BrokerbotCurrencyQueryDto,
+  ): Promise<BrokerbotSellPriceDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+    return this.realunitService.getBrokerbotSellPrice(user, Number(shares), currency);
+  }
+
+  @Get('brokerbot/sellShares')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get shares needed to receive target amount including fees',
+    description: 'Calculates how many REALU shares need to be sold to receive a target amount after user-specific fees',
+  })
+  @ApiQuery({ name: 'amount', type: Number, description: 'Target amount to receive after fees (e.g., 1000.50)' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
+  @ApiOkResponse({ type: BrokerbotSellSharesDto })
+  async getBrokerbotSellShares(
+    @GetJwt() jwt: JwtPayload,
+    @Query('amount') amount: number,
+    @Query() { currency }: BrokerbotCurrencyQueryDto,
+  ): Promise<BrokerbotSellSharesDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+    return this.realunitService.getBrokerbotSellShares(user, Number(amount), currency);
   }
 
   // --- Buy Payment Info Endpoint ---

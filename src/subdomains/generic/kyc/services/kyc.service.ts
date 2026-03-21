@@ -1446,6 +1446,14 @@ export class KycService {
       } else if (nationality) {
         const hasOpenSanctions = await this.nameCheckService.hasOpenNameChecks(userData);
 
+        if (hasOpenSanctions) {
+          this.logger.warn(
+            `Sanctions guard: blocked KYC Level 30 for userData ${userData.id} due to open sanctioned name checks`,
+          );
+        } else if (userData.kycLevel <= KycLevel.LEVEL_30) {
+          await this.createKycLevelLog(userData, KycLevel.LEVEL_30);
+        }
+
         await this.userDataService.updateUserDataInternal(userData, {
           ...(hasOpenSanctions ? {} : { kycLevel: KycLevel.LEVEL_30 }),
           birthday: data.birthday,
@@ -1460,14 +1468,6 @@ export class KycService {
           olkypayAllowed: userData.olkypayAllowed ?? true,
           nationality,
         });
-
-        if (hasOpenSanctions) {
-          this.logger.warn(
-            `Sanctions guard: blocked KYC Level 30 for userData ${userData.id} due to open sanctioned name checks`,
-          );
-        } else {
-          await this.createKycLevelLog(userData, KycLevel.LEVEL_30);
-        }
 
         if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
           await this.bankDataService.createBankDataInternal(kycStep.userData, {

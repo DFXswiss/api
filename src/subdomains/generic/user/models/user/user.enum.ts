@@ -17,6 +17,7 @@ export enum UserAddressType {
   SPARK = 'Spark',
   ARK = 'Ark',
   FIRO = 'Firo',
+  FIRO_SPARK = 'FiroSpark',
   MONERO = 'Monero',
   LIQUID = 'Liquid',
   ARWEAVE = 'Arweave',

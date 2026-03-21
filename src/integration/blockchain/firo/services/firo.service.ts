@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
@@ -22,5 +22,10 @@ export class FiroService extends BlockchainService {
 
   getPaymentRequest(address: string, amount: number): string {
     return `firo:${address}?amount=${Util.numberToFixedString(amount)}`;
+  }
+
+  async verifySparkSignature(message: string, address: string, signature: string): Promise<boolean> {
+    if (!this.client) throw new ServiceUnavailableException('Firo node not configured');
+    return this.client.verifySparkSignature(address, message, signature);
   }
 }

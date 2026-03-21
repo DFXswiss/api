@@ -10,7 +10,7 @@ export class PayoutFiroService extends PayoutBitcoinBasedService {
   private readonly client: FiroClient;
 
   constructor(
-    private readonly firoService: FiroService,
+    firoService: FiroService,
     private readonly feeService: FiroFeeService,
   ) {
     super();
@@ -29,6 +29,11 @@ export class PayoutFiroService extends PayoutBitcoinBasedService {
   async sendUtxoToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
     const feeRate = await this.getCurrentFeeRate();
     return this.client.sendMany(payout, feeRate);
+  }
+
+  async mintSpark(payout: PayoutGroup): Promise<string> {
+    const recipients = payout.map((p) => ({ address: p.addressTo, amount: p.amount }));
+    return this.client.mintSpark(recipients);
   }
 
   async getPayoutCompletionData(_context: PayoutOrderContext, payoutTxId: string): Promise<[boolean, number]> {

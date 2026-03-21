@@ -370,8 +370,14 @@ export class TransactionDtoMapper {
         entity.bankFeeAmount != null
           ? Util.roundReadable(entity.bankFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
-      bankFixed: null,
-      bankPercent: null,
+      bankFixed:
+        entity.bankFixedFeeAmount != null
+          ? Util.roundReadable(entity.bankFixedFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
+          : null,
+      bankVariable:
+        entity.bankPercentFeeAmount != null
+          ? Util.roundReadable(entity.bankPercentFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
+          : null,
       fixed:
         entity.absoluteFeeAmount != null
           ? Util.roundReadable(entity.absoluteFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
@@ -387,6 +393,10 @@ export class TransactionDtoMapper {
               (entity.totalFeeAmount - (blockchainFee + networkStartFee)) * referencePrice,
               feeAmountType(entity.inputAssetEntity),
             )
+          : null,
+      platform:
+        entity.partnerFeeAmount != null
+          ? Util.roundReadable(entity.partnerFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
       total:
         entity.totalFeeAmount != null
