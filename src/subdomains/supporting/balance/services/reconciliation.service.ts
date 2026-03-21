@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import {
   LiquidityManagementOrderStatus,
@@ -31,6 +32,8 @@ type AssetCategory = 'blockchain' | 'exchange' | 'bank';
 
 @Injectable()
 export class ReconciliationService {
+  private readonly logger = new DfxLogger(ReconciliationService);
+
   constructor(
     @InjectRepository(Log) private readonly logRepo: Repository<Log>,
     @InjectRepository(Asset) private readonly assetRepo: Repository<Asset>,
@@ -111,7 +114,8 @@ export class ReconciliationService {
       const data: FinanceLog = JSON.parse(log.message);
       const assetLog = data.assets?.[assetId.toString()];
       return assetLog?.plusBalance?.liquidity?.liquidityBalance?.total ?? 0;
-    } catch {
+    } catch (e) {
+      this.logger.warn(`Failed to parse financial log ${log.id}:`, e);
       return 0;
     }
   }
@@ -329,7 +333,7 @@ export class ReconciliationService {
       .where('tx.type = :type', { type: ExchangeTxType.WITHDRAWAL })
       .andWhere('tx.currency = :currency', { currency: dexName })
       .andWhere('tx.txId IS NOT NULL')
-      .andWhere("tx.address NOT LIKE 'lnbc%'")
+      .andWhere('tx.address NOT LIKE :lnPrefix', { lnPrefix: 'lnbc%' })
       .andWhere('tx.created BETWEEN :from AND :to', { from, to })
       .getMany();
   }

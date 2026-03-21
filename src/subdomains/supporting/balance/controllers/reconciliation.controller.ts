@@ -1,12 +1,13 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { ReconciliationDto, ReconciliationQuery } from '../dto/reconciliation.dto';
 import { ReconciliationService } from '../services/reconciliation.service';
 
+@ApiTags('Balance')
 @Controller('balance')
 export class ReconciliationController {
   constructor(private readonly reconciliationService: ReconciliationService) {}
