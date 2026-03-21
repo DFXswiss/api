@@ -307,7 +307,8 @@ export class AmlHelperService {
           errors.push(AmlError.IBAN_BLACKLISTED);
 
         if (
-          !entity.userData.phoneCallCheckDate &&
+          (!entity.userData.phoneCallSpecialExternalCheckDate ||
+            !entity.userData.phoneCallSpecialExternalCheckValuesObject?.includes(entity.bankTx.bic)) &&
           entity.userData.isPersonalAccount &&
           phoneCallList.some((b) =>
             b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BIC_BUY], entity.bankTx.bic),
@@ -315,7 +316,8 @@ export class AmlHelperService {
         )
           errors.push(AmlError.BIC_PHONE_VERIFICATION_NEEDED);
         if (
-          !entity.userData.phoneCallCheckDate &&
+          (!entity.userData.phoneCallSpecialExternalCheckDate ||
+            !entity.userData.phoneCallSpecialExternalCheckValuesObject?.includes(entity.bankTx.iban)) &&
           entity.userData.isPersonalAccount &&
           phoneCallList.some(
             (b) =>
