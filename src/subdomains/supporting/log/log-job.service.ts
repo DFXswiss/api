@@ -245,8 +245,11 @@ export class LogJobService {
 
     // payment deposit address balance (Monero/Lightning have no separated balance)
     if (Util.minutesDiff(this.paymentBalanceCacheTime) >= 60) {
-      this.paymentBalanceCache = await this.paymentBalanceService.getPaymentBalances(assets, true);
-      this.paymentBalanceCacheTime = new Date();
+      const freshBalances = await this.paymentBalanceService.getPaymentBalances(assets, true);
+      if (freshBalances.size > 0) {
+        this.paymentBalanceCache = freshBalances;
+        this.paymentBalanceCacheTime = new Date();
+      }
     }
     const paymentDepositBalances = this.paymentBalanceCache;
 
