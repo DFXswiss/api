@@ -202,16 +202,21 @@ export class ReconciliationService {
     const withdrawals = exchangeTxs.filter((tx) => tx.type === ExchangeTxType.WITHDRAWAL && tx.currency === dexName);
     const trades = exchangeTxs.filter((tx) => tx.type === ExchangeTxType.TRADE);
 
-    // Base-side trades (currency = tracked asset)
-    const baseBuys = trades.filter((tx) => tx.currency === dexName && tx.side?.toLowerCase() === 'buy');
-    const baseSells = trades.filter((tx) => tx.currency === dexName && tx.side?.toLowerCase() === 'sell');
+    // Parse base/quote from symbol or currency/pair fields
+    const getBase = (tx: ExchangeTx): string | undefined => tx.currency ?? this.parseSymbol(tx.symbol)?.[0];
+    const getQuote = (tx: ExchangeTx): string | undefined =>
+      this.getQuoteCurrency(tx) ?? this.parseSymbol(tx.symbol)?.[1];
+
+    // Base-side trades (base currency = tracked asset)
+    const baseBuys = trades.filter((tx) => getBase(tx) === dexName && tx.side?.toLowerCase() === 'buy');
+    const baseSells = trades.filter((tx) => getBase(tx) === dexName && tx.side?.toLowerCase() === 'sell');
 
     // Quote-side trades (quote currency = tracked asset)
     const quoteBuys = trades.filter(
-      (tx) => tx.currency !== dexName && this.getQuoteCurrency(tx) === dexName && tx.side?.toLowerCase() === 'buy',
+      (tx) => getBase(tx) !== dexName && getQuote(tx) === dexName && tx.side?.toLowerCase() === 'buy',
     );
     const quoteSells = trades.filter(
-      (tx) => tx.currency !== dexName && this.getQuoteCurrency(tx) === dexName && tx.side?.toLowerCase() === 'sell',
+      (tx) => getBase(tx) !== dexName && getQuote(tx) === dexName && tx.side?.toLowerCase() === 'sell',
     );
 
     // Fee outflows in this asset
@@ -248,8 +253,7 @@ export class ReconciliationService {
 
     const bankTxs = await this.bankTxRepo
       .createQueryBuilder('tx')
-      .innerJoin('tx.batch', 'batch')
-      .where('batch.iban = :iban', { iban: bankIban })
+      .where('tx.accountIban = :iban', { iban: bankIban })
       .andWhere('tx.created BETWEEN :from AND :to', { from, to })
       .getMany();
 
@@ -329,10 +333,18 @@ export class ReconciliationService {
       .getMany();
   }
 
+  private parseSymbol(symbol: string | undefined): [string, string] | undefined {
+    if (!symbol?.includes('/')) return undefined;
+    const [base, quote] = symbol.split('/');
+    return base && quote ? [base, quote] : undefined;
+  }
+
   private getQuoteCurrency(trade: ExchangeTx): string | undefined {
-    if (!trade.pair || !trade.currency) return undefined;
-    const pair = trade.pair.replace('/', '');
-    return pair.startsWith(trade.currency) ? pair.substring(trade.currency.length) : undefined;
+    if (trade.pair && trade.currency) {
+      const pair = trade.pair.replace('/', '');
+      return pair.startsWith(trade.currency) ? pair.substring(trade.currency.length) : undefined;
+    }
+    return this.parseSymbol(trade.symbol)?.[1];
   }
 
   private buildFlowGroup<T>(type: string, items: T[], mapper: (item: T) => FlowItemDto): FlowGroupDto {
