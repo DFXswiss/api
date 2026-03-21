@@ -62,6 +62,12 @@ export class LogJobService {
 
   private readonly unavailableClientWarningsLogged = new Set<Blockchain>();
 
+  private paymentBalanceCache: Map<number, BlockchainTokenBalance> = new Map();
+  private paymentBalanceCacheTime: Date = new Date(0);
+
+  private customBalanceCache: { blockchain: Blockchain; balances: BlockchainTokenBalance[] }[] = [];
+  private customBalanceCacheTime: Date = new Date(0);
+
   constructor(
     private readonly tradingRuleService: TradingRuleService,
     private readonly assetService: AssetService,
@@ -216,32 +222,40 @@ export class LogJobService {
       }),
     );
 
-    const customBalances = await Promise.all(
-      Array.from(customAssetMap.entries()).map(async ([b, a]) => {
-        try {
-          const client = this.blockchainRegistryService.getClient(b);
-          if (!client) {
-            if (!this.unavailableClientWarningsLogged.has(b)) {
-              this.logger.warn(`Blockchain client not configured for ${b} - skipping custom balances`);
-              this.unavailableClientWarningsLogged.add(b);
+    if (Util.minutesDiff(this.customBalanceCacheTime) >= 60) {
+      this.customBalanceCache = await Promise.all(
+        Array.from(customAssetMap.entries()).map(async ([b, a]) => {
+          try {
+            const client = this.blockchainRegistryService.getClient(b);
+            if (!client) {
+              if (!this.unavailableClientWarningsLogged.has(b)) {
+                this.logger.warn(`Blockchain client not configured for ${b} - skipping custom balances`);
+                this.unavailableClientWarningsLogged.add(b);
+              }
+              return { blockchain: b, balances: [] };
             }
+
+            const balances = await Util.timeout(
+              this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) => b.flat()),
+              30000,
+            );
+            return { blockchain: b, balances };
+          } catch (e) {
+            this.logger.error(`Error in FinanceLog customBalances for blockchain ${b}:`, e);
             return { blockchain: b, balances: [] };
           }
-
-          const balances = await Util.timeout(
-            this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) => b.flat()),
-            30000,
-          );
-          return { blockchain: b, balances };
-        } catch (e) {
-          this.logger.error(`Error in FinanceLog customBalances for blockchain ${b}:`, e);
-          return { blockchain: b, balances: [] };
-        }
-      }),
-    );
+        }),
+      );
+      this.customBalanceCacheTime = new Date();
+    }
+    const customBalances = this.customBalanceCache;
 
     // payment deposit address balance (Monero/Lightning have no separated balance)
-    const paymentDepositBalances = await this.paymentBalanceService.getPaymentBalances(assets, true);
+    if (Util.minutesDiff(this.paymentBalanceCacheTime) >= 60) {
+      this.paymentBalanceCache = await this.paymentBalanceService.getPaymentBalances(assets, true);
+      this.paymentBalanceCacheTime = new Date();
+    }
+    const paymentDepositBalances = this.paymentBalanceCache;
 
     // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
