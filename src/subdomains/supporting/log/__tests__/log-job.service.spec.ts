@@ -469,56 +469,36 @@ describe('LogJobService', () => {
   // --- getUnmatchedSenders (reference-based matching) ---
 
   it('should match sender and receiver by reference', () => {
-    const senderTx = [
-      createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: 'DEPOSIT-100' }),
-    ];
-    const receiverTx = [
-      createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-100' }),
-    ];
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: 'DEPOSIT-100' })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-100' })];
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
   });
 
   it('should return sender when references do not match', () => {
-    const senderTx = [
-      createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: 'DEPOSIT-100' }),
-    ];
-    const receiverTx = [
-      createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-200' }),
-    ];
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: 'DEPOSIT-100' })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-200' })];
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual(senderTx);
   });
 
   it('should return sender when sender has no reference', () => {
-    const senderTx = [
-      createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: undefined }),
-    ];
-    const receiverTx = [
-      createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-100' }),
-    ];
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: undefined })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-100' })];
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual(senderTx);
   });
 
   it('should return sender when receiver has no reference', () => {
-    const senderTx = [
-      createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: 'DEPOSIT-100' }),
-    ];
-    const receiverTx = [
-      createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: undefined }),
-    ];
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: 'DEPOSIT-100' })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: undefined })];
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual(senderTx);
   });
 
   it('should filter out senders older than 7 days', () => {
-    const senderTx = [
-      createCustomBankTx({ id: 1, created: Util.hoursBefore(200), remittanceInfo: 'DEPOSIT-100' }),
-    ];
-    const receiverTx = [
-      createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-200' }),
-    ];
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(200), remittanceInfo: 'DEPOSIT-100' })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-200' })];
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
   });
@@ -537,20 +517,14 @@ describe('LogJobService', () => {
       createCustomBankTx({ id: 1, created: Util.hoursBefore(48), remittanceInfo: 'DEPOSIT-100' }),
       createCustomBankTx({ id: 2, created: Util.hoursBefore(24), remittanceInfo: 'DEPOSIT-200' }),
     ];
-    const receiverTx = [
-      createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-100' }),
-    ];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-100' })];
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([senderTx[1]]);
   });
 
   it('should match ExchangeTx senders by txId against BankTx receivers by remittanceInfo', () => {
-    const senderTx = [
-      createCustomExchangeTx({ id: 1, created: Util.hoursBefore(24), txId: 'WITHDRAWAL-50' }),
-    ];
-    const receiverTx = [
-      createCustomBankTx({ id: 1, created: Util.hoursBefore(20), remittanceInfo: 'WITHDRAWAL-50' }),
-    ];
+    const senderTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(24), txId: 'WITHDRAWAL-50' })];
+    const receiverTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(20), remittanceInfo: 'WITHDRAWAL-50' })];
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
   });
