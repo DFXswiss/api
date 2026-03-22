@@ -27,6 +27,7 @@ export interface FlowItemDto {
 
 export interface FlowGroupDto {
   type: string;
+  counterAccount?: string;
   count: number;
   totalAmount: number;
   items: FlowItemDto[];

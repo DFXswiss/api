@@ -78,8 +78,8 @@ export class ReconciliationService {
       period: { from: query.from, to: query.to, actualFrom: startLog?.created, actualTo: endLog?.created },
       startBalance,
       endBalance,
-      inflows: inflows.filter((g) => g.count > 0),
-      outflows: outflows.filter((g) => g.count > 0),
+      inflows: inflows.filter((g) => g.count > 0 && g.totalAmount !== 0),
+      outflows: outflows.filter((g) => g.count > 0 && g.totalAmount !== 0),
       totalInflows,
       totalOutflows,
       expectedEndBalance,
@@ -151,40 +151,80 @@ export class ReconciliationService {
     const lmCorrelationIds = new Set(lmDeficitOrders.flatMap((o) => o.allCorrelationIds));
     const nonLmWithdrawals = exchangeWithdrawals.filter((tx) => !lmCorrelationIds.has(tx.externalId));
 
+    // Resolve blockchain txIds for LM orders via ExchangeTx
+    const allLmOrders = [...lmDeficitOrders, ...lmRedundancyOrders];
+    const allCorrelationIds = allLmOrders.map((o) => o.correlationId).filter(Boolean);
+    const lmTxMap = new Map<string, string>();
+    if (allCorrelationIds.length > 0) {
+      const txs = await this.exchangeTxRepo
+        .createQueryBuilder('tx')
+        .where('tx.externalId IN (:...ids)', { ids: allCorrelationIds })
+        .andWhere('tx.txId IS NOT NULL')
+        .getMany();
+      for (const tx of txs) lmTxMap.set(tx.externalId, tx.txId);
+    }
+
+    const dn = asset.dexName;
+
     const inflows: FlowGroupDto[] = [
-      this.buildFlowGroup('LmDeficit', lmDeficitOrders, (o) => ({
-        id: o.id,
-        date: o.updated,
-        amount: o.outputAmount ?? 0,
-        reference: o.correlationId,
-      })),
-      this.buildFlowGroup('ExchangeWithdrawal', nonLmWithdrawals, (tx) => ({
-        id: tx.id,
-        date: tx.externalCreated ?? tx.created,
-        amount: tx.amount ?? 0,
-        reference: tx.txId,
-      })),
-      this.buildFlowGroup('CryptoInput', cryptoInputs, (ci) => ({
-        id: ci.id,
-        date: ci.updated,
-        amount: ci.amount ?? 0,
-        reference: ci.inTxId,
-      })),
+      ...this.buildFlowGroups(
+        'LmDeficit',
+        lmDeficitOrders,
+        (o) => ({
+          id: o.id,
+          date: o.updated,
+          amount: o.outputAmount ?? 0,
+          reference: (o.correlationId && lmTxMap.get(o.correlationId)) ?? o.correlationId,
+        }),
+        (o) => `${o.action?.system ?? 'Unknown'}/${dn}`,
+      ),
+      ...this.buildFlowGroups(
+        'ExchangeWithdrawal',
+        nonLmWithdrawals,
+        (tx) => ({
+          id: tx.id,
+          date: tx.externalCreated ?? tx.created,
+          amount: tx.amount ?? 0,
+          reference: tx.txId,
+        }),
+        (tx) => `${tx.exchange ?? 'Unknown'}/${dn}`,
+      ),
+      this.buildFlowGroup(
+        'CryptoInput',
+        cryptoInputs,
+        (ci) => ({
+          id: ci.id,
+          date: ci.updated,
+          amount: ci.amount ?? 0,
+          reference: ci.inTxId,
+        }),
+        'Kunden',
+      ),
     ];
 
     const outflows: FlowGroupDto[] = [
-      this.buildFlowGroup('PayoutOrder', payoutOrders, (po) => ({
-        id: po.id,
-        date: po.updated,
-        amount: (po.amount ?? 0) + (po.payoutFeeAmount ?? 0),
-        reference: po.payoutTxId,
-      })),
-      this.buildFlowGroup('LmRedundancy', lmRedundancyOrders, (o) => ({
-        id: o.id,
-        date: o.updated,
-        amount: o.inputAmount ?? 0,
-        reference: o.correlationId,
-      })),
+      this.buildFlowGroup(
+        'PayoutOrder',
+        payoutOrders,
+        (po) => ({
+          id: po.id,
+          date: po.updated,
+          amount: (po.amount ?? 0) + (po.payoutFeeAmount ?? 0),
+          reference: po.payoutTxId,
+        }),
+        'Kunden',
+      ),
+      ...this.buildFlowGroups(
+        'LmRedundancy',
+        lmRedundancyOrders,
+        (o) => ({
+          id: o.id,
+          date: o.updated,
+          amount: o.inputAmount ?? 0,
+          reference: (o.correlationId && lmTxMap.get(o.correlationId)) ?? o.correlationId,
+        }),
+        (o) => `${o.action?.system ?? 'Unknown'}/${dn}`,
+      ),
     ];
 
     return [inflows, outflows];
@@ -234,15 +274,45 @@ export class ReconciliationService {
     });
 
     const inflows: FlowGroupDto[] = [
-      this.buildFlowGroup('Deposit', deposits, (tx) => toItem(tx, (t) => t.amount ?? 0)),
-      this.buildFlowGroup('TradeBuy', baseBuys, (tx) => toItem(tx, (t) => t.amount ?? 0)),
-      this.buildFlowGroup('TradeSellQuoteInflow', quoteSells, (tx) => toItem(tx, (t) => t.cost ?? 0)),
+      this.buildFlowGroup(
+        'Deposit',
+        deposits,
+        (tx) => toItem(tx, (t) => t.amount ?? 0),
+        `${asset.blockchain}/${dexName}`,
+      ),
+      ...this.buildFlowGroups(
+        'TradeBuy',
+        baseBuys,
+        (tx) => toItem(tx, (t) => t.amount ?? 0),
+        (tx) => getQuote(tx) ?? 'Unknown',
+      ),
+      ...this.buildFlowGroups(
+        'TradeSellQuoteInflow',
+        quoteSells,
+        (tx) => toItem(tx, (t) => t.cost ?? 0),
+        (tx) => getBase(tx) ?? 'Unknown',
+      ),
     ];
 
     const outflows: FlowGroupDto[] = [
-      this.buildFlowGroup('Withdrawal', withdrawals, (tx) => toItem(tx, (t) => t.amount ?? 0)),
-      this.buildFlowGroup('TradeSell', baseSells, (tx) => toItem(tx, (t) => t.amount ?? 0)),
-      this.buildFlowGroup('TradeBuyQuoteOutflow', quoteBuys, (tx) => toItem(tx, (t) => t.cost ?? 0)),
+      this.buildFlowGroup(
+        'Withdrawal',
+        withdrawals,
+        (tx) => toItem(tx, (t) => t.amount ?? 0),
+        `${asset.blockchain}/${dexName}`,
+      ),
+      ...this.buildFlowGroups(
+        'TradeSell',
+        baseSells,
+        (tx) => toItem(tx, (t) => t.amount ?? 0),
+        (tx) => getQuote(tx) ?? 'Unknown',
+      ),
+      ...this.buildFlowGroups(
+        'TradeBuyQuoteOutflow',
+        quoteBuys,
+        (tx) => toItem(tx, (t) => t.cost ?? 0),
+        (tx) => getBase(tx) ?? 'Unknown',
+      ),
       this.buildFlowGroup('Fee', feeTxs, (tx) => toItem(tx, (t) => t.feeAmount ?? 0)),
     ];
 
@@ -265,21 +335,31 @@ export class ReconciliationService {
     const debits = bankTxs.filter((tx) => tx.creditDebitIndicator === BankTxIndicator.DEBIT);
 
     const inflows: FlowGroupDto[] = [
-      this.buildFlowGroup('BankCredit', credits, (tx) => ({
-        id: tx.id,
-        date: tx.bookingDate ?? tx.created,
-        amount: tx.amount ?? 0,
-        reference: tx.accountServiceRef,
-      })),
+      ...this.buildFlowGroups(
+        'BankCredit',
+        credits,
+        (tx) => ({
+          id: tx.id,
+          date: tx.bookingDate ?? tx.created,
+          amount: tx.amount ?? 0,
+          reference: tx.accountServiceRef,
+        }),
+        (tx) => tx.type ?? 'Sonstige',
+      ),
     ];
 
     const outflows: FlowGroupDto[] = [
-      this.buildFlowGroup('BankDebit', debits, (tx) => ({
-        id: tx.id,
-        date: tx.bookingDate ?? tx.created,
-        amount: tx.amount ?? 0,
-        reference: tx.accountServiceRef,
-      })),
+      ...this.buildFlowGroups(
+        'BankDebit',
+        debits,
+        (tx) => ({
+          id: tx.id,
+          date: tx.bookingDate ?? tx.created,
+          amount: tx.amount ?? 0,
+          reference: tx.accountServiceRef,
+        }),
+        (tx) => tx.type ?? 'Sonstige',
+      ),
     ];
 
     return [inflows, outflows];
@@ -298,6 +378,7 @@ export class ReconciliationService {
       .innerJoin('lmOrder.pipeline', 'pipeline')
       .innerJoin('pipeline.rule', 'rule')
       .innerJoin('rule.targetAsset', 'targetAsset')
+      .leftJoinAndSelect('lmOrder.action', 'action')
       .where('targetAsset.id = :assetId', { assetId })
       .andWhere('pipeline.type = :type', { type: pipelineType })
       .andWhere('lmOrder.status = :status', { status: LiquidityManagementOrderStatus.COMPLETE })
@@ -352,10 +433,16 @@ export class ReconciliationService {
     return this.parseSymbol(trade.symbol)?.[1];
   }
 
-  private buildFlowGroup<T>(type: string, items: T[], mapper: (item: T) => FlowItemDto): FlowGroupDto {
+  private buildFlowGroup<T>(
+    type: string,
+    items: T[],
+    mapper: (item: T) => FlowItemDto,
+    counterAccount?: string,
+  ): FlowGroupDto {
     const flowItems = items.map(mapper);
     return {
       type,
+      counterAccount,
       count: flowItems.length,
       totalAmount: Util.round(
         flowItems.reduce((sum, item) => sum + item.amount, 0),
@@ -363,5 +450,20 @@ export class ReconciliationService {
       ),
       items: flowItems,
     };
+  }
+
+  private buildFlowGroups<T>(
+    type: string,
+    items: T[],
+    mapper: (item: T) => FlowItemDto,
+    counterAccountFn: (item: T) => string,
+  ): FlowGroupDto[] {
+    const grouped = new Map<string, T[]>();
+    for (const item of items) {
+      const ca = counterAccountFn(item);
+      if (!grouped.has(ca)) grouped.set(ca, []);
+      grouped.get(ca)!.push(item);
+    }
+    return Array.from(grouped.entries()).map(([ca, groupItems]) => this.buildFlowGroup(type, groupItems, mapper, ca));
   }
 }
