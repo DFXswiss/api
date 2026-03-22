@@ -73,6 +73,20 @@ export class ReconciliationService {
     );
     const expectedEndBalance = Util.round(startBalance + totalInflows - totalOutflows, 8);
 
+    // Resolve counter-account names to asset IDs
+    const allGroups = [...inflows, ...outflows];
+    const counterNames = [...new Set(allGroups.map((g) => g.counterAccount).filter(Boolean))] as string[];
+    if (counterNames.length > 0) {
+      const counterAssets = await this.assetRepo
+        .createQueryBuilder('a')
+        .where('a.uniqueName IN (:...names)', { names: counterNames })
+        .getMany();
+      const nameToId = new Map(counterAssets.map((a) => [a.uniqueName, a.id]));
+      for (const g of allGroups) {
+        if (g.counterAccount) g.counterAssetId = nameToId.get(g.counterAccount);
+      }
+    }
+
     return {
       asset: { id: asset.id, uniqueName: asset.uniqueName, blockchain: asset.blockchain, type: asset.type },
       period: { from: query.from, to: query.to, actualFrom: startLog?.created, actualTo: endLog?.created },
