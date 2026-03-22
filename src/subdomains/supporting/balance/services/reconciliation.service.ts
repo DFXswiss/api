@@ -16,7 +16,15 @@ import { Log, LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayoutOrder, PayoutOrderStatus } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
-import { FlowGroupDto, FlowItemDto, ReconciliationDto, ReconciliationQuery } from '../dto/reconciliation.dto';
+import {
+  FlowGroupDto,
+  FlowItemDto,
+  OverviewQuery,
+  PositionDto,
+  ReconciliationDto,
+  ReconciliationOverviewDto,
+  ReconciliationQuery,
+} from '../dto/reconciliation.dto';
 
 const EXCHANGE_BLOCKCHAINS: Blockchain[] = [Blockchain.KRAKEN, Blockchain.BINANCE, Blockchain.XT, Blockchain.MEXC];
 
@@ -101,7 +109,109 @@ export class ReconciliationService {
     };
   }
 
+  async getOverview(query: OverviewQuery): Promise<ReconciliationOverviewDto> {
+    const [startLog, endLog] = await Promise.all([
+      this.getFinancialLogAt(query.from, 'before'),
+      this.getFinancialLogAt(query.to, 'before'),
+    ]);
+
+    // Extract all asset balances from both logs
+    const startBalances = this.extractAllBalances(startLog);
+    const endBalances = this.extractAllBalances(endLog);
+
+    // Collect all asset IDs with non-zero balance
+    const allAssetIds = [...new Set([...startBalances.keys(), ...endBalances.keys()])];
+    if (allAssetIds.length === 0)
+      return {
+        period: { from: query.from, to: query.to, actualFrom: startLog?.created, actualTo: endLog?.created },
+        positions: [],
+      };
+
+    // Load asset metadata
+    const assets = await this.assetRepo
+      .createQueryBuilder('a')
+      .where('a.id IN (:...ids)', { ids: allAssetIds })
+      .getMany();
+    const assetMap = new Map(assets.map((a) => [a.id, a]));
+
+    // Build positions with full reconciliation for each asset
+    const flowFrom = startLog?.created ?? query.from;
+    const flowTo = endLog?.created ?? query.to;
+
+    const positions: PositionDto[] = [];
+    for (const id of allAssetIds) {
+      const asset = assetMap.get(id);
+      if (!asset) continue;
+
+      const start = startBalances.get(id) ?? 0;
+      const end = endBalances.get(id) ?? 0;
+      if (start === 0 && end === 0) continue;
+
+      const category = this.categorizeAsset(asset);
+
+      let totalIn = 0;
+      let totalOut = 0;
+      try {
+        const [inflows, outflows] = await this.getFlows(asset, category, flowFrom, flowTo);
+        totalIn = Util.round(
+          inflows.reduce((s, g) => s + g.totalAmount, 0),
+          8,
+        );
+        totalOut = Util.round(
+          outflows.reduce((s, g) => s + g.totalAmount, 0),
+          8,
+        );
+      } catch (e) {
+        this.logger.warn(`Failed to get flows for ${asset.uniqueName}:`, e);
+      }
+
+      const expected = Util.round(start + totalIn - totalOut, 8);
+
+      positions.push({
+        asset: { id: asset.id, uniqueName: asset.uniqueName, blockchain: asset.blockchain, type: asset.type },
+        category,
+        startBalance: start,
+        endBalance: end,
+        totalInflows: totalIn,
+        totalOutflows: totalOut,
+        expectedEndBalance: expected,
+        difference: Util.round(end - expected, 8),
+      });
+    }
+
+    // Sort by category, then by uniqueName
+    const categoryOrder = { blockchain: 0, exchange: 1, bank: 2 };
+    positions.sort(
+      (a, b) =>
+        categoryOrder[a.category] - categoryOrder[b.category] || a.asset.uniqueName.localeCompare(b.asset.uniqueName),
+    );
+
+    return {
+      period: { from: query.from, to: query.to, actualFrom: startLog?.created, actualTo: endLog?.created },
+      positions,
+    };
+  }
+
   // --- PRIVATE HELPERS --- //
+
+  private extractAllBalances(log: Log | undefined): Map<number, number> {
+    const balances = new Map<number, number>();
+    if (!log) return balances;
+
+    try {
+      const data: FinanceLog = JSON.parse(log.message);
+      if (!data.assets) return balances;
+
+      for (const [idStr, assetLog] of Object.entries(data.assets)) {
+        const total = assetLog?.plusBalance?.liquidity?.liquidityBalance?.total;
+        if (total != null && total !== 0) balances.set(Number(idStr), total);
+      }
+    } catch (e) {
+      this.logger.warn(`Failed to parse financial log ${log.id}:`, e);
+    }
+
+    return balances;
+  }
 
   private categorizeAsset(asset: Asset): AssetCategory {
     if (EXCHANGE_BLOCKCHAINS.includes(asset.blockchain)) return 'exchange';
