@@ -313,13 +313,13 @@ export class ReconciliationService {
         'TradeBuy',
         baseBuys,
         (tx) => toItem(tx, (t) => t.amount ?? 0),
-        (tx) => getQuote(tx) ?? 'Unknown',
+        (tx) => `${exchange}/${getQuote(tx) ?? 'Unknown'}`,
       ),
       ...this.buildFlowGroups(
         'TradeSellQuoteInflow',
         quoteSells,
         (tx) => toItem(tx, (t) => t.cost ?? 0),
-        (tx) => getBase(tx) ?? 'Unknown',
+        (tx) => `${exchange}/${getBase(tx) ?? 'Unknown'}`,
       ),
     ];
 
@@ -329,13 +329,13 @@ export class ReconciliationService {
         'TradeSell',
         baseSells,
         (tx) => toItem(tx, (t) => t.amount ?? 0),
-        (tx) => getQuote(tx) ?? 'Unknown',
+        (tx) => `${exchange}/${getQuote(tx) ?? 'Unknown'}`,
       ),
       ...this.buildFlowGroups(
         'TradeBuyQuoteOutflow',
         quoteBuys,
         (tx) => toItem(tx, (t) => t.cost ?? 0),
-        (tx) => getBase(tx) ?? 'Unknown',
+        (tx) => `${exchange}/${getBase(tx) ?? 'Unknown'}`,
       ),
       this.buildFlowGroup('Fee', feeTxs, (tx) => toItem(tx, (t) => t.feeAmount ?? 0)),
     ];
