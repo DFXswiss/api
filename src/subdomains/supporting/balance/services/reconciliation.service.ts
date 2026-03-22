@@ -260,6 +260,16 @@ export class ReconciliationService {
     const exchange = asset.blockchain;
     const dexName = asset.dexName;
 
+    // Find the blockchain asset for deposits/withdrawals counter-account
+    const blockchainAsset = await this.assetRepo
+      .createQueryBuilder('a')
+      .where('a.dexName = :dexName', { dexName })
+      .andWhere('a.blockchain NOT IN (:...excluded)', {
+        excluded: [...EXCHANGE_BLOCKCHAINS, ...BANK_BLOCKCHAINS],
+      })
+      .getOne();
+    const blockchainCounter = blockchainAsset?.uniqueName ?? `Blockchain/${dexName}`;
+
     const exchangeTxs = await this.exchangeTxRepo
       .createQueryBuilder('tx')
       .where('tx.exchange = :exchange', { exchange })
@@ -298,12 +308,7 @@ export class ReconciliationService {
     });
 
     const inflows: FlowGroupDto[] = [
-      this.buildFlowGroup(
-        'Deposit',
-        deposits,
-        (tx) => toItem(tx, (t) => t.amount ?? 0),
-        `${asset.blockchain}/${dexName}`,
-      ),
+      this.buildFlowGroup('Deposit', deposits, (tx) => toItem(tx, (t) => t.amount ?? 0), blockchainCounter),
       ...this.buildFlowGroups(
         'TradeBuy',
         baseBuys,
@@ -319,12 +324,7 @@ export class ReconciliationService {
     ];
 
     const outflows: FlowGroupDto[] = [
-      this.buildFlowGroup(
-        'Withdrawal',
-        withdrawals,
-        (tx) => toItem(tx, (t) => t.amount ?? 0),
-        `${asset.blockchain}/${dexName}`,
-      ),
+      this.buildFlowGroup('Withdrawal', withdrawals, (tx) => toItem(tx, (t) => t.amount ?? 0), blockchainCounter),
       ...this.buildFlowGroups(
         'TradeSell',
         baseSells,
