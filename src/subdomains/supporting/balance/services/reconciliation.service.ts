@@ -260,13 +260,15 @@ export class ReconciliationService {
     const exchange = asset.blockchain;
     const dexName = asset.dexName;
 
-    // Find the blockchain asset for deposits/withdrawals counter-account
+    // Find the primary blockchain asset for deposits/withdrawals counter-account
     const blockchainAsset = await this.assetRepo
       .createQueryBuilder('a')
       .where('a.dexName = :dexName', { dexName })
+      .andWhere('a.uniqueName LIKE :pattern', { pattern: `%/${dexName}` })
       .andWhere('a.blockchain NOT IN (:...excluded)', {
         excluded: [...EXCHANGE_BLOCKCHAINS, ...BANK_BLOCKCHAINS],
       })
+      .orderBy('a.id', 'ASC')
       .getOne();
     const blockchainCounter = blockchainAsset?.uniqueName ?? `Blockchain/${dexName}`;
 
