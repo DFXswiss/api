@@ -165,6 +165,16 @@ export class ReconciliationService {
     }
 
     const dn = asset.dexName;
+    const lmCounterAccount = (o: LiquidityManagementOrder): string => {
+      const system = o.action?.system ?? 'Unknown';
+      if (system === 'DfxDex') {
+        try {
+          const dest = JSON.parse(o.action?.params ?? '{}').destinationSystem;
+          if (dest) return `${dest}/${dn}`;
+        } catch {}
+      }
+      return `${system}/${dn}`;
+    };
 
     const inflows: FlowGroupDto[] = [
       ...this.buildFlowGroups(
@@ -176,7 +186,7 @@ export class ReconciliationService {
           amount: o.outputAmount ?? 0,
           reference: (o.correlationId && lmTxMap.get(o.correlationId)) ?? o.correlationId,
         }),
-        (o) => `${o.action?.system ?? 'Unknown'}/${dn}`,
+        lmCounterAccount,
       ),
       ...this.buildFlowGroups(
         'ExchangeWithdrawal',
@@ -223,7 +233,7 @@ export class ReconciliationService {
           amount: o.inputAmount ?? 0,
           reference: (o.correlationId && lmTxMap.get(o.correlationId)) ?? o.correlationId,
         }),
-        (o) => `${o.action?.system ?? 'Unknown'}/${dn}`,
+        lmCounterAccount,
       ),
     ];
 
