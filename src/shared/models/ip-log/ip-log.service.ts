@@ -53,6 +53,14 @@ export class IpLogService {
     return this.ipLogRepo.save(ipLog);
   }
 
+  async getByUserDataId(userDataId: number, limit = 50): Promise<IpLog[]> {
+    return this.ipLogRepo.find({
+      where: { userData: { id: userDataId } },
+      order: { created: 'DESC' },
+      take: limit,
+    });
+  }
+
   async getLoginCountries(userDataId: number, dateFrom: Date, dateTo = new Date()): Promise<string[]> {
     const nearestLog = await this.idCache.get(Util.isoDate(dateFrom), () =>
       this.ipLogRepo.findOne({ where: { created: LessThanOrEqual(dateFrom) }, order: { id: 'DESC' } }),

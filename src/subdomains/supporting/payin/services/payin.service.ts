@@ -129,6 +129,14 @@ export class PayInService {
     return payIns;
   }
 
+  async getCryptoInputsByTransactionIds(transactionIds: number[]): Promise<CryptoInput[]> {
+    if (!transactionIds.length) return [];
+    return this.payInRepository.find({
+      where: { transaction: { id: In(transactionIds) } },
+      relations: { transaction: true },
+    });
+  }
+
   async getCryptoInputByKeys(keys: string[], value: any): Promise<CryptoInput> {
     const query = this.payInRepository
       .createQueryBuilder('cryptoInput')

@@ -206,8 +206,9 @@ export class LogJobService {
   }
 
   private async getAssetLog(assets: Asset[]): Promise<AssetLog> {
-    // custom balance
-    const customAssets = assets.filter((a) => Config.financialLog.customAssets?.includes(a.uniqueName));
+    // custom balance settings
+    const customBalanceSettings = await this.settingService.getCustomBalanceSettings();
+    const customAssets = assets.filter((a) => customBalanceSettings.assets.includes(a.uniqueName));
     const customAssetMap = Util.groupBy<Asset, Blockchain>(customAssets, 'blockchain');
 
     const liqAddresses = new Map(
@@ -236,7 +237,7 @@ export class LogJobService {
             }
 
             const balances = await Util.timeout(
-              this.getCustomBalances(client, a, Config.financialLog.customAddresses).then((b) => b.flat()),
+              this.getCustomBalances(client, a, customBalanceSettings.addresses).then((b) => b.flat()),
               30000,
             );
             return { blockchain: b, balances };
