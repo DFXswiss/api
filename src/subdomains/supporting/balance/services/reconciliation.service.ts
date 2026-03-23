@@ -28,6 +28,20 @@ import {
 
 const EXCHANGE_BLOCKCHAINS: Blockchain[] = [Blockchain.KRAKEN, Blockchain.BINANCE, Blockchain.XT, Blockchain.MEXC];
 
+const BLOCKCHAIN_WALLET_ENV: Partial<Record<Blockchain, string>> = {
+  [Blockchain.BITCOIN]: 'BTC_OUT_WALLET_ADDRESS',
+  [Blockchain.ETHEREUM]: 'ETH_WALLET_ADDRESS',
+  [Blockchain.ARBITRUM]: 'ARBITRUM_WALLET_ADDRESS',
+  [Blockchain.OPTIMISM]: 'OPTIMISM_WALLET_ADDRESS',
+  [Blockchain.BASE]: 'BASE_WALLET_ADDRESS',
+  [Blockchain.POLYGON]: 'POLYGON_WALLET_ADDRESS',
+  [Blockchain.BINANCE_SMART_CHAIN]: 'BINANCE_SMART_CHAIN_WALLET_ADDRESS',
+  [Blockchain.GNOSIS]: 'GNOSIS_WALLET_ADDRESS',
+  [Blockchain.MONERO]: 'MONERO_WALLET_ADDRESS',
+  [Blockchain.FIRO]: 'FIRO_WALLET_ADDRESS',
+  [Blockchain.SOLANA]: 'SOL_WALLET_ADDRESS',
+};
+
 const BANK_BLOCKCHAINS: Blockchain[] = [
   Blockchain.MAERKI_BAUMANN,
   Blockchain.OLKYPAY,
@@ -268,7 +282,7 @@ export class ReconciliationService {
       this.getLmOrders(asset.id, LiquidityOptimizationType.REDUNDANCY, from, to),
       this.getPayoutOrders(asset.id, from, to),
       this.getCryptoInputs(asset.id, from, to),
-      this.getExchangeWithdrawalsForBlockchain(asset.dexName, from, to),
+      this.getExchangeWithdrawalsForBlockchain(asset.blockchain, asset.dexName, from, to),
     ]);
 
     // Exclude exchange withdrawals that overlap with LM deficit orders
@@ -544,15 +558,27 @@ export class ReconciliationService {
       .getMany();
   }
 
-  private async getExchangeWithdrawalsForBlockchain(dexName: string, from: Date, to: Date): Promise<ExchangeTx[]> {
-    return this.exchangeTxRepo
+  private async getExchangeWithdrawalsForBlockchain(
+    blockchain: Blockchain,
+    dexName: string,
+    from: Date,
+    to: Date,
+  ): Promise<ExchangeTx[]> {
+    const hotWallet = BLOCKCHAIN_WALLET_ENV[blockchain] ? process.env[BLOCKCHAIN_WALLET_ENV[blockchain]!] : undefined;
+
+    const qb = this.exchangeTxRepo
       .createQueryBuilder('tx')
       .where('tx.type = :type', { type: ExchangeTxType.WITHDRAWAL })
       .andWhere('tx.currency = :currency', { currency: dexName })
       .andWhere('tx.txId IS NOT NULL')
       .andWhere('tx.address NOT LIKE :lnPrefix', { lnPrefix: 'lnbc%' })
-      .andWhere('tx.created BETWEEN :from AND :to', { from, to })
-      .getMany();
+      .andWhere('tx.created BETWEEN :from AND :to', { from, to });
+
+    if (hotWallet) {
+      qb.andWhere('tx.address = :address', { address: hotWallet });
+    }
+
+    return qb.getMany();
   }
 
   private parseSymbol(symbol: string | undefined): [string, string] | undefined {
