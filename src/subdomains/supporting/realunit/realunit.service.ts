@@ -446,12 +446,13 @@ export class RealUnitService {
         ? this.generatePaymentRequest(
             currencyName,
             buyPaymentInfo.amount,
-            buyPaymentInfo.remittanceInfo,
+            buy.bankUsage,
             realunitBank,
             realunitAddress,
             user.userData,
           )
         : undefined,
+      remittanceInfo: buy.active ? buy.bankUsage : undefined,
       isValid: buyPaymentInfo.isValid,
       error: buyPaymentInfo.error,
     };
