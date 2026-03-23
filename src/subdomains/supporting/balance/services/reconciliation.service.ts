@@ -309,7 +309,9 @@ export class ReconciliationService {
         try {
           const dest = JSON.parse(o.action?.params ?? '{}').destinationSystem;
           if (dest) return `${dest}/${dn}`;
-        } catch {}
+        } catch (_) {
+          /* ignore parse errors */
+        }
       }
       return `${system}/${dn}`;
     };
