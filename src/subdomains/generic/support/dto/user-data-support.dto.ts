@@ -34,6 +34,7 @@ export class BankTxSupportInfo {
 export class UserSupportInfo {
   id: number;
   address: string;
+  ref?: string;
   role: string;
   status: string;
   created: Date;
@@ -44,7 +45,10 @@ export class TransactionSupportInfo {
   uid: string;
   type?: string;
   sourceType: string;
+  inputAmount?: number;
+  inputAsset?: string;
   amountInChf?: number;
+  amountInEur?: number;
   amlCheck?: string;
   chargebackDate?: Date;
   amlReason?: string;

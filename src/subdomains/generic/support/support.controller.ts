@@ -72,6 +72,15 @@ export class SupportController {
     return this.supportService.getRecommendationGraph(+id);
   }
 
+  @Get(':id/ip-log-pdf')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getIpLogPdf(@Param('id') id: string): Promise<{ pdfData: string }> {
+    const pdfData = await this.supportService.generateIpLogPdf(+id);
+    return { pdfData };
+  }
+
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
