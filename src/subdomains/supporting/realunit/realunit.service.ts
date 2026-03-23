@@ -452,7 +452,7 @@ export class RealUnitService {
             user.userData,
           )
         : undefined,
-      remittanceInfo: buyPaymentInfo.remittanceInfo,
+      remittanceInfo: buy.active ? buy.bankUsage : undefined,
       isValid: buyPaymentInfo.isValid,
       error: buyPaymentInfo.error,
     };
