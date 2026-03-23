@@ -24,6 +24,12 @@ import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
+import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
+import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
+import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { KycLog } from '../kyc/entities/kyc-log.entity';
@@ -45,6 +51,9 @@ import {
   BankDataSupportInfo,
   BankTxSupportInfo,
   BuySupportInfo,
+  CryptoInputSupportInfo,
+  IpLogSupportInfo,
+  SupportIssueSupportInfo,
   ComplianceSearchType,
   KycFileListEntry,
   KycFileYearlyStats,
@@ -96,6 +105,8 @@ export class SupportService {
     private readonly transactionHelper: TransactionHelper,
     private readonly settingService: SettingService,
     private readonly recommendationService: RecommendationService,
+    private readonly ipLogService: IpLogService,
+    private readonly supportIssueService: SupportIssueService,
   ) {}
 
   async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
@@ -103,16 +114,37 @@ export class SupportService {
     if (!userData) throw new NotFoundException(`User not found`);
 
     // Load all related data in parallel
-    const [kycFiles, kycSteps, kycLogs, transactions, users, bankDatas, buyRoutes, sellRoutes] = await Promise.all([
-      this.kycFileService.getUserDataKycFiles(id),
-      this.kycService.getStepsByUserData(id),
-      this.kycLogService.getLogsByUserDataId(id),
-      this.transactionService.getTransactionsByUserDataId(id),
-      this.userService.getAllUserDataUsers(id),
-      this.bankDataService.getBankDatasByUserData(id),
-      this.buyService.getUserDataBuys(id),
-      this.sellService.getSellsByUserDataId(id),
+    const [kycFiles, kycSteps, kycLogs, transactions, users, bankDatas, buyRoutes, sellRoutes, ipLogs, supportIssues] =
+      await Promise.all([
+        this.kycFileService.getUserDataKycFiles(id),
+        this.kycService.getStepsByUserData(id),
+        this.kycLogService.getLogsByUserDataId(id),
+        this.transactionService.getTransactionsByUserDataId(id),
+        this.userService.getAllUserDataUsers(id),
+        this.bankDataService.getBankDatasByUserData(id),
+        this.buyService.getUserDataBuys(id),
+        this.sellService.getSellsByUserDataId(id),
+        this.ipLogService.getByUserDataId(id),
+        this.supportIssueService.getIssueEntities(id),
+      ]);
+
+    // Load bank transactions for the loaded transactions (incoming + outgoing)
+    const transactionIds = transactions.map((t) => t.id);
+    const [incomingBankTxs, buyFiats, cryptoInputs] = await Promise.all([
+      this.bankTxService.getBankTxsByTransactionIds(transactionIds),
+      this.buyFiatService.getBuyFiatsByTransactionIds(transactionIds),
+      this.payInService.getCryptoInputsByTransactionIds(transactionIds),
     ]);
+
+    // Merge incoming BankTx (direct) and outgoing BankTx (via BuyFiat -> FiatOutput -> BankTx)
+    const outgoingBankTxs = buyFiats
+      .filter((bf) => bf.fiatOutput?.bankTx)
+      .map((bf) => {
+        const bankTx = bf.fiatOutput.bankTx;
+        bankTx.transaction = bf.transaction;
+        return bankTx;
+      });
+    const bankTxs = [...incomingBankTxs, ...outgoingBankTxs];
 
     // Load recommendation data for Recommendation steps
     const recommendationStepIds = kycSteps.filter((s) => s.name === KycStepName.RECOMMENDATION).map((s) => s.id);
@@ -144,6 +176,10 @@ export class SupportService {
       ),
       kycLogs: kycLogs.map((l) => this.toKycLogSupportInfo(l)),
       transactions: transactions.map((t) => this.toTransactionSupportInfo(t)),
+      bankTxs: bankTxs.map((b) => this.toBankTxDto(b)),
+      cryptoInputs: cryptoInputs.map((c) => this.toCryptoInputSupportInfo(c)),
+      ipLogs: ipLogs.map((l) => this.toIpLogSupportInfo(l)),
+      supportIssues: supportIssues.map((s) => this.toSupportIssueSupportInfo(s)),
       users: users.map((u) => this.toUserSupportInfo(u)),
       bankDatas: bankDatas.map((b) => this.toBankDataSupportInfo(b)),
       buyRoutes: buyRoutes.map((b) => this.toBuySupportInfo(b)),
@@ -294,6 +330,12 @@ export class SupportService {
       sourceType: tx.sourceType,
       amountInChf: tx.amountInChf,
       amlCheck: tx.amlCheck,
+      chargebackDate:
+        tx.buyCrypto?.chargebackDate ??
+        tx.buyFiat?.chargebackDate ??
+        tx.bankTxReturn?.chargebackDate ??
+        tx.bankTxRepeat?.chargebackDate,
+      amlReason: tx.buyCrypto?.amlReason ?? tx.buyFiat?.amlReason,
       created: tx.created,
     };
   }
@@ -313,18 +355,26 @@ export class SupportService {
       id: bankData.id,
       iban: bankData.iban,
       name: bankData.name,
+      type: bankData.type,
+      status: bankData.status,
       approved: bankData.approved,
+      manualApproved: bankData.manualApproved,
+      active: bankData.active,
+      comment: bankData.comment,
+      created: bankData.created,
     };
   }
 
   private toBuySupportInfo(buy: Buy): BuySupportInfo {
     return {
       id: buy.id,
+      iban: buy.iban,
       bankUsage: buy.bankUsage,
       assetName: buy.asset?.name,
       blockchain: buy.asset?.blockchain,
       volume: buy.volume,
       active: buy.active,
+      created: buy.created,
     };
   }
 
@@ -334,6 +384,8 @@ export class SupportService {
       iban: sell.iban,
       fiatName: sell.fiat?.name,
       volume: sell.annualVolume,
+      active: sell.active,
+      created: sell.created,
     };
   }
 
@@ -545,6 +597,72 @@ export class SupportService {
       type: bankTx.type,
       name: bankTx.completeName(),
       iban: bankTx.iban,
+      remittanceInfo: bankTx.remittanceInfo,
+    };
+  }
+
+  private toCryptoInputSupportInfo(ci: CryptoInput): CryptoInputSupportInfo {
+    const blockchain = ci.asset?.blockchain ?? ci.address?.blockchain;
+    return {
+      id: ci.id,
+      transactionId: ci.transaction?.id,
+      inTxId: ci.inTxId,
+      inTxExplorerUrl: blockchain ? txExplorerUrl(blockchain, ci.inTxId) : undefined,
+      status: ci.status,
+      amount: ci.amount,
+      assetName: ci.asset?.name,
+      blockchain,
+      senderAddresses: ci.senderAddresses,
+      returnTxId: ci.returnTxId,
+      returnTxExplorerUrl: blockchain && ci.returnTxId ? txExplorerUrl(blockchain, ci.returnTxId) : undefined,
+      purpose: ci.purpose,
+    };
+  }
+
+  private toIpLogSupportInfo(ipLog: IpLog): IpLogSupportInfo {
+    return {
+      id: ipLog.id,
+      ip: ipLog.ip,
+      country: ipLog.country,
+      url: ipLog.url,
+      result: ipLog.result,
+      created: ipLog.created,
+    };
+  }
+
+  private toSupportIssueSupportInfo(issue: SupportIssue): SupportIssueSupportInfo {
+    return {
+      id: issue.id,
+      uid: issue.uid,
+      type: issue.type,
+      state: issue.state,
+      reason: issue.reason,
+      name: issue.name,
+      clerk: issue.clerk,
+      department: issue.department,
+      information: issue.information,
+      messages: (issue.messages ?? [])
+        .sort((a, b) => b.created.getTime() - a.created.getTime())
+        .map((m) => ({ author: m.author, message: m.message, created: m.created })),
+      transaction: issue.transaction
+        ? {
+            id: issue.transaction.id,
+            uid: issue.transaction.uid,
+            type: issue.transaction.type,
+            sourceType: issue.transaction.sourceType,
+            amountInChf: issue.transaction.amountInChf,
+            amlCheck: issue.transaction.amlCheck,
+          }
+        : undefined,
+      limitRequest: issue.limitRequest
+        ? {
+            limit: issue.limitRequest.limit,
+            acceptedLimit: issue.limitRequest.acceptedLimit,
+            decision: issue.limitRequest.decision,
+            fundOrigin: issue.limitRequest.fundOrigin,
+          }
+        : undefined,
+      created: issue.created,
     };
   }
 
