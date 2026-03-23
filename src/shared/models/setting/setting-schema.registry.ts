@@ -25,6 +25,10 @@ export const SettingSchemaRegistry: Record<string, SettingSchema> = {
 
   // IP Blacklist
   ipBlacklist: 'string[]',
+
+  // Custom Balance Settings
+  customBalanceAddresses: 'string[]',
+  customBalanceAssets: 'string[]', // asset unique name
 };
 
 export function isArraySchema(schema: SettingSchema): schema is ArraySchema {
