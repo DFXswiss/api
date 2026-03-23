@@ -446,7 +446,7 @@ export class RealUnitService {
         ? this.generatePaymentRequest(
             currencyName,
             buyPaymentInfo.amount,
-            buyPaymentInfo.remittanceInfo,
+            buy.bankUsage,
             realunitBank,
             realunitAddress,
             user.userData,
