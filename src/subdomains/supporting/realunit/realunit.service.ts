@@ -452,6 +452,7 @@ export class RealUnitService {
             user.userData,
           )
         : undefined,
+      remittanceInfo: buyPaymentInfo.remittanceInfo,
       isValid: buyPaymentInfo.isValid,
       error: buyPaymentInfo.error,
     };
