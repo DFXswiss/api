@@ -344,7 +344,7 @@ export class RealUnitPaymentInfoDto {
   @ApiPropertyOptional({ description: 'QR code for payment (Swiss QR-bill or GiroCode)' })
   paymentRequest?: string;
 
-  @ApiPropertyOptional({ description: 'Purpose of payment (Verwendungszweck) for bank transfer' })
+  @ApiPropertyOptional({ description: 'Purpose of payment for bank transfer' })
   remittanceInfo?: string;
 
   @ApiProperty()
