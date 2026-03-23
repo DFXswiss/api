@@ -68,7 +68,6 @@ export const DebugBlockedCols: Record<string, string[]> = {
     'ultimateCountry',
     'bankAddressLine1',
     'bankAddressLine2',
-    'remittanceInfo',
     'txInfo',
     'txRaw',
     'virtualIban',
