@@ -210,6 +210,14 @@ export class SupportIssueService {
     return this.createMessageInternal(issue, dto);
   }
 
+  async getIssueEntities(userDataId: number): Promise<SupportIssue[]> {
+    return this.supportIssueRepo.find({
+      where: { userData: { id: userDataId } },
+      relations: { transaction: true, limitRequest: true, messages: true },
+      order: { created: 'DESC' },
+    });
+  }
+
   async getIssues(userDataId: number): Promise<SupportIssueDto[]> {
     const issues = await this.supportIssueRepo.find({
       where: { userData: { id: userDataId } },
