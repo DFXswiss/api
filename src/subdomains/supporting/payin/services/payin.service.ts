@@ -167,7 +167,7 @@ export class PayInService {
         { status: PayInStatus.CREATED, txType: IsNull() },
         {
           status: PayInStatus.CREATED,
-          txType: Not(In([PayInType.PERMIT_TRANSFER, PayInType.SIGNED_TRANSFER, PayInType.SPONSORED_TRANSFER])),
+          txType: Not(In([PayInType.PERMIT_TRANSFER, PayInType.SIGNED_TRANSFER, PayInType.CONFIRMED_DEPOSIT])),
         },
       ],
       relations: { transaction: true, paymentLinkPayment: { link: { route: true } } },

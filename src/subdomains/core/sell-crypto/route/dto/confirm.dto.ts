@@ -57,7 +57,7 @@ export class ConfirmDto {
   @IsString()
   signedTxHex?: string;
 
-  @ApiPropertyOptional({ description: 'Transaction hash from wallet_sendCalls (EIP-5792 gasless transfer)' })
+  @ApiPropertyOptional({ description: 'Transaction hash of a user-sent transaction (plain transfer or EIP-5792)' })
   @IsOptional()
   @IsString()
   txHash?: string;

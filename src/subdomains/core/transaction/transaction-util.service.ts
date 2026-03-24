@@ -215,8 +215,8 @@ export class TransactionUtilService {
   }
 
   /**
-   * Handle transaction hash from EIP-5792 wallet_sendCalls (gasless/sponsored transfer)
-   * The frontend sends the transaction via wallet_sendCalls and provides the txHash
+   * Handle transaction hash provided by the client
+   * The client sends the transaction themselves and provides the txHash for tracking
    */
   async handleTxHashInput(route: Swap | Sell, request: TransactionRequest, txHash: string): Promise<CryptoInput> {
     const asset = await this.assetService.getAssetById(request.sourceId);
@@ -225,14 +225,14 @@ export class TransactionUtilService {
     const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
     const blockHeight = await client.getCurrentBlock();
 
-    // The transaction was already sent by the frontend via wallet_sendCalls
+    // The transaction was already sent by the client
     // We just need to create a PayIn record to track it
     return this.payInService.createPayIn(
       request.user.address,
       route.deposit.address,
       asset,
       txHash,
-      PayInType.SPONSORED_TRANSFER,
+      PayInType.CONFIRMED_DEPOSIT,
       blockHeight,
       request.amount,
     );
