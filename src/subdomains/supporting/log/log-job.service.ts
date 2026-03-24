@@ -14,6 +14,7 @@ import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process, ProcessService } from 'src/shared/services/process.service';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -62,11 +63,12 @@ export class LogJobService {
 
   private readonly unavailableClientWarningsLogged = new Set<Blockchain>();
 
-  private paymentBalanceCache: Map<number, BlockchainTokenBalance> = new Map();
-  private paymentBalanceCacheTime: Date = new Date(0);
-
-  private customBalanceCache: { blockchain: Blockchain; balances: BlockchainTokenBalance[] }[] = [];
-  private customBalanceCacheTime: Date = new Date(0);
+  private readonly paymentBalanceCache = new AsyncCache<Map<number, BlockchainTokenBalance>>(
+    CacheItemResetPeriod.EVERY_HOUR,
+  );
+  private readonly customBalanceCache = new AsyncCache<
+    { blockchain: Blockchain; balances: BlockchainTokenBalance[] }[]
+  >(CacheItemResetPeriod.EVERY_HOUR);
 
   constructor(
     private readonly tradingRuleService: TradingRuleService,
@@ -223,40 +225,43 @@ export class LogJobService {
       }),
     );
 
-    if (Util.minutesDiff(this.customBalanceCacheTime) >= 60) {
-      this.customBalanceCache = await Promise.all(
-        Array.from(customAssetMap.entries()).map(async ([b, a]) => {
-          try {
-            const client = this.blockchainRegistryService.getClient(b);
-            if (!client) {
-              if (!this.unavailableClientWarningsLogged.has(b)) {
-                this.logger.warn(`Blockchain client not configured for ${b} - skipping custom balances`);
-                this.unavailableClientWarningsLogged.add(b);
+    const customBalances = await this.customBalanceCache.get(
+      'all',
+      () =>
+        Promise.all(
+          Array.from(customAssetMap.entries()).map(async ([b, a]) => {
+            try {
+              const client = this.blockchainRegistryService.getClient(b);
+              if (!client) {
+                if (!this.unavailableClientWarningsLogged.has(b)) {
+                  this.logger.warn(`Blockchain client not configured for ${b} - skipping custom balances`);
+                  this.unavailableClientWarningsLogged.add(b);
+                }
+                return { blockchain: b, balances: [] };
               }
+
+              const balances = await Util.timeout(
+                this.getCustomBalances(client, a, customBalanceSettings.addresses).then((b) => b.flat()),
+                30000,
+              );
+              return { blockchain: b, balances };
+            } catch (e) {
+              this.logger.error(`Error in FinanceLog customBalances for blockchain ${b}:`, e);
               return { blockchain: b, balances: [] };
             }
-
-            const balances = await Util.timeout(
-              this.getCustomBalances(client, a, customBalanceSettings.addresses).then((b) => b.flat()),
-              30000,
-            );
-            return { blockchain: b, balances };
-          } catch (e) {
-            this.logger.error(`Error in FinanceLog customBalances for blockchain ${b}:`, e);
-            return { blockchain: b, balances: [] };
-          }
-        }),
-      );
-      this.customBalanceCacheTime = new Date();
-    }
-    const customBalances = this.customBalanceCache;
+          }),
+        ),
+      undefined,
+      true,
+    );
 
     // payment deposit address balance (Monero/Lightning have no separated balance)
-    if (Util.minutesDiff(this.paymentBalanceCacheTime) >= 60) {
-      this.paymentBalanceCache = await this.paymentBalanceService.getPaymentBalances(assets, true);
-      this.paymentBalanceCacheTime = new Date();
-    }
-    const paymentDepositBalances = this.paymentBalanceCache;
+    const paymentDepositBalances = await this.paymentBalanceCache.get(
+      'all',
+      () => this.paymentBalanceService.getPaymentBalances(assets, true),
+      undefined,
+      true,
+    );
 
     // banks
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
