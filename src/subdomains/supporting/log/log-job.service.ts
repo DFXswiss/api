@@ -386,7 +386,7 @@ export class LogJobService {
       (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
     );
     const chfReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
-      (k) => k.type === ExchangeTxType.DEPOSIT && k.status !== 'failed' && k.currency === 'CHF',
+      (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'CHF',
     );
 
     // sender and receiver data
@@ -416,7 +416,7 @@ export class LogJobService {
         b.instructedCurrency,
     );
     const eurReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
-      (k) => k.type === ExchangeTxType.DEPOSIT && k.status !== 'failed' && k.currency === 'EUR',
+      (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'EUR',
     );
 
     // CHF: Scrypt -> Yapeal
