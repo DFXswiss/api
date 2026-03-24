@@ -29,7 +29,7 @@ import { isFiatDto } from 'src/shared/models/active';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -573,7 +573,10 @@ export class TransactionController {
       return this.bankTxReturnService.refundBankTx(targetEntity, {
         refundIban: dto.refundTarget ?? refundData.refundTarget,
         creditorData: dto.creditorData,
-        chargebackReferenceAmount: refundData.refundPrice.invert().convert(refundData.refundAmount),
+        chargebackReferenceAmount: Util.roundReadable(
+          refundData.refundPrice.invert().convert(refundData.refundAmount),
+          AmountType.FIAT,
+        ),
         ...refundDto,
       });
     }
@@ -601,7 +604,10 @@ export class TransactionController {
     return this.buyCryptoService.refundBankTx(targetEntity, {
       refundIban: refundData.refundTarget ?? dto.refundTarget,
       creditorData: dto.creditorData,
-      chargebackReferenceAmount: refundData.refundPrice.invert().convert(refundData.refundAmount),
+      chargebackReferenceAmount: Util.roundReadable(
+        refundData.refundPrice.invert().convert(refundData.refundAmount),
+        AmountType.FIAT,
+      ),
       ...refundDto,
     });
   }
