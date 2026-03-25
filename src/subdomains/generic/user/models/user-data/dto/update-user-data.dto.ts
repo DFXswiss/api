@@ -332,9 +332,9 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsDate()
   @Type(() => Date)
-  phoneCallSpecialExternalCheckDate?: Date;
+  phoneCallExternalAccountCheckDate?: Date;
 
   @IsOptional()
   @IsString()
-  phoneCallSpecialExternalCheckValue?: string;
+  phoneCallExternalAccountCheckValue?: string;
 }

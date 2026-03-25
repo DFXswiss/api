@@ -42,7 +42,7 @@ export enum AmlReason {
   INTERMEDIARY_WITHOUT_SENDER = 'IntermediaryWithoutSender',
   NAME_TOO_SHORT = 'NameTooShort',
   ASSET_INPUT_NOT_ALLOWED = 'AssetInputNotAllowed',
-  MANUAL_CHECK_SPECIAL_EXTERNAL_PHONE = 'ManualCheckSpecialExternalPhone',
+  MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE = 'ManualCheckExternalAccountPhone',
 }
 
 export const KycAmlReasons = [

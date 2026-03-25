@@ -249,10 +249,10 @@ export class UserData extends IEntity {
   phoneCallIpCountryCheckDate?: Date;
 
   @Column({ type: 'datetime2', nullable: true })
-  phoneCallSpecialExternalCheckDate?: Date;
+  phoneCallExternalAccountCheckDate?: Date;
 
   @Column({ length: 256, nullable: true })
-  phoneCallSpecialExternalCheckValues?: string; // already checked semicolon separated iban's, bic's and blz's
+  phoneCallExternalAccountCheckValues?: string; // already checked semicolon separated iban's, bic's and blz's
 
   @Column({ length: 256, nullable: true })
   phoneCallTimes: string; // PhoneCallPreferredTimes array
@@ -532,16 +532,16 @@ export class UserData extends IEntity {
     return this.phoneCallTimes ? (this.phoneCallTimes?.split(';') as PhoneCallPreferredTime[]) : [];
   }
 
-  get phoneCallSpecialExternalCheckValuesObject(): string[] {
-    return this.phoneCallSpecialExternalCheckValues?.split(';');
+  get phoneCallExternalAccountCheckValuesObject(): string[] {
+    return this.phoneCallExternalAccountCheckValues?.split(';');
   }
 
-  addPhoneCallSpecialExternalCheckValue(specialAccountValue: string): void {
-    const existing = this.phoneCallSpecialExternalCheckValuesObject;
+  addPhoneCallExternalAccountCheckValue(specialAccountValue: string): void {
+    const existing = this.phoneCallExternalAccountCheckValuesObject;
     if (existing?.includes(specialAccountValue)) return;
 
-    this.phoneCallSpecialExternalCheckValues = existing
-      ? `${this.phoneCallSpecialExternalCheckValues};${specialAccountValue}`
+    this.phoneCallExternalAccountCheckValues = existing
+      ? `${this.phoneCallExternalAccountCheckValues};${specialAccountValue}`
       : specialAccountValue;
   }
 

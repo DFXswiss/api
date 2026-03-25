@@ -300,8 +300,8 @@ export class UserDataService {
 
     dto = await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
-    if (dto.phoneCallSpecialExternalCheckValue)
-      userData.addPhoneCallSpecialExternalCheckValue(dto.phoneCallSpecialExternalCheckValue);
+    if (dto.phoneCallExternalAccountCheckValue)
+      userData.addPhoneCallExternalAccountCheckValue(dto.phoneCallExternalAccountCheckValue);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
