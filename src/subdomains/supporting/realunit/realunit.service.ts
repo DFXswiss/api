@@ -413,6 +413,7 @@ export class RealUnitService {
 
     // 5. Override recipient info with RealUnit company address
     const { bank: realunitBank, address: realunitAddress } = GetConfig().blockchain.realunit;
+    const iban = currencyName === 'EUR' ? realunitBank.ibanEur : realunitBank.iban;
     const response: RealUnitPaymentInfoDto = {
       id: buyPaymentInfo.id,
       routeId: buyPaymentInfo.routeId,
@@ -425,7 +426,7 @@ export class RealUnitService {
       city: realunitAddress.city,
       country: realunitAddress.country,
       // Bank info from RealUnit config (not Yapeal/DFX)
-      iban: realunitBank.iban,
+      iban,
       bic: realunitBank.bic,
       // Amount and currency
       amount: buyPaymentInfo.amount,
@@ -447,7 +448,7 @@ export class RealUnitService {
             currencyName,
             buyPaymentInfo.amount,
             buy.bankUsage,
-            realunitBank,
+            { ...realunitBank, iban },
             realunitAddress,
             user.userData,
           )

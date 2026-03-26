@@ -1034,6 +1034,7 @@ export class Configuration {
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
         iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',
+        ibanEur: process.env.REALUNIT_BANK_IBAN_EUR ?? 'CH97 0830 7000 5609 4631 7',
         bic: process.env.REALUNIT_BANK_BIC ?? 'HYPLCH22XXX',
         name: process.env.REALUNIT_BANK_NAME ?? 'Hypothekarbank Lenzburg',
       },
