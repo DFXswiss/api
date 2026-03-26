@@ -784,6 +784,17 @@ export class BuyCryptoService {
     });
   }
 
+  async getPendingLiquidityDemand(assetId: number): Promise<number> {
+    const pending = await this.buyCryptoRepo.find({
+      where: {
+        status: In([BuyCryptoStatus.MISSING_LIQUIDITY, BuyCryptoStatus.PENDING_LIQUIDITY]),
+        outputAsset: { id: assetId },
+      },
+    });
+
+    return pending.reduce((sum, tx) => sum + (tx.outputReferenceAmount ?? 0), 0);
+  }
+
   // --- HELPER METHODS --- //
 
   private async createEntity(

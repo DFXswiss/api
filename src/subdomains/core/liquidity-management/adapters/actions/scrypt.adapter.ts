@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScryptOrderInfo, ScryptOrderSide, ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
@@ -7,6 +7,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
@@ -40,6 +41,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     private readonly assetService: AssetService,
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly balanceRepo: LiquidityBalanceRepository,
+    @Inject(forwardRef(() => BuyCryptoService)) private readonly buyCryptoService: BuyCryptoService,
   ) {
     super(LiquidityManagementSystem.SCRYPT);
 
@@ -191,21 +193,26 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   private async sellIfDeficit(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const { tradeAsset, checkAssetId, maxPriceDeviation } = this.parseSellIfDeficitParams(order.action.paramMap);
 
-    // Check if the referenced asset has a deficit
+    // Check if the referenced asset has a deficit or pending liquidity demand
     const checkRule = await this.ruleRepo.findOneBy({ targetAsset: { id: checkAssetId } });
     if (!checkRule) {
       throw new OrderNotProcessableException(`No rule found for asset ${checkAssetId}`);
     }
 
     const checkBalance = await this.balanceRepo.findOneBy({ asset: { id: checkAssetId } });
-    if (!checkBalance || checkBalance.amount >= (checkRule.minimal ?? 0)) {
+    const pendingDemand = await this.buyCryptoService.getPendingLiquidityDemand(checkAssetId);
+
+    const effectiveBalance = (checkBalance?.amount ?? 0) - pendingDemand;
+    const hasDeficit = effectiveBalance < (checkRule.minimal ?? 0);
+
+    if (!hasDeficit) {
       throw new OrderNotProcessableException(
-        `No deficit for asset ${checkAssetId} (balance: ${checkBalance?.amount}, minimal: ${checkRule.minimal})`,
+        `No deficit for asset ${checkAssetId} (balance: ${checkBalance?.amount}, pending: ${pendingDemand}, effective: ${effectiveBalance}, minimal: ${checkRule.minimal})`,
       );
     }
 
-    // Calculate how much of the trade asset is needed to reach optimal
-    const deficitAmount = (checkRule.optimal ?? 0) - (checkBalance.amount ?? 0);
+    // Calculate how much of the trade asset is needed to reach optimal (accounting for pending demand)
+    const deficitAmount = (checkRule.optimal ?? 0) - effectiveBalance;
     if (deficitAmount <= 0) {
       throw new OrderNotProcessableException(`No deficit to optimal for asset ${checkAssetId}`);
     }
