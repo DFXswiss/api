@@ -6,6 +6,7 @@ export enum KycError {
   BLOCKED = 'Blocked',
   RELEASED = 'Released',
   EXPIRED_STEP = 'ExpiredStep',
+  USER_CANCELED = 'UserCanceled',
 
   // Ident errors
   USER_DATA_MERGED = 'UserDataMerged',
@@ -99,6 +100,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.MANUAL_REVIEW_REQUIRED]: undefined,
   [KycError.RISK_ACCEPTED]: undefined,
   [KycError.NO_GWG_RISK]: undefined,
+  [KycError.USER_CANCELED]: 'You have canceled this kyc step',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {
