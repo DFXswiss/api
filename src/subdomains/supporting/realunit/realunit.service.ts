@@ -425,7 +425,7 @@ export class RealUnitService {
       city: realunitAddress.city,
       country: realunitAddress.country,
       // Bank info from RealUnit config (not Yapeal/DFX)
-      iban: realunitBank.iban,
+      iban: currencyName === 'EUR' ? realunitBank.ibanEur : realunitBank.iban,
       bic: realunitBank.bic,
       // Amount and currency
       amount: buyPaymentInfo.amount,
@@ -447,7 +447,7 @@ export class RealUnitService {
             currencyName,
             buyPaymentInfo.amount,
             buy.bankUsage,
-            realunitBank,
+            { ...realunitBank, iban: currencyName === 'EUR' ? realunitBank.ibanEur : realunitBank.iban },
             realunitAddress,
             user.userData,
           )
