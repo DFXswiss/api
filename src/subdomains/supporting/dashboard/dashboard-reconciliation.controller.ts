@@ -4,18 +4,18 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DashboardReconciliationService } from './dashboard-reconciliation.service';
 import {
   OverviewQuery,
   ReconciliationDto,
   ReconciliationOverviewDto,
   ReconciliationQuery,
-} from '../dto/reconciliation.dto';
-import { ReconciliationService } from '../services/reconciliation.service';
+} from './dto/reconciliation.dto';
 
-@ApiTags('Balance')
-@Controller('balance')
-export class ReconciliationController {
-  constructor(private readonly reconciliationService: ReconciliationService) {}
+@ApiTags('dashboard')
+@Controller('dashboard/financial')
+export class DashboardReconciliationController {
+  constructor(private readonly reconciliationService: DashboardReconciliationService) {}
 
   @Get('reconciliation')
   @ApiBearerAuth()

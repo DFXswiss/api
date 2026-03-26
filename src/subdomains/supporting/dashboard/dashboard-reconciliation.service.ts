@@ -2,20 +2,22 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import {
   LiquidityManagementOrderStatus,
   LiquidityOptimizationType,
 } from 'src/subdomains/core/liquidity-management/enums';
-import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { BankTx, BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { FinanceLog } from 'src/subdomains/supporting/log/dto/log.dto';
-import { Log, LogSeverity } from 'src/subdomains/supporting/log/log.entity';
+import { Log } from 'src/subdomains/supporting/log/log.entity';
+import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayoutOrder, PayoutOrderStatus } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
-import { LessThanOrEqual, MoreThanOrEqual, Repository } from 'typeorm';
+import { Between, In, IsNull, Like, Not, Raw, Repository } from 'typeorm';
 import {
   FlowGroupDto,
   FlowItemDto,
@@ -24,7 +26,7 @@ import {
   ReconciliationDto,
   ReconciliationOverviewDto,
   ReconciliationQuery,
-} from '../dto/reconciliation.dto';
+} from './dto/reconciliation.dto';
 
 const EXCHANGE_BLOCKCHAINS: Blockchain[] = [Blockchain.KRAKEN, Blockchain.BINANCE, Blockchain.XT, Blockchain.MEXC];
 
@@ -53,11 +55,11 @@ const BANK_BLOCKCHAINS: Blockchain[] = [
 type AssetCategory = 'blockchain' | 'exchange' | 'bank';
 
 @Injectable()
-export class ReconciliationService {
-  private readonly logger = new DfxLogger(ReconciliationService);
+export class DashboardReconciliationService {
+  private readonly logger = new DfxLogger(DashboardReconciliationService);
 
   constructor(
-    @InjectRepository(Log) private readonly logRepo: Repository<Log>,
+    private readonly logService: LogService,
     @InjectRepository(Asset) private readonly assetRepo: Repository<Asset>,
     @InjectRepository(LiquidityManagementOrder) private readonly lmOrderRepo: Repository<LiquidityManagementOrder>,
     @InjectRepository(PayoutOrder) private readonly payoutOrderRepo: Repository<PayoutOrder>,
@@ -73,8 +75,8 @@ export class ReconciliationService {
     const category = this.categorizeAsset(asset);
 
     const [startLog, endLog] = await Promise.all([
-      this.getFinancialLogAt(query.from, 'before'),
-      this.getFinancialLogAt(query.to, 'before'),
+      this.logService.getFinancialLogAt(query.from, 'before'),
+      this.logService.getFinancialLogAt(query.to, 'before'),
     ]);
 
     const startBalance = this.extractBalance(startLog, query.assetId);
@@ -99,10 +101,7 @@ export class ReconciliationService {
     const allGroups = [...inflows, ...outflows];
     const counterNames = [...new Set(allGroups.map((g) => g.counterAccount).filter(Boolean))] as string[];
     if (counterNames.length > 0) {
-      const counterAssets = await this.assetRepo
-        .createQueryBuilder('a')
-        .where('a.uniqueName IN (:...names)', { names: counterNames })
-        .getMany();
+      const counterAssets = await this.assetRepo.find({ where: { uniqueName: In(counterNames) } });
       const nameToId = new Map(counterAssets.map((a) => [a.uniqueName, a.id]));
       for (const g of allGroups) {
         if (g.counterAccount) g.counterAssetId = nameToId.get(g.counterAccount);
@@ -125,8 +124,8 @@ export class ReconciliationService {
 
   async getOverview(query: OverviewQuery): Promise<ReconciliationOverviewDto> {
     const [startLog, endLog] = await Promise.all([
-      this.getFinancialLogAt(query.from, 'before'),
-      this.getFinancialLogAt(query.to, 'before'),
+      this.logService.getFinancialLogAt(query.from, 'before'),
+      this.logService.getFinancialLogAt(query.to, 'before'),
     ]);
 
     // Extract all asset balances from both logs
@@ -142,10 +141,7 @@ export class ReconciliationService {
       };
 
     // Load asset metadata
-    const assets = await this.assetRepo
-      .createQueryBuilder('a')
-      .where('a.id IN (:...ids)', { ids: allAssetIds })
-      .getMany();
+    const assets = await this.assetRepo.find({ where: { id: In(allAssetIds) } });
     const assetMap = new Map(assets.map((a) => [a.id, a]));
 
     // Build positions with full reconciliation for each asset
@@ -233,18 +229,6 @@ export class ReconciliationService {
     return 'blockchain';
   }
 
-  private async getFinancialLogAt(targetDate: Date, direction: 'before' | 'after'): Promise<Log | undefined> {
-    return this.logRepo.findOne({
-      where: {
-        system: 'LogService',
-        subsystem: 'FinancialDataLog',
-        severity: LogSeverity.INFO,
-        created: direction === 'before' ? LessThanOrEqual(targetDate) : MoreThanOrEqual(targetDate),
-      },
-      order: { created: direction === 'before' ? 'DESC' : 'ASC' },
-    });
-  }
-
   private extractBalance(log: Log | undefined, assetId: number): number {
     if (!log) return 0;
 
@@ -291,14 +275,12 @@ export class ReconciliationService {
 
     // Resolve blockchain txIds for LM orders via ExchangeTx
     const allLmOrders = [...lmDeficitOrders, ...lmRedundancyOrders];
-    const allCorrelationIds = allLmOrders.map((o) => o.correlationId).filter(Boolean);
+    const allCorrelationIds = allLmOrders.map((o) => o.correlationId).filter(Boolean) as string[];
     const lmTxMap = new Map<string, string>();
     if (allCorrelationIds.length > 0) {
-      const txs = await this.exchangeTxRepo
-        .createQueryBuilder('tx')
-        .where('tx.externalId IN (:...ids)', { ids: allCorrelationIds })
-        .andWhere('tx.txId IS NOT NULL')
-        .getMany();
+      const txs = await this.exchangeTxRepo.find({
+        where: { externalId: In(allCorrelationIds), txId: Not(IsNull()) },
+      });
       for (const tx of txs) lmTxMap.set(tx.externalId, tx.txId);
     }
 
@@ -387,22 +369,19 @@ export class ReconciliationService {
     const dexName = asset.dexName;
 
     // Find the primary blockchain asset for deposits/withdrawals counter-account
-    const blockchainAsset = await this.assetRepo
-      .createQueryBuilder('a')
-      .where('a.dexName = :dexName', { dexName })
-      .andWhere('a.uniqueName LIKE :pattern', { pattern: `%/${dexName}` })
-      .andWhere('a.blockchain NOT IN (:...excluded)', {
-        excluded: [...EXCHANGE_BLOCKCHAINS, ...BANK_BLOCKCHAINS],
-      })
-      .orderBy('a.id', 'ASC')
-      .getOne();
+    const blockchainAsset = await this.assetRepo.findOne({
+      where: {
+        dexName,
+        uniqueName: Like(`%/${dexName}`),
+        blockchain: Not(In([...EXCHANGE_BLOCKCHAINS, ...BANK_BLOCKCHAINS])),
+      },
+      order: { id: 'ASC' },
+    });
     const blockchainCounter = blockchainAsset?.uniqueName ?? `Blockchain/${dexName}`;
 
-    const exchangeTxs = await this.exchangeTxRepo
-      .createQueryBuilder('tx')
-      .where('tx.exchange = :exchange', { exchange })
-      .andWhere('tx.created BETWEEN :from AND :to', { from, to })
-      .getMany();
+    const exchangeTxs = await this.exchangeTxRepo.find({
+      where: { exchange: exchange as unknown as ExchangeName, created: Between(from, to) },
+    });
 
     const deposits = exchangeTxs.filter((tx) => tx.type === ExchangeTxType.DEPOSIT && tx.currency === dexName);
     const withdrawals = exchangeTxs.filter((tx) => tx.type === ExchangeTxType.WITHDRAWAL && tx.currency === dexName);
@@ -477,11 +456,9 @@ export class ReconciliationService {
     const bankIban = asset.bank?.iban;
     if (!bankIban) throw new NotFoundException(`No bank account found for asset ${asset.uniqueName}`);
 
-    const bankTxs = await this.bankTxRepo
-      .createQueryBuilder('tx')
-      .where('tx.accountIban = :iban', { iban: bankIban })
-      .andWhere('tx.created BETWEEN :from AND :to', { from, to })
-      .getMany();
+    const bankTxs = await this.bankTxRepo.find({
+      where: { accountIban: bankIban, created: Between(from, to) },
+    });
 
     const credits = bankTxs.filter((tx) => tx.creditDebitIndicator === BankTxIndicator.CREDIT);
     const debits = bankTxs.filter((tx) => tx.creditDebitIndicator === BankTxIndicator.DEBIT);
@@ -525,39 +502,30 @@ export class ReconciliationService {
     from: Date,
     to: Date,
   ): Promise<LiquidityManagementOrder[]> {
-    return this.lmOrderRepo
-      .createQueryBuilder('lmOrder')
-      .innerJoin('lmOrder.pipeline', 'pipeline')
-      .innerJoin('pipeline.rule', 'rule')
-      .innerJoin('rule.targetAsset', 'targetAsset')
-      .leftJoinAndSelect('lmOrder.action', 'action')
-      .where('targetAsset.id = :assetId', { assetId })
-      .andWhere('pipeline.type = :type', { type: pipelineType })
-      .andWhere('lmOrder.status = :status', { status: LiquidityManagementOrderStatus.COMPLETE })
-      .andWhere('lmOrder.updated BETWEEN :from AND :to', { from, to })
-      .getMany();
+    return this.lmOrderRepo.find({
+      where: {
+        pipeline: { type: pipelineType, rule: { targetAsset: { id: assetId } } },
+        status: LiquidityManagementOrderStatus.COMPLETE,
+        updated: Between(from, to),
+      },
+      relations: { action: true },
+    });
   }
 
   private async getPayoutOrders(assetId: number, from: Date, to: Date): Promise<PayoutOrder[]> {
-    return this.payoutOrderRepo
-      .createQueryBuilder('po')
-      .innerJoin('po.asset', 'asset')
-      .where('asset.id = :assetId', { assetId })
-      .andWhere('po.status = :status', { status: PayoutOrderStatus.COMPLETE })
-      .andWhere('po.updated BETWEEN :from AND :to', { from, to })
-      .getMany();
+    return this.payoutOrderRepo.find({
+      where: { asset: { id: assetId }, status: PayoutOrderStatus.COMPLETE, updated: Between(from, to) },
+    });
   }
 
   private async getCryptoInputs(assetId: number, from: Date, to: Date): Promise<CryptoInput[]> {
-    return this.cryptoInputRepo
-      .createQueryBuilder('ci')
-      .innerJoin('ci.asset', 'asset')
-      .where('asset.id = :assetId', { assetId })
-      .andWhere('ci.status IN (:...statuses)', {
-        statuses: [PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED],
-      })
-      .andWhere('ci.updated BETWEEN :from AND :to', { from, to })
-      .getMany();
+    return this.cryptoInputRepo.find({
+      where: {
+        asset: { id: assetId },
+        status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]),
+        updated: Between(from, to),
+      },
+    });
   }
 
   private async getExchangeWithdrawalsForBlockchain(
@@ -568,19 +536,15 @@ export class ReconciliationService {
   ): Promise<ExchangeTx[]> {
     const hotWallet = BLOCKCHAIN_WALLET_ENV[blockchain] ? process.env[BLOCKCHAIN_WALLET_ENV[blockchain]!] : undefined;
 
-    const qb = this.exchangeTxRepo
-      .createQueryBuilder('tx')
-      .where('tx.type = :type', { type: ExchangeTxType.WITHDRAWAL })
-      .andWhere('tx.currency = :currency', { currency: dexName })
-      .andWhere('tx.txId IS NOT NULL')
-      .andWhere('tx.address NOT LIKE :lnPrefix', { lnPrefix: 'lnbc%' })
-      .andWhere('tx.created BETWEEN :from AND :to', { from, to });
-
-    if (hotWallet) {
-      qb.andWhere('tx.address = :address', { address: hotWallet });
-    }
-
-    return qb.getMany();
+    return this.exchangeTxRepo.find({
+      where: {
+        type: ExchangeTxType.WITHDRAWAL,
+        currency: dexName,
+        txId: Not(IsNull()),
+        address: hotWallet ?? Raw((alias) => `${alias} NOT LIKE 'lnbc%'`),
+        created: Between(from, to),
+      },
+    });
   }
 
   private parseSymbol(symbol: string | undefined): [string, string] | undefined {
