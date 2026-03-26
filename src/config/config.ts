@@ -680,7 +680,7 @@ export class Configuration {
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
 
     forexFee: (standard: PaymentStandard, invoiceCurrency: Fiat, paymentCurrency: Asset): number => {
-      if (invoiceCurrency.name === 'CHF' && paymentCurrency.name === 'ZCHF') return 0;
+      if (invoiceCurrency.name === 'CHF' && ['ZCHF', 'VCHF'].includes(paymentCurrency.name)) return 0;
 
       switch (standard) {
         case PaymentStandard.PAY_TO_ADDRESS:
