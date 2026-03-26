@@ -248,6 +248,12 @@ export class UserData extends IEntity {
   @Column({ type: 'datetime2', nullable: true })
   phoneCallIpCountryCheckDate?: Date;
 
+  @Column({ type: 'datetime2', nullable: true })
+  phoneCallExternalAccountCheckDate?: Date;
+
+  @Column({ length: 256, nullable: true })
+  phoneCallExternalAccountCheckValues?: string; // already checked semicolon separated iban's, bic's and blz's
+
   @Column({ length: 256, nullable: true })
   phoneCallTimes: string; // PhoneCallPreferredTimes array
 
@@ -524,6 +530,19 @@ export class UserData extends IEntity {
 
   get phoneCallTimesObject(): PhoneCallPreferredTime[] {
     return this.phoneCallTimes ? (this.phoneCallTimes?.split(';') as PhoneCallPreferredTime[]) : [];
+  }
+
+  get phoneCallExternalAccountCheckValuesObject(): string[] {
+    return this.phoneCallExternalAccountCheckValues?.split(';');
+  }
+
+  addPhoneCallExternalAccountCheckValue(specialAccountValue: string): void {
+    const existing = this.phoneCallExternalAccountCheckValuesObject;
+    if (existing?.includes(specialAccountValue)) return;
+
+    this.phoneCallExternalAccountCheckValues = existing
+      ? `${this.phoneCallExternalAccountCheckValues};${specialAccountValue}`
+      : specialAccountValue;
   }
 
   get hasValidNameCheckDate(): boolean {
