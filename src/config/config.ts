@@ -65,9 +65,12 @@ export class Configuration {
     currency: 'EUR',
     language: 'EN',
 
+    // Browser language preference (passed via API) takes priority over country defaults.
+    // For multilingual countries (CH, LI), we only set currency - language comes from browser.
+    // For unambiguous countries, we keep language defaults as fallback.
     specific: {
-      CH: { language: 'DE', currency: 'CHF' },
-      LI: { language: 'DE', currency: 'CHF' },
+      CH: { currency: 'CHF' },
+      LI: { currency: 'CHF' },
       DE: { language: 'DE' },
       AT: { language: 'DE' },
       IT: { language: 'IT' },

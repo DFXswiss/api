@@ -244,7 +244,12 @@ export class UserService {
     return UserDtoMapper.mapProfile(userData);
   }
 
-  async createUser(data: Partial<User>, specialCode: string, moderator?: Moderator): Promise<User> {
+  async createUser(
+    data: Partial<User>,
+    specialCode: string,
+    moderator?: Moderator,
+    preferredLanguage?: string,
+  ): Promise<User> {
     let user = this.userRepo.create({
       address: data.address,
       signature: data.signature,
@@ -267,7 +272,10 @@ export class UserService {
     user.role = data.role;
     user.primaryUser = data.primaryUser;
 
-    const language = await this.languageService.getLanguageByCountry(user.ipCountry);
+    const language = preferredLanguage
+      ? ((await this.languageService.getLanguageBySymbol(preferredLanguage.toUpperCase())) ??
+        (await this.languageService.getLanguageByCountry(user.ipCountry)))
+      : await this.languageService.getLanguageByCountry(user.ipCountry);
     const currency = await this.fiatService.getFiatByCountry(user.ipCountry);
 
     user.userData =

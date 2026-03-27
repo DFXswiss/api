@@ -105,6 +105,11 @@ export class OptionalSignUpDto {
 }
 
 export class SignUpDto extends SignInDto {
+  @ApiPropertyOptional({ description: 'Preferred language (e.g. EN, DE, FR, IT)' })
+  @IsOptional()
+  @IsString()
+  language?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
