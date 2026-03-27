@@ -7,7 +7,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { KycLogType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -19,11 +20,10 @@ import { AccountMergeRepository } from './account-merge.repository';
 
 @Injectable()
 export class AccountMergeService {
-  private readonly logger = new DfxLogger(AccountMergeService);
-
   constructor(
     private readonly accountMergeRepo: AccountMergeRepository,
     private readonly notificationService: NotificationService,
+    private readonly kycLogService: KycLogService,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
@@ -89,9 +89,9 @@ export class AccountMergeService {
       correlationId: `${request.id}`,
     });
 
-    this.logger.info(
-      `Merge request sent: master ${master.id} (${master.mail}), slave ${slave.id} (${slave.mail}), reason ${reason}, receiver ${receiver.mail}`,
-    );
+    const logMessage = `Merge request sent: master ${master.id} (${master.mail}), slave ${slave.id} (${slave.mail}), reason ${reason}`;
+    await this.kycLogService.createLogInternal(master, KycLogType.MERGE, logMessage);
+    await this.kycLogService.createLogInternal(slave, KycLogType.MERGE, logMessage);
 
     return true;
   }
@@ -105,15 +105,13 @@ export class AccountMergeService {
 
     const [master, slave] = AccountMergeService.masterFirst([request.master, request.slave]);
 
-    this.logger.info(
-      `Merge confirmed: request ${request.id}, master ${master.id} (${master.mail}), slave ${slave.id} (${slave.mail}), reason ${request.reason}`,
-    );
+    const logMessage = `Merge confirmed: master ${master.id} (${master.mail}), slave ${slave.id} (${slave.mail}), reason ${request.reason}`;
+    await this.kycLogService.createLogInternal(master, KycLogType.MERGE, logMessage);
+    await this.kycLogService.createLogInternal(slave, KycLogType.MERGE, logMessage);
 
     await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
 
     await this.accountMergeRepo.update(...request.complete(master, slave));
-
-    this.logger.info(`Merge completed: request ${request.id}, master ${master.id}, slave ${slave.id}`);
 
     return request;
   }
