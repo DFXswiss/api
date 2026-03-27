@@ -9,7 +9,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
-import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { PriceCurrency, PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../enums';
 import { OrderFailedException } from '../../exceptions/order-failed.exception';
@@ -123,35 +123,23 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   private async sell(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const { tradeAsset, maxPriceDeviation } = this.parseTradeParams(order.action.paramMap);
 
-    const targetAssetEntity = order.pipeline.rule.targetAsset;
+    const targetAsset = order.pipeline.rule.targetAsset;
     const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`Scrypt/${tradeAsset}`);
 
-    await this.getAndCheckTradePrice(targetAssetEntity, tradeAssetEntity, maxPriceDeviation);
+    await this.getAndCheckTradePrice(targetAsset, tradeAssetEntity, maxPriceDeviation);
 
-    const availableBalance = await this.scryptService.getAvailableBalance(targetAssetEntity.dexName);
+    const availableBalance = await this.scryptService.getAvailableBalance(targetAsset.dexName);
     const effectiveMax = Math.min(order.maxAmount, availableBalance);
 
     if (effectiveMax < order.minAmount) {
       throw new OrderNotProcessableException(
-        `Scrypt: not enough balance for ${targetAssetEntity.dexName} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
+        `Scrypt: not enough balance for ${targetAsset.dexName} (balance: ${availableBalance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
       );
     }
 
     const amount = Util.floor(effectiveMax, 6);
 
-    order.inputAmount = amount;
-    order.inputAsset = targetAssetEntity.dexName;
-    order.outputAsset = tradeAsset;
-
-    try {
-      return await this.scryptService.sell(targetAssetEntity.dexName, tradeAsset, amount);
-    } catch (e) {
-      if (this.isBalanceTooLowError(e)) {
-        throw new OrderNotProcessableException(e.message);
-      }
-
-      throw e;
-    }
+    return this.executeSell(order, amount, targetAsset.dexName, tradeAsset);
   }
 
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
@@ -199,8 +187,13 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       throw new OrderNotProcessableException(`No rule found for asset ${checkAssetId}`);
     }
 
+    const checkAsset = checkRule.targetAsset;
     const checkBalance = await this.balanceRepo.findOneBy({ asset: { id: checkAssetId } });
-    const pendingDemand = await this.buyCryptoService.getPendingLiquidityDemand(checkAssetId);
+
+    // Convert pending demand from CHF to check asset
+    const pendingDemandChf = await this.buyCryptoService.getPendingLiquidityDemandChf(checkAssetId);
+    const chfPrice = await this.pricingService.getPrice(PriceCurrency.CHF, checkAsset, PriceValidity.VALID_ONLY);
+    const pendingDemand = chfPrice.convert(pendingDemandChf, 8);
 
     const effectiveBalance = (checkBalance?.amount ?? 0) - pendingDemand;
     const hasDeficit = effectiveBalance < (checkRule.minimal ?? 0);
@@ -217,16 +210,14 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       throw new OrderNotProcessableException(`No deficit to optimal for asset ${checkAssetId}`);
     }
 
-    // Get price and convert deficit to source asset amount
-    const targetAssetEntity = order.pipeline.rule.targetAsset;
+    const targetAsset = order.pipeline.rule.targetAsset;
     const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`Scrypt/${tradeAsset}`);
 
-    const price = await this.getAndCheckTradePrice(targetAssetEntity, tradeAssetEntity, maxPriceDeviation);
+    const price = await this.getAndCheckTradePrice(targetAsset, tradeAssetEntity, maxPriceDeviation);
+    const availableBalance = await this.scryptService.getAvailableBalance(targetAsset.dexName);
+
     // price = tradeAsset per targetAsset (e.g., BTC per EUR)
     const sellAmount = Util.floor(deficitAmount / price, 6);
-
-    // Cap by available balance and order limits
-    const availableBalance = await this.scryptService.getAvailableBalance(targetAssetEntity.dexName);
     const amount = Util.floor(Math.min(sellAmount, order.maxAmount, availableBalance), 6);
 
     if (amount <= 0) {
@@ -235,19 +226,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       );
     }
 
-    order.inputAmount = amount;
-    order.inputAsset = targetAssetEntity.dexName;
-    order.outputAsset = tradeAsset;
-
-    try {
-      return await this.scryptService.sell(targetAssetEntity.dexName, tradeAsset, amount);
-    } catch (e) {
-      if (this.isBalanceTooLowError(e)) {
-        throw new OrderNotProcessableException(e.message);
-      }
-
-      throw e;
-    }
+    return this.executeSell(order, amount, targetAsset.dexName, tradeAsset);
   }
 
   // --- COMPLETION CHECKS --- //
@@ -424,6 +403,26 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   }
 
   // --- HELPER METHODS --- //
+
+  private async executeSell(
+    order: LiquidityManagementOrder,
+    amount: number,
+    fromAsset: string,
+    toAsset: string,
+  ): Promise<CorrelationId> {
+    order.inputAmount = amount;
+    order.inputAsset = fromAsset;
+    order.outputAsset = toAsset;
+
+    try {
+      return await this.scryptService.sell(fromAsset, toAsset, amount);
+    } catch (e) {
+      if (this.isBalanceTooLowError(e)) {
+        throw new OrderNotProcessableException(e.message);
+      }
+      throw e;
+    }
+  }
 
   private isBalanceTooLowError(e: Error): boolean {
     return ['Insufficient funds', 'insufficient balance', 'Insufficient position', 'not enough balance'].some((m) =>

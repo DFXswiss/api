@@ -21,6 +21,7 @@ import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
+import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
 import {
   BankTxRefund,
@@ -784,15 +785,20 @@ export class BuyCryptoService {
     });
   }
 
-  async getPendingLiquidityDemand(assetId: number): Promise<number> {
-    const pending = await this.buyCryptoRepo.find({
-      where: {
-        status: In([BuyCryptoStatus.MISSING_LIQUIDITY, BuyCryptoStatus.PENDING_LIQUIDITY]),
-        outputAsset: { id: assetId },
-      },
-    });
+  async getPendingLiquidityDemandChf(assetId: number): Promise<number> {
+    const { sum } = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('SUM(buyCrypto.amountInChf)', 'sum')
+      .leftJoin('buyCrypto.liquidityPipeline', 'pipeline')
+      .where('buyCrypto.outputAssetId = :assetId', { assetId })
+      .andWhere('buyCrypto.status = :status', { status: BuyCryptoStatus.MISSING_LIQUIDITY })
+      .andWhere(
+        '(buyCrypto.liquidityPipelineId IS NULL OR pipeline.status IN (:...failedStatuses))',
+        { failedStatuses: [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED] },
+      )
+      .getRawOne<{ sum: number }>();
 
-    return pending.reduce((sum, tx) => sum + (tx.outputReferenceAmount ?? 0), 0);
+    return sum ?? 0;
   }
 
   // --- HELPER METHODS --- //
