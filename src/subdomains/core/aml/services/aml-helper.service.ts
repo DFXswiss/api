@@ -308,6 +308,7 @@ export class AmlHelperService {
 
         if (
           !entity.userData.phoneCallCheckDate &&
+          !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_14) &&
           entity.userData.isPersonalAccount &&
           phoneCallList.some((b) =>
             b.matches([SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BIC_BUY], entity.bankTx.bic),
@@ -316,6 +317,7 @@ export class AmlHelperService {
           errors.push(AmlError.BIC_PHONE_VERIFICATION_NEEDED);
         if (
           !entity.userData.phoneCallCheckDate &&
+          !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_14) &&
           entity.userData.isPersonalAccount &&
           phoneCallList.some(
             (b) =>
