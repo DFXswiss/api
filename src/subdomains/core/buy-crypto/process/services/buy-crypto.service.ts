@@ -21,7 +21,6 @@ import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { CustodyOrderType } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
-import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
 import {
   BankTxRefund,
@@ -29,6 +28,7 @@ import {
   CryptoInputRefund,
   RefundInternalDto,
 } from 'src/subdomains/core/history/dto/refund-internal.dto';
+import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
@@ -792,10 +792,9 @@ export class BuyCryptoService {
       .leftJoin('buyCrypto.liquidityPipeline', 'pipeline')
       .where('buyCrypto.outputAssetId = :assetId', { assetId })
       .andWhere('buyCrypto.status = :status', { status: BuyCryptoStatus.MISSING_LIQUIDITY })
-      .andWhere(
-        '(buyCrypto.liquidityPipelineId IS NULL OR pipeline.status IN (:...failedStatuses))',
-        { failedStatuses: [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED] },
-      )
+      .andWhere('(buyCrypto.liquidityPipelineId IS NULL OR pipeline.status IN (:...failedStatuses))', {
+        failedStatuses: [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED],
+      })
       .getRawOne<{ sum: number }>();
 
     return sum ?? 0;
