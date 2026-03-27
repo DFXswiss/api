@@ -38,7 +38,10 @@ import {
   MoreThanOrEqual,
   Not,
 } from 'typeorm';
-import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
+import {
+  OLKYPAY_RELEASE_BALANCE_LIMIT,
+  OlkypayService,
+} from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { VirtualIbanService } from '../../../bank/virtual-iban/virtual-iban.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -123,7 +126,6 @@ export class BankTxService implements OnModuleInit {
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })
   async checkBankTx(): Promise<void> {
     await this.checkTransactions();
-    await this.releaseOlkypayTransactions();
     await this.assignTransactions();
     await this.fillBankTx();
   }
@@ -184,8 +186,14 @@ export class BankTxService implements OnModuleInit {
       return;
     }
 
+    const { balance } = await this.olkyService.getBalance();
+
     // Get bank transactions
-    const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky, olkyBank.iban);
+    const olkyTransactions = await this.olkyService.getOlkyTransactions(
+      lastModificationTimeOlky,
+      olkyBank.iban,
+      balance,
+    );
 
     const multiAccounts = await this.specialAccountService.getMultiAccounts();
     for (const transaction of olkyTransactions) {
@@ -197,21 +205,13 @@ export class BankTxService implements OnModuleInit {
     }
 
     if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
-  }
 
-  private async releaseOlkypayTransactions(): Promise<void> {
-    const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
-    if (!olkyBank) return;
-
-    const { balance } = await this.olkyService.getBalance();
-    if (balance >= 50000) return;
-
-    const unreleasedTx = await this.bankTxRepo.find({
-      where: { accountIban: olkyBank.iban, bankReleaseDate: IsNull() },
-    });
-
-    for (const tx of unreleasedTx) {
-      await this.bankTxRepo.update(tx.id, { bankReleaseDate: new Date() });
+    // Release unreleased transactions if balance is below threshold
+    if (balance < OLKYPAY_RELEASE_BALANCE_LIMIT) {
+      await this.bankTxRepo.update(
+        { accountIban: olkyBank.iban, bankReleaseDate: IsNull() },
+        { bankReleaseDate: new Date() },
+      );
     }
   }
 

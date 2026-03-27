@@ -20,6 +20,8 @@ import {
 import { OlkyRecipient } from '../entities/olky-recipient.entity';
 import { OlkyRecipientRepository } from '../repositories/olky-recipient.repository';
 
+export const OLKYPAY_RELEASE_BALANCE_LIMIT = 50000; // EUR
+
 export interface OlkyRecipientData {
   iban: string;
   name: string;
@@ -50,14 +52,16 @@ export class OlkypayService {
 
   // --- TRANSACTION METHODS --- //
 
-  async getOlkyTransactions(lastModificationTime: string, accountIban: string): Promise<Partial<BankTx>[]> {
+  async getOlkyTransactions(
+    lastModificationTime: string,
+    accountIban: string,
+    balance: number,
+  ): Promise<Partial<BankTx>[]> {
     if (!Config.bank.olkypay.credentials.clientId) return [];
 
     try {
       const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(7));
       if (!transactions) return [];
-
-      const { balance } = await this.getBalance();
 
       return transactions.map((t) => this.parseTransaction(t, accountIban, balance));
     } catch (e) {
@@ -210,7 +214,7 @@ export class OlkypayService {
         remittanceInfo: tx.line2,
         accountIban: accountIban,
         type: tx.codeInterbancaireInterne === OlkypayTransactionType.BILLING ? BankTxType.BANK_ACCOUNT_FEE : null,
-        bankReleaseDate: balance < 50000 ? new Date() : undefined,
+        bankReleaseDate: balance < OLKYPAY_RELEASE_BALANCE_LIMIT ? new Date() : undefined,
       };
     } catch (e) {
       throw new Error(`Failed to parse transaction ${tx.idCtp}: ${e.message}`);
