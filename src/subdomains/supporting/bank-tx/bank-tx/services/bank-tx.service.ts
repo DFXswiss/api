@@ -123,6 +123,7 @@ export class BankTxService implements OnModuleInit {
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })
   async checkBankTx(): Promise<void> {
     await this.checkTransactions();
+    await this.releaseOlkypayTransactions();
     await this.assignTransactions();
     await this.fillBankTx();
   }
@@ -196,6 +197,22 @@ export class BankTxService implements OnModuleInit {
     }
 
     if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
+  }
+
+  private async releaseOlkypayTransactions(): Promise<void> {
+    const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
+    if (!olkyBank) return;
+
+    const { balance } = await this.olkyService.getBalance();
+    if (balance >= 50000) return;
+
+    const unreleasedTx = await this.bankTxRepo.find({
+      where: { accountIban: olkyBank.iban, bankReleaseDate: IsNull() },
+    });
+
+    for (const tx of unreleasedTx) {
+      await this.bankTxRepo.update(tx.id, { bankReleaseDate: new Date() });
+    }
   }
 
   private async assignTransactions(): Promise<void> {
