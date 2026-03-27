@@ -38,7 +38,10 @@ import {
   MoreThanOrEqual,
   Not,
 } from 'typeorm';
-import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
+import {
+  OLKYPAY_RELEASE_BALANCE_LIMIT,
+  OlkypayService,
+} from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { VirtualIbanService } from '../../../bank/virtual-iban/virtual-iban.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -183,8 +186,14 @@ export class BankTxService implements OnModuleInit {
       return;
     }
 
+    const { balance } = await this.olkyService.getBalance();
+
     // Get bank transactions
-    const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky, olkyBank.iban);
+    const olkyTransactions = await this.olkyService.getOlkyTransactions(
+      lastModificationTimeOlky,
+      olkyBank.iban,
+      balance,
+    );
 
     const multiAccounts = await this.specialAccountService.getMultiAccounts();
     for (const transaction of olkyTransactions) {
@@ -196,6 +205,14 @@ export class BankTxService implements OnModuleInit {
     }
 
     if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
+
+    // Release unreleased transactions if balance is below threshold
+    if (balance < OLKYPAY_RELEASE_BALANCE_LIMIT) {
+      await this.bankTxRepo.update(
+        { accountIban: olkyBank.iban, bankReleaseDate: IsNull() },
+        { bankReleaseDate: new Date() },
+      );
+    }
   }
 
   private async assignTransactions(): Promise<void> {

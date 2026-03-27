@@ -20,6 +20,8 @@ import {
 import { OlkyRecipient } from '../entities/olky-recipient.entity';
 import { OlkyRecipientRepository } from '../repositories/olky-recipient.repository';
 
+export const OLKYPAY_RELEASE_BALANCE_LIMIT = 50000; // EUR
+
 export interface OlkyRecipientData {
   iban: string;
   name: string;
@@ -50,14 +52,18 @@ export class OlkypayService {
 
   // --- TRANSACTION METHODS --- //
 
-  async getOlkyTransactions(lastModificationTime: string, accountIban: string): Promise<Partial<BankTx>[]> {
+  async getOlkyTransactions(
+    lastModificationTime: string,
+    accountIban: string,
+    balance: number,
+  ): Promise<Partial<BankTx>[]> {
     if (!Config.bank.olkypay.credentials.clientId) return [];
 
     try {
       const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(7));
       if (!transactions) return [];
 
-      return transactions.map((t) => this.parseTransaction(t, accountIban));
+      return transactions.map((t) => this.parseTransaction(t, accountIban, balance));
     } catch (e) {
       this.logger.error(`Failed to get Bank Olky transactions:`, e);
       return [];
@@ -179,7 +185,7 @@ export class OlkypayService {
   }
 
   // --- PARSING --- //
-  private parseTransaction(tx: OlkypayTransaction, accountIban: string): Partial<BankTx> {
+  private parseTransaction(tx: OlkypayTransaction, accountIban: string, balance: number): Partial<BankTx> {
     if (tx.debit > 0 && tx.credit > 0)
       throw new Error(`Transaction ${tx.idCtp} with debit (${tx.debit} EUR) and credit (${tx.credit} EUR)`);
 
@@ -208,7 +214,7 @@ export class OlkypayService {
         remittanceInfo: tx.line2,
         accountIban: accountIban,
         type: tx.codeInterbancaireInterne === OlkypayTransactionType.BILLING ? BankTxType.BANK_ACCOUNT_FEE : null,
-        bankReleaseDate: new Date(),
+        bankReleaseDate: balance < OLKYPAY_RELEASE_BALANCE_LIMIT ? new Date() : undefined,
       };
     } catch (e) {
       throw new Error(`Failed to parse transaction ${tx.idCtp}: ${e.message}`);
