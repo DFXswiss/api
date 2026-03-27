@@ -272,10 +272,9 @@ export class UserService {
     user.role = data.role;
     user.primaryUser = data.primaryUser;
 
-    const language = preferredLanguage
-      ? ((await this.languageService.getLanguageBySymbol(preferredLanguage.toUpperCase())) ??
-        (await this.languageService.getLanguageByCountry(user.ipCountry)))
-      : await this.languageService.getLanguageByCountry(user.ipCountry);
+    const language =
+      (preferredLanguage && (await this.languageService.getLanguageBySymbol(preferredLanguage.toUpperCase()))) ??
+      (await this.languageService.getLanguageByCountry(user.ipCountry));
     const currency = await this.fiatService.getFiatByCountry(user.ipCountry);
 
     user.userData =
