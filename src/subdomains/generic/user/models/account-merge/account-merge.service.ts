@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -18,6 +19,8 @@ import { AccountMergeRepository } from './account-merge.repository';
 
 @Injectable()
 export class AccountMergeService {
+  private readonly logger = new DfxLogger(AccountMergeService);
+
   constructor(
     private readonly accountMergeRepo: AccountMergeRepository,
     private readonly notificationService: NotificationService,
@@ -86,6 +89,10 @@ export class AccountMergeService {
       correlationId: `${request.id}`,
     });
 
+    this.logger.info(
+      `Merge request sent: master ${master.id} (${master.mail}), slave ${slave.id} (${slave.mail}), reason ${reason}, receiver ${receiver.mail}`,
+    );
+
     return true;
   }
 
@@ -98,9 +105,15 @@ export class AccountMergeService {
 
     const [master, slave] = AccountMergeService.masterFirst([request.master, request.slave]);
 
+    this.logger.info(
+      `Merge confirmed: request ${request.id}, master ${master.id} (${master.mail}), slave ${slave.id} (${slave.mail}), reason ${request.reason}`,
+    );
+
     await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
 
     await this.accountMergeRepo.update(...request.complete(master, slave));
+
+    this.logger.info(`Merge completed: request ${request.id}, master ${master.id}, slave ${slave.id}`);
 
     return request;
   }
