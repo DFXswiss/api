@@ -66,7 +66,8 @@ export class Configuration {
     language: 'EN',
 
     specific: {
-      CH: { language: 'DE', currency: 'CHF' },
+      // CH has no language default (multilingual country)
+      CH: { currency: 'CHF' },
       LI: { language: 'DE', currency: 'CHF' },
       DE: { language: 'DE' },
       AT: { language: 'DE' },
