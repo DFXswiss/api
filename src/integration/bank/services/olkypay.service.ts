@@ -57,7 +57,9 @@ export class OlkypayService {
       const transactions = await this.getTransactions(new Date(lastModificationTime), Util.daysAfter(7));
       if (!transactions) return [];
 
-      return transactions.map((t) => this.parseTransaction(t, accountIban));
+      const { balance } = await this.getBalance();
+
+      return transactions.map((t) => this.parseTransaction(t, accountIban, balance));
     } catch (e) {
       this.logger.error(`Failed to get Bank Olky transactions:`, e);
       return [];
@@ -179,7 +181,7 @@ export class OlkypayService {
   }
 
   // --- PARSING --- //
-  private parseTransaction(tx: OlkypayTransaction, accountIban: string): Partial<BankTx> {
+  private parseTransaction(tx: OlkypayTransaction, accountIban: string, balance: number): Partial<BankTx> {
     if (tx.debit > 0 && tx.credit > 0)
       throw new Error(`Transaction ${tx.idCtp} with debit (${tx.debit} EUR) and credit (${tx.credit} EUR)`);
 
@@ -208,7 +210,7 @@ export class OlkypayService {
         remittanceInfo: tx.line2,
         accountIban: accountIban,
         type: tx.codeInterbancaireInterne === OlkypayTransactionType.BILLING ? BankTxType.BANK_ACCOUNT_FEE : null,
-        bankReleaseDate: new Date(),
+        bankReleaseDate: balance < 50000 ? new Date() : undefined,
       };
     } catch (e) {
       throw new Error(`Failed to parse transaction ${tx.idCtp}: ${e.message}`);
