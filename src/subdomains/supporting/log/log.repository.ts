@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { Util } from 'src/shared/utils/util';
-import { EntityManager, FindOptionsWhere, MoreThanOrEqual } from 'typeorm';
+import { EntityManager, FindOptionsWhere, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { LogCleanupSetting } from './dto/create-log.dto';
 import { Log, LogSeverity } from './log.entity';
 
@@ -38,6 +38,18 @@ export class LogRepository extends BaseRepository<Log> {
     const logIdsToBeDeleted = await query.getRawMany<{ log_id: number }>().then((i) => i.map((i) => i.log_id));
 
     await Util.doInBatches(logIdsToBeDeleted, async (batch: number[]) => this.delete(batch), 100);
+  }
+
+  async getFinancialLogAt(targetDate: Date, direction: 'before' | 'after'): Promise<Log | undefined> {
+    return this.findOne({
+      where: {
+        system: 'LogService',
+        subsystem: 'FinancialDataLog',
+        severity: LogSeverity.INFO,
+        created: direction === 'before' ? LessThanOrEqual(targetDate) : MoreThanOrEqual(targetDate),
+      },
+      order: { created: direction === 'before' ? 'DESC' : 'ASC' },
+    });
   }
 
   async getLatestFinancialLog(): Promise<Log | undefined> {
