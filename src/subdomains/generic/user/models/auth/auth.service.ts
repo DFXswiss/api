@@ -173,6 +173,7 @@ export class AuthService {
       },
       dto.specialCode ?? dto.discountCode,
       dto.moderator,
+      dto.language,
     );
 
     // update ip Logs

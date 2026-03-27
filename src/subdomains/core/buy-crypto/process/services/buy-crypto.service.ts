@@ -28,6 +28,7 @@ import {
   CryptoInputRefund,
   RefundInternalDto,
 } from 'src/subdomains/core/history/dto/refund-internal.dto';
+import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
@@ -782,6 +783,21 @@ export class BuyCryptoService {
       where: { isComplete: false },
       relations: { cryptoInput: true, checkoutTx: true, bankTx: true },
     });
+  }
+
+  async getPendingLiquidityDemandChf(assetId: number): Promise<number> {
+    const { sum } = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('SUM(buyCrypto.amountInChf)', 'sum')
+      .leftJoin('buyCrypto.liquidityPipeline', 'pipeline')
+      .where('buyCrypto.outputAssetId = :assetId', { assetId })
+      .andWhere('buyCrypto.status = :status', { status: BuyCryptoStatus.MISSING_LIQUIDITY })
+      .andWhere('(buyCrypto.liquidityPipelineId IS NULL OR pipeline.status IN (:...failedStatuses))', {
+        failedStatuses: [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED],
+      })
+      .getRawOne<{ sum: number }>();
+
+    return sum ?? 0;
   }
 
   // --- HELPER METHODS --- //

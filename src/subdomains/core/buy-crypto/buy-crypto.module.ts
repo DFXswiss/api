@@ -63,7 +63,7 @@ import { SwapService } from './routes/swap/swap.service';
     forwardRef(() => PaymentModule),
     forwardRef(() => SellCryptoModule),
     forwardRef(() => AddressPoolModule),
-    LiquidityManagementModule,
+    forwardRef(() => LiquidityManagementModule),
     IntegrationModule,
     forwardRef(() => TransactionModule),
     forwardRef(() => AmlModule),

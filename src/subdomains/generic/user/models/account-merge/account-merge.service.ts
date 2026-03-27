@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -21,6 +22,7 @@ export class AccountMergeService {
   constructor(
     private readonly accountMergeRepo: AccountMergeRepository,
     private readonly notificationService: NotificationService,
+    private readonly kycLogService: KycLogService,
     @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
@@ -86,6 +88,10 @@ export class AccountMergeService {
       correlationId: `${request.id}`,
     });
 
+    const logMessage = `Merge request ${request.id} sent: master ${master.id} (${master.mail}), slave ${slave.id} (${slave.mail}), reason ${reason}`;
+    await this.kycLogService.createMergeLog(master, logMessage);
+    await this.kycLogService.createMergeLog(slave, logMessage);
+
     return true;
   }
 
@@ -97,6 +103,10 @@ export class AccountMergeService {
     if (request.isCompleted) throw new ConflictException('Merge request is already completed');
 
     const [master, slave] = AccountMergeService.masterFirst([request.master, request.slave]);
+
+    const logMessage = `Merge request ${request.id} confirmed: master ${master.id} (${master.mail}), slave ${slave.id} (${slave.mail}), reason ${request.reason}`;
+    await this.kycLogService.createMergeLog(master, logMessage);
+    await this.kycLogService.createMergeLog(slave, logMessage);
 
     await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
 
