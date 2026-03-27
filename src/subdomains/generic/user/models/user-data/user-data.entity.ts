@@ -799,7 +799,13 @@ export class UserData extends IEntity {
 export const KycCompletedStates = [KycStatus.COMPLETED];
 
 export const UserDataSupportUpdateCols = ['status', 'riskStatus', 'recallAgreementAccepted'];
-export const UserDataComplianceUpdateCols = ['kycStatus', 'depositLimit', 'amlAccountType', 'complexOrgStructure', 'highRisk'];
+export const UserDataComplianceUpdateCols = [
+  'kycStatus',
+  'depositLimit',
+  'amlAccountType',
+  'complexOrgStructure',
+  'highRisk',
+];
 
 export function KycCompleted(kycStatus?: KycStatus): boolean {
   return KycCompletedStates.includes(kycStatus);
