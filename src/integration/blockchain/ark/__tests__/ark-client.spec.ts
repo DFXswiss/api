@@ -1,6 +1,16 @@
 import { Wallet } from '@arkade-os/sdk';
 import { ArkClient } from '../ark-client';
 
+// Mock the SDK to provide InMemory repositories
+jest.mock('@arkade-os/sdk', () => {
+  const actualSdk = jest.requireActual('@arkade-os/sdk');
+  return {
+    ...actualSdk,
+    InMemoryWalletRepository: class MockWalletRepository {},
+    InMemoryContractRepository: class MockContractRepository {},
+  };
+});
+
 // Mock config to provide ark credentials
 jest.mock('src/config/config', () => ({
   GetConfig: () => ({
