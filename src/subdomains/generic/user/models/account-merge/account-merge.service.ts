@@ -89,7 +89,7 @@ export class AccountMergeService {
       correlationId: `${request.id}`,
     });
 
-    const logMessage = `Merge request sent: master ${master.id} (${master.mail}), slave ${slave.id} (${slave.mail}), reason ${reason}`;
+    const logMessage = `Merge request ${request.id} sent: master ${master.id} (${master.mail}), slave ${slave.id} (${slave.mail}), reason ${reason}`;
     await this.kycLogService.createLogInternal(master, KycLogType.MERGE, logMessage);
     await this.kycLogService.createLogInternal(slave, KycLogType.MERGE, logMessage);
 
@@ -105,7 +105,7 @@ export class AccountMergeService {
 
     const [master, slave] = AccountMergeService.masterFirst([request.master, request.slave]);
 
-    const logMessage = `Merge confirmed: master ${master.id} (${master.mail}), slave ${slave.id} (${slave.mail}), reason ${request.reason}`;
+    const logMessage = `Merge request ${request.id} confirmed: master ${master.id} (${master.mail}), slave ${slave.id} (${slave.mail}), reason ${request.reason}`;
     await this.kycLogService.createLogInternal(master, KycLogType.MERGE, logMessage);
     await this.kycLogService.createLogInternal(slave, KycLogType.MERGE, logMessage);
 
