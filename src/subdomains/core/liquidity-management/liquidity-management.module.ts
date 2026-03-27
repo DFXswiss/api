@@ -10,17 +10,18 @@ import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
+import { BuyCryptoModule } from '../buy-crypto/buy-crypto.module';
 import { ArbitrumL2BridgeAdapter } from './adapters/actions/arbitrum-l2-bridge.adapter';
 import { BaseL2BridgeAdapter } from './adapters/actions/base-l2-bridge.adapter';
 import { BinanceAdapter } from './adapters/actions/binance.adapter';
 import { BoltzAdapter } from './adapters/actions/boltz.adapter';
 import { ClementineBridgeAdapter } from './adapters/actions/clementine-bridge.adapter';
-import { LayerZeroBridgeAdapter } from './adapters/actions/layerzero-bridge.adapter';
 import { DEuroAdapter } from './adapters/actions/deuro.adapter';
 import { DfxDexAdapter } from './adapters/actions/dfx-dex.adapter';
 import { FrankencoinAdapter } from './adapters/actions/frankencoin.adapter';
 import { JuiceAdapter } from './adapters/actions/juice.adapter';
 import { KrakenAdapter } from './adapters/actions/kraken.adapter';
+import { LayerZeroBridgeAdapter } from './adapters/actions/layerzero-bridge.adapter';
 import { LiquidityPipelineAdapter } from './adapters/actions/liquidity-pipeline.adapter';
 import { MexcAdapter } from './adapters/actions/mexc.adapter';
 import { OptimismL2BridgeAdapter } from './adapters/actions/optimism-l2-bridge.adapter';
@@ -69,6 +70,7 @@ import { LiquidityManagementService } from './services/liquidity-management.serv
     NotificationModule,
     BankModule,
     forwardRef(() => BankTxModule),
+    forwardRef(() => BuyCryptoModule),
     CheckoutModule,
     PricingModule,
   ],
