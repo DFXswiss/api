@@ -1,4 +1,4 @@
-import { Wallet, SingleKey } from '@arkade-os/sdk';
+import { Wallet, SingleKey, InMemoryWalletRepository, InMemoryContractRepository } from '@arkade-os/sdk';
 import { Currency } from '@uniswap/sdk-core';
 import { GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -102,6 +102,10 @@ export class ArkClient extends BlockchainClient {
     const wallet = await Wallet.create({
       identity,
       arkServerUrl,
+      storage: {
+        walletRepository: new InMemoryWalletRepository(),
+        contractRepository: new InMemoryContractRepository(),
+      },
     });
 
     return wallet;
