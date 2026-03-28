@@ -15,6 +15,7 @@ import { UserData } from '../user-data/user-data.entity';
 import { KycLevel, KycType, TradeApprovalReason, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { UserService } from '../user/user.service';
+import { WalletService } from '../wallet/wallet.service';
 import { CreateRecommendationDto } from './dto/recommendation.dto';
 import { Recommendation, RecommendationMethod, RecommendationType } from './recommendation.entity';
 import { RecommendationRepository } from './recommendation.repository';
@@ -31,6 +32,7 @@ export class RecommendationService {
     private readonly userService: UserService,
     @Inject(forwardRef(() => KycService))
     private readonly kycService: KycService,
+    private readonly walletService: WalletService,
   ) {}
 
   async createRecommendationByRecommender(userDataId: number, dto: CreateRecommendationDto): Promise<Recommendation> {
@@ -128,50 +130,79 @@ export class RecommendationService {
         confirmationDate: new Date(),
       });
     } else {
-      // create new recommendation
-      const recommender = Config.formats.ref.test(key)
-        ? await this.userService.getRefUser(key).then((u) => u?.userData)
+      const method = Config.formats.ref.test(key)
+        ? RecommendationMethod.REF_CODE
         : key.includes('@')
-          ? await this.userDataService.getUsersByMail(key, true).then((u) => u.find((us) => us.tradeApprovalDate))
-          : undefined;
-      if (
-        !recommender ||
-        recommender.isBlocked ||
-        recommender.hasAnyRiskStatus ||
-        recommender.kycLevel < KycLevel.LEVEL_50 ||
-        !recommender.tradeApprovalDate
-      )
-        throw new NotFoundException('Recommender not found');
+          ? RecommendationMethod.MAIL
+          : RecommendationMethod.WALLET;
 
-      const existingRecommendations = await this.recommendationRepo.countBy({
-        recommender: { id: recommender.id },
-        recommended: { id: userData.id },
-      });
-      if (existingRecommendations > Config.recommendation.maxRecommendationPerMail)
-        throw new BadRequestException('Max amount of recommendations for this account reached');
+      if (method === RecommendationMethod.WALLET) {
+        const recommender = await this.walletService.getByIdOrName(undefined, key);
+        if (!recommender || !recommender.autoTradeApproval) throw new NotFoundException('Recommender not found');
 
-      const entity = await this.createRecommendationInternal(
-        RecommendationType.REQUEST,
-        Config.formats.ref.test(key) ? RecommendationMethod.REF_CODE : RecommendationMethod.MAIL,
-        recommender,
-        userData,
-        kycStep,
-      );
+        await this.userDataService.updateUserDataInternal(userData, {
+          tradeApprovalDate: new Date(),
+          wallet: !userData.wallet || userData.wallet.id === Config.defaultWalletId ? recommender : undefined,
+        });
+        await this.userDataService.createTradeApprovalLog(userData, TradeApprovalReason.KYC_STEP_COMPLETED);
 
-      await this.sendPendingConfirmationMail(entity);
+        for (const user of userData.users) {
+          if (user.wallet.id === Config.defaultWalletId)
+            await this.userService.updateUserInternal(user, { wallet: recommender });
+        }
+
+        const existingRecommendations = await this.recommendationRepo.countBy({ recommended: { id: userData.id } });
+        if (existingRecommendations > Config.recommendation.maxRecommendationPerMail)
+          throw new BadRequestException('Max amount of recommendations for this account reached');
+
+        await this.createRecommendationInternal(RecommendationType.REQUEST, method, undefined, userData, kycStep);
+      } else {
+        // create new recommendation
+        const recommender = Config.formats.ref.test(key)
+          ? await this.userService.getRefUser(key).then((u) => u?.userData)
+          : key.includes('@')
+            ? await this.userDataService.getUsersByMail(key, true).then((u) => u.find((us) => us.tradeApprovalDate))
+            : undefined;
+
+        if (
+          !recommender ||
+          recommender.isBlocked ||
+          recommender.hasAnyRiskStatus ||
+          recommender.kycLevel < KycLevel.LEVEL_50 ||
+          !recommender.tradeApprovalDate
+        )
+          throw new NotFoundException('Recommender not found');
+
+        const existingRecommendations = await this.recommendationRepo.countBy({
+          recommender: { id: recommender.id },
+          recommended: { id: userData.id },
+        });
+        if (existingRecommendations > Config.recommendation.maxRecommendationPerMail)
+          throw new BadRequestException('Max amount of recommendations for this account reached');
+
+        const entity = await this.createRecommendationInternal(
+          RecommendationType.REQUEST,
+          method,
+          recommender,
+          userData,
+          kycStep,
+        );
+
+        await this.sendPendingConfirmationMail(entity);
+      }
     }
   }
 
   private async createRecommendationInternal(
     type: RecommendationType,
     method: RecommendationMethod,
-    recommender: UserData,
+    recommender: UserData | undefined,
     recommended?: UserData,
     kycStep?: KycStep,
     recommendedAlias?: string,
     recommendedMail?: string,
   ): Promise<Recommendation> {
-    const hash = Util.createHash(new Date().toISOString() + recommender.id).toUpperCase();
+    const hash = Util.createHash(new Date().toISOString() + (recommender?.id ?? Util.randomId())).toUpperCase();
 
     const entity = this.recommendationRepo.create({
       kycStep,
