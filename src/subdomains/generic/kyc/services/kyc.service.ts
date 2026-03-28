@@ -887,6 +887,15 @@ export class KycService {
     );
   }
 
+  async cancelStepManual(kycHash: string, stepId: number): Promise<void> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    await this.kycStepRepo.update(
+      ...kycStep.cancel(kycStep.comment ? `${kycStep.comment};${KycError.USER_CANCELED}` : KycError.USER_CANCELED),
+    );
+  }
+
   updateSumsubIdent(dto: SumSubWebhookResult): void {
     const { externalUserId: transactionId } = dto;
 

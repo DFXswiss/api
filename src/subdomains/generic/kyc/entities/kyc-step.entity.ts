@@ -265,9 +265,10 @@ export class KycStep extends IEntity {
     return [this.id, update];
   }
 
-  cancel(): UpdateResult<KycStep> {
+  cancel(comment?: string): UpdateResult<KycStep> {
     const update: Partial<KycStep> = {
       status: ReviewStatus.CANCELED,
+      comment,
     };
 
     Object.assign(this, update);
