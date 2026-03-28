@@ -11,12 +11,25 @@ export class UserDataSupportInfoResult {
   bankTx: BankTxSupportInfo[];
 }
 
+export enum OnboardingStatus {
+  OPEN = 'Open',
+  COMPLETED = 'Completed',
+  REJECTED = 'Rejected',
+}
+
 export class UserDataSupportInfo {
   id: number;
   kycStatus: KycStatus;
   accountType?: AccountType;
   mail?: string;
   name?: string;
+  onboardingStatus?: OnboardingStatus;
+}
+
+export class PendingOnboardingInfo {
+  id: number;
+  name?: string;
+  date: Date;
 }
 
 export class BankTxSupportInfo {
@@ -86,6 +99,7 @@ export class KycStepSupportInfo {
 export class KycLogSupportInfo {
   id: number;
   type: string;
+  result?: string;
   comment?: string;
   created: Date;
 }
