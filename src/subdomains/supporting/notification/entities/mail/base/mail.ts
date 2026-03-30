@@ -8,7 +8,7 @@ export interface MailParamBase {
   displayName?: string;
   cc?: string;
   bcc?: string;
-  template?: string; // Base template for this mail type, can be overridden by wallet config
+  template?: string;
   walletName?: string;
   options?: NotificationOptions;
   correlationId?: string;

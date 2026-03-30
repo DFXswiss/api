@@ -16,7 +16,7 @@ export interface WalletMailConfig {
   pass: string;
   fromAddress: string;
   displayName: string;
-  template: string; // user-v2 template
+  template: string; // template for UserMailV2
 }
 
 export interface MailOptions {
