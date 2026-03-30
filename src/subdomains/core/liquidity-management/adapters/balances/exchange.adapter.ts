@@ -59,13 +59,14 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
   async getForExchange(exchange: string, assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
     try {
       const exchangeService = this.exchangeRegistry.getExchange(exchange);
-      const balances = await exchangeService.getTotalBalances();
+      const { total: totalBalances, available: availableBalances } = await exchangeService.getBalances();
 
       return assets.map((a) => {
         const names = [a.dexName, ...(this.ASSET_MAPPINGS[a.dexName] ?? [])];
-        const balance = Util.sum(names.map((n) => balances[n] ?? 0));
+        const total = Util.sum(names.map((n) => totalBalances[n] ?? 0));
+        const available = Util.sum(names.map((n) => availableBalances[n] ?? 0));
 
-        return LiquidityBalance.create(a, balance);
+        return LiquidityBalance.create(a, total, available);
       });
     } catch (e) {
       this.logger.error(`Failed to update liquidity management balance for ${exchange}:`, e);

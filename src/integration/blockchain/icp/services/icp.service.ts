@@ -2,6 +2,8 @@ import { Principal } from '@dfinity/principal';
 import { Injectable } from '@nestjs/common';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
+import { Config } from 'src/config/config';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import nacl from 'tweetnacl';
@@ -23,8 +25,12 @@ export class InternetComputerService extends BlockchainService {
     return this.client;
   }
 
-  getPaymentRequest(address: string, amount: number): string {
-    return `icp:${address}?amount=${Util.numberToFixedString(amount)}`;
+  getPaymentRequest(address: string, amount: number, asset?: Asset): string {
+    const canisterId =
+      asset?.type === AssetType.TOKEN
+        ? asset.chainId
+        : Config.blockchain.internetComputer.internetComputerLedgerCanisterId;
+    return `icp:${canisterId}/transfer?to=${address}&amount=${Util.numberToFixedString(amount)}`;
   }
 
   async verifySignature(message: string, address: string, signature: string, key?: string): Promise<boolean> {

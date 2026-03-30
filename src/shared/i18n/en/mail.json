@@ -94,10 +94,10 @@
                 "manual_check_phone": "We were unable to reach you at the phone number you provided. You can request a callback and a preferred time for the phone call yourself here: [url:https://app.dfx.swiss/settings?a=call]",
                 "manual_check_ip_phone": "We were unable to reach you at the phone number you provided. You can request a callback and a preferred time for the phone call yourself here: [url:https://app.dfx.swiss/settings?a=call]",
                 "manual_check_ip_country_phone": "We were unable to reach you at the phone number you provided. You can request a callback and a preferred time for the phone call yourself here: [url:https://app.dfx.swiss/settings?a=call]",
-                "manual_check_phone_rejected": "The phone call was unsuccessful or rejected",
+                "manual_check_phone_rejected": "The call was unsuccessful, was rejected, or you did not accept the call",
                 "merge_incomplete": "The email confirmation was not accepted",
-                "intermediary_without_sender": "The sender bank (Wise/Revolut) only transmitted the bank name, not the account holder's name. DFX is therefore unable to verify the actual sender and cannot process the transaction.",
-                "name_too_short": "Your name is too short for bank processing. Banks require at least 4 letters in the account holder name.",
+                "intermediary_without_sender": "The sender bank (Wise/Revolut) only transmitted the bank name, not the account holder's name. DFX is therefore unable to verify the actual sender and cannot process the transaction",
+                "name_too_short": "Your name is too short for bank processing. Banks require at least 4 letters in the account holder name",
                 "asset_input_not_allowed": "The asset is currently not available for trading with DFX"
             },
             "kyc_start": "You can start the KYC process here:<br>[url:{urlText}]"
@@ -216,8 +216,8 @@
                 "salutation": "A manual verification by phone is required",
                 "line1": "We have received your deposit.",
                 "line2": "We will contact you shortly at {phone}.",
-                "line3": "Once all questions have been clarified, your transaction will be processed automatically.",
-                "line4": "You can specify your preferred time for the phone call here: [url:https://app.dfx.swiss/settings?a=call]",
+                "line3": "Agree to the call and select your preferred time for the phone call here: [url:https://app.dfx.swiss/settings?a=call]",
+                "line4": "Once all questions have been clarified, your transaction will be processed automatically.",
                 "line5": "If you would like to request a refund instead:<br>[url:click here]"
             },
             "merge_incomplete": {
@@ -243,8 +243,8 @@
                 "salutation": "A manual verification by phone is required",
                 "line1": "We have received your deposit.",
                 "line2": "We will contact you shortly at {phone}.",
-                "line3": "Once all questions have been clarified, your transaction will be processed automatically.",
-                "line4": "You can specify your preferred time for the phone call here: [url:https://app.dfx.swiss/settings?a=call]",
+                "line3": "Agree to the call and select your preferred time for the phone call here: [url:https://app.dfx.swiss/settings?a=call]",
+                "line4": "Once all questions have been clarified, your transaction will be processed automatically.",
                 "line5": "If you would like to request a refund instead:<br>[url:click here]"
             },
             "manual_check_ip_country_phone": {
@@ -252,8 +252,8 @@
                 "salutation": "A manual verification by phone is required",
                 "line1": "We have received your deposit.",
                 "line2": "We will contact you shortly at {phone}.",
-                "line3": "Once all questions have been clarified, your transaction will be processed automatically.",
-                "line4": "You can specify your preferred time for the phone call here: [url:https://app.dfx.swiss/settings?a=call]",
+                "line3": "Agree to the call and select your preferred time for the phone call here: [url:https://app.dfx.swiss/settings?a=call]",
+                "line4": "Once all questions have been clarified, your transaction will be processed automatically.",
                 "line5": "If you would like to request a refund instead:<br>[url:click here]"
             }
         },

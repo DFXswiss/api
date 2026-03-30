@@ -53,6 +53,8 @@ export class PaymentRequestMapper {
       hint =
         `Approve the address from the URI for the required amount plus transfer fee using icrc2_approve. ` +
         `Then send your Principal ID as the sender parameter via the endpoint ${infoUrl}.`;
+    } else if (method === Blockchain.FIRO) {
+      hint = `Use this data to create a transaction and sign it. Either send the signed transaction back as HEX via the endpoint ${infoUrl}, or broadcast the transaction yourself and send the transaction hash (txId) back via the same endpoint.`;
     } else if (TxIdBlockchains.includes(method)) {
       hint = `Use this data to create a transaction and sign it. Broadcast the signed transaction to the blockchain and send the transaction hash back via the endpoint ${infoUrl}`;
     } else {

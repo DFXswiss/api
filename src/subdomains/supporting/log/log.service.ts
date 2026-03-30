@@ -59,6 +59,10 @@ export class LogService {
     return this.logRepo.getFinancialChangesLogs(from, dailySample);
   }
 
+  async getFinancialLogAt(targetDate: Date, direction: 'before' | 'after'): Promise<Log | undefined> {
+    return this.logRepo.getFinancialLogAt(targetDate, direction);
+  }
+
   async getBankLog(batchId: string): Promise<Log> {
     return this.logRepo
       .createQueryBuilder('log')

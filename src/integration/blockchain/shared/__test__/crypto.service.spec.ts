@@ -91,6 +91,26 @@ describe('CryptoService', () => {
     expect(getBlockchain('aEXoDuVy8YVAxkvPMFGeVL2NU2KSkfZCZf')).toEqual(Blockchain.FIRO);
   });
 
+  it('should match firo spark addresses', async () => {
+    expect(
+      getBlockchain(
+        'sm1qqp4u87yjmcd0mwfph0pg6jannk3z0wmhuzzuxgcrthqf0jrq9dqg8ht02gv2rssle7kgehhrglqn540rk8entqlsw3jmjrfrsc4xvz8u90q0z2uxe8zzpmzqx7qzf3',
+      ),
+    ).toEqual(Blockchain.FIRO);
+  });
+
+  it('should return FIRO address type for transparent firo addresses', () => {
+    expect(getAddressType('aEXoDuVy8YVAxkvPMFGeVL2NU2KSkfZCZf')).toEqual(UserAddressType.FIRO);
+  });
+
+  it('should return FIRO_SPARK address type for spark firo addresses', () => {
+    expect(
+      getAddressType(
+        'sm1qqp4u87yjmcd0mwfph0pg6jannk3z0wmhuzzuxgcrthqf0jrq9dqg8ht02gv2rssle7kgehhrglqn540rk8entqlsw3jmjrfrsc4xvz8u90q0z2uxe8zzpmzqx7qzf3',
+      ),
+    ).toEqual(UserAddressType.FIRO_SPARK);
+  });
+
   it('should match liquid addresses', async () => {
     expect(getBlockchain('VTpwKsrwasw7VnNf4GHMmcjNY3MR2Q81GaxDv7EyhVS8rzj5exX5b5PF6g29Szb4jrMqKSUwP2ZGnXt4')).toEqual(
       Blockchain.LIQUID,

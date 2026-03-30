@@ -43,7 +43,7 @@ export enum NodeCommand {
 }
 
 export abstract class NodeClient extends BlockchainClient {
-  private readonly logger = new DfxLogger(NodeClient);
+  protected readonly logger = new DfxLogger(NodeClient);
 
   protected readonly rpc: BitcoinRpcClient;
   private readonly queue: QueueHandler;

@@ -105,7 +105,7 @@ export class CryptoService {
         return this.cardanoService.getPaymentRequest(address, amount);
 
       case Blockchain.INTERNET_COMPUTER:
-        return this.internetComputerService.getPaymentRequest(address, amount);
+        return this.internetComputerService.getPaymentRequest(address, amount, asset);
 
       default:
         return undefined;
@@ -133,6 +133,7 @@ export class CryptoService {
         return UserAddressType.ARK;
 
       case Blockchain.FIRO:
+        if (CryptoService.isFiroSparkAddress(address)) return UserAddressType.FIRO_SPARK;
         return UserAddressType.FIRO;
 
       case Blockchain.MONERO:
@@ -190,6 +191,7 @@ export class CryptoService {
     if (CryptoService.isLightningAddress(address)) return [Blockchain.LIGHTNING];
     if (CryptoService.isSparkAddress(address)) return [Blockchain.SPARK];
     if (CryptoService.isArkAddress(address)) return [Blockchain.ARK];
+    if (CryptoService.isFiroSparkAddress(address)) return [Blockchain.FIRO];
     if (CryptoService.isFiroAddress(address)) return [Blockchain.FIRO];
     if (CryptoService.isMoneroAddress(address)) return [Blockchain.MONERO];
     if (CryptoService.isZanoAddress(address)) return [Blockchain.ZANO];
@@ -228,6 +230,10 @@ export class CryptoService {
 
   public static isFiroAddress(address: string): boolean {
     return new RegExp(`^(${Config.firoAddressFormat})$`).test(address);
+  }
+
+  public static isFiroSparkAddress(address: string): boolean {
+    return new RegExp(`^(${Config.firoSparkAddressFormat})$`).test(address);
   }
 
   private static isMoneroAddress(address: string): boolean {
@@ -298,8 +304,7 @@ export class CryptoService {
       if (detectedBlockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
       if (detectedBlockchain === Blockchain.SPARK) return await this.verifySpark(message, address, signature);
       if (detectedBlockchain === Blockchain.ARK) return await this.verifyArk(message, address, signature);
-      if (detectedBlockchain === Blockchain.FIRO)
-        return this.verifyBitcoinBased(message, address, signature, CryptoService.firoMessagePrefix);
+      if (detectedBlockchain === Blockchain.FIRO) return await this.verifyFiro(message, address, signature);
       if (detectedBlockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
       if (detectedBlockchain === Blockchain.ZANO) return await this.verifyZano(message, address, signature);
       if (detectedBlockchain === Blockchain.SOLANA) return await this.verifySolana(message, address, signature);
@@ -391,6 +396,13 @@ export class CryptoService {
 
   private async verifyArk(message: string, address: string, signature: string): Promise<boolean> {
     return this.arkService.verifySignature(message, address, signature);
+  }
+
+  private async verifyFiro(message: string, address: string, signature: string): Promise<boolean> {
+    if (CryptoService.isFiroSparkAddress(address))
+      return this.firoService.verifySparkSignature(message, address, signature);
+
+    return this.verifyBitcoinBased(message, address, signature, CryptoService.firoMessagePrefix);
   }
 
   private async verifyMonero(message: string, address: string, signature: string): Promise<boolean> {

@@ -1342,6 +1342,7 @@ export class UserDataService {
     }
 
     await this.kycLogService.createMergeLog(master, log);
+    await this.kycLogService.createMergeLog(slave, log);
 
     if (kycStepMerge) await this.kycService.checkDfxApproval(master);
 

@@ -125,6 +125,7 @@ export class TransactionService {
   async getTransactionsByUserDataId(userDataId: number): Promise<Transaction[]> {
     return this.repo.find({
       where: { userData: { id: userDataId } },
+      relations: { buyCrypto: true, buyFiat: true, bankTxReturn: true, bankTxRepeat: true },
       order: { created: 'DESC' },
       take: 100,
     });

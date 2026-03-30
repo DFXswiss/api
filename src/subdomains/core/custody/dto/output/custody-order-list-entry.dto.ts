@@ -1,5 +1,5 @@
-import { CustodyOrderStatus, CustodyOrderType } from '../../enums/custody';
 import { CustodyOrder } from '../../entities/custody-order.entity';
+import { CustodyOrderStatus, CustodyOrderType } from '../../enums/custody';
 
 export class CustodyOrderListEntry {
   id: number;
@@ -9,22 +9,24 @@ export class CustodyOrderListEntry {
   inputAsset?: string;
   outputAmount?: number;
   outputAsset?: string;
-  userId?: number;
+  userDataId?: number;
   userName?: string;
-  created: Date;
+  updated: Date;
 
   static fromEntity(order: CustodyOrder): CustodyOrderListEntry {
+    const tr = order.transactionRequest;
+
     return {
       id: order.id,
       type: order.type,
       status: order.status,
-      inputAmount: order.inputAmount,
+      inputAmount: order.inputAmount ?? tr?.estimatedAmount,
       inputAsset: order.inputAsset?.name,
-      outputAmount: order.outputAmount,
+      outputAmount: order.outputAmount ?? tr?.amount,
       outputAsset: order.outputAsset?.name,
-      userId: order.user?.userData?.id,
+      userDataId: order.user?.userData?.id,
       userName: order.user?.userData?.verifiedName,
-      created: order.created,
+      updated: order.updated,
     };
   }
 }

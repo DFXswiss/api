@@ -65,6 +65,7 @@ export enum AmlError {
   BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
   IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
   USER_DATA_FAILED_CALL = 'UserDataFailedCall',
+  USER_DATA_REJECTED_CALL = 'UserDataRejectedCall',
   TRADE_APPROVAL_DATE_MISSING = 'TradeApprovalDateMissing',
   BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
   FORCE_MANUAL_CHECK = 'ForceManualCheck',
@@ -316,6 +317,11 @@ export const AmlErrorResult: {
     amlReason: AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
   },
   [AmlError.USER_DATA_FAILED_CALL]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE_FAILED,
+  },
+  [AmlError.USER_DATA_REJECTED_CALL]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.FAIL,
     amlReason: AmlReason.MANUAL_CHECK_PHONE_FAILED,

@@ -28,6 +28,7 @@ import {
   CryptoInputRefund,
   RefundInternalDto,
 } from 'src/subdomains/core/history/dto/refund-internal.dto';
+import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
@@ -784,6 +785,21 @@ export class BuyCryptoService {
     });
   }
 
+  async getPendingLiquidityDemandChf(assetId: number): Promise<number> {
+    const { sum } = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('SUM(buyCrypto.amountInChf)', 'sum')
+      .leftJoin('buyCrypto.liquidityPipeline', 'pipeline')
+      .where('buyCrypto.outputAssetId = :assetId', { assetId })
+      .andWhere('buyCrypto.status = :status', { status: BuyCryptoStatus.MISSING_LIQUIDITY })
+      .andWhere('(buyCrypto.liquidityPipelineId IS NULL OR pipeline.status IN (:...failedStatuses))', {
+        failedStatuses: [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED],
+      })
+      .getRawOne<{ sum: number }>();
+
+    return sum ?? 0;
+  }
+
   // --- HELPER METHODS --- //
 
   private async createEntity(
@@ -938,13 +954,18 @@ export class BuyCryptoService {
 
     for (const ref of refs) {
       const { volume: buyCryptoVolume, credit: buyCryptoCredit } = await this.getRefVolume(ref);
+      const { volume: buyCryptoPartnerVolume, credit: buyCryptoPartnerCredit } = await this.getPartnerFeeRefVolume(ref);
       const { volume: buyFiatVolume, credit: buyFiatCredit } = await this.buyFiatService.getRefVolume(ref);
+      const { volume: buyFiatPartnerVolume, credit: buyFiatPartnerCredit } =
+        await this.buyFiatService.getPartnerFeeRefVolume(ref);
       const { volume: manualVolume, credit: manualCredit } = await this.transactionService.getManualRefVolume(ref);
 
       await this.userService.updateRefVolume(
         ref,
         buyCryptoVolume + buyFiatVolume + manualVolume,
         buyCryptoCredit + buyFiatCredit + manualCredit,
+        buyCryptoPartnerVolume + buyFiatPartnerVolume,
+        buyCryptoPartnerCredit + buyFiatPartnerCredit,
       );
     }
   }
@@ -955,6 +976,18 @@ export class BuyCryptoService {
       .select('SUM(amountInEur * refFactor)', 'volume')
       .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
       .where('usedRef = :ref', { ref })
+      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
+      .getRawOne<{ volume: number; credit: number }>();
+
+    return { volume: volume ?? 0, credit: credit ?? 0 };
+  }
+
+  async getPartnerFeeRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
+    const { volume, credit } = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('SUM(amountInEur)', 'volume')
+      .addSelect('SUM(partnerFeeAmount * (amountInEur/inputReferenceAmount ))', 'credit')
+      .where('usedPartnerRef = :ref', { ref })
       .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 

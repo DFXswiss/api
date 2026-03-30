@@ -129,6 +129,14 @@ export class PayInService {
     return payIns;
   }
 
+  async getCryptoInputsByTransactionIds(transactionIds: number[]): Promise<CryptoInput[]> {
+    if (!transactionIds.length) return [];
+    return this.payInRepository.find({
+      where: { transaction: { id: In(transactionIds) } },
+      relations: { transaction: true },
+    });
+  }
+
   async getCryptoInputByKeys(keys: string[], value: any): Promise<CryptoInput> {
     const query = this.payInRepository
       .createQueryBuilder('cryptoInput')
@@ -159,7 +167,7 @@ export class PayInService {
         { status: PayInStatus.CREATED, txType: IsNull() },
         {
           status: PayInStatus.CREATED,
-          txType: Not(In([PayInType.PERMIT_TRANSFER, PayInType.SIGNED_TRANSFER, PayInType.SPONSORED_TRANSFER])),
+          txType: Not(In([PayInType.PERMIT_TRANSFER, PayInType.SIGNED_TRANSFER, PayInType.CONFIRMED_DEPOSIT])),
         },
       ],
       relations: { transaction: true, paymentLinkPayment: { link: { route: true } } },
