@@ -58,11 +58,15 @@ export class AmlService {
     if ([CheckStatus.PENDING, CheckStatus.GSHEET].includes(entity.amlCheck)) {
       if (entity.amlReason === AmlReason.VIDEO_IDENT_NEEDED)
         await this.userDataService.checkOrTriggerVideoIdent(entity.userData);
-      if (isFirstRun && entity.amlReason === AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE) {
+      if (
+        isFirstRun &&
+        entity.amlReason === AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE &&
+        entity.userData.phoneCallExternalAccountCheckDate
+      ) {
         await this.kycLogService.createLogInternal(
           entity.userData,
           KycLogType.KYC,
-          `Reset phoneCallExternalAccountCheckDate ${entity.userData.phoneCallExternalAccountCheckDate}`,
+          `Reset phoneCallExternalAccountCheckDate ${entity.userData.phoneCallExternalAccountCheckDate.toISOString()}`,
         );
         await this.userDataService.updateUserDataInternal(entity.userData, { phoneCallExternalAccountCheckDate: null });
       }
