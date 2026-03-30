@@ -98,7 +98,7 @@
     "geoip-lite2": "^2.2.7",
     "graphql": "^16.11.0",
     "graphql-request": "^6.1.0",
-    "handlebars": "^4.7.8",
+    "handlebars": "^4.7.9",
     "helmet": "^6.2.0",
     "ibantools": "^4.5.1",
     "jszip": "^3.10.1",
