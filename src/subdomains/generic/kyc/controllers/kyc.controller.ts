@@ -174,6 +174,13 @@ export class KycController {
     return this.kycService.removeKycClient(code, walletName);
   }
 
+  @Delete(':id')
+  @ApiOkResponse({ type: KycStepBase })
+  @ApiUnauthorizedResponse(MergedResponse)
+  async cancelAddressChangeData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<void> {
+    return this.kycService.cancelStepManual(code, +id);
+  }
+
   // --- UPDATE ENDPOINTS --- //
   @Put('data/contact/:id')
   @ApiOkResponse({ type: KycStepBase })
@@ -253,13 +260,6 @@ export class KycController {
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('address-change', data.fileName);
     return this.kycService.updateAddressChangeData(code, +id, data);
-  }
-
-  @Delete('data/address/:id')
-  @ApiOkResponse({ type: KycStepBase })
-  @ApiUnauthorizedResponse(MergedResponse)
-  async cancelAddressChangeData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<void> {
-    return this.kycService.cancelStepManual(code, +id);
   }
 
   @Put('data/name/:id')

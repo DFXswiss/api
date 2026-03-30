@@ -100,7 +100,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.MANUAL_REVIEW_REQUIRED]: undefined,
   [KycError.RISK_ACCEPTED]: undefined,
   [KycError.NO_GWG_RISK]: undefined,
-  [KycError.USER_CANCELED]: 'You have canceled this kyc step',
+  [KycError.USER_CANCELED]: 'You have canceled this KYC step',
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

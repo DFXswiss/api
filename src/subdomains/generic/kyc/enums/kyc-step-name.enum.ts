@@ -29,3 +29,5 @@ export enum KycStepName {
   // external registrations
   REALUNIT_REGISTRATION = 'RealUnitRegistration',
 }
+
+export const KycStepCancelable = [KycStepName.ADDRESS_CHANGE, KycStepName.PHONE_CHANGE, KycStepName.NAME_CHANGE];
