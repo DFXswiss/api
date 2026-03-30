@@ -338,7 +338,6 @@ export class AmlHelperService {
           errors.push(AmlError.ACCOUNT_IBAN_BLACKLISTED);
 
         const bank = banks.find((b) => b.iban === entity.bankTx.accountIban);
-        if (bank?.sctInst && !entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
         if (bank && !bank.amlEnabled) errors.push(AmlError.BANK_DEACTIVATED);
       } else if (entity.checkoutTx) {
         // checkout
