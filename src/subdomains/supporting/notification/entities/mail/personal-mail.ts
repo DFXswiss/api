@@ -29,7 +29,12 @@ export interface PersonalMailParams {
 }
 
 export class PersonalMail extends Mail {
-  constructor(params: PersonalMailParams) {
-    super({ ...params, template: 'personal', templateParams: params });
+  constructor(params: PersonalMailParams, wallet?: Wallet) {
+    super({
+      ...params,
+      walletName: wallet?.name,
+      template: 'personal',
+      templateParams: params,
+    });
   }
 }

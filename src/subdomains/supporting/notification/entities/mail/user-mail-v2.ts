@@ -1,4 +1,4 @@
-import { Config } from 'src/config/config';
+import { Config, GetConfig } from 'src/config/config';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { MailAffix, TranslationItem } from '../../interfaces';
@@ -35,9 +35,12 @@ export class UserMailV2 extends Mail {
       instagramUrl: Config.social.instagram,
     };
 
+    const walletMailConfig = wallet?.name ? GetConfig().walletMail[wallet.name] : undefined;
+
     super({
       ...params,
-      template: wallet?.name === 'onchainlabs' ? 'onChainLabs' : 'user-v2',
+      walletName: wallet?.name,
+      template: walletMailConfig?.template ?? 'user-v2',
       templateParams: { ...defaultParams, ...params },
     });
   }
