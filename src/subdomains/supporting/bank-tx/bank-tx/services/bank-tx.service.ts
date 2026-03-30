@@ -186,14 +186,8 @@ export class BankTxService implements OnModuleInit {
       return;
     }
 
-    const { balance } = await this.olkyService.getBalance();
-
     // Get bank transactions
-    const olkyTransactions = await this.olkyService.getOlkyTransactions(
-      lastModificationTimeOlky,
-      olkyBank.iban,
-      balance,
-    );
+    const olkyTransactions = await this.olkyService.getOlkyTransactions(lastModificationTimeOlky, olkyBank.iban);
 
     const multiAccounts = await this.specialAccountService.getMultiAccounts();
     for (const transaction of olkyTransactions) {
@@ -207,6 +201,7 @@ export class BankTxService implements OnModuleInit {
     if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
 
     // Release unreleased transactions if balance is below threshold
+    const { balance } = await this.olkyService.getBalance();
     if (balance < OLKYPAY_RELEASE_BALANCE_LIMIT) {
       await this.bankTxRepo.update(
         { accountIban: olkyBank.iban, bankReleaseDate: IsNull() },
