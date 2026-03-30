@@ -177,7 +177,7 @@ export class KycController {
   @Delete(':id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
-  async cancelAddressChangeData(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<void> {
+  async cancelStep(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<void> {
     return this.kycService.cancelStepManual(code, +id);
   }
 
