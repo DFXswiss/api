@@ -45,8 +45,8 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
     const { account, destinationAddress } = payInGroup;
 
     const groupAmount = this.getTotalGroupAmount(payInGroup, type);
-    // subtract fee for forwarding
-    const amount = type === SendType.FORWARD ? Util.round(groupAmount - estimatedNativeFee * 1.00001, 12) : groupAmount;
+    // subtract fee for forwarding (2x buffer to handle gas price fluctuations between estimation and send)
+    const amount = type === SendType.FORWARD ? Util.round(groupAmount - estimatedNativeFee * 2, 12) : groupAmount;
 
     return this.payInEvmService.sendNativeCoin(account, destinationAddress, amount);
   }
