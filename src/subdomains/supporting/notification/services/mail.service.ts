@@ -8,6 +8,7 @@ import { Config, Environment, GetConfig } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Mail } from '../entities/mail/base/mail';
 
+// custom wallet config for UserMailV2
 export interface WalletMailConfig {
   host: string;
   port: number;
@@ -16,7 +17,7 @@ export interface WalletMailConfig {
   pass: string;
   fromAddress: string;
   displayName: string;
-  template: string; // template for UserMailV2
+  template: string;
 }
 
 export interface MailOptions {
@@ -28,6 +29,7 @@ export interface MailOptions {
     liqMail: string;
     noReplyMail: string;
   };
+  wallet: Record<string, Partial<WalletMailConfig>>;
 }
 
 @Injectable()
@@ -63,7 +65,7 @@ export class MailService {
   }
 
   private getTransport(walletName?: string): nodemailer.Transporter {
-    const walletConfig = walletName ? GetConfig().walletMail[walletName] : undefined;
+    const walletConfig = walletName ? GetConfig().mail.wallet[walletName] : undefined;
     const key = walletConfig?.host ? walletName : 'default';
 
     let transport = this.transports.get(key);

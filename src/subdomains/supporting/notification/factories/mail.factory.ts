@@ -171,20 +171,17 @@ export class MailFactory {
 
     const lang = userData.language.symbol;
 
-    return new PersonalMail(
-      {
-        to: userData.mail,
-        bcc,
-        subject: this.translate(title, lang),
-        prefix: prefix && this.getMailAffix(prefix, lang),
-        banner,
-        from,
-        displayName,
-        correlationId,
-        options,
-      },
-      wallet,
-    );
+    return new PersonalMail({
+      to: userData.mail,
+      bcc,
+      subject: this.translate(title, lang),
+      prefix: prefix && this.getMailAffix(prefix, lang),
+      banner,
+      from,
+      displayName,
+      correlationId,
+      options,
+    });
   }
 
   //*** TRANSLATION METHODS ***//

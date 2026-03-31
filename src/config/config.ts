@@ -20,7 +20,7 @@ import { AccountType } from 'src/subdomains/generic/user/models/user-data/accoun
 import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
-import { MailOptions, WalletMailConfig } from 'src/subdomains/supporting/notification/services/mail.service';
+import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
 import { LoggerOptions } from 'typeorm';
 import { EVM_CHAINS } from './chains.config';
 
@@ -620,26 +620,24 @@ export class Configuration {
       liqMail: process.env.LIQ_MAIL || 'liq@dfx.swiss',
       noReplyMail: process.env.NOREPLY_MAIL || 'noreply@dfx.swiss',
     },
-  };
-
-  // Wallet-specific mail configurations
-  walletMail: Record<string, Partial<WalletMailConfig>> = {
-    onchainlabs: {
-      template: 'onChainLabs',
+    wallet: {
+      onchainlabs: {
+        template: 'onChainLabs',
+      },
+      ...(process.env.REALUNIT_MAIL_USER &&
+        process.env.REALUNIT_MAIL_PASS && {
+          RealUnit: {
+            host: 'mail.infomaniak.com',
+            port: 587,
+            secure: false,
+            user: process.env.REALUNIT_MAIL_USER,
+            pass: process.env.REALUNIT_MAIL_PASS,
+            fromAddress: process.env.REALUNIT_MAIL_USER,
+            displayName: 'RealUnit',
+            template: 'user-v2',
+          },
+        }),
     },
-    ...(process.env.REALUNIT_MAIL_USER &&
-      process.env.REALUNIT_MAIL_PASS && {
-        RealUnit: {
-          host: 'mail.infomaniak.com',
-          port: 587,
-          secure: false,
-          user: process.env.REALUNIT_MAIL_USER,
-          pass: process.env.REALUNIT_MAIL_PASS,
-          fromAddress: process.env.REALUNIT_MAIL_USER,
-          displayName: 'RealUnit',
-          template: 'user-v2',
-        },
-      }),
   };
 
   coinGecko = {

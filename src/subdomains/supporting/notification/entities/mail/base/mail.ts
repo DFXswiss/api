@@ -44,7 +44,7 @@ export class Mail extends Notification {
   constructor(params: MailParams | MailParamsNew) {
     super();
 
-    const walletMailConfig = params.walletName ? GetConfig().walletMail[params.walletName] : undefined;
+    const walletMailConfig = params.walletName ? GetConfig().mail.wallet[params.walletName] : undefined;
 
     this.#walletName = params.walletName;
     this.#to = params.to;

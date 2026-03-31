@@ -35,7 +35,7 @@ export class UserMailV2 extends Mail {
       instagramUrl: Config.social.instagram,
     };
 
-    const walletMailConfig = wallet?.name ? GetConfig().walletMail[wallet.name] : undefined;
+    const walletMailConfig = wallet?.name ? GetConfig().mail.wallet[wallet.name] : undefined;
 
     super({
       ...params,
