@@ -620,6 +620,23 @@ export class Configuration {
       liqMail: process.env.LIQ_MAIL || 'liq@dfx.swiss',
       noReplyMail: process.env.NOREPLY_MAIL || 'noreply@dfx.swiss',
     },
+    wallet: {
+      onchainlabs: {
+        template: 'onChainLabs',
+      },
+      ...(process.env.REALUNIT_MAIL_USER && {
+        RealUnit: {
+          host: 'mail.infomaniak.com',
+          port: 587,
+          secure: false,
+          user: process.env.REALUNIT_MAIL_USER,
+          pass: process.env.REALUNIT_MAIL_PASS,
+          fromAddress: process.env.REALUNIT_MAIL_USER,
+          displayName: 'RealUnit',
+          template: 'user-v2',
+        },
+      }),
+    },
   };
 
   coinGecko = {

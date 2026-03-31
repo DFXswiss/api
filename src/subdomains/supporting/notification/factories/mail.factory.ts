@@ -7,7 +7,6 @@ import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
 import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/personal-mail';
-import { MailRequestUserInput, UserMail, UserMailTable } from '../entities/mail/user-mail';
 import { MailRequestUserInputV2, UserMailV2 } from '../entities/mail/user-mail-v2';
 import { MailContext, MailContextType, MailContextTypeMapper, MailType } from '../enums';
 import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
@@ -82,10 +81,6 @@ export class MailFactory {
         return this.createErrorMonitoringMail(request);
       }
 
-      case MailType.USER_DEPRECATED: {
-        return this.createUserMail(request);
-      }
-
       case MailType.USER_V2: {
         return this.createUserV2Mail(request);
       }
@@ -146,27 +141,6 @@ export class MailFactory {
     return new ErrorMonitoringMail({ subject, errors, correlationId, options });
   }
 
-  private createUserMail(request: MailRequest): UserMail {
-    const { correlationId, options } = request;
-    const { userData, wallet, title, salutation, prefix, suffix, table } = request.input as MailRequestUserInput;
-
-    const lang = userData.language.symbol;
-
-    return new UserMail(
-      {
-        to: userData.mail,
-        subject: this.translate(title, lang),
-        salutation: salutation && this.translate(salutation.key, lang, salutation.params),
-        prefix: prefix && this.getMailAffix(prefix, lang),
-        table: table && this.getTable(table, lang),
-        suffix: suffix && this.getMailAffix(suffix, lang),
-        correlationId,
-        options,
-      },
-      wallet,
-    );
-  }
-
   private createUserV2Mail(request: MailRequest): UserMailV2 {
     const { correlationId, options, context } = request;
     const { userData, wallet, title, salutation, texts } = request.input as MailRequestUserInputV2;
@@ -225,13 +199,6 @@ export class MailFactory {
       mailContextType &&
       (wallet?.disabledMailTypes.includes(mailContextType) || wallet?.disabledMailTypes.includes(MailContextType.ALL))
     );
-  }
-
-  private getTable(table: Record<string, string>, lang: string): UserMailTable[] {
-    return Object.entries(Util.removeNullFields(table)).map(([key, value]) => ({
-      text: this.translate(key, lang),
-      value: value,
-    }));
   }
 
   private getMailAffix(affix: TranslationItem[], lang = 'en'): MailAffix[] {
