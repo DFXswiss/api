@@ -72,7 +72,6 @@ export class MailService {
     if (!transport) {
       transport = this.createTransport(walletConfig);
       this.transports.set(key, transport);
-      this.logger.info(`Created mail transport: ${key}`);
     }
 
     return transport;
