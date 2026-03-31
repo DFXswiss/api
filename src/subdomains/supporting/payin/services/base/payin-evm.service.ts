@@ -23,6 +23,10 @@ export abstract class PayInEvmService {
     return this.#client.sendTokenFromAccount(account, addressTo, tokenName, amount);
   }
 
+  async getGasCostForCoinTransaction(): Promise<number> {
+    return this.#client.getCurrentGasCostForCoinTransaction();
+  }
+
   async checkTransactionCompletion(txHash: string, minConfirmations: number): Promise<boolean> {
     return this.#client.isTxComplete(txHash, minConfirmations);
   }
