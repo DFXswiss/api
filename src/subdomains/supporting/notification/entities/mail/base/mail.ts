@@ -1,4 +1,4 @@
-import { GetConfig } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Notification, NotificationOptions } from '../../notification.entity';
 
 export interface MailParamBase {
@@ -44,18 +44,18 @@ export class Mail extends Notification {
   constructor(params: MailParams | MailParamsNew) {
     super();
 
-    const walletMailConfig = params.walletName ? GetConfig().mail.wallet[params.walletName] : undefined;
+    const walletMailConfig = params.walletName ? Config.mail.wallet[params.walletName] : undefined;
 
     this.#walletName = params.walletName;
     this.#to = params.to;
     this.#subject = params.subject;
     this.#from = {
       name: params.displayName ?? walletMailConfig?.displayName ?? 'DFX.swiss',
-      address: params.from ?? walletMailConfig?.fromAddress ?? GetConfig().mail.contact.noReplyMail,
+      address: params.from ?? walletMailConfig?.fromAddress ?? Config.mail.contact.noReplyMail,
     };
     this.#cc = params.cc;
     this.#bcc = params.bcc;
-    this.#template = params.template ?? GetConfig().mail.defaultMailTemplate;
+    this.#template = params.template ?? Config.mail.defaultMailTemplate;
     this.#templateParams = params.templateParams;
   }
 

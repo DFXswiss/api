@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as handlebars from 'handlebars';
 import * as nodemailer from 'nodemailer';
 import { join } from 'path';
-import { Config, Environment, GetConfig } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Mail } from '../entities/mail/base/mail';
 
@@ -65,7 +65,7 @@ export class MailService {
   }
 
   private getTransport(walletName?: string): nodemailer.Transporter {
-    const walletConfig = walletName ? GetConfig().mail.wallet[walletName] : undefined;
+    const walletConfig = walletName ? Config.mail.wallet[walletName] : undefined;
     const key = walletConfig?.host ? walletName : 'default';
 
     let transport = this.transports.get(key);
@@ -89,11 +89,11 @@ export class MailService {
       });
     }
 
-    return nodemailer.createTransport(GetConfig().mail.options.transport as nodemailer.TransportOptions);
+    return nodemailer.createTransport(Config.mail.options.transport as nodemailer.TransportOptions);
   }
 
   private compileTemplate(template: string, params: Record<string, unknown>): string {
-    const templatePath = join(process.cwd(), 'src/subdomains/supporting/notification/templates', `${template}.hbs`);
+    const templatePath = join(Config.mail.options.template.dir, `${template}.hbs`);
     const templateContent = fs.readFileSync(templatePath, 'utf-8');
     return handlebars.compile(templateContent)(params);
   }

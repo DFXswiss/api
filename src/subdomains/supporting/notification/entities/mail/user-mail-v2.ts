@@ -1,4 +1,4 @@
-import { Config, GetConfig } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { MailAffix, TranslationItem } from '../../interfaces';
@@ -35,7 +35,7 @@ export class UserMailV2 extends Mail {
       instagramUrl: Config.social.instagram,
     };
 
-    const walletMailConfig = wallet?.name ? GetConfig().mail.wallet[wallet.name] : undefined;
+    const walletMailConfig = wallet?.name ? Config.mail.wallet[wallet.name] : undefined;
 
     super({
       ...params,
