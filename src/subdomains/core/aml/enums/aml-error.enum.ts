@@ -294,12 +294,12 @@ export const AmlErrorResult: {
   [AmlError.BIC_PHONE_VERIFICATION_NEEDED]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK_PHONE,
+    amlReason: AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
   },
   [AmlError.IBAN_PHONE_VERIFICATION_NEEDED]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
-    amlReason: AmlReason.MANUAL_CHECK_PHONE,
+    amlReason: AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
   },
   [AmlError.BANK_RELEASE_DATE_MISSING]: {
     type: AmlErrorType.SINGLE,

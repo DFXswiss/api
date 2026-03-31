@@ -307,7 +307,8 @@ export class AmlHelperService {
           errors.push(AmlError.IBAN_BLACKLISTED);
 
         if (
-          !entity.userData.phoneCallCheckDate &&
+          (!entity.userData.phoneCallExternalAccountCheckDate ||
+            !entity.userData.phoneCallExternalAccountCheckValuesObject?.includes(entity.bankTx.bic)) &&
           !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_14) &&
           entity.userData.isPersonalAccount &&
           phoneCallList.some((b) =>
@@ -316,7 +317,8 @@ export class AmlHelperService {
         )
           errors.push(AmlError.BIC_PHONE_VERIFICATION_NEEDED);
         if (
-          !entity.userData.phoneCallCheckDate &&
+          (!entity.userData.phoneCallExternalAccountCheckDate ||
+            !entity.userData.phoneCallExternalAccountCheckValuesObject?.includes(entity.bankTx.iban)) &&
           !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_14) &&
           entity.userData.isPersonalAccount &&
           phoneCallList.some(
@@ -336,7 +338,6 @@ export class AmlHelperService {
           errors.push(AmlError.ACCOUNT_IBAN_BLACKLISTED);
 
         const bank = banks.find((b) => b.iban === entity.bankTx.accountIban);
-        if (bank?.sctInst && !entity.outputAsset.instantBuyable) errors.push(AmlError.ASSET_NOT_INSTANT_BUYABLE);
         if (bank && !bank.amlEnabled) errors.push(AmlError.BANK_DEACTIVATED);
       } else if (entity.checkoutTx) {
         // checkout

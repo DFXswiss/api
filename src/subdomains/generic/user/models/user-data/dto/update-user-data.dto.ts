@@ -328,4 +328,13 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsEnum(PhoneCallStatus)
   phoneCallStatus?: PhoneCallStatus;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  phoneCallExternalAccountCheckDate?: Date;
+
+  @IsOptional()
+  @IsString()
+  phoneCallExternalAccountCheckValue?: string;
 }
