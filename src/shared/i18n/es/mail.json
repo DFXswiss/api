@@ -98,7 +98,8 @@
                 "merge_incomplete": "El correo electrónico de confirmación no fue aceptado",
                 "intermediary_without_sender": "El banco emisor (Wise/Revolut) solo transmitió el nombre del banco, no el nombre del titular de la cuenta. Por lo tanto, DFX no puede verificar el remitente real y no puede procesar la transacción",
                 "name_too_short": "Tu nombre es demasiado corto para el procesamiento bancario. Los bancos requieren al menos 4 letras en el nombre del titular de la cuenta",
-                "asset_input_not_allowed": "Este activo no está actualmente disponible para comerciar con DFX"
+                "asset_input_not_allowed": "Este activo no está actualmente disponible para comerciar con DFX",
+                "manual_check_external_account_phone": "No hemos podido contactar con usted al número de teléfono que nos facilitó. Aquí puede solicitar una llamada y elegir la hora que prefiera para recibirla: [url:https://app.dfx.swiss/settings?a=call]"
             },
             "kyc_start": "Puede iniciar el proceso KYC aquí:<br>[url:{urlText}]"
         },
@@ -248,6 +249,15 @@
                 "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
             },
             "manual_check_ip_country_phone": {
+                "title": "Se requiere llamada telefónica",
+                "salutation": "Se requiere una verificación manual por teléfono",
+                "line1": "Hemos recibido su depósito.",
+                "line2": "Nos pondremos en contacto con usted en breve en el {phone}.",
+                "line3": "Acepta la llamada y selecciona aquí la hora que prefieras para la llamada telefónica: [url:https://app.dfx.swiss/settings?a=call]",
+                "line4": "Una vez que se hayan aclarado todas las preguntas, su transacción se procesará automáticamente.",
+                "line5": "Si desea solicitar un reembolso en su lugar:<br>[url:haga clic aquí]"
+            },
+            "manual_check_external_account_phone": {
                 "title": "Se requiere llamada telefónica",
                 "salutation": "Se requiere una verificación manual por teléfono",
                 "line1": "Hemos recibido su depósito.",
