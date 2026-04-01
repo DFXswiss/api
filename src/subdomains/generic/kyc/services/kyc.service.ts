@@ -29,7 +29,6 @@ import { BankDataService } from '../../user/models/bank-data/bank-data.service';
 import { RecommendationService } from '../../user/models/recommendation/recommendation.service';
 import { UserDataRelationState } from '../../user/models/user-data-relation/dto/user-data-relation.enum';
 import { UserDataRelationService } from '../../user/models/user-data-relation/user-data-relation.service';
-import { OnboardingStatus } from '../../support/dto/user-data-support.dto';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
@@ -1847,10 +1846,10 @@ export class KycService {
     return results;
   }
 
-  async getDfxApprovalStatuses(userDataIds: number[]): Promise<Map<number, OnboardingStatus>> {
-    if (userDataIds.length === 0) return new Map();
+  async getDfxApprovalSteps(userDataIds: number[]): Promise<KycStep[]> {
+    if (userDataIds.length === 0) return [];
 
-    const steps = await this.kycStepRepo.find({
+    return this.kycStepRepo.find({
       where: {
         userData: { id: In(userDataIds) },
         name: KycStepName.DFX_APPROVAL,
@@ -1858,18 +1857,5 @@ export class KycService {
       },
       relations: ['userData'],
     });
-
-    const result = new Map<number, OnboardingStatus>();
-    for (const step of steps) {
-      if (step.status === ReviewStatus.FAILED) {
-        result.set(step.userData.id, OnboardingStatus.REJECTED);
-      } else {
-        const parsed = step.result ? JSON.parse(step.result as string) : undefined;
-        const decision = parsed?.complianceReview?.finalDecision;
-        result.set(step.userData.id, decision === 'Abgelehnt' ? OnboardingStatus.REJECTED : OnboardingStatus.COMPLETED);
-      }
-    }
-
-    return result;
   }
 }
