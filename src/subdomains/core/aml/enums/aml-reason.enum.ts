@@ -69,6 +69,8 @@ export const RecheckAmlReasons = [
   AmlReason.ASSET_KYC_NEEDED,
   AmlReason.KYC_DATA_NEEDED,
   AmlReason.BANK_RELEASE_PENDING,
+  AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
+  AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
 ];
 
 export const BlockAmlReasons = [AmlReason.MANUAL_CHECK, AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE];

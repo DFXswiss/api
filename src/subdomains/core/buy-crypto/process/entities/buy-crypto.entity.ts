@@ -959,6 +959,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.BANK_RELEASE_PENDING,
   AmlReason.MANUAL_CHECK_IP_PHONE,
   AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
+  AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];
