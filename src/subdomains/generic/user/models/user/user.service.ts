@@ -425,7 +425,6 @@ export class UserService {
       relations: { users: true, kycSteps: true },
     });
     if (!userData) throw new NotFoundException('User account not found');
-    if (userData.isBlockedOrDeactivated) throw new BadRequestException('User account already deactivated');
 
     if (address) {
       const user = userData.users.find((u) => u.address === address);
@@ -436,6 +435,7 @@ export class UserService {
       return;
     }
 
+    if (userData.isBlockedOrDeactivated) throw new BadRequestException('User account already deactivated');
     await this.userDataService.deactivateUserData(userData);
   }
 

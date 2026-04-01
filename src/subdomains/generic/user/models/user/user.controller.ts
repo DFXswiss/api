@@ -146,7 +146,11 @@ export class UserController {
 
   @Delete()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.USER),
+    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
+  )
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
   async deleteUser(@GetJwt() jwt: JwtPayload): Promise<void> {
@@ -297,7 +301,11 @@ export class UserV2Controller {
 
   @Delete('addresses/:address')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.ACCOUNT),
+    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
+  )
   @ApiOkResponse()
   async deleteAddress(@GetJwt() jwt: JwtPayload, @Param('address') address: string): Promise<void> {
     return this.userService.deactivateUser(jwt.account, address);
