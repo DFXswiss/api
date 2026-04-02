@@ -62,4 +62,9 @@ export class GetSellQuoteDto {
   @IsOptional()
   @IsString()
   country?: string;
+
+  @ApiPropertyOptional({ description: 'State or province code (e.g. US-NY, CA-BC)' })
+  @IsOptional()
+  @IsString()
+  stateProvince?: string;
 }

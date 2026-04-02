@@ -50,6 +50,7 @@ export class Configuration {
   defaultWalletId = 1;
   transactionRefundExpirySeconds = 300; // 5 minutes - enough time to fill out the refund form
   txRequestWaitingExpiryDays = 7;
+  txRequestValidityMinutes = 30;
   financeLogTotalBalanceChangeLimit = 5000;
   faucetAmount = 20; //CHF
   faucetEnabled = process.env.FAUCET_ENABLED === 'true';

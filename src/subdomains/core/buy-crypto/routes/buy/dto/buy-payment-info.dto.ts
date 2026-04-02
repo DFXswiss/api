@@ -45,6 +45,9 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiProperty({ description: 'UID of the transaction order' })
   uid?: string;
 
+  @ApiPropertyOptional({ description: 'URL to the order status page' })
+  statusUrl?: string;
+
   @ApiProperty({ description: 'Price timestamp' })
   timestamp: Date;
 
@@ -121,4 +124,7 @@ export class BuyPaymentInfoDto extends BankInfoDto {
 
   @ApiPropertyOptional({ description: 'Whether this uses a personal IBAN' })
   isPersonalIban?: boolean;
+
+  @ApiPropertyOptional({ description: 'Expiration timestamp of the quote' })
+  expiryDate?: Date;
 }
