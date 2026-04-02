@@ -111,6 +111,7 @@ export class TransactionDtoMapper {
             asset: buyCrypto.networkStartAsset,
           }
         : null,
+      userCountry: buyCrypto.transaction.userData?.country?.symbol,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -181,6 +182,7 @@ export class TransactionDtoMapper {
       chargebackDate: buyFiat.chargebackDate,
       date: buyFiat.transaction.created,
       externalTransactionId: buyFiat.transaction.externalId,
+      userCountry: buyFiat.transaction.userData?.country?.symbol,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -241,6 +243,7 @@ export class TransactionDtoMapper {
       date: txRequest.created,
       externalTransactionId: null,
       networkStartTx: null,
+      userCountry: txRequest.user?.userData?.country?.symbol,
     };
 
     return Object.assign(new TransactionDto(), dto);
@@ -303,6 +306,7 @@ export class TransactionDtoMapper {
       chargebackTxUrl: undefined,
       chargebackDate: undefined,
       date: refReward.transaction.created,
+      userCountry: refReward.transaction.userData?.country?.symbol,
     };
 
     return Object.assign(new TransactionDto(), dto);

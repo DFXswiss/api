@@ -3,8 +3,8 @@ import { NestFactory } from '@nestjs/core';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as AppInsights from 'applicationinsights';
-import { useContainer } from 'class-validator';
 import { spawnSync } from 'child_process';
+import { useContainer } from 'class-validator';
 import cors from 'cors';
 import { json, raw, text } from 'express';
 import helmet from 'helmet';
@@ -77,7 +77,10 @@ async function bootstrap() {
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX API')
-    .setDescription(`DFX API ${Config.environment.toUpperCase()} (updated on ${new Date().toLocaleString()})`)
+    .setDescription(
+      `DFX API ${Config.environment.toUpperCase()} (updated on ${new Date().toLocaleString()})\n\n` +
+        '**Amount Convention:** All amount fields use human-readable display units (e.g., 1.5 BTC, not 150,000,000 satoshis). ',
+    )
     .setExternalDoc('Github documentation', Config.social.github)
     .setVersion(Config.defaultVersionString)
     .addBearerAuth()

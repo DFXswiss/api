@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsDate, IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExportType } from '../services/history.service';
 import { HistoryFilter } from './history-filter.dto';
@@ -32,6 +32,21 @@ export class HistoryQuery extends HistoryFilter {
   @IsOptional()
   @IsString()
   blockchains?: string;
+
+  @ApiPropertyOptional({ description: 'Maximum number of transactions to return', default: 1000 })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(10000)
+  @Type(() => Number)
+  limit?: number;
+
+  @ApiPropertyOptional({ description: 'Number of transactions to skip', default: 0 })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  @Type(() => Number)
+  offset?: number;
 }
 
 export class HistoryQueryUser extends HistoryQuery {

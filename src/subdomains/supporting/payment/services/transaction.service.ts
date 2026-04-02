@@ -172,7 +172,13 @@ export class TransactionService {
     return query.orderBy('transaction.id', 'DESC').getMany();
   }
 
-  async getTransactionsForAccount(userDataId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
+  async getTransactionsForAccount(
+    userDataId: number,
+    from = new Date(0),
+    to = new Date(),
+    limit?: number,
+    offset?: number,
+  ): Promise<Transaction[]> {
     return this.repo.find({
       where: { userData: { id: userDataId }, type: Not(IsNull()), created: Between(from, to) },
       relations: {
@@ -189,6 +195,9 @@ export class TransactionService {
         bankTx: { transaction: true },
         bankTxReturn: true,
       },
+      order: { created: 'DESC' },
+      take: limit,
+      skip: offset,
     });
   }
 

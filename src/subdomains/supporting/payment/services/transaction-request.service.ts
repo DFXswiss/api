@@ -186,6 +186,8 @@ export class TransactionRequestService {
       await this.transactionRequestRepo.save(transactionRequest);
       response.id = transactionRequest.id;
       response.uid = uid;
+      response.statusUrl = `${Config.frontend.services}/tx/${uid}`;
+      response.expiryDate = Util.minutesAfter(Config.txRequestValidityMinutes);
 
       // create order at sift (without waiting)
       if (siftOrder)
