@@ -122,7 +122,13 @@ export class HistoryService {
   ): Promise<{ buyCryptos: BuyCrypto[]; buyFiats: BuyFiat[]; refRewards: RefReward[] }> {
     const transactions =
       user instanceof UserData
-        ? await this.transactionService.getTransactionsForAccount(user.id, query.from, query.to, query.limit, query.offset)
+        ? await this.transactionService.getTransactionsForAccount(
+            user.id,
+            query.from,
+            query.to,
+            query.limit,
+            query.offset,
+          )
         : await this.transactionService.getTransactionsForUsers([user.id], query.from, query.to, query.limit);
 
     const all =
