@@ -18,7 +18,7 @@ export class TestExchangeService extends ExchangeService {
     Bitcoin: undefined,
     Lightning: undefined,
     Spark: undefined,
-    Ark: undefined,
+    Arkade: undefined,
     Firo: undefined,
     Monero: undefined,
     Zano: undefined,

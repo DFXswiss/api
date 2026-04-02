@@ -28,7 +28,7 @@ import { PayoutOptimismService } from './services/payout-optimism.service';
 import { PayoutPolygonService } from './services/payout-polygon.service';
 import { PayoutSepoliaService } from './services/payout-sepolia.service';
 import { PayoutSolanaService } from './services/payout-solana.service';
-import { PayoutArkService } from './services/payout-ark.service';
+import { PayoutArkadeService } from './services/payout-arkade.service';
 import { PayoutSparkService } from './services/payout-spark.service';
 import { PayoutTronService } from './services/payout-tron.service';
 import { PayoutZanoService } from './services/payout-zano.service';
@@ -65,7 +65,7 @@ import { SepoliaCoinStrategy as SepoliaCoinStrategyPO } from './strategies/payou
 import { SepoliaTokenStrategy as SepoliaTokenStrategyPO } from './strategies/payout/impl/sepolia-token.strategy';
 import { SolanaCoinStrategy as SolanaCoinStrategyPO } from './strategies/payout/impl/solana-coin.strategy';
 import { SolanaTokenStrategy as SolanaTokenStrategyPO } from './strategies/payout/impl/solana-token.strategy';
-import { ArkStrategy as ArkStrategyPO } from './strategies/payout/impl/ark.strategy';
+import { ArkadeStrategy as ArkadeStrategyPO } from './strategies/payout/impl/arkade.strategy';
 import { SparkStrategy as SparkStrategyPO } from './strategies/payout/impl/spark.strategy';
 import { TronCoinStrategy as TronCoinStrategyPO } from './strategies/payout/impl/tron-coin.strategy';
 import { TronTokenStrategy as TronTokenStrategyPO } from './strategies/payout/impl/tron-token.strategy';
@@ -90,7 +90,7 @@ import { OptimismStrategy as OptimismStrategyPR } from './strategies/prepare/imp
 import { PolygonStrategy as PolygonStrategyPR } from './strategies/prepare/impl/polygon.strategy';
 import { SepoliaStrategy as SepoliaStrategyPR } from './strategies/prepare/impl/sepolia.strategy';
 import { SolanaStrategy as SolanaStrategyPR } from './strategies/prepare/impl/solana.strategy';
-import { ArkStrategy as ArkStrategyPR } from './strategies/prepare/impl/ark.strategy';
+import { ArkadeStrategy as ArkadeStrategyPR } from './strategies/prepare/impl/arkade.strategy';
 import { SparkStrategy as SparkStrategyPR } from './strategies/prepare/impl/spark.strategy';
 import { TronStrategy as TronStrategyPR } from './strategies/prepare/impl/tron.strategy';
 import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.strategy';
@@ -113,7 +113,7 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     PayoutBitcoinService,
     PayoutLightningService,
     PayoutSparkService,
-    PayoutArkService,
+    PayoutArkadeService,
     PayoutFiroService,
     PayoutMoneroService,
     PayoutZanoService,
@@ -140,8 +140,8 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     LightningStrategyPO,
     SparkStrategyPR,
     SparkStrategyPO,
-    ArkStrategyPR,
-    ArkStrategyPO,
+    ArkadeStrategyPR,
+    ArkadeStrategyPO,
     FiroStrategyPR,
     FiroStrategyPO,
     MoneroStrategyPR,
@@ -201,7 +201,7 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     PayoutMoneroService,
     PayoutZanoService,
     PayoutSparkService,
-    PayoutArkService,
+    PayoutArkadeService,
     PayoutSolanaService,
   ],
 })

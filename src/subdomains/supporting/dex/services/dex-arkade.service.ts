@@ -1,25 +1,25 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ArkClient } from 'src/integration/blockchain/ark/ark-client';
-import { ArkService } from 'src/integration/blockchain/ark/ark.service';
+import { ArkadeClient } from 'src/integration/blockchain/arkade/arkade-client';
+import { ArkadeService } from 'src/integration/blockchain/arkade/arkade.service';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityOrder } from '../entities/liquidity-order.entity';
 import { LiquidityOrderRepository } from '../repositories/liquidity-order.repository';
 
 @Injectable()
-export class DexArkService {
-  private readonly arkClient: ArkClient;
+export class DexArkadeService {
+  private readonly arkadeClient: ArkadeClient;
 
   constructor(
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
-    arkService: ArkService,
+    arkadeService: ArkadeService,
   ) {
-    this.arkClient = arkService.getDefaultClient();
+    this.arkadeClient = arkadeService.getDefaultClient();
   }
 
   async checkAvailableTargetLiquidity(inputAmount: number): Promise<[number, number]> {
     const pendingAmount = await this.getPendingAmount();
-    const availableAmount = await this.arkClient.getNativeCoinBalance();
+    const availableAmount = await this.arkadeClient.getNativeCoinBalance();
 
     return [inputAmount, availableAmount - pendingAmount];
   }
@@ -27,7 +27,7 @@ export class DexArkService {
   private async getPendingAmount(): Promise<number> {
     const pendingOrders = await this.liquidityOrderRepo.findBy({
       isComplete: false,
-      targetAsset: { dexName: 'BTC', blockchain: Blockchain.ARK },
+      targetAsset: { dexName: 'BTC', blockchain: Blockchain.ARKADE },
     });
 
     return Util.sumObjValue<LiquidityOrder>(pendingOrders, 'estimatedTargetAmount');

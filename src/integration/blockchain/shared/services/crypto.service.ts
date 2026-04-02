@@ -9,7 +9,7 @@ import { LightningService } from 'src/integration/lightning/services/lightning.s
 import { RailgunService } from 'src/integration/railgun/railgun.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
-import { ArkService } from '../../ark/ark.service';
+import { ArkadeService } from '../../arkade/arkade.service';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { BitcoinService } from '../../bitcoin/services/bitcoin.service';
 import { CardanoService } from '../../cardano/services/cardano.service';
@@ -37,7 +37,7 @@ export class CryptoService {
     private readonly bitcoinService: BitcoinService,
     private readonly lightningService: LightningService,
     private readonly sparkService: SparkService,
-    private readonly arkService: ArkService,
+    private readonly arkadeService: ArkadeService,
     private readonly firoService: FiroService,
     private readonly moneroService: MoneroService,
     private readonly zanoService: ZanoService,
@@ -70,8 +70,8 @@ export class CryptoService {
       case Blockchain.SPARK:
         return this.sparkService.getPaymentRequest(address, amount);
 
-      case Blockchain.ARK:
-        return this.arkService.getPaymentRequest(address, amount);
+      case Blockchain.ARKADE:
+        return this.arkadeService.getPaymentRequest(address, amount);
 
       case Blockchain.FIRO:
         return this.firoService.getPaymentRequest(address, amount);
@@ -129,8 +129,8 @@ export class CryptoService {
       case Blockchain.SPARK:
         return UserAddressType.SPARK;
 
-      case Blockchain.ARK:
-        return UserAddressType.ARK;
+      case Blockchain.ARKADE:
+        return UserAddressType.ARKADE;
 
       case Blockchain.FIRO:
         if (CryptoService.isFiroSparkAddress(address)) return UserAddressType.FIRO_SPARK;
@@ -190,7 +190,7 @@ export class CryptoService {
     if (CryptoService.isBitcoinAddress(address)) return [Blockchain.BITCOIN];
     if (CryptoService.isLightningAddress(address)) return [Blockchain.LIGHTNING];
     if (CryptoService.isSparkAddress(address)) return [Blockchain.SPARK];
-    if (CryptoService.isArkAddress(address)) return [Blockchain.ARK];
+    if (CryptoService.isArkadeAddress(address)) return [Blockchain.ARKADE];
     if (CryptoService.isFiroSparkAddress(address)) return [Blockchain.FIRO];
     if (CryptoService.isFiroAddress(address)) return [Blockchain.FIRO];
     if (CryptoService.isMoneroAddress(address)) return [Blockchain.MONERO];
@@ -224,8 +224,8 @@ export class CryptoService {
     return RegExp(`^(${Config.sparkAddressFormat})$`).test(address);
   }
 
-  private static isArkAddress(address: string): boolean {
-    return RegExp(`^(${Config.arkAddressFormat})$`).test(address);
+  private static isArkadeAddress(address: string): boolean {
+    return RegExp(`^(${Config.arkadeAddressFormat})$`).test(address);
   }
 
   public static isFiroAddress(address: string): boolean {
@@ -303,7 +303,7 @@ export class CryptoService {
       }
       if (detectedBlockchain === Blockchain.LIGHTNING) return await this.verifyLightning(address, message, signature);
       if (detectedBlockchain === Blockchain.SPARK) return await this.verifySpark(message, address, signature);
-      if (detectedBlockchain === Blockchain.ARK) return await this.verifyArk(message, address, signature);
+      if (detectedBlockchain === Blockchain.ARKADE) return await this.verifyArkade(message, address, signature);
       if (detectedBlockchain === Blockchain.FIRO) return await this.verifyFiro(message, address, signature);
       if (detectedBlockchain === Blockchain.MONERO) return await this.verifyMonero(message, address, signature);
       if (detectedBlockchain === Blockchain.ZANO) return await this.verifyZano(message, address, signature);
@@ -394,8 +394,8 @@ export class CryptoService {
     return this.sparkService.verifySignature(message, address, signature);
   }
 
-  private async verifyArk(message: string, address: string, signature: string): Promise<boolean> {
-    return this.arkService.verifySignature(message, address, signature);
+  private async verifyArkade(message: string, address: string, signature: string): Promise<boolean> {
+    return this.arkadeService.verifySignature(message, address, signature);
   }
 
   private async verifyFiro(message: string, address: string, signature: string): Promise<boolean> {

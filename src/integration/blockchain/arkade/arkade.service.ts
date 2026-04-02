@@ -4,23 +4,23 @@ import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
 import { GetConfig } from 'src/config/config';
 import { Bech32mService } from '../shared/bech32m/bech32m.service';
-import { ArkClient, ArkTransaction } from './ark-client';
+import { ArkadeClient, ArkadeTransaction } from './arkade-client';
 
 type CsvTimelock = { value: bigint; type: 'seconds' | 'blocks' } | undefined;
 
 @Injectable()
-export class ArkService extends Bech32mService {
+export class ArkadeService extends Bech32mService {
   readonly defaultPrefix = 'ark';
 
-  private readonly client: ArkClient;
+  private readonly client: ArkadeClient;
   private serverInfo: { exitDelay: bigint; delegatePubKeys: Uint8Array[] } | null | undefined;
 
   constructor() {
     super();
-    this.client = new ArkClient();
+    this.client = new ArkadeClient();
   }
 
-  getDefaultClient(): ArkClient {
+  getDefaultClient(): ArkadeClient {
     return this.client;
   }
 
@@ -96,9 +96,9 @@ export class ArkService extends Bech32mService {
     if (this.serverInfo !== undefined) return this.serverInfo;
 
     try {
-      const { arkServerUrl } = GetConfig().blockchain.ark;
+      const { arkadeServerUrl } = GetConfig().blockchain.arkade;
 
-      const infoRes = await fetch(`${arkServerUrl}/v1/info`);
+      const infoRes = await fetch(`${arkadeServerUrl}/v1/info`);
       const info = await infoRes.json();
       const exitDelay = BigInt(info.unilateralExitDelay);
 
@@ -133,7 +133,7 @@ export class ArkService extends Bech32mService {
     return this.client.sendTransaction(to, amount);
   }
 
-  async getTransaction(txId: string): Promise<ArkTransaction> {
+  async getTransaction(txId: string): Promise<ArkadeTransaction> {
     return this.client.getTransaction(txId);
   }
 

@@ -8,15 +8,15 @@ import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/
 import { PayoutOrder } from '../../../entities/payout-order.entity';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutArkService } from '../../../services/payout-ark.service';
+import { PayoutArkadeService } from '../../../services/payout-arkade.service';
 import { PayoutStrategy } from './base/payout.strategy';
 
 @Injectable()
-export class ArkStrategy extends PayoutStrategy {
-  protected readonly logger = new DfxLogger(ArkStrategy);
+export class ArkadeStrategy extends PayoutStrategy {
+  protected readonly logger = new DfxLogger(ArkadeStrategy);
 
   constructor(
-    protected readonly arkService: PayoutArkService,
+    protected readonly arkadeService: PayoutArkadeService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
     protected readonly assetService: AssetService,
   ) {
@@ -24,7 +24,7 @@ export class ArkStrategy extends PayoutStrategy {
   }
 
   get blockchain(): Blockchain {
-    return Blockchain.ARK;
+    return Blockchain.ARKADE;
   }
 
   get assetType(): AssetType {
@@ -50,7 +50,7 @@ export class ArkStrategy extends PayoutStrategy {
 
         await this.payoutOrderRepo.save(order);
       } catch (e) {
-        this.logger.error(`Error while executing Ark payout order ${order.id}:`, e);
+        this.logger.error(`Error while executing Arkade payout order ${order.id}:`, e);
       }
     }
   }
@@ -70,24 +70,24 @@ export class ArkStrategy extends PayoutStrategy {
           await this.payoutOrderRepo.save(order);
         }
       } catch (e) {
-        this.logger.error(`Error in checking completion of Ark payout order ${order.id}:`, e);
+        this.logger.error(`Error in checking completion of Arkade payout order ${order.id}:`, e);
       }
     }
   }
 
   async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
-    return this.arkService.getPayoutCompletionData(payoutTxId);
+    return this.arkadeService.getPayoutCompletionData(payoutTxId);
   }
 
   protected getCurrentGasForTransaction(token: Asset): Promise<number> {
-    return this.arkService.getCurrentFeeForTransaction(token);
+    return this.arkadeService.getCurrentFeeForTransaction(token);
   }
 
   protected dispatchPayout(order: PayoutOrder): Promise<string> {
-    return this.arkService.sendTransaction(order.destinationAddress, order.amount);
+    return this.arkadeService.sendTransaction(order.destinationAddress, order.amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getArkCoin();
+    return this.assetService.getArkadeCoin();
   }
 }
