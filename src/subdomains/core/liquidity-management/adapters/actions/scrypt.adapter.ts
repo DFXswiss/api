@@ -220,8 +220,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const price = await this.getAndCheckTradePrice(targetAsset, tradeAssetEntity, maxPriceDeviation);
     const availableBalance = await this.scryptService.getAvailableBalance(targetAsset.dexName);
 
-    // price = tradeAsset per targetAsset (e.g., BTC per EUR)
-    const sellAmount = Util.floor(deficitAmount / price, 6);
+    // price = targetAsset per tradeAsset (e.g., EUR per BTC)
+    const sellAmount = Util.floor(deficitAmount * price, 6);
     const amount = Util.floor(Math.min(sellAmount, order.maxAmount, availableBalance), 6);
 
     if (amount <= 0) {
