@@ -221,10 +221,10 @@ export class AssetService {
     });
   }
 
-  async getArkCoin(): Promise<Asset> {
+  async getArkadeCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'BTC',
-      blockchain: Blockchain.ARK,
+      blockchain: Blockchain.ARKADE,
       type: AssetType.COIN,
     });
   }

@@ -39,7 +39,7 @@ export class SeedIdentity {}
 export class ReadonlyWallet {}
 
 // --- Crypto primitives for address verification (CJS-compatible re-implementations) --- //
-// These replicate the subset of @arkade-os/sdk used by ArkService.verifySignature,
+// These replicate the subset of @arkade-os/sdk used by ArkadeService.verifySignature,
 // using only CJS-compatible root dependencies to avoid ESM issues in Jest.
 
 const { p2tr, taprootListToTree, TAPROOT_UNSPENDABLE_KEY } = require('@scure/btc-signer');

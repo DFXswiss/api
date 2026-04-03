@@ -6,7 +6,7 @@ import { PayoutOrderRepository } from '../../../repositories/payout-order.reposi
 import { AutoConfirmStrategy } from './base/auto-confirm.strategy';
 
 @Injectable()
-export class ArkStrategy extends AutoConfirmStrategy {
+export class ArkadeStrategy extends AutoConfirmStrategy {
   constructor(
     private readonly assetService: AssetService,
     payoutOrderRepo: PayoutOrderRepository,
@@ -15,10 +15,10 @@ export class ArkStrategy extends AutoConfirmStrategy {
   }
 
   get blockchain(): Blockchain {
-    return Blockchain.ARK;
+    return Blockchain.ARKADE;
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getArkCoin();
+    return this.assetService.getArkadeCoin();
   }
 }

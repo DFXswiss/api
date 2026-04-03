@@ -3,21 +3,21 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetCategory, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { CheckLiquidityRequest, CheckLiquidityResult } from '../../../interfaces';
-import { DexArkService } from '../../../services/dex-ark.service';
+import { DexArkadeService } from '../../../services/dex-arkade.service';
 import { CheckLiquidityUtil } from '../utils/check-liquidity.util';
 import { CheckLiquidityStrategy } from './base/check-liquidity.strategy';
 
 @Injectable()
-export class ArkStrategy extends CheckLiquidityStrategy {
+export class ArkadeStrategy extends CheckLiquidityStrategy {
   constructor(
     private readonly assetService: AssetService,
-    private readonly dexArkService: DexArkService,
+    private readonly dexArkadeService: DexArkadeService,
   ) {
     super();
   }
 
   get blockchain(): Blockchain {
-    return Blockchain.ARK;
+    return Blockchain.ARKADE;
   }
 
   get assetType(): AssetType {
@@ -32,7 +32,7 @@ export class ArkStrategy extends CheckLiquidityStrategy {
     const { context, correlationId, referenceAsset, referenceAmount: bitcoinAmount } = request;
 
     if (referenceAsset.dexName === 'BTC') {
-      const [targetAmount, availableAmount] = await this.dexArkService.checkAvailableTargetLiquidity(bitcoinAmount);
+      const [targetAmount, availableAmount] = await this.dexArkadeService.checkAvailableTargetLiquidity(bitcoinAmount);
 
       return CheckLiquidityUtil.createNonPurchasableCheckLiquidityResult(
         request,
@@ -43,11 +43,11 @@ export class ArkStrategy extends CheckLiquidityStrategy {
     }
 
     throw new Error(
-      `Only native coin reference is supported by Ark CheckLiquidity strategy. Provided reference asset: ${referenceAsset.dexName} Context: ${context}. CorrelationID: ${correlationId}`,
+      `Only native coin reference is supported by Arkade CheckLiquidity strategy. Provided reference asset: ${referenceAsset.dexName} Context: ${context}. CorrelationID: ${correlationId}`,
     );
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getArkCoin();
+    return this.assetService.getArkadeCoin();
   }
 }

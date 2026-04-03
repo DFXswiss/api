@@ -15,7 +15,7 @@ export class KucoinService extends ExchangeService {
     Bitcoin: undefined,
     Lightning: undefined,
     Spark: undefined,
-    Ark: undefined,
+    Arkade: undefined,
     Firo: undefined,
     Monero: undefined,
     Zano: undefined,
