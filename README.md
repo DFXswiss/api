@@ -18,6 +18,10 @@ Links to the productive API are used in the further documentation.
   - [Swagger UI](https://dev.api.dfx.swiss)
   - [Swagger JSON](https://dev.api.dfx.swiss/swagger-json)
 
+### API Conventions
+
+**Amount Representation:** All amount fields in the API use human-readable display units. For example, `1.5` means 1.5 BTC (not 150,000,000 satoshis). Crypto amounts are typically rounded to ~5 decimal places, fiat amounts to 2 decimal places.
+
 ## On-/Off-Ramp
 
 This section explains the key concepts for using the DFX on-ramp and off-ramp.

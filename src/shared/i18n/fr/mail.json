@@ -98,7 +98,8 @@
                 "merge_incomplete": "L'e-mail de confirmation n'a pas été accepté",
                 "intermediary_without_sender": "La banque émettrice (Wise/Revolut) n'a transmis que le nom de la banque, et non le nom du titulaire du compte. DFX ne peut donc pas vérifier l'expéditeur réel et ne peut pas traiter la transaction",
                 "name_too_short": "Votre nom est trop court pour le traitement bancaire. Les banques exigent au moins 4 lettres dans le nom du titulaire du compte",
-                "asset_input_not_allowed": "Cet actif n'est actuellement pas disponible à l'échange avec DFX"
+                "asset_input_not_allowed": "Cet actif n'est actuellement pas disponible à l'échange avec DFX",
+                "manual_check_external_account_phone": "Nous n'avons pas réussi à vous joindre au numéro de téléphone que vous avez fourni. Vous pouvez demander ici à être rappelé et indiquer l'heure à laquelle vous souhaitez recevoir l'appel: [url:https://app.dfx.swiss/settings?a=call]"
             },
             "kyc_start": "Vous pouvez commencer le processus KYC ici:<br>[url:{urlText}]"
         },
@@ -248,6 +249,15 @@
                 "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
             },
             "manual_check_ip_country_phone": {
+                "title": "Appel téléphonique requis",
+                "salutation": "Une vérification manuelle par téléphone est requise",
+                "line1": "Nous avons bien reçu votre acompte.",
+                "line2": "Nous vous contacterons sous peu au {phone}.",
+                "line3": "Acceptez l'appel et choisissez ici l'heure qui vous convient pour l'entretien téléphonique: [url:https://app.dfx.swiss/settings?a=call]",
+                "line4": "Une fois toutes les questions clarifiées, votre transaction sera traitée automatiquement.",
+                "line5": "Si vous souhaitez demander un remboursement:<br>[url:cliquez ici]"
+            },
+            "manual_check_external_account_phone": {
                 "title": "Appel téléphonique requis",
                 "salutation": "Une vérification manuelle par téléphone est requise",
                 "line1": "Nous avons bien reçu votre acompte.",

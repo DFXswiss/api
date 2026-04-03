@@ -265,6 +265,9 @@ export class TransactionDto extends UnassignedTransactionDto {
 
   @ApiPropertyOptional({ type: NetworkStartTxDto })
   networkStartTx?: NetworkStartTxDto;
+
+  @ApiPropertyOptional({ description: 'User country code (ISO 3166-1 alpha-2)' })
+  userCountry?: string;
 }
 
 export class TransactionDetailDto extends TransactionDto {

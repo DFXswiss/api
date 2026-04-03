@@ -15,6 +15,9 @@ export class SwapPaymentInfoDto {
   @ApiProperty({ description: 'UID of the transaction order' })
   uid?: string;
 
+  @ApiPropertyOptional({ description: 'URL to the order status page' })
+  statusUrl?: string;
+
   @ApiProperty({ description: 'Price timestamp' })
   timestamp: Date;
 
@@ -103,4 +106,7 @@ export class SwapPaymentInfoDto {
     description: 'Whether gasless transaction is available for this request',
   })
   gaslessAvailable?: boolean;
+
+  @ApiPropertyOptional({ description: 'Expiration timestamp of the quote' })
+  expiryDate?: Date;
 }

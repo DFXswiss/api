@@ -81,7 +81,7 @@ import {
 import { KycStep, KycStepResult } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
-import { KycStepName } from '../enums/kyc-step-name.enum';
+import { KycStepCancelable, KycStepName } from '../enums/kyc-step-name.enum';
 import { KycLogType, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
@@ -884,6 +884,17 @@ export class KycService {
       user,
       data,
       data.contractAccepted ? ReviewStatus.COMPLETED : ReviewStatus.MANUAL_REVIEW,
+    );
+  }
+
+  async cancelStepManual(kycHash: string, stepId: number): Promise<void> {
+    const user = await this.getUser(kycHash);
+    const kycStep = user.getPendingStepOrThrow(stepId);
+
+    if (!KycStepCancelable.includes(kycStep.name)) throw new BadRequestException('Step is not cancelable');
+
+    await this.kycStepRepo.update(
+      ...kycStep.cancel(kycStep.comment ? `${kycStep.comment};${KycError.USER_CANCELED}` : KycError.USER_CANCELED),
     );
   }
 

@@ -50,6 +50,7 @@ export class Configuration {
   defaultWalletId = 1;
   transactionRefundExpirySeconds = 300; // 5 minutes - enough time to fill out the refund form
   txRequestWaitingExpiryDays = 7;
+  txRequestValidityMinutes = 30;
   financeLogTotalBalanceChangeLimit = 5000;
   faucetAmount = 20; //CHF
   faucetEnabled = process.env.FAUCET_ENABLED === 'true';
@@ -619,6 +620,23 @@ export class Configuration {
       monitoringMail: process.env.MONITORING_MAIL || 'monitoring@dfx.swiss',
       liqMail: process.env.LIQ_MAIL || 'liq@dfx.swiss',
       noReplyMail: process.env.NOREPLY_MAIL || 'noreply@dfx.swiss',
+    },
+    wallet: {
+      onchainlabs: {
+        template: 'onChainLabs',
+      },
+      ...(process.env.REALUNIT_MAIL_USER && {
+        RealUnit: {
+          host: 'mail.infomaniak.com',
+          port: 587,
+          secure: false,
+          user: process.env.REALUNIT_MAIL_USER,
+          pass: process.env.REALUNIT_MAIL_PASS,
+          fromAddress: process.env.REALUNIT_MAIL_USER,
+          displayName: 'RealUnit',
+          template: 'user-v2',
+        },
+      }),
     },
   };
 
