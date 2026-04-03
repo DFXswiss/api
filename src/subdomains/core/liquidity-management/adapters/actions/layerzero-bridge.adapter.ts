@@ -69,30 +69,43 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
   }
 
   async checkCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    switch (order.action.command) {
-      case LayerZeroBridgeCommands.DEPOSIT:
-        return this.checkDepositCompletion(order);
-      case LayerZeroBridgeCommands.WITHDRAW:
-        return this.checkWithdrawCompletion(order);
-      default:
-        throw new OrderFailedException(`Unknown LayerZero command: ${order.action.command}`);
+    const {
+      action: { command },
+    } = order;
+
+    if (command === LayerZeroBridgeCommands.DEPOSIT) {
+      return this.checkDepositCompletion(order);
+    } else if (command === LayerZeroBridgeCommands.WITHDRAW) {
+      return this.checkWithdrawCompletion(order);
     }
+
+    throw new OrderFailedException(`Unknown command: ${command}`);
   }
 
   private async checkDepositCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    const asset = order.pipeline.rule.target;
+    const {
+      pipeline: {
+        rule: { target: asset },
+      },
+    } = order;
+
     if (!isAsset(asset)) {
-      throw new Error('LayerZeroBridgeAdapter.checkCompletion(...) supports only Asset instances as an input.');
+      throw new Error('LayerZeroBridgeAdapter.checkDepositCompletion(...) supports only Asset instances as an input.');
     }
 
     try {
+      // Step 1: Verify the Ethereum transaction succeeded
       const txReceipt = await this.ethereumClient.getTxReceipt(order.correlationId);
-      if (!txReceipt) return false;
+
+      if (!txReceipt) {
+        return false;
+      }
+
       if (txReceipt.status !== 1) {
         throw new OrderFailedException(`LayerZero TX failed on Ethereum: ${order.correlationId}`);
       }
 
-      // Search for incoming token transfer on Citrea (minted from zero address)
+      // Step 2: Search for incoming token transfer on Citrea from the OFT contract
       const baseTokenName = this.getBaseTokenName(asset.name);
       const oftAdapter = LAYERZERO_OFT_ADAPTERS[baseTokenName];
       if (!oftAdapter) {
@@ -105,6 +118,7 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
 
       const transfers = await this.citreaClient.getERC20Transactions(this.citreaClient.walletAddress, fromBlock);
 
+      // Find transfer from the Citrea OFT contract matching the expected amount (with 5% tolerance)
       const expectedAmount = order.inputAmount;
       const zeroAddress = '0x0000000000000000000000000000000000000000';
       const matchingTransfer = transfers.find((t) => {
@@ -128,9 +142,14 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
   }
 
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    const asset = order.pipeline.rule.target;
+    const {
+      pipeline: {
+        rule: { target: asset },
+      },
+    } = order;
+
     if (!isAsset(asset)) {
-      throw new Error('LayerZeroBridgeAdapter.checkCompletion(...) supports only Asset instances as an input.');
+      throw new Error('LayerZeroBridgeAdapter.checkWithdrawCompletion(...) supports only Asset instances as an input.');
     }
 
     try {
@@ -245,7 +264,7 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
     order.outputAsset = citreaAsset.name;
 
     // Execute the bridge transaction
-    return this.executeDepositBridge(ethereumAsset, oftAdapter.ethereum, amountWei);
+    return this.executeBridge(ethereumAsset, oftAdapter.ethereum, amountWei);
   }
 
   /**
@@ -292,9 +311,9 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
   }
 
   /**
-   * Execute the LayerZero deposit bridge transaction (Ethereum -> Citrea)
+   * Execute the LayerZero bridge transaction
    */
-  private async executeDepositBridge(
+  private async executeBridge(
     ethereumAsset: Asset,
     oftAdapterAddress: string,
     amountWei: ethers.BigNumber,
@@ -407,7 +426,7 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
   }
 
   /**
-   * Ensure token approval for the OFT adapter on Ethereum
+   * Ensure token approval for the OFT adapter
    */
   private async ensureTokenApproval(
     ethereumAsset: Asset,
