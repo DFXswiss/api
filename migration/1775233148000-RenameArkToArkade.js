@@ -1,7 +1,5 @@
-const { MigrationInterface, QueryRunner } = require('typeorm');
-
 module.exports = class RenameArkToArkade1775233148000 {
-  name = 'RenameArkToArkade1775233148000';
+  name = 'RenameArkToArkade1775233148000'
 
   async up(queryRunner) {
     await queryRunner.query(`UPDATE "dbo"."asset" SET "blockchain" = 'Arkade', "uniqueName" = REPLACE("uniqueName", 'Ark/', 'Arkade/') WHERE "blockchain" = 'Ark'`);
