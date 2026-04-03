@@ -923,8 +923,8 @@ export class Configuration {
       sparkWalletSeed: process.env.SPARK_WALLET_SEED,
     },
     arkade: {
-      arkadePrivateKey: process.env.ARKADE_PRIVATE_KEY,
-      arkadeServerUrl: process.env.ARKADE_SERVER_URL ?? 'https://arkade.computer',
+      arkadePrivateKey: process.env.ARKADE_PRIVATE_KEY ?? process.env.ARK_PRIVATE_KEY,
+      arkadeServerUrl: process.env.ARKADE_SERVER_URL ?? process.env.ARK_SERVER_URL ?? 'https://arkade.computer',
     },
     firo: {
       node: {
