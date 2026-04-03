@@ -21,7 +21,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkRecipientDto } from 'src/subdomains/core/payment-link/dto/payment-link-recipient.dto';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { FindOptionsWhere, IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { FindOptionsRelations, FindOptionsWhere, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -667,7 +667,11 @@ export class KycService {
   }
 
   async updateRecommendationData(kycHash: string, stepId: number, data: KycRecommendationData) {
-    const user = await this.getUser(kycHash);
+    const user = await this.getUser(kycHash, {
+      users: { wallet: true },
+      kycSteps: { userData: true },
+      wallet: true,
+    });
     const kycStep = user.getPendingStepOrThrow(stepId);
 
     await this.recommendationService.handleRecommendationRequest(kycStep, user, data.key);
@@ -1717,12 +1721,15 @@ export class KycService {
     return KycInfoMapper.toDto(user, withSession, kycClients, currentStep);
   }
 
-  private async getUser(kycHash: string): Promise<UserData> {
-    return this.userDataService.getByKycHashOrThrow(kycHash, {
+  private async getUser(
+    kycHash: string,
+    relations: FindOptionsRelations<UserData> = {
       users: true,
       kycSteps: { userData: true },
       wallet: true,
-    });
+    },
+  ): Promise<UserData> {
+    return this.userDataService.getByKycHashOrThrow(kycHash, relations);
   }
 
   private async getUserByTransactionOrThrow(

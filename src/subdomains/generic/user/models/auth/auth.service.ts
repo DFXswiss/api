@@ -415,7 +415,6 @@ export class AuthService {
   private async checkPendingRecommendation(userData: UserData, userWallet?: Wallet): Promise<void> {
     if (!userData.tradeApprovalDate && (userData.wallet?.autoTradeApproval || userWallet?.autoTradeApproval)) {
       await this.userDataService.updateUserDataInternal(userData, { tradeApprovalDate: new Date() });
-
       await this.userDataService.createTradeApprovalLog(userData, TradeApprovalReason.AUTO_TRADE_APPROVAL_LOGIN);
 
       const recommendationStep = await this.kycAdminService
