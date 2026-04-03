@@ -1,5 +1,5 @@
 import { Wallet } from '@arkade-os/sdk';
-import { ArkClient } from '../ark-client';
+import { ArkadeClient } from '../arkade-client';
 
 // Mock the SDK to provide InMemory repositories
 jest.mock('@arkade-os/sdk', () => {
@@ -11,20 +11,20 @@ jest.mock('@arkade-os/sdk', () => {
   };
 });
 
-// Mock config to provide ark credentials
+// Mock config to provide arkade credentials
 jest.mock('src/config/config', () => ({
   GetConfig: () => ({
     blockchain: {
-      ark: {
-        arkPrivateKey: 'aabbccdd00112233aabbccdd00112233aabbccdd00112233aabbccdd00112233',
-        arkServerUrl: 'https://arkade.computer',
+      arkade: {
+        arkadePrivateKey: 'aabbccdd00112233aabbccdd00112233aabbccdd00112233aabbccdd00112233',
+        arkadeServerUrl: 'https://arkade.computer',
       },
     },
   }),
 }));
 
-describe('ArkClient', () => {
-  let client: ArkClient;
+describe('ArkadeClient', () => {
+  let client: ArkadeClient;
   let mockWallet: {
     getAddress: jest.Mock;
     getBalance: jest.Mock;
@@ -45,7 +45,7 @@ describe('ArkClient', () => {
     // Override the wallet creation to return our mock
     jest.spyOn(Wallet, 'create').mockResolvedValue(mockWallet as any);
 
-    client = new ArkClient();
+    client = new ArkadeClient();
   });
 
   afterEach(() => {
@@ -203,7 +203,7 @@ describe('ArkClient', () => {
 
     it('should return false when wallet creation fails', async () => {
       jest.spyOn(Wallet, 'create').mockRejectedValue(new Error('server down'));
-      client = new ArkClient();
+      client = new ArkadeClient();
 
       const result = await client.isHealthy();
 

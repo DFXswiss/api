@@ -15,7 +15,7 @@ export class BinanceService extends ExchangeService {
     Bitcoin: 'BTC',
     Lightning: 'LIGHTNING',
     Spark: undefined,
-    Ark: undefined,
+    Arkade: undefined,
     Firo: 'FIRO',
     Monero: 'XMR',
     Zano: undefined,

@@ -7,7 +7,7 @@ import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.d
 import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 
-export interface ArkTransaction {
+export interface ArkadeTransaction {
   txid: string;
   blockhash?: string;
   confirmations: number;
@@ -16,8 +16,8 @@ export interface ArkTransaction {
   fee?: number;
 }
 
-export class ArkClient extends BlockchainClient {
-  private readonly logger = new DfxLogger(ArkClient);
+export class ArkadeClient extends BlockchainClient {
+  private readonly logger = new DfxLogger(ArkadeClient);
 
   private wallet: AsyncField<Wallet>;
   private readonly cachedAddress: AsyncField<string>;
@@ -35,7 +35,7 @@ export class ArkClient extends BlockchainClient {
       return await operation(wallet);
     } catch (e) {
       if (e?.message?.includes('disconnected') || e?.message?.includes('connection')) {
-        this.logger.info('Ark connection lost, reinitializing wallet...');
+        this.logger.info('Arkade connection lost, reinitializing wallet...');
         this.wallet.reset();
         this.cachedAddress.reset();
         const wallet = await this.wallet;
@@ -64,7 +64,7 @@ export class ArkClient extends BlockchainClient {
     });
   }
 
-  async getTransaction(txId: string): Promise<ArkTransaction> {
+  async getTransaction(txId: string): Promise<ArkadeTransaction> {
     return this.call(async (wallet) => {
       // Finalize any pending transactions, then check if the tx is settled
       const { finalized } = await wallet.finalizePendingTxs();
@@ -95,13 +95,13 @@ export class ArkClient extends BlockchainClient {
   // --- WALLET INITIALIZATION --- //
 
   private async initializeWallet(): Promise<Wallet> {
-    const { arkPrivateKey, arkServerUrl } = GetConfig().blockchain.ark;
+    const { arkadePrivateKey, arkadeServerUrl } = GetConfig().blockchain.arkade;
 
-    const identity = SingleKey.fromHex(arkPrivateKey);
+    const identity = SingleKey.fromHex(arkadePrivateKey);
 
     const wallet = await Wallet.create({
       identity,
-      arkServerUrl,
+      arkServerUrl: arkadeServerUrl,
       storage: {
         walletRepository: new InMemoryWalletRepository(),
         contractRepository: new InMemoryContractRepository(),
@@ -111,7 +111,7 @@ export class ArkClient extends BlockchainClient {
     return wallet;
   }
 
-  // --- FEE METHODS (near-zero for Ark L2) --- //
+  // --- FEE METHODS (near-zero for Arkade L2) --- //
 
   async getNativeFee(): Promise<number> {
     return 0;

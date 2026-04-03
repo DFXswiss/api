@@ -5,11 +5,11 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { NoPurchaseStrategy } from './base/no-purchase.strategy';
 
 @Injectable()
-export class ArkStrategy extends NoPurchaseStrategy {
-  protected readonly logger = new DfxLogger(ArkStrategy);
+export class ArkadeStrategy extends NoPurchaseStrategy {
+  protected readonly logger = new DfxLogger(ArkadeStrategy);
 
   get blockchain(): Blockchain {
-    return Blockchain.ARK;
+    return Blockchain.ARKADE;
   }
 
   get assetType(): AssetType {
@@ -25,6 +25,6 @@ export class ArkStrategy extends NoPurchaseStrategy {
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    return this.assetService.getArkCoin();
+    return this.assetService.getArkadeCoin();
   }
 }

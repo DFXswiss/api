@@ -33,7 +33,7 @@ import { BlockchainRegistryService } from './shared/services/blockchain-registry
 import { CryptoService } from './shared/services/crypto.service';
 import { TxValidationService } from './shared/services/tx-validation.service';
 import { SolanaModule } from './solana/solana.module';
-import { ArkModule } from './ark/ark.module';
+import { ArkadeModule } from './arkade/arkade.module';
 import { SparkModule } from './spark/spark.module';
 import { TronModule } from './tron/tron.module';
 import { InternetComputerModule } from './icp/icp.module';
@@ -47,7 +47,7 @@ import { ZanoModule } from './zano/zano.module';
     BitcoinTestnet4Module,
     LightningModule,
     SparkModule,
-    ArkModule,
+    ArkadeModule,
     FiroModule,
     MoneroModule,
     ZanoModule,
@@ -83,7 +83,7 @@ import { ZanoModule } from './zano/zano.module';
     BitcoinTestnet4Module,
     LightningModule,
     SparkModule,
-    ArkModule,
+    ArkadeModule,
     FiroModule,
     MoneroModule,
     ZanoModule,
