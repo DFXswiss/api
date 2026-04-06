@@ -12,6 +12,7 @@ import { FiatPayInModule } from 'src/subdomains/supporting/fiat-payin/fiat-payin
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { MonitorConnectionPoolService } from './monitor-connection-pool.service';
+import { HealthController } from './health.controller';
 import { MonitoringController } from './monitoring.controller';
 import { MonitoringService } from './monitoring.service';
 import { AmlObserver } from './observers/aml.observer';
@@ -59,7 +60,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     ExchangeObserver,
     LiquidityObserver,
   ],
-  controllers: [MonitoringController],
+  controllers: [MonitoringController, HealthController],
   exports: [MonitoringService],
 })
 export class MonitoringModule {}
