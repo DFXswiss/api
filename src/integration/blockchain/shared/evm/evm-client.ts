@@ -868,7 +868,11 @@ export abstract class EvmClient extends BlockchainClient {
     const txNonce = nonce ?? currentNonce;
 
     const token = await this.getTokenByContract(contract);
-    const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
+    let targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
+
+    // cap to actual on-chain balance to prevent failures from Number↔Wei precision rounding
+    const balance = await contract.balanceOf(fromAddress);
+    if (targetAmount.gt(balance)) targetAmount = balance;
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
 
