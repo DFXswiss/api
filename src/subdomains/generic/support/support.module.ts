@@ -11,6 +11,7 @@ import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/supp
 import { KycModule } from '../kyc/kyc.module';
 import { UserModule } from '../user/user.module';
 import { SupportController } from './support.controller';
+import { SupportPdfService } from './support-pdf.service';
 import { SupportService } from './support.service';
 
 @Module({
@@ -28,7 +29,7 @@ import { SupportService } from './support.service';
     forwardRef(() => PaymentModule),
   ],
   controllers: [SupportController],
-  providers: [SupportService],
+  providers: [SupportService, SupportPdfService],
   exports: [],
 })
 export class SupportModule {}
