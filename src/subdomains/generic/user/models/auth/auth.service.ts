@@ -264,7 +264,9 @@ export class AuthService {
         mail: dto.mail,
         language: dto.language ?? language,
         status: UserDataStatus.KYC_ONLY,
-        wallet: await this.walletService.getDefault(),
+        wallet: dto.wallet
+          ? await this.walletService.getByIdOrName(undefined, dto.wallet)
+          : await this.walletService.getDefault(),
       }));
 
     if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, userData);
