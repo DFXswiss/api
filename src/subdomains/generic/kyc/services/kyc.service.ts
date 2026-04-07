@@ -887,10 +887,11 @@ export class KycService {
     );
   }
 
-  async cancelStepManual(kycHash: string, stepId: number): Promise<void> {
+  async cancelStepManual(kycHash: string, type: KycStepName): Promise<void> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
 
+    const kycStep = user.getStepsWith(type).find((k) => k.isInProgress);
+    if (!kycStep) throw new NotFoundException('KYC step not found');
     if (!KycStepCancelable.includes(kycStep.name)) throw new BadRequestException('Step is not cancelable');
 
     await this.kycStepRepo.update(

@@ -65,6 +65,7 @@ import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { SumSubWebhookResult } from '../dto/sum-sub.dto';
+import { KycStepName } from '../enums/kyc-step-name.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
@@ -174,11 +175,11 @@ export class KycController {
     return this.kycService.removeKycClient(code, walletName);
   }
 
-  @Delete(':id')
+  @Delete('data/:name')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
-  async cancelStep(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<void> {
-    return this.kycService.cancelStepManual(code, +id);
+  async cancelStep(@Headers(CodeHeaderName) code: string, @Param('name') stepName: string): Promise<void> {
+    return this.kycService.cancelStepManual(code, stepName as KycStepName);
   }
 
   // --- UPDATE ENDPOINTS --- //
