@@ -614,8 +614,8 @@ export class UserService {
       {
         refVolume: Util.round(volume, Config.defaultVolumeDecimal),
         refCredit: Util.round(credit, Config.defaultVolumeDecimal),
-        partnerRefVolume: Util.round(partnerVolume, Config.defaultVolumeDecimal),
-        partnerRefCredit: Util.round(partnerCredit, Config.defaultVolumeDecimal),
+        partnerRefVolume: partnerVolume ? Util.round(partnerVolume, Config.defaultVolumeDecimal) : undefined,
+        partnerRefCredit: partnerCredit ? Util.round(partnerCredit, Config.defaultVolumeDecimal) : undefined,
       },
     );
   }
