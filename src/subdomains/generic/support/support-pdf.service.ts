@@ -1,12 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { PdfUtil } from 'src/shared/utils/pdf.util';
+import { Util } from 'src/shared/utils/util';
 import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { KycStep } from '../kyc/entities/kyc-step.entity';
 import { KycStepName } from '../kyc/enums/kyc-step-name.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
-import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
+import { ComplianceDecision, GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionSupportInfo } from './dto/user-data-support.dto';
 
 @Injectable()
@@ -299,7 +300,7 @@ export class SupportPdfService {
         this.drawOnboardingField(
           pdf,
           'Geburtstag',
-          userData.birthday ? new Date(userData.birthday).toISOString().split('T')[0] : '-',
+          userData.birthday ? new Date(userData.birthday).toLocaleDateString('de-DE') : '-',
           marginX,
           width,
         );
@@ -433,13 +434,13 @@ export class SupportPdfService {
         pdf.moveDown(1);
 
         pdf.fontSize(12).font('Helvetica-Bold');
-        pdf.fillColor(dto.finalDecision === 'Akzeptiert' ? '#28a745' : '#dc3545');
+        pdf.fillColor(dto.finalDecision === ComplianceDecision.ACCEPTED ? '#28a745' : '#dc3545');
         pdf.text(`Finaler Entscheid: ${dto.finalDecision}`, marginX);
         pdf.moveDown(0.5);
 
         pdf.fontSize(10).font('Helvetica').fillColor('#333333');
         pdf.text(`Bearbeitet von: ${dto.processedBy}`, marginX);
-        pdf.text(`UTC Datum: ${new Date().toISOString()}`, marginX);
+        pdf.text(`Datum: ${Util.localeDataString(new Date(), 'DE')}`, marginX);
 
         pdf.moveDown(2);
         pdf.fontSize(8).font('Helvetica').fillColor('#999999');

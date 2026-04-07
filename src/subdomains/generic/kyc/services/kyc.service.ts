@@ -1855,7 +1855,7 @@ export class KycService {
         name: KycStepName.DFX_APPROVAL,
         status: In([ReviewStatus.COMPLETED, ReviewStatus.FAILED]),
       },
-      relations: ['userData'],
+      relations: { userData: true },
     });
   }
 }

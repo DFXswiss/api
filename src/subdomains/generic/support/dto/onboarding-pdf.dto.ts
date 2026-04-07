@@ -1,5 +1,10 @@
 import { IsString, IsOptional } from 'class-validator';
 
+export enum ComplianceDecision {
+  ACCEPTED = 'Akzeptiert',
+  REJECTED = 'Abgelehnt',
+}
+
 export class GenerateOnboardingPdfDto {
   @IsString()
   finalDecision: string;

@@ -52,7 +52,7 @@ import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { User } from '../user/models/user/user.entity';
 import { UserService } from '../user/models/user/user.service';
-import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
+import { ComplianceDecision, GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
   BankDataSupportInfo,
@@ -572,7 +572,10 @@ export class SupportService {
       } else {
         const parsed = step.result ? JSON.parse(step.result as string) : undefined;
         const decision = parsed?.complianceReview?.finalDecision;
-        result.set(step.userData.id, decision === 'Abgelehnt' ? OnboardingStatus.REJECTED : OnboardingStatus.COMPLETED);
+        result.set(
+          step.userData.id,
+          decision === ComplianceDecision.REJECTED ? OnboardingStatus.REJECTED : OnboardingStatus.COMPLETED,
+        );
       }
     }
 
