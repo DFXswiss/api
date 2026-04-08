@@ -65,7 +65,6 @@ import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { SumSubWebhookResult } from '../dto/sum-sub.dto';
-import { KycStepName } from '../enums/kyc-step-name.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
