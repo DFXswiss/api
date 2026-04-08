@@ -65,6 +65,7 @@ export class TransactionSupportInfo {
   amlCheck?: string;
   chargebackDate?: Date;
   amlReason?: string;
+  isCompleted: boolean;
   created: Date;
 }
 
