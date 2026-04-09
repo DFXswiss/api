@@ -12,6 +12,7 @@ env:
   AZURE_WEBAPP_NAME: app-dfx-api-dev
   AZURE_WEBAPP_PACKAGE_PATH: '.'
   NODE_VERSION: '20.x'
+  DEV_API_URL: https://dev.api.dfx.swiss
 
 jobs:
   build-and-deploy:
@@ -60,3 +61,28 @@ jobs:
           app-name: ${{ env.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.DEV_PUBLISH_PROFILE }}
           package: ${{ env.AZURE_WEBAPP_PACKAGE_PATH }}
+
+      - name: Verify DEV deployment
+        timeout-minutes: 15
+        run: |
+          EXPECTED=${{ github.sha }}
+          echo "Expected commit: $EXPECTED"
+
+          for i in {1..30}; do
+            if RESPONSE=$(curl -sf ${{ env.DEV_API_URL }}/version 2>&1); then
+              ACTUAL=$(echo "$RESPONSE" | jq -r '.commit')
+              echo "Attempt $i: DEV running $ACTUAL"
+
+              if [ "$EXPECTED" == "$ACTUAL" ]; then
+                echo "DEV is running the latest develop commit"
+                exit 0
+              fi
+            else
+              echo "Attempt $i: DEV API not reachable"
+            fi
+
+            sleep 30
+          done
+
+          echo "::error::DEV is not running the latest develop commit after 15 minutes"
+          exit 1
