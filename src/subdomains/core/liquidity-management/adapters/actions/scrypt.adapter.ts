@@ -273,7 +273,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
   private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
     try {
-      const isComplete = await this.scryptService.checkTrade(order.correlationId, from, to);
+      const isComplete = await this.scryptService.checkTrade(order.correlationId, from, to, order.created);
 
       if (isComplete) {
         order.outputAmount = await this.aggregateTradeOutput(order);

@@ -190,6 +190,10 @@ export class ScryptService extends PricingProvider {
     return this.connection.fetch<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION);
   }
 
+  private async fetchExecutionReports(): Promise<ScryptExecutionReport[]> {
+    return this.connection.fetch<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT);
+  }
+
   async getTrades(since?: Date): Promise<ScryptTrade[]> {
     const filters: Record<string, unknown> = {};
     if (since) filters.StartDate = since.toISOString();
@@ -264,7 +268,19 @@ export class ScryptService extends PricingProvider {
   }
 
   async getOrderStatus(clOrdId: string): Promise<ScryptOrderInfo | null> {
-    const report = this.executionReports.get(clOrdId);
+    // Try in-memory cache first
+    let report = this.executionReports.get(clOrdId);
+
+    // Fallback: fetch from Scrypt API (e.g. after restart or WS reconnect)
+    if (!report) {
+      const reports = await this.fetchExecutionReports();
+      report = reports.find((r) => r.ClOrdID === clOrdId);
+
+      if (report) {
+        this.executionReports.set(report.ClOrdID, report);
+      }
+    }
+
     if (!report) return null;
 
     return {
@@ -282,9 +298,17 @@ export class ScryptService extends PricingProvider {
     };
   }
 
-  async checkTrade(clOrdId: string, from: string, to: string): Promise<boolean> {
+  async checkTrade(clOrdId: string, from: string, to: string, orderCreated?: Date): Promise<boolean> {
     const orderInfo = await this.getOrderStatus(clOrdId);
     if (!orderInfo) {
+      // If the order is older than 1 hour and still not found, it's lost
+      const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
+      if (ageMinutes > 60) {
+        throw new Error(
+          `Order ${clOrdId} not found after ${Math.round(ageMinutes)} minutes — likely completed or cancelled outside of tracked state`,
+        );
+      }
+
       this.logger.verbose(`No order info for id ${clOrdId} at ${this.name} found`);
       return false;
     }
