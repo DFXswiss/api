@@ -890,7 +890,6 @@ export class KycService {
   async cancelStepManual(kycHash: string, stepId: number): Promise<void> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
-
     if (!KycStepCancelable.includes(kycStep.name)) throw new BadRequestException('Step is not cancelable');
 
     await this.kycStepRepo.update(
@@ -1840,6 +1839,8 @@ export class KycService {
       .andWhere('userData.accountType IN (:...accountTypes)', {
         accountTypes: [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP],
       })
+      .andWhere('userData.kycLevel >= :minLevel', { minLevel: KycLevel.LEVEL_30 })
+      .andWhere('userData.status != :mergedStatus', { mergedStatus: UserDataStatus.MERGED })
       .andWhere(
         `step.userDataId NOT IN (
           SELECT s2.userDataId FROM kyc_step s2

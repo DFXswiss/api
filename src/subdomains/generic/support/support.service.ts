@@ -402,6 +402,7 @@ export class SupportService {
         tx.bankTxReturn?.chargebackDate ??
         tx.bankTxRepeat?.chargebackDate,
       amlReason: tx.buyCrypto?.amlReason ?? tx.buyFiat?.amlReason,
+      isCompleted: !!tx.completionDate,
       created: tx.created,
     };
   }

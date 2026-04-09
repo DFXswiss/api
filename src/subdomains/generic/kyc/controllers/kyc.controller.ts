@@ -174,7 +174,7 @@ export class KycController {
     return this.kycService.removeKycClient(code, walletName);
   }
 
-  @Delete(':id')
+  @Delete('data/:type/:id')
   @ApiOkResponse({ type: KycStepBase })
   @ApiUnauthorizedResponse(MergedResponse)
   async cancelStep(@Headers(CodeHeaderName) code: string, @Param('id') id: string): Promise<void> {
