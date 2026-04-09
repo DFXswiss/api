@@ -33,7 +33,9 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
     const { polygonWalletAddress } = GetConfig().blockchain.polygon;
 
     this.posClient = new POSClient();
-    void this.initPolygonNetwork(ethWalletAddress, polygonWalletAddress);
+    this.initPolygonNetwork(ethWalletAddress, polygonWalletAddress).catch((e) =>
+      this.logger.error('Polygon network initialization failed:', e),
+    );
 
     this.l2TxIdCache = new Set();
   }

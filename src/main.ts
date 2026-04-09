@@ -37,6 +37,14 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
+process.on('unhandledRejection', (reason) => {
+  const logger = new DfxLogger('UnhandledRejection');
+  logger.error(
+    'Unhandled promise rejection (process kept alive):',
+    reason instanceof Error ? reason : new Error(String(reason)),
+  );
+});
+
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
     AppInsights.setup().setAutoDependencyCorrelation(true).setAutoCollectConsole(true, true);
