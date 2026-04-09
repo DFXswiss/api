@@ -302,10 +302,10 @@ export class ScryptService extends PricingProvider {
     const orderInfo = await this.getOrderStatus(clOrdId);
     if (!orderInfo) {
       // If the order is older than 1 hour and still not found, it's lost
-      const ageMs = orderCreated ? Date.now() - orderCreated.getTime() : 0;
-      if (ageMs > 3600_000) {
+      const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
+      if (ageMinutes > 60) {
         throw new Error(
-          `Order ${clOrdId} not found after ${Math.round(ageMs / 60_000)} minutes — likely completed or cancelled outside of tracked state`,
+          `Order ${clOrdId} not found after ${Math.round(ageMinutes)} minutes — likely completed or cancelled outside of tracked state`,
         );
       }
 
