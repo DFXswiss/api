@@ -54,7 +54,10 @@ export class ExchangeTxService {
 
     if (staleDeposits.length === 0) return;
 
-    await this.exchangeTxRepo.update(staleDeposits.map((d) => d.id), { status: 'failed' });
+    await this.exchangeTxRepo.update(
+      staleDeposits.map((d) => d.id),
+      { status: 'failed' },
+    );
   }
 
   async syncExchanges(from?: Date, exchange?: ExchangeName) {
