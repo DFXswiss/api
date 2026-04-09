@@ -263,6 +263,7 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
     order.inputAsset = ethereumAsset.name;
     order.outputAsset = citreaAsset.name;
 
+    // Execute the bridge transaction (Ethereum -> Citrea)
     return this.executeBridgeTransaction(
       this.ethereumClient,
       CITREA_LZ_ENDPOINT_ID,
@@ -270,7 +271,7 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
       ethereumAsset,
       oftAdapter.ethereum,
       amountWei,
-      0.05, // ETH gas estimate
+      0.05, // Conservative estimate for gas costs
       'ETH',
     );
   }
@@ -287,10 +288,12 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
       maxAmount,
     } = order;
 
+    // Only support tokens, not native coins
     if (citreaAsset.type !== AssetType.TOKEN) {
       throw new OrderNotProcessableException('LayerZero bridge only supports TOKEN type assets');
     }
 
+    // Find adapter address
     const baseTokenName = this.getBaseTokenName(citreaAsset.name);
     const oftAdapter = LAYERZERO_OFT_ADAPTERS[baseTokenName];
     if (!oftAdapter) {
@@ -315,6 +318,7 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
     order.inputAsset = citreaAsset.name;
     order.outputAsset = baseTokenName;
 
+    // Execute the bridge transaction (Citrea -> Ethereum)
     return this.executeBridgeTransaction(
       this.citreaClient,
       ETHEREUM_LZ_ENDPOINT_ID,
@@ -322,7 +326,7 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
       citreaAsset,
       oftAdapter.citrea,
       amountWei,
-      0.0005, // cBTC gas estimate
+      0.0005, // Conservative estimate for gas costs in cBTC
       'cBTC',
     );
   }
@@ -342,10 +346,14 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
   ): Promise<string> {
     const wallet = sourceClient.wallet;
 
+    // Create OFT contract instance
     const oftContract = new ethers.Contract(oftContractAddress, LAYERZERO_OFT_ADAPTER_ABI, wallet);
 
+    // Check if approval is required and handle it
     await this.ensureTokenApproval(sourceClient, sourceAsset, oftContractAddress, amountWei, oftContract);
 
+    // Prepare send parameters
+    // Convert recipient address to bytes32 format (left-padded with zeros)
     const recipientBytes32 = ethers.utils.hexZeroPad(recipientAddress, 32);
 
     const sendParam = {
@@ -353,15 +361,17 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
       to: recipientBytes32,
       amountLD: amountWei,
       minAmountLD: amountWei.mul(99).div(100), // 1% slippage tolerance
-      extraOptions: '0x',
-      composeMsg: '0x',
-      oftCmd: '0x',
+      extraOptions: '0x', // No extra options
+      composeMsg: '0x', // No compose message
+      oftCmd: '0x', // No OFT command
     };
 
+    // Get quote for LayerZero fees
     const messagingFee = await oftContract.quoteSend(sendParam, false);
     const nativeFee = messagingFee.nativeFee;
     const nativeFeeAmount = EvmUtil.fromWeiAmount(nativeFee.toString());
 
+    // Verify sufficient native balance for LayerZero fee + gas
     const nativeBalance = await sourceClient.getNativeCoinBalance();
     const requiredAmount = nativeFeeAmount + estimatedGasCost;
 
@@ -371,11 +381,12 @@ export class LayerZeroBridgeAdapter extends LiquidityActionAdapter {
       );
     }
 
+    // Execute the send transaction
     const nonce = await sourceClient.getNextNonce();
 
     const sendTx = await oftContract.send(sendParam, { nativeFee, lzTokenFee: 0 }, wallet.address, {
       value: nativeFee,
-      gasLimit: 500000,
+      gasLimit: 500000, // Reasonable gas limit for OFT transfers
       nonce,
     });
 
