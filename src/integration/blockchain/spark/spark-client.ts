@@ -61,13 +61,6 @@ export class SparkClient extends BlockchainClient {
     this.startTokenOptimization();
   }
 
-  resetWallet(): void {
-    this.logger.warn('Spark wallet reset triggered externally');
-    this.wallet.reset();
-    this.cachedAddress.reset();
-    this.reconnectWallet();
-  }
-
   private async call<T>(operation: (wallet: SparkWallet) => Promise<T>): Promise<T> {
     try {
       const wallet = await this.wallet;
