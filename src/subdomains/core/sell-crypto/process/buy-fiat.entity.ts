@@ -397,9 +397,7 @@ export class BuyFiat extends IEntity {
   }
 
   setOutput(outputAmount: number, priceSteps: PriceStep[], quoteMarketRatio?: number): UpdateResult<BuyFiat> {
-    this.priceStepsObject = quoteMarketRatio
-      ? priceSteps
-      : [...this.priceStepsObject, ...(priceSteps ?? [])];
+    this.priceStepsObject = quoteMarketRatio ? priceSteps : [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> = {
       outputAmount,
