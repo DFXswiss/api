@@ -11,7 +11,9 @@ import {
   SupportIssueInternalDataDto,
   SupportIssueInternalLimitRequestDataDto,
   SupportIssueInternalTransactionDataDto,
+  SupportIssueInternalTransactionMissingDataDto,
   SupportIssueLimitRequestDto,
+  SupportIssueListDto,
   SupportIssueStateMapper,
   SupportIssueTransactionDto,
   SupportMessageDto,
@@ -44,13 +46,35 @@ export class SupportIssueDtoMapper {
       reason: supportIssue.reason,
       state: supportIssue.state,
       name: supportIssue.name,
+      clerk: supportIssue.clerk,
       account: SupportIssueDtoMapper.mapUserData(supportIssue.userData),
       transaction: SupportIssueDtoMapper.mapTransactionData(supportIssue.transaction),
       limitRequest:
         role === UserRole.SUPPORT ? undefined : SupportIssueDtoMapper.mapLimitRequestData(supportIssue.limitRequest),
+      transactionMissing: SupportIssueDtoMapper.mapTransactionMissingData(supportIssue),
     };
 
     return Object.assign(new SupportIssueInternalDataDto(), dto);
+  }
+
+  static mapSupportIssueListItem(issue: SupportIssue): SupportIssueListDto {
+    const messages = issue.messages ?? [];
+    const lastMessage = messages.length > 0 ? messages.reduce((a, b) => (a.id > b.id ? a : b)) : undefined;
+
+    return {
+      id: issue.id,
+      uid: issue.uid,
+      type: issue.type,
+      reason: issue.reason,
+      state: issue.state,
+      name: issue.name,
+      clerk: issue.clerk,
+      department: issue.department,
+      created: issue.created,
+      messageCount: messages.length,
+      lastMessageDate: lastMessage?.created,
+      lastMessageAuthor: lastMessage?.author,
+    };
   }
 
   static mapSupportMessage(supportMessage: SupportMessage): SupportMessageDto {
@@ -137,6 +161,22 @@ export class SupportIssueDtoMapper {
     return {
       id: limitRequest.id,
       limit: limitRequest.limit,
+    };
+  }
+
+  static mapTransactionMissingData(issue: SupportIssue): SupportIssueInternalTransactionMissingDataDto | undefined {
+    let info: { senderIban?: string; receiverIban?: string; date?: string } | undefined;
+    try {
+      info = issue.additionalInformation as typeof info;
+    } catch {
+      return undefined;
+    }
+    if (!info?.senderIban && !info?.receiverIban && !info?.date) return undefined;
+
+    return {
+      senderIban: info.senderIban,
+      receiverIban: info.receiverIban,
+      date: info.date,
     };
   }
 }

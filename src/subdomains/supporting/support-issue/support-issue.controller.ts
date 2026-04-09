@@ -10,8 +10,13 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
-import { GetSupportIssueFilter } from './dto/get-support-issue.dto';
-import { SupportIssueDto, SupportIssueInternalDataDto, SupportMessageDto } from './dto/support-issue.dto';
+import { GetSupportIssueFilter, GetSupportIssueListFilter } from './dto/get-support-issue.dto';
+import {
+  SupportIssueDto,
+  SupportIssueInternalDataDto,
+  SupportIssueListDto,
+  SupportMessageDto,
+} from './dto/support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
 import { CustomerAuthor } from './entities/support-message.entity';
@@ -62,6 +67,17 @@ export class SupportIssueController {
     return this.supportIssueService.getIssues(jwt?.account);
   }
 
+  @Get('support/list')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportIssueList(
+    @GetJwt() jwt: JwtPayload,
+    @Query() filter: GetSupportIssueListFilter,
+  ): Promise<{ data: SupportIssueListDto[]; total: number }> {
+    return this.supportIssueService.getSupportIssueList(filter, jwt.role);
+  }
+
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
@@ -89,7 +105,7 @@ export class SupportIssueController {
     @Param('id') id: string,
     @Body() dto: CreateSupportMessageDto,
   ): Promise<SupportMessageDto> {
-    return [UserRole.SUPPORT, UserRole.COMPLIANCE, UserRole.ADMIN].includes(jwt?.role)
+    return jwt?.role && [UserRole.SUPPORT, UserRole.COMPLIANCE, UserRole.MARKETING, UserRole.ADMIN].includes(jwt.role)
       ? this.supportIssueService.createMessageSupport(+id, dto)
       : this.supportIssueService.createMessage(id, dto, jwt?.account);
   }

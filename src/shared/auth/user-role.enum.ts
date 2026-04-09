@@ -10,6 +10,7 @@ export enum UserRole {
   COMPLIANCE = 'Compliance',
   CUSTODY = 'Custody',
   REALUNIT = 'RealUnit',
+  MARKETING = 'Marketing',
   DEBUG = 'Debug',
 
   // service roles

@@ -21,9 +21,15 @@ import { TransactionRequestService } from '../../payment/services/transaction-re
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
-import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
+import { GetSupportIssueFilter, GetSupportIssueListFilter } from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
-import { SupportIssueDto, SupportIssueInternalDataDto, SupportMessageDto } from '../dto/support-issue.dto';
+import {
+  SupportIssueDto,
+  SupportIssueInternalDataDto,
+  SupportIssueListDto,
+  SupportMessageDto,
+} from '../dto/support-issue.dto';
+import { Department } from '../enums/department.enum';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
@@ -70,9 +76,6 @@ export class SupportIssueService {
   }
 
   async createIssueInternal(userData: UserData, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
-    // mail is required
-    if (!userData.mail) throw new BadRequestException('Mail is missing');
-
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
     const existingWhere: FindOptionsWhere<SupportIssue> = {
@@ -210,6 +213,64 @@ export class SupportIssueService {
     return this.createMessageInternal(issue, dto);
   }
 
+  async getSupportIssueList(
+    filter: GetSupportIssueListFilter,
+    role: UserRole,
+  ): Promise<{ data: SupportIssueListDto[]; total: number }> {
+    const where: FindOptionsWhere<SupportIssue> = {};
+
+    // department filtering based on role
+    const roleDepartmentMap: Partial<Record<UserRole, Department>> = {
+      [UserRole.SUPPORT]: Department.SUPPORT,
+      [UserRole.COMPLIANCE]: Department.COMPLIANCE,
+      [UserRole.MARKETING]: Department.MARKETING,
+    };
+
+    const departmentByRole = roleDepartmentMap[role];
+    if (departmentByRole) {
+      where.department = departmentByRole;
+    } else if (filter.department) {
+      where.department = filter.department;
+    }
+
+    if (filter.state) where.state = filter.state;
+    if (filter.type) where.type = filter.type;
+
+    // server-side search: split query into terms, each term must match at least one field (AND between terms, OR between fields)
+    const terms = (filter.query ?? '')
+      .split(/\s+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0);
+
+    const qb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .leftJoinAndSelect('issue.messages', 'messages')
+      .leftJoinAndSelect('issue.userData', 'userData');
+
+    if (where.department) qb.andWhere('issue.department = :department', { department: where.department });
+    if (where.state) qb.andWhere('issue.state = :state', { state: where.state });
+    if (where.type) qb.andWhere('issue.type = :type', { type: where.type });
+
+    for (let i = 0; i < terms.length; i++) {
+      const param = `term${i}`;
+      qb.andWhere(
+        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR userData.firstname LIKE :${param} OR userData.surname LIKE :${param} OR userData.organizationName LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m.issueId = issue.id AND m.message LIKE :${param}))`,
+        { [param]: `%${terms[i]}%` },
+      );
+    }
+
+    qb.orderBy('issue.created', 'DESC');
+
+    if (filter.take != null) {
+      qb.take(filter.take);
+      if (filter.skip != null) qb.skip(filter.skip);
+    }
+
+    const [issues, total] = await qb.getManyAndCount();
+
+    return { data: issues.map(SupportIssueDtoMapper.mapSupportIssueListItem), total };
+  }
+
   async getIssueEntities(userDataId: number): Promise<SupportIssue[]> {
     return this.supportIssueRepo.find({
       where: { userData: { id: userDataId } },
@@ -283,6 +344,7 @@ export class SupportIssueService {
 
   async createMessageInternal(issue: SupportIssue, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
     if (!dto.author) throw new BadRequestException('Author for message is missing');
+    if (!dto.message && !dto.file) throw new BadRequestException('Message or file is required');
     if (dto.message?.length > 4000) throw new BadRequestException('Message has too many characters');
 
     const entity = this.messageRepo.create({ ...dto, issue });
