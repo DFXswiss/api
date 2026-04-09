@@ -75,7 +75,7 @@
     "alchemy-sdk": "^3.6.5",
     "applicationinsights": "^2.9.8",
     "arweave": "^1.15.7",
-    "axios": "^1.13.1",
+    "axios": "^1.15.0",
     "basic-ftp": "^5.0.5",
     "bcrypt": "^5.1.1",
     "bech32": "^2.0.0",
@@ -197,6 +197,7 @@
     "multer": "^2.0.0",
     "uuid": "^9.0.0",
     "semver": "^7.6.0",
-    "fast-xml-parser": "$fast-xml-parser"
+    "fast-xml-parser": "$fast-xml-parser",
+    "axios": "$axios"
   }
 }
