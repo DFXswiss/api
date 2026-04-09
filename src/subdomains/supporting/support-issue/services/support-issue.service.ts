@@ -240,7 +240,8 @@ export class SupportIssueService {
     const terms = (filter.query ?? '')
       .split(/\s+/)
       .map((t) => t.trim())
-      .filter((t) => t.length > 0);
+      .filter((t) => t.length > 0)
+      .slice(0, 10);
 
     const qb = this.supportIssueRepo
       .createQueryBuilder('issue')
