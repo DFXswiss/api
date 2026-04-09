@@ -12,7 +12,7 @@ import {
   PriceValidity,
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual } from 'typeorm';
+import { FindOptionsRelations, In, LessThan, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
 import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
 import { ExchangeName } from '../enums/exchange.enum';
@@ -40,6 +40,21 @@ export class ExchangeTxService {
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.EXCHANGE_TX_SYNC, timeout: 1800 })
   async syncExchangeJob() {
     await this.syncExchanges();
+  }
+
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.EXCHANGE_TX_SYNC, timeout: 300 })
+  async cleanupStalePendingDeposits() {
+    const staleDeposits = await this.exchangeTxRepo.find({
+      where: {
+        type: ExchangeTxType.DEPOSIT,
+        status: 'pending',
+        created: LessThan(Util.daysBefore(1)),
+      },
+    });
+
+    if (staleDeposits.length === 0) return;
+
+    await this.exchangeTxRepo.update(staleDeposits.map((d) => d.id), { status: 'failed' });
   }
 
   async syncExchanges(from?: Date, exchange?: ExchangeName) {
