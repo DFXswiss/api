@@ -207,6 +207,7 @@ export class TransactionService {
     from = new Date(0),
     to = new Date(),
     limit?: number,
+    offset?: number,
   ): Promise<Transaction[]> {
     return Util.doInBatchesWithLimit(
       userIds,
@@ -226,7 +227,9 @@ export class TransactionService {
             buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
             refReward: true,
           },
+          order: { created: 'DESC' },
           take: remaining,
+          skip: offset,
         }),
       100,
       limit,
