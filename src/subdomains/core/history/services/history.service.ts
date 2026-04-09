@@ -129,7 +129,13 @@ export class HistoryService {
             query.limit,
             query.offset,
           )
-        : await this.transactionService.getTransactionsForUsers([user.id], query.from, query.to, query.limit);
+        : await this.transactionService.getTransactionsForUsers(
+            [user.id],
+            query.from,
+            query.to,
+            query.limit,
+            query.offset,
+          );
 
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
