@@ -148,18 +148,36 @@ export class SparkClient extends BlockchainClient {
 
   // --- WALLET INITIALIZATION --- //
 
-  private initializeWallet(): Promise<SparkWallet> {
-    return SparkWallet.initialize({
-      mnemonicOrSeed: GetConfig().blockchain.spark.sparkWalletSeed,
-      accountNumber: 0,
-      options: {
-        network: 'MAINNET',
-        tokenOptimizationOptions: { enabled: false },
-      },
-    }).then(({ wallet }) => {
-      wallet.on('stream:disconnected', () => this.reconnectWallet());
-      return this.syncLeaves(wallet);
-    });
+  private async initializeWallet(): Promise<SparkWallet> {
+    const maxRetries = 5;
+
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        const { wallet } = await SparkWallet.initialize({
+          mnemonicOrSeed: GetConfig().blockchain.spark.sparkWalletSeed,
+          accountNumber: 0,
+          options: {
+            network: 'MAINNET',
+            tokenOptimizationOptions: { enabled: false },
+          },
+        });
+
+        wallet.on('stream:disconnected', () => this.reconnectWallet());
+
+        return await this.syncLeaves(wallet);
+      } catch (e) {
+        const delay = Math.min(1000 * 2 ** attempt, 30_000);
+        this.logger.warn(
+          `Spark wallet initialization failed (attempt ${attempt}/${maxRetries}), retrying in ${delay / 1000}s: ${e.message}`,
+        );
+
+        if (attempt === maxRetries) throw e;
+
+        await new Promise<void>((resolve) => setTimeout(resolve, delay));
+      }
+    }
+
+    throw new Error('Spark wallet initialization failed after all retries');
   }
 
   private startTokenOptimization(): void {

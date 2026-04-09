@@ -22,6 +22,18 @@ import {
 import { PaymentWebhookDto } from './subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { PricingService } from './subdomains/supporting/pricing/services/pricing.service';
 
+process.on('uncaughtException', (error) => {
+  const logger = new DfxLogger('UncaughtException');
+
+  if (error?.constructor?.name?.includes('Spark') || error?.message?.includes('Channel has been shut down')) {
+    logger.error('Spark SDK uncaught exception (process kept alive):', error);
+    return;
+  }
+
+  logger.error('Uncaught exception, shutting down:', error);
+  process.exit(1);
+});
+
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
     AppInsights.setup().setAutoDependencyCorrelation(true).setAutoCollectConsole(true, true);
