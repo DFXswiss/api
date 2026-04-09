@@ -1,9 +1,12 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { SupportIssue } from '../../support-issue/entities/support-issue.entity';
+import { FeeDto } from '../dto/fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
 import { Transaction } from './transaction.entity';
@@ -82,6 +85,12 @@ export class TransactionRequest extends IEntity {
   @Column({ type: 'float', nullable: true })
   totalFee?: number;
 
+  @Column({ type: 'simple-json', nullable: true })
+  fees?: FeeDto;
+
+  @Column({ type: 'simple-json', nullable: true })
+  priceSteps?: PriceStep[];
+
   @Column({ default: false })
   exactPrice: boolean;
 
@@ -119,5 +128,28 @@ export class TransactionRequest extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  /**
+   * Calculates output using quoted price if quote is still valid.
+   */
+  calculateQuoteOutput(
+    validityMinutes: number,
+    inputAmount: number,
+    marketPrice: number,
+    amountType: AmountType,
+  ): { outputAmount: number; priceSteps: PriceStep[]; quoteMarketRatio: number } | null {
+    if (!this.priceSteps?.length || !this.created) return null;
+
+    const quoteAgeMinutes = Util.minutesDiff(this.created);
+    if (quoteAgeMinutes > validityMinutes) return null;
+
+    const quoteRate = this.priceSteps.reduce((acc, step) => acc * step.price, 1);
+
+    return {
+      outputAmount: Util.roundReadable(inputAmount * quoteRate, amountType),
+      priceSteps: this.priceSteps,
+      quoteMarketRatio: Util.round(quoteRate / marketPrice, 8),
+    };
   }
 }

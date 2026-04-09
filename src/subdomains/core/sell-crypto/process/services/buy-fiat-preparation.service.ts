@@ -321,7 +321,7 @@ export class BuyFiatPreparationService {
         outputAmount: IsNull(),
         priceDefinitionAllowedDate: Not(IsNull()),
       },
-      relations: { sell: true, cryptoInput: true, transaction: { userData: true } },
+      relations: { sell: true, cryptoInput: true, transaction: { userData: true, request: true } },
     });
 
     for (const entity of entities) {
@@ -331,21 +331,41 @@ export class BuyFiatPreparationService {
         const price = !entity.outputReferenceAmount
           ? await this.pricingService.getPrice(asset, currency, PriceValidity.VALID_ONLY)
           : undefined;
-        const priceSteps = price?.steps ?? [
-          PriceStep.create(
-            Config.priceSourceManual,
-            entity.inputReferenceAsset,
-            entity.outputReferenceAsset.name,
-            entity.inputReferenceAmountMinusFee / entity.outputReferenceAmount,
-          ),
-        ];
 
-        await this.buyFiatRepo.update(
-          ...entity.setOutput(
-            entity.outputReferenceAmount ?? price.convert(entity.inputReferenceAmountMinusFee),
-            priceSteps,
-          ),
-        );
+        // Price from transaction request
+        const quoteResult = price
+          ? entity.transaction?.request?.calculateQuoteOutput(
+              Config.txRequestValidityMinutes,
+              entity.inputReferenceAmountMinusFee,
+              price.price,
+              AmountType.FIAT,
+            )
+          : undefined;
+
+        let outputAmount: number;
+        let priceSteps: PriceStep[];
+        let quoteMarketRatio: number | undefined;
+
+        if (quoteResult) {
+          outputAmount = quoteResult.outputAmount;
+          priceSteps = quoteResult.priceSteps;
+          quoteMarketRatio = quoteResult.quoteMarketRatio;
+        } else if (entity.outputReferenceAmount) {
+          outputAmount = entity.outputReferenceAmount;
+          priceSteps = [
+            PriceStep.create(
+              Config.priceSourceManual,
+              entity.inputReferenceAsset,
+              entity.outputReferenceAsset.name,
+              entity.inputReferenceAmountMinusFee / entity.outputReferenceAmount,
+            ),
+          ];
+        } else {
+          outputAmount = price.convert(entity.inputReferenceAmountMinusFee);
+          priceSteps = price.steps;
+        }
+
+        await this.buyFiatRepo.update(...entity.setOutput(outputAmount, priceSteps, quoteMarketRatio));
 
         for (const feeId of entity.usedFees.split(';')) {
           await this.feeService.increaseTxUsages(entity.amountInChf, Number.parseInt(feeId), entity.userData);

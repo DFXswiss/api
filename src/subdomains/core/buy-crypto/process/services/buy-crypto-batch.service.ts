@@ -3,7 +3,7 @@ import { Config } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
@@ -72,7 +72,7 @@ export class BuyCryptoBatchService {
           cryptoInput: true,
           buy: { user: true },
           cryptoRoute: { user: true },
-          transaction: { userData: true },
+          transaction: { userData: true, request: true },
           liquidityPipeline: { orders: true },
         },
       });
@@ -144,7 +144,21 @@ export class BuyCryptoBatchService {
               ? await this.findAllExchangeOrders(tx.liquidityPipeline)
               : undefined;
 
-          tx.calculateOutputReferenceAmount(price, exchangeOrders);
+          // Price from transaction request
+          const quoteResult = tx.transaction?.request?.calculateQuoteOutput(
+            Config.txRequestValidityMinutes,
+            tx.inputReferenceAmountMinusFee,
+            price.price,
+            AmountType.ASSET,
+          );
+
+          if (quoteResult) {
+            tx.outputReferenceAmount = quoteResult.outputAmount;
+            tx.priceStepsObject = [...tx.inputPriceStep, ...quoteResult.priceSteps];
+            tx.quoteMarketRatio = quoteResult.quoteMarketRatio;
+          } else {
+            tx.calculateOutputReferenceAmount(price, exchangeOrders);
+          }
         }
       } catch (e) {
         if (e instanceof PriceInvalidException) {
