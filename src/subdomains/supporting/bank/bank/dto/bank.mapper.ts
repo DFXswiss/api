@@ -8,6 +8,7 @@ export class BankMapper {
       iban: bank.iban,
       bic: bank.bic,
       currency: bank.currency,
+      yearlyBalances: bank.yearlyBalances ? JSON.parse(bank.yearlyBalances) : undefined,
     };
 
     return Object.assign(new BankDto(), dto);
