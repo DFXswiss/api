@@ -890,7 +890,6 @@ export class KycService {
   async cancelStepManual(kycHash: string, stepId: number): Promise<void> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
-
     if (!KycStepCancelable.includes(kycStep.name)) throw new BadRequestException('Step is not cancelable');
 
     await this.kycStepRepo.update(
