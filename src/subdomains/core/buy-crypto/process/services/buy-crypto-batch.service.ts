@@ -3,6 +3,7 @@ import { Config } from 'src/config/config';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
@@ -145,12 +146,14 @@ export class BuyCryptoBatchService {
               : undefined;
 
           // Price from transaction request
-          const quoteResult = tx.transaction?.request?.calculateQuoteOutput(
-            Config.txRequestValidityMinutes,
-            tx.inputReferenceAmountMinusFee,
-            price.price,
-            AmountType.ASSET,
-          );
+          const quoteResult = !DisabledProcess(Process.GUARANTEED_PRICE)
+            ? tx.transaction?.request?.calculateQuoteOutput(
+                Config.txRequestValidityMinutes,
+                tx.inputReferenceAmountMinusFee,
+                price.price,
+                AmountType.ASSET,
+              )
+            : undefined;
 
           if (quoteResult) {
             tx.outputReferenceAmount = quoteResult.outputAmount;
