@@ -44,6 +44,8 @@ export interface SparkFeeEstimate {
 }
 
 export class SparkClient extends BlockchainClient {
+  private static readonly INIT_TIMEOUT_MS = 60_000;
+
   private readonly logger = new DfxLogger(SparkClient);
 
   private wallet: AsyncField<SparkWallet>;
@@ -57,6 +59,13 @@ export class SparkClient extends BlockchainClient {
     this.wallet = new AsyncField(() => this.initializeWallet(), true);
     this.cachedAddress = new AsyncField(() => this.wallet.then((w) => w.getSparkAddress()), true);
     this.startTokenOptimization();
+  }
+
+  resetWallet(): void {
+    this.logger.warn('Spark wallet reset triggered externally');
+    this.wallet.reset();
+    this.cachedAddress.reset();
+    this.reconnectWallet();
   }
 
   private async call<T>(operation: (wallet: SparkWallet) => Promise<T>): Promise<T> {
@@ -153,14 +162,7 @@ export class SparkClient extends BlockchainClient {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        const { wallet } = await SparkWallet.initialize({
-          mnemonicOrSeed: GetConfig().blockchain.spark.sparkWalletSeed,
-          accountNumber: 0,
-          options: {
-            network: 'MAINNET',
-            tokenOptimizationOptions: { enabled: false },
-          },
-        });
+        const wallet = await this.initializeWithTimeout();
 
         wallet.on('stream:disconnected', () => this.reconnectWallet());
 
@@ -178,6 +180,32 @@ export class SparkClient extends BlockchainClient {
     }
 
     throw new Error('Spark wallet initialization failed after all retries');
+  }
+
+  private initializeWithTimeout(): Promise<SparkWallet> {
+    return new Promise<SparkWallet>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`Spark wallet initialization timed out after ${SparkClient.INIT_TIMEOUT_MS / 1000}s`)),
+        SparkClient.INIT_TIMEOUT_MS,
+      );
+
+      SparkWallet.initialize({
+        mnemonicOrSeed: GetConfig().blockchain.spark.sparkWalletSeed,
+        accountNumber: 0,
+        options: {
+          network: 'MAINNET',
+          tokenOptimizationOptions: { enabled: false },
+        },
+      })
+        .then(({ wallet }) => {
+          clearTimeout(timer);
+          resolve(wallet);
+        })
+        .catch((e) => {
+          clearTimeout(timer);
+          reject(e);
+        });
+    });
   }
 
   private startTokenOptimization(): void {
