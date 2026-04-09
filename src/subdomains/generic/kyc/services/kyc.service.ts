@@ -1840,6 +1840,8 @@ export class KycService {
       .andWhere('userData.accountType IN (:...accountTypes)', {
         accountTypes: [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP],
       })
+      .andWhere('userData.kycLevel >= :minLevel', { minLevel: KycLevel.LEVEL_30 })
+      .andWhere('userData.status != :mergedStatus', { mergedStatus: UserDataStatus.MERGED })
       .andWhere(
         `step.userDataId NOT IN (
           SELECT s2.userDataId FROM kyc_step s2
