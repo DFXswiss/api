@@ -206,6 +206,13 @@ export class StarknetClient extends BlockchainClient {
     return StarknetUtil.fromWeiAmount(receipt.value.actual_fee.amount, StarknetUtil.ethDecimals);
   }
 
+  async verifySignature(message: string, address: string, signature: string): Promise<boolean> {
+    const signatureParts = signature.split(',');
+    if (signatureParts.length !== 2) return false;
+
+    return this.provider.verifyMessageInStarknet(BigInt(message), signatureParts, address);
+  }
+
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
     const estimateFee = await this.account.estimateInvokeFee({
       contractAddress: STRK_TOKEN_ADDRESS,

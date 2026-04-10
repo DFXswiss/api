@@ -72,6 +72,10 @@ export class StarknetService extends BlockchainService {
     return this.client.getCurrentGasCostForCoinTransaction();
   }
 
+  async verifySignature(message: string, address: string, signature: string): Promise<boolean> {
+    return this.client.verifySignature(message, address, signature);
+  }
+
   getPaymentRequest(address: string, amount: number): string {
     return `starknet:${address}?amount=${Util.numberToFixedString(amount)}`;
   }
