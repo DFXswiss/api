@@ -37,6 +37,7 @@ import { ArkadeModule } from './arkade/arkade.module';
 import { SparkModule } from './spark/spark.module';
 import { TronModule } from './tron/tron.module';
 import { InternetComputerModule } from './icp/icp.module';
+import { StarknetModule } from './starknet/starknet.module';
 import { ZanoModule } from './zano/zano.module';
 
 @Module({
@@ -66,6 +67,7 @@ import { ZanoModule } from './zano/zano.module';
     ArweaveModule,
     RailgunModule,
     SolanaModule,
+    StarknetModule,
     TronModule,
     CardanoModule,
     InternetComputerModule,
@@ -101,6 +103,7 @@ import { ZanoModule } from './zano/zano.module';
     Ebel2xModule,
     RailgunModule,
     SolanaModule,
+    StarknetModule,
     TronModule,
     CardanoModule,
     InternetComputerModule,

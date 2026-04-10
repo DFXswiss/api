@@ -42,6 +42,7 @@ export class TestExchangeService extends ExchangeService {
     Citrea: undefined,
     CitreaTestnet: undefined,
     BitcoinTestnet4: undefined,
+    Starknet: undefined,
     Kraken: undefined,
     Binance: undefined,
     XT: undefined,
