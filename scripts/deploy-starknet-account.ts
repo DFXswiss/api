@@ -61,7 +61,6 @@ async function deployAccount() {
 
   console.log('Deploying account at:', address);
 
-  // Check balance before deployment
   const account = new Account({ provider, address, signer: privateKey });
 
   try {
