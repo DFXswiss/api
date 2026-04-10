@@ -24,6 +24,8 @@ import { PolygonService } from '../../polygon/polygon.service';
 import { SepoliaService } from '../../sepolia/sepolia.service';
 import { SolanaService } from '../../solana/services/solana.service';
 import { SolanaClient } from '../../solana/solana-client';
+import { StarknetService } from '../../starknet/services/starknet.service';
+import { StarknetClient } from '../../starknet/starknet-client';
 import { ArkadeClient } from '../../arkade/arkade-client';
 import { ArkadeService } from '../../arkade/arkade.service';
 import { SparkClient } from '../../spark/spark-client';
@@ -50,7 +52,8 @@ type BlockchainClientType =
   | SolanaClient
   | TronClient
   | CardanoClient
-  | InternetComputerClient;
+  | InternetComputerClient
+  | StarknetClient;
 
 type BlockchainServiceType =
   | EvmService
@@ -64,7 +67,8 @@ type BlockchainServiceType =
   | SolanaService
   | TronService
   | CardanoService
-  | InternetComputerService;
+  | InternetComputerService
+  | StarknetService;
 
 type CoinOnlyServiceType = BlockchainServiceType | LightningService;
 
@@ -103,6 +107,7 @@ export class BlockchainRegistryService {
     private readonly citreaService: CitreaService,
     private readonly citreaTestnetService: CitreaTestnetService,
     private readonly bitcoinTestnet4Service: BitcoinTestnet4Service,
+    private readonly starknetService: StarknetService,
   ) {}
 
   getClient(blockchain: Blockchain): BlockchainClientType {
@@ -181,6 +186,8 @@ export class BlockchainRegistryService {
         return this.citreaService;
       case Blockchain.CITREA_TESTNET:
         return this.citreaTestnetService;
+      case Blockchain.STARKNET:
+        return this.starknetService;
 
       default:
         throw new Error(`No service found for blockchain ${blockchain}`);

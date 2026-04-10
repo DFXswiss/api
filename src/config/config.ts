@@ -166,8 +166,9 @@ export class Configuration {
   tronAddressFormat = 'T[1-9A-HJ-NP-Za-km-z]{32,34}';
   zanoAddressFormat = 'Z[a-zA-Z0-9]{96}|iZ[a-zA-Z0-9]{106}';
   internetComputerPrincipalFormat = '[a-z0-9]{5}(-[a-z0-9]{5})*(-[a-z0-9]{1,5})?';
+  starknetAddressFormat = '0x[0-9a-fA-F]{50,64}';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.arkadeAddressFormat}|${this.firoSparkAddressFormat}|${this.firoAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}|${this.internetComputerPrincipalFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.arkadeAddressFormat}|${this.firoSparkAddressFormat}|${this.firoAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}|${this.internetComputerPrincipalFormat}|${this.starknetAddressFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
@@ -185,8 +186,9 @@ export class Configuration {
   tronSignatureFormat = '(0x)?[a-f0-9]{130}';
   zanoSignatureFormat = '[a-f0-9]{128}';
   internetComputerSignatureFormat = '[a-f0-9]{128,144}';
+  starknetSignatureFormat = '0x[0-9a-fA-F]{1,64},0x[0-9a-fA-F]{1,64}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.firoSignatureFormat}|${this.firoSparkSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}|${this.internetComputerSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.firoSignatureFormat}|${this.firoSparkSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}|${this.internetComputerSignatureFormat}|${this.starknetSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
   cardanoKeyFormat = '.*';
@@ -964,6 +966,11 @@ export class Configuration {
       },
       coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
       fee: 0.01,
+    },
+    starknet: {
+      gatewayUrl: process.env.STARKNET_GATEWAY_URL,
+      walletAddress: process.env.STARKNET_WALLET_ADDRESS,
+      walletPrivateKey: process.env.STARKNET_WALLET_PRIVATE_KEY,
     },
     solana: {
       solanaWalletSeed: process.env.SOLANA_WALLET_SEED,

@@ -114,6 +114,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
   [Blockchain.INTERNET_COMPUTER]: 'https://dashboard.internetcomputer.org',
   [Blockchain.RAILGUN]: 'https://railgun-explorer.com',
+  [Blockchain.STARKNET]: 'https://voyager.online',
   [Blockchain.BINANCE_PAY]: undefined,
   [Blockchain.KUCOIN_PAY]: undefined,
   [Blockchain.KRAKEN]: undefined,
@@ -155,6 +156,7 @@ const TxPaths: { [b in Blockchain]: string } = {
   [Blockchain.CARDANO]: 'transaction',
   [Blockchain.INTERNET_COMPUTER]: 'transaction',
   [Blockchain.RAILGUN]: 'transaction',
+  [Blockchain.STARKNET]: 'tx',
   [Blockchain.BINANCE_PAY]: undefined,
   [Blockchain.KUCOIN_PAY]: undefined,
   [Blockchain.KRAKEN]: undefined,
@@ -197,6 +199,7 @@ function assetPaths(asset: Asset): string | undefined {
     case Blockchain.SOLANA:
     case Blockchain.HAQQ:
     case Blockchain.CARDANO:
+    case Blockchain.STARKNET:
       return asset.chainId ? `token/${asset.chainId}` : undefined;
 
     case Blockchain.INTERNET_COMPUTER:
@@ -239,5 +242,8 @@ function addressPaths(blockchain: Blockchain): string | undefined {
     case Blockchain.INTERNET_COMPUTER:
     case Blockchain.SOLANA:
       return 'account';
+
+    case Blockchain.STARKNET:
+      return 'contract';
   }
 }

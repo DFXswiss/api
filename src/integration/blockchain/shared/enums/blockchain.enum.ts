@@ -26,6 +26,7 @@ export enum Blockchain {
   CITREA = 'Citrea',
   CITREA_TESTNET = 'CitreaTestnet',
   BITCOIN_TESTNET4 = 'BitcoinTestnet4',
+  STARKNET = 'Starknet',
 
   // Payment Provider
   BINANCE_PAY = 'BinancePay',

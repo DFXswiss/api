@@ -24,6 +24,7 @@
 //     Haqq: undefined,
 //     Liquid: undefined,
 //     Arweave: undefined,
+//     Starknet: undefined,
 //   };
 
 //   constructor() {
