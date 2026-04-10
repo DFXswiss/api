@@ -39,7 +39,7 @@ const STRK_TOKEN_ADDRESS = '0x04718f5a0fc34cc1af16a1cdee98ffb20c31f5cd61d6ab0720
 
 export class StarknetClient extends BlockchainClient {
   private readonly provider: RpcProvider;
-  private readonly account: Account;
+  private readonly account: Account | undefined;
   private readonly address: string;
 
   constructor() {
@@ -48,8 +48,16 @@ export class StarknetClient extends BlockchainClient {
     const { gatewayUrl, walletAddress, walletPrivateKey } = GetConfig().blockchain.starknet;
 
     this.provider = new RpcProvider({ nodeUrl: gatewayUrl });
-    this.address = walletAddress;
-    this.account = new Account({ provider: this.provider, address: walletAddress, signer: walletPrivateKey });
+    this.address = walletAddress ?? '';
+    this.account =
+      walletAddress && walletPrivateKey
+        ? new Account({ provider: this.provider, address: walletAddress, signer: walletPrivateKey })
+        : undefined;
+  }
+
+  private getAccount(): Account {
+    if (!this.account) throw new Error('Starknet wallet not configured');
+    return this.account;
   }
 
   get walletAddress(): string {
@@ -189,7 +197,7 @@ export class StarknetClient extends BlockchainClient {
   ): Promise<string> {
     const weiAmount = StarknetUtil.toWeiAmount(amount, decimals);
 
-    const result = await this.account.execute({
+    const result = await this.getAccount().execute({
       contractAddress,
       entrypoint: 'transfer',
       calldata: CallData.compile({ recipient: toAddress, amount: { low: weiAmount, high: 0n } }),
@@ -211,7 +219,7 @@ export class StarknetClient extends BlockchainClient {
   // --- FEES --- //
 
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    const estimateFee = await this.account.estimateInvokeFee({
+    const estimateFee = await this.getAccount().estimateInvokeFee({
       contractAddress: STRK_TOKEN_ADDRESS,
       entrypoint: 'transfer',
       calldata: CallData.compile({ recipient: this.walletAddress, amount: { low: 1n, high: 0n } }),
