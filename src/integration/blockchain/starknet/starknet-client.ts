@@ -110,16 +110,16 @@ export class StarknetClient extends BlockchainClient {
   async isTxComplete(txHash: string, confirmations = 0): Promise<boolean> {
     const receipt = await this.provider.getTransactionReceipt(txHash);
 
-    if (receipt.statusReceipt === 'REVERTED' || receipt.statusReceipt === 'ERROR') {
-      throw new Error(`Transaction ${txHash} has failed: ${receipt.statusReceipt}`);
+    if (!receipt.isSuccess()) {
+      if (receipt.statusReceipt === 'REVERTED' || receipt.statusReceipt === 'ERROR') {
+        throw new Error(`Transaction ${txHash} has failed: ${receipt.statusReceipt}`);
+      }
+      return false;
     }
-
-    if (receipt.statusReceipt !== 'SUCCEEDED') return false;
 
     if (confirmations === 0) return true;
 
-    const successReceipt = receipt as any;
-    const txBlock = successReceipt.block_number;
+    const txBlock = receipt.value.block_number;
     if (!txBlock) return false;
 
     const currentBlock = await this.getBlockHeight();
@@ -179,16 +179,19 @@ export class StarknetClient extends BlockchainClient {
     const tx = await this.provider.getTransactionByHash(txHash);
     const receipt = await this.provider.getTransactionReceipt(txHash);
 
-    const successReceipt = receipt as any;
-    const fee = successReceipt.actual_fee
-      ? StarknetUtil.fromWeiAmount(successReceipt.actual_fee.amount, StarknetUtil.ethDecimals)
-      : 0;
+    let fee = 0;
+    let blockNumber = 0;
+
+    if (receipt.isSuccess()) {
+      fee = StarknetUtil.fromWeiAmount(receipt.value.actual_fee.amount, StarknetUtil.ethDecimals);
+      blockNumber = receipt.value.block_number;
+    }
 
     return {
-      blockNumber: successReceipt.block_number ?? 0,
+      blockNumber,
       blockTimestamp: 0,
       txHash: tx.transaction_hash,
-      from: (tx as any).sender_address ?? '',
+      from: 'sender_address' in tx ? (tx.sender_address as string) : '',
       fee,
       destinations: [],
       status: receipt.statusReceipt,
@@ -197,10 +200,10 @@ export class StarknetClient extends BlockchainClient {
 
   async getTxActualFee(txHash: string): Promise<number> {
     const receipt = await this.provider.getTransactionReceipt(txHash);
-    const successReceipt = receipt as any;
-    return successReceipt.actual_fee
-      ? StarknetUtil.fromWeiAmount(successReceipt.actual_fee.amount, StarknetUtil.ethDecimals)
-      : 0;
+
+    if (!receipt.isSuccess()) return 0;
+
+    return StarknetUtil.fromWeiAmount(receipt.value.actual_fee.amount, StarknetUtil.ethDecimals);
   }
 
   async getCurrentGasCostForCoinTransaction(): Promise<number> {

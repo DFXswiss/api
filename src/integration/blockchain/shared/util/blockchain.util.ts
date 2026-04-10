@@ -114,7 +114,7 @@ const BlockchainExplorerUrls: { [b in Blockchain]: string } = {
   [Blockchain.CARDANO]: 'https://cardanoscan.io',
   [Blockchain.INTERNET_COMPUTER]: 'https://dashboard.internetcomputer.org',
   [Blockchain.RAILGUN]: 'https://railgun-explorer.com',
-  [Blockchain.STARKNET]: 'https://starkscan.co',
+  [Blockchain.STARKNET]: 'https://voyager.online',
   [Blockchain.BINANCE_PAY]: undefined,
   [Blockchain.KUCOIN_PAY]: undefined,
   [Blockchain.KRAKEN]: undefined,
