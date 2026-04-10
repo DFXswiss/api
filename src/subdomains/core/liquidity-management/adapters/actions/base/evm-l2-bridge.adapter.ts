@@ -4,6 +4,7 @@ import { L2BridgeEvmClient } from 'src/integration/blockchain/shared/evm/interfa
 import { isAsset } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
 import { OrderFailedException } from '../../../exceptions/order-failed.exception';
@@ -111,7 +112,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
         `Not enough liquidity on L1 blockchain for ${name} (balance: ${l1Liquidity}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
       );
 
-    const amount = Math.min(maxAmount, l1Liquidity);
+    const amount = Util.floor(Math.min(maxAmount, l1Liquidity), 8);
 
     order.inputAmount = amount;
     order.inputAsset = l1Asset.name;
@@ -166,7 +167,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
         `Not enough liquidity on L2 blockchain for ${name} (balance: ${l2Liquidity}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
       );
 
-    const amount = Math.min(maxAmount, l2Liquidity);
+    const amount = Util.floor(Math.min(maxAmount, l2Liquidity), 8);
 
     order.inputAmount = amount;
     order.inputAsset = l2Asset.name;
