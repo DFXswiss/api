@@ -31,6 +31,7 @@ export class PaymentBalanceService implements OnModuleInit {
     Blockchain.MONERO,
     Blockchain.ZANO,
     Blockchain.CARDANO,
+    Blockchain.STARKNET,
     Blockchain.BINANCE_PAY,
     Blockchain.KUCOIN_PAY,
   ];
