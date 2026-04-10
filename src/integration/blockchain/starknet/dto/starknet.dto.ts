@@ -16,11 +16,3 @@ export interface StarknetTransactionDestinationDto {
     decimals: number;
   };
 }
-
-export interface StarknetTokenDto {
-  address: string;
-  contractAddress: string;
-  owner: string;
-  amount: number;
-  decimals: number;
-}

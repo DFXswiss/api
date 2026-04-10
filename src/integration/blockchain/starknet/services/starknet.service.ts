@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BlockchainService } from '../../shared/util/blockchain.service';
 import { StarknetTransactionDto } from '../dto/starknet.dto';
@@ -10,10 +9,10 @@ import { StarknetClient } from '../starknet-client';
 export class StarknetService extends BlockchainService {
   private readonly client: StarknetClient;
 
-  constructor(private readonly http: HttpService) {
+  constructor() {
     super();
 
-    this.client = new StarknetClient(this.http);
+    this.client = new StarknetClient();
   }
 
   getDefaultClient(): StarknetClient {

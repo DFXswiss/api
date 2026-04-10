@@ -1,7 +1,6 @@
-import { Account, Contract, RpcProvider, CallData, type Abi } from 'starknet';
+import { Account, Contract, RpcProvider, CallData, hash, type Abi } from 'starknet';
 import { GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
 import { BlockchainClient } from '../shared/util/blockchain-client';
@@ -43,7 +42,7 @@ export class StarknetClient extends BlockchainClient {
   private readonly account: Account;
   private readonly address: string;
 
-  constructor(private readonly http: HttpService) {
+  constructor() {
     super();
 
     const { gatewayUrl, walletAddress, walletPrivateKey } = GetConfig().blockchain.starknet;
@@ -62,7 +61,7 @@ export class StarknetClient extends BlockchainClient {
     return block.block_number;
   }
 
-  // --- Balance Methods --- //
+  // --- BALANCES --- //
 
   async getNativeCoinBalance(): Promise<number> {
     return this.getNativeCoinBalanceForAddress(this.walletAddress);
@@ -78,10 +77,9 @@ export class StarknetClient extends BlockchainClient {
 
   async getTokenBalance(asset: Asset, address?: string): Promise<number> {
     const owner = address ?? this.walletAddress;
-    const contractAddress = asset.chainId;
-    if (!contractAddress) return 0;
+    if (!asset.chainId) return 0;
 
-    return this.getErc20Balance(contractAddress, owner, asset.decimals);
+    return this.getErc20Balance(asset.chainId, owner, asset.decimals);
   }
 
   async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
@@ -89,11 +87,10 @@ export class StarknetClient extends BlockchainClient {
     const balances: BlockchainTokenBalance[] = [];
 
     for (const asset of assets) {
-      const contractAddress = asset.chainId;
-      if (!contractAddress) continue;
+      if (!asset.chainId) continue;
 
-      const balance = await this.getErc20Balance(contractAddress, owner, asset.decimals);
-      balances.push({ owner, contractAddress, balance });
+      const balance = await this.getErc20Balance(asset.chainId, owner, asset.decimals);
+      balances.push({ owner, contractAddress: asset.chainId, balance });
     }
 
     return balances;
@@ -105,7 +102,7 @@ export class StarknetClient extends BlockchainClient {
     return StarknetUtil.fromWeiAmount(result.toString(), decimals);
   }
 
-  // --- Transaction Methods --- //
+  // --- TRANSACTIONS --- //
 
   async isTxComplete(txHash: string, confirmations = 0): Promise<boolean> {
     const receipt = await this.provider.getTransactionReceipt(txHash);
@@ -135,45 +132,6 @@ export class StarknetClient extends BlockchainClient {
       return { error: { message: e.message } };
     }
   }
-
-  // --- Send Methods --- //
-
-  async sendNativeCoin(toAddress: string, amount: number): Promise<string> {
-    return this.sendErc20(STRK_TOKEN_ADDRESS, toAddress, amount, StarknetUtil.strkDecimals);
-  }
-
-  async sendEth(toAddress: string, amount: number): Promise<string> {
-    return this.sendErc20(ETH_TOKEN_ADDRESS, toAddress, amount, StarknetUtil.ethDecimals);
-  }
-
-  async sendToken(toAddress: string, asset: Asset, amount: number): Promise<string> {
-    const contractAddress = asset.chainId;
-    if (!contractAddress) throw new Error(`No contract address for token ${asset.uniqueName}`);
-
-    const decimals = asset.decimals;
-    if (!decimals) throw new Error(`No decimals for token ${asset.uniqueName}`);
-
-    return this.sendErc20(contractAddress, toAddress, amount, decimals);
-  }
-
-  private async sendErc20(
-    contractAddress: string,
-    toAddress: string,
-    amount: number,
-    decimals: number,
-  ): Promise<string> {
-    const weiAmount = StarknetUtil.toWeiAmount(amount, decimals);
-
-    const result = await this.account.execute({
-      contractAddress,
-      entrypoint: 'transfer',
-      calldata: CallData.compile({ recipient: toAddress, amount: { low: weiAmount, high: 0n } }),
-    });
-
-    return result.transaction_hash;
-  }
-
-  // --- Query Methods --- //
 
   async getTransaction(txHash: string): Promise<StarknetTransactionDto> {
     const tx = await this.provider.getTransactionByHash(txHash);
@@ -206,12 +164,51 @@ export class StarknetClient extends BlockchainClient {
     return StarknetUtil.fromWeiAmount(receipt.value.actual_fee.amount, StarknetUtil.ethDecimals);
   }
 
+  // --- SEND --- //
+
+  async sendNativeCoin(toAddress: string, amount: number): Promise<string> {
+    return this.sendErc20(STRK_TOKEN_ADDRESS, toAddress, amount, StarknetUtil.strkDecimals);
+  }
+
+  async sendEth(toAddress: string, amount: number): Promise<string> {
+    return this.sendErc20(ETH_TOKEN_ADDRESS, toAddress, amount, StarknetUtil.ethDecimals);
+  }
+
+  async sendToken(toAddress: string, asset: Asset, amount: number): Promise<string> {
+    if (!asset.chainId) throw new Error(`No contract address for token ${asset.uniqueName}`);
+    if (!asset.decimals) throw new Error(`No decimals for token ${asset.uniqueName}`);
+
+    return this.sendErc20(asset.chainId, toAddress, amount, asset.decimals);
+  }
+
+  private async sendErc20(
+    contractAddress: string,
+    toAddress: string,
+    amount: number,
+    decimals: number,
+  ): Promise<string> {
+    const weiAmount = StarknetUtil.toWeiAmount(amount, decimals);
+
+    const result = await this.account.execute({
+      contractAddress,
+      entrypoint: 'transfer',
+      calldata: CallData.compile({ recipient: toAddress, amount: { low: weiAmount, high: 0n } }),
+    });
+
+    return result.transaction_hash;
+  }
+
+  // --- SIGNATURE VERIFICATION --- //
+
   async verifySignature(message: string, address: string, signature: string): Promise<boolean> {
     const signatureParts = signature.split(',');
     if (signatureParts.length !== 2) return false;
 
-    return this.provider.verifyMessageInStarknet(BigInt(message), signatureParts, address);
+    const messageHash = hash.starknetKeccak(message);
+    return this.provider.verifyMessageInStarknet(messageHash, signatureParts, address);
   }
+
+  // --- FEES --- //
 
   async getCurrentGasCostForCoinTransaction(): Promise<number> {
     const estimateFee = await this.account.estimateInvokeFee({
