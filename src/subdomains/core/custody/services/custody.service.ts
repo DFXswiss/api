@@ -54,7 +54,10 @@ export class CustodyService {
     const custodyWallet = EvmUtil.createWallet(Config.blockchain.evm.custodyAccount(addressIndex));
     const signature = await custodyWallet.signMessage(Config.auth.signMessageGeneral + custodyWallet.address);
 
-    const account = await this.userDataService.getUserData(accountId, { users: true });
+    const account = await this.userDataService.getUserData(accountId, {
+      users: true,
+      recommendedRecommendations: { kycStep: true },
+    });
     if (!account) throw new NotFoundException('User not found');
 
     const custodyUser = await this.userService.createUser(
