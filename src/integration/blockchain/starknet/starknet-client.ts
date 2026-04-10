@@ -106,8 +106,8 @@ export class StarknetClient extends BlockchainClient {
 
   private async getErc20Balance(contractAddress: string, owner: string, decimals: number): Promise<number> {
     const contract = new Contract({ abi: ERC20_ABI, address: contractAddress, providerOrAccount: this.provider });
-    const result = await contract.call('balanceOf', [owner]);
-    return StarknetUtil.fromWeiAmount(result.toString(), decimals);
+    const result = (await contract.call('balanceOf', [owner])) as Record<string, bigint>;
+    return StarknetUtil.fromWeiAmount(result.balance, decimals);
   }
 
   // --- TRANSACTIONS --- //
