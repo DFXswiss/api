@@ -27,6 +27,8 @@ import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidit
 import { PaymentBalanceService } from 'src/subdomains/core/payment-link/services/payment-balance.service';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
@@ -90,6 +92,8 @@ export class LogJobService {
     private readonly payoutService: PayoutService,
     private readonly processService: ProcessService,
     private readonly paymentBalanceService: PaymentBalanceService,
+    private readonly userService: UserService,
+    private readonly pricingService: PricingService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.TRADING_LOG, timeout: 1800 })
@@ -974,10 +978,17 @@ export class LogJobService {
     );
     const payoutOrderFee = this.getFeeAmount(payoutOrders.filter((p) => p.context !== PayoutOrderContext.REF_PAYOUT));
 
+    // accrued ref rewards: open credit not yet turned into RefReward records
+    const totalOpenRefCreditEur = await this.userService.getTotalOpenRefCredit();
+    const inProgressRefRewardEur = await this.refRewardService.getInProgressRefRewardVolumeEur();
+    const unprocessedCreditEur = Math.max(0, totalOpenRefCreditEur - inProgressRefRewardEur);
+    const eurChfPrice = await this.pricingService.getPrice(PriceCurrency.EUR, PriceCurrency.CHF, PriceValidity.PREFER_VALID);
+    const accruedRefRewardChf = eurChfPrice.convert(unprocessedCreditEur, 8);
+
     const totalKrakenFee = krakenTxWithdrawFee + krakenTxTradingFee;
     const totalBinanceFee = binanceTxWithdrawFee + binanceTxTradingFee;
 
-    const totalRefReward = refRewards + payoutOrderRefFee;
+    const totalRefReward = refRewards + accruedRefRewardChf + payoutOrderRefFee;
     const totalTxFee = cryptoInputFee + payoutOrderFee;
     const totalBlockchainFee = totalTxFee + tradingOrderFee;
 
@@ -1029,6 +1040,7 @@ export class LogJobService {
           ? {
               total: totalRefReward,
               amount: refRewards || undefined,
+              accrued: accruedRefRewardChf || undefined,
               fee: payoutOrderRefFee || undefined,
             }
           : undefined,

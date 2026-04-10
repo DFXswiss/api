@@ -8,6 +8,8 @@ import { PaymentLinkPaymentModule } from 'src/subdomains/core/payment-link/payme
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { TradingModule } from 'src/subdomains/core/trading/trading.module';
+import { UserModule } from 'src/subdomains/generic/user/user.module';
+import { PricingModule } from '../pricing/pricing.module';
 import { BankTxModule } from '../bank-tx/bank-tx.module';
 import { BankModule } from '../bank/bank.module';
 import { PayInModule } from '../payin/payin.module';
@@ -31,6 +33,8 @@ import { LogModule } from './log.module';
     ReferralModule,
     PayoutModule,
     PaymentLinkPaymentModule,
+    UserModule,
+    PricingModule,
   ],
   controllers: [],
   providers: [LogJobService],
