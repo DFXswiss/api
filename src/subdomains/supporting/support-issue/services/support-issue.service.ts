@@ -76,6 +76,9 @@ export class SupportIssueService {
   }
 
   async createIssueInternal(userData: UserData, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
+    // mail is required
+    if (!userData.mail) throw new BadRequestException('Mail is missing');
+
     const newIssue = this.supportIssueRepo.create({ userData, ...dto });
 
     const existingWhere: FindOptionsWhere<SupportIssue> = {
