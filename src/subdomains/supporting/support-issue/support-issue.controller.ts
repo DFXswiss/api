@@ -57,7 +57,14 @@ export class SupportIssueController {
     @Query('userDataId') userDataId: string,
     @Body() dto: CreateSupportIssueSupportDto,
   ): Promise<SupportIssueDto> {
-    return this.supportIssueService.createIssue(+userDataId, dto);
+    const input: CreateSupportIssueSupportDto = {
+      ...dto,
+      department:
+        dto.type === SupportIssueType.VERIFICATION_CALL || dto.limitRequest
+          ? Department.COMPLIANCE
+          : Department.SUPPORT,
+    };
+    return this.supportIssueService.createIssue(+userDataId, input);
   }
 
   @Get()
