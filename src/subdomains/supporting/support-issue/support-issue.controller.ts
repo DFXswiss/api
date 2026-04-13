@@ -67,7 +67,7 @@ export class SupportIssueController {
     return this.supportIssueService.getIssues(jwt?.account);
   }
 
-  @Get('support/list')
+  @Get('list')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
