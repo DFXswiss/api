@@ -223,7 +223,6 @@ export class SupportIssueService {
     const roleDepartmentMap: Partial<Record<UserRole, Department>> = {
       [UserRole.SUPPORT]: Department.SUPPORT,
       [UserRole.COMPLIANCE]: Department.COMPLIANCE,
-      [UserRole.MARKETING]: Department.MARKETING,
     };
 
     const departmentByRole = roleDepartmentMap[role];

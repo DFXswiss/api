@@ -165,12 +165,9 @@ export class SupportIssueDtoMapper {
   }
 
   static mapTransactionMissingData(issue: SupportIssue): SupportIssueInternalTransactionMissingDataDto | undefined {
-    let info: { senderIban?: string; receiverIban?: string; date?: string } | undefined;
-    try {
-      info = issue.additionalInformation as typeof info;
-    } catch {
-      return undefined;
-    }
+    const info = issue.additionalInformation as
+      | { senderIban?: string; receiverIban?: string; date?: string }
+      | undefined;
     if (!info?.senderIban && !info?.receiverIban && !info?.date) return undefined;
 
     return {
