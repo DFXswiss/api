@@ -31,4 +31,9 @@ export class AuthMailDto {
   @IsString()
   @Matches(GetConfig().formats.recommendationCode)
   recommendationCode?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  wallet?: string;
 }

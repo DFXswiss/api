@@ -1,10 +1,10 @@
 import { Module } from '@nestjs/common';
 import { SharedModule } from 'src/shared/shared.module';
-import { ArkService } from './ark.service';
+import { ArkadeService } from './arkade.service';
 
 @Module({
   imports: [SharedModule],
-  providers: [ArkService],
-  exports: [ArkService],
+  providers: [ArkadeService],
+  exports: [ArkadeService],
 })
-export class ArkModule {}
+export class ArkadeModule {}

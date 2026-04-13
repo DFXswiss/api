@@ -21,7 +21,7 @@ import { Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { PaymentLinkRecipientDto } from 'src/subdomains/core/payment-link/dto/payment-link-recipient.dto';
 import { MailFactory, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
-import { FindOptionsWhere, IsNull, LessThan, MoreThan, Not } from 'typeorm';
+import { FindOptionsWhere, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { MergeReason } from '../../user/models/account-merge/account-merge.entity';
 import { AccountMergeService } from '../../user/models/account-merge/account-merge.service';
 import { BankDataType } from '../../user/models/bank-data/bank-data.entity';
@@ -407,10 +407,10 @@ export class KycService {
         missingCompletedSteps[0] === KycStepName.DFX_APPROVAL &&
         (!kycStep || kycStep.name !== KycStepName.DFX_APPROVAL))
     ) {
-      const approvalStep = userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
+      const approvalStep = userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isOnHold);
       if (approvalStep?.isOnHold) {
         await this.kycStepRepo.update(...approvalStep.manualReview());
-      } else if (!approvalStep) {
+      } else if (!approvalStep && !userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isInReview)) {
         const newStep = await this.initiateStep(userData, KycStepName.DFX_APPROVAL).catch((e) => {
           if (e.message.includes('Cannot insert duplicate key'))
             return this.kycStepRepo.findOneBy({
@@ -890,7 +890,6 @@ export class KycService {
   async cancelStepManual(kycHash: string, stepId: number): Promise<void> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId);
-
     if (!KycStepCancelable.includes(kycStep.name)) throw new BadRequestException('Step is not cancelable');
 
     await this.kycStepRepo.update(
@@ -1102,7 +1101,6 @@ export class KycService {
     kycHash?: string,
     type?: KycStepType,
     sequence?: number,
-    restartCompletedSteps = false,
   ): Promise<{ user: UserData; step: KycStep }> {
     user = user ?? (await this.getUser(kycHash));
 
@@ -1111,7 +1109,7 @@ export class KycService {
         ? user.getStepsWith(name, type, sequence)[0]
         : user
             .getStepsWith(name, type)
-            .find((s) => s.isInProgress || s.isInReview || (!restartCompletedSteps && s.isCompleted));
+            .find((s) => s.isInProgress || s.isInReview || (!KycStepCancelable.includes(name) && s.isCompleted));
     if (!step) {
       step = await this.initiateStep(user, name, type, true);
       user.kycSteps.push(step);
@@ -1131,7 +1129,7 @@ export class KycService {
     const type = Object.values(KycStepType).find((t) => t.toLowerCase() === stepType?.toLowerCase());
     if (!name) throw new BadRequestException('Invalid step name');
 
-    const { user, step } = await this.getOrCreateStepInternal(name, undefined, kycHash, type, sequence, true);
+    const { user, step } = await this.getOrCreateStepInternal(name, undefined, kycHash, type, sequence);
 
     await this.verify2faIfRequired(user, ip);
 
@@ -1815,5 +1813,60 @@ export class KycService {
         fileSubType,
       );
     }
+  }
+
+  // --- Company Onboarding Queries ---
+
+  async getPendingCompanyOnboardings(): Promise<{ userDataId: number; date: Date }[]> {
+    const companyStepNames = [
+      KycStepName.LEGAL_ENTITY,
+      KycStepName.AUTHORITY,
+      KycStepName.OWNER_DIRECTORY,
+      KycStepName.SIGNATORY_POWER,
+      KycStepName.BENEFICIAL_OWNER,
+      KycStepName.OPERATIONAL_ACTIVITY,
+      KycStepName.DFX_APPROVAL,
+    ];
+
+    const results = await this.kycStepRepo
+      .createQueryBuilder('step')
+      .select('step.userDataId', 'userDataId')
+      .addSelect('MIN(step.updated)', 'date')
+      .innerJoin('step.userData', 'userData')
+      .where('step.name IN (:...names)', { names: companyStepNames })
+      .andWhere('step.status = :status', { status: ReviewStatus.MANUAL_REVIEW })
+      .andWhere('userData.accountType IN (:...accountTypes)', {
+        accountTypes: [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP],
+      })
+      .andWhere('userData.kycLevel >= :minLevel', { minLevel: KycLevel.LEVEL_30 })
+      .andWhere('userData.status != :mergedStatus', { mergedStatus: UserDataStatus.MERGED })
+      .andWhere(
+        `step.userDataId NOT IN (
+          SELECT s2.userDataId FROM kyc_step s2
+          WHERE s2.name = :approvalName AND s2.status IN (:...doneStatuses)
+        )`,
+        {
+          approvalName: KycStepName.DFX_APPROVAL,
+          doneStatuses: [ReviewStatus.COMPLETED, ReviewStatus.FAILED],
+        },
+      )
+      .groupBy('step.userDataId')
+      .orderBy('date', 'ASC')
+      .getRawMany<{ userDataId: number; date: Date }>();
+
+    return results;
+  }
+
+  async getDfxApprovalSteps(userDataIds: number[]): Promise<KycStep[]> {
+    if (userDataIds.length === 0) return [];
+
+    return this.kycStepRepo.find({
+      where: {
+        userData: { id: In(userDataIds) },
+        name: KycStepName.DFX_APPROVAL,
+        status: In([ReviewStatus.COMPLETED, ReviewStatus.FAILED]),
+      },
+      relations: { userData: true },
+    });
   }
 }

@@ -1,10 +1,10 @@
 import { ArkAddress, DefaultVtxo, DelegateVtxo } from '@arkade-os/sdk';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { sha256 } from '@noble/hashes/sha2';
-import { ArkService } from '../ark.service';
+import { ArkadeService } from '../arkade.service';
 
-describe('ArkService', () => {
-  let service: ArkService;
+describe('ArkadeService', () => {
+  let service: ArkadeService;
 
   // Test keypair (deterministic for reproducibility)
   const privateKey = '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
@@ -28,8 +28,8 @@ describe('ArkService', () => {
   }
 
   beforeEach(() => {
-    // ArkService constructor creates an ArkClient internally, which is mocked via moduleNameMapper
-    service = new ArkService();
+    // ArkadeService constructor creates an ArkadeClient internally, which is mocked via moduleNameMapper
+    service = new ArkadeService();
   });
 
   // --- PAYMENT REQUEST --- //

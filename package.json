@@ -75,7 +75,7 @@
     "alchemy-sdk": "^3.6.5",
     "applicationinsights": "^2.9.8",
     "arweave": "^1.15.7",
-    "axios": "^1.13.1",
+    "axios": "^1.15.0",
     "basic-ftp": "^5.0.5",
     "bcrypt": "^5.1.1",
     "bech32": "^2.0.0",
@@ -175,7 +175,7 @@
     "moduleNameMapper": {
       "^src/(.*)$": "<rootDir>/$1",
       "^@dfinity/(ledger-icp|ledger-icrc|utils)$": "<rootDir>/integration/blockchain/icp/__mocks__/dfinity-$1.mock.ts",
-      "^@arkade-os/sdk$": "<rootDir>/integration/blockchain/ark/__mocks__/arkade-sdk.mock.ts"
+      "^@arkade-os/sdk$": "<rootDir>/integration/blockchain/arkade/__mocks__/arkade-sdk.mock.ts"
     },
     "testRegex": ".*\\.spec\\.ts$",
     "transform": {
@@ -197,6 +197,7 @@
     "multer": "^2.0.0",
     "uuid": "^9.0.0",
     "semver": "^7.6.0",
-    "fast-xml-parser": "$fast-xml-parser"
+    "fast-xml-parser": "$fast-xml-parser",
+    "axios": "$axios"
   }
 }

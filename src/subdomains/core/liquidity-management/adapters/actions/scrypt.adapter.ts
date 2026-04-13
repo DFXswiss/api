@@ -220,8 +220,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const price = await this.getAndCheckTradePrice(targetAsset, tradeAssetEntity, maxPriceDeviation);
     const availableBalance = await this.scryptService.getAvailableBalance(targetAsset.dexName);
 
-    // price = tradeAsset per targetAsset (e.g., BTC per EUR)
-    const sellAmount = Util.floor(deficitAmount / price, 6);
+    // price = targetAsset per tradeAsset (e.g., EUR per BTC)
+    const sellAmount = Util.floor(deficitAmount * price, 6);
     const amount = Util.floor(Math.min(sellAmount, order.maxAmount, availableBalance), 6);
 
     if (amount <= 0) {
@@ -273,7 +273,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
   private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
     try {
-      const isComplete = await this.scryptService.checkTrade(order.correlationId, from, to);
+      const isComplete = await this.scryptService.checkTrade(order.correlationId, from, to, order.created);
 
       if (isComplete) {
         order.outputAmount = await this.aggregateTradeOutput(order);

@@ -182,6 +182,7 @@ export class TransactionService {
     return this.repo.find({
       where: { userData: { id: userDataId }, type: Not(IsNull()), created: Between(from, to) },
       relations: {
+        userData: { country: true },
         buyCrypto: {
           buy: true,
           cryptoRoute: true,
@@ -206,6 +207,7 @@ export class TransactionService {
     from = new Date(0),
     to = new Date(),
     limit?: number,
+    offset?: number,
   ): Promise<Transaction[]> {
     return Util.doInBatchesWithLimit(
       userIds,
@@ -213,6 +215,7 @@ export class TransactionService {
         this.repo.find({
           where: { user: { id: In(batch) }, type: Not(IsNull()), created: Between(from, to) },
           relations: {
+            userData: { country: true },
             buyCrypto: {
               buy: true,
               cryptoRoute: true,
@@ -224,7 +227,9 @@ export class TransactionService {
             buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
             refReward: true,
           },
+          order: { created: 'DESC' },
           take: remaining,
+          skip: offset,
         }),
       100,
       limit,

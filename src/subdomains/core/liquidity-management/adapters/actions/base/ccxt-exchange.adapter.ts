@@ -298,13 +298,18 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const token = asset ?? targetAsset.dexName;
 
     const withdrawal = await this.exchangeService.getWithdraw(correlationId, token);
-    if (!withdrawal?.txid) {
-      this.logger.verbose(
-        `No withdrawal id for id ${correlationId} and asset ${token} at ${this.exchangeService.name} found`,
-      );
+    if (!withdrawal) {
+      this.logger.verbose(`No withdrawal for id ${correlationId} and asset ${token} at ${this.exchangeService.name}`);
       return false;
-    } else if (withdrawal.status === 'failed') {
-      throw new OrderFailedException(`Withdrawal TX ${withdrawal.txid} has failed`);
+    }
+
+    if (withdrawal.status === 'failed') {
+      throw new OrderFailedException(`Withdrawal ${correlationId} has failed`);
+    }
+
+    if (!withdrawal.txid) {
+      this.logger.verbose(`No txid yet for withdrawal ${correlationId} at ${this.exchangeService.name}`);
+      return false;
     }
 
     order.outputAmount = withdrawal.amount;
@@ -409,13 +414,20 @@ export abstract class CcxtExchangeAdapter extends LiquidityActionAdapter {
     const { target } = this.parseTransferParams(paramMap);
 
     const withdrawal = await this.exchangeService.getWithdraw(correlationId, targetAsset.dexName);
-    if (!withdrawal?.txid) {
+    if (!withdrawal) {
       this.logger.verbose(
-        `No withdrawal id for id ${correlationId} and asset ${targetAsset.dexName} at ${this.exchangeService.name} found`,
+        `No withdrawal for id ${correlationId} and asset ${targetAsset.dexName} at ${this.exchangeService.name}`,
       );
       return false;
-    } else if (withdrawal.status === 'failed') {
-      throw new OrderFailedException(`Withdrawal TX ${withdrawal.txid} has failed`);
+    }
+
+    if (withdrawal.status === 'failed') {
+      throw new OrderFailedException(`Withdrawal ${correlationId} has failed`);
+    }
+
+    if (!withdrawal.txid) {
+      this.logger.verbose(`No txid yet for withdrawal ${correlationId} at ${this.exchangeService.name}`);
+      return false;
     }
 
     order.outputAmount = withdrawal.amount;

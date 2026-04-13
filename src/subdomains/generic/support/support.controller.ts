@@ -5,6 +5,7 @@ import {
   Get,
   NotFoundException,
   Param,
+  Post,
   Put,
   Query,
   UseGuards,
@@ -16,10 +17,12 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { BankRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
+import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
   KycFileListEntry,
   KycFileYearlyStats,
+  PendingOnboardingInfo,
   RecommendationGraph,
   TransactionListEntry,
   UserDataSupportInfoDetails,
@@ -35,7 +38,7 @@ export class SupportController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async searchUserByKey(@Query() query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
     return this.supportService.searchUserDataByKey(query);
   }
@@ -72,6 +75,14 @@ export class SupportController {
     return this.supportService.getRecommendationGraph(+id);
   }
 
+  @Get('pending-onboardings')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getPendingOnboardings(): Promise<PendingOnboardingInfo[]> {
+    return this.supportService.getPendingOnboardings();
+  }
+
   @Get(':id/ip-log-pdf')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -79,6 +90,26 @@ export class SupportController {
   async getIpLogPdf(@Param('id') id: string): Promise<{ pdfData: string }> {
     const pdfData = await this.supportService.generateIpLogPdf(+id);
     return { pdfData };
+  }
+
+  @Get(':id/transaction-pdf')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getTransactionPdf(@Param('id') id: string): Promise<{ pdfData: string }> {
+    const pdfData = await this.supportService.generateTransactionPdf(+id);
+    return { pdfData };
+  }
+
+  @Post(':id/onboarding-pdf')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async generateOnboardingPdf(
+    @Param('id') id: string,
+    @Body() dto: GenerateOnboardingPdfDto,
+  ): Promise<{ pdfData: string; fileName: string }> {
+    return this.supportService.generateAndSaveOnboardingPdf(+id, dto);
   }
 
   @Get(':id')
