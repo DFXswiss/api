@@ -29,6 +29,7 @@ export enum TransactionState {
   RETURNED = 'Returned',
   UNASSIGNED = 'Unassigned',
   WAITING_FOR_PAYMENT = 'WaitingForPayment',
+  STOPPED = 'Stopped',
 }
 
 export enum TransactionReason {

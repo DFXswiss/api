@@ -448,6 +448,8 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
         : null;
 
   if (entity instanceof BuyCrypto) {
+    if (entity.status === BuyCryptoStatus.STOPPED) return { state: TransactionState.STOPPED, reason };
+
     switch (entity.amlCheck) {
       case null:
         if (entity.comment != null) return { state: TransactionState.PROCESSING, reason };
