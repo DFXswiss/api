@@ -407,10 +407,10 @@ export class KycService {
         missingCompletedSteps[0] === KycStepName.DFX_APPROVAL &&
         (!kycStep || kycStep.name !== KycStepName.DFX_APPROVAL))
     ) {
-      const approvalStep = userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL);
+      const approvalStep = userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isOnHold);
       if (approvalStep?.isOnHold) {
         await this.kycStepRepo.update(...approvalStep.manualReview());
-      } else if (!approvalStep) {
+      } else if (!approvalStep && !userData.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL && s.isInReview)) {
         const newStep = await this.initiateStep(userData, KycStepName.DFX_APPROVAL).catch((e) => {
           if (e.message.includes('Cannot insert duplicate key'))
             return this.kycStepRepo.findOneBy({
@@ -1101,7 +1101,6 @@ export class KycService {
     kycHash?: string,
     type?: KycStepType,
     sequence?: number,
-    restartCompletedSteps = false,
   ): Promise<{ user: UserData; step: KycStep }> {
     user = user ?? (await this.getUser(kycHash));
 
@@ -1110,7 +1109,7 @@ export class KycService {
         ? user.getStepsWith(name, type, sequence)[0]
         : user
             .getStepsWith(name, type)
-            .find((s) => s.isInProgress || s.isInReview || (!restartCompletedSteps && s.isCompleted));
+            .find((s) => s.isInProgress || s.isInReview || (!KycStepCancelable.includes(name) && s.isCompleted));
     if (!step) {
       step = await this.initiateStep(user, name, type, true);
       user.kycSteps.push(step);
@@ -1130,7 +1129,7 @@ export class KycService {
     const type = Object.values(KycStepType).find((t) => t.toLowerCase() === stepType?.toLowerCase());
     if (!name) throw new BadRequestException('Invalid step name');
 
-    const { user, step } = await this.getOrCreateStepInternal(name, undefined, kycHash, type, sequence, true);
+    const { user, step } = await this.getOrCreateStepInternal(name, undefined, kycHash, type, sequence);
 
     await this.verify2faIfRequired(user, ip);
 
