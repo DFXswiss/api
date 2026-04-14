@@ -138,14 +138,14 @@ export class HealthController {
 
   private checkPayment(state: SystemState | null): { status: HealthStatus; detail?: string } {
     const data = state?.payment?.combined?.data as {
-      stuckPaymentQuoteCount?: number;
-      unhandledCryptoInputCount?: number;
+      stuckPayments?: number;
+      unhandledCryptoInputs?: number;
     };
     if (!data) return { status: HealthStatus.DEGRADED, detail: 'No payment data' };
 
     const issues: string[] = [];
-    if (data.stuckPaymentQuoteCount > 0) issues.push(`${data.stuckPaymentQuoteCount} stuck quotes`);
-    if (data.unhandledCryptoInputCount > 5) issues.push(`${data.unhandledCryptoInputCount} unhandled inputs`);
+    if (data.stuckPayments > 0) issues.push(`${data.stuckPayments} stuck quotes`);
+    if (data.unhandledCryptoInputs > 5) issues.push(`${data.unhandledCryptoInputs} unhandled inputs`);
 
     if (issues.length === 0) return { status: HealthStatus.OK };
     return { status: HealthStatus.DEGRADED, detail: issues.join(', ') };
