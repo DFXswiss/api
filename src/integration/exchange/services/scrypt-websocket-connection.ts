@@ -16,6 +16,7 @@ interface ScryptMessage {
   initial?: boolean;
   seqNum?: number;
   error?: string;
+  next?: string;
 }
 
 export enum ScryptMessageType {
@@ -39,6 +40,7 @@ export enum ScryptMessageType {
 enum ScryptRequestType {
   SUBSCRIBE = 'subscribe',
   UNSUBSCRIBE = 'unsubscribe',
+  PAGE = 'page',
 }
 
 interface ScryptRequest {
@@ -95,6 +97,33 @@ export class ScryptWebSocketConnection {
     if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
 
     return (response.data ?? []) as T[];
+  }
+
+  async fetchAll<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
+    const allData: T[] = [];
+    const reqId = ++this.reqIdCounter;
+
+    // First request
+    let response = await this.requestWithId(reqId, {
+      type: ScryptRequestType.SUBSCRIBE,
+      streams: [{ name: streamName, ...filters }],
+    });
+
+    if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
+
+    allData.push(...((response.data ?? []) as T[]));
+
+    // Paginate through all pages
+    while (response.next) {
+      response = await this.requestWithId(reqId, {
+        type: ScryptRequestType.PAGE,
+        streams: [{ name: streamName, after: response.next }],
+      });
+
+      allData.push(...((response.data ?? []) as T[]));
+    }
+
+    return allData;
   }
 
   async requestAndWaitForUpdate<T>(
@@ -258,9 +287,13 @@ export class ScryptWebSocketConnection {
   }
 
   private async request(message: ScryptRequest, timeoutMs = 30000): Promise<ScryptMessage> {
+    const reqId = ++this.reqIdCounter;
+    return this.requestWithId(reqId, message, timeoutMs);
+  }
+
+  private async requestWithId(reqId: number, message: ScryptRequest, timeoutMs = 30000): Promise<ScryptMessage> {
     const ws = await this.ensureConnected();
 
-    const reqId = ++this.reqIdCounter;
     const request: ScryptRequest = { ...message, reqid: reqId };
 
     return new Promise((resolve, reject) => {

@@ -37,6 +37,7 @@ export class ScryptService extends PricingProvider {
   private readonly securities: AsyncSubscription<ScryptSecurity[]>;
   private readonly balances: AsyncSubscription<Map<string, ScryptBalance>>;
   private readonly executionReports: Map<string, ScryptExecutionReport> = new Map();
+  private readonly balanceTransactions: Map<string, ScryptBalanceTransaction> = new Map();
 
   readonly name: string = 'Scrypt';
 
@@ -60,12 +61,40 @@ export class ScryptService extends PricingProvider {
       });
     });
 
-    // ExecutionReport subscription (accumulate into Map, no await needed)
+    const cacheMaxAge = Util.daysBefore(365);
+
+    // ExecutionReport subscription (all pages + subscription)
+    this.connection
+      .fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT)
+      .then((reports) => {
+        const recent = reports.filter((r) => !r.SubmitTime || new Date(r.SubmitTime) >= cacheMaxAge);
+        for (const r of recent) this.executionReports.set(r.ClOrdID, r);
+      })
+      .catch((error) => this.logger.error('Failed to fetch execution reports:', error));
+
     this.connection.subscribeToStream<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, (reports) => {
       for (const report of reports) {
         this.executionReports.set(report.ClOrdID, report);
       }
     });
+
+    // BalanceTransaction subscription (all pages + subscription)
+    this.connection
+      .fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION)
+      .then((transactions) => {
+        const recent = transactions.filter((t) => new Date(t.Timestamp) >= cacheMaxAge);
+        for (const t of recent) this.balanceTransactions.set(t.ClReqID, t);
+      })
+      .catch((error) => this.logger.error('Failed to fetch balance transactions:', error));
+
+    this.connection.subscribeToStream<ScryptBalanceTransaction>(
+      ScryptMessageType.BALANCE_TRANSACTION,
+      (transactions) => {
+        for (const t of transactions) {
+          this.balanceTransactions.set(t.ClReqID, t);
+        }
+      },
+    );
   }
 
   // --- BALANCES --- //
@@ -142,12 +171,9 @@ export class ScryptService extends PricingProvider {
   }
 
   async getWithdrawalStatus(clReqId: string): Promise<ScryptWithdrawStatus | null> {
-    const transactions = await this.fetchBalanceTransactions();
-    const transaction = transactions.find(
-      (t) => t.ClReqID === clReqId && t.TransactionType === ScryptTransactionType.WITHDRAWAL,
-    );
+    const transaction = this.balanceTransactions.get(clReqId);
 
-    if (!transaction) return null;
+    if (!transaction || transaction.TransactionType !== ScryptTransactionType.WITHDRAWAL) return null;
 
     return {
       id: transaction.TransactionID,
@@ -182,16 +208,15 @@ export class ScryptService extends PricingProvider {
   // --- TRANSACTIONS --- //
 
   async getAllTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
-    const transactions = await this.fetchBalanceTransactions();
+    const transactions = Array.from(this.balanceTransactions.values());
     return transactions.filter((t) => !since || (t.TransactTime && new Date(t.TransactTime) >= since));
   }
 
-  private async fetchBalanceTransactions(): Promise<ScryptBalanceTransaction[]> {
-    return this.connection.fetch<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION);
-  }
+  private async fetchExecutionReports(since?: Date): Promise<ScryptExecutionReport[]> {
+    const filters: Record<string, unknown> = {};
+    if (since) filters.StartDate = since.toISOString();
 
-  private async fetchExecutionReports(): Promise<ScryptExecutionReport[]> {
-    return this.connection.fetch<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT);
+    return this.connection.fetch<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, filters);
   }
 
   async getTrades(since?: Date): Promise<ScryptTrade[]> {
@@ -273,7 +298,7 @@ export class ScryptService extends PricingProvider {
 
     // Fallback: fetch from Scrypt API (e.g. after restart or WS reconnect)
     if (!report) {
-      const reports = await this.fetchExecutionReports();
+      const reports = await this.fetchExecutionReports(Util.daysBefore(30));
       report = reports.find((r) => r.ClOrdID === clOrdId);
 
       if (report) {
