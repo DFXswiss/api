@@ -1,5 +1,5 @@
-import { Controller, Get, HttpCode, HttpStatus, Res } from '@nestjs/common';
-import { ApiExcludeController, ApiTags } from '@nestjs/swagger';
+import { Controller, Get, HttpCode, HttpStatus, Res, VERSION_NEUTRAL, Version } from '@nestjs/common';
+import { ApiExcludeController } from '@nestjs/swagger';
 import { Response } from 'express';
 import { MonitoringService } from './monitoring.service';
 import { SystemState } from './system-state-snapshot.entity';
@@ -15,13 +15,13 @@ interface HealthCheckResult {
   checks: Record<string, { status: HealthStatus; detail?: string }>;
 }
 
-@ApiTags('Health')
 @Controller('health')
 @ApiExcludeController()
 export class HealthController {
   constructor(private readonly monitoringService: MonitoringService) {}
 
   @Get()
+  @Version(VERSION_NEUTRAL)
   @HttpCode(HttpStatus.OK)
   async getHealth(@Res() res: Response): Promise<void> {
     const state = await this.getState();
@@ -64,6 +64,7 @@ export class HealthController {
   }
 
   @Get('nodes')
+  @Version(VERSION_NEUTRAL)
   @HttpCode(HttpStatus.OK)
   async getNodeHealth(@Res() res: Response): Promise<void> {
     const state = await this.getState();
@@ -72,6 +73,7 @@ export class HealthController {
   }
 
   @Get('payment')
+  @Version(VERSION_NEUTRAL)
   @HttpCode(HttpStatus.OK)
   async getPaymentHealth(@Res() res: Response): Promise<void> {
     const state = await this.getState();
@@ -80,6 +82,7 @@ export class HealthController {
   }
 
   @Get('liquidity')
+  @Version(VERSION_NEUTRAL)
   @HttpCode(HttpStatus.OK)
   async getLiquidityHealth(@Res() res: Response): Promise<void> {
     const state = await this.getState();
@@ -88,6 +91,7 @@ export class HealthController {
   }
 
   @Get('banking')
+  @Version(VERSION_NEUTRAL)
   @HttpCode(HttpStatus.OK)
   async getBankingHealth(@Res() res: Response): Promise<void> {
     const state = await this.getState();
@@ -96,6 +100,7 @@ export class HealthController {
   }
 
   @Get('external')
+  @Version(VERSION_NEUTRAL)
   @HttpCode(HttpStatus.OK)
   async getExternalHealth(@Res() res: Response): Promise<void> {
     const state = await this.getState();
@@ -180,8 +185,11 @@ export class HealthController {
   }
 
   private checkExternalServices(state: SystemState | null): { status: HealthStatus; detail?: string } {
-    const data = state?.externalServices?.combined?.data as { name: string; status: string }[];
-    if (!data) return { status: HealthStatus.DEGRADED, detail: 'No external services data' };
+    const raw = state?.externalServices?.combined?.data as { name: string; status: string }[];
+    if (!raw) return { status: HealthStatus.DEGRADED, detail: 'No external services data' };
+
+    const data = raw.filter(Boolean);
+    if (data.length === 0) return { status: HealthStatus.DEGRADED, detail: 'No external services data' };
 
     const offline = data.filter((s) => s.status === 'Offline');
     if (offline.length === 0) return { status: HealthStatus.OK };
