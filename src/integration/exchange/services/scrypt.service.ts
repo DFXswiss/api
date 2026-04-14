@@ -208,12 +208,8 @@ export class ScryptService extends PricingProvider {
   // --- TRANSACTIONS --- //
 
   async getAllTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
-    const transactions = await this.fetchBalanceTransactions();
+    const transactions = Array.from(this.balanceTransactions.values());
     return transactions.filter((t) => !since || (t.TransactTime && new Date(t.TransactTime) >= since));
-  }
-
-  private async fetchBalanceTransactions(): Promise<ScryptBalanceTransaction[]> {
-    return this.connection.fetch<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION);
   }
 
   private async fetchExecutionReports(since?: Date): Promise<ScryptExecutionReport[]> {
@@ -302,8 +298,7 @@ export class ScryptService extends PricingProvider {
 
     // Fallback: fetch from Scrypt API (e.g. after restart or WS reconnect)
     if (!report) {
-      const since = Util.daysBefore(30);
-      const reports = await this.fetchExecutionReports(since);
+      const reports = await this.fetchExecutionReports(Util.daysBefore(30));
       report = reports.find((r) => r.ClOrdID === clOrdId);
 
       if (report) {
