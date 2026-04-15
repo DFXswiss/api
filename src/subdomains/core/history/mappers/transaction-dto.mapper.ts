@@ -346,6 +346,7 @@ export class TransactionDtoMapper {
       inputTxId: null,
       inputTxUrl: null,
       chargebackAmount: bankTxReturn?.chargebackAmount,
+      chargebackAsset: bankTxReturn?.chargebackAsset,
       chargebackTarget: bankTxReturn?.chargebackIban,
       chargebackTxId: bankTxReturn?.chargebackRemittanceInfo,
       chargebackTxUrl: undefined,

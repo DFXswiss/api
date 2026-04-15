@@ -12,11 +12,13 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse } from '@nestjs/swagger';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
-import { BankRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
+import { BankRefundDto, TransactionRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
@@ -41,6 +43,14 @@ export class SupportController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async searchUserByKey(@Query() query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
     return this.supportService.searchUserDataByKey(query);
+  }
+
+  @Get('me')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getSupportUserInfo(@GetJwt() jwt: JwtPayload): Promise<{ id: number; firstname: string; surname: string }> {
+    return this.supportService.getSupportUserInfo(jwt.account);
   }
 
   @Get('kycFileList')
@@ -138,5 +148,17 @@ export class SupportController {
   async setTransactionRefund(@Param('id') id: string, @Body() dto: BankRefundDto): Promise<void> {
     const success = await this.supportService.processTransactionRefund(+id, dto);
     if (!success) throw new BadRequestException('Refund failed');
+  }
+
+  @Put('transaction/:id/chargeback')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async chargebackTransaction(
+    @Param('id') id: string,
+    @Body() dto: TransactionRefundDto,
+    @GetJwt() jwt: JwtPayload,
+  ): Promise<void> {
+    await this.supportService.processChargebackRefund(+id, dto, jwt.account);
   }
 }

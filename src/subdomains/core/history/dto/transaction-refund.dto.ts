@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
-import { IsNotEmpty, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { IsNotEmpty, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
 
 export class CreditorDataDto {
@@ -48,6 +48,11 @@ export class TransactionRefundDto {
   @ValidateNested()
   @Type(() => CreditorDataDto)
   creditorData?: CreditorDataDto;
+
+  @ApiPropertyOptional({ description: 'Manual chargeback amount override' })
+  @IsOptional()
+  @IsNumber()
+  chargebackAmount?: number;
 }
 
 export class BankRefundDto extends TransactionRefundDto {
