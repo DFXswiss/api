@@ -139,17 +139,15 @@ export class TransactionRequest extends IEntity {
     marketPrice: number,
     amountType: AmountType,
   ): { outputAmount: number; priceSteps: PriceStep[]; quoteMarketRatio: number } | null {
-    if (!this.priceSteps?.length || !this.created) return null;
+    if (!this.rate || !this.exchangeRate || !this.priceSteps?.length) return null;
 
     const quoteAgeMinutes = Util.minutesDiff(this.created);
     if (quoteAgeMinutes > validityMinutes) return null;
 
-    const quoteRate = this.priceSteps.reduce((acc, step) => acc * step.price, 1);
-
     return {
-      outputAmount: Util.roundReadable(inputAmount * quoteRate, amountType),
+      outputAmount: Util.roundReadable(inputAmount / this.rate, amountType),
       priceSteps: this.priceSteps,
-      quoteMarketRatio: Util.round(quoteRate / marketPrice, 8),
+      quoteMarketRatio: Util.round(this.exchangeRate / marketPrice, 8),
     };
   }
 }
