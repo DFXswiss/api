@@ -48,7 +48,9 @@ export class TransactionRefundDto {
   @ValidateNested()
   @Type(() => CreditorDataDto)
   creditorData?: CreditorDataDto;
+}
 
+export class ChargebackRefundDto extends TransactionRefundDto {
   @ApiPropertyOptional({ description: 'Manual chargeback amount override' })
   @IsOptional()
   @IsNumber()

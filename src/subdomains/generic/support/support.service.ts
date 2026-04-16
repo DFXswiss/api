@@ -11,7 +11,7 @@ import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
-import { BankRefundDto, TransactionRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
+import { ChargebackRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -783,12 +783,6 @@ export class SupportService {
     };
   }
 
-  async getSupportUserInfo(userDataId: number): Promise<{ id: number; firstname: string; surname: string }> {
-    const userData = await this.userDataService.getUserData(userDataId);
-    if (!userData) throw new NotFoundException('User not found');
-    return { id: userData.id, firstname: userData.firstname, surname: userData.surname };
-  }
-
   // --- REFUND METHODS --- //
 
   async getTransactionRefundData(transactionId: number): Promise<RefundDataDto | undefined> {
@@ -873,55 +867,9 @@ export class SupportService {
     return refundData;
   }
 
-  async processTransactionRefund(transactionId: number, dto: BankRefundDto): Promise<boolean> {
-    const transaction = await this.transactionService.getTransactionById(transactionId, {
-      bankTx: { bankTxReturn: true },
-      bankTxReturn: { bankTx: true, chargebackOutput: true },
-      userData: true,
-    });
-
-    if (!transaction?.bankTx) throw new NotFoundException('Transaction not found');
-    if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new BadRequestException('Transaction already assigned');
-
-    const refundData = this.refundList.get(transactionId);
-    if (!refundData) throw new BadRequestException('Request refund data first');
-    if (!this.isRefundDataValid(refundData)) throw new BadRequestException('Refund data expired');
-    this.refundList.delete(transactionId);
-
-    // Create BankTxReturn if not exists
-    if (!transaction.bankTxReturn) {
-      // Load bankTx with transaction relation for the create method
-      const bankTxWithRelations = await this.bankTxService.getBankTxById(transaction.bankTx.id, {
-        transaction: { userData: true },
-      });
-
-      transaction.bankTxReturn = await this.bankTxService
-        .updateInternal(bankTxWithRelations, { type: BankTxType.BANK_TX_RETURN })
-        .then((b) => b.bankTxReturn);
-    }
-
-    // Process refund
-    await this.bankTxReturnService.refundBankTx(transaction.bankTxReturn, {
-      refundIban: dto.refundTarget,
-      chargebackAmount: refundData.refundAmount,
-      chargebackAllowedDate: new Date(),
-      chargebackAllowedBy: 'Compliance',
-      creditorData: {
-        name: dto.name,
-        address: dto.address,
-        houseNumber: dto.houseNumber,
-        zip: dto.zip,
-        city: dto.city,
-        country: dto.country,
-      },
-    });
-
-    return true;
-  }
-
-  async processChargebackRefund(
+  async processTransactionRefund(
     transactionId: number,
-    dto: TransactionRefundDto,
+    dto: ChargebackRefundDto,
     agentUserDataId: number,
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(transactionId, {
