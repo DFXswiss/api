@@ -1,6 +1,8 @@
-import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -22,6 +24,8 @@ export class TransactionService {
     @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
     private readonly specialExternalAccountService: SpecialExternalAccountService,
+    @Inject(forwardRef(() => BuyCryptoRepository))
+    private readonly buyCryptoRepo: BuyCryptoRepository,
   ) {}
 
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
@@ -82,6 +86,18 @@ export class TransactionService {
     }
 
     return this.repo.save(entity);
+  }
+
+  async stop(id: number): Promise<void> {
+    const entity = await this.getTransactionById(id, { buyCrypto: true });
+    if (!entity) throw new NotFoundException('Transaction not found');
+    if (entity.completionDate) throw new BadRequestException('Transaction is already completed');
+    if (!entity.buyCrypto) throw new BadRequestException('Only BuyCrypto transactions can be stopped');
+    if (entity.buyCrypto.status === BuyCryptoStatus.STOPPED)
+      throw new BadRequestException('Transaction is already stopped');
+
+    entity.buyCrypto.status = BuyCryptoStatus.STOPPED;
+    await this.buyCryptoRepo.save(entity.buyCrypto);
   }
 
   async getTransactionById(id: number, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
