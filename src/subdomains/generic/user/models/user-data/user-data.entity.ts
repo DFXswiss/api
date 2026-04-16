@@ -29,6 +29,7 @@ import { AccountOpenerAuthorization, Organization } from '../organization/organi
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { TradingLimit } from '../user/dto/user.dto';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserStatus } from '../user/user.enum';
 import { Wallet } from '../wallet/wallet.entity';
 import { AccountType } from './account-type.enum';
@@ -654,6 +655,10 @@ export class UserData extends IEntity {
     return this.isBlocked || this.isDeactivated;
   }
 
+  hasRole(role: UserRole): boolean {
+    return this.users?.some((u) => u.role === role) ?? false;
+  }
+
   get address() {
     return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {
@@ -757,6 +762,9 @@ export class UserData extends IEntity {
 
   checkIfMergePossibleWith(slave: UserData): void {
     if (!this.isDfxUser) throw new BadRequestException(`Invalid KYC type`);
+
+    if (this.hasRole(UserRole.COMPLIANCE) || slave.hasRole(UserRole.COMPLIANCE))
+      throw new BadRequestException('Cannot merge compliance accounts');
 
     if (slave.amlListAddedDate && this.amlListAddedDate)
       throw new BadRequestException('Slave and master are on AML list');
