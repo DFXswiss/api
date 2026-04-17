@@ -155,7 +155,10 @@ export class HistoryService {
                   blockchainFilter.includes(t.buyCrypto.outputAsset.blockchain) ||
                   blockchainFilter.includes(t.buyCrypto.cryptoInput?.asset.blockchain)),
             )
-            .map((t) => t.buyCrypto)
+            .map((t) => {
+              t.buyCrypto.transaction.userData = t.userData;
+              return t.buyCrypto;
+            })
         : [];
     const buyFiats =
       all || query.sell
@@ -164,7 +167,10 @@ export class HistoryService {
               (t) =>
                 t.buyFiat && (!blockchainFilter || blockchainFilter.includes(t.buyFiat.cryptoInput.asset.blockchain)),
             )
-            .map((t) => t.buyFiat)
+            .map((t) => {
+              t.buyFiat.transaction.userData = t.userData;
+              return t.buyFiat;
+            })
         : [];
     const refRewards =
       all || query.ref
@@ -173,7 +179,10 @@ export class HistoryService {
               (t) =>
                 t.refReward && (!blockchainFilter || blockchainFilter.includes(t.refReward.outputAsset.blockchain)),
             )
-            .map((t) => t.refReward)
+            .map((t) => {
+              t.refReward.transaction.userData = t.userData;
+              return t.refReward;
+            })
         : [];
 
     return { buyCryptos, buyFiats, refRewards };

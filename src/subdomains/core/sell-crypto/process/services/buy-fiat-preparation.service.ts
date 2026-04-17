@@ -3,6 +3,7 @@ import { isBankHoliday } from 'src/config/bank-holiday.config';
 import { Config } from 'src/config/config';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BlockAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -321,7 +322,7 @@ export class BuyFiatPreparationService {
         outputAmount: IsNull(),
         priceDefinitionAllowedDate: Not(IsNull()),
       },
-      relations: { sell: true, cryptoInput: true, transaction: { userData: true } },
+      relations: { sell: true, cryptoInput: true, transaction: { userData: true, request: true } },
     });
 
     for (const entity of entities) {
@@ -331,21 +332,42 @@ export class BuyFiatPreparationService {
         const price = !entity.outputReferenceAmount
           ? await this.pricingService.getPrice(asset, currency, PriceValidity.VALID_ONLY)
           : undefined;
-        const priceSteps = price?.steps ?? [
-          PriceStep.create(
-            Config.priceSourceManual,
-            entity.inputReferenceAsset,
-            entity.outputReferenceAsset.name,
-            entity.inputReferenceAmountMinusFee / entity.outputReferenceAmount,
-          ),
-        ];
 
-        await this.buyFiatRepo.update(
-          ...entity.setOutput(
-            entity.outputReferenceAmount ?? price.convert(entity.inputReferenceAmountMinusFee),
-            priceSteps,
-          ),
-        );
+        // Price from transaction request
+        const quoteResult =
+          !DisabledProcess(Process.GUARANTEED_PRICE) && price
+            ? entity.transaction?.request?.calculateQuoteOutput(
+                Config.txRequestValidityMinutes,
+                entity.inputReferenceAmountMinusFee,
+                price.price,
+                AmountType.FIAT,
+              )
+            : undefined;
+
+        let outputAmount: number;
+        let priceSteps: PriceStep[];
+        let quoteMarketRatio: number | undefined;
+
+        if (quoteResult) {
+          outputAmount = quoteResult.outputAmount;
+          priceSteps = quoteResult.priceSteps;
+          quoteMarketRatio = quoteResult.quoteMarketRatio;
+        } else if (entity.outputReferenceAmount) {
+          outputAmount = entity.outputReferenceAmount;
+          priceSteps = [
+            PriceStep.create(
+              Config.priceSourceManual,
+              entity.inputReferenceAsset,
+              entity.outputReferenceAsset.name,
+              entity.inputReferenceAmountMinusFee / entity.outputReferenceAmount,
+            ),
+          ];
+        } else {
+          outputAmount = price.convert(entity.inputReferenceAmountMinusFee);
+          priceSteps = price.steps;
+        }
+
+        await this.buyFiatRepo.update(...entity.setOutput(outputAmount, priceSteps, quoteMarketRatio));
 
         for (const feeId of entity.usedFees.split(';')) {
           await this.feeService.increaseTxUsages(entity.amountInChf, Number.parseInt(feeId), entity.userData);

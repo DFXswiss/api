@@ -206,6 +206,15 @@ export class BuyFiat extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   priceSteps?: string;
 
+  /**
+   * Ratio of quoted rate to market rate at execution.
+   * > 1 = user got better rate than market
+   * < 1 = user got worse rate than market
+   * null = quote not used (expired or not available)
+   */
+  @Column({ type: 'float', nullable: true })
+  quoteMarketRatio?: number;
+
   // Transaction details
   @Column({ length: 256, nullable: true })
   remittanceInfo?: string;
@@ -387,13 +396,14 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  setOutput(outputAmount: number, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
-    this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
+  setOutput(outputAmount: number, priceSteps: PriceStep[], quoteMarketRatio?: number): UpdateResult<BuyFiat> {
+    this.priceStepsObject = quoteMarketRatio ? priceSteps : [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> = {
       outputAmount,
       outputReferenceAmount: this.outputReferenceAmount ?? outputAmount,
       priceSteps: this.priceSteps,
+      quoteMarketRatio,
     };
 
     Object.assign(this, update);
