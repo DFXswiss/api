@@ -38,7 +38,10 @@ import {
   MoreThanOrEqual,
   Not,
 } from 'typeorm';
-import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
+import {
+  OLKYPAY_RELEASE_BALANCE_LIMIT,
+  OlkypayService,
+} from '../../../../../integration/bank/services/olkypay.service';
 import { BankService } from '../../../bank/bank/bank.service';
 import { VirtualIbanService } from '../../../bank/virtual-iban/virtual-iban.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -196,6 +199,15 @@ export class BankTxService implements OnModuleInit {
     }
 
     if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
+
+    // Release unreleased transactions if balance is below threshold
+    const { balance } = await this.olkyService.getBalance();
+    if (balance < OLKYPAY_RELEASE_BALANCE_LIMIT) {
+      await this.bankTxRepo.update(
+        { accountIban: olkyBank.iban, bankReleaseDate: IsNull() },
+        { bankReleaseDate: new Date() },
+      );
+    }
   }
 
   private async assignTransactions(): Promise<void> {

@@ -20,6 +20,8 @@ import {
 import { OlkyRecipient } from '../entities/olky-recipient.entity';
 import { OlkyRecipientRepository } from '../repositories/olky-recipient.repository';
 
+export const OLKYPAY_RELEASE_BALANCE_LIMIT = 50000; // EUR
+
 export interface OlkyRecipientData {
   iban: string;
   name: string;
@@ -208,7 +210,6 @@ export class OlkypayService {
         remittanceInfo: tx.line2,
         accountIban: accountIban,
         type: tx.codeInterbancaireInterne === OlkypayTransactionType.BILLING ? BankTxType.BANK_ACCOUNT_FEE : null,
-        bankReleaseDate: new Date(),
       };
     } catch (e) {
       throw new Error(`Failed to parse transaction ${tx.idCtp}: ${e.message}`);
