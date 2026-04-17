@@ -276,14 +276,12 @@ export class SupportIssueService {
   }
 
   async getIssueEntities(userDataId: number): Promise<SupportIssue[]> {
-    return this.supportIssueRepo
-      .createQueryBuilder('supportIssue')
-      .leftJoinAndSelect('supportIssue.transaction', 'transaction')
-      .leftJoinAndSelect('supportIssue.limitRequest', 'limitRequest')
-      .leftJoinAndSelect('supportIssue.messages', 'messages')
-      .where('supportIssue.userDataId = :userDataId', { userDataId })
-      .orderBy('supportIssue.created', 'DESC')
-      .getMany();
+    return this.supportIssueRepo.find({
+      where: { userData: { id: userDataId } },
+      relations: { transaction: true, limitRequest: true, messages: true },
+      loadEagerRelations: false,
+      order: { created: 'DESC' },
+    });
   }
 
   async getIssues(userDataId: number): Promise<SupportIssueDto[]> {
@@ -311,24 +309,19 @@ export class SupportIssueService {
   }
 
   async getIssueData(id: number, role: UserRole): Promise<SupportIssueInternalDataDto> {
-    const issue = await this.supportIssueRepo
-      .createQueryBuilder('supportIssue')
-      .leftJoinAndSelect('supportIssue.userData', 'userData')
-      .leftJoinAndSelect('userData.country', 'userDataCountry')
-      .leftJoinAndSelect('supportIssue.transaction', 'transaction')
-      .leftJoinAndSelect('transaction.user', 'user')
-      .leftJoinAndSelect('user.wallet', 'wallet')
-      .leftJoinAndSelect('transaction.buyCrypto', 'buyCrypto')
-      .leftJoinAndSelect('buyCrypto.outputAsset', 'buyCryptoOutputAsset')
-      .leftJoinAndSelect('buyCrypto.cryptoInput', 'buyCryptoInput')
-      .leftJoinAndSelect('buyCryptoInput.asset', 'buyCryptoInputAsset')
-      .leftJoinAndSelect('transaction.buyFiat', 'buyFiat')
-      .leftJoinAndSelect('buyFiat.outputAsset', 'buyFiatOutputAsset')
-      .leftJoinAndSelect('buyFiat.cryptoInput', 'buyFiatInput')
-      .leftJoinAndSelect('buyFiatInput.asset', 'buyFiatInputAsset')
-      .leftJoinAndSelect('supportIssue.limitRequest', 'limitRequest')
-      .where('supportIssue.id = :id', { id })
-      .getOne();
+    const issue = await this.supportIssueRepo.findOne({
+      where: { id },
+      relations: {
+        userData: { country: true },
+        transaction: {
+          user: { wallet: true },
+          buyCrypto: { outputAsset: true, cryptoInput: { asset: true } },
+          buyFiat: { outputAsset: true, cryptoInput: { asset: true } },
+        },
+        limitRequest: true,
+      },
+      loadEagerRelations: false,
+    });
     if (!issue) throw new NotFoundException('Support issue not found');
 
     return SupportIssueDtoMapper.mapSupportIssueData(issue, role);

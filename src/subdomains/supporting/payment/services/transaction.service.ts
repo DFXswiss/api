@@ -139,16 +139,13 @@ export class TransactionService {
   }
 
   async getTransactionsByUserDataId(userDataId: number): Promise<Transaction[]> {
-    return this.repo
-      .createQueryBuilder('transaction')
-      .leftJoinAndSelect('transaction.buyCrypto', 'buyCrypto')
-      .leftJoinAndSelect('transaction.buyFiat', 'buyFiat')
-      .leftJoinAndSelect('transaction.bankTxReturn', 'bankTxReturn')
-      .leftJoinAndSelect('transaction.bankTxRepeat', 'bankTxRepeat')
-      .where('transaction.userDataId = :userDataId', { userDataId })
-      .orderBy('transaction.created', 'DESC')
-      .take(100)
-      .getMany();
+    return this.repo.find({
+      where: { userData: { id: userDataId } },
+      relations: { buyCrypto: true, buyFiat: true, bankTxReturn: true, bankTxRepeat: true },
+      loadEagerRelations: false,
+      order: { created: 'DESC' },
+      take: 100,
+    });
   }
 
   async getTransactionList(dateFrom?: Date, dateTo?: Date, outputFrom?: Date, outputTo?: Date): Promise<Transaction[]> {
