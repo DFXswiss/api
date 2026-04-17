@@ -29,10 +29,10 @@ import {
   SupportIssueListDto,
   SupportMessageDto,
 } from '../dto/support-issue.dto';
-import { Department } from '../enums/department.enum';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
+import { Department } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
@@ -276,11 +276,14 @@ export class SupportIssueService {
   }
 
   async getIssueEntities(userDataId: number): Promise<SupportIssue[]> {
-    return this.supportIssueRepo.find({
-      where: { userData: { id: userDataId } },
-      relations: { transaction: true, limitRequest: true, messages: true },
-      order: { created: 'DESC' },
-    });
+    return this.supportIssueRepo
+      .createQueryBuilder('supportIssue')
+      .leftJoinAndSelect('supportIssue.transaction', 'transaction')
+      .leftJoinAndSelect('supportIssue.limitRequest', 'limitRequest')
+      .leftJoinAndSelect('supportIssue.messages', 'messages')
+      .where('supportIssue.userDataId = :userDataId', { userDataId })
+      .orderBy('supportIssue.created', 'DESC')
+      .getMany();
   }
 
   async getIssues(userDataId: number): Promise<SupportIssueDto[]> {
@@ -308,17 +311,24 @@ export class SupportIssueService {
   }
 
   async getIssueData(id: number, role: UserRole): Promise<SupportIssueInternalDataDto> {
-    const issue = await this.supportIssueRepo.findOne({
-      where: { id },
-      relations: {
-        transaction: {
-          user: { wallet: true },
-          buyCrypto: { transaction: true, cryptoInput: true },
-          buyFiat: { transaction: true, cryptoInput: true },
-        },
-        limitRequest: true,
-      },
-    });
+    const issue = await this.supportIssueRepo
+      .createQueryBuilder('supportIssue')
+      .leftJoinAndSelect('supportIssue.userData', 'userData')
+      .leftJoinAndSelect('userData.country', 'userDataCountry')
+      .leftJoinAndSelect('supportIssue.transaction', 'transaction')
+      .leftJoinAndSelect('transaction.user', 'user')
+      .leftJoinAndSelect('user.wallet', 'wallet')
+      .leftJoinAndSelect('transaction.buyCrypto', 'buyCrypto')
+      .leftJoinAndSelect('buyCrypto.outputAsset', 'buyCryptoOutputAsset')
+      .leftJoinAndSelect('buyCrypto.cryptoInput', 'buyCryptoInput')
+      .leftJoinAndSelect('buyCryptoInput.asset', 'buyCryptoInputAsset')
+      .leftJoinAndSelect('transaction.buyFiat', 'buyFiat')
+      .leftJoinAndSelect('buyFiat.outputAsset', 'buyFiatOutputAsset')
+      .leftJoinAndSelect('buyFiat.cryptoInput', 'buyFiatInput')
+      .leftJoinAndSelect('buyFiatInput.asset', 'buyFiatInputAsset')
+      .leftJoinAndSelect('supportIssue.limitRequest', 'limitRequest')
+      .where('supportIssue.id = :id', { id })
+      .getOne();
     if (!issue) throw new NotFoundException('Support issue not found');
 
     return SupportIssueDtoMapper.mapSupportIssueData(issue, role);
