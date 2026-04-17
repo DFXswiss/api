@@ -346,6 +346,7 @@ export class TransactionDtoMapper {
       inputTxId: null,
       inputTxUrl: null,
       chargebackAmount: bankTxReturn?.chargebackAmount,
+      chargebackAsset: bankTxReturn?.chargebackAsset,
       chargebackTarget: bankTxReturn?.chargebackIban,
       chargebackTxId: bankTxReturn?.chargebackRemittanceInfo,
       chargebackTxUrl: undefined,
@@ -448,6 +449,8 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
         : null;
 
   if (entity instanceof BuyCrypto) {
+    if (entity.status === BuyCryptoStatus.STOPPED) return { state: TransactionState.STOPPED, reason };
+
     switch (entity.amlCheck) {
       case null:
         if (entity.comment != null) return { state: TransactionState.PROCESSING, reason };

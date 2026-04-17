@@ -3,13 +3,16 @@ import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { Util } from 'src/shared/utils/util';
+import { AmountType, Util } from 'src/shared/utils/util';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { NotRefundableAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
-import { BankRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
+import { ChargebackRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
+import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
@@ -785,10 +788,66 @@ export class SupportService {
   async getTransactionRefundData(transactionId: number): Promise<RefundDataDto | undefined> {
     const transaction = await this.transactionService.getTransactionById(transactionId, {
       bankTx: { bankTxReturn: true },
+      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
+      buyFiat: { cryptoInput: true },
       userData: true,
     });
 
-    if (!transaction?.bankTx) return undefined;
+    if (!transaction) return undefined;
+
+    // BuyCrypto chargeback
+    if (transaction.buyCrypto) {
+      if (transaction.buyCrypto.amlCheck === CheckStatus.PASS) return undefined;
+      if (transaction.buyCrypto.chargebackAmount || transaction.buyCrypto.chargebackDate)
+        throw new BadRequestException('Transaction already charged back');
+      if (NotRefundableAmlReasons.includes(transaction.buyCrypto.amlReason))
+        throw new BadRequestException('Cannot refund with this AML reason');
+
+      const bankIn = transaction.buyCrypto.bankTx
+        ? await this.bankService.getBankByIban(transaction.buyCrypto.bankTx.accountIban).then((b) => b?.name)
+        : transaction.buyCrypto.checkoutTx
+          ? CardBankName.CHECKOUT
+          : undefined;
+
+      const refundTarget = await this.getChargebackRefundTarget(transaction);
+      const isFiat = !!transaction.buyCrypto.bankTx || !!transaction.buyCrypto.checkoutTx;
+
+      const refundData = await this.transactionHelper.getRefundData(
+        transaction.buyCrypto,
+        transaction.userData,
+        bankIn,
+        refundTarget,
+        isFiat,
+      );
+
+      this.refundList.set(transactionId, refundData);
+      return refundData;
+    }
+
+    // BuyFiat chargeback
+    if (transaction.buyFiat) {
+      if (transaction.buyFiat.amlCheck === CheckStatus.PASS) return undefined;
+      if (transaction.buyFiat.chargebackAmount || transaction.buyFiat.chargebackDate)
+        throw new BadRequestException('Transaction already charged back');
+      if (NotRefundableAmlReasons.includes(transaction.buyFiat.amlReason))
+        throw new BadRequestException('Cannot refund with this AML reason');
+
+      const refundTarget = transaction.buyFiat.chargebackAddress;
+
+      const refundData = await this.transactionHelper.getRefundData(
+        transaction.buyFiat,
+        transaction.userData,
+        undefined,
+        refundTarget,
+        false,
+      );
+
+      this.refundList.set(transactionId, refundData);
+      return refundData;
+    }
+
+    // Unassigned BankTx return
+    if (!transaction.bankTx) return undefined;
     if (!BankTxTypeUnassigned(transaction.bankTx.type)) return undefined;
     if (transaction.bankTx.bankTxReturn) throw new BadRequestException('Transaction already has a return');
 
@@ -808,50 +867,117 @@ export class SupportService {
     return refundData;
   }
 
-  async processTransactionRefund(transactionId: number, dto: BankRefundDto): Promise<boolean> {
+  async processTransactionRefund(
+    transactionId: number,
+    dto: ChargebackRefundDto,
+    agentUserDataId: number,
+  ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(transactionId, {
+      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
+      buyFiat: { cryptoInput: true },
       bankTx: { bankTxReturn: true },
       bankTxReturn: { bankTx: true, chargebackOutput: true },
       userData: true,
     });
 
-    if (!transaction?.bankTx) throw new NotFoundException('Transaction not found');
-    if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new BadRequestException('Transaction already assigned');
+    if (!transaction?.buyCrypto && !transaction?.buyFiat && !transaction?.bankTx)
+      throw new NotFoundException('Transaction not found');
 
     const refundData = this.refundList.get(transactionId);
     if (!refundData) throw new BadRequestException('Request refund data first');
     if (!this.isRefundDataValid(refundData)) throw new BadRequestException('Refund data expired');
     this.refundList.delete(transactionId);
 
-    // Create BankTxReturn if not exists
-    if (!transaction.bankTxReturn) {
-      // Load bankTx with transaction relation for the create method
-      const bankTxWithRelations = await this.bankTxService.getBankTxById(transaction.bankTx.id, {
-        transaction: { userData: true },
-      });
+    if (dto.chargebackAmount != null && (dto.chargebackAmount <= 0 || dto.chargebackAmount > refundData.inputAmount))
+      throw new BadRequestException('Chargeback amount must be greater than 0 and not exceed the transaction amount');
 
-      transaction.bankTxReturn = await this.bankTxService
-        .updateInternal(bankTxWithRelations, { type: BankTxType.BANK_TX_RETURN })
-        .then((b) => b.bankTxReturn);
+    const agent = await this.userDataService.getUserData(agentUserDataId);
+    const chargebackAllowedBy = agent ? `Compliance/${agent.firstname}.${agent.surname}` : 'Compliance';
+
+    const chargebackAmount = dto.chargebackAmount ?? refundData.refundAmount;
+    const baseRefund = {
+      chargebackAmount,
+      chargebackCurrency: refundData.refundAsset.name,
+      chargebackAllowedDate: new Date(),
+      chargebackAllowedBy,
+    };
+
+    // BuyFiat refund (crypto back to sender)
+    if (transaction.buyFiat) {
+      return this.buyFiatService.refundBuyFiatInternal(transaction.buyFiat, {
+        refundUserAddress: dto.refundTarget,
+        ...baseRefund,
+      });
     }
 
-    // Process refund
-    await this.bankTxReturnService.refundBankTx(transaction.bankTxReturn, {
-      refundIban: dto.refundTarget,
-      chargebackAmount: refundData.refundAmount,
-      chargebackAllowedDate: new Date(),
-      chargebackAllowedBy: 'Compliance',
-      creditorData: {
-        name: dto.name,
-        address: dto.address,
-        houseNumber: dto.houseNumber,
-        zip: dto.zip,
-        city: dto.city,
-        country: dto.country,
-      },
-    });
+    // Unassigned BankTx return
+    if (transaction.bankTx && BankTxTypeUnassigned(transaction.bankTx.type) && !transaction.buyCrypto) {
+      if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
 
-    return true;
+      if (!transaction.bankTxReturn) {
+        const bankTxWithRelations = await this.bankTxService.getBankTxById(transaction.bankTx.id, {
+          transaction: { userData: true },
+        });
+
+        transaction.bankTxReturn = await this.bankTxService
+          .updateInternal(bankTxWithRelations, { type: BankTxType.BANK_TX_RETURN })
+          .then((b) => b.bankTxReturn);
+      }
+
+      return this.bankTxReturnService.refundBankTx(transaction.bankTxReturn, {
+        refundIban: dto.refundTarget ?? refundData.refundTarget,
+        creditorData: dto.creditorData,
+        ...baseRefund,
+      });
+    }
+
+    // BuyCrypto refunds
+    const buyCrypto = transaction.buyCrypto;
+
+    if (buyCrypto.checkoutTx) {
+      return this.buyCryptoService.refundCheckoutTx(buyCrypto, baseRefund);
+    }
+
+    if (buyCrypto.cryptoInput) {
+      return this.buyCryptoService.refundCryptoInput(buyCrypto, {
+        refundUserAddress: dto.refundTarget,
+        ...baseRefund,
+      });
+    }
+
+    // Bank refund
+    if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
+
+    return this.buyCryptoService.refundBankTx(buyCrypto, {
+      refundIban: dto.refundTarget ?? refundData.refundTarget,
+      creditorData: dto.creditorData,
+      chargebackReferenceAmount: Util.roundReadable(
+        refundData.refundPrice.invert().convert(chargebackAmount),
+        AmountType.FIAT,
+      ),
+      ...baseRefund,
+    });
+  }
+
+  private async getChargebackRefundTarget(transaction: Transaction): Promise<string | undefined> {
+    const buyCrypto = transaction.buyCrypto;
+    if (!buyCrypto) return undefined;
+
+    if (buyCrypto.bankTx) {
+      try {
+        const iban = buyCrypto.bankTx.iban;
+        if (iban && IbanTools.validateIBAN(iban).valid) return iban;
+      } catch (_) {
+        // fall through
+      }
+      return buyCrypto.chargebackIban;
+    }
+
+    if (buyCrypto.checkoutTx) {
+      return `${buyCrypto.checkoutTx.cardBin}****${buyCrypto.checkoutTx.cardLast4}`;
+    }
+
+    return buyCrypto.chargebackIban;
   }
 
   private isRefundDataValid(refundData: RefundDataDto): boolean {

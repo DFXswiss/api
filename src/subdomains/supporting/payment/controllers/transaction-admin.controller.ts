@@ -28,6 +28,14 @@ export class TransactionAdminController {
     return this.transactionService.update(+id, dto);
   }
 
+  @Post(':id/stop')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @ApiExcludeEndpoint()
+  async stopTransaction(@Param('id') id: string): Promise<void> {
+    return this.transactionService.stop(+id);
+  }
+
   @Post(':txId/riskAssessment')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())

@@ -56,8 +56,13 @@ export class SupportIssueController {
   async createIssueBySupport(
     @Query('userDataId') userDataId: string,
     @Body() dto: CreateSupportIssueSupportDto,
+    @GetJwt() jwt: JwtPayload,
   ): Promise<SupportIssueDto> {
-    return this.supportIssueService.createIssue(+userDataId, dto);
+    const input: CreateSupportIssueSupportDto = {
+      ...dto,
+      department: jwt.role === UserRole.COMPLIANCE ? Department.COMPLIANCE : Department.SUPPORT,
+    };
+    return this.supportIssueService.createIssue(+userDataId, input);
   }
 
   @Get()
