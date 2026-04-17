@@ -29,10 +29,10 @@ import {
   SupportIssueListDto,
   SupportMessageDto,
 } from '../dto/support-issue.dto';
-import { Department } from '../enums/department.enum';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
+import { Department } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
@@ -279,6 +279,7 @@ export class SupportIssueService {
     return this.supportIssueRepo.find({
       where: { userData: { id: userDataId } },
       relations: { transaction: true, limitRequest: true, messages: true },
+      loadEagerRelations: false,
       order: { created: 'DESC' },
     });
   }
@@ -311,13 +312,15 @@ export class SupportIssueService {
     const issue = await this.supportIssueRepo.findOne({
       where: { id },
       relations: {
+        userData: { country: true },
         transaction: {
           user: { wallet: true },
-          buyCrypto: { transaction: true, cryptoInput: true },
-          buyFiat: { transaction: true, cryptoInput: true },
+          buyCrypto: { outputAsset: true, cryptoInput: { asset: true } },
+          buyFiat: { outputAsset: true, cryptoInput: { asset: true } },
         },
         limitRequest: true,
       },
+      loadEagerRelations: false,
     });
     if (!issue) throw new NotFoundException('Support issue not found');
 

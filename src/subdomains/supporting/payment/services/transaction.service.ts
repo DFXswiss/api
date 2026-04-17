@@ -142,6 +142,7 @@ export class TransactionService {
     return this.repo.find({
       where: { userData: { id: userDataId } },
       relations: { buyCrypto: true, buyFiat: true, bankTxReturn: true, bankTxRepeat: true },
+      loadEagerRelations: false,
       order: { created: 'DESC' },
       take: 100,
     });
