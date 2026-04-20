@@ -29,6 +29,7 @@ export class UserDataSupportInfo {
 export class PendingOnboardingInfo {
   id: number;
   name?: string;
+  accountType?: string;
   date: Date;
 }
 
@@ -50,16 +51,23 @@ export class UserSupportInfo {
   ref?: string;
   role: string;
   status: string;
+  walletName?: string;
   created: Date;
 }
 
 export class TransactionSupportInfo {
   id: number;
   uid: string;
+  buyCryptoId?: number;
+  buyFiatId?: number;
   type?: string;
   sourceType: string;
   inputAmount?: number;
   inputAsset?: string;
+  inputTxId?: string;
+  outputAmount?: number;
+  outputAsset?: string;
+  comment?: string;
   amountInChf?: number;
   amountInEur?: number;
   amlCheck?: string;

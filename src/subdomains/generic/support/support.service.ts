@@ -185,7 +185,7 @@ export class SupportService {
         this.kycService.getStepsByUserData(id),
         this.kycLogService.getLogsByUserDataId(id),
         this.transactionService.getTransactionsByUserDataId(id),
-        this.userService.getAllUserDataUsers(id),
+        this.userService.getAllUserDataUsers(id, { wallet: true }),
         this.bankDataService.getBankDatasByUserData(id),
         this.buyService.getUserDataBuys(id),
         this.sellService.getSellsByUserDataId(id),
@@ -392,13 +392,19 @@ export class SupportService {
     return {
       id: tx.id,
       uid: tx.uid,
+      buyCryptoId: tx.buyCrypto?.id,
+      buyFiatId: tx.buyFiat?.id,
       type: tx.type,
       sourceType: tx.sourceType,
       inputAmount: tx.buyCrypto?.inputAmount ?? tx.buyFiat?.inputAmount,
       inputAsset: tx.buyCrypto?.inputAsset ?? tx.buyFiat?.inputAsset,
+      inputTxId: tx.buyCrypto?.cryptoInput?.inTxId ?? tx.buyFiat?.cryptoInput?.inTxId,
+      outputAmount: tx.buyCrypto?.outputAmount ?? tx.buyFiat?.outputAmount,
+      outputAsset: tx.buyCrypto?.outputAsset?.name ?? tx.buyFiat?.outputAsset?.name,
+      comment: tx.buyCrypto?.comment ?? tx.buyFiat?.comment,
       amountInChf: tx.amountInChf,
       amountInEur: tx.buyCrypto?.amountInEur ?? tx.buyFiat?.amountInEur,
-      amlCheck: tx.amlCheck,
+      amlCheck: tx.buyCrypto?.amlCheck ?? tx.buyFiat?.amlCheck ?? tx.amlCheck,
       chargebackDate:
         tx.buyCrypto?.chargebackDate ??
         tx.buyFiat?.chargebackDate ??
@@ -417,6 +423,7 @@ export class SupportService {
       ref: user.ref,
       role: user.role,
       status: user.status,
+      walletName: user.wallet?.name,
       created: user.created,
     };
   }
@@ -560,6 +567,7 @@ export class SupportService {
         id: ud.id,
         name:
           ud.verifiedName ?? ([ud.firstname, ud.surname, ud.organization?.name].filter(Boolean).join(' ') || undefined),
+        accountType: ud.accountType,
         date: dateMap.get(ud.id) ?? ud.created,
       }));
   }
