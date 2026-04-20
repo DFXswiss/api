@@ -133,8 +133,8 @@ export class SupportIssueDtoMapper {
       inputAsset: targetEntity?.inputAsset,
       inputBlockchain: targetEntity?.cryptoInput?.asset?.blockchain,
       outputAmount: targetEntity?.outputAmount,
-      outputAsset: targetEntity?.outputAsset.name,
-      outputBlockchain: transaction?.buyCrypto?.outputAsset.blockchain,
+      outputAsset: targetEntity?.outputAsset?.name,
+      outputBlockchain: transaction?.buyCrypto?.outputAsset?.blockchain,
       wallet: transaction.user?.wallet
         ? {
             name: transaction.user.wallet.displayName ?? transaction.user.wallet.name,
