@@ -32,11 +32,12 @@ export class SupportIssueJobService {
     private readonly settingsService: SettingService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SUPPORT_BOT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.SUPPORT_BOT, timeout: 1800 })
   async autoOnHold() {
     const entities = await this.supportIssueRepo.find({
       where: {
         state: In([SupportIssueInternalState.CREATED, SupportIssueInternalState.PENDING]),
+        messages: { id: Not(IsNull()) },
       },
       relations: { messages: true },
       order: { messages: { created: 'ASC' } },
