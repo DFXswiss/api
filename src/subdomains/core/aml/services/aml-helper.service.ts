@@ -83,6 +83,8 @@ export class AmlHelperService {
     if (
       refUser &&
       refUser.userData.buyVolume === 0 &&
+      refUser.userData.sellVolume === 0 &&
+      refUser.userData.cryptoVolume === 0 &&
       !entity.userData.phoneCallCheckDate &&
       !refUser.userData.isTrustedReferrer
     )
