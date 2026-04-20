@@ -98,7 +98,8 @@ export class BuyFiatPreparationService {
           isPayment,
         );
 
-        const { users, refUser, recommender, bankData, blacklist, phoneCallList } = await this.amlService.getAmlCheckInput(entity);
+        const { users, refUser, recommender, bankData, blacklist, phoneCallList } =
+          await this.amlService.getAmlCheckInput(entity);
         if (!users.length || (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW)) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(

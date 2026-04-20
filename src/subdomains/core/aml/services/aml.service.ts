@@ -192,7 +192,8 @@ export class AmlService {
       if (verifiedCountry) await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry });
     }
 
-    if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, recommender, bankData, blacklist, phoneCallList };
+    if (entity instanceof BuyFiat)
+      return { users: entity.userData.users, refUser, recommender, bankData, blacklist, phoneCallList };
 
     const ipLogCountries = await this.ipLogService.getLoginCountries(entity.userData.id, Util.daysBefore(3));
 
