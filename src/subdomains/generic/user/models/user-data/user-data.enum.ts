@@ -71,6 +71,13 @@ export enum LegalEntity {
   ASSOCIATION = 'Association',
   FOUNDATION = 'Foundation',
   LIFE_INSURANCE = 'LifeInsurance',
+  PUBLIC_INSTITUTION = 'PublicInstitution',
+  OHG = 'OHG',
+  KG = 'KG',
+  GMBH_CO_KG = 'GmbHCoKG',
+  COOPERATIVE = 'Cooperative',
+  COLLECTIVE_COMPANY = 'CollectiveCompany',
+  LISTED_AG = 'ListedAG',
   TRUST = 'Trust',
   OTHER = 'Other',
 }
