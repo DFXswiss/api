@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -30,6 +31,22 @@ export class SupportIssueJobService {
     private readonly mailFactory: MailFactory,
     private readonly settingsService: SettingService,
   ) {}
+
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SUPPORT_BOT, timeout: 1800 })
+  async autoOnHold() {
+    const entities = await this.supportIssueRepo.find({
+      where: {
+        state: In([SupportIssueInternalState.CREATED, SupportIssueInternalState.PENDING]),
+      },
+      relations: { messages: true },
+      order: { messages: { created: 'ASC' } },
+    });
+
+    for (const entity of entities) {
+      if (Util.daysDiff(entity.messages.at(-1).created) > Config.support.issueOnHoldExpiry)
+        await this.supportIssueRepo.update(entity.id, { state: SupportIssueInternalState.ON_HOLD });
+    }
+  }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.SUPPORT_BOT, timeout: 1800 })
   async sendAutoResponses() {
