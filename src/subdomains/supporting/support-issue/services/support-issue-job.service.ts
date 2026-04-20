@@ -44,7 +44,10 @@ export class SupportIssueJobService {
     });
 
     for (const entity of entities) {
-      if (Util.daysDiff(entity.messages.at(-1).created) > Config.support.issueOnHoldExpiry)
+      if (
+        entity.messages.at(-1).author !== CustomerAuthor &&
+        Util.daysDiff(entity.messages.at(-1).created) > Config.support.issueOnHoldExpiry
+      )
         await this.supportIssueRepo.update(entity.id, { state: SupportIssueInternalState.ON_HOLD });
     }
   }
