@@ -144,7 +144,7 @@ export class AuthService {
     userDataId?: number,
     userId?: number,
   ): Promise<AuthResponseDto> {
-    const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
+    const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true, wallet: true }));
     const primaryUser = userId && (await this.userService.getUser(userId));
 
     const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature).catch(() => undefined);
@@ -166,7 +166,7 @@ export class AuthService {
         ...dto,
         ip: userIp,
         origin: ref?.origin,
-        wallet,
+        wallet: wallet ?? userData?.wallet,
         custodyProvider,
         userData,
         primaryUser,
