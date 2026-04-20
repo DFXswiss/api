@@ -1,4 +1,7 @@
 import { IsEnum, IsInt, IsOptional, IsString, Matches, Max, Min } from 'class-validator';
+import { ContainerApp } from 'src/integration/infrastructure/enums/container-app.enum';
+
+export { ContainerApp };
 
 export enum LogQueryTemplate {
   TRACES_BY_OPERATION = 'traces-by-operation',
@@ -12,6 +15,10 @@ export enum LogQueryTemplate {
 export class LogQueryDto {
   @IsEnum(LogQueryTemplate)
   template: LogQueryTemplate;
+
+  @IsOptional()
+  @IsEnum(ContainerApp)
+  app?: ContainerApp;
 
   @IsOptional()
   @IsString()
