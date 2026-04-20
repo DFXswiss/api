@@ -566,6 +566,7 @@ export class Configuration {
       mailAddress: process.env.SUPPORT_MESSAGE_MAIL,
       mailBanner: process.env.SUPPORT_MESSAGE_BANNER,
     },
+    issueOnHoldExpiry: 14, //days
   };
 
   letter = {
