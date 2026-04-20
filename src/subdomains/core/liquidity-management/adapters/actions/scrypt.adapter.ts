@@ -157,7 +157,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const maxSellAmount = Util.floor(order.maxAmount * price, 6);
 
     const availableBalance = await this.getAvailableTradeBalance(tradeAsset, targetAssetEntity.dexName);
-    const effectiveMax = Math.min(maxSellAmount, availableBalance);
+    const fiatOrderCap = ['CHF', 'EUR'].includes(tradeAsset) ? 200_000 : Infinity;
+    const effectiveMax = Math.min(maxSellAmount, availableBalance, fiatOrderCap);
 
     if (effectiveMax < minSellAmount) {
       throw new OrderNotProcessableException(
