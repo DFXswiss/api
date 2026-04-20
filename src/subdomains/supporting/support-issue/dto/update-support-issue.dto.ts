@@ -1,7 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { Department } from '../enums/department.enum';
-import { SupportIssueInternalState } from '../enums/support-issue.enum';
+import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 
 export class UpdateSupportIssueDto {
   @ApiPropertyOptional()
@@ -18,4 +18,14 @@ export class UpdateSupportIssueDto {
   @IsOptional()
   @IsEnum(Department)
   department?: Department;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEnum(SupportIssueType)
+  type?: SupportIssueType;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsEnum(SupportIssueReason)
+  reason?: SupportIssueReason;
 }

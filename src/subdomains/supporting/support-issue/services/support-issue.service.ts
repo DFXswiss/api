@@ -186,9 +186,10 @@ export class SupportIssueService {
 
   async updateIssueInternal(entity: SupportIssue, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     await this.supportLogService.createSupportLog(entity.userData, {
-      type: SupportLogType.SUPPORT,
-      supportIssue: entity,
       ...dto,
+      supportIssue: entity,
+      supportIssueType: dto.type,
+      type: SupportLogType.SUPPORT,
     });
 
     await this.supportIssueRepo.update(entity.id, { state: dto.state, clerk: dto.clerk, department: dto.department });
