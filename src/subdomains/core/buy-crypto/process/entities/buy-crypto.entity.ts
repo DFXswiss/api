@@ -638,6 +638,7 @@ export class BuyCrypto extends IEntity {
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
+    recommender?: UserData,
   ): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       ...AmlHelperService.getAmlResult(
@@ -657,6 +658,7 @@ export class BuyCrypto extends IEntity {
         ipLogCountries,
         virtualIban,
         multiAccountBankNames,
+        recommender,
       ),
       amountInChf,
       amountInEur,

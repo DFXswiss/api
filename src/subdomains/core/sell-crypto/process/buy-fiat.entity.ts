@@ -426,6 +426,7 @@ export class BuyFiat extends IEntity {
     phoneCallList: SpecialExternalAccount[],
     ibanCountry: Country,
     refUser?: User,
+    recommender?: UserData,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       ...AmlHelperService.getAmlResult(
@@ -441,6 +442,11 @@ export class BuyFiat extends IEntity {
         phoneCallList,
         ibanCountry,
         refUser,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        recommender,
       ),
       amountInChf,
       amountInEur,

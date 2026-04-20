@@ -13,6 +13,7 @@ import {
   PhoneCallStatus,
   UserDataStatus,
 } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
@@ -48,6 +49,7 @@ export class AmlHelperService {
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
+    recommender?: UserData,
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
@@ -81,17 +83,17 @@ export class AmlHelperService {
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
     if (refUser && !refUser.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS_REF_USER);
     if (
-      refUser &&
-      !refUser.userData.hasTradeHistory &&
+      recommender &&
+      !recommender.hasTradeHistory &&
       !entity.userData.phoneCallCheckDate &&
-      !refUser.userData.isTrustedReferrer
+      !recommender.isTrustedReferrer
     )
       errors.push(
         entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
           ? AmlError.USER_DATA_FAILED_CALL
           : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
             ? AmlError.USER_DATA_REJECTED_CALL
-            : AmlError.REFERRER_NO_TRADE_HISTORY,
+            : AmlError.RECOMMENDER_NO_TRADE_HISTORY,
       );
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
@@ -594,6 +596,7 @@ export class AmlHelperService {
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
+    recommender?: UserData,
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;
@@ -619,6 +622,7 @@ export class AmlHelperService {
       ipLogCountries,
       virtualIban,
       multiAccountBankNames,
+      recommender,
     ).filter((e) => e);
 
     const comment = Array.from(new Set(amlErrors)).join(';');

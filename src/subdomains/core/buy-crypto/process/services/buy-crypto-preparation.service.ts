@@ -111,7 +111,7 @@ export class BuyCryptoPreparationService {
           isPayment,
         );
 
-        const { users, refUser, bankData, blacklist, phoneCallList, banks, ipLogCountries, multiAccountBankNames } =
+        const { users, refUser, recommender, bankData, blacklist, phoneCallList, banks, ipLogCountries, multiAccountBankNames } =
           await this.amlService.getAmlCheckInput(entity);
         if (!users.length || (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW)) continue;
 
@@ -190,6 +190,7 @@ export class BuyCryptoPreparationService {
             ipLogCountries,
             virtualIban,
             multiAccountBankNames,
+            recommender,
           ),
         );
 
