@@ -53,7 +53,7 @@ export class BuyCryptoController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async update(@Param('id') id: string, @Body() dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
     return this.buyCryptoService.update(+id, dto);
   }
@@ -61,7 +61,7 @@ export class BuyCryptoController {
   @Delete(':id/amlCheck')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async resetAmlCheck(@Param('id') id: string): Promise<void> {
     return this.buyCryptoService.resetAmlCheck(+id);
   }
