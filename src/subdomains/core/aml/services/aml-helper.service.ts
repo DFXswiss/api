@@ -592,11 +592,11 @@ export class AmlHelperService {
     phoneCallList: SpecialExternalAccount[],
     ibanCountry?: Country,
     refUser?: User,
+    recommender?: UserData,
     banks?: Bank[],
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
-    recommender?: UserData,
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;

@@ -38,7 +38,7 @@ export class RecommendationService {
     if (!userData) throw new NotFoundException('Account not found');
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
     if (!userData.tradeApprovalDate) throw new BadRequestException('Trade approval date missing');
-    if (!userData.hasTradeHistory) throw new BadRequestException('Trade history required to send invitations');
+    if (!userData.hasTradeHistory) throw new BadRequestException('Trade history required');
 
     const mailUser = dto.recommendedMail
       ? await this.userDataService
