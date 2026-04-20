@@ -260,10 +260,14 @@ export class UserService {
       ? Util.sort(data.userData.users, 'id', 'DESC').find((u) => u.usedRef !== Config.defaultRef)?.usedRef
       : undefined;
 
+    const recommendationRef = data.userData
+      ? data.userData.recommendedRecommendations.find((r) => r.isConfirmed)?.recommenderRef
+      : undefined;
+
     user.ip = data.ip;
     user.ipCountry = this.geoLocationService.getCountry(data.ip);
     user.wallet = data.wallet ?? (await this.walletService.getDefault());
-    user.usedRef = await this.checkRef(user, data.usedRef, lastExistingUsedRef);
+    user.usedRef = await this.checkRef(user, data.usedRef, lastExistingUsedRef, recommendationRef);
     user.origin = data.origin;
     user.custodyProvider = data.custodyProvider;
     if (userIsActive) user.status = UserStatus.ACTIVE;
@@ -629,14 +633,19 @@ export class UserService {
     await this.userDataRepo.activateUserData(userData);
   }
 
-  private async checkRef(user: User, usedRef?: string, existingUsedRef?: string): Promise<string> {
+  private async checkRef(
+    user: User,
+    usedRef?: string,
+    existingUsedRef?: string,
+    recommendationRef?: string,
+  ): Promise<string> {
     if (usedRef) {
       const refUser = await this.getRefUser(usedRef);
       const isValidRef = usedRef !== user.ref && refUser && user?.userData?.id !== refUser?.userData?.id;
       if (isValidRef) return usedRef;
     }
 
-    return existingUsedRef ?? Config.defaultRef;
+    return recommendationRef ?? existingUsedRef ?? Config.defaultRef;
   }
 
   public async getTotalRefRewards(): Promise<number> {

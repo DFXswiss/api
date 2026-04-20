@@ -26,6 +26,7 @@ import { Transaction } from 'src/subdomains/supporting/payment/entities/transact
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { AccountOpenerAuthorization, Organization } from '../organization/organization.entity';
+import { Recommendation } from '../recommendation/recommendation.entity';
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { TradingLimit } from '../user/dto/user.dto';
@@ -396,6 +397,9 @@ export class UserData extends IEntity {
 
   @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.userData)
   supportIssues?: SupportIssue[];
+
+  @OneToMany(() => Recommendation, (recommendation) => recommendation.recommended)
+  recommendedRecommendations?: Recommendation[];
 
   @OneToMany(() => User, (user) => user.userData)
   users?: User[];

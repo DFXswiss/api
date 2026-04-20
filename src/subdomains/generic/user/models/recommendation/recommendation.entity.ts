@@ -1,5 +1,6 @@
 import { Config } from 'src/config/config';
 import { IEntity } from 'src/shared/models/entity';
+import { KycRecommendationData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
@@ -50,6 +51,12 @@ export class Recommendation extends IEntity {
   @OneToOne(() => KycStep, { nullable: true })
   @JoinColumn()
   kycStep?: KycStep;
+
+  get recommenderRef(): string {
+    return this.kycStep && this.method === RecommendationMethod.REF_CODE
+      ? this.kycStep.getResult<KycRecommendationData>().key
+      : (this.recommender.users.find((u) => u.ref)?.ref ?? Config.defaultRef);
+  }
 
   get isUsed(): boolean {
     return !!this.recommended;
