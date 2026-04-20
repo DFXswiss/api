@@ -48,6 +48,7 @@ export class BitstampService extends ExchangeService {
     Checkout: undefined,
     Sumixx: undefined,
     Yapeal: undefined,
+    Raiffeisen: undefined,
   };
 
   constructor() {

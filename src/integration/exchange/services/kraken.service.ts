@@ -55,6 +55,7 @@ export class KrakenService extends ExchangeService {
     Checkout: undefined,
     Sumixx: undefined,
     Yapeal: undefined,
+    Raiffeisen: undefined,
   };
 
   @Inject() private readonly settingService: SettingService;
