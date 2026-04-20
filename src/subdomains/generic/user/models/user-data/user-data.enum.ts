@@ -71,6 +71,9 @@ export enum LegalEntity {
   ASSOCIATION = 'Association',
   FOUNDATION = 'Foundation',
   LIFE_INSURANCE = 'LifeInsurance',
+  PUBLIC_INSTITUTION = 'PublicInstitution',
+  OHG = 'OHG',
+  KG = 'KG',
   TRUST = 'Trust',
   OTHER = 'Other',
 }
