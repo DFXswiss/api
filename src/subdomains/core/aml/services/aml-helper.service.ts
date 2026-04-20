@@ -82,9 +82,7 @@ export class AmlHelperService {
     if (refUser && !refUser.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS_REF_USER);
     if (
       refUser &&
-      refUser.userData.buyVolume === 0 &&
-      refUser.userData.sellVolume === 0 &&
-      refUser.userData.cryptoVolume === 0 &&
+      !refUser.userData.hasTradeHistory &&
       !entity.userData.phoneCallCheckDate &&
       !refUser.userData.isTrustedReferrer
     )

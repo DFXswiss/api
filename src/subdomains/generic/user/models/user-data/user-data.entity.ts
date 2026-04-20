@@ -655,6 +655,10 @@ export class UserData extends IEntity {
     return this.isBlocked || this.isDeactivated;
   }
 
+  get hasTradeHistory(): boolean {
+    return this.buyVolume > 0 || this.sellVolume > 0 || this.cryptoVolume > 0;
+  }
+
   hasRole(role: UserRole): boolean {
     return this.users?.some((u) => u.role === role) ?? false;
   }
