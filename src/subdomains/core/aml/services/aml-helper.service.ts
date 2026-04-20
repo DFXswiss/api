@@ -83,17 +83,16 @@ export class AmlHelperService {
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);
     if (refUser && !refUser.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS_REF_USER);
     if (
-      recommender &&
-      !recommender.hasTradeHistory &&
       !entity.userData.phoneCallCheckDate &&
-      !recommender.isTrustedReferrer
+      ((recommender && !recommender.hasTradeHistory && !recommender.isTrustedReferrer) ||
+        (refUser && !refUser.userData.hasTradeHistory && !refUser.userData.isTrustedReferrer))
     )
       errors.push(
         entity.userData.phoneCallStatus === PhoneCallStatus.FAILED
           ? AmlError.USER_DATA_FAILED_CALL
           : entity.userData.phoneCallStatus === PhoneCallStatus.USER_REJECTED && !entity.userData.phoneCallAccepted
             ? AmlError.USER_DATA_REJECTED_CALL
-            : AmlError.RECOMMENDER_NO_TRADE_HISTORY,
+            : AmlError.REFERRAL_NO_TRADE_HISTORY,
       );
     if (entity.userData.kycType !== KycType.DFX) errors.push(AmlError.INVALID_KYC_TYPE);
     if (!entity.userData.verifiedName) errors.push(AmlError.NO_VERIFIED_NAME);
