@@ -130,7 +130,7 @@ export class AmlService {
     const refUser =
       entity.user.usedRef !== Config.defaultRef ? await this.userService.getRefUser(entity.user.usedRef) : undefined;
     const recommendations = await this.recommendationService.getRecommendationsByRecommendedId(entity.userData.id);
-    const recommender = recommendations.find((r) => r.recommender)?.recommender;
+    const recommender = recommendations.find((r) => r.isConfirmed)?.recommender;
 
     if (bankData) {
       if (!entity.userData.hasValidNameCheckDate) {
