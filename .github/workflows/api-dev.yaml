@@ -8,6 +8,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: true
+
 env:
   AZURE_WEBAPP_NAME: app-dfx-api-dev
   AZURE_WEBAPP_PACKAGE_PATH: '.'
