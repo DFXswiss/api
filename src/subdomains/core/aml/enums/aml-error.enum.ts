@@ -70,6 +70,7 @@ export enum AmlError {
   BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
   FORCE_MANUAL_CHECK = 'ForceManualCheck',
   ASSET_INPUT_NOT_ALLOWED = 'AssetInputNotAllowed',
+  REFERRER_NO_TRADE_HISTORY = 'ReferrerNoTradeHistory',
 }
 
 export const DelayResultError = [
@@ -345,5 +346,10 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.FAIL,
     amlReason: AmlReason.ASSET_INPUT_NOT_ALLOWED,
+  },
+  [AmlError.REFERRER_NO_TRADE_HISTORY]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE,
   },
 };
