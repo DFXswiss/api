@@ -150,12 +150,15 @@ export class MailFactory {
     const lang = userData.language.symbol.toLowerCase();
     const walletName = wallet?.name;
 
+    const walletBodyTexts = this.getWalletBodyTexts(title, lang, walletName);
+    const allTexts = texts && this.getMailAffix([...walletBodyTexts, ...texts], lang, walletName);
+
     return new UserMailV2(
       {
         to: userData.mail,
         subject: this.translate(title, lang, undefined, walletName),
         salutation: salutation && this.translate(salutation.key, lang, salutation.params, walletName),
-        texts: texts && this.getMailAffix(texts, lang, walletName),
+        texts: allTexts,
         correlationId,
         options,
       },
@@ -198,6 +201,22 @@ export class MailFactory {
     return this.i18n.translate(key, { lang: lang.toLowerCase(), args });
   }
 
+  private translateWalletOnly(key: string, lang: string, walletName: string, args?: any): string | undefined {
+    const walletKey = key.replace(/^mail\./, `mail-${walletName.toLowerCase()}.`);
+    const walletTranslation = this.i18n.translate(walletKey, { lang: lang.toLowerCase(), args }) as string;
+
+    return walletTranslation !== walletKey ? walletTranslation : undefined;
+  }
+
+  private getWalletBodyTexts(title: string, lang: string, walletName?: string): TranslationItem[] {
+    if (!walletName) return [];
+
+    const bodyKey = title.replace(/\.title$/, '.body');
+    const bodyText = this.translateWalletOnly(bodyKey, lang, walletName);
+
+    return bodyText ? [{ key: bodyKey }] : [];
+  }
+
   //*** MAIL BUILDING METHODS ***//
 
   private isDisabledMailWallet(context: MailContext, wallet: Wallet): boolean {
@@ -213,7 +232,8 @@ export class MailFactory {
     return affix
       .filter((i) => i)
       .map((i) => this.mapMailAffix(i, lang, walletName).flat())
-      .flat();
+      .flat()
+      .filter((a) => a.text || a.url || a.mail);
   }
 
   private mapMailAffix(element: TranslationItem, lang: string, walletName?: string): MailAffix[] {

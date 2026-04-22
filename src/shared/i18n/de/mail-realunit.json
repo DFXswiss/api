@@ -1,10 +1,10 @@
 {
   "general": {
     "welcome": "Guten Tag {name}",
-    "thanks": "Herzlichen Dank für Ihr entgegengebrachtes Vertrauen",
-    "support": "Sollten Sie Fragen haben, steht Ihnen das RealUnit-Team gerne unter [mail:info@realunit.ch] zur Verfügung.",
+    "thanks": "",
+    "support": "",
     "button": "[url:Details anzeigen]",
-    "link": "oder<br>[url:{urlText}]"
+    "link": ""
   },
   "login": {
     "title": "RealUnit Login",
@@ -27,26 +27,30 @@
     },
     "crypto_output": {
       "title": "Transfer Ihrer RealUnit-Token",
-      "salutation": "Ihre RealUnit-Token wurden in Ihr Wallet überwiesen"
+      "salutation": "Ihre RealUnit-Token wurden in Ihr Wallet überwiesen",
+      "body": "Vielen Dank für den Kauf unserer RealUnit-Aktientoken. Der Betrag ist bei uns eingegangen. Wir haben Ihnen nun die RealUnit-Token in Ihr Wallet überwiesen. Öffnen Sie die RealUnit App und Sie sollten die Anzahl Token sowie den aktuellen Wert sehen."
     },
     "fiat_output": {
       "title": "Verkauf RealUnit-Token – Überweisung erfolgt",
-      "salutation": "Ihre RealUnit-Token wurden erfolgreich verkauft"
+      "salutation": "Ihre RealUnit-Token wurden erfolgreich verkauft",
+      "body": "Gerne bestätigen wir Ihnen, dass die Überweisung des Verkaufserlöses auf Ihr Bankkonto erfolgt ist. Bitte prüfen Sie den Geldeingang. Den Verkaufsbeleg finden Sie in Ihrer RealUnit App."
     },
     "processing": {
       "title": "Verkauf Ihrer RealUnit-Token",
-      "salutation": "Ihre Transaktion wird nun verarbeitet"
+      "salutation": "Ihre Transaktion wird nun verarbeitet",
+      "body": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Die Transaktion wird nun verarbeitet. Sie werden wieder per Mail informiert, sobald die Überweisung auf Ihre IBAN Kontonummer erfolgt ist."
     },
     "warning": "",
     "chargeback": {
       "fiat": {
         "title": "Verkauf RealUnit-Token aktuell nicht möglich",
-        "salutation": "Ihre RealUnit-Token konnten nicht verkauft werden"
+        "salutation": "Ihre RealUnit-Token konnten nicht verkauft werden",
+        "body": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Der Verkauf wird durch die Firma DFX AG ausgeführt und ist leider im Moment nicht möglich.<br><br>Ihre Aktientoken wurden wieder Ihrem Wallet zurückerstattet. Bitte versuchen Sie es später nochmals."
       },
       "crypto": {
         "title": "Verkauf RealUnit-Token – Rückerstattung",
         "salutation": "Ihre RealUnit-Token wurden an Ihr Wallet zurückerstattet",
-        "transaction_button": "Weitere Details zu Ihrer Rückerstattung:<br>[url:Details anzeigen]"
+        "transaction_button": ""
       },
       "introduction": "Grund der Rückerstattung:<br>{reason}",
       "reasons": {
@@ -164,7 +168,7 @@
         "title": "Erinnerung an die Bestätigung Ihrer E-Mailadresse",
         "salutation": "E-Mail-Bestätigung ausstehend",
         "line1": "Sie haben kürzlich eine Mail zur Verifizierung Ihrer E-Mailadresse erhalten. Der Kauf oder Verkauf der RealUnit-Aktientoken ist erst nach der Bestätigung möglich.",
-        "line2": "Bitte klicken Sie auf den Link im vorangegangenen E-Mail und bestätigen Sie Ihre E-Mail-Adresse.",
+        "line2": "Bitte klicken Sie auf den Link im vorangegangenen E-Mail und bestätigen Sie bei der Firma DFX AG, welche den Handel unserer Aktientoken umsetzt, Ihre E-Mail-Adresse.",
         "line3": "Nachdem diese Bestätigung erteilt ist, wird Ihre ausstehende Transaktion automatisch weiterverarbeitet.",
         "line4": "",
         "line5": ""
@@ -179,7 +183,7 @@
         "line5": ""
       }
     },
-    "transaction_button": "Weitere Details zu Ihrer Transaktion finden Sie in Ihrer RealUnit-App."
+    "transaction_button": ""
   },
   "kyc": {
     "success": {
