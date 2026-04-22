@@ -370,6 +370,17 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     await this.settingService.setObj('clementineApprovedDeposits', updated);
   }
 
+  private async isWithdrawalApproved(withdrawalUtxo: string): Promise<boolean> {
+    const approvedWithdrawals = await this.settingService.getObj<string[]>('clementineApprovedWithdrawals', []);
+    return approvedWithdrawals.includes(withdrawalUtxo);
+  }
+
+  private async removeWithdrawalApproval(withdrawalUtxo: string): Promise<void> {
+    const approvedWithdrawals = await this.settingService.getObj<string[]>('clementineApprovedWithdrawals', []);
+    const updated = approvedWithdrawals.filter((utxo) => utxo !== withdrawalUtxo);
+    await this.settingService.setObj('clementineApprovedWithdrawals', updated);
+  }
+
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     const {
       pipeline: {
@@ -486,6 +497,20 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
       order.correlationId = `${CORRELATION_PREFIX.WITHDRAW}${this.encodeWithdrawCorrelation(data)}`;
       return false;
     }
+
+    // Wait for manual approval before burning cBTC
+    const isApproved = await this.isWithdrawalApproved(data.withdrawalUtxo);
+    if (!isApproved) {
+      this.logger.info(
+        `Withdrawal awaiting approval. UTXO: ${data.withdrawalUtxo}, ` +
+          `destination: ${data.destinationAddress}, signer: ${data.signerAddress}, dustTxId: ${data.dustTxId}, ` +
+          `optimisticSig: ${data.optimisticSignature}, operatorPaidSig: ${data.operatorPaidSignature}. ` +
+          `Add UTXO to 'clementineApprovedWithdrawals' setting to approve.`,
+      );
+      return false;
+    }
+
+    await this.removeWithdrawalApproval(data.withdrawalUtxo);
 
     // Send to bridge contract (burns cBTC)
     await this.clementineClient.withdrawSend(
