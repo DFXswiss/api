@@ -93,7 +93,7 @@ export class DEuroClient {
 
     const document = gql`
       {
-        dEPS(id: "${address}") {
+        deps(id: "${address}") {
           id
           profits
           loss
@@ -102,7 +102,7 @@ export class DEuroClient {
       }
     `;
 
-    return request<{ dEPS: DEuroDepsGraphDto }>(Config.blockchain.deuro.graphUrl, document).then((r) => r.dEPS);
+    return request<{ deps: DEuroDepsGraphDto }>(Config.blockchain.deuro.graphUrl, document).then((r) => r.deps);
   }
 
   getWalletAddress(): string {
