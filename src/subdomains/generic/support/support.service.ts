@@ -79,6 +79,9 @@ import {
   TransactionSupportInfo,
   OnboardingStatus,
   PendingOnboardingInfo,
+  PendingReviewItem,
+  PendingReviewSummaryEntry,
+  PendingReviewType,
   UserDataSupportInfo,
   UserDataSupportInfoDetails,
   UserDataSupportInfoResult,
@@ -565,11 +568,84 @@ export class SupportService {
       .filter((ud): ud is UserData => !!ud)
       .map((ud) => ({
         id: ud.id,
-        name:
-          ud.verifiedName ?? ([ud.firstname, ud.surname, ud.organization?.name].filter(Boolean).join(' ') || undefined),
+        name: this.formatUserName(ud),
         accountType: ud.accountType,
         date: dateMap.get(ud.id) ?? ud.created,
       }));
+  }
+
+  async getPendingReviewsSummary(): Promise<PendingReviewSummaryEntry[]> {
+    const [kycRows, bankRows] = await Promise.all([
+      this.kycService.getPendingReviewSummary(),
+      this.bankDataService.getPendingReviewSummary(),
+    ]);
+
+    const allRows: { type: PendingReviewType; name: string; status: ReviewStatus; count: number }[] = [
+      ...kycRows.map((r) => ({ type: PendingReviewType.KYC_STEP, name: r.name, status: r.status, count: r.count })),
+      ...bankRows.map((r) => ({ type: PendingReviewType.BANK_DATA, name: r.name, status: r.status, count: r.count })),
+    ];
+
+    const entries = new Map<string, PendingReviewSummaryEntry>();
+
+    for (const row of allRows) {
+      const key = `${row.type}:${row.name}`;
+      const entry = entries.get(key) ?? { type: row.type, name: row.name, manualReview: 0, internalReview: 0 };
+      if (row.status === ReviewStatus.MANUAL_REVIEW) entry.manualReview = row.count;
+      else if (row.status === ReviewStatus.INTERNAL_REVIEW) entry.internalReview = row.count;
+      entries.set(key, entry);
+    }
+
+    return Array.from(entries.values()).sort((a, b) => {
+      if (a.type !== b.type) return a.type.localeCompare(b.type);
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  async getPendingReviewsList(
+    type: PendingReviewType,
+    name: string | undefined,
+    status: ReviewStatus,
+  ): Promise<PendingReviewItem[]> {
+    if (![ReviewStatus.MANUAL_REVIEW, ReviewStatus.INTERNAL_REVIEW].includes(status)) {
+      throw new BadRequestException('Status must be ManualReview or InternalReview');
+    }
+
+    if (type === PendingReviewType.KYC_STEP) {
+      if (!name) throw new BadRequestException('Name is required for KycStep lookup');
+      if (!Object.values(KycStepName).includes(name as KycStepName)) {
+        throw new BadRequestException('Unknown KycStepName');
+      }
+      const steps = await this.kycService.getPendingReviewSteps(name as KycStepName, status);
+      return steps.map((step) => this.toPendingReviewItem(step, status));
+    }
+
+    if (type === PendingReviewType.BANK_DATA) {
+      const bankDatas = await this.bankDataService.getPendingReviewList(status);
+      return bankDatas.map((bd) => this.toPendingReviewItem(bd, status));
+    }
+
+    throw new BadRequestException('Unknown review type');
+  }
+
+  private toPendingReviewItem(
+    entity: { id: number; userData: UserData; updated: Date },
+    status: ReviewStatus,
+  ): PendingReviewItem {
+    return {
+      id: entity.id,
+      userDataId: entity.userData.id,
+      userName: this.formatUserName(entity.userData),
+      accountType: entity.userData.accountType,
+      kycLevel: entity.userData.kycLevel,
+      status,
+      date: entity.updated,
+    };
+  }
+
+  private formatUserName(ud: UserData): string | undefined {
+    return (
+      ud.verifiedName ?? ([ud.firstname, ud.surname, ud.organization?.name].filter(Boolean).join(' ') || undefined)
+    );
   }
 
   //*** HELPER METHODS ***//

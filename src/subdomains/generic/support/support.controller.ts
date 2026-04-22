@@ -10,10 +10,14 @@ import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { ChargebackRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionListQuery } from './dto/transaction-list-query.dto';
+import { ReviewStatus } from '../kyc/enums/review-status.enum';
 import {
   KycFileListEntry,
   KycFileYearlyStats,
   PendingOnboardingInfo,
+  PendingReviewItem,
+  PendingReviewSummaryEntry,
+  PendingReviewType,
   RecommendationGraph,
   TransactionListEntry,
   UserDataSupportInfoDetails,
@@ -72,6 +76,26 @@ export class SupportController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async getPendingOnboardings(): Promise<PendingOnboardingInfo[]> {
     return this.supportService.getPendingOnboardings();
+  }
+
+  @Get('pending-reviews')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getPendingReviews(): Promise<PendingReviewSummaryEntry[]> {
+    return this.supportService.getPendingReviewsSummary();
+  }
+
+  @Get('pending-reviews/items')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getPendingReviewItems(
+    @Query('type') type: PendingReviewType,
+    @Query('status') status: ReviewStatus,
+    @Query('name') name?: string,
+  ): Promise<PendingReviewItem[]> {
+    return this.supportService.getPendingReviewsList(type, name, status);
   }
 
   @Get(':id/ip-log-pdf')

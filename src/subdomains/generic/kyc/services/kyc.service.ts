@@ -1874,4 +1874,32 @@ export class KycService {
       relations: { userData: true },
     });
   }
+
+  // --- Pending Review Queries ---
+
+  async getPendingReviewSummary(): Promise<{ name: KycStepName; status: ReviewStatus; count: number }[]> {
+    return this.kycStepRepo
+      .createQueryBuilder('step')
+      .select('step.name', 'name')
+      .addSelect('step.status', 'status')
+      .addSelect('COUNT(step.id)', 'count')
+      .innerJoin('step.userData', 'userData')
+      .where('step.status IN (:...statuses)', { statuses: [ReviewStatus.MANUAL_REVIEW, ReviewStatus.INTERNAL_REVIEW] })
+      .andWhere('userData.status != :mergedStatus', { mergedStatus: UserDataStatus.MERGED })
+      .groupBy('step.name')
+      .addGroupBy('step.status')
+      .getRawMany<{ name: KycStepName; status: ReviewStatus; count: string }>()
+      .then((rows) => rows.map((r) => ({ name: r.name, status: r.status, count: Number(r.count) })));
+  }
+
+  async getPendingReviewSteps(name: KycStepName, status: ReviewStatus): Promise<KycStep[]> {
+    return this.kycStepRepo
+      .createQueryBuilder('step')
+      .innerJoinAndSelect('step.userData', 'userData')
+      .where('step.name = :name', { name })
+      .andWhere('step.status = :status', { status })
+      .andWhere('userData.status != :mergedStatus', { mergedStatus: UserDataStatus.MERGED })
+      .orderBy('step.updated', 'ASC')
+      .getMany();
+  }
 }
