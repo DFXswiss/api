@@ -2,7 +2,6 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
 import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
-import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { InternetComputerService } from 'src/integration/blockchain/icp/services/icp.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -583,7 +582,7 @@ export class PaymentQuoteService {
 
       const client: BitcoinBasedClient =
         method === Blockchain.BITCOIN
-          ? this.blockchainRegistryService.getBitcoinClient(method, BitcoinNodeType.BTC_OUTPUT)
+          ? this.blockchainRegistryService.getBitcoinClient(method)
           : (this.blockchainRegistryService.getClient(method) as BitcoinBasedClient);
 
       const testMempoolResults = await client.testMempoolAccept(transferInfo.hex);

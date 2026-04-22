@@ -32,25 +32,8 @@ export abstract class BitcoinBasedClient extends NodeClient implements CoinOnly 
 
   abstract get walletAddress(): string;
 
-  async send(
-    addressTo: string,
-    txId: string,
-    amount: number,
-    vout: number,
-    feeRate: number,
-  ): Promise<{ outTxId: string; feeAmount: number }> {
-    // 135 vByte for a single-input single-output TX
-    const feeAmount = (feeRate * 135) / Math.pow(10, 8);
-
-    const outputs = [{ [addressTo]: this.roundAmount(amount - feeAmount) }];
-    const options = {
-      inputs: [{ txid: txId, vout }],
-      replaceable: true,
-    };
-
-    const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);
-
-    return { outTxId: result?.txid ?? '', feeAmount };
+  protected async getChangeAddress(): Promise<string> {
+    return this.walletAddress;
   }
 
   async sendMany(
@@ -61,9 +44,12 @@ export abstract class BitcoinBasedClient extends NodeClient implements CoinOnly 
   ): Promise<string> {
     const outputs = payload.map((p) => ({ [p.addressTo]: p.amount }));
 
+    const changeAddress = await this.getChangeAddress();
+
     const options = {
       replaceable: true,
-      change_address: this.walletAddress,
+      lock_unspents: true,
+      change_address: changeAddress,
       ...(this.nodeConfig.allowUnconfirmedUtxos && { include_unsafe: true }),
       ...(inputs && { inputs, add_inputs: false }),
       ...(subtractFeeFromOutputs && { subtract_fee_from_outputs: subtractFeeFromOutputs }),

@@ -1,4 +1,4 @@
-import { Config, GetConfig } from 'src/config/config';
+import { GetConfig } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { BitcoinBasedClient } from './bitcoin-based-client';
 import { NodeClientConfig } from './node-client';
@@ -18,6 +18,10 @@ export class BitcoinClient extends BitcoinBasedClient {
   }
 
   get walletAddress(): string {
-    return Config.blockchain.default.btcOutput.address;
+    throw new Error('Bitcoin uses per-transaction change addresses — use getNewChangeAddress() instead');
+  }
+
+  protected async getChangeAddress(): Promise<string> {
+    return this.createAddress('change', 'bech32');
   }
 }

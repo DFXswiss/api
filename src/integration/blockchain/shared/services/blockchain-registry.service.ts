@@ -5,7 +5,7 @@ import { BaseService } from '../../base/base.service';
 import { BitcoinTestnet4Client } from '../../bitcoin-testnet4/bitcoin-testnet4-client';
 import { BitcoinTestnet4NodeType, BitcoinTestnet4Service } from '../../bitcoin-testnet4/bitcoin-testnet4.service';
 import { BitcoinClient } from '../../bitcoin/node/bitcoin-client';
-import { BitcoinNodeType, BitcoinService } from '../../bitcoin/services/bitcoin.service';
+import { BitcoinService } from '../../bitcoin/services/bitcoin.service';
 import { BscService } from '../../bsc/bsc.service';
 import { CardanoClient } from '../../cardano/cardano-client';
 import { CardanoService } from '../../cardano/services/cardano.service';
@@ -115,11 +115,11 @@ export class BlockchainRegistryService {
     return blockchainService.getDefaultClient();
   }
 
-  getBitcoinClient(blockchain: Blockchain, type: BitcoinNodeType): BitcoinClient {
+  getBitcoinClient(blockchain: Blockchain): BitcoinClient {
     const blockchainService = this.getService(blockchain);
     if (!(blockchainService instanceof BitcoinService))
       throw new Error(`No bitcoin client found for blockchain ${blockchain}`);
-    return blockchainService.getDefaultClient(type);
+    return blockchainService.getDefaultClient();
   }
 
   getBitcoinTestnet4Client(blockchain: Blockchain, type: BitcoinTestnet4NodeType): BitcoinTestnet4Client {
@@ -129,11 +129,11 @@ export class BlockchainRegistryService {
     return blockchainService.getDefaultClient(type);
   }
 
-  getCoinOnlyClient(blockchain: Blockchain, bitcoinNodeType?: BitcoinNodeType): CoinOnly {
+  getCoinOnlyClient(blockchain: Blockchain): CoinOnly {
     if (!COIN_ONLY_BLOCKCHAINS.has(blockchain))
       throw new Error(`No coin only client found for blockchain ${blockchain}`);
     const coinOnlyService = this.getCoinOnlyService(blockchain);
-    if (coinOnlyService instanceof BitcoinService) return coinOnlyService.getDefaultClient(bitcoinNodeType);
+    if (coinOnlyService instanceof BitcoinService) return coinOnlyService.getDefaultClient();
     return coinOnlyService.getDefaultClient();
   }
 

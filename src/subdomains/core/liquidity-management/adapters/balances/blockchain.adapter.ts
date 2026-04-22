@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { CardanoClient } from 'src/integration/blockchain/cardano/cardano-client';
 import { InternetComputerClient } from 'src/integration/blockchain/icp/icp-client';
 import { BlockchainTokenBalance } from 'src/integration/blockchain/shared/dto/blockchain-token-balance.dto';
@@ -92,9 +91,6 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
     try {
       switch (blockchain) {
         case Blockchain.BITCOIN:
-          await this.updateCoinOnlyBalance(assets, BitcoinNodeType.BTC_OUTPUT);
-          break;
-
         case Blockchain.LIGHTNING:
         case Blockchain.SPARK:
         case Blockchain.ARKADE:
@@ -136,12 +132,12 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
   // --- BLOCKCHAIN INTEGRATIONS --- //
 
-  private async updateCoinOnlyBalance(assets: Asset[], bitcoinNodeType?: BitcoinNodeType.BTC_OUTPUT): Promise<void> {
+  private async updateCoinOnlyBalance(assets: Asset[]): Promise<void> {
     for (const asset of assets) {
       try {
         if (asset.type !== AssetType.COIN) throw new Error(`Only coins are available on ${asset.blockchain}`);
 
-        const client = this.blockchainRegistryService.getCoinOnlyClient(asset.blockchain, bitcoinNodeType);
+        const client = this.blockchainRegistryService.getCoinOnlyClient(asset.blockchain);
         const balance = await client.getNativeCoinBalance();
         this.balanceCache.set(asset.id, balance);
       } catch (e) {

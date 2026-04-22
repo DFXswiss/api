@@ -18,7 +18,7 @@ import { HttpModule } from '@nestjs/axios';
 import { ConfigModule } from '@nestjs/config';
 import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from 'src/shared/services/http.service';
-import { BitcoinNodeType, BitcoinService } from '../../services/bitcoin.service';
+import { BitcoinService } from '../../services/bitcoin.service';
 import { BitcoinClient } from '../bitcoin-client';
 
 // Skip tests if no Bitcoin node is configured
@@ -27,8 +27,7 @@ const SKIP_INTEGRATION_TESTS = !process.env.NODE_BTC_INP_URL_ACTIVE;
 describe('Bitcoin RPC Integration Tests', () => {
   let module: TestingModule;
   let bitcoinService: BitcoinService;
-  let inputClient: BitcoinClient;
-  let outputClient: BitcoinClient;
+  let client: BitcoinClient;
 
   beforeAll(async () => {
     if (SKIP_INTEGRATION_TESTS) {
@@ -42,8 +41,7 @@ describe('Bitcoin RPC Integration Tests', () => {
     }).compile();
 
     bitcoinService = module.get<BitcoinService>(BitcoinService);
-    inputClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
-    outputClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
+    client = bitcoinService.getDefaultClient();
   });
 
   afterAll(async () => {
@@ -53,39 +51,23 @@ describe('Bitcoin RPC Integration Tests', () => {
   });
 
   describe('1. Node Connection & Health', () => {
-    it('should connect to BTC_INPUT node', async () => {
+    it('should connect to Bitcoin node', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const info = await inputClient.getInfo();
+      const info = await client.getInfo();
 
       expect(info).toBeDefined();
       expect(info.chain).toBeDefined();
       expect(info.blocks).toBeGreaterThan(0);
       expect(info.headers).toBeGreaterThan(0);
 
-      console.log(`✅ BTC_INPUT connected: chain=${info.chain}, blocks=${info.blocks}, headers=${info.headers}`);
-    });
-
-    it('should connect to BTC_OUTPUT node', async () => {
-      if (SKIP_INTEGRATION_TESTS) return;
-
-      if (!outputClient) {
-        console.log('⚠️  BTC_OUTPUT not configured, skipping');
-        return;
-      }
-
-      const info = await outputClient.getInfo();
-
-      expect(info).toBeDefined();
-      expect(info.chain).toBeDefined();
-
-      console.log(`✅ BTC_OUTPUT connected: chain=${info.chain}, blocks=${info.blocks}`);
+      console.log(`✅ Bitcoin node connected: chain=${info.chain}, blocks=${info.blocks}, headers=${info.headers}`);
     });
 
     it('should verify node is synced', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const sync = await inputClient.checkSync();
+      const sync = await client.checkSync();
 
       expect(sync.headers).toBeDefined();
       expect(sync.blocks).toBeDefined();
@@ -99,7 +81,7 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should get block count', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const blockCount = await inputClient.getBlockCount();
+      const blockCount = await client.getBlockCount();
 
       expect(blockCount).toBeGreaterThan(0);
       expect(typeof blockCount).toBe('number');
@@ -110,8 +92,8 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should get block hash by height', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const blockCount = await inputClient.getBlockCount();
-      const hash = await inputClient.getBlockHash(blockCount - 1);
+      const blockCount = await client.getBlockCount();
+      const hash = await client.getBlockHash(blockCount - 1);
 
       expect(hash).toBeDefined();
       expect(typeof hash).toBe('string');
@@ -123,9 +105,9 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should get block by hash', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const blockCount = await inputClient.getBlockCount();
-      const hash = await inputClient.getBlockHash(blockCount - 1);
-      const block = await inputClient.getBlock(hash);
+      const blockCount = await client.getBlockCount();
+      const hash = await client.getBlockHash(blockCount - 1);
+      const block = await client.getBlock(hash);
 
       expect(block).toBeDefined();
       expect(block.hash).toBe(hash);
@@ -141,7 +123,7 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should get wallet balance as number (not BigNumber)', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const balance = await inputClient.getBalance();
+      const balance = await client.getBalance();
 
       expect(typeof balance).toBe('number');
       expect(balance).toBeGreaterThanOrEqual(0);
@@ -153,7 +135,7 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should list UTXOs', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const utxos = await inputClient.getUtxo();
+      const utxos = await client.getUtxo();
 
       expect(Array.isArray(utxos)).toBe(true);
 
@@ -176,7 +158,7 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should get native coin balance', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const balance = await inputClient.getNativeCoinBalance();
+      const balance = await client.getNativeCoinBalance();
 
       expect(typeof balance).toBe('number');
       expect(Number.isNaN(balance)).toBe(false);
@@ -190,7 +172,7 @@ describe('Bitcoin RPC Integration Tests', () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
       const label = `test-bech32-${Date.now()}`;
-      const address = await inputClient.createAddress(label);
+      const address = await client.createAddress(label);
 
       expect(address).toBeDefined();
       expect(typeof address).toBe('string');
@@ -204,7 +186,7 @@ describe('Bitcoin RPC Integration Tests', () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
       const label = `test-p2sh-${Date.now()}`;
-      const address = await inputClient.createAddress(label, 'p2sh-segwit');
+      const address = await client.createAddress(label, 'p2sh-segwit');
 
       expect(address).toBeDefined();
       expect(typeof address).toBe('string');
@@ -218,7 +200,7 @@ describe('Bitcoin RPC Integration Tests', () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
       const label = `test-legacy-${Date.now()}`;
-      const address = await inputClient.createAddress(label, 'legacy');
+      const address = await client.createAddress(label, 'legacy');
 
       expect(address).toBeDefined();
       expect(typeof address).toBe('string');
@@ -241,7 +223,7 @@ describe('Bitcoin RPC Integration Tests', () => {
         return;
       }
 
-      const tx = await inputClient.getTx(TEST_TXID);
+      const tx = await client.getTx(TEST_TXID);
 
       expect(tx).not.toBeNull();
       expect(tx.txid).toBe(TEST_TXID);
@@ -265,7 +247,7 @@ describe('Bitcoin RPC Integration Tests', () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
       const fakeTxId = '0000000000000000000000000000000000000000000000000000000000000000';
-      const tx = await inputClient.getTx(fakeTxId);
+      const tx = await client.getTx(fakeTxId);
 
       expect(tx).toBeNull();
 
@@ -280,7 +262,7 @@ describe('Bitcoin RPC Integration Tests', () => {
         return;
       }
 
-      const isComplete = await inputClient.isTxComplete(TEST_TXID, 1);
+      const isComplete = await client.isTxComplete(TEST_TXID, 1);
 
       expect(typeof isComplete).toBe('boolean');
 
@@ -295,7 +277,7 @@ describe('Bitcoin RPC Integration Tests', () => {
         return;
       }
 
-      const rawTx = await inputClient.getRawTx(TEST_TXID);
+      const rawTx = await client.getRawTx(TEST_TXID);
 
       expect(rawTx).not.toBeNull();
       if (rawTx) {
@@ -315,7 +297,7 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should return null for non-existent raw transaction', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const rawTx = await inputClient.getRawTx('0000000000000000000000000000000000000000000000000000000000000000');
+      const rawTx = await client.getRawTx('0000000000000000000000000000000000000000000000000000000000000000');
 
       expect(rawTx).toBeNull();
 
@@ -334,7 +316,7 @@ describe('Bitcoin RPC Integration Tests', () => {
         return;
       }
 
-      const tx = await inputClient.getTx(TEST_TXID);
+      const tx = await client.getTx(TEST_TXID);
 
       if (!tx) {
         console.log('⚠️  Transaction not found, skipping');
@@ -359,7 +341,7 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should get recent transaction history', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const history = await inputClient.getRecentHistory(10);
+      const history = await client.getRecentHistory(10);
 
       expect(Array.isArray(history)).toBe(true);
 
@@ -384,7 +366,7 @@ describe('Bitcoin RPC Integration Tests', () => {
 
       // Invalid hex should be rejected
       const invalidHex = '0100000000000000000000';
-      const result = await inputClient.testMempoolAccept(invalidHex);
+      const result = await client.testMempoolAccept(invalidHex);
 
       expect(Array.isArray(result)).toBe(true);
       expect(result.length).toBeGreaterThan(0);
@@ -397,20 +379,10 @@ describe('Bitcoin RPC Integration Tests', () => {
   describe('9. Send Methods (READ-ONLY VALIDATION)', () => {
     // These tests validate the send method parameters without actually sending
 
-    it('should have correct send method signature', async () => {
-      if (SKIP_INTEGRATION_TESTS) return;
-
-      // Verify the method exists and has correct signature
-      expect(typeof inputClient.send).toBe('function');
-      expect(inputClient.send.length).toBeGreaterThanOrEqual(5); // 5 parameters
-
-      console.log(`✅ send() method exists with correct signature`);
-    });
-
     it('should have correct sendMany method signature', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      expect(typeof inputClient.sendMany).toBe('function');
+      expect(typeof client.sendMany).toBe('function');
 
       console.log(`✅ sendMany() method exists`);
     });
@@ -418,7 +390,7 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should have correct sendSignedTransaction method signature', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      expect(typeof inputClient.sendSignedTransaction).toBe('function');
+      expect(typeof client.sendSignedTransaction).toBe('function');
 
       console.log(`✅ sendSignedTransaction() method exists`);
     });
@@ -429,7 +401,7 @@ describe('Bitcoin RPC Integration Tests', () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
       // Try to get a transaction that doesn't exist in the wallet
-      const result = await inputClient.getTx('nonexistent');
+      const result = await client.getTx('nonexistent');
 
       // Should return null, not throw
       expect(result).toBeNull();
@@ -440,7 +412,7 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should throw on invalid block hash', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      await expect(inputClient.getBlock('invalidhash')).rejects.toThrow();
+      await expect(client.getBlock('invalidhash')).rejects.toThrow();
 
       console.log(`✅ Invalid block hash throws error (as expected)`);
     });
@@ -452,7 +424,7 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should estimate smart fee in valid sat/vB range', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const feeRate = await inputClient.estimateSmartFee(1);
+      const feeRate = await client.estimateSmartFee(1);
 
       // feeRate can be null if insufficient data
       if (feeRate !== null) {
@@ -470,9 +442,9 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should estimate fee for different confirmation targets', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const fee1 = await inputClient.estimateSmartFee(1);
-      const fee6 = await inputClient.estimateSmartFee(6);
-      const fee144 = await inputClient.estimateSmartFee(144); // ~1 day
+      const fee1 = await client.estimateSmartFee(1);
+      const fee6 = await client.estimateSmartFee(6);
+      const fee144 = await client.estimateSmartFee(144); // ~1 day
 
       console.log(`✅ Fee estimates:`);
       console.log(`   - 1 block: ${fee1 ?? 'null'} sat/vB`);
@@ -492,7 +464,7 @@ describe('Bitcoin RPC Integration Tests', () => {
 
       // Use a fake txid that won't be in mempool
       const fakeTxid = '0000000000000000000000000000000000000000000000000000000000000000';
-      const entry = await inputClient.getMempoolEntry(fakeTxid);
+      const entry = await client.getMempoolEntry(fakeTxid);
 
       expect(entry).toBeNull();
 
@@ -503,11 +475,11 @@ describe('Bitcoin RPC Integration Tests', () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
       // Try to find an unconfirmed TX in the wallet
-      const history = await inputClient.getRecentHistory(20);
+      const history = await client.getRecentHistory(20);
       const unconfirmedTx = history.find((tx) => tx.confirmations === 0);
 
       if (unconfirmedTx) {
-        const entry = await inputClient.getMempoolEntry(unconfirmedTx.txid);
+        const entry = await client.getMempoolEntry(unconfirmedTx.txid);
 
         if (entry) {
           expect(typeof entry.feeRate).toBe('number');
@@ -539,7 +511,7 @@ describe('Bitcoin RPC Integration Tests', () => {
       }
 
       const command = `getrawtransaction "${TEST_TXID}" 2`;
-      const result = await inputClient.sendCliCommand(command);
+      const result = await client.sendCliCommand(command);
 
       expect(result).toBeDefined();
       expect(result.txid).toBe(TEST_TXID);
@@ -558,7 +530,7 @@ describe('Bitcoin RPC Integration Tests', () => {
 
       const command = 'invalidcommand';
 
-      await expect(inputClient.sendCliCommand(command)).rejects.toThrow();
+      await expect(client.sendCliCommand(command)).rejects.toThrow();
 
       console.log(`✅ Invalid CLI command throws error`);
     });
@@ -568,7 +540,7 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should list address groupings', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const balance = await inputClient.getNativeCoinBalance();
+      const balance = await client.getNativeCoinBalance();
 
       expect(typeof balance).toBe('number');
       expect(Number.isNaN(balance)).toBe(false);
@@ -580,11 +552,11 @@ describe('Bitcoin RPC Integration Tests', () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
       // First get an address from the wallet
-      const utxos = await inputClient.getUtxo();
+      const utxos = await client.getUtxo();
 
       if (utxos.length > 0) {
         const testAddress = utxos[0].address;
-        const balance = await inputClient.getNativeCoinBalanceForAddress(testAddress);
+        const balance = await client.getNativeCoinBalanceForAddress(testAddress);
 
         expect(typeof balance).toBe('number');
         expect(balance).toBeGreaterThanOrEqual(0);
@@ -607,7 +579,7 @@ describe('Bitcoin RPC Integration Tests', () => {
         params: [],
       });
 
-      const result = await inputClient.sendRpcCommand(command);
+      const result = await client.sendRpcCommand(command);
 
       expect(result).toBeDefined();
       expect(result.result).toBeGreaterThan(0);
@@ -620,8 +592,8 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should list UTXOs including unconfirmed when requested', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const confirmedUtxos = await inputClient.getUtxo(false);
-      const allUtxos = await inputClient.getUtxo(true);
+      const confirmedUtxos = await client.getUtxo(false);
+      const allUtxos = await client.getUtxo(true);
 
       expect(Array.isArray(confirmedUtxos)).toBe(true);
       expect(Array.isArray(allUtxos)).toBe(true);
@@ -640,8 +612,8 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should return numeric types (not BigNumber or string) for amounts', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const balance = await inputClient.getBalance();
-      const feeRate = await inputClient.estimateSmartFee(1);
+      const balance = await client.getBalance();
+      const feeRate = await client.estimateSmartFee(1);
 
       // Balance
       expect(typeof balance).toBe('number');
@@ -661,7 +633,7 @@ describe('Bitcoin RPC Integration Tests', () => {
     it('should handle UTXO amounts as numbers', async () => {
       if (SKIP_INTEGRATION_TESTS) return;
 
-      const utxos = await inputClient.getUtxo();
+      const utxos = await client.getUtxo();
 
       if (utxos.length > 0) {
         const utxo = utxos[0];

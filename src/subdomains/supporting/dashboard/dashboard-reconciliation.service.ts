@@ -31,7 +31,6 @@ import {
 const EXCHANGE_BLOCKCHAINS: Blockchain[] = [Blockchain.KRAKEN, Blockchain.BINANCE, Blockchain.XT, Blockchain.MEXC];
 
 const BLOCKCHAIN_WALLET_ENV: Partial<Record<Blockchain, string>> = {
-  [Blockchain.BITCOIN]: 'BTC_OUT_WALLET_ADDRESS',
   [Blockchain.ETHEREUM]: 'ETH_WALLET_ADDRESS',
   [Blockchain.ARBITRUM]: 'ARBITRUM_WALLET_ADDRESS',
   [Blockchain.OPTIMISM]: 'OPTIMISM_WALLET_ADDRESS',

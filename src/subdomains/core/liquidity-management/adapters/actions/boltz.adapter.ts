@@ -4,7 +4,7 @@ import { createHash } from 'crypto';
 import { Config } from 'src/config/config';
 import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
-import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
+import { BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { BoltzClient, BoltzSwapStatus, ChainSwapFailedStatuses } from 'src/integration/blockchain/boltz/boltz-client';
 import { BoltzService } from 'src/integration/blockchain/boltz/boltz.service';
 import { CitreaClient } from 'src/integration/blockchain/citrea/citrea-client';
@@ -74,7 +74,7 @@ export class BoltzAdapter extends LiquidityActionAdapter {
     super(LiquidityManagementSystem.BOLTZ);
 
     this.boltzClient = boltzService.getDefaultClient();
-    this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
+    this.bitcoinClient = bitcoinService.getDefaultClient();
     this.citreaClient = citreaService.getDefaultClient<CitreaClient>();
 
     this.commands.set(BoltzCommands.DEPOSIT, this.deposit.bind(this));

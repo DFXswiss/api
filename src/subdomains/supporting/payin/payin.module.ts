@@ -14,9 +14,12 @@ import { TransactionModule } from '../payment/transaction.module';
 import { PayoutModule } from '../payout/payout.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { PayInController } from './controllers/payin.controller';
+import { BitcoinUtxo } from './entities/bitcoin-utxo.entity';
 import { CryptoInput } from './entities/crypto-input.entity';
 import { PayInWebhookModule } from './payin-webhook.module';
+import { BitcoinUtxoRepository } from './repositories/bitcoin-utxo.repository';
 import { PayInRepository } from './repositories/payin.repository';
+import { BitcoinUtxoService } from './services/bitcoin-utxo.service';
 import { PayInArbitrumService } from './services/payin-arbitrum.service';
 import { PayInBaseService } from './services/payin-base.service';
 import { PayInBitcoinService } from './services/payin-bitcoin.service';
@@ -100,7 +103,7 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([CryptoInput]),
+    TypeOrmModule.forFeature([CryptoInput, BitcoinUtxo]),
     PayInWebhookModule,
     BlockchainModule,
     SharedModule,
@@ -119,6 +122,8 @@ import { ZanoTokenStrategy as ZanoTokenStrategyS } from './strategies/send/impl/
   controllers: [PayInController],
   providers: [
     PayInRepository,
+    BitcoinUtxoRepository,
+    BitcoinUtxoService,
     PayInService,
     PayInNotificationService,
     PayInBitcoinService,

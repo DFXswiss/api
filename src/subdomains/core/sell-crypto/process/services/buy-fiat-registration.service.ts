@@ -5,7 +5,7 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
-import { IsNull, Not } from 'typeorm';
+import { In, IsNull, Not } from 'typeorm';
 import { SellRepository } from '../../route/sell.repository';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatService } from './buy-fiat.service';
@@ -36,8 +36,8 @@ export class BuyFiatRegistrationService {
       where: [
         // PayIn returned
         { ...baseWhere, cryptoInput: { status: PayInStatus.RETURN_CONFIRMED, returnTxId: Not(IsNull()) } },
-        // Payout forwarded
-        { ...baseWhere, cryptoInput: { status: PayInStatus.FORWARD_CONFIRMED } },
+        // Payout forwarded or completed
+        { ...baseWhere, cryptoInput: { status: In([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED]) } },
       ],
       relations: { cryptoInput: true, sell: true, transaction: { user: { wallet: true }, userData: true } },
     });
@@ -61,8 +61,8 @@ export class BuyFiatRegistrationService {
       return entity.cryptoInput.returnTxId;
     }
 
-    // Payout return (funds were forwarded to liquidity)
-    if (entity.cryptoInput.status === PayInStatus.FORWARD_CONFIRMED) {
+    // Payout return (funds were forwarded to liquidity or completed without forwarding)
+    if ([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED].includes(entity.cryptoInput.status)) {
       const { isComplete, payoutTxId } = await this.payoutService.checkOrderCompletion(
         PayoutOrderContext.BUY_FIAT_RETURN,
         `${entity.id}`,
