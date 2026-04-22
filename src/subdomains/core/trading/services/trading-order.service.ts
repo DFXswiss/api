@@ -194,14 +194,22 @@ export class TradingOrderService {
       const inChfPrice = await this.pricingService.getPrice(order.assetIn, PriceCurrency.CHF, PriceValidity.ANY);
       const outChfPrice = await this.pricingService.getPrice(order.assetOut, PriceCurrency.CHF, PriceValidity.ANY);
 
+      // Calculate expected output at target price (price1)
+      const expectedOutput =
+        order.tradingRule.leftAsset.id === order.assetIn.id
+          ? order.amountIn / order.price1
+          : order.amountIn * order.price1;
+
+      // Arbitrage profit = actual output - expected output at target price
+      const arbitrageProfitChf = outChfPrice.convert(outputAmount - expectedOutput, Config.defaultVolumeDecimal);
+
       order.complete(
         outputAmount,
         txFee,
         coinChfPrice.convert(txFee),
         swapFee,
         inChfPrice.convert(swapFee),
-        outChfPrice.convert(outputAmount, Config.defaultVolumeDecimal) -
-          inChfPrice.convert(order.amountIn, Config.defaultVolumeDecimal),
+        arbitrageProfitChf,
       );
       await this.orderRepo.save(order);
 

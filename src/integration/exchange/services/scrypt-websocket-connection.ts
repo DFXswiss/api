@@ -100,30 +100,43 @@ export class ScryptWebSocketConnection {
   }
 
   async fetchAll<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
-    const allData: T[] = [];
-    const reqId = ++this.reqIdCounter;
+    const doFetch = async (): Promise<T[]> => {
+      const allData: T[] = [];
+      const reqId = ++this.reqIdCounter;
 
-    // First request
-    let response = await this.requestWithId(reqId, {
-      type: ScryptRequestType.SUBSCRIBE,
-      streams: [{ name: streamName, ...filters }],
-    });
-
-    if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
-
-    allData.push(...((response.data ?? []) as T[]));
-
-    // Paginate through all pages
-    while (response.next) {
-      response = await this.requestWithId(reqId, {
-        type: ScryptRequestType.PAGE,
-        streams: [{ name: streamName, after: response.next }],
+      // First request
+      let response = await this.requestWithId(reqId, {
+        type: ScryptRequestType.SUBSCRIBE,
+        streams: [{ name: streamName, ...filters }],
       });
 
-      allData.push(...((response.data ?? []) as T[]));
-    }
+      if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
 
-    return allData;
+      allData.push(...((response.data ?? []) as T[]));
+
+      // Paginate through all pages
+      while (response.next) {
+        response = await this.requestWithId(reqId, {
+          type: ScryptRequestType.PAGE,
+          streams: [{ name: streamName, after: response.next }],
+        });
+
+        allData.push(...((response.data ?? []) as T[]));
+      }
+
+      return allData;
+    };
+
+    // Retry once on connection/session errors
+    try {
+      return await doFetch();
+    } catch (error) {
+      if (error.message?.includes('unknown reqid') || error.message?.includes('Connection closed')) {
+        this.logger.warn(`Retrying fetchAll for ${streamName} after error: ${error.message}`);
+        return doFetch();
+      }
+      throw error;
+    }
   }
 
   async requestAndWaitForUpdate<T>(
