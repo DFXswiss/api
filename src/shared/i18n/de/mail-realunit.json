@@ -33,7 +33,7 @@
     "fiat_output": {
       "title": "Verkauf RealUnit-Token – Überweisung erfolgt",
       "salutation": "Ihre RealUnit-Token wurden erfolgreich verkauft",
-      "body": "Gerne bestätigen wir Ihnen, dass die Überweisung des Verkaufserlöses auf Ihr Bankkonto erfolgt ist. Bitte prüfen Sie den Geldeingang. Den Verkaufsbeleg finden Sie in Ihrer RealUnit App."
+      "body": "Sie haben Ihre RealUnit-Token erfolgreich verkauft. Gerne bestätigen wir Ihnen, dass die Überweisung des Verkaufserlöses Ihrem Bankkonto überwiesen wurde. Bitte prüfen Sie den Geldeingang. Den Verkaufsbeleg finden Sie in Ihrer RealUnit App."
     },
     "processing": {
       "title": "Verkauf Ihrer RealUnit-Token",
@@ -50,6 +50,7 @@
       "crypto": {
         "title": "Verkauf RealUnit-Token – Rückerstattung",
         "salutation": "Ihre RealUnit-Token wurden an Ihr Wallet zurückerstattet",
+        "body": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Der Verkauf wird durch die Firma DFX AG ausgeführt. Dieser konnte nicht durchgeführt werden, da der Gegenwert der Transaktion die regulatorische Limite überschritten hat.<br><br>Wir bitten Sie, die erforderlichen Angaben zu ergänzen. Sobald die Verifizierung der Daten erfolgt ist, können Sie den Verkaufsauftrag nochmals durchführen.",
         "transaction_button": ""
       },
       "introduction": "Grund der Rückerstattung:<br>{reason}",
@@ -77,7 +78,7 @@
       "monthly_limit": {
         "title": "Verkauf RealUnit-Token – Ergänzung Ihrer persönlichen Daten",
         "salutation": "Sie haben Ihr 30-Tage-Volumenlimit überschritten",
-        "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Dabei wurde die gesetzliche monatliche Limite überschritten, bei welcher die uns vorliegenden Informationen ausreichen.",
+        "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Dabei wurde die gesetzliche monatliche Limite von CHF 1'000.- überschritten, bei welcher die uns vorliegenden Informationen ausreichen.",
         "line2": "Wir bitten Sie, die erforderlichen Angaben zu ergänzen. Sobald die Verifizierung der Daten erfolgt ist, wird Ihre Transaktion weiter bearbeitet.",
         "line3": "Bitte klicken Sie den nachfolgenden Link um sich zu verifizieren:<br>[url:{urlText}]",
         "line4": "Alternativ können Sie die Verifizierung auch direkt über die RealUnit-App starten.",
@@ -86,7 +87,7 @@
       "annual_limit": {
         "title": "Verkauf RealUnit-Token – Ergänzung Ihrer persönlichen Daten",
         "salutation": "Sie haben Ihr jährliches Volumenlimit überschritten",
-        "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Dabei wurde die gesetzliche jährliche Limite überschritten, bei welcher die uns vorliegenden Informationen ausreichen.",
+        "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Dabei wurde die gesetzliche jährliche Limite von CHF 100'000.- überschritten, bei welcher die uns vorliegenden Informationen ausreichen.",
         "line2": "Wir bitten Sie, die erforderlichen Angaben zu ergänzen. Sobald die Verifizierung der Daten erfolgt ist, wird Ihre Transaktion weiter bearbeitet.",
         "line3": "Bitte klicken Sie den nachfolgenden Link um sich zu verifizieren:<br>[url:{urlText}]",
         "line4": "Alternativ können Sie die Verifizierung auch direkt über die RealUnit-App starten.",
@@ -141,7 +142,7 @@
         "title": "Verkauf RealUnit-Token – Video-Verifizierung erforderlich",
         "salutation": "Video-Verifizierung ist erforderlich",
         "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Der Verkauf wird durch die Firma DFX AG ausgeführt. Aus regulatorischen Gründen ist zuerst eine Video-Verifizierung von Ihnen nötig.",
-        "line2": "Klicken Sie den nachfolgenden Link um die Video-Verifizierung durchzuführen:",
+        "line2": "Klicken Sie den nachfolgenden Link um die Video-Verifizierung bei DFX AG durchzuführen:",
         "line3": "[url:{urlText}]",
         "line4": "Sobald die Verifizierung der Daten erfolgt ist, wird Ihre Transaktion weiter bearbeitet.",
         "line5": "Falls Sie auf die vollständige Verifizierung verzichten möchten, können Sie den Verkauf der Aktientoken hier stornieren:<br>[url:Klick hier]"
