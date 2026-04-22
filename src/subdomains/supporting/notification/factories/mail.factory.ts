@@ -148,13 +148,14 @@ export class MailFactory {
     if (this.isDisabledMailWallet(context, wallet)) return undefined;
 
     const lang = userData.language.symbol.toLowerCase();
+    const walletName = wallet?.name;
 
     return new UserMailV2(
       {
         to: userData.mail,
-        subject: this.translate(title, lang),
-        salutation: salutation && this.translate(salutation.key, lang, salutation.params),
-        texts: texts && this.getMailAffix(texts, lang),
+        subject: this.translate(title, lang, undefined, walletName),
+        salutation: salutation && this.translate(salutation.key, lang, salutation.params, walletName),
+        texts: texts && this.getMailAffix(texts, lang, walletName),
         correlationId,
         options,
       },
@@ -186,7 +187,14 @@ export class MailFactory {
 
   //*** TRANSLATION METHODS ***//
 
-  public translate(key: string, lang: string, args?: any): string {
+  public translate(key: string, lang: string, args?: any, walletName?: string): string {
+    if (walletName) {
+      const walletKey = key.replace(/^mail\./, `mail-${walletName.toLowerCase()}.`);
+      const walletTranslation = this.i18n.translate(walletKey, { lang: lang.toLowerCase(), args }) as string;
+
+      if (walletTranslation !== walletKey) return walletTranslation;
+    }
+
     return this.i18n.translate(key, { lang: lang.toLowerCase(), args });
   }
 
@@ -201,19 +209,21 @@ export class MailFactory {
     );
   }
 
-  private getMailAffix(affix: TranslationItem[], lang = 'en'): MailAffix[] {
+  private getMailAffix(affix: TranslationItem[], lang = 'en', walletName?: string): MailAffix[] {
     return affix
       .filter((i) => i)
-      .map((i) => this.mapMailAffix(i, lang).flat())
+      .map((i) => this.mapMailAffix(i, lang, walletName).flat())
       .flat();
   }
 
-  private mapMailAffix(element: TranslationItem, lang: string): MailAffix[] {
+  private mapMailAffix(element: TranslationItem, lang: string, walletName?: string): MailAffix[] {
     switch (element.key) {
       case MailKey.SPACE:
         return [DefaultEmptyLine];
 
       case MailKey.DFX_TEAM_CLOSING:
+        if (walletName && Config.mail.wallet[walletName]?.template) return [];
+
         return [
           DefaultEmptyLine,
           {
@@ -227,8 +237,8 @@ export class MailFactory {
 
       default: {
         const params = Util.removeNullFields(element.params);
-        const translatedParams = this.translateParams(params, lang);
-        const text = this.translate(element.key, lang, translatedParams);
+        const translatedParams = this.translateParams(params, lang, walletName);
+        const text = this.translate(element.key, lang, translatedParams, walletName);
         const specialTag = this.parseSpecialTag(text);
 
         return [
@@ -266,10 +276,10 @@ export class MailFactory {
     return match ? { text: match[1], textSuffix: match[4], tag: match[2], value: match[3] } : undefined;
   }
 
-  private translateParams(params: TranslationParams, lang: string): TranslationParams {
+  private translateParams(params: TranslationParams, lang: string, walletName?: string): TranslationParams {
     return params
       ? Object.entries(params)
-          .map(([key, value]) => [key, this.translate(value, lang, params)])
+          .map(([key, value]) => [key, this.translate(value, lang, params, walletName)])
           .reduce((prev, [key, value]) => {
             prev[key] = value;
             return prev;
