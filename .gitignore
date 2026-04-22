@@ -53,3 +53,6 @@ test-contracts/
 
 # Test results
 test-results/
+
+# Generated email previews
+scripts/email-previews/
