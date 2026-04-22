@@ -91,6 +91,17 @@ export class SupportIssueController {
     return this.supportIssueService.getSupportIssueCounts(jwt.role);
   }
 
+  @Get('activity')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportIssueActivity(
+    @GetJwt() jwt: JwtPayload,
+    @Query('since') since?: string,
+  ): Promise<{ count: number; latestAt?: Date }> {
+    return this.supportIssueService.getSupportIssueActivity(since ? new Date(since) : undefined, jwt.role);
+  }
+
   @Get('clerks')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

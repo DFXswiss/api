@@ -90,6 +90,25 @@ export class SupportIssueService {
     return counts;
   }
 
+  async getSupportIssueActivity(since: Date | undefined, role: UserRole): Promise<{ count: number; latestAt?: Date }> {
+    const roleDepartmentMap: Partial<Record<UserRole, Department>> = {
+      [UserRole.SUPPORT]: Department.SUPPORT,
+      [UserRole.COMPLIANCE]: Department.COMPLIANCE,
+    };
+    const departmentByRole = roleDepartmentMap[role];
+
+    const qb = this.messageRepo
+      .createQueryBuilder('m')
+      .innerJoin('m.issue', 'i')
+      .select('COUNT(*)', 'count')
+      .addSelect('MAX(m.created)', 'latestAt');
+    if (since) qb.andWhere('m.created > :since', { since: since.toISOString() });
+    if (departmentByRole) qb.andWhere('i.department = :department', { department: departmentByRole });
+
+    const raw = await qb.getRawOne<{ count: string | number; latestAt: Date | null }>();
+    return { count: +(raw?.count ?? 0), latestAt: raw?.latestAt ?? undefined };
+  }
+
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
     if (!dto?.transaction?.orderUid) throw new BadRequestException('JWT Token or quoteUid missing');
     const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
