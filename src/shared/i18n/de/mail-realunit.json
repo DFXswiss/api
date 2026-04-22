@@ -232,42 +232,6 @@
         "line3": "Nachdem diese Transaktion bei uns eingegangen und verarbeitet wurde, wird Ihre ausstehende Transaktion ebenfalls automatisch weiterverarbeitet.",
         "line4": "Es ist also nur eine Überweisung von Ihrem Bankkonto erforderlich.",
         "line5": ""
-      },
-      "manual_check_phone": {
-        "title": "Kauf RealUnit-Token – Telefongespräch erforderlich",
-        "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
-        "line1": "Wir haben Ihre Einzahlung erhalten.",
-        "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei Ihnen melden.",
-        "line3": "Wenn alle Fragen geklärt sind, wird Ihre Transaktion automatisch weiterverarbeitet.",
-        "line4": "",
-        "line5": "Falls Sie stattdessen eine Rückerstattung wünschen:<br>[url:Klick hier]"
-      },
-      "manual_check_ip_phone": {
-        "title": "Kauf RealUnit-Token – Telefongespräch erforderlich",
-        "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
-        "line1": "Wir haben Ihre Einzahlung erhalten.",
-        "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei Ihnen melden.",
-        "line3": "Wenn alle Fragen geklärt sind, wird Ihre Transaktion automatisch weiterverarbeitet.",
-        "line4": "",
-        "line5": "Falls Sie stattdessen eine Rückerstattung wünschen:<br>[url:Klick hier]"
-      },
-      "manual_check_ip_country_phone": {
-        "title": "Kauf RealUnit-Token – Telefongespräch erforderlich",
-        "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
-        "line1": "Wir haben Ihre Einzahlung erhalten.",
-        "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei Ihnen melden.",
-        "line3": "Wenn alle Fragen geklärt sind, wird Ihre Transaktion automatisch weiterverarbeitet.",
-        "line4": "",
-        "line5": "Falls Sie stattdessen eine Rückerstattung wünschen:<br>[url:Klick hier]"
-      },
-      "manual_check_external_account_phone": {
-        "title": "Kauf RealUnit-Token – Telefongespräch erforderlich",
-        "salutation": "Es ist eine manuelle Überprüfung per Telefon erforderlich",
-        "line1": "Wir haben Ihre Einzahlung erhalten.",
-        "line2": "Wir werden uns in Kürze auf der Telefonnummer {phone} bei Ihnen melden.",
-        "line3": "Wenn alle Fragen geklärt sind, wird Ihre Transaktion automatisch weiterverarbeitet.",
-        "line4": "",
-        "line5": "Falls Sie stattdessen eine Rückerstattung wünschen:<br>[url:Klick hier]"
       }
     },
     "transaction_button": ""
@@ -341,11 +305,6 @@
       "title": "Vervollständigen Sie Ihre Verifizierung",
       "salutation": "Bitte vervollständigen Sie Ihre Verifizierung",
       "message": "Uns ist aufgefallen, dass Ihre Verifizierung noch nicht vollständig abgeschlossen wurde. Bitte vervollständigen Sie Ihre Angaben in der RealUnit App, damit Sie RealUnit-Token kaufen und verkaufen können."
-    },
-    "payment_data": {
-      "title": "Forderungsabtretungsvertrag (Zession)",
-      "salutation": "Forderungsabtretungsvertrag (Zession)",
-      "message": "RealUnit bietet seinen Kunden die Möglichkeit, offene Forderungen aus dem Verkauf von Waren und Dienstleistungen abzutreten, um eine Bezahlung mittels Kryptowährungen zu ermöglichen. Der geschuldete Betrag wird nach Abzug einer Bearbeitungsgebühr von 0.2% an den Kunden ausbezahlt.<br><br>Zugestimmt am {date}"
     },
     "retry": "Oder versuchen Sie es über den folgenden Link erneut:<br>[url:{urlText}]",
     "next_step": "Um mit Ihrer Verifizierung fortzufahren, nutzen Sie den folgenden Link:<br>[url:{urlText}]",
