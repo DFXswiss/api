@@ -49,7 +49,7 @@ export class BuyFiatController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async update(@Param('id') id: string, @Body() dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     return this.buyFiatService.update(+id, dto);
   }
@@ -57,7 +57,7 @@ export class BuyFiatController {
   @Delete(':id/amlCheck')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async resetAmlCheck(@Param('id') id: string): Promise<void> {
     return this.buyFiatService.resetAmlCheck(+id);
   }

@@ -38,6 +38,7 @@ export class RecommendationService {
     if (!userData) throw new NotFoundException('Account not found');
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
     if (!userData.tradeApprovalDate) throw new BadRequestException('Trade approval date missing');
+    if (!userData.hasTradeHistory) throw new BadRequestException('Trade history required');
 
     const mailUser = dto.recommendedMail
       ? await this.userDataService
@@ -139,7 +140,8 @@ export class RecommendationService {
         recommender.isBlocked ||
         recommender.hasAnyRiskStatus ||
         recommender.kycLevel < KycLevel.LEVEL_50 ||
-        !recommender.tradeApprovalDate
+        !recommender.tradeApprovalDate ||
+        !recommender.hasTradeHistory
       )
         throw new NotFoundException('Recommender not found');
 
@@ -201,6 +203,7 @@ export class RecommendationService {
       throw new BadRequestException('You can not confirm a recommendation from another account');
     if (entity.recommender.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing kyc');
     if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
+    if (!entity.recommender.hasTradeHistory) throw new BadRequestException('Trade history required');
     if (entity.isConfirmed !== null) throw new BadRequestException('Recommendation is already confirmed');
     if (entity.isExpired) throw new BadRequestException('Recommendation is expired');
     if (!entity.isUsed) throw new BadRequestException('Recommendation is not used');
@@ -263,6 +266,7 @@ export class RecommendationService {
     if (entity.isUsed) throw new BadRequestException('Recommendation code is already used');
     if (entity.type === RecommendationType.REQUEST) throw new BadRequestException('Recommendation code is not valid');
     if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('Recommender is not approved yet');
+    if (!entity.recommender.hasTradeHistory) throw new BadRequestException('Trade history required');
 
     return entity;
   }
@@ -296,7 +300,8 @@ export class RecommendationService {
       !entity ||
       entity.recommender.isBlocked ||
       entity.recommender.hasAnyRiskStatus ||
-      !entity.recommender.tradeApprovalDate
+      !entity.recommender.tradeApprovalDate ||
+      !entity.recommender.hasTradeHistory
     )
       return;
 

@@ -12,6 +12,7 @@ import { NameCheckService } from 'src/subdomains/generic/kyc/services/name-check
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { BankData, BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
@@ -20,6 +21,7 @@ import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { RecommendationService } from 'src/subdomains/generic/user/models/recommendation/recommendation.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
@@ -46,6 +48,7 @@ export class AmlService {
     private readonly ipLogService: IpLogService,
     private readonly kycService: KycService,
     private readonly kycLogService: KycLogService,
+    private readonly recommendationService: RecommendationService,
   ) {}
 
   async postProcessing(
@@ -109,6 +112,7 @@ export class AmlService {
   async getAmlCheckInput(entity: BuyFiat | BuyCrypto): Promise<{
     users: User[];
     refUser: User;
+    recommender: UserData;
     bankData: BankData;
     blacklist: SpecialExternalAccount[];
     phoneCallList: SpecialExternalAccount[];
@@ -125,6 +129,8 @@ export class AmlService {
     let bankData = await this.getBankData(entity);
     const refUser =
       entity.user.usedRef !== Config.defaultRef ? await this.userService.getRefUser(entity.user.usedRef) : undefined;
+    const recommendations = await this.recommendationService.getRecommendationsByRecommendedId(entity.userData.id);
+    const recommender = recommendations.find((r) => r.isConfirmed)?.recommender;
 
     if (bankData) {
       if (!entity.userData.hasValidNameCheckDate) {
@@ -186,7 +192,8 @@ export class AmlService {
       if (verifiedCountry) await this.userDataService.updateUserDataInternal(entity.userData, { verifiedCountry });
     }
 
-    if (entity instanceof BuyFiat) return { users: entity.userData.users, refUser, bankData, blacklist, phoneCallList };
+    if (entity instanceof BuyFiat)
+      return { users: entity.userData.users, refUser, recommender, bankData, blacklist, phoneCallList };
 
     const ipLogCountries = await this.ipLogService.getLoginCountries(entity.userData.id, Util.daysBefore(3));
 
@@ -194,6 +201,7 @@ export class AmlService {
       return {
         users: entity.userData.users,
         refUser,
+        recommender,
         bankData: undefined,
         blacklist,
         phoneCallList,
@@ -205,6 +213,7 @@ export class AmlService {
     return {
       users: entity.userData.users,
       refUser,
+      recommender,
       bankData,
       blacklist,
       phoneCallList,
