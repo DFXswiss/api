@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
-import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
+import { BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -28,7 +28,7 @@ export class NodeBalanceObserver extends MetricObserver<NodeBalanceData> {
   ) {
     super(monitoringService, 'node', 'balance');
 
-    this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
+    this.bitcoinClient = bitcoinService.getDefaultClient();
   }
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })

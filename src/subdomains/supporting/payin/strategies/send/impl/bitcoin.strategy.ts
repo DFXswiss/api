@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -28,11 +27,11 @@ export class BitcoinStrategy extends BitcoinBasedStrategy {
   }
 
   get forwardRequired(): boolean {
-    return true;
+    return false;
   }
 
   protected getForwardAddress(): BlockchainAddress {
-    return BlockchainAddress.create(Config.blockchain.default.btcOutput.address, Blockchain.BITCOIN);
+    throw new Error('Bitcoin does not use forwarding');
   }
 
   async checkTransactionCompletion(txId: string, minConfirmations: number): Promise<boolean> {

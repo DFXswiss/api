@@ -7,7 +7,7 @@
 
 import { BitcoinClient } from '../../node/bitcoin-client';
 import { BitcoinFeeService } from '../bitcoin-fee.service';
-import { BitcoinNodeType, BitcoinService } from '../bitcoin.service';
+import { BitcoinService } from '../bitcoin.service';
 
 describe('BitcoinFeeService', () => {
   let service: BitcoinFeeService;
@@ -269,8 +269,8 @@ describe('BitcoinFeeService', () => {
   // --- Service Initialization Tests --- //
 
   describe('Service Initialization', () => {
-    it('should get BTC_INPUT client from BitcoinService', () => {
-      expect(mockBitcoinService.getDefaultClient).toHaveBeenCalledWith(BitcoinNodeType.BTC_INPUT);
+    it('should get client from BitcoinService', () => {
+      expect(mockBitcoinService.getDefaultClient).toHaveBeenCalled();
     });
   });
 

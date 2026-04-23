@@ -757,14 +757,9 @@ export class Configuration {
         passive: process.env.NODE_DEX_URL_PASSIVE,
         address: process.env.DEX_WALLET_ADDRESS,
       },
-      btcInput: {
-        active: process.env.NODE_BTC_INP_URL_ACTIVE,
-        passive: process.env.NODE_BTC_INP_URL_PASSIVE,
-      },
-      btcOutput: {
-        active: process.env.NODE_BTC_OUT_URL_ACTIVE,
-        passive: process.env.NODE_BTC_OUT_URL_PASSIVE,
-        address: process.env.BTC_OUT_WALLET_ADDRESS,
+      btc: {
+        active: process.env.NODE_BTC_URL_ACTIVE,
+        passive: process.env.NODE_BTC_URL_PASSIVE,
       },
       walletPassword: process.env.NODE_WALLET_PASSWORD,
       utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,

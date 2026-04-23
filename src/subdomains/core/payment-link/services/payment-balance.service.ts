@@ -1,7 +1,6 @@
 import { Injectable, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
-import { BitcoinNodeType } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
 import { InternetComputerClient } from 'src/integration/blockchain/icp/icp-client';
 import { InternetComputerUtil } from 'src/integration/blockchain/icp/icp.util';
@@ -218,17 +217,8 @@ export class PaymentBalanceService implements OnModuleInit {
   }
 
   private async forwardBitcoinDeposit(): Promise<string> {
-    const client = this.blockchainRegistryService.getBitcoinClient(Blockchain.BITCOIN, BitcoinNodeType.BTC_INPUT);
-    const outputAddress = Config.blockchain.default.btcOutput.address;
-    const feeRate = await this.bitcoinFeeService.getSendFeeRate();
-
-    // sweep all payment UTXOs: amount 0 = use full UTXO balance, fee subtracted from output
-    return client.sendManyFromAddress(
-      [Config.payment.bitcoinAddress],
-      [{ addressTo: outputAddress, amount: 0 }],
-      feeRate,
-      [0],
-    );
+    // No forwarding needed — Bitcoin uses a single wallet, payment UTXOs are directly available for payouts
+    return '';
   }
 
   getPaymentAccount(chain: Blockchain): WalletAccount {

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
-import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
+import { BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
 import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
 
@@ -15,7 +15,7 @@ export class PayoutBitcoinService extends PayoutBitcoinBasedService {
   ) {
     super();
 
-    this.client = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
+    this.client = bitcoinService.getDefaultClient();
   }
 
   async isHealthy(): Promise<boolean> {

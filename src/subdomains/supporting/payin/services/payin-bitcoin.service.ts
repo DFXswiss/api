@@ -3,11 +3,11 @@ import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-c
 import { BitcoinTransaction, BitcoinUTXO } from 'src/integration/blockchain/bitcoin/node/dto/bitcoin-transaction.dto';
 import { InWalletTransaction } from 'src/integration/blockchain/bitcoin/node/node-client';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
-import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
+import { BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { QueueHandler } from 'src/shared/utils/queue-handler';
-import { CryptoInput, PayInStatus } from '../entities/crypto-input.entity';
-import { PayInBitcoinBasedService, UnconfirmedPayInFilterResult } from './base/payin-bitcoin-based.service';
+import { CryptoInput } from '../entities/crypto-input.entity';
+import { PayInBitcoinBasedService } from './base/payin-bitcoin-based.service';
 
 @Injectable()
 export class PayInBitcoinService extends PayInBitcoinBasedService {
@@ -24,7 +24,7 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
   ) {
     super();
 
-    this.client = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
+    this.client = bitcoinService.getDefaultClient();
   }
 
   isAvailable(): boolean {
@@ -89,74 +89,19 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
     return this.client.isTxComplete(txId, minConfirmations);
   }
 
+  async sendTransfer(): Promise<{ outTxId: string; feeAmount: number }> {
+    throw new Error('Bitcoin does not use forwarding');
+  }
+
+  async filterUnconfirmedPayInsForForward(): Promise<{
+    nextBlockCandidates: CryptoInput[];
+    failedPayIns: CryptoInput[];
+  }> {
+    // Bitcoin does not use forwarding — no unconfirmed forward candidates
+    return { nextBlockCandidates: [], failedPayIns: [] };
+  }
+
   async getTx(outTxId: string): Promise<InWalletTransaction | null> {
     return this.client.getTx(outTxId);
-  }
-
-  async sendTransfer(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
-    return this.client.send(
-      input.destinationAddress.address,
-      input.inTxId,
-      input.sendingAmount,
-      input.txSequence,
-      await this.feeService.getSendFeeRate(),
-    );
-  }
-
-  /**
-   * Filters unconfirmed PayIns to find next-block candidates.
-   * Returns PayIns ready to forward and PayIns that should be marked as FAILED (evicted from mempool).
-   */
-  async filterUnconfirmedPayInsForForward(payIns: CryptoInput[]): Promise<UnconfirmedPayInFilterResult> {
-    if (payIns.length === 0) {
-      return { nextBlockCandidates: [], failedPayIns: [] };
-    }
-
-    const fastestFee = await this.feeService.getRecommendedFeeRate();
-    const txids = payIns.map((p) => p.inTxId);
-    const feeRates = await this.feeService.getTxFeeRates(txids);
-
-    const nextBlockCandidates: CryptoInput[] = [];
-    const failedPayIns: CryptoInput[] = [];
-
-    for (const payIn of payIns) {
-      const result = feeRates.get(payIn.inTxId);
-
-      if (!result) {
-        this.logger.warn(`PayIn ${payIn.id}: No fee rate result for TX ${payIn.inTxId} - skipping`);
-        continue;
-      }
-
-      switch (result.status) {
-        case 'not_found':
-          // TX evicted from mempool → mark as FAILED
-          this.logger.warn(`PayIn ${payIn.id}: TX ${payIn.inTxId} not in mempool - marking as FAILED`);
-          payIn.status = PayInStatus.FAILED;
-          failedPayIns.push(payIn);
-          break;
-
-        case 'confirmed':
-          // TX already confirmed → will be picked up by regular confirmation process
-          this.logger.verbose(`PayIn ${payIn.id}: TX ${payIn.inTxId} already confirmed - skipping unconfirmed forward`);
-          break;
-
-        case 'error':
-          // API error for this TX - skip, don't mark as failed
-          this.logger.warn(`PayIn ${payIn.id}: API error checking TX ${payIn.inTxId} - skipping`);
-          break;
-
-        case 'unconfirmed':
-          if (result.feeRate !== undefined && result.feeRate >= fastestFee) {
-            nextBlockCandidates.push(payIn);
-          } else {
-            this.logger.verbose(
-              `PayIn ${payIn.id}: Fee rate ${result.feeRate} < ${fastestFee} - waiting for confirmation`,
-            );
-          }
-          break;
-      }
-    }
-
-    return { nextBlockCandidates, failedPayIns };
   }
 }

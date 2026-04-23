@@ -243,7 +243,7 @@ export class BuyFiatService {
     returnAddress: string,
     amount: number,
   ): Promise<void> {
-    if (cryptoInput.status === PayInStatus.FORWARD_CONFIRMED) {
+    if ([PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED].includes(cryptoInput.status)) {
       await this.payoutService.doPayout({
         context: PayoutOrderContext.BUY_FIAT_RETURN,
         correlationId: `${buyFiat.id}`,

@@ -4,7 +4,7 @@ import { BitcoinTestnet4Service } from 'src/integration/blockchain/bitcoin-testn
 import { BitcoinTestnet4FeeService } from 'src/integration/blockchain/bitcoin-testnet4/services/bitcoin-testnet4-fee.service';
 import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
-import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
+import { BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { CitreaTestnetService } from 'src/integration/blockchain/citrea-testnet/citrea-testnet.service';
 import { CitreaClient } from 'src/integration/blockchain/citrea/citrea-client';
 import { CitreaService } from 'src/integration/blockchain/citrea/citrea.service';
@@ -125,9 +125,7 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
     this.expectedCliVersion = config.expectedVersion;
 
     this.clementineClient = clementineService.getDefaultClient();
-    this.bitcoinClient = this.isTestnet
-      ? bitcoinTestnet4Service.getDefaultClient()
-      : bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
+    this.bitcoinClient = this.isTestnet ? bitcoinTestnet4Service.getDefaultClient() : bitcoinService.getDefaultClient();
     this.citreaClient = this.isTestnet
       ? citreaTestnetService.getDefaultClient<CitreaClient>()
       : citreaService.getDefaultClient<CitreaClient>();

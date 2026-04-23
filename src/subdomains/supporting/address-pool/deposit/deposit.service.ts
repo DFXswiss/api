@@ -3,7 +3,7 @@ import { Config } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
-import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
+import { BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
 import { CardanoUtil } from 'src/integration/blockchain/cardano/cardano.util';
 import { FiroClient } from 'src/integration/blockchain/firo/firo-client';
 import { FiroService } from 'src/integration/blockchain/firo/services/firo.service';
@@ -44,7 +44,7 @@ export class DepositService implements OnModuleInit {
     firoService: FiroService,
     moneroService: MoneroService,
   ) {
-    this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_INPUT);
+    this.bitcoinClient = bitcoinService.getDefaultClient();
     this.lightningClient = lightningService.getDefaultClient();
     this.firoClient = firoService.getDefaultClient();
     this.moneroClient = moneroService.getDefaultClient();
@@ -126,7 +126,7 @@ export class DepositService implements OnModuleInit {
     const label = Util.isoDate(new Date());
 
     for (let i = 0; i < count; i++) {
-      const address = await client.createAddress(label, 'p2sh-segwit');
+      const address = await client.createAddress(label, 'bech32');
       const deposit = Deposit.create(address, [blockchain]);
       await this.depositRepo.save(deposit);
     }
