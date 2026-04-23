@@ -34,7 +34,7 @@ export class LimitRequestNotificationService {
         clerk: Not(IsNull()),
         edited: Not(IsNull()),
       },
-      relations: { supportIssue: { userData: { wallet: true } } },
+      relations: { supportIssue: { userData: { wallet: true, users: { wallet: true } } } },
     });
 
     if (entities.length > 0) this.logger.verbose(`Sending ${entities.length} 'limit-request accepted' email(s)`);
@@ -47,7 +47,7 @@ export class LimitRequestNotificationService {
             context: MailContext.LIMIT_REQUEST,
             input: {
               userData: entity.userData,
-              wallet: entity.userData.wallet,
+              wallet: entity.userData.mailWallet,
               title: `${MailTranslationKey.LIMIT_REQUEST}.title`,
               prefix: [
                 {

@@ -357,7 +357,7 @@ export class RecommendationService {
           context: MailContext.RECOMMENDATION_MAIL,
           input: {
             userData: entity.recommended,
-            wallet: entity.recommended.wallet,
+            wallet: entity.recommended.mailWallet,
             title: `${MailTranslationKey.RECOMMENDATION_MAIL}.title`,
             salutation: { key: `${MailTranslationKey.RECOMMENDATION_MAIL}.salutation` },
             texts: [
@@ -402,7 +402,7 @@ export class RecommendationService {
           context: MailContext.RECOMMENDATION_CONFIRMATION,
           input: {
             userData: entity.recommender,
-            wallet: entity.recommender.wallet,
+            wallet: entity.recommender.mailWallet,
             title: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.title`,
             salutation: { key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.salutation` },
             texts: [

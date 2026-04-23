@@ -566,6 +566,10 @@ export class UserData extends IEntity {
     return this.kycType === KycType.DFX;
   }
 
+  get mailWallet(): Wallet | undefined {
+    return this.users?.find((u) => u.wallet?.name === 'RealUnit')?.wallet ?? this.wallet;
+  }
+
   get individualFeeList(): number[] | undefined {
     return this.individualFees?.split(';')?.map(Number);
   }

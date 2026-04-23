@@ -65,7 +65,7 @@ export class AccountMergeService {
       context: MailContext.ACCOUNT_MERGE_REQUEST,
       input: {
         userData: receiver,
-        wallet: receiver.wallet,
+        wallet: receiver.mailWallet,
         title: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.title`,
         salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.salutation` },
         texts: [
