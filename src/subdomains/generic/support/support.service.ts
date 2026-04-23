@@ -19,6 +19,7 @@ import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service'
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import {
   BankTx,
+  BankTxComplianceSearchableTypes,
   BankTxType,
   BankTxTypeUnassigned,
 } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
@@ -526,7 +527,12 @@ export class SupportService {
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
     const searchResult = await this.getUserDatasByKey(query.key);
     const bankTx = [ComplianceSearchType.IBAN, ComplianceSearchType.VIRTUAL_IBAN].includes(searchResult.type)
-      ? await this.bankTxService.getUnassignedBankTx([query.key], [query.key])
+      ? await this.bankTxService.getUnassignedBankTx(
+          [query.key],
+          [query.key],
+          undefined,
+          BankTxComplianceSearchableTypes,
+        )
       : searchResult.type === ComplianceSearchType.NAME
         ? await this.bankTxService.getBankTxsByName(query.key)
         : [];

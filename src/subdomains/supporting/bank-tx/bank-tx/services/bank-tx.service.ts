@@ -50,6 +50,7 @@ import { UpdateBankTxDto } from '../dto/update-bank-tx.dto';
 import { BankTxBatch } from '../entities/bank-tx-batch.entity';
 import {
   BankTx,
+  BankTxComplianceSearchableTypes,
   BankTxIndicator,
   BankTxType,
   BankTxTypeCompleted,
@@ -533,9 +534,10 @@ export class BankTxService implements OnModuleInit {
     accounts: string[],
     virtualIbans: string[],
     relations: FindOptionsRelations<BankTx> = { transaction: true },
+    types: BankTxType[] = BankTxUnassignedTypes,
   ): Promise<BankTx[]> {
     const request: FindOptionsWhere<BankTx> = {
-      type: In(BankTxUnassignedTypes),
+      type: In(types),
       creditDebitIndicator: BankTxIndicator.CREDIT,
     };
 
@@ -557,7 +559,7 @@ export class BankTxService implements OnModuleInit {
 
   async getBankTxsByName(name: string): Promise<BankTx[]> {
     const request: FindOptionsWhere<BankTx> = {
-      type: In([...BankTxUnassignedTypes, BankTxType.BANK_TX_RETURN]),
+      type: In(BankTxComplianceSearchableTypes),
       creditDebitIndicator: BankTxIndicator.CREDIT,
     };
 
