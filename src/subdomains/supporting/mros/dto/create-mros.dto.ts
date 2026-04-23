@@ -1,4 +1,4 @@
-import { IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsDateString, IsEnum, IsInt, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 import { MrosStatus } from '../mros-status.enum';
 
 export class CreateMrosDto {
@@ -21,4 +21,21 @@ export class CreateMrosDto {
   @IsNotEmpty()
   @IsString()
   caseManager: string;
+
+  @IsOptional()
+  @IsString()
+  reportCode?: string;
+
+  @IsOptional()
+  @IsString()
+  reason?: string;
+
+  @IsOptional()
+  @IsString()
+  action?: string;
+
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  indicators?: string[];
 }
