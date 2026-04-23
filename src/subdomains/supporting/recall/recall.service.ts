@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { In } from 'typeorm';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { CheckoutTxService } from '../fiat-payin/services/checkout-tx.service';
 import { CreateRecallDto } from './dto/create-recall.dto';
@@ -60,6 +61,14 @@ export class RecallService {
 
   async getAll(): Promise<Recall[]> {
     return this.repo.find({ relations: { bankTx: true, checkoutTx: true, user: true } });
+  }
+
+  async getByBankTxIds(bankTxIds: number[]): Promise<Recall[]> {
+    if (!bankTxIds.length) return [];
+    return this.repo.find({
+      where: { bankTx: { id: In(bankTxIds) } },
+      relations: { bankTx: true },
+    });
   }
 
   async getById(id: number): Promise<Recall> {

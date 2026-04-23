@@ -1,5 +1,6 @@
 import { IsNotEmpty } from 'class-validator';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { RecallReason } from 'src/subdomains/supporting/recall/recall-reason.enum';
 import { KycFile } from '../../kyc/entities/kyc-file.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
@@ -43,6 +44,16 @@ export class BankTxSupportInfo {
   name?: string;
   iban?: string;
   remittanceInfo?: string;
+  recall?: RecallSupportInfo;
+}
+
+export class RecallSupportInfo {
+  id: number;
+  created: Date;
+  sequence: number;
+  reason?: RecallReason;
+  comment: string;
+  fee: number;
 }
 
 export class UserSupportInfo {
