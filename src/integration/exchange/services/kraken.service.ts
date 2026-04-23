@@ -41,6 +41,7 @@ export class KrakenService extends ExchangeService {
     BinancePay: undefined,
     KucoinPay: undefined,
     Solana: false,
+    Starknet: undefined,
     Tron: undefined,
     InternetComputer: undefined,
     Citrea: undefined,

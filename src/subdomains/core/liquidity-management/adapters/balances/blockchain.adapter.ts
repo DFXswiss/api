@@ -105,6 +105,7 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
         case Blockchain.ZANO:
         case Blockchain.SOLANA:
+        case Blockchain.STARKNET:
         case Blockchain.TRON:
         case Blockchain.CARDANO:
         case Blockchain.INTERNET_COMPUTER:
