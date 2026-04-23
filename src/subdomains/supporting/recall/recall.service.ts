@@ -25,8 +25,17 @@ export class RecallService {
     }
 
     if (dto.bankTxId) {
-      entity.bankTx = await this.bankTxService.getBankTxById(dto.bankTxId);
+      // Load the relations referenced by the BankTx.user getter so it resolves.
+      // Transaction.user, BuyCrypto.transaction and BuyFiat.transaction are eager,
+      // so the user chain cascades transitively from these top-level relations.
+      entity.bankTx = await this.bankTxService.getBankTxById(dto.bankTxId, {
+        transaction: true,
+        buyCrypto: true,
+        buyCryptoChargeback: true,
+        buyFiats: true,
+      });
       if (!entity.bankTx) throw new NotFoundException('BankTx not found');
+      if (!entity.user) entity.user = entity.bankTx.user;
     }
 
     if (dto.checkoutTxId) {
