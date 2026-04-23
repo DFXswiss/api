@@ -48,4 +48,18 @@ export class RecallService {
 
     return this.repo.save({ ...entity, ...dto });
   }
+
+  async getAll(): Promise<Recall[]> {
+    return this.repo.find({ relations: { bankTx: true, checkoutTx: true, user: true } });
+  }
+
+  async getById(id: number): Promise<Recall> {
+    const entity = await this.repo.findOne({
+      where: { id },
+      relations: { bankTx: true, checkoutTx: true, user: true },
+    });
+    if (!entity) throw new NotFoundException('Recall not found');
+
+    return entity;
+  }
 }
