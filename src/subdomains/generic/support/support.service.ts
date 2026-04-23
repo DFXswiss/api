@@ -17,6 +17,8 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
+import { Recall } from 'src/subdomains/supporting/recall/recall.entity';
+import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
 import {
   BankTx,
   BankTxComplianceSearchableTypes,
@@ -70,6 +72,7 @@ import {
   KycFileYearlyStats,
   KycLogSupportInfo,
   KycStepSupportInfo,
+  RecallSupportInfo,
   RecommendationEntry,
   RecommendationGraph,
   RecommendationGraphEdge,
@@ -122,6 +125,7 @@ export class SupportService {
     private readonly supportIssueService: SupportIssueService,
     private readonly kycDocumentService: KycDocumentService,
     private readonly supportPdfService: SupportPdfService,
+    private readonly recallService: RecallService,
   ) {}
 
   async generateIpLogPdf(userDataId: number): Promise<string> {
@@ -211,6 +215,7 @@ export class SupportService {
         return bankTx;
       });
     const bankTxs = [...incomingBankTxs, ...outgoingBankTxs];
+    const recallByBankTxId = await this.buildRecallByBankTxIdMap(bankTxs.map((b) => b.id));
 
     // Load recommendation data for Recommendation steps
     const recommendationStepIds = kycSteps.filter((s) => s.name === KycStepName.RECOMMENDATION).map((s) => s.id);
@@ -242,7 +247,7 @@ export class SupportService {
       ),
       kycLogs: kycLogs.map((l) => this.toKycLogSupportInfo(l)),
       transactions: transactions.map((t) => this.toTransactionSupportInfo(t)),
-      bankTxs: bankTxs.map((b) => this.toBankTxDto(b)),
+      bankTxs: bankTxs.map((b) => this.toBankTxDto(b, recallByBankTxId.get(b.id))),
       cryptoInputs: cryptoInputs.map((c) => this.toCryptoInputSupportInfo(c)),
       ipLogs: ipLogs.map((l) => this.toIpLogSupportInfo(l)),
       supportIssues: supportIssues.map((s) => this.toSupportIssueSupportInfo(s)),
@@ -550,11 +555,12 @@ export class SupportService {
 
     const orgUserIds = uniqueUserDatas.filter((u) => u.accountType === AccountType.ORGANIZATION).map((u) => u.id);
     const onboardingStatuses = await this.getDfxApprovalStatuses(orgUserIds);
+    const recallByBankTxId = await this.buildRecallByBankTxIdMap(bankTx.map((b) => b.id));
 
     return {
       type: searchResult.type,
       userDatas: uniqueUserDatas.map((u) => this.toUserDataDto(u, onboardingStatuses)),
-      bankTx: bankTx.sort((a, b) => a.id - b.id).map((b) => this.toBankTxDto(b)),
+      bankTx: bankTx.sort((a, b) => a.id - b.id).map((b) => this.toBankTxDto(b, recallByBankTxId.get(b.id))),
     };
   }
 
@@ -718,7 +724,7 @@ export class SupportService {
     };
   }
 
-  private toBankTxDto(bankTx: BankTx): BankTxSupportInfo {
+  private toBankTxDto(bankTx: BankTx, recall?: Recall): BankTxSupportInfo {
     return {
       id: bankTx.id,
       transactionId: bankTx.transaction?.id,
@@ -729,7 +735,24 @@ export class SupportService {
       name: bankTx.completeName(),
       iban: bankTx.iban,
       remittanceInfo: bankTx.remittanceInfo,
+      recall: recall ? this.toRecallSupportInfo(recall) : undefined,
     };
+  }
+
+  private toRecallSupportInfo(recall: Recall): RecallSupportInfo {
+    return {
+      id: recall.id,
+      created: recall.created,
+      sequence: recall.sequence,
+      reason: recall.reason,
+      comment: recall.comment,
+      fee: recall.fee,
+    };
+  }
+
+  private async buildRecallByBankTxIdMap(bankTxIds: number[]): Promise<Map<number, Recall>> {
+    const recalls = await this.recallService.findByBankTxIds(bankTxIds);
+    return new Map(recalls.map((r) => [r.bankTx.id, r]));
   }
 
   private toCryptoInputSupportInfo(ci: CryptoInput): CryptoInputSupportInfo {

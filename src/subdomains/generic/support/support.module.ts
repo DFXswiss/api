@@ -7,6 +7,7 @@ import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
 import { PayInModule } from 'src/subdomains/supporting/payin/payin.module';
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
+import { RecallModule } from 'src/subdomains/supporting/recall/recall.module';
 import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
 import { KycModule } from '../kyc/kyc.module';
 import { UserModule } from '../user/user.module';
@@ -26,6 +27,7 @@ import { SupportService } from './support.service';
     KycModule,
     TransactionModule,
     SupportIssueModule,
+    RecallModule,
     forwardRef(() => PaymentModule),
   ],
   controllers: [SupportController],

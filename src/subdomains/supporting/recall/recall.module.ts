@@ -13,6 +13,6 @@ import { RecallService } from './recall.service';
   imports: [TypeOrmModule.forFeature([Recall]), SharedModule, UserModule, BankTxModule, FiatPayInModule],
   controllers: [RecallController],
   providers: [RecallRepository, RecallService],
-  exports: [],
+  exports: [RecallService],
 })
 export class RecallModule {}
