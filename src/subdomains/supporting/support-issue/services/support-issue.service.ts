@@ -33,7 +33,7 @@ import {
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
-import { Department } from '../enums/department.enum';
+import { RoleDepartmentMap } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
@@ -71,12 +71,7 @@ export class SupportIssueService {
       .addSelect('COUNT(*)', 'count')
       .groupBy('issue.state');
 
-    const roleDepartmentMap: Partial<Record<UserRole, Department>> = {
-      [UserRole.SUPPORT]: Department.SUPPORT,
-      [UserRole.COMPLIANCE]: Department.COMPLIANCE,
-    };
-
-    const departmentByRole = roleDepartmentMap[role];
+    const departmentByRole = RoleDepartmentMap[role];
     if (departmentByRole) qb.andWhere('issue.department = :department', { department: departmentByRole });
 
     const raw: { state: SupportIssueInternalState; count: string }[] = await qb.getRawMany();
@@ -91,11 +86,7 @@ export class SupportIssueService {
   }
 
   async getSupportIssueActivity(since: Date | undefined, role: UserRole): Promise<{ count: number; latestAt?: Date }> {
-    const roleDepartmentMap: Partial<Record<UserRole, Department>> = {
-      [UserRole.SUPPORT]: Department.SUPPORT,
-      [UserRole.COMPLIANCE]: Department.COMPLIANCE,
-    };
-    const departmentByRole = roleDepartmentMap[role];
+    const departmentByRole = RoleDepartmentMap[role];
 
     const qb = this.messageRepo
       .createQueryBuilder('m')
@@ -276,12 +267,7 @@ export class SupportIssueService {
     const where: FindOptionsWhere<SupportIssue> = {};
 
     // department filtering based on role
-    const roleDepartmentMap: Partial<Record<UserRole, Department>> = {
-      [UserRole.SUPPORT]: Department.SUPPORT,
-      [UserRole.COMPLIANCE]: Department.COMPLIANCE,
-    };
-
-    const departmentByRole = roleDepartmentMap[role];
+    const departmentByRole = RoleDepartmentMap[role];
     if (departmentByRole) {
       where.department = departmentByRole;
     } else if (filter.department) {
@@ -341,11 +327,23 @@ export class SupportIssueService {
         .select('m.issueId', 'issueId')
         .addSelect('COUNT(*)', 'count')
         .addSelect(
-          `(SELECT TOP 1 m2.created FROM support_message m2 WHERE m2.issueId = m.issueId ORDER BY m2.id DESC)`,
+          (sub) =>
+            sub
+              .select('m2.created')
+              .from(SupportMessage, 'm2')
+              .where('m2.issueId = m.issueId')
+              .orderBy('m2.id', 'DESC')
+              .limit(1),
           'lastDate',
         )
         .addSelect(
-          `(SELECT TOP 1 m2.author FROM support_message m2 WHERE m2.issueId = m.issueId ORDER BY m2.id DESC)`,
+          (sub) =>
+            sub
+              .select('m2.author')
+              .from(SupportMessage, 'm2')
+              .where('m2.issueId = m.issueId')
+              .orderBy('m2.id', 'DESC')
+              .limit(1),
           'lastAuthor',
         )
         .where('m.issueId IN (:...ids)', { ids: issueIds })
