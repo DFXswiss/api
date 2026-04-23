@@ -17,7 +17,7 @@ export class MrosController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async createMros(@Body() dto: CreateMrosDto): Promise<void> {
     await this.mrosService.create(dto);
   }
@@ -25,7 +25,7 @@ export class MrosController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async updateMros(@Param('id') id: string, @Body() dto: UpdateMrosDto): Promise<void> {
     await this.mrosService.update(+id, dto);
   }
@@ -33,7 +33,7 @@ export class MrosController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async getAll(): Promise<Mros[]> {
     return this.mrosService.getAll();
   }
@@ -41,7 +41,7 @@ export class MrosController {
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async getById(@Param('id') id: string): Promise<Mros> {
     return this.mrosService.getById(+id);
   }
