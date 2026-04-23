@@ -1,4 +1,5 @@
-import { IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { IsEnum, IsInt, IsNotEmpty, IsNumber, IsOptional, IsString, ValidateIf } from 'class-validator';
+import { RecallReason } from '../recall-reason.enum';
 
 export class CreateRecallDto {
   @IsNotEmpty()
@@ -26,4 +27,8 @@ export class CreateRecallDto {
   @IsNotEmpty()
   @IsNumber()
   fee: number;
+
+  @IsNotEmpty()
+  @IsEnum(RecallReason)
+  reason: RecallReason;
 }
