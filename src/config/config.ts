@@ -52,7 +52,7 @@ export class Configuration {
   txRequestWaitingExpiryDays = 7;
   txRequestValidityMinutes = 30;
   financeLogTotalBalanceChangeLimit = 5000;
-  faucetAmount = 20; //CHF
+  faucetAmount = 0.0005; // ETH
   faucetEnabled = process.env.FAUCET_ENABLED === 'true';
 
   priceSourceManual = 'DFX'; // source name for priceStep if price is set manually in buy-crypto
