@@ -8,6 +8,7 @@ import { DexModule } from './dex/dex.module';
 import { FiatOutputModule } from './fiat-output/fiat-output.module';
 import { FiatPayInModule } from './fiat-payin/fiat-payin.module';
 import { LogModule } from './log/log.module';
+import { MrosModule } from './mros/mros.module';
 import { NotificationModule } from './notification/notification.module';
 import { PayInModule } from './payin/payin.module';
 import { PayoutModule } from './payout/payout.module';
@@ -34,6 +35,7 @@ import { SupportIssueModule } from './support-issue/support-issue.module';
     FiatOutputModule,
     SupportIssueModule,
     RecallModule,
+    MrosModule,
   ],
   controllers: [],
   providers: [],
