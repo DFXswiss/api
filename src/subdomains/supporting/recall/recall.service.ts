@@ -63,7 +63,7 @@ export class RecallService {
     return this.repo.find({ relations: { bankTx: true, checkoutTx: true, user: true } });
   }
 
-  async findByBankTxIds(bankTxIds: number[]): Promise<Recall[]> {
+  async getByBankTxIds(bankTxIds: number[]): Promise<Recall[]> {
     if (!bankTxIds.length) return [];
     return this.repo.find({
       where: { bankTx: { id: In(bankTxIds) } },

@@ -751,7 +751,7 @@ export class SupportService {
   }
 
   private async buildRecallByBankTxIdMap(bankTxIds: number[]): Promise<Map<number, Recall>> {
-    const recalls = await this.recallService.findByBankTxIds(bankTxIds);
+    const recalls = await this.recallService.getByBankTxIds(bankTxIds);
     return new Map(recalls.map((r) => [r.bankTx.id, r]));
   }
 
