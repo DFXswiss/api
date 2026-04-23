@@ -7,7 +7,10 @@ import { MrosRepository } from './mros.repository';
 
 @Injectable()
 export class MrosService {
-  constructor(private readonly repo: MrosRepository, private readonly userDataService: UserDataService) {}
+  constructor(
+    private readonly repo: MrosRepository,
+    private readonly userDataService: UserDataService,
+  ) {}
 
   async create(dto: CreateMrosDto): Promise<Mros> {
     const entity = this.repo.create(dto);
