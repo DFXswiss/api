@@ -557,7 +557,7 @@ export class BankTxService implements OnModuleInit {
 
   async getBankTxsByName(name: string): Promise<BankTx[]> {
     const request: FindOptionsWhere<BankTx> = {
-      type: In(BankTxUnassignedTypes),
+      type: In([...BankTxUnassignedTypes, BankTxType.BANK_TX_RETURN]),
       creditDebitIndicator: BankTxIndicator.CREDIT,
     };
 
