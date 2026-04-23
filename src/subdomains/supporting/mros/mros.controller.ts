@@ -4,45 +4,45 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { CreateRecallDto } from './dto/create-recall.dto';
-import { UpdateRecallDto } from './dto/update-recall.dto';
-import { Recall } from './recall.entity';
-import { RecallService } from './recall.service';
+import { CreateMrosDto } from './dto/create-mros.dto';
+import { UpdateMrosDto } from './dto/update-mros.dto';
+import { Mros } from './mros.entity';
+import { MrosService } from './mros.service';
 
-@ApiTags('Recall')
-@Controller('recall')
-export class RecallController {
-  constructor(private readonly recallService: RecallService) {}
+@ApiTags('Mros')
+@Controller('mros')
+export class MrosController {
+  constructor(private readonly mrosService: MrosService) {}
 
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async createRecall(@Body() dto: CreateRecallDto): Promise<void> {
-    await this.recallService.create(dto);
+  async createMros(@Body() dto: CreateMrosDto): Promise<void> {
+    await this.mrosService.create(dto);
   }
 
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async updateRecall(@Param('id') id: string, @Body() dto: UpdateRecallDto): Promise<void> {
-    await this.recallService.update(+id, dto);
+  async updateMros(@Param('id') id: string, @Body() dto: UpdateMrosDto): Promise<void> {
+    await this.mrosService.update(+id, dto);
   }
 
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async getAll(): Promise<Recall[]> {
-    return this.recallService.getAll();
+  async getAll(): Promise<Mros[]> {
+    return this.mrosService.getAll();
   }
 
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async getById(@Param('id') id: string): Promise<Recall> {
-    return this.recallService.getById(+id);
+  async getById(@Param('id') id: string): Promise<Mros> {
+    return this.mrosService.getById(+id);
   }
 }
