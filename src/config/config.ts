@@ -53,7 +53,8 @@ export class Configuration {
   txRequestValidityMinutes = 30;
   financeLogTotalBalanceChangeLimit = 5000;
   faucetAmount = 0.0005; // ETH
-  faucetEnabled = process.env.FAUCET_ENABLED === 'true';
+  faucetEnabled =
+    process.env.FAUCET_ENABLED === 'true' || [Environment.DEV, Environment.LOC].includes(this.environment);
 
   priceSourceManual = 'DFX'; // source name for priceStep if price is set manually in buy-crypto
   priceSourcePayment = 'Payment'; // source name for priceStep if price is defined by payment quote
