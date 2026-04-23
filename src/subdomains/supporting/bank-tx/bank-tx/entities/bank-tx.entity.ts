@@ -53,13 +53,13 @@ export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })
   accountServiceRef: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   bankReleaseDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   bookingDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   valueDate?: Date;
 
   @Column({ type: 'integer', nullable: true })
@@ -204,7 +204,7 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   txInfo?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   txRaw?: string;
 
   // routing id for american banks

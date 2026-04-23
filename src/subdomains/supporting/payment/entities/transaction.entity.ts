@@ -71,7 +71,7 @@ export class Transaction extends IEntity {
   @Column({ type: 'float', nullable: true })
   feeAmountInChf: number;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   eventDate: Date;
 
   // Check
@@ -91,10 +91,10 @@ export class Transaction extends IEntity {
   @Column({ length: 256, nullable: true })
   recipientMail?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   mailSendDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   outputDate?: Date;
 
   // References

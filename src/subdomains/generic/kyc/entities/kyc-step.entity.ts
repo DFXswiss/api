@@ -42,10 +42,10 @@ export class KycStep extends IEntity {
   @Column({ nullable: true })
   transactionId?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   result?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   comment?: string;
 
   @OneToMany(() => StepLog, (l) => l.kycStep)
@@ -58,7 +58,7 @@ export class KycStep extends IEntity {
   recommendation?: Recommendation;
 
   // Mail
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   reminderSentDate?: Date;
 
   // --- GETTERS --- //

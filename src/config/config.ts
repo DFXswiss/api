@@ -209,7 +209,7 @@ export class Configuration {
   };
 
   database: TypeOrmModuleOptions = {
-    type: 'mssql',
+    type: 'postgres',
     host: process.env.SQL_HOST,
     port: Number.parseInt(process.env.SQL_PORT),
     username: process.env.SQL_USERNAME,
@@ -220,18 +220,15 @@ export class Configuration {
     synchronize: process.env.SQL_SYNCHRONIZE === 'true',
     migrationsRun: process.env.SQL_MIGRATE === 'true',
     migrations: ['migration/*.js'],
-    connectionTimeout: 30000,
-    requestTimeout: 60000,
-    pool: {
-      min: +(process.env.SQL_POOL_MIN ?? 5),
-      max: +(process.env.SQL_POOL_MAX ?? 10),
-      idleTimeoutMillis: +(process.env.SQL_POOL_IDLE_TIMEOUT ?? 30000),
-    },
+    connectTimeoutMS: 30000,
+    poolSize: +(process.env.SQL_POOL_MAX ?? 10),
     logging: process.env.SQL_LOGGING as LoggerOptions,
-    options: {
-      encrypt: process.env.SQL_ENCRYPT !== 'false',
-      trustServerCertificate: process.env.SQL_ENCRYPT === 'false',
-    },
+    ssl:
+      process.env.SQL_SSL === 'false'
+        ? false
+        : {
+            rejectUnauthorized: false,
+          },
   };
 
   i18n: I18nOptions = {

@@ -25,7 +25,7 @@ export class AccountMerge extends IEntity {
   @Column({ default: false })
   isCompleted: boolean;
 
-  @Column({ type: 'datetime2' })
+  @Column({ type: 'timestamp' })
   expiration: Date;
 
   @Column({ length: 256, nullable: true })

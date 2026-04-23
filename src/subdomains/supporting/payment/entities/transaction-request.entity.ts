@@ -61,7 +61,7 @@ export class TransactionRequest extends IEntity {
   @Column({ type: 'float' })
   rate: number;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   paymentRequest?: string;
 
   @Column({ nullable: true })
@@ -92,10 +92,10 @@ export class TransactionRequest extends IEntity {
   @ManyToOne(() => User, { nullable: false })
   user: User;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   siftResponse?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   aktionariatResponse?: string;
 
   @OneToOne(() => Transaction, (transaction) => transaction.request, { nullable: true })

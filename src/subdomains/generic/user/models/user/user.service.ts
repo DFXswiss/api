@@ -642,7 +642,7 @@ export class UserService {
   public async getTotalRefRewards(): Promise<number> {
     return this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(paidRefCredit)', 'paidRefCredit')
+      .select('SUM(user.paidRefCredit)', 'paidRefCredit')
       .getRawOne<{ paidRefCredit: number }>()
       .then((r) => r.paidRefCredit);
   }

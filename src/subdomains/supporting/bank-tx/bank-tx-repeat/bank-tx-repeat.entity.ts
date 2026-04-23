@@ -45,16 +45,16 @@ export class BankTxRepeat extends IEntity {
   @Column({ type: 'float', nullable: true })
   amountInUsd?: number;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackDate?: Date;
 
   @Column({ length: 256, nullable: true })
   chargebackRemittanceInfo?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackAllowedDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })

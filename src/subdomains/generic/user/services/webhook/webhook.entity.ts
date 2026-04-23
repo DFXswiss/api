@@ -10,7 +10,7 @@ export class Webhook extends IEntity {
   @Column({ length: 256 })
   type: WebhookType;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   data: string;
 
   @Column({ length: 256, nullable: true })
@@ -19,10 +19,10 @@ export class Webhook extends IEntity {
   @Column({ length: 256, nullable: true })
   reason?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   lastTryDate?: Date;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   error?: string;
 
   @Column({ default: false })

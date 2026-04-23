@@ -13,7 +13,7 @@ export class LiquidityManagementAction extends IEntity {
   @Column({ length: 256, nullable: true })
   tag?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   params?: string;
 
   @ManyToOne(() => LiquidityManagementAction, { nullable: true })

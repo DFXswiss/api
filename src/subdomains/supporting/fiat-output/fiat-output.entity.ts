@@ -67,7 +67,7 @@ export class FiatOutput extends IEntity {
   @Column({ default: false })
   isInstant?: boolean;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   valutaDate?: Date;
 
   @Column({ nullable: true })
@@ -121,16 +121,16 @@ export class FiatOutput extends IEntity {
   @Column({ length: 256, nullable: true })
   endToEndId?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   isReadyDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   isTransmittedDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   isConfirmedDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   isApprovedDate?: Date;
 
   @Column({ default: false })
@@ -139,7 +139,7 @@ export class FiatOutput extends IEntity {
   @Column({ length: 256, nullable: true })
   info?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   outputDate?: Date;
 
   @Column({ nullable: true })

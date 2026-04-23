@@ -121,17 +121,17 @@ export class SwapService {
   async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number; monthlyVolume: number }> {
     return this.swapRepo
       .createQueryBuilder('crypto')
-      .select('SUM(volume)', 'volume')
-      .addSelect('SUM(annualVolume)', 'annualVolume')
-      .addSelect('SUM(monthlyVolume)', 'monthlyVolume')
-      .where('userId = :id', { id: userId })
+      .select('SUM(crypto.volume)', 'volume')
+      .addSelect('SUM(crypto.annualVolume)', 'annualVolume')
+      .addSelect('SUM(crypto.monthlyVolume)', 'monthlyVolume')
+      .where('crypto.userId = :id', { id: userId })
       .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
   }
 
   async getTotalVolume(): Promise<number> {
     return this.swapRepo
       .createQueryBuilder('crypto')
-      .select('SUM(volume)', 'volume')
+      .select('SUM(crypto.volume)', 'volume')
       .getRawOne<{ volume: number }>()
       .then((r) => r.volume);
   }

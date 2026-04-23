@@ -48,16 +48,16 @@ export class BankTxReturn extends IEntity {
   @Column({ type: 'float', nullable: true })
   amountInUsd?: number;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackDate?: Date;
 
   @Column({ length: 256, nullable: true })
   chargebackRemittanceInfo?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackAllowedDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })
@@ -75,14 +75,14 @@ export class BankTxReturn extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackIban?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   chargebackCreditorData?: string;
 
   // Mail
   @Column({ length: 256, nullable: true })
   recipientMail?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   mailSendDate?: Date;
 
   @ManyToOne(() => UserData, (userData) => userData.bankTxReturns, { nullable: true, eager: true })

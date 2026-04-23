@@ -45,13 +45,13 @@ export class LiquidityManagementOrder extends IEntity {
   @Column({ type: 'int', nullable: true })
   previousOrderId?: number;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   correlationId?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   previousCorrelationIds?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   errorMessage?: string;
 
   //*** FACTORY ***//

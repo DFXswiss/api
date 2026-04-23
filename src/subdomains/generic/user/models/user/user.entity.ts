@@ -28,7 +28,7 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   addressType?: UserAddressType;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   signature?: string;
 
   @Column({ length: 256, nullable: true })
@@ -98,7 +98,7 @@ export class User extends IEntity {
   @Column({ nullable: true })
   approved?: boolean;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   deactivationDate?: Date;
 
   @OneToMany(() => Buy, (buy) => buy.user)
@@ -157,7 +157,7 @@ export class User extends IEntity {
   @OneToMany(() => Transaction, (transaction) => transaction.user)
   transactions: Transaction[];
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   comment?: string;
 
   @Column({ type: 'int', nullable: true })
@@ -176,7 +176,7 @@ export class User extends IEntity {
   @OneToMany(() => CustodyBalance, (custodyBalance) => custodyBalance.user)
   custodyBalances: CustodyBalance[];
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   travelRulePdfDate: Date;
 
   //*** FACTORY METHODS ***//

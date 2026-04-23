@@ -658,8 +658,8 @@ export class BuyCryptoService {
   async updateRefVolumes(start = 1, end = 100000): Promise<void> {
     const refs = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('usedRef')
-      .groupBy('usedRef')
+      .select('buyCrypto.usedRef')
+      .groupBy('buyCrypto.usedRef')
       .where('buyCrypto.id BETWEEN :start AND :end', { start, end })
       .getRawMany<{ usedRef: string }>()
       .then((refs) => refs.map((r) => r.usedRef));
@@ -707,7 +707,7 @@ export class BuyCryptoService {
     excludedId: number | undefined,
     type: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
-    const request = this.buyCryptoRepo.createQueryBuilder('buyCrypto').select('SUM(amountInChf)', 'volume');
+    const request = this.buyCryptoRepo.createQueryBuilder('buyCrypto').select('SUM(buyCrypto.amountInChf)', 'volume');
 
     switch (type) {
       case 'cryptoInput':
@@ -973,10 +973,10 @@ export class BuyCryptoService {
   async getRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
     const { volume, credit } = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('SUM(amountInEur * refFactor)', 'volume')
-      .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
-      .where('usedRef = :ref', { ref })
-      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
+      .select('SUM(buyCrypto.amountInEur * buyCrypto.refFactor)', 'volume')
+      .addSelect('SUM(buyCrypto.amountInEur * buyCrypto.refFactor * buyCrypto.refProvision * 0.01)', 'credit')
+      .where('buyCrypto.usedRef = :ref', { ref })
+      .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 
     return { volume: volume ?? 0, credit: credit ?? 0 };
@@ -985,10 +985,10 @@ export class BuyCryptoService {
   async getPartnerFeeRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
     const { volume, credit } = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('SUM(amountInEur)', 'volume')
-      .addSelect('SUM(partnerFeeAmount * (amountInEur/inputReferenceAmount ))', 'credit')
-      .where('usedPartnerRef = :ref', { ref })
-      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
+      .select('SUM(buyCrypto.amountInEur)', 'volume')
+      .addSelect('SUM(buyCrypto.partnerFeeAmount * (buyCrypto.amountInEur / buyCrypto.inputReferenceAmount))', 'credit')
+      .where('buyCrypto.usedPartnerRef = :ref', { ref })
+      .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 
     return { volume: volume ?? 0, credit: credit ?? 0 };

@@ -193,8 +193,8 @@ export class PayInService {
   async getPayInFee(from: Date): Promise<number> {
     const { fee } = await this.payInRepository
       .createQueryBuilder('cryptoInput')
-      .select('SUM(forwardFeeAmountChf)', 'fee')
-      .where('created >= :from', { from })
+      .select('SUM(cryptoInput.forwardFeeAmountChf)', 'fee')
+      .where('cryptoInput.created >= :from', { from })
       .getRawOne<{ fee: number }>();
 
     return fee ?? 0;

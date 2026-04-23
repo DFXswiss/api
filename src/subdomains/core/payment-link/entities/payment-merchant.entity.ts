@@ -11,7 +11,7 @@ export class PaymentMerchant extends IEntity {
   @Column({ length: 256 })
   status: PaymentMerchantStatus;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   data: string;
 
   @ManyToOne(() => User, { nullable: false })

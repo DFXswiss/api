@@ -41,7 +41,7 @@ export class LimitRequest extends IEntity {
   @Column({ length: 256 })
   fundOrigin: FundOrigin;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   fundOriginText?: string;
 
   @Column({ length: 256, nullable: true })
@@ -50,14 +50,14 @@ export class LimitRequest extends IEntity {
   @Column({ length: 256, nullable: true })
   clerk?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   edited?: Date;
 
   //Mail
   @Column({ length: 256, nullable: true })
   recipientMail?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   mailSendDate?: Date;
 
   // References
