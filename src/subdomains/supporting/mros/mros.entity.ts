@@ -38,6 +38,6 @@ export class Mros extends IEntity {
   }
 
   set indicatorCodes(codes: string[]) {
-    this.indicators = codes.length ? JSON.stringify(codes) : undefined;
+    this.indicators = JSON.stringify(codes);
   }
 }
