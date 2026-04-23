@@ -1,5 +1,6 @@
-import { IsInt, IsNumber, IsString } from 'class-validator';
+import { IsEnum, IsInt, IsNumber, IsString } from 'class-validator';
 import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
+import { RecallReason } from '../recall-reason.enum';
 
 export class UpdateRecallDto {
   @IsOptionalButNotNull()
@@ -17,4 +18,8 @@ export class UpdateRecallDto {
   @IsOptionalButNotNull()
   @IsNumber()
   fee?: number;
+
+  @IsOptionalButNotNull()
+  @IsEnum(RecallReason)
+  reason?: RecallReason;
 }
