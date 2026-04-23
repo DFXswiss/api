@@ -49,5 +49,4 @@ jobs:
         run: npm run test
 
       - name: Security audit
-        run: npm audit --audit-level=high
-        continue-on-error: true
+        run: npm audit --audit-level=critical
