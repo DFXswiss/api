@@ -17,7 +17,7 @@ export class RecallController {
   @Post()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async createRecall(@Body() dto: CreateRecallDto): Promise<void> {
     await this.recallService.create(dto);
   }
@@ -25,7 +25,7 @@ export class RecallController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async updateRecall(@Param('id') id: string, @Body() dto: UpdateRecallDto): Promise<void> {
     await this.recallService.update(+id, dto);
   }
@@ -33,7 +33,7 @@ export class RecallController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async getAll(): Promise<Recall[]> {
     return this.recallService.getAll();
   }
@@ -41,7 +41,7 @@ export class RecallController {
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async getById(@Param('id') id: string): Promise<Recall> {
     return this.recallService.getById(+id);
   }
