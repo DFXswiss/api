@@ -38,4 +38,9 @@ export class CreateMrosDto {
   @IsArray()
   @IsString({ each: true })
   indicators?: string[];
+
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  transactionIds?: number[];
 }

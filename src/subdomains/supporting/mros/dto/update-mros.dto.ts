@@ -1,4 +1,4 @@
-import { IsArray, IsDateString, IsEnum, IsString } from 'class-validator';
+import { IsArray, IsDateString, IsEnum, IsInt, IsString } from 'class-validator';
 import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
 import { MrosStatus } from '../mros-status.enum';
 
@@ -35,4 +35,9 @@ export class UpdateMrosDto {
   @IsArray()
   @IsString({ each: true })
   indicators?: string[];
+
+  @IsOptionalButNotNull()
+  @IsArray()
+  @IsInt({ each: true })
+  transactionIds?: number[];
 }

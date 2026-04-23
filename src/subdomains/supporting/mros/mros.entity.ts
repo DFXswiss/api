@@ -1,6 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { Column, Entity, JoinTable, ManyToMany, ManyToOne } from 'typeorm';
 import { MrosStatus } from './mros-status.enum';
 
 @Entity()
@@ -40,4 +41,8 @@ export class Mros extends IEntity {
   set indicatorCodes(codes: string[]) {
     this.indicators = JSON.stringify(codes);
   }
+
+  @ManyToMany(() => Transaction)
+  @JoinTable()
+  transactions: Transaction[];
 }
