@@ -206,7 +206,9 @@ export class RefRewardService {
       .createQueryBuilder('refReward')
       .select('SUM(refReward.amountInChf)', 'volume')
       .where('refReward.created >= :from', { from })
-      .andWhere('refReward.status NOT IN (:...rewardStatus)', { rewardStatus: [RewardStatus.FAILED, RewardStatus.USER_SWITCH] })
+      .andWhere('refReward.status NOT IN (:...rewardStatus)', {
+        rewardStatus: [RewardStatus.FAILED, RewardStatus.USER_SWITCH],
+      })
       .getRawOne<{ volume: number }>();
 
     return volume ?? 0;
