@@ -153,6 +153,8 @@ export class InternetComputerStrategy extends RegisterStrategy {
 
       highestBlock = Math.max(highestBlock, result.lastBlockIndex);
 
+      if (result.rawTransactionCount === 0) break;
+
       // Advance cursor, handling stuck cursor edge case
       const nextCursor = result.lastBlockIndex + 1;
       if (nextCursor <= cursor) {
@@ -161,8 +163,6 @@ export class InternetComputerStrategy extends RegisterStrategy {
       } else {
         cursor = nextCursor;
       }
-
-      if (result.rawTransactionCount === 0) break;
     }
 
     // Update scan state
