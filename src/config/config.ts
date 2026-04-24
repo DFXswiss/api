@@ -668,7 +668,10 @@ export class Configuration {
       })[blockchain] ?? 100,
     minVolume: 0.01, // CHF
     maxDepositBalance: 10000, // CHF
-    cryptoPayoutMinAmount: +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
+    cryptoPayoutMinAmount: (blockchain: Blockchain): number =>
+      ({
+        [Blockchain.LIGHTNING]: 0,
+      })[blockchain] ?? +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
