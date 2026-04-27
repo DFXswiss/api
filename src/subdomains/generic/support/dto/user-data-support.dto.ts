@@ -2,6 +2,7 @@ import { IsNotEmpty } from 'class-validator';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { RecallReason } from 'src/subdomains/supporting/recall/recall-reason.enum';
 import { KycFile } from '../../kyc/entities/kyc-file.entity';
+import { ReviewStatus } from '../../kyc/enums/review-status.enum';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycStatus } from '../../user/models/user-data/user-data.enum';
@@ -31,6 +32,28 @@ export class PendingOnboardingInfo {
   id: number;
   name?: string;
   accountType?: string;
+  date: Date;
+}
+
+export enum PendingReviewType {
+  KYC_STEP = 'KycStep',
+  BANK_DATA = 'BankData',
+}
+
+export class PendingReviewSummaryEntry {
+  type: PendingReviewType;
+  name: string;
+  manualReview: number;
+  internalReview: number;
+}
+
+export class PendingReviewItem {
+  id: number;
+  userDataId: number;
+  userName?: string;
+  accountType?: AccountType;
+  kycLevel?: number;
+  status: ReviewStatus;
   date: Date;
 }
 

@@ -465,4 +465,30 @@ export class BankDataService {
   get bankDataObservable(): Observable<BankData> {
     return this.newUserBankDataSubject.asObservable();
   }
+
+  // --- Pending Review Queries ---
+
+  async getPendingReviewSummary(): Promise<{ name: string; status: ReviewStatus; count: number }[]> {
+    return this.bankDataRepo
+      .createQueryBuilder('bankData')
+      .select('bankData.status', 'status')
+      .addSelect('COUNT(bankData.id)', 'count')
+      .innerJoin('bankData.userData', 'userData')
+      .where('bankData.status IN (:...statuses)', {
+        statuses: [ReviewStatus.MANUAL_REVIEW, ReviewStatus.INTERNAL_REVIEW],
+      })
+      .andWhere('userData.status != :mergedStatus', { mergedStatus: UserDataStatus.MERGED })
+      .groupBy('bankData.status')
+      .getRawMany<{ status: ReviewStatus; count: string }>()
+      .then((rows) => rows.map((r) => ({ name: 'BankData', status: r.status, count: Number(r.count) })));
+  }
+
+  async getPendingReviewList(status: ReviewStatus): Promise<BankData[]> {
+    return this.bankDataRepo.find({
+      where: { status, userData: { status: Not(UserDataStatus.MERGED) } },
+      relations: { userData: true },
+      loadEagerRelations: false,
+      order: { updated: 'ASC' },
+    });
+  }
 }
