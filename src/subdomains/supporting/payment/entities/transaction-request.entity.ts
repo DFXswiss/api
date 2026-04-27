@@ -85,10 +85,20 @@ export class TransactionRequest extends IEntity {
   @Column({ type: 'float', nullable: true })
   totalFee?: number;
 
-  @Column({ type: 'nvarchar', length: 'MAX', nullable: true, transformer: { to: (v) => (v ? JSON.stringify(v) : v), from: (v) => (v ? JSON.parse(v) : v) } })
+  @Column({
+    type: 'nvarchar',
+    length: 'MAX',
+    nullable: true,
+    transformer: { to: (v) => (v ? JSON.stringify(v) : v), from: (v) => (v ? JSON.parse(v) : v) },
+  })
   fees?: FeeDto;
 
-  @Column({ type: 'nvarchar', length: 'MAX', nullable: true, transformer: { to: (v) => (v ? JSON.stringify(v) : v), from: (v) => (v ? JSON.parse(v) : v) } })
+  @Column({
+    type: 'nvarchar',
+    length: 'MAX',
+    nullable: true,
+    transformer: { to: (v) => (v ? JSON.stringify(v) : v), from: (v) => (v ? JSON.parse(v) : v) },
+  })
   priceSteps?: PriceStep[];
 
   @Column({ default: false })
