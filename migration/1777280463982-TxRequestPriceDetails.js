@@ -14,8 +14,8 @@ module.exports = class TxRequestPriceDetails1777280463982 {
      * @param {QueryRunner} queryRunner
      */
     async up(queryRunner) {
-        await queryRunner.query(`ALTER TABLE "transaction_request" ADD "fees" ntext`);
-        await queryRunner.query(`ALTER TABLE "transaction_request" ADD "priceSteps" ntext`);
+        await queryRunner.query(`ALTER TABLE "transaction_request" ADD "fees" nvarchar(MAX)`);
+        await queryRunner.query(`ALTER TABLE "transaction_request" ADD "priceSteps" nvarchar(MAX)`);
         await queryRunner.query(`ALTER TABLE "buy_fiat" ADD "quoteMarketRatio" float`);
         await queryRunner.query(`ALTER TABLE "buy_crypto" ADD "quoteMarketRatio" float`);
     }
