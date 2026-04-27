@@ -5,7 +5,9 @@ import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { NotRefundableAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { AmlReason, NotRefundableAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -55,6 +57,7 @@ import { Recommendation } from '../user/models/recommendation/recommendation.ent
 import { RecommendationService } from '../user/models/recommendation/recommendation.service';
 import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
+import { PhoneCallStatus } from '../user/models/user-data/user-data.enum';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { User } from '../user/models/user/user.entity';
 import { UserService } from '../user/models/user/user.service';
@@ -81,6 +84,9 @@ import {
   SellSupportInfo,
   TransactionListEntry,
   TransactionSupportInfo,
+  CallQueue,
+  CallQueueItem,
+  CallQueueSummaryEntry,
   OnboardingStatus,
   PendingOnboardingInfo,
   PendingReviewItem,
@@ -97,6 +103,17 @@ interface UserDataComplianceSearchTypePair {
   type: ComplianceSearchType;
   userData: UserData;
 }
+
+const CallQueueItemsLimit = 200;
+
+const PendingReviewBankDataName = 'BankData';
+
+const CallQueueTxReasonMap: Partial<Record<CallQueue, AmlReason>> = {
+  [CallQueue.MANUAL_CHECK_PHONE]: AmlReason.MANUAL_CHECK_PHONE,
+  [CallQueue.MANUAL_CHECK_IP_PHONE]: AmlReason.MANUAL_CHECK_IP_PHONE,
+  [CallQueue.MANUAL_CHECK_IP_COUNTRY_PHONE]: AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
+  [CallQueue.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE]: AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
+};
 
 @Injectable()
 export class SupportService {
@@ -254,7 +271,7 @@ export class SupportService {
       cryptoInputs: cryptoInputs.map((c) => this.toCryptoInputSupportInfo(c)),
       ipLogs: ipLogs.map((l) => this.toIpLogSupportInfo(l)),
       supportIssues: supportIssues.map((s) => this.toSupportIssueSupportInfo(s)),
-      users: users.map((u) => this.toUserSupportInfo(u)),
+      users: await this.toUserSupportInfos(users),
       bankDatas: bankDatas.map((b) => this.toBankDataSupportInfo(b)),
       buyRoutes: buyRoutes.map((b) => this.toBuySupportInfo(b)),
       sellRoutes: sellRoutes.map((s) => this.toSellSupportInfo(s)),
@@ -425,16 +442,31 @@ export class SupportService {
     };
   }
 
-  private toUserSupportInfo(user: User): UserSupportInfo {
-    return {
-      id: user.id,
-      address: user.address,
-      ref: user.ref,
-      role: user.role,
-      status: user.status,
-      walletName: user.wallet?.name,
-      created: user.created,
-    };
+  private async toUserSupportInfos(users: User[]): Promise<UserSupportInfo[]> {
+    const usedRefs = Array.from(
+      new Set(users.map((u) => u.usedRef).filter((r): r is string => !!r && r !== '000-000')),
+    );
+    const refUsers = await this.userService.getRefUsersByRefs(usedRefs);
+    const refUserByRef = new Map(refUsers.map((r) => [r.ref, r]));
+
+    return users.map((user) => {
+      const refUser = user.usedRef ? refUserByRef.get(user.usedRef) : undefined;
+      const refUserName = refUser?.userData
+        ? [refUser.userData.firstname, refUser.userData.surname].filter(Boolean).join(' ') || undefined
+        : undefined;
+
+      return {
+        id: user.id,
+        address: user.address,
+        ref: user.ref,
+        usedRef: user.usedRef,
+        refUserName,
+        role: user.role,
+        status: user.status,
+        walletName: user.wallet?.name,
+        created: user.created,
+      };
+    });
   }
 
   private toBankDataSupportInfo(bankData: BankData): BankDataSupportInfo {
@@ -592,20 +624,18 @@ export class SupportService {
       this.bankDataService.getPendingReviewSummary(),
     ]);
 
-    const allRows: { type: PendingReviewType; name: string; status: ReviewStatus; count: number }[] = [
-      ...kycRows.map((r) => ({ type: PendingReviewType.KYC_STEP, name: r.name, status: r.status, count: r.count })),
-      ...bankRows.map((r) => ({ type: PendingReviewType.BANK_DATA, name: r.name, status: r.status, count: r.count })),
-    ];
-
     const entries = new Map<string, PendingReviewSummaryEntry>();
 
-    for (const row of allRows) {
-      const key = `${row.type}:${row.name}`;
-      const entry = entries.get(key) ?? { type: row.type, name: row.name, manualReview: 0, internalReview: 0 };
-      if (row.status === ReviewStatus.MANUAL_REVIEW) entry.manualReview = row.count;
-      else if (row.status === ReviewStatus.INTERNAL_REVIEW) entry.internalReview = row.count;
+    const register = (type: PendingReviewType, name: string, status: ReviewStatus, count: number) => {
+      const key = `${type}:${name}`;
+      const entry = entries.get(key) ?? { type, name, manualReview: 0, internalReview: 0 };
+      if (status === ReviewStatus.MANUAL_REVIEW) entry.manualReview = count;
+      else if (status === ReviewStatus.INTERNAL_REVIEW) entry.internalReview = count;
       entries.set(key, entry);
-    }
+    };
+
+    for (const row of kycRows) register(PendingReviewType.KYC_STEP, row.name, row.status, row.count);
+    for (const row of bankRows) register(PendingReviewType.BANK_DATA, PendingReviewBankDataName, row.status, row.count);
 
     return Array.from(entries.values()).sort((a, b) => {
       if (a.type !== b.type) return a.type.localeCompare(b.type);
@@ -628,28 +658,24 @@ export class SupportService {
         throw new BadRequestException('Unknown KycStepName');
       }
       const steps = await this.kycService.getPendingReviewSteps(name as KycStepName, status);
-      return steps.map((step) => this.toPendingReviewItem(step, status));
+      return steps.map((step) => this.toPendingReviewItem(step));
     }
 
     if (type === PendingReviewType.BANK_DATA) {
       const bankDatas = await this.bankDataService.getPendingReviewList(status);
-      return bankDatas.map((bd) => this.toPendingReviewItem(bd, status));
+      return bankDatas.map((bd) => this.toPendingReviewItem(bd));
     }
 
     throw new BadRequestException('Unknown review type');
   }
 
-  private toPendingReviewItem(
-    entity: { id: number; userData: UserData; updated: Date },
-    status: ReviewStatus,
-  ): PendingReviewItem {
+  private toPendingReviewItem(entity: { id: number; userData: UserData; updated: Date }): PendingReviewItem {
     return {
       id: entity.id,
       userDataId: entity.userData.id,
       userName: this.formatUserName(entity.userData),
       accountType: entity.userData.accountType,
       kycLevel: entity.userData.kycLevel,
-      status,
       date: entity.updated,
     };
   }
@@ -658,6 +684,104 @@ export class SupportService {
     return (
       ud.verifiedName ?? ([ud.firstname, ud.surname, ud.organization?.name].filter(Boolean).join(' ') || undefined)
     );
+  }
+
+  async getCallQueueClerks(): Promise<string[]> {
+    return this.settingService.getObj<string[]>('complianceClerks', []);
+  }
+
+  async getCallQueuesSummary(): Promise<CallQueueSummaryEntry[]> {
+    const [unavailSuspicious, phone, ipPhone, ipCountryPhone, externalAccountPhone] = await Promise.all([
+      this.userDataService.countByPhoneCallStatuses([PhoneCallStatus.UNAVAILABLE, PhoneCallStatus.SUSPICIOUS]),
+      this.countTxQueue(AmlReason.MANUAL_CHECK_PHONE),
+      this.countTxQueue(AmlReason.MANUAL_CHECK_IP_PHONE),
+      this.countTxQueue(AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE),
+      this.countTxQueue(AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE),
+    ]);
+
+    return [
+      { queue: CallQueue.UNAVAILABLE_SUSPICIOUS, count: unavailSuspicious },
+      { queue: CallQueue.MANUAL_CHECK_PHONE, count: phone },
+      { queue: CallQueue.MANUAL_CHECK_IP_PHONE, count: ipPhone },
+      { queue: CallQueue.MANUAL_CHECK_IP_COUNTRY_PHONE, count: ipCountryPhone },
+      { queue: CallQueue.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE, count: externalAccountPhone },
+    ];
+  }
+
+  async getCallQueueItems(queue: CallQueue): Promise<CallQueueItem[]> {
+    const txReason = CallQueueTxReasonMap[queue];
+    if (txReason) return this.loadTxQueue(queue, txReason);
+
+    const users = await this.userDataService.getByPhoneCallStatuses(
+      [PhoneCallStatus.UNAVAILABLE, PhoneCallStatus.SUSPICIOUS],
+      CallQueueItemsLimit,
+    );
+    return users.map((ud) => this.toUserCallQueueItem(ud));
+  }
+
+  private async countTxQueue(reason: AmlReason): Promise<number> {
+    const [crypto, fiat] = await Promise.all([
+      this.buyCryptoService.countByAmlReason(reason, CheckStatus.PENDING),
+      this.buyFiatService.countByAmlReason(reason, CheckStatus.PENDING),
+    ]);
+    return crypto + fiat;
+  }
+
+  private async loadTxQueue(queue: CallQueue, reason: AmlReason): Promise<CallQueueItem[]> {
+    const [buyCryptos, buyFiats] = await Promise.all([
+      this.buyCryptoService.getByAmlReason(reason, CheckStatus.PENDING, CallQueueItemsLimit),
+      this.buyFiatService.getByAmlReason(reason, CheckStatus.PENDING, CallQueueItemsLimit),
+    ]);
+    const items = [
+      ...buyCryptos.map((bc) => this.toTxCallQueueItem(queue, bc, 'BuyCrypto')),
+      ...buyFiats.map((bf) => this.toTxCallQueueItem(queue, bf, 'BuyFiat')),
+    ];
+    return items
+      .sort((a, b) => a.date.getTime() - b.date.getTime() || (a.txId ?? 0) - (b.txId ?? 0))
+      .slice(0, CallQueueItemsLimit);
+  }
+
+  private toTxCallQueueItem(
+    queue: CallQueue,
+    tx: BuyCrypto | BuyFiat,
+    sourceType: 'BuyCrypto' | 'BuyFiat',
+  ): CallQueueItem {
+    const ud = tx.userData;
+    const user = tx.transaction?.user;
+    const inputAsset =
+      sourceType === 'BuyCrypto' ? (tx as BuyCrypto).inputAsset : (tx as BuyFiat).cryptoInput?.asset?.name;
+    return {
+      queue,
+      userDataId: ud.id,
+      userName: this.formatUserName(ud),
+      phone: ud.phone,
+      language: ud.language?.name,
+      country: ud.country?.name,
+      kycLevel: ud.kycLevel,
+      txId: tx.id,
+      sourceType,
+      amlCheck: tx.amlCheck,
+      amlReason: tx.amlReason,
+      inputAmount: tx.inputAmount,
+      inputAsset,
+      ip: user?.ip,
+      ipCountry: user?.ipCountry,
+      date: tx.created,
+    };
+  }
+
+  private toUserCallQueueItem(ud: UserData): CallQueueItem {
+    return {
+      queue: CallQueue.UNAVAILABLE_SUSPICIOUS,
+      userDataId: ud.id,
+      userName: this.formatUserName(ud),
+      phone: ud.phone,
+      language: ud.language?.name,
+      country: ud.country?.name,
+      kycLevel: ud.kycLevel,
+      phoneCallStatus: ud.phoneCallStatus,
+      date: ud.phoneCallCheckDate ?? ud.updated,
+    };
   }
 
   //*** HELPER METHODS ***//

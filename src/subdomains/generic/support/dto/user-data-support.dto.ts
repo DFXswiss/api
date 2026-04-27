@@ -1,11 +1,12 @@
 import { IsNotEmpty } from 'class-validator';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { RecallReason } from 'src/subdomains/supporting/recall/recall-reason.enum';
 import { KycFile } from '../../kyc/entities/kyc-file.entity';
-import { ReviewStatus } from '../../kyc/enums/review-status.enum';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
-import { KycStatus } from '../../user/models/user-data/user-data.enum';
+import { KycStatus, PhoneCallStatus } from '../../user/models/user-data/user-data.enum';
 
 export class UserDataSupportInfoResult {
   type: ComplianceSearchType;
@@ -53,7 +54,39 @@ export class PendingReviewItem {
   userName?: string;
   accountType?: AccountType;
   kycLevel?: number;
-  status: ReviewStatus;
+  date: Date;
+}
+
+export enum CallQueue {
+  MANUAL_CHECK_PHONE = 'ManualCheckPhone',
+  MANUAL_CHECK_IP_PHONE = 'ManualCheckIpPhone',
+  MANUAL_CHECK_IP_COUNTRY_PHONE = 'ManualCheckIpCountryPhone',
+  MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE = 'ManualCheckExternalAccountPhone',
+  UNAVAILABLE_SUSPICIOUS = 'UnavailableSuspicious',
+}
+
+export class CallQueueSummaryEntry {
+  queue: CallQueue;
+  count: number;
+}
+
+export class CallQueueItem {
+  queue: CallQueue;
+  userDataId: number;
+  userName?: string;
+  phone?: string;
+  language?: string;
+  country?: string;
+  kycLevel?: number;
+  txId?: number;
+  sourceType?: 'BuyCrypto' | 'BuyFiat';
+  amlCheck?: CheckStatus;
+  amlReason?: AmlReason;
+  inputAmount?: number;
+  inputAsset?: string;
+  ip?: string;
+  ipCountry?: string;
+  phoneCallStatus?: PhoneCallStatus;
   date: Date;
 }
 
@@ -83,6 +116,8 @@ export class UserSupportInfo {
   id: number;
   address: string;
   ref?: string;
+  usedRef?: string;
+  refUserName?: string;
   role: string;
   status: string;
   walletName?: string;
