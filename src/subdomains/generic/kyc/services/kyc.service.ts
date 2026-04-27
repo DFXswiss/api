@@ -214,7 +214,17 @@ export class KycService {
 
         const nationalityStep = entity.userData.getStepsWith(KycStepName.NATIONALITY_DATA).find((s) => s.isCompleted);
 
-        const errors = this.getIdentCheckErrors(entity, nationalityStep, result, nationality, ipCountry, country);
+        const suspectedDuplicateUser = await this.userDataService.getUserDataByBirthday(result.birthday);
+
+        const errors = this.getIdentCheckErrors(
+          entity,
+          nationalityStep,
+          result,
+          nationality,
+          ipCountry,
+          country,
+          suspectedDuplicateUser,
+        );
         const comment = errors.join(';');
 
         if (errors.includes(KycError.REVERSED_NAMES)) {
@@ -1605,6 +1615,7 @@ export class KycService {
     nationality?: Country,
     ipCountry?: Country,
     country?: Country,
+    suspectedDuplicateUsers?: UserData[],
   ): KycError[] {
     const errors = this.getStepDefaultErrors(identStep);
     const nationalityStepResult = nationalityStep.getResult<{ nationality: IEntity }>();
@@ -1669,6 +1680,14 @@ export class KycService {
     if (!ValidDocType.includes(data.documentType)) errors.push(KycError.INVALID_DOCUMENT_TYPE);
     if (!data.documentNumber) errors.push(KycError.IDENTIFICATION_NUMBER_MISSING);
     if (!data.success) errors.push(KycError.INVALID_RESULT);
+
+    const suspectedDuplicateUser = suspectedDuplicateUsers.find(
+      (u) =>
+        u.identDocumentType !== data.documentType &&
+        (Util.includesSameName(u.verifiedName, identStep.userData.verifiedName) ||
+          Util.includesSameName(identStep.userData.verifiedName, u.verifiedName)),
+    );
+    if (suspectedDuplicateUser) errors.push(KycError.DUPLICATE_ACCOUNT_SUSPECTED);
 
     // Country & verifiedName check
     const userCountry =

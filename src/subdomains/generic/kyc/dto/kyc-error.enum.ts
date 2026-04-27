@@ -31,6 +31,7 @@ export enum KycError {
   COUNTRY_IP_COUNTRY_MISMATCH = 'CountryIpCountryMismatch',
   RESIDENCE_PERMIT_CHECK_REQUIRED = 'ResidencePermitCheckRequired',
   MANUAL_REVIEW_REQUIRED = 'ManualReviewRequired',
+  DUPLICATE_ACCOUNT_SUSPECTED = 'DuplicateAccountSuspected',
 
   // Recommendation errors
   EXPIRED_RECOMMENDATION = 'ExpiredRecommendation',
