@@ -32,6 +32,9 @@ export const SettingSchemaRegistry: Record<string, SettingSchema> = {
 
   // Support
   supportClerks: 'string[]',
+
+  // Compliance
+  complianceClerks: 'string[]',
 };
 
 export function isArraySchema(schema: SettingSchema): schema is ArraySchema {

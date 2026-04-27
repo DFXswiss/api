@@ -1051,4 +1051,21 @@ export class BuyCryptoService {
       cryptoCurrency: v.buy?.asset?.name,
     }));
   }
+
+  async getByAmlReason(reason: AmlReason, status: CheckStatus, limit?: number): Promise<BuyCrypto[]> {
+    return this.buyCryptoRepo.find({
+      where: { amlReason: reason, amlCheck: status },
+      relations: {
+        buy: { asset: true },
+        transaction: { user: true, userData: { organization: true, language: true, country: true } },
+      },
+      loadEagerRelations: false,
+      order: { created: 'ASC' },
+      take: limit,
+    });
+  }
+
+  async countByAmlReason(reason: AmlReason, status: CheckStatus): Promise<number> {
+    return this.buyCryptoRepo.countBy({ amlReason: reason, amlCheck: status });
+  }
 }

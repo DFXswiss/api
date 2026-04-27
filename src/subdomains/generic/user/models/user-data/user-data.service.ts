@@ -1407,6 +1407,23 @@ export class UserDataService {
       .getRawOne<{ maxKycFileId: number }>()
       .then((r) => r?.maxKycFileId ?? 0);
   }
+
+  async getByPhoneCallStatuses(statuses: PhoneCallStatus[], limit?: number): Promise<UserData[]> {
+    return this.userDataRepo.find({
+      where: { phoneCallStatus: In(statuses), status: Not(UserDataStatus.MERGED) },
+      relations: { organization: true, language: true, country: true },
+      loadEagerRelations: false,
+      order: { phoneCallCheckDate: 'ASC' },
+      take: limit,
+    });
+  }
+
+  async countByPhoneCallStatuses(statuses: PhoneCallStatus[]): Promise<number> {
+    return this.userDataRepo.countBy({
+      phoneCallStatus: In(statuses),
+      status: Not(UserDataStatus.MERGED),
+    });
+  }
 }
 
 export interface KycFileYearlyStatsData {

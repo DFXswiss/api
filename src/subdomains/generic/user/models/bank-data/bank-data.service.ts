@@ -468,7 +468,7 @@ export class BankDataService {
 
   // --- Pending Review Queries ---
 
-  async getPendingReviewSummary(): Promise<{ name: string; status: ReviewStatus; count: number }[]> {
+  async getPendingReviewSummary(): Promise<{ status: ReviewStatus; count: number }[]> {
     return this.bankDataRepo
       .createQueryBuilder('bankData')
       .select('bankData.status', 'status')
@@ -480,7 +480,7 @@ export class BankDataService {
       .andWhere('userData.status != :mergedStatus', { mergedStatus: UserDataStatus.MERGED })
       .groupBy('bankData.status')
       .getRawMany<{ status: ReviewStatus; count: string }>()
-      .then((rows) => rows.map((r) => ({ name: 'BankData', status: r.status, count: Number(r.count) })));
+      .then((rows) => rows.map((r) => ({ status: r.status, count: Number(r.count) })));
   }
 
   async getPendingReviewList(status: ReviewStatus): Promise<BankData[]> {
