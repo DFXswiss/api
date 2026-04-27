@@ -14,7 +14,7 @@ module.exports = class AddMrosPersonOverrides1777101337758 {
      * @param {QueryRunner} queryRunner
      */
     async up(queryRunner) {
-        await queryRunner.query(`ALTER TABLE "mros" ADD "personOverrides" nvarchar(MAX)`);
+        await queryRunner.query(`ALTER TABLE "mros" ADD "personOverrides" ntext`);
     }
 
     /**
