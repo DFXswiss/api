@@ -1,11 +1,13 @@
 import { ForbiddenException } from '@nestjs/common';
+import type { TfaLevel } from '../services/tfa.service';
 
 export class TfaRequiredException extends ForbiddenException {
-  constructor(public readonly level?: string) {
+  constructor(public readonly level?: TfaLevel) {
+    const lowerLevel = level?.toLowerCase();
     super({
-      code: '2FA_REQUIRED',
-      message: `2FA required${level ? ` (${level.toLowerCase()})` : ''}`,
-      level: level?.toLowerCase(),
+      code: 'TFA_REQUIRED',
+      message: `2FA required${lowerLevel ? ` (${lowerLevel})` : ''}`,
+      level: lowerLevel,
     });
   }
 }
