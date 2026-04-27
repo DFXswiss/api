@@ -1893,13 +1893,11 @@ export class KycService {
   }
 
   async getPendingReviewSteps(name: KycStepName, status: ReviewStatus): Promise<KycStep[]> {
-    return this.kycStepRepo
-      .createQueryBuilder('step')
-      .innerJoinAndSelect('step.userData', 'userData')
-      .where('step.name = :name', { name })
-      .andWhere('step.status = :status', { status })
-      .andWhere('userData.status != :mergedStatus', { mergedStatus: UserDataStatus.MERGED })
-      .orderBy('step.updated', 'ASC')
-      .getMany();
+    return this.kycStepRepo.find({
+      where: { name, status, userData: { status: Not(UserDataStatus.MERGED) } },
+      relations: { userData: true },
+      loadEagerRelations: false,
+      order: { updated: 'ASC' },
+    });
   }
 }

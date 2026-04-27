@@ -484,12 +484,11 @@ export class BankDataService {
   }
 
   async getPendingReviewList(status: ReviewStatus): Promise<BankData[]> {
-    return this.bankDataRepo
-      .createQueryBuilder('bankData')
-      .innerJoinAndSelect('bankData.userData', 'userData')
-      .where('bankData.status = :status', { status })
-      .andWhere('userData.status != :mergedStatus', { mergedStatus: UserDataStatus.MERGED })
-      .orderBy('bankData.updated', 'ASC')
-      .getMany();
+    return this.bankDataRepo.find({
+      where: { status, userData: { status: Not(UserDataStatus.MERGED) } },
+      relations: { userData: true },
+      loadEagerRelations: false,
+      order: { updated: 'ASC' },
+    });
   }
 }
