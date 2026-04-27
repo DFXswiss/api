@@ -15,18 +15,18 @@ Run `format`, `lint` and `type-check` before pushing.
 
 ## Database Migrations — CRITICAL
 
-### Always generate, never hand-write schema migrations
+### Preferred: generate via TypeORM
 
-Schema changes (new columns, tables, FK/PK/UNIQUE/DEFAULT constraints) **must** be produced by:
+Schema changes (new columns, tables, FK/PK/UNIQUE/DEFAULT constraints) should normally be produced by:
 
 ```bash
 npm run migration <PascalName>
 ```
 
 TypeORM writes deterministic hash-based constraint names
-(e.g. `DF_f6ade72c09ca260e3ce42ba0781`). Hand-written migrations with
-human-readable names (`DF_mros_reportCode`) drift from what TypeORM
-expects and force a follow-up fix migration — see PR #3613.
+(e.g. `DF_f6ade72c09ca260e3ce42ba0781`). The migration file must land in the
+same PR as the entity change — never merge entity changes without their migration
+(see PR #3613, fixed in #3627).
 
 **Workflow when adding a DB-backed feature:**
 
@@ -35,10 +35,32 @@ expects and force a follow-up fix migration — see PR #3613.
 3. `npm run migration <PascalName>` — inspect the generated SQL.
 4. Commit the generated migration file alongside the entity change.
 
+### Fallback: hand-written schema migration
+
+If a contributor (or AI assistant) cannot run `npm run migration` locally, schema migrations may be hand-written **only** if the constraint names match TypeORM's deterministic naming. The algorithm (from `node_modules/typeorm/naming-strategy/DefaultNamingStrategy.js`) is:
+
+```
+<prefix>_ + sha1(tableName + '_' + columnNames.sort().join('_')).substring(0, N)
+```
+
+| Prefix | N   | Method                                     |
+| ------ | --- | ------------------------------------------ |
+| `PK_`  | 27  | primaryKeyName                             |
+| `FK_`  | 27  | foreignKeyName                             |
+| `UQ_`  | 27  | uniqueConstraintName                       |
+| `DF_`  | 27  | defaultConstraintName (single column only) |
+| `REL_` | 26  | relationConstraintName                     |
+| `IDX_` | 26  | indexName                                  |
+| `CHK_` | 26  | checkConstraintName                        |
+
+Many-to-many join tables follow `snakeCase(ownerTable + '_' + property + '_' + inverseTable)` with columns `<owner>Id` / `<inverse>Id` and `ON DELETE CASCADE ON UPDATE CASCADE` on FKs.
+
+**Always verify** the formula against an existing `AddMros`-style migration before committing — one mismatch and the next `npm run migration` run will see drift.
+
 ### Exception: data-only migrations
 
 Migrations that **only** run `UPDATE` / `INSERT` / `DELETE` (no schema
-changes) may be hand-written — no constraints involved. See
+changes) may be hand-written freely — no constraints involved. See
 `ActivateScryptBtcWithdraw` for the style.
 
 ### Migrations are immutable once on develop / main
