@@ -53,17 +53,9 @@ export class Mros extends IEntity {
     this.indicators = JSON.stringify(codes);
   }
 
-  // JSON-serialized MrosPersonOverrides — fields that override UserData
-  // when the compliance officer needs to supply goAML-required data that
-  // is not captured on UserData (e.g. gender, middle name, profession).
-  @Column({ length: 'MAX', nullable: true })
-  personOverrides?: string;
-
-  get personOverridesObject(): MrosPersonOverrides {
-    return this.personOverrides ? JSON.parse(this.personOverrides) : {};
-  }
-
-  set personOverridesObject(overrides: MrosPersonOverrides) {
-    this.personOverrides = JSON.stringify(overrides);
-  }
+  // Fields that override UserData when the compliance officer needs to
+  // supply goAML-required data that is not captured on UserData (e.g.
+  // gender, middle name, profession).
+  @Column({ type: 'simple-json', nullable: true })
+  personOverrides?: MrosPersonOverrides;
 }

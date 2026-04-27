@@ -13,14 +13,13 @@ export class MrosService {
   ) {}
 
   async create(dto: CreateMrosDto): Promise<Mros> {
-    const { userDataId, indicators, personOverrides, ...rest } = dto;
+    const { userDataId, indicators, ...rest } = dto;
     const entity = this.repo.create(rest);
 
     entity.userData = await this.userDataService.getUserData(userDataId);
     if (!entity.userData) throw new NotFoundException('UserData not found');
 
     if (indicators) entity.indicatorCodes = indicators;
-    if (personOverrides) entity.personOverridesObject = personOverrides;
 
     return this.repo.save(entity);
   }
@@ -29,10 +28,9 @@ export class MrosService {
     const entity = await this.repo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Mros not found');
 
-    const { indicators, personOverrides, ...rest } = dto;
+    const { indicators, ...rest } = dto;
     Object.assign(entity, rest);
     if (indicators !== undefined) entity.indicatorCodes = indicators;
-    if (personOverrides !== undefined) entity.personOverridesObject = personOverrides;
 
     return this.repo.save(entity);
   }
