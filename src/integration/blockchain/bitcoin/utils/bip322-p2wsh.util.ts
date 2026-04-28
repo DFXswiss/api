@@ -18,6 +18,7 @@ interface ParsedMultisig {
 }
 
 export function isP2wshAddress(address: string): boolean {
+  if (typeof address !== 'string') return false;
   if (!address.startsWith('bc1q') || address.length !== 62) return false;
   try {
     const decoded = bech32.decode(address);
@@ -59,6 +60,7 @@ export function verifyBip322P2wshSignature(message: string, address: string, sig
 }
 
 function decodeP2wshAddress(address: string): Buffer | null {
+  if (typeof address !== 'string') return null;
   if (!address.startsWith('bc1q') || address.length !== 62) return null;
 
   const decoded = bech32.decode(address);
