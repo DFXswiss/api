@@ -1,6 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { Column, Entity, JoinTable, ManyToMany, ManyToOne } from 'typeorm';
 import { MrosStatus } from './mros-status.enum';
 
 export interface MrosPersonOverrides {
@@ -58,4 +59,8 @@ export class Mros extends IEntity {
   // gender, middle name, profession).
   @Column({ type: 'simple-json', nullable: true })
   personOverrides?: MrosPersonOverrides;
+
+  @ManyToMany(() => Transaction)
+  @JoinTable()
+  transactions: Transaction[];
 }

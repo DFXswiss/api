@@ -56,4 +56,9 @@ export class CreateMrosDto {
   @ValidateNested()
   @Type(() => MrosPersonOverridesDto)
   personOverrides?: MrosPersonOverridesDto;
+
+  @IsOptional()
+  @IsArray()
+  @IsInt({ each: true })
+  transactionIds?: number[];
 }

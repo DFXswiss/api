@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsArray, IsDateString, IsEnum, IsObject, IsString, ValidateNested } from 'class-validator';
+import { IsArray, IsDateString, IsEnum, IsInt, IsObject, IsString, ValidateNested } from 'class-validator';
 import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
 import { MrosStatus } from '../mros-status.enum';
 import { MrosPersonOverridesDto } from './mros-person-overrides.dto';
@@ -43,4 +43,9 @@ export class UpdateMrosDto {
   @ValidateNested()
   @Type(() => MrosPersonOverridesDto)
   personOverrides?: MrosPersonOverridesDto;
+
+  @IsOptionalButNotNull()
+  @IsArray()
+  @IsInt({ each: true })
+  transactionIds?: number[];
 }
