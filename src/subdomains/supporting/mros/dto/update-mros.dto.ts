@@ -1,6 +1,8 @@
-import { IsArray, IsDateString, IsEnum, IsInt, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsDateString, IsEnum, IsInt, IsObject, IsString, ValidateNested } from 'class-validator';
 import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
 import { MrosStatus } from '../mros-status.enum';
+import { MrosPersonOverridesDto } from './mros-person-overrides.dto';
 
 export class UpdateMrosDto {
   @IsOptionalButNotNull()
@@ -35,6 +37,12 @@ export class UpdateMrosDto {
   @IsArray()
   @IsString({ each: true })
   indicators?: string[];
+
+  @IsOptionalButNotNull()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => MrosPersonOverridesDto)
+  personOverrides?: MrosPersonOverridesDto;
 
   @IsOptionalButNotNull()
   @IsArray()

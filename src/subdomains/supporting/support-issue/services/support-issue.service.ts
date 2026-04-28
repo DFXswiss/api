@@ -8,6 +8,7 @@ import {
 import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
@@ -32,7 +33,7 @@ import {
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
-import { Department } from '../enums/department.enum';
+import { RoleDepartmentMap } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
@@ -55,7 +56,49 @@ export class SupportIssueService {
     private readonly transactionRequestService: TransactionRequestService,
     private readonly supportLogService: SupportLogService,
     private readonly bankDataService: BankDataService,
+    private readonly settingService: SettingService,
   ) {}
+
+  async getSupportIssueClerks(): Promise<string[]> {
+    const clerks = await this.settingService.getObj<string[]>('supportClerks', []);
+    return clerks.length > 0 ? clerks : ['Support'];
+  }
+
+  async getSupportIssueCounts(role: UserRole): Promise<Record<SupportIssueInternalState, number>> {
+    const qb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .select('issue.state', 'state')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('issue.state');
+
+    const departmentByRole = RoleDepartmentMap[role];
+    if (departmentByRole) qb.andWhere('issue.department = :department', { department: departmentByRole });
+
+    const raw: { state: SupportIssueInternalState; count: string }[] = await qb.getRawMany();
+
+    const counts = Object.values(SupportIssueInternalState).reduce(
+      (acc, state) => ({ ...acc, [state]: 0 }),
+      {} as Record<SupportIssueInternalState, number>,
+    );
+    for (const row of raw) counts[row.state] = +row.count;
+
+    return counts;
+  }
+
+  async getSupportIssueActivity(since: Date | undefined, role: UserRole): Promise<{ count: number; latestAt?: Date }> {
+    const departmentByRole = RoleDepartmentMap[role];
+
+    const qb = this.messageRepo
+      .createQueryBuilder('m')
+      .innerJoin('m.issue', 'i')
+      .select('COUNT(*)', 'count')
+      .addSelect('MAX(m.created)', 'latestAt');
+    if (since) qb.andWhere('m.created > :since', { since: since.toISOString() });
+    if (departmentByRole) qb.andWhere('i.department = :department', { department: departmentByRole });
+
+    const raw = await qb.getRawOne<{ count: string | number; latestAt: Date | null }>();
+    return { count: +(raw?.count ?? 0), latestAt: raw?.latestAt ?? undefined };
+  }
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
     if (!dto?.transaction?.orderUid) throw new BadRequestException('JWT Token or quoteUid missing');
@@ -224,19 +267,13 @@ export class SupportIssueService {
     const where: FindOptionsWhere<SupportIssue> = {};
 
     // department filtering based on role
-    const roleDepartmentMap: Partial<Record<UserRole, Department>> = {
-      [UserRole.SUPPORT]: Department.SUPPORT,
-      [UserRole.COMPLIANCE]: Department.COMPLIANCE,
-    };
-
-    const departmentByRole = roleDepartmentMap[role];
+    const departmentByRole = RoleDepartmentMap[role];
     if (departmentByRole) {
       where.department = departmentByRole;
     } else if (filter.department) {
       where.department = filter.department;
     }
 
-    if (filter.state) where.state = filter.state;
     if (filter.type) where.type = filter.type;
 
     // server-side search: split query into terms, each term must match at least one field (AND between terms, OR between fields)
@@ -246,13 +283,11 @@ export class SupportIssueService {
       .filter((t) => t.length > 0)
       .slice(0, 10);
 
-    const qb = this.supportIssueRepo
-      .createQueryBuilder('issue')
-      .leftJoinAndSelect('issue.messages', 'messages')
-      .leftJoinAndSelect('issue.userData', 'userData');
+    const qb = this.supportIssueRepo.createQueryBuilder('issue');
+    if (terms.length > 0) qb.leftJoin('issue.userData', 'userData');
 
     if (where.department) qb.andWhere('issue.department = :department', { department: where.department });
-    if (where.state) qb.andWhere('issue.state = :state', { state: where.state });
+    if (filter.states?.length) qb.andWhere('issue.state IN (:...states)', { states: filter.states });
     if (where.type) qb.andWhere('issue.type = :type', { type: where.type });
 
     const termCount = Math.min(terms.length, 10);
@@ -273,7 +308,54 @@ export class SupportIssueService {
 
     const [issues, total] = await qb.getManyAndCount();
 
-    return { data: issues.map(SupportIssueDtoMapper.mapSupportIssueListItem), total };
+    const stats = await this.getMessageStats(issues.map((i) => i.id));
+
+    return {
+      data: issues.map((i) => SupportIssueDtoMapper.mapSupportIssueListItem(i, stats.get(i.id))),
+      total,
+    };
+  }
+
+  private async getMessageStats(
+    issueIds: number[],
+  ): Promise<Map<number, { count: number; lastDate?: Date; lastAuthor?: string }>> {
+    if (issueIds.length === 0) return new Map();
+
+    const rows: { issueId: string; count: string; lastDate: Date | null; lastAuthor: string | null }[] =
+      await this.messageRepo
+        .createQueryBuilder('m')
+        .select('m.issueId', 'issueId')
+        .addSelect('COUNT(*)', 'count')
+        .addSelect(
+          (sub) =>
+            sub
+              .select('m2.created')
+              .from(SupportMessage, 'm2')
+              .where('m2.issueId = m.issueId')
+              .orderBy('m2.id', 'DESC')
+              .limit(1),
+          'lastDate',
+        )
+        .addSelect(
+          (sub) =>
+            sub
+              .select('m2.author')
+              .from(SupportMessage, 'm2')
+              .where('m2.issueId = m.issueId')
+              .orderBy('m2.id', 'DESC')
+              .limit(1),
+          'lastAuthor',
+        )
+        .where('m.issueId IN (:...ids)', { ids: issueIds })
+        .groupBy('m.issueId')
+        .getRawMany();
+
+    return new Map(
+      rows.map((r) => [
+        +r.issueId,
+        { count: +r.count, lastDate: r.lastDate ?? undefined, lastAuthor: r.lastAuthor ?? undefined },
+      ]),
+    );
   }
 
   async getIssueEntities(userDataId: number): Promise<SupportIssue[]> {

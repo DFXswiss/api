@@ -21,7 +21,7 @@ import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
 import { CustomerAuthor } from './entities/support-message.entity';
 import { Department } from './enums/department.enum';
-import { SupportIssueType } from './enums/support-issue.enum';
+import { SupportIssueInternalState, SupportIssueType } from './enums/support-issue.enum';
 import { SupportIssueService } from './services/support-issue.service';
 
 @ApiTags('Support')
@@ -81,6 +81,33 @@ export class SupportIssueController {
     @Query() filter: GetSupportIssueListFilter,
   ): Promise<{ data: SupportIssueListDto[]; total: number }> {
     return this.supportIssueService.getSupportIssueList(filter, jwt.role);
+  }
+
+  @Get('counts')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportIssueCounts(@GetJwt() jwt: JwtPayload): Promise<Record<SupportIssueInternalState, number>> {
+    return this.supportIssueService.getSupportIssueCounts(jwt.role);
+  }
+
+  @Get('activity')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportIssueActivity(
+    @GetJwt() jwt: JwtPayload,
+    @Query('since') since?: string,
+  ): Promise<{ count: number; latestAt?: Date }> {
+    return this.supportIssueService.getSupportIssueActivity(since ? new Date(since) : undefined, jwt.role);
+  }
+
+  @Get('clerks')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportIssueClerks(): Promise<string[]> {
+    return this.supportIssueService.getSupportIssueClerks();
   }
 
   @Get(':id')

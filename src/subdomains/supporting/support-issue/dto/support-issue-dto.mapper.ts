@@ -57,10 +57,10 @@ export class SupportIssueDtoMapper {
     return Object.assign(new SupportIssueInternalDataDto(), dto);
   }
 
-  static mapSupportIssueListItem(issue: SupportIssue): SupportIssueListDto {
-    const messages = issue.messages ?? [];
-    const lastMessage = messages.length > 0 ? messages.reduce((a, b) => (a.id > b.id ? a : b)) : undefined;
-
+  static mapSupportIssueListItem(
+    issue: SupportIssue,
+    stats?: { count: number; lastDate?: Date; lastAuthor?: string },
+  ): SupportIssueListDto {
     return {
       id: issue.id,
       uid: issue.uid,
@@ -71,9 +71,9 @@ export class SupportIssueDtoMapper {
       clerk: issue.clerk,
       department: issue.department,
       created: issue.created,
-      messageCount: messages.length,
-      lastMessageDate: lastMessage?.created,
-      lastMessageAuthor: lastMessage?.author,
+      messageCount: stats?.count ?? 0,
+      lastMessageDate: stats?.lastDate,
+      lastMessageAuthor: stats?.lastAuthor,
     };
   }
 

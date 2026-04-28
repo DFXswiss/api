@@ -4,6 +4,18 @@ import { Transaction } from 'src/subdomains/supporting/payment/entities/transact
 import { Column, Entity, JoinTable, ManyToMany, ManyToOne } from 'typeorm';
 import { MrosStatus } from './mros-status.enum';
 
+export interface MrosPersonOverrides {
+  gender?: string;
+  middleName?: string;
+  birthPlace?: string;
+  profession?: string;
+  sourceOfWealth?: string;
+  canton?: string;
+  idDocIssueDate?: string;
+  idDocValidUntil?: string;
+  idDocIssuingCountryCode?: string;
+}
+
 @Entity()
 export class Mros extends IEntity {
   @ManyToOne(() => UserData, { nullable: false })
@@ -41,6 +53,12 @@ export class Mros extends IEntity {
   set indicatorCodes(codes: string[]) {
     this.indicators = JSON.stringify(codes);
   }
+
+  // Fields that override UserData when the compliance officer needs to
+  // supply goAML-required data that is not captured on UserData (e.g.
+  // gender, middle name, profession).
+  @Column({ type: 'simple-json', nullable: true })
+  personOverrides?: MrosPersonOverrides;
 
   @ManyToMany(() => Transaction)
   @JoinTable()
