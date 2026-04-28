@@ -1,9 +1,12 @@
 import { IsNotEmpty } from 'class-validator';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { RecallReason } from 'src/subdomains/supporting/recall/recall-reason.enum';
 import { KycFile } from '../../kyc/entities/kyc-file.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
-import { KycStatus } from '../../user/models/user-data/user-data.enum';
+import { KycStatus, PhoneCallStatus } from '../../user/models/user-data/user-data.enum';
 
 export class UserDataSupportInfoResult {
   type: ComplianceSearchType;
@@ -33,6 +36,60 @@ export class PendingOnboardingInfo {
   date: Date;
 }
 
+export enum PendingReviewType {
+  KYC_STEP = 'KycStep',
+  BANK_DATA = 'BankData',
+}
+
+export class PendingReviewSummaryEntry {
+  type: PendingReviewType;
+  name: string;
+  manualReview: number;
+  internalReview: number;
+}
+
+export class PendingReviewItem {
+  id: number;
+  userDataId: number;
+  userName?: string;
+  accountType?: AccountType;
+  kycLevel?: number;
+  date: Date;
+}
+
+export enum CallQueue {
+  MANUAL_CHECK_PHONE = 'ManualCheckPhone',
+  MANUAL_CHECK_IP_PHONE = 'ManualCheckIpPhone',
+  MANUAL_CHECK_IP_COUNTRY_PHONE = 'ManualCheckIpCountryPhone',
+  MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE = 'ManualCheckExternalAccountPhone',
+  UNAVAILABLE_SUSPICIOUS = 'UnavailableSuspicious',
+}
+
+export class CallQueueSummaryEntry {
+  queue: CallQueue;
+  count: number;
+}
+
+export class CallQueueItem {
+  queue: CallQueue;
+  userDataId: number;
+  userName?: string;
+  phone?: string;
+  language?: string;
+  country?: string;
+  kycLevel?: number;
+  txId?: number;
+  sourceType?: 'BuyCrypto' | 'BuyFiat';
+  amlCheck?: CheckStatus;
+  amlReason?: AmlReason;
+  inputAmount?: number;
+  inputAsset?: string;
+  ip?: string;
+  ipCountry?: string;
+  phoneCallStatus?: PhoneCallStatus;
+  date: Date;
+}
+
 export class BankTxSupportInfo {
   id: number;
   transactionId?: number;
@@ -43,12 +100,24 @@ export class BankTxSupportInfo {
   name?: string;
   iban?: string;
   remittanceInfo?: string;
+  recall?: RecallSupportInfo;
+}
+
+export class RecallSupportInfo {
+  id: number;
+  created: Date;
+  sequence: number;
+  reason?: RecallReason;
+  comment: string;
+  fee: number;
 }
 
 export class UserSupportInfo {
   id: number;
   address: string;
   ref?: string;
+  usedRef?: string;
+  refUserName?: string;
   role: string;
   status: string;
   walletName?: string;

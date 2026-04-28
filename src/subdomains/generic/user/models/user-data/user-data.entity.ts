@@ -836,6 +836,11 @@ export const UserDataComplianceUpdateCols = [
   'amlAccountType',
   'complexOrgStructure',
   'highRisk',
+  'phoneCallStatus',
+  'phoneCallCheckDate',
+  'phoneCallIpCheckDate',
+  'phoneCallIpCountryCheckDate',
+  'phoneCallExternalAccountCheckDate',
 ];
 
 export function KycCompleted(kycStatus?: KycStatus): boolean {

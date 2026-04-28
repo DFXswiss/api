@@ -1,6 +1,7 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { StringToArray } from 'src/shared/utils/dto-transforms';
 import { Department } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueType } from '../enums/support-issue.enum';
 
@@ -18,10 +19,15 @@ export class GetSupportIssueListFilter {
   @IsEnum(Department)
   department?: Department;
 
-  @ApiPropertyOptional({ enum: SupportIssueInternalState })
+  @ApiPropertyOptional({
+    enum: SupportIssueInternalState,
+    isArray: true,
+    description: 'Comma-separated list of states',
+  })
   @IsOptional()
-  @IsEnum(SupportIssueInternalState)
-  state?: SupportIssueInternalState;
+  @StringToArray()
+  @IsEnum(SupportIssueInternalState, { each: true })
+  states?: SupportIssueInternalState[];
 
   @ApiPropertyOptional({ enum: SupportIssueType })
   @IsOptional()

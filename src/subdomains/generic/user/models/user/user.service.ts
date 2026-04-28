@@ -30,7 +30,7 @@ import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/
 import { FeeInfo } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
-import { Between, FindOptionsRelations, Not } from 'typeorm';
+import { Between, FindOptionsRelations, In, Not } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import {
   KycLevel,
@@ -173,6 +173,11 @@ export class UserService {
 
   async getRefUser(ref: string): Promise<User> {
     return this.userRepo.findOne({ where: { ref }, relations: { userData: true } });
+  }
+
+  async getRefUsersByRefs(refs: string[]): Promise<User[]> {
+    if (refs.length === 0) return [];
+    return this.userRepo.find({ where: { ref: In(refs) }, relations: { userData: true } });
   }
 
   async getNexCustodyIndex(): Promise<number> {

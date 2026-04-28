@@ -52,8 +52,9 @@ export class Configuration {
   txRequestWaitingExpiryDays = 7;
   txRequestValidityMinutes = 30;
   financeLogTotalBalanceChangeLimit = 5000;
-  faucetAmount = 20; //CHF
-  faucetEnabled = process.env.FAUCET_ENABLED === 'true';
+  faucetAmount = 0.0005; // ETH
+  faucetEnabled =
+    process.env.FAUCET_ENABLED === 'true' || [Environment.DEV, Environment.LOC].includes(this.environment);
 
   priceSourceManual = 'DFX'; // source name for priceStep if price is set manually in buy-crypto
   priceSourcePayment = 'Payment'; // source name for priceStep if price is defined by payment quote
@@ -667,7 +668,10 @@ export class Configuration {
       })[blockchain] ?? 100,
     minVolume: 0.01, // CHF
     maxDepositBalance: 10000, // CHF
-    cryptoPayoutMinAmount: +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
+    cryptoPayoutMinAmount: (blockchain: Blockchain): number =>
+      ({
+        [Blockchain.LIGHTNING]: 0,
+      })[blockchain] ?? +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),

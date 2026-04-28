@@ -6,7 +6,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -16,11 +16,6 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import {
-  PriceCurrency,
-  PriceValidity,
-  PricingService,
-} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Not } from 'typeorm';
 import { FaucetRequestDto } from '../dto/faucet-request.dto';
 import { FaucetRequestStatus } from '../enums/faucet-request';
@@ -31,11 +26,13 @@ export class FaucetRequestService {
   constructor(
     private readonly faucetRequestRepo: FaucetRequestRepository,
     private readonly blockchainRegistry: BlockchainRegistryService,
-    private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
     private readonly userService: UserService,
   ) {}
   private readonly logger = new DfxLogger(FaucetRequestService);
+  private readonly faucetBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
+    ? Blockchain.SEPOLIA
+    : Blockchain.ETHEREUM;
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.CRYPTO_PAYOUT })
   async checkFaucetRequests(): Promise<void> {
@@ -56,7 +53,7 @@ export class FaucetRequestService {
 
     const user = await this.userService.getUser(userId, { userData: true, wallet: true });
     if (!user) throw new NotFoundException('User not found');
-    if (!user.blockchains.includes(Blockchain.ETHEREUM))
+    if (!user.blockchains.includes(this.faucetBlockchain))
       throw new BadRequestException('Faucet not available for this user');
 
     if (user.userData.kycLevel < KycLevel.LEVEL_30) throw new ForbiddenException('Account not verified');
@@ -67,21 +64,20 @@ export class FaucetRequestService {
     if (faucetUsed) throw new BadRequestException('Faucet already used for this account');
 
     try {
-      const client = this.blockchainRegistry.getEvmClient(Blockchain.ETHEREUM);
-      const asset = await this.assetService.getNativeAsset(Blockchain.ETHEREUM);
-      const price = await this.pricingService.getPrice(PriceCurrency.CHF, asset, PriceValidity.ANY);
-      const txId = await client.sendNativeCoinFromDex(user.address, price.convert(Config.faucetAmount));
+      const client = this.blockchainRegistry.getEvmClient(this.faucetBlockchain);
+      const asset = await this.assetService.getNativeAsset(this.faucetBlockchain);
+      const txId = await client.sendNativeCoinFromDex(user.address, Config.faucetAmount);
 
       const faucetRequest = this.faucetRequestRepo.create({
         userData: user.userData,
         txId,
-        amount: price.convert(Config.faucetAmount),
+        amount: Config.faucetAmount,
         asset,
         user,
       });
       await this.faucetRequestRepo.save(faucetRequest);
 
-      return { txId, amount: price.convert(Config.faucetAmount), asset: AssetDtoMapper.toDto(asset) };
+      return { txId, amount: Config.faucetAmount, asset: AssetDtoMapper.toDto(asset) };
     } catch (e) {
       this.logger.error(`Faucet request from user ${userId} failed:`, e);
       throw new ServiceUnavailableException('Faucet currently not available');
