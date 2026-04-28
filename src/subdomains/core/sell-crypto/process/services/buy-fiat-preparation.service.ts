@@ -329,30 +329,11 @@ export class BuyFiatPreparationService {
       try {
         const asset = entity.cryptoInput.asset;
         const currency = entity.outputAsset;
-        const price = !entity.outputReferenceAmount
-          ? await this.pricingService.getPrice(asset, currency, PriceValidity.VALID_ONLY)
-          : undefined;
-
-        // Price from transaction request
-        const quoteResult =
-          !DisabledProcess(Process.GUARANTEED_PRICE) && price
-            ? entity.transaction?.request?.calculateQuoteOutput(
-                Config.txRequestValidityMinutes,
-                entity.inputReferenceAmountMinusFee,
-                price.price,
-                AmountType.FIAT,
-              )
-            : undefined;
-
         let outputAmount: number;
         let priceSteps: PriceStep[];
         let quoteMarketRatio: number | undefined;
 
-        if (quoteResult) {
-          outputAmount = quoteResult.outputAmount;
-          priceSteps = quoteResult.priceSteps;
-          quoteMarketRatio = quoteResult.quoteMarketRatio;
-        } else if (entity.outputReferenceAmount) {
+        if (entity.outputReferenceAmount) {
           outputAmount = entity.outputReferenceAmount;
           priceSteps = [
             PriceStep.create(
@@ -363,8 +344,21 @@ export class BuyFiatPreparationService {
             ),
           ];
         } else {
-          outputAmount = price.convert(entity.inputReferenceAmountMinusFee);
-          priceSteps = price.steps;
+          const price = await this.pricingService.getPrice(asset, currency, PriceValidity.VALID_ONLY);
+
+          // Guaranteed price from transaction request
+          const quoteResult = !DisabledProcess(Process.GUARANTEED_PRICE)
+            ? entity.transaction?.request?.calculateQuoteOutput(
+                Config.txRequestValidityMinutes,
+                entity.inputReferenceAmountMinusFee,
+                price.price,
+                AmountType.FIAT,
+              )
+            : undefined;
+
+          outputAmount = quoteResult?.outputAmount ?? price.convert(entity.inputReferenceAmountMinusFee);
+          priceSteps = quoteResult?.priceSteps ?? price.steps;
+          quoteMarketRatio = quoteResult?.quoteMarketRatio;
         }
 
         await this.buyFiatRepo.update(...entity.setOutput(outputAmount, priceSteps, quoteMarketRatio));
