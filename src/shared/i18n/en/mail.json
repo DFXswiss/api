@@ -414,5 +414,75 @@
         },
         "message": "Your verification code is:<br>{code}",
         "closing": "The verification code is valid for {expiration} minutes. Please do not share this verification code with other people. If you have not requested a verification code, please contact support immediately via [url:https://app.dfx.swiss/support]."
+    },
+    "wallets": {
+        "realunit": {
+            "general": {
+                "dfx_team_closing": "RealUnit Schweiz AG",
+                "dfx_closing_message": "",
+                "support": "For technical issues with the app, please contact<br>[url:https://support.realunit.ch]",
+                "thanks": "Thank you for your trust",
+                "welcome": "Dear {name}",
+                "team_questions": "Should you have any questions, the RealUnit team is happy to assist at info@realunit.ch.",
+                "personal_closing": "Kind regards,<br>{closingName}"
+            },
+            "payment": {
+                "crypto_output": {
+                    "title": "Transfer of your RealUnit tokens",
+                    "salutation": "We have transferred the RealUnit tokens to your wallet"
+                },
+                "fiat_output": {
+                    "title": "Sale of RealUnit tokens – Payout completed",
+                    "salutation": "You have successfully sold your RealUnit tokens"
+                },
+                "processing": {
+                    "title": "Sale of your RealUnit tokens",
+                    "salutation": "Your sell transaction is now being processed"
+                },
+                "fiat_input": {
+                    "title": "Purchase of RealUnit tokens – Payment under review",
+                    "salutation": "Thank you for purchasing our RealUnit equity tokens"
+                },
+                "chargeback": {
+                    "fiat": {
+                        "title": "Sale of RealUnit tokens – Refund",
+                        "salutation": "Your sell order could not be executed"
+                    },
+                    "crypto": {
+                        "title": "Sale of RealUnit tokens currently not possible",
+                        "salutation": "Your RealUnit tokens have been returned to your wallet"
+                    },
+                    "introduction": "Reason:<br>{reason}",
+                    "reasons": {
+                        "monthly_limit": "You have exceeded the monthly limit of CHF 1'000 without full verification",
+                        "annual_limit": "You have exceeded the annual limit of CHF 100'000 without extended verification",
+                        "annual_limit_without_kyc": "You have exceeded the annual limit without KYC verification",
+                        "kyc_data_needed": "Full KYC data is required for the sale",
+                        "video_ident_needed": "A video verification is required for the sale",
+                        "high_risk_kyc_needed": "Full verification is required for regulatory reasons"
+                    }
+                }
+            },
+            "kyc": {
+                "failed": {
+                    "title": "Sale of RealUnit tokens – Video verification required",
+                    "salutation": "Video verification is required for regulatory reasons"
+                },
+                "missing_data": {
+                    "title": "Sale of RealUnit tokens – Please complete your profile data",
+                    "salutation": "Some profile data is missing"
+                },
+                "reminder": {
+                    "title": "Reminder: Your sale is waiting for verification",
+                    "salutation": "Your sell order is still waiting for your verification"
+                }
+            },
+            "verification_code": {
+                "email": {
+                    "title": "Reminder: Confirm your email address",
+                    "salutation": "Please confirm your email address"
+                }
+            }
+        }
     }
 }

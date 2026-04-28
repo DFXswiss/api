@@ -414,5 +414,75 @@
         },
         "message": "Dein Verifizierungscode lautet:<br>{code}",
         "closing": "Der Verifizierungscode ist für {expiration} Minuten gültig. Bitte teile diesen Verifizierungscode nicht mit anderen Personen. Wenn du keinen Verifizierungscode angefordert hast, kontaktiere bitte unverzüglich den Support unter [url:https://app.dfx.swiss/support]."
+    },
+    "wallets": {
+        "realunit": {
+            "general": {
+                "dfx_team_closing": "RealUnit Schweiz AG",
+                "dfx_closing_message": "",
+                "support": "Bei technischen Problemen mit der App wenden Sie sich bitte an<br>[url:https://support.realunit.ch]",
+                "thanks": "Vielen Dank für Ihr Vertrauen",
+                "welcome": "Guten Tag {name}",
+                "team_questions": "Sollten Sie Fragen haben, steht Ihnen das RealUnit-Team gerne unter info@realunit.ch zur Verfügung.",
+                "personal_closing": "Freundliche Grüsse,<br>{closingName}"
+            },
+            "payment": {
+                "crypto_output": {
+                    "title": "Transfer Ihrer RealUnit-Token",
+                    "salutation": "Wir haben Ihnen die RealUnit-Token in Ihr Wallet überwiesen"
+                },
+                "fiat_output": {
+                    "title": "Verkauf RealUnit-Token – Überweisung erfolgt",
+                    "salutation": "Sie haben Ihre RealUnit-Token erfolgreich verkauft"
+                },
+                "processing": {
+                    "title": "Verkauf Ihrer RealUnit-Token",
+                    "salutation": "Ihre Verkaufstransaktion wird nun verarbeitet"
+                },
+                "fiat_input": {
+                    "title": "Kauf RealUnit-Token – Einzahlung wird geprüft",
+                    "salutation": "Vielen Dank für den Kauf unserer RealUnit-Aktientoken"
+                },
+                "chargeback": {
+                    "fiat": {
+                        "title": "Verkauf RealUnit-Token – Rückerstattung",
+                        "salutation": "Ihr Verkaufsauftrag konnte nicht durchgeführt werden"
+                    },
+                    "crypto": {
+                        "title": "Verkauf RealUnit-Token aktuell nicht möglich",
+                        "salutation": "Ihre RealUnit-Token wurden Ihrem Wallet zurückerstattet"
+                    },
+                    "introduction": "Grund:<br>{reason}",
+                    "reasons": {
+                        "monthly_limit": "Sie haben die monatliche Limite von CHF 1'000.– ohne vollständige Verifizierung überschritten",
+                        "annual_limit": "Sie haben die jährliche Limite von CHF 100'000.– ohne erweiterte Verifizierung überschritten",
+                        "annual_limit_without_kyc": "Sie haben die Jahreslimite ohne KYC-Verifizierung überschritten",
+                        "kyc_data_needed": "Für den Verkauf werden Ihre vollständigen KYC-Daten benötigt",
+                        "video_ident_needed": "Für den Verkauf ist eine Video-Verifizierung nötig",
+                        "high_risk_kyc_needed": "Aus regulatorischen Gründen ist eine vollständige Verifizierung nötig"
+                    }
+                }
+            },
+            "kyc": {
+                "failed": {
+                    "title": "Verkauf RealUnit-Token – Video-Verifizierung erforderlich",
+                    "salutation": "Aus regulatorischen Gründen ist eine Video-Verifizierung erforderlich"
+                },
+                "missing_data": {
+                    "title": "Verkauf RealUnit-Token – Bitte vervollständigen Sie Ihre Stammdaten",
+                    "salutation": "In Ihrem Profil fehlen einzelne Stammdaten"
+                },
+                "reminder": {
+                    "title": "Erinnerung: Ihr Verkauf wartet auf Verifizierung",
+                    "salutation": "Ihr Verkaufsauftrag wartet weiterhin auf Ihre Verifizierung"
+                }
+            },
+            "verification_code": {
+                "email": {
+                    "title": "Erinnerung: Bestätigung Ihrer E-Mailadresse",
+                    "salutation": "Bitte bestätigen Sie Ihre E-Mailadresse"
+                }
+            }
+        }
     }
 }

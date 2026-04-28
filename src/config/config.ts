@@ -636,7 +636,7 @@ export class Configuration {
           pass: process.env.REALUNIT_MAIL_PASS,
           fromAddress: process.env.REALUNIT_MAIL_USER,
           displayName: 'RealUnit',
-          template: 'user-v2',
+          template: 'realUnit',
         },
       }),
     },
