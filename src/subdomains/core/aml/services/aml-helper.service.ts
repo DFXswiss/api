@@ -78,6 +78,7 @@ export class AmlHelperService {
     if (entity.user.isBlocked) errors.push(AmlError.USER_BLOCKED);
     if (entity.user.isDeleted) errors.push(AmlError.USER_DELETED);
     if (entity.userData.isBlocked || entity.userData.isRiskBlocked) errors.push(AmlError.USER_DATA_BLOCKED);
+    if (entity.userData.isSuspicious) errors.push(AmlError.USER_DATA_SUSPICIOUS);
     if (entity.userData.isDeactivated) errors.push(AmlError.USER_DATA_DEACTIVATED);
     if (!entity.userData.isPaymentStatusEnabled) errors.push(AmlError.INVALID_USER_DATA_STATUS);
     if (!entity.userData.isPaymentKycStatusEnabled) errors.push(AmlError.INVALID_KYC_STATUS);

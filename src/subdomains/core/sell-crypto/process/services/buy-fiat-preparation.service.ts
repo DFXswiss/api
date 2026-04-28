@@ -57,7 +57,6 @@ export class BuyFiatPreparationService {
       inputAsset: Not(IsNull()),
       chargebackAllowedDateUser: IsNull(),
       isComplete: false,
-      transaction: { userData: { riskStatus: Not(RiskStatus.SUSPICIOUS) } },
     };
     const entities = await this.buyFiatRepo.find({
       where: [
