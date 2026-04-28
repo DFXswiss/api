@@ -7,9 +7,11 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { BigNumber, ethers } from 'ethers';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { Config, Environment, GetConfig } from 'src/config/config';
+import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
 import {
   BrokerbotBuyPriceDto,
   BrokerbotBuySharesDto,
@@ -20,8 +22,10 @@ import {
   BrokerbotSellSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
+import { SepoliaService } from 'src/integration/blockchain/sepolia/sepolia.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -76,7 +80,12 @@ import {
   RealUnitUserType,
   RealUnitWalletStatusDto,
 } from './dto/realunit-registration.dto';
-import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from './dto/realunit-sell.dto';
+import {
+  RealUnitSellBroadcastDto,
+  RealUnitSellConfirmDto,
+  RealUnitSellDto,
+  RealUnitSellPaymentInfoDto,
+} from './dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
   AccountSummaryDto,
@@ -122,6 +131,8 @@ export class RealUnitService {
     @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     private readonly eip7702DelegationService: Eip7702DelegationService,
+    private readonly ethereumService: EthereumService,
+    private readonly sepoliaService: SepoliaService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly transactionService: TransactionService,
     private readonly accountMergeService: AccountMergeService,
@@ -1000,11 +1011,32 @@ export class RealUnitService {
       );
     }
 
-    // 8. Prepare EIP-7702 delegation data (ALWAYS for RealUnit - app supports eth_sign)
-    const delegationData = await this.eip7702DelegationService.prepareDelegationDataForRealUnit(
-      user.address,
-      realuAsset.blockchain,
-    );
+    // 8. Prepare EIP-7702 delegation data, fetch gas info, and get accurate brokerbot ZCHF in parallel
+    const evmClient = this.getEvmClient();
+    const shares = Math.floor(sellPaymentInfo.amount);
+    const [delegationData, zchfAsset, ethBalance, gasPrice, brokerbotResult] = await Promise.all([
+      this.eip7702DelegationService.prepareDelegationDataForRealUnit(user.address, realuAsset.blockchain),
+      this.getZchfAsset(),
+      evmClient.getNativeCoinBalanceForAddress(user.address),
+      evmClient.getRecommendedGasPrice(),
+      shares > 0
+        ? this.blockchainService.getBrokerbotSellPrice(this.getBrokerbotAddress(), shares).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    // Override estimatedAmount with on-chain brokerbot price so quote matches what the swap will actually pay
+    let estimatedAmount = sellPaymentInfo.estimatedAmount;
+    if (brokerbotResult && sellPaymentInfo.id) {
+      estimatedAmount = EvmUtil.fromWeiAmount(
+        ethers.BigNumber.from(brokerbotResult.zchfAmountWei.toString()),
+        zchfAsset.decimals,
+      );
+      await this.transactionRequestService.updateEstimatedAmount(sellPaymentInfo.id, estimatedAmount);
+    }
+
+    // 350k for brokerbotSell + 100k conservative estimate for zchfDeposit (standard ERC20 transfer)
+    const totalGasLimit = ethers.BigNumber.from(450_000);
+    const requiredGasEth = EvmUtil.fromWeiAmount(gasPrice.mul(totalGasLimit));
 
     // 9. Build response with EIP-7702 data AND fallback transfer info
     const amountWei = EvmUtil.toWeiAmount(sellPaymentInfo.amount, realuAsset.decimals);
@@ -1042,18 +1074,150 @@ export class RealUnitService {
       priceSteps: sellPaymentInfo.priceSteps,
 
       // Result
-      estimatedAmount: sellPaymentInfo.estimatedAmount,
+      estimatedAmount,
       currency: sellPaymentInfo.currency.name,
       beneficiary: {
         name: sellPaymentInfo.beneficiary.name,
         iban: sellPaymentInfo.beneficiary.iban,
       },
 
+      ethBalance,
+      requiredGasEth,
+
       isValid: sellPaymentInfo.isValid,
       error: sellPaymentInfo.error,
     };
 
     return response;
+  }
+
+  // --- Sell Transaction Methods for BitBox ---
+
+  async createSellUnsignedTransactions(userId: number, requestId: number): Promise<{ swap: string; deposit: string }> {
+    const request = await this.transactionRequestService.getOrThrow(requestId, userId);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+    const client = this.getEvmClient();
+    const realuAsset = await this.getRealuAsset();
+    if (!realuAsset.chainId) throw new BadRequestException('REALU asset has no contract address');
+
+    const [sell, zchfAsset, nonce, gasPrice] = await Promise.all([
+      this.sellService.getById(request.routeId, { relations: { deposit: true } }),
+      this.getZchfAsset(),
+      client.getTransactionCount(request.user.address),
+      client.getRecommendedGasPrice(),
+    ]);
+    if (!sell) throw new NotFoundException('Sell route not found');
+
+    const swapGasLimit = ethers.BigNumber.from(350_000);
+    const depositGasLimit = ethers.BigNumber.from(100_000);
+
+    const ethBalance = await client.getNativeCoinBalanceForAddress(request.user.address);
+    const requiredEth = EvmUtil.fromWeiAmount(gasPrice.mul(swapGasLimit.add(depositGasLimit)));
+    if (ethBalance < requiredEth) {
+      throw new BadRequestException(
+        `Insufficient ETH for gas: need ${requiredEth.toFixed(6)} ETH, have ${ethBalance.toFixed(6)} ETH`,
+      );
+    }
+
+    // Swap tx: nonce N — REALU transferAndCall to brokerbot
+    const ERC677_INTERFACE = new ethers.utils.Interface([
+      'function transferAndCall(address to, uint256 value, bytes data) returns (bool)',
+    ]);
+    const shares = Math.floor(request.amount);
+    const swapAmountWei = ethers.utils.parseUnits(shares.toString(), realuAsset.decimals ?? 18);
+    const swapData = ERC677_INTERFACE.encodeFunctionData('transferAndCall', [
+      this.getBrokerbotAddress(),
+      swapAmountWei,
+      '0x',
+    ]);
+
+    const swap = ethers.utils.serializeTransaction({
+      type: 2,
+      chainId: client.chainId,
+      nonce,
+      maxPriorityFeePerGas: gasPrice,
+      maxFeePerGas: gasPrice,
+      gasLimit: swapGasLimit,
+      to: realuAsset.chainId,
+      value: ethers.BigNumber.from(0),
+      data: swapData,
+      accessList: [],
+    });
+
+    // Deposit tx: nonce N+1 — ZCHF ERC20 transfer to deposit address
+    // Query the brokerbot for the exact ZCHF amount at current price so deposit matches swap output
+    const { zchfAmountWei: depositAmountWei } = await this.blockchainService.getBrokerbotSellPrice(
+      this.getBrokerbotAddress(),
+      shares,
+    );
+    const depositData = EvmUtil.encodeErc20Transfer(sell.deposit.address, BigNumber.from(depositAmountWei.toString()));
+
+    const deposit = ethers.utils.serializeTransaction({
+      type: 2,
+      chainId: client.chainId,
+      nonce: nonce + 1,
+      maxPriorityFeePerGas: gasPrice,
+      maxFeePerGas: gasPrice,
+      gasLimit: depositGasLimit,
+      to: zchfAsset.chainId,
+      value: ethers.BigNumber.from(0),
+      data: depositData,
+      accessList: [],
+    });
+
+    return { swap, deposit };
+  }
+
+  async broadcastSellTransaction(
+    userId: number,
+    requestId: number,
+    dto: RealUnitSellBroadcastDto,
+  ): Promise<{ txHash: string }> {
+    const request = await this.transactionRequestService.getOrThrow(requestId, userId);
+    if (!request) throw new NotFoundException('Transaction request not found');
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+    let envelope: { unsignedTx: string; r: string; s: string; v: number };
+    try {
+      envelope = JSON.parse(dto.signedTransaction);
+    } catch {
+      throw new BadRequestException('Invalid signedTransaction: expected JSON envelope {unsignedTx, r, s, v}');
+    }
+
+    const { unsignedTx, r, s, v } = envelope;
+    const parsed = ethers.utils.parseTransaction(unsignedTx);
+    const signedHex = ethers.utils.serializeTransaction(
+      {
+        type: 2,
+        chainId: parsed.chainId,
+        nonce: parsed.nonce,
+        maxPriorityFeePerGas: parsed.maxPriorityFeePerGas ?? ethers.BigNumber.from(0),
+        maxFeePerGas: parsed.maxFeePerGas ?? ethers.BigNumber.from(0),
+        gasLimit: parsed.gasLimit,
+        to: parsed.to,
+        value: parsed.value,
+        data: parsed.data,
+        accessList: parsed.accessList ?? [],
+      },
+      { r, s, v },
+    );
+
+    const client = this.getEvmClient();
+    const result = await client.sendSignedTransaction(signedHex);
+
+    if (result.error) throw new BadRequestException(`Broadcast failed: ${result.error.message}`);
+
+    const txHash = result.response?.hash;
+    if (!txHash) throw new BadRequestException('Broadcast returned no transaction hash');
+
+    return { txHash };
+  }
+
+  private getEvmClient(): EvmClient {
+    return [Environment.DEV, Environment.LOC].includes(Config.environment)
+      ? this.sepoliaService.getDefaultClient()
+      : this.ethereumService.getDefaultClient();
   }
 
   // --- Admin Methods ---

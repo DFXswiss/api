@@ -297,6 +297,10 @@ export class TransactionRequestService {
     await this.transactionRequestRepo.update(id, { isComplete: true, status: TransactionRequestStatus.COMPLETED });
   }
 
+  async updateEstimatedAmount(id: number, estimatedAmount: number): Promise<void> {
+    await this.transactionRequestRepo.update(id, { estimatedAmount });
+  }
+
   async extendTransactionRequest(txRequest: TransactionRequest): Promise<TransactionRequestExtended> {
     const sourceAssetEntity =
       txRequest.type === TransactionRequestType.BUY

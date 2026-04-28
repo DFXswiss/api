@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type, Transform } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsEnum,
   IsNotEmpty,
@@ -12,13 +12,13 @@ import {
   ValidateIf,
   ValidateNested,
 } from 'class-validator';
-import { IsDfxIban, IbanType } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
-import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
-import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
-import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Util } from 'src/shared/utils/util';
 import { XOR } from 'src/shared/validators/xor.validator';
 import { Eip7702ConfirmDto } from 'src/subdomains/core/sell-crypto/route/dto/eip7702-delegation.dto';
+import { IbanType, IsDfxIban } from 'src/subdomains/supporting/bank/bank-account/is-dfx-iban.validator';
+import { FeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 
 // --- Enums ---
 
@@ -75,6 +75,13 @@ export class RealUnitSellConfirmDto {
   @IsString()
   @Matches(/^0x[a-fA-F0-9]{64}$/, { message: 'Invalid transaction hash format' })
   txHash?: string;
+}
+
+export class RealUnitSellBroadcastDto {
+  @ApiProperty({ description: 'Signed transaction hex (0x-prefixed EIP-1559 transaction)' })
+  @IsNotEmpty()
+  @IsString()
+  signedTransaction: string;
 }
 
 // --- EIP-7702 Data DTO (extended for RealUnit) ---
@@ -199,6 +206,13 @@ export class RealUnitSellPaymentInfoDto {
 
   @ApiProperty({ type: BeneficiaryDto, description: 'Beneficiary information (IBAN recipient)' })
   beneficiary: BeneficiaryDto;
+
+  // --- Gas Info ---
+  @ApiProperty({ description: 'User ETH balance on the token chain' })
+  ethBalance: number;
+
+  @ApiProperty({ description: 'Required ETH to cover gas for the brokerbot sell step' })
+  requiredGasEth: number;
 
   // --- Validation ---
   @ApiProperty({ description: 'Whether the transaction is valid' })

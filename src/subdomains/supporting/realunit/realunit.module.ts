@@ -1,5 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { EthereumModule } from 'src/integration/blockchain/ethereum/ethereum.module';
 import { RealUnitBlockchainModule } from 'src/integration/blockchain/realunit/realunit-blockchain.module';
+import { SepoliaModule } from 'src/integration/blockchain/sepolia/sepolia.module';
 import { Eip7702DelegationModule } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
@@ -22,6 +24,8 @@ import { RealUnitService } from './realunit.service';
     PricingModule,
     BalanceModule,
     RealUnitBlockchainModule,
+    EthereumModule,
+    SepoliaModule,
     UserModule,
     KycModule,
     BankModule,
