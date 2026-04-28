@@ -758,7 +758,7 @@ export class SupportService {
       language: ud.language?.name,
       country: ud.country?.name,
       kycLevel: ud.kycLevel,
-      txId: tx.id,
+      txId: tx.transaction.id,
       sourceType,
       amlCheck: tx.amlCheck,
       amlReason: tx.amlReason,
