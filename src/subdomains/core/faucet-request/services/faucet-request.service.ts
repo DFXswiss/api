@@ -58,10 +58,18 @@ export class FaucetRequestService {
 
     if (user.userData.kycLevel < KycLevel.LEVEL_30) throw new ForbiddenException('Account not verified');
 
-    const faucetUsed = await this.faucetRequestRepo.exists({
-      where: { userData: { id: user.userData.id }, status: Not(FaucetRequestStatus.FAILED) },
-    });
-    if (faucetUsed) throw new BadRequestException('Faucet already used for this account');
+    const isTestnet = [Environment.DEV, Environment.LOC].includes(Config.environment);
+    if (isTestnet) {
+      const pendingFaucet = await this.faucetRequestRepo.exists({
+        where: { userData: { id: user.userData.id }, status: FaucetRequestStatus.IN_PROGRESS },
+      });
+      if (pendingFaucet) throw new BadRequestException('Faucet request already pending');
+    } else {
+      const faucetUsed = await this.faucetRequestRepo.exists({
+        where: { userData: { id: user.userData.id }, status: Not(FaucetRequestStatus.FAILED) },
+      });
+      if (faucetUsed) throw new BadRequestException('Faucet already used for this account');
+    }
 
     try {
       const client = this.blockchainRegistry.getEvmClient(this.faucetBlockchain);
