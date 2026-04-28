@@ -321,41 +321,52 @@ export class SupportIssueService {
   ): Promise<Map<number, { count: number; lastDate?: Date; lastAuthor?: string }>> {
     if (issueIds.length === 0) return new Map();
 
-    const rows: { issueId: string; count: string; lastDate: Date | null; lastAuthor: string | null }[] =
-      await this.messageRepo
-        .createQueryBuilder('m')
-        .select('m.issueId', 'issueId')
-        .addSelect('COUNT(*)', 'count')
-        .addSelect(
-          (sub) =>
-            sub
-              .select('m2.created')
-              .from(SupportMessage, 'm2')
-              .where('m2.issueId = m.issueId')
-              .orderBy('m2.id', 'DESC')
-              .limit(1),
-          'lastDate',
-        )
-        .addSelect(
-          (sub) =>
-            sub
-              .select('m2.author')
-              .from(SupportMessage, 'm2')
-              .where('m2.issueId = m.issueId')
-              .orderBy('m2.id', 'DESC')
-              .limit(1),
-          'lastAuthor',
-        )
-        .where('m.issueId IN (:...ids)', { ids: issueIds })
-        .groupBy('m.issueId')
-        .getRawMany();
+    // chunked to stay below SQL Server's 2100 parameter limit
+    const chunkSize = 1000;
+    const result = new Map<number, { count: number; lastDate?: Date; lastAuthor?: string }>();
 
-    return new Map(
-      rows.map((r) => [
-        +r.issueId,
-        { count: +r.count, lastDate: r.lastDate ?? undefined, lastAuthor: r.lastAuthor ?? undefined },
-      ]),
-    );
+    for (let i = 0; i < issueIds.length; i += chunkSize) {
+      const chunk = issueIds.slice(i, i + chunkSize);
+
+      const rows: { issueId: string; count: string; lastDate: Date | null; lastAuthor: string | null }[] =
+        await this.messageRepo
+          .createQueryBuilder('m')
+          .select('m.issueId', 'issueId')
+          .addSelect('COUNT(*)', 'count')
+          .addSelect(
+            (sub) =>
+              sub
+                .select('m2.created')
+                .from(SupportMessage, 'm2')
+                .where('m2.issueId = m.issueId')
+                .orderBy('m2.id', 'DESC')
+                .limit(1),
+            'lastDate',
+          )
+          .addSelect(
+            (sub) =>
+              sub
+                .select('m2.author')
+                .from(SupportMessage, 'm2')
+                .where('m2.issueId = m.issueId')
+                .orderBy('m2.id', 'DESC')
+                .limit(1),
+            'lastAuthor',
+          )
+          .where('m.issueId IN (:...ids)', { ids: chunk })
+          .groupBy('m.issueId')
+          .getRawMany();
+
+      for (const r of rows) {
+        result.set(+r.issueId, {
+          count: +r.count,
+          lastDate: r.lastDate ?? undefined,
+          lastAuthor: r.lastAuthor ?? undefined,
+        });
+      }
+    }
+
+    return result;
   }
 
   async getIssueEntities(userDataId: number): Promise<SupportIssue[]> {
