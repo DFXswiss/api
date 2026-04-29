@@ -3,7 +3,7 @@ import { ApiExcludeEndpoint } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { UserAgent } from 'express-useragent';
 import { readFileSync } from 'fs';
-import { RealIP } from 'nestjs-real-ip';
+import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { Config } from './config/config';
 import { AdDto, AdSettings, AdvertisementDto } from './shared/dto/advertisement.dto';
 import { AnnouncementDto } from './shared/dto/announcement.dto';

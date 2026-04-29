@@ -2,7 +2,7 @@ import { Body, Controller, Get, Param, Post, Query, Req, Res, UseGuards } from '
 import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
-import { RealIP } from 'nestjs-real-ip';
+import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpCountryGuard } from 'src/shared/auth/ip-country.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';

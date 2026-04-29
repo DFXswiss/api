@@ -1,5 +1,4 @@
 import { CanActivate, ExecutionContext, Injectable } from '@nestjs/common';
-import { getClientIp } from '@supercharge/request-ip';
 import { DfxLogger } from '../services/dfx-logger';
 
 @Injectable()
@@ -8,7 +7,7 @@ export class IpGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
-    const ip = getClientIp(req);
+    const ip = req.realIp;
 
     // TODO: switch back
     if (ip !== req.user?.ip) this.logger.verbose(`IP mismatch for user ${req.user?.id}`);
