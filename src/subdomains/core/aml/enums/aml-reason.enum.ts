@@ -26,6 +26,7 @@ export enum AmlReason {
   CARD_NAME_MISMATCH = 'CardNameMismatch',
   USER_BLOCKED = 'UserBlocked',
   USER_DATA_BLOCKED = 'UserDataBlocked',
+  USER_DATA_SUSPICIOUS = 'UserDataSuspicious',
   USER_DELETED = 'UserDeleted',
   VIDEO_IDENT_NEEDED = 'VideoIdentNeeded',
   MISSING_LIQUIDITY = 'MissingLiquidity',
@@ -81,6 +82,7 @@ export const AmlReasonWithoutReason = [
   AmlReason.MANUAL_CHECK_BANK_DATA,
   AmlReason.USER_BLOCKED,
   AmlReason.USER_DATA_BLOCKED,
+  AmlReason.USER_DATA_SUSPICIOUS,
   AmlReason.BANK_RELEASE_PENDING,
 ];
 

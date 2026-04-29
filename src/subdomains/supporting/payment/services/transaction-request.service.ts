@@ -130,6 +130,8 @@ export class TransactionRequestService {
         dfxFee: response.fees.dfx,
         networkFee: response.fees.network,
         totalFee: response.fees.total,
+        fees: response.fees,
+        priceSteps: response.priceSteps,
         user: { id: userId },
         uid,
       });
