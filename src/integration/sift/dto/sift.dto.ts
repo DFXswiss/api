@@ -1024,6 +1024,7 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.CARD_NAME_MISMATCH]: DeclineCategory.OTHER,
   [AmlReason.USER_BLOCKED]: DeclineCategory.OTHER,
   [AmlReason.USER_DATA_BLOCKED]: DeclineCategory.OTHER,
+  [AmlReason.USER_DATA_SUSPICIOUS]: DeclineCategory.RISKY,
   [AmlReason.USER_DELETED]: DeclineCategory.OTHER,
   [AmlReason.VIDEO_IDENT_NEEDED]: DeclineCategory.OTHER,
   [AmlReason.MISSING_LIQUIDITY]: DeclineCategory.OTHER,

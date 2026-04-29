@@ -81,6 +81,7 @@ export const TransactionReasonMapper: {
   [AmlReason.NO_COMMUNICATION]: TransactionReason.UNKNOWN,
   [AmlReason.USER_BLOCKED]: TransactionReason.UNKNOWN,
   [AmlReason.USER_DATA_BLOCKED]: TransactionReason.UNKNOWN,
+  [AmlReason.USER_DATA_SUSPICIOUS]: TransactionReason.UNKNOWN,
   [AmlReason.USER_DELETED]: TransactionReason.USER_DELETED,
   [AmlReason.MONTHLY_LIMIT]: TransactionReason.MONTHLY_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,
