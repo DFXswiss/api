@@ -78,7 +78,7 @@ export class RealUnitSellConfirmDto {
 }
 
 export class RealUnitSellBroadcastDto {
-  @ApiProperty({ description: 'Signed transaction hex (0x-prefixed EIP-1559 transaction)' })
+  @ApiProperty({ description: 'JSON envelope {unsignedTx, r, s, v} from BitBox signing' })
   @IsNotEmpty()
   @IsString()
   signedTransaction: string;
