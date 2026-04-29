@@ -16,7 +16,7 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Not } from 'typeorm';
+import { In, Not } from 'typeorm';
 import { FaucetRequestDto } from '../dto/faucet-request.dto';
 import { FaucetRequestStatus } from '../enums/faucet-request';
 import { FaucetRequestRepository } from '../repositories/faucet-request.repository';
@@ -61,7 +61,7 @@ export class FaucetRequestService {
     const faucetUsed = await this.faucetRequestRepo.exists({
       where: {
         userData: { id: user.userData.id },
-        status: Not([FaucetRequestStatus.FAILED, FaucetRequestStatus.RESET]),
+        status: Not(In([FaucetRequestStatus.FAILED, FaucetRequestStatus.RESET])),
       },
     });
     if (faucetUsed) throw new BadRequestException('Faucet already used for this account');
