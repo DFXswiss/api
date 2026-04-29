@@ -267,7 +267,6 @@ export class TransactionDto extends UnassignedTransactionDto {
 
   @ApiPropertyOptional({ type: NetworkStartTxDto })
   networkStartTx?: NetworkStartTxDto;
-
 }
 
 export class TransactionDetailDto extends TransactionDto {
