@@ -321,34 +321,39 @@ export class SupportIssueService {
   ): Promise<Map<number, { count: number; lastDate?: Date; lastAuthor?: string }>> {
     if (issueIds.length === 0) return new Map();
 
-    const rows: { issueId: string; count: string; lastDate: Date | null; lastAuthor: string | null }[] =
-      await this.messageRepo
-        .createQueryBuilder('m')
-        .select('m.issueId', 'issueId')
-        .addSelect('COUNT(*)', 'count')
-        .addSelect(
-          (sub) =>
-            sub
-              .select('m2.created')
-              .from(SupportMessage, 'm2')
-              .where('m2.issueId = m.issueId')
-              .orderBy('m2.id', 'DESC')
-              .limit(1),
-          'lastDate',
-        )
-        .addSelect(
-          (sub) =>
-            sub
-              .select('m2.author')
-              .from(SupportMessage, 'm2')
-              .where('m2.issueId = m.issueId')
-              .orderBy('m2.id', 'DESC')
-              .limit(1),
-          'lastAuthor',
-        )
-        .where('m.issueId IN (:...ids)', { ids: issueIds })
-        .groupBy('m.issueId')
-        .getRawMany();
+    // batched to stay below SQL Server's 2100 parameter limit
+    const rows = await Util.doInBatchesAndJoin(
+      issueIds,
+      (chunk): Promise<{ issueId: string; count: string; lastDate: Date | null; lastAuthor: string | null }[]> =>
+        this.messageRepo
+          .createQueryBuilder('m')
+          .select('m.issueId', 'issueId')
+          .addSelect('COUNT(*)', 'count')
+          .addSelect(
+            (sub) =>
+              sub
+                .select('m2.created')
+                .from(SupportMessage, 'm2')
+                .where('m2.issueId = m.issueId')
+                .orderBy('m2.id', 'DESC')
+                .limit(1),
+            'lastDate',
+          )
+          .addSelect(
+            (sub) =>
+              sub
+                .select('m2.author')
+                .from(SupportMessage, 'm2')
+                .where('m2.issueId = m.issueId')
+                .orderBy('m2.id', 'DESC')
+                .limit(1),
+            'lastAuthor',
+          )
+          .where('m.issueId IN (:...ids)', { ids: chunk })
+          .groupBy('m.issueId')
+          .getRawMany(),
+      1000,
+    );
 
     return new Map(
       rows.map((r) => [
