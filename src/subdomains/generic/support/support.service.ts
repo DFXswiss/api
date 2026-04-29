@@ -3,6 +3,7 @@ import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AmlReason, NotRefundableAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
@@ -125,6 +126,13 @@ const CallQueueTxReasonMap: Partial<Record<CallQueue, AmlReason>> = {
   [CallQueue.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE]: AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
 };
 
+// Fields of UserDataSupportInfoDetails that are returned as empty arrays for the given role.
+// Mirrored on the frontend by PANELS_HIDDEN_BY_ROLE in compliance-user.screen.tsx.
+const FIELDS_HIDDEN_BY_ROLE: Partial<Record<UserRole, (keyof UserDataSupportInfoDetails)[]>> = {
+  [UserRole.SUPPORT]: ['kycFiles', 'ipLogs'],
+  [UserRole.MARKETING]: ['kycFiles', 'ipLogs'],
+};
+
 @Injectable()
 export class SupportService {
   private readonly refundList = new Map<number, RefundDataDto>();
@@ -211,11 +219,13 @@ export class SupportService {
     return { pdfData, fileName };
   }
 
-  async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
+  async getUserDataDetails(id: number, role: UserRole): Promise<UserDataSupportInfoDetails> {
     const userData = await this.userDataService.getUserData(id, { wallet: true, bankDatas: true });
     if (!userData) throw new NotFoundException(`User not found`);
 
-    // Load all related data in parallel
+    const hidden = FIELDS_HIDDEN_BY_ROLE[role] ?? [];
+
+    // Load all related data in parallel — skip queries for fields hidden for this role
     const [
       kycFiles,
       kycSteps,
@@ -232,7 +242,7 @@ export class SupportService {
       ipLogs,
       supportIssues,
     ] = await Promise.all([
-      this.kycFileService.getUserDataKycFiles(id),
+      hidden.includes('kycFiles') ? Promise.resolve([]) : this.kycFileService.getUserDataKycFiles(id),
       this.kycService.getStepsByUserData(id),
       this.kycLogService.getLogsByUserDataId(id),
       this.transactionService.getTransactionsByUserDataId(id),
@@ -244,7 +254,7 @@ export class SupportService {
       this.virtualIbanService.getVirtualIbansForAccount(id),
       this.refRewardService.getRefRewardsByUserDataId(id),
       this.notificationService.getMails(id),
-      this.ipLogService.getByUserDataId(id),
+      hidden.includes('ipLogs') ? Promise.resolve([]) : this.ipLogService.getByUserDataId(id),
       this.supportIssueService.getIssueEntities(id),
     ]);
 
