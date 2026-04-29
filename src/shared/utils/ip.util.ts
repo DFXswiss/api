@@ -1,14 +1,6 @@
 import { Request } from 'express';
 import { isIP } from 'net';
 
-declare global {
-  namespace Express {
-    interface Request {
-      realIp: string;
-    }
-  }
-}
-
 const PRIVATE_IP_RANGES = [
   /^10\./,
   /^172\.(1[6-9]|2\d|3[01])\./,
