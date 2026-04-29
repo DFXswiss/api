@@ -38,6 +38,7 @@ import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -139,6 +140,7 @@ export class RealUnitService {
     private readonly devService: RealUnitDevService,
     private readonly swissQrService: SwissQRService,
     private readonly feeService: FeeService,
+    private readonly faucetRequestService: FaucetRequestService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -1175,7 +1177,6 @@ export class RealUnitService {
     dto: RealUnitSellBroadcastDto,
   ): Promise<{ txHash: string }> {
     const request = await this.transactionRequestService.getOrThrow(requestId, userId);
-    if (!request) throw new NotFoundException('Transaction request not found');
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
 
     let envelope: { unsignedTx: string; r: string; s: string; v: number };
@@ -1210,6 +1211,8 @@ export class RealUnitService {
 
     const txHash = result.response?.hash;
     if (!txHash) throw new BadRequestException('Broadcast returned no transaction hash');
+
+    await this.faucetRequestService.resetFaucet(userId);
 
     return { txHash };
   }
