@@ -321,15 +321,11 @@ export class SupportIssueService {
   ): Promise<Map<number, { count: number; lastDate?: Date; lastAuthor?: string }>> {
     if (issueIds.length === 0) return new Map();
 
-    // chunked to stay below SQL Server's 2100 parameter limit
-    const chunkSize = 1000;
-    const result = new Map<number, { count: number; lastDate?: Date; lastAuthor?: string }>();
-
-    for (let i = 0; i < issueIds.length; i += chunkSize) {
-      const chunk = issueIds.slice(i, i + chunkSize);
-
-      const rows: { issueId: string; count: string; lastDate: Date | null; lastAuthor: string | null }[] =
-        await this.messageRepo
+    // batched to stay below SQL Server's 2100 parameter limit
+    const rows = await Util.doInBatchesAndJoin(
+      issueIds,
+      (chunk): Promise<{ issueId: string; count: string; lastDate: Date | null; lastAuthor: string | null }[]> =>
+        this.messageRepo
           .createQueryBuilder('m')
           .select('m.issueId', 'issueId')
           .addSelect('COUNT(*)', 'count')
@@ -355,18 +351,16 @@ export class SupportIssueService {
           )
           .where('m.issueId IN (:...ids)', { ids: chunk })
           .groupBy('m.issueId')
-          .getRawMany();
+          .getRawMany(),
+      1000,
+    );
 
-      for (const r of rows) {
-        result.set(+r.issueId, {
-          count: +r.count,
-          lastDate: r.lastDate ?? undefined,
-          lastAuthor: r.lastAuthor ?? undefined,
-        });
-      }
-    }
-
-    return result;
+    return new Map(
+      rows.map((r) => [
+        +r.issueId,
+        { count: +r.count, lastDate: r.lastDate ?? undefined, lastAuthor: r.lastAuthor ?? undefined },
+      ]),
+    );
   }
 
   async getIssueEntities(userDataId: number): Promise<SupportIssue[]> {
