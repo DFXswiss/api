@@ -59,7 +59,10 @@ export class FaucetRequestService {
     if (user.userData.kycLevel < KycLevel.LEVEL_30) throw new ForbiddenException('Account not verified');
 
     const faucetUsed = await this.faucetRequestRepo.exists({
-      where: { userData: { id: user.userData.id }, status: Not([FaucetRequestStatus.FAILED, FaucetRequestStatus.RESET]) },
+      where: {
+        userData: { id: user.userData.id },
+        status: Not([FaucetRequestStatus.FAILED, FaucetRequestStatus.RESET]),
+      },
     });
     if (faucetUsed) throw new BadRequestException('Faucet already used for this account');
 
