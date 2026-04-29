@@ -14,9 +14,18 @@ module.exports = class DifferentiateEurBankFeeByBank1777456992700 {
             INSERT INTO "dbo"."fee" ("label", "type", "rate", "fixed", "blockchainFactor", "payoutRefBonus", "active", "fiats", "bankId")
             VALUES ('Bank Fee EUR Yapeal 2%', 'Bank', 0.02, 0, 1, 1, 1, '2', 16)
         `);
+
+    // Preserve 0.5% EUR bank fee for Raiffeisen (bank id 12)
+    await queryRunner.query(`
+            INSERT INTO "dbo"."fee" ("label", "type", "rate", "fixed", "blockchainFactor", "payoutRefBonus", "active", "fiats", "bankId")
+            VALUES ('Bank Fee EUR Raiffeisen 0.5%', 'Bank', 0.005, 0, 1, 1, 1, '2', 12)
+        `);
   }
 
   async down(queryRunner) {
+    await queryRunner.query(`
+            DELETE FROM "dbo"."fee" WHERE "label" = 'Bank Fee EUR Raiffeisen 0.5%' AND "type" = 'Bank'
+        `);
     await queryRunner.query(`
             DELETE FROM "dbo"."fee" WHERE "label" = 'Bank Fee EUR Yapeal 2%' AND "type" = 'Bank'
         `);
