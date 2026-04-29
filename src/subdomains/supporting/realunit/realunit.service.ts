@@ -1179,14 +1179,7 @@ export class RealUnitService {
     const request = await this.transactionRequestService.getOrThrow(requestId, userId);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
 
-    let envelope: { unsignedTx: string; r: string; s: string; v: number };
-    try {
-      envelope = JSON.parse(dto.signedTransaction);
-    } catch {
-      throw new BadRequestException('Invalid signedTransaction: expected JSON envelope {unsignedTx, r, s, v}');
-    }
-
-    const { unsignedTx, r, s, v } = envelope;
+    const { unsignedTx, r, s, v } = dto;
     const parsed = ethers.utils.parseTransaction(unsignedTx);
     const signedHex = ethers.utils.serializeTransaction(
       {

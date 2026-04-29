@@ -78,10 +78,24 @@ export class RealUnitSellConfirmDto {
 }
 
 export class RealUnitSellBroadcastDto {
-  @ApiProperty({ description: 'JSON envelope {unsignedTx, r, s, v} from BitBox signing' })
+  @ApiProperty({ description: 'Unsigned transaction hex' })
   @IsNotEmpty()
   @IsString()
-  signedTransaction: string;
+  unsignedTx: string;
+
+  @ApiProperty({ description: 'Signature r component (0x-prefixed hex)' })
+  @IsNotEmpty()
+  @IsString()
+  r: string;
+
+  @ApiProperty({ description: 'Signature s component (0x-prefixed hex)' })
+  @IsNotEmpty()
+  @IsString()
+  s: string;
+
+  @ApiProperty({ description: 'Signature v (recovery id)' })
+  @IsNumber()
+  v: number;
 }
 
 // --- EIP-7702 Data DTO (extended for RealUnit) ---
