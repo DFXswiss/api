@@ -1,9 +1,12 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
 import { BrokerbotCurrency } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
+import { SepoliaService } from 'src/integration/blockchain/sepolia/sepolia.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -164,6 +167,9 @@ describe('RealUnitService', () => {
         { provide: RealUnitDevService, useValue: {} },
         { provide: SwissQRService, useValue: {} },
         { provide: FeeService, useValue: {} },
+        { provide: FaucetRequestService, useValue: {} },
+        { provide: EthereumService, useValue: {} },
+        { provide: SepoliaService, useValue: {} },
       ],
     }).compile();
 
