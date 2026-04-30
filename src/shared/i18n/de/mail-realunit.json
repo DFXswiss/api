@@ -15,12 +15,14 @@
   },
   "payment": {
     "crypto_input": {
-      "title": "Kauf RealUnit-Token – Einzahlung eingetroffen",
-      "salutation": "Ihre Einzahlung ist bei uns eingetroffen"
+      "title": "Verkauf RealUnit-Token – Eingang erhalten",
+      "salutation": "Ihre RealUnit-Token sind bei uns eingetroffen",
+      "body": "Ihre RealUnit-Token sind im Verkaufsprozess bei uns eingetroffen und werden nun verarbeitet. Sobald die Auszahlung auf Ihre IBAN erfolgt ist, werden Sie wieder per Mail informiert."
     },
     "fiat_input": {
       "title": "Kauf RealUnit-Token – Einzahlung eingetroffen",
       "salutation": "Ihre Einzahlung ist bei uns eingetroffen und wird verarbeitet",
+      "body": "Ihre Banküberweisung ist bei uns eingegangen und wird nun verarbeitet. Sobald die RealUnit-Token in Ihr Wallet überwiesen sind, werden Sie wieder per Mail informiert.",
       "unassigned": {
         "title": "Einzahlung zuordnen",
         "salutation": "Ihre Einzahlung kann nicht automatisch zugeordnet werden",
@@ -49,6 +51,7 @@
       "unconfirmed": {
         "title": "Aktion erforderlich",
         "salutation": "Es ist eine Aktion für Ihre Transaktion erforderlich",
+        "body": "Sobald Sie die Aktion ausgeführt haben, wird die Rückerstattung verarbeitet und Sie werden wieder per Mail informiert.",
         "transaction_button": "Sie können die Aktion über folgenden Link ausführen:<br>[url:Klick hier]"
       },
       "fiat": {
@@ -221,7 +224,7 @@
         "salutation": "Die Bankfreigabe für Ihre Transaktion steht noch aus",
         "line1": "Ihre Transaktion ist bei uns eingetroffen, wurde aber noch nicht zur weiteren Verwendung freigegeben.",
         "line2": "Sie brauchen nichts weiter zu tun, die Bank gibt die Transaktion automatisch frei.",
-        "line3": "",
+        "line3": "Sobald die Bank die Transaktion freigegeben hat, wird Ihr Kauf weiter verarbeitet und Sie werden wieder per Mail informiert.",
         "line4": "",
         "line5": ""
       },

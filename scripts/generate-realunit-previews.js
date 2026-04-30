@@ -317,9 +317,12 @@ add('sell-completed', t('payment.fiat_output.title'), 'Verkauf', t('payment.fiat
 ]);
 
 // === KAUF (Fiat-Eingang & Unassigned) ===
-add('fiat-input', t('payment.fiat_input.title'), 'Kauf', t('payment.fiat_input.salutation'), []);
+add('fiat-input', t('payment.fiat_input.title'), 'Kauf', t('payment.fiat_input.salutation'), [
+  text(t('payment.fiat_input.body')),
+]);
 
 add('fiat-input-currency-exchange', t('payment.fiat_input.title'), 'Kauf', t('payment.fiat_input.salutation'), [
+  text(t('payment.fiat_input.body')),
   text(
     interpolate(t('payment.fiat_input.currency_exchange'), {
       bankAccount: 'CH98 0000 0000 0000 0',
@@ -338,7 +341,9 @@ add(
 );
 
 // === VERKAUF (Crypto-Eingang) ===
-add('crypto-input', t('payment.crypto_input.title'), 'Verkauf', t('payment.crypto_input.salutation'), []);
+add('crypto-input', t('payment.crypto_input.title'), 'Verkauf', t('payment.crypto_input.salutation'), [
+  text(t('payment.crypto_input.body')),
+]);
 
 // === AUSSTEHEND (Pending) ===
 const pendingTypes = [
@@ -397,7 +402,10 @@ add(
   t('payment.chargeback.unconfirmed.title'),
   'Rückerstattung',
   t('payment.chargeback.unconfirmed.salutation'),
-  [translatedText(t('payment.chargeback.unconfirmed.transaction_button'), { url: sampleUrl, button: 'true' })],
+  [
+    text(t('payment.chargeback.unconfirmed.body')),
+    translatedText(t('payment.chargeback.unconfirmed.transaction_button'), { url: sampleUrl, button: 'true' }),
+  ],
 );
 
 // === KYC ===
