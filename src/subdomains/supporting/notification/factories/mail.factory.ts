@@ -2,7 +2,9 @@ import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { WalletMailConfig } from '../services/mail.service';
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
@@ -153,16 +155,7 @@ export class MailFactory {
       ? walletMailConfig.forcedLang.toLowerCase()
       : userData.language.symbol.toLowerCase();
 
-    // Personal welcome line — only prepended for wallets that opt in via centralizedWelcome (e.g. RealUnit). Default DFX mails keep their existing behavior unchanged.
-    const welcomeTexts: TranslationItem[] = walletMailConfig?.centralizedWelcome
-      ? [
-          {
-            key: `${MailTranslationKey.GENERAL}.welcome`,
-            params: { name: userData.organizationName ?? userData.firstname },
-          },
-          { key: MailKey.SPACE, params: { value: '2' } },
-        ]
-      : [];
+    const welcomeTexts = this.getCentralizedWelcomeTexts(userData, walletMailConfig);
     const walletBodyTexts = this.getWalletBodyTexts(title, lang, walletName);
     // Order: welcome line (if any), then optional wallet body override, then the service-specific texts
     const merged = [...welcomeTexts, ...walletBodyTexts, ...(texts ?? [])];
@@ -192,16 +185,7 @@ export class MailFactory {
     const walletMailConfig = walletName ? Config.mail.wallet[walletName] : undefined;
     const lang = userData.language.symbol;
 
-    // Personal welcome line — only prepended for wallets that opt in via centralizedWelcome.
-    const welcomeTexts: TranslationItem[] = walletMailConfig?.centralizedWelcome
-      ? [
-          {
-            key: `${MailTranslationKey.GENERAL}.welcome`,
-            params: { name: userData.organizationName ?? userData.firstname },
-          },
-          { key: MailKey.SPACE, params: { value: '2' } },
-        ]
-      : [];
+    const welcomeTexts = this.getCentralizedWelcomeTexts(userData, walletMailConfig);
     const merged = [...welcomeTexts, ...(prefix ?? [])];
 
     return new PersonalMail({
@@ -244,6 +228,23 @@ export class MailFactory {
     const bodyText = this.translateWalletOnly(bodyKey, lang, walletName);
 
     return bodyText ? [{ key: bodyKey }] : [];
+  }
+
+  // Personal welcome line, prepended to every UserMailV2 / PersonalMail of wallets that opt in via centralizedWelcome (e.g. RealUnit).
+  // Default DFX mails return an empty list so their existing behavior stays unchanged.
+  private getCentralizedWelcomeTexts(
+    userData: UserData,
+    walletMailConfig?: Partial<WalletMailConfig>,
+  ): TranslationItem[] {
+    if (!walletMailConfig?.centralizedWelcome) return [];
+
+    return [
+      {
+        key: `${MailTranslationKey.GENERAL}.welcome`,
+        params: { name: userData.organizationName ?? userData.firstname },
+      },
+      { key: MailKey.SPACE, params: { value: '2' } },
+    ];
   }
 
   //*** MAIL BUILDING METHODS ***//
