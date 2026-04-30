@@ -270,7 +270,9 @@ export class MailFactory {
         return [DefaultEmptyLine];
 
       case MailKey.DFX_TEAM_CLOSING:
-        if (walletName && Config.mail.wallet[walletName]?.template) return [];
+        // Skip the DFX closing block only for wallets that opt in to RealUnit-style branding (centralizedWelcome).
+        // Other custom-template wallets (e.g. onchainlabs) keep the existing behavior unchanged.
+        if (walletName && Config.mail.wallet[walletName]?.centralizedWelcome) return [];
 
         return [
           DefaultEmptyLine,
