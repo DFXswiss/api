@@ -255,8 +255,7 @@ export class MailFactory {
     return affix
       .filter((i) => i)
       .map((i) => this.mapMailAffix(i, lang, walletName).flat())
-      .flat()
-      .filter((a) => a.text || a.url || a.mail);
+      .flat();
   }
 
   private mapMailAffix(element: TranslationItem, lang: string, walletName?: string): MailAffix[] {
@@ -283,6 +282,10 @@ export class MailFactory {
         const translatedParams = this.translateParams(params, lang, walletName);
         const text = this.translate(element.key, lang, translatedParams, walletName);
         const specialTag = this.parseSpecialTag(text);
+
+        // Skip if the wallet override resolves to an empty string and no special tag is set (e.g. an explicitly cleared body/transaction_button).
+        // Plain SPACE markers are handled separately above and intentionally render as DefaultEmptyLine.
+        if (!text && !specialTag) return [];
 
         return [
           {
