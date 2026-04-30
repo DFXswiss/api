@@ -68,72 +68,72 @@ function buildMail(salutation, texts) {
 // Source: src/subdomains/{core,supporting,generic}/**/*notification.service.ts (verified 2026-04-30).
 const triggers = {
   'buy-crypto-completed': {
-    when: 'Sobald Ihre Fiat-Einzahlung verbucht und die gekauften RealUnit-Token in Ihr Wallet überwiesen wurden, bestätigt Ihnen diese Mail den abgeschlossenen Kauf.',
+    when: 'Sobald die Fiat-Einzahlung verbucht und die gekauften RealUnit-Token ins Wallet überwiesen wurden, bestätigt diese Mail den abgeschlossenen Kauf.',
     mailContext: 'BUY_CRYPTO_COMPLETED',
     transition: 'BuyCrypto.status = COMPLETE, isComplete = true, amlCheck = PASS, outputAmount gesetzt — Cron BUY_CRYPTO_MAIL.',
   },
   'sell-processing': {
-    when: 'Sobald Ihre RealUnit-Token im Verkaufsprozess angekommen sind und die Auszahlung an Ihre Bank ausgelöst wurde. Diese Mail bestätigt den Start der Verarbeitung.',
+    when: 'Sobald die RealUnit-Token im Verkaufsprozess angekommen sind und die Auszahlung an die Bank ausgelöst wurde, bestätigt diese Mail den Start der Verarbeitung.',
     mailContext: 'BUY_FIAT_PROCESSING',
     transition: 'BuyFiat.fiatToBankTransferInitiated() — direkt aufgerufen, sobald der Bank-Transfer für eine geprüfte Sell-Transaktion initiiert wird.',
   },
   'sell-completed': {
-    when: 'Sobald die Banküberweisung Ihres Verkaufserlöses an Ihre IBAN ausgeführt wurde, bestätigt diese Mail den abgeschlossenen Verkauf.',
+    when: 'Sobald die Banküberweisung des Verkaufserlöses an die IBAN ausgeführt wurde, bestätigt diese Mail den abgeschlossenen Verkauf.',
     mailContext: 'BUY_FIAT_COMPLETED',
     transition: 'BuyFiat: amlCheck = PASS, isComplete = true, outputAmount gesetzt, mail3SendDate IS NULL — Cron BUY_FIAT_MAIL (1 Min.).',
   },
   'fiat-input': {
-    when: 'Sobald Ihre Banküberweisung eingetroffen und Ihrer Bestellung zugeordnet ist, bestätigen wir den Eingang.',
+    when: 'Sobald die Banküberweisung eingetroffen und die Bestellung zugeordnet ist, bestätigen wir den Eingang.',
     mailContext: 'BUY_CRYPTO',
     transition: 'Transaction.mailSendDate IS NULL, Target (BuyCrypto/BuyFiat) hat comment oder amlCheck — Cron TX_MAIL (1 Min.).',
   },
   'fiat-input-currency-exchange': {
-    when: 'Wie der Standard-Eingangsbestätigung — zusätzlich mit Hinweis, dass die eingezahlte Währung von der Bankkonto-Währung abweicht und automatisch getauscht wird.',
+    when: 'Wie die Standard-Eingangsbestätigung — zusätzlich mit Hinweis, dass die eingezahlte Währung von der Bankkonto-Währung abweicht und automatisch getauscht wird.',
     mailContext: 'BUY_CRYPTO',
     transition: 'Wie fiat-input, zusätzlich BankTx.instructedCurrency !== BankTx.currency.',
   },
   'crypto-input': {
-    when: 'Sobald Ihre RealUnit-Token im Verkaufsprozess bei uns angekommen sind, bestätigen wir den Eingang.',
+    when: 'Sobald die RealUnit-Token im Verkaufsprozess bei uns angekommen sind, bestätigen wir den Eingang.',
     mailContext: 'BUY_FIAT',
     transition: 'Wie fiat-input, aber Target ist BuyFiat (cryptoInput gesetzt).',
   },
   'unassigned-transaction': {
-    when: 'Wenn eine Banküberweisung bei uns eingeht, die wir keiner offenen Bestellung zuordnen können, bitten wir Sie um manuelle Zuordnung in der App.',
+    when: 'Wenn eine Banküberweisung bei uns eingeht, die keiner offenen Bestellung zugeordnet werden kann, fordert diese Mail zur manuellen Zuordnung in der App auf.',
     mailContext: 'UNASSIGNED_TX',
     transition: 'BankTx mit Unassigned-Type, Credit-Indikator, jünger als 7 Tage, Transaction.mailSendDate IS NULL — Cron TX_MAIL (1 Min.).',
   },
   'pending-monthly-limit': {
-    when: 'Wenn Ihr 30-Tage-Volumen die regulatorische Limite (CHF 1\'000) überschreitet, bei der unsere bisherigen Daten ausreichen, halten wir Ihre Transaktion bis zur Verifizierung an.',
+    when: 'Wenn das 30-Tage-Volumen die regulatorische Limite (CHF 1\'000) überschreitet, bei der die bisherigen Daten ausreichen, wird die Transaktion bis zur Verifizierung angehalten.',
     mailContext: 'BUY_CRYPTO_PENDING / BUY_FIAT_PENDING',
     transition: 'amlCheck = PENDING, amlReason = MONTHLY_LIMIT, outputAmount IS NULL, kein Chargeback initiiert — Cron BUY_*_MAIL.',
   },
   'pending-annual-limit': {
-    when: 'Wenn Ihr Jahresvolumen die regulatorische Limite (CHF 100\'000) überschreitet, ist eine erweiterte Verifizierung Ihrer Daten nötig, bevor die Transaktion fortgesetzt wird.',
+    when: 'Wenn das Jahresvolumen die regulatorische Limite (CHF 100\'000) überschreitet, ist eine erweiterte Verifizierung der Daten nötig, bevor die Transaktion fortgesetzt wird.',
     mailContext: 'BUY_CRYPTO_PENDING / BUY_FIAT_PENDING',
     transition: 'amlReason = ANNUAL_LIMIT, sonst wie pending-monthly-limit.',
   },
   'pending-annual-limit-without-kyc': {
-    when: 'Wenn Ihr Jahresvolumen ohne Verifizierung die zulässige Grenze überschritten hat, ist eine vollständige KYC-Prüfung erforderlich.',
+    when: 'Wenn das Jahresvolumen ohne Verifizierung die zulässige Grenze überschritten hat, ist eine vollständige KYC-Prüfung erforderlich.',
     mailContext: 'BUY_CRYPTO_PENDING / BUY_FIAT_PENDING',
     transition: 'amlReason = ANNUAL_LIMIT_WITHOUT_KYC, sonst wie pending-monthly-limit.',
   },
   'pending-manual-check': {
-    when: 'Wenn unser System Ihre Einzahlung nicht automatisch verbuchen kann, prüfen wir den Eingang manuell. Das dauert in der Regel 1–2 Arbeitstage.',
+    when: 'Wenn das System die Einzahlung nicht automatisch verbuchen kann, wird der Eingang manuell geprüft. Das dauert in der Regel 1–2 Arbeitstage.',
     mailContext: 'BUY_CRYPTO_PENDING / BUY_FIAT_PENDING',
     transition: 'amlReason = MANUAL_CHECK oder MANUAL_CHECK_BANK_DATA, sonst wie pending-monthly-limit.',
   },
   'pending-high-risk-kyc': {
-    when: 'Wenn Ihre Transaktion aus aufsichtsrechtlichen Gründen einer erweiterten Prüfung unterliegt, ist vor der Fortsetzung eine vollständige Verifizierung nötig.',
+    when: 'Wenn die Transaktion aus aufsichtsrechtlichen Gründen einer erweiterten Prüfung unterliegt, ist vor der Fortsetzung eine vollständige Verifizierung nötig.',
     mailContext: 'BUY_CRYPTO_PENDING / BUY_FIAT_PENDING',
     transition: 'amlReason = HIGH_RISK_KYC_NEEDED, sonst wie pending-monthly-limit.',
   },
   'pending-video-ident': {
-    when: 'Wenn aus regulatorischen Gründen eine Video-Identifikation nötig ist, bitten wir Sie, diese durchzuführen, bevor die Transaktion weitergeht.',
+    when: 'Wenn aus regulatorischen Gründen eine Video-Identifikation nötig ist, fordert diese Mail zur Durchführung auf, bevor die Transaktion weitergeht.',
     mailContext: 'BUY_CRYPTO_PENDING / BUY_FIAT_PENDING',
     transition: 'amlReason = VIDEO_IDENT_NEEDED, sonst wie pending-monthly-limit.',
   },
   'pending-kyc-data': {
-    when: 'Wenn für Ihre Transaktion zusätzliche persönliche Daten nötig sind, bitten wir Sie, diese in der RealUnit App zu ergänzen.',
+    when: 'Wenn für die Transaktion zusätzliche persönliche Daten nötig sind, fordert diese Mail zur Ergänzung in der RealUnit App auf.',
     mailContext: 'BUY_CRYPTO_PENDING / BUY_FIAT_PENDING',
     transition: 'amlReason = KYC_DATA_NEEDED, sonst wie pending-monthly-limit.',
   },
@@ -143,117 +143,117 @@ const triggers = {
     transition: 'amlReason = NAME_CHECK_WITHOUT_KYC, sonst wie pending-monthly-limit.',
   },
   'pending-asset-kyc': {
-    when: 'Wenn das von Ihnen verwendete Asset eine spezifische KYC-Prüfung erfordert, bitten wir Sie um Ergänzung Ihrer Daten.',
+    when: 'Wenn das verwendete Asset eine spezifische KYC-Prüfung erfordert, fordert diese Mail zur Ergänzung der Daten auf.',
     mailContext: 'BUY_CRYPTO_PENDING / BUY_FIAT_PENDING',
     transition: 'amlReason = ASSET_KYC_NEEDED, sonst wie pending-monthly-limit.',
   },
   'pending-merge-incomplete': {
-    when: 'Wenn Sie zwei Accounts mit derselben E-Mail-Adresse haben und die Bestätigungs-Mail zur Zusammenlegung noch nicht akzeptiert wurde, kann die Transaktion erst danach fortgesetzt werden.',
+    when: 'Wenn zwei Accounts mit derselben E-Mail-Adresse existieren und die Bestätigungs-Mail zur Zusammenlegung noch nicht akzeptiert wurde, kann die Transaktion erst danach fortgesetzt werden.',
     mailContext: 'BUY_CRYPTO_PENDING / BUY_FIAT_PENDING',
     transition: 'amlReason = MERGE_INCOMPLETE, sonst wie pending-monthly-limit.',
   },
   'pending-bank-release': {
-    when: 'Wenn Ihre Banküberweisung bei uns eingegangen, von der Bank aber noch nicht freigegeben ist. Sie müssen nichts tun — die Bank gibt die Transaktion automatisch frei.',
+    when: 'Wenn die Banküberweisung bei uns eingegangen, von der Bank aber noch nicht freigegeben ist. Die Bank gibt die Transaktion automatisch frei — keine Aktion nötig.',
     mailContext: 'BUY_CRYPTO_PENDING (nur Kauf-Seite)',
     transition: 'amlReason = BANK_RELEASE_PENDING, sonst wie pending-monthly-limit. Trigger nur auf BuyCrypto definiert.',
   },
   'pending-olky-no-kyc': {
-    when: 'Wenn Sie das Olky-Bankkonto verwenden, ist immer eine vollständige Verifizierung erforderlich.',
+    when: 'Wenn das Olky-Bankkonto verwendet wird, ist immer eine vollständige Verifizierung erforderlich.',
     mailContext: 'BUY_CRYPTO_PENDING (nur Kauf-Seite)',
     transition: 'amlReason = OLKY_NO_KYC, sonst wie pending-monthly-limit. Trigger nur auf BuyCrypto definiert.',
   },
   'pending-bank-tx-needed': {
-    when: 'Wenn vor Ihrer Transaktion zuerst eine Banküberweisung erforderlich ist (z. B. zur Validierung Ihrer Konto-Inhaberschaft).',
+    when: 'Wenn vor der Transaktion zuerst eine Banküberweisung erforderlich ist (z. B. zur Validierung der Konto-Inhaberschaft).',
     mailContext: 'BUY_CRYPTO_PENDING / BUY_FIAT_PENDING',
     transition: 'amlReason = BANK_TX_NEEDED, sonst wie pending-monthly-limit.',
   },
   'chargeback-crypto': {
-    when: 'Wenn ein begonnener Verkauf nicht ausgeführt werden kann (z. B. wegen einer überschrittenen regulatorischen Grenze), erstatten wir Ihre RealUnit-Token an Ihr Wallet zurück.',
+    when: 'Wenn ein begonnener Verkauf nicht ausgeführt werden kann (z. B. wegen einer überschrittenen regulatorischen Grenze), werden die RealUnit-Token an das Wallet zurückerstattet.',
     mailContext: 'BUY_FIAT_RETURN (Verkauf zurückgewiesen) bzw. CRYPTO_INPUT_RETURN (Crypto-Eingang zurück)',
     transition: 'BuyFiat: amlCheck = FAIL, chargebackTxId/Date/AllowedDate gesetzt — Cron BUY_FIAT_MAIL. Oder CryptoInput.action = RETURN, returnTxId gesetzt — Cron PAY_IN_MAIL.',
   },
   'chargeback-fiat': {
-    when: 'Wenn ein begonnener Kauf nicht ausgeführt werden kann (z. B. weil die Bank die Transaktion nicht zulässt), erstatten wir Ihre Banküberweisung zurück.',
+    when: 'Wenn ein begonnener Kauf nicht ausgeführt werden kann (z. B. weil die Bank die Transaktion nicht zulässt), wird die Banküberweisung zurückerstattet.',
     mailContext: 'BUY_CRYPTO_RETURN (Kauf zurückgewiesen) bzw. BANK_TX_RETURN (Bank-Tx zurück)',
     transition: 'BuyCrypto: amlCheck = FAIL, chargebackBankTx + chargebackIban + chargebackDate gesetzt. Oder BankTxReturn: chargebackAmount/Date/AllowedDate/BankTx/Iban gesetzt — Cron BANK_TX_RETURN_MAIL.',
   },
   'chargeback-unconfirmed': {
-    when: 'Wenn eine Rückerstattung initiiert wurde, aber von Ihnen noch nicht in der App bestätigt ist (z. B. mit Angabe der korrekten IBAN), bevor sie ausgeführt werden kann.',
+    when: 'Wenn eine Rückerstattung initiiert wurde, aber noch nicht in der App bestätigt ist (z. B. mit Angabe der korrekten IBAN), bevor sie ausgeführt werden kann.',
     mailContext: 'BUY_CRYPTO_CHARGEBACK_UNCONFIRMED / BUY_FIAT_CHARGEBACK_UNCONFIRMED',
     transition: 'amlCheck = FAIL, amlReason gesetzt, alle chargeback*-Felder (Iban/AllowedDate/Date/Address/Amount) IS NULL — Cron BUY_*_MAIL.',
   },
   'kyc-success': {
-    when: 'Sobald Ihre Verifizierung (KYC) abgeschlossen ist und Sie die volle Funktionalität von RealUnit nutzen können.',
+    when: 'Sobald die Verifizierung (KYC) abgeschlossen ist und die volle Funktionalität von RealUnit zur Verfügung steht.',
     mailContext: 'KYC_CHANGED',
     transition: 'KycNotificationService.kycChanged(userData, KycLevel.LEVEL_50) — direkt aufgerufen bei KYC-Stufenwechsel auf Level 50.',
   },
   'kyc-failed': {
-    when: 'Wenn ein Schritt Ihrer Verifizierung nicht erfolgreich war (z. B. weil Daten nicht zusammenpassen), bitten wir Sie um Wiederholung.',
+    when: 'Wenn ein Schritt der Verifizierung nicht erfolgreich war (z. B. weil Daten nicht zusammenpassen), fordert diese Mail zur Wiederholung auf.',
     mailContext: 'KYC_FAILED',
     transition: 'KycNotificationService.kycStepFailed(userData, stepName, reason) — direkt aufgerufen, wenn ein KycStep mit Status FAIL endet.',
   },
   'kyc-missing-data': {
-    when: 'Wenn bei einem Verifizierungs-Schritt Daten fehlen, die Sie noch ergänzen müssen.',
+    when: 'Wenn bei einem Verifizierungs-Schritt Daten fehlen, die noch ergänzt werden müssen.',
     mailContext: 'KYC_MISSING_DATA',
     transition: 'KycNotificationService.kycStepMissingData(userData, stepName) — direkt aufgerufen, wenn ein KycStep wegen unvollständiger Daten nicht abgeschlossen werden kann.',
   },
   'kyc-reminder': {
-    when: 'Erinnerung, falls Sie einen Verifizierungs-Schritt vor einigen Tagen begonnen, aber noch nicht abgeschlossen haben.',
+    when: 'Erinnerung, falls ein Verifizierungs-Schritt vor einigen Tagen begonnen, aber noch nicht abgeschlossen wurde.',
     mailContext: 'KYC_REMINDER',
     transition: 'KycStep.status = IN_PROGRESS, updated < heute - Config.kyc.reminderAfterDays, userData.kycLevel zwischen 0 und 50, reminderSentDate IS NULL — Cron KYC_MAIL (stündlich).',
   },
   login: {
-    when: 'Wenn Sie sich per E-Mail-Login (Magic-Link) anmelden, schicken wir Ihnen den Anmeldelink an Ihre registrierte Adresse.',
+    when: 'Bei einem E-Mail-Login (Magic-Link) wird der Anmeldelink an die registrierte Adresse versendet.',
     mailContext: 'LOGIN',
     transition: 'AuthService — direkt nach erfolgreicher Login-Anfrage versendet, Link gültig für Config.auth.mailLoginExpiresIn Minuten.',
   },
   'verification-code-2fa': {
-    when: 'Wenn Sie eine sicherheitsrelevante Aktion durchführen (z. B. von einem neuen Gerät), schickt die App einen Verifizierungscode per Mail.',
+    when: 'Bei einer sicherheitsrelevanten Aktion (z. B. von einem neuen Gerät) wird ein Verifizierungscode per Mail versendet.',
     mailContext: 'VERIFICATION_MAIL',
     transition: 'TfaService.sendVerificationMail(userData, code, expirationMinutes, VERIFICATION_MAIL) — direkt aufgerufen aus dem 2FA-Flow.',
   },
   'email-verification-code': {
-    when: 'Wenn Sie Ihre E-Mail-Adresse ändern, schicken wir an die neue Adresse einen Code zur Bestätigung.',
+    when: 'Bei einer Änderung der E-Mail-Adresse wird an die neue Adresse ein Code zur Bestätigung versendet.',
     mailContext: 'EMAIL_VERIFICATION',
     transition: 'TfaService.sendVerificationMail(userData, code, expirationMinutes, EMAIL_VERIFICATION) — direkt aufgerufen beim Ändern der E-Mail.',
   },
   'account-merge-request': {
-    when: 'Wenn Sie zwei Accounts mit derselben E-Mail-Adresse haben, schicken wir einen Bestätigungslink, damit beide zusammengelegt werden können.',
+    when: 'Wenn zwei Accounts mit derselben E-Mail-Adresse existieren, wird ein Bestätigungslink zur Zusammenlegung versendet.',
     mailContext: 'ACCOUNT_MERGE_REQUEST',
     transition: 'AccountMergeService.sendMergeRequest(master, slave, reason) — direkt aufgerufen, wenn ein neuer Merge-Request angelegt wird (Debounce 60 s).',
   },
   'added-address': {
-    when: 'Sobald durch eine Account-Zusammenlegung eine zusätzliche Wallet-Adresse zu Ihrem Account hinzugefügt wurde.',
+    when: 'Sobald durch eine Account-Zusammenlegung eine zusätzliche Wallet-Adresse hinzugefügt wurde.',
     mailContext: 'ADDED_ADDRESS',
     transition: 'UserDataNotificationService.userDataAddedAddressInfo(master, slave) — direkt aufgerufen nach erfolgreichem Account-Merge mit `notifyUser = true`.',
   },
   'changed-mail': {
-    when: 'Sobald durch eine Account-Zusammenlegung die für Ihren Account verwendete E-Mail-Adresse geändert wurde.',
+    when: 'Sobald durch eine Account-Zusammenlegung die für den Account verwendete E-Mail-Adresse geändert wurde.',
     mailContext: 'CHANGED_MAIL',
     transition: 'UserDataNotificationService.userDataChangedMailInfo(master, slave) — direkt aufgerufen, wenn beim Merge die Master-Mail durch die Slave-Mail überschrieben wird (Master und Slave erhalten je eine Mail).',
   },
   'account-deactivation': {
-    when: 'Sobald Sie Ihren Account deaktiviert haben — als Bestätigung, dass die Deaktivierung durchgeführt wurde.',
+    when: 'Sobald der Account deaktiviert wurde — als Bestätigung, dass die Deaktivierung durchgeführt wurde.',
     mailContext: 'ACCOUNT_DEACTIVATION',
     transition: 'UserDataNotificationService.deactivateAccountMail(userData) — direkt aufgerufen aus UserDataService, sobald der Account-Status auf DEACTIVATED wechselt.',
   },
   'recommendation-mail': {
-    when: 'Wenn ein bestehender RealUnit-Nutzer Sie zur Nutzung der App eingeladen hat, schicken wir Ihnen den Registrierungslink.',
+    when: 'Wenn ein bestehender RealUnit-Nutzer einen Empfänger zur Nutzung der App einlädt, wird der Registrierungslink versendet.',
     mailContext: 'RECOMMENDATION_MAIL',
     transition: 'RecommendationService.sendInvitationMail(entity) — direkt aufgerufen, wenn eine neue Recommendation angelegt und der Eingeladene noch keinen Account hat.',
   },
   'ref-reward': {
-    when: 'Sobald eine Empfehlungsprämie für eine erfolgreiche Empfehlung von Ihnen ausbezahlt wurde.',
+    when: 'Sobald eine Empfehlungsprämie für eine erfolgreiche Empfehlung ausbezahlt wurde.',
     mailContext: 'REF_REWARD',
     transition: 'RefReward: status = COMPLETE, outputAmount gesetzt, recipientMail IS NULL, targetAddress + targetBlockchain gesetzt, mailSendDate IS NULL — Cron REF_REWARD_MAIL.',
   },
   'support-message': {
-    when: 'Wenn Sie zu einer Ihrer Support-Anfragen eine neue Antwort erhalten haben.',
+    when: 'Wenn auf eine Support-Anfrage eine neue Antwort eingeht.',
     mailContext: 'SUPPORT_MESSAGE',
     transition: 'SupportIssueNotificationService.newSupportMessage(entity) — direkt aufgerufen, wenn eine neue SupportMessage zu einem bestehenden Issue eingeht.',
   },
   'limit-request': {
-    when: 'Sobald Ihr Antrag auf höhere Transaktionslimiten manuell genehmigt wurde.',
+    when: 'Sobald ein Antrag auf höhere Transaktionslimiten manuell genehmigt wurde.',
     mailContext: 'LIMIT_REQUEST',
     transition: 'LimitRequest: decision IN (ACCEPTED, PARTIALLY_ACCEPTED), clerk + edited gesetzt, mailSendDate IS NULL — Cron LIMIT_REQUEST_MAIL (5 Min.).',
   },
@@ -267,15 +267,20 @@ function wrapWithTrigger(mail) {
     console.warn(`[trigger] Missing explanation for ${mail.file}`);
     return mailHtml;
   }
-  const infoBox = `<div class="trigger-info" style="max-width:520px;margin:0 auto 8px;padding:16px 20px;background:#FFF8E6;border:1px solid #F2D27A;border-radius:6px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#3B3322;">
-    <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#8A6914;margin-bottom:6px;">Wann wird diese Mail versendet?</div>
-    <div style="font-size:13px;line-height:1.55;margin-bottom:10px;">${t.when}</div>
-    <div style="font-size:11px;color:#7A6A3A;line-height:1.5;border-top:1px solid #F2D27A;padding-top:8px;">
-      <div><strong>Technischer Trigger (MailContext):</strong> <code style="background:#F5EBC8;padding:1px 5px;border-radius:3px;font-family:ui-monospace,Menlo,monospace;">${t.mailContext}</code></div>
-      <div style="margin-top:3px;"><strong>Auslöser:</strong> ${t.transition}</div>
+  const infoBox = `<details class="trigger-info" style="max-width:520px;margin:8px auto 8px;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+    <summary style="cursor:pointer;display:inline-block;width:26px;height:26px;line-height:24px;text-align:center;background:#FFF8E6;border:1px solid #F2D27A;border-radius:50%;color:#8A6914;font-weight:700;font-size:14px;user-select:none;list-style:none;margin-left:8px;" title="Mail-Details anzeigen">?</summary>
+    <div style="margin-top:8px;padding:16px 20px;background:#FFF8E6;border:1px solid #F2D27A;border-radius:6px;color:#3B3322;">
+      <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#8A6914;margin-bottom:6px;">Betreff</div>
+      <div style="font-size:13px;line-height:1.55;margin-bottom:14px;">${mail.subject}</div>
+      <div style="font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:#8A6914;margin-bottom:6px;border-top:1px solid #F2D27A;padding-top:10px;">Wann wird diese Mail versendet?</div>
+      <div style="font-size:13px;line-height:1.55;margin-bottom:10px;">${t.when}</div>
+      <div style="font-size:11px;color:#7A6A3A;line-height:1.5;border-top:1px solid #F2D27A;padding-top:8px;">
+        <div><strong>Technischer Trigger (MailContext):</strong> <code style="background:#F5EBC8;padding:1px 5px;border-radius:3px;font-family:ui-monospace,Menlo,monospace;">${t.mailContext}</code></div>
+        <div style="margin-top:3px;"><strong>Auslöser:</strong> ${t.transition}</div>
+      </div>
     </div>
-  </div>
-  <style>body.preview-mode .trigger-info{display:none}</style>
+  </details>
+  <style>body.preview-mode .trigger-info{display:none} details.trigger-info > summary::-webkit-details-marker{display:none}</style>
   <script>if(window!==window.parent){document.body.classList.add('preview-mode')}</script>`;
   return mailHtml.replace(/(<body[^>]*>)/, `$1${infoBox}`);
 }
@@ -311,10 +316,10 @@ add('sell-completed', t('payment.fiat_output.title'), 'Verkauf', t('payment.fiat
   text(t('payment.fiat_output.body')),
 ]);
 
-// === EINGANG ===
-add('fiat-input', t('payment.fiat_input.title'), 'Eingang', t('payment.fiat_input.salutation'), []);
+// === KAUF (Fiat-Eingang & Unassigned) ===
+add('fiat-input', t('payment.fiat_input.title'), 'Kauf', t('payment.fiat_input.salutation'), []);
 
-add('fiat-input-currency-exchange', t('payment.fiat_input.title'), 'Eingang', t('payment.fiat_input.salutation'), [
+add('fiat-input-currency-exchange', t('payment.fiat_input.title'), 'Kauf', t('payment.fiat_input.salutation'), [
   text(
     interpolate(t('payment.fiat_input.currency_exchange'), {
       bankAccount: 'CH98 0000 0000 0000 0',
@@ -324,15 +329,16 @@ add('fiat-input-currency-exchange', t('payment.fiat_input.title'), 'Eingang', t(
   ),
 ]);
 
-add('crypto-input', t('payment.crypto_input.title'), 'Eingang', t('payment.crypto_input.salutation'), []);
-
 add(
   'unassigned-transaction',
   t('payment.fiat_input.unassigned.title'),
-  'Eingang',
+  'Kauf',
   t('payment.fiat_input.unassigned.salutation'),
-  [translatedText(t('payment.fiat_input.unassigned.transaction_button'), { url: sampleUrl, button: 'true' })],
+  [text(t('payment.fiat_input.unassigned.body'))],
 );
+
+// === VERKAUF (Crypto-Eingang) ===
+add('crypto-input', t('payment.crypto_input.title'), 'Verkauf', t('payment.crypto_input.salutation'), []);
 
 // === AUSSTEHEND (Pending) ===
 const pendingTypes = [
@@ -501,6 +507,7 @@ add('limit-request', t('limit_request.title'), 'Sonstiges', t('limit_request.tit
 ]);
 
 // === GENERATE ===
+fs.rmSync(OUTPUT_DIR, { recursive: true, force: true });
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
 for (const mail of mails) {
@@ -509,7 +516,7 @@ for (const mail of mails) {
 }
 
 // Index — fixed category order (customer journey: incoming money first, then completion, sell, holds, refunds, account/auth admin)
-const categoryOrder = ['Eingang', 'Kauf', 'Verkauf', 'Ausstehend', 'Rückerstattung', 'KYC', 'Authentifizierung', 'Account', 'Sonstiges'];
+const categoryOrder = ['Kauf', 'Verkauf', 'Ausstehend', 'Rückerstattung', 'KYC', 'Authentifizierung', 'Account', 'Sonstiges'];
 const categories = {};
 for (const cat of categoryOrder) categories[cat] = [];
 for (const m of mails) {
