@@ -183,16 +183,17 @@ export class MailFactory {
 
     const walletName = wallet?.name;
     const walletMailConfig = walletName ? Config.mail.wallet[walletName] : undefined;
-    const lang = userData.language.symbol;
+    const lang = walletMailConfig?.forcedLang ? walletMailConfig.forcedLang.toLowerCase() : userData.language.symbol.toLowerCase();
 
     const welcomeTexts = this.getCentralizedWelcomeTexts(userData, walletMailConfig);
-    const merged = [...welcomeTexts, ...(prefix ?? [])];
+    const walletBodyTexts = this.getWalletBodyTexts(title, lang, walletName);
+    const merged = [...welcomeTexts, ...walletBodyTexts, ...(prefix ?? [])];
 
     return new PersonalMail({
       to: userData.mail,
       bcc,
-      subject: this.translate(title, lang),
-      prefix: this.getMailAffix(merged, lang),
+      subject: this.translate(title, lang, undefined, walletName),
+      prefix: this.getMailAffix(merged, lang, walletName),
       banner,
       from,
       displayName,
