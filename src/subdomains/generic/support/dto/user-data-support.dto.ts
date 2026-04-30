@@ -404,16 +404,26 @@ export class IpLogSupportInfo {
   created: Date;
 }
 
+export class SupportPermissions {
+  viewKycFiles: boolean;
+  viewKycLogs: boolean;
+  viewIpLogs: boolean;
+  viewSupportIssues: boolean;
+  canRequestLimit: boolean;
+  canPerformTransactionActions: boolean;
+  viewRecommendation: boolean;
+}
+
 export class UserDataSupportInfoDetails {
   userData: UserData;
-  kycFiles: KycFile[];
+  kycFiles?: KycFile[];
   kycSteps: KycStepSupportInfo[];
-  kycLogs: KycLogSupportInfo[];
+  kycLogs?: KycLogSupportInfo[];
   transactions: TransactionSupportInfo[];
   bankTxs: BankTxSupportInfo[];
   cryptoInputs: CryptoInputSupportInfo[];
-  ipLogs: IpLogSupportInfo[];
-  supportIssues: SupportIssueSupportInfo[];
+  ipLogs?: IpLogSupportInfo[];
+  supportIssues?: SupportIssueSupportInfo[];
   users: UserSupportInfo[];
   bankDatas: BankDataSupportInfo[];
   buyRoutes: BuySupportInfo[];
@@ -422,6 +432,7 @@ export class UserDataSupportInfoDetails {
   virtualIbans: VirtualIbanSupportInfo[];
   refRewards: RefRewardSupportInfo[];
   notifications: NotificationSupportInfo[];
+  permissions: SupportPermissions;
 }
 
 export class UserDataSupportQuery {

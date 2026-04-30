@@ -47,6 +47,7 @@ import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/s
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { KycFile } from '../kyc/entities/kyc-file.entity';
 import { KycLog } from '../kyc/entities/kyc-log.entity';
 import { KycStep } from '../kyc/entities/kyc-step.entity';
 import { KycStepName } from '../kyc/enums/kyc-step-name.enum';
@@ -93,6 +94,7 @@ import {
   VirtualIbanSupportInfo,
   RefRewardSupportInfo,
   NotificationSupportInfo,
+  SupportPermissions,
   TransactionListEntry,
   TransactionSupportInfo,
   CallQueue,
@@ -126,12 +128,9 @@ const CallQueueTxReasonMap: Partial<Record<CallQueue, AmlReason>> = {
   [CallQueue.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE]: AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
 };
 
-// Fields of UserDataSupportInfoDetails that are returned as empty arrays for the given role.
-// Mirrored on the frontend by PANELS_HIDDEN_BY_ROLE in compliance-user.screen.tsx.
-const FIELDS_HIDDEN_BY_ROLE: Partial<Record<UserRole, (keyof UserDataSupportInfoDetails)[]>> = {
-  [UserRole.SUPPORT]: ['kycFiles', 'ipLogs'],
-  [UserRole.MARKETING]: ['kycFiles', 'ipLogs'],
-};
+// Roles with restricted access to compliance user details.
+// Drives the permissions block returned to the frontend (which gates panels, actions and tabs).
+const RESTRICTED_ROLES: UserRole[] = [UserRole.SUPPORT, UserRole.MARKETING];
 
 @Injectable()
 export class SupportService {
@@ -223,9 +222,18 @@ export class SupportService {
     const userData = await this.userDataService.getUserData(id, { wallet: true, bankDatas: true });
     if (!userData) throw new NotFoundException(`User not found`);
 
-    const hidden = FIELDS_HIDDEN_BY_ROLE[role] ?? [];
+    const isRestricted = RESTRICTED_ROLES.includes(role);
+    const permissions: SupportPermissions = {
+      viewKycFiles: !isRestricted,
+      viewKycLogs: !isRestricted,
+      viewIpLogs: !isRestricted,
+      viewSupportIssues: !isRestricted,
+      canRequestLimit: !isRestricted,
+      canPerformTransactionActions: !isRestricted,
+      viewRecommendation: !isRestricted,
+    };
 
-    // Load all related data in parallel — skip queries for fields hidden for this role
+    // Load all related data in parallel — skip queries for fields the role is not allowed to see
     const [
       kycFiles,
       kycSteps,
@@ -242,9 +250,13 @@ export class SupportService {
       ipLogs,
       supportIssues,
     ] = await Promise.all([
-      hidden.includes('kycFiles') ? Promise.resolve([]) : this.kycFileService.getUserDataKycFiles(id),
+      permissions.viewKycFiles
+        ? this.kycFileService.getUserDataKycFiles(id)
+        : Promise.resolve<KycFile[] | undefined>(undefined),
       this.kycService.getStepsByUserData(id),
-      this.kycLogService.getLogsByUserDataId(id),
+      permissions.viewKycLogs
+        ? this.kycLogService.getLogsByUserDataId(id)
+        : Promise.resolve<KycLog[] | undefined>(undefined),
       this.transactionService.getTransactionsByUserDataId(id),
       this.userService.getAllUserDataUsers(id, { wallet: true }),
       this.bankDataService.getBankDatasByUserData(id),
@@ -254,8 +266,10 @@ export class SupportService {
       this.virtualIbanService.getVirtualIbansForAccount(id),
       this.refRewardService.getRefRewardsByUserDataId(id),
       this.notificationService.getMails(id),
-      hidden.includes('ipLogs') ? Promise.resolve([]) : this.ipLogService.getByUserDataId(id),
-      this.supportIssueService.getIssueEntities(id),
+      permissions.viewIpLogs ? this.ipLogService.getByUserDataId(id) : Promise.resolve<IpLog[] | undefined>(undefined),
+      permissions.viewSupportIssues
+        ? this.supportIssueService.getIssueEntities(id)
+        : Promise.resolve<SupportIssue[] | undefined>(undefined),
     ]);
 
     // Load bank transactions for the loaded transactions (incoming + outgoing)
@@ -305,12 +319,12 @@ export class SupportService {
           s.name === KycStepName.RECOMMENDATION ? allByRecommender : undefined,
         ),
       ),
-      kycLogs: kycLogs.map((l) => this.toKycLogSupportInfo(l)),
+      kycLogs: kycLogs?.map((l) => this.toKycLogSupportInfo(l)),
       transactions: transactions.map((t) => this.toTransactionSupportInfo(t)),
       bankTxs: bankTxs.map((b) => this.toBankTxDto(b, recallByBankTxId.get(b.id))),
       cryptoInputs: cryptoInputs.map((c) => this.toCryptoInputSupportInfo(c)),
-      ipLogs: ipLogs.map((l) => this.toIpLogSupportInfo(l)),
-      supportIssues: supportIssues.map((s) => this.toSupportIssueSupportInfo(s)),
+      ipLogs: ipLogs?.map((l) => this.toIpLogSupportInfo(l)),
+      supportIssues: supportIssues?.map((s) => this.toSupportIssueSupportInfo(s)),
       users: await this.toUserSupportInfos(users),
       bankDatas: bankDatas.map((b) => this.toBankDataSupportInfo(b)),
       buyRoutes: buyRoutes.map((b) => this.toBuySupportInfo(b)),
@@ -319,6 +333,7 @@ export class SupportService {
       virtualIbans: virtualIbans.map((v) => this.toVirtualIbanSupportInfo(v)),
       refRewards: refRewards.map((r) => this.toRefRewardSupportInfo(r)),
       notifications: notifications.map((n) => this.toNotificationSupportInfo(n)),
+      permissions,
     };
   }
 
