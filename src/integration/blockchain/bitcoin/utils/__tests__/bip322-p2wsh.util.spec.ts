@@ -1,4 +1,10 @@
-import { bip322MessageHash, buildSortedMultisigScript, buildToSpendTx, p2wshAddress, p2wshScriptPubKey } from '@dfx.swiss/bip322-multisig';
+import {
+  bip322MessageHash,
+  buildSortedMultisigScript,
+  buildToSpendTx,
+  p2wshAddress,
+  p2wshScriptPubKey,
+} from '@dfx.swiss/bip322-multisig';
 import { secp256k1 } from '@noble/curves/secp256k1';
 import { Transaction } from 'bitcoinjs-lib';
 import { isP2wshAddress, verifyBip322P2wshSignature } from '../bip322-p2wsh.util';
