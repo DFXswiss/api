@@ -24,13 +24,16 @@ import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
+import { PhoneAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { CustodyService } from 'src/subdomains/core/custody/services/custody.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import {
   DefaultPaymentLinkConfig,
   PaymentLinkConfig,
 } from 'src/subdomains/core/payment-link/entities/payment-link.config';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { KycAddress, KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
@@ -113,6 +116,8 @@ export class UserDataService {
     private readonly ipLogService: IpLogService,
     @Inject(forwardRef(() => CustodyService))
     private readonly custodyService: CustodyService,
+    private readonly buyCryptoService: BuyCryptoService,
+    private readonly buyFiatService: BuyFiatService,
   ) {}
 
   // --- GETTERS --- //
@@ -298,7 +303,12 @@ export class UserDataService {
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
-      relations: { users: { wallet: true }, kycSteps: true, wallet: true },
+      relations: {
+        users: { wallet: true },
+        kycSteps: true,
+        wallet: true,
+        transactions: { buyCrypto: true, buyFiat: true },
+      },
     });
     if (!userData) throw new NotFoundException('User data not found');
 
@@ -306,6 +316,31 @@ export class UserDataService {
 
     if (dto.phoneCallExternalAccountCheckValue)
       userData.addPhoneCallExternalAccountCheckValue(dto.phoneCallExternalAccountCheckValue);
+
+    if (
+      dto.phoneCallStatus === PhoneCallStatus.COMPLETED &&
+      [PhoneCallStatus.FAILED, PhoneCallStatus.USER_REJECTED].includes(userData.phoneCallStatus)
+    ) {
+      for (const tx of userData.transactions.filter((t) => t.buyCrypto || t.buyFiat)) {
+        if (tx.amlCheck === CheckStatus.FAIL) {
+          if (
+            tx.buyCrypto &&
+            !tx.buyCrypto.isComplete &&
+            !tx.buyCrypto.chargebackAllowedDate &&
+            PhoneAmlReasons.includes(tx.buyCrypto.amlReason)
+          )
+            await this.buyCryptoService.resetAmlCheckInternal(tx.buyCrypto);
+
+          if (
+            tx.buyFiat &&
+            !tx.buyFiat.isComplete &&
+            !tx.buyFiat.chargebackAllowedDate &&
+            PhoneAmlReasons.includes(tx.buyFiat.amlReason)
+          )
+            await this.buyFiatService.resetAmlCheckInternal(tx.buyFiat);
+        }
+      }
+    }
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed

@@ -1,5 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -29,7 +30,6 @@ import { AccountOpenerAuthorization, Organization } from '../organization/organi
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { TradingLimit } from '../user/dto/user.dto';
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserStatus } from '../user/user.enum';
 import { Wallet } from '../wallet/wallet.entity';
 import { AccountType } from './account-type.enum';
@@ -841,6 +841,7 @@ export const UserDataComplianceUpdateCols = [
   'phoneCallIpCheckDate',
   'phoneCallIpCountryCheckDate',
   'phoneCallExternalAccountCheckDate',
+  'phoneCallExternalAccountCheckValue',
 ];
 
 export function KycCompleted(kycStatus?: KycStatus): boolean {

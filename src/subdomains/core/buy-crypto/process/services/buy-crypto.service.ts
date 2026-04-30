@@ -670,6 +670,11 @@ export class BuyCryptoService {
   async resetAmlCheck(id: number): Promise<void> {
     const entity = await this.buyCryptoRepo.findOne({ where: { id }, relations: { chargebackOutput: true } });
     if (!entity) throw new NotFoundException('BuyCrypto not found');
+
+    await this.resetAmlCheckInternal(entity);
+  }
+
+  async resetAmlCheckInternal(entity: BuyCrypto): Promise<void> {
     if (entity.isComplete || entity.batch || entity.chargebackOutput?.isComplete || entity.chargebackAllowedDate)
       throw new BadRequestException('BuyCrypto is already complete or payout initiated');
     if (!entity.amlCheck) throw new BadRequestException('BuyCrypto AML check is not set');

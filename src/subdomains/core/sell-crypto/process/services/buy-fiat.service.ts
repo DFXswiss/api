@@ -386,6 +386,11 @@ export class BuyFiatService {
       relations: { fiatOutput: true, transaction: { userData: true }, outputAsset: true },
     });
     if (!entity) throw new NotFoundException('BuyFiat not found');
+
+    await this.resetAmlCheckInternal(entity);
+  }
+
+  async resetAmlCheckInternal(entity: BuyFiat): Promise<void> {
     if (entity.isComplete || entity.fiatOutput?.isComplete || entity.chargebackAllowedDate)
       throw new BadRequestException('BuyFiat is already complete');
     if (!entity.amlCheck) throw new BadRequestException('BuyFiat amlcheck is not set');
