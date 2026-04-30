@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { MailContext, MailType } from '../../notification/enums';
-import { MailTranslationKey } from '../../notification/factories/mail.factory';
+import { MailKey, MailTranslationKey } from '../../notification/factories/mail.factory';
 import { NotificationService } from '../../notification/services/notification.service';
 import { SupportMessage } from '../entities/support-message.entity';
 
@@ -24,6 +24,11 @@ export class SupportIssueNotificationService {
             title: `${MailTranslationKey.SUPPORT_MESSAGE}.title`,
             salutation: { key: `${MailTranslationKey.SUPPORT_MESSAGE}.salutation` },
             texts: [
+              {
+                key: `${MailTranslationKey.GENERAL}.welcome`,
+                params: { name: entity.userData.organizationName ?? entity.userData.firstname },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.SUPPORT_MESSAGE}.message`,
                 params: { url: entity.issue.url, urlText: entity.issue.url },

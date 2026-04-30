@@ -54,6 +54,13 @@ export class PayInNotificationService {
               salutation: { key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.salutation` },
               texts: [
                 {
+                  key: `${MailTranslationKey.GENERAL}.welcome`,
+                  params: {
+                    name: entity.transaction.userData.organizationName ?? entity.transaction.userData.firstname,
+                  },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                {
                   key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.transaction_button`,
                   params: { url: entity.transaction.url, button: 'true' },
                 },

@@ -60,6 +60,11 @@ export class BuyFiatNotificationService {
               salutation: { key: `${MailTranslationKey.FIAT_OUTPUT}.salutation` },
               texts: [
                 {
+                  key: `${MailTranslationKey.GENERAL}.welcome`,
+                  params: { name: entity.userData.organizationName ?? entity.userData.firstname },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
                   params: { url: entity.transaction.url, button: 'true' },
                 },
@@ -96,6 +101,11 @@ export class BuyFiatNotificationService {
             title: `${MailTranslationKey.PROCESSING}.title`,
             salutation: { key: `${MailTranslationKey.PROCESSING}.salutation` },
             texts: [
+              {
+                key: `${MailTranslationKey.GENERAL}.welcome`,
+                params: { name: entity.userData.organizationName ?? entity.userData.firstname },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.PAYMENT}.transaction_button`,
                 params: { url: entity.transaction.url, button: 'true' },
@@ -147,6 +157,11 @@ export class BuyFiatNotificationService {
                 key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
               },
               texts: [
+                {
+                  key: `${MailTranslationKey.GENERAL}.welcome`,
+                  params: { name: entity.userData.organizationName ?? entity.userData.firstname },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2`,
@@ -224,6 +239,11 @@ export class BuyFiatNotificationService {
               salutation: { key: `${MailTranslationKey.CRYPTO_CHARGEBACK}.salutation` },
               texts: [
                 {
+                  key: `${MailTranslationKey.GENERAL}.welcome`,
+                  params: { name: entity.userData.organizationName ?? entity.userData.firstname },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
                   params: { url: entity.transaction.url, button: 'true' },
                 },
@@ -298,6 +318,11 @@ export class BuyFiatNotificationService {
               title: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.title`,
               salutation: { key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.salutation` },
               texts: [
+                {
+                  key: `${MailTranslationKey.GENERAL}.welcome`,
+                  params: { name: entity.userData.organizationName ?? entity.userData.firstname },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
                 {
                   key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.transaction_button`,
                   params: { url: entity.transaction.url, button: 'true' },

@@ -183,6 +183,11 @@ export class TfaService {
             },
             texts: [
               {
+                key: `${MailTranslationKey.GENERAL}.welcome`,
+                params: { name: userData.organizationName ?? userData.firstname },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
                 key: `${MailTranslationKey.VERIFICATION_CODE}.message`,
                 params: { code },
               },

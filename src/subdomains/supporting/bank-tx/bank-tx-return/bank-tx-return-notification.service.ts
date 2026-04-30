@@ -56,6 +56,11 @@ export class BankTxReturnNotificationService {
               salutation: { key: `${MailTranslationKey.FIAT_CHARGEBACK}.salutation` },
               texts: [
                 {
+                  key: `${MailTranslationKey.GENERAL}.welcome`,
+                  params: { name: entity.userData.organizationName ?? entity.userData.firstname },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
                   params: { url: entity.transaction.url, button: 'true' },
                 },

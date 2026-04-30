@@ -78,6 +78,11 @@ export class TransactionNotificationService {
               salutation: { key: `${entity.targetEntity.inputMailTranslationKey}.salutation` },
               texts: [
                 {
+                  key: `${MailTranslationKey.GENERAL}.welcome`,
+                  params: { name: entity.userData.organizationName ?? entity.userData.firstname },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
                   params: { url: entity.url, button: 'true' },
                 },
@@ -141,6 +146,11 @@ export class TransactionNotificationService {
             title: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.title`,
             salutation: { key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.salutation` },
             texts: [
+              {
+                key: `${MailTranslationKey.GENERAL}.welcome`,
+                params: { name: userData.organizationName ?? userData.firstname },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.transaction_button`,
                 params: { url: entity.url, button: 'true' },

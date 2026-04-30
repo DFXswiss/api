@@ -291,7 +291,9 @@ let id = 0;
 function add(file, subject, category, salutation, texts) {
   id++;
   const num = String(id).padStart(2, '0');
-  mails.push({ id: num, file: `${num}-${file}`, subject, category, salutation, texts });
+  // Every mail is sent with a personal welcome line as the first body element (prepended in each *-notification.service.ts in code)
+  const welcomeLine = text(interpolate(t('general.welcome'), { name: sampleName }));
+  mails.push({ id: num, file: `${num}-${file}`, subject, category, salutation, texts: [welcomeLine, ...texts] });
 }
 
 // === KAUF (Buy Crypto) ===
@@ -455,7 +457,6 @@ add(
 
 // === ACCOUNT ===
 add('account-merge-request', t('account_merge.request.title'), 'Account', t('account_merge.request.salutation'), [
-  text(interpolate(t('general.welcome'), { name: sampleName })),
   translatedText(interpolate(t('account_merge.request.message'), { urlText: sampleUrl }), {
     url: sampleUrl,
     button: 'true',
@@ -463,17 +464,14 @@ add('account-merge-request', t('account_merge.request.title'), 'Account', t('acc
 ]);
 
 add('added-address', t('account_merge.added_address.title'), 'Account', t('account_merge.added_address.salutation'), [
-  text(interpolate(t('general.welcome'), { name: sampleName })),
   text(interpolate(t('account_merge.added_address.message'), { userAddress: '0x1234...abcd' })),
 ]);
 
 add('changed-mail', t('account_merge.changed_mail.title'), 'Account', t('account_merge.changed_mail.salutation'), [
-  text(interpolate(t('general.welcome'), { name: sampleName })),
   text(interpolate(t('account_merge.changed_mail.message'), { userMail: 'm***@example.com' })),
 ]);
 
 add('account-deactivation', t('account_deactivation.title'), 'Account', t('account_deactivation.salutation'), [
-  text(interpolate(t('general.welcome'), { name: sampleName })),
   text(t('account_deactivation.message')),
 ]);
 

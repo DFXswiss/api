@@ -301,7 +301,11 @@ export class AuthService {
         title: `${MailTranslationKey.LOGIN}.title`,
         salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
         texts: [
-          { key: MailKey.SPACE, params: { value: '1' } },
+          {
+            key: `${MailTranslationKey.GENERAL}.welcome`,
+            params: { name: userData.organizationName ?? userData.firstname },
+          },
+          { key: MailKey.SPACE, params: { value: '2' } },
           {
             key: `${MailTranslationKey.GENERAL}.button`,
             params: { url: loginUrl, button: 'true' },

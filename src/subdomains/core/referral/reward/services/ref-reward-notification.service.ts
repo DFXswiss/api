@@ -53,6 +53,11 @@ export class RefRewardNotificationService {
               salutation: { key: `${MailTranslationKey.REFERRAL}.salutation` },
               texts: [
                 {
+                  key: `${MailTranslationKey.GENERAL}.welcome`,
+                  params: { name: entity.user.userData.organizationName ?? entity.user.userData.firstname },
+                },
+                { key: MailKey.SPACE, params: { value: '2' } },
+                {
                   key: `${MailTranslationKey.REFERRAL}.transaction_button`,
                   params: { url: entity.transaction.url, button: 'true' },
                 },
