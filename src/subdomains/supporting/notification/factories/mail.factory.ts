@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
@@ -10,6 +11,7 @@ import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/persona
 import { MailRequestUserInputV2, UserMailV2 } from '../entities/mail/user-mail-v2';
 import { MailContext, MailContextType, MailContextTypeMapper, MailType } from '../enums';
 import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
+import { WalletMailConfig } from '../services/mail.service';
 
 export enum MailTranslationKey {
   GENERAL = 'mail.general',
@@ -147,14 +149,24 @@ export class MailFactory {
 
     if (this.isDisabledMailWallet(context, wallet)) return undefined;
 
-    const lang = userData.language.symbol.toLowerCase();
+    const walletName = wallet?.name;
+    const walletMailConfig = walletName ? Config.mail.wallet[walletName] : undefined;
+    const lang = walletMailConfig?.forcedLang
+      ? walletMailConfig.forcedLang.toLowerCase()
+      : userData.language.symbol.toLowerCase();
+
+    const welcomeTexts = this.getCentralizedWelcomeTexts(userData, walletMailConfig);
+    const walletBodyTexts = this.getWalletBodyTexts(title, lang, walletName);
+    // Order: welcome line (if any), then optional wallet body override, then the service-specific texts
+    const merged = [...welcomeTexts, ...walletBodyTexts, ...(texts ?? [])];
+    const allTexts = this.getMailAffix(merged, lang, walletName);
 
     return new UserMailV2(
       {
         to: userData.mail,
-        subject: this.translate(title, lang),
-        salutation: salutation && this.translate(salutation.key, lang, salutation.params),
-        texts: texts && this.getMailAffix(texts, lang),
+        subject: this.translate(title, lang, undefined, walletName),
+        salutation: salutation && this.translate(salutation.key, lang, salutation.params, walletName),
+        texts: allTexts,
         correlationId,
         options,
       },
@@ -169,13 +181,18 @@ export class MailFactory {
 
     if (this.isDisabledMailWallet(context, wallet)) return undefined;
 
+    const walletName = wallet?.name;
+    const walletMailConfig = walletName ? Config.mail.wallet[walletName] : undefined;
     const lang = userData.language.symbol;
+
+    const welcomeTexts = this.getCentralizedWelcomeTexts(userData, walletMailConfig);
+    const merged = [...welcomeTexts, ...(prefix ?? [])];
 
     return new PersonalMail({
       to: userData.mail,
       bcc,
       subject: this.translate(title, lang),
-      prefix: prefix && this.getMailAffix(prefix, lang),
+      prefix: this.getMailAffix(merged, lang),
       banner,
       from,
       displayName,
@@ -186,8 +203,48 @@ export class MailFactory {
 
   //*** TRANSLATION METHODS ***//
 
-  public translate(key: string, lang: string, args?: any): string {
+  public translate(key: string, lang: string, args?: any, walletName?: string): string {
+    if (walletName) {
+      const walletKey = key.replace(/^mail\./, `mail-${walletName.toLowerCase()}.`);
+      const walletTranslation = this.i18n.translate(walletKey, { lang: lang.toLowerCase(), args }) as string;
+
+      if (walletTranslation !== walletKey) return walletTranslation;
+    }
+
     return this.i18n.translate(key, { lang: lang.toLowerCase(), args });
+  }
+
+  private translateWalletOnly(key: string, lang: string, walletName: string, args?: any): string | undefined {
+    const walletKey = key.replace(/^mail\./, `mail-${walletName.toLowerCase()}.`);
+    const walletTranslation = this.i18n.translate(walletKey, { lang: lang.toLowerCase(), args }) as string;
+
+    return walletTranslation !== walletKey ? walletTranslation : undefined;
+  }
+
+  private getWalletBodyTexts(title: string, lang: string, walletName?: string): TranslationItem[] {
+    if (!walletName) return [];
+
+    const bodyKey = title.replace(/\.title$/, '.body');
+    const bodyText = this.translateWalletOnly(bodyKey, lang, walletName);
+
+    return bodyText ? [{ key: bodyKey }] : [];
+  }
+
+  // Personal welcome line, prepended to every UserMailV2 / PersonalMail of wallets that opt in via centralizedWelcome (e.g. RealUnit).
+  // Default DFX mails return an empty list so their existing behavior stays unchanged.
+  private getCentralizedWelcomeTexts(
+    userData: UserData,
+    walletMailConfig?: Partial<WalletMailConfig>,
+  ): TranslationItem[] {
+    if (!walletMailConfig?.centralizedWelcome) return [];
+
+    return [
+      {
+        key: `${MailTranslationKey.GENERAL}.welcome`,
+        params: { name: userData.organizationName ?? userData.firstname },
+      },
+      { key: MailKey.SPACE, params: { value: '2' } },
+    ];
   }
 
   //*** MAIL BUILDING METHODS ***//
@@ -201,19 +258,23 @@ export class MailFactory {
     );
   }
 
-  private getMailAffix(affix: TranslationItem[], lang = 'en'): MailAffix[] {
+  private getMailAffix(affix: TranslationItem[], lang = 'en', walletName?: string): MailAffix[] {
     return affix
       .filter((i) => i)
-      .map((i) => this.mapMailAffix(i, lang).flat())
+      .map((i) => this.mapMailAffix(i, lang, walletName).flat())
       .flat();
   }
 
-  private mapMailAffix(element: TranslationItem, lang: string): MailAffix[] {
+  private mapMailAffix(element: TranslationItem, lang: string, walletName?: string): MailAffix[] {
     switch (element.key) {
       case MailKey.SPACE:
         return [DefaultEmptyLine];
 
       case MailKey.DFX_TEAM_CLOSING:
+        // Skip the DFX closing block only for wallets that opt in to RealUnit-style branding (centralizedWelcome).
+        // Other custom-template wallets (e.g. onchainlabs) keep the existing behavior unchanged.
+        if (walletName && Config.mail.wallet[walletName]?.centralizedWelcome) return [];
+
         return [
           DefaultEmptyLine,
           {
@@ -227,9 +288,13 @@ export class MailFactory {
 
       default: {
         const params = Util.removeNullFields(element.params);
-        const translatedParams = this.translateParams(params, lang);
-        const text = this.translate(element.key, lang, translatedParams);
+        const translatedParams = this.translateParams(params, lang, walletName);
+        const text = this.translate(element.key, lang, translatedParams, walletName);
         const specialTag = this.parseSpecialTag(text);
+
+        // Skip if a wallet override resolves to an empty string and no special tag is set (e.g. RealUnit's explicitly cleared transaction_button).
+        // Only applies to wallets that opted in to RealUnit-style branding (centralizedWelcome) so DFX-default rendering is unchanged.
+        if (!text && !specialTag && walletName && Config.mail.wallet[walletName]?.centralizedWelcome) return [];
 
         return [
           {
@@ -266,10 +331,10 @@ export class MailFactory {
     return match ? { text: match[1], textSuffix: match[4], tag: match[2], value: match[3] } : undefined;
   }
 
-  private translateParams(params: TranslationParams, lang: string): TranslationParams {
+  private translateParams(params: TranslationParams, lang: string, walletName?: string): TranslationParams {
     return params
       ? Object.entries(params)
-          .map(([key, value]) => [key, this.translate(value, lang, params)])
+          .map(([key, value]) => [key, this.translate(value, lang, params, walletName)])
           .reduce((prev, [key, value]) => {
             prev[key] = value;
             return prev;
