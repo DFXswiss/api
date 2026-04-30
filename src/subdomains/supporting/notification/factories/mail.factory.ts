@@ -4,7 +4,6 @@ import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
-import { WalletMailConfig } from '../services/mail.service';
 import { Mail, MailParams } from '../entities/mail/base/mail';
 import { ErrorMonitoringMail, ErrorMonitoringMailInput } from '../entities/mail/error-monitoring-mail';
 import { InternalMail, MailRequestInternalInput } from '../entities/mail/internal-mail';
@@ -12,6 +11,7 @@ import { MailRequestPersonalInput, PersonalMail } from '../entities/mail/persona
 import { MailRequestUserInputV2, UserMailV2 } from '../entities/mail/user-mail-v2';
 import { MailContext, MailContextType, MailContextTypeMapper, MailType } from '../enums';
 import { MailAffix, MailRequest, MailRequestGenericInput, TranslationItem, TranslationParams } from '../interfaces';
+import { WalletMailConfig } from '../services/mail.service';
 
 export enum MailTranslationKey {
   GENERAL = 'mail.general',
