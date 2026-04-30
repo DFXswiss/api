@@ -291,9 +291,9 @@ export class MailFactory {
         const text = this.translate(element.key, lang, translatedParams, walletName);
         const specialTag = this.parseSpecialTag(text);
 
-        // Skip if the wallet override resolves to an empty string and no special tag is set (e.g. an explicitly cleared body/transaction_button).
-        // Plain SPACE markers are handled separately above and intentionally render as DefaultEmptyLine.
-        if (!text && !specialTag) return [];
+        // Skip if a wallet override resolves to an empty string and no special tag is set (e.g. RealUnit's explicitly cleared transaction_button).
+        // Only applies to wallets that opted in to RealUnit-style branding (centralizedWelcome) so DFX-default rendering is unchanged.
+        if (!text && !specialTag && walletName && Config.mail.wallet[walletName]?.centralizedWelcome) return [];
 
         return [
           {
