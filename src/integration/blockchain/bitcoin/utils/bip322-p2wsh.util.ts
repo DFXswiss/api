@@ -1,16 +1,13 @@
+import { bip322MessageHash, buildToSpendTx, p2wshScriptPubKey } from '@dfx.swiss/bip322-multisig';
 import { secp256k1 } from '@noble/curves/secp256k1';
-import { sha256 } from '@noble/hashes/sha256';
 import { bech32 } from 'bech32';
+import { crypto as btcCrypto, Transaction } from 'bitcoinjs-lib';
 
-const OP_0 = 0x00;
 const OP_1 = 0x51;
 const OP_16 = 0x60;
 const OP_CHECKMULTISIG = 0xae;
-const OP_RETURN = 0x6a;
 const OP_PUSH_33 = 0x21;
 const SIGHASH_ALL = 0x01;
-
-const TAG = Buffer.from('BIP0322-signed-message', 'utf8');
 
 interface ParsedMultisig {
   m: number;
@@ -36,22 +33,20 @@ export function verifyBip322P2wshSignature(message: string, address: string, sig
     if (!program) return false;
 
     const witness = decodeSimpleSignature(signatureBase64);
-    if (!witness) return false;
-    if (witness.length < 3) return false;
+    if (!witness || witness.length < 3) return false;
 
     const witnessScript = witness[witness.length - 1];
-    if (!Buffer.from(sha256(witnessScript)).equals(program)) return false;
+    if (!btcCrypto.sha256(witnessScript).equals(program)) return false;
 
     const parsed = parseStandardMultisigScript(witnessScript);
     if (!parsed) return false;
 
-    const dummy = witness[0];
-    if (dummy.length !== 0) return false;
+    if (witness[0].length !== 0) return false;
 
     const sigs = witness.slice(1, witness.length - 1);
     if (sigs.length !== parsed.m) return false;
 
-    const sighash = computeBip143Sighash(message, program, witnessScript);
+    const sighash = computeSighash(message, witnessScript);
 
     return verifyMultisig(sigs, parsed.pubkeys, sighash);
   } catch {
@@ -64,8 +59,7 @@ function decodeP2wshAddress(address: string): Buffer | null {
   if (!address.startsWith('bc1q') || address.length !== 62) return null;
 
   const decoded = bech32.decode(address);
-  if (decoded.prefix !== 'bc') return null;
-  if (decoded.words[0] !== 0) return null;
+  if (decoded.prefix !== 'bc' || decoded.words[0] !== 0) return null;
 
   const program = Buffer.from(bech32.fromWords(decoded.words.slice(1)));
   if (program.length !== 32) return null;
@@ -134,57 +128,18 @@ function parseStandardMultisigScript(script: Buffer): ParsedMultisig | null {
   return { m, pubkeys };
 }
 
-function computeBip143Sighash(message: string, program: Buffer, witnessScript: Buffer): Buffer {
-  const messageHash = hashMessage(message);
-  const scriptPubKey = Buffer.concat([Buffer.from([OP_0, 0x20]), program]);
-  const toSpendTxid = computeToSpendTxid(messageHash, scriptPubKey);
+function computeSighash(message: string, witnessScript: Buffer): Buffer {
+  const scriptPubKey = p2wshScriptPubKey(witnessScript);
+  const messageHash = bip322MessageHash(message);
+  const toSpend = buildToSpendTx(messageHash, scriptPubKey);
 
-  const outpoint = Buffer.concat([toSpendTxid, uint32LE(0)]);
-  const sequence = uint32LE(0);
+  const toSign = new Transaction();
+  toSign.version = 0;
+  toSign.locktime = 0;
+  toSign.addInput(toSpend.getHash(), 0, 0);
+  toSign.addOutput(Buffer.from([0x6a]), 0);
 
-  const hashPrevouts = hash256(outpoint);
-  const hashSequence = hash256(sequence);
-
-  const output = Buffer.concat([uint64LE(0n), Buffer.from([0x01, OP_RETURN])]);
-  const hashOutputs = hash256(output);
-
-  const preimage = Buffer.concat([
-    uint32LE(0),
-    hashPrevouts,
-    hashSequence,
-    outpoint,
-    encodeVarBytes(witnessScript),
-    uint64LE(0n),
-    sequence,
-    hashOutputs,
-    uint32LE(0),
-    uint32LE(SIGHASH_ALL),
-  ]);
-
-  return hash256(preimage);
-}
-
-function hashMessage(message: string): Buffer {
-  const tagHash = sha256(TAG);
-  const inner = Buffer.concat([Buffer.from(tagHash), Buffer.from(tagHash), Buffer.from(message, 'utf8')]);
-  return Buffer.from(sha256(inner));
-}
-
-function computeToSpendTxid(messageHash: Buffer, scriptPubKey: Buffer): Buffer {
-  const scriptSig = Buffer.concat([Buffer.from([OP_0, 0x20]), messageHash]);
-  const tx = Buffer.concat([
-    uint32LE(0),
-    encodeVarInt(1),
-    Buffer.alloc(32),
-    uint32LE(0xffffffff),
-    encodeVarBytes(scriptSig),
-    uint32LE(0),
-    encodeVarInt(1),
-    uint64LE(0n),
-    encodeVarBytes(scriptPubKey),
-    uint32LE(0),
-  ]);
-  return hash256(tx);
+  return toSign.hashForWitnessV0(0, witnessScript, 0, Transaction.SIGHASH_ALL);
 }
 
 function verifyMultisig(sigs: Buffer[], pubkeys: Buffer[], sighash: Buffer): boolean {
@@ -216,46 +171,6 @@ function verifyEcdsa(derSignature: Buffer, sighash: Buffer, pubkey: Buffer): boo
   } catch {
     return false;
   }
-}
-
-function hash256(buf: Buffer): Buffer {
-  return Buffer.from(sha256(sha256(buf)));
-}
-
-function uint32LE(n: number): Buffer {
-  const b = Buffer.alloc(4);
-  b.writeUInt32LE(n >>> 0, 0);
-  return b;
-}
-
-function uint64LE(n: bigint): Buffer {
-  const b = Buffer.alloc(8);
-  b.writeBigUInt64LE(n, 0);
-  return b;
-}
-
-function encodeVarInt(n: number): Buffer {
-  if (n < 0xfd) return Buffer.from([n]);
-  if (n <= 0xffff) {
-    const b = Buffer.alloc(3);
-    b[0] = 0xfd;
-    b.writeUInt16LE(n, 1);
-    return b;
-  }
-  if (n <= 0xffffffff) {
-    const b = Buffer.alloc(5);
-    b[0] = 0xfe;
-    b.writeUInt32LE(n, 1);
-    return b;
-  }
-  const b = Buffer.alloc(9);
-  b[0] = 0xff;
-  b.writeBigUInt64LE(BigInt(n), 1);
-  return b;
-}
-
-function encodeVarBytes(bytes: Buffer): Buffer {
-  return Buffer.concat([encodeVarInt(bytes.length), bytes]);
 }
 
 function readVarInt(buf: Buffer, offset: number): { value: number; next: number } | null {

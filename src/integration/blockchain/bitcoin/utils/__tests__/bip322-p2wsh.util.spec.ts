@@ -1,16 +1,16 @@
+import { bip322MessageHash, buildSortedMultisigScript, buildToSpendTx, p2wshAddress, p2wshScriptPubKey } from '@dfx.swiss/bip322-multisig';
 import { secp256k1 } from '@noble/curves/secp256k1';
-import { sha256 } from '@noble/hashes/sha256';
-import { bech32 } from 'bech32';
+import { Transaction } from 'bitcoinjs-lib';
 import { isP2wshAddress, verifyBip322P2wshSignature } from '../bip322-p2wsh.util';
 
 describe('bip322-p2wsh.util', () => {
-  const p2wshAddress = 'bc1qsy93ywfzzp4e8aczvzn4452jmlwvyp2fklnm2qevnyzlmyd672pqrl3cep';
+  const p2wshAddr = 'bc1qsy93ywfzzp4e8aczvzn4452jmlwvyp2fklnm2qevnyzlmyd672pqrl3cep';
   const p2wpkhAddress = 'bc1qd9jvcd4l64q09kkj2q0qpf58umrryknyqmdp47';
   const legacyAddress = '1AcGhh1oYJTqaPgmWThc7EvKBRjRLe3Go9';
 
   describe('isP2wshAddress', () => {
     it('detects native P2WSH', () => {
-      expect(isP2wshAddress(p2wshAddress)).toBe(true);
+      expect(isP2wshAddress(p2wshAddr)).toBe(true);
     });
 
     it('rejects P2WPKH', () => {
@@ -38,11 +38,11 @@ describe('bip322-p2wsh.util', () => {
     const message = 'test';
 
     it('returns false on empty signature', () => {
-      expect(verifyBip322P2wshSignature(message, p2wshAddress, '')).toBe(false);
+      expect(verifyBip322P2wshSignature(message, p2wshAddr, '')).toBe(false);
     });
 
     it('returns false on garbage base64', () => {
-      expect(verifyBip322P2wshSignature(message, p2wshAddress, 'AAAAAAAAAAAAAAAA')).toBe(false);
+      expect(verifyBip322P2wshSignature(message, p2wshAddr, 'AAAAAAAAAAAAAAAA')).toBe(false);
     });
 
     it('returns false on non-P2WSH address', () => {
@@ -55,7 +55,7 @@ describe('bip322-p2wsh.util', () => {
 
     it.each(messages)('signs and verifies (msg length=%s)', (message) => {
       const { address, witnessScript, privateKeys } = buildSyntheticMultisig();
-      const signature = signSyntheticMultisig(message, address, witnessScript, [privateKeys[0], privateKeys[2]]);
+      const signature = signSyntheticMultisig(message, witnessScript, [privateKeys[0], privateKeys[2]]);
 
       expect(isP2wshAddress(address)).toBe(true);
       expect(verifyBip322P2wshSignature(message, address, signature)).toBe(true);
@@ -64,20 +64,20 @@ describe('bip322-p2wsh.util', () => {
     it('rejects signature when only 1 of required 2 sigs provided', () => {
       const { address, witnessScript, privateKeys } = buildSyntheticMultisig();
       const message = 'short';
-      const sig = signSyntheticMultisig(message, address, witnessScript, [privateKeys[0]]);
+      const sig = signSyntheticMultisig(message, witnessScript, [privateKeys[0]]);
       expect(verifyBip322P2wshSignature(message, address, sig)).toBe(false);
     });
 
     it('rejects signature signed for different message', () => {
       const { address, witnessScript, privateKeys } = buildSyntheticMultisig();
-      const sig = signSyntheticMultisig('msg-a', address, witnessScript, [privateKeys[0], privateKeys[1]]);
+      const sig = signSyntheticMultisig('msg-a', witnessScript, [privateKeys[0], privateKeys[1]]);
       expect(verifyBip322P2wshSignature('msg-b', address, sig)).toBe(false);
     });
 
     it('rejects signature signed by foreign key (not in script)', () => {
       const { address, witnessScript, privateKeys } = buildSyntheticMultisig();
       const intruder = makePrivateKey(99);
-      const sig = signSyntheticMultisig('m', address, witnessScript, [privateKeys[0], intruder]);
+      const sig = signSyntheticMultisig('m', witnessScript, [privateKeys[0], intruder]);
       expect(verifyBip322P2wshSignature('m', address, sig)).toBe(false);
     });
   });
@@ -102,24 +102,28 @@ function pubkeyOf(priv: Buffer): Buffer {
 function buildSyntheticMultisig(): { address: string; witnessScript: Buffer; privateKeys: Buffer[] } {
   const privateKeys = [makePrivateKey(1), makePrivateKey(2), makePrivateKey(3)];
   const pubkeys = privateKeys.map(pubkeyOf);
+
+  const witnessScript = buildSortedMultisigScript(pubkeys, 2);
+  const address = p2wshAddress(witnessScript);
+
   pubkeys.sort(Buffer.compare);
   privateKeys.sort((a, b) => Buffer.compare(pubkeyOf(a), pubkeyOf(b)));
-
-  const parts: Buffer[] = [Buffer.from([0x52])]; // OP_2
-  for (const pk of pubkeys) parts.push(Buffer.from([0x21]), pk);
-  parts.push(Buffer.from([0x53, 0xae])); // OP_3 OP_CHECKMULTISIG
-  const witnessScript = Buffer.concat(parts);
-
-  const program = Buffer.from(sha256(witnessScript));
-  const words = [0, ...bech32.toWords(program)];
-  const address = bech32.encode('bc', words);
 
   return { address, witnessScript, privateKeys };
 }
 
-function signSyntheticMultisig(message: string, address: string, witnessScript: Buffer, signingKeys: Buffer[]): string {
-  const program = decodeProgram(address);
-  const sighash = computeBip143Sighash(message, program, witnessScript);
+function signSyntheticMultisig(message: string, witnessScript: Buffer, signingKeys: Buffer[]): string {
+  const scriptPubKey = p2wshScriptPubKey(witnessScript);
+  const messageHash = bip322MessageHash(message);
+  const toSpend = buildToSpendTx(messageHash, scriptPubKey);
+
+  const toSign = new Transaction();
+  toSign.version = 0;
+  toSign.locktime = 0;
+  toSign.addInput(toSpend.getHash(), 0, 0);
+  toSign.addOutput(Buffer.from([0x6a]), 0);
+
+  const sighash = toSign.hashForWitnessV0(0, witnessScript, 0, Transaction.SIGHASH_ALL);
 
   const signersByPubkey = new Map(signingKeys.map((k) => [pubkeyOf(k).toString('hex'), k]));
   const scriptPubkeys = extractScriptPubkeys(witnessScript);
@@ -136,11 +140,6 @@ function signSyntheticMultisig(message: string, address: string, witnessScript: 
   return encodeWitness(witness).toString('base64');
 }
 
-function decodeProgram(address: string): Buffer {
-  const decoded = bech32.decode(address);
-  return Buffer.from(bech32.fromWords(decoded.words.slice(1)));
-}
-
 function extractScriptPubkeys(script: Buffer): Buffer[] {
   const pubkeys: Buffer[] = [];
   let offset = 1;
@@ -153,72 +152,10 @@ function extractScriptPubkeys(script: Buffer): Buffer[] {
   return pubkeys;
 }
 
-function computeBip143Sighash(message: string, program: Buffer, witnessScript: Buffer): Buffer {
-  const tag = Buffer.from('BIP0322-signed-message', 'utf8');
-  const tagHash = sha256(tag);
-  const messageHash = Buffer.from(
-    sha256(Buffer.concat([Buffer.from(tagHash), Buffer.from(tagHash), Buffer.from(message, 'utf8')])),
-  );
-
-  const scriptPubKey = Buffer.concat([Buffer.from([0x00, 0x20]), program]);
-  const scriptSig = Buffer.concat([Buffer.from([0x00, 0x20]), messageHash]);
-
-  const toSpend = Buffer.concat([
-    u32le(0),
-    varInt(1),
-    Buffer.alloc(32),
-    u32le(0xffffffff),
-    varBytes(scriptSig),
-    u32le(0),
-    varInt(1),
-    u64le(0n),
-    varBytes(scriptPubKey),
-    u32le(0),
-  ]);
-  const toSpendTxid = hash256(toSpend);
-
-  const outpoint = Buffer.concat([toSpendTxid, u32le(0)]);
-  const sequence = u32le(0);
-  const hashPrevouts = hash256(outpoint);
-  const hashSequence = hash256(sequence);
-  const output = Buffer.concat([u64le(0n), Buffer.from([0x01, 0x6a])]);
-  const hashOutputs = hash256(output);
-
-  const preimage = Buffer.concat([
-    u32le(0),
-    hashPrevouts,
-    hashSequence,
-    outpoint,
-    varBytes(witnessScript),
-    u64le(0n),
-    sequence,
-    hashOutputs,
-    u32le(0),
-    u32le(1),
-  ]);
-  return hash256(preimage);
-}
-
 function encodeWitness(items: Buffer[]): Buffer {
   const parts: Buffer[] = [varInt(items.length)];
   for (const item of items) parts.push(varBytes(item));
   return Buffer.concat(parts);
-}
-
-function hash256(b: Buffer): Buffer {
-  return Buffer.from(sha256(sha256(b)));
-}
-
-function u32le(n: number): Buffer {
-  const b = Buffer.alloc(4);
-  b.writeUInt32LE(n >>> 0, 0);
-  return b;
-}
-
-function u64le(n: bigint): Buffer {
-  const b = Buffer.alloc(8);
-  b.writeBigUInt64LE(n, 0);
-  return b;
 }
 
 function varInt(n: number): Buffer {

@@ -36,6 +36,7 @@
     "@dfinity/identity": "^3.4.3",
     "@dfinity/ledger-icp": "^9.1.0",
     "@dfinity/ledger-icrc": "^7.1.0",
+    "@dfx.swiss/bip322-multisig": "^0.2.0-beta.0",
     "@dhedge/v2-sdk": "^1.11.1",
     "@emurgo/cardano-serialization-lib-nodejs": "^15.0.3",
     "@eth-optimism/sdk": "^3.3.3",
