@@ -10,6 +10,7 @@ import { json, raw, text } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { join } from 'path';
+import { getVerifiedIp } from './shared/utils/ip.util';
 import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
@@ -66,6 +67,11 @@ async function bootstrap() {
       exposedHeaders: ['content-disposition'],
     }),
   );
+
+  app.use((req, _res, next) => {
+    req.realIp = getVerifiedIp(req);
+    next();
+  });
 
   app.use('/v2/kyc/ident/sumsub', raw({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/alchemy/addressWebhook', raw({ type: 'application/json', limit: '10mb' }));

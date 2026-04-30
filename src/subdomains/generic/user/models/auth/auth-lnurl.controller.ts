@@ -1,7 +1,7 @@
 import { Controller, Get, Post, Query, Req } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
-import { RealIP } from 'nestjs-real-ip';
+import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { AuthLnUrlService } from './auth-lnurl.service';
 import {
   AuthLnurlCreateLoginResponseDto,
