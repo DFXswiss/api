@@ -6,11 +6,11 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { FrankencoinBasedService } from 'src/integration/blockchain/shared/frankencoin/frankencoin-based.service';
 import { DEuroService } from 'src/integration/blockchain/deuro/deuro.service';
 import { FrankencoinService } from 'src/integration/blockchain/frankencoin/frankencoin.service';
 import { JuiceService } from 'src/integration/blockchain/juice/juice.service';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { FrankencoinBasedService } from 'src/integration/blockchain/shared/frankencoin/frankencoin-based.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -302,8 +302,7 @@ export class CustodyOrderService {
     const service = this.getEquityProtocolService(equityPair.config.protocol);
     const equityPrice = await service.getEquityPrice();
 
-    const estimatedAmount =
-      equityPair.direction === 'invest' ? sourceAmount / equityPrice : sourceAmount * equityPrice;
+    const estimatedAmount = equityPair.direction === 'invest' ? sourceAmount / equityPrice : sourceAmount * equityPrice;
 
     const zeroFee = { min: 0, rate: 0, fixed: 0, dfx: 0, network: 0, platform: 0 };
 
