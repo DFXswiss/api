@@ -43,6 +43,12 @@ enum ScryptRequestType {
   PAGE = 'page',
 }
 
+export const TRANSIENT_WS_ERROR_MARKERS = ['Connection closed', 'unknown reqid'];
+
+export function isTransientWsError(e: Error): boolean {
+  return TRANSIENT_WS_ERROR_MARKERS.some((m) => e.message?.toLowerCase().includes(m.toLowerCase()));
+}
+
 interface ScryptRequest {
   reqid?: number;
   type: ScryptRequestType | ScryptMessageType;
@@ -138,7 +144,7 @@ export class ScryptWebSocketConnection {
     try {
       return await operation();
     } catch (error) {
-      if (error.message?.includes('unknown reqid') || error.message?.includes('Connection closed')) {
+      if (isTransientWsError(error)) {
         this.logger.warn(`Retrying ${label} after transient error: ${error.message}`);
         return operation();
       }
