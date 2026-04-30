@@ -70,6 +70,7 @@ export class KycNotificationService {
           title: `${MailTranslationKey.KYC_REMINDER}.title`,
           salutation: { key: `${MailTranslationKey.KYC_REMINDER}.salutation` },
           texts: [
+            { key: MailKey.SPACE, params: { value: '1' } },
             { key: `${MailTranslationKey.KYC_REMINDER}.message` },
             { key: MailKey.SPACE, params: { value: '2' } },
             {
@@ -101,6 +102,7 @@ export class KycNotificationService {
             title: `${MailTranslationKey.KYC_FAILED}.title`,
             salutation: { key: `${MailTranslationKey.KYC_FAILED}.salutation`, params: { stepName } },
             texts: [
+              { key: MailKey.SPACE, params: { value: '1' } },
               {
                 key: `${MailTranslationKey.KYC_FAILED}.message`,
                 params: { stepName, reason },
@@ -142,6 +144,7 @@ export class KycNotificationService {
             title: `${MailTranslationKey.KYC_MISSING_DATA}.title`,
             salutation: { key: `${MailTranslationKey.KYC_MISSING_DATA}.salutation`, params: { stepName } },
             texts: [
+              { key: MailKey.SPACE, params: { value: '1' } },
               {
                 key: `${MailTranslationKey.KYC_MISSING_DATA}.message`,
                 params: { stepName },
@@ -177,7 +180,11 @@ export class KycNotificationService {
               wallet: userData.wallet,
               title: `${MailTranslationKey.KYC_SUCCESS}.title`,
               salutation: { key: `${MailTranslationKey.KYC_SUCCESS}.salutation` },
-              texts: [{ key: `${MailTranslationKey.KYC_SUCCESS}.message` }, { key: MailKey.DFX_TEAM_CLOSING }],
+              texts: [
+                { key: MailKey.SPACE, params: { value: '1' } },
+                { key: `${MailTranslationKey.KYC_SUCCESS}.message` },
+                { key: MailKey.DFX_TEAM_CLOSING },
+              ],
             },
           });
         } else {
@@ -204,6 +211,7 @@ export class KycNotificationService {
             title: `${MailTranslationKey.KYC_PAYMENT_DATA}.title`,
             salutation: { key: `${MailTranslationKey.KYC_PAYMENT_DATA}.salutation` },
             texts: [
+              { key: MailKey.SPACE, params: { value: '1' } },
               {
                 key: `${MailTranslationKey.KYC_PAYMENT_DATA}.message`,
                 params: { date: Util.localeDataString(acceptedDate, userData.language.symbol) },

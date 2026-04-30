@@ -54,9 +54,10 @@ export class AccountMergeService {
         relations: { master: true, slave: true },
       })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave, reason)));
 
-    const [receiver] = sendToSlave ? [request.slave, request.master] : [request.master, request.slave];
+    const [receiver, mentioned] = sendToSlave ? [request.slave, request.master] : [request.master, request.slave];
     if (!receiver.mail) return false;
 
+    const name = mentioned.organizationName ?? mentioned.firstname ?? receiver.organizationName ?? receiver.firstname;
     const url = this.buildConfirmationUrl(request.code);
 
     await this.notificationService.sendMail({
@@ -68,6 +69,9 @@ export class AccountMergeService {
         title: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.title`,
         salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_REQUEST}.salutation` },
         texts: [
+          { key: MailKey.SPACE, params: { value: '3' } },
+          { key: `${MailTranslationKey.GENERAL}.welcome`, params: { name } },
+          { key: MailKey.SPACE, params: { value: '2' } },
           {
             key: `${MailTranslationKey.GENERAL}.button`,
             params: { url, button: 'true' },

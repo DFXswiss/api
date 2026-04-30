@@ -637,6 +637,7 @@ export class Configuration {
           displayName: 'RealUnit',
           template: 'realunit',
           forcedLang: 'de',
+          centralizedWelcome: true,
         },
       }),
     },

@@ -153,16 +153,18 @@ export class MailFactory {
       ? walletMailConfig.forcedLang.toLowerCase()
       : userData.language.symbol.toLowerCase();
 
-    // Personal welcome line, prepended to every UserMailV2 — single source of truth so service callers don't have to repeat it
-    const welcomeTexts: TranslationItem[] = [
-      {
-        key: `${MailTranslationKey.GENERAL}.welcome`,
-        params: { name: userData.organizationName ?? userData.firstname },
-      },
-      { key: MailKey.SPACE, params: { value: '2' } },
-    ];
+    // Personal welcome line — only prepended for wallets that opt in via centralizedWelcome (e.g. RealUnit). Default DFX mails keep their existing behavior unchanged.
+    const welcomeTexts: TranslationItem[] = walletMailConfig?.centralizedWelcome
+      ? [
+          {
+            key: `${MailTranslationKey.GENERAL}.welcome`,
+            params: { name: userData.organizationName ?? userData.firstname },
+          },
+          { key: MailKey.SPACE, params: { value: '2' } },
+        ]
+      : [];
     const walletBodyTexts = this.getWalletBodyTexts(title, lang, walletName);
-    // Order: welcome line, then optional wallet body override, then the service-specific texts
+    // Order: welcome line (if any), then optional wallet body override, then the service-specific texts
     const merged = [...welcomeTexts, ...walletBodyTexts, ...(texts ?? [])];
     const allTexts = this.getMailAffix(merged, lang, walletName);
 
@@ -186,16 +188,20 @@ export class MailFactory {
 
     if (this.isDisabledMailWallet(context, wallet)) return undefined;
 
+    const walletName = wallet?.name;
+    const walletMailConfig = walletName ? Config.mail.wallet[walletName] : undefined;
     const lang = userData.language.symbol;
 
-    // Personal welcome line, prepended to every PersonalMail — single source of truth so service callers don't have to repeat it
-    const welcomeTexts: TranslationItem[] = [
-      {
-        key: `${MailTranslationKey.GENERAL}.welcome`,
-        params: { name: userData.organizationName ?? userData.firstname },
-      },
-      { key: MailKey.SPACE, params: { value: '2' } },
-    ];
+    // Personal welcome line — only prepended for wallets that opt in via centralizedWelcome.
+    const welcomeTexts: TranslationItem[] = walletMailConfig?.centralizedWelcome
+      ? [
+          {
+            key: `${MailTranslationKey.GENERAL}.welcome`,
+            params: { name: userData.organizationName ?? userData.firstname },
+          },
+          { key: MailKey.SPACE, params: { value: '2' } },
+        ]
+      : [];
     const merged = [...welcomeTexts, ...(prefix ?? [])];
 
     return new PersonalMail({

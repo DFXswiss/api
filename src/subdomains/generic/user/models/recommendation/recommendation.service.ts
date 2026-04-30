@@ -363,6 +363,11 @@ export class RecommendationService {
             texts: [
               { key: MailKey.SPACE, params: { value: '3' } },
               {
+                key: `${MailTranslationKey.GENERAL}.welcome`,
+                params: { name: entity.recommendedAlias },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
+              {
                 key: `${MailTranslationKey.RECOMMENDATION_MAIL}.message`,
                 params: { name: entity.recommender.completeName, mail: entity.recommender.mail },
               },
@@ -402,6 +407,11 @@ export class RecommendationService {
             salutation: { key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.salutation` },
             texts: [
               { key: MailKey.SPACE, params: { value: '3' } },
+              {
+                key: `${MailTranslationKey.GENERAL}.welcome`,
+                params: { name: entity.recommender.firstname },
+              },
+              { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.message`,
                 params: { name: entity.recommended.completeName, mail: entity.recommended.mail },
