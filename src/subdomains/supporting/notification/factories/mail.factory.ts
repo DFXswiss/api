@@ -151,7 +151,12 @@ export class MailFactory {
     const walletName = wallet?.name;
 
     const walletBodyTexts = this.getWalletBodyTexts(title, lang, walletName);
-    const allTexts = texts && this.getMailAffix([...walletBodyTexts, ...texts], lang, walletName);
+    // Order: keep the first text (the personal welcome line) first, then the wallet body override, then the rest.
+    const merged =
+      walletBodyTexts.length > 0 && texts && texts.length > 0
+        ? [texts[0], ...walletBodyTexts, ...texts.slice(1)]
+        : [...walletBodyTexts, ...(texts ?? [])];
+    const allTexts = texts && this.getMailAffix(merged, lang, walletName);
 
     return new UserMailV2(
       {

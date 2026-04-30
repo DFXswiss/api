@@ -24,7 +24,8 @@
       "unassigned": {
         "title": "Einzahlung zuordnen",
         "salutation": "Ihre Einzahlung kann nicht automatisch zugeordnet werden",
-        "transaction_button": "Bitte ordnen Sie Ihren Zahlungseingang Ihrer Bestellung zu:<br>[url:Klick hier]"
+        "body": "Öffnen Sie die App um dort die Einzahlung manuell zuzuordnen.",
+        "transaction_button": ""
       },
       "currency_exchange": "Hinweis: Das {bankAccount} Bankkonto ist ein {bankAsset}-Konto. Wenn Sie {inputAsset} senden, wird dies direkt bei der Bank getauscht und wir erhalten {bankAsset}.<br>Wenn möglich, senden Sie bitte direkt {bankAsset} auf dieses Bankkonto.<br>In der RealUnit App stehen Ihnen für Einzahlungen sowohl ein CHF- als auch ein EUR-Bankkonto zur Verfügung."
     },
