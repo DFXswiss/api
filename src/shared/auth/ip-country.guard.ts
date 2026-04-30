@@ -1,5 +1,4 @@
 import { BadRequestException, CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
-import { getClientIp } from '@supercharge/request-ip';
 import { Config } from 'src/config/config';
 import { IpLogService } from '../models/ip-log/ip-log.service';
 
@@ -8,7 +7,7 @@ export class IpCountryGuard implements CanActivate {
   constructor(private ipLogService: IpLogService) {}
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const req = context.switchToHttp().getRequest();
-    const ip = getClientIp(req);
+    const ip = req.realIp;
 
     const address = req.body?.address ?? req.user?.address;
     if (!address) throw new BadRequestException('Address is required');

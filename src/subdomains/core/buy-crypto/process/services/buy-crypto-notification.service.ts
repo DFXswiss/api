@@ -8,6 +8,10 @@ import {
   MailKey,
   MailTranslationKey,
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import {
+  REALUNIT_DISABLED_PENDING_REASONS,
+  REALUNIT_WALLET_NAME,
+} from 'src/subdomains/supporting/notification/realunit-mail-rules';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from '../../../aml/enums/aml-reason.enum';
@@ -185,6 +189,15 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
+        // RealUnit: do not send pending mails for the listed amlReasons; the customer is contacted by phone instead
+        if (
+          entity.wallet?.name === REALUNIT_WALLET_NAME &&
+          REALUNIT_DISABLED_PENDING_REASONS.includes(entity.amlReason)
+        ) {
+          await this.buyCryptoRepo.update(...entity.confirmSentMail());
+          continue;
+        }
+
         if (entity.userData.mail) {
           await this.notificationService.sendMail({
             type: MailType.USER_V2,
@@ -269,6 +282,12 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
+        // RealUnit: chargeback mails are handled by phone, not by email
+        if (entity.wallet?.name === REALUNIT_WALLET_NAME) {
+          await this.buyCryptoRepo.update(...entity.confirmSentMail());
+          continue;
+        }
+
         if (
           entity.userData.mail &&
           (entity.userData.verifiedName || entity.amlReason !== AmlReason.NAME_CHECK_WITHOUT_KYC) &&
@@ -346,6 +365,12 @@ export class BuyCryptoNotificationService {
 
     for (const entity of entities) {
       try {
+        // RealUnit: chargeback-unconfirmed mails are handled by phone, not by email
+        if (entity.wallet?.name === REALUNIT_WALLET_NAME) {
+          await this.buyCryptoRepo.update(...entity.confirmSentMail());
+          continue;
+        }
+
         if (entity.userData.mail) {
           await this.notificationService.sendMail({
             type: MailType.USER_V2,

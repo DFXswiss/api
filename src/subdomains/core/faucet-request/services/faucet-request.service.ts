@@ -16,7 +16,7 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { Not } from 'typeorm';
+import { In, Not } from 'typeorm';
 import { FaucetRequestDto } from '../dto/faucet-request.dto';
 import { FaucetRequestStatus } from '../enums/faucet-request';
 import { FaucetRequestRepository } from '../repositories/faucet-request.repository';
@@ -59,7 +59,10 @@ export class FaucetRequestService {
     if (user.userData.kycLevel < KycLevel.LEVEL_30) throw new ForbiddenException('Account not verified');
 
     const faucetUsed = await this.faucetRequestRepo.exists({
-      where: { userData: { id: user.userData.id }, status: Not(FaucetRequestStatus.FAILED) },
+      where: {
+        userData: { id: user.userData.id },
+        status: Not(In([FaucetRequestStatus.FAILED, FaucetRequestStatus.RESET])),
+      },
     });
     if (faucetUsed) throw new BadRequestException('Faucet already used for this account');
 
@@ -81,6 +84,15 @@ export class FaucetRequestService {
     } catch (e) {
       this.logger.error(`Faucet request from user ${userId} failed:`, e);
       throw new ServiceUnavailableException('Faucet currently not available');
+    }
+  }
+
+  async resetFaucet(userId: number): Promise<void> {
+    const faucetRequests = await this.faucetRequestRepo.find({
+      where: { user: { id: userId }, status: Not(FaucetRequestStatus.RESET) },
+    });
+    for (const faucetRequest of faucetRequests) {
+      await this.faucetRequestRepo.update(...faucetRequest.reset());
     }
   }
 }

@@ -44,4 +44,14 @@ export class FaucetRequest extends IEntity {
 
     return [this.id, update];
   }
+
+  reset(): UpdateResult<FaucetRequest> {
+    const update: Partial<FaucetRequest> = {
+      status: FaucetRequestStatus.RESET,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
 }

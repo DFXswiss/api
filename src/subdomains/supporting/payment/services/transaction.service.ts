@@ -209,7 +209,6 @@ export class TransactionService {
     return this.repo.find({
       where: { userData: { id: userDataId }, type: Not(IsNull()), created: Between(from, to) },
       relations: {
-        userData: { country: true },
         buyCrypto: {
           buy: true,
           cryptoRoute: true,
@@ -242,7 +241,6 @@ export class TransactionService {
         this.repo.find({
           where: { user: { id: In(batch) }, type: Not(IsNull()), created: Between(from, to) },
           relations: {
-            userData: { country: true },
             buyCrypto: {
               buy: true,
               cryptoRoute: true,

@@ -193,6 +193,10 @@ export class UserDataService {
     });
   }
 
+  async getUserDataByBirthday(birthday: Date): Promise<UserData[]> {
+    return this.userDataRepo.findBy({ birthday });
+  }
+
   async getUsersByName(name: string): Promise<UserData[]> {
     const where = { status: Not(UserDataStatus.MERGED) };
     const wheres = [
