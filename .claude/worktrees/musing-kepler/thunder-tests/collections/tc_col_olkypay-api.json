@@ -1,0 +1,151 @@
+{
+    "_id": "6c44f29f-6214-4766-9a42-035da64643d8",
+    "colName": "Olkypay API",
+    "created": "2022-07-04T09:42:04.775Z",
+    "sortNum": 30000,
+    "folders": [],
+    "requests": [
+        {
+            "_id": "f7d0240e-a581-4d1c-9e66-b1372c8da10f",
+            "colId": "6c44f29f-6214-4766-9a42-035da64643d8",
+            "containerId": "",
+            "name": "Get Balance",
+            "url": "https://ws.olkypay.com/reporting/balance/today/02000005040",
+            "method": "GET",
+            "sortNum": 10000,
+            "created": "2022-07-04T09:42:37.486Z",
+            "modified": "2022-07-04T09:45:34.821Z",
+            "headers": [
+                {
+                    "name": "Accept",
+                    "value": "application/json"
+                },
+                {
+                    "name": "x-pay-token",
+                    "value": ""
+                },
+                {
+                    "name": "network-id",
+                    "value": "19077"
+                }
+            ],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "c1f1a6f7-e4fe-4532-a927-6f3d7d51e45e",
+            "colId": "6c44f29f-6214-4766-9a42-035da64643d8",
+            "containerId": "",
+            "name": "Get Transactions",
+            "url": "https://ws.olkypay.com/reporting/ecritures/02000005040/2022-01-01/2022-12-12",
+            "method": "GET",
+            "sortNum": 20000,
+            "created": "2022-07-04T09:43:03.238Z",
+            "modified": "2022-07-04T09:45:44.318Z",
+            "headers": [
+                {
+                    "name": "Accept",
+                    "value": "application/json"
+                },
+                {
+                    "name": "x-pay-token",
+                    "value": ""
+                },
+                {
+                    "name": "network-id",
+                    "value": "19077"
+                }
+            ],
+            "params": [],
+            "tests": []
+        },
+        {
+            "_id": "7535e5c7-fb23-4759-b458-057155838af2",
+            "colId": "6c44f29f-6214-4766-9a42-035da64643d8",
+            "containerId": "",
+            "name": "Login",
+            "url": "https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token",
+            "method": "POST",
+            "sortNum": 30000,
+            "created": "2022-07-04T09:43:27.424Z",
+            "modified": "2022-07-04T09:45:23.415Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "formencoded",
+                "raw": "",
+                "form": [
+                    {
+                        "name": "grant_type",
+                        "value": "password"
+                    },
+                    {
+                        "name": "client_id",
+                        "value": "wsapi"
+                    },
+                    {
+                        "name": "client_secret",
+                        "value": ""
+                    },
+                    {
+                        "name": "username",
+                        "value": ""
+                    },
+                    {
+                        "name": "password",
+                        "value": ""
+                    },
+                    {
+                        "name": "client_assertion_type",
+                        "value": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+                    }
+                ]
+            },
+            "tests": []
+        },
+        {
+            "_id": "e265669e-e797-412e-b719-7495dc0b3f25",
+            "colId": "6c44f29f-6214-4766-9a42-035da64643d8",
+            "containerId": "",
+            "name": "Login (UAT)",
+            "url": "https://uat-stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token",
+            "method": "POST",
+            "sortNum": 40000,
+            "created": "2022-07-04T09:43:41.709Z",
+            "modified": "2022-07-04T09:45:27.690Z",
+            "headers": [],
+            "params": [],
+            "body": {
+                "type": "formencoded",
+                "raw": "",
+                "form": [
+                    {
+                        "name": "grant_type",
+                        "value": "password"
+                    },
+                    {
+                        "name": "client_id",
+                        "value": "wsapi"
+                    },
+                    {
+                        "name": "client_secret",
+                        "value": ""
+                    },
+                    {
+                        "name": "username",
+                        "value": ""
+                    },
+                    {
+                        "name": "password",
+                        "value": ""
+                    },
+                    {
+                        "name": "client_assertion_type",
+                        "value": "urn:ietf:params:oauth:client-assertion-type:jwt-bearer"
+                    }
+                ]
+            },
+            "tests": []
+        }
+    ]
+}

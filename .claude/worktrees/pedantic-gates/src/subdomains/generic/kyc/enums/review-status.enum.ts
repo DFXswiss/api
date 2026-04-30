@@ -1,0 +1,17 @@
+export enum ReviewStatus {
+  NOT_STARTED = 'NotStarted',
+  IN_PROGRESS = 'InProgress',
+  FINISHED = 'Finished',
+  EXTERNAL_REVIEW = 'ExternalReview',
+  INTERNAL_REVIEW = 'InternalReview',
+  MANUAL_REVIEW = 'ManualReview',
+  FAILED = 'Failed',
+  COMPLETED = 'Completed',
+  PARTIALLY_APPROVED = 'PartiallyApproved',
+  CANCELED = 'Canceled',
+  IGNORED = 'Ignored',
+  OUTDATED = 'Outdated',
+  DATA_REQUESTED = 'DataRequested',
+  PAUSED = 'Paused',
+  ON_HOLD = 'OnHold',
+}

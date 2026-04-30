@@ -1,0 +1,70 @@
+name: Auto Release PR
+
+on:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: auto-release-pr
+  cancel-in-progress: false
+
+jobs:
+  create-release-pr:
+    name: Create Release PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch main branch
+        run: git fetch origin main
+
+      - name: Check for existing PR
+        id: check-pr
+        run: |
+          PR_COUNT=$(gh pr list --base main --head develop --state open --json number --jq 'length')
+          echo "pr_exists=$([[ $PR_COUNT -gt 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "::notice::Open PRs from develop to main: $PR_COUNT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Check for differences
+        id: check-diff
+        if: steps.check-pr.outputs.pr_exists == 'false'
+        run: |
+          DIFF_COUNT=$(git rev-list --count origin/main..origin/develop)
+          echo "has_changes=$([[ $DIFF_COUNT -gt 0 ]] && echo 'true' || echo 'false')" >> $GITHUB_OUTPUT
+          echo "commit_count=$DIFF_COUNT" >> $GITHUB_OUTPUT
+          echo "::notice::Commits ahead of main: $DIFF_COUNT"
+
+      - name: Create Release PR
+        if: steps.check-pr.outputs.pr_exists == 'false' && steps.check-diff.outputs.has_changes == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          COMMIT_COUNT: ${{ steps.check-diff.outputs.commit_count }}
+        run: |
+          printf '%s\n' \
+            "## Automatic Release PR" \
+            "" \
+            "This PR was automatically created after changes were pushed to develop." \
+            "" \
+            "**Commits:** ${COMMIT_COUNT} new commit(s)" \
+            "" \
+            "### Checklist" \
+            "- [ ] Review all changes" \
+            "- [ ] Verify CI passes" \
+            "- [ ] Approve and merge when ready for production" \
+            > /tmp/pr-body.md
+
+          gh pr create \
+            --base main \
+            --head develop \
+            --title "Release: develop -> main" \
+            --body-file /tmp/pr-body.md

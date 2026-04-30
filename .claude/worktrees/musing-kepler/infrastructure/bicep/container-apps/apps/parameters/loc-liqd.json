@@ -1,0 +1,64 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fileShareQuota": {
+      "value": 500
+    },
+    "containerImage": {
+      "value": "blockstream/elementsd:latest"
+    },
+    "containerVolumeMounts": {
+      "value": [
+        {
+          "volumeName": "volume",
+          "mountPath": "/root/.elements"
+        }
+      ]
+    },
+    "containerCPU": {
+      "value": "4"
+    },
+    "containerMemory": {
+      "value": "8Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 7041
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": [
+        {
+          "type": "Startup",
+          "initialDelaySeconds": 60,
+          "periodSeconds": 240,
+          "failureThreshold": 30,
+          "successThreshold": 1,
+          "tcpSocket": {
+            "port": 7041
+          },
+          "timeoutSeconds": 5
+        }
+      ]
+    },
+    "containerEnv": {
+      "value": []
+    },
+    "containerCommand": {
+      "value": [
+        "elementsd, -conf=/root/.elements/elements.conf"
+      ]
+    },
+    "containerArgs": {
+      "value": []
+    }
+  }
+}

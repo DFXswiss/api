@@ -18,6 +18,7 @@ export interface WalletMailConfig {
   fromAddress: string;
   displayName: string;
   template: string;
+  forcedLang: string; // when set, all UserMailV2 mails for this wallet are rendered in this language regardless of userData.language
 }
 
 export interface MailOptions {

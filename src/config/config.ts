@@ -636,6 +636,7 @@ export class Configuration {
           fromAddress: process.env.REALUNIT_MAIL_USER,
           displayName: 'RealUnit',
           template: 'realunit',
+          forcedLang: 'de',
         },
       }),
     },

@@ -1,0 +1,132 @@
+{
+  "financial": {
+    "question": {
+      "tnc": { "title": "Termini e condizioni generali", "description": "Accetto i termini e le condizioni" },
+      "own_funds": {
+        "title": "Fonte del patrimonio da investire",
+        "description": "Confermo che tutti i beni che contribuisco a DFX appartengono esclusivamente a me."
+      },
+      "own_funds_organization": {
+        "title": "Fonte del patrimonio da investire",
+        "description": "Confermo che tutti i beni che contribuisco a DFX appartengono esclusivamente alla mia organizzazione registrata."
+      },
+      "source_of_funds": {
+        "title": "Fonte del patrimonio da investire Fonte del patrimonio da investire",
+        "description": "Da dove proviene la maggior parte del denaro?"
+      },
+      "source_of_funds_organization": {
+        "title": "Fonte del patrimonio da investire Fonte del patrimonio da investire",
+        "description": "Da dove proviene la maggior parte del denaro?"
+      },
+      "area": {
+        "title": "Area lavoratori autonomi",
+        "description": "In quale settore svolge un'attività autonoma? Descrivete la vostra attività e i vostri clienti in 2-3 frasi."
+      },
+      "occupation": { "title": "Attività professionale", "description": "Come descriverebbe il suo lavoro?" },
+      "employed_description": {
+        "title": "Datore di lavoro",
+        "description": "Qual è il nome del vostro datore di lavoro?"
+      },
+      "sector": { "title": "Filiale", "description": "In quale settore lavora o ha lavorato l'ultima volta?" },
+      "sector_organization": {
+        "title": "Filiale",
+        "description": "In quale settore opera la vostra organizzazione?"
+      },
+      "risky_business": {
+        "title": "Attività commerciali a rischio",
+        "description": "Siete coinvolti in attività commerciali potenzialmente rischiose come traffico d'armi, casinò, diamanti, animali esotici, pornografia o prostituzione?"
+      },
+      "risky_business_organization": {
+        "title": "Attività commerciali a rischio",
+        "description": "La vostra organizzazione è coinvolta in attività commerciali potenzialmente rischiose come il traffico di armi, i casinò, i diamanti, gli animali esotici, la pornografia o la prostituzione?"
+      },
+      "income": { "title": "Reddito annuo", "description": "Qual è il suo reddito annuale?" },
+      "income_organization": {
+        "title": "Fatturato annuo",
+        "description": "Qual è il fatturato annuo della vostra organizzazione?"
+      },
+      "assets": { "title": "Attività", "description": "Qual è il vostro patrimonio complessivo?" },
+      "assets_organization": { "title": "Attività", "description": "Qual è il bilancio dell'organizzazione?" },
+      "notification_of_changes": {
+        "title": "Notifica delle modifiche",
+        "description": "Confermo che informerò immediatamente DFX tramite app.dfx.swiss/support/issue di qualsiasi cambiamento rilevante da parte mia."
+      },
+      "retired_description": { "title": "Datore di lavoro", "description": "Qual è stato il suo ultimo lavoro?" },
+      "unemployed_description": { "title": "Datore di lavoro", "description": "Qual è stato il suo ultimo lavoro?" },
+      "apprentice_description": {
+        "title": "Datore di lavoro",
+        "description": "Qual è il nome della sua università/scuola?"
+      },
+      "self_employed_description": {
+        "title": "Datore di lavoro",
+        "description": "Cosa fa esattamente per vivere?"
+      },
+      "privatier_description": { "title": "Datore di lavoro", "description": "Come siete arrivati a?" },
+      "sector_description": { "title": "Settore", "description": "Com'è il nome del settore?" },
+      "risky_business_description": {
+        "title": "Attività commerciali a rischio",
+        "description": "Come esattamente?"
+      }
+    },
+    "option": {
+      "yes": "Sì",
+      "no": "No",
+      "accept": "Accettare",
+
+      "yes_risky_business": "Sì (rischioso)",
+      "no_risky_business": "No (non è rischioso)",
+
+      "employment_income": "Reddito da lavoro dipendente",
+      "real_estate_sale": "Vendita di immobili",
+      "share_sale": "Vendita di azioni o altri investimenti",
+      "loan": "Prestiti",
+      "company_sale": "Vendita di aziende",
+      "company_profits": "Profitti e dividendi aziendali",
+      "inheritance": "Patrimonio",
+      "gift": "Dono / Donazione",
+      "pension": "Fondo pensione / pensione",
+      "gambling": "Vincite al gioco d'azzardo",
+      "operations": "Attività operativa",
+      "company_share_sale": "Vendita di quote societarie",
+      "company_asset_sale": "Vendita di beni aziendali",
+      "capital_increase": "Aumento di capitale",
+
+      "apprentice": "In formazione",
+      "employed": "Impiegato",
+      "employed_management": "Impiegato con contratto di gestione",
+      "self_employed": "Lavoratore autonomo",
+      "unemployed": "Disoccupato",
+      "retired": "Pensionato / Pensione",
+      "privatier": "Soldato",
+
+      "no_business": "Nessuna operazione commerciale",
+      "automotive": "Automotive",
+      "bank_finance": "Banca e finanza",
+      "advisory": "Consulenza",
+      "education": "Istruzione",
+      "pharma": "Farmaceutica",
+      "it": "Tecnologia dell'informazione",
+      "energy_environment": "Energia e ambiente",
+      "research_development": "Ricerca e sviluppo",
+      "health_social_services": "Servizi sanitari e sociali",
+      "trade_consumption": "Commercio e consumo",
+      "handicraft": "Artigianato",
+      "real_estate_facility_management": "Proprietà immobiliare e gestione delle strutture",
+      "internet_multimedia": "Internet e multimedia",
+      "culture_entertainment_events": "Cultura, intrattenimento ed eventi",
+      "marketing_pr": "Marketing e PR",
+      "legal_tax": "Legale e fiscale",
+      "telecommunication": "Telecomunicazioni",
+      "textile_fashion": "Tessile e moda",
+      "traffic_transport_logistics": "Traffico, trasporti e logistica",
+      "insurance": "Assicurazione",
+      "other": "Altro",
+
+      "50k": "< 50'000 CHF / EUR / USD",
+      "50k_100k": "50'000 - 100'000 CHF / EUR / USD",
+      "100k_500k": "100'000 - 500'000 CHF / EUR / USD",
+      "500k_1m": "500'000 - 1'000'000 CHF / EUR / USD",
+      "1m": "> 1'000'000 CHF / EUR / USD"
+    }
+  }
+}

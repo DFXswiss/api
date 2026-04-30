@@ -1,0 +1,15 @@
+{
+    "_id": "fcc53e18-bf68-472a-92ae-cbf20f6e66a1",
+    "name": "dev (Admin)",
+    "default": true,
+    "sortNum": 27500,
+    "created": "2022-12-20T10:57:51.081Z",
+    "modified": "2022-12-20T10:57:51.081Z",
+    "data": [
+        {
+            "name": "url",
+            "value": "https://app-dfx-api-dev.azurewebsites.net"
+        }
+    ],
+    "envFile": "env/dev.admin.env"
+}

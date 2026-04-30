@@ -1,0 +1,44 @@
+{
+  "title": "Invoice No. {invoiceId}",
+  "credit_title": "Credit No. {invoiceId}",
+  "receipt_title": "Transaction Confirmation No. {invoiceId}",
+  "multi_receipt_title": "Transaction Confirmation",
+  "section": {
+    "buy": "Purchases",
+    "sell": "Sales"
+  },
+  "table": {
+    "headers": {
+      "quantity": "Quantity",
+      "description": "Description",
+      "date": "Date",
+      "total": "Total"
+    },
+    "position_row": {
+      "buy_description": "{assetDescription} ({assetName}) bought on {assetBlockchain}",
+      "sell_description": "{assetDescription} ({assetName}) sold on {assetBlockchain}",
+      "swap_description": "{sourceDescription} ({sourceName}) on {sourceBlockchain} swapped for {targetAmount} {targetDescription} ({targetName}) on {targetBlockchain}",
+      "referral_description": "{assetName} credit on {assetBlockchain}"
+    },
+    "total_row": {
+      "total_label": "Total"
+    },
+    "vat_row": {
+      "vat_label": "VAT",
+      "vat_amount_label": "VAT Amount"
+    },
+    "invoice_total_row": {
+      "invoice_total_label": "Invoice Total"
+    },
+    "credit_total_row": {
+      "credit_total_label": "Credit Total"
+    }
+  },
+  "info": "* Info: The effective exchange rate and thus the effectively delivered quantity is determined when the money is received and processed by DFX.",
+  "terms": "Our General Terms and Conditions apply: https://docs.dfx.swiss/en/tnc.html.",
+  "payment_info": "Payment Information",
+  "payment_info_iban": "IBAN",
+  "payment_info_bic": "BIC",
+  "payment_info_recipient": "Recipient",
+  "payment_info_reference": "Remittance Info"
+}

@@ -1,0 +1,50 @@
+const eslint = require('@eslint/js');
+const tseslint = require('typescript-eslint');
+const eslintConfigPrettier = require('eslint-config-prettier');
+const globals = require('globals');
+
+module.exports = tseslint.config(
+  eslint.configs.recommended,
+  ...tseslint.configs.recommended,
+  eslintConfigPrettier,
+  {
+    languageOptions: {
+      globals: {
+        ...globals.node,
+        ...globals.jest,
+      },
+      parserOptions: {
+        project: 'tsconfig.json',
+        sourceType: 'module',
+      },
+    },
+  },
+  {
+    rules: {
+      'no-return-await': 'off',
+      'no-console': ['warn'],
+      '@typescript-eslint/return-await': ['warn', 'in-try-catch'],
+      '@typescript-eslint/no-floating-promises': 'error',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
+      '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
+    },
+  },
+  {
+    files: ['**/*.spec.ts', '**/*.test.ts', '**/__tests__/**/*.ts', 'scripts/**/*.ts'],
+    rules: {
+      'no-console': 'off',
+    },
+  },
+  {
+    ignores: ['eslint.config.js', 'migration/**/*.js', 'scripts/*.js', 'dist/**', 'node_modules/**'],
+  },
+);

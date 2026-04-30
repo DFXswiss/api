@@ -1,0 +1,62 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fileShareQuota": {
+      "value": 100
+    },
+    "containerImage": {
+      "value": "dfxswiss/juiceswap-ponder:latest"
+    },
+    "containerVolumeMounts": {
+      "value": []
+    },
+    "containerCPU": {
+      "value": "0.25"
+    },
+    "containerMemory": {
+      "value": "0.5Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 3000
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": []
+    },
+    "containerEnv": {
+      "value": [
+        {
+          "name": "PORT",
+          "value": "3000"
+        },
+        {
+          "name": "DATABASE_URL",
+          "value": "[DATABASE_URL]"
+        },
+        {
+          "name": "DATABASE_SCHEMA",
+          "value": "public"
+        },
+        {
+          "name": "CITREA_RPC_URL",
+          "value": "http://vm-dfx-node-prd.westeurope.cloudapp.azure.com:8085"
+        }
+      ]
+    },
+    "containerCommand": {
+      "value": []
+    },
+    "containerArgs": {
+      "value": []
+    }
+  }
+}

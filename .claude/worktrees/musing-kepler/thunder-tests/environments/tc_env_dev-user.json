@@ -1,0 +1,15 @@
+{
+    "_id": "2a38c886-5352-4c8d-8279-8de45bea87c3",
+    "name": "dev (User)",
+    "default": false,
+    "sortNum": 25000,
+    "created": "2022-12-20T10:57:12.631Z",
+    "modified": "2022-12-20T10:57:12.631Z",
+    "data": [
+        {
+            "name": "url",
+            "value": "https://app-dfx-api-dev.azurewebsites.net"
+        }
+    ],
+    "envFile": "env/dev.user.env"
+}

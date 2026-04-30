@@ -38,11 +38,6 @@ export class UserDataNotificationService {
             salutation: { key: `${MailTranslationKey.ACCOUNT_DEACTIVATION}.salutation` },
             texts: [
               { key: MailKey.SPACE, params: { value: '3' } },
-              {
-                key: `${MailTranslationKey.GENERAL}.welcome`,
-                params: { name: userData.organizationName ?? userData.firstname },
-              },
-              { key: MailKey.SPACE, params: { value: '2' } },
               { key: `${MailTranslationKey.ACCOUNT_DEACTIVATION}.message` },
               { key: MailKey.SPACE, params: { value: '4' } },
               { key: MailKey.DFX_TEAM_CLOSING },
@@ -71,11 +66,6 @@ export class UserDataNotificationService {
               salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.salutation` },
               texts: [
                 { key: MailKey.SPACE, params: { value: '3' } },
-                {
-                  key: `${MailTranslationKey.GENERAL}.welcome`,
-                  params: { name: master.organizationName ?? master.firstname },
-                },
-                { key: MailKey.SPACE, params: { value: '2' } },
                 {
                   key: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.message`,
                   params: { userAddress: Util.blankStart(user.address) },
@@ -111,11 +101,6 @@ export class UserDataNotificationService {
             texts: [
               { key: MailKey.SPACE, params: { value: '3' } },
               {
-                key: `${MailTranslationKey.GENERAL}.welcome`,
-                params: { name: master.organizationName ?? master.firstname },
-              },
-              { key: MailKey.SPACE, params: { value: '2' } },
-              {
                 key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.message`,
                 params: { userMail: Util.blankMail(slave.mail) },
               },
@@ -135,11 +120,6 @@ export class UserDataNotificationService {
           salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
           texts: [
             { key: MailKey.SPACE, params: { value: '3' } },
-            {
-              key: `${MailTranslationKey.GENERAL}.welcome`,
-              params: { name: slave.organizationName ?? slave.firstname },
-            },
-            { key: MailKey.SPACE, params: { value: '2' } },
             {
               key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.message`,
               params: { userMail: Util.blankMail(slave.mail) },
@@ -181,11 +161,6 @@ export class UserDataNotificationService {
               wallet: entity.wallet,
               title: `${MailTranslationKey.BLACK_SQUAD}.title`,
               prefix: [
-                {
-                  key: `${MailTranslationKey.GENERAL}.welcome`,
-                  params: { name: entity.firstname },
-                },
-                { key: MailKey.SPACE, params: { value: '1' } },
                 { key: `${MailTranslationKey.BLACK_SQUAD}.line1` },
                 { key: `${MailTranslationKey.BLACK_SQUAD}.line2` },
                 { key: `${MailTranslationKey.BLACK_SQUAD}.line3` },

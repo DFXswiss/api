@@ -1,0 +1,212 @@
+import { Injectable } from '@nestjs/common';
+import { LightningService } from '../../../lightning/services/lightning.service';
+import { ArbitrumService } from '../../arbitrum/arbitrum.service';
+import { BaseService } from '../../base/base.service';
+import { BitcoinTestnet4Client } from '../../bitcoin-testnet4/bitcoin-testnet4-client';
+import { BitcoinTestnet4NodeType, BitcoinTestnet4Service } from '../../bitcoin-testnet4/bitcoin-testnet4.service';
+import { BitcoinClient } from '../../bitcoin/node/bitcoin-client';
+import { BitcoinNodeType, BitcoinService } from '../../bitcoin/services/bitcoin.service';
+import { BscService } from '../../bsc/bsc.service';
+import { CardanoClient } from '../../cardano/cardano-client';
+import { CardanoService } from '../../cardano/services/cardano.service';
+import { CitreaTestnetService } from '../../citrea-testnet/citrea-testnet.service';
+import { CitreaService } from '../../citrea/citrea.service';
+import { EthereumService } from '../../ethereum/ethereum.service';
+import { FiroClient } from '../../firo/firo-client';
+import { FiroService } from '../../firo/services/firo.service';
+import { GnosisService } from '../../gnosis/gnosis.service';
+import { InternetComputerClient } from '../../icp/icp-client';
+import { InternetComputerService } from '../../icp/services/icp.service';
+import { MoneroClient } from '../../monero/monero-client';
+import { MoneroService } from '../../monero/services/monero.service';
+import { OptimismService } from '../../optimism/optimism.service';
+import { PolygonService } from '../../polygon/polygon.service';
+import { SepoliaService } from '../../sepolia/sepolia.service';
+import { SolanaService } from '../../solana/services/solana.service';
+import { SolanaClient } from '../../solana/solana-client';
+import { ArkClient } from '../../ark/ark-client';
+import { ArkService } from '../../ark/ark.service';
+import { SparkClient } from '../../spark/spark-client';
+import { SparkService } from '../../spark/spark.service';
+import { TronService } from '../../tron/services/tron.service';
+import { TronClient } from '../../tron/tron-client';
+import { ZanoService } from '../../zano/services/zano.service';
+import { ZanoClient } from '../../zano/zano-client';
+import { Blockchain } from '../enums/blockchain.enum';
+import { EvmClient } from '../evm/evm-client';
+import { EvmService } from '../evm/evm.service';
+import { L2BridgeEvmClient } from '../evm/interfaces';
+import { CoinOnly } from '../util/blockchain-client';
+
+type BlockchainClientType =
+  | EvmClient
+  | BitcoinClient
+  | BitcoinTestnet4Client
+  | SparkClient
+  | ArkClient
+  | FiroClient
+  | MoneroClient
+  | ZanoClient
+  | SolanaClient
+  | TronClient
+  | CardanoClient
+  | InternetComputerClient;
+
+type BlockchainServiceType =
+  | EvmService
+  | BitcoinService
+  | BitcoinTestnet4Service
+  | SparkService
+  | ArkService
+  | FiroService
+  | MoneroService
+  | ZanoService
+  | SolanaService
+  | TronService
+  | CardanoService
+  | InternetComputerService;
+
+type CoinOnlyServiceType = BlockchainServiceType | LightningService;
+
+const COIN_ONLY_BLOCKCHAINS = new Set([
+  Blockchain.BITCOIN,
+  Blockchain.BITCOIN_TESTNET4,
+  Blockchain.LIGHTNING,
+  Blockchain.SPARK,
+  Blockchain.ARK,
+  Blockchain.FIRO,
+  Blockchain.MONERO,
+]);
+
+@Injectable()
+export class BlockchainRegistryService {
+  constructor(
+    private readonly ethereumService: EthereumService,
+    private readonly sepoliaService: SepoliaService,
+    private readonly bscService: BscService,
+    private readonly arbitrumService: ArbitrumService,
+    private readonly optimismService: OptimismService,
+    private readonly polygonService: PolygonService,
+    private readonly baseService: BaseService,
+    private readonly gnosisService: GnosisService,
+    private readonly bitcoinService: BitcoinService,
+    private readonly lightningService: LightningService,
+    private readonly sparkService: SparkService,
+    private readonly arkService: ArkService,
+    private readonly firoService: FiroService,
+    private readonly moneroService: MoneroService,
+    private readonly zanoService: ZanoService,
+    private readonly solanaService: SolanaService,
+    private readonly tronService: TronService,
+    private readonly cardanoService: CardanoService,
+    private readonly internetComputerService: InternetComputerService,
+    private readonly citreaService: CitreaService,
+    private readonly citreaTestnetService: CitreaTestnetService,
+    private readonly bitcoinTestnet4Service: BitcoinTestnet4Service,
+  ) {}
+
+  getClient(blockchain: Blockchain): BlockchainClientType {
+    return this.getService(blockchain).getDefaultClient();
+  }
+
+  getEvmClient(blockchain: Blockchain): EvmClient {
+    const blockchainService = this.getService(blockchain);
+    if (!(blockchainService instanceof EvmService)) throw new Error(`No evm client found for blockchain ${blockchain}`);
+    return blockchainService.getDefaultClient();
+  }
+
+  getBitcoinClient(blockchain: Blockchain, type: BitcoinNodeType): BitcoinClient {
+    const blockchainService = this.getService(blockchain);
+    if (!(blockchainService instanceof BitcoinService))
+      throw new Error(`No bitcoin client found for blockchain ${blockchain}`);
+    return blockchainService.getDefaultClient(type);
+  }
+
+  getBitcoinTestnet4Client(blockchain: Blockchain, type: BitcoinTestnet4NodeType): BitcoinTestnet4Client {
+    const blockchainService = this.getService(blockchain);
+    if (!(blockchainService instanceof BitcoinTestnet4Service))
+      throw new Error(`No bitcoin testnet4 client found for blockchain ${blockchain}`);
+    return blockchainService.getDefaultClient(type);
+  }
+
+  getCoinOnlyClient(blockchain: Blockchain, bitcoinNodeType?: BitcoinNodeType): CoinOnly {
+    if (!COIN_ONLY_BLOCKCHAINS.has(blockchain))
+      throw new Error(`No coin only client found for blockchain ${blockchain}`);
+    const coinOnlyService = this.getCoinOnlyService(blockchain);
+    if (coinOnlyService instanceof BitcoinService) return coinOnlyService.getDefaultClient(bitcoinNodeType);
+    return coinOnlyService.getDefaultClient();
+  }
+
+  getService(blockchain: Blockchain): BlockchainServiceType {
+    switch (blockchain) {
+      case Blockchain.ETHEREUM:
+        return this.ethereumService;
+      case Blockchain.SEPOLIA:
+        return this.sepoliaService;
+      case Blockchain.BINANCE_SMART_CHAIN:
+        return this.bscService;
+      case Blockchain.ARBITRUM:
+        return this.arbitrumService;
+      case Blockchain.OPTIMISM:
+        return this.optimismService;
+      case Blockchain.POLYGON:
+        return this.polygonService;
+      case Blockchain.BASE:
+        return this.baseService;
+      case Blockchain.GNOSIS:
+        return this.gnosisService;
+      case Blockchain.BITCOIN:
+        return this.bitcoinService;
+      case Blockchain.BITCOIN_TESTNET4:
+        return this.bitcoinTestnet4Service;
+      case Blockchain.SPARK:
+        return this.sparkService;
+      case Blockchain.ARK:
+        return this.arkService;
+      case Blockchain.FIRO:
+        return this.firoService;
+      case Blockchain.MONERO:
+        return this.moneroService;
+      case Blockchain.ZANO:
+        return this.zanoService;
+      case Blockchain.SOLANA:
+        return this.solanaService;
+      case Blockchain.TRON:
+        return this.tronService;
+      case Blockchain.CARDANO:
+        return this.cardanoService;
+      case Blockchain.INTERNET_COMPUTER:
+        return this.internetComputerService;
+      case Blockchain.CITREA:
+        return this.citreaService;
+      case Blockchain.CITREA_TESTNET:
+        return this.citreaTestnetService;
+
+      default:
+        throw new Error(`No service found for blockchain ${blockchain}`);
+    }
+  }
+
+  private getCoinOnlyService(blockchain: Blockchain): CoinOnlyServiceType {
+    if (blockchain === Blockchain.LIGHTNING) return this.lightningService;
+    return this.getService(blockchain);
+  }
+
+  getL2Client(blockchain: Blockchain): EvmClient & L2BridgeEvmClient {
+    switch (blockchain) {
+      case Blockchain.ARBITRUM:
+        return this.arbitrumService.getDefaultClient();
+      case Blockchain.OPTIMISM:
+        return this.optimismService.getDefaultClient();
+      case Blockchain.POLYGON:
+        return this.polygonService.getDefaultClient();
+      case Blockchain.BASE:
+        return this.baseService.getDefaultClient();
+      case Blockchain.GNOSIS:
+        return this.gnosisService.getDefaultClient();
+
+      default:
+        throw new Error(`No l2 client found for blockchain ${blockchain}`);
+    }
+  }
+}

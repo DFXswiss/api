@@ -147,16 +147,24 @@ export class MailFactory {
 
     if (this.isDisabledMailWallet(context, wallet)) return undefined;
 
-    const lang = userData.language.symbol.toLowerCase();
     const walletName = wallet?.name;
+    const walletMailConfig = walletName ? Config.mail.wallet[walletName] : undefined;
+    const lang = walletMailConfig?.forcedLang
+      ? walletMailConfig.forcedLang.toLowerCase()
+      : userData.language.symbol.toLowerCase();
 
+    // Personal welcome line, prepended to every UserMailV2 — single source of truth so service callers don't have to repeat it
+    const welcomeTexts: TranslationItem[] = [
+      {
+        key: `${MailTranslationKey.GENERAL}.welcome`,
+        params: { name: userData.organizationName ?? userData.firstname },
+      },
+      { key: MailKey.SPACE, params: { value: '2' } },
+    ];
     const walletBodyTexts = this.getWalletBodyTexts(title, lang, walletName);
-    // Order: keep the first text (the personal welcome line) first, then the wallet body override, then the rest.
-    const merged =
-      walletBodyTexts.length > 0 && texts && texts.length > 0
-        ? [texts[0], ...walletBodyTexts, ...texts.slice(1)]
-        : [...walletBodyTexts, ...(texts ?? [])];
-    const allTexts = texts && this.getMailAffix(merged, lang, walletName);
+    // Order: welcome line, then optional wallet body override, then the service-specific texts
+    const merged = [...welcomeTexts, ...walletBodyTexts, ...(texts ?? [])];
+    const allTexts = this.getMailAffix(merged, lang, walletName);
 
     return new UserMailV2(
       {
@@ -180,11 +188,21 @@ export class MailFactory {
 
     const lang = userData.language.symbol;
 
+    // Personal welcome line, prepended to every PersonalMail — single source of truth so service callers don't have to repeat it
+    const welcomeTexts: TranslationItem[] = [
+      {
+        key: `${MailTranslationKey.GENERAL}.welcome`,
+        params: { name: userData.organizationName ?? userData.firstname },
+      },
+      { key: MailKey.SPACE, params: { value: '2' } },
+    ];
+    const merged = [...welcomeTexts, ...(prefix ?? [])];
+
     return new PersonalMail({
       to: userData.mail,
       bcc,
       subject: this.translate(title, lang),
-      prefix: prefix && this.getMailAffix(prefix, lang),
+      prefix: this.getMailAffix(merged, lang),
       banner,
       from,
       displayName,

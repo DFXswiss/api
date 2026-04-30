@@ -1,0 +1,22 @@
+{
+    "_id": "183e3383-d717-44b0-b059-7c96907d1ea4",
+    "name": "prd",
+    "default": false,
+    "sortNum": 30000,
+    "created": "2022-01-15T14:00:52.937Z",
+    "modified": "2022-04-12T12:52:56.718Z",
+    "data": [
+        {
+            "name": "url",
+            "value": "https://api.dfx.swiss"
+        },
+        {
+            "name": "address",
+            "value": ""
+        },
+        {
+            "name": "signature",
+            "value": ""
+        }
+    ]
+}

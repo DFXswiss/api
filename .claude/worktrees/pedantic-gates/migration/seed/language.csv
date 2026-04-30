@@ -1,0 +1,8 @@
+id,symbol,name,foreignName,enable
+7,SQ,Albanian,Shqip,TRUE
+6,ES,Spanish,Español,TRUE
+5,PT,Portuguese,Português,TRUE
+4,FR,French,Français,TRUE
+3,IT,Italian,Italiano,TRUE
+2,DE,German,Deutsch,TRUE
+1,EN,English,English,TRUE

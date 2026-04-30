@@ -1,0 +1,98 @@
+import { Contract } from 'ethers';
+import { groupBy, sumBy } from 'lodash';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { CollateralWithTotalBalance } from '../dto/frankencoin-based.dto';
+import { Blockchain } from '../enums/blockchain.enum';
+import { EvmClient } from '../evm/evm-client';
+import { EvmUtil } from '../evm/evm.util';
+import { BlockchainRegistryService } from '../services/blockchain-registry.service';
+import { FrankencoinBasedCollateralDto } from './frankencoin-based.dto';
+
+export abstract class FrankencoinBasedService {
+  protected readonly logger = new DfxLogger(this.constructor.name);
+
+  private pricingService: PricingService;
+  protected registryService: BlockchainRegistryService;
+
+  getEvmClient(): EvmClient {
+    return this.registryService.getClient(Blockchain.ETHEREUM) as EvmClient;
+  }
+
+  setup(pricingService: PricingService, registryService: BlockchainRegistryService) {
+    this.pricingService = pricingService;
+    this.registryService = registryService;
+  }
+
+  abstract getEquityContract(): Contract;
+  abstract getWrapperContract(): Contract;
+  abstract getEquityPrice(): Promise<number>;
+  abstract getWalletAddress(): string;
+
+  async getPrice(from: PriceCurrency, to: PriceCurrency): Promise<Price> {
+    return this.pricingService.getPrice(from, to, PriceValidity.ANY);
+  }
+
+  async getTvlByCollaterals(collaterals: FrankencoinBasedCollateralDto[]): Promise<number> {
+    const collateralsWithTotalBalances = this.aggregateCollateralBalances(collaterals);
+
+    let tvl = 0;
+
+    for (const collateral of collateralsWithTotalBalances) {
+      const price = await this.getCollateralPrice(collateral);
+      if (price) tvl += collateral.totalBalance / price;
+    }
+
+    return tvl;
+  }
+
+  private aggregateCollateralBalances(collaterals: FrankencoinBasedCollateralDto[]): CollateralWithTotalBalance[] {
+    const groupedCollaterals = groupBy(collaterals, (i) => i.collateral);
+
+    return Object.keys(groupedCollaterals).map((key) => {
+      const first = groupedCollaterals[key][0];
+      return {
+        address: first.collateral,
+        symbol: first.collateralSymbol,
+        totalBalance: sumBy(groupedCollaterals[key], (i) =>
+          EvmUtil.fromWeiAmount(i.collateralBalance, i.collateralDecimals),
+        ),
+      };
+    });
+  }
+
+  private async getCollateralPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined> {
+    try {
+      const customPrice = await this.getCustomCollateralPrice(collateral);
+      if (customPrice) return customPrice;
+
+      return await this.getCoinGeckoPrice(collateral.address);
+    } catch (e) {
+      this.logger.error(`Failed to get price for collateral ${collateral.symbol} (${collateral.address}):`, e);
+      return undefined;
+    }
+  }
+
+  async getCoinGeckoPrice(contractAddress: string): Promise<number | undefined> {
+    try {
+      const price = await this.pricingService.getPriceFrom(
+        PriceSource.COIN_GECKO,
+        contractAddress.toLowerCase(),
+        'usd',
+        'contract',
+      );
+
+      if (price) return price.price;
+    } catch (e) {
+      this.logger.error(`Failed to get CoinGecko price for collateral ${contractAddress}:`, e);
+    }
+  }
+
+  abstract getCustomCollateralPrice(collateral: CollateralWithTotalBalance): Promise<number | undefined>;
+}

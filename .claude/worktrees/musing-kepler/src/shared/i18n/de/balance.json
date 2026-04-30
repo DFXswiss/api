@@ -1,0 +1,18 @@
+{
+  "title": "Vermögensübersicht",
+  "date": "Datum",
+  "blockchain": "Blockchain",
+  "address": "Adresse",
+  "table": {
+    "headers": {
+      "asset": "Vermögenswert",
+      "balance": "Bestand",
+      "price": "Preis ({currency})",
+      "value": "Wert ({currency})"
+    },
+    "no_assets": "Keine Vermögenswerte für diese Adresse gefunden."
+  },
+  "total_value": "Gesamtwert",
+  "incomplete_data": "* Für einige Vermögenswerte sind keine historischen Preisdaten verfügbar (n/a)",
+  "generated_by": "Erstellt von DFX"
+}

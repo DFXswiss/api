@@ -1,0 +1,2 @@
+id,address,ip,country,url,result
+1,0x0000000000000000000000000000000000000000,127.0.0.1,CH,/v1/auth,TRUE

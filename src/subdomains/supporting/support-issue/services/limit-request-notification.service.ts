@@ -57,11 +57,6 @@ export class LimitRequestNotificationService {
               title: `${MailTranslationKey.LIMIT_REQUEST}.title`,
               prefix: [
                 {
-                  key: `${MailTranslationKey.GENERAL}.welcome`,
-                  params: { name: entity.userData.firstname },
-                },
-                { key: MailKey.SPACE, params: { value: '2' } },
-                {
                   key: `${MailTranslationKey.LIMIT_REQUEST}.message`,
                   params: {
                     limitAmount: Util.localeDataString(entity.userData.depositLimit, entity.userData.language.symbol),

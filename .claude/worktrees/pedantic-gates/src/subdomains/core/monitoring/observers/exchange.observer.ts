@@ -1,0 +1,126 @@
+import { Injectable } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
+import { Util } from 'src/shared/utils/util';
+import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
+import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
+import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { MoreThan } from 'typeorm';
+
+interface ExchangeData {
+  name: string;
+  volume30: number; //volume of the last 30 days
+}
+
+interface ExchangeDeviationData {
+  name: string;
+  deviation: number; // deviation of exchange pair to reference price
+}
+
+@Injectable()
+export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
+  protected readonly logger = new DfxLogger(ExchangeObserver);
+
+  constructor(
+    monitoringService: MonitoringService,
+    private readonly repos: RepositoryFactory,
+    private readonly pricingService: PricingService,
+    private readonly assetService: AssetService,
+  ) {
+    super(monitoringService, 'exchange', 'volume');
+  }
+
+  @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.MONITORING, timeout: 1800 })
+  async fetch() {
+    if (DisabledProcess(Process.MONITORING)) return;
+
+    const data = [];
+    data.push(await this.getKraken());
+    data.push(await this.getBinance());
+    data.push(await this.getXtPriceDeviation());
+    this.emit(data);
+
+    return data;
+  }
+
+  // *** HELPER METHODS *** //
+
+  private async getXtPriceDeviation(): Promise<ExchangeDeviationData[]> {
+    const [usdt, jusd] = await Promise.all([
+      this.assetService.getAssetByQuery({
+        name: 'USDT',
+        blockchain: Blockchain.ETHEREUM,
+        type: AssetType.TOKEN,
+      }),
+      await this.assetService.getAssetByQuery({
+        name: 'JUSD',
+        blockchain: Blockchain.CITREA,
+        type: AssetType.TOKEN,
+      }),
+    ]);
+
+    const xtDeurUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'DEURO');
+    const xtDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'DEPS');
+    const xtJusdUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.XT, 'USDT', 'JUSD');
+
+    const referenceDeurUsdtPrice = await this.pricingService.getPrice(
+      usdt,
+      PriceCurrency.EUR,
+      PriceValidity.VALID_ONLY,
+    );
+    const referenceDepsUsdtPrice = await this.pricingService.getPriceFrom(PriceSource.DEURO, 'USDT', 'DEPS');
+    const referenceJusdUsdtPrice = await this.pricingService.getPrice(usdt, jusd, PriceValidity.VALID_ONLY);
+
+    return [
+      {
+        name: 'XT-dEURO-USDT',
+        deviation: Util.round(xtDeurUsdtPrice.price / referenceDeurUsdtPrice.price - 1, 3),
+      },
+      {
+        name: 'XT-DEPS-USDT',
+        deviation: Util.round(xtDepsUsdtPrice.price / referenceDepsUsdtPrice.price - 1, 3),
+      },
+      {
+        name: 'XT-JUSD-USDT',
+        deviation: Util.round(xtJusdUsdtPrice.price / referenceJusdUsdtPrice.price - 1, 3),
+      },
+    ];
+  }
+
+  private async getKraken(): Promise<ExchangeData> {
+    const volume30 = await this.getVolume30(ExchangeName.KRAKEN);
+    return {
+      name: 'Kraken',
+      volume30,
+    };
+  }
+
+  private async getBinance(): Promise<ExchangeData> {
+    const volume30 = await this.getVolume30(ExchangeName.BINANCE);
+    return {
+      name: 'Binance',
+      volume30,
+    };
+  }
+
+  private async getVolume30(exchange: ExchangeName): Promise<number> {
+    return this.repos.exchangeTx.sum('amountChf', {
+      exchange,
+      type: ExchangeTxType.TRADE,
+      created: MoreThan(Util.daysBefore(30)),
+    });
+  }
+}

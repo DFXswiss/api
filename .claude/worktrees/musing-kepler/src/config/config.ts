@@ -1,0 +1,1286 @@
+import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handlebars.adapter';
+import { Injectable, Optional } from '@nestjs/common';
+import { TypeOrmModuleOptions } from '@nestjs/typeorm';
+import { ConstructorArgs } from 'ccxt';
+import JSZip from 'jszip';
+import { I18nOptions } from 'nestjs-i18n';
+import { join } from 'path';
+import { ClementineNetwork } from 'src/integration/blockchain/clementine/clementine-client';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+import { Process } from 'src/shared/services/process.service';
+import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
+import { KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
+import { FileCategory } from 'src/subdomains/generic/kyc/enums/file-category.enum';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-data/kyc-identification-type.enum';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
+import { LoggerOptions } from 'typeorm';
+import { EVM_CHAINS } from './chains.config';
+
+export type NetworkName = 'mainnet' | 'testnet' | 'regtest';
+
+export enum Environment {
+  LOC = 'loc',
+  DEV = 'dev',
+  PRD = 'prd',
+}
+
+type Version = '1' | '2';
+
+export function GetConfig(): Configuration {
+  return new Configuration();
+}
+
+export class Configuration {
+  port = process.env.PORT ?? 3000;
+  environment = process.env.ENVIRONMENT as Environment;
+  network = process.env.NETWORK as NetworkName;
+
+  defaultVersion: Version = '1';
+  kycVersion: Version = '2';
+  defaultVersionString = `v${this.defaultVersion}`;
+  defaultRef = '000-000';
+  defaultWalletId = 1;
+  transactionRefundExpirySeconds = 300; // 5 minutes - enough time to fill out the refund form
+  txRequestWaitingExpiryDays = 7;
+  txRequestValidityMinutes = 30;
+  financeLogTotalBalanceChangeLimit = 5000;
+  faucetAmount = 20; //CHF
+  faucetEnabled = process.env.FAUCET_ENABLED === 'true';
+
+  priceSourceManual = 'DFX'; // source name for priceStep if price is set manually in buy-crypto
+  priceSourcePayment = 'Payment'; // source name for priceStep if price is defined by payment quote
+
+  isDomesticIban(iban: string): boolean {
+    return ['CH', 'LI'].includes(iban?.substring(0, 2));
+  }
+
+  defaults = {
+    currency: 'EUR',
+    language: 'EN',
+
+    specific: {
+      // CH has no language default (multilingual country)
+      CH: { currency: 'CHF' },
+      LI: { language: 'DE', currency: 'CHF' },
+      DE: { language: 'DE' },
+      AT: { language: 'DE' },
+      IT: { language: 'IT' },
+      FR: { language: 'FR' },
+    },
+
+    forCountry: (country?: string): { currency: string; language: string } => {
+      const specific = this.defaults.specific[country];
+      return {
+        currency: specific?.currency ?? this.defaults.currency,
+        language: specific?.language ?? this.defaults.language,
+      };
+    },
+  };
+
+  prefixes = {
+    issueUidPrefix: 'I',
+    quoteUidPrefix: 'Q',
+    transactionUidPrefix: 'T',
+    kycFileUidPrefix: 'F',
+    paymentLinkUidPrefix: 'pl',
+    paymentLinkPaymentUidPrefix: 'plp',
+    paymentQuoteUidPrefix: 'plq',
+  };
+
+  moderators = {
+    Wendel: '019-957',
+  };
+
+  loginCountries = {
+    '1': ['CH'],
+  };
+
+  liquidityManagement = {
+    bankMinBalance: 100,
+    fiatOutput: {
+      batchAmountLimit: 9500,
+    },
+    usePipelinePriceForAllAssets: process.env.USE_PIPELINE_PRICE_FOR_ALL_ASSETS === 'true',
+  };
+
+  defaultVolumeDecimal = 2;
+  defaultPercentageDecimal = 2;
+
+  apiKeyVersionCT = '1'; // single digit hex number
+  azureIpSubstring = '169.254';
+
+  amlCheckLastNameCheckValidity = 90; // days
+  allowedBorderRegions = ['CH', 'DE']; // aml & kyc
+  maxBlockchainFee = 50; // CHF
+  blockchainFeeBuffer = 1.2;
+  networkStartFee = 0.5; // CHF
+  networkStartBalanceLimit = 0.00001;
+  networkStartBlockchains = [
+    Blockchain.BASE,
+    Blockchain.ARBITRUM,
+    Blockchain.OPTIMISM,
+    Blockchain.POLYGON,
+    Blockchain.BINANCE_SMART_CHAIN,
+  ];
+
+  tradingLimits = {
+    monthlyDefaultWoKyc: 1000, // CHF
+    weeklyAmlRule: 25000, // CHF
+    monthlyDefault: 500000, // CHF
+    yearlyDefault: 1000000000, // CHF
+    yearlyWithoutKyc: 50000, // CHF
+    cardDefault: 4000, // CHF
+  };
+
+  social = {
+    telegram: 'https://t.me/DFXswiss',
+    linkedin: 'https://www.linkedin.com/company/dfxswiss/',
+    instagram: 'https://www.instagram.com/dfx.swiss/',
+    twitter: 'https://twitter.com/DFX_Swiss',
+    github: 'https://github.com/DFXswiss/api#dfx-api',
+  };
+
+  bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}|sp1[a-z0-9]{2,256}';
+  lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
+  sparkAddressFormat = 'spark1[a-z0-9]{6,250}';
+  arkAddressFormat = 'ark1[a-z0-9]{6,500}';
+  firoAddressFormat = 'a[a-zA-HJ-NP-Z0-9]{33}';
+  firoSparkAddressFormat = 'sm1[a-z0-9]{100,500}';
+  moneroAddressFormat = '[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}';
+  ethereumAddressFormat = '0x\\w{40}';
+  liquidAddressFormat = '(VTp|VJL)[a-zA-HJ-NP-Z0-9]{77}';
+  arweaveAddressFormat = '[\\w\\-]{43}';
+  cardanoAddressFormat = '^(stake[a-z0-9]+|addr1[a-z0-9]+)$';
+  defichainAddressFormat =
+    this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}';
+  railgunAddressFormat = '0zk[a-z0-9]{1,124}';
+  solanaAddressFormat = '[1-9A-HJ-NP-Za-km-z]{43,44}';
+  tronAddressFormat = 'T[1-9A-HJ-NP-Za-km-z]{32,34}';
+  zanoAddressFormat = 'Z[a-zA-Z0-9]{96}|iZ[a-zA-Z0-9]{106}';
+  internetComputerPrincipalFormat = '[a-z0-9]{5}(-[a-z0-9]{5})*(-[a-z0-9]{1,5})?';
+
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.arkAddressFormat}|${this.firoSparkAddressFormat}|${this.firoAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}|${this.internetComputerPrincipalFormat}`;
+
+  masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
+  hashSignatureFormat = '[A-Fa-f0-9]{64}';
+  bitcoinSignatureFormat = '(.{87}=|[A-Za-z0-9+/]+={0,2})';
+  lightningSignatureFormat = '[a-z0-9]{104}';
+  lightningCustodialSignatureFormat = '[a-z0-9]{140,146}';
+  firoSignatureFormat = '(.{87}=|[A-Za-z0-9+/]+={0,2})';
+  firoSparkSignatureFormat = '[a-f0-9]{260}';
+  moneroSignatureFormat = 'SigV\\d[0-9a-zA-Z]{88}';
+  ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
+  arweaveSignatureFormat = '[\\w\\-]{683}';
+  cardanoSignatureFormat = '[a-f0-9]+';
+  railgunSignatureFormat = '[a-f0-9]{128}';
+  solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
+  tronSignatureFormat = '(0x)?[a-f0-9]{130}';
+  zanoSignatureFormat = '[a-f0-9]{128}';
+  internetComputerSignatureFormat = '[a-f0-9]{128,144}';
+
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.firoSignatureFormat}|${this.firoSparkSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}|${this.internetComputerSignatureFormat}`;
+
+  arweaveKeyFormat = '[\\w\\-]{683}';
+  cardanoKeyFormat = '.*';
+  internetComputerKeyFormat = '[a-f0-9]{64,130}';
+
+  allKeyFormat = `${this.arweaveKeyFormat}|${this.cardanoKeyFormat}|${this.internetComputerKeyFormat}`;
+
+  formats = {
+    address: new RegExp(`^(${this.allAddressFormat})$`),
+    signature: new RegExp(`^(${this.allSignatureFormat})$`),
+    key: new RegExp(`^(${this.allKeyFormat})$`),
+    ref: /^(\w{1,3}-\w{1,3})$/,
+    bankUsage: /[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{4}/,
+    recommendationCode: /[0-9A-Z]{2}-[0-9A-Z]{4}-[0-9A-Z]{4}-[0-9A-Z]{2}/,
+    kycHash: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i,
+    phone: /^\+\d+$/,
+    accountServiceRef: /^([A-Z]{2}\d{8}\/\d+\/\d+|[a-f0-9]{32})$/,
+    number: /^\d+$/,
+    transactionUid: new RegExp(`^${this.prefixes.transactionUidPrefix}[A-Za-z0-9]{16}$`),
+  };
+
+  database: TypeOrmModuleOptions = {
+    type: 'mssql',
+    host: process.env.SQL_HOST,
+    port: Number.parseInt(process.env.SQL_PORT),
+    username: process.env.SQL_USERNAME,
+    password: process.env.SQL_PASSWORD,
+    database: process.env.SQL_DB,
+    entities: ['dist/**/*.entity{.ts,.js}'],
+    autoLoadEntities: true,
+    synchronize: process.env.SQL_SYNCHRONIZE === 'true',
+    migrationsRun: process.env.SQL_MIGRATE === 'true',
+    migrations: ['migration/*.js'],
+    connectionTimeout: 30000,
+    requestTimeout: 60000,
+    pool: {
+      min: +(process.env.SQL_POOL_MIN ?? 5),
+      max: +(process.env.SQL_POOL_MAX ?? 10),
+      idleTimeoutMillis: +(process.env.SQL_POOL_IDLE_TIMEOUT ?? 30000),
+    },
+    logging: process.env.SQL_LOGGING as LoggerOptions,
+    options: {
+      encrypt: process.env.SQL_ENCRYPT !== 'false',
+      trustServerCertificate: process.env.SQL_ENCRYPT === 'false',
+    },
+  };
+
+  i18n: I18nOptions = {
+    fallbackLanguage: this.defaults.language.toLowerCase(),
+    loaderOptions: {
+      path: join(process.cwd(), 'src/shared/i18n/'),
+      watch: true,
+    },
+    resolvers: [{ resolve: () => this.i18n.fallbackLanguage }],
+  };
+
+  auth = {
+    jwt: {
+      secret: process.env.JWT_SECRET,
+      signOptions: {
+        expiresIn: process.env.JWT_EXPIRES_IN ?? '2d',
+      },
+    },
+    company: {
+      signOptions: {
+        expiresIn: process.env.JWT_EXPIRES_IN_COMPANY ?? '10m',
+      },
+    },
+    challenge: {
+      expiresIn: +(process.env.CHALLENGE_EXPIRES_IN ?? 10), // sec
+    },
+    mailLoginExpiresIn: +(process.env.MAIL_LOGIN_EXPIRES_IN ?? 10), // min
+    signMessage:
+      'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
+    signMessageGeneral:
+      'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_Blockchain_address._Your_ID:_',
+  };
+
+  recommendation = {
+    recommenderExpiration: 30, // days
+    confirmationExpiration: 30, // days
+    maxRecommendationPerMail: 3,
+  };
+
+  kyc = {
+    transactionPrefix: process.env.KYC_TRANSACTION_PREFIX,
+    identFailAfterDays: 30,
+    reminderAfterDays: 2,
+    appToken: process.env.KYC_APP_TOKEN,
+    secretKey: process.env.KYC_SECRET_KEY,
+    webhookKey: process.env.KYC_WEBHOOK_KEY,
+    residencePermitCountries: ['RU'],
+    maxIdentTries: 7,
+    maxRecommendationTries: 3,
+    kycStepExpiry: 90, // days
+  };
+
+  fileDownloadConfig: {
+    id: number;
+    name: string;
+    ignore?: (userData: UserData) => boolean;
+    files: {
+      name?: (file: KycFileBlob) => string;
+      prefixes: (userData: UserData) => string[];
+      fileTypes?: ContentType[];
+      filter?: (file: KycFileBlob, userData: UserData) => boolean;
+      sort?: (a: KycFileBlob, b: KycFileBlob) => KycFileBlob;
+      handleFileNotFound?: (zip: JSZip, userData: UserData) => any | false;
+      selectAll?: boolean;
+    }[];
+  }[] = [
+    {
+      id: 1,
+      name: 'Deckblatt',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('GwGFileDeckblatt'),
+        },
+      ],
+    },
+    {
+      id: 2,
+      name: 'Identifikationsdokument',
+      files: [
+        {
+          prefixes: (userData: UserData) => [
+            `user/${userData.id}/Identification`,
+            `spider/${userData.id}/online-identification`,
+            `spider/${userData.id}/video_identification`,
+          ],
+          fileTypes: [ContentType.PDF],
+        },
+        {
+          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'IdentDoc',
+          prefixes: (userData: UserData) => [`user/${userData.id}/Identification`],
+          fileTypes: [ContentType.PNG, ContentType.JPEG, ContentType.JPG],
+          filter: (file: KycFileBlob, userData: UserData) => {
+            const latestIdent = userData.kycSteps
+              .filter((s) => s.name === KycStepName.IDENT && s.isCompleted && s.transactionId)
+              .sort((a, b) => b.id - a.id)[0];
+            return latestIdent ? file.name.includes(latestIdent.transactionId) : false;
+          },
+          selectAll: true,
+          handleFileNotFound: () => true,
+        },
+      ],
+    },
+    {
+      id: 3,
+      name: 'Banktransaktion oder Videoident Tonspur',
+      files: [
+        {
+          name: (file: KycFileBlob) =>
+            file.name.includes('bankTransactionVerify') ? 'Banktransaktion' : 'VideoIdentTonspur',
+          prefixes: (userData: UserData) => {
+            switch (userData.identificationType) {
+              case KycIdentificationType.VIDEO_ID:
+                return [`user/${userData.id}/Identification`, `spider/${userData.id}/video_identification`];
+              case KycIdentificationType.ONLINE_ID:
+                return [`user/${userData.id}/UserNotes`];
+              default:
+                return [];
+            }
+          },
+          filter: (file: KycFileBlob, userData: UserData) =>
+            (userData.identificationType === KycIdentificationType.VIDEO_ID &&
+              (file.contentType.startsWith(ContentType.MP3) || file.contentType.startsWith(ContentType.MP4))) ||
+            (userData.identificationType === KycIdentificationType.ONLINE_ID &&
+              file.name.includes('bankTransactionVerify') &&
+              file.contentType.startsWith(ContentType.PDF)),
+          handleFileNotFound: (zip: JSZip, userData: UserData) =>
+            userData.identificationType === KycIdentificationType.MANUAL
+              ? zip.file('03_nicht_benötigt_aufgrund_manueller_identifikation.txt', '')
+              : false,
+        },
+      ],
+    },
+    {
+      id: 4,
+      name: 'Identifizierungsformular',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('Identifizierungsformular'),
+        },
+      ],
+    },
+    {
+      id: 5,
+      name: 'Kundenprofil',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('Kundenprofil'),
+        },
+      ],
+    },
+    {
+      id: 6,
+      name: 'Risikoprofil',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('Risikoprofil'),
+        },
+      ],
+    },
+    {
+      id: 7,
+      name: 'Formular A oder K',
+      files: [
+        {
+          name: (file: KycFileBlob) => (file.name.includes('FormularA') ? 'FormularA' : 'FormularK'),
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob, userData: UserData) =>
+            (['natural person', 'Sitzgesellschaft'].includes(userData.amlAccountType) &&
+              file.name.includes('FormularA')) ||
+            (['operativ tätige Gesellschaft', 'Verein'].includes(userData.amlAccountType) &&
+              file.name.includes('FormularK')),
+        },
+      ],
+    },
+    {
+      id: 8,
+      name: 'Onboardingdokument',
+      files: [
+        {
+          name: () => 'Onboarding',
+          prefixes: (userData: UserData) => [
+            `spider/${userData.id}/user-added-document`,
+            `user/${userData.id}/UserNotes`,
+          ],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('onboarding'),
+        },
+      ],
+    },
+    {
+      id: 9,
+      name: 'Blockchain Check',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('blockchainAddressAnalyse'),
+        },
+      ],
+    },
+    {
+      id: 10,
+      name: 'Überprüfung der Wohnsitzadresse',
+      ignore: (userData: UserData) => userData.accountType === AccountType.ORGANIZATION,
+      files: [
+        {
+          name: () => 'Postversand',
+          prefixes: (userData: UserData) => [
+            `spider/${userData.id}/user-added-document`,
+            `user/${userData.id}/UserNotes`,
+          ],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob, userData: UserData) =>
+            (file.category === FileCategory.USER && file.name.includes('postversand')) ||
+            (file.category === FileCategory.SPIDER &&
+              file.name.toLowerCase().includes(userData.firstname.toLowerCase())),
+        },
+      ],
+    },
+    {
+      id: 11,
+      name: 'Handelsregisterauszug',
+      ignore: (userData: UserData) => userData.accountType !== AccountType.ORGANIZATION,
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/CommercialRegister`],
+          filter: (file: KycFileBlob, userData: UserData) =>
+            userData.kycSteps.some(
+              (s) =>
+                s.isCompleted &&
+                ((s.name === KycStepName.COMMERCIAL_REGISTER && s.result === file.url) ||
+                  (s.name === KycStepName.LEGAL_ENTITY &&
+                    s.getResult<{ url: string; legalEntity: LegalEntity }>().url === file.url) ||
+                  (s.name === KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION &&
+                    s.getResult<{ url: string }>().url === file.url)),
+            ),
+        },
+      ],
+    },
+    {
+      id: 12,
+      name: 'Vollmacht',
+      ignore: (userData: UserData) => userData.accountOpenerAuthorization !== 'Vollmacht',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/Authority`],
+          filter: (file: KycFileBlob, userData: UserData) =>
+            userData.kycSteps.some((s) => s.name === KycStepName.AUTHORITY && s.isCompleted && s.result === file.url),
+        },
+      ],
+    },
+    {
+      id: 13,
+      name: 'Transaktionsliste Auditperiode',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2026'.toLowerCase()),
+        },
+      ],
+    },
+    {
+      id: 14,
+      name: 'Name Check',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-NameCheck'.toLowerCase()),
+        },
+        {
+          name: () => 'Dilisense Screening Report',
+          prefixes: (userData: UserData) => [`user/${userData.id}/NameCheck`],
+          fileTypes: [ContentType.PDF],
+        },
+      ],
+    },
+    {
+      id: 15,
+      name: 'Travel Rule',
+      files: [
+        {
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-AddressSignature'.toLowerCase()),
+          sort: (a: KycFileBlob, b: KycFileBlob) => (a.name.split('-')[0] < b.name.split('-')[0] ? a : b),
+        },
+      ],
+    },
+    {
+      id: 16,
+      name: 'TMER',
+      files: [
+        {
+          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'TMER',
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('-TMER-'),
+          selectAll: true,
+          handleFileNotFound: () => true,
+        },
+      ],
+    },
+  ];
+
+  support = {
+    limitRequest: {
+      mailName: process.env.LIMIT_REQUEST_SUPPORT_NAME,
+      mailAddress: process.env.LIMIT_REQUEST_SUPPORT_MAIL,
+      mailAddressSupportStaff: process.env.LIMIT_REQUEST_SUPPORT_STAFF_MAIL,
+      mailBanner: process.env.LIMIT_REQUEST_SUPPORT_BANNER,
+    },
+    blackSquad: {
+      link: process.env.BS_LINK,
+      limit: 50000, // CHF
+      mailName: process.env.BLACK_SQUAD_NAME,
+      mailAddress: process.env.BLACK_SQUAD_MAIL,
+      mailBanner: process.env.BLACK_SQUAD_BANNER,
+    },
+    message: {
+      mailName: process.env.SUPPORT_MESSAGE_NAME,
+      mailAddress: process.env.SUPPORT_MESSAGE_MAIL,
+      mailBanner: process.env.SUPPORT_MESSAGE_BANNER,
+    },
+  };
+
+  letter = {
+    auth: { username: process.env.LETTER_USER, apikey: process.env.LETTER_AUTH },
+    url: process.env.LETTER_URL,
+  };
+
+  frontend = {
+    allowedUrls: (process.env.SERVICES_URL ?? '').split(';'),
+    services: (process.env.SERVICES_URL ?? '').split(';')[0],
+    payment: process.env.PAYMENT_URL,
+
+    isRedirectUrlAllowed: (url: string): boolean => {
+      try {
+        return this.frontend.allowedUrls.includes(new URL(url).origin);
+      } catch {
+        return false;
+      }
+    },
+  };
+
+  fixer = {
+    baseUrl: process.env.FIXER_BASE_URL,
+    apiKey: process.env.FIXER_API_KEY,
+  };
+
+  mail: MailOptions = {
+    options: {
+      transport: {
+        host: 'gateway.dfx.swiss',
+        secure: true,
+        port: 465,
+        auth: {
+          user: process.env.MAIL_USER,
+          pass: process.env.MAIL_PASS,
+        },
+        tls: {
+          rejectUnauthorized: false,
+        },
+      },
+      template: {
+        dir: join(process.cwd(), 'src/subdomains/supporting/notification/templates'),
+        adapter: new HandlebarsAdapter(),
+        options: {
+          strict: true,
+        },
+      },
+    },
+    defaultMailTemplate: 'generic',
+    contact: {
+      supportMail: process.env.SUPPORT_MAIL || 'support@dfx.swiss',
+      monitoringMail: process.env.MONITORING_MAIL || 'monitoring@dfx.swiss',
+      liqMail: process.env.LIQ_MAIL || 'liq@dfx.swiss',
+      noReplyMail: process.env.NOREPLY_MAIL || 'noreply@dfx.swiss',
+    },
+    wallet: {
+      onchainlabs: {
+        template: 'onChainLabs',
+      },
+      ...(process.env.REALUNIT_MAIL_USER && {
+        RealUnit: {
+          host: 'mail.infomaniak.com',
+          port: 587,
+          secure: false,
+          user: process.env.REALUNIT_MAIL_USER,
+          pass: process.env.REALUNIT_MAIL_PASS,
+          fromAddress: process.env.REALUNIT_MAIL_USER,
+          displayName: 'RealUnit',
+          template: 'user-v2',
+        },
+      }),
+    },
+  };
+
+  coinGecko = {
+    apiKey: process.env.COIN_GECKO_API_KEY,
+  };
+
+  payment = {
+    timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0),
+    evmSeed: process.env.PAYMENT_EVM_SEED,
+    solanaSeed: process.env.PAYMENT_SOLANA_SEED,
+    tronSeed: process.env.PAYMENT_TRON_SEED,
+    cardanoSeed: process.env.PAYMENT_CARDANO_SEED,
+    internetComputerSeed: process.env.PAYMENT_ICP_SEED,
+    bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
+    firoAddress: process.env.PAYMENT_FIRO_ADDRESS,
+    moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
+    zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
+    minConfirmations: (blockchain: Blockchain): number =>
+      ({
+        [Blockchain.ETHEREUM]: 6,
+        [Blockchain.BITCOIN]: 6,
+        [Blockchain.FIRO]: 6,
+        [Blockchain.MONERO]: 6,
+        [Blockchain.ZANO]: 6,
+        [Blockchain.INTERNET_COMPUTER]: 1,
+      })[blockchain] ?? 100,
+    minVolume: 0.01, // CHF
+    maxDepositBalance: 10000, // CHF
+    cryptoPayoutMinAmount: +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
+
+    defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
+    defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
+    defaultTxConfirmationTryCount: +(process.env.PAYMENT_TX_CONFIRMATION_TRY_COUNT ?? 15),
+    defaultFiroTxIdPaymentTryCount: +(process.env.PAYMENT_FIRO_TX_TRY_COUNT ?? 5),
+
+    defaultForexFee: 0.01,
+    addressForexFee: 0.02,
+    defaultQuoteTimeout: 300, // sec
+    addressQuoteTimeout: 7200, // sec
+
+    manualMethods: ['TaprootAsset', 'Spark', 'Ark'],
+
+    webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
+    webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
+
+    binancePayPublic: process.env.BINANCEPAY_PUBLIC_KEY,
+    binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,
+    binancePayMerchantId: process.env.BINANCEPAY_MERCHANT_ID,
+
+    kucoinPayMerchantId: process.env.KUCOIN_PAY_MERCHANT_ID,
+    kucoinPayBaseUrl: process.env.KUCOIN_PAY_BASE_URL,
+    kucoinPayApiKey: process.env.KUCOIN_API_KEY,
+    kucoinPaySigningKey: process.env.DFX_KUCOINPAY_PRIVATE_KEY?.split('<br>').join('\n'),
+    kucoinPayPublicKey: process.env.KUCOIN_PUBLIC_KEY?.split('<br>').join('\n'),
+
+    checkbotSignTx: process.env.PAYMENT_CHECKBOT_SIGN_TX,
+    checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
+
+    forexFee: (standard: PaymentStandard, invoiceCurrency: Fiat, paymentCurrency: Asset): number => {
+      if (invoiceCurrency.name === 'CHF' && ['ZCHF', 'VCHF'].includes(paymentCurrency.name)) return 0;
+
+      switch (standard) {
+        case PaymentStandard.PAY_TO_ADDRESS:
+          return this.payment.addressForexFee;
+
+        default:
+          return this.payment.defaultForexFee;
+      }
+    },
+
+    fee: 0.002,
+
+    quoteTimeout: (standard: PaymentStandard): number => {
+      switch (standard) {
+        case PaymentStandard.PAY_TO_ADDRESS:
+          return this.payment.addressQuoteTimeout;
+
+        default:
+          return this.payment.defaultQuoteTimeout;
+      }
+    },
+
+    standards: [
+      {
+        id: PaymentStandard.OPEN_CRYPTO_PAY,
+        label: 'OpenCryptoPay.io',
+        description: 'Pay with OpenCryptoPay, Bitcoin Lightning LNURL',
+        paymentIdentifierLabel: 'URL',
+      },
+      {
+        id: PaymentStandard.LIGHTNING_BOLT11,
+        label: 'Bitcoin Lightning',
+        description: 'Pay with a Bolt 11 Invoice',
+        paymentIdentifierLabel: 'LNR',
+      },
+      {
+        id: PaymentStandard.PAY_TO_ADDRESS,
+        label: '{{blockchain}} address',
+        description: 'Pay to a {{blockchain}} Blockchain address',
+        paymentIdentifierLabel: 'URI',
+      },
+    ],
+  };
+
+  blockchain = {
+    default: {
+      user: process.env.NODE_USER,
+      password: process.env.NODE_PASSWORD,
+      inp: {
+        active: process.env.NODE_INP_URL_ACTIVE,
+        passive: process.env.NODE_INP_URL_PASSIVE,
+      },
+      dex: {
+        active: process.env.NODE_DEX_URL_ACTIVE,
+        passive: process.env.NODE_DEX_URL_PASSIVE,
+        address: process.env.DEX_WALLET_ADDRESS,
+      },
+      btcInput: {
+        active: process.env.NODE_BTC_INP_URL_ACTIVE,
+        passive: process.env.NODE_BTC_INP_URL_PASSIVE,
+      },
+      btcOutput: {
+        active: process.env.NODE_BTC_OUT_URL_ACTIVE,
+        passive: process.env.NODE_BTC_OUT_URL_PASSIVE,
+        address: process.env.BTC_OUT_WALLET_ADDRESS,
+      },
+      walletPassword: process.env.NODE_WALLET_PASSWORD,
+      utxoSpenderAddress: process.env.UTXO_SPENDER_ADDRESS,
+      minTxAmount: 0.00000297,
+      allowUnconfirmedUtxos: true,
+      cpfpFeeMultiplier: +(process.env.CPFP_FEE_MULTIPLIER ?? '2.0'),
+      defaultFeeMultiplier: +(process.env.DEFAULT_FEE_MULTIPLIER ?? '1.5'),
+    },
+    evm: {
+      depositSeed: process.env.EVM_DEPOSIT_SEED,
+      custodySeed: process.env.EVM_CUSTODY_SEED,
+      minimalPreparationFee: 0.00000001,
+
+      // EIP-7702 Delegation (MetaMask EIP7702StatelessDeleGator v1.3.0)
+      delegationEnabled: process.env.EVM_DELEGATION_ENABLED === 'true',
+      delegatorAddress: '0x63c0c19a282a1b52b07dd5a65b58948a07dae32b',
+
+      // Pimlico Paymaster for EIP-5792 gasless transactions
+      pimlicoApiKey: process.env.PIMLICO_API_KEY,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.evm.depositSeed,
+        index: accountIndex,
+      }),
+
+      custodyAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.evm.custodySeed,
+        index: accountIndex,
+      }),
+    },
+    ethereum: {
+      ...EVM_CHAINS.ethereum,
+      ethGatewayUrl: EVM_CHAINS.ethereum.gatewayUrl,
+      ethChainId: EVM_CHAINS.ethereum.chainId,
+      ethWalletAddress: process.env.ETH_WALLET_ADDRESS,
+      ethWalletPrivateKey: process.env.ETH_WALLET_PRIVATE_KEY,
+      ethApiKey: process.env.ALCHEMY_API_KEY,
+    },
+    sepolia: {
+      ...EVM_CHAINS.sepolia,
+      sepoliaGatewayUrl: EVM_CHAINS.sepolia.gatewayUrl,
+      sepoliaChainId: EVM_CHAINS.sepolia.chainId,
+      sepoliaWalletAddress: process.env.SEPOLIA_WALLET_ADDRESS,
+      sepoliaWalletPrivateKey: process.env.SEPOLIA_WALLET_PRIVATE_KEY,
+      sepoliaApiKey: process.env.ALCHEMY_API_KEY,
+    },
+    optimism: {
+      ...EVM_CHAINS.optimism,
+      optimismGatewayUrl: EVM_CHAINS.optimism.gatewayUrl,
+      optimismChainId: EVM_CHAINS.optimism.chainId,
+      optimismWalletAddress: process.env.OPTIMISM_WALLET_ADDRESS,
+      optimismWalletPrivateKey: process.env.OPTIMISM_WALLET_PRIVATE_KEY,
+      optimismApiKey: process.env.ALCHEMY_API_KEY,
+    },
+    arbitrum: {
+      ...EVM_CHAINS.arbitrum,
+      arbitrumGatewayUrl: EVM_CHAINS.arbitrum.gatewayUrl,
+      arbitrumChainId: EVM_CHAINS.arbitrum.chainId,
+      arbitrumWalletAddress: process.env.ARBITRUM_WALLET_ADDRESS,
+      arbitrumWalletPrivateKey: process.env.ARBITRUM_WALLET_PRIVATE_KEY,
+      arbitrumApiKey: process.env.ALCHEMY_API_KEY,
+    },
+    polygon: {
+      ...EVM_CHAINS.polygon,
+      polygonGatewayUrl: EVM_CHAINS.polygon.gatewayUrl,
+      polygonChainId: EVM_CHAINS.polygon.chainId,
+      polygonWalletAddress: process.env.POLYGON_WALLET_ADDRESS,
+      polygonWalletPrivateKey: process.env.POLYGON_WALLET_PRIVATE_KEY,
+      polygonApiKey: process.env.ALCHEMY_API_KEY,
+    },
+    base: {
+      ...EVM_CHAINS.base,
+      baseGatewayUrl: EVM_CHAINS.base.gatewayUrl,
+      baseChainId: EVM_CHAINS.base.chainId,
+      baseWalletAddress: process.env.BASE_WALLET_ADDRESS,
+      baseWalletPrivateKey: process.env.BASE_WALLET_PRIVATE_KEY,
+      baseApiKey: process.env.ALCHEMY_API_KEY,
+    },
+    gnosis: {
+      ...EVM_CHAINS.gnosis,
+      gnosisGatewayUrl: EVM_CHAINS.gnosis.gatewayUrl,
+      gnosisChainId: EVM_CHAINS.gnosis.chainId,
+      gnosisWalletAddress: process.env.GNOSIS_WALLET_ADDRESS,
+      gnosisWalletPrivateKey: process.env.GNOSIS_WALLET_PRIVATE_KEY,
+      gnosisApiKey: process.env.ALCHEMY_API_KEY,
+      swapContractAddress: process.env.GNOSIS_SWAP_CONTRACT_ADDRESS,
+      quoteContractAddress: process.env.GNOSIS_QUOTE_CONTRACT_ADDRESS,
+    },
+    bsc: {
+      ...EVM_CHAINS.bsc,
+      bscGatewayUrl: EVM_CHAINS.bsc.gatewayUrl,
+      bscChainId: EVM_CHAINS.bsc.chainId,
+      bscWalletAddress: process.env.BSC_WALLET_ADDRESS,
+      bscWalletPrivateKey: process.env.BSC_WALLET_PRIVATE_KEY,
+      bscApiKey: process.env.ALCHEMY_API_KEY,
+      gasPrice: process.env.BSC_GAS_PRICE,
+    },
+    citrea: {
+      ...EVM_CHAINS.citrea,
+      citreaGatewayUrl: EVM_CHAINS.citrea.gatewayUrl,
+      citreaChainId: EVM_CHAINS.citrea.chainId,
+      citreaWalletAddress: process.env.CITREA_WALLET_ADDRESS,
+      citreaWalletPrivateKey: process.env.CITREA_WALLET_PRIVATE_KEY,
+      citreaApiKey: process.env.CITREA_API_KEY,
+      blockscoutApiUrl: process.env.CITREA_BLOCKSCOUT_API_URL,
+    },
+    citreaTestnet: {
+      ...EVM_CHAINS.citreaTestnet,
+      citreaTestnetGatewayUrl: EVM_CHAINS.citreaTestnet.gatewayUrl,
+      citreaTestnetChainId: EVM_CHAINS.citreaTestnet.chainId,
+      citreaTestnetWalletAddress: process.env.CITREA_TESTNET_WALLET_ADDRESS,
+      citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
+      citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
+      blockscoutApiUrl: process.env.CITREA_TESTNET_BLOCKSCOUT_API_URL,
+    },
+    clementine: {
+      network: (process.env.CLEMENTINE_NETWORK as ClementineNetwork) ?? ClementineNetwork.BITCOIN,
+      cliPath: process.env.CLEMENTINE_CLI_PATH ?? 'clementine-cli',
+      homeDir: process.env.CLEMENTINE_HOME_DIR ?? '/home',
+      recoveryTaprootAddress: process.env.CLEMENTINE_RECOVERY_TAPROOT_ADDRESS,
+      signerAddress: process.env.CLEMENTINE_SIGNER_ADDRESS,
+      timeoutMs: parseInt(process.env.CLEMENTINE_TIMEOUT_MS ?? '60000'),
+      signingTimeoutMs: parseInt(process.env.CLEMENTINE_SIGNING_TIMEOUT_MS ?? '300000'),
+      expectedVersion: process.env.CLEMENTINE_CLI_VERSION ?? '',
+      passphrase: process.env.CLEMENTINE_PASSPHRASE ?? '',
+    },
+    bitcoinTestnet4: {
+      btcTestnet4Output: {
+        active: process.env.NODE_BTC_TESTNET4_OUT_URL_ACTIVE,
+        passive: process.env.NODE_BTC_TESTNET4_OUT_URL_PASSIVE,
+        address: process.env.BTC_TESTNET4_OUT_WALLET_ADDRESS,
+      },
+      user: process.env.NODE_BTC_TESTNET4_USER,
+      password: process.env.NODE_BTC_TESTNET4_PASSWORD,
+      walletPassword: process.env.NODE_BTC_TESTNET4_WALLET_PASSWORD,
+      minTxAmount: 0.00000297,
+    },
+    lightning: {
+      lnbits: {
+        apiKey: process.env.LIGHTNING_LNBITS_API_KEY,
+        apiUrl: process.env.LIGHTNING_LNBITS_API_URL,
+        lnurlpApiUrl: process.env.LIGHTNING_LNBITS_LNURLP_API_URL,
+        lnurlpUrl: process.env.LIGHTNING_LNBITS_LNURLP_URL,
+        lnurlwApiUrl: process.env.LIGHTNING_LNBITS_LNURLW_API_URL,
+        signingPrivKey: process.env.LIGHTNING_SIGNING_PRIV_KEY?.split('<br>').join('\n'),
+        signingPubKey: process.env.LIGHTNING_SIGNING_PUB_KEY?.split('<br>').join('\n'),
+      },
+      lnd: {
+        apiUrl: process.env.LIGHTNING_LND_API_URL,
+        adminMacaroon: process.env.LIGHTNING_LND_ADMIN_MACAROON,
+      },
+      certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
+    },
+    boltz: {
+      apiUrl: process.env.BOLTZ_API_URL,
+      seed: process.env.BOLTZ_SEED,
+    },
+    spark: {
+      sparkWalletSeed: process.env.SPARK_WALLET_SEED,
+    },
+    ark: {
+      arkPrivateKey: process.env.ARK_PRIVATE_KEY,
+      arkServerUrl: process.env.ARK_SERVER_URL ?? 'https://arkade.computer',
+    },
+    firo: {
+      node: {
+        url: process.env.FIRO_NODE_URL,
+      },
+      user: process.env.FIRO_NODE_USER,
+      password: process.env.FIRO_NODE_PASSWORD,
+      walletPassword: process.env.FIRO_NODE_WALLET_PASSWORD,
+      walletAddress: process.env.FIRO_WALLET_ADDRESS,
+      transparentTxSize: 225, // bytes (Legacy P2PKH, no SegWit, 1-in-1-out)
+      sparkMintTxSize: 480, // bytes (mintspark with SchnorrProof, 1 recipient)
+      inputSize: 225, // bytes per input for coin selection fee estimation
+      outputSize: 34, // bytes per P2PKH output
+      txOverhead: 10, // bytes fixed transaction overhead
+      allowUnconfirmedUtxos: process.env.FIRO_ALLOW_UNCONFIRMED_UTXOS === 'true',
+      cpfpFeeMultiplier: +(process.env.FIRO_CPFP_FEE_MULTIPLIER ?? '2.0'),
+      defaultFeeMultiplier: +(process.env.FIRO_DEFAULT_FEE_MULTIPLIER ?? '1.5'),
+    },
+    monero: {
+      node: {
+        url: process.env.MONERO_NODE_URL,
+      },
+      rpc: {
+        url: process.env.MONERO_RPC_URL,
+      },
+      walletAddress: process.env.MONERO_WALLET_ADDRESS,
+      certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
+    },
+    zano: {
+      node: {
+        url: process.env.ZANO_NODE_URL,
+      },
+      wallet: {
+        url: process.env.ZANO_WALLET_URL,
+        address: process.env.ZANO_WALLET_ADDRESS,
+      },
+      coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
+      fee: 0.01,
+    },
+    solana: {
+      solanaWalletSeed: process.env.SOLANA_WALLET_SEED,
+      solanaGatewayUrl: process.env.SOLANA_GATEWAY_URL,
+      solanaApiKey: process.env.TATUM_API_KEY,
+      transactionPriorityRate: +(process.env.SOLANA_TRANSACTION_PRIORITY_RATE ?? 1),
+      minimalCoinAccountRent: 0.00089088,
+      createTokenAccountFee: 0.00203928,
+      minimalPreparationFee: 0.00000001,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.solana.solanaWalletSeed,
+        index: accountIndex,
+      }),
+    },
+    tron: {
+      tronWalletSeed: process.env.TRON_WALLET_SEED,
+      tronGatewayUrl: process.env.TRON_GATEWAY_URL,
+      tronApiUrl: process.env.TRON_API_URL,
+      tronRpcUrl: process.env.TRON_RPC_URL,
+      tronApiKey: process.env.TATUM_API_KEY,
+      // Definition: USDT Contract: 64.285, all other contracts: 100.000
+      usdtTransferEnergy: 64285,
+      tokenTransferEnergy: 100000,
+      // Coin Bandwidth definition: Bandwidth cost: 268
+      coinTransferBandwidth: 268,
+      // Token Bandwidth definition: Bandwidth cost: 70, Signature cost: 65
+      tokenTransferBandwidth: 70 + 65,
+      // Max send token fee: 100 TRX
+      sendTokenFeeLimit: 100_000_000,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.tron.tronWalletSeed,
+        index: accountIndex,
+      }),
+    },
+    cardano: {
+      cardanoWalletSeed: process.env.CARDANO_WALLET_SEED,
+      cardanoApiUrl: process.env.CARDANO_API_URL,
+      cardanoTatumApiKey: process.env.TATUM_API_KEY,
+      cardanoBlockFrostApiKey: process.env.BLOCKFROST_API_KEY,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.cardano.cardanoWalletSeed,
+        index: accountIndex,
+      }),
+    },
+    internetComputer: {
+      internetComputerHost: 'https://icp-api.io',
+      internetComputerRosettaApiUrl: process.env.ICP_ROSETTA_API_URL ?? 'https://rosetta-api.internetcomputer.org',
+      internetComputerWalletSeed: process.env.ICP_WALLET_SEED,
+      internetComputerLedgerCanisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai',
+      transferFee: 0.0001,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.internetComputer.internetComputerWalletSeed,
+        index: accountIndex,
+      }),
+    },
+    frankencoin: {
+      zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
+      contractAddress: {
+        zchf: process.env.ZCHF_CONTRACT_ADDRESS,
+        equity: process.env.ZCHF_EQUITY_CONTRACT_ADDRESS,
+        stablecoinBridge: process.env.ZCHF_STABLECOIN_BRIDGE_CONTRACT_ADDRESS,
+        xchf: process.env.ZCHF_XCHF_CONTRACT_ADDRESS,
+        fpsWrapper: process.env.ZCHF_FPS_WRAPPER_CONTRACT_ADDRESS,
+      },
+    },
+    deuro: {
+      graphUrl: process.env.DEURO_GRAPH_URL,
+      apiUrl: process.env.DEURO_API_URL,
+    },
+    juice: {
+      graphUrl: process.env.JUSD_GRAPH_URL,
+      apiUrl: process.env.JUSD_API_URL,
+    },
+    realunit: {
+      graphUrl: process.env.REALUNIT_GRAPH_URL,
+      api: {
+        url: process.env.REALUNIT_API_URL,
+        key: process.env.REALUNIT_API_KEY,
+      },
+      brokerbotAddress: [Environment.DEV, Environment.LOC].includes(this.environment)
+        ? '0x39c33c2fd5b07b8e890fd2115d4adff7235fc9d2'
+        : '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d',
+      bank: {
+        recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
+        iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',
+        ibanEur: process.env.REALUNIT_BANK_IBAN_EUR ?? 'CH97 0830 7000 5609 4631 7',
+        bic: process.env.REALUNIT_BANK_BIC ?? 'HYPLCH22XXX',
+        name: process.env.REALUNIT_BANK_NAME ?? 'Hypothekarbank Lenzburg',
+      },
+      address: {
+        street: process.env.REALUNIT_ADDRESS_STREET ?? 'Schochenmühlestrasse',
+        number: process.env.REALUNIT_ADDRESS_NUMBER ?? '6',
+        zip: process.env.REALUNIT_ADDRESS_ZIP ?? '6340',
+        city: process.env.REALUNIT_ADDRESS_CITY ?? 'Baar',
+        country: process.env.REALUNIT_ADDRESS_COUNTRY ?? 'Switzerland',
+      },
+    },
+    ebel2x: {
+      contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
+    },
+  };
+
+  exchange: ConstructorArgs = {
+    enableRateLimit: true,
+    rateLimit: 500,
+    timeout: 30000,
+  };
+
+  exchangeTxSyncLimit = +(process.env.EXCHANGE_TX_SYNC_LIMIT ?? 720); // minutes
+
+  dilisense = {
+    jsonPath: process.env.DILISENSE_JSON_PATH,
+    key: process.env.DILISENSE_KEY,
+  };
+
+  sepaTools = {
+    auth: {
+      username: process.env.SEPA_TOOLS_USER,
+      password: process.env.SEPA_TOOLS_PASSWORD,
+    },
+  };
+
+  ikna = {
+    Authorization: process.env.IKNA_KEY,
+  };
+
+  invoice = {
+    currencies: ['EUR', 'CHF'],
+    defaultCurrency: 'CHF',
+  };
+
+  bank = {
+    dfxAddress: {
+      name: 'DFX AG',
+      street: 'Bahnhofstrasse',
+      number: '7',
+      zip: '6300',
+      city: 'Zug',
+      country: 'Schweiz',
+    },
+    olkypay: {
+      credentials: {
+        clientId: process.env.OLKY_CLIENT,
+        username: process.env.OLKY_USERNAME,
+        password: process.env.OLKY_PASSWORD,
+        clientSecret: process.env.OLKY_CLIENT_SECRET,
+      },
+    },
+    raiffeisen: {
+      credentials: {
+        url: process.env.RAIFFEISEN_EBICS_URL,
+        hostId: process.env.RAIFFEISEN_HOST_ID,
+        partnerId: process.env.RAIFFEISEN_PARTNER_ID,
+        userId: process.env.RAIFFEISEN_USER_ID,
+        passphrase: process.env.RAIFFEISEN_PASSPHRASE,
+        iv: process.env.RAIFFEISEN_IV,
+      },
+    },
+    yapeal: {
+      baseUrl: process.env.YAPEAL_BASE_URL,
+      partnershipUid: process.env.YAPEAL_PARTNERSHIP_UID,
+      adminUid: process.env.YAPEAL_ADMIN_UID,
+      apiKey: process.env.YAPEAL_API_KEY,
+      cert: process.env.YAPEAL_CERT?.split('<br>').join('\n'),
+      key: process.env.YAPEAL_KEY?.split('<br>').join('\n'),
+      rootCa: process.env.YAPEAL_ROOT_CA?.split('<br>').join('\n'),
+      webhookApiKey: process.env.YAPEAL_WEBHOOK_API_KEY,
+      accountIdentifier: process.env.YAPEAL_ACCOUNT_IDENTIFIER,
+    },
+    forexFee: 0.02,
+  };
+
+  giroCode = {
+    service: 'BCD',
+    version: '001',
+    encoding: '2',
+    transfer: 'SCT',
+    char: '',
+    ref: '',
+  };
+
+  azure = {
+    subscriptionId: process.env.AZURE_SUBSCRIPTION_ID,
+    tenantId: process.env.AZURE_TENANT_ID,
+    clientId: process.env.AZURE_CLIENT_ID,
+    clientSecret: process.env.AZURE_CLIENT_SECRET,
+    storage: {
+      url: process.env.AZURE_STORAGE_CONNECTION_STRING?.split(';')
+        .find((p) => p.includes('BlobEndpoint'))
+        ?.replace('BlobEndpoint=', ''),
+      connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
+    },
+    appInsights: {
+      appId: process.env.APPINSIGHTS_APP_ID,
+      apiKey: process.env.APPINSIGHTS_API_KEY,
+    },
+  };
+
+  alby = {
+    clientId: process.env.ALBY_CLIENT_ID,
+    clientSecret: process.env.ALBY_CLIENT_SECRET,
+  };
+
+  alchemy = {
+    apiKey: process.env.ALCHEMY_API_KEY,
+    authToken: process.env.ALCHEMY_AUTH_TOKEN,
+  };
+
+  tatum = {
+    apiKey: process.env.TATUM_API_KEY,
+    hmacKey: process.env.TATUM_HMAC_KEY,
+  };
+
+  request = {
+    knownIps: process.env.REQUEST_KNOWN_IPS?.split(',') ?? [],
+    limitCheck: process.env.REQUEST_LIMIT_CHECK === 'true',
+  };
+
+  sift = {
+    apiKey: process.env.SIFT_API_KEY,
+    accountId: process.env.SIFT_ACCOUNT_ID,
+    analyst: process.env.SIFT_ANALYST,
+  };
+
+  checkout = {
+    entityId: process.env.CKO_ENTITY_ID,
+  };
+
+  cronJobDelay = process.env.CRON_JOB_DELAY?.split(';').map(Number) ?? [];
+
+  // --- GETTERS --- //
+  url(version: Version = this.defaultVersion): string {
+    const versionString = `v${version}`;
+    return this.environment === Environment.LOC
+      ? `http://localhost:${this.port}/${versionString}`
+      : `https://${this.environment === Environment.PRD ? '' : this.environment + '.'}api.dfx.swiss/${versionString}`;
+  }
+
+  get kraken(): ConstructorArgs {
+    return {
+      apiKey: process.env.KRAKEN_KEY,
+      secret: process.env.KRAKEN_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.KRAKEN_WITHDRAW_KEYS),
+      ...this.exchange,
+    };
+  }
+
+  get binance(): ConstructorArgs {
+    return {
+      apiKey: process.env.BINANCE_KEY,
+      secret: process.env.BINANCE_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.BINANCE_WITHDRAW_KEYS),
+      quoteJsonNumbers: false,
+      ...this.exchange,
+    };
+  }
+
+  get p2b(): ConstructorArgs {
+    return {
+      apiKey: process.env.P2B_KEY,
+      secret: process.env.P2B_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.P2B_WITHDRAW_KEYS),
+      ...this.exchange,
+    };
+  }
+
+  get xt(): ConstructorArgs {
+    return {
+      apiKey: process.env.XT_KEY,
+      secret: process.env.XT_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.XT_WITHDRAW_KEYS),
+      ...this.exchange,
+    };
+  }
+
+  get mexc(): ConstructorArgs {
+    return {
+      apiKey: process.env.MEXC_KEY,
+      secret: process.env.MEXC_SECRET,
+      withdrawKeys: splitWithdrawKeys(process.env.MEXC_WITHDRAW_KEYS),
+      ...this.exchange,
+      timeout: 30_000,
+    };
+  }
+
+  scrypt = {
+    wsUrl: process.env.SCRYPT_WS_URL,
+    apiKey: process.env.SCRYPT_API_KEY,
+    apiSecret: process.env.SCRYPT_API_SECRET,
+  };
+
+  get evmWallets(): Map<string, string> {
+    return splitWithdrawKeys(process.env.EVM_WALLETS);
+  }
+
+  // --- HELPERS --- //
+  disabledProcesses = () =>
+    process.env.DISABLED_PROCESSES === '*'
+      ? Object.values(Process)
+      : ((process.env.DISABLED_PROCESSES?.split(',') ?? []) as Process[]);
+}
+
+function splitWithdrawKeys(value?: string): Map<string, string> {
+  return (value?.split(',') ?? [])
+    .map((k) => k.split(':'))
+    .reduce((prev, [key, value]) => prev.set(key, value), new Map<string, string>());
+}
+
+@Injectable()
+export class ConfigService {
+  constructor(@Optional() readonly config?: Configuration) {
+    Config = config ?? GetConfig();
+  }
+}
+
+export let Config: Configuration;

@@ -114,11 +114,6 @@ export class BuyCryptoNotificationService {
               salutation: { key: `${MailTranslationKey.CRYPTO_OUTPUT}.salutation` },
               texts: [
                 {
-                  key: `${MailTranslationKey.GENERAL}.welcome`,
-                  params: { name: entity.userData.organizationName ?? entity.userData.firstname },
-                },
-                { key: MailKey.SPACE, params: { value: '2' } },
-                {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
                   params: { url: entity.transaction.url, button: 'true' },
                 },
@@ -161,11 +156,6 @@ export class BuyCryptoNotificationService {
             title: `${MailTranslationKey.PROCESSING}.title`,
             salutation: { key: `${MailTranslationKey.PROCESSING}.salutation` },
             texts: [
-              {
-                key: `${MailTranslationKey.GENERAL}.welcome`,
-                params: { name: entity.userData.organizationName ?? entity.userData.firstname },
-              },
-              { key: MailKey.SPACE, params: { value: '2' } },
               {
                 key: `${MailTranslationKey.PAYMENT}.transaction_button`,
                 params: { url: entity.transaction.url, button: 'true' },
@@ -226,11 +216,6 @@ export class BuyCryptoNotificationService {
                 key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.salutation`,
               },
               texts: [
-                {
-                  key: `${MailTranslationKey.GENERAL}.welcome`,
-                  params: { name: entity.userData.organizationName ?? entity.userData.firstname },
-                },
-                { key: MailKey.SPACE, params: { value: '2' } },
                 { key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line1` },
                 {
                   key: `${MailFactory.parseMailKey(MailTranslationKey.PENDING, entity.amlReason)}.line2`,
@@ -324,11 +309,6 @@ export class BuyCryptoNotificationService {
               salutation: { key: `${entity.translationReturnMailKey}.salutation` },
               texts: [
                 {
-                  key: `${MailTranslationKey.GENERAL}.welcome`,
-                  params: { name: entity.userData.organizationName ?? entity.userData.firstname },
-                },
-                { key: MailKey.SPACE, params: { value: '2' } },
-                {
                   key: `${MailTranslationKey.PAYMENT}.transaction_button`,
                   params: { url: entity.transaction.url, button: 'true' },
                 },
@@ -409,11 +389,6 @@ export class BuyCryptoNotificationService {
                 key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.salutation`,
               },
               texts: [
-                {
-                  key: `${MailTranslationKey.GENERAL}.welcome`,
-                  params: { name: entity.userData.organizationName ?? entity.userData.firstname },
-                },
-                { key: MailKey.SPACE, params: { value: '2' } },
                 {
                   key: `${MailTranslationKey.CHARGEBACK_UNCONFIRMED}.transaction_button`,
                   params: { url: entity.transaction.url, button: 'true' },

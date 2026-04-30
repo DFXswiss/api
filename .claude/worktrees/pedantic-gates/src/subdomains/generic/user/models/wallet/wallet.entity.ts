@@ -1,0 +1,128 @@
+import { IEntity } from 'src/shared/models/entity';
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
+import { KycStepType } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { MailContextType } from 'src/subdomains/supporting/notification/enums';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
+import { WebhookType } from '../../services/webhook/dto/webhook.dto';
+import { KycType } from '../user-data/user-data.enum';
+
+export interface WebhookConfig {
+  payment: WebhookConfigOption;
+  kyc: WebhookConfigOption;
+}
+
+export enum WebhookConfigOption {
+  TRUE = 'True',
+  FALSE = 'False',
+  CONSENT_ONLY = 'ConsentOnly',
+  WALLET_ONLY = 'WalletOnly',
+}
+
+@Entity()
+export class Wallet extends IEntity {
+  @ManyToOne(() => User, { nullable: true })
+  owner?: User;
+
+  @Column({ length: 256, nullable: true })
+  @Index({ unique: true, where: 'address IS NOT NULL' })
+  address?: string;
+
+  @Column({ length: 256, nullable: true })
+  name?: string;
+
+  @Column({ length: 256, nullable: true })
+  displayName?: string;
+
+  @Column({ default: false })
+  isKycClient: boolean;
+
+  @Column({ default: false })
+  displayFraudWarning: boolean;
+
+  @Column({ default: false })
+  usesDummyAddresses: boolean;
+
+  @Column({ nullable: true })
+  customKyc?: KycType;
+
+  @OneToMany(() => User, (user) => user.wallet)
+  users: User[];
+
+  @Column({ length: 256, nullable: true })
+  identMethod?: KycStepType;
+
+  @Column({ length: 256, nullable: true })
+  apiUrl?: string;
+
+  @Column({ length: 256, nullable: true })
+  apiKey?: string;
+
+  @Column({ default: '0' })
+  amlRules: string; // semicolon separated amlRule id's
+
+  @Column({ nullable: true })
+  exceptAmlRules: string; // semicolon separated amlRule id's
+
+  @Column({ length: 'MAX', nullable: true })
+  webhookConfig?: string; // JSON string
+
+  @Column({ length: 'MAX', nullable: true })
+  mailConfig?: string; // semicolon separated disabled MailContextTypes
+
+  @Column({ default: false })
+  autoTradeApproval: boolean;
+
+  @Column({ default: false })
+  buySpecificIbanEnabled: boolean;
+
+  //*** ENTITY METHODS ***//
+
+  get webhookConfigObject(): WebhookConfig | undefined {
+    return this.webhookConfig ? (JSON.parse(this.webhookConfig) as WebhookConfig) : undefined;
+  }
+
+  get disabledMailTypes(): MailContextType[] {
+    return this.mailConfig ? (this.mailConfig?.split(';') as MailContextType[]) : [];
+  }
+
+  get amlRuleList(): AmlRule[] {
+    return (
+      this.amlRules
+        ?.split(';')
+        .map((num) => Number(num))
+        .filter((num) => Object.values(AmlRule).includes(num)) ?? []
+    );
+  }
+
+  get exceptAmlRuleList(): AmlRule[] {
+    return (
+      this.exceptAmlRules
+        ?.split(';')
+        .map((num) => Number(num))
+        .filter((num) => Object.values(AmlRule).includes(num)) ?? []
+    );
+  }
+
+  isValidForWebhook(type: WebhookType, consented: boolean): boolean {
+    if (!this.apiUrl) return false;
+
+    switch (type) {
+      case WebhookType.KYC_CHANGED:
+      case WebhookType.KYC_FAILED:
+      case WebhookType.ACCOUNT_CHANGED:
+        return this.isOptionValid(this.webhookConfigObject?.kyc, consented);
+
+      case WebhookType.PAYMENT:
+        return this.isOptionValid(this.webhookConfigObject?.payment, consented);
+    }
+  }
+
+  private isOptionValid(option: WebhookConfigOption | undefined, consented: boolean): boolean {
+    return (
+      option === WebhookConfigOption.TRUE ||
+      (option === WebhookConfigOption.CONSENT_ONLY && consented) ||
+      (option === WebhookConfigOption.WALLET_ONLY && !consented)
+    );
+  }
+}

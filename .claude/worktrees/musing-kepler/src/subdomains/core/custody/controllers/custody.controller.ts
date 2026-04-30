@@ -1,0 +1,122 @@
+import { Body, Controller, Get, NotFoundException, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { AuthGuard } from '@nestjs/passport';
+import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeController, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { RealIP } from 'nestjs-real-ip';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { RoleGuard } from 'src/shared/auth/role.guard';
+import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
+import { UserRole } from 'src/shared/auth/user-role.enum';
+import { AssetService } from 'src/shared/models/asset/asset.service';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
+import { CustodySignupDto } from '../dto/input/custody-signup.dto';
+import { GetCustodyInfoDto } from '../dto/input/get-custody-info.dto';
+import { GetCustodyPdfDto } from '../dto/input/get-custody-pdf.dto';
+import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
+import { CustodyBalanceDto, CustodyHistoryDto } from '../dto/output/custody-balance.dto';
+import { CustodyOrderDto } from '../dto/output/custody-order.dto';
+import { CustodyOrderListEntry } from '../dto/output/custody-order-list-entry.dto';
+import { CustodyOrderService } from '../services/custody-order.service';
+import { CustodyPdfService } from '../services/custody-pdf.service';
+import { CustodyService } from '../services/custody.service';
+
+@ApiTags('Custody')
+@Controller('custody')
+export class CustodyController {
+  constructor(
+    private readonly service: CustodyService,
+    private readonly custodyOrderService: CustodyOrderService,
+    private readonly custodyPdfService: CustodyPdfService,
+  ) {}
+
+  @Get()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOkResponse({ type: CustodyBalanceDto })
+  async getUserCustodyBalance(@GetJwt() jwt: JwtPayload): Promise<CustodyBalanceDto> {
+    return this.service.getUserCustodyBalance(jwt.account);
+  }
+
+  @Get('history')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOkResponse({ type: CustodyHistoryDto })
+  async getUserCustodyHistory(@GetJwt() jwt: JwtPayload): Promise<CustodyHistoryDto> {
+    return this.service.getUserCustodyHistory(jwt.account);
+  }
+
+  @Get('pdf')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOkResponse({ type: PdfDto, description: 'Custody balance PDF report (base64 encoded)' })
+  async getCustodyPdf(@GetJwt() jwt: JwtPayload, @Query() dto: GetCustodyPdfDto): Promise<PdfDto> {
+    const pdfData = await this.custodyPdfService.generateCustodyPdf(jwt.account, dto);
+    return { pdfData };
+  }
+
+  @Post()
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiCreatedResponse({ type: CustodyAuthDto })
+  async createCustodyAccount(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: CustodySignupDto,
+    @RealIP() ip: string,
+  ): Promise<CustodyAuthDto> {
+    return this.service.createCustodyAccount(jwt.account, dto, ip);
+  }
+
+  @Post('order')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.CUSTODY), UserActiveGuard())
+  @ApiCreatedResponse({ type: CustodyOrderDto })
+  async createOrder(@GetJwt() jwt: JwtPayload, @Body() dto: GetCustodyInfoDto): Promise<CustodyOrderDto> {
+    return this.custodyOrderService.createOrder(jwt, dto);
+  }
+
+  @Post('order/:id/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.CUSTODY), UserActiveGuard())
+  @ApiCreatedResponse()
+  async confirmOrder(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
+    await this.custodyOrderService.confirmOrder(jwt.user, +id);
+  }
+}
+
+@ApiExcludeController()
+@Controller('custody/admin')
+export class CustodyAdminController {
+  constructor(
+    private readonly service: CustodyService,
+    private readonly custodyOrderService: CustodyOrderService,
+    private readonly userService: UserService,
+    private readonly assetService: AssetService,
+  ) {}
+
+  @Put('user/:id/balance')
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async updateUserBalance(@Param('id') id: string, @Query('assetId') assetId: string): Promise<void> {
+    const user = await this.userService.getUser(+id);
+    if (!user) throw new NotFoundException('User not found');
+
+    const asset = await this.assetService.getAssetById(+assetId);
+    if (!asset) throw new NotFoundException('Asset not found');
+
+    return this.service.updateCustodyBalance(asset, user);
+  }
+
+  @Get('orders')
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async getOrders(): Promise<CustodyOrderListEntry[]> {
+    return this.custodyOrderService
+      .getOrdersForSupport()
+      .then((orders) => orders.map(CustodyOrderListEntry.fromEntity));
+  }
+
+  @Post('order/:id/approve')
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async approveOrder(@Param('id') id: string): Promise<void> {
+    return this.custodyOrderService.approveOrder(+id);
+  }
+}

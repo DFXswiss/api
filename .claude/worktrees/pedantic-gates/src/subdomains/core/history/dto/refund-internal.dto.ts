@@ -1,0 +1,62 @@
+import { Transform, Type } from 'class-transformer';
+import { IsDate, IsIBAN, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
+import { CheckoutReverse } from 'src/integration/checkout/services/checkout.service';
+import { EntityDto } from 'src/shared/dto/entity.dto';
+import { Util } from 'src/shared/utils/util';
+import { CreditorData } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
+
+export class RefundInternalDto {
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  refundUser?: User;
+
+  @IsOptional()
+  @IsString()
+  @IsIBAN()
+  @Transform(Util.trimAll)
+  refundIban?: string;
+
+  @IsOptional()
+  @IsNumber()
+  chargebackAmount?: number;
+
+  @IsOptional()
+  @IsString()
+  chargebackAsset?: string;
+
+  @IsOptional()
+  @IsDate()
+  @Type(() => Date)
+  chargebackAllowedDate?: Date;
+
+  @IsOptional()
+  @IsString()
+  chargebackAllowedBy?: string;
+}
+
+export class BaseRefund {
+  chargebackAmount?: number;
+  chargebackCurrency?: string;
+  chargebackAllowedDate?: Date;
+  chargebackAllowedDateUser?: Date;
+  chargebackAllowedBy?: string;
+}
+
+export class BankTxRefund extends BaseRefund {
+  refundIban?: string;
+  chargebackOutput?: FiatOutput;
+  creditorData?: CreditorData;
+  chargebackReferenceAmount?: number;
+}
+
+export class CheckoutTxRefund extends BaseRefund {
+  chargebackRemittanceInfo?: CheckoutReverse;
+}
+
+export class CryptoInputRefund extends BaseRefund {
+  refundUserAddress?: string;
+  refundUserId?: number;
+}
