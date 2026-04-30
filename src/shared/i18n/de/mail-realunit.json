@@ -10,23 +10,23 @@
   },
   "login": {
     "title": "RealUnit Login",
-    "salutation": "RealUnit Login",
+    "salutation": "Sie haben einen Login angefordert",
     "message": "Klicken Sie den nachfolgenden Link innerhalb von {expiration} Minuten, um sich in der RealUnit App einzuloggen:<br>[url:{urlText}]"
   },
   "payment": {
     "crypto_input": {
       "title": "Verkauf RealUnit-Token – Eingang erhalten",
       "salutation": "Ihre RealUnit-Token sind bei uns eingetroffen",
-      "body": "Ihre RealUnit-Token sind im Verkaufsprozess bei uns eingetroffen und werden nun verarbeitet. Sobald die Auszahlung auf Ihre IBAN erfolgt ist, werden Sie wieder per Mail informiert."
+      "body": "Sobald die Auszahlung auf Ihre IBAN erfolgt ist, werden Sie wieder per Mail informiert."
     },
     "fiat_input": {
       "title": "Kauf RealUnit-Token – Einzahlung eingetroffen",
       "salutation": "Ihre Einzahlung ist bei uns eingetroffen und wird verarbeitet",
-      "body": "Ihre Banküberweisung ist bei uns eingegangen und wird nun verarbeitet. Sobald die RealUnit-Token in Ihr Wallet überwiesen sind, werden Sie wieder per Mail informiert.",
+      "body": "Sobald die RealUnit-Token in Ihr Wallet überwiesen sind, werden Sie wieder per Mail informiert.",
       "unassigned": {
         "title": "Einzahlung zuordnen",
         "salutation": "Ihre Einzahlung kann nicht automatisch zugeordnet werden",
-        "body": "Öffnen Sie die App um dort die Einzahlung manuell zuzuordnen.",
+        "body": "Öffnen Sie die App, um die Einzahlung manuell zuzuordnen. Sobald die Zuordnung erfolgt ist, wird Ihre Bestellung weiter verarbeitet und Sie werden wieder per Mail informiert.",
         "transaction_button": ""
       },
       "currency_exchange": "Hinweis: Das verwendete Bankkonto ist ein {bankAsset}-Konto. Wenn Sie {inputAsset} senden, wird dies direkt bei der Bank getauscht und wir erhalten {bankAsset}.<br>In der RealUnit App stehen Ihnen für Einzahlungen sowohl ein CHF- als auch ein EUR-Bankkonto zur Verfügung."
@@ -211,9 +211,9 @@
         "line5": "Falls Sie auf die vollständige Verifizierung verzichten möchten, können Sie den Verkauf der Aktientoken hier stornieren:<br>[url:Klick hier]"
       },
       "merge_incomplete": {
-        "title": "Erinnerung an die Bestätigung Ihrer E-Mailadresse",
+        "title": "Erinnerung an die Bestätigung Ihrer E-Mail-Adresse",
         "salutation": "E-Mail-Bestätigung ausstehend",
-        "line1": "Sie haben kürzlich eine Mail zur Verifizierung Ihrer E-Mailadresse erhalten. Der Kauf oder Verkauf der RealUnit-Aktientoken ist erst nach der Bestätigung möglich.",
+        "line1": "Sie haben kürzlich eine Mail zur Verifizierung Ihrer E-Mail-Adresse erhalten. Der Kauf oder Verkauf der RealUnit-Aktientoken ist erst nach der Bestätigung möglich.",
         "line2": "Bitte klicken Sie auf den Link im vorangegangenen E-Mail und bestätigen Sie bei der Firma DFX AG, welche den Handel unserer Aktientoken umsetzt, Ihre E-Mail-Adresse.",
         "line3": "Nachdem diese Bestätigung erteilt ist, wird Ihre ausstehende Transaktion automatisch weiterverarbeitet.",
         "line4": "",
@@ -271,7 +271,7 @@
     "failed": {
       "title": "Problem bei Ihrer Verifizierung",
       "salutation": "Es gab ein Problem bei Ihrer Verifizierung",
-      "message": "Der Schritt '{stepName}' konnte aus folgendem Grund nicht abgeschlossen werden:<br>{reason}",
+      "message": "Der Schritt '{stepName}' konnte aus folgendem Grund nicht abgeschlossen werden:<br>{reason}<br><br>Bitte wiederholen Sie den Schritt. Sobald die Verifizierung erfolgreich abgeschlossen ist, werden Sie wieder per Mail informiert.",
       "reasons": {
         "user_data_merged": "Ihr Account wurde zusammengelegt",
         "user_data_merge_requested": "E-Mail-Bestätigung ausstehend",
@@ -333,7 +333,7 @@
     "request": {
       "title": "E-Mail bestätigen",
       "salutation": "Bestätigen Sie Ihre E-Mail-Adresse",
-      "message": "Klicken Sie den nachfolgenden Link, um Ihre E-Mail-Adresse zu bestätigen:<br>[url:{urlText}]"
+      "message": "Klicken Sie den nachfolgenden Link, um Ihre E-Mail-Adresse zu bestätigen. Nach der Bestätigung werden Ihre Accounts zusammengelegt:<br>[url:{urlText}]"
     },
     "added_address": {
       "title": "Wallet-Adresse hinzugefügt",
