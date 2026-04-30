@@ -183,7 +183,9 @@ export class MailFactory {
 
     const walletName = wallet?.name;
     const walletMailConfig = walletName ? Config.mail.wallet[walletName] : undefined;
-    const lang = walletMailConfig?.forcedLang ? walletMailConfig.forcedLang.toLowerCase() : userData.language.symbol.toLowerCase();
+    const lang = walletMailConfig?.forcedLang
+      ? walletMailConfig.forcedLang.toLowerCase()
+      : userData.language.symbol.toLowerCase();
 
     const welcomeTexts = this.getCentralizedWelcomeTexts(userData, walletMailConfig);
     const walletBodyTexts = this.getWalletBodyTexts(title, lang, walletName);
