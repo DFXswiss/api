@@ -1681,7 +1681,7 @@ export class KycService {
     if (!data.documentNumber) errors.push(KycError.IDENTIFICATION_NUMBER_MISSING);
     if (!data.success) errors.push(KycError.INVALID_RESULT);
 
-    const suspectedDuplicateUser = suspectedDuplicateUsers.find(
+    const suspectedDuplicateUser = suspectedDuplicateUsers?.find(
       (u) =>
         u.identDocumentType !== data.documentType &&
         (Util.includesSameName(u.verifiedName, identStep.userData.verifiedName) ||
