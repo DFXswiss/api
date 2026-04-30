@@ -31,6 +31,7 @@ export enum KycError {
   COUNTRY_IP_COUNTRY_MISMATCH = 'CountryIpCountryMismatch',
   RESIDENCE_PERMIT_CHECK_REQUIRED = 'ResidencePermitCheckRequired',
   MANUAL_REVIEW_REQUIRED = 'ManualReviewRequired',
+  DUPLICATE_ACCOUNT_SUSPECTED = 'DuplicateAccountSuspected',
 
   // Recommendation errors
   EXPIRED_RECOMMENDATION = 'ExpiredRecommendation',
@@ -101,6 +102,7 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.RISK_ACCEPTED]: undefined,
   [KycError.NO_GWG_RISK]: undefined,
   [KycError.USER_CANCELED]: 'You have canceled this KYC step',
+  [KycError.DUPLICATE_ACCOUNT_SUSPECTED]: undefined,
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {
