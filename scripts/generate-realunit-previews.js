@@ -347,19 +347,9 @@ add('crypto-input', t('payment.crypto_input.title'), 'Verkauf', t('payment.crypt
 
 // === AUSSTEHEND (Pending) ===
 const pendingTypes = [
-  ['monthly-limit', 'monthly_limit'],
-  ['annual-limit', 'annual_limit'],
-  ['annual-limit-without-kyc', 'annual_limit_without_kyc'],
   ['manual-check', 'manual_check'],
-  ['high-risk-kyc', 'high_risk_kyc_needed'],
   ['video-ident', 'video_ident_needed'],
-  ['kyc-data', 'kyc_data_needed'],
-  ['name-check-no-kyc', 'name_check_without_kyc'],
-  ['asset-kyc', 'asset_kyc_needed'],
   ['merge-incomplete', 'merge_incomplete'],
-  ['bank-release', 'bank_release_pending'],
-  ['olky-no-kyc', 'olky_no_kyc'],
-  ['bank-tx-needed', 'bank_tx_needed'],
 ];
 
 for (const [file, key] of pendingTypes) {
@@ -380,33 +370,6 @@ for (const [file, key] of pendingTypes) {
   }
   add(`pending-${file}`, title, 'Ausstehend', sal, lines);
 }
-
-// === RÜCKERSTATTUNG ===
-add(
-  'chargeback-crypto',
-  t('payment.chargeback.crypto.title'),
-  'Rückerstattung',
-  t('payment.chargeback.crypto.salutation'),
-  [
-    text(t('payment.chargeback.crypto.body')),
-    text(interpolate(t('payment.chargeback.introduction'), { reason: t('payment.chargeback.reasons.monthly_limit') })),
-  ],
-);
-
-add('chargeback-fiat', t('payment.chargeback.fiat.title'), 'Rückerstattung', t('payment.chargeback.fiat.salutation'), [
-  text(t('payment.chargeback.fiat.body')),
-]);
-
-add(
-  'chargeback-unconfirmed',
-  t('payment.chargeback.unconfirmed.title'),
-  'Rückerstattung',
-  t('payment.chargeback.unconfirmed.salutation'),
-  [
-    text(t('payment.chargeback.unconfirmed.body')),
-    translatedText(t('payment.chargeback.unconfirmed.transaction_button'), { url: sampleUrl, button: 'true' }),
-  ],
-);
 
 // === KYC ===
 add('kyc-success', t('kyc.success.title'), 'KYC', t('kyc.success.salutation'), [text(t('kyc.success.message'))]);
@@ -510,10 +473,6 @@ add('support-message', t('support_message.title'), 'Sonstiges', t('support_messa
   text(t('support_message.message')),
 ]);
 
-add('limit-request', t('limit_request.title'), 'Sonstiges', t('limit_request.title'), [
-  text(interpolate(t('limit_request.message'), { limitAmount: "500'000" })),
-]);
-
 // === GENERATE ===
 fs.rmSync(OUTPUT_DIR, { recursive: true, force: true });
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -524,7 +483,7 @@ for (const mail of mails) {
 }
 
 // Index — fixed category order (customer journey: incoming money first, then completion, sell, holds, refunds, account/auth admin)
-const categoryOrder = ['Kauf', 'Verkauf', 'Ausstehend', 'Rückerstattung', 'KYC', 'Authentifizierung', 'Account', 'Sonstiges'];
+const categoryOrder = ['Kauf', 'Verkauf', 'Ausstehend', 'KYC', 'Authentifizierung', 'Account', 'Sonstiges'];
 const categories = {};
 for (const cat of categoryOrder) categories[cat] = [];
 for (const m of mails) {

@@ -29,7 +29,7 @@
         "body": "Öffnen Sie die App um dort die Einzahlung manuell zuzuordnen.",
         "transaction_button": ""
       },
-      "currency_exchange": "Hinweis: Das {bankAccount} Bankkonto ist ein {bankAsset}-Konto. Wenn Sie {inputAsset} senden, wird dies direkt bei der Bank getauscht und wir erhalten {bankAsset}.<br>In der RealUnit App stehen Ihnen für Einzahlungen sowohl ein CHF- als auch ein EUR-Bankkonto zur Verfügung."
+      "currency_exchange": "Hinweis: Das verwendete Bankkonto ist ein {bankAsset}-Konto. Wenn Sie {inputAsset} senden, wird dies direkt bei der Bank getauscht und wir erhalten {bankAsset}.<br>In der RealUnit App stehen Ihnen für Einzahlungen sowohl ein CHF- als auch ein EUR-Bankkonto zur Verfügung."
     },
     "crypto_output": {
       "title": "Transfer Ihrer RealUnit-Token",
@@ -39,7 +39,7 @@
     "fiat_output": {
       "title": "Verkauf RealUnit-Token – Überweisung erfolgt",
       "salutation": "Ihre RealUnit-Token wurden erfolgreich verkauft",
-      "body": "Sie haben Ihre RealUnit-Token erfolgreich verkauft. Gerne bestätigen wir Ihnen, dass die Überweisung des Verkaufserlöses Ihrem Bankkonto überwiesen wurde. Bitte prüfen Sie den Geldeingang. Den Verkaufsbeleg finden Sie in Ihrer RealUnit App."
+      "body": "Sie haben Ihre RealUnit-Token erfolgreich verkauft. Gerne bestätigen wir Ihnen, dass die Überweisung des Verkaufserlöses Ihrem Bankkonto überwiesen wurde. Der Absender der Banktransaktion lautet auf DFX AG, dem Payment Partner von RealUnit. Bitte prüfen Sie den Geldeingang in den nächsten 1-2 Bankarbeitstagen. Den Verkaufsbeleg finden Sie in Ihrer RealUnit App."
     },
     "processing": {
       "title": "Verkauf Ihrer RealUnit-Token",
