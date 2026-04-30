@@ -288,8 +288,17 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         return false;
       }
 
+      if (this.isTransientWsError(e)) {
+        this.logger.warn(`Transient WS error checking order ${order.id}, will retry next tick: ${e.message}`);
+        return false;
+      }
+
       throw new OrderFailedException(e.message);
     }
+  }
+
+  private isTransientWsError(e: Error): boolean {
+    return ['Connection closed', 'unknown reqid'].some((m) => e.message?.includes(m));
   }
 
   private async aggregateTradeOutput(order: LiquidityManagementOrder): Promise<number> {
