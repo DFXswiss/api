@@ -8,6 +8,10 @@ import {
   MailKey,
   MailTranslationKey,
 } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import {
+  REALUNIT_DISABLED_PENDING_REASONS,
+  REALUNIT_WALLET_NAME,
+} from 'src/subdomains/supporting/notification/realunit-mail-rules';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FindOptionsWhere, In, IsNull, Not } from 'typeorm';
 import { AmlReason, AmlReasonWithoutReason, KycAmlReasons } from '../../../aml/enums/aml-reason.enum';
@@ -15,19 +19,6 @@ import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoBatch } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoAmlReasonPendingStates, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
-
-const RealUnitDisabledPendingReasons: AmlReason[] = [
-  AmlReason.MONTHLY_LIMIT,
-  AmlReason.ANNUAL_LIMIT,
-  AmlReason.ANNUAL_LIMIT_WITHOUT_KYC,
-  AmlReason.HIGH_RISK_KYC_NEEDED,
-  AmlReason.KYC_DATA_NEEDED,
-  AmlReason.NAME_CHECK_WITHOUT_KYC,
-  AmlReason.ASSET_KYC_NEEDED,
-  AmlReason.BANK_RELEASE_PENDING,
-  AmlReason.OLKY_NO_KYC,
-  AmlReason.BANK_TX_NEEDED,
-];
 
 @Injectable()
 export class BuyCryptoNotificationService {
@@ -199,7 +190,10 @@ export class BuyCryptoNotificationService {
     for (const entity of entities) {
       try {
         // RealUnit: do not send pending mails for the listed amlReasons; the customer is contacted by phone instead
-        if (entity.wallet?.name === 'RealUnit' && RealUnitDisabledPendingReasons.includes(entity.amlReason)) {
+        if (
+          entity.wallet?.name === REALUNIT_WALLET_NAME &&
+          REALUNIT_DISABLED_PENDING_REASONS.includes(entity.amlReason)
+        ) {
           await this.buyCryptoRepo.update(...entity.confirmSentMail());
           continue;
         }
@@ -289,7 +283,7 @@ export class BuyCryptoNotificationService {
     for (const entity of entities) {
       try {
         // RealUnit: chargeback mails are handled by phone, not by email
-        if (entity.wallet?.name === 'RealUnit') {
+        if (entity.wallet?.name === REALUNIT_WALLET_NAME) {
           await this.buyCryptoRepo.update(...entity.confirmSentMail());
           continue;
         }
@@ -372,7 +366,7 @@ export class BuyCryptoNotificationService {
     for (const entity of entities) {
       try {
         // RealUnit: chargeback-unconfirmed mails are handled by phone, not by email
-        if (entity.wallet?.name === 'RealUnit') {
+        if (entity.wallet?.name === REALUNIT_WALLET_NAME) {
           await this.buyCryptoRepo.update(...entity.confirmSentMail());
           continue;
         }

@@ -7,6 +7,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
+import { REALUNIT_WALLET_NAME } from 'src/subdomains/supporting/notification/realunit-mail-rules';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, Not } from 'typeorm';
 import { LimitRequestDecision } from '../entities/limit-request.entity';
@@ -42,7 +43,7 @@ export class LimitRequestNotificationService {
     for (const entity of entities) {
       try {
         // RealUnit: limit-request approval is handled by phone, not by email
-        if (entity.userData.wallet?.name === 'RealUnit') {
+        if (entity.userData.wallet?.name === REALUNIT_WALLET_NAME) {
           await this.limitRequestRepo.update(...entity.sendMail());
           continue;
         }
