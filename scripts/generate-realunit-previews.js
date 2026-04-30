@@ -73,7 +73,7 @@ const triggers = {
     transition: 'BuyCrypto.status = COMPLETE, isComplete = true, amlCheck = PASS, outputAmount gesetzt — Cron BUY_CRYPTO_MAIL.',
   },
   'sell-processing': {
-    when: 'Sobald Ihre RealUnit-Token im Verkaufsprozess angekommen sind und DFX die Auszahlung an Ihre Bank ausgelöst hat. Diese Mail bestätigt den Start der Verarbeitung.',
+    when: 'Sobald Ihre RealUnit-Token im Verkaufsprozess angekommen sind und die Auszahlung an Ihre Bank ausgelöst wurde. Diese Mail bestätigt den Start der Verarbeitung.',
     mailContext: 'BUY_FIAT_PROCESSING',
     transition: 'BuyFiat.fiatToBankTransferInitiated() — direkt aufgerufen, sobald der Bank-Transfer für eine geprüfte Sell-Transaktion initiiert wird.',
   },
@@ -83,7 +83,7 @@ const triggers = {
     transition: 'BuyFiat: amlCheck = PASS, isComplete = true, outputAmount gesetzt, mail3SendDate IS NULL — Cron BUY_FIAT_MAIL (1 Min.).',
   },
   'fiat-input': {
-    when: 'Sobald Ihre Banküberweisung bei DFX eingetroffen und Ihrer Bestellung zugeordnet ist, bestätigen wir den Eingang.',
+    when: 'Sobald Ihre Banküberweisung eingetroffen und Ihrer Bestellung zugeordnet ist, bestätigen wir den Eingang.',
     mailContext: 'BUY_CRYPTO',
     transition: 'Transaction.mailSendDate IS NULL, Target (BuyCrypto/BuyFiat) hat comment oder amlCheck — Cron TX_MAIL (1 Min.).',
   },
@@ -93,9 +93,9 @@ const triggers = {
     transition: 'Wie fiat-input, zusätzlich BankTx.instructedCurrency !== BankTx.currency.',
   },
   'crypto-input': {
-    when: 'Sobald Ihre RealUnit-Token (Verkauf) bzw. Ihre Krypto-Einzahlung (Crypto-zu-Crypto-Tausch) bei DFX angekommen sind, bestätigen wir den Eingang.',
-    mailContext: 'BUY_FIAT (Verkauf) oder BUY_CRYPTO (Crypto-zu-Crypto)',
-    transition: 'Wie fiat-input, aber Target ist BuyFiat (cryptoInput) oder BuyCrypto.isCryptoCryptoTransaction.',
+    when: 'Sobald Ihre RealUnit-Token im Verkaufsprozess bei uns angekommen sind, bestätigen wir den Eingang.',
+    mailContext: 'BUY_FIAT',
+    transition: 'Wie fiat-input, aber Target ist BuyFiat (cryptoInput gesetzt).',
   },
   'unassigned-transaction': {
     when: 'Wenn eine Banküberweisung bei uns eingeht, die wir keiner offenen Bestellung zuordnen können, bitten wir Sie um manuelle Zuordnung in der App.',
@@ -183,7 +183,7 @@ const triggers = {
     transition: 'amlCheck = FAIL, amlReason gesetzt, alle chargeback*-Felder (Iban/AllowedDate/Date/Address/Amount) IS NULL — Cron BUY_*_MAIL.',
   },
   'kyc-success': {
-    when: 'Sobald Ihre Verifizierung (KYC) bei der DFX AG abgeschlossen ist und Sie die volle Funktionalität von RealUnit nutzen können.',
+    when: 'Sobald Ihre Verifizierung (KYC) abgeschlossen ist und Sie die volle Funktionalität von RealUnit nutzen können.',
     mailContext: 'KYC_CHANGED',
     transition: 'KycNotificationService.kycChanged(userData, KycLevel.LEVEL_50) — direkt aufgerufen bei KYC-Stufenwechsel auf Level 50.',
   },
