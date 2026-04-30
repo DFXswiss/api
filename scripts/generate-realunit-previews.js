@@ -510,11 +510,16 @@ for (const mail of mails) {
   fs.writeFileSync(path.join(OUTPUT_DIR, `${mail.file}.html`), html);
 }
 
-// Index
+// Index — fixed category order (customer journey: incoming money first, then completion, sell, holds, refunds, account/auth admin)
+const categoryOrder = ['Eingang', 'Kauf', 'Verkauf', 'Ausstehend', 'Rückerstattung', 'KYC', 'Authentifizierung', 'Account', 'Sonstiges'];
 const categories = {};
+for (const cat of categoryOrder) categories[cat] = [];
 for (const m of mails) {
   if (!categories[m.category]) categories[m.category] = [];
   categories[m.category].push(m);
+}
+for (const cat of Object.keys(categories)) {
+  if (categories[cat].length === 0) delete categories[cat];
 }
 
 const indexHtml = `<!DOCTYPE html>
