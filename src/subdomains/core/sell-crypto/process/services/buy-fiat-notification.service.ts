@@ -144,7 +144,7 @@ export class BuyFiatNotificationService {
           entity.wallet?.name === REALUNIT_WALLET_NAME &&
           REALUNIT_DISABLED_PENDING_REASONS.includes(entity.amlReason)
         ) {
-          await this.buyFiatRepo.update(...entity.pendingMail());
+          await this.buyFiatRepo.update(...entity.skipPendingMail());
           continue;
         }
 
@@ -224,7 +224,7 @@ export class BuyFiatNotificationService {
       try {
         // RealUnit: chargeback mails are handled by phone, not by email
         if (entity.wallet?.name === REALUNIT_WALLET_NAME) {
-          await this.buyFiatRepo.update(...entity.chargebackMail());
+          await this.buyFiatRepo.update(...entity.skipChargebackMail());
           continue;
         }
 
@@ -309,7 +309,7 @@ export class BuyFiatNotificationService {
       try {
         // RealUnit: chargeback-unconfirmed mails are handled by phone, not by email
         if (entity.wallet?.name === REALUNIT_WALLET_NAME) {
-          await this.buyFiatRepo.update(...entity.chargebackMail());
+          await this.buyFiatRepo.update(...entity.skipChargebackMail());
           continue;
         }
 

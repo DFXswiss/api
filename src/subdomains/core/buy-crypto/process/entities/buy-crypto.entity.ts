@@ -541,6 +541,16 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  skipMail(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      mailSendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   resetSentMail(): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       recipientMail: null,
