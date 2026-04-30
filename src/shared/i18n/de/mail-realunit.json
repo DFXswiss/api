@@ -366,6 +366,6 @@
       "salutation": "Sie haben eine Änderung Ihrer E-Mail-Adresse angefordert"
     },
     "message": "Ihr Verifizierungscode lautet:<br>{code}",
-    "closing": "Der Verifizierungscode ist für {expiration} Minuten gültig. Bitte teilen Sie diesen Verifizierungscode nicht mit anderen Personen. Wenn Sie keinen Verifizierungscode angefordert haben, kontaktieren Sie bitte unverzüglich den Support unter [mail:info@realunit.ch]."
+    "closing": "Der Verifizierungscode ist für {expiration} Minuten gültig. Bitte teilen Sie diesen Verifizierungscode nicht mit anderen Personen. Wenn Sie keinen Verifizierungscode angefordert haben, kontaktieren Sie bitte unverzüglich den Support in der RealUnit App unter Menü → Support."
   }
 }
