@@ -111,6 +111,7 @@ import {
   UserDataSupportQuery,
   UserSupportInfo,
 } from './dto/user-data-support.dto';
+import { toUserDataDetailDto } from './user-data-detail.mapper';
 
 interface UserDataComplianceSearchTypePair {
   type: ComplianceSearchType;
@@ -227,7 +228,7 @@ export class SupportService {
       viewKycFiles: !isRestricted,
       viewKycLogs: !isRestricted,
       viewIpLogs: !isRestricted,
-      viewSupportIssues: !isRestricted,
+      viewSupportIssues: !isRestricted || role === UserRole.SUPPORT,
       canRequestLimit: !isRestricted,
       canPerformTransactionActions: !isRestricted,
       viewRecommendation: !isRestricted,
@@ -308,7 +309,7 @@ export class SupportService {
       : [];
 
     return {
-      userData,
+      userData: toUserDataDetailDto(userData),
       kycFiles,
       kycSteps: kycSteps.map((s) =>
         this.toKycStepSupportInfo(
