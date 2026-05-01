@@ -223,7 +223,6 @@ export class FiatOutputJobService {
 
       const pendingFiatOutputs = accountIbanGroup.filter((tx) => {
         if (!tx.isReadyDate) return false;
-        if (tx.id === 80741) return false; // TODO: excluded from pending balance calculation
 
         switch (tx.bank?.name) {
           case IbanBankName.YAPEAL:

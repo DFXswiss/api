@@ -194,7 +194,7 @@ export class BuyCryptoNotificationService {
           entity.wallet?.name === REALUNIT_WALLET_NAME &&
           REALUNIT_DISABLED_PENDING_REASONS.includes(entity.amlReason)
         ) {
-          await this.buyCryptoRepo.update(...entity.confirmSentMail());
+          await this.buyCryptoRepo.update(...entity.skipMail());
           continue;
         }
 
@@ -284,7 +284,7 @@ export class BuyCryptoNotificationService {
       try {
         // RealUnit: chargeback mails are handled by phone, not by email
         if (entity.wallet?.name === REALUNIT_WALLET_NAME) {
-          await this.buyCryptoRepo.update(...entity.confirmSentMail());
+          await this.buyCryptoRepo.update(...entity.skipMail());
           continue;
         }
 
@@ -367,7 +367,7 @@ export class BuyCryptoNotificationService {
       try {
         // RealUnit: chargeback-unconfirmed mails are handled by phone, not by email
         if (entity.wallet?.name === REALUNIT_WALLET_NAME) {
-          await this.buyCryptoRepo.update(...entity.confirmSentMail());
+          await this.buyCryptoRepo.update(...entity.skipMail());
           continue;
         }
 

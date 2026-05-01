@@ -44,7 +44,7 @@ export class LimitRequestNotificationService {
       try {
         // RealUnit: limit-request approval is handled by phone, not by email
         if (entity.userData.wallet?.name === REALUNIT_WALLET_NAME) {
-          await this.limitRequestRepo.update(...entity.sendMail());
+          await this.limitRequestRepo.update(...entity.skipMail());
           continue;
         }
 

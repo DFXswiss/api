@@ -201,6 +201,8 @@ export class BuySupportInfo {
   bankUsage: string;
   assetName: string;
   blockchain: string;
+  targetAddress?: string;
+  targetAddressExplorerUrl?: string;
   volume: number;
   active: boolean;
   created: Date;
@@ -212,6 +214,64 @@ export class SellSupportInfo {
   fiatName?: string;
   volume: number;
   active: boolean;
+  created: Date;
+}
+
+export class SwapSupportInfo {
+  id: number;
+  assetName?: string;
+  blockchain?: string;
+  depositAddress?: string;
+  depositAddressExplorerUrl?: string;
+  volume: number;
+  annualVolume: number;
+  active: boolean;
+  created: Date;
+}
+
+export class VirtualIbanSupportInfo {
+  id: number;
+  iban: string;
+  bban?: string;
+  currency?: string;
+  bank?: string;
+  status?: string;
+  active: boolean;
+  label?: string;
+  buyId?: number;
+  reservedUntil?: Date;
+  activatedAt?: Date;
+  deactivatedAt?: Date;
+  created: Date;
+}
+
+export class NotificationSupportInfo {
+  id: number;
+  type: string;
+  context: string;
+  correlationId?: string;
+  isComplete: boolean;
+  error?: string;
+  suppressRecurring: boolean;
+  lastTryDate: Date;
+  created: Date;
+}
+
+export class RefRewardSupportInfo {
+  id: number;
+  status?: string;
+  outputAmount?: number;
+  outputAsset?: string;
+  outputBlockchain?: string;
+  amountInChf?: number;
+  amountInEur?: number;
+  targetAddress?: string;
+  targetAddressExplorerUrl?: string;
+  txId?: string;
+  txExplorerUrl?: string;
+  outputDate?: Date;
+  recipientMail?: string;
+  mailSendDate?: Date;
   created: Date;
 }
 
@@ -344,20 +404,35 @@ export class IpLogSupportInfo {
   created: Date;
 }
 
+export class SupportPermissions {
+  viewKycFiles: boolean;
+  viewKycLogs: boolean;
+  viewIpLogs: boolean;
+  viewSupportIssues: boolean;
+  canRequestLimit: boolean;
+  canPerformTransactionActions: boolean;
+  viewRecommendation: boolean;
+}
+
 export class UserDataSupportInfoDetails {
   userData: UserData;
-  kycFiles: KycFile[];
+  kycFiles?: KycFile[];
   kycSteps: KycStepSupportInfo[];
-  kycLogs: KycLogSupportInfo[];
+  kycLogs?: KycLogSupportInfo[];
   transactions: TransactionSupportInfo[];
   bankTxs: BankTxSupportInfo[];
   cryptoInputs: CryptoInputSupportInfo[];
-  ipLogs: IpLogSupportInfo[];
-  supportIssues: SupportIssueSupportInfo[];
+  ipLogs?: IpLogSupportInfo[];
+  supportIssues?: SupportIssueSupportInfo[];
   users: UserSupportInfo[];
   bankDatas: BankDataSupportInfo[];
   buyRoutes: BuySupportInfo[];
   sellRoutes: SellSupportInfo[];
+  swapRoutes: SwapSupportInfo[];
+  virtualIbans: VirtualIbanSupportInfo[];
+  refRewards: RefRewardSupportInfo[];
+  notifications: NotificationSupportInfo[];
+  permissions: SupportPermissions;
 }
 
 export class UserDataSupportQuery {

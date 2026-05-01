@@ -274,6 +274,26 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
+  skipPendingMail(): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      mail2SendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  skipChargebackMail(): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      mailReturnSendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   fiatToBankTransferInitiated(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       recipientMail: this.noCommunication ? null : this.userData.mail,

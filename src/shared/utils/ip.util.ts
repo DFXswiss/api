@@ -16,6 +16,16 @@ function isPrivateIp(ip: string): boolean {
   return PRIVATE_IP_RANGES.some((range) => range.test(ip));
 }
 
+function normalizeIp(ip: string): string {
+  return ip.startsWith('::ffff:') ? ip.slice(7) : ip;
+}
+
+function extractPublicIp(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const ip = normalizeIp(raw);
+  return isIP(ip) && !isPrivateIp(ip) ? ip : undefined;
+}
+
 /**
  * Extract the verified client IP from the request.
  *
@@ -27,24 +37,24 @@ function isPrivateIp(ip: string): boolean {
  */
 export function getVerifiedIp(req: Request): string {
   // 1. Azure Front Door
-  const azureSocketIp = getHeader(req, 'x-azure-socketip');
-  if (azureSocketIp && isIP(azureSocketIp)) return azureSocketIp;
+  const azureSocketIp = extractPublicIp(getHeader(req, 'x-azure-socketip'));
+  if (azureSocketIp) return azureSocketIp;
 
   // 2. Cloudflare
-  const cfConnectingIp = getHeader(req, 'cf-connecting-ip');
-  if (cfConnectingIp && isIP(cfConnectingIp)) return cfConnectingIp;
+  const cfConnectingIp = extractPublicIp(getHeader(req, 'cf-connecting-ip'));
+  if (cfConnectingIp) return cfConnectingIp;
 
   // 3. Rightmost non-private IP from X-Forwarded-For
   const xff = getHeader(req, 'x-forwarded-for');
   if (xff) {
-    const ips = xff.split(',').map((s) => s.trim());
+    const ips = xff.split(',').map((s) => normalizeIp(s.trim()));
     for (let i = ips.length - 1; i >= 0; i--) {
       if (isIP(ips[i]) && !isPrivateIp(ips[i])) return ips[i];
     }
   }
 
   // 4. Socket remote address
-  return req.socket?.remoteAddress ?? 'unknown';
+  return normalizeIp(req.socket?.remoteAddress ?? 'unknown');
 }
 
 function getHeader(req: Request, name: string): string | undefined {

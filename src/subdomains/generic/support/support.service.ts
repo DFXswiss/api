@@ -3,6 +3,7 @@ import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AmlReason, NotRefundableAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
@@ -18,6 +19,11 @@ import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
+import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
+import { Notification } from 'src/subdomains/supporting/notification/entities/notification.entity';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
 import { Recall } from 'src/subdomains/supporting/recall/recall.entity';
 import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
@@ -29,17 +35,19 @@ import {
 } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { addressExplorerUrl, txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { KycFile } from '../kyc/entities/kyc-file.entity';
 import { KycLog } from '../kyc/entities/kyc-log.entity';
 import { KycStep } from '../kyc/entities/kyc-step.entity';
 import { KycStepName } from '../kyc/enums/kyc-step-name.enum';
@@ -82,6 +90,11 @@ import {
   RecommendationGraphNode,
   RecommendationUserInfo,
   SellSupportInfo,
+  SwapSupportInfo,
+  VirtualIbanSupportInfo,
+  RefRewardSupportInfo,
+  NotificationSupportInfo,
+  SupportPermissions,
   TransactionListEntry,
   TransactionSupportInfo,
   CallQueue,
@@ -115,6 +128,10 @@ const CallQueueTxReasonMap: Partial<Record<CallQueue, AmlReason>> = {
   [CallQueue.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE]: AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
 };
 
+// Roles with restricted access to compliance user details.
+// Drives the permissions block returned to the frontend (which gates panels, actions and tabs).
+const RESTRICTED_ROLES: UserRole[] = [UserRole.SUPPORT, UserRole.MARKETING];
+
 @Injectable()
 export class SupportService {
   private readonly refundList = new Map<number, RefundDataDto>();
@@ -125,6 +142,8 @@ export class SupportService {
     private readonly buyService: BuyService,
     private readonly sellService: SellService,
     private readonly swapService: SwapService,
+    private readonly refRewardService: RefRewardService,
+    private readonly notificationService: NotificationService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
     private readonly bankTxService: BankTxService,
@@ -199,24 +218,59 @@ export class SupportService {
     return { pdfData, fileName };
   }
 
-  async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
+  async getUserDataDetails(id: number, role: UserRole): Promise<UserDataSupportInfoDetails> {
     const userData = await this.userDataService.getUserData(id, { wallet: true, bankDatas: true });
     if (!userData) throw new NotFoundException(`User not found`);
 
-    // Load all related data in parallel
-    const [kycFiles, kycSteps, kycLogs, transactions, users, bankDatas, buyRoutes, sellRoutes, ipLogs, supportIssues] =
-      await Promise.all([
-        this.kycFileService.getUserDataKycFiles(id),
-        this.kycService.getStepsByUserData(id),
-        this.kycLogService.getLogsByUserDataId(id),
-        this.transactionService.getTransactionsByUserDataId(id),
-        this.userService.getAllUserDataUsers(id, { wallet: true }),
-        this.bankDataService.getBankDatasByUserData(id),
-        this.buyService.getUserDataBuys(id),
-        this.sellService.getSellsByUserDataId(id),
-        this.ipLogService.getByUserDataId(id),
-        this.supportIssueService.getIssueEntities(id),
-      ]);
+    const isRestricted = RESTRICTED_ROLES.includes(role);
+    const permissions: SupportPermissions = {
+      viewKycFiles: !isRestricted,
+      viewKycLogs: !isRestricted,
+      viewIpLogs: !isRestricted,
+      viewSupportIssues: !isRestricted,
+      canRequestLimit: !isRestricted,
+      canPerformTransactionActions: !isRestricted,
+      viewRecommendation: !isRestricted,
+    };
+
+    // Load all related data in parallel — skip queries for fields the role is not allowed to see
+    const [
+      kycFiles,
+      kycSteps,
+      kycLogs,
+      transactions,
+      users,
+      bankDatas,
+      buyRoutes,
+      sellRoutes,
+      swapRoutes,
+      virtualIbans,
+      refRewards,
+      notifications,
+      ipLogs,
+      supportIssues,
+    ] = await Promise.all([
+      permissions.viewKycFiles
+        ? this.kycFileService.getUserDataKycFiles(id)
+        : Promise.resolve<KycFile[] | undefined>(undefined),
+      this.kycService.getStepsByUserData(id),
+      permissions.viewKycLogs
+        ? this.kycLogService.getLogsByUserDataId(id)
+        : Promise.resolve<KycLog[] | undefined>(undefined),
+      this.transactionService.getTransactionsByUserDataId(id),
+      this.userService.getAllUserDataUsers(id, { wallet: true }),
+      this.bankDataService.getBankDatasByUserData(id),
+      this.buyService.getUserDataBuys(id),
+      this.sellService.getSellsByUserDataId(id),
+      this.swapService.getSwapsByUserDataId(id),
+      this.virtualIbanService.getVirtualIbansForAccount(id),
+      this.refRewardService.getRefRewardsByUserDataId(id),
+      this.notificationService.getMails(id),
+      permissions.viewIpLogs ? this.ipLogService.getByUserDataId(id) : Promise.resolve<IpLog[] | undefined>(undefined),
+      permissions.viewSupportIssues
+        ? this.supportIssueService.getIssueEntities(id)
+        : Promise.resolve<SupportIssue[] | undefined>(undefined),
+    ]);
 
     // Load bank transactions for the loaded transactions (incoming + outgoing)
     const transactionIds = transactions.map((t) => t.id);
@@ -265,16 +319,21 @@ export class SupportService {
           s.name === KycStepName.RECOMMENDATION ? allByRecommender : undefined,
         ),
       ),
-      kycLogs: kycLogs.map((l) => this.toKycLogSupportInfo(l)),
+      kycLogs: kycLogs?.map((l) => this.toKycLogSupportInfo(l)),
       transactions: transactions.map((t) => this.toTransactionSupportInfo(t)),
       bankTxs: bankTxs.map((b) => this.toBankTxDto(b, recallByBankTxId.get(b.id))),
       cryptoInputs: cryptoInputs.map((c) => this.toCryptoInputSupportInfo(c)),
-      ipLogs: ipLogs.map((l) => this.toIpLogSupportInfo(l)),
-      supportIssues: supportIssues.map((s) => this.toSupportIssueSupportInfo(s)),
+      ipLogs: ipLogs?.map((l) => this.toIpLogSupportInfo(l)),
+      supportIssues: supportIssues?.map((s) => this.toSupportIssueSupportInfo(s)),
       users: await this.toUserSupportInfos(users),
       bankDatas: bankDatas.map((b) => this.toBankDataSupportInfo(b)),
       buyRoutes: buyRoutes.map((b) => this.toBuySupportInfo(b)),
       sellRoutes: sellRoutes.map((s) => this.toSellSupportInfo(s)),
+      swapRoutes: swapRoutes.map((s) => this.toSwapSupportInfo(s)),
+      virtualIbans: virtualIbans.map((v) => this.toVirtualIbanSupportInfo(v)),
+      refRewards: refRewards.map((r) => this.toRefRewardSupportInfo(r)),
+      notifications: notifications.map((n) => this.toNotificationSupportInfo(n)),
+      permissions,
     };
   }
 
@@ -485,12 +544,16 @@ export class SupportService {
   }
 
   private toBuySupportInfo(buy: Buy): BuySupportInfo {
+    const address = buy.user?.address;
     return {
       id: buy.id,
       iban: buy.iban,
       bankUsage: buy.bankUsage,
       assetName: buy.asset?.name,
       blockchain: buy.asset?.blockchain,
+      targetAddress: address,
+      targetAddressExplorerUrl:
+        buy.asset?.blockchain && address ? addressExplorerUrl(buy.asset.blockchain, address) : undefined,
       volume: buy.volume,
       active: buy.active,
       created: buy.created,
@@ -505,6 +568,80 @@ export class SupportService {
       volume: sell.annualVolume,
       active: sell.active,
       created: sell.created,
+    };
+  }
+
+  private toSwapSupportInfo(swap: Swap): SwapSupportInfo {
+    const depositBlockchain = swap.deposit?.blockchainList?.[0];
+    return {
+      id: swap.id,
+      assetName: swap.asset?.name,
+      blockchain: swap.asset?.blockchain,
+      depositAddress: swap.deposit?.address,
+      depositAddressExplorerUrl:
+        depositBlockchain && swap.deposit?.address
+          ? addressExplorerUrl(depositBlockchain, swap.deposit.address)
+          : undefined,
+      volume: swap.volume,
+      annualVolume: swap.annualVolume,
+      active: swap.active,
+      created: swap.created,
+    };
+  }
+
+  private toNotificationSupportInfo(n: Notification): NotificationSupportInfo {
+    return {
+      id: n.id,
+      type: n.type,
+      context: n.context,
+      correlationId: n.correlationId,
+      isComplete: n.isComplete,
+      error: n.error,
+      suppressRecurring: n.suppressRecurring,
+      lastTryDate: n.lastTryDate,
+      created: n.created,
+    };
+  }
+
+  private toRefRewardSupportInfo(reward: RefReward): RefRewardSupportInfo {
+    return {
+      id: reward.id,
+      status: reward.status,
+      outputAmount: reward.outputAmount,
+      outputAsset: reward.outputAsset?.name,
+      outputBlockchain: reward.targetBlockchain,
+      amountInChf: reward.amountInChf,
+      amountInEur: reward.amountInEur,
+      targetAddress: reward.targetAddress,
+      targetAddressExplorerUrl:
+        reward.targetBlockchain && reward.targetAddress
+          ? addressExplorerUrl(reward.targetBlockchain, reward.targetAddress)
+          : undefined,
+      txId: reward.txId,
+      txExplorerUrl:
+        reward.targetBlockchain && reward.txId ? txExplorerUrl(reward.targetBlockchain, reward.txId) : undefined,
+      outputDate: reward.outputDate,
+      recipientMail: reward.recipientMail,
+      mailSendDate: reward.mailSendDate,
+      created: reward.created,
+    };
+  }
+
+  private toVirtualIbanSupportInfo(viban: VirtualIban): VirtualIbanSupportInfo {
+    return {
+      id: viban.id,
+      iban: viban.iban,
+      bban: viban.bban,
+      currency: viban.currency?.name,
+      bank: viban.bank?.name,
+      status: viban.status,
+      active: viban.active,
+      label: viban.label,
+      buyId: viban.buy?.id,
+      reservedUntil: viban.reservedUntil,
+      activatedAt: viban.activatedAt,
+      deactivatedAt: viban.deactivatedAt,
+      created: viban.created,
     };
   }
 
