@@ -5,8 +5,19 @@ import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/b
 import { RecallReason } from 'src/subdomains/supporting/recall/recall-reason.enum';
 import { KycFile } from '../../kyc/entities/kyc-file.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
-import { UserData } from '../../user/models/user-data/user-data.entity';
-import { KycStatus, PhoneCallStatus } from '../../user/models/user-data/user-data.enum';
+import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
+import {
+  KycLevel,
+  KycStatus,
+  KycType,
+  LegalEntity,
+  Moderator,
+  PhoneCallStatus,
+  RiskStatus,
+  SignatoryPower,
+  UserDataStatus,
+} from '../../user/models/user-data/user-data.enum';
+import { AccountOpenerAuthorization } from '../../user/models/organization/organization.entity';
 
 export class UserDataSupportInfoResult {
   type: ComplianceSearchType;
@@ -414,8 +425,113 @@ export class SupportPermissions {
   viewRecommendation: boolean;
 }
 
+export class CountrySupportInfo {
+  name: string;
+  symbol?: string;
+}
+
+export class LanguageSupportInfo {
+  name: string;
+  symbol?: string;
+}
+
+export class WalletSupportInfo {
+  name: string;
+}
+
+export class OrganizationSupportInfo {
+  id: number;
+  name?: string;
+  street?: string;
+  houseNumber?: string;
+  zip?: string;
+  location?: string;
+  country?: CountrySupportInfo;
+  legalEntity?: LegalEntity;
+  signatoryPower?: SignatoryPower;
+  complexOrgStructure?: boolean;
+  allBeneficialOwnersName?: string;
+  allBeneficialOwnersDomicile?: string;
+  accountOpenerAuthorization?: AccountOpenerAuthorization;
+}
+
+export class UserDataDetailDto {
+  // UserData
+  id: number;
+  created: Date;
+  status: UserDataStatus;
+  riskStatus: RiskStatus;
+  kycStatus: KycStatus;
+  kycLevel: KycLevel;
+  depositLimit?: number;
+  wallet?: WalletSupportInfo;
+
+  // Personal Data
+  accountType?: AccountType;
+  mail?: string;
+  verifiedName?: string;
+  verifiedCountry?: CountrySupportInfo;
+  firstname?: string;
+  surname?: string;
+  street?: string;
+  houseNumber?: string;
+  zip?: string;
+  location?: string;
+  country?: CountrySupportInfo;
+  nationality?: CountrySupportInfo;
+  language?: LanguageSupportInfo;
+  birthday?: Date;
+  phone?: string;
+
+  // Organization Data
+  organization?: OrganizationSupportInfo;
+
+  // KYC / AML
+  kycType?: KycType;
+  kycHash: string;
+  kycFileId?: number;
+  identDocumentId?: string;
+  identDocumentType?: string;
+  identificationType?: KycIdentificationType;
+  highRisk?: boolean;
+  pep?: boolean;
+  bankTransactionVerification?: CheckStatus;
+  olkypayAllowed?: boolean;
+
+  // PaymentLink Data
+  paymentLinksAllowed: boolean;
+  paymentLinksConfig?: string;
+  paymentLinksName?: string;
+
+  // PhoneCall
+  phoneCallStatus?: PhoneCallStatus;
+  phoneCallAccepted?: boolean;
+  phoneCallCheckDate?: Date;
+  phoneCallExternalAccountCheckDate?: Date;
+  phoneCallExternalAccountCheckValues?: string;
+  phoneCallIpCheckDate?: Date;
+  phoneCallIpCountryCheckDate?: Date;
+  phoneCallTimes?: string;
+
+  // Volumes
+  buyVolume: number;
+  annualBuyVolume: number;
+  sellVolume: number;
+  annualSellVolume: number;
+  cryptoVolume: number;
+  annualCryptoVolume: number;
+
+  // Other
+  isTrustedReferrer: boolean;
+  tradeApprovalDate?: Date;
+  deactivationDate?: Date;
+  lastNameCheckDate?: Date;
+  letterSentDate?: Date;
+  moderator?: Moderator;
+}
+
 export class UserDataSupportInfoDetails {
-  userData: UserData;
+  userData: UserDataDetailDto;
   kycFiles?: KycFile[];
   kycSteps: KycStepSupportInfo[];
   kycLogs?: KycLogSupportInfo[];
