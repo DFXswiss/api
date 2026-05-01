@@ -168,9 +168,9 @@ export class SupportController {
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async getUserData(@Param('id') id: string): Promise<UserDataSupportInfoDetails> {
-    return this.supportService.getUserDataDetails(+id);
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getUserData(@Param('id') id: string, @GetJwt() jwt: JwtPayload): Promise<UserDataSupportInfoDetails> {
+    return this.supportService.getUserDataDetails(+id, jwt.role);
   }
 
   @Get('transaction/:id/refund')
