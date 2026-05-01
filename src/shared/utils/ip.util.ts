@@ -28,9 +28,9 @@ function normalizeIp(ip: string): string {
  * Extract the verified client IP from the request.
  *
  * Priority:
- * 1. X-Azure-SocketIP — only when request came through Front Door (verified via X-Azure-FDID)
- * 2. CF-Connecting-IP — set by Cloudflare, cannot be spoofed (when origin is locked to CF IPs)
- * 3. Rightmost non-private IP from X-Forwarded-For (appended by the reverse proxy)
+ * 1. X-Azure-SocketIP — only on DEV where Azure Front Door sets this header
+ * 2. CF-Connecting-IP — set by Cloudflare, trusted when origin is locked to CF IPs
+ * 3. Rightmost non-private IP from X-Forwarded-For (reverse proxy appends real client IP)
  * 4. req.socket.remoteAddress
  */
 export function getVerifiedIp(req: Request): string {
