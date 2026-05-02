@@ -51,7 +51,6 @@ Missing any of these = changes requested.
 - **Type safety** — no `any`, no `string` where enums exist, always add return types
 - **Performance awareness** — filter in SQL not JS, use IDs not full entities in queries
 - **Clean API** — use DTOs, never expose entities, document with ApiProperty
-- **End-to-end thinking** — every PR must include migration, environment, service updates
 - **No over-engineering** — don't build it if the existing solution works
 - **Use existing packages** — use `@dfx.swiss/*` packages instead of duplicating logic
 
@@ -649,13 +648,32 @@ const wallet = await this.walletRepo.findOne({ user });
 const user = await this.userRepo.findOne({ where: { id }, relations: { wallet: true } });
 ```
 
+### Avoid Eager Loading
+
+Don't eagerly load relations unless truly always needed. Loading user with all relations for every query is wasteful. Use explicit `relations: { ... }` in each query to load only what's needed.
+
 ### Migrations
 
 - **Always add migration** for entity/column changes — use `npm run migration <PascalName>` to generate
 - **JavaScript files** with timestamp-based naming: `1756463340213-AddFeatureName.js`
 - **Never edit a migration after merge to DEV** — add a follow-up migration instead
 - **Data-only migrations** (UPDATE/INSERT/DELETE without schema changes) may be hand-written freely
-- TypeORM writes deterministic hash-based constraint names — hand-written schema migrations must match this naming
+
+**Hand-written schema migrations** must match TypeORM's deterministic constraint naming. The algorithm (from `DefaultNamingStrategy.js`):
+
+```
+<prefix>_ + sha1(tableName + '_' + columnNames.sort().join('_')).substring(0, N)
+```
+
+| Prefix | N  | Constraint type |
+|--------|----|-----------------|
+| `PK_`  | 27 | Primary key     |
+| `FK_`  | 27 | Foreign key     |
+| `UQ_`  | 27 | Unique          |
+| `DF_`  | 27 | Default         |
+| `REL_` | 26 | Relation        |
+| `IDX_` | 26 | Index           |
+| `CHK_` | 26 | Check           |
 
 ---
 
@@ -823,6 +841,20 @@ query.where('log.message LIKE :message', { message: `%${id}%` });
 - Don't fetch the same price/data twice in one method
 - Use `AsyncCache`, `Map`-based in-memory cache for hot data
 - Initial fetch + subscription for real-time data (not repeated polling)
+
+### Use `Promise.all()` for Independent Operations
+
+```typescript
+// BAD: sequential when independent
+const price = await this.pricingService.getPrice(asset);
+const balance = await this.balanceService.getBalance(asset);
+
+// GOOD: parallel
+const [price, balance] = await Promise.all([
+  this.pricingService.getPrice(asset),
+  this.balanceService.getBalance(asset),
+]);
+```
 
 ---
 
