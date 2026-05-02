@@ -173,7 +173,7 @@ const amount = Math.max(availableAmount, 0);
 
 ```typescript
 // Use .map() not for-loop + push
-return assets.map(this.entityToDto);
+return banks.map(BankMapper.toDto);
 
 // Use .includes() not .some() for equality
 ipBlacklist.includes(ip);  // not: ipBlacklist.some(b => b === ip)
@@ -203,7 +203,8 @@ for (const [blockchain, assets] of map.entries()) { ... }
 ### .then() for Mapping Chains
 
 ```typescript
-return this.bankService.getAllBanks().then(BankDtoMapper.entitiesToDto);
+return this.paymentLinkService.get(id).then(PaymentLinkDtoMapper.toLinkDto);
+return this.kycService.getCountries(code).then(CountryDtoMapper.entitiesToDto);
 ```
 
 ### Strict Equality
@@ -896,16 +897,16 @@ Map entities to DTOs using static mapper classes:
 ```typescript
 // Mapper class (e.g. dto/payment-link-dto.mapper.ts)
 export class PaymentLinkDtoMapper {
-  static entityToDto(entity: PaymentLink): PaymentLinkDto { ... }
-  static entitiesToDto(entities: PaymentLink[]): PaymentLinkDto[] {
-    return entities.map(PaymentLinkDtoMapper.entityToDto);
+  static toLinkDto(paymentLink: PaymentLink): PaymentLinkDto { ... }
+  static toLinkDtoList(paymentLinks: PaymentLink[]): PaymentLinkDto[] {
+    return paymentLinks.map(PaymentLinkDtoMapper.toLinkDto);
   }
 }
 
 // Controller usage
 @Get(':id')
 async get(@Param('id') id: string): Promise<PaymentLinkDto> {
-  return this.service.get(+id).then(PaymentLinkDtoMapper.entityToDto);
+  return this.paymentLinkService.get(+id).then(PaymentLinkDtoMapper.toLinkDto);
 }
 ```
 
