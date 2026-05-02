@@ -330,11 +330,11 @@ Entities, DTOs, services stay in their domain. Move code to the correct domain, 
 ### Logic Belongs in Entities
 
 ```typescript
-// GOOD: entity method for business logic
+// GOOD: computed properties and getters on the entity
 class UserData extends IEntity {
   get tradingLimit(): TradingLimit { ... }
-  complete(): this { this.status = ...; return this; }
-  isDataComplete(): boolean { ... }
+  get isDfxUser(): boolean { ... }
+  get hasActiveUser(): boolean { ... }
 }
 
 // BAD: business logic in service
@@ -347,13 +347,14 @@ Entities carry computed properties, state transitions, and validation. State tra
 
 ```typescript
 // The dominant entity pattern — 100+ usages across the codebase
-txReceived(blockchain: Blockchain, tx: string): UpdateResult<BuyCrypto> {
+setPriceInvalidStatus(): UpdateResult<BuyCrypto> {
   const update: Partial<BuyCrypto> = {
-    status: BuyCryptoStatus.TX_RECEIVED,
-    txBlockchain: blockchain,
-    tx,
+    status: BuyCryptoStatus.PRICE_INVALID,
+    ...this.resetTransaction(),
   };
+
   Object.assign(this, update);
+
   return [this.id, update];
 }
 ```
@@ -890,14 +891,14 @@ const [price, balance] = await Promise.all([
 
 ### Never Expose Entities in API — Use DtoMapper Classes
 
-Map entities to DTOs using static mapper classes in the `dto/` directory:
+Map entities to DTOs using static mapper classes:
 
 ```typescript
-// Mapper class (dto/payment-link-dto.mapper.ts)
+// Mapper class (e.g. dto/payment-link-dto.mapper.ts)
 export class PaymentLinkDtoMapper {
   static entityToDto(entity: PaymentLink): PaymentLinkDto { ... }
   static entitiesToDto(entities: PaymentLink[]): PaymentLinkDto[] {
-    return entities.map(this.entityToDto);
+    return entities.map(PaymentLinkDtoMapper.entityToDto);
   }
 }
 
