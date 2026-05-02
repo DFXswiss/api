@@ -218,7 +218,9 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
       // DEBUG: always log BBTC balance for investigation
       if (asset.id === 394) {
-        this.logger.verbose(`BBTC balance trace: alchemy=${balance}, cache=${previousBalance}, inMap=${tokenToBalanceMap.has(asset.chainId?.toLowerCase())}`);
+        this.logger.verbose(
+          `BBTC balance trace: alchemy=${balance}, cache=${previousBalance}, inMap=${tokenToBalanceMap.has(asset.chainId?.toLowerCase())}`,
+        );
       }
 
       if (balance != null) this.balanceCache.set(asset.id, balance);
