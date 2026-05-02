@@ -84,22 +84,7 @@ export class LiquidityManagementBalanceService implements OnModuleInit {
         const existingBalance = await this.balanceRepo.findOneBy({ asset: { id: balance.asset?.id } });
 
         if (existingBalance) {
-          if (existingBalance.updated > startDate) {
-            // DEBUG: log skipped saves
-            if (balance.amount !== existingBalance.amount) {
-              this.logger.verbose(
-                `Skipping save for ${balance.asset.uniqueName}: updated(${existingBalance.updated.toISOString()}) > startDate(${startDate.toISOString()}), amount: ${existingBalance.amount} -> ${balance.amount}`,
-              );
-            }
-            continue;
-          }
-
-          // DEBUG: log balance changes
-          if (balance.amount !== existingBalance.amount) {
-            this.logger.verbose(
-              `Saving balance for ${balance.asset.uniqueName}: ${existingBalance.amount} -> ${balance.amount ?? 0}`,
-            );
-          }
+          if (existingBalance.updated > startDate) continue;
 
           existingBalance.updateBalance(balance.amount ?? 0, balance.availableAmount);
           await this.balanceRepo.save(existingBalance);
