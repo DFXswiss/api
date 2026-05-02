@@ -343,13 +343,28 @@ class UserService {
 }
 ```
 
-Entities carry computed properties, state transitions (`complete()`, `txReceived()`), and validation. Use fluent pattern (`return this`).
+Entities carry computed properties, state transitions, and validation. State transitions use the `UpdateResult` pattern:
+
+```typescript
+// The dominant entity pattern — 100+ usages across the codebase
+txReceived(blockchain: Blockchain, tx: string): UpdateResult<BuyCrypto> {
+  const update: Partial<BuyCrypto> = {
+    status: BuyCryptoStatus.TX_RECEIVED,
+    txBlockchain: blockchain,
+    tx,
+  };
+  Object.assign(this, update);
+  return [this.id, update];
+}
+```
+
+This returns `[id, changedFields]` so the caller can do a targeted `repo.update(id, update)` instead of a full `repo.save(entity)`.
 
 ### Services vs Controllers
 
 - **Controllers**: thin, delegate to services, never contain business logic
 - **Services**: orchestrate business logic, call repositories
-- **Repositories**: data access only, extend `BaseRepository<T>`
+- **Repositories**: data access only, extend `BaseRepository<T>` (or `CachedRepository<T>` for frequently accessed reference data like assets, fiats, countries)
 
 ### Module Structure
 
@@ -435,7 +450,7 @@ constructor(
 ### DTO Validation
 
 ```typescript
-// Create DTO extends Update DTO
+// When Create and Update share fields, Create DTO can extend Update DTO
 export class UpdateRiskAssessmentDto {
   @IsOptional()
   @IsString()
@@ -447,6 +462,8 @@ export class CreateRiskAssessmentDto extends UpdateRiskAssessmentDto {
   @IsEnum(RiskType)
   type: RiskType;
 }
+
+// Standalone DTOs are fine when Create and Update have different shapes
 ```
 
 **Key rules:**
@@ -490,11 +507,18 @@ export class SupportIssueController {
 
 ### Cron Jobs
 
-Use `@DfxCron` (custom wrapper with built-in error handling and logging) instead of bare `@Cron`. Use `@Cron` only for simple cases without process control.
+Use `@DfxCron` (custom wrapper with built-in locking, process control, and error handling). It replaces `@Cron` + `@Lock` + `DisabledProcess` — never combine these manually with `@DfxCron`.
 
 ```typescript
-@DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT })  // not @Interval
-@Lock(1800)                                                           // @Lock comes after @DfxCron
+// GOOD: @DfxCron handles everything
+@DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT, timeout: 1800 })
+async processPayments(): Promise<void> {
+  // no @Lock, no DisabledProcess check needed
+}
+
+// ONLY with bare @Cron: manual @Lock + DisabledProcess required
+@Cron(CronExpression.EVERY_MINUTE)
+@Lock(1800)
 async processPayments(): Promise<void> {
   if (DisabledProcess(Process.PAYMENT)) return;
   // ...
@@ -716,7 +740,11 @@ if (this.networkValidated) return;
 
 ### Logging
 
+Use `DfxLogger` (not the standard NestJS Logger):
+
 ```typescript
+private readonly logger = new DfxLogger(MyService);
+
 // Format: description + entity ID + colon + error
 this.logger.error(`Failed to check order status for fiat output ${entity.id}:`, e);
 this.logger.info(`Withdrawal awaiting approval. UTXO: ${data.withdrawalUtxo}`);
@@ -860,14 +888,20 @@ const [price, balance] = await Promise.all([
 
 ## API Design
 
-### Never Expose Entities in API
+### Never Expose Entities in API — Use DtoMapper Classes
+
+Map entities to DTOs using static mapper classes in the `dto/` directory:
 
 ```typescript
-// BAD
-@Get(':id')
-async get(@Param('id') id: string): Promise<PaymentLink> { ... }
+// Mapper class (dto/payment-link-dto.mapper.ts)
+export class PaymentLinkDtoMapper {
+  static entityToDto(entity: PaymentLink): PaymentLinkDto { ... }
+  static entitiesToDto(entities: PaymentLink[]): PaymentLinkDto[] {
+    return entities.map(this.entityToDto);
+  }
+}
 
-// GOOD
+// Controller usage
 @Get(':id')
 async get(@Param('id') id: string): Promise<PaymentLinkDto> {
   return this.service.get(+id).then(PaymentLinkDtoMapper.entityToDto);
