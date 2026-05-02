@@ -10,6 +10,14 @@
 //
 // Default behaviour is DRY-RUN. Pass --execute to broadcast.
 //
+// Where to run:
+//   The deposit seed only lives in the api container env. On prd this is the
+//   Azure App Service `app-dfx-api-prd`. SSH in and run from /home/site/wwwroot:
+//
+//     az webapp ssh -g <rg> -n app-dfx-api-prd
+//     cd /home/site/wwwroot
+//     node scripts/refund-deposit.js --help
+//
 // Usage:
 //   node scripts/refund-deposit.js \
 //     --chain citrea \
@@ -34,14 +42,14 @@ const { ethers } = require('ethers');
 const { defaultPath } = require('ethers/lib/utils');
 
 const CHAINS = {
-  ethereum:  { id: 1,        rpc: 'https://eth-mainnet.g.alchemy.com/v2',     useAlchemyKey: true,  explorer: 'https://etherscan.io' },
-  optimism:  { id: 10,       rpc: 'https://opt-mainnet.g.alchemy.com/v2',     useAlchemyKey: true,  explorer: 'https://optimistic.etherscan.io' },
-  arbitrum:  { id: 42161,    rpc: 'https://arb-mainnet.g.alchemy.com/v2',     useAlchemyKey: true,  explorer: 'https://arbiscan.io' },
-  polygon:   { id: 137,      rpc: 'https://polygon-mainnet.g.alchemy.com/v2', useAlchemyKey: true,  explorer: 'https://polygonscan.com' },
-  base:      { id: 8453,     rpc: 'https://base-mainnet.g.alchemy.com/v2',    useAlchemyKey: true,  explorer: 'https://basescan.org' },
-  bsc:       { id: 56,       rpc: 'https://bnb-mainnet.g.alchemy.com/v2',     useAlchemyKey: true,  explorer: 'https://bscscan.com' },
-  gnosis:    { id: 100,      rpc: 'https://gnosis-mainnet.g.alchemy.com/v2',  useAlchemyKey: true,  explorer: 'https://gnosisscan.io' },
-  citrea:    { id: 4114,     rpc: 'https://rpc.citreascan.com',               useAlchemyKey: false, explorer: 'https://citreascan.com' },
+  ethereum: { id: 1,     rpc: 'https://eth-mainnet.g.alchemy.com/v2',     useAlchemyKey: true,  explorer: 'https://etherscan.io',             nativeSymbol: 'ETH' },
+  optimism: { id: 10,    rpc: 'https://opt-mainnet.g.alchemy.com/v2',     useAlchemyKey: true,  explorer: 'https://optimistic.etherscan.io',  nativeSymbol: 'ETH' },
+  arbitrum: { id: 42161, rpc: 'https://arb-mainnet.g.alchemy.com/v2',     useAlchemyKey: true,  explorer: 'https://arbiscan.io',              nativeSymbol: 'ETH' },
+  polygon:  { id: 137,   rpc: 'https://polygon-mainnet.g.alchemy.com/v2', useAlchemyKey: true,  explorer: 'https://polygonscan.com',          nativeSymbol: 'POL' },
+  base:     { id: 8453,  rpc: 'https://base-mainnet.g.alchemy.com/v2',    useAlchemyKey: true,  explorer: 'https://basescan.org',             nativeSymbol: 'ETH' },
+  bsc:      { id: 56,    rpc: 'https://bnb-mainnet.g.alchemy.com/v2',     useAlchemyKey: true,  explorer: 'https://bscscan.com',              nativeSymbol: 'BNB' },
+  gnosis:   { id: 100,   rpc: 'https://gnosis-mainnet.g.alchemy.com/v2',  useAlchemyKey: true,  explorer: 'https://gnosisscan.io',            nativeSymbol: 'xDAI' },
+  citrea:   { id: 4114,  rpc: 'https://rpc.citreascan.com',               useAlchemyKey: false, explorer: 'https://citreascan.com',           nativeSymbol: 'cBTC' },
 };
 
 const ERC20_ABI = [
@@ -154,6 +162,7 @@ async function main() {
   const provider = new ethers.providers.StaticJsonRpcProvider(buildRpcUrl(chain), chain.id);
   const wallet = ethers.Wallet.fromMnemonic(seed, getPathFor(accountIndex)).connect(provider);
   const fromAddress = wallet.address;
+  const nativeSymbol = chain.nativeSymbol;
 
   console.log('=== DFX Deposit Refund ===');
   console.log(`Chain:           ${chainName} (chainId ${chain.id})`);
@@ -176,39 +185,44 @@ async function main() {
   }
   console.log(`Recipient:       ${to}`);
 
-  // --- Read state ---
+  // --- Build transaction ---
   const gasPrice = await provider.getGasPrice();
   const nativeBalance = await provider.getBalance(fromAddress);
 
   let txReq;
-  let summaryAsset;
-  let summaryAmount;
+  let display; // { decimals, symbol }
+  let sendAmount;
   let gasLimit;
 
   if (isNative) {
-    if (nativeBalance.isZero()) throw new Error('Native balance is 0');
+    if (nativeBalance.isZero()) throw new Error(`Native balance is 0 ${nativeSymbol}`);
 
-    gasLimit = ethers.BigNumber.from(21000);
-    const fee = gasLimit.mul(gasPrice);
     let value;
     if (sweepAll) {
+      // estimate first with full balance as value (will revert if balance == 0, handled above)
+      const estimated = await provider.estimateGas({ to, value: nativeBalance, from: fromAddress });
+      gasLimit = estimated.mul(120).div(100);
+      const fee = gasLimit.mul(gasPrice);
       value = nativeBalance.sub(fee);
-      if (value.lte(0)) throw new Error(`Native balance ${nativeBalance} ≤ tx fee ${fee}`);
+      if (value.lte(0)) throw new Error(`Native balance ${fmt(nativeBalance, 18, nativeSymbol)} ≤ tx fee ${fmt(fee, 18, nativeSymbol)}`);
     } else {
       value = ethers.utils.parseEther(amountArg);
+      const estimated = await provider.estimateGas({ to, value, from: fromAddress });
+      gasLimit = estimated.mul(120).div(100);
+      const fee = gasLimit.mul(gasPrice);
       if (value.add(fee).gt(nativeBalance)) {
-        throw new Error(`Need ${fmt(value.add(fee), 18, 'native')}, have ${fmt(nativeBalance, 18, 'native')}`);
+        throw new Error(`Need ${fmt(value.add(fee), 18, nativeSymbol)}, have ${fmt(nativeBalance, 18, nativeSymbol)}`);
       }
     }
     txReq = { to, value, gasLimit, gasPrice };
-    summaryAsset = 'native';
-    summaryAmount = value;
-    console.log(`\nNative balance:  ${fmt(nativeBalance, 18, '')}`);
+    display = { decimals: 18, symbol: nativeSymbol };
+    sendAmount = value;
+    console.log(`\nNative balance:  ${fmt(nativeBalance, 18, nativeSymbol)}`);
   } else {
     const token = new ethers.Contract(asset, ERC20_ABI, wallet);
     const [decimals, symbol, tokenBalance] = await Promise.all([
       token.decimals(),
-      token.symbol().catch(() => 'TOKEN'),
+      token.symbol(),
       token.balanceOf(fromAddress),
     ]);
     if (tokenBalance.isZero()) throw new Error(`Token balance is 0 for ${symbol} (${asset})`);
@@ -219,32 +233,26 @@ async function main() {
     }
 
     const populated = await token.populateTransaction.transfer(to, amount);
-    gasLimit = await provider.estimateGas({ ...populated, from: fromAddress });
-    gasLimit = gasLimit.mul(120).div(100);
+    const estimated = await provider.estimateGas({ ...populated, from: fromAddress });
+    gasLimit = estimated.mul(120).div(100);
     const fee = gasLimit.mul(gasPrice);
     if (fee.gt(nativeBalance)) {
-      throw new Error(`Gas fee ${fmt(fee, 18, 'native')} exceeds native balance ${fmt(nativeBalance, 18, 'native')}`);
+      throw new Error(`Gas fee ${fmt(fee, 18, nativeSymbol)} exceeds native balance ${fmt(nativeBalance, 18, nativeSymbol)}`);
     }
     txReq = { ...populated, gasLimit, gasPrice };
-    summaryAsset = `${symbol} (${asset})`;
-    summaryAmount = amount;
+    display = { decimals, symbol };
+    sendAmount = amount;
     console.log(`\nToken balance:   ${fmt(tokenBalance, decimals, symbol)}`);
-    console.log(`Native balance:  ${fmt(nativeBalance, 18, '')} (for gas)`);
-    txReq._displayDecimals = decimals;
-    txReq._displaySymbol = symbol;
+    console.log(`Native balance:  ${fmt(nativeBalance, 18, nativeSymbol)} (for gas)`);
   }
 
   const fee = gasLimit.mul(gasPrice);
   console.log(`Gas price:       ${ethers.utils.formatUnits(gasPrice, 'gwei')} gwei`);
   console.log(`Gas limit:       ${gasLimit.toString()}`);
-  console.log(`Estimated fee:   ${fmt(fee, 18, 'native')}`);
+  console.log(`Estimated fee:   ${fmt(fee, 18, nativeSymbol)}`);
 
   console.log('\n--- Plan ---');
-  if (isNative) {
-    console.log(`Send ${fmt(summaryAmount, 18, 'native')} from ${fromAddress} to ${to}`);
-  } else {
-    console.log(`Send ${fmt(summaryAmount, txReq._displayDecimals, txReq._displaySymbol)} from ${fromAddress} to ${to}`);
-  }
+  console.log(`Send ${fmt(sendAmount, display.decimals, display.symbol)} from ${fromAddress} to ${to}`);
 
   if (!args.execute) {
     console.log('\nDRY RUN — pass --execute to broadcast.');
@@ -253,10 +261,7 @@ async function main() {
 
   // --- Broadcast ---
   console.log('\nBroadcasting...');
-  const cleanReq = { ...txReq };
-  delete cleanReq._displayDecimals;
-  delete cleanReq._displaySymbol;
-  const sent = await wallet.sendTransaction(cleanReq);
+  const sent = await wallet.sendTransaction(txReq);
   console.log(`Tx hash:         ${sent.hash}`);
   console.log(`Explorer:        ${chain.explorer}/tx/${sent.hash}`);
   console.log('Waiting for 1 confirmation...');
