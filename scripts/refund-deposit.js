@@ -3,10 +3,11 @@
 //
 // Refund / forward funds from a DFX EVM deposit address.
 //
-// Derives the deposit wallet from EVM_DEPOSIT_SEED + accountIndex (BIP-44 path
-// m/44'/60'/0'/0/<accountIndex>, same as EvmUtil.getPathFor), then sends a
-// chosen asset to a chosen recipient. Recipient can be derived from a deposit
-// transaction (sender of that tx).
+// Bootstraps the NestJS application context and uses the existing
+// BlockchainRegistryService + EvmClient to derive the deposit wallet
+// (EVM_DEPOSIT_SEED + accountIndex) and forward a chosen asset to a chosen
+// recipient. Recipient can be derived from a deposit transaction (sender of
+// that tx).
 //
 // Default behaviour is DRY-RUN. Pass --execute to broadcast.
 //
@@ -35,29 +36,24 @@
 //     --to 0xRECIPIENT \
 //     [--execute]
 //
-// Required env: EVM_DEPOSIT_SEED, ALCHEMY_API_KEY (for Alchemy-backed chains).
-//
 
 const { ethers } = require('ethers');
-const { defaultPath } = require('ethers/lib/utils');
 
-const CHAINS = {
-  ethereum: { id: 1,     rpc: 'https://eth-mainnet.g.alchemy.com/v2',     useAlchemyKey: true,  explorer: 'https://etherscan.io',             nativeSymbol: 'ETH' },
-  optimism: { id: 10,    rpc: 'https://opt-mainnet.g.alchemy.com/v2',     useAlchemyKey: true,  explorer: 'https://optimistic.etherscan.io',  nativeSymbol: 'ETH' },
-  arbitrum: { id: 42161, rpc: 'https://arb-mainnet.g.alchemy.com/v2',     useAlchemyKey: true,  explorer: 'https://arbiscan.io',              nativeSymbol: 'ETH' },
-  polygon:  { id: 137,   rpc: 'https://polygon-mainnet.g.alchemy.com/v2', useAlchemyKey: true,  explorer: 'https://polygonscan.com',          nativeSymbol: 'POL' },
-  base:     { id: 8453,  rpc: 'https://base-mainnet.g.alchemy.com/v2',    useAlchemyKey: true,  explorer: 'https://basescan.org',             nativeSymbol: 'ETH' },
-  bsc:      { id: 56,    rpc: 'https://bnb-mainnet.g.alchemy.com/v2',     useAlchemyKey: true,  explorer: 'https://bscscan.com',              nativeSymbol: 'BNB' },
-  gnosis:   { id: 100,   rpc: 'https://gnosis-mainnet.g.alchemy.com/v2',  useAlchemyKey: true,  explorer: 'https://gnosisscan.io',            nativeSymbol: 'xDAI' },
-  citrea:   { id: 4114,  rpc: 'https://rpc.citreascan.com',               useAlchemyKey: false, explorer: 'https://citreascan.com',           nativeSymbol: 'cBTC' },
+// Heavy NestJS / dist requires are deferred to main() so that --help and
+// argument validation work without bootstrapping the application context.
+
+const CHAIN_NAMES = ['ethereum', 'optimism', 'arbitrum', 'polygon', 'base', 'bsc', 'gnosis', 'citrea'];
+
+const EXPLORERS = {
+  Ethereum: 'https://etherscan.io',
+  Optimism: 'https://optimistic.etherscan.io',
+  Arbitrum: 'https://arbiscan.io',
+  Polygon: 'https://polygonscan.com',
+  Base: 'https://basescan.org',
+  BinanceSmartChain: 'https://bscscan.com',
+  Gnosis: 'https://gnosisscan.io',
+  Citrea: 'https://citreascan.com',
 };
-
-const ERC20_ABI = [
-  'function balanceOf(address) view returns (uint256)',
-  'function decimals() view returns (uint8)',
-  'function symbol() view returns (string)',
-  'function transfer(address to, uint256 amount) returns (bool)',
-];
 
 function parseArgs(argv) {
   const args = {};
@@ -82,7 +78,7 @@ function printHelp() {
   console.log(`Refund / forward funds from a DFX EVM deposit address.
 
 Required:
-  --chain <name>           ${Object.keys(CHAINS).join(', ')}
+  --chain <name>           ${CHAIN_NAMES.join(', ')}
   --account-index <N>      Deposit address slot (BIP-44 m/44'/60'/0'/0/N)
   --asset native|<addr>    'native' or ERC20 contract address
   --amount all|<float>     'all' to sweep everything
@@ -94,38 +90,14 @@ One of:
 Optional:
   --execute                Broadcast (default: dry-run)
   -h, --help               This help
-
-Required env:
-  EVM_DEPOSIT_SEED         BIP-39 mnemonic for deposit HD wallet
-  ALCHEMY_API_KEY          For Alchemy-backed chains
 `);
 }
 
-function getPathFor(accountIndex) {
-  const components = defaultPath.split('/');
-  components[components.length - 1] = String(accountIndex);
-  return components.join('/');
-}
-
-function buildRpcUrl(chain) {
-  if (!chain.useAlchemyKey) return chain.rpc;
-  const key = process.env.ALCHEMY_API_KEY;
-  if (!key) throw new Error('ALCHEMY_API_KEY is required for this chain');
-  return `${chain.rpc}/${key}`;
-}
-
-function fmt(amount, decimals, symbol) {
-  return `${ethers.utils.formatUnits(amount, decimals)} ${symbol}`;
-}
-
-async function main() {
-  const args = parseArgs(process.argv);
-  if (args.help) { printHelp(); return; }
-
-  // --- Validate args ---
+function validateArgs(args) {
   const chainName = args.chain;
-  const chain = CHAINS[chainName];
-  if (!chain) throw new Error(`Unknown --chain (have: ${Object.keys(CHAINS).join(', ')})`);
+  if (!chainName || !CHAIN_NAMES.includes(chainName)) {
+    throw new Error(`Unknown --chain (have: ${CHAIN_NAMES.join(', ')})`);
+  }
 
   const accountIndex = args['account-index'];
   if (accountIndex == null || !/^\d+$/.test(accountIndex)) {
@@ -141,7 +113,6 @@ async function main() {
 
   const amountArg = args.amount;
   if (!amountArg) throw new Error('--amount is required (all|<float>)');
-  const sweepAll = amountArg === 'all';
 
   const explicitTo = args.to;
   const toSenderOfTx = args['to-sender-of'];
@@ -155,118 +126,154 @@ async function main() {
     throw new Error('--to must be a valid address');
   }
 
-  const seed = process.env.EVM_DEPOSIT_SEED;
-  if (!seed) throw new Error('EVM_DEPOSIT_SEED env var is not set');
+  return {
+    chainName,
+    accountIndex: parseInt(accountIndex, 10),
+    asset,
+    isNative,
+    amountArg,
+    sweepAll: amountArg === 'all',
+    explicitTo,
+    toSenderOfTx,
+    execute: !!args.execute,
+  };
+}
 
-  // --- Build provider + wallet ---
-  const provider = new ethers.providers.StaticJsonRpcProvider(buildRpcUrl(chain), chain.id);
-  const wallet = ethers.Wallet.fromMnemonic(seed, getPathFor(accountIndex)).connect(provider);
-  const fromAddress = wallet.address;
-  const nativeSymbol = chain.nativeSymbol;
+async function resolveRecipient(provider, opts) {
+  if (opts.explicitTo) return ethers.utils.getAddress(opts.explicitTo);
 
-  console.log('=== DFX Deposit Refund ===');
-  console.log(`Chain:           ${chainName} (chainId ${chain.id})`);
-  console.log(`Account index:   ${accountIndex}`);
-  console.log(`Deposit address: ${fromAddress}`);
+  console.log(`\nResolving sender of tx ${opts.toSenderOfTx} ...`);
+  const tx = await provider.getTransaction(opts.toSenderOfTx);
+  if (!tx) throw new Error(`Transaction ${opts.toSenderOfTx} not found on ${opts.chainName}`);
+  const sender = ethers.utils.getAddress(tx.from);
+  console.log(`  → sender: ${sender}`);
+  return sender;
+}
 
-  // --- Resolve recipient ---
-  let to;
-  if (explicitTo) {
-    to = ethers.utils.getAddress(explicitTo);
-  } else {
-    console.log(`\nResolving sender of tx ${toSenderOfTx} ...`);
-    const tx = await provider.getTransaction(toSenderOfTx);
-    if (!tx) throw new Error(`Transaction ${toSenderOfTx} not found on ${chainName}`);
-    to = ethers.utils.getAddress(tx.from);
-    console.log(`  → sender: ${to}`);
+async function resolveAsset(assetService, AssetType, blockchain, opts) {
+  if (opts.isNative) {
+    const native = await assetService.getNativeAsset(blockchain);
+    if (!native) throw new Error(`No native asset configured for ${blockchain}`);
+    return native;
   }
-  if (to.toLowerCase() === fromAddress.toLowerCase()) {
-    throw new Error('Refusing to send to deposit address itself');
+  const token = await assetService.getAssetByChainId(blockchain, opts.asset);
+  if (!token) throw new Error(`No asset entity for contract ${opts.asset} on ${blockchain}`);
+  if (token.type !== AssetType.TOKEN) throw new Error(`Asset ${token.name} is not a TOKEN`);
+  return token;
+}
+
+async function main() {
+  const rawArgs = parseArgs(process.argv);
+  if (rawArgs.help) { printHelp(); return; }
+  const opts = validateArgs(rawArgs);
+
+  if (!process.env.EVM_DEPOSIT_SEED) {
+    throw new Error('EVM_DEPOSIT_SEED env var is not set');
   }
-  console.log(`Recipient:       ${to}`);
 
-  // --- Build transaction ---
-  const gasPrice = await provider.getGasPrice();
-  const nativeBalance = await provider.getBalance(fromAddress);
+  // Defer heavy NestJS / dist requires until args are validated, so --help and
+  // input errors don't trigger application-context bootstrap.
+  const { NestFactory } = require('@nestjs/core');
+  const { AppModule } = require('../dist/src/app.module');
+  const {
+    BlockchainRegistryService,
+  } = require('../dist/src/integration/blockchain/shared/services/blockchain-registry.service');
+  const { AssetService } = require('../dist/src/shared/models/asset/asset.service');
+  const { Blockchain } = require('../dist/src/integration/blockchain/shared/enums/blockchain.enum');
+  const { AssetType } = require('../dist/src/shared/models/asset/asset.entity');
+  const { EvmUtil } = require('../dist/src/integration/blockchain/shared/evm/evm.util');
+  const { GetConfig } = require('../dist/src/config/config');
 
-  let txReq;
-  let display; // { decimals, symbol }
-  let sendAmount;
-  let gasLimit;
+  const CHAIN_TO_ENUM = {
+    ethereum: Blockchain.ETHEREUM,
+    optimism: Blockchain.OPTIMISM,
+    arbitrum: Blockchain.ARBITRUM,
+    polygon: Blockchain.POLYGON,
+    base: Blockchain.BASE,
+    bsc: Blockchain.BINANCE_SMART_CHAIN,
+    gnosis: Blockchain.GNOSIS,
+    citrea: Blockchain.CITREA,
+  };
+  const blockchain = CHAIN_TO_ENUM[opts.chainName];
 
-  if (isNative) {
-    if (nativeBalance.isZero()) throw new Error(`Native balance is 0 ${nativeSymbol}`);
+  const app = await NestFactory.createApplicationContext(AppModule, { logger: false });
+  try {
+    const registry = app.get(BlockchainRegistryService);
+    const assetService = app.get(AssetService);
 
-    let value;
-    if (sweepAll) {
-      // estimate first with full balance as value (will revert if balance == 0, handled above)
-      const estimated = await provider.estimateGas({ to, value: nativeBalance, from: fromAddress });
-      gasLimit = estimated.mul(120).div(100);
-      const fee = gasLimit.mul(gasPrice);
-      value = nativeBalance.sub(fee);
-      if (value.lte(0)) throw new Error(`Native balance ${fmt(nativeBalance, 18, nativeSymbol)} ≤ tx fee ${fmt(fee, 18, nativeSymbol)}`);
-    } else {
-      value = ethers.utils.parseEther(amountArg);
-      const estimated = await provider.estimateGas({ to, value, from: fromAddress });
-      gasLimit = estimated.mul(120).div(100);
-      const fee = gasLimit.mul(gasPrice);
-      if (value.add(fee).gt(nativeBalance)) {
-        throw new Error(`Need ${fmt(value.add(fee), 18, nativeSymbol)}, have ${fmt(nativeBalance, 18, nativeSymbol)}`);
+    const client = registry.getEvmClient(blockchain);
+    const account = GetConfig().blockchain.evm.walletAccount(opts.accountIndex);
+    const wallet = EvmUtil.createWallet(account);
+    const fromAddress = wallet.address;
+
+    console.log('=== DFX Deposit Refund ===');
+    console.log(`Chain:           ${opts.chainName} (${blockchain})`);
+    console.log(`Account index:   ${opts.accountIndex}`);
+    console.log(`Deposit address: ${fromAddress}`);
+
+    const recipient = await resolveRecipient(client.provider, opts);
+    if (recipient.toLowerCase() === fromAddress.toLowerCase()) {
+      throw new Error('Refusing to send to deposit address itself');
+    }
+    console.log(`Recipient:       ${recipient}`);
+
+    const asset = await resolveAsset(assetService, AssetType, blockchain, opts);
+    const nativeBalance = await client.getNativeCoinBalanceForAddress(fromAddress);
+
+    let sendAmount;
+    if (opts.isNative) {
+      if (nativeBalance <= 0) throw new Error(`Native balance is 0 ${asset.name}`);
+      // Estimate fee, then sweep balance - fee (with safety buffer) when sweepAll.
+      const gasPrice = await client.getRecommendedGasPrice();
+      const provider = client.provider;
+      const probeValue = ethers.utils.parseEther(nativeBalance.toString());
+      const estimated = await provider.estimateGas({ from: fromAddress, to: recipient, value: probeValue });
+      const fee = +ethers.utils.formatEther(estimated.mul(gasPrice));
+      if (opts.sweepAll) {
+        sendAmount = nativeBalance - fee;
+        if (sendAmount <= 0) throw new Error(`Native balance ${nativeBalance} ${asset.name} ≤ tx fee ${fee} ${asset.name}`);
+      } else {
+        sendAmount = parseFloat(opts.amountArg);
+        if (sendAmount + fee > nativeBalance) {
+          throw new Error(`Need ${sendAmount + fee} ${asset.name}, have ${nativeBalance} ${asset.name}`);
+        }
       }
-    }
-    txReq = { to, value, gasLimit, gasPrice };
-    display = { decimals: 18, symbol: nativeSymbol };
-    sendAmount = value;
-    console.log(`\nNative balance:  ${fmt(nativeBalance, 18, nativeSymbol)}`);
-  } else {
-    const token = new ethers.Contract(asset, ERC20_ABI, wallet);
-    const [decimals, symbol, tokenBalance] = await Promise.all([
-      token.decimals(),
-      token.symbol(),
-      token.balanceOf(fromAddress),
-    ]);
-    if (tokenBalance.isZero()) throw new Error(`Token balance is 0 for ${symbol} (${asset})`);
-
-    const amount = sweepAll ? tokenBalance : ethers.utils.parseUnits(amountArg, decimals);
-    if (amount.gt(tokenBalance)) {
-      throw new Error(`Need ${fmt(amount, decimals, symbol)}, have ${fmt(tokenBalance, decimals, symbol)}`);
+      console.log(`\nNative balance:  ${nativeBalance} ${asset.name}`);
+      console.log(`Estimated fee:   ${fee} ${asset.name}`);
+    } else {
+      const tokenBalance = await client.getTokenBalance(asset, fromAddress);
+      if (tokenBalance <= 0) throw new Error(`Token balance is 0 for ${asset.name}`);
+      sendAmount = opts.sweepAll ? tokenBalance : parseFloat(opts.amountArg);
+      if (sendAmount > tokenBalance) {
+        throw new Error(`Need ${sendAmount} ${asset.name}, have ${tokenBalance} ${asset.name}`);
+      }
+      if (nativeBalance <= 0) throw new Error(`Native balance is 0 — cannot pay gas for token transfer`);
+      console.log(`\nToken balance:   ${tokenBalance} ${asset.name}`);
+      console.log(`Native balance:  ${nativeBalance} (for gas)`);
     }
 
-    const populated = await token.populateTransaction.transfer(to, amount);
-    const estimated = await provider.estimateGas({ ...populated, from: fromAddress });
-    gasLimit = estimated.mul(120).div(100);
-    const fee = gasLimit.mul(gasPrice);
-    if (fee.gt(nativeBalance)) {
-      throw new Error(`Gas fee ${fmt(fee, 18, nativeSymbol)} exceeds native balance ${fmt(nativeBalance, 18, nativeSymbol)}`);
+    console.log('\n--- Plan ---');
+    console.log(`Send ${sendAmount} ${asset.name} from ${fromAddress} to ${recipient}`);
+
+    if (!opts.execute) {
+      console.log('\nDRY RUN — pass --execute to broadcast.');
+      return;
     }
-    txReq = { ...populated, gasLimit, gasPrice };
-    display = { decimals, symbol };
-    sendAmount = amount;
-    console.log(`\nToken balance:   ${fmt(tokenBalance, decimals, symbol)}`);
-    console.log(`Native balance:  ${fmt(nativeBalance, 18, nativeSymbol)} (for gas)`);
+
+    console.log('\nBroadcasting...');
+    const txHash = opts.isNative
+      ? await client.sendNativeCoinFromAccount(account, recipient, sendAmount)
+      : await client.sendTokenFromAccount(account, recipient, asset, sendAmount);
+
+    const explorer = EXPLORERS[blockchain];
+    console.log(`Tx hash:         ${txHash}`);
+    console.log(`Explorer:        ${explorer}/tx/${txHash}`);
+    console.log('Waiting for 1 confirmation...');
+    const receipt = await client.provider.waitForTransaction(txHash, 1);
+    console.log(`Confirmed in block ${receipt.blockNumber}, status=${receipt.status === 1 ? 'OK' : 'FAILED'}`);
+  } finally {
+    await app.close();
   }
-
-  const fee = gasLimit.mul(gasPrice);
-  console.log(`Gas price:       ${ethers.utils.formatUnits(gasPrice, 'gwei')} gwei`);
-  console.log(`Gas limit:       ${gasLimit.toString()}`);
-  console.log(`Estimated fee:   ${fmt(fee, 18, nativeSymbol)}`);
-
-  console.log('\n--- Plan ---');
-  console.log(`Send ${fmt(sendAmount, display.decimals, display.symbol)} from ${fromAddress} to ${to}`);
-
-  if (!args.execute) {
-    console.log('\nDRY RUN — pass --execute to broadcast.');
-    return;
-  }
-
-  // --- Broadcast ---
-  console.log('\nBroadcasting...');
-  const sent = await wallet.sendTransaction(txReq);
-  console.log(`Tx hash:         ${sent.hash}`);
-  console.log(`Explorer:        ${chain.explorer}/tx/${sent.hash}`);
-  console.log('Waiting for 1 confirmation...');
-  const receipt = await sent.wait(1);
-  console.log(`Confirmed in block ${receipt.blockNumber}, status=${receipt.status === 1 ? 'OK' : 'FAILED'}`);
 }
 
 main().catch((e) => {
