@@ -210,10 +210,15 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       if (previousBalance && !balance) this.logger.error(`Balance for ${asset.uniqueName} went to ${null}`);
 
       // DEBUG: trace balance pipeline
-      if (balance !== previousBalance) {
+      if (previousBalance != null && balance !== previousBalance) {
         this.logger.verbose(
           `Balance change for ${asset.uniqueName} (${asset.id}): ${previousBalance} -> ${balance} (inMap: ${tokenToBalanceMap.has(asset.chainId?.toLowerCase())})`,
         );
+      }
+
+      // DEBUG: always log BBTC balance for investigation
+      if (asset.id === 394) {
+        this.logger.verbose(`BBTC balance trace: alchemy=${balance}, cache=${previousBalance}, inMap=${tokenToBalanceMap.has(asset.chainId?.toLowerCase())}`);
       }
 
       if (balance != null) this.balanceCache.set(asset.id, balance);
