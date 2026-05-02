@@ -571,17 +571,23 @@ export class Recall extends IEntity {
   @ManyToOne(() => BankTx)
   bankTx: BankTx;
 
+  @ManyToOne(() => CheckoutTx)
+  checkoutTx: CheckoutTx;
+
   @Column({ type: 'int' })
   sequence: number;
+
+  @ManyToOne(() => User, { nullable: true })
+  user?: User;
 
   @Column({ length: 'MAX' })
   comment: string;
 
-  @Column({ default: false })   // booleans: default, not nullable
-  synced: boolean;
+  @Column({ type: 'float' })
+  fee: number;
 
-  @Column({ nullable: false, default: 0 })  // numbers: explicit constraints
-  amount: number;
+  @Column({ length: 256, nullable: true })
+  reason?: RecallReason;
 }
 ```
 
@@ -666,9 +672,9 @@ const entity = this.repo.create({
 ### Don't Load Relations Separately
 
 ```typescript
-// BAD: "probably counterproductive"
-const user = await this.userRepo.findOne(id);
-const wallet = await this.walletRepo.findOne({ user });
+// BAD: separate queries for related data
+const user = await this.userRepo.findOne({ where: { id } });
+const wallet = await this.walletRepo.findOne({ where: { user: { id: user.id } } });
 
 // GOOD: single query with relations
 const user = await this.userRepo.findOne({ where: { id }, relations: { wallet: true } });
