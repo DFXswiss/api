@@ -1,6 +1,4 @@
-# DFX API Coding Rules
-
-> Derived from 3,609 review comments, 274 commits, and 129 review bodies by David (davidleomay) across 2,300 PRs in DFXswiss/api (2021-2026).
+# Coding Rules
 
 ---
 
@@ -40,12 +38,12 @@
 - **Invert negative names**: `isDfxUser` not `isExternalUser`
 - **No method-forwarding without logic**: if a service method only delegates to a sub-service without adding logic, remove it
 
-### 2.2a Service Classes
+### 2.3 Service Classes
 
 - **Name services by function**: `KycSchedulerService` not generic `KycService` if it only handles scheduling
 - **Suffix reflects responsibility**: `*SchedulerService`, `*NotificationService`, `*ValidationService`
 
-### 2.3 Enums
+### 2.4 Enums
 
 - **Keys: UPPER_SNAKE_CASE**
 - **Values: PascalCase strings**: `BITCOIN = 'Bitcoin'`, `CREATED = 'Created'`
@@ -53,26 +51,31 @@
 - **Error enums use Mismatch pattern**: `CardNameMismatch` not `CARD_NAME_NOT_MATCHING`
 - **Reuse existing enum values**: check if an existing AML error / quote error / status fits before creating a new one
 
-### 2.4 Files
+### 2.5 Files
 
 - **Entity files**: `*.entity.ts` (not just `*.ts`)
 - **Enum files**: `*.enum.ts`
 - **No custom naming for TypeORM indexes**: `@Index((user: User) => [user.address, user.blockchain], { unique: true })`
 
-### 2.5 DTOs
+### 2.6 DTOs
 
 - **PascalCase for class names**: `DbQueryDto` not `dbQueryDto`
 - **Name must reflect purpose**: `GetBuyPaymentInfoDto` not `CreateBuyPaymentInfoDto` if it's a getter
 
-### 2.6 Cache Keys
+### 2.7 Cache Keys
 
 - **Descriptive cache keys**: `user-${userData.id}` not just `${userData.id}` (avoids ID conflicts across entity types)
 - **Named caches**: `blockchainFeeCache` not `cache`, `feeCache` not `arrayCache`
 - **Include all variable parameters**: use `JSON.stringify(request)` as cache key when relations/filters vary
 
-### 2.7 Generated Files
+### 2.8 Generated Files
 
 - **Consistent naming pattern**: `YYYYMMDD-Type-X-EntityId-HHMMSS` (e.g. `20250402-NameCheck-0-311124-163302.pdf`)
+
+### 2.9 Error Messages
+
+- **Capital letter at start**: `BankAccount not found` not `bankAccount not found`
+- **Consistency**: same casing and style across all exception messages
 
 ---
 
@@ -217,15 +220,51 @@ const feeAmount = ...;
 return Math.max(percentFeeAmount, feeAmount);
 ```
 
-### 3.12 Section Comments
+### 3.12 Imports
+
+```typescript
+// Absolute paths, never relative
+import { UserService } from 'src/subdomains/generic/user/services/user.service';
+// not: import { UserService } from '../../user/services/user.service';
+
+// Alphabetically sorted
+// Multi-imports on separate lines when they overflow
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
+```
+
+### 3.13 Trailing Commas
+
+Always use trailing commas in multi-line objects, arrays, and argument lists:
+
+```typescript
+constructor(
+  private readonly transactionService: TransactionService,
+  private readonly repo: RecallRepository,  // <-- trailing comma
+) {}
+```
+
+### 3.14 Section Comments
+
+Use the `// --- NAME --- //` style for major sections:
 
 ```typescript
 // --- AUTH METHODS --- //
 // --- HELPER METHODS --- //
-//*** NETWORK VALIDATION ***//
 ```
 
-### 3.13 Comments Rules
+### 3.15 URL Construction
+
+```typescript
+// Always use encodeURIComponent for dynamic URL parts
+const url = `${baseUrl}/${encodeURIComponent(name)}`;
+// not: url.split(' ')?.join('%20')
+```
+
+### 3.16 Comments Rules
 
 - **English only**: no German comments in code
 - **Remove stale comments**: `// (only await UTXO)` if no longer accurate
@@ -410,9 +449,11 @@ export class SupportIssueController {
 
 ### 5.6 Cron Jobs
 
+Use `@DfxCron` (custom wrapper with built-in error handling and logging) instead of bare `@Cron`. Use `@Cron` only for simple cases without process control.
+
 ```typescript
-@Cron(CronExpression.EVERY_MINUTE)  // not @Interval
-@Lock(1800)                          // @Lock comes after @Cron
+@DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAYMENT })  // not @Interval
+@Lock(1800)                                                           // @Lock comes after @Cron
 async processPayments(): Promise<void> {
   if (DisabledProcess(Process.PAYMENT)) return;
   // ...
@@ -540,7 +581,7 @@ const entity = this.repo.create({
 
 Don't eagerly load relations unless truly always needed. Loading user with all relations for every file is wasteful. Ignore eager relations when not needed.
 
-### 6.4a Trust DB Constraints
+### 6.5 Trust DB Constraints
 
 ```typescript
 // BAD: manual existence check before insert when unique constraint exists
@@ -552,7 +593,7 @@ await this.repo.save(entity);
 await this.repo.save(entity);  // unique constraint will throw if duplicate
 ```
 
-### 6.5 Don't Load Relations Separately
+### 6.6 Don't Load Relations Separately
 
 ```typescript
 // BAD: "probably counterproductive"
@@ -563,7 +604,7 @@ const wallet = await this.walletRepo.findOne({ user });
 const user = await this.userRepo.findOne({ where: { id }, relations: { wallet: true } });
 ```
 
-### 6.6 Migrations
+### 6.7 Migrations
 
 - **Always add migration** for entity/column changes
 - **JavaScript files** with JSDoc typehints
@@ -804,7 +845,7 @@ return hasPermission ? await this.getData() : undefined;
 
 Every PR must include:
 1. **Migration** (if entity/column changes)
-2. **Environment/Infrastructure updates** (Bicep, config)
+2. **Environment/Infrastructure updates** (config, environment variables)
 3. **Service updates** (if DTOs/interfaces changed)
 4. **Frontend synchronization** (if API contracts changed)
 
