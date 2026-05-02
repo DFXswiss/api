@@ -61,13 +61,13 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
 
     if (!hasCache) {
       await this.updateCacheFor(blockchain, assets);
-    }
 
-    const uncachedAssets = assets.filter((a) => !this.balanceCache.has(a.id));
-    if (uncachedAssets.length > 0) {
-      this.logger.verbose(
-        `${blockchain}: ${uncachedAssets.length} asset(s) missing from cache after update: ${uncachedAssets.map((a) => `${a.uniqueName}(${a.id})`).join(', ')}`,
-      );
+      const uncachedAssets = assets.filter((a) => !this.balanceCache.has(a.id));
+      if (uncachedAssets.length > 0) {
+        this.logger.verbose(
+          `${blockchain}: ${uncachedAssets.length} asset(s) missing from cache after update: ${uncachedAssets.map((a) => `${a.uniqueName}(${a.id})`).join(', ')}`,
+        );
+      }
     }
 
     return assets
@@ -209,10 +209,10 @@ export class BlockchainAdapter implements LiquidityBalanceIntegration {
       const previousBalance = this.balanceCache.get(asset.id);
       if (previousBalance && !balance) this.logger.error(`Balance for ${asset.uniqueName} went to ${null}`);
 
-      // DEBUG: trace balance pipeline for Ethereum tokens
-      if (asset.blockchain === 'Ethereum' && balance !== previousBalance) {
+      // DEBUG: trace balance pipeline
+      if (balance !== previousBalance) {
         this.logger.verbose(
-          `Balance change for ${asset.uniqueName} (${asset.id}): ${previousBalance} -> ${balance} (inMap: ${tokenToBalanceMap.has(asset.chainId?.toLowerCase())}, chainId: ${asset.chainId})`,
+          `Balance change for ${asset.uniqueName} (${asset.id}): ${previousBalance} -> ${balance} (inMap: ${tokenToBalanceMap.has(asset.chainId?.toLowerCase())})`,
         );
       }
 
