@@ -40,6 +40,30 @@ const ROOT_AUTHORITY = '0xffffffffffffffffffffffffffffffffffffffffffffffffffffff
 // ERC-7579 execution mode for single call
 const CALLTYPE_SINGLE = '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex;
 
+// EIP-712 types for DelegationManager (shared between prepare, sign and verify)
+const DELEGATION_EIP712_TYPES = {
+  Delegation: [
+    { name: 'delegate', type: 'address' },
+    { name: 'delegator', type: 'address' },
+    { name: 'authority', type: 'bytes32' },
+    { name: 'caveats', type: 'Caveat[]' },
+    { name: 'salt', type: 'uint256' },
+  ],
+  Caveat: [
+    { name: 'enforcer', type: 'address' },
+    { name: 'terms', type: 'bytes' },
+  ],
+} as const;
+
+function getDelegationEip712Domain(chainId: number) {
+  return {
+    name: 'DelegationManager',
+    version: '1',
+    chainId,
+    verifyingContract: DELEGATION_MANAGER_ADDRESS,
+  };
+}
+
 // ERC20 transfer function
 const ERC20_ABI = parseAbi(['function transfer(address to, uint256 amount) returns (bool)']);
 
@@ -208,28 +232,8 @@ export class Eip7702DelegationService {
     const relayerAccount = privateKeyToAccount(relayerPrivateKey);
     const salt = BigInt(Date.now());
 
-    // EIP-712 domain
-    const domain = {
-      name: 'DelegationManager',
-      version: '1',
-      chainId: chainConfig.chain.id,
-      verifyingContract: DELEGATION_MANAGER_ADDRESS,
-    };
-
-    // EIP-712 types
-    const types = {
-      Delegation: [
-        { name: 'delegate', type: 'address' },
-        { name: 'delegator', type: 'address' },
-        { name: 'authority', type: 'bytes32' },
-        { name: 'caveats', type: 'Caveat[]' },
-        { name: 'salt', type: 'uint256' },
-      ],
-      Caveat: [
-        { name: 'enforcer', type: 'address' },
-        { name: 'terms', type: 'bytes' },
-      ],
-    };
+    const domain = getDelegationEip712Domain(chainConfig.chain.id);
+    const types = DELEGATION_EIP712_TYPES;
 
     // Delegation message
     const message = {
@@ -365,9 +369,14 @@ export class Eip7702DelegationService {
 
     const expectedChainId = chainConfig.chain.id;
 
-    // Validate authorization chainId matches expected chain
+    // Validate authorization fields
     if (Number(authorization.chainId) !== expectedChainId) {
       throw new Error(`Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`);
+    }
+    if (authorization.address.toLowerCase() !== DELEGATOR_ADDRESS.toLowerCase()) {
+      throw new Error(
+        `Authorization contract address mismatch: expected ${DELEGATOR_ADDRESS}, got ${authorization.address}`,
+      );
     }
 
     // Verify EIP-712 delegation signature
@@ -546,9 +555,14 @@ export class Eip7702DelegationService {
 
     const expectedChainId = chainConfig.chain.id;
 
-    // Validate authorization chainId matches expected chain
+    // Validate authorization fields
     if (Number(authorization.chainId) !== expectedChainId) {
       throw new Error(`Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`);
+    }
+    if (authorization.address.toLowerCase() !== DELEGATOR_ADDRESS.toLowerCase()) {
+      throw new Error(
+        `Authorization contract address mismatch: expected ${DELEGATOR_ADDRESS}, got ${authorization.address}`,
+      );
     }
 
     // Verify EIP-712 delegation signature
@@ -828,27 +842,8 @@ export class Eip7702DelegationService {
       signature: '0x' as Hex,
     };
 
-    // EIP-712 typed data for delegation signing
-    const domain = {
-      name: 'DelegationManager',
-      version: '1',
-      chainId: chainId,
-      verifyingContract: DELEGATION_MANAGER_ADDRESS,
-    };
-
-    const types = {
-      Delegation: [
-        { name: 'delegate', type: 'address' },
-        { name: 'delegator', type: 'address' },
-        { name: 'authority', type: 'bytes32' },
-        { name: 'caveats', type: 'Caveat[]' },
-        { name: 'salt', type: 'uint256' },
-      ],
-      Caveat: [
-        { name: 'enforcer', type: 'address' },
-        { name: 'terms', type: 'bytes' },
-      ],
-    };
+    const domain = getDelegationEip712Domain(chainId);
+    const types = DELEGATION_EIP712_TYPES;
 
     const message = {
       delegate: delegation.delegate,
@@ -921,25 +916,8 @@ export class Eip7702DelegationService {
     expectedSigner: string,
   ): Promise<void> {
     const recoveredAddress = await recoverTypedDataAddress({
-      domain: {
-        name: 'DelegationManager',
-        version: '1',
-        chainId,
-        verifyingContract: DELEGATION_MANAGER_ADDRESS,
-      },
-      types: {
-        Delegation: [
-          { name: 'delegate', type: 'address' },
-          { name: 'delegator', type: 'address' },
-          { name: 'authority', type: 'bytes32' },
-          { name: 'caveats', type: 'Caveat[]' },
-          { name: 'salt', type: 'uint256' },
-        ],
-        Caveat: [
-          { name: 'enforcer', type: 'address' },
-          { name: 'terms', type: 'bytes' },
-        ],
-      },
+      domain: getDelegationEip712Domain(chainId),
+      types: DELEGATION_EIP712_TYPES,
       primaryType: 'Delegation',
       message: {
         delegate: signedDelegation.delegate as Address,
