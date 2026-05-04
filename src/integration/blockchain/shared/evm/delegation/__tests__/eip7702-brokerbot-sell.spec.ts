@@ -660,9 +660,7 @@ describe('Eip7702DelegationService - BrokerBot Sell', () => {
 
       it('should throw for invalid authorization signature', async () => {
         const viemUtilsModule = jest.requireMock('viem/utils');
-        viemUtilsModule.recoverAuthorizationAddress.mockResolvedValueOnce(
-          '0x0000000000000000000000000000000000000000',
-        );
+        viemUtilsModule.recoverAuthorizationAddress.mockResolvedValueOnce('0x0000000000000000000000000000000000000000');
 
         await expect(
           service.executeBrokerBotSellForRealUnit(

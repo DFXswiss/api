@@ -367,9 +367,7 @@ export class Eip7702DelegationService {
 
     // Validate authorization chainId matches expected chain
     if (Number(authorization.chainId) !== expectedChainId) {
-      throw new Error(
-        `Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`,
-      );
+      throw new Error(`Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`);
     }
 
     // Verify EIP-712 delegation signature
@@ -550,9 +548,7 @@ export class Eip7702DelegationService {
 
     // Validate authorization chainId matches expected chain
     if (Number(authorization.chainId) !== expectedChainId) {
-      throw new Error(
-        `Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`,
-      );
+      throw new Error(`Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`);
     }
 
     // Verify EIP-712 delegation signature
@@ -673,7 +669,9 @@ export class Eip7702DelegationService {
         throw new Error(`Transaction reverted on-chain: ${txHash}`);
       }
 
-      this.logger.info(`User delegation transfer confirmed on ${blockchain}: TX ${txHash} (block ${receipt.blockNumber})`);
+      this.logger.info(
+        `User delegation transfer confirmed on ${blockchain}: TX ${txHash} (block ${receipt.blockNumber})`,
+      );
 
       return txHash;
     });
@@ -954,9 +952,7 @@ export class Eip7702DelegationService {
     });
 
     if (recoveredAddress.toLowerCase() !== expectedSigner.toLowerCase()) {
-      throw new Error(
-        `Invalid delegation signature: recovered ${recoveredAddress}, expected ${expectedSigner}`,
-      );
+      throw new Error(`Invalid delegation signature: recovered ${recoveredAddress}, expected ${expectedSigner}`);
     }
   }
 
@@ -979,9 +975,7 @@ export class Eip7702DelegationService {
     });
 
     if (recoveredAddress.toLowerCase() !== expectedSigner.toLowerCase()) {
-      throw new Error(
-        `Invalid authorization signature: recovered ${recoveredAddress}, expected ${expectedSigner}`,
-      );
+      throw new Error(`Invalid authorization signature: recovered ${recoveredAddress}, expected ${expectedSigner}`);
     }
   }
 
