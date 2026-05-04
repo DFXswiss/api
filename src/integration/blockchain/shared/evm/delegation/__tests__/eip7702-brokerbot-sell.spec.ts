@@ -1,4 +1,6 @@
 // Mock viem - must be before imports
+const VALID_USER_ADDRESS = '0x742d35Cc6634C0532925a3b844Bc9e7595f2bD78';
+
 jest.mock('viem', () => ({
   createPublicClient: jest.fn(() => ({
     getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
@@ -6,6 +8,7 @@ jest.mock('viem', () => ({
     getTransactionCount: jest.fn().mockResolvedValue(BigInt(5)),
     getChainId: jest.fn().mockResolvedValue(11155111),
     getBalance: jest.fn().mockResolvedValue(0n),
+    waitForTransactionReceipt: jest.fn().mockResolvedValue({ status: 'success', blockNumber: 12345n }),
   })),
   createWalletClient: jest.fn(() => ({
     signTransaction: jest.fn().mockResolvedValue('0xsignedtx'),
@@ -25,6 +28,11 @@ jest.mock('viem', () => ({
   }),
   parseAbi: jest.fn().mockReturnValue([]),
   http: jest.fn(),
+  recoverTypedDataAddress: jest.fn().mockResolvedValue(VALID_USER_ADDRESS),
+}));
+
+jest.mock('viem/utils', () => ({
+  recoverAuthorizationAddress: jest.fn().mockResolvedValue(VALID_USER_ADDRESS),
 }));
 
 jest.mock('viem/accounts', () => ({
@@ -579,12 +587,41 @@ describe('Eip7702DelegationService - BrokerBot Sell', () => {
         ).rejects.toThrow('execution reverted');
       });
 
+      it('should throw when transaction reverts on-chain', async () => {
+        (viem.createWalletClient as jest.Mock).mockReturnValue({
+          signTransaction: jest.fn().mockResolvedValue('0xsignedtx'),
+          sendRawTransaction: jest.fn().mockResolvedValue('0xbrokerbottxhash'),
+        });
+        (viem.createPublicClient as jest.Mock).mockReturnValue({
+          getBlock: jest.fn().mockResolvedValue({ baseFeePerGas: BigInt(10000000000) }),
+          estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
+          getTransactionCount: jest.fn().mockResolvedValue(BigInt(5)),
+          getChainId: jest.fn().mockResolvedValue(11155111),
+          waitForTransactionReceipt: jest.fn().mockResolvedValue({ status: 'reverted', blockNumber: 12345n }),
+        });
+
+        await expect(
+          service.executeBrokerBotSellForRealUnit(
+            validUserAddress,
+            realuToken,
+            validZchfAddress,
+            validBrokerbotAddress,
+            validDfxDepositAddress,
+            10,
+            BigInt('995000000000000000000'),
+            signedDelegation,
+            authorization,
+          ),
+        ).rejects.toThrow('Transaction reverted on-chain');
+      });
+
       it('should propagate RPC connection errors', async () => {
         (viem.createPublicClient as jest.Mock).mockReturnValue({
           getBlock: jest.fn().mockRejectedValue(new Error('ECONNREFUSED')),
           estimateMaxPriorityFeePerGas: jest.fn().mockResolvedValue(BigInt(1000000000)),
           getTransactionCount: jest.fn().mockResolvedValue(BigInt(0)),
           getChainId: jest.fn().mockResolvedValue(11155111),
+          waitForTransactionReceipt: jest.fn().mockResolvedValue({ status: 'success', blockNumber: 12345n }),
         });
 
         await expect(
@@ -600,6 +637,64 @@ describe('Eip7702DelegationService - BrokerBot Sell', () => {
             authorization,
           ),
         ).rejects.toThrow('ECONNREFUSED');
+      });
+
+      it('should throw for invalid delegation signature', async () => {
+        const viemModule = jest.requireMock('viem');
+        viemModule.recoverTypedDataAddress.mockResolvedValueOnce('0x0000000000000000000000000000000000000000');
+
+        await expect(
+          service.executeBrokerBotSellForRealUnit(
+            validUserAddress,
+            realuToken,
+            validZchfAddress,
+            validBrokerbotAddress,
+            validDfxDepositAddress,
+            10,
+            BigInt('995000000000000000000'),
+            signedDelegation,
+            authorization,
+          ),
+        ).rejects.toThrow('Invalid delegation signature');
+      });
+
+      it('should throw for invalid authorization signature', async () => {
+        const viemUtilsModule = jest.requireMock('viem/utils');
+        viemUtilsModule.recoverAuthorizationAddress.mockResolvedValueOnce(
+          '0x0000000000000000000000000000000000000000',
+        );
+
+        await expect(
+          service.executeBrokerBotSellForRealUnit(
+            validUserAddress,
+            realuToken,
+            validZchfAddress,
+            validBrokerbotAddress,
+            validDfxDepositAddress,
+            10,
+            BigInt('995000000000000000000'),
+            signedDelegation,
+            authorization,
+          ),
+        ).rejects.toThrow('Invalid authorization signature');
+      });
+
+      it('should throw for chainId mismatch', async () => {
+        const wrongChainAuthorization = { ...authorization, chainId: 1 };
+
+        await expect(
+          service.executeBrokerBotSellForRealUnit(
+            validUserAddress,
+            realuToken,
+            validZchfAddress,
+            validBrokerbotAddress,
+            validDfxDepositAddress,
+            10,
+            BigInt('995000000000000000000'),
+            signedDelegation,
+            wrongChainAuthorization,
+          ),
+        ).rejects.toThrow('Authorization chainId mismatch');
       });
     });
   });

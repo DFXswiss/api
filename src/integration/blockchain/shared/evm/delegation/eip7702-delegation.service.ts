@@ -13,8 +13,10 @@ import {
   Hex,
   http,
   parseAbi,
+  recoverTypedDataAddress,
 } from 'viem';
 import { privateKeyToAccount, signTypedData } from 'viem/accounts';
+import { recoverAuthorizationAddress } from 'viem/utils';
 import { WalletAccount } from '../domain/wallet-account';
 import { EvmUtil } from '../evm.util';
 import DELEGATION_MANAGER_ABI from './delegation-manager.abi.json';
@@ -63,6 +65,24 @@ interface Delegation {
 export class Eip7702DelegationService {
   private readonly logger = new DfxLogger(Eip7702DelegationService);
   private readonly config = GetConfig().blockchain;
+
+  // Sequential lock for relayer nonce management (prevents concurrent nonce collisions)
+  private nonceLock: Promise<void> = Promise.resolve();
+
+  private async withNonceLock<T>(fn: () => Promise<T>): Promise<T> {
+    let release: () => void;
+    const lock = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const previousLock = this.nonceLock;
+    this.nonceLock = lock;
+    await previousLock;
+    try {
+      return await fn();
+    } finally {
+      release!();
+    }
+  }
 
   /**
    * Check if delegation is enabled and supported for the given blockchain
@@ -343,6 +363,21 @@ export class Eip7702DelegationService {
       throw new Error(`No chain config found for ${blockchain}`);
     }
 
+    const expectedChainId = chainConfig.chain.id;
+
+    // Validate authorization chainId matches expected chain
+    if (Number(authorization.chainId) !== expectedChainId) {
+      throw new Error(
+        `Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`,
+      );
+    }
+
+    // Verify EIP-712 delegation signature
+    await this.verifyDelegationSignature(signedDelegation, expectedChainId, userAddress);
+
+    // Verify EIP-7702 authorization signature
+    await this.verifyAuthorizationSignature(authorization, userAddress);
+
     // Get relayer account
     const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
     const relayerAccount = privateKeyToAccount(relayerPrivateKey);
@@ -423,10 +458,6 @@ export class Eip7702DelegationService {
         `(gasLimit: ${gasLimit}, estimatedCost: ~${estimatedGasCost} native)`,
     );
 
-    // Get nonce and chain ID
-    const nonce = await publicClient.getTransactionCount({ address: relayerAccount.address });
-    const chainId = await publicClient.getChainId();
-
     // Convert authorization to Viem format
     const viemAuthorization = {
       chainId: BigInt(authorization.chainId),
@@ -437,31 +468,47 @@ export class Eip7702DelegationService {
       yParity: authorization.yParity,
     };
 
-    // Manually construct complete transaction to bypass viem's gas validation
-    const transaction = {
-      from: relayerAccount.address as Address,
-      to: DELEGATION_MANAGER_ADDRESS,
-      data: redeemData,
-      value: 0n,
-      nonce,
-      chainId,
-      gas: gasLimit,
-      maxFeePerGas,
-      maxPriorityFeePerGas,
-      authorizationList: [viemAuthorization],
-      type: 'eip7702' as const,
-    };
+    // Sign, broadcast and confirm within nonce lock to prevent concurrent nonce collisions
+    return this.withNonceLock(async () => {
+      const nonce = await publicClient.getTransactionCount({
+        address: relayerAccount.address,
+        blockTag: 'pending',
+      });
+      const chainId = await publicClient.getChainId();
 
-    // Sign and broadcast transaction
-    const signedTx = await walletClient.signTransaction(transaction as any);
-    const txHash = await walletClient.sendRawTransaction({ serializedTransaction: signedTx as `0x${string}` });
+      const transaction = {
+        from: relayerAccount.address as Address,
+        to: DELEGATION_MANAGER_ADDRESS,
+        data: redeemData,
+        value: 0n,
+        nonce,
+        chainId,
+        gas: gasLimit,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        authorizationList: [viemAuthorization],
+        type: 'eip7702' as const,
+      };
 
-    this.logger.info(
-      `BrokerBot sell successful on ${blockchain}: ` +
-        `${realuAmount} REALU -> ZCHF to ${dfxDepositAddress} | TX: ${txHash}`,
-    );
+      const signedTx = await walletClient.signTransaction(transaction as any);
+      const txHash = await walletClient.sendRawTransaction({ serializedTransaction: signedTx as `0x${string}` });
 
-    return txHash;
+      this.logger.info(
+        `BrokerBot sell broadcast on ${blockchain}: ` +
+          `${realuAmount} REALU -> ZCHF to ${dfxDepositAddress} | TX: ${txHash}`,
+      );
+
+      // Wait for on-chain confirmation before returning
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 60_000 });
+
+      if (receipt.status === 'reverted') {
+        throw new Error(`Transaction reverted on-chain: ${txHash}`);
+      }
+
+      this.logger.info(`BrokerBot sell confirmed on ${blockchain}: TX ${txHash} (block ${receipt.blockNumber})`);
+
+      return txHash;
+    });
   }
 
   /**
@@ -498,6 +545,21 @@ export class Eip7702DelegationService {
     if (!chainConfig) {
       throw new Error(`No chain config found for ${blockchain}`);
     }
+
+    const expectedChainId = chainConfig.chain.id;
+
+    // Validate authorization chainId matches expected chain
+    if (Number(authorization.chainId) !== expectedChainId) {
+      throw new Error(
+        `Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`,
+      );
+    }
+
+    // Verify EIP-712 delegation signature
+    await this.verifyDelegationSignature(signedDelegation, expectedChainId, userAddress);
+
+    // Verify EIP-7702 authorization signature
+    await this.verifyAuthorizationSignature(authorization, userAddress);
 
     // Get relayer account
     const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
@@ -564,45 +626,57 @@ export class Eip7702DelegationService {
         `from ${userAddress} to ${recipient} (gasLimit: ${gasLimit}, estimatedCost: ~${estimatedGasCost} native)`,
     );
 
-    // Get nonce and chain ID
-    const nonce = await publicClient.getTransactionCount({ address: relayerAccount.address });
-    const chainId = await publicClient.getChainId();
-
     // Convert authorization to Viem format
     const viemAuthorization = {
       chainId: BigInt(authorization.chainId),
-      address: authorization.address as Address, // CRITICAL: Must be 'address', not 'contractAddress'
+      address: authorization.address as Address,
       nonce: BigInt(authorization.nonce),
       r: authorization.r as Hex,
       s: authorization.s as Hex,
       yParity: authorization.yParity,
     };
 
-    // Manually construct complete transaction to bypass viem's gas validation
-    const transaction = {
-      from: relayerAccount.address as Address,
-      to: DELEGATION_MANAGER_ADDRESS,
-      data: redeemData,
-      value: 0n, // No ETH transfer
-      nonce,
-      chainId,
-      gas: gasLimit,
-      maxFeePerGas,
-      maxPriorityFeePerGas,
-      authorizationList: [viemAuthorization],
-      type: 'eip7702' as const,
-    };
+    // Sign, broadcast and confirm within nonce lock to prevent concurrent nonce collisions
+    return this.withNonceLock(async () => {
+      const nonce = await publicClient.getTransactionCount({
+        address: relayerAccount.address,
+        blockTag: 'pending',
+      });
+      const chainId = await publicClient.getChainId();
 
-    // Sign and broadcast transaction
-    const signedTx = await walletClient.signTransaction(transaction as any);
-    const txHash = await walletClient.sendRawTransaction({ serializedTransaction: signedTx as `0x${string}` });
+      const transaction = {
+        from: relayerAccount.address as Address,
+        to: DELEGATION_MANAGER_ADDRESS,
+        data: redeemData,
+        value: 0n,
+        nonce,
+        chainId,
+        gas: gasLimit,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+        authorizationList: [viemAuthorization],
+        type: 'eip7702' as const,
+      };
 
-    this.logger.info(
-      `User delegation transfer successful on ${blockchain}: ` +
-        `${amount} ${token.name} to ${recipient} | TX: ${txHash}`,
-    );
+      const signedTx = await walletClient.signTransaction(transaction as any);
+      const txHash = await walletClient.sendRawTransaction({ serializedTransaction: signedTx as `0x${string}` });
 
-    return txHash;
+      this.logger.info(
+        `User delegation transfer broadcast on ${blockchain}: ` +
+          `${amount} ${token.name} to ${recipient} | TX: ${txHash}`,
+      );
+
+      // Wait for on-chain confirmation before returning
+      const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 60_000 });
+
+      if (receipt.status === 'reverted') {
+        throw new Error(`Transaction reverted on-chain: ${txHash}`);
+      }
+
+      this.logger.info(`User delegation transfer confirmed on ${blockchain}: TX ${txHash} (block ${receipt.blockNumber})`);
+
+      return txHash;
+    });
   }
 
   /**
@@ -838,6 +912,77 @@ export class Eip7702DelegationService {
       ],
       [encodedDelegations],
     );
+  }
+
+  /**
+   * Verify EIP-712 delegation signature was signed by the expected user
+   */
+  private async verifyDelegationSignature(
+    signedDelegation: { delegate: string; delegator: string; authority: string; salt: string; signature: string },
+    chainId: number,
+    expectedSigner: string,
+  ): Promise<void> {
+    const recoveredAddress = await recoverTypedDataAddress({
+      domain: {
+        name: 'DelegationManager',
+        version: '1',
+        chainId,
+        verifyingContract: DELEGATION_MANAGER_ADDRESS,
+      },
+      types: {
+        Delegation: [
+          { name: 'delegate', type: 'address' },
+          { name: 'delegator', type: 'address' },
+          { name: 'authority', type: 'bytes32' },
+          { name: 'caveats', type: 'Caveat[]' },
+          { name: 'salt', type: 'uint256' },
+        ],
+        Caveat: [
+          { name: 'enforcer', type: 'address' },
+          { name: 'terms', type: 'bytes' },
+        ],
+      },
+      primaryType: 'Delegation',
+      message: {
+        delegate: signedDelegation.delegate as Address,
+        delegator: signedDelegation.delegator as Address,
+        authority: signedDelegation.authority as Hex,
+        caveats: [],
+        salt: BigInt(signedDelegation.salt),
+      },
+      signature: signedDelegation.signature as Hex,
+    });
+
+    if (recoveredAddress.toLowerCase() !== expectedSigner.toLowerCase()) {
+      throw new Error(
+        `Invalid delegation signature: recovered ${recoveredAddress}, expected ${expectedSigner}`,
+      );
+    }
+  }
+
+  /**
+   * Verify EIP-7702 authorization signature was signed by the expected user
+   */
+  private async verifyAuthorizationSignature(
+    authorization: Eip7702Authorization,
+    expectedSigner: string,
+  ): Promise<void> {
+    const recoveredAddress = await recoverAuthorizationAddress({
+      authorization: {
+        chainId: Number(authorization.chainId),
+        address: authorization.address as Address,
+        nonce: Number(authorization.nonce),
+        r: authorization.r as Hex,
+        s: authorization.s as Hex,
+        yParity: authorization.yParity,
+      },
+    });
+
+    if (recoveredAddress.toLowerCase() !== expectedSigner.toLowerCase()) {
+      throw new Error(
+        `Invalid authorization signature: recovered ${recoveredAddress}, expected ${expectedSigner}`,
+      );
+    }
   }
 
   /**
