@@ -1311,23 +1311,17 @@ export class RealUnitService {
       ]);
 
       // Atomic batch: REALU -> BrokerBot -> ZCHF -> DFX Deposit
-      try {
-        txHash = await this.eip7702DelegationService.executeBrokerBotSellForRealUnit(
-          request.user.address,
-          realuAsset,
-          zchfAsset.chainId,
-          this.getBrokerbotAddress(),
-          sell.deposit.address,
-          Math.floor(request.amount),
-          zchfAmountWei,
-          dto.eip7702.delegation,
-          dto.eip7702.authorization,
-        );
-      } catch (error) {
-        const message = error?.message || error;
-        this.logger.error(`EIP-7702 sell failed for request ${requestId}: ${message}`);
-        throw new BadRequestException(`EIP-7702 delegation failed: ${message}`);
-      }
+      txHash = await this.eip7702DelegationService.executeBrokerBotSellForRealUnit(
+        request.user.address,
+        realuAsset,
+        zchfAsset.chainId,
+        this.getBrokerbotAddress(),
+        sell.deposit.address,
+        Math.floor(request.amount),
+        zchfAmountWei,
+        dto.eip7702.delegation,
+        dto.eip7702.authorization,
+      );
 
       this.logger.info(`RealUnit sell confirmed via EIP-7702: ${txHash}`);
     } else if (dto.txHash) {
