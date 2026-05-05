@@ -5,9 +5,10 @@ module.exports = class AddUrbleWalletApp1777985314136 {
     await queryRunner.query(`
       IF NOT EXISTS (SELECT 1 FROM "dbo"."wallet_app" WHERE "name" = 'urble')
       INSERT INTO "dbo"."wallet_app" (
-        "name", "websiteUrl", "iconUrl", "deepLink", "blockchains", "active"
+        "name", "websiteUrl", "iconUrl", "deepLink", "blockchains", "assets", "active"
       ) VALUES (
-        'urble', 'https://urble.io', 'https://dfx.swiss/images/app/urble.webp', 'urble:', 'Bitcoin;Cardano', 1
+        'urble', 'https://urble.io', 'https://dfx.swiss/images/app/urble.webp', 'urble:',
+        'Bitcoin;Cardano;Ethereum', '113;406;123;145;337', 1
       )
     `);
   }
