@@ -74,7 +74,6 @@ export class CustodyJobService {
   private async checkStep() {
     const runningSteps = await this.custodyOrderStepRepo.find({
       where: { status: CustodyOrderStepStatus.IN_PROGRESS },
-      relations: { order: { user: true } },
     });
 
     for (const step of runningSteps) {
@@ -93,9 +92,14 @@ export class CustodyJobService {
 
     if (isFinalEquityStep) {
       try {
+        const order = await this.custodyOrderRepo.findOne({
+          where: { id: step.order.id },
+          relations: { user: true },
+        });
+
         const outputAmount = await this.equityOrderStepAdapter.getOutputAmount(step);
 
-        await this.custodyOrderService.updateCustodyOrderInternal(step.order, {
+        await this.custodyOrderService.updateCustodyOrderInternal(order, {
           status: CustodyOrderStatus.COMPLETED,
           inputAmount: outputAmount,
         });

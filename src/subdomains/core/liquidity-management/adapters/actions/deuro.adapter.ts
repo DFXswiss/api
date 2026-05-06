@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { DEuroService } from 'src/integration/blockchain/deuro/deuro.service';
-import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../enums';
