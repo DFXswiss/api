@@ -103,7 +103,7 @@ export class LightningService {
         `https://${checkUrl.hostname}/api/v1/payments`,
         {
           out: false,
-          amount: amount ? LightningHelper.btcToSat(amount) : 1,
+          amount: amount ? Math.round(LightningHelper.btcToSat(amount)) : 1,
           memo: 'Payment by DFX.swiss',
         },
         {
