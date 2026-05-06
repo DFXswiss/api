@@ -91,21 +91,19 @@ export class CustodyJobService {
       step.command === CustodyOrderStepCommand.MINT || step.command === CustodyOrderStepCommand.REDEEM;
 
     if (isFinalEquityStep) {
-      try {
-        const order = await this.custodyOrderRepo.findOne({
-          where: { id: step.order.id },
-          relations: { user: true },
-        });
+      const order = await this.custodyOrderRepo.findOne({
+        where: { id: step.order.id },
+        relations: { user: true },
+      });
 
-        const outputAmount = await this.equityOrderStepAdapter.getOutputAmount(step);
+      step.order = order;
 
-        await this.custodyOrderService.updateCustodyOrderInternal(order, {
-          status: CustodyOrderStatus.COMPLETED,
-          inputAmount: outputAmount,
-        });
-      } catch (e) {
-        this.logger.error(`Failed to get equity output amount for step ${step.id}:`, e);
-      }
+      const outputAmount = await this.equityOrderStepAdapter.getOutputAmount(step);
+
+      await this.custodyOrderService.updateCustodyOrderInternal(order, {
+        status: CustodyOrderStatus.COMPLETED,
+        inputAmount: outputAmount,
+      });
     }
 
     await this.custodyOrderStepRepo.update(...step.complete());

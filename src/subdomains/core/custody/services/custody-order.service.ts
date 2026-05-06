@@ -303,7 +303,7 @@ export class CustodyOrderService {
     const zeroFee = { min: 0, rate: 0, fixed: 0, dfx: 0, network: 0, platform: 0 };
 
     return Object.assign(new CustodyOrderResponseDto(), {
-      id: 0,
+      id: undefined,
       timestamp: new Date(),
       minVolume: 0,
       maxVolume: sourceAmount,

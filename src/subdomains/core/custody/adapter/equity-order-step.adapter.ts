@@ -29,6 +29,8 @@ export class EquityOrderStepAdapter {
         return this.mint(step);
       case CustodyOrderStepCommand.REDEEM:
         return this.redeem(step);
+      default:
+        throw new Error(`Unsupported equity step command: ${step.command}`);
     }
   }
 
@@ -73,6 +75,7 @@ export class EquityOrderStepAdapter {
     const tx = await client.sendRawTransactionFromAccount(custodyAccount, {
       to: stableAsset.chainId,
       data,
+      value: 0,
       gasLimit: ethers.BigNumber.from(100000),
     });
 
@@ -97,6 +100,7 @@ export class EquityOrderStepAdapter {
     const tx = await client.sendRawTransactionFromAccount(custodyAccount, {
       to: equityContract.address,
       data,
+      value: 0,
       gasLimit: ethers.BigNumber.from(300000),
     });
 
@@ -115,11 +119,19 @@ export class EquityOrderStepAdapter {
     const custodyAddress = this.getCustodyWalletAddress(step);
     const equityContract = config.service.getEquityContract();
 
-    const data = equityContract.interface.encodeFunctionData('redeem', [custodyAddress, weiAmount]);
+    const equityPrice = await config.service.getEquityPrice();
+    const expectedProceeds = EvmUtil.toWeiAmount(amount * equityPrice * 0.98, 18); // 2% slippage tolerance
+
+    const data = equityContract.interface.encodeFunctionData('redeemExpected', [
+      custodyAddress,
+      weiAmount,
+      expectedProceeds,
+    ]);
 
     const tx = await client.sendRawTransactionFromAccount(custodyAccount, {
       to: equityContract.address,
       data,
+      value: 0,
       gasLimit: ethers.BigNumber.from(300000),
     });
 
