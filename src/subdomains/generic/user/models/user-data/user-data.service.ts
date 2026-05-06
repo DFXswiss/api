@@ -180,7 +180,7 @@ export class UserDataService {
   async getUsersByMail(
     mail: string,
     onlyValidUser = true,
-    relations: FindOptionsRelations<UserData> = { users: { wallet: true }, wallet: true },
+    relations: FindOptionsRelations<UserData> = { users: true, wallet: true },
   ): Promise<UserData[]> {
     return this.userDataRepo.find({
       where: {

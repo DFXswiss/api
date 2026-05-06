@@ -36,7 +36,7 @@ export class BankTxReturnNotificationService {
       },
       relations: {
         bankTx: true,
-        userData: { wallet: true, users: { wallet: true } },
+        userData: { wallet: true },
         transaction: true,
       },
     });
@@ -51,7 +51,6 @@ export class BankTxReturnNotificationService {
             context: MailContext.BANK_TX_RETURN,
             input: {
               userData: entity.userData,
-              wallet: entity.userData?.mailWallet,
               title: `${MailTranslationKey.FIAT_CHARGEBACK}.title`,
               salutation: { key: `${MailTranslationKey.FIAT_CHARGEBACK}.salutation` },
               texts: [

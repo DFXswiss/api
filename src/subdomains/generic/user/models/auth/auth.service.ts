@@ -297,7 +297,6 @@ export class AuthService {
       context: MailContext.LOGIN,
       input: {
         userData,
-        wallet: userData.mailWallet,
         title: `${MailTranslationKey.LOGIN}.title`,
         salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
         texts: [

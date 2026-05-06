@@ -20,7 +20,6 @@ export class SupportIssueNotificationService {
           context: MailContext.SUPPORT_MESSAGE,
           input: {
             userData: entity.userData,
-            wallet: entity.userData.mailWallet,
             title: `${MailTranslationKey.SUPPORT_MESSAGE}.title`,
             salutation: { key: `${MailTranslationKey.SUPPORT_MESSAGE}.salutation` },
             texts: [

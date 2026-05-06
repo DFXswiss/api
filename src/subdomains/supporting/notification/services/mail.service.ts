@@ -18,6 +18,7 @@ export interface WalletMailConfig {
   fromAddress: string;
   displayName: string;
   template: string;
+  isPreferred: boolean;
 }
 
 export interface MailOptions {

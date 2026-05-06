@@ -176,7 +176,6 @@ export class TfaService {
           context,
           input: {
             userData: userData,
-            wallet: userData.mailWallet,
             title: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.title`,
             salutation: {
               key: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.salutation`,
@@ -221,6 +220,6 @@ export class TfaService {
   }
 
   private async getUser(kycHash: string): Promise<UserData> {
-    return this.userDataService.getByKycHashOrThrow(kycHash, { users: { wallet: true }, wallet: true });
+    return this.userDataService.getByKycHashOrThrow(kycHash, { users: true });
   }
 }
