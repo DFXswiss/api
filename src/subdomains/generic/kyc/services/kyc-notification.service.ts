@@ -66,7 +66,6 @@ export class KycNotificationService {
         context: MailContext.KYC_REMINDER,
         input: {
           userData,
-          wallet: userData.wallet,
           title: `${MailTranslationKey.KYC_REMINDER}.title`,
           salutation: { key: `${MailTranslationKey.KYC_REMINDER}.salutation` },
           texts: [
@@ -98,7 +97,6 @@ export class KycNotificationService {
           context: MailContext.KYC_FAILED,
           input: {
             userData,
-            wallet: userData.wallet,
             title: `${MailTranslationKey.KYC_FAILED}.title`,
             salutation: { key: `${MailTranslationKey.KYC_FAILED}.salutation`, params: { stepName } },
             texts: [
@@ -140,7 +138,6 @@ export class KycNotificationService {
           context: MailContext.KYC_MISSING_DATA,
           input: {
             userData,
-            wallet: userData.wallet,
             title: `${MailTranslationKey.KYC_MISSING_DATA}.title`,
             salutation: { key: `${MailTranslationKey.KYC_MISSING_DATA}.salutation`, params: { stepName } },
             texts: [
@@ -177,7 +174,6 @@ export class KycNotificationService {
             context: MailContext.KYC_CHANGED,
             input: {
               userData,
-              wallet: userData.wallet,
               title: `${MailTranslationKey.KYC_SUCCESS}.title`,
               salutation: { key: `${MailTranslationKey.KYC_SUCCESS}.salutation` },
               texts: [
@@ -207,7 +203,6 @@ export class KycNotificationService {
           context: MailContext.KYC_PAYMENT_DATA,
           input: {
             userData,
-            wallet: userData.wallet,
             title: `${MailTranslationKey.KYC_PAYMENT_DATA}.title`,
             salutation: { key: `${MailTranslationKey.KYC_PAYMENT_DATA}.salutation` },
             texts: [

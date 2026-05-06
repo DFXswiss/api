@@ -54,7 +54,6 @@ export class LimitRequestNotificationService {
             context: MailContext.LIMIT_REQUEST,
             input: {
               userData: entity.userData,
-              wallet: entity.userData.wallet,
               title: `${MailTranslationKey.LIMIT_REQUEST}.title`,
               prefix: [
                 {
