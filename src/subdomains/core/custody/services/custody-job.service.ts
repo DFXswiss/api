@@ -18,6 +18,11 @@ import { CustodyOrderStepRepository } from '../repositories/custody-order-step.r
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
 import { CustodyOrderService } from './custody-order.service';
 
+interface OrderStepAdapter {
+  execute(step: CustodyOrderStep): Promise<string>;
+  isComplete(step: CustodyOrderStep): Promise<boolean>;
+}
+
 @Injectable()
 export class CustodyJobService {
   private readonly logger = new DfxLogger(CustodyJobService);
@@ -59,13 +64,9 @@ export class CustodyJobService {
     });
 
     for (const step of newSteps) {
-      switch (step.context) {
-        case CustodyOrderStepContext.DFX:
-          await this.custodyOrderStepRepo.update(...step.progress(await this.dfxOrderStepAdapter.execute(step)));
-          break;
-        case CustodyOrderStepContext.EQUITY:
-          await this.custodyOrderStepRepo.update(...step.progress(await this.equityOrderStepAdapter.execute(step)));
-          break;
+      const adapter = this.getAdapter(step.context);
+      if (adapter) {
+        await this.custodyOrderStepRepo.update(...step.progress(await adapter.execute(step)));
       }
     }
   }
@@ -77,27 +78,20 @@ export class CustodyJobService {
     });
 
     for (const step of runningSteps) {
-      switch (step.context) {
-        case CustodyOrderStepContext.DFX:
-          if (step.correlationId === 'NA' || (await this.dfxOrderStepAdapter.isComplete(step))) {
-            await this.custodyOrderStepRepo.update(...step.complete());
-            await this.custodyOrderService.startNextStep(step);
-          }
-          break;
-        case CustodyOrderStepContext.EQUITY:
-          if (step.correlationId === 'NA' || (await this.equityOrderStepAdapter.isComplete(step))) {
-            await this.completeEquityStep(step);
-          }
-          break;
+      const adapter = this.getAdapter(step.context);
+      if (!adapter) continue;
+
+      if (step.correlationId === 'NA' || (await adapter.isComplete(step))) {
+        await this.onStepComplete(step);
       }
     }
   }
 
-  private async completeEquityStep(step: CustodyOrderStep) {
-    const isFinalStep =
+  private async onStepComplete(step: CustodyOrderStep) {
+    const isFinalEquityStep =
       step.command === CustodyOrderStepCommand.MINT || step.command === CustodyOrderStepCommand.REDEEM;
 
-    if (isFinalStep) {
+    if (isFinalEquityStep) {
       try {
         const outputAmount = await this.equityOrderStepAdapter.getOutputAmount(step);
 
@@ -112,5 +106,14 @@ export class CustodyJobService {
 
     await this.custodyOrderStepRepo.update(...step.complete());
     await this.custodyOrderService.startNextStep(step);
+  }
+
+  private getAdapter(context: CustodyOrderStepContext): OrderStepAdapter | undefined {
+    switch (context) {
+      case CustodyOrderStepContext.DFX:
+        return this.dfxOrderStepAdapter;
+      case CustodyOrderStepContext.EQUITY:
+        return this.equityOrderStepAdapter;
+    }
   }
 }

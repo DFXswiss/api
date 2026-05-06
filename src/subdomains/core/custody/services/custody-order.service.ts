@@ -19,7 +19,7 @@ import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
-import { EquityPairMatch, EquityPairService } from '../config/equity-pairs';
+import { EquityDirection, EquityPairMatch, EquityPairService } from './equity-pair.service';
 import { OrderConfig } from '../config/order-config';
 import { CreateCustodyOrderInternalDto } from '../dto/input/create-custody-order.dto';
 import { GetCustodyInfoDto } from '../dto/input/get-custody-info.dto';
@@ -122,7 +122,7 @@ export class CustodyOrderService {
 
         if (equityPair) {
           orderDto.type =
-            equityPair.direction === 'mint' ? CustodyOrderType.EQUITY_MINT : CustodyOrderType.EQUITY_REDEEM;
+            equityPair.direction === EquityDirection.MINT ? CustodyOrderType.EQUITY_MINT : CustodyOrderType.EQUITY_REDEEM;
           orderDto.outputAsset = sourceAsset;
           orderDto.outputAmount = dto.sourceAmount;
           orderDto.inputAsset = targetAsset;
@@ -295,7 +295,7 @@ export class CustodyOrderService {
   ): Promise<CustodyOrderResponseDto> {
     const equityPrice = await equityPair.config.service.getEquityPrice();
 
-    const estimatedAmount = equityPair.direction === 'mint' ? sourceAmount / equityPrice : sourceAmount * equityPrice;
+    const estimatedAmount = equityPair.direction === EquityDirection.MINT ? sourceAmount / equityPrice : sourceAmount * equityPrice;
 
     const zeroFee = { min: 0, rate: 0, fixed: 0, dfx: 0, network: 0, platform: 0 };
 
@@ -311,8 +311,8 @@ export class CustodyOrderService {
       feesTarget: zeroFee,
       minVolumeTarget: 0,
       maxVolumeTarget: estimatedAmount,
-      exchangeRate: equityPair.direction === 'mint' ? equityPrice : 1 / equityPrice,
-      rate: equityPair.direction === 'mint' ? equityPrice : 1 / equityPrice,
+      exchangeRate: equityPair.direction === EquityDirection.MINT ? equityPrice : 1 / equityPrice,
+      rate: equityPair.direction === EquityDirection.MINT ? equityPrice : 1 / equityPrice,
       priceSteps: [],
       estimatedAmount,
       isValid: true,

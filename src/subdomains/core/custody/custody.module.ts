@@ -10,7 +10,7 @@ import { ReferralModule } from '../referral/referral.module';
 import { SellCryptoModule } from '../sell-crypto/sell-crypto.module';
 import { DfxOrderStepAdapter } from './adapter/dfx-order-step.adapter';
 import { EquityOrderStepAdapter } from './adapter/equity-order-step.adapter';
-import { EquityPairService } from './config/equity-pairs';
+import { EquityPairService } from './services/equity-pair.service';
 import { CustodyAdminController, CustodyController } from './controllers/custody.controller';
 import { CustodyAccountController } from './controllers/custody-account.controller';
 import { CustodyBalance } from './entities/custody-balance.entity';

@@ -12,9 +12,14 @@ export interface EquityPairConfig {
   blockchain: Blockchain;
 }
 
+export enum EquityDirection {
+  MINT = 'Mint',
+  REDEEM = 'Redeem',
+}
+
 export interface EquityPairMatch {
   config: EquityPairConfig;
-  direction: 'mint' | 'redeem';
+  direction: EquityDirection;
 }
 
 @Injectable()
@@ -37,10 +42,10 @@ export class EquityPairService {
   getEquityPairConfig(sourceAssetName: string, targetAssetName: string): EquityPairMatch | undefined {
     for (const config of this.pairs) {
       if (sourceAssetName === config.stableAsset && targetAssetName === config.equityAsset) {
-        return { config, direction: 'mint' };
+        return { config, direction: EquityDirection.MINT };
       }
       if (sourceAssetName === config.equityAsset && targetAssetName === config.stableAsset) {
-        return { config, direction: 'redeem' };
+        return { config, direction: EquityDirection.REDEEM };
       }
     }
 

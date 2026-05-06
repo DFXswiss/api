@@ -6,9 +6,9 @@ import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { EquityPairMatch, EquityPairService } from '../config/equity-pairs';
+import { EquityPairMatch, EquityPairService } from '../services/equity-pair.service';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
-import { CustodyOrderStepCommand } from '../enums/custody';
+import { CustodyOrderStepCommand, CustodyOrderType } from '../enums/custody';
 
 @Injectable()
 export class EquityOrderStepAdapter {
@@ -39,23 +39,9 @@ export class EquityOrderStepAdapter {
 
   async getOutputAmount(step: CustodyOrderStep): Promise<number> {
     const client = this.getEvmClient(step);
-    const receipt = await client.getTxReceipt(step.correlationId);
-    const custodyWallet = this.getCustodyWalletAddress(step);
+    const custodyAddress = this.getCustodyWalletAddress(step);
 
-    const targetAsset = step.order.inputAsset;
-    const walletTopic = ethers.utils.hexZeroPad(custodyWallet.toLowerCase(), 32);
-
-    const transferTopic = ethers.utils.id('Transfer(address,address,uint256)');
-    const transferLog = receipt?.logs?.find(
-      (l) =>
-        l.address.toLowerCase() === targetAsset.chainId.toLowerCase() &&
-        l.topics[0] === transferTopic &&
-        l.topics[2]?.toLowerCase() === walletTopic,
-    );
-
-    if (!transferLog) throw new Error(`Failed to get equity result for TX ${step.correlationId}`);
-
-    return EvmUtil.fromWeiAmount(transferLog.data, targetAsset.decimals);
+    return client.getSwapResult(step.correlationId, step.order.inputAsset, custodyAddress);
   }
 
   // --- COMMANDS --- //
@@ -65,7 +51,7 @@ export class EquityOrderStepAdapter {
     const custodyAddress = this.getCustodyWalletAddress(step);
 
     const gasPrice = await client.getRecommendedGasPrice();
-    const isMint = step.order.type === 'EquityMint';
+    const isMint = step.order.type === CustodyOrderType.EQUITY_MINT;
     const gasUnits = isMint ? 400000 : 200000; // approve + mint, or just redeem
     const gasAmount = EvmUtil.fromWeiAmount(gasPrice.mul(gasUnits));
     const chargeAmount = gasAmount * 1.5; // 50% buffer
