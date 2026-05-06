@@ -104,6 +104,11 @@ export class TransactionService {
     return this.repo.findOne({ where: { id }, relations });
   }
 
+  async getTransactionsByIds(ids: number[]): Promise<Transaction[]> {
+    if (!ids.length) return [];
+    return this.repo.find({ where: { id: In(ids) } });
+  }
+
   async getTransactionByUid(uid: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
     return this.repo.findOne({ where: { uid }, relations });
   }
@@ -204,7 +209,6 @@ export class TransactionService {
     return this.repo.find({
       where: { userData: { id: userDataId }, type: Not(IsNull()), created: Between(from, to) },
       relations: {
-        userData: { country: true },
         buyCrypto: {
           buy: true,
           cryptoRoute: true,
@@ -237,7 +241,6 @@ export class TransactionService {
         this.repo.find({
           where: { user: { id: In(batch) }, type: Not(IsNull()), created: Between(from, to) },
           relations: {
-            userData: { country: true },
             buyCrypto: {
               buy: true,
               cryptoRoute: true,

@@ -3,9 +3,12 @@ import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { NotRefundableAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { AmlReason, NotRefundableAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -16,25 +19,35 @@ import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
+import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
+import { Notification } from 'src/subdomains/supporting/notification/entities/notification.entity';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
+import { Recall } from 'src/subdomains/supporting/recall/recall.entity';
+import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
 import {
   BankTx,
+  BankTxComplianceSearchableTypes,
   BankTxType,
   BankTxTypeUnassigned,
 } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
-import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { addressExplorerUrl, txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { KycFile } from '../kyc/entities/kyc-file.entity';
 import { KycLog } from '../kyc/entities/kyc-log.entity';
 import { KycStep } from '../kyc/entities/kyc-step.entity';
 import { KycStepName } from '../kyc/enums/kyc-step-name.enum';
@@ -52,6 +65,7 @@ import { Recommendation } from '../user/models/recommendation/recommendation.ent
 import { RecommendationService } from '../user/models/recommendation/recommendation.service';
 import { AccountType } from '../user/models/user-data/account-type.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
+import { PhoneCallStatus } from '../user/models/user-data/user-data.enum';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { User } from '../user/models/user/user.entity';
 import { UserService } from '../user/models/user/user.service';
@@ -69,27 +83,55 @@ import {
   KycFileYearlyStats,
   KycLogSupportInfo,
   KycStepSupportInfo,
+  RecallSupportInfo,
   RecommendationEntry,
   RecommendationGraph,
   RecommendationGraphEdge,
   RecommendationGraphNode,
   RecommendationUserInfo,
   SellSupportInfo,
+  SwapSupportInfo,
+  VirtualIbanSupportInfo,
+  RefRewardSupportInfo,
+  NotificationSupportInfo,
+  SupportPermissions,
   TransactionListEntry,
   TransactionSupportInfo,
+  CallQueue,
+  CallQueueItem,
+  CallQueueSummaryEntry,
   OnboardingStatus,
   PendingOnboardingInfo,
+  PendingReviewItem,
+  PendingReviewSummaryEntry,
+  PendingReviewType,
   UserDataSupportInfo,
   UserDataSupportInfoDetails,
   UserDataSupportInfoResult,
   UserDataSupportQuery,
   UserSupportInfo,
 } from './dto/user-data-support.dto';
+import { toUserDataDetailDto } from './user-data-detail.mapper';
 
 interface UserDataComplianceSearchTypePair {
   type: ComplianceSearchType;
   userData: UserData;
 }
+
+const CallQueueItemsLimit = 200;
+
+const PendingReviewBankDataName = 'BankData';
+
+const CallQueueTxReasonMap: Partial<Record<CallQueue, AmlReason>> = {
+  [CallQueue.MANUAL_CHECK_PHONE]: AmlReason.MANUAL_CHECK_PHONE,
+  [CallQueue.MANUAL_CHECK_IP_PHONE]: AmlReason.MANUAL_CHECK_IP_PHONE,
+  [CallQueue.MANUAL_CHECK_IP_COUNTRY_PHONE]: AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
+  [CallQueue.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE]: AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
+};
+
+// Roles with restricted access to compliance user details.
+// Drives the permissions block returned to the frontend (which gates panels, actions and tabs).
+const RESTRICTED_ROLES: UserRole[] = [UserRole.SUPPORT, UserRole.MARKETING];
 
 @Injectable()
 export class SupportService {
@@ -101,6 +143,8 @@ export class SupportService {
     private readonly buyService: BuyService,
     private readonly sellService: SellService,
     private readonly swapService: SwapService,
+    private readonly refRewardService: RefRewardService,
+    private readonly notificationService: NotificationService,
     private readonly buyCryptoService: BuyCryptoService,
     private readonly buyFiatService: BuyFiatService,
     private readonly bankTxService: BankTxService,
@@ -121,6 +165,7 @@ export class SupportService {
     private readonly supportIssueService: SupportIssueService,
     private readonly kycDocumentService: KycDocumentService,
     private readonly supportPdfService: SupportPdfService,
+    private readonly recallService: RecallService,
   ) {}
 
   async generateIpLogPdf(userDataId: number): Promise<string> {
@@ -174,24 +219,59 @@ export class SupportService {
     return { pdfData, fileName };
   }
 
-  async getUserDataDetails(id: number): Promise<UserDataSupportInfoDetails> {
+  async getUserDataDetails(id: number, role: UserRole): Promise<UserDataSupportInfoDetails> {
     const userData = await this.userDataService.getUserData(id, { wallet: true, bankDatas: true });
     if (!userData) throw new NotFoundException(`User not found`);
 
-    // Load all related data in parallel
-    const [kycFiles, kycSteps, kycLogs, transactions, users, bankDatas, buyRoutes, sellRoutes, ipLogs, supportIssues] =
-      await Promise.all([
-        this.kycFileService.getUserDataKycFiles(id),
-        this.kycService.getStepsByUserData(id),
-        this.kycLogService.getLogsByUserDataId(id),
-        this.transactionService.getTransactionsByUserDataId(id),
-        this.userService.getAllUserDataUsers(id, { wallet: true }),
-        this.bankDataService.getBankDatasByUserData(id),
-        this.buyService.getUserDataBuys(id),
-        this.sellService.getSellsByUserDataId(id),
-        this.ipLogService.getByUserDataId(id),
-        this.supportIssueService.getIssueEntities(id),
-      ]);
+    const isRestricted = RESTRICTED_ROLES.includes(role);
+    const permissions: SupportPermissions = {
+      viewKycFiles: !isRestricted,
+      viewKycLogs: !isRestricted,
+      viewIpLogs: !isRestricted,
+      viewSupportIssues: !isRestricted || role === UserRole.SUPPORT,
+      canRequestLimit: !isRestricted,
+      canPerformTransactionActions: !isRestricted,
+      viewRecommendation: !isRestricted,
+    };
+
+    // Load all related data in parallel — skip queries for fields the role is not allowed to see
+    const [
+      kycFiles,
+      kycSteps,
+      kycLogs,
+      transactions,
+      users,
+      bankDatas,
+      buyRoutes,
+      sellRoutes,
+      swapRoutes,
+      virtualIbans,
+      refRewards,
+      notifications,
+      ipLogs,
+      supportIssues,
+    ] = await Promise.all([
+      permissions.viewKycFiles
+        ? this.kycFileService.getUserDataKycFiles(id)
+        : Promise.resolve<KycFile[] | undefined>(undefined),
+      this.kycService.getStepsByUserData(id),
+      permissions.viewKycLogs
+        ? this.kycLogService.getLogsByUserDataId(id)
+        : Promise.resolve<KycLog[] | undefined>(undefined),
+      this.transactionService.getTransactionsByUserDataId(id),
+      this.userService.getAllUserDataUsers(id, { wallet: true }),
+      this.bankDataService.getBankDatasByUserData(id),
+      this.buyService.getUserDataBuys(id),
+      this.sellService.getSellsByUserDataId(id),
+      this.swapService.getSwapsByUserDataId(id),
+      this.virtualIbanService.getVirtualIbansForAccount(id),
+      this.refRewardService.getRefRewardsByUserDataId(id),
+      this.notificationService.getMails(id),
+      permissions.viewIpLogs ? this.ipLogService.getByUserDataId(id) : Promise.resolve<IpLog[] | undefined>(undefined),
+      permissions.viewSupportIssues
+        ? this.supportIssueService.getIssueEntities(id)
+        : Promise.resolve<SupportIssue[] | undefined>(undefined),
+    ]);
 
     // Load bank transactions for the loaded transactions (incoming + outgoing)
     const transactionIds = transactions.map((t) => t.id);
@@ -210,6 +290,7 @@ export class SupportService {
         return bankTx;
       });
     const bankTxs = [...incomingBankTxs, ...outgoingBankTxs];
+    const recallByBankTxId = await this.buildRecallByBankTxIdMap(bankTxs.map((b) => b.id));
 
     // Load recommendation data for Recommendation steps
     const recommendationStepIds = kycSteps.filter((s) => s.name === KycStepName.RECOMMENDATION).map((s) => s.id);
@@ -228,7 +309,7 @@ export class SupportService {
       : [];
 
     return {
-      userData,
+      userData: toUserDataDetailDto(userData),
       kycFiles,
       kycSteps: kycSteps.map((s) =>
         this.toKycStepSupportInfo(
@@ -239,16 +320,21 @@ export class SupportService {
           s.name === KycStepName.RECOMMENDATION ? allByRecommender : undefined,
         ),
       ),
-      kycLogs: kycLogs.map((l) => this.toKycLogSupportInfo(l)),
+      kycLogs: kycLogs?.map((l) => this.toKycLogSupportInfo(l)),
       transactions: transactions.map((t) => this.toTransactionSupportInfo(t)),
-      bankTxs: bankTxs.map((b) => this.toBankTxDto(b)),
+      bankTxs: bankTxs.map((b) => this.toBankTxDto(b, recallByBankTxId.get(b.id))),
       cryptoInputs: cryptoInputs.map((c) => this.toCryptoInputSupportInfo(c)),
-      ipLogs: ipLogs.map((l) => this.toIpLogSupportInfo(l)),
-      supportIssues: supportIssues.map((s) => this.toSupportIssueSupportInfo(s)),
-      users: users.map((u) => this.toUserSupportInfo(u)),
+      ipLogs: ipLogs?.map((l) => this.toIpLogSupportInfo(l)),
+      supportIssues: supportIssues?.map((s) => this.toSupportIssueSupportInfo(s)),
+      users: await this.toUserSupportInfos(users),
       bankDatas: bankDatas.map((b) => this.toBankDataSupportInfo(b)),
       buyRoutes: buyRoutes.map((b) => this.toBuySupportInfo(b)),
       sellRoutes: sellRoutes.map((s) => this.toSellSupportInfo(s)),
+      swapRoutes: swapRoutes.map((s) => this.toSwapSupportInfo(s)),
+      virtualIbans: virtualIbans.map((v) => this.toVirtualIbanSupportInfo(v)),
+      refRewards: refRewards.map((r) => this.toRefRewardSupportInfo(r)),
+      notifications: notifications.map((n) => this.toNotificationSupportInfo(n)),
+      permissions,
     };
   }
 
@@ -416,16 +502,31 @@ export class SupportService {
     };
   }
 
-  private toUserSupportInfo(user: User): UserSupportInfo {
-    return {
-      id: user.id,
-      address: user.address,
-      ref: user.ref,
-      role: user.role,
-      status: user.status,
-      walletName: user.wallet?.name,
-      created: user.created,
-    };
+  private async toUserSupportInfos(users: User[]): Promise<UserSupportInfo[]> {
+    const usedRefs = Array.from(
+      new Set(users.map((u) => u.usedRef).filter((r): r is string => !!r && r !== '000-000')),
+    );
+    const refUsers = await this.userService.getRefUsersByRefs(usedRefs);
+    const refUserByRef = new Map(refUsers.map((r) => [r.ref, r]));
+
+    return users.map((user) => {
+      const refUser = user.usedRef ? refUserByRef.get(user.usedRef) : undefined;
+      const refUserName = refUser?.userData
+        ? [refUser.userData.firstname, refUser.userData.surname].filter(Boolean).join(' ') || undefined
+        : undefined;
+
+      return {
+        id: user.id,
+        address: user.address,
+        ref: user.ref,
+        usedRef: user.usedRef,
+        refUserName,
+        role: user.role,
+        status: user.status,
+        walletName: user.wallet?.name,
+        created: user.created,
+      };
+    });
   }
 
   private toBankDataSupportInfo(bankData: BankData): BankDataSupportInfo {
@@ -444,12 +545,16 @@ export class SupportService {
   }
 
   private toBuySupportInfo(buy: Buy): BuySupportInfo {
+    const address = buy.user?.address;
     return {
       id: buy.id,
       iban: buy.iban,
       bankUsage: buy.bankUsage,
       assetName: buy.asset?.name,
       blockchain: buy.asset?.blockchain,
+      targetAddress: address,
+      targetAddressExplorerUrl:
+        buy.asset?.blockchain && address ? addressExplorerUrl(buy.asset.blockchain, address) : undefined,
       volume: buy.volume,
       active: buy.active,
       created: buy.created,
@@ -464,6 +569,80 @@ export class SupportService {
       volume: sell.annualVolume,
       active: sell.active,
       created: sell.created,
+    };
+  }
+
+  private toSwapSupportInfo(swap: Swap): SwapSupportInfo {
+    const depositBlockchain = swap.deposit?.blockchainList?.[0];
+    return {
+      id: swap.id,
+      assetName: swap.asset?.name,
+      blockchain: swap.asset?.blockchain,
+      depositAddress: swap.deposit?.address,
+      depositAddressExplorerUrl:
+        depositBlockchain && swap.deposit?.address
+          ? addressExplorerUrl(depositBlockchain, swap.deposit.address)
+          : undefined,
+      volume: swap.volume,
+      annualVolume: swap.annualVolume,
+      active: swap.active,
+      created: swap.created,
+    };
+  }
+
+  private toNotificationSupportInfo(n: Notification): NotificationSupportInfo {
+    return {
+      id: n.id,
+      type: n.type,
+      context: n.context,
+      correlationId: n.correlationId,
+      isComplete: n.isComplete,
+      error: n.error,
+      suppressRecurring: n.suppressRecurring,
+      lastTryDate: n.lastTryDate,
+      created: n.created,
+    };
+  }
+
+  private toRefRewardSupportInfo(reward: RefReward): RefRewardSupportInfo {
+    return {
+      id: reward.id,
+      status: reward.status,
+      outputAmount: reward.outputAmount,
+      outputAsset: reward.outputAsset?.name,
+      outputBlockchain: reward.targetBlockchain,
+      amountInChf: reward.amountInChf,
+      amountInEur: reward.amountInEur,
+      targetAddress: reward.targetAddress,
+      targetAddressExplorerUrl:
+        reward.targetBlockchain && reward.targetAddress
+          ? addressExplorerUrl(reward.targetBlockchain, reward.targetAddress)
+          : undefined,
+      txId: reward.txId,
+      txExplorerUrl:
+        reward.targetBlockchain && reward.txId ? txExplorerUrl(reward.targetBlockchain, reward.txId) : undefined,
+      outputDate: reward.outputDate,
+      recipientMail: reward.recipientMail,
+      mailSendDate: reward.mailSendDate,
+      created: reward.created,
+    };
+  }
+
+  private toVirtualIbanSupportInfo(viban: VirtualIban): VirtualIbanSupportInfo {
+    return {
+      id: viban.id,
+      iban: viban.iban,
+      bban: viban.bban,
+      currency: viban.currency?.name,
+      bank: viban.bank?.name,
+      status: viban.status,
+      active: viban.active,
+      label: viban.label,
+      buyId: viban.buy?.id,
+      reservedUntil: viban.reservedUntil,
+      activatedAt: viban.activatedAt,
+      deactivatedAt: viban.deactivatedAt,
+      created: viban.created,
     };
   }
 
@@ -526,7 +705,12 @@ export class SupportService {
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
     const searchResult = await this.getUserDatasByKey(query.key);
     const bankTx = [ComplianceSearchType.IBAN, ComplianceSearchType.VIRTUAL_IBAN].includes(searchResult.type)
-      ? await this.bankTxService.getUnassignedBankTx([query.key], [query.key])
+      ? await this.bankTxService.getUnassignedBankTx(
+          [query.key],
+          [query.key],
+          undefined,
+          BankTxComplianceSearchableTypes,
+        )
       : searchResult.type === ComplianceSearchType.NAME
         ? await this.bankTxService.getBankTxsByName(query.key)
         : [];
@@ -544,11 +728,12 @@ export class SupportService {
 
     const orgUserIds = uniqueUserDatas.filter((u) => u.accountType === AccountType.ORGANIZATION).map((u) => u.id);
     const onboardingStatuses = await this.getDfxApprovalStatuses(orgUserIds);
+    const recallByBankTxId = await this.buildRecallByBankTxIdMap(bankTx.map((b) => b.id));
 
     return {
       type: searchResult.type,
       userDatas: uniqueUserDatas.map((u) => this.toUserDataDto(u, onboardingStatuses)),
-      bankTx: bankTx.sort((a, b) => a.id - b.id).map((b) => this.toBankTxDto(b)),
+      bankTx: bankTx.sort((a, b) => a.id - b.id).map((b) => this.toBankTxDto(b, recallByBankTxId.get(b.id))),
     };
   }
 
@@ -565,11 +750,176 @@ export class SupportService {
       .filter((ud): ud is UserData => !!ud)
       .map((ud) => ({
         id: ud.id,
-        name:
-          ud.verifiedName ?? ([ud.firstname, ud.surname, ud.organization?.name].filter(Boolean).join(' ') || undefined),
+        name: this.formatUserName(ud),
         accountType: ud.accountType,
         date: dateMap.get(ud.id) ?? ud.created,
       }));
+  }
+
+  async getPendingReviewsSummary(): Promise<PendingReviewSummaryEntry[]> {
+    const [kycRows, bankRows] = await Promise.all([
+      this.kycService.getPendingReviewSummary(),
+      this.bankDataService.getPendingReviewSummary(),
+    ]);
+
+    const entries = new Map<string, PendingReviewSummaryEntry>();
+
+    const register = (type: PendingReviewType, name: string, status: ReviewStatus, count: number) => {
+      const key = `${type}:${name}`;
+      const entry = entries.get(key) ?? { type, name, manualReview: 0, internalReview: 0 };
+      if (status === ReviewStatus.MANUAL_REVIEW) entry.manualReview = count;
+      else if (status === ReviewStatus.INTERNAL_REVIEW) entry.internalReview = count;
+      entries.set(key, entry);
+    };
+
+    for (const row of kycRows) register(PendingReviewType.KYC_STEP, row.name, row.status, row.count);
+    for (const row of bankRows) register(PendingReviewType.BANK_DATA, PendingReviewBankDataName, row.status, row.count);
+
+    return Array.from(entries.values()).sort((a, b) => {
+      if (a.type !== b.type) return a.type.localeCompare(b.type);
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  async getPendingReviewsList(
+    type: PendingReviewType,
+    name: string | undefined,
+    status: ReviewStatus,
+  ): Promise<PendingReviewItem[]> {
+    if (![ReviewStatus.MANUAL_REVIEW, ReviewStatus.INTERNAL_REVIEW].includes(status)) {
+      throw new BadRequestException('Status must be ManualReview or InternalReview');
+    }
+
+    if (type === PendingReviewType.KYC_STEP) {
+      if (!name) throw new BadRequestException('Name is required for KycStep lookup');
+      if (!Object.values(KycStepName).includes(name as KycStepName)) {
+        throw new BadRequestException('Unknown KycStepName');
+      }
+      const steps = await this.kycService.getPendingReviewSteps(name as KycStepName, status);
+      return steps.map((step) => this.toPendingReviewItem(step));
+    }
+
+    if (type === PendingReviewType.BANK_DATA) {
+      const bankDatas = await this.bankDataService.getPendingReviewList(status);
+      return bankDatas.map((bd) => this.toPendingReviewItem(bd));
+    }
+
+    throw new BadRequestException('Unknown review type');
+  }
+
+  private toPendingReviewItem(entity: { id: number; userData: UserData; updated: Date }): PendingReviewItem {
+    return {
+      id: entity.id,
+      userDataId: entity.userData.id,
+      userName: this.formatUserName(entity.userData),
+      accountType: entity.userData.accountType,
+      kycLevel: entity.userData.kycLevel,
+      date: entity.updated,
+    };
+  }
+
+  private formatUserName(ud: UserData): string | undefined {
+    return (
+      ud.verifiedName ?? ([ud.firstname, ud.surname, ud.organization?.name].filter(Boolean).join(' ') || undefined)
+    );
+  }
+
+  async getCallQueueClerks(): Promise<string[]> {
+    return this.settingService.getObj<string[]>('complianceClerks', []);
+  }
+
+  async getCallQueuesSummary(): Promise<CallQueueSummaryEntry[]> {
+    const [unavailSuspicious, phone, ipPhone, ipCountryPhone, externalAccountPhone] = await Promise.all([
+      this.userDataService.countByPhoneCallStatuses([PhoneCallStatus.UNAVAILABLE, PhoneCallStatus.SUSPICIOUS]),
+      this.countTxQueue(AmlReason.MANUAL_CHECK_PHONE),
+      this.countTxQueue(AmlReason.MANUAL_CHECK_IP_PHONE),
+      this.countTxQueue(AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE),
+      this.countTxQueue(AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE),
+    ]);
+
+    return [
+      { queue: CallQueue.UNAVAILABLE_SUSPICIOUS, count: unavailSuspicious },
+      { queue: CallQueue.MANUAL_CHECK_PHONE, count: phone },
+      { queue: CallQueue.MANUAL_CHECK_IP_PHONE, count: ipPhone },
+      { queue: CallQueue.MANUAL_CHECK_IP_COUNTRY_PHONE, count: ipCountryPhone },
+      { queue: CallQueue.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE, count: externalAccountPhone },
+    ];
+  }
+
+  async getCallQueueItems(queue: CallQueue): Promise<CallQueueItem[]> {
+    const txReason = CallQueueTxReasonMap[queue];
+    if (txReason) return this.loadTxQueue(queue, txReason);
+
+    const users = await this.userDataService.getByPhoneCallStatuses(
+      [PhoneCallStatus.UNAVAILABLE, PhoneCallStatus.SUSPICIOUS],
+      CallQueueItemsLimit,
+    );
+    return users.map((ud) => this.toUserCallQueueItem(ud));
+  }
+
+  private async countTxQueue(reason: AmlReason): Promise<number> {
+    const [crypto, fiat] = await Promise.all([
+      this.buyCryptoService.countByAmlReason(reason, CheckStatus.PENDING),
+      this.buyFiatService.countByAmlReason(reason, CheckStatus.PENDING),
+    ]);
+    return crypto + fiat;
+  }
+
+  private async loadTxQueue(queue: CallQueue, reason: AmlReason): Promise<CallQueueItem[]> {
+    const [buyCryptos, buyFiats] = await Promise.all([
+      this.buyCryptoService.getByAmlReason(reason, CheckStatus.PENDING, CallQueueItemsLimit),
+      this.buyFiatService.getByAmlReason(reason, CheckStatus.PENDING, CallQueueItemsLimit),
+    ]);
+    const items = [
+      ...buyCryptos.map((bc) => this.toTxCallQueueItem(queue, bc, 'BuyCrypto')),
+      ...buyFiats.map((bf) => this.toTxCallQueueItem(queue, bf, 'BuyFiat')),
+    ];
+    return items
+      .sort((a, b) => a.date.getTime() - b.date.getTime() || (a.txId ?? 0) - (b.txId ?? 0))
+      .slice(0, CallQueueItemsLimit);
+  }
+
+  private toTxCallQueueItem(
+    queue: CallQueue,
+    tx: BuyCrypto | BuyFiat,
+    sourceType: 'BuyCrypto' | 'BuyFiat',
+  ): CallQueueItem {
+    const ud = tx.userData;
+    const user = tx.transaction?.user;
+    const inputAsset =
+      sourceType === 'BuyCrypto' ? (tx as BuyCrypto).inputAsset : (tx as BuyFiat).cryptoInput?.asset?.name;
+    return {
+      queue,
+      userDataId: ud.id,
+      userName: this.formatUserName(ud),
+      phone: ud.phone,
+      language: ud.language?.name,
+      country: ud.country?.name,
+      kycLevel: ud.kycLevel,
+      txId: tx.transaction.id,
+      sourceType,
+      amlCheck: tx.amlCheck,
+      amlReason: tx.amlReason,
+      inputAmount: tx.inputAmount,
+      inputAsset,
+      ip: user?.ip,
+      ipCountry: user?.ipCountry,
+      date: tx.created,
+    };
+  }
+
+  private toUserCallQueueItem(ud: UserData): CallQueueItem {
+    return {
+      queue: CallQueue.UNAVAILABLE_SUSPICIOUS,
+      userDataId: ud.id,
+      userName: this.formatUserName(ud),
+      phone: ud.phone,
+      language: ud.language?.name,
+      country: ud.country?.name,
+      kycLevel: ud.kycLevel,
+      phoneCallStatus: ud.phoneCallStatus,
+      date: ud.phoneCallCheckDate ?? ud.updated,
+    };
   }
 
   //*** HELPER METHODS ***//
@@ -712,7 +1062,7 @@ export class SupportService {
     };
   }
 
-  private toBankTxDto(bankTx: BankTx): BankTxSupportInfo {
+  private toBankTxDto(bankTx: BankTx, recall?: Recall): BankTxSupportInfo {
     return {
       id: bankTx.id,
       transactionId: bankTx.transaction?.id,
@@ -723,7 +1073,24 @@ export class SupportService {
       name: bankTx.completeName(),
       iban: bankTx.iban,
       remittanceInfo: bankTx.remittanceInfo,
+      recall: recall ? this.toRecallSupportInfo(recall) : undefined,
     };
+  }
+
+  private toRecallSupportInfo(recall: Recall): RecallSupportInfo {
+    return {
+      id: recall.id,
+      created: recall.created,
+      sequence: recall.sequence,
+      reason: recall.reason,
+      comment: recall.comment,
+      fee: recall.fee,
+    };
+  }
+
+  private async buildRecallByBankTxIdMap(bankTxIds: number[]): Promise<Map<number, Recall>> {
+    const recalls = await this.recallService.getByBankTxIds(bankTxIds);
+    return new Map(recalls.map((r) => [r.bankTx.id, r]));
   }
 
   private toCryptoInputSupportInfo(ci: CryptoInput): CryptoInputSupportInfo {

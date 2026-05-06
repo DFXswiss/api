@@ -150,10 +150,14 @@ export abstract class EvmClient extends BlockchainClient {
     const tokenBalances = await this.alchemyService.getTokenBalances(this.chainId, owner, assets);
 
     for (const tokenBalance of tokenBalances) {
-      const token = await this.getTokenByAddress(tokenBalance.contractAddress);
-      const balance = EvmUtil.fromWeiAmount(tokenBalance.tokenBalance ?? 0, token.decimals);
+      try {
+        const token = await this.getTokenByAddress(tokenBalance.contractAddress);
+        const balance = EvmUtil.fromWeiAmount(tokenBalance.tokenBalance ?? 0, token.decimals);
 
-      evmTokenBalances.push({ owner, contractAddress: tokenBalance.contractAddress, balance: balance });
+        evmTokenBalances.push({ owner, contractAddress: tokenBalance.contractAddress, balance: balance });
+      } catch (e) {
+        this.logger.error(`Failed to process token balance for ${tokenBalance.contractAddress}:`, e);
+      }
     }
 
     return evmTokenBalances;

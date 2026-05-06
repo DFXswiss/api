@@ -81,6 +81,7 @@ export const TransactionReasonMapper: {
   [AmlReason.NO_COMMUNICATION]: TransactionReason.UNKNOWN,
   [AmlReason.USER_BLOCKED]: TransactionReason.UNKNOWN,
   [AmlReason.USER_DATA_BLOCKED]: TransactionReason.UNKNOWN,
+  [AmlReason.USER_DATA_SUSPICIOUS]: TransactionReason.UNKNOWN,
   [AmlReason.USER_DELETED]: TransactionReason.USER_DELETED,
   [AmlReason.MONTHLY_LIMIT]: TransactionReason.MONTHLY_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,
@@ -266,9 +267,6 @@ export class TransactionDto extends UnassignedTransactionDto {
 
   @ApiPropertyOptional({ type: NetworkStartTxDto })
   networkStartTx?: NetworkStartTxDto;
-
-  @ApiPropertyOptional({ description: 'User country code (ISO 3166-1 alpha-2)' })
-  userCountry?: string;
 }
 
 export class TransactionDetailDto extends TransactionDto {

@@ -27,6 +27,7 @@ import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/su
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
 import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
+import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../../history/dto/history.dto';
@@ -385,7 +386,7 @@ export class BuyFiatService {
       relations: { fiatOutput: true, transaction: { userData: true }, outputAsset: true },
     });
     if (!entity) throw new NotFoundException('BuyFiat not found');
-    if (entity.isComplete || entity.fiatOutput?.isComplete)
+    if (entity.isComplete || entity.fiatOutput?.isComplete || entity.chargebackAllowedDate)
       throw new BadRequestException('BuyFiat is already complete');
     if (!entity.amlCheck) throw new BadRequestException('BuyFiat amlcheck is not set');
 
@@ -621,5 +622,22 @@ export class BuyFiatService {
       cryptoAmount: v.cryptoInput?.amount,
       cryptoCurrency: v.cryptoInput?.asset?.name,
     }));
+  }
+
+  async getByAmlReason(reason: AmlReason, status: CheckStatus, limit?: number): Promise<BuyFiat[]> {
+    return this.buyFiatRepo.find({
+      where: { amlReason: reason, amlCheck: status },
+      relations: {
+        cryptoInput: { asset: true },
+        transaction: { user: true, userData: { organization: true, language: true, country: true } },
+      },
+      loadEagerRelations: false,
+      order: { created: 'ASC' },
+      take: limit,
+    });
+  }
+
+  async countByAmlReason(reason: AmlReason, status: CheckStatus): Promise<number> {
+    return this.buyFiatRepo.countBy({ amlReason: reason, amlCheck: status });
   }
 }

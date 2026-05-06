@@ -90,6 +90,7 @@ export enum Process {
   ZANO_ASSET_WHITELIST = 'ZanoAssetWhitelist',
   TRADE_APPROVAL_DATE = 'TradeApprovalDate',
   SUPPORT_BOT = 'SupportBot',
+  GUARANTEED_PRICE = 'GuaranteedPrice',
 }
 
 const safetyProcesses: Process[] = [

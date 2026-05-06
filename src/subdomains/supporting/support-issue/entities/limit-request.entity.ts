@@ -76,6 +76,12 @@ export class LimitRequest extends IEntity {
     return [this.id, { recipientMail: this.recipientMail, mailSendDate: this.mailSendDate }];
   }
 
+  skipMail(): UpdateResult<LimitRequest> {
+    this.mailSendDate = new Date();
+
+    return [this.id, { mailSendDate: this.mailSendDate }];
+  }
+
   get userData(): UserData {
     return this.supportIssue.userData;
   }

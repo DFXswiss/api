@@ -1,9 +1,23 @@
 import { IsNotEmpty } from 'class-validator';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { RecallReason } from 'src/subdomains/supporting/recall/recall-reason.enum';
 import { KycFile } from '../../kyc/entities/kyc-file.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
-import { UserData } from '../../user/models/user-data/user-data.entity';
-import { KycStatus } from '../../user/models/user-data/user-data.enum';
+import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
+import {
+  KycLevel,
+  KycStatus,
+  KycType,
+  LegalEntity,
+  Moderator,
+  PhoneCallStatus,
+  RiskStatus,
+  SignatoryPower,
+  UserDataStatus,
+} from '../../user/models/user-data/user-data.enum';
+import { AccountOpenerAuthorization } from '../../user/models/organization/organization.entity';
 
 export class UserDataSupportInfoResult {
   type: ComplianceSearchType;
@@ -33,6 +47,60 @@ export class PendingOnboardingInfo {
   date: Date;
 }
 
+export enum PendingReviewType {
+  KYC_STEP = 'KycStep',
+  BANK_DATA = 'BankData',
+}
+
+export class PendingReviewSummaryEntry {
+  type: PendingReviewType;
+  name: string;
+  manualReview: number;
+  internalReview: number;
+}
+
+export class PendingReviewItem {
+  id: number;
+  userDataId: number;
+  userName?: string;
+  accountType?: AccountType;
+  kycLevel?: number;
+  date: Date;
+}
+
+export enum CallQueue {
+  MANUAL_CHECK_PHONE = 'ManualCheckPhone',
+  MANUAL_CHECK_IP_PHONE = 'ManualCheckIpPhone',
+  MANUAL_CHECK_IP_COUNTRY_PHONE = 'ManualCheckIpCountryPhone',
+  MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE = 'ManualCheckExternalAccountPhone',
+  UNAVAILABLE_SUSPICIOUS = 'UnavailableSuspicious',
+}
+
+export class CallQueueSummaryEntry {
+  queue: CallQueue;
+  count: number;
+}
+
+export class CallQueueItem {
+  queue: CallQueue;
+  userDataId: number;
+  userName?: string;
+  phone?: string;
+  language?: string;
+  country?: string;
+  kycLevel?: number;
+  txId?: number;
+  sourceType?: 'BuyCrypto' | 'BuyFiat';
+  amlCheck?: CheckStatus;
+  amlReason?: AmlReason;
+  inputAmount?: number;
+  inputAsset?: string;
+  ip?: string;
+  ipCountry?: string;
+  phoneCallStatus?: PhoneCallStatus;
+  date: Date;
+}
+
 export class BankTxSupportInfo {
   id: number;
   transactionId?: number;
@@ -43,12 +111,24 @@ export class BankTxSupportInfo {
   name?: string;
   iban?: string;
   remittanceInfo?: string;
+  recall?: RecallSupportInfo;
+}
+
+export class RecallSupportInfo {
+  id: number;
+  created: Date;
+  sequence: number;
+  reason?: RecallReason;
+  comment: string;
+  fee: number;
 }
 
 export class UserSupportInfo {
   id: number;
   address: string;
   ref?: string;
+  usedRef?: string;
+  refUserName?: string;
   role: string;
   status: string;
   walletName?: string;
@@ -132,6 +212,8 @@ export class BuySupportInfo {
   bankUsage: string;
   assetName: string;
   blockchain: string;
+  targetAddress?: string;
+  targetAddressExplorerUrl?: string;
   volume: number;
   active: boolean;
   created: Date;
@@ -143,6 +225,64 @@ export class SellSupportInfo {
   fiatName?: string;
   volume: number;
   active: boolean;
+  created: Date;
+}
+
+export class SwapSupportInfo {
+  id: number;
+  assetName?: string;
+  blockchain?: string;
+  depositAddress?: string;
+  depositAddressExplorerUrl?: string;
+  volume: number;
+  annualVolume: number;
+  active: boolean;
+  created: Date;
+}
+
+export class VirtualIbanSupportInfo {
+  id: number;
+  iban: string;
+  bban?: string;
+  currency?: string;
+  bank?: string;
+  status?: string;
+  active: boolean;
+  label?: string;
+  buyId?: number;
+  reservedUntil?: Date;
+  activatedAt?: Date;
+  deactivatedAt?: Date;
+  created: Date;
+}
+
+export class NotificationSupportInfo {
+  id: number;
+  type: string;
+  context: string;
+  correlationId?: string;
+  isComplete: boolean;
+  error?: string;
+  suppressRecurring: boolean;
+  lastTryDate: Date;
+  created: Date;
+}
+
+export class RefRewardSupportInfo {
+  id: number;
+  status?: string;
+  outputAmount?: number;
+  outputAsset?: string;
+  outputBlockchain?: string;
+  amountInChf?: number;
+  amountInEur?: number;
+  targetAddress?: string;
+  targetAddressExplorerUrl?: string;
+  txId?: string;
+  txExplorerUrl?: string;
+  outputDate?: Date;
+  recipientMail?: string;
+  mailSendDate?: Date;
   created: Date;
 }
 
@@ -275,20 +415,140 @@ export class IpLogSupportInfo {
   created: Date;
 }
 
+export class SupportPermissions {
+  viewKycFiles: boolean;
+  viewKycLogs: boolean;
+  viewIpLogs: boolean;
+  viewSupportIssues: boolean;
+  canRequestLimit: boolean;
+  canPerformTransactionActions: boolean;
+  viewRecommendation: boolean;
+}
+
+export class CountrySupportInfo {
+  name: string;
+  symbol?: string;
+}
+
+export class LanguageSupportInfo {
+  name: string;
+  symbol?: string;
+}
+
+export class WalletSupportInfo {
+  name: string;
+}
+
+export class OrganizationSupportInfo {
+  id: number;
+  name?: string;
+  street?: string;
+  houseNumber?: string;
+  zip?: string;
+  location?: string;
+  country?: CountrySupportInfo;
+  legalEntity?: LegalEntity;
+  signatoryPower?: SignatoryPower;
+  complexOrgStructure?: boolean;
+  allBeneficialOwnersName?: string;
+  allBeneficialOwnersDomicile?: string;
+  accountOpenerAuthorization?: AccountOpenerAuthorization;
+}
+
+export class UserDataDetailDto {
+  // UserData
+  id: number;
+  created: Date;
+  status: UserDataStatus;
+  riskStatus: RiskStatus;
+  kycStatus: KycStatus;
+  kycLevel: KycLevel;
+  depositLimit?: number;
+  wallet?: WalletSupportInfo;
+
+  // Personal Data
+  accountType?: AccountType;
+  mail?: string;
+  verifiedName?: string;
+  verifiedCountry?: CountrySupportInfo;
+  firstname?: string;
+  surname?: string;
+  street?: string;
+  houseNumber?: string;
+  zip?: string;
+  location?: string;
+  country?: CountrySupportInfo;
+  nationality?: CountrySupportInfo;
+  language?: LanguageSupportInfo;
+  birthday?: Date;
+  phone?: string;
+
+  // Organization Data
+  organization?: OrganizationSupportInfo;
+
+  // KYC / AML
+  kycType?: KycType;
+  kycHash: string;
+  kycFileId?: number;
+  identDocumentId?: string;
+  identDocumentType?: string;
+  identificationType?: KycIdentificationType;
+  highRisk?: boolean;
+  pep?: boolean;
+  bankTransactionVerification?: CheckStatus;
+  olkypayAllowed?: boolean;
+
+  // PaymentLink Data
+  paymentLinksAllowed: boolean;
+  paymentLinksConfig?: string;
+  paymentLinksName?: string;
+
+  // PhoneCall
+  phoneCallStatus?: PhoneCallStatus;
+  phoneCallAccepted?: boolean;
+  phoneCallCheckDate?: Date;
+  phoneCallExternalAccountCheckDate?: Date;
+  phoneCallExternalAccountCheckValues?: string;
+  phoneCallIpCheckDate?: Date;
+  phoneCallIpCountryCheckDate?: Date;
+  phoneCallTimes?: string;
+
+  // Volumes
+  buyVolume: number;
+  annualBuyVolume: number;
+  sellVolume: number;
+  annualSellVolume: number;
+  cryptoVolume: number;
+  annualCryptoVolume: number;
+
+  // Other
+  isTrustedReferrer: boolean;
+  tradeApprovalDate?: Date;
+  deactivationDate?: Date;
+  lastNameCheckDate?: Date;
+  letterSentDate?: Date;
+  moderator?: Moderator;
+}
+
 export class UserDataSupportInfoDetails {
-  userData: UserData;
-  kycFiles: KycFile[];
+  userData: UserDataDetailDto;
+  kycFiles?: KycFile[];
   kycSteps: KycStepSupportInfo[];
-  kycLogs: KycLogSupportInfo[];
+  kycLogs?: KycLogSupportInfo[];
   transactions: TransactionSupportInfo[];
   bankTxs: BankTxSupportInfo[];
   cryptoInputs: CryptoInputSupportInfo[];
-  ipLogs: IpLogSupportInfo[];
-  supportIssues: SupportIssueSupportInfo[];
+  ipLogs?: IpLogSupportInfo[];
+  supportIssues?: SupportIssueSupportInfo[];
   users: UserSupportInfo[];
   bankDatas: BankDataSupportInfo[];
   buyRoutes: BuySupportInfo[];
   sellRoutes: SellSupportInfo[];
+  swapRoutes: SwapSupportInfo[];
+  virtualIbans: VirtualIbanSupportInfo[];
+  refRewards: RefRewardSupportInfo[];
+  notifications: NotificationSupportInfo[];
+  permissions: SupportPermissions;
 }
 
 export class UserDataSupportQuery {

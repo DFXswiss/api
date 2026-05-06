@@ -7,6 +7,7 @@ import {
   ServiceUnavailableException,
   forwardRef,
 } from '@nestjs/common';
+import { TfaRequiredException } from '../exceptions/tfa-required.exception';
 import { CronExpression } from '@nestjs/schedule';
 import { generateSecret, verifyToken } from 'node-2fa';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -157,7 +158,7 @@ export class TfaService {
     const isVerified = logs.some(
       (log) => allowedLevels.some((l) => log.comment.includes(l)) || log.comment === 'Verified', // TODO: remove compatibility code
     );
-    if (!isVerified) throw new ForbiddenException(`2FA required${level ? ` (${level.toLowerCase()})` : ''}`);
+    if (!isVerified) throw new TfaRequiredException(level);
   }
 
   // --- HELPER METHODS --- //

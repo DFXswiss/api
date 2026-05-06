@@ -1,0 +1,375 @@
+{
+  "general": {
+    "welcome": "Guten Tag {name}",
+    "thanks": "",
+    "support": "",
+    "button": "[url:Details anzeigen]",
+    "link": "",
+    "team_questions": "",
+    "personal_closing": "Freundliche Grüsse,<br>{closingName}"
+  },
+  "login": {
+    "title": "RealUnit Login",
+    "salutation": "Sie haben einen Login angefordert",
+    "message": "Klicken Sie den nachfolgenden Link innerhalb von {expiration} Minuten, um sich in der RealUnit App einzuloggen:<br>[url:{urlText}]"
+  },
+  "payment": {
+    "crypto_input": {
+      "title": "Verkauf RealUnit-Token – Eingang erhalten",
+      "salutation": "Ihre RealUnit-Token sind bei uns eingetroffen",
+      "body": "Sobald die Auszahlung auf Ihre IBAN erfolgt ist, werden Sie wieder per Mail informiert."
+    },
+    "fiat_input": {
+      "title": "Kauf RealUnit-Token – Einzahlung eingetroffen",
+      "salutation": "Ihre Einzahlung ist bei uns eingetroffen und wird verarbeitet",
+      "body": "Sobald die RealUnit-Token in Ihr Wallet überwiesen sind, werden Sie wieder per Mail informiert.",
+      "unassigned": {
+        "title": "Einzahlung zuordnen",
+        "salutation": "Ihre Einzahlung kann nicht automatisch zugeordnet werden",
+        "body": "Öffnen Sie die App, um die Einzahlung manuell zuzuordnen. Sobald die Zuordnung erfolgt ist, wird Ihre Bestellung weiter verarbeitet und Sie werden wieder per Mail informiert.",
+        "transaction_button": ""
+      },
+      "currency_exchange": "Hinweis: Das verwendete Bankkonto ist ein {bankAsset}-Konto. Wenn Sie {inputAsset} senden, wird dies direkt bei der Bank getauscht und wir erhalten {bankAsset}.<br>In der RealUnit App stehen Ihnen für Einzahlungen sowohl ein CHF- als auch ein EUR-Bankkonto zur Verfügung."
+    },
+    "crypto_output": {
+      "title": "Transfer Ihrer RealUnit-Token",
+      "salutation": "Ihre RealUnit-Token wurden in Ihr Wallet überwiesen",
+      "body": "Vielen Dank für den Kauf unserer RealUnit-Aktientoken. Der Betrag ist bei uns eingegangen. Wir haben Ihnen nun die RealUnit-Token in Ihr Wallet überwiesen. Öffnen Sie die RealUnit App und Sie sollten die Anzahl Token sowie den aktuellen Wert sehen."
+    },
+    "fiat_output": {
+      "title": "Verkauf RealUnit-Token – Überweisung erfolgt",
+      "salutation": "Ihre RealUnit-Token wurden erfolgreich verkauft",
+      "body": "Sie haben Ihre RealUnit-Token erfolgreich verkauft. Gerne bestätigen wir Ihnen, dass die Überweisung des Verkaufserlöses Ihrem Bankkonto überwiesen wurde. Der Absender der Banktransaktion lautet auf DFX AG, dem Payment Partner von RealUnit. Bitte prüfen Sie den Geldeingang in den nächsten 1-2 Bankarbeitstagen. Den Verkaufsbeleg finden Sie in Ihrer RealUnit App."
+    },
+    "processing": {
+      "title": "Verkauf Ihrer RealUnit-Token",
+      "salutation": "Ihre Transaktion wird nun verarbeitet",
+      "body": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Die Transaktion wird nun verarbeitet. Sie werden wieder per Mail informiert, sobald die Überweisung auf Ihre IBAN Kontonummer erfolgt ist."
+    },
+    "warning": "",
+    "chargeback": {
+      "unconfirmed": {
+        "title": "Aktion erforderlich",
+        "salutation": "Es ist eine Aktion für Ihre Transaktion erforderlich",
+        "body": "Sobald Sie die Aktion ausgeführt haben, wird die Rückerstattung verarbeitet und Sie werden wieder per Mail informiert.",
+        "transaction_button": "Sie können die Aktion über folgenden Link ausführen:<br>[url:Klick hier]"
+      },
+      "fiat": {
+        "title": "Verkauf RealUnit-Token aktuell nicht möglich",
+        "salutation": "Ihre RealUnit-Token konnten nicht verkauft werden",
+        "body": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Der Verkauf wird durch die Firma DFX AG ausgeführt und ist leider im Moment nicht möglich.<br><br>Ihre Aktientoken wurden wieder Ihrem Wallet zurückerstattet. Bitte versuchen Sie es später nochmals."
+      },
+      "crypto": {
+        "title": "Verkauf RealUnit-Token – Rückerstattung",
+        "salutation": "Ihre RealUnit-Token wurden an Ihr Wallet zurückerstattet",
+        "body": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Der Verkauf wird durch die Firma DFX AG ausgeführt. Dieser konnte nicht durchgeführt werden, da der Gegenwert der Transaktion die regulatorische Limite überschritten hat.<br><br>Wir bitten Sie, die erforderlichen Angaben zu ergänzen. Sobald die Verifizierung der Daten erfolgt ist, können Sie den Verkaufsauftrag nochmals durchführen.",
+        "payment_link": "Dies ist die Transaktions-ID<br>zu Ihrer Rückzahlung: [url:Link]",
+        "transaction_button": ""
+      },
+      "introduction": "Grund der Rückerstattung:<br>{reason}",
+      "kyc_start": "Sie können den Verifizierungsprozess hier starten:<br>[url:{urlText}]",
+      "reasons": {
+        "monthly_limit": "Die regulatorische Limite wurde überschritten",
+        "user_data_mismatch": "Der uns mitgeteilte Name stimmt nicht mit dem Inhaber der IBAN überein",
+        "iban_check": "Die angegebene IBAN kann nicht verwendet werden",
+        "kyc_rejected": "Ihre Verifizierung wurde abgelehnt",
+        "name_check": "Aus rechtlichen Gründen können wir den Handel leider nicht durchführen",
+        "annual_limit": "Das Jahreslimit wurde überschritten",
+        "olky_no_kyc": "Für die Nutzung dieses Bankkontos ist eine vollständige Verifizierung erforderlich",
+        "min_deposit_not_reached": "Die Mindesteinzahlungsgrenze wurde nicht erreicht",
+        "name_check_without_kyc": "Ihre Transaktion wurde wegen fehlender Verifizierung storniert. Bitte ergänzen Sie Ihre Daten:<br>[url:{urlText}]",
+        "annual_limit_without_kyc": "Das Jahreslimit ohne Verifizierung (KYC) wurde überschritten",
+        "asset_currently_not_available": "Der Handel ist derzeit nicht verfügbar",
+        "staking_discontinued": "Diese Funktion ist nicht mehr verfügbar",
+        "bank_not_allowed": "Die verwendete Absenderbank ist nicht erlaubt. Bitte verwenden Sie eine andere Bank für Ihre Einzahlung.",
+        "country_not_allowed": "Ihre Einzahlung kann leider nicht bearbeitet werden, weil das Geld aus einem Land stammt, welches nicht unterstützt werden kann.",
+        "high_risk_kyc_needed": "Auf Grund von aufsichtsrechtlichen Bestimmungen musste die Transaktion leider abgelehnt werden, da keine vollständige Verifizierung vorliegt.",
+        "high_risk_kyc_needed_checkout": "Auf Grund von aufsichtsrechtlichen Bestimmungen musste die Transaktion leider abgelehnt werden, da keine vollständige Verifizierung vorliegt.",
+        "high_risk_blocked": "Auf Grund von aufsichtsrechtlichen Bestimmungen musste die Transaktion leider abgelehnt werden.",
+        "high_risk_blocked_checkout": "Auf Grund von aufsichtsrechtlichen Bestimmungen musste die Transaktion leider abgelehnt werden.",
+        "fee_too_high": "Die Netzwerkgebühren sind derzeit zu hoch für den Transaktionsbetrag",
+        "receiver_rejected_tx": "Die Empfänger-Node hat die Transaktion abgelehnt",
+        "asset_not_available_with_chosen_bank": "Dieses Asset kann nicht über die gewählte Bankverbindung gehandelt werden",
+        "chf_abroad_tx": "CHF kann nicht auf eine ausländische IBAN ausbezahlt werden",
+        "asset_kyc_needed": "Für das eingezahlte Asset wird eine Verifizierung benötigt",
+        "card_name_mismatch": "Der angegebene Kreditkartenname stimmt nicht mit dem Inhaber des Kontos überein",
+        "user_deactivated": "Ihre verknüpfte Blockchain-Adresse wurde unwiderruflich gelöscht",
+        "video_ident_needed": "Für die Transaktion ist eine Video-Verifizierung erforderlich",
+        "missing_liquidity": "Die benötigte Menge an Token konnte nicht im vorgegebenen Zeitfenster gehandelt werden",
+        "test_only": "Test",
+        "kyc_data_needed": "Für die Transaktion werden Ihre Verifizierungsdaten benötigt",
+        "bank_tx_needed": "Um diese Transaktion auszuführen, ist zuvor eine Banküberweisung erforderlich",
+        "manual_check_phone": "Wir konnten Sie unter der angegebenen Telefonnummer nicht erreichen",
+        "manual_check_ip_phone": "Wir konnten Sie unter der angegebenen Telefonnummer nicht erreichen",
+        "manual_check_ip_country_phone": "Wir konnten Sie unter der angegebenen Telefonnummer nicht erreichen",
+        "manual_check_phone_rejected": "Das Telefonat war nicht erfolgreich oder wurde abgelehnt",
+        "merge_incomplete": "Die E-Mail-Bestätigung wurde nicht akzeptiert",
+        "intermediary_without_sender": "Die Absenderbank hat nur den Banknamen übermittelt, nicht aber den Namen des Kontoinhabers. Der tatsächliche Absender kann daher nicht verifiziert werden.",
+        "name_too_short": "Ihr Name ist zu kurz für die Bankverarbeitung. Banken benötigen mindestens 4 Buchstaben im Namen des Kontoinhabers.",
+        "asset_input_not_allowed": "Das Asset ist derzeit nicht für den Handel verfügbar",
+        "manual_check_external_account_phone": "Wir konnten Sie unter der angegebenen Telefonnummer nicht erreichen"
+      }
+    },
+    "pending": {
+      "monthly_limit": {
+        "title": "Verkauf RealUnit-Token – Ergänzung Ihrer persönlichen Daten",
+        "salutation": "Sie haben Ihr 30-Tage-Volumenlimit überschritten",
+        "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Dabei wurde die gesetzliche monatliche Limite von CHF 1'000.- überschritten, bei welcher die uns vorliegenden Informationen ausreichen.",
+        "line2": "Wir bitten Sie, die erforderlichen Angaben zu ergänzen. Sobald die Verifizierung der Daten erfolgt ist, wird Ihre Transaktion weiter bearbeitet.",
+        "line3": "Bitte klicken Sie den nachfolgenden Link um sich zu verifizieren:<br>[url:{urlText}]",
+        "line4": "Alternativ können Sie die Verifizierung auch direkt über die RealUnit-App starten.",
+        "line5": "Falls Sie auf die vollständige Verifizierung verzichten möchten, können Sie den Verkauf der Aktientoken hier stornieren:<br>[url:Klick hier]"
+      },
+      "annual_limit": {
+        "title": "Verkauf RealUnit-Token – Ergänzung Ihrer persönlichen Daten",
+        "salutation": "Sie haben Ihr jährliches Volumenlimit überschritten",
+        "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Dabei wurde die gesetzliche jährliche Limite von CHF 100'000.- überschritten, bei welcher die uns vorliegenden Informationen ausreichen.",
+        "line2": "Wir bitten Sie, die erforderlichen Angaben zu ergänzen. Sobald die Verifizierung der Daten erfolgt ist, wird Ihre Transaktion weiter bearbeitet.",
+        "line3": "Bitte klicken Sie den nachfolgenden Link um sich zu verifizieren:<br>[url:{urlText}]",
+        "line4": "Alternativ können Sie die Verifizierung auch direkt über die RealUnit-App starten.",
+        "line5": "Falls Sie auf die vollständige Verifizierung verzichten möchten, können Sie den Verkauf der Aktientoken hier stornieren:<br>[url:Klick hier]"
+      },
+      "annual_limit_without_kyc": {
+        "title": "Verkauf RealUnit-Token – Ergänzung Ihrer persönlichen Daten",
+        "salutation": "Sie haben Ihr jährliches Volumenlimit ohne Verifizierung überschritten",
+        "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Dabei wurde die gesetzliche jährliche Limite ohne Verifizierung überschritten.",
+        "line2": "Wir bitten Sie, die erforderlichen Angaben zu ergänzen. Sobald die Verifizierung der Daten erfolgt ist, wird Ihre Transaktion weiter bearbeitet.",
+        "line3": "Bitte klicken Sie den nachfolgenden Link um sich zu verifizieren:<br>[url:{urlText}]",
+        "line4": "Alternativ können Sie die Verifizierung auch direkt über die RealUnit-App starten.",
+        "line5": "Falls Sie auf die vollständige Verifizierung verzichten möchten, können Sie den Verkauf der Aktientoken hier stornieren:<br>[url:Klick hier]"
+      },
+      "olky_no_kyc": {
+        "title": "Verkauf RealUnit-Token – Verifizierung erforderlich",
+        "salutation": "Für die Nutzung dieses Bankkontos ist eine Verifizierung erforderlich",
+        "line1": "Um dieses Bankkonto nutzen zu können, ist eine vollständige Verifizierung erforderlich.",
+        "line2": "Bitte klicken Sie den nachfolgenden Link um sich zu verifizieren:<br>[url:{urlText}]",
+        "line3": "Alternativ können Sie die Verifizierung auch direkt über die RealUnit-App starten.",
+        "line4": "",
+        "line5": "Falls Sie auf die vollständige Verifizierung verzichten möchten, können Sie den Verkauf der Aktientoken hier stornieren:<br>[url:Klick hier]"
+      },
+      "name_check_without_kyc": {
+        "title": "Verkauf RealUnit-Token – Ergänzung Ihrer persönlichen Daten",
+        "salutation": "Es ist eine vollständige Verifizierung erforderlich",
+        "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Der Verkauf wird durch die Firma DFX AG ausgeführt. Aus regulatorischen Gründen ist zuerst eine Ergänzung Ihrer persönlichen Daten nötig.",
+        "line2": "Wir bitten Sie, die erforderlichen Angaben zu ergänzen. Sobald die Verifizierung der Daten erfolgt ist, wird Ihre Transaktion weiter bearbeitet.",
+        "line3": "Bitte klicken Sie den nachfolgenden Link um sich zu verifizieren:<br>[url:{urlText}]",
+        "line4": "Alternativ können Sie die Verifizierung auch direkt über die RealUnit-App starten.",
+        "line5": "Falls Sie auf die vollständige Verifizierung verzichten möchten, können Sie den Verkauf der Aktientoken hier stornieren:<br>[url:Klick hier]"
+      },
+      "high_risk_kyc_needed": {
+        "title": "Kauf RealUnit-Token – Verifizierung erforderlich",
+        "salutation": "Verifizierung (KYC) ist erforderlich",
+        "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Der Verkauf wird durch die Firma DFX AG ausgeführt.",
+        "line2": "Auf Grund von aufsichtsrechtlichen Bestimmungen ist eine vollständige Verifizierung erforderlich.",
+        "line3": "Bitte klicken Sie den nachfolgenden Link um sich zu verifizieren:<br>[url:{urlText}]",
+        "line4": "Alternativ können Sie die Verifizierung auch direkt über die RealUnit-App starten.",
+        "line5": "Falls Sie auf die vollständige Verifizierung verzichten möchten, können Sie den Verkauf der Aktientoken hier stornieren:<br>[url:Klick hier]"
+      },
+      "manual_check": {
+        "title": "Kauf RealUnit-Token – Einzahlung wird geprüft",
+        "salutation": "Ihre Einzahlung wird geprüft",
+        "line1": "Vielen Dank für den Kauf unserer RealUnit-Aktientoken. Wir überprüfen nun manuell den Geldeingang auf unserem Konto.",
+        "line2": "Dies dauert in der Regel 1 bis 2 Arbeitstage.",
+        "line3": "Sie werden per Mail benachrichtigt, sobald der Betrag eingegangen ist und wir die RealUnit-Token in Ihr Wallet überwiesen haben.",
+        "line4": "",
+        "line5": ""
+      },
+      "manual_check_bank_data": {
+        "title": "Kauf RealUnit-Token – Einzahlung wird geprüft",
+        "salutation": "Ihre Einzahlung wird geprüft",
+        "line1": "Vielen Dank für den Kauf unserer RealUnit-Aktientoken. Wir überprüfen nun manuell den Geldeingang auf unserem Konto.",
+        "line2": "Dies dauert in der Regel 1 bis 2 Arbeitstage.",
+        "line3": "Sie werden per Mail benachrichtigt, sobald der Betrag eingegangen ist und wir die RealUnit-Token in Ihr Wallet überwiesen haben.",
+        "line4": "",
+        "line5": ""
+      },
+      "video_ident_needed": {
+        "title": "Verkauf RealUnit-Token – Video-Verifizierung erforderlich",
+        "salutation": "Video-Verifizierung ist erforderlich",
+        "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Der Verkauf wird durch die Firma DFX AG ausgeführt. Aus regulatorischen Gründen ist zuerst eine Video-Verifizierung von Ihnen nötig.",
+        "line2": "Klicken Sie den nachfolgenden Link um die Video-Verifizierung bei DFX AG durchzuführen:",
+        "line3": "[url:{urlText}]",
+        "line4": "Sobald die Verifizierung der Daten erfolgt ist, wird Ihre Transaktion weiter bearbeitet.",
+        "line5": "Falls Sie auf die vollständige Verifizierung verzichten möchten, können Sie den Verkauf der Aktientoken hier stornieren:<br>[url:Klick hier]"
+      },
+      "kyc_data_needed": {
+        "title": "Verkauf RealUnit-Token – Ergänzung Ihrer persönlichen Daten",
+        "salutation": "Ergänzung Ihrer persönlichen Daten erforderlich",
+        "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Der Verkauf wird durch die Firma DFX AG ausgeführt. Aus regulatorischen Gründen ist zuerst eine Ergänzung Ihrer persönlichen Daten nötig.",
+        "line2": "Wir bitten Sie, die erforderlichen Angaben zu ergänzen:<br>[url:{urlText}]",
+        "line3": "Alternativ können Sie die Verifizierung auch direkt über die RealUnit-App starten.",
+        "line4": "Sobald die Verifizierung der Daten erfolgt ist, wird Ihre Transaktion weiter bearbeitet.",
+        "line5": "Falls Sie auf die vollständige Verifizierung verzichten möchten, können Sie den Verkauf der Aktientoken hier stornieren:<br>[url:Klick hier]"
+      },
+      "asset_kyc_needed": {
+        "title": "Verkauf RealUnit-Token – Ergänzung Ihrer persönlichen Daten",
+        "salutation": "Verifizierung (KYC) ist erforderlich",
+        "line1": "Sie haben sich entschieden RealUnit-Token zu verkaufen. Der Verkauf wird durch die Firma DFX AG ausgeführt. Aus regulatorischen Gründen ist zuerst eine Ergänzung Ihrer persönlichen Daten nötig.",
+        "line2": "Wir bitten Sie, die erforderlichen Angaben zu ergänzen. Sobald die Verifizierung der Daten erfolgt ist, wird Ihre Transaktion weiter bearbeitet.",
+        "line3": "Bitte klicken Sie den nachfolgenden Link um sich zu verifizieren:<br>[url:{urlText}]",
+        "line4": "Alternativ können Sie die Verifizierung auch direkt über die RealUnit-App starten.",
+        "line5": "Falls Sie auf die vollständige Verifizierung verzichten möchten, können Sie den Verkauf der Aktientoken hier stornieren:<br>[url:Klick hier]"
+      },
+      "merge_incomplete": {
+        "title": "Erinnerung an die Bestätigung Ihrer E-Mail-Adresse",
+        "salutation": "E-Mail-Bestätigung ausstehend",
+        "line1": "Sie haben kürzlich eine Mail zur Verifizierung Ihrer E-Mail-Adresse erhalten. Der Kauf oder Verkauf der RealUnit-Aktientoken ist erst nach der Bestätigung möglich.",
+        "line2": "Bitte klicken Sie auf den Link im vorangegangenen E-Mail und bestätigen Sie bei der Firma DFX AG, welche den Handel unserer Aktientoken umsetzt, Ihre E-Mail-Adresse.",
+        "line3": "Nachdem diese Bestätigung erteilt ist, wird Ihre ausstehende Transaktion automatisch weiterverarbeitet.",
+        "line4": "",
+        "line5": ""
+      },
+      "bank_release_pending": {
+        "title": "Bankfreigabe ausstehend",
+        "salutation": "Die Bankfreigabe für Ihre Transaktion steht noch aus",
+        "line1": "Ihre Transaktion ist bei uns eingetroffen, wurde aber noch nicht zur weiteren Verwendung freigegeben.",
+        "line2": "Sie brauchen nichts weiter zu tun, die Bank gibt die Transaktion automatisch frei.",
+        "line3": "Sobald die Bank die Transaktion freigegeben hat, wird Ihr Kauf weiter verarbeitet und Sie werden wieder per Mail informiert.",
+        "line4": "",
+        "line5": ""
+      },
+      "bank_tx_needed": {
+        "title": "Kauf RealUnit-Token – Banküberweisung erforderlich",
+        "salutation": "Es ist eine Banküberweisung erforderlich",
+        "line1": "Um Ihre Transaktion ausführen zu können, ist zuerst eine Banküberweisung erforderlich.",
+        "line2": "Bitte tätigen Sie einen Kauf über die RealUnit App per Banküberweisung.",
+        "line3": "Nachdem diese Transaktion bei uns eingegangen und verarbeitet wurde, wird Ihre ausstehende Transaktion ebenfalls automatisch weiterverarbeitet.",
+        "line4": "Es ist also nur eine Überweisung von Ihrem Bankkonto erforderlich.",
+        "line5": ""
+      }
+    },
+    "transaction_button": ""
+  },
+  "referral": {
+    "title": "Empfehlungsprämie",
+    "salutation": "Ihre Empfehlungsprämie wurde ausgezahlt",
+    "transaction_button": "",
+    "dfx_ambassador": "Vielen Dank für Ihre Weiterempfehlung der RealUnit App!"
+  },
+  "recommendation": {
+    "recommended": {
+      "title": "RealUnit-Einladung",
+      "salutation": "Sie wurden zu RealUnit eingeladen!",
+      "message": "{name} ({mail}) hat Sie eingeladen, die RealUnit App zu nutzen.",
+      "registration_button": "Klicken Sie den nachfolgenden Button, um sich mit dieser E-Mail-Adresse zu registrieren:<br>[url:Klick hier]",
+      "registration_link": "Oder nutzen Sie den folgenden Link:<br>[url:{urlText}]"
+    },
+    "confirmation": {
+      "title": "RealUnit-Empfehlung bestätigen",
+      "salutation": "Sie haben eine ausstehende RealUnit-Empfehlung",
+      "message": "Können Sie {name} ({mail}) für die Nutzung der RealUnit App bestätigen?",
+      "button": "Klicken Sie den nachfolgenden Button, um die Einladung zu bestätigen oder abzulehnen:<br>[url:Klick hier]",
+      "link": "Oder nutzen Sie den folgenden Link:<br>[url:{urlText}]"
+    }
+  },
+  "kyc": {
+    "success": {
+      "title": "Verifizierung erfolgreich",
+      "salutation": "Ihre Verifizierung ist abgeschlossen",
+      "message": "Ihre Verifizierung wurde erfolgreich abgeschlossen. Sie können nun RealUnit-Token über die RealUnit App kaufen und verkaufen."
+    },
+    "failed": {
+      "title": "Problem bei Ihrer Verifizierung",
+      "salutation": "Es gab ein Problem bei Ihrer Verifizierung",
+      "message": "Der Schritt '{stepName}' konnte aus folgendem Grund nicht abgeschlossen werden:<br>{reason}<br><br>Bitte wiederholen Sie den Schritt. Sobald die Verifizierung erfolgreich abgeschlossen ist, werden Sie wieder per Mail informiert.",
+      "reasons": {
+        "user_data_merged": "Ihr Account wurde zusammengelegt",
+        "user_data_merge_requested": "E-Mail-Bestätigung ausstehend",
+        "user_data_existing": "Unbekannter Fehler",
+        "user_data_blocked": "Unbekannter Fehler",
+        "first_name_not_matching": "Unstimmigkeit bei Ihrem Vornamen",
+        "last_name_not_matching": "Unstimmigkeit bei Ihrem Nachnamen",
+        "nationality_not_matching": "Ihre Nationalität stimmt nicht überein",
+        "nationality_missing": "Ihre Nationalität fehlt",
+        "nationality_not_allowed": "Ihre Nationalität ist nicht erlaubt",
+        "invalid_document_type": "Die Art des Ausweisdokuments ist nicht gültig",
+        "document_type_not_allowed": "Die Art des Ausweisdokuments ist für Ihr Land nicht erlaubt",
+        "identification_number_missing": "Ihre Ausweisnummer fehlt",
+        "invalid_result": "Unbekannter Fehler",
+        "verified_name_missing": "Ihr Accountname fehlt",
+        "first_name_not_matching_verified_name": "Unstimmigkeit zwischen Ihrem Vornamen und dem Accountnamen",
+        "last_name_not_matching_verified_name": "Unstimmigkeit zwischen Ihrem Nachnamen und dem Accountnamen",
+        "organization_name_not_matching_verified_name": "Unstimmigkeit zwischen dem Namen Ihrer Organisation und dem Accountnamen",
+        "country_not_allowed": "Ihr Land ist nicht erlaubt",
+        "blocked": "Unbekannter Fehler",
+        "personal_data_not_matching": "Unstimmigkeit bei Ihren persönlichen Daten",
+        "ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt",
+        "country_ip_country_mismatch": "Regulatorische Anforderungen nicht erfüllt",
+        "missing_response": "Es fehlen Daten",
+        "risky_business": "Ihre Firma ist in riskante Geschäfte verwickelt",
+        "bank_recall_fee_not_paid": "Die Recall-Gebühr wurde noch nicht bezahlt"
+      }
+    },
+    "missing_data": {
+      "title": "Fehlende Daten bei Ihrer Verifizierung",
+      "salutation": "Es fehlen noch Daten bei Ihrer Verifizierung",
+      "message": "Bei dem Schritt '{stepName}' fehlen noch Daten, die Sie noch ergänzen müssen, um Ihre Verifizierung abzuschliessen. Bitte öffnen Sie die RealUnit App und vervollständigen Sie Ihre Angaben."
+    },
+    "reminder": {
+      "title": "Vervollständigen Sie Ihre Verifizierung",
+      "salutation": "Bitte vervollständigen Sie Ihre Verifizierung",
+      "message": "Uns ist aufgefallen, dass Ihre Verifizierung noch nicht vollständig abgeschlossen wurde. Bitte vervollständigen Sie Ihre Angaben in der RealUnit App, damit Sie RealUnit-Token kaufen und verkaufen können."
+    },
+    "retry": "Oder versuchen Sie es über den folgenden Link erneut:<br>[url:{urlText}]",
+    "next_step": "Um mit Ihrer Verifizierung fortzufahren, nutzen Sie den folgenden Link:<br>[url:{urlText}]",
+    "step_names": {
+      "ident": "Identifikation",
+      "personal_data": "Persönliche Daten",
+      "nationality_data": "Nationalität",
+      "legal_entity": "Juristische Person",
+      "owner_directory": "Inhaberverzeichnis",
+      "commercial_register": "Handelsregister",
+      "signatory_power": "Unterschriftsberechtigung",
+      "authority": "Vollmacht",
+      "beneficial_owner": "Wirtschaftlich Berechtigter",
+      "operational_activity": "Operative Tätigkeit",
+      "financial_data": "Zusätzliche Daten",
+      "additional_documents": "Zusätzliche Dokumente",
+      "residence_permit": "Aufenthaltsbewilligung",
+      "dfx_approval": "Genehmigung"
+    }
+  },
+  "account_merge": {
+    "request": {
+      "title": "E-Mail bestätigen",
+      "salutation": "Bestätigen Sie Ihre E-Mail-Adresse",
+      "message": "Klicken Sie den nachfolgenden Link, um Ihre E-Mail-Adresse zu bestätigen. Nach der Bestätigung werden Ihre Accounts zusammengelegt:<br>[url:{urlText}]"
+    },
+    "added_address": {
+      "title": "Wallet-Adresse hinzugefügt",
+      "salutation": "Ihre Wallet-Adresse wurde Ihrem Account hinzugefügt",
+      "message": "Die Adresse {userAddress} wurde Ihrem Account hinzugefügt."
+    },
+    "changed_mail": {
+      "title": "Account-E-Mail wurde geändert",
+      "salutation": "Ihre Account-E-Mail wurde geändert",
+      "message": "Sie haben zwei Accounts mit unterschiedlichen E-Mail-Adressen angelegt, welche nun zusammengelegt wurden. Die E-Mail {userMail} wird ab sofort für Ihren Account verwendet."
+    }
+  },
+  "limit_request": {
+    "title": "Transaktionsvolumen genehmigt",
+    "message": "Ihre Anfrage für ein Transaktionsvolumen von {limitAmount} EUR wurde genehmigt und steht Ihnen nun zur Verfügung."
+  },
+  "account_deactivation": {
+    "title": "Account deaktiviert",
+    "salutation": "Account erfolgreich deaktiviert",
+    "message": "Sie haben Ihren RealUnit-Account erfolgreich deaktiviert. Ihre RealUnit-Token verbleiben in Ihrem Wallet. Wenn Sie Ihren Account wieder aktivieren möchten, führen Sie bitte einen Login per Mail durch."
+  },
+  "support_message": {
+    "title": "Neue Support-Nachricht",
+    "salutation": "Sie haben eine Support-Nachricht erhalten",
+    "message": "Sie haben eine neue Nachricht in Ihrem Support-Ticket erhalten. Ihr Ticket können Sie in der RealUnit App einsehen."
+  },
+  "verification_code": {
+    "default": {
+      "title": "Verifizierungscode",
+      "salutation": "Sie haben einen Verifizierungscode angefordert"
+    },
+    "email": {
+      "title": "E-Mail-Verifizierungscode",
+      "salutation": "Sie haben eine Änderung Ihrer E-Mail-Adresse angefordert"
+    },
+    "message": "Ihr Verifizierungscode lautet:<br>{code}",
+    "closing": "Der Verifizierungscode ist für {expiration} Minuten gültig. Bitte teilen Sie diesen Verifizierungscode nicht mit anderen Personen. Wenn Sie keinen Verifizierungscode angefordert haben, kontaktieren Sie bitte unverzüglich den Support in der RealUnit App unter Menü → Support."
+  }
+}

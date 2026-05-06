@@ -18,6 +18,8 @@ export interface WalletMailConfig {
   fromAddress: string;
   displayName: string;
   template: string;
+  forcedLang: string;
+  centralizedWelcome: boolean;
   isPreferred: boolean;
 }
 

@@ -214,7 +214,17 @@ export class KycService {
 
         const nationalityStep = entity.userData.getStepsWith(KycStepName.NATIONALITY_DATA).find((s) => s.isCompleted);
 
-        const errors = this.getIdentCheckErrors(entity, nationalityStep, result, nationality, ipCountry, country);
+        const suspectedDuplicateUser = await this.userDataService.getUserDataByBirthday(result.birthday);
+
+        const errors = this.getIdentCheckErrors(
+          entity,
+          nationalityStep,
+          result,
+          nationality,
+          ipCountry,
+          country,
+          suspectedDuplicateUser,
+        );
         const comment = errors.join(';');
 
         if (errors.includes(KycError.REVERSED_NAMES)) {
@@ -1605,6 +1615,7 @@ export class KycService {
     nationality?: Country,
     ipCountry?: Country,
     country?: Country,
+    suspectedDuplicateUsers?: UserData[],
   ): KycError[] {
     const errors = this.getStepDefaultErrors(identStep);
     const nationalityStepResult = nationalityStep.getResult<{ nationality: IEntity }>();
@@ -1669,6 +1680,14 @@ export class KycService {
     if (!ValidDocType.includes(data.documentType)) errors.push(KycError.INVALID_DOCUMENT_TYPE);
     if (!data.documentNumber) errors.push(KycError.IDENTIFICATION_NUMBER_MISSING);
     if (!data.success) errors.push(KycError.INVALID_RESULT);
+
+    const suspectedDuplicateUser = suspectedDuplicateUsers?.find(
+      (u) =>
+        u.identDocumentType !== data.documentType &&
+        (Util.includesSameName(u.verifiedName, identStep.userData.verifiedName) ||
+          Util.includesSameName(identStep.userData.verifiedName, u.verifiedName)),
+    );
+    if (suspectedDuplicateUser) errors.push(KycError.DUPLICATE_ACCOUNT_SUSPECTED);
 
     // Country & verifiedName check
     const userCountry =
@@ -1872,6 +1891,32 @@ export class KycService {
         status: In([ReviewStatus.COMPLETED, ReviewStatus.FAILED]),
       },
       relations: { userData: true },
+    });
+  }
+
+  // --- Pending Review Queries ---
+
+  async getPendingReviewSummary(): Promise<{ name: KycStepName; status: ReviewStatus; count: number }[]> {
+    return this.kycStepRepo
+      .createQueryBuilder('step')
+      .select('step.name', 'name')
+      .addSelect('step.status', 'status')
+      .addSelect('COUNT(step.id)', 'count')
+      .innerJoin('step.userData', 'userData')
+      .where('step.status IN (:...statuses)', { statuses: [ReviewStatus.MANUAL_REVIEW, ReviewStatus.INTERNAL_REVIEW] })
+      .andWhere('userData.status != :mergedStatus', { mergedStatus: UserDataStatus.MERGED })
+      .groupBy('step.name')
+      .addGroupBy('step.status')
+      .getRawMany<{ name: KycStepName; status: ReviewStatus; count: string }>()
+      .then((rows) => rows.map((r) => ({ name: r.name, status: r.status, count: Number(r.count) })));
+  }
+
+  async getPendingReviewSteps(name: KycStepName, status: ReviewStatus): Promise<KycStep[]> {
+    return this.kycStepRepo.find({
+      where: { name, status, userData: { status: Not(UserDataStatus.MERGED) } },
+      relations: { userData: true },
+      loadEagerRelations: false,
+      order: { updated: 'ASC' },
     });
   }
 }

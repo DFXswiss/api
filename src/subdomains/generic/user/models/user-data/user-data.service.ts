@@ -193,6 +193,10 @@ export class UserDataService {
     });
   }
 
+  async getUserDataByBirthday(birthday: Date): Promise<UserData[]> {
+    return this.userDataRepo.findBy({ birthday });
+  }
+
   async getUsersByName(name: string): Promise<UserData[]> {
     const where = { status: Not(UserDataStatus.MERGED) };
     const wheres = [
@@ -1406,6 +1410,23 @@ export class UserDataService {
       .andWhere(`userData.${field} <= :end`, { end })
       .getRawOne<{ maxKycFileId: number }>()
       .then((r) => r?.maxKycFileId ?? 0);
+  }
+
+  async getByPhoneCallStatuses(statuses: PhoneCallStatus[], limit?: number): Promise<UserData[]> {
+    return this.userDataRepo.find({
+      where: { phoneCallStatus: In(statuses), status: Not(UserDataStatus.MERGED) },
+      relations: { organization: true, language: true, country: true },
+      loadEagerRelations: false,
+      order: { phoneCallCheckDate: 'ASC' },
+      take: limit,
+    });
+  }
+
+  async countByPhoneCallStatuses(statuses: PhoneCallStatus[]): Promise<number> {
+    return this.userDataRepo.countBy({
+      phoneCallStatus: In(statuses),
+      status: Not(UserDataStatus.MERGED),
+    });
   }
 }
 

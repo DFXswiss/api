@@ -271,6 +271,15 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 'MAX', nullable: true })
   priceSteps?: string;
 
+  /**
+   * Ratio of quoted rate to market rate at execution.
+   * > 1 = user got better rate than market
+   * < 1 = user got worse rate than market
+   * null = quote not used (expired or not available)
+   */
+  @Column({ type: 'float', nullable: true })
+  quoteMarketRatio?: number;
+
   // Transaction details
   @Column({ length: 256, nullable: true })
   txId?: string;
@@ -524,6 +533,16 @@ export class BuyCrypto extends IEntity {
   confirmSentMail(): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       recipientMail: this.noCommunication ? null : this.userData.mail,
+      mailSendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  skipMail(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
       mailSendDate: new Date(),
     };
 

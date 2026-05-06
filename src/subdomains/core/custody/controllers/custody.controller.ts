@@ -1,7 +1,7 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeController, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { RealIP } from 'nestjs-real-ip';
+import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
