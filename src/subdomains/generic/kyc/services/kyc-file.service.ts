@@ -30,9 +30,10 @@ export class KycFileService {
     });
   }
 
-  async getUserDataKycFiles(userDataId: number): Promise<KycFile[]> {
-    return this.kycFileRepository.findCached(`userData-${userDataId}`, {
+  async getUserDataKycFiles(userDataId: number, relations: FindOptionsRelations<KycFile> = {}): Promise<KycFile[]> {
+    return this.kycFileRepository.findCached(`userData-${userDataId}-${relations}`, {
       where: { userData: { id: userDataId } },
+      relations,
       loadEagerRelations: false,
     });
   }

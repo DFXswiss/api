@@ -1,13 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
+import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
 import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
-import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { KycFile } from '../kyc/entities/kyc-file.entity';
 import { KycStep } from '../kyc/entities/kyc-step.entity';
 import { KycStepName } from '../kyc/enums/kyc-step-name.enum';
+import { ReviewStatus } from '../kyc/enums/review-status.enum';
 import { UserData } from '../user/models/user-data/user-data.entity';
-import { ComplianceDecision, GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
+import { ComplianceDecision, GenerateOnboardingPdfDto, OnboardingDocSubTypes } from './dto/onboarding-pdf.dto';
 import { TransactionSupportInfo } from './dto/user-data-support.dto';
 
 @Injectable()
@@ -259,7 +261,7 @@ export class SupportPdfService {
 
   createOnboardingPdf(
     userData: UserData,
-    kycFiles: { name: string; type: string; subType?: string }[],
+    kycFiles: KycFile[],
     kycSteps: KycStep[],
     dto: GenerateOnboardingPdfDto,
   ): Promise<string> {
@@ -379,19 +381,12 @@ export class SupportPdfService {
 
         // Documents Section
         this.drawOnboardingSectionHeader(pdf, 'Dokumente', marginX);
-        const documentTypes = [
-          'Deckblatt',
-          'Identifikationsdokument',
-          'Formular A',
-          'Formular K',
-          'Name Checks',
-          'Handelsregister',
-          'Vollmacht',
-          'Aktienbuch',
-        ];
-        for (const docType of documentTypes) {
-          const file = kycFiles.find((f) => f.name.toLowerCase().includes(docType.toLowerCase()));
-          this.drawOnboardingField(pdf, docType, file?.name ?? 'nicht vorhanden', marginX, width);
+
+        for (const docType of OnboardingDocSubTypes) {
+          const file = kycFiles.find(
+            (f) => f.subType === docType && (!f.kycStep || f.kycStep.status === ReviewStatus.COMPLETED),
+          );
+          this.drawOnboardingField(pdf, docType, file?.url ?? 'nicht vorhanden', marginX, width);
         }
         pdf.moveDown(1);
 
