@@ -122,7 +122,9 @@ export class CustodyOrderService {
 
         if (equityPair) {
           orderDto.type =
-            equityPair.direction === EquityDirection.MINT ? CustodyOrderType.EQUITY_MINT : CustodyOrderType.EQUITY_REDEEM;
+            equityPair.direction === EquityDirection.MINT
+              ? CustodyOrderType.EQUITY_MINT
+              : CustodyOrderType.EQUITY_REDEEM;
           orderDto.outputAsset = sourceAsset;
           orderDto.outputAmount = dto.sourceAmount;
           orderDto.inputAsset = targetAsset;
@@ -295,7 +297,8 @@ export class CustodyOrderService {
   ): Promise<CustodyOrderResponseDto> {
     const equityPrice = await equityPair.config.service.getEquityPrice();
 
-    const estimatedAmount = equityPair.direction === EquityDirection.MINT ? sourceAmount / equityPrice : sourceAmount * equityPrice;
+    const estimatedAmount =
+      equityPair.direction === EquityDirection.MINT ? sourceAmount / equityPrice : sourceAmount * equityPrice;
 
     const zeroFee = { min: 0, rate: 0, fixed: 0, dfx: 0, network: 0, platform: 0 };
 
