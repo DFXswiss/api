@@ -17,10 +17,10 @@ export const OrderConfig: {
     { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.CHARGE_ROUTE },
     { context: CustodyOrderStepContext.DFX, command: CustodyOrderStepCommand.SEND_TO_ROUTE },
   ],
-  [CustodyOrderType.EQUITY_INVEST]: [
+  [CustodyOrderType.EQUITY_MINT]: [
     { context: CustodyOrderStepContext.EQUITY, command: CustodyOrderStepCommand.CHARGE_CUSTODY },
     { context: CustodyOrderStepContext.EQUITY, command: CustodyOrderStepCommand.APPROVE_TOKEN },
-    { context: CustodyOrderStepContext.EQUITY, command: CustodyOrderStepCommand.INVEST },
+    { context: CustodyOrderStepContext.EQUITY, command: CustodyOrderStepCommand.MINT },
   ],
   [CustodyOrderType.EQUITY_REDEEM]: [
     { context: CustodyOrderStepContext.EQUITY, command: CustodyOrderStepCommand.CHARGE_CUSTODY },

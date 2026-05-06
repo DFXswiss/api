@@ -12,7 +12,7 @@ export enum CustodyOrderType {
 
   SWAP = 'Swap',
 
-  EQUITY_INVEST = 'EquityInvest',
+  EQUITY_MINT = 'EquityMint',
   EQUITY_REDEEM = 'EquityRedeem',
 
   SAVING_DEPOSIT = 'SavingDeposit',
@@ -44,7 +44,7 @@ export enum CustodyOrderStepCommand {
   SEND_TO_ROUTE = 'SendToRoute',
   CHARGE_CUSTODY = 'ChargeCustody',
   APPROVE_TOKEN = 'ApproveToken',
-  INVEST = 'Invest',
+  MINT = 'Mint',
   REDEEM = 'Redeem',
 }
 

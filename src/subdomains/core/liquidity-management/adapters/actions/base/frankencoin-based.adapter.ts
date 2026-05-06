@@ -1,7 +1,8 @@
 import { ethers } from 'ethers';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { FrankencoinBasedService } from 'src/integration/blockchain/shared/frankencoin/frankencoin-based.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
@@ -26,6 +27,7 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
     system: LiquidityManagementSystem,
     private readonly liquidityManagementBalanceService: LiquidityManagementBalanceService,
     private readonly frankencoinBasedService: FrankencoinBasedService,
+    protected readonly assetService: AssetService,
   ) {
     super(system);
 
@@ -59,8 +61,21 @@ export abstract class FrankencoinBasedAdapter extends LiquidityActionAdapter {
 
   // --- COMMAND IMPLEMENTATIONS --- //
 
-  abstract getStableToken(): Promise<Asset>;
-  abstract getEquityToken(): Promise<Asset>;
+  async getStableToken(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({
+      name: this.frankencoinBasedService.stableTokenName,
+      type: AssetType.TOKEN,
+      blockchain: this.frankencoinBasedService.blockchain,
+    });
+  }
+
+  async getEquityToken(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({
+      name: this.frankencoinBasedService.equityTokenName,
+      type: AssetType.TOKEN,
+      blockchain: this.frankencoinBasedService.blockchain,
+    });
+  }
 
   private async mint(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const equityPrice = await this.frankencoinBasedService.getEquityPrice();

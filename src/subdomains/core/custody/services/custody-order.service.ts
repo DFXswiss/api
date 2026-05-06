@@ -6,11 +6,7 @@ import {
   NotFoundException,
   forwardRef,
 } from '@nestjs/common';
-import { DEuroService } from 'src/integration/blockchain/deuro/deuro.service';
-import { FrankencoinService } from 'src/integration/blockchain/frankencoin/frankencoin.service';
-import { JuiceService } from 'src/integration/blockchain/juice/juice.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { FrankencoinBasedService } from 'src/integration/blockchain/shared/frankencoin/frankencoin-based.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -23,7 +19,7 @@ import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
-import { EquityPairMatch, EquityProtocol, getEquityPairConfig } from '../config/equity-pairs';
+import { EquityPairMatch, EquityPairService } from '../config/equity-pairs';
 import { OrderConfig } from '../config/order-config';
 import { CreateCustodyOrderInternalDto } from '../dto/input/create-custody-order.dto';
 import { GetCustodyInfoDto } from '../dto/input/get-custody-info.dto';
@@ -62,9 +58,7 @@ export class CustodyOrderService {
     private readonly swapService: SwapService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
-    private readonly frankencoinService: FrankencoinService,
-    private readonly deuroService: DEuroService,
-    private readonly juiceService: JuiceService,
+    private readonly equityPairService: EquityPairService,
   ) {}
 
   // --- ORDERS --- //
@@ -124,11 +118,11 @@ export class CustodyOrderService {
 
         this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
 
-        const equityPair = getEquityPairConfig(sourceAsset.name, targetAsset.name);
+        const equityPair = this.equityPairService.getEquityPairConfig(sourceAsset.name, targetAsset.name);
 
         if (equityPair) {
           orderDto.type =
-            equityPair.direction === 'invest' ? CustodyOrderType.EQUITY_INVEST : CustodyOrderType.EQUITY_REDEEM;
+            equityPair.direction === 'mint' ? CustodyOrderType.EQUITY_MINT : CustodyOrderType.EQUITY_REDEEM;
           orderDto.outputAsset = sourceAsset;
           orderDto.outputAmount = dto.sourceAmount;
           orderDto.inputAsset = targetAsset;
@@ -299,10 +293,9 @@ export class CustodyOrderService {
     sourceAmount: number,
     equityPair: EquityPairMatch,
   ): Promise<CustodyOrderResponseDto> {
-    const service = this.getEquityProtocolService(equityPair.config.protocol);
-    const equityPrice = await service.getEquityPrice();
+    const equityPrice = await equityPair.config.service.getEquityPrice();
 
-    const estimatedAmount = equityPair.direction === 'invest' ? sourceAmount / equityPrice : sourceAmount * equityPrice;
+    const estimatedAmount = equityPair.direction === 'mint' ? sourceAmount / equityPrice : sourceAmount * equityPrice;
 
     const zeroFee = { min: 0, rate: 0, fixed: 0, dfx: 0, network: 0, platform: 0 };
 
@@ -318,23 +311,12 @@ export class CustodyOrderService {
       feesTarget: zeroFee,
       minVolumeTarget: 0,
       maxVolumeTarget: estimatedAmount,
-      exchangeRate: equityPair.direction === 'invest' ? equityPrice : 1 / equityPrice,
-      rate: equityPair.direction === 'invest' ? equityPrice : 1 / equityPrice,
+      exchangeRate: equityPair.direction === 'mint' ? equityPrice : 1 / equityPrice,
+      rate: equityPair.direction === 'mint' ? equityPrice : 1 / equityPrice,
       priceSteps: [],
       estimatedAmount,
       isValid: true,
     });
-  }
-
-  private getEquityProtocolService(protocol: EquityProtocol): FrankencoinBasedService {
-    switch (protocol) {
-      case EquityProtocol.FRANKENCOIN:
-        return this.frankencoinService;
-      case EquityProtocol.DEURO:
-        return this.deuroService;
-      case EquityProtocol.JUICE:
-        return this.juiceService;
-    }
   }
 
   // --- HELPERS --- //

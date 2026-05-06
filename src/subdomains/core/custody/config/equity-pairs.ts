@@ -1,38 +1,49 @@
+import { Injectable } from '@nestjs/common';
+import { DEuroService } from 'src/integration/blockchain/deuro/deuro.service';
+import { FrankencoinService } from 'src/integration/blockchain/frankencoin/frankencoin.service';
+import { JuiceService } from 'src/integration/blockchain/juice/juice.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-
-export enum EquityProtocol {
-  FRANKENCOIN = 'Frankencoin',
-  DEURO = 'DEuro',
-  JUICE = 'Juice',
-}
+import { FrankencoinBasedService } from 'src/integration/blockchain/shared/frankencoin/frankencoin-based.service';
 
 export interface EquityPairConfig {
   stableAsset: string;
   equityAsset: string;
-  protocol: EquityProtocol;
+  service: FrankencoinBasedService;
   blockchain: Blockchain;
 }
 
 export interface EquityPairMatch {
   config: EquityPairConfig;
-  direction: 'invest' | 'redeem';
+  direction: 'mint' | 'redeem';
 }
 
-const EQUITY_PAIRS: EquityPairConfig[] = [
-  { stableAsset: 'ZCHF', equityAsset: 'FPS', protocol: EquityProtocol.FRANKENCOIN, blockchain: Blockchain.ETHEREUM },
-  { stableAsset: 'dEURO', equityAsset: 'nDEPS', protocol: EquityProtocol.DEURO, blockchain: Blockchain.ETHEREUM },
-  { stableAsset: 'JUSD', equityAsset: 'JUICE', protocol: EquityProtocol.JUICE, blockchain: Blockchain.CITREA },
-];
+@Injectable()
+export class EquityPairService {
+  private readonly pairs: EquityPairConfig[];
 
-export function getEquityPairConfig(sourceAssetName: string, targetAssetName: string): EquityPairMatch | undefined {
-  for (const config of EQUITY_PAIRS) {
-    if (sourceAssetName === config.stableAsset && targetAssetName === config.equityAsset) {
-      return { config, direction: 'invest' };
-    }
-    if (sourceAssetName === config.equityAsset && targetAssetName === config.stableAsset) {
-      return { config, direction: 'redeem' };
-    }
+  constructor(
+    private readonly frankencoinService: FrankencoinService,
+    private readonly deuroService: DEuroService,
+    private readonly juiceService: JuiceService,
+  ) {
+    this.pairs = [this.frankencoinService, this.deuroService, this.juiceService].map((s) => ({
+      stableAsset: s.stableTokenName,
+      equityAsset: s.equityTokenName,
+      service: s,
+      blockchain: s.blockchain,
+    }));
   }
 
-  return undefined;
+  getEquityPairConfig(sourceAssetName: string, targetAssetName: string): EquityPairMatch | undefined {
+    for (const config of this.pairs) {
+      if (sourceAssetName === config.stableAsset && targetAssetName === config.equityAsset) {
+        return { config, direction: 'mint' };
+      }
+      if (sourceAssetName === config.equityAsset && targetAssetName === config.stableAsset) {
+        return { config, direction: 'redeem' };
+      }
+    }
+
+    return undefined;
+  }
 }

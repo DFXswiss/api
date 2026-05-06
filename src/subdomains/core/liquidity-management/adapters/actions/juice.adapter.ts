@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { JuiceService } from 'src/integration/blockchain/juice/juice.service';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { LiquidityManagementOrder } from '../../entities/liquidity-management-order.entity';
@@ -20,9 +19,9 @@ export class JuiceAdapter extends FrankencoinBasedAdapter {
   constructor(
     liquidityManagementBalanceService: LiquidityManagementBalanceService,
     readonly juiceService: JuiceService,
-    private readonly assetService: AssetService,
+    assetService: AssetService,
   ) {
-    super(LiquidityManagementSystem.JUICE, liquidityManagementBalanceService, juiceService);
+    super(LiquidityManagementSystem.JUICE, liquidityManagementBalanceService, juiceService, assetService);
 
     // Juice doesn't have a wrapper contract
     this.commands.delete(FrankencoinBasedAdapterCommands.WRAP);
@@ -60,22 +59,6 @@ export class JuiceAdapter extends FrankencoinBasedAdapter {
       default:
         return super.validateParams(command, params);
     }
-  }
-
-  async getStableToken(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({
-      name: 'JUSD',
-      type: AssetType.TOKEN,
-      blockchain: Blockchain.CITREA,
-    });
-  }
-
-  async getEquityToken(): Promise<Asset> {
-    return this.assetService.getAssetByQuery({
-      name: 'JUICE',
-      type: AssetType.TOKEN,
-      blockchain: Blockchain.CITREA,
-    });
   }
 
   private async bridgeIn(order: LiquidityManagementOrder): Promise<CorrelationId> {

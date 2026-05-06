@@ -95,7 +95,7 @@ export class CustodyJobService {
 
   private async completeEquityStep(step: CustodyOrderStep) {
     const isFinalStep =
-      step.command === CustodyOrderStepCommand.INVEST || step.command === CustodyOrderStepCommand.REDEEM;
+      step.command === CustodyOrderStepCommand.MINT || step.command === CustodyOrderStepCommand.REDEEM;
 
     if (isFinalStep) {
       try {
