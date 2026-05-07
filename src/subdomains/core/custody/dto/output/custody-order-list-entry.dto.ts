@@ -1,5 +1,5 @@
 import { CustodyOrder } from '../../entities/custody-order.entity';
-import { CustodyOrderStatus, CustodyOrderType } from '../../enums/custody';
+import { CustodyIncomingTypes, CustodyOrderStatus, CustodyOrderType, CustodySwapTypes } from '../../enums/custody';
 
 export class CustodyOrderListEntry {
   id: number;
@@ -14,15 +14,17 @@ export class CustodyOrderListEntry {
   updated: Date;
 
   static fromEntity(order: CustodyOrder): CustodyOrderListEntry {
-    const tr = order.transactionRequest;
+    const isIncoming = CustodyIncomingTypes.includes(order.type);
+    const isSwap = CustodySwapTypes.includes(order.type);
 
     return {
       id: order.id,
       type: order.type,
       status: order.status,
-      inputAmount: order.inputAmount ?? tr?.estimatedAmount,
+      inputAmount:
+        isIncoming || isSwap ? (order.inputAmount ?? order.transactionRequest?.estimatedAmount) : order.inputAmount,
       inputAsset: order.inputAsset?.name,
-      outputAmount: order.outputAmount ?? tr?.amount,
+      outputAmount: isIncoming ? order.outputAmount : (order.outputAmount ?? order.transactionRequest?.amount),
       outputAsset: order.outputAsset?.name,
       userDataId: order.user?.userData?.id,
       userName: order.user?.userData?.verifiedName,

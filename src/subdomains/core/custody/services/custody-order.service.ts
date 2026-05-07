@@ -194,6 +194,7 @@ export class CustodyOrderService {
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
+        orderDto.inputAsset = targetAsset;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
       }
@@ -317,7 +318,7 @@ export class CustodyOrderService {
     const estimatedAmount =
       equityPair.direction === EquityDirection.MINT ? sourceAmount / equityPrice : sourceAmount * equityPrice;
 
-    const zeroFee = { min: 0, rate: 0, fixed: 0, dfx: 0, network: 0, platform: 0 };
+    const zeroFee = { min: 0, rate: 0, fixed: 0, dfx: 0, network: 0, platform: 0, bank: 0, total: 0 };
 
     return Object.assign(new CustodyOrderResponseDto(), {
       id: undefined,
