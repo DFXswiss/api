@@ -87,20 +87,18 @@ export class CustodyJobService {
   }
 
   private async onStepComplete(step: CustodyOrderStep) {
-    const isFinalEquityStep =
-      step.command === CustodyOrderStepCommand.MINT || step.command === CustodyOrderStepCommand.REDEEM;
+    const isFinalEquityStep = [CustodyOrderStepCommand.MINT, CustodyOrderStepCommand.REDEEM].includes(step.command);
 
     if (isFinalEquityStep) {
-      const order = await this.custodyOrderRepo.findOne({
+      // load relations
+      step.order = await this.custodyOrderRepo.findOne({
         where: { id: step.order.id },
         relations: { user: true },
       });
 
-      step.order = order;
-
       const outputAmount = await this.equityOrderStepAdapter.getOutputAmount(step);
 
-      await this.custodyOrderService.updateCustodyOrderInternal(order, {
+      await this.custodyOrderService.updateCustodyOrderInternal(step.order, {
         status: CustodyOrderStatus.COMPLETED,
         inputAmount: outputAmount,
       });
