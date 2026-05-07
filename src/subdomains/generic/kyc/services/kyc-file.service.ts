@@ -31,7 +31,7 @@ export class KycFileService {
   }
 
   async getUserDataKycFiles(userDataId: number, relations: FindOptionsRelations<KycFile> = {}): Promise<KycFile[]> {
-    return this.kycFileRepository.findCached(`userData-${userDataId}-${relations}`, {
+    return this.kycFileRepository.findCached(`userData-${userDataId}-${JSON.stringify(relations)}`, {
       where: { userData: { id: userDataId } },
       relations,
       loadEagerRelations: false,
