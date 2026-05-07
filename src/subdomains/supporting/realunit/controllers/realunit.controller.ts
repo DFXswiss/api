@@ -402,10 +402,10 @@ export class RealUnitController {
   @ApiOperation({
     summary: 'Get payment info for RealUnit sell',
     description:
-      'Returns EIP-7702 delegation data for gasless REALU transfer and fallback deposit info. Requires KYC Level 20 and RealUnit registration.',
+      'Returns EIP-7702 delegation data for gasless REALU transfer and fallback deposit info. Requires KYC Level 30 and RealUnit registration.',
   })
   @ApiOkResponse({ type: RealUnitSellPaymentInfoDto })
-  @ApiBadRequestResponse({ description: 'KYC Level 20 required or registration missing' })
+  @ApiBadRequestResponse({ description: 'KYC Level 30 required or registration missing' })
   async getSellPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: RealUnitSellDto,

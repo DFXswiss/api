@@ -639,6 +639,7 @@ export class Configuration {
           template: 'realunit',
           forcedLang: 'de',
           centralizedWelcome: true,
+          isPreferred: true,
         },
       }),
     },

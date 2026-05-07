@@ -99,7 +99,7 @@ export class LightningClient implements CoinOnly {
   }
 
   async getLndRoutes(publicKey: string, amount: number): Promise<LndRouteDto[]> {
-    const amountInSat = LightningHelper.btcToSat(amount);
+    const amountInSat = Math.ceil(LightningHelper.btcToSat(amount));
 
     return this.http
       .get<{
@@ -144,7 +144,7 @@ export class LightningClient implements CoinOnly {
       `${Config.blockchain.lightning.lnd.apiUrl}/channels/transactions`,
       {
         dest: Buffer.from(publicKey, 'hex').toString('base64'),
-        amt: LightningHelper.btcToSat(amount),
+        amt: Math.round(LightningHelper.btcToSat(amount)),
         final_cltv_delta: 0,
         payment_hash: paymentHash,
         dest_custom_records: { 5482373484: preImage.toString('base64') },

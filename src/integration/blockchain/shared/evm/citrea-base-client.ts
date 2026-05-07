@@ -78,14 +78,18 @@ export abstract class CitreaBaseClient extends EvmClient {
     const balances: BlockchainTokenBalance[] = [];
 
     for (const asset of assets) {
-      const balance = isPoolBalance
-        ? await this.getPoolTokenBalance(asset, owner)
-        : await this.getTokenBalance(asset, owner);
-      balances.push({
-        owner,
-        contractAddress: asset.chainId,
-        balance,
-      });
+      try {
+        const balance = isPoolBalance
+          ? await this.getPoolTokenBalance(asset, owner)
+          : await this.getTokenBalance(asset, owner);
+        balances.push({
+          owner,
+          contractAddress: asset.chainId,
+          balance,
+        });
+      } catch (e) {
+        this.logger.error(`Failed to process token balance for ${asset.uniqueName}:`, e);
+      }
     }
 
     return balances;

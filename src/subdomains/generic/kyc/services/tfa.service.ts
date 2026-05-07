@@ -177,7 +177,6 @@ export class TfaService {
           context,
           input: {
             userData: userData,
-            wallet: userData.wallet,
             title: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.title`,
             salutation: {
               key: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.salutation`,
