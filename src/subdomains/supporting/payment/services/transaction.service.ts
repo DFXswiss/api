@@ -96,7 +96,7 @@ export class TransactionService {
     if (entity.buyCrypto.status === BuyCryptoStatus.STOPPED)
       throw new BadRequestException('Transaction is already stopped');
 
-    entity.buyCrypto.status = BuyCryptoStatus.STOPPED;
+    entity.buyCrypto.stop();
     await this.buyCryptoRepo.save(entity.buyCrypto);
   }
 
