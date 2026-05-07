@@ -81,8 +81,13 @@ export class BuyCryptoOutService {
             transaction.userData.isBlocked ||
             transaction.userData.isRiskBlocked ||
             transaction.userData.isRiskBuyCryptoBlocked
-          )
-            throw new Error('Payout stopped for blocked user');
+          ) {
+            this.logger.warn(`Stopping payout for transaction ${transaction.id}: user is blocked or deleted`);
+
+            transaction.stop();
+            await this.buyCryptoRepo.save(transaction);
+            continue;
+          }
 
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
@@ -167,6 +172,20 @@ export class BuyCryptoOutService {
   private async checkCompletion(batch: BuyCryptoBatch) {
     for (const tx of batch.transactions) {
       if (tx.isComplete) {
+        continue;
+      }
+
+      // stop transactions for blocked/deleted users to unblock batch completion
+      if (
+        tx.user.isBlockedOrDeleted ||
+        tx.userData.isBlocked ||
+        tx.userData.isRiskBlocked ||
+        tx.userData.isRiskBuyCryptoBlocked
+      ) {
+        this.logger.warn(`Stopping transaction ${tx.id} in batch ${batch.id}: user is blocked or deleted`);
+
+        tx.stop();
+        await this.buyCryptoRepo.save(tx);
         continue;
       }
 

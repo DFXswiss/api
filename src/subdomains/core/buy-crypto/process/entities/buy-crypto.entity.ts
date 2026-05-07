@@ -517,6 +517,17 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  stop(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.STOPPED,
+      isComplete: true,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   complete(payoutFee: number): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       outputDate: new Date(),
