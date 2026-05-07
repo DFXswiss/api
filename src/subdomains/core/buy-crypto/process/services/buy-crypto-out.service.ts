@@ -17,6 +17,7 @@ import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.
 import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { UserStatus } from '../../../../generic/user/models/user/user.enum';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
@@ -266,7 +267,7 @@ export class BuyCryptoOutService {
 
   private getBlockedAmlReason(tx: BuyCrypto): AmlReason {
     if (tx.user.isBlockedOrDeleted)
-      return tx.user.status === 'Deleted' ? AmlReason.USER_DELETED : AmlReason.USER_BLOCKED;
+      return tx.user.status === UserStatus.DELETED ? AmlReason.USER_DELETED : AmlReason.USER_BLOCKED;
     if (tx.userData.isBlocked) return AmlReason.USER_DATA_BLOCKED;
 
     return AmlReason.USER_BLOCKED;

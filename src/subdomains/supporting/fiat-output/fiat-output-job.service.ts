@@ -28,6 +28,7 @@ import { VirtualIbanService } from '../bank/virtual-iban/virtual-iban.service';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { LogService } from '../log/log.service';
 import { Ep2ReportService } from './ep2-report.service';
 import { FiatOutput, FiatOutputType } from './fiat-output.entity';
@@ -245,7 +246,11 @@ export class FiatOutputJobService {
             (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked) &&
             entity.type === FiatOutputType.BUY_FIAT
           ) {
-            const reason = entity.user?.isBlockedOrDeleted ? AmlReason.USER_BLOCKED : AmlReason.USER_DATA_BLOCKED;
+            const reason = entity.user?.isBlockedOrDeleted
+              ? entity.user.status === UserStatus.DELETED
+                ? AmlReason.USER_DELETED
+                : AmlReason.USER_BLOCKED
+              : AmlReason.USER_DATA_BLOCKED;
 
             for (const buyFiat of entity.buyFiats ?? []) {
               await this.buyFiatRepo.update(buyFiat.id, { amlCheck: CheckStatus.FAIL, amlReason: reason });
