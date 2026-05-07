@@ -25,7 +25,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
-import { RealIP } from 'nestjs-real-ip';
+import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -146,7 +146,11 @@ export class UserController {
 
   @Delete()
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.USER),
+    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
+  )
   @ApiOkResponse()
   @ApiOperation({ deprecated: true })
   async deleteUser(@GetJwt() jwt: JwtPayload): Promise<void> {
@@ -297,7 +301,11 @@ export class UserV2Controller {
 
   @Delete('addresses/:address')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @UseGuards(
+    AuthGuard(),
+    RoleGuard(UserRole.ACCOUNT),
+    UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
+  )
   @ApiOkResponse()
   async deleteAddress(@GetJwt() jwt: JwtPayload, @Param('address') address: string): Promise<void> {
     return this.userService.deactivateUser(jwt.account, address);

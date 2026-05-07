@@ -19,9 +19,9 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Util } from 'src/shared/utils/util';
+import { PollAddressDto } from 'src/subdomains/supporting/payin/interfaces';
 import { AlchemyNetworkMapper } from '../alchemy-network-mapper';
 import { AlchemyAssetTransfersDto } from '../dto/alchemy-asset-transfers.dto';
-import { AlchemySyncTransactionsDto } from '../dto/alchemy-sync-transactions.dto';
 
 export interface AssetTransfersParams {
   fromAddress?: string;
@@ -184,18 +184,17 @@ export class AlchemyService {
     });
   }
 
-  async syncTransactions(syncTransactions: AlchemySyncTransactionsDto) {
-    const blockchain = syncTransactions.blockchain;
-    const chainId = EvmUtil.getChainId(blockchain);
+  async syncTransactions(dto: PollAddressDto) {
+    const chainId = EvmUtil.getChainId(dto.blockchain);
 
     const categories = this.getNativeCoinCategories(chainId);
     categories.push(...this.getERC20Categories(chainId));
 
     const params: AssetTransfersParams = {
       fromAddress: undefined,
-      toAddress: syncTransactions.address,
-      fromBlock: syncTransactions.fromBlock,
-      toBlock: syncTransactions.toBlock,
+      toAddress: dto.address,
+      fromBlock: dto.fromBlock,
+      toBlock: dto.toBlock,
       categories: categories,
     };
 
@@ -204,7 +203,7 @@ export class AlchemyService {
     if (assetTransfers.length) {
       assetTransfers.sort((atr1, atr2) => Number(atr1.blockNum) - Number(atr2.blockNum));
 
-      this.assetTransfersSubject.next({ blockchain, assetTransfers });
+      this.assetTransfersSubject.next({ blockchain: dto.blockchain, assetTransfers });
     }
   }
 

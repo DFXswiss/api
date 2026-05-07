@@ -12,6 +12,9 @@ export enum CustodyOrderType {
 
   SWAP = 'Swap',
 
+  EQUITY_MINT = 'EquityMint',
+  EQUITY_REDEEM = 'EquityRedeem',
+
   SAVING_DEPOSIT = 'SavingDeposit',
   SAVING_WITHDRAWAL = 'SavingWithdrawal',
 }
@@ -41,11 +44,16 @@ export enum CustodyOrderStepStatus {
 
 export enum CustodyOrderStepContext {
   DFX = 'DFX',
+  EQUITY = 'Equity',
 }
 
 export enum CustodyOrderStepCommand {
   CHARGE_ROUTE = 'ChargeRoute',
   SEND_TO_ROUTE = 'SendToRoute',
+  CHARGE_CUSTODY = 'ChargeCustody',
+  APPROVE_TOKEN = 'ApproveToken',
+  MINT = 'Mint',
+  REDEEM = 'Redeem',
 }
 
 // accounts

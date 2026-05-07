@@ -240,7 +240,7 @@ export class SellService {
     const { user } = await this.sellRepo.findOne({
       where: { id: sellId },
       relations: { user: true },
-      select: ['id', 'user'],
+      select: { id: true, user: true },
     });
     const userVolume = await this.getUserVolume(user.id);
 
@@ -315,7 +315,7 @@ export class SellService {
         type = 'signed transaction';
         payIn = await this.transactionUtilService.handleSignedTxInput(route, request, dto.signedTxHex);
       } else if (dto.txHash) {
-        type = 'EIP-5792 sponsored transfer';
+        type = 'txHash';
         payIn = await this.transactionUtilService.handleTxHashInput(route, request, dto.txHash);
       } else {
         throw new BadRequestException('Either permit, signedTxHex, txHash, or authorization must be provided');

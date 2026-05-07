@@ -31,7 +31,9 @@ import { Sell } from '../sell-crypto/route/sell.entity';
 export type RefundValidation = {
   refundIban?: string;
   refundUser?: User;
-  chargebackAmount?: number;
+  chargebackAmount: number; // chargebackAsset
+  chargebackReferenceAmount?: number; // inputAsset
+  assetMismatch: boolean;
 };
 
 @Injectable()
@@ -77,16 +79,22 @@ export class TransactionUtilService {
       throw new BadRequestException('Transaction is already returned');
 
     if (entity instanceof BankTxReturn) {
-      if (dto.chargebackAmount && dto.chargebackAmount > entity.bankTx.amount)
+      if (
+        dto.chargebackAmount &&
+        ((dto.chargebackAmount > entity.bankTx.refundAmount && !dto.assetMismatch) ||
+          (dto.chargebackReferenceAmount > entity.bankTx.refundAmount && dto.assetMismatch))
+      )
         throw new BadRequestException('You can not refund more than the input amount');
       return;
     }
 
     if (![CheckStatus.FAIL, CheckStatus.PENDING].includes(entity.amlCheck) || entity.outputAmount)
       throw new BadRequestException('Only failed or pending transactions are refundable');
+
     if (
       dto.chargebackAmount &&
-      dto.chargebackAmount > (entity instanceof BuyCrypto && entity.bankTx ? entity.bankTx.amount : entity.inputAmount)
+      ((dto.chargebackAmount > entity.refundAmount && !dto.assetMismatch) ||
+        (dto.chargebackReferenceAmount > entity.refundAmount && dto.assetMismatch))
     )
       throw new BadRequestException('You can not refund more than the input amount');
   }
@@ -100,12 +108,20 @@ export class TransactionUtilService {
     if (
       blockedAccounts.some(
         (b) =>
-          [
+          ([
             SpecialExternalAccountType.BANNED_IBAN,
             SpecialExternalAccountType.BANNED_IBAN_BUY,
             SpecialExternalAccountType.BANNED_IBAN_SELL,
             SpecialExternalAccountType.BANNED_IBAN_AML,
-          ].includes(b.type) && b.value === iban,
+          ].includes(b.type) &&
+            b.value === iban) ||
+          ([
+            SpecialExternalAccountType.BANNED_BLZ,
+            SpecialExternalAccountType.BANNED_BLZ_BUY,
+            SpecialExternalAccountType.BANNED_BLZ_SELL,
+            SpecialExternalAccountType.BANNED_BLZ_AML,
+          ].includes(b.type) &&
+            b.value === IbanTools.extractIBAN(iban).bankIdentifier),
       )
     )
       throw new BadRequestException('Iban not allowed');
@@ -199,8 +215,8 @@ export class TransactionUtilService {
   }
 
   /**
-   * Handle transaction hash from EIP-5792 wallet_sendCalls (gasless/sponsored transfer)
-   * The frontend sends the transaction via wallet_sendCalls and provides the txHash
+   * Handle transaction hash provided by the client
+   * The client sends the transaction themselves and provides the txHash for tracking
    */
   async handleTxHashInput(route: Swap | Sell, request: TransactionRequest, txHash: string): Promise<CryptoInput> {
     const asset = await this.assetService.getAssetById(request.sourceId);
@@ -209,14 +225,14 @@ export class TransactionUtilService {
     const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
     const blockHeight = await client.getCurrentBlock();
 
-    // The transaction was already sent by the frontend via wallet_sendCalls
+    // The transaction was already sent by the client
     // We just need to create a PayIn record to track it
     return this.payInService.createPayIn(
       request.user.address,
       route.deposit.address,
       asset,
       txHash,
-      PayInType.SPONSORED_TRANSFER,
+      PayInType.CONFIRMED_DEPOSIT,
       blockHeight,
       request.amount,
     );

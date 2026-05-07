@@ -50,6 +50,7 @@ import { UpdateBankTxDto } from '../dto/update-bank-tx.dto';
 import { BankTxBatch } from '../entities/bank-tx-batch.entity';
 import {
   BankTx,
+  BankTxComplianceSearchableTypes,
   BankTxIndicator,
   BankTxType,
   BankTxTypeCompleted,
@@ -408,6 +409,14 @@ export class BankTxService implements OnModuleInit {
     return this.bankTxRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
+  async getBankTxsByTransactionIds(transactionIds: number[]): Promise<BankTx[]> {
+    if (!transactionIds.length) return [];
+    return this.bankTxRepo.find({
+      where: { transaction: { id: In(transactionIds) } },
+      relations: { transaction: true },
+    });
+  }
+
   async getBankTxById(id: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
     return this.bankTxRepo.findOne({ where: { id }, relations });
   }
@@ -525,9 +534,10 @@ export class BankTxService implements OnModuleInit {
     accounts: string[],
     virtualIbans: string[],
     relations: FindOptionsRelations<BankTx> = { transaction: true },
+    types: BankTxType[] = BankTxUnassignedTypes,
   ): Promise<BankTx[]> {
     const request: FindOptionsWhere<BankTx> = {
-      type: In(BankTxUnassignedTypes),
+      type: In(types),
       creditDebitIndicator: BankTxIndicator.CREDIT,
     };
 
@@ -549,15 +559,44 @@ export class BankTxService implements OnModuleInit {
 
   async getBankTxsByName(name: string): Promise<BankTx[]> {
     const request: FindOptionsWhere<BankTx> = {
-      type: In(BankTxUnassignedTypes),
+      type: In(BankTxComplianceSearchableTypes),
       creditDebitIndicator: BankTxIndicator.CREDIT,
     };
 
+    const wheres: FindOptionsWhere<BankTx>[] = [
+      { ...request, name: Like(`%${name}%`) },
+      { ...request, ultimateName: Like(`%${name}%`) },
+    ];
+
+    const nameParts = name
+      .split(' ')
+      .filter((p) => p)
+      .slice(0, 5);
+    const namePartsWithoutTitles = nameParts.filter((p) => !p.endsWith('.'));
+
+    const splitVariants = [nameParts];
+    if (namePartsWithoutTitles.length < nameParts.length && namePartsWithoutTitles.length >= 2)
+      splitVariants.push(namePartsWithoutTitles);
+
+    for (const parts of splitVariants) {
+      // full-string search for title-filtered variant (e.g. "John Peter Doe" without "Dr.")
+      const joined = parts.join(' ');
+      if (joined !== name) {
+        wheres.push({ ...request, name: Like(`%${joined}%`) }, { ...request, ultimateName: Like(`%${joined}%`) });
+      }
+
+      // reversed splits (e.g. "Doe John" for input "John Doe")
+      for (let i = 1; i < parts.length && i < 5; i++) {
+        const firstPart = parts.slice(0, i).join(' ');
+        const lastPart = parts.slice(i).join(' ');
+        const reversed = `${lastPart} ${firstPart}`;
+
+        wheres.push({ ...request, name: Like(`%${reversed}%`) }, { ...request, ultimateName: Like(`%${reversed}%`) });
+      }
+    }
+
     return this.bankTxRepo.find({
-      where: [
-        { ...request, name: Like(`%${name}%`) },
-        { ...request, ultimateName: Like(`%${name}%`) },
-      ],
+      where: wheres,
       relations: { transaction: true },
     });
   }

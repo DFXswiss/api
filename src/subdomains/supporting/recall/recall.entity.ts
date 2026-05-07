@@ -3,6 +3,7 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { CheckoutTx } from '../fiat-payin/entities/checkout-tx.entity';
+import { RecallReason } from './recall-reason.enum';
 
 @Entity()
 @Index((r: Recall) => [r.bankTx, r.checkoutTx, r.sequence], { unique: true })
@@ -24,4 +25,7 @@ export class Recall extends IEntity {
 
   @Column({ type: 'float' })
   fee: number;
+
+  @Column({ length: 256, nullable: true })
+  reason?: RecallReason;
 }

@@ -1,8 +1,8 @@
 import { Module } from '@nestjs/common';
 import { SharedModule } from 'src/shared/shared.module';
-import { BitcoinService } from './node/bitcoin.service';
 import { NodeController } from './node/node.controller';
 import { BitcoinFeeService } from './services/bitcoin-fee.service';
+import { BitcoinService } from './services/bitcoin.service';
 
 @Module({
   imports: [SharedModule],

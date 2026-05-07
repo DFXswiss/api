@@ -2,7 +2,6 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
-import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -14,13 +13,9 @@ import { SpecialExternalAccountService } from '../../payment/services/special-ex
 import { TransactionService } from '../../payment/services/transaction.service';
 import { RealUnitDevService } from '../realunit-dev.service';
 
-// Mock environment - must be declared before jest.mock since mocks are hoisted
-// Use a global variable that can be mutated
-(global as any).__mockEnvironment = 'loc';
-
 jest.mock('src/config/config', () => ({
   get Config() {
-    return { environment: (global as any).__mockEnvironment };
+    return { environment: 'loc' };
   },
   Environment: {
     LOC: 'loc',
@@ -77,11 +72,6 @@ jest.mock('src/shared/services/dfx-logger', () => ({
   })),
 }));
 
-// Mock Lock decorator
-jest.mock('src/shared/utils/lock', () => ({
-  Lock: () => () => {},
-}));
-
 // Mock Util
 jest.mock('src/shared/utils/util', () => ({
   Util: {
@@ -92,7 +82,6 @@ jest.mock('src/shared/utils/util', () => ({
 describe('RealUnitDevService', () => {
   let service: RealUnitDevService;
   let transactionRequestRepo: jest.Mocked<TransactionRequestRepository>;
-  let assetService: jest.Mocked<AssetService>;
   let fiatService: jest.Mocked<FiatService>;
   let buyService: jest.Mocked<BuyService>;
   let bankTxService: jest.Mocked<BankTxService>;
@@ -137,16 +126,13 @@ describe('RealUnitDevService', () => {
     id: 7,
     amount: 100,
     sourceId: 1,
-    targetId: 408, // Sepolia REALU asset ID
+    targetId: 408,
     routeId: 1,
     status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
     type: TransactionRequestType.BUY,
   };
 
   beforeEach(async () => {
-    // Reset environment to LOC before each test
-    (global as any).__mockEnvironment = 'loc';
-
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RealUnitDevService,
@@ -155,12 +141,6 @@ describe('RealUnitDevService', () => {
           useValue: {
             find: jest.fn(),
             update: jest.fn(),
-          },
-        },
-        {
-          provide: AssetService,
-          useValue: {
-            getAssetByQuery: jest.fn(),
           },
         },
         {
@@ -212,7 +192,6 @@ describe('RealUnitDevService', () => {
 
     service = module.get<RealUnitDevService>(RealUnitDevService);
     transactionRequestRepo = module.get(TransactionRequestRepository);
-    assetService = module.get(AssetService);
     fiatService = module.get(FiatService);
     buyService = module.get(BuyService);
     bankTxService = module.get(BankTxService);
@@ -226,141 +205,68 @@ describe('RealUnitDevService', () => {
     jest.clearAllMocks();
   });
 
-  describe('simulateRealuPayments', () => {
-    it('should skip execution on PRD environment', async () => {
-      (global as any).__mockEnvironment = 'prd';
-
-      await service.simulateRealuPayments();
-
-      expect(assetService.getAssetByQuery).not.toHaveBeenCalled();
-    });
-
-    it('should execute on DEV environment', async () => {
-      (global as any).__mockEnvironment = 'dev';
-      assetService.getAssetByQuery.mockResolvedValueOnce(sepoliaRealuAsset);
-      transactionRequestRepo.find.mockResolvedValue([]);
-
-      await service.simulateRealuPayments();
-
-      expect(assetService.getAssetByQuery).toHaveBeenCalledTimes(1);
-    });
-
-    it('should execute on LOC environment', async () => {
-      (global as any).__mockEnvironment = 'loc';
-      assetService.getAssetByQuery.mockResolvedValueOnce(sepoliaRealuAsset);
-      transactionRequestRepo.find.mockResolvedValue([]);
-
-      await service.simulateRealuPayments();
-
-      expect(assetService.getAssetByQuery).toHaveBeenCalledTimes(1);
-    });
-
-    it('should skip if sepolia REALU asset not found', async () => {
-      assetService.getAssetByQuery.mockResolvedValueOnce(null);
-
-      await service.simulateRealuPayments();
-
-      expect(transactionRequestRepo.find).not.toHaveBeenCalled();
-    });
-
-    it('should skip if no waiting requests', async () => {
-      assetService.getAssetByQuery.mockResolvedValueOnce(sepoliaRealuAsset);
-      transactionRequestRepo.find.mockResolvedValue([]);
-
-      await service.simulateRealuPayments();
-
-      expect(buyService.getBuyByKey).not.toHaveBeenCalled();
-    });
-
-    it('should query for WAITING_FOR_PAYMENT requests with sepolia REALU targetId', async () => {
-      assetService.getAssetByQuery.mockResolvedValueOnce(sepoliaRealuAsset);
-      transactionRequestRepo.find.mockResolvedValue([]);
-
-      await service.simulateRealuPayments();
-
-      expect(transactionRequestRepo.find).toHaveBeenCalledWith({
-        where: {
-          status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
-          type: TransactionRequestType.BUY,
-          targetId: 408,
-        },
-      });
-    });
-  });
-
   describe('simulatePaymentForRequest', () => {
-    beforeEach(() => {
-      assetService.getAssetByQuery.mockResolvedValueOnce(sepoliaRealuAsset);
-    });
-
     it('should skip if buy route not found', async () => {
-      transactionRequestRepo.find.mockResolvedValue([mockTransactionRequest as any]);
       buyService.getBuyByKey.mockResolvedValue(null);
 
-      await service.simulateRealuPayments();
+      await service.simulatePaymentForRequest(mockTransactionRequest as any, sepoliaRealuAsset);
 
       expect(bankTxService.getBankTxByKey).not.toHaveBeenCalled();
     });
 
     it('should skip if BankTx already exists (duplicate prevention)', async () => {
-      transactionRequestRepo.find.mockResolvedValue([mockTransactionRequest as any]);
       buyService.getBuyByKey.mockResolvedValue(mockBuy as any);
       bankTxService.getBankTxByKey.mockResolvedValue({ id: 1 } as any);
 
-      await service.simulateRealuPayments();
+      await service.simulatePaymentForRequest(mockTransactionRequest as any, sepoliaRealuAsset);
 
       expect(fiatService.getFiat).not.toHaveBeenCalled();
     });
 
     it('should skip if fiat not found', async () => {
-      transactionRequestRepo.find.mockResolvedValue([mockTransactionRequest as any]);
       buyService.getBuyByKey.mockResolvedValue(mockBuy as any);
       bankTxService.getBankTxByKey.mockResolvedValue(null);
       fiatService.getFiat.mockResolvedValue(null);
 
-      await service.simulateRealuPayments();
+      await service.simulatePaymentForRequest(mockTransactionRequest as any, sepoliaRealuAsset);
 
       expect(bankService.getBankInternal).not.toHaveBeenCalled();
     });
 
     it('should skip if bank not found', async () => {
-      transactionRequestRepo.find.mockResolvedValue([mockTransactionRequest as any]);
       buyService.getBuyByKey.mockResolvedValue(mockBuy as any);
       bankTxService.getBankTxByKey.mockResolvedValue(null);
       fiatService.getFiat.mockResolvedValue(mockFiat as any);
       bankService.getBankInternal.mockResolvedValue(null);
 
-      await service.simulateRealuPayments();
+      await service.simulatePaymentForRequest(mockTransactionRequest as any, sepoliaRealuAsset);
 
       expect(bankTxService.create).not.toHaveBeenCalled();
     });
 
     it('should use YAPEAL bank for CHF', async () => {
-      transactionRequestRepo.find.mockResolvedValue([mockTransactionRequest as any]);
       buyService.getBuyByKey.mockResolvedValue(mockBuy as any);
       bankTxService.getBankTxByKey.mockResolvedValue(null);
       fiatService.getFiat.mockResolvedValue({ id: 1, name: 'CHF' } as any);
       bankService.getBankInternal.mockResolvedValue(null);
 
-      await service.simulateRealuPayments();
+      await service.simulatePaymentForRequest(mockTransactionRequest as any, sepoliaRealuAsset);
 
       expect(bankService.getBankInternal).toHaveBeenCalledWith('Yapeal', 'CHF');
     });
 
     it('should use OLKY bank for EUR', async () => {
-      transactionRequestRepo.find.mockResolvedValue([mockTransactionRequest as any]);
       buyService.getBuyByKey.mockResolvedValue(mockBuy as any);
       bankTxService.getBankTxByKey.mockResolvedValue(null);
       fiatService.getFiat.mockResolvedValue({ id: 2, name: 'EUR' } as any);
       bankService.getBankInternal.mockResolvedValue(null);
 
-      await service.simulateRealuPayments();
+      await service.simulatePaymentForRequest(mockTransactionRequest as any, sepoliaRealuAsset);
 
       expect(bankService.getBankInternal).toHaveBeenCalledWith('Olkypay', 'EUR');
     });
 
     it('should create BankTx, BuyCrypto, update Transaction, and complete TransactionRequest', async () => {
-      transactionRequestRepo.find.mockResolvedValue([mockTransactionRequest as any]);
       buyService.getBuyByKey.mockResolvedValue(mockBuy as any);
       bankTxService.getBankTxByKey.mockResolvedValue(null);
       fiatService.getFiat.mockResolvedValue(mockFiat as any);
@@ -370,7 +276,7 @@ describe('RealUnitDevService', () => {
       buyCryptoRepo.create.mockReturnValue({ id: 1 } as any);
       buyCryptoRepo.save.mockResolvedValue({ id: 1 } as any);
 
-      await service.simulateRealuPayments();
+      await service.simulatePaymentForRequest(mockTransactionRequest as any, sepoliaRealuAsset);
 
       // 1. Should create BankTx
       expect(bankTxService.create).toHaveBeenCalledWith(
@@ -409,51 +315,7 @@ describe('RealUnitDevService', () => {
       });
     });
 
-    it('should process multiple requests', async () => {
-      const request1 = { ...mockTransactionRequest, id: 1 };
-      const request2 = { ...mockTransactionRequest, id: 2 };
-      const request3 = { ...mockTransactionRequest, id: 3 };
-
-      transactionRequestRepo.find.mockResolvedValue([request1, request2, request3] as any);
-      buyService.getBuyByKey.mockResolvedValue(mockBuy as any);
-      bankTxService.getBankTxByKey.mockResolvedValue(null);
-      fiatService.getFiat.mockResolvedValue(mockFiat as any);
-      bankService.getBankInternal.mockResolvedValue(mockBank as any);
-      specialAccountService.getMultiAccounts.mockResolvedValue([]);
-      bankTxService.create.mockResolvedValue(mockBankTx as any);
-      buyCryptoRepo.create.mockReturnValue({ id: 1 } as any);
-      buyCryptoRepo.save.mockResolvedValue({ id: 1 } as any);
-
-      await service.simulateRealuPayments();
-
-      expect(bankTxService.create).toHaveBeenCalledTimes(3);
-      expect(buyCryptoRepo.save).toHaveBeenCalledTimes(3);
-      expect(transactionRequestRepo.update).toHaveBeenCalledTimes(3);
-    });
-
-    it('should continue processing other requests if one fails', async () => {
-      const request1 = { ...mockTransactionRequest, id: 1 };
-      const request2 = { ...mockTransactionRequest, id: 2 };
-
-      transactionRequestRepo.find.mockResolvedValue([request1, request2] as any);
-      buyService.getBuyByKey.mockRejectedValueOnce(new Error('Failed')).mockResolvedValueOnce(mockBuy as any);
-      bankTxService.getBankTxByKey.mockResolvedValue(null);
-      fiatService.getFiat.mockResolvedValue(mockFiat as any);
-      bankService.getBankInternal.mockResolvedValue(mockBank as any);
-      specialAccountService.getMultiAccounts.mockResolvedValue([]);
-      bankTxService.create.mockResolvedValue(mockBankTx as any);
-      buyCryptoRepo.create.mockReturnValue({ id: 1 } as any);
-      buyCryptoRepo.save.mockResolvedValue({ id: 1 } as any);
-
-      await service.simulateRealuPayments();
-
-      // Second request should still be processed
-      expect(transactionRequestRepo.update).toHaveBeenCalledTimes(1);
-      expect(transactionRequestRepo.update).toHaveBeenCalledWith(2, expect.anything());
-    });
-
     it('should use unique txInfo per TransactionRequest for duplicate detection', async () => {
-      transactionRequestRepo.find.mockResolvedValue([mockTransactionRequest as any]);
       buyService.getBuyByKey.mockResolvedValue(mockBuy as any);
       bankTxService.getBankTxByKey.mockResolvedValue(null);
       fiatService.getFiat.mockResolvedValue(mockFiat as any);
@@ -463,7 +325,7 @@ describe('RealUnitDevService', () => {
       buyCryptoRepo.create.mockReturnValue({ id: 1 } as any);
       buyCryptoRepo.save.mockResolvedValue({ id: 1 } as any);
 
-      await service.simulateRealuPayments();
+      await service.simulatePaymentForRequest(mockTransactionRequest as any, sepoliaRealuAsset);
 
       // Should check for existing BankTx using txInfo field with TransactionRequest ID
       expect(bankTxService.getBankTxByKey).toHaveBeenCalledWith('txInfo', 'DEV simulation for TransactionRequest 7');

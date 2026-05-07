@@ -5,7 +5,6 @@ export enum NotificationType {
 export enum MailType {
   GENERIC = 'Generic',
   ERROR_MONITORING = 'ErrorMonitoring',
-  USER_DEPRECATED = 'UserDeprecated',
   USER_V2 = 'UserV2',
   PERSONAL = 'Personal',
   INTERNAL = 'Internal',

@@ -573,6 +573,26 @@ export class Util {
     return batches.reduce((prev, curr) => prev.concat(curr), []);
   }
 
+  static async doInBatchesWithLimit<T, U>(
+    list: T[],
+    action: (batch: T[], remaining?: number) => Promise<U[]>,
+    batchSize: number,
+    limit?: number,
+  ): Promise<U[]> {
+    const results: U[] = [];
+
+    for (let i = 0; i < list.length; i += batchSize) {
+      const batch = list.slice(i, i + batchSize);
+      const remaining = limit ? limit - results.length : undefined;
+      const batchResults = await action(batch, remaining);
+      results.push(...batchResults);
+
+      if (limit && results.length >= limit) break;
+    }
+
+    return results;
+  }
+
   static async doGetFulfilled<T>(tasks: Promise<T>[]): Promise<T[]> {
     return Promise.allSettled(tasks).then((results) => results.filter(this.filterFulfilledCalls).map((r) => r.value));
   }

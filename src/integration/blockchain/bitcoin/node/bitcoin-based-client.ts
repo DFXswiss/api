@@ -3,6 +3,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainTokenBalance } from '../../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../../shared/dto/signed-transaction-reponse.dto';
+import { CoinOnly } from '../../shared/util/blockchain-client';
 import { NodeClient, NodeClientConfig } from './node-client';
 
 export interface TransactionHistory {
@@ -24,7 +25,7 @@ export interface TestMempoolResult {
   'reject-reason': string;
 }
 
-export abstract class BitcoinBasedClient extends NodeClient {
+export abstract class BitcoinBasedClient extends NodeClient implements CoinOnly {
   constructor(http: HttpService, url: string, config: NodeClientConfig) {
     super(http, url, config);
   }
@@ -52,18 +53,43 @@ export abstract class BitcoinBasedClient extends NodeClient {
     return { outTxId: result?.txid ?? '', feeAmount };
   }
 
-  async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
+  async sendMany(
+    payload: { addressTo: string; amount: number }[],
+    feeRate: number,
+    inputs?: Array<{ txid: string; vout: number }>,
+    subtractFeeFromOutputs?: number[],
+  ): Promise<string> {
     const outputs = payload.map((p) => ({ [p.addressTo]: p.amount }));
 
     const options = {
       replaceable: true,
       change_address: this.walletAddress,
       ...(this.nodeConfig.allowUnconfirmedUtxos && { include_unsafe: true }),
+      ...(inputs && { inputs, add_inputs: false }),
+      ...(subtractFeeFromOutputs && { subtract_fee_from_outputs: subtractFeeFromOutputs }),
     };
 
     const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);
 
     return result?.txid ?? '';
+  }
+
+  async sendManyFromAddress(
+    fromAddresses: string[],
+    payload: { addressTo: string; amount: number }[],
+    feeRate: number,
+    subtractFeeFromOutputs?: number[],
+  ): Promise<string> {
+    const utxos = await this.getUtxoForAddresses(fromAddresses, this.nodeConfig.allowUnconfirmedUtxos);
+    if (!utxos.length) throw new Error('No UTXOs available');
+
+    const inputs = utxos.map((u) => ({ txid: u.txid, vout: u.vout }));
+    const utxoBalance = utxos.reduce((sum, u) => sum + u.amount, 0);
+
+    // resolve zero-amount entries with full UTXO balance (sweep mode)
+    const resolvedPayload = payload.map((p) => ({ addressTo: p.addressTo, amount: p.amount || utxoBalance }));
+
+    return this.sendMany(resolvedPayload, feeRate, inputs, subtractFeeFromOutputs);
   }
 
   async testMempoolAccept(hex: string): Promise<TestMempoolResult[]> {
@@ -109,7 +135,7 @@ export abstract class BitcoinBasedClient extends NodeClient {
   }
 
   async isTxComplete(txId: string, minConfirmations?: number): Promise<boolean> {
-    const transaction = await this.getRawTx(txId);
+    const transaction = await this.getTx(txId);
     return (
       transaction !== null &&
       transaction.blockhash !== undefined &&

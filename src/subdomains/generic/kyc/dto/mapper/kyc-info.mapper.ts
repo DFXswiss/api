@@ -49,7 +49,7 @@ export class KycInfoMapper {
     );
 
     return KycInfoMapper.sortSteps(
-      userData.kycSteps.filter((s) => s.status !== ReviewStatus.CANCELED).concat(openSteps),
+      (userData.kycSteps ?? []).filter((s) => s.status !== ReviewStatus.CANCELED).concat(openSteps),
     );
   }
 

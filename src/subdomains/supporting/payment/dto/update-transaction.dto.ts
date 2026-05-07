@@ -22,6 +22,10 @@ export class UpdateTransactionDto {
   amountInChf?: number;
 
   @IsOptional()
+  @IsNumber()
+  feeAmountInChf?: number;
+
+  @IsOptional()
   @IsString()
   amlType?: string;
 

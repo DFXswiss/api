@@ -150,10 +150,14 @@ export abstract class EvmClient extends BlockchainClient {
     const tokenBalances = await this.alchemyService.getTokenBalances(this.chainId, owner, assets);
 
     for (const tokenBalance of tokenBalances) {
-      const token = await this.getTokenByAddress(tokenBalance.contractAddress);
-      const balance = EvmUtil.fromWeiAmount(tokenBalance.tokenBalance ?? 0, token.decimals);
+      try {
+        const token = await this.getTokenByAddress(tokenBalance.contractAddress);
+        const balance = EvmUtil.fromWeiAmount(tokenBalance.tokenBalance ?? 0, token.decimals);
 
-      evmTokenBalances.push({ owner, contractAddress: tokenBalance.contractAddress, balance: balance });
+        evmTokenBalances.push({ owner, contractAddress: tokenBalance.contractAddress, balance: balance });
+      } catch (e) {
+        this.logger.error(`Failed to process token balance for ${tokenBalance.contractAddress}:`, e);
+      }
     }
 
     return evmTokenBalances;
@@ -676,10 +680,10 @@ export abstract class EvmClient extends BlockchainClient {
     return { pool, amountOut, sqrtPriceX96After, gasEstimate, route };
   }
 
-  async getSwapResult(txId: string, asset: Asset): Promise<number> {
+  async getSwapResult(txId: string, asset: Asset, recipientAddress?: string): Promise<number> {
     const receipt = await this.getTxReceipt(txId);
 
-    const walletTopic = ethers.utils.hexZeroPad(this.walletAddress.toLowerCase(), 32);
+    const walletTopic = ethers.utils.hexZeroPad((recipientAddress ?? this.walletAddress).toLowerCase(), 32);
 
     const swapLog = receipt?.logs?.find(
       (l) => l.address.toLowerCase() === asset.chainId.toLowerCase() && l.topics[2]?.toLowerCase() === walletTopic,
@@ -875,6 +879,14 @@ export abstract class EvmClient extends BlockchainClient {
     if (txNonce >= currentNonce) this.setNonce(fromAddress, txNonce + 1);
 
     return tx.hash;
+  }
+
+  async getNextNonce(): Promise<number> {
+    return this.getNonce(this.walletAddress);
+  }
+
+  incrementNonce(nonce: number): void {
+    this.setNonce(this.walletAddress, nonce + 1);
   }
 
   protected async getNonce(address: string): Promise<number> {

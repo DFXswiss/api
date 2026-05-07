@@ -44,6 +44,16 @@ export class SpecialExternalAccountService {
     );
   }
 
+  async getPhoneCallList(): Promise<SpecialExternalAccount[]> {
+    return this.specialExternalAccountRepo.findCachedBy('PhoneCallList', {
+      type: In([
+        SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BIC_BUY,
+        SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_IBAN_BUY,
+        SpecialExternalAccountType.AML_PHONE_CALL_NEEDED_BLZ_BUY,
+      ]),
+    });
+  }
+
   async getBlacklist(types?: SpecialExternalAccountType[]): Promise<SpecialExternalAccount[]> {
     return this.specialExternalAccountRepo.findCachedBy(`Blacklist-${types?.toString()}`, {
       type: In(
@@ -58,6 +68,10 @@ export class SpecialExternalAccountService {
           SpecialExternalAccountType.BANNED_BIC_AML,
           SpecialExternalAccountType.BANNED_MAIL,
           SpecialExternalAccountType.BANNED_ACCOUNT_IBAN,
+          SpecialExternalAccountType.BANNED_BLZ,
+          SpecialExternalAccountType.BANNED_BLZ_BUY,
+          SpecialExternalAccountType.BANNED_BLZ_SELL,
+          SpecialExternalAccountType.BANNED_BLZ_AML,
         ],
       ),
     });

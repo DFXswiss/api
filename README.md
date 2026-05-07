@@ -18,6 +18,10 @@ Links to the productive API are used in the further documentation.
   - [Swagger UI](https://dev.api.dfx.swiss)
   - [Swagger JSON](https://dev.api.dfx.swiss/swagger-json)
 
+### API Conventions
+
+**Amount Representation:** All amount fields in the API use human-readable display units. For example, `1.5` means 1.5 BTC (not 150,000,000 satoshis). Crypto amounts are typically rounded to ~5 decimal places, fiat amounts to 2 decimal places.
+
 ## On-/Off-Ramp
 
 This section explains the key concepts for using the DFX on-ramp and off-ramp.
@@ -190,7 +194,7 @@ npm install
 cp .env.local.example .env
 
 # 3. Start database
-docker-compose up -d
+docker compose up -d
 
 # 4. Run setup (generates seeds, starts API, registers admin)
 npm run setup
@@ -251,10 +255,10 @@ Seed data is stored in `migration/seed/` and can be customized as needed.
 ### Docker Commands
 
 ```bash
-docker-compose up -d          # Start database
-docker-compose logs db-init   # Check if database was created
-docker-compose down           # Stop database
-docker-compose down -v        # Stop and delete data
+docker compose up -d          # Start database
+docker compose logs db-init   # Check if database was created
+docker compose down           # Stop database
+docker compose down -v        # Stop and delete data
 docker logs dfx-mssql         # View database logs
 ```
 

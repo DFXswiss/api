@@ -10,6 +10,7 @@ import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { CollateralWithTotalBalance } from '../shared/dto/frankencoin-based.dto';
+import { Blockchain } from '../shared/enums/blockchain.enum';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { FrankencoinBasedService } from '../shared/frankencoin/frankencoin-based.service';
 import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
@@ -28,6 +29,10 @@ import { FrankencoinClient } from './frankencoin-client';
 export class FrankencoinService extends FrankencoinBasedService implements OnModuleInit {
   private static readonly LOG_SYSTEM = 'EvmInformation';
   private static readonly LOG_SUBSYSTEM = 'FrankencoinSmartContract';
+
+  readonly stableTokenName = 'ZCHF';
+  readonly equityTokenName = 'FPS';
+  readonly blockchain = Blockchain.ETHEREUM;
 
   private frankencoinClient: FrankencoinClient;
 

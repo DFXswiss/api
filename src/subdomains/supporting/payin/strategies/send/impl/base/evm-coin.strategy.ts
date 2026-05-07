@@ -41,12 +41,14 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
     payInGroup.status = PayInStatus.PREPARED;
   }
 
-  protected dispatchSend(payInGroup: SendGroup, type: SendType, estimatedNativeFee: number): Promise<string> {
+  protected async dispatchSend(payInGroup: SendGroup, type: SendType, estimatedNativeFee: number): Promise<string> {
     const { account, destinationAddress } = payInGroup;
 
     const groupAmount = this.getTotalGroupAmount(payInGroup, type);
-    // subtract fee for forwarding
-    const amount = type === SendType.FORWARD ? Util.round(groupAmount - estimatedNativeFee * 1.00001, 12) : groupAmount;
+    // use fresh gas cost (not cached estimate) to avoid value + gas > balance
+    const freshGasCost = await this.payInEvmService.getGasCostForCoinTransaction();
+    const gasCost = Math.max(freshGasCost, estimatedNativeFee);
+    const amount = Util.round(groupAmount - gasCost * 1.05, 12);
 
     return this.payInEvmService.sendNativeCoin(account, destinationAddress, amount);
   }

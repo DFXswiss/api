@@ -1,8 +1,11 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { EthereumModule } from 'src/integration/blockchain/ethereum/ethereum.module';
 import { RealUnitBlockchainModule } from 'src/integration/blockchain/realunit/realunit-blockchain.module';
+import { SepoliaModule } from 'src/integration/blockchain/sepolia/sepolia.module';
 import { Eip7702DelegationModule } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
+import { FaucetRequestModule } from 'src/subdomains/core/faucet-request/faucet-request.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { KycModule } from 'src/subdomains/generic/kyc/kyc.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
@@ -22,6 +25,8 @@ import { RealUnitService } from './realunit.service';
     PricingModule,
     BalanceModule,
     RealUnitBlockchainModule,
+    EthereumModule,
+    SepoliaModule,
     UserModule,
     KycModule,
     BankModule,
@@ -31,6 +36,7 @@ import { RealUnitService } from './realunit.service';
     Eip7702DelegationModule,
     forwardRef(() => BuyCryptoModule),
     forwardRef(() => SellCryptoModule),
+    FaucetRequestModule,
   ],
   controllers: [RealUnitController],
   providers: [RealUnitService, RealUnitDevService],

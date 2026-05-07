@@ -30,6 +30,10 @@ export abstract class FrankencoinBasedService {
     this.registryService = registryService;
   }
 
+  abstract readonly stableTokenName: string;
+  abstract readonly equityTokenName: string;
+  abstract readonly blockchain: Blockchain;
+
   abstract getEquityContract(): Contract;
   abstract getWrapperContract(): Contract;
   abstract getEquityPrice(): Promise<number>;

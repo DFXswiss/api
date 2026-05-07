@@ -15,7 +15,12 @@ export class KycFileService {
 
     entity.uid = Util.createUid(Config.prefixes.kycFileUidPrefix);
 
-    return this.kycFileRepository.save(entity);
+    const saved = await this.kycFileRepository.save(entity);
+
+    // Invalidate cache so new files are visible immediately
+    this.kycFileRepository.invalidateCache();
+
+    return saved;
   }
 
   async getKycFile(uid: string, relations?: FindOptionsRelations<KycFile>): Promise<KycFile> {

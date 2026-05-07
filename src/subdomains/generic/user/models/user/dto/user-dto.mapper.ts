@@ -10,7 +10,7 @@ import { Util } from 'src/shared/utils/util';
 import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
 import { UserProfileDto } from './user-profile.dto';
-import { ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
+import { PhoneCallStatusMapper, ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
 
 export class UserDtoMapper {
   static mapUser(userData: UserData, activeUserId?: number): UserV2Dto {
@@ -28,6 +28,9 @@ export class UserDtoMapper {
         hash: userData.kycHash,
         level: userData.kycLevelDisplay,
         dataComplete: userData.isDataComplete,
+        phoneCallAccepted: userData.phoneCallAccepted,
+        phoneCallStatus: userData.phoneCallStatus ? PhoneCallStatusMapper[userData.phoneCallStatus] : undefined,
+        preferredPhoneTimes: userData.phoneCallTimesObject,
       },
       volumes: this.mapVolumes(userData),
       addresses: userData.users
@@ -76,8 +79,8 @@ export class UserDtoMapper {
     const dto: ReferralDto = {
       code: user.ref,
       commission: Util.round(user.refFeePercent / 100, 4),
-      volume: user.refVolume,
-      credit: user.refCredit,
+      volume: user.totalRefVolume,
+      credit: user.totalRefCredit,
       paidCredit: user.paidRefCredit,
       userCount: userCount,
       activeUserCount: activeUserCount,

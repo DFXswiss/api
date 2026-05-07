@@ -25,12 +25,13 @@ import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.en
 import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import {
   CryptoPaymentMethod,
   FiatPaymentMethod,
   PaymentMethod,
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { FeeType } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
@@ -133,6 +134,9 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   usedRef?: string;
 
+  @Column({ length: 256, nullable: true })
+  usedPartnerRef?: string;
+
   @Column({ type: 'float', nullable: true })
   refProvision?: number;
 
@@ -161,6 +165,15 @@ export class BuyCrypto extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   bankFeeAmount?: number; //inputReferenceAsset
+
+  @Column({ type: 'float', nullable: true })
+  bankFixedFeeAmount?: number; //inputReferenceAsset
+
+  @Column({ type: 'float', nullable: true })
+  bankPercentFeeAmount?: number; //inputReferenceAsset
+
+  @Column({ type: 'float', nullable: true })
+  partnerFeeAmount?: number; //inputReferenceAsset
 
   @Column({ type: 'float', nullable: true })
   percentFeeAmount?: number; //inputReferenceAsset
@@ -218,7 +231,13 @@ export class BuyCrypto extends IEntity {
   chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })
-  chargebackAmount?: number;
+  chargebackReferenceAmount?: number; // inputAsset
+
+  @Column({ type: 'float', nullable: true })
+  chargebackAmount?: number; // chargebackAsset
+
+  @Column({ length: 256, nullable: true })
+  chargebackAsset?: string;
 
   @Column({ length: 256, nullable: true })
   chargebackAllowedBy?: string;
@@ -251,6 +270,15 @@ export class BuyCrypto extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   priceSteps?: string;
+
+  /**
+   * Ratio of quoted rate to market rate at execution.
+   * > 1 = user got better rate than market
+   * < 1 = user got worse rate than market
+   * null = quote not used (expired or not available)
+   */
+  @Column({ type: 'float', nullable: true })
+  quoteMarketRatio?: number;
 
   // Transaction details
   @Column({ length: 256, nullable: true })
@@ -489,6 +517,17 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  stop(amlReason?: AmlReason): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      status: BuyCryptoStatus.STOPPED,
+      ...(amlReason && { amlCheck: CheckStatus.FAIL, amlReason }),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   complete(payoutFee: number): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       outputDate: new Date(),
@@ -513,6 +552,16 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
+  skipMail(): UpdateResult<BuyCrypto> {
+    const update: Partial<BuyCrypto> = {
+      mailSendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   resetSentMail(): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       recipientMail: null,
@@ -526,7 +575,9 @@ export class BuyCrypto extends IEntity {
 
   chargebackFillUp(
     chargebackIban: string,
+    chargebackReferenceAmount: number,
     chargebackAmount: number,
+    chargebackAsset: string,
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
@@ -542,7 +593,9 @@ export class BuyCrypto extends IEntity {
       chargebackAllowedDate,
       chargebackAllowedDateUser,
       chargebackIban,
+      chargebackReferenceAmount,
       chargebackAmount,
+      chargebackAsset,
       chargebackOutput,
       chargebackAllowedBy,
       chargebackRemittanceInfo,
@@ -560,11 +613,11 @@ export class BuyCrypto extends IEntity {
   }
 
   setFeeAndFiatReference(
-    fee: InternalFeeDto & FeeDto,
+    fee: InternalFeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyCrypto> {
-    const { usedRef, refProvision } = this.user.specifiedRef;
+    const partnerFee = fee.partner ? fee.fees.find((f) => f.type === FeeType.PARTNER) : undefined;
     const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
 
     const update: Partial<BuyCrypto> =
@@ -580,10 +633,14 @@ export class BuyCrypto extends IEntity {
             totalFeeAmountChf,
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
+            bankFixedFeeAmount: fee.bankFixed,
+            bankPercentFeeAmount: fee.bankPercent,
+            partnerFeeAmount: fee.partner,
+            usedPartnerRef: fee.partner ? partnerFee.wallet.owner.ref : undefined,
             inputReferenceAmountMinusFee,
-            usedRef,
-            refProvision,
-            refFactor: !fee.payoutRefBonus || usedRef === Config.defaultRef ? 0 : 1,
+            usedRef: this.user.usedRef,
+            refProvision: this.user.refFeePercent,
+            refFactor: !fee.payoutRefBonus || this.user.usedRef === Config.defaultRef ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
             networkStartFeeAmount: fee.networkStart,
             status: this.status === BuyCryptoStatus.WAITING_FOR_LOWER_FEE ? BuyCryptoStatus.CREATED : undefined,
@@ -604,9 +661,11 @@ export class BuyCrypto extends IEntity {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
+    phoneCallList: SpecialExternalAccount[],
     banks: Bank[],
     ibanCountry: Country,
     refUser?: User,
+    recommender?: UserData,
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
@@ -622,8 +681,10 @@ export class BuyCrypto extends IEntity {
         last365dVolume,
         bankData,
         blacklist,
+        phoneCallList,
         ibanCountry,
         refUser,
+        recommender,
         banks,
         ipLogCountries,
         virtualIban,
@@ -680,6 +741,8 @@ export class BuyCrypto extends IEntity {
       chargebackAllowedBy: null,
       chargebackOutput: null,
       priceDefinitionAllowedDate: null,
+      partnerFeeAmount: null,
+      usedPartnerRef: null,
     };
 
     Object.assign(this, update);
@@ -697,13 +760,15 @@ export class BuyCrypto extends IEntity {
       totalFeeAmountChf: null,
       blockchainFee: null,
       bankFeeAmount: null,
+      bankFixedFeeAmount: null,
+      bankPercentFeeAmount: null,
       inputReferenceAmountMinusFee: null,
       usedRef: null,
       refProvision: null,
       refFactor: null,
       usedFees: null,
       networkStartFeeAmount: null,
-      status: null,
+      status: BuyCryptoStatus.CREATED,
     };
 
     Object.assign(this, update);
@@ -926,6 +991,7 @@ export const BuyCryptoAmlReasonPendingStates = [
   AmlReason.BANK_RELEASE_PENDING,
   AmlReason.MANUAL_CHECK_IP_PHONE,
   AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
+  AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
 ];
 
 export const BuyCryptoEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

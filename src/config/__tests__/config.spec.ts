@@ -16,6 +16,13 @@ describe('Config', () => {
     // Taproot
     expect(addrExp.test('bc1p5d7rjq7g6rdk2yhzks9smlaqtedr4dekq08ge8ztwac72sfr9rusxg3297')).toEqual(true);
 
+    // Silent Payment (BIP-352)
+    expect(
+      addrExp.test(
+        'sp1qq09fnmc3dlpkxvz0cder74ys7qnjl6t2k9j936fzqeevc5pgrldp5q7r6f8rx8ppcnuq3gdkqp5qtv8nlgcx7z5mlen2ek57ctjffprec5vyplxz',
+      ),
+    ).toEqual(true);
+
     // Lightning
     expect(addrExp.test('LNURL1DP68GURN8GHJ77P09EMK2MRV944KUMMHDCHKCMN4WFK8QTMDUMFNU2')).toEqual(true);
 

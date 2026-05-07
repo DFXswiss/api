@@ -1,0 +1,67 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "fileShareQuota": {
+      "value": 50
+    },
+    "containerImage": {
+      "value": "dfxswiss/nanobot:latest"
+    },
+    "containerVolumeMounts": {
+      "value": [
+        {
+          "volumeName": "volume",
+          "mountPath": "/root/.nanobot"
+        }
+      ]
+    },
+    "containerCPU": {
+      "value": "1"
+    },
+    "containerMemory": {
+      "value": "2Gi"
+    },
+    "containerMinReplicas": {
+      "value": 1
+    },
+    "containerMaxReplicas": {
+      "value": 1
+    },
+    "containerIngressTargetPort": {
+      "value": 18790
+    },
+    "containerIngressAdditionalPorts": {
+      "value": []
+    },
+    "containerProbes": {
+      "value": []
+    },
+    "containerEnv": {
+      "value": [
+        {
+          "name": "ANTHROPIC_API_KEY",
+          "value": "[ANTHROPIC_API_KEY]"
+        },
+        {
+          "name": "TELEGRAM_BOT_TOKEN",
+          "value": "[TELEGRAM_BOT_TOKEN]"
+        },
+        {
+          "name": "TELEGRAM_USER_ID",
+          "value": "[TELEGRAM_USER_ID]"
+        },
+        {
+          "name": "GH_TOKEN",
+          "value": "[GH_TOKEN]"
+        }
+      ]
+    },
+    "containerCommand": {
+      "value": []
+    },
+    "containerArgs": {
+      "value": []
+    }
+  }
+}

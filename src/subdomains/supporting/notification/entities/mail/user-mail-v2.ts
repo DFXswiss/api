@@ -7,7 +7,7 @@ import { Mail } from './base/mail';
 
 export interface MailRequestUserInputV2 {
   userData: UserData;
-  wallet: Wallet;
+  wallet?: Wallet;
   title: string;
   salutation?: TranslationItem;
   texts: TranslationItem[];
@@ -35,9 +35,12 @@ export class UserMailV2 extends Mail {
       instagramUrl: Config.social.instagram,
     };
 
+    const walletMailConfig = wallet?.name ? Config.mail.wallet[wallet.name] : undefined;
+
     super({
       ...params,
-      template: wallet?.name === 'onchainlabs' ? 'onChainLabs' : 'user-v2',
+      walletName: wallet?.name,
+      template: walletMailConfig?.template ?? 'user-v2',
       templateParams: { ...defaultParams, ...params },
     });
   }

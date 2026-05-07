@@ -94,3 +94,11 @@ export enum PaymentMerchantStatus {
   PENDING = 'Pending',
   PROCESSED = 'Processed',
 }
+
+// Blockchains where user broadcasts tx and sends txId (not signed hex)
+export const UnverifiedTxIdBlockchains = [Blockchain.MONERO, Blockchain.ZANO, Blockchain.TRON, Blockchain.CARDANO];
+
+// Blockchains where user broadcasts tx and sends txId, API verifies tx confirmation
+export const VerifiedTxIdBlockchains = [Blockchain.SOLANA, Blockchain.INTERNET_COMPUTER];
+
+export const TxIdBlockchains = [...UnverifiedTxIdBlockchains, ...VerifiedTxIdBlockchains];

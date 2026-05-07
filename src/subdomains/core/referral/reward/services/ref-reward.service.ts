@@ -1,8 +1,8 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -27,6 +27,8 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.BITCOIN]: 100,
   [Blockchain.LIGHTNING]: 1,
   [Blockchain.SPARK]: 1,
+  [Blockchain.ARKADE]: 1,
+  [Blockchain.FIRO]: undefined,
   [Blockchain.MONERO]: 1,
   [Blockchain.ZANO]: undefined,
   [Blockchain.CARDANO]: undefined,
@@ -45,6 +47,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.KUCOIN_PAY]: undefined,
   [Blockchain.GNOSIS]: undefined,
   [Blockchain.TRON]: undefined,
+  [Blockchain.INTERNET_COMPUTER]: undefined,
   [Blockchain.CITREA]: undefined,
   [Blockchain.CITREA_TESTNET]: undefined,
   [Blockchain.BITCOIN_TESTNET4]: undefined,
@@ -67,6 +70,7 @@ export class RefRewardService {
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
     private readonly transactionService: TransactionService,
+    private readonly settingService: SettingService,
   ) {}
 
   async createManualRefReward(dto: CreateManualRefRewardDto): Promise<void> {
@@ -87,12 +91,14 @@ export class RefRewardService {
       PriceValidity.VALID_ONLY,
     );
 
+    const refRewardManualCheckLimit = await this.settingService.getObj<number>('refRewardManualCheckLimit', 3000);
+
     const entity = this.rewardRepo.create({
       user,
       targetAddress: user.address,
       outputAsset: asset,
       sourceTransaction,
-      status: dto.amountInEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
+      status: dto.amountInEur > refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
       targetBlockchain: asset.blockchain,
       amountInChf: eurChfPrice.convert(dto.amountInEur, 8),
       amountInEur: dto.amountInEur,
@@ -143,15 +149,17 @@ export class RefRewardService {
         const payoutAsset = user.refAsset ?? defaultAsset;
         if (payoutAsset.blockchain !== blockchain) throw new Error('User ref asset blockchain mismatch');
 
-        const refCreditEur = user.refCredit - user.paidRefCredit;
+        const refCreditEur = user.totalRefCredit - user.paidRefCredit;
         const minCredit = PayoutLimits[blockchain];
 
         if (!(refCreditEur >= minCredit)) continue;
 
+        const refRewardManualCheckLimit = await this.settingService.getObj<number>('refRewardManualCheckLimit', 3000);
+
         const entity = this.rewardRepo.create({
           outputAsset: payoutAsset,
           user,
-          status: refCreditEur > Config.refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
+          status: refCreditEur > refRewardManualCheckLimit ? RewardStatus.MANUAL_CHECK : RewardStatus.PREPARED,
           targetAddress: user.address,
           targetBlockchain: blockchain,
           amountInChf: eurChfPrice.convert(refCreditEur, 8),
@@ -188,6 +196,14 @@ export class RefRewardService {
   async getAllUserRewards(userIds: number[]): Promise<RefReward[]> {
     return this.rewardRepo.find({
       where: { user: { id: In(userIds) } },
+      relations: { user: true },
+      order: { id: 'DESC' },
+    });
+  }
+
+  async getRefRewardsByUserDataId(userDataId: number): Promise<RefReward[]> {
+    return this.rewardRepo.find({
+      where: { user: { userData: { id: userDataId } } },
       relations: { user: true },
       order: { id: 'DESC' },
     });
@@ -235,5 +251,23 @@ export class RefRewardService {
       cryptoAmount: v.outputAmount,
       cryptoCurrency: v.outputAsset.dexName,
     }));
+  }
+
+  async getRewardRecipients(from?: Date): Promise<{ userDataId: number; count: number; totalChf: number }[]> {
+    const query = this.rewardRepo
+      .createQueryBuilder('r')
+      .innerJoin('r.user', 'u')
+      .select('u.userDataId', 'userDataId')
+      .addSelect('COUNT(*)', 'count')
+      .addSelect('ROUND(SUM(r.amountInChf), 0)', 'totalChf')
+      .where('r.status != :excluded', { excluded: RewardStatus.USER_SWITCH })
+      .groupBy('u.userDataId')
+      .orderBy('totalChf', 'DESC');
+
+    if (from) {
+      query.andWhere('r.created >= :from', { from });
+    }
+
+    return query.getRawMany();
   }
 }

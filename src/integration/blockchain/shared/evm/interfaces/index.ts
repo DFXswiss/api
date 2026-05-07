@@ -23,6 +23,9 @@ export interface EvmTokenHistoryEntry {
 }
 
 export interface L2BridgeEvmClient {
+  getNativeCoinBalance(): Promise<number>;
+  getTokenBalance(asset: Asset): Promise<number>;
+
   depositCoinOnDex(amount: number): Promise<string>;
   withdrawCoinOnDex(amount: number): Promise<string>;
 

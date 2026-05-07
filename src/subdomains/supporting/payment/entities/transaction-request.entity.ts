@@ -1,9 +1,12 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { Column, Entity, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { SupportIssue } from '../../support-issue/entities/support-issue.entity';
+import { FeeDto } from '../dto/fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
 import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
 import { Transaction } from './transaction.entity';
@@ -82,6 +85,22 @@ export class TransactionRequest extends IEntity {
   @Column({ type: 'float', nullable: true })
   totalFee?: number;
 
+  @Column({
+    type: 'nvarchar',
+    length: 'MAX',
+    nullable: true,
+    transformer: { to: (v) => (v ? JSON.stringify(v) : v), from: (v) => (v ? JSON.parse(v) : v) },
+  })
+  fees?: FeeDto;
+
+  @Column({
+    type: 'nvarchar',
+    length: 'MAX',
+    nullable: true,
+    transformer: { to: (v) => (v ? JSON.stringify(v) : v), from: (v) => (v ? JSON.parse(v) : v) },
+  })
+  priceSteps?: PriceStep[];
+
   @Column({ default: false })
   exactPrice: boolean;
 
@@ -94,6 +113,9 @@ export class TransactionRequest extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   siftResponse?: string;
+
+  @Column({ length: 'MAX', nullable: true })
+  aktionariatResponse?: string;
 
   @OneToOne(() => Transaction, (transaction) => transaction.request, { nullable: true })
   transaction?: Transaction;
@@ -116,5 +138,26 @@ export class TransactionRequest extends IEntity {
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  /**
+   * Calculates output using quoted price if quote is still valid.
+   */
+  calculateQuoteOutput(
+    validityMinutes: number,
+    inputAmount: number,
+    marketPrice: number,
+    amountType: AmountType,
+  ): { outputAmount: number; priceSteps: PriceStep[]; quoteMarketRatio: number } | null {
+    if (!this.rate || !this.exchangeRate || !this.priceSteps?.length) return null;
+
+    const quoteAgeMinutes = Util.minutesDiff(this.created);
+    if (quoteAgeMinutes > validityMinutes) return null;
+
+    return {
+      outputAmount: Util.roundReadable(inputAmount / this.rate, amountType),
+      priceSteps: this.priceSteps,
+      quoteMarketRatio: Util.round(this.exchangeRate / marketPrice, 8),
+    };
   }
 }

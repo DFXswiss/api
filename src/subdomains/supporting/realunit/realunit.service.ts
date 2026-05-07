@@ -5,19 +5,27 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
+import { BigNumber, ethers } from 'ethers';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { Config, Environment, GetConfig } from 'src/config/config';
+import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
 import {
   BrokerbotBuyPriceDto,
+  BrokerbotBuySharesDto,
+  BrokerbotCurrency,
   BrokerbotInfoDto,
   BrokerbotPriceDto,
-  BrokerbotSharesDto,
+  BrokerbotSellPriceDto,
+  BrokerbotSellSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
+import { SepoliaService } from 'src/integration/blockchain/sepolia/sepolia.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -27,8 +35,10 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -41,31 +51,47 @@ import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
+import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
 import {
   AccountHistoryClientResponse,
   AccountSummaryClientResponse,
+  HistoryEventType,
   HoldersClientResponse,
   TokenInfoClientResponse,
 } from './dto/client.dto';
+import { RealUnitQuoteDto, RealUnitTransactionDto } from './dto/realunit-admin.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
   AktionariatRegistrationDto,
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationStatus,
+  RealUnitRegisterWalletDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationStatus,
+  RealUnitUserDataDto,
   RealUnitUserType,
+  RealUnitWalletStatusDto,
 } from './dto/realunit-registration.dto';
-import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from './dto/realunit-sell.dto';
+import {
+  RealUnitSellBroadcastDto,
+  RealUnitSellConfirmDto,
+  RealUnitSellDto,
+  RealUnitSellPaymentInfoDto,
+} from './dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
   AccountSummaryDto,
   HistoricalPriceDto,
+  HistoryEventDto,
   HoldersDto,
   RealUnitBuyDto,
   RealUnitPaymentInfoDto,
@@ -73,6 +99,7 @@ import {
   TokenInfoDto,
 } from './dto/realunit.dto';
 import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
+import { RealUnitDevService } from './realunit-dev.service';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
 
@@ -105,8 +132,15 @@ export class RealUnitService {
     @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     private readonly eip7702DelegationService: Eip7702DelegationService,
+    private readonly ethereumService: EthereumService,
+    private readonly sepoliaService: SepoliaService,
     private readonly transactionRequestService: TransactionRequestService,
+    private readonly transactionService: TransactionService,
     private readonly accountMergeService: AccountMergeService,
+    private readonly devService: RealUnitDevService,
+    private readonly swissQrService: SwissQRService,
+    private readonly feeService: FeeService,
+    private readonly faucetRequestService: FaucetRequestService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -135,12 +169,69 @@ export class RealUnitService {
     return RealUnitDtoMapper.toAccountHistoryDto(clientResponse);
   }
 
-  private async getRealuAsset(): Promise<Asset> {
+  async getHistoryEventByTxHash(address: string, txHash: string): Promise<HistoryEventDto> {
+    const normalizedTxHash = txHash.toLowerCase();
+    let cursor: string | undefined;
+
+    while (true) {
+      const history = await this.getAccountHistory(address, 100, cursor);
+
+      const event = history.history.find(
+        (e) => e.txHash.toLowerCase() === normalizedTxHash && e.eventType === HistoryEventType.TRANSFER,
+      );
+
+      if (event) return event;
+
+      if (!history.pageInfo.hasNextPage) break;
+      cursor = history.pageInfo.endCursor;
+    }
+
+    throw new NotFoundException('Transaction not found in account history');
+  }
+
+  async getHistoryEventsByTxHashes(address: string, txHashes: string[]): Promise<HistoryEventDto[]> {
+    const normalizedHashes = new Set(txHashes.map((h) => h.toLowerCase()));
+    const foundEvents: HistoryEventDto[] = [];
+    let cursor: string | undefined;
+
+    while (foundEvents.length < txHashes.length) {
+      const history = await this.getAccountHistory(address, 100, cursor);
+
+      for (const event of history.history) {
+        if (
+          normalizedHashes.has(event.txHash.toLowerCase()) &&
+          event.eventType === HistoryEventType.TRANSFER &&
+          !foundEvents.some((e) => e.txHash.toLowerCase() === event.txHash.toLowerCase())
+        ) {
+          foundEvents.push(event);
+        }
+      }
+
+      if (!history.pageInfo.hasNextPage) break;
+      cursor = history.pageInfo.endCursor;
+    }
+
+    return foundEvents;
+  }
+
+  async getRealuAsset(): Promise<Asset> {
     return this.assetService.getAssetByQuery({
       name: this.tokenName,
       blockchain: this.tokenBlockchain,
       type: AssetType.TOKEN,
     });
+  }
+
+  private async getZchfAsset(): Promise<Asset> {
+    return this.assetService.getAssetByQuery({
+      name: 'ZCHF',
+      blockchain: this.tokenBlockchain,
+      type: AssetType.TOKEN,
+    });
+  }
+
+  private getBrokerbotAddress(): string {
+    return GetConfig().blockchain.realunit.brokerbotAddress;
   }
 
   async getRealUnitPrice(): Promise<HistoricalPriceDto> {
@@ -171,12 +262,24 @@ export class RealUnitService {
   }
 
   async getHistoricalPrice(timeFrame: TimeFrame): Promise<HistoricalPriceDto[]> {
-    return this.historicalPriceCache.get(timeFrame, async () => {
+    const historicalPrices = await this.historicalPriceCache.get(timeFrame, async () => {
       const startDate = await this.getHistoricalPriceStartDate(timeFrame);
       const prices = await this.assetPricesService.getAssetPrices([await this.getRealuAsset()], startDate);
       const filledPrices = TimeseriesUtils.fillMissingDates(prices);
       return RealUnitDtoMapper.assetPricesToHistoricalPricesDto(filledPrices);
     });
+
+    if (historicalPrices.length > 0) {
+      const currentPrice = await this.getRealUnitPrice();
+      historicalPrices[historicalPrices.length - 1] = {
+        timestamp: currentPrice.timestamp,
+        chf: currentPrice.chf,
+        eur: currentPrice.eur,
+        usd: currentPrice.usd,
+      };
+    }
+
+    return historicalPrices;
   }
 
   async getRealUnitInfo(): Promise<TokenInfoDto> {
@@ -187,20 +290,106 @@ export class RealUnitService {
 
   // --- Brokerbot Methods ---
 
-  async getBrokerbotPrice(): Promise<BrokerbotPriceDto> {
-    return this.blockchainService.getBrokerbotPrice();
+  async getBrokerbotPrice(currency?: BrokerbotCurrency): Promise<BrokerbotPriceDto> {
+    return this.blockchainService.getBrokerbotPrice(currency);
   }
 
-  async getBrokerbotBuyPrice(shares: number): Promise<BrokerbotBuyPriceDto> {
-    return this.blockchainService.getBrokerbotBuyPrice(shares);
+  async getBrokerbotBuyPrice(shares: number, currency?: BrokerbotCurrency): Promise<BrokerbotBuyPriceDto> {
+    return this.blockchainService.getBrokerbotBuyPrice(shares, currency);
   }
 
-  async getBrokerbotShares(amountChf: string): Promise<BrokerbotSharesDto> {
-    return this.blockchainService.getBrokerbotShares(amountChf);
+  async getBrokerbotBuyShares(amount: number, currency?: BrokerbotCurrency): Promise<BrokerbotBuySharesDto> {
+    return this.blockchainService.getBrokerbotBuyShares(amount, currency);
   }
 
-  async getBrokerbotInfo(): Promise<BrokerbotInfoDto> {
-    return this.blockchainService.getBrokerbotInfo();
+  async getBrokerbotInfo(currency?: BrokerbotCurrency): Promise<BrokerbotInfoDto> {
+    const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
+    return this.blockchainService.getBrokerbotInfo(
+      this.getBrokerbotAddress(),
+      realuAsset.chainId,
+      zchfAsset.chainId,
+      currency,
+    );
+  }
+
+  async getBrokerbotSellPrice(
+    user: User,
+    shares: number,
+    currency?: BrokerbotCurrency,
+  ): Promise<BrokerbotSellPriceDto> {
+    const currencyName = currency ?? BrokerbotCurrency.CHF;
+    const [realuAsset, fiat] = await Promise.all([this.getRealuAsset(), this.fiatService.getFiatByName(currencyName)]);
+
+    const { pricePerShare } = await this.blockchainService.getBrokerbotPrice(currencyName);
+    const grossAmount = pricePerShare * shares;
+
+    const fee = await this.feeService.getUserFee({
+      user,
+      from: realuAsset,
+      to: fiat,
+      paymentMethodIn: CryptoPaymentMethod.CRYPTO,
+      paymentMethodOut: FiatPaymentMethod.BANK,
+      bankIn: undefined,
+      specialCodes: [],
+      allowCachedBlockchainFee: true,
+    });
+
+    const feeRate = fee.dfx.rate + fee.bank.rate + fee.partner.rate;
+    const feeFixed = fee.dfx.fixed + fee.bank.fixed + fee.partner.fixed;
+
+    const totalFee = grossAmount * feeRate + feeFixed + fee.network;
+    const estimatedAmount = Math.max(grossAmount - totalFee, 0);
+    const pricePerShareAfterFees = shares > 0 ? estimatedAmount / shares : 0;
+
+    return {
+      shares,
+      pricePerShare: Util.round(pricePerShareAfterFees, 2),
+      estimatedAmount: Util.round(estimatedAmount, 2),
+      currency: currencyName,
+    };
+  }
+
+  async getBrokerbotSellShares(
+    user: User,
+    targetAmount: number,
+    currency?: BrokerbotCurrency,
+  ): Promise<BrokerbotSellSharesDto> {
+    const currencyName = currency ?? BrokerbotCurrency.CHF;
+    const [realuAsset, fiat] = await Promise.all([this.getRealuAsset(), this.fiatService.getFiatByName(currencyName)]);
+
+    const { pricePerShare } = await this.blockchainService.getBrokerbotPrice(currencyName);
+
+    const fee = await this.feeService.getUserFee({
+      user,
+      from: realuAsset,
+      to: fiat,
+      paymentMethodIn: CryptoPaymentMethod.CRYPTO,
+      paymentMethodOut: FiatPaymentMethod.BANK,
+      bankIn: undefined,
+      specialCodes: [],
+      allowCachedBlockchainFee: true,
+    });
+
+    const feeRate = fee.dfx.rate + fee.bank.rate + fee.partner.rate;
+    const feeFixed = fee.dfx.fixed + fee.bank.fixed + fee.partner.fixed;
+
+    // Calculate shares needed: targetAmount = grossAmount - fees
+    const divisor = 1 - feeRate;
+    const grossAmountRaw = divisor > 0 ? (targetAmount + feeFixed + fee.network) / divisor : targetAmount;
+    const shares = Math.max(1, Math.ceil(grossAmountRaw / pricePerShare));
+
+    // Recalculate actual estimated amount with rounded shares
+    const actualGrossAmount = shares * pricePerShare;
+    const totalFee = actualGrossAmount * feeRate + feeFixed + fee.network;
+    const estimatedAmount = actualGrossAmount - totalFee;
+    const pricePerShareAfterFees = shares > 0 ? estimatedAmount / shares : 0;
+
+    return {
+      targetAmount,
+      shares,
+      pricePerShare: Util.round(pricePerShareAfterFees, 2),
+      currency: currencyName,
+    };
   }
 
   // --- Buy Payment Info Methods ---
@@ -214,25 +403,11 @@ export class RealUnitService {
       throw new RegistrationRequiredException();
     }
 
-    // 2. KYC Level check - Level 30 for amounts <= 1000 CHF, Level 50 for higher amounts
+    // 2. KYC Level check - Level 30 required for all RealUnit purchases
     const currency = await this.fiatService.getFiatByName(currencyName);
-    const amountChf =
-      currencyName === 'CHF'
-        ? dto.amount
-        : (await this.pricingService.getPrice(currency, PriceCurrency.CHF, PriceValidity.ANY)).convert(dto.amount);
 
-    const maxAmountForLevel30 = Config.tradingLimits.monthlyDefaultWoKyc;
-    const requiresLevel50 = amountChf > maxAmountForLevel30;
-    const requiredLevel = requiresLevel50 ? KycLevel.LEVEL_50 : KycLevel.LEVEL_30;
-
-    if (userData.kycLevel < requiredLevel) {
-      throw new KycLevelRequiredException(
-        requiredLevel,
-        userData.kycLevel,
-        requiresLevel50
-          ? `KYC Level 50 required for amounts above ${maxAmountForLevel30} CHF`
-          : 'KYC Level 30 required for RealUnit',
-      );
+    if (userData.kycLevel < KycLevel.LEVEL_30) {
+      throw new KycLevelRequiredException(KycLevel.LEVEL_30, userData.kycLevel, 'KYC Level 30 required for RealUnit');
     }
 
     // 3. Get or create Buy route for REALU
@@ -251,6 +426,7 @@ export class RealUnitService {
 
     // 5. Override recipient info with RealUnit company address
     const { bank: realunitBank, address: realunitAddress } = GetConfig().blockchain.realunit;
+    const iban = currencyName === 'EUR' ? realunitBank.ibanEur : realunitBank.iban;
     const response: RealUnitPaymentInfoDto = {
       id: buyPaymentInfo.id,
       routeId: buyPaymentInfo.routeId,
@@ -262,9 +438,9 @@ export class RealUnitService {
       zip: realunitAddress.zip,
       city: realunitAddress.city,
       country: realunitAddress.country,
-      // Bank info from BuyService
-      iban: buyPaymentInfo.iban,
-      bic: buyPaymentInfo.bic,
+      // Bank info from RealUnit config (not Yapeal/DFX)
+      iban,
+      bic: realunitBank.bic,
       // Amount and currency
       amount: buyPaymentInfo.amount,
       currency: buyPaymentInfo.currency.name,
@@ -280,7 +456,17 @@ export class RealUnitService {
       priceSteps: buyPaymentInfo.priceSteps,
       // RealUnit specific
       estimatedAmount: buyPaymentInfo.estimatedAmount,
-      paymentRequest: buyPaymentInfo.paymentRequest,
+      paymentRequest: buyPaymentInfo.isValid
+        ? this.generatePaymentRequest(
+            currencyName,
+            buyPaymentInfo.amount,
+            buy.bankUsage,
+            { ...realunitBank, iban },
+            realunitAddress,
+            user.userData,
+          )
+        : undefined,
+      remittanceInfo: buy.active ? buy.bankUsage : undefined,
       isValid: buyPaymentInfo.isValid,
       error: buyPaymentInfo.error,
     };
@@ -288,86 +474,85 @@ export class RealUnitService {
     return response;
   }
 
-  // --- Registration Methods ---
+  private generatePaymentRequest(
+    currency: string,
+    amount: number,
+    reference: string,
+    bank: { iban: string; bic: string; recipient: string; name: string },
+    address: { street: string; number: string; zip: string; city: string; country: string },
+    userData: UserData,
+  ): string {
+    const bankInfo = {
+      name: bank.recipient,
+      bank: bank.name,
+      street: address.street,
+      number: address.number,
+      zip: address.zip,
+      city: address.city,
+      country: address.country,
+      iban: bank.iban,
+      bic: bank.bic,
+      sepaInstant: false,
+    };
 
-  // returns true if registration needs manual review, false if completed
-  async register(userDataId: number, dto: RealUnitRegistrationDto): Promise<boolean> {
-    // validate DTO
-    await this.validateRegistrationDto(dto);
-
-    // get and validate user
-    const userData = await this.userService
-      .getUserByAddress(dto.walletAddress, {
-        userData: { kycSteps: true, users: true, country: true, organizationCountry: true },
-      })
-      .then((u) => u?.userData);
-
-    if (!userData) throw new NotFoundException('User not found');
-    if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
-
-    if (!userData.mail) {
-      // Email not set yet - try to set it (will fail if email already exists for another user)
-      await this.userDataService.trySetUserMail(userData, dto.email);
-    } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
-      throw new BadRequestException('Email does not match verified email');
+    if (currency === 'CHF') {
+      return this.swissQrService.createQrCode(amount, 'CHF', reference, bankInfo, userData);
     }
 
-    // duplicate check
-    if (userData.getNonFailedStepWith(KycStepName.REALUNIT_REGISTRATION)) {
-      throw new BadRequestException('RealUnit registration already exists');
-    }
-
-    // store data with internal review
-    const kycStep = await this.kycService.createCustomKycStep(
-      userData,
-      KycStepName.REALUNIT_REGISTRATION,
-      ReviewStatus.INTERNAL_REVIEW,
-      dto,
-    );
-
-    const hasExistingData = userData.firstname != null;
-    if (hasExistingData) {
-      const dataMatches = this.isPersonalDataMatching(userData, dto);
-      if (!dataMatches) {
-        await this.kycService.saveKycStepUpdate(kycStep.manualReview('Existing KYC data does not match'));
-        return true;
-      }
-    } else {
-      await this.userDataService.updatePersonalData(userData, dto.kycData);
-    }
-
-    // update always
-    await this.userDataService.updateUserDataInternal(userData, {
-      nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
-      birthday: new Date(dto.birthday),
-      language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
-      tin: dto.countryAndTINs?.length ? JSON.stringify(dto.countryAndTINs) : undefined,
+    return PdfUtil.generateGiroCode({
+      ...bankInfo,
+      currency,
+      amount,
+      reference,
     });
-
-    // forward to Aktionariat
-    const success = await this.forwardRegistration(kycStep, dto);
-    return !success;
   }
 
-  async registerEmail(
-    userDataId: number,
-    walletAddress: string,
-    dto: RealUnitEmailRegistrationDto,
-  ): Promise<RealUnitEmailRegistrationStatus> {
-    const userData = await this.userDataService.getUserData(userDataId, { users: true, kycSteps: true, wallet: true });
-    if (!userData) throw new NotFoundException('User not found');
+  async confirmBuy(userId: number, requestId: number): Promise<{ reference: string }> {
+    const request = await this.transactionRequestService.getOrThrow(requestId, userId);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if ([TransactionRequestStatus.COMPLETED, TransactionRequestStatus.WAITING_FOR_PAYMENT].includes(request.status))
+      throw new ConflictException('Transaction request is already confirmed');
+    if (Util.daysDiff(request.created) >= Config.txRequestWaitingExpiryDays)
+      throw new BadRequestException('Transaction request is expired');
 
-    if (userData.wallet?.name !== 'RealUnit') {
-      throw new BadRequestException('Registration is only allowed from RealUnit wallet');
+    // Aktionariat API aufrufen
+    const fiat = await this.fiatService.getFiat(request.sourceId);
+
+    let aktionariatResponse: { reference: string; [key: string]: any };
+    try {
+      aktionariatResponse = [Environment.DEV, Environment.LOC].includes(Config.environment)
+        ? { reference: `DEV-${request.id}-${Date.now()}`, mock: true }
+        : await this.blockchainService.requestPaymentInstructions({
+            currency: fiat.name,
+            address: request.user.address,
+            shares: Math.floor(request.estimatedAmount),
+            price: Math.round(request.amount * 100),
+          });
+    } catch (error) {
+      const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
+      this.logger.error(
+        `Failed to request payment instructions from Aktionariat for request ${requestId} (currency: ${fiat.name}, shares: ${Math.floor(request.estimatedAmount)}, price: ${Math.round(request.amount * 100)}): ${message}`,
+      );
+      throw new ServiceUnavailableException(`Aktionariat API error: ${message}`);
     }
 
-    const isNewEmail = !userData.mail || !Util.equalsIgnoreCase(dto.email, userData.mail);
+    // Status + Response speichern
+    await this.transactionRequestService.confirmTransactionRequest(request, JSON.stringify(aktionariatResponse));
 
-    if (isNewEmail) {
-      if (userData.mail && this.hasRegistrationForWallet(userData, walletAddress)) {
-        throw new BadRequestException('Not allowed to register a new email for this address');
-      }
+    return { reference: aktionariatResponse.reference };
+  }
 
+  // --- Registration Methods ---
+
+  hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
+    return this.findRegistrationStep(userData, walletAddress).isForCurrentWallet;
+  }
+
+  async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
+    const userData = await this.userDataService.getUserData(userDataId, { users: true });
+    if (!userData) throw new NotFoundException('User not found');
+
+    if (!userData.mail) {
       try {
         await this.userDataService.trySetUserMail(userData, dto.email);
       } catch (e) {
@@ -378,6 +563,8 @@ export class RealUnitService {
         }
         throw e;
       }
+    } else if (!Util.equalsIgnoreCase(dto.email, userData.mail)) {
+      throw new BadRequestException('Email does not match verified email');
     }
 
     if (userData.kycLevel < KycLevel.LEVEL_10) {
@@ -441,6 +628,70 @@ export class RealUnitService {
     if (!success) return RealUnitRegistrationStatus.FORWARDING_FAILED;
 
     return RealUnitRegistrationStatus.COMPLETED;
+  }
+
+  // --- Wallet Methods ---
+
+  getAddressWalletStatus(userData: UserData, walletAddress: string): RealUnitWalletStatusDto {
+    const { step, isForCurrentWallet } = this.findRegistrationStep(userData, walletAddress);
+
+    return {
+      isRegistered: isForCurrentWallet,
+      userData: this.toUserDataDto(step),
+    };
+  }
+
+  async completeRegistrationForWalletAddress(
+    userDataId: number,
+    dto: RealUnitRegisterWalletDto,
+  ): Promise<RealUnitRegistrationStatus> {
+    const userData = await this.userService
+      .getUserByAddress(dto.walletAddress, {
+        userData: { kycSteps: true, users: true, country: true },
+      })
+      .then((u) => u?.userData);
+
+    if (!userData) throw new NotFoundException('User not found');
+    if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
+
+    const { step: registrationStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
+
+    if (isForCurrentWallet) {
+      throw new BadRequestException('RealUnit registration already exists for this wallet');
+    }
+
+    if (!registrationStep) {
+      throw new BadRequestException('No RealUnit registration found');
+    }
+
+    const registrationData = registrationStep.getResult<RealUnitRegistrationDto>();
+    if (!registrationData) {
+      throw new BadRequestException('Invalid registration data');
+    }
+
+    // full registration DTO with new signature/wallet/date
+    const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...accountData } = registrationData;
+    const fullDto: RealUnitRegistrationDto = {
+      ...accountData,
+      walletAddress: dto.walletAddress,
+      signature: dto.signature,
+      registrationDate: dto.registrationDate,
+    };
+
+    if (!this.verifyRealUnitRegistrationSignature(fullDto)) {
+      throw new BadRequestException('Invalid signature');
+    }
+
+    const kycStep = await this.kycService.createCustomKycStep(
+      userData,
+      KycStepName.REALUNIT_REGISTRATION,
+      ReviewStatus.INTERNAL_REVIEW,
+      fullDto,
+    );
+
+    const success = await this.forwardRegistration(kycStep, fullDto);
+
+    return success ? RealUnitRegistrationStatus.COMPLETED : RealUnitRegistrationStatus.FORWARDING_FAILED;
   }
 
   private async validateRegistrationDto(dto: RealUnitRegistrationDto): Promise<void> {
@@ -579,14 +830,49 @@ export class RealUnitService {
     if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
 
-  hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
-    return userData
-      .getStepsWith(KycStepName.REALUNIT_REGISTRATION)
+  /**
+   * Finds a registration step for the user.
+   * First tries to find a registration for the current wallet.
+   * If not found, falls back to finding a registration from another wallet (for account merge scenarios).
+   */
+  private findRegistrationStep(
+    userData: UserData,
+    walletAddress: string,
+  ): { step: KycStep | undefined; isForCurrentWallet: boolean } {
+    const allSteps = userData.getStepsWith(KycStepName.REALUNIT_REGISTRATION);
+
+    // First: look for registration for the current wallet (non-failed, non-canceled)
+    const currentWalletStep = allSteps
       .filter((s) => !(s.isFailed || s.isCanceled))
-      .some((s) => {
+      .find((s) => {
         const result = s.getResult<AktionariatRegistrationDto>();
         return result?.walletAddress && Util.equalsIgnoreCase(result.walletAddress, walletAddress);
       });
+
+    if (currentWalletStep) {
+      return { step: currentWalletStep, isForCurrentWallet: true };
+    }
+
+    // Second: look for registration from another wallet (for account merge)
+    const otherWalletStep = allSteps
+      .filter((s) => (s.isCompleted || s.isCanceled) && s.result)
+      .find((s) => {
+        const result = s.getResult<AktionariatRegistrationDto>();
+        return result?.walletAddress && !Util.equalsIgnoreCase(result.walletAddress, walletAddress);
+      });
+
+    return { step: otherWalletStep, isForCurrentWallet: false };
+  }
+
+  private toUserDataDto(step: KycStep | undefined): RealUnitUserDataDto | undefined {
+    if (!step) return undefined;
+
+    const registrationData = step.getResult<RealUnitRegistrationDto>();
+    if (!registrationData) return undefined;
+
+    const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...userDataDto } = registrationData;
+
+    return userDataDto as RealUnitUserDataDto;
   }
 
   private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
@@ -644,9 +930,11 @@ export class RealUnitService {
         countryAndTINs: dto.countryAndTINs,
       };
 
-      await this.http.post(`${api.url}/registerUser`, payload, {
-        headers: { 'x-api-key': api.key },
-      });
+      if (![Environment.DEV, Environment.LOC].includes(Config.environment)) {
+        await this.http.post(`${api.url}/registerUser`, payload, {
+          headers: { 'x-api-key': api.key },
+        });
+      }
 
       await this.kycService.saveKycStepUpdate(kycStep.complete());
 
@@ -679,9 +967,12 @@ export class RealUnitService {
     }
 
     // 2. KYC Level check - Level 30 minimum
-    const requiredLevel = KycLevel.LEVEL_30;
-    if (userData.kycLevel < requiredLevel) {
-      throw new KycLevelRequiredException(requiredLevel, userData.kycLevel, 'KYC Level 30 required for RealUnit sell');
+    if (userData.kycLevel < KycLevel.LEVEL_30) {
+      throw new KycLevelRequiredException(
+        KycLevel.LEVEL_30,
+        userData.kycLevel,
+        'KYC Level 30 required for RealUnit sell',
+      );
     }
 
     // 3. Get REALU asset
@@ -713,13 +1004,43 @@ export class RealUnitService {
       false, // includeTx
     );
 
-    // 7. Prepare EIP-7702 delegation data (ALWAYS for RealUnit - app supports eth_sign)
-    const delegationData = await this.eip7702DelegationService.prepareDelegationDataForRealUnit(
-      user.address,
-      realuAsset.blockchain,
-    );
+    // 7. Check if limit exceeded
+    if (sellPaymentInfo.error === QuoteError.LIMIT_EXCEEDED) {
+      throw new KycLevelRequiredException(
+        KycLevel.LEVEL_50,
+        userData.kycLevel,
+        'KYC Level 50 required for RealUnit sell exceeding trading limit',
+      );
+    }
 
-    // 8. Build response with EIP-7702 data AND fallback transfer info
+    // 8. Prepare EIP-7702 delegation data, fetch gas info, and get accurate brokerbot ZCHF in parallel
+    const evmClient = this.getEvmClient();
+    const shares = Math.floor(sellPaymentInfo.amount);
+    const [delegationData, zchfAsset, ethBalance, gasPrice, brokerbotResult] = await Promise.all([
+      this.eip7702DelegationService.prepareDelegationDataForRealUnit(user.address, realuAsset.blockchain),
+      this.getZchfAsset(),
+      evmClient.getNativeCoinBalanceForAddress(user.address),
+      evmClient.getRecommendedGasPrice(),
+      shares > 0
+        ? this.blockchainService.getBrokerbotSellPrice(this.getBrokerbotAddress(), shares).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    // Override estimatedAmount with on-chain brokerbot price so quote matches what the swap will actually pay
+    let estimatedAmount = sellPaymentInfo.estimatedAmount;
+    if (brokerbotResult && sellPaymentInfo.id) {
+      estimatedAmount = EvmUtil.fromWeiAmount(
+        ethers.BigNumber.from(brokerbotResult.zchfAmountWei.toString()),
+        zchfAsset.decimals,
+      );
+      await this.transactionRequestService.updateEstimatedAmount(sellPaymentInfo.id, estimatedAmount);
+    }
+
+    // 350k for brokerbotSell + 100k conservative estimate for zchfDeposit (standard ERC20 transfer)
+    const totalGasLimit = ethers.BigNumber.from(450_000);
+    const requiredGasEth = EvmUtil.fromWeiAmount(gasPrice.mul(totalGasLimit));
+
+    // 9. Build response with EIP-7702 data AND fallback transfer info
     const amountWei = EvmUtil.toWeiAmount(sellPaymentInfo.amount, realuAsset.decimals);
 
     const response: RealUnitSellPaymentInfoDto = {
@@ -740,7 +1061,7 @@ export class RealUnitService {
       depositAddress: sellPaymentInfo.depositAddress,
       amount: sellPaymentInfo.amount,
       tokenAddress: realuAsset.chainId,
-      chainId: EvmUtil.getChainId(realuAsset.blockchain),
+      chainId: realuAsset.evmChainId,
 
       // Fee Info
       fees: sellPaymentInfo.fees,
@@ -755,18 +1076,209 @@ export class RealUnitService {
       priceSteps: sellPaymentInfo.priceSteps,
 
       // Result
-      estimatedAmount: sellPaymentInfo.estimatedAmount,
+      estimatedAmount,
       currency: sellPaymentInfo.currency.name,
       beneficiary: {
         name: sellPaymentInfo.beneficiary.name,
         iban: sellPaymentInfo.beneficiary.iban,
       },
 
+      ethBalance,
+      requiredGasEth,
+
       isValid: sellPaymentInfo.isValid,
       error: sellPaymentInfo.error,
     };
 
     return response;
+  }
+
+  // --- Sell Transaction Methods for BitBox ---
+
+  async createSellUnsignedTransactions(userId: number, requestId: number): Promise<{ swap: string; deposit: string }> {
+    const request = await this.transactionRequestService.getOrThrow(requestId, userId);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+    const client = this.getEvmClient();
+    const realuAsset = await this.getRealuAsset();
+    if (!realuAsset.chainId) throw new BadRequestException('REALU asset has no contract address');
+
+    const [sell, zchfAsset, nonce, gasPrice] = await Promise.all([
+      this.sellService.getById(request.routeId, { relations: { deposit: true } }),
+      this.getZchfAsset(),
+      client.getTransactionCount(request.user.address),
+      client.getRecommendedGasPrice(),
+    ]);
+    if (!sell) throw new NotFoundException('Sell route not found');
+
+    const swapGasLimit = ethers.BigNumber.from(350_000);
+    const depositGasLimit = ethers.BigNumber.from(100_000);
+
+    const ethBalance = await client.getNativeCoinBalanceForAddress(request.user.address);
+    const requiredEth = EvmUtil.fromWeiAmount(gasPrice.mul(swapGasLimit.add(depositGasLimit)));
+    if (ethBalance < requiredEth) {
+      throw new BadRequestException(
+        `Insufficient ETH for gas: need ${requiredEth.toFixed(6)} ETH, have ${ethBalance.toFixed(6)} ETH`,
+      );
+    }
+
+    // Swap tx: nonce N — REALU transferAndCall to brokerbot
+    const ERC677_INTERFACE = new ethers.utils.Interface([
+      'function transferAndCall(address to, uint256 value, bytes data) returns (bool)',
+    ]);
+    const shares = Math.floor(request.amount);
+    const swapAmountWei = ethers.utils.parseUnits(shares.toString(), realuAsset.decimals ?? 18);
+    const swapData = ERC677_INTERFACE.encodeFunctionData('transferAndCall', [
+      this.getBrokerbotAddress(),
+      swapAmountWei,
+      '0x',
+    ]);
+
+    const swap = ethers.utils.serializeTransaction({
+      type: 2,
+      chainId: client.chainId,
+      nonce,
+      maxPriorityFeePerGas: gasPrice,
+      maxFeePerGas: gasPrice,
+      gasLimit: swapGasLimit,
+      to: realuAsset.chainId,
+      value: ethers.BigNumber.from(0),
+      data: swapData,
+      accessList: [],
+    });
+
+    // Deposit tx: nonce N+1 — ZCHF ERC20 transfer to deposit address
+    // Query the brokerbot for the exact ZCHF amount at current price so deposit matches swap output
+    const { zchfAmountWei: depositAmountWei } = await this.blockchainService.getBrokerbotSellPrice(
+      this.getBrokerbotAddress(),
+      shares,
+    );
+    const depositData = EvmUtil.encodeErc20Transfer(sell.deposit.address, BigNumber.from(depositAmountWei.toString()));
+
+    const deposit = ethers.utils.serializeTransaction({
+      type: 2,
+      chainId: client.chainId,
+      nonce: nonce + 1,
+      maxPriorityFeePerGas: gasPrice,
+      maxFeePerGas: gasPrice,
+      gasLimit: depositGasLimit,
+      to: zchfAsset.chainId,
+      value: ethers.BigNumber.from(0),
+      data: depositData,
+      accessList: [],
+    });
+
+    return { swap, deposit };
+  }
+
+  async broadcastSellTransaction(
+    userId: number,
+    requestId: number,
+    dto: RealUnitSellBroadcastDto,
+  ): Promise<{ txHash: string }> {
+    const request = await this.transactionRequestService.getOrThrow(requestId, userId);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+    const { unsignedTx, r, s, v } = dto;
+    const parsed = ethers.utils.parseTransaction(unsignedTx);
+    const signedHex = ethers.utils.serializeTransaction(
+      {
+        type: 2,
+        chainId: parsed.chainId,
+        nonce: parsed.nonce,
+        maxPriorityFeePerGas: parsed.maxPriorityFeePerGas ?? ethers.BigNumber.from(0),
+        maxFeePerGas: parsed.maxFeePerGas ?? ethers.BigNumber.from(0),
+        gasLimit: parsed.gasLimit,
+        to: parsed.to,
+        value: parsed.value,
+        data: parsed.data,
+        accessList: parsed.accessList ?? [],
+      },
+      { r, s, v },
+    );
+
+    const client = this.getEvmClient();
+    const result = await client.sendSignedTransaction(signedHex);
+
+    if (result.error) throw new BadRequestException(`Broadcast failed: ${result.error.message}`);
+
+    const txHash = result.response?.hash;
+    if (!txHash) throw new BadRequestException('Broadcast returned no transaction hash');
+
+    await this.faucetRequestService.resetFaucet(userId);
+
+    return { txHash };
+  }
+
+  private getEvmClient(): EvmClient {
+    return [Environment.DEV, Environment.LOC].includes(Config.environment)
+      ? this.sepoliaService.getDefaultClient()
+      : this.ethereumService.getDefaultClient();
+  }
+
+  // --- Admin Methods ---
+
+  async confirmPaymentReceived(requestId: number): Promise<void> {
+    const request = await this.transactionRequestService.getTransactionRequest(requestId, { user: true });
+    if (!request) throw new NotFoundException('Transaction request not found');
+    if (request.status !== TransactionRequestStatus.WAITING_FOR_PAYMENT) {
+      throw new BadRequestException('Transaction request is not in WaitingForPayment status');
+    }
+
+    if ([Environment.DEV, Environment.LOC].includes(Config.environment)) {
+      const realuAsset = await this.getRealuAsset();
+      await this.devService.simulatePaymentForRequest(request, realuAsset);
+    } else {
+      const aktionariatResponse = JSON.parse(request.aktionariatResponse);
+      const reference = aktionariatResponse.reference;
+      if (!reference) throw new BadRequestException('No reference found in aktionariat response');
+
+      // Convert amount to CHF Rappen for Aktionariat API
+      const fiat = await this.fiatService.getFiat(request.sourceId);
+      let amountChf = request.amount;
+      if (fiat.name !== 'CHF') {
+        const price = await this.pricingService.getPrice(fiat, PriceCurrency.CHF, PriceValidity.ANY);
+        amountChf = price.convert(request.amount);
+      }
+
+      await this.blockchainService.payAndAllocate({
+        amount: Math.round(amountChf * 100),
+        ref: reference,
+      });
+      await this.transactionRequestService.complete(request.id);
+    }
+  }
+
+  async getAdminQuotes(limit = 50, offset = 0): Promise<RealUnitQuoteDto[]> {
+    const realuAsset = await this.getRealuAsset();
+    const requests = await this.transactionRequestService.getByAssetId(realuAsset.id, limit, offset);
+
+    return requests.map((r) => ({
+      id: r.id,
+      uid: r.uid,
+      type: r.type,
+      status: r.status,
+      amount: r.amount,
+      estimatedAmount: r.estimatedAmount,
+      created: r.created,
+      userAddress: r.user?.address,
+    }));
+  }
+
+  async getAdminTransactions(limit = 50, offset = 0): Promise<RealUnitTransactionDto[]> {
+    const realuAsset = await this.getRealuAsset();
+    const transactions = await this.transactionService.getByAssetId(realuAsset.id, limit, offset);
+
+    return transactions.map((t) => ({
+      id: t.id,
+      uid: t.uid,
+      type: t.type,
+      amountInChf: t.amountInChf,
+      assets: t.assets,
+      created: t.created,
+      outputDate: t.outputDate,
+      userAddress: t.user?.address,
+    }));
   }
 
   async confirmSell(userId: number, requestId: number, dto: RealUnitSellConfirmDto): Promise<{ txHash: string }> {
@@ -791,12 +1303,22 @@ export class RealUnitService {
         throw new BadRequestException('Delegation delegator does not match user address');
       }
 
-      // Execute gasless transfer via EIP-7702 delegation (ForRealUnit bypasses global disable)
-      txHash = await this.eip7702DelegationService.transferTokenWithUserDelegationForRealUnit(
+      // Calculate expected ZCHF amount from BrokerBot
+      // If price drops between quote and execution, transaction reverts safely and user can retry
+      const [{ zchfAmountWei }, zchfAsset] = await Promise.all([
+        this.blockchainService.getBrokerbotSellPrice(this.getBrokerbotAddress(), Math.floor(request.amount)),
+        this.getZchfAsset(),
+      ]);
+
+      // Atomic batch: REALU -> BrokerBot -> ZCHF -> DFX Deposit
+      txHash = await this.eip7702DelegationService.executeBrokerBotSellForRealUnit(
         request.user.address,
         realuAsset,
+        zchfAsset.chainId,
+        this.getBrokerbotAddress(),
         sell.deposit.address,
-        request.amount,
+        Math.floor(request.amount),
+        zchfAmountWei,
         dto.eip7702.delegation,
         dto.eip7702.authorization,
       );

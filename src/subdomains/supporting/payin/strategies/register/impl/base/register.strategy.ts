@@ -30,7 +30,7 @@ export abstract class RegisterStrategy implements OnModuleInit, OnModuleDestroy 
 
   abstract get blockchain(): Blockchain;
 
-  pollAddress?(depositAddress: BlockchainAddress): Promise<void>;
+  pollAddress?(depositAddress: BlockchainAddress, fromBlock?: number, toBlock?: number): Promise<void>;
 
   protected async createPayInsAndSave(transactions: PayInEntry[], log: PayInInputLog): Promise<void> {
     const payIns = await this.payInService.createPayIns(transactions);

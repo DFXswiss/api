@@ -40,5 +40,5 @@
   "payment_info_iban": "IBAN",
   "payment_info_bic": "BIC",
   "payment_info_recipient": "Empfänger",
-  "payment_info_reference": "Referenz"
+  "payment_info_reference": "Verwendungszweck"
 }

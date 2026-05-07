@@ -12,9 +12,11 @@ import { FeeRequest } from '../services/fee.service';
 export enum FeeType {
   SPECIAL = 'Special', // Single use only, highest prio applies to all
   CUSTOM = 'Custom', // Single use only, second highest prio
+  CUSTOM_PARTNER = 'CustomPartner', // Single use only, second highest prio, can be combined with PartnerFee
   BASE = 'Base', // Single use only, absolute base fee
   DISCOUNT = 'Discount', // Single use only, absolute discount
   RELATIVE_DISCOUNT = 'RelativeDiscount', // Single use only, relative discount
+  PARTNER = 'Partner', // Single use only, additive partner fee
   ADDITION = 'Addition', // Multiple use possible, additive fee
   CHARGEBACK_BASE = 'ChargebackBase', // Single use only, absolute base fee
   CHARGEBACK_SPECIAL = 'ChargebackSpecial', // Single use only, highest prio applies to all
@@ -207,8 +209,9 @@ export class Fee extends IEntity {
     );
   }
 
-  verifyForUser(accountType: AccountType, wallet?: Wallet): void {
-    if (this.isExpired()) throw new BadRequestException('Discount code is expired');
+  verifyForUser(accountType: AccountType, wallet?: Wallet, userDataId?: number): void {
+    if (!this.active) throw new BadRequestException('Fee is not active');
+    if (this.isExpired(userDataId)) throw new BadRequestException('Discount code is expired');
     if (this.accountType && this.accountType !== accountType)
       throw new BadRequestException('Account Type not matching');
     if (this.wallet && wallet && this.wallet.id !== wallet.id) throw new BadRequestException('Wallet not matching');

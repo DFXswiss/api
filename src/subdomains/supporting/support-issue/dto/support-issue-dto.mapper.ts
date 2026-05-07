@@ -11,7 +11,9 @@ import {
   SupportIssueInternalDataDto,
   SupportIssueInternalLimitRequestDataDto,
   SupportIssueInternalTransactionDataDto,
+  SupportIssueInternalTransactionMissingDataDto,
   SupportIssueLimitRequestDto,
+  SupportIssueListDto,
   SupportIssueStateMapper,
   SupportIssueTransactionDto,
   SupportMessageDto,
@@ -44,13 +46,35 @@ export class SupportIssueDtoMapper {
       reason: supportIssue.reason,
       state: supportIssue.state,
       name: supportIssue.name,
+      clerk: supportIssue.clerk,
       account: SupportIssueDtoMapper.mapUserData(supportIssue.userData),
       transaction: SupportIssueDtoMapper.mapTransactionData(supportIssue.transaction),
       limitRequest:
         role === UserRole.SUPPORT ? undefined : SupportIssueDtoMapper.mapLimitRequestData(supportIssue.limitRequest),
+      transactionMissing: SupportIssueDtoMapper.mapTransactionMissingData(supportIssue),
     };
 
     return Object.assign(new SupportIssueInternalDataDto(), dto);
+  }
+
+  static mapSupportIssueListItem(
+    issue: SupportIssue,
+    stats?: { count: number; lastDate?: Date; lastAuthor?: string },
+  ): SupportIssueListDto {
+    return {
+      id: issue.id,
+      uid: issue.uid,
+      type: issue.type,
+      reason: issue.reason,
+      state: issue.state,
+      name: issue.name,
+      clerk: issue.clerk,
+      department: issue.department,
+      created: issue.created,
+      messageCount: stats?.count ?? 0,
+      lastMessageDate: stats?.lastDate,
+      lastMessageAuthor: stats?.lastAuthor,
+    };
   }
 
   static mapSupportMessage(supportMessage: SupportMessage): SupportMessageDto {
@@ -109,8 +133,8 @@ export class SupportIssueDtoMapper {
       inputAsset: targetEntity?.inputAsset,
       inputBlockchain: targetEntity?.cryptoInput?.asset?.blockchain,
       outputAmount: targetEntity?.outputAmount,
-      outputAsset: targetEntity?.outputAsset.name,
-      outputBlockchain: transaction?.buyCrypto?.outputAsset.blockchain,
+      outputAsset: targetEntity?.outputAsset?.name,
+      outputBlockchain: transaction?.buyCrypto?.outputAsset?.blockchain,
       wallet: transaction.user?.wallet
         ? {
             name: transaction.user.wallet.displayName ?? transaction.user.wallet.name,
@@ -137,6 +161,19 @@ export class SupportIssueDtoMapper {
     return {
       id: limitRequest.id,
       limit: limitRequest.limit,
+    };
+  }
+
+  static mapTransactionMissingData(issue: SupportIssue): SupportIssueInternalTransactionMissingDataDto | undefined {
+    const info = issue.additionalInformation as
+      | { senderIban?: string; receiverIban?: string; date?: string }
+      | undefined;
+    if (!info?.senderIban && !info?.receiverIban && !info?.date) return undefined;
+
+    return {
+      senderIban: info.senderIban,
+      receiverIban: info.receiverIban,
+      date: info.date,
     };
   }
 }

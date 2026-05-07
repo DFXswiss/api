@@ -25,7 +25,8 @@ environmentOptions=("loc" "dev" "prd")
 # "jdmd": JuiceDollar Mainnet dApp
 # "jdmm": JuiceDollar Mainnet Monitoring
 # "rup": realUnit Ponder
-appNameOptions=("fcp" "dep" "dea" "ded" "dem" "jsp" "jsw" "n8n" "jdtp" "jdta" "jdtd" "jdtm" "jdmp" "jdma" "jdmd" "jdmm" "rup")
+# "nbt": Nanobot
+appNameOptions=("fcp" "dep" "dea" "ded" "dem" "jsp" "jsw" "n8n" "jdtp" "jdta" "jdtd" "jdtm" "jdmp" "jdma" "jdmd" "jdmm" "rup" "nbt")
 
 # --- FUNCTIONS --- #
 selectOption() {

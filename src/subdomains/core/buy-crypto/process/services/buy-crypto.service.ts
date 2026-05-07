@@ -28,6 +28,7 @@ import {
   CryptoInputRefund,
   RefundInternalDto,
 } from 'src/subdomains/core/history/dto/refund-internal.dto';
+import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
@@ -279,15 +280,19 @@ export class BuyCryptoService {
         if (!dto.chargebackCreditorName && !entity.creditorData)
           throw new BadRequestException('Creditor data is required for chargeback');
 
+        const inputCurrency = await this.transactionHelper.getRefundInputCurrency(entity);
+        const chargebackIban = dto.chargebackIban ?? entity.chargebackIban;
+        const chargebackCurrency = await this.transactionHelper.getRefundCurrency(inputCurrency, chargebackIban);
+
         update.chargebackOutput = await this.fiatOutputService.createInternal(
           FiatOutputType.BUY_CRYPTO_FAIL,
           { buyCrypto: entity },
           entity.id,
           false,
           {
-            iban: dto.chargebackIban ?? entity.chargebackIban,
+            iban: chargebackIban,
             amount: entity.chargebackAmount ?? entity.bankTx.amount,
-            currency: entity.bankTx.currency,
+            currency: chargebackCurrency.name,
             name: dto.chargebackCreditorName ?? entity.creditorData?.name,
             address: dto.chargebackCreditorAddress ?? entity.creditorData?.address,
             houseNumber: dto.chargebackCreditorHouseNumber ?? entity.creditorData?.houseNumber,
@@ -451,6 +456,7 @@ export class BuyCryptoService {
       return this.refundCryptoInput(buyCrypto, {
         refundUserId: dto.refundUser?.id,
         chargebackAmount: dto.chargebackAmount,
+        chargebackCurrency: dto.chargebackAsset,
         chargebackAllowedDate: dto.chargebackAllowedDate,
         chargebackAllowedBy: dto.chargebackAllowedBy,
       });
@@ -458,6 +464,7 @@ export class BuyCryptoService {
     return this.refundBankTx(buyCrypto, {
       refundIban: dto.refundIban,
       chargebackAmount: dto.chargebackAmount,
+      chargebackCurrency: dto.chargebackAsset,
       chargebackAllowedDate: dto.chargebackAllowedDate,
       chargebackAllowedBy: dto.chargebackAllowedBy,
     });
@@ -466,7 +473,7 @@ export class BuyCryptoService {
   async refundCheckoutTx(buyCrypto: BuyCrypto, dto: CheckoutTxRefund): Promise<void> {
     const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount ?? buyCrypto.inputAmount;
 
-    TransactionUtilService.validateRefund(buyCrypto, { chargebackAmount });
+    TransactionUtilService.validateRefund(buyCrypto, { chargebackAmount, assetMismatch: false });
 
     if (dto.chargebackAllowedDate && chargebackAmount) {
       dto.chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
@@ -477,6 +484,8 @@ export class BuyCryptoService {
       ...buyCrypto.chargebackFillUp(
         undefined,
         chargebackAmount,
+        chargebackAmount,
+        dto.chargebackCurrency,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
@@ -499,7 +508,7 @@ export class BuyCryptoService {
 
     const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount;
 
-    TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount });
+    TransactionUtilService.validateRefund(buyCrypto, { refundUser, chargebackAmount, assetMismatch: false });
 
     let blockchainFee: number;
     if (dto.chargebackAllowedDate && chargebackAmount) {
@@ -515,6 +524,8 @@ export class BuyCryptoService {
       ...buyCrypto.chargebackFillUp(
         refundUser.address ?? buyCrypto.chargebackIban,
         chargebackAmount,
+        chargebackAmount,
+        dto.chargebackCurrency,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
@@ -530,11 +541,15 @@ export class BuyCryptoService {
       throw new BadRequestException('You have to define a chargebackIban');
 
     const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount;
+    const chargebackReferenceAmount = dto.chargebackReferenceAmount ?? buyCrypto.chargebackReferenceAmount;
     const chargebackIban = dto.refundIban ?? buyCrypto.chargebackIban;
+    const chargebackAsset = dto.chargebackCurrency ?? buyCrypto.chargebackAsset;
 
     TransactionUtilService.validateRefund(buyCrypto, {
       refundIban: chargebackIban,
       chargebackAmount,
+      chargebackReferenceAmount,
+      assetMismatch: chargebackAsset && chargebackAsset !== buyCrypto.inputAsset,
     });
 
     if (
@@ -545,11 +560,11 @@ export class BuyCryptoService {
     )
       throw new BadRequestException('IBAN not valid or BIC not available');
 
-    const creditorData = dto.creditorData ?? buyCrypto.creditorData;
+    const creditorData = buyCrypto.creditorData ?? dto.creditorData;
     if ((dto.chargebackAllowedDate || dto.chargebackAllowedDateUser) && !creditorData)
       throw new BadRequestException('Creditor data is required for chargeback');
 
-    if (dto.chargebackAllowedDate && chargebackAmount)
+    if (dto.chargebackAllowedDate && chargebackAmount && (dto.chargebackCurrency || buyCrypto.chargebackAsset))
       dto.chargebackOutput = await this.fiatOutputService.createInternal(
         FiatOutputType.BUY_CRYPTO_FAIL,
         { buyCrypto },
@@ -558,7 +573,7 @@ export class BuyCryptoService {
         {
           iban: chargebackIban,
           amount: chargebackAmount,
-          currency: dto.chargebackCurrency ?? buyCrypto.bankTx?.currency,
+          currency: dto.chargebackCurrency ?? buyCrypto.chargebackAsset,
           ...creditorData,
         },
       );
@@ -566,7 +581,9 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
         chargebackIban,
+        chargebackReferenceAmount,
         chargebackAmount,
+        chargebackAsset,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
@@ -651,9 +668,9 @@ export class BuyCryptoService {
   }
 
   async resetAmlCheck(id: number): Promise<void> {
-    const entity = await this.buyCryptoRepo.findOneBy({ id });
+    const entity = await this.buyCryptoRepo.findOne({ where: { id }, relations: { chargebackOutput: true } });
     if (!entity) throw new NotFoundException('BuyCrypto not found');
-    if (entity.isComplete || entity.batch || entity.chargebackOutput?.isComplete)
+    if (entity.isComplete || entity.batch || entity.chargebackOutput?.isComplete || entity.chargebackAllowedDate)
       throw new BadRequestException('BuyCrypto is already complete or payout initiated');
     if (!entity.amlCheck) throw new BadRequestException('BuyCrypto AML check is not set');
 
@@ -766,6 +783,21 @@ export class BuyCryptoService {
       where: { isComplete: false },
       relations: { cryptoInput: true, checkoutTx: true, bankTx: true },
     });
+  }
+
+  async getPendingLiquidityDemandChf(assetId: number): Promise<number> {
+    const { sum } = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('SUM(buyCrypto.amountInChf)', 'sum')
+      .leftJoin('buyCrypto.liquidityPipeline', 'pipeline')
+      .where('buyCrypto.outputAssetId = :assetId', { assetId })
+      .andWhere('buyCrypto.status = :status', { status: BuyCryptoStatus.MISSING_LIQUIDITY })
+      .andWhere('(buyCrypto.liquidityPipelineId IS NULL OR pipeline.status IN (:...failedStatuses))', {
+        failedStatuses: [LiquidityManagementPipelineStatus.FAILED, LiquidityManagementPipelineStatus.STOPPED],
+      })
+      .getRawOne<{ sum: number }>();
+
+    return sum ?? 0;
   }
 
   // --- HELPER METHODS --- //
@@ -922,13 +954,18 @@ export class BuyCryptoService {
 
     for (const ref of refs) {
       const { volume: buyCryptoVolume, credit: buyCryptoCredit } = await this.getRefVolume(ref);
+      const { volume: buyCryptoPartnerVolume, credit: buyCryptoPartnerCredit } = await this.getPartnerFeeRefVolume(ref);
       const { volume: buyFiatVolume, credit: buyFiatCredit } = await this.buyFiatService.getRefVolume(ref);
+      const { volume: buyFiatPartnerVolume, credit: buyFiatPartnerCredit } =
+        await this.buyFiatService.getPartnerFeeRefVolume(ref);
       const { volume: manualVolume, credit: manualCredit } = await this.transactionService.getManualRefVolume(ref);
 
       await this.userService.updateRefVolume(
         ref,
         buyCryptoVolume + buyFiatVolume + manualVolume,
         buyCryptoCredit + buyFiatCredit + manualCredit,
+        buyCryptoPartnerVolume + buyFiatPartnerVolume,
+        buyCryptoPartnerCredit + buyFiatPartnerCredit,
       );
     }
   }
@@ -939,6 +976,18 @@ export class BuyCryptoService {
       .select('SUM(amountInEur * refFactor)', 'volume')
       .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
       .where('usedRef = :ref', { ref })
+      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
+      .getRawOne<{ volume: number; credit: number }>();
+
+    return { volume: volume ?? 0, credit: credit ?? 0 };
+  }
+
+  async getPartnerFeeRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
+    const { volume, credit } = await this.buyCryptoRepo
+      .createQueryBuilder('buyCrypto')
+      .select('SUM(amountInEur)', 'volume')
+      .addSelect('SUM(partnerFeeAmount * (amountInEur/inputReferenceAmount ))', 'credit')
+      .where('usedPartnerRef = :ref', { ref })
       .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 
@@ -1001,5 +1050,22 @@ export class BuyCryptoService {
       cryptoAmount: v.outputAmount,
       cryptoCurrency: v.buy?.asset?.name,
     }));
+  }
+
+  async getByAmlReason(reason: AmlReason, status: CheckStatus, limit?: number): Promise<BuyCrypto[]> {
+    return this.buyCryptoRepo.find({
+      where: { amlReason: reason, amlCheck: status },
+      relations: {
+        buy: { asset: true },
+        transaction: { user: true, userData: { organization: true, language: true, country: true } },
+      },
+      loadEagerRelations: false,
+      order: { created: 'ASC' },
+      take: limit,
+    });
+  }
+
+  async countByAmlReason(reason: AmlReason, status: CheckStatus): Promise<number> {
+    return this.buyCryptoRepo.countBy({ amlReason: reason, amlCheck: status });
   }
 }

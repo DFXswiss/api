@@ -10,9 +10,9 @@ import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull, MoreThan } from 'typeorm';
+import { FindOptionsWhere, IsNull, MoreThan } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
-import { KycLevel, KycType, UserDataStatus } from '../user-data/user-data.enum';
+import { KycLevel, KycType, TradeApprovalReason, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { UserService } from '../user/user.service';
 import { CreateRecommendationDto } from './dto/recommendation.dto';
@@ -38,6 +38,7 @@ export class RecommendationService {
     if (!userData) throw new NotFoundException('Account not found');
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
     if (!userData.tradeApprovalDate) throw new BadRequestException('Trade approval date missing');
+    if (!userData.hasTradeHistory) throw new BadRequestException('Trade history required');
 
     const mailUser = dto.recommendedMail
       ? await this.userDataService
@@ -99,6 +100,12 @@ export class RecommendationService {
         isConfirmed: true,
         confirmationDate: new Date(),
       });
+
+      if (recommended.tradeApprovalDate) {
+        await this.userDataService.createTradeApprovalLog(recommended, TradeApprovalReason.MAIL_INVITATION);
+
+        await this.setRecommenderRefCode(entity);
+      }
     }
 
     if (dto.recommendedMail) await this.sendInvitationMail(entity);
@@ -133,7 +140,8 @@ export class RecommendationService {
         recommender.isBlocked ||
         recommender.hasAnyRiskStatus ||
         recommender.kycLevel < KycLevel.LEVEL_50 ||
-        !recommender.tradeApprovalDate
+        !recommender.tradeApprovalDate ||
+        !recommender.hasTradeHistory
       )
         throw new NotFoundException('Recommender not found');
 
@@ -195,6 +203,7 @@ export class RecommendationService {
       throw new BadRequestException('You can not confirm a recommendation from another account');
     if (entity.recommender.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing kyc');
     if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('TradeApprovalDate missing');
+    if (!entity.recommender.hasTradeHistory) throw new BadRequestException('Trade history required');
     if (entity.isConfirmed !== null) throw new BadRequestException('Recommendation is already confirmed');
     if (entity.isExpired) throw new BadRequestException('Recommendation is expired');
     if (!entity.isUsed) throw new BadRequestException('Recommendation is not used');
@@ -213,23 +222,34 @@ export class RecommendationService {
   async updateRecommendationInternal(entity: Recommendation, update: Partial<Recommendation>): Promise<Recommendation> {
     Object.assign(entity, update);
 
-    if (update.isConfirmed && entity.recommended) {
+    if (entity.isConfirmed !== null && update.isConfirmed !== entity.isConfirmed)
+      throw new BadRequestException('Recommendation already completed');
+    if (update.isConfirmed && entity.recommended && !entity.recommended.tradeApprovalDate) {
       await this.userDataService.updateUserDataInternal(entity.recommended, {
         tradeApprovalDate: new Date(),
       });
 
-      const refCode =
-        entity.kycStep && entity.method === RecommendationMethod.REF_CODE
-          ? entity.kycStep.getResult<KycRecommendationData>().key
-          : (entity.recommender.users.find((u) => u.ref).ref ?? Config.defaultRef);
+      await this.userDataService.createTradeApprovalLog(
+        entity.recommended,
+        TradeApprovalReason.RECOMMENDATION_CONFIRMED,
+      );
 
-      for (const user of entity.recommended.users ??
-        (await this.userService.getAllUserDataUsers(entity.recommended.id))) {
-        if (user.usedRef === Config.defaultRef) await this.userService.updateUserInternal(user, { usedRef: refCode });
-      }
+      await this.setRecommenderRefCode(entity);
     }
 
     return this.recommendationRepo.save(entity);
+  }
+
+  async setRecommenderRefCode(entity: Recommendation): Promise<void> {
+    const refCode =
+      entity.kycStep && entity.method === RecommendationMethod.REF_CODE
+        ? entity.kycStep.getResult<KycRecommendationData>().key
+        : (entity.recommender.users.find((u) => u.ref)?.ref ?? Config.defaultRef);
+
+    for (const user of entity.recommended.users ??
+      (await this.userService.getAllUserDataUsers(entity.recommended.id))) {
+      if (user.usedRef === Config.defaultRef) await this.userService.updateUserInternal(user, { usedRef: refCode });
+    }
   }
 
   async getAndCheckRecommendationByCode(code: string): Promise<Recommendation> {
@@ -246,14 +266,28 @@ export class RecommendationService {
     if (entity.isUsed) throw new BadRequestException('Recommendation code is already used');
     if (entity.type === RecommendationType.REQUEST) throw new BadRequestException('Recommendation code is not valid');
     if (!entity.recommender.tradeApprovalDate) throw new BadRequestException('Recommender is not approved yet');
+    if (!entity.recommender.hasTradeHistory) throw new BadRequestException('Trade history required');
 
     return entity;
   }
 
-  async getAllRecommendationForUserData(userDataId: number): Promise<Recommendation[]> {
+  async getAllRecommendationForUserData(recommenderId: number): Promise<Recommendation[]> {
     return this.recommendationRepo.find({
-      where: { recommender: { id: userDataId } },
+      where: { recommender: { id: recommenderId } },
       relations: { recommended: true, recommender: true },
+    });
+  }
+
+  async getUserDataRecommendation(
+    userDataId: number,
+    where: FindOptionsWhere<Recommendation>,
+  ): Promise<Recommendation> {
+    return this.recommendationRepo.findOne({
+      where: { recommended: { id: userDataId }, ...where },
+      relations: {
+        recommended: { users: true },
+        recommender: { users: true },
+      },
     });
   }
 
@@ -266,11 +300,52 @@ export class RecommendationService {
       !entity ||
       entity.recommender.isBlocked ||
       entity.recommender.hasAnyRiskStatus ||
-      !entity.recommender.tradeApprovalDate
+      !entity.recommender.tradeApprovalDate ||
+      !entity.recommender.hasTradeHistory
     )
       return;
 
     return this.updateRecommendationInternal(entity, { isConfirmed: true, confirmationDate: new Date() });
+  }
+
+  async getRecommendationsByKycStepIdsOrUserDataId(
+    kycStepIds: number[],
+    userDataId: number,
+  ): Promise<Recommendation[]> {
+    const results: Recommendation[] = [];
+
+    // Search by kycStepId
+    if (kycStepIds.length) {
+      const byStep = await this.recommendationRepo.find({
+        where: kycStepIds.map((id) => ({ kycStep: { id } })),
+        relations: { recommender: true, recommended: true },
+      });
+      results.push(...byStep);
+    }
+
+    // Also search by recommendedId (for mail invitations where kycStepId is null)
+    const byRecommended = await this.recommendationRepo.find({
+      where: { recommended: { id: userDataId } },
+      relations: { recommender: true, recommended: true },
+    });
+    results.push(...byRecommended.filter((r) => !results.some((e) => e.id === r.id)));
+
+    return results;
+  }
+
+  async getAllRecommendationsByRecommenderId(recommenderId: number): Promise<Recommendation[]> {
+    return this.recommendationRepo.find({
+      where: { recommender: { id: recommenderId } },
+      relations: { recommended: true, recommender: true },
+      order: { id: 'DESC' },
+    });
+  }
+
+  async getRecommendationsByRecommendedId(recommendedId: number): Promise<Recommendation[]> {
+    return this.recommendationRepo.find({
+      where: { recommended: { id: recommendedId } },
+      relations: { recommended: true, recommender: true },
+    });
   }
 
   // --- NOTIFICATIONS --- //
@@ -282,7 +357,6 @@ export class RecommendationService {
           context: MailContext.RECOMMENDATION_MAIL,
           input: {
             userData: entity.recommended,
-            wallet: entity.recommended.wallet,
             title: `${MailTranslationKey.RECOMMENDATION_MAIL}.title`,
             salutation: { key: `${MailTranslationKey.RECOMMENDATION_MAIL}.salutation` },
             texts: [
@@ -327,7 +401,6 @@ export class RecommendationService {
           context: MailContext.RECOMMENDATION_CONFIRMATION,
           input: {
             userData: entity.recommender,
-            wallet: entity.recommender.wallet,
             title: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.title`,
             salutation: { key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.salutation` },
             texts: [

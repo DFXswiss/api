@@ -29,6 +29,7 @@ import { AccountOpenerAuthorization, Organization } from '../organization/organi
 import { UserDataRelation } from '../user-data-relation/user-data-relation.entity';
 import { UpdateUserDto } from '../user/dto/update-user.dto';
 import { TradingLimit } from '../user/dto/user.dto';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserStatus } from '../user/user.enum';
 import { Wallet } from '../wallet/wallet.entity';
 import { AccountType } from './account-type.enum';
@@ -41,6 +42,8 @@ import {
   LegalEntity,
   LimitPeriod,
   Moderator,
+  PhoneCallPreferredTime,
+  PhoneCallStatus,
   RiskStatus,
   SignatoryPower,
   UserDataStatus,
@@ -245,6 +248,21 @@ export class UserData extends IEntity {
 
   @Column({ type: 'datetime2', nullable: true })
   phoneCallIpCountryCheckDate?: Date;
+
+  @Column({ type: 'datetime2', nullable: true })
+  phoneCallExternalAccountCheckDate?: Date;
+
+  @Column({ length: 256, nullable: true })
+  phoneCallExternalAccountCheckValues?: string; // already checked semicolon separated iban's, bic's and blz's
+
+  @Column({ length: 256, nullable: true })
+  phoneCallTimes: string; // PhoneCallPreferredTimes array
+
+  @Column({ length: 256, nullable: true })
+  phoneCallStatus: PhoneCallStatus;
+
+  @Column({ nullable: true })
+  phoneCallAccepted?: boolean;
 
   @Column({ type: 'datetime2', nullable: true })
   tradeApprovalDate?: Date;
@@ -496,14 +514,36 @@ export class UserData extends IEntity {
 
   setUserDataSettings(dto: UpdateUserDto): UpdateResult<UserData> {
     const update: Partial<UserData> = {
-      phone: dto.phone ?? this.phone,
       language: dto.language ?? this.language,
       currency: dto.currency ?? this.currency,
+      phoneCallTimes: dto.preferredPhoneTimes ? dto.preferredPhoneTimes.join(';') : undefined,
+      phoneCallStatus:
+        dto.acceptCall === false && (!this.phoneCallStatus || PhoneCallStatus.UNAVAILABLE === this.phoneCallStatus)
+          ? PhoneCallStatus.USER_REJECTED
+          : undefined,
+      phoneCallAccepted: dto.acceptCall,
     };
 
     Object.assign(this, update);
 
     return [this.id, update];
+  }
+
+  get phoneCallTimesObject(): PhoneCallPreferredTime[] {
+    return this.phoneCallTimes ? (this.phoneCallTimes?.split(';') as PhoneCallPreferredTime[]) : [];
+  }
+
+  get phoneCallExternalAccountCheckValuesObject(): string[] {
+    return this.phoneCallExternalAccountCheckValues?.split(';');
+  }
+
+  addPhoneCallExternalAccountCheckValue(specialAccountValue: string): void {
+    const existing = this.phoneCallExternalAccountCheckValuesObject;
+    if (existing?.includes(specialAccountValue)) return;
+
+    this.phoneCallExternalAccountCheckValues = existing
+      ? `${this.phoneCallExternalAccountCheckValues};${specialAccountValue}`
+      : specialAccountValue;
   }
 
   get hasValidNameCheckDate(): boolean {
@@ -615,6 +655,14 @@ export class UserData extends IEntity {
     return this.isBlocked || this.isDeactivated;
   }
 
+  get hasTradeHistory(): boolean {
+    return this.buyVolume > 0 || this.sellVolume > 0 || this.cryptoVolume > 0;
+  }
+
+  hasRole(role: UserRole): boolean {
+    return this.users?.some((u) => u.role === role) ?? false;
+  }
+
   get address() {
     return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {
@@ -639,12 +687,16 @@ export class UserData extends IEntity {
 
   // --- KYC PROCESS --- //
 
+  get isPersonalAccount(): boolean {
+    return !this.accountType || this.accountType === AccountType.PERSONAL;
+  }
+
   get hasSuspiciousMail(): boolean {
     return (this.mail?.split('@')[0].match(/\d/g) ?? []).length > 2;
   }
 
   getStep(stepId: number): KycStep | undefined {
-    return this.kycSteps.find((s) => s.id === stepId);
+    return (this.kycSteps ?? []).find((s) => s.id === stepId);
   }
 
   getStepOrThrow(stepId: number): KycStep {
@@ -655,7 +707,7 @@ export class UserData extends IEntity {
   }
 
   getStepsWith(name?: KycStepName, type?: KycStepType, sequenceNumber?: number): KycStep[] {
-    return this.kycSteps.filter(
+    return (this.kycSteps ?? []).filter(
       (s) =>
         (!name || s.name === name) &&
         (!type || s.type === type) &&
@@ -683,7 +735,7 @@ export class UserData extends IEntity {
   }
 
   get hasStepsInProgress(): boolean {
-    return this.kycSteps.some((s) => s.isInProgress);
+    return (this.kycSteps ?? []).some((s) => s.isInProgress);
   }
 
   getNextSequenceNumber(stepName: KycStepName, stepType?: KycStepType): number {
@@ -715,6 +767,9 @@ export class UserData extends IEntity {
   checkIfMergePossibleWith(slave: UserData): void {
     if (!this.isDfxUser) throw new BadRequestException(`Invalid KYC type`);
 
+    if (this.hasRole(UserRole.COMPLIANCE) || slave.hasRole(UserRole.COMPLIANCE))
+      throw new BadRequestException('Cannot merge compliance accounts');
+
     if (slave.amlListAddedDate && this.amlListAddedDate)
       throw new BadRequestException('Slave and master are on AML list');
 
@@ -741,7 +796,7 @@ export class UserData extends IEntity {
 
   get requiredKycFields(): string[] {
     return ['accountType', 'mail', 'phone', 'firstname', 'surname', 'street', 'location', 'zip', 'country'].concat(
-      !this.accountType || this.accountType === AccountType.PERSONAL
+      this.isPersonalAccount
         ? []
         : ['organizationName', 'organizationStreet', 'organizationLocation', 'organizationZip', 'organizationCountry'],
     );
@@ -752,9 +807,7 @@ export class UserData extends IEntity {
   }
 
   get requiredInvoiceFields(): string[] {
-    return ['accountType'].concat(
-      !this.accountType || this.accountType === AccountType.PERSONAL ? ['firstname', 'surname'] : ['organizationName'],
-    );
+    return ['accountType'].concat(this.isPersonalAccount ? ['firstname', 'surname'] : ['organizationName']);
   }
 
   get isInvoiceDataComplete(): boolean {
@@ -777,7 +830,18 @@ export class UserData extends IEntity {
 export const KycCompletedStates = [KycStatus.COMPLETED];
 
 export const UserDataSupportUpdateCols = ['status', 'riskStatus', 'recallAgreementAccepted'];
-export const UserDataComplianceUpdateCols = ['kycStatus', 'depositLimit'];
+export const UserDataComplianceUpdateCols = [
+  'kycStatus',
+  'depositLimit',
+  'amlAccountType',
+  'complexOrgStructure',
+  'highRisk',
+  'phoneCallStatus',
+  'phoneCallCheckDate',
+  'phoneCallIpCheckDate',
+  'phoneCallIpCountryCheckDate',
+  'phoneCallExternalAccountCheckDate',
+];
 
 export function KycCompleted(kycStatus?: KycStatus): boolean {
   return KycCompletedStates.includes(kycStatus);

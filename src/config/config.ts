@@ -47,12 +47,14 @@ export class Configuration {
   kycVersion: Version = '2';
   defaultVersionString = `v${this.defaultVersion}`;
   defaultRef = '000-000';
+  defaultWalletId = 1;
   transactionRefundExpirySeconds = 300; // 5 minutes - enough time to fill out the refund form
-  refRewardManualCheckLimit = 3000; // EUR
   txRequestWaitingExpiryDays = 7;
+  txRequestValidityMinutes = 30;
   financeLogTotalBalanceChangeLimit = 5000;
-  faucetAmount = 20; //CHF
-  faucetEnabled = process.env.FAUCET_ENABLED === 'true';
+  faucetAmount = 0.0005; // ETH
+  faucetEnabled =
+    process.env.FAUCET_ENABLED === 'true' || [Environment.DEV, Environment.LOC].includes(this.environment);
 
   priceSourceManual = 'DFX'; // source name for priceStep if price is set manually in buy-crypto
   priceSourcePayment = 'Payment'; // source name for priceStep if price is defined by payment quote
@@ -66,7 +68,8 @@ export class Configuration {
     language: 'EN',
 
     specific: {
-      CH: { language: 'DE', currency: 'CHF' },
+      // CH has no language default (multilingual country)
+      CH: { currency: 'CHF' },
       LI: { language: 'DE', currency: 'CHF' },
       DE: { language: 'DE' },
       AT: { language: 'DE' },
@@ -146,9 +149,12 @@ export class Configuration {
     github: 'https://github.com/DFXswiss/api#dfx-api',
   };
 
-  bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}';
+  bitcoinAddressFormat = '([13]|bc1)[a-zA-HJ-NP-Z0-9]{25,62}|sp1[a-z0-9]{2,256}';
   lightningAddressFormat = '(LNURL|LNDHUB)[A-Z0-9]{25,250}|LNNID[A-Z0-9]{66}';
-  sparkAddressFormat = 'sp1[a-z0-9]{6,87}';
+  sparkAddressFormat = 'spark1[a-z0-9]{6,250}';
+  arkadeAddressFormat = 'ark1[a-z0-9]{6,500}';
+  firoAddressFormat = 'a[a-zA-HJ-NP-Z0-9]{33}';
+  firoSparkAddressFormat = 'sm1[a-z0-9]{100,500}';
   moneroAddressFormat = '[48][0-9AB][1-9A-HJ-NP-Za-km-z]{93}';
   ethereumAddressFormat = '0x\\w{40}';
   liquidAddressFormat = '(VTp|VJL)[a-zA-HJ-NP-Z0-9]{77}';
@@ -160,14 +166,17 @@ export class Configuration {
   solanaAddressFormat = '[1-9A-HJ-NP-Za-km-z]{43,44}';
   tronAddressFormat = 'T[1-9A-HJ-NP-Za-km-z]{32,34}';
   zanoAddressFormat = 'Z[a-zA-Z0-9]{96}|iZ[a-zA-Z0-9]{106}';
+  internetComputerPrincipalFormat = '[a-z0-9]{5}(-[a-z0-9]{5})*(-[a-z0-9]{1,5})?';
 
-  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}`;
+  allAddressFormat = `${this.bitcoinAddressFormat}|${this.lightningAddressFormat}|${this.sparkAddressFormat}|${this.arkadeAddressFormat}|${this.firoSparkAddressFormat}|${this.firoAddressFormat}|${this.moneroAddressFormat}|${this.ethereumAddressFormat}|${this.liquidAddressFormat}|${this.arweaveAddressFormat}|${this.cardanoAddressFormat}|${this.defichainAddressFormat}|${this.railgunAddressFormat}|${this.solanaAddressFormat}|${this.tronAddressFormat}|${this.zanoAddressFormat}|${this.internetComputerPrincipalFormat}`;
 
   masterKeySignatureFormat = '[0-9a-fA-F]{8}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{4}\\b-[0-9a-fA-F]{12}';
   hashSignatureFormat = '[A-Fa-f0-9]{64}';
   bitcoinSignatureFormat = '(.{87}=|[A-Za-z0-9+/]+={0,2})';
   lightningSignatureFormat = '[a-z0-9]{104}';
   lightningCustodialSignatureFormat = '[a-z0-9]{140,146}';
+  firoSignatureFormat = '(.{87}=|[A-Za-z0-9+/]+={0,2})';
+  firoSparkSignatureFormat = '[a-f0-9]{260}';
   moneroSignatureFormat = 'SigV\\d[0-9a-zA-Z]{88}';
   ethereumSignatureFormat = '(0x)?[a-f0-9]{130}';
   arweaveSignatureFormat = '[\\w\\-]{683}';
@@ -176,13 +185,15 @@ export class Configuration {
   solanaSignatureFormat = '[1-9A-HJ-NP-Za-km-z]{87,88}';
   tronSignatureFormat = '(0x)?[a-f0-9]{130}';
   zanoSignatureFormat = '[a-f0-9]{128}';
+  internetComputerSignatureFormat = '[a-f0-9]{128,144}';
 
-  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}`;
+  allSignatureFormat = `${this.masterKeySignatureFormat}|${this.hashSignatureFormat}|${this.bitcoinSignatureFormat}|${this.lightningSignatureFormat}|${this.lightningCustodialSignatureFormat}|${this.firoSignatureFormat}|${this.firoSparkSignatureFormat}|${this.moneroSignatureFormat}|${this.ethereumSignatureFormat}|${this.arweaveSignatureFormat}|${this.cardanoSignatureFormat}|${this.railgunSignatureFormat}|${this.solanaSignatureFormat}|${this.tronSignatureFormat}|${this.zanoSignatureFormat}|${this.internetComputerSignatureFormat}`;
 
   arweaveKeyFormat = '[\\w\\-]{683}';
   cardanoKeyFormat = '.*';
+  internetComputerKeyFormat = '[a-f0-9]{64,130}';
 
-  allKeyFormat = `${this.arweaveKeyFormat}|${this.cardanoKeyFormat}`;
+  allKeyFormat = `${this.arweaveKeyFormat}|${this.cardanoKeyFormat}|${this.internetComputerKeyFormat}`;
 
   formats = {
     address: new RegExp(`^(${this.allAddressFormat})$`),
@@ -271,6 +282,7 @@ export class Configuration {
     residencePermitCountries: ['RU'],
     maxIdentTries: 7,
     maxRecommendationTries: 3,
+    kycStepExpiry: 90, // days
   };
 
   fileDownloadConfig: {
@@ -284,6 +296,7 @@ export class Configuration {
       filter?: (file: KycFileBlob, userData: UserData) => boolean;
       sort?: (a: KycFileBlob, b: KycFileBlob) => KycFileBlob;
       handleFileNotFound?: (zip: JSZip, userData: UserData) => any | false;
+      selectAll?: boolean;
     }[];
   }[] = [
     {
@@ -308,6 +321,19 @@ export class Configuration {
             `spider/${userData.id}/video_identification`,
           ],
           fileTypes: [ContentType.PDF],
+        },
+        {
+          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'IdentDoc',
+          prefixes: (userData: UserData) => [`user/${userData.id}/Identification`],
+          fileTypes: [ContentType.PNG, ContentType.JPEG, ContentType.JPG],
+          filter: (file: KycFileBlob, userData: UserData) => {
+            const latestIdent = userData.kycSteps
+              .filter((s) => s.name === KycStepName.IDENT && s.isCompleted && s.transactionId)
+              .sort((a, b) => b.id - a.id)[0];
+            return latestIdent ? file.name.includes(latestIdent.transactionId) : false;
+          },
+          selectAll: true,
+          handleFileNotFound: () => true,
         },
       ],
     },
@@ -469,12 +495,12 @@ export class Configuration {
     },
     {
       id: 13,
-      name: 'Transaktionsliste Auditperiode 2025',
+      name: 'Transaktionsliste Auditperiode',
       files: [
         {
           prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
           fileTypes: [ContentType.PDF],
-          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2025'.toLowerCase()),
+          filter: (file: KycFileBlob) => file.name.toLowerCase().includes('-TxAudit2026'.toLowerCase()),
         },
       ],
     },
@@ -506,6 +532,20 @@ export class Configuration {
         },
       ],
     },
+    {
+      id: 16,
+      name: 'TMER',
+      files: [
+        {
+          name: (file: KycFileBlob) => file.name.split('/').pop()?.split('.')[0] ?? 'TMER',
+          prefixes: (userData: UserData) => [`user/${userData.id}/UserNotes`],
+          fileTypes: [ContentType.PDF],
+          filter: (file: KycFileBlob) => file.name.includes('-TMER-'),
+          selectAll: true,
+          handleFileNotFound: () => true,
+        },
+      ],
+    },
   ];
 
   support = {
@@ -527,6 +567,7 @@ export class Configuration {
       mailAddress: process.env.SUPPORT_MESSAGE_MAIL,
       mailBanner: process.env.SUPPORT_MESSAGE_BANNER,
     },
+    issueOnHoldExpiry: 14, //days
   };
 
   letter = {
@@ -582,15 +623,30 @@ export class Configuration {
       liqMail: process.env.LIQ_MAIL || 'liq@dfx.swiss',
       noReplyMail: process.env.NOREPLY_MAIL || 'noreply@dfx.swiss',
     },
+    wallet: {
+      onchainlabs: {
+        template: 'onChainLabs',
+      },
+      ...(process.env.REALUNIT_MAIL_USER && {
+        RealUnit: {
+          host: 'mail.infomaniak.com',
+          port: 587,
+          secure: false,
+          user: process.env.REALUNIT_MAIL_USER,
+          pass: process.env.REALUNIT_MAIL_PASS,
+          fromAddress: process.env.REALUNIT_MAIL_USER,
+          displayName: 'RealUnit',
+          template: 'realunit',
+          forcedLang: 'de',
+          centralizedWelcome: true,
+          isPreferred: true,
+        },
+      }),
+    },
   };
 
   coinGecko = {
     apiKey: process.env.COIN_GECKO_API_KEY,
-  };
-
-  financialLog = {
-    customAssets: process.env.CUSTOM_BALANCE_ASSETS?.split(';') ?? [], // asset uniqueName
-    customAddresses: process.env.CUSTOM_BALANCE_ADDRESSES?.split(';') ?? [],
   };
 
   payment = {
@@ -599,24 +655,38 @@ export class Configuration {
     solanaSeed: process.env.PAYMENT_SOLANA_SEED,
     tronSeed: process.env.PAYMENT_TRON_SEED,
     cardanoSeed: process.env.PAYMENT_CARDANO_SEED,
+    internetComputerSeed: process.env.PAYMENT_ICP_SEED,
     bitcoinAddress: process.env.PAYMENT_BITCOIN_ADDRESS,
+    firoAddress: process.env.PAYMENT_FIRO_ADDRESS,
     moneroAddress: process.env.PAYMENT_MONERO_ADDRESS,
     zanoAddress: process.env.PAYMENT_ZANO_ADDRESS,
-    minConfirmations: (blockchain: Blockchain) =>
-      [Blockchain.ETHEREUM, Blockchain.BITCOIN, Blockchain.MONERO, Blockchain.ZANO].includes(blockchain) ? 6 : 100,
+    minConfirmations: (blockchain: Blockchain): number =>
+      ({
+        [Blockchain.ETHEREUM]: 6,
+        [Blockchain.BITCOIN]: 6,
+        [Blockchain.FIRO]: 6,
+        [Blockchain.MONERO]: 6,
+        [Blockchain.ZANO]: 6,
+        [Blockchain.INTERNET_COMPUTER]: 1,
+      })[blockchain] ?? 100,
     minVolume: 0.01, // CHF
     maxDepositBalance: 10000, // CHF
-    cryptoPayoutMinAmount: +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
+    cryptoPayoutMinAmount: (blockchain: Blockchain): number =>
+      ({
+        [Blockchain.LIGHTNING]: 0,
+      })[blockchain] ?? +(process.env.PAYMENT_CRYPTO_PAYOUT_MIN ?? 1000), // CHF
 
     defaultPaymentTimeout: +(process.env.PAYMENT_TIMEOUT ?? 60),
     defaultEvmHexPaymentTryCount: +(process.env.PAYMENT_EVM_HEX_TRY_COUNT ?? 15),
+    defaultTxConfirmationTryCount: +(process.env.PAYMENT_TX_CONFIRMATION_TRY_COUNT ?? 15),
+    defaultFiroTxIdPaymentTryCount: +(process.env.PAYMENT_FIRO_TX_TRY_COUNT ?? 5),
 
     defaultForexFee: 0.01,
     addressForexFee: 0.02,
     defaultQuoteTimeout: 300, // sec
     addressQuoteTimeout: 7200, // sec
 
-    manualMethods: ['TaprootAsset', 'Spark'],
+    manualMethods: ['TaprootAsset', 'Spark', 'Arkade'],
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
@@ -635,7 +705,7 @@ export class Configuration {
     checkbotPubKey: process.env.PAYMENT_CHECKBOT_PUB_KEY?.split('<br>').join('\n'),
 
     forexFee: (standard: PaymentStandard, invoiceCurrency: Fiat, paymentCurrency: Asset): number => {
-      if (invoiceCurrency.name === 'CHF' && paymentCurrency.name === 'ZCHF') return 0;
+      if (invoiceCurrency.name === 'CHF' && ['ZCHF', 'VCHF'].includes(paymentCurrency.name)) return 0;
 
       switch (standard) {
         case PaymentStandard.PAY_TO_ADDRESS:
@@ -854,6 +924,34 @@ export class Configuration {
       },
       certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
     },
+    boltz: {
+      apiUrl: process.env.BOLTZ_API_URL,
+      seed: process.env.BOLTZ_SEED,
+    },
+    spark: {
+      sparkWalletSeed: process.env.SPARK_WALLET_SEED,
+    },
+    arkade: {
+      arkadePrivateKey: process.env.ARKADE_PRIVATE_KEY ?? process.env.ARK_PRIVATE_KEY,
+      arkadeServerUrl: process.env.ARKADE_SERVER_URL ?? process.env.ARK_SERVER_URL ?? 'https://arkade.computer',
+    },
+    firo: {
+      node: {
+        url: process.env.FIRO_NODE_URL,
+      },
+      user: process.env.FIRO_NODE_USER,
+      password: process.env.FIRO_NODE_PASSWORD,
+      walletPassword: process.env.FIRO_NODE_WALLET_PASSWORD,
+      walletAddress: process.env.FIRO_WALLET_ADDRESS,
+      transparentTxSize: 225, // bytes (Legacy P2PKH, no SegWit, 1-in-1-out)
+      sparkMintTxSize: 480, // bytes (mintspark with SchnorrProof, 1 recipient)
+      inputSize: 225, // bytes per input for coin selection fee estimation
+      outputSize: 34, // bytes per P2PKH output
+      txOverhead: 10, // bytes fixed transaction overhead
+      allowUnconfirmedUtxos: process.env.FIRO_ALLOW_UNCONFIRMED_UTXOS === 'true',
+      cpfpFeeMultiplier: +(process.env.FIRO_CPFP_FEE_MULTIPLIER ?? '2.0'),
+      defaultFeeMultiplier: +(process.env.FIRO_DEFAULT_FEE_MULTIPLIER ?? '1.5'),
+    },
     monero: {
       node: {
         url: process.env.MONERO_NODE_URL,
@@ -863,6 +961,17 @@ export class Configuration {
       },
       walletAddress: process.env.MONERO_WALLET_ADDRESS,
       certificate: process.env.MONERO_RPC_CERTIFICATE?.split('<br>').join('\n'),
+    },
+    zano: {
+      node: {
+        url: process.env.ZANO_NODE_URL,
+      },
+      wallet: {
+        url: process.env.ZANO_WALLET_URL,
+        address: process.env.ZANO_WALLET_ADDRESS,
+      },
+      coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
+      fee: 0.01,
     },
     solana: {
       solanaWalletSeed: process.env.SOLANA_WALLET_SEED,
@@ -910,19 +1019,17 @@ export class Configuration {
         index: accountIndex,
       }),
     },
-    zano: {
-      node: {
-        url: process.env.ZANO_NODE_URL,
-      },
-      wallet: {
-        url: process.env.ZANO_WALLET_URL,
-        address: process.env.ZANO_WALLET_ADDRESS,
-      },
-      coinId: 'd6329b5b1f7c0805b5c345f4957554002a2f557845f64d7645dae0e051a6498a',
-      fee: 0.01,
-    },
-    spark: {
-      sparkWalletSeed: process.env.SPARK_WALLET_SEED,
+    internetComputer: {
+      internetComputerHost: 'https://icp-api.io',
+      internetComputerRosettaApiUrl: process.env.ICP_ROSETTA_API_URL ?? 'https://rosetta-api.internetcomputer.org',
+      internetComputerWalletSeed: process.env.ICP_WALLET_SEED,
+      internetComputerLedgerCanisterId: 'ryjl3-tyaaa-aaaaa-aaaba-cai',
+      transferFee: 0.0001,
+
+      walletAccount: (accountIndex: number): WalletAccount => ({
+        seed: this.blockchain.internetComputer.internetComputerWalletSeed,
+        index: accountIndex,
+      }),
     },
     frankencoin: {
       zchfGraphUrl: process.env.ZCHF_GRAPH_URL,
@@ -948,9 +1055,13 @@ export class Configuration {
         url: process.env.REALUNIT_API_URL,
         key: process.env.REALUNIT_API_KEY,
       },
+      brokerbotAddress: [Environment.DEV, Environment.LOC].includes(this.environment)
+        ? '0x39c33c2fd5b07b8e890fd2115d4adff7235fc9d2'
+        : '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d',
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
         iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',
+        ibanEur: process.env.REALUNIT_BANK_IBAN_EUR ?? 'CH97 0830 7000 5609 4631 7',
         bic: process.env.REALUNIT_BANK_BIC ?? 'HYPLCH22XXX',
         name: process.env.REALUNIT_BANK_NAME ?? 'Hypothekarbank Lenzburg',
       },

@@ -25,7 +25,10 @@ export class SignInDto {
   @IsString()
   @Matches(GetConfig().formats.key)
   @ValidateIf(
-    (dto: SignInDto) => CryptoService.isArweaveAddress(dto.address) || CryptoService.isCardanoAddress(dto.address),
+    (dto: SignInDto) =>
+      CryptoService.isArweaveAddress(dto.address) ||
+      CryptoService.isCardanoAddress(dto.address) ||
+      CryptoService.isInternetComputerAddress(dto.address),
   )
   key?: string;
 
@@ -102,6 +105,11 @@ export class OptionalSignUpDto {
 }
 
 export class SignUpDto extends SignInDto {
+  @ApiPropertyOptional({ description: 'Preferred language (e.g. EN, DE, FR, IT)' })
+  @IsOptional()
+  @IsString()
+  language?: string;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

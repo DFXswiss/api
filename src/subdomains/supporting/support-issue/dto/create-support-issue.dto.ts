@@ -80,4 +80,11 @@ export class CreateSupportIssueDto extends CreateSupportIssueBaseDto {
   limitRequest?: LimitRequestDto;
 }
 
-export class CreateSupportIssueSupportDto extends CreateSupportIssueBaseDto {}
+export class CreateSupportIssueSupportDto extends CreateSupportIssueBaseDto {
+  @ApiPropertyOptional()
+  @IsNotEmpty()
+  @ValidateNested()
+  @Type(() => LimitRequestDto)
+  @ValidateIf((dto: CreateSupportIssueSupportDto) => dto.type === SupportIssueType.LIMIT_REQUEST)
+  limitRequest?: LimitRequestDto;
+}

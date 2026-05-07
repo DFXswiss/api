@@ -6,7 +6,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { CryptoInput } from '../entities/crypto-input.entity';
-import { DepositAddress, PayInEntry } from '../interfaces';
+import { PayInEntry, PollAddressDto } from '../interfaces';
 import { PayInService } from '../services/payin.service';
 
 @ApiTags('Pay-In')
@@ -26,7 +26,11 @@ export class PayInController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
-  async pollAddress(@Body() pollAddress: DepositAddress): Promise<void> {
-    return this.payInService.pollAddress(BlockchainAddress.create(pollAddress.address, pollAddress.blockchain));
+  async pollAddress(@Body() dto: PollAddressDto): Promise<void> {
+    return this.payInService.pollAddress(
+      BlockchainAddress.create(dto.address, dto.blockchain),
+      dto.fromBlock,
+      dto.toBlock,
+    );
   }
 }

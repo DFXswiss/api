@@ -15,6 +15,10 @@ export class BlockchainToken {
 
 export type BlockchainCurrency = Currency | BlockchainToken;
 
+export interface CoinOnly {
+  getNativeCoinBalance(): Promise<number>;
+}
+
 export abstract class BlockchainClient {
   abstract get walletAddress(): string;
   abstract getNativeCoinBalance(): Promise<number>;

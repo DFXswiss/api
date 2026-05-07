@@ -4,6 +4,7 @@ import { L2BridgeEvmClient } from 'src/integration/blockchain/shared/evm/interfa
 import { isAsset } from 'src/shared/models/active';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { Util } from 'src/shared/utils/util';
 import { LiquidityManagementOrder } from '../../../entities/liquidity-management-order.entity';
 import { LiquidityManagementSystem } from '../../../enums';
 import { OrderFailedException } from '../../../exceptions/order-failed.exception';
@@ -111,7 +112,7 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
         `Not enough liquidity on L1 blockchain for ${name} (balance: ${l1Liquidity}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
       );
 
-    const amount = Math.min(maxAmount, l1Liquidity);
+    const amount = Util.floor(Math.min(maxAmount, l1Liquidity), 8);
 
     order.inputAmount = amount;
     order.inputAsset = l1Asset.name;
@@ -143,7 +144,8 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
       pipeline: {
         rule: { targetAsset: l2Asset },
       },
-      maxAmount: amount,
+      minAmount,
+      maxAmount,
     } = order;
 
     const { type, name } = l2Asset;
@@ -154,6 +156,18 @@ export abstract class EvmL2BridgeAdapter extends LiquidityActionAdapter {
         `EvmL2BridgeAdapter.withdraw() ${this.system} could not find pair L1 asset for L2 ${l2Asset.uniqueName}`,
       );
     }
+
+    // verify L2 liquidity
+    const l2Liquidity =
+      type === AssetType.COIN
+        ? await this.l2Client.getNativeCoinBalance()
+        : await this.l2Client.getTokenBalance(l2Asset);
+    if (l2Liquidity < minAmount)
+      throw new OrderNotProcessableException(
+        `Not enough liquidity on L2 blockchain for ${name} (balance: ${l2Liquidity}, min. requested: ${minAmount}, max. requested: ${maxAmount})`,
+      );
+
+    const amount = Util.floor(Math.min(maxAmount, l2Liquidity), 8);
 
     order.inputAmount = amount;
     order.inputAsset = l2Asset.name;

@@ -45,6 +45,9 @@ export class TransactionRequestExtended extends TransactionRequest {
 export class TransactionDtoMapper {
   // BuyCrypto
   static mapBuyCryptoTransaction(buyCrypto: BuyCryptoExtended): TransactionDto {
+    const inputAsset = isAsset(buyCrypto.inputAssetEntity) ? buyCrypto.inputAssetEntity : null;
+    const outputAsset = buyCrypto.outputAsset;
+
     const dto: TransactionDto = {
       id: buyCrypto.transaction.id,
       uid: buyCrypto.transaction.uid,
@@ -54,14 +57,18 @@ export class TransactionDtoMapper {
       inputAmount: Util.roundReadable(buyCrypto.inputAmount, amountType(buyCrypto.inputAssetEntity)),
       inputAsset: buyCrypto.inputAssetEntity.name,
       inputAssetId: buyCrypto.inputAssetEntity.id,
+      inputChainId: inputAsset?.chainId ?? null,
       inputBlockchain: buyCrypto.cryptoInput?.asset.blockchain,
+      inputEvmChainId: inputAsset?.evmChainId ?? null,
       inputPaymentMethod: buyCrypto.paymentMethodIn,
       ...(buyCrypto.outputAmount ? buyCrypto.exchangeRate : null),
       outputAmount:
         buyCrypto.outputAmount != null ? Util.roundReadable(buyCrypto.outputAmount, AmountType.ASSET) : null,
       outputAsset: buyCrypto.outputAsset?.name,
       outputAssetId: buyCrypto.outputAsset?.id,
+      outputChainId: outputAsset?.chainId ?? null,
       outputBlockchain: buyCrypto.outputAsset?.blockchain,
+      outputEvmChainId: outputAsset?.evmChainId ?? null,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       priceSteps: buyCrypto.priceStepsObject,
       feeAmount: buyCrypto.totalFeeAmount
@@ -76,6 +83,7 @@ export class TransactionDtoMapper {
       inputTxUrl: buyCrypto?.cryptoInput
         ? txExplorerUrl(buyCrypto.cryptoInput.asset.blockchain, buyCrypto.cryptoInput.inTxId)
         : null,
+      depositAddress: buyCrypto.cryptoInput?.address?.address ?? null,
       outputTxId: buyCrypto.txId,
       outputTxUrl: buyCrypto.txId ? txExplorerUrl(buyCrypto.outputAsset?.blockchain, buyCrypto.txId) : null,
       outputDate: buyCrypto.outputDate,
@@ -122,6 +130,8 @@ export class TransactionDtoMapper {
 
   // BuyFiat
   static mapBuyFiatTransaction(buyFiat: BuyFiatExtended): TransactionDto {
+    const inputAsset = isAsset(buyFiat.inputAssetEntity) ? buyFiat.inputAssetEntity : null;
+
     const dto: TransactionDto = {
       id: buyFiat.transaction.id,
       uid: buyFiat.transaction.uid,
@@ -131,13 +141,17 @@ export class TransactionDtoMapper {
       inputAmount: Util.roundReadable(buyFiat.inputAmount, amountType(buyFiat.inputAssetEntity)),
       inputAsset: buyFiat.inputAssetEntity.name,
       inputAssetId: buyFiat.inputAssetEntity.id,
+      inputChainId: inputAsset?.chainId ?? null,
       inputBlockchain: buyFiat.cryptoInput?.asset.blockchain,
+      inputEvmChainId: inputAsset?.evmChainId ?? null,
       inputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       ...(buyFiat.outputAmount ? buyFiat.exchangeRate : null),
       outputAmount: buyFiat.outputAmount != null ? Util.roundReadable(buyFiat.outputAmount, AmountType.FIAT) : null,
       outputAsset: buyFiat.outputAsset?.name,
       outputAssetId: buyFiat.outputAsset?.id,
+      outputChainId: null,
       outputBlockchain: null,
+      outputEvmChainId: null,
       outputPaymentMethod: FiatPaymentMethod.BANK,
       outputDate: buyFiat.outputDate,
       priceSteps: buyFiat.priceStepsObject,
@@ -153,6 +167,7 @@ export class TransactionDtoMapper {
       inputTxUrl: buyFiat?.cryptoInput
         ? txExplorerUrl(buyFiat.cryptoInput.asset.blockchain, buyFiat.cryptoInput.inTxId)
         : null,
+      depositAddress: buyFiat.cryptoInput?.address?.address ?? null,
       outputTxId: buyFiat.bankTx?.remittanceInfo ?? null,
       outputTxUrl: null,
       chargebackAmount: buyFiat.chargebackAmount,
@@ -186,6 +201,8 @@ export class TransactionDtoMapper {
   // Waiting TxRequest
   static mapTxRequestTransaction(txRequest: TransactionRequestExtended): TransactionDto {
     const fees = TransactionDtoMapper.mapFees(txRequest);
+    const sourceAsset = isAsset(txRequest.sourceAssetEntity) ? txRequest.sourceAssetEntity : null;
+    const targetAsset = isAsset(txRequest.targetAssetEntity) ? txRequest.targetAssetEntity : null;
 
     const dto: TransactionDto = {
       id: null,
@@ -195,12 +212,16 @@ export class TransactionDtoMapper {
       inputAmount: Util.roundReadable(txRequest.amount, amountType(txRequest.sourceAssetEntity)),
       inputAsset: txRequest.sourceAssetEntity.name,
       inputAssetId: txRequest.sourceAssetEntity.id,
-      inputBlockchain: isAsset(txRequest.sourceAssetEntity) ? txRequest.sourceAssetEntity.blockchain : null,
+      inputChainId: sourceAsset?.chainId ?? null,
+      inputBlockchain: sourceAsset?.blockchain ?? null,
+      inputEvmChainId: sourceAsset?.evmChainId ?? null,
       inputPaymentMethod: txRequest.sourcePaymentMethod,
       outputAmount: null,
       outputAsset: txRequest.targetAssetEntity?.name,
       outputAssetId: txRequest.targetAssetEntity?.id,
-      outputBlockchain: isAsset(txRequest.targetAssetEntity) ? txRequest.targetAssetEntity?.blockchain : null,
+      outputChainId: targetAsset?.chainId ?? null,
+      outputBlockchain: targetAsset?.blockchain ?? null,
+      outputEvmChainId: targetAsset?.evmChainId ?? null,
       outputPaymentMethod: txRequest.targetPaymentMethod,
       priceSteps: null,
       feeAmount: fees?.total,
@@ -208,6 +229,7 @@ export class TransactionDtoMapper {
       fees,
       inputTxId: null,
       inputTxUrl: null,
+      depositAddress: null,
       outputTxId: null,
       outputTxUrl: null,
       outputDate: null,
@@ -247,7 +269,9 @@ export class TransactionDtoMapper {
       inputAmount: null,
       inputAsset: null,
       inputAssetId: null,
+      inputChainId: null,
       inputBlockchain: null,
+      inputEvmChainId: null,
       inputPaymentMethod: null,
       exchangeRate: null,
       rate: null,
@@ -257,7 +281,9 @@ export class TransactionDtoMapper {
           : null,
       outputAsset: refReward.outputAsset.name,
       outputAssetId: refReward.outputAsset?.id,
+      outputChainId: refReward.outputAsset?.chainId ?? null,
       outputBlockchain: refReward.targetBlockchain,
+      outputEvmChainId: refReward.outputAsset?.evmChainId ?? null,
       outputPaymentMethod: CryptoPaymentMethod.CRYPTO,
       outputDate: refReward.outputDate,
       priceSteps: null,
@@ -266,6 +292,7 @@ export class TransactionDtoMapper {
       fees: null,
       inputTxId: null,
       inputTxUrl: null,
+      depositAddress: null,
       outputTxId: refReward.txId,
       outputTxUrl: refReward.txId ? txExplorerUrl(refReward.targetBlockchain, refReward.txId) : null,
       chargebackAmount: undefined,
@@ -304,7 +331,9 @@ export class TransactionDtoMapper {
         ? TransactionState.RETURNED
         : bankTxReturn?.chargebackAllowedDateUser
           ? TransactionState.RETURN_PENDING
-          : TransactionState.UNASSIGNED,
+          : bankTxReturn?.id
+            ? TransactionState.FAILED
+            : TransactionState.UNASSIGNED,
       inputAmount: tx.txAmount,
       inputAsset: tx.txCurrency,
       inputAssetId: currency.id,
@@ -313,6 +342,7 @@ export class TransactionDtoMapper {
       inputTxId: null,
       inputTxUrl: null,
       chargebackAmount: bankTxReturn?.chargebackAmount,
+      chargebackAsset: bankTxReturn?.chargebackAsset,
       chargebackTarget: bankTxReturn?.chargebackIban,
       chargebackTxId: bankTxReturn?.chargebackRemittanceInfo,
       chargebackTxUrl: undefined,
@@ -341,6 +371,14 @@ export class TransactionDtoMapper {
         entity.bankFeeAmount != null
           ? Util.roundReadable(entity.bankFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
+      bankFixed:
+        entity.bankFixedFeeAmount != null
+          ? Util.roundReadable(entity.bankFixedFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
+          : null,
+      bankVariable:
+        entity.bankPercentFeeAmount != null
+          ? Util.roundReadable(entity.bankPercentFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
+          : null,
       fixed:
         entity.absoluteFeeAmount != null
           ? Util.roundReadable(entity.absoluteFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
@@ -356,6 +394,10 @@ export class TransactionDtoMapper {
               (entity.totalFeeAmount - (blockchainFee + networkStartFee)) * referencePrice,
               feeAmountType(entity.inputAssetEntity),
             )
+          : null,
+      platform:
+        entity.partnerFeeAmount != null
+          ? Util.roundReadable(entity.partnerFeeAmount * referencePrice, feeAmountType(entity.inputAssetEntity))
           : null,
       total:
         entity.totalFeeAmount != null
@@ -403,6 +445,8 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
         : null;
 
   if (entity instanceof BuyCrypto) {
+    if (entity.status === BuyCryptoStatus.STOPPED) return { state: TransactionState.STOPPED, reason };
+
     switch (entity.amlCheck) {
       case null:
         if (entity.comment != null) return { state: TransactionState.PROCESSING, reason };
@@ -417,10 +461,13 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
       case CheckStatus.FAIL:
         if (
           entity.chargebackDate &&
-          (entity.chargebackCryptoTxId || entity.checkoutTx || entity.chargebackOutput?.isTransmittedDate)
+          (Util.daysDiff(entity.chargebackDate) > 7 ||
+            entity.chargebackCryptoTxId ||
+            entity.checkoutTx ||
+            entity.chargebackOutput?.isTransmittedDate)
         )
           return { state: TransactionState.RETURNED, reason };
-        if (entity.chargebackAllowedDateUser || entity.chargebackAllowedDate)
+        if (entity.chargebackAllowedDateUser || entity.chargebackAllowedDate || entity.chargebackDate)
           return { state: TransactionState.RETURN_PENDING, reason };
         return {
           state: TransactionState.FAILED,
@@ -461,8 +508,10 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
         return { state: TransactionState.CHECK_PENDING, reason };
 
       case CheckStatus.FAIL:
-        if (entity.chargebackDate && entity.chargebackTxId) return { state: TransactionState.RETURNED, reason };
-        if (entity.chargebackAllowedDateUser) return { state: TransactionState.RETURN_PENDING, reason };
+        if (entity.chargebackDate && (Util.daysDiff(entity.chargebackDate) > 7 || entity.chargebackTxId))
+          return { state: TransactionState.RETURNED, reason };
+        if (entity.chargebackAllowedDateUser || entity.chargebackDate)
+          return { state: TransactionState.RETURN_PENDING, reason };
         return { state: TransactionState.FAILED, reason, chargebackTxId: entity.chargebackTxId };
 
       case CheckStatus.PASS:

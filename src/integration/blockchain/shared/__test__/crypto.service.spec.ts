@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.enum';
 import { Blockchain } from '../enums/blockchain.enum';
 import { CryptoService } from '../services/crypto.service';
 
@@ -17,6 +18,30 @@ describe('CryptoService', () => {
     expect(getBlockchain('31h4ReawbCsXXU5iX9YjPDHjPQmvymCyVo')).toEqual(Blockchain.BITCOIN);
     expect(getBlockchain('bc1q04fhuhexv662d58y205zhngrkryfpr4lmfxedz')).toEqual(Blockchain.BITCOIN);
     expect(getBlockchain('bc1qwqdg6squsna38e46795at95yu9atm8azzmyvckulcc7kytlcckxswvvzej')).toEqual(Blockchain.BITCOIN);
+  });
+
+  it('should match silent payment addresses as bitcoin', async () => {
+    expect(
+      getBlockchain(
+        'sp1qqgste7k9hx0qftg6qmwlkqtwuy6cycyavzmzj85c6qdfhjdpdjtdgqjuexzk6murw56suy3e0rd2cgqvycxttddwsvgxe2usfpxumr70xc9pkqwv',
+      ),
+    ).toEqual(Blockchain.BITCOIN);
+  });
+
+  it('should return BITCOIN_SILENT_PAYMENT address type for sp1 addresses', () => {
+    expect(
+      getAddressType(
+        'sp1qqgste7k9hx0qftg6qmwlkqtwuy6cycyavzmzj85c6qdfhjdpdjtdgqjuexzk6murw56suy3e0rd2cgqvycxttddwsvgxe2usfpxumr70xc9pkqwv',
+      ),
+    ).toEqual(UserAddressType.BITCOIN_SILENT_PAYMENT);
+  });
+
+  it('should return BITCOIN_BECH32 for bc1 addresses', () => {
+    expect(getAddressType('bc1q04fhuhexv662d58y205zhngrkryfpr4lmfxedz')).toEqual(UserAddressType.BITCOIN_BECH32);
+  });
+
+  it('should return BITCOIN_LEGACY for legacy addresses', () => {
+    expect(getAddressType('12uP2ZgBQ7AG56yLdzW4fyyPzELQmitPBB')).toEqual(UserAddressType.BITCOIN_LEGACY);
   });
 
   it('should match lightning addresses', async () => {
@@ -62,6 +87,30 @@ describe('CryptoService', () => {
     ).toEqual(Blockchain.ZANO);
   });
 
+  it('should match firo addresses', async () => {
+    expect(getBlockchain('aEXoDuVy8YVAxkvPMFGeVL2NU2KSkfZCZf')).toEqual(Blockchain.FIRO);
+  });
+
+  it('should match firo spark addresses', async () => {
+    expect(
+      getBlockchain(
+        'sm1qqp4u87yjmcd0mwfph0pg6jannk3z0wmhuzzuxgcrthqf0jrq9dqg8ht02gv2rssle7kgehhrglqn540rk8entqlsw3jmjrfrsc4xvz8u90q0z2uxe8zzpmzqx7qzf3',
+      ),
+    ).toEqual(Blockchain.FIRO);
+  });
+
+  it('should return FIRO address type for transparent firo addresses', () => {
+    expect(getAddressType('aEXoDuVy8YVAxkvPMFGeVL2NU2KSkfZCZf')).toEqual(UserAddressType.FIRO);
+  });
+
+  it('should return FIRO_SPARK address type for spark firo addresses', () => {
+    expect(
+      getAddressType(
+        'sm1qqp4u87yjmcd0mwfph0pg6jannk3z0wmhuzzuxgcrthqf0jrq9dqg8ht02gv2rssle7kgehhrglqn540rk8entqlsw3jmjrfrsc4xvz8u90q0z2uxe8zzpmzqx7qzf3',
+      ),
+    ).toEqual(UserAddressType.FIRO_SPARK);
+  });
+
   it('should match liquid addresses', async () => {
     expect(getBlockchain('VTpwKsrwasw7VnNf4GHMmcjNY3MR2Q81GaxDv7EyhVS8rzj5exX5b5PF6g29Szb4jrMqKSUwP2ZGnXt4')).toEqual(
       Blockchain.LIQUID,
@@ -88,8 +137,18 @@ describe('CryptoService', () => {
   it('should match tron addresses', async () => {
     expect(getBlockchain('TRmumx428iKqDQkBMhtjK8DQgcfYK7NdZP')).toEqual(Blockchain.TRON);
   });
+
+  it('should match internet computer addresses', async () => {
+    expect(getBlockchain('rjyxf-rur4n-jwk64-rsslr-kppnq-irqqy-s2wil-peeif-k3syc-intp2-uae')).toEqual(
+      Blockchain.INTERNET_COMPUTER,
+    );
+  });
 });
 
 function getBlockchain(address: string): Blockchain {
   return CryptoService.getDefaultBlockchainBasedOn(address);
+}
+
+function getAddressType(address: string): UserAddressType {
+  return CryptoService.getAddressType(address);
 }

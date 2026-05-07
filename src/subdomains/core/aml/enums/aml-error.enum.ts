@@ -19,6 +19,7 @@ export enum AmlError {
   USER_BLOCKED = 'UserBlocked',
   USER_DELETED = 'UserDeleted',
   USER_DATA_BLOCKED = 'UserDataBlocked',
+  USER_DATA_SUSPICIOUS = 'UserDataSuspicious',
   USER_DATA_DEACTIVATED = 'UserDataDeactivated',
   INVALID_USER_DATA_STATUS = 'InvalidUserDataStatus',
   INVALID_KYC_STATUS = 'InvalidKycStatus',
@@ -59,12 +60,18 @@ export enum AmlError {
   MERGE_EXPIRED = 'MergeExpired',
   PHONE_VERIFICATION_NEEDED = 'PhoneVerificationNeeded',
   IP_PHONE_VERIFICATION_NEEDED = 'IpPhoneVerificationNeeded',
+  BIC_PHONE_VERIFICATION_NEEDED = 'BicPhoneVerificationNeeded',
+  IBAN_PHONE_VERIFICATION_NEEDED = 'IbanPhoneVerificationNeeded',
   IP_BLACKLISTED_WITHOUT_KYC = 'IpBlacklistedWithoutKyc',
   BANK_RELEASE_DATE_MISSING = 'BankReleaseDateMissing',
   IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
+  USER_DATA_FAILED_CALL = 'UserDataFailedCall',
+  USER_DATA_REJECTED_CALL = 'UserDataRejectedCall',
   TRADE_APPROVAL_DATE_MISSING = 'TradeApprovalDateMissing',
   BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
   FORCE_MANUAL_CHECK = 'ForceManualCheck',
+  ASSET_INPUT_NOT_ALLOWED = 'AssetInputNotAllowed',
+  REFERRAL_NO_TRADE_HISTORY = 'ReferralNoTradeHistory',
 }
 
 export const DelayResultError = [
@@ -141,6 +148,11 @@ export const AmlErrorResult: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.GSHEET,
     amlReason: AmlReason.USER_DATA_BLOCKED,
+  },
+  [AmlError.USER_DATA_SUSPICIOUS]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.GSHEET,
+    amlReason: AmlReason.USER_DATA_SUSPICIOUS,
   },
   [AmlError.USER_DATA_DEACTIVATED]: null,
   [AmlError.INVALID_USER_DATA_STATUS]: null,
@@ -286,6 +298,16 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK_IP_PHONE,
   },
+  [AmlError.BIC_PHONE_VERIFICATION_NEEDED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
+  },
+  [AmlError.IBAN_PHONE_VERIFICATION_NEEDED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
+  },
   [AmlError.BANK_RELEASE_DATE_MISSING]: {
     type: AmlErrorType.SINGLE,
     amlCheck: CheckStatus.PENDING,
@@ -301,6 +323,16 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
   },
+  [AmlError.USER_DATA_FAILED_CALL]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE_FAILED,
+  },
+  [AmlError.USER_DATA_REJECTED_CALL]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE_FAILED,
+  },
   [AmlError.TRADE_APPROVAL_DATE_MISSING]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
@@ -315,5 +347,15 @@ export const AmlErrorResult: {
     type: AmlErrorType.SINGLE,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
+  },
+  [AmlError.ASSET_INPUT_NOT_ALLOWED]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.FAIL,
+    amlReason: AmlReason.ASSET_INPUT_NOT_ALLOWED,
+  },
+  [AmlError.REFERRAL_NO_TRADE_HISTORY]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK_PHONE,
   },
 };

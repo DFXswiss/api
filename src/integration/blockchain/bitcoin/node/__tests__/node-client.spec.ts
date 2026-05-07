@@ -6,11 +6,11 @@
  */
 
 import { Currency } from '@uniswap/sdk-core';
-import { HttpService } from 'src/shared/services/http.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainTokenBalance } from '../../../shared/dto/blockchain-token-balance.dto';
-import { BitcoinRpcClient } from '../rpc/bitcoin-rpc-client';
 import { NodeClient, NodeClientConfig } from '../node-client';
+import { BitcoinRpcClient } from '../rpc/bitcoin-rpc-client';
 
 // Concrete implementation for testing
 class TestNodeClient extends NodeClient {

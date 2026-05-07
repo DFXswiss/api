@@ -1,7 +1,7 @@
 import { Body, Controller, Get, NotFoundException, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeController, ApiOkResponse, ApiTags } from '@nestjs/swagger';
-import { RealIP } from 'nestjs-real-ip';
+import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -17,6 +17,7 @@ import { CustodyAuthDto } from '../dto/output/custody-auth.dto';
 import { CustodyBalanceDto, CustodyHistoryDto } from '../dto/output/custody-balance.dto';
 import { CustodyOrderHistoryDto } from '../dto/output/custody-order-history.dto';
 import { CustodyOrderDto } from '../dto/output/custody-order.dto';
+import { CustodyOrderListEntry } from '../dto/output/custody-order-list-entry.dto';
 import { CustodyOrderService } from '../services/custody-order.service';
 import { CustodyPdfService } from '../services/custody-pdf.service';
 import { CustodyService } from '../services/custody.service';
@@ -112,6 +113,14 @@ export class CustodyAdminController {
     if (!asset) throw new NotFoundException('Asset not found');
 
     return this.service.updateCustodyBalance(asset, user);
+  }
+
+  @Get('orders')
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async getOrders(): Promise<CustodyOrderListEntry[]> {
+    return this.custodyOrderService
+      .getOrdersForSupport()
+      .then((orders) => orders.map(CustodyOrderListEntry.fromEntity));
   }
 
   @Post('order/:id/approve')

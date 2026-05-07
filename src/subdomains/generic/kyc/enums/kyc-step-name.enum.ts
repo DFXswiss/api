@@ -22,7 +22,12 @@ export enum KycStepName {
   // additional features
   PAYMENT_AGREEMENT = 'PaymentAgreement',
   RECALL_AGREEMENT = 'RecallAgreement',
+  PHONE_CHANGE = 'PhoneChange',
+  ADDRESS_CHANGE = 'AddressChange',
+  NAME_CHANGE = 'NameChange',
 
   // external registrations
   REALUNIT_REGISTRATION = 'RealUnitRegistration',
 }
+
+export const KycStepCancelable = [KycStepName.ADDRESS_CHANGE, KycStepName.PHONE_CHANGE, KycStepName.NAME_CHANGE];

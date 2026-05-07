@@ -182,7 +182,7 @@ async function main() {
 
   // Country
   const countryData = parseCSV(path.join(seedDir, 'country.csv'));
-  await seedTable(pool, 'country', countryData, ['id', 'symbol', 'name', 'dfxEnable', 'ipEnable', 'maerkiBaumannEnable', 'lockEnable', 'symbol3']);
+  await seedTable(pool, 'country', countryData, ['id', 'symbol', 'name', 'symbol3', 'dfxEnable', 'dfxOrganizationEnable', 'lockEnable', 'ipEnable', 'yapealEnable', 'fatfEnable', 'nationalityEnable', 'nationalityStepEnable', 'bankTransactionVerificationEnable', 'bankEnable', 'cryptoEnable', 'checkoutEnable']);
 
   // Asset - drop unique index that conflicts with NULL dexName values
   try {

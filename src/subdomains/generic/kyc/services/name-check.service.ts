@@ -1,8 +1,14 @@
-import { Injectable, InternalServerErrorException, NotFoundException, OnModuleInit } from '@nestjs/common';
+import {
+  forwardRef,
+  Inject,
+  Injectable,
+  InternalServerErrorException,
+  NotFoundException,
+  OnModuleInit,
+} from '@nestjs/common';
 import { Util } from 'src/shared/utils/util';
 import { IsNull } from 'typeorm';
 import { BankData, BankDataType } from '../../user/models/bank-data/bank-data.entity';
-import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { DilisenseApiData } from '../dto/input/dilisense-data.dto';
@@ -22,7 +28,7 @@ export class NameCheckService implements OnModuleInit {
   constructor(
     private readonly nameCheckLogRepo: NameCheckLogRepository,
     private readonly dilisenseService: DilisenseService,
-    private readonly userDataService: UserDataService,
+    @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
     private readonly documentService: KycDocumentService,
   ) {}
 
@@ -48,7 +54,7 @@ export class NameCheckService implements OnModuleInit {
     // );
 
     // Personal name check
-    if (!bankData.userData.accountType || bankData.userData.accountType === AccountType.PERSONAL) {
+    if (bankData.userData.isPersonalAccount) {
       const { data, file } = await this.getRiskDataAndUploadPdf(
         bankData.userData,
         false,

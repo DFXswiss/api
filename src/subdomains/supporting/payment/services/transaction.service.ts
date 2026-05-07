@@ -1,13 +1,16 @@
-import { Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { Between, Brackets, FindOptionsRelations, IsNull, LessThanOrEqual, Not } from 'typeorm';
+import { Between, Brackets, FindOptionsRelations, In, IsNull, LessThanOrEqual, Not } from 'typeorm';
 import { CreateTransactionDto } from '../dto/input/create-transaction.dto';
 import { UpdateTransactionInternalDto } from '../dto/input/update-transaction-internal.dto';
 import { UpdateTransactionDto } from '../dto/update-transaction.dto';
+import { TransactionRequestType } from '../entities/transaction-request.entity';
 import { Transaction, TransactionSourceType } from '../entities/transaction.entity';
 import { TransactionRepository } from '../repositories/transaction.repository';
 import { SpecialExternalAccountService } from './special-external-account.service';
@@ -21,6 +24,8 @@ export class TransactionService {
     @Inject(forwardRef(() => BankDataService))
     private readonly bankDataService: BankDataService,
     private readonly specialExternalAccountService: SpecialExternalAccountService,
+    @Inject(forwardRef(() => BuyCryptoRepository))
+    private readonly buyCryptoRepo: BuyCryptoRepository,
   ) {}
 
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
@@ -83,8 +88,25 @@ export class TransactionService {
     return this.repo.save(entity);
   }
 
+  async stop(id: number): Promise<void> {
+    const entity = await this.getTransactionById(id, { buyCrypto: true });
+    if (!entity) throw new NotFoundException('Transaction not found');
+    if (entity.completionDate) throw new BadRequestException('Transaction is already completed');
+    if (!entity.buyCrypto) throw new BadRequestException('Only BuyCrypto transactions can be stopped');
+    if (entity.buyCrypto.status === BuyCryptoStatus.STOPPED)
+      throw new BadRequestException('Transaction is already stopped');
+
+    entity.buyCrypto.stop();
+    await this.buyCryptoRepo.save(entity.buyCrypto);
+  }
+
   async getTransactionById(id: number, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
     return this.repo.findOne({ where: { id }, relations });
+  }
+
+  async getTransactionsByIds(ids: number[]): Promise<Transaction[]> {
+    if (!ids.length) return [];
+    return this.repo.find({ where: { id: In(ids) } });
   }
 
   async getTransactionByUid(uid: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
@@ -124,6 +146,13 @@ export class TransactionService {
   async getTransactionsByUserDataId(userDataId: number): Promise<Transaction[]> {
     return this.repo.find({
       where: { userData: { id: userDataId } },
+      relations: {
+        buyCrypto: { cryptoInput: true, outputAsset: true },
+        buyFiat: { cryptoInput: true, outputAsset: true },
+        bankTxReturn: true,
+        bankTxRepeat: true,
+      },
+      loadEagerRelations: false,
       order: { created: 'DESC' },
       take: 100,
     });
@@ -170,7 +199,13 @@ export class TransactionService {
     return query.orderBy('transaction.id', 'DESC').getMany();
   }
 
-  async getTransactionsForAccount(userDataId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
+  async getTransactionsForAccount(
+    userDataId: number,
+    from = new Date(0),
+    to = new Date(),
+    limit?: number,
+    offset?: number,
+  ): Promise<Transaction[]> {
     return this.repo.find({
       where: { userData: { id: userDataId }, type: Not(IsNull()), created: Between(from, to) },
       relations: {
@@ -187,25 +222,43 @@ export class TransactionService {
         bankTx: { transaction: true },
         bankTxReturn: true,
       },
+      order: { created: 'DESC' },
+      take: limit,
+      skip: offset,
     });
   }
 
-  async getTransactionsForUser(userId: number, from = new Date(0), to = new Date()): Promise<Transaction[]> {
-    return this.repo.find({
-      where: { user: { id: userId }, type: Not(IsNull()), created: Between(from, to) },
-      relations: {
-        buyCrypto: {
-          buy: true,
-          cryptoRoute: true,
-          bankTx: true,
-          checkoutTx: true,
-          cryptoInput: true,
-          chargebackOutput: true,
-        },
-        buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
-        refReward: true,
-      },
-    });
+  async getTransactionsForUsers(
+    userIds: number[],
+    from = new Date(0),
+    to = new Date(),
+    limit?: number,
+    offset?: number,
+  ): Promise<Transaction[]> {
+    return Util.doInBatchesWithLimit(
+      userIds,
+      (batch, remaining) =>
+        this.repo.find({
+          where: { user: { id: In(batch) }, type: Not(IsNull()), created: Between(from, to) },
+          relations: {
+            buyCrypto: {
+              buy: true,
+              cryptoRoute: true,
+              bankTx: true,
+              checkoutTx: true,
+              cryptoInput: true,
+              chargebackOutput: true,
+            },
+            buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
+            refReward: true,
+          },
+          order: { created: 'DESC' },
+          take: remaining,
+          skip: offset,
+        }),
+      100,
+      limit,
+    );
   }
 
   async getManualRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
@@ -254,6 +307,19 @@ export class TransactionService {
       )
       .groupBy('tx.userDataId')
       .getRawMany();
+  }
+
+  async getByAssetId(assetId: number, limit = 50, offset = 0): Promise<Transaction[]> {
+    return this.repo.find({
+      where: [
+        { type: Not(IsNull()), request: { type: TransactionRequestType.BUY, targetId: assetId } },
+        { type: Not(IsNull()), request: { type: TransactionRequestType.SELL, sourceId: assetId } },
+      ],
+      order: { created: 'DESC' },
+      take: limit,
+      skip: offset,
+      relations: { request: true, user: true, userData: true },
+    });
   }
 
   async getTransactionByKey(key: string, value: any): Promise<Transaction> {

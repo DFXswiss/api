@@ -1,0 +1,37 @@
+name: API Migration Check
+
+on:
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'migration/**'
+
+permissions:
+  contents: read
+
+jobs:
+  immutability:
+    name: Migration immutability
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Block changes to existing migrations
+        run: |
+          git fetch origin ${{ github.base_ref }} --depth=100
+          CHANGED=$(git diff --name-status origin/${{ github.base_ref }}...HEAD -- migration/ \
+                    | awk '$1 ~ /^[MDR]/ {print}')
+          if [ -n "$CHANGED" ]; then
+            echo "::error::Existing migrations must not be modified, renamed or deleted."
+            echo ""
+            echo "$CHANGED"
+            echo ""
+            echo "If a migration is wrong, add a follow-up migration instead of editing the old one."
+            exit 1
+          fi
+          echo "No existing migrations were modified."

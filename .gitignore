@@ -44,6 +44,15 @@ placeholder.env
 
 # Custom
 thunder-tests/env
-.claude/settings.local.json
+.claude/
 .api.pid
 CLAUDE.md
+
+# Forge build artifacts
+test-contracts/
+
+# Test results
+test-results/
+
+# Generated email previews
+scripts/email-previews/

@@ -3,10 +3,12 @@ import { AddressPoolModule } from './address-pool/address-pool.module';
 import { BalanceModule } from './balance/balance.module';
 import { BankTxModule } from './bank-tx/bank-tx.module';
 import { BankModule } from './bank/bank.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { DexModule } from './dex/dex.module';
 import { FiatOutputModule } from './fiat-output/fiat-output.module';
 import { FiatPayInModule } from './fiat-payin/fiat-payin.module';
 import { LogModule } from './log/log.module';
+import { MrosModule } from './mros/mros.module';
 import { NotificationModule } from './notification/notification.module';
 import { PayInModule } from './payin/payin.module';
 import { PayoutModule } from './payout/payout.module';
@@ -21,6 +23,7 @@ import { SupportIssueModule } from './support-issue/support-issue.module';
     BalanceModule,
     BankModule,
     BankTxModule,
+    DashboardModule,
     DexModule,
     LogModule,
     NotificationModule,
@@ -32,6 +35,7 @@ import { SupportIssueModule } from './support-issue/support-issue.module';
     FiatOutputModule,
     SupportIssueModule,
     RecallModule,
+    MrosModule,
   ],
   controllers: [],
   providers: [],

@@ -122,8 +122,20 @@ export class HistoryService {
   ): Promise<{ buyCryptos: BuyCrypto[]; buyFiats: BuyFiat[]; refRewards: RefReward[] }> {
     const transactions =
       user instanceof UserData
-        ? await this.transactionService.getTransactionsForAccount(user.id, query.from, query.to)
-        : await this.transactionService.getTransactionsForUser(user.id, query.from, query.to);
+        ? await this.transactionService.getTransactionsForAccount(
+            user.id,
+            query.from,
+            query.to,
+            query.limit,
+            query.offset,
+          )
+        : await this.transactionService.getTransactionsForUsers(
+            [user.id],
+            query.from,
+            query.to,
+            query.limit,
+            query.offset,
+          );
 
     const all =
       query.buy == null && query.sell == null && query.staking == null && query.ref == null && query.lm == null;
@@ -143,7 +155,10 @@ export class HistoryService {
                   blockchainFilter.includes(t.buyCrypto.outputAsset.blockchain) ||
                   blockchainFilter.includes(t.buyCrypto.cryptoInput?.asset.blockchain)),
             )
-            .map((t) => t.buyCrypto)
+            .map((t) => {
+              t.buyCrypto.transaction.userData = t.userData;
+              return t.buyCrypto;
+            })
         : [];
     const buyFiats =
       all || query.sell
@@ -152,7 +167,10 @@ export class HistoryService {
               (t) =>
                 t.buyFiat && (!blockchainFilter || blockchainFilter.includes(t.buyFiat.cryptoInput.asset.blockchain)),
             )
-            .map((t) => t.buyFiat)
+            .map((t) => {
+              t.buyFiat.transaction.userData = t.userData;
+              return t.buyFiat;
+            })
         : [];
     const refRewards =
       all || query.ref
@@ -161,7 +179,10 @@ export class HistoryService {
               (t) =>
                 t.refReward && (!blockchainFilter || blockchainFilter.includes(t.refReward.outputAsset.blockchain)),
             )
-            .map((t) => t.refReward)
+            .map((t) => {
+              t.refReward.transaction.userData = t.userData;
+              return t.refReward;
+            })
         : [];
 
     return { buyCryptos, buyFiats, refRewards };

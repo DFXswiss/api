@@ -31,7 +31,7 @@ import {
   DefaultPaymentLinkConfig,
   PaymentLinkConfig,
 } from 'src/subdomains/core/payment-link/entities/payment-link.config';
-import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { KycAddress, KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -66,7 +66,7 @@ import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
 import { UserData } from './user-data.entity';
-import { KycLevel, UserDataStatus } from './user-data.enum';
+import { KycLevel, PhoneCallStatus, TradeApprovalReason, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -139,6 +139,11 @@ export class UserDataService {
       : this.userDataRepo.findOne(request);
   }
 
+  async getUserDataByIds(ids: number[]): Promise<UserData[]> {
+    if (!ids.length) return [];
+    return this.userDataRepo.find({ where: { id: In(ids) } });
+  }
+
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
     if (!Config.formats.kycHash.test(kycHash)) throw new UnauthorizedException('Invalid KYC hash');
 
@@ -188,6 +193,10 @@ export class UserDataService {
     });
   }
 
+  async getUserDataByBirthday(birthday: Date): Promise<UserData[]> {
+    return this.userDataRepo.findBy({ birthday });
+  }
+
   async getUsersByName(name: string): Promise<UserData[]> {
     const where = { status: Not(UserDataStatus.MERGED) };
     const wheres = [
@@ -197,22 +206,33 @@ export class UserDataService {
       { ...where, organization: { name: Util.contains(name) } },
     ];
 
-    const nameParts = name.split(' ');
-    const first = nameParts.shift();
-    const last = nameParts.pop();
+    const nameParts = name
+      .split(' ')
+      .filter((p) => p)
+      .slice(0, 5);
+    const namePartsWithoutTitles = nameParts.filter((p) => !p.endsWith('.'));
 
-    if (last)
-      wheres.push({
-        ...where,
-        firstname: Util.contains(first),
-        surname: Util.contains([...nameParts, last].join(' ')),
-      });
-    if (nameParts.length)
-      wheres.push({
-        ...where,
-        firstname: Util.contains([first, ...nameParts].join(' ')),
-        surname: Util.contains(last),
-      });
+    // try all split points on original input and additionally without title-like words (e.g. "Dr.", "Prof.")
+    const splitVariants = [nameParts];
+    if (namePartsWithoutTitles.length < nameParts.length && namePartsWithoutTitles.length >= 2)
+      splitVariants.push(namePartsWithoutTitles);
+
+    for (const parts of splitVariants) {
+      const joined = parts.join(' ');
+      if (joined !== name) {
+        wheres.push({ ...where, verifiedName: Util.contains(joined) });
+      }
+
+      for (let i = 1; i < parts.length && i < 5; i++) {
+        const firstPart = parts.slice(0, i).join(' ');
+        const lastPart = parts.slice(i).join(' ');
+
+        wheres.push(
+          { ...where, firstname: Util.contains(firstPart), surname: Util.contains(lastPart) },
+          { ...where, firstname: Util.contains(lastPart), surname: Util.contains(firstPart) },
+        );
+      }
+    }
 
     return this.userDataRepo.find({ where: wheres });
   }
@@ -222,28 +242,26 @@ export class UserDataService {
   }
 
   async getUserDatasWithKycFile(): Promise<UserData[]> {
-    return this.userDataRepo
-      .createQueryBuilder('userData')
-      .leftJoinAndSelect('userData.country', 'country')
-      .select([
-        'userData.id',
-        'userData.kycFileId',
-        'userData.amlAccountType',
-        'userData.verifiedName',
-        'userData.allBeneficialOwnersDomicile',
-        'userData.amlListAddedDate',
-        'userData.amlListExpiredDate',
-        'userData.amlListReactivatedDate',
-        'userData.highRisk',
-        'userData.pep',
-        'userData.complexOrgStructure',
-        'userData.totalVolumeChfAuditPeriod',
-        'userData.totalCustodyBalanceChfAuditPeriod',
-        'country.name',
-      ])
-      .where('userData.kycFileId > 0')
-      .orderBy('userData.kycFileId', 'ASC')
-      .getMany();
+    return this.userDataRepo.find({
+      select: {
+        id: true,
+        kycFileId: true,
+        amlAccountType: true,
+        verifiedName: true,
+        allBeneficialOwnersDomicile: true,
+        amlListAddedDate: true,
+        amlListExpiredDate: true,
+        amlListReactivatedDate: true,
+        highRisk: true,
+        pep: true,
+        complexOrgStructure: true,
+        totalVolumeChfAuditPeriod: true,
+        totalCustodyBalanceChfAuditPeriod: true,
+        country: { name: true },
+      },
+      where: { kycFileId: MoreThan(0) },
+      order: { kycFileId: 'ASC' },
+    });
   }
 
   async getUserDataByKey(key: string, value: any): Promise<UserData> {
@@ -264,7 +282,7 @@ export class UserDataService {
 
   // --- CREATE / UPDATE ---
   async createUserData(dto: CreateUserDataDto): Promise<UserData> {
-    const userData = this.userDataRepo.create({
+    const entity = this.userDataRepo.create({
       ...dto,
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
@@ -272,9 +290,9 @@ export class UserDataService {
       kycSteps: [],
     });
 
-    await this.loadRelationsAndVerify(userData, dto);
+    await this.loadRelationsAndVerify(entity, dto);
 
-    return this.userDataRepo.save(userData);
+    return this.userDataRepo.save(entity);
   }
 
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
@@ -285,6 +303,9 @@ export class UserDataService {
     if (!userData) throw new NotFoundException('User data not found');
 
     dto = await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
+
+    if (dto.phoneCallExternalAccountCheckValue)
+      userData.addPhoneCallExternalAccountCheckValue(dto.phoneCallExternalAccountCheckValue);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
@@ -350,7 +371,7 @@ export class UserDataService {
   async downloadUserData(userDataIds: number[], checkOnly = false): Promise<Buffer> {
     let count = userDataIds.length;
     const zip = new JSZip();
-    const downloadTargets = Config.fileDownloadConfig.reverse();
+    const downloadTargets = [...Config.fileDownloadConfig].reverse();
     const errors: { userDataId: number; errorType: string; folder: string; details: string }[] = [];
 
     const escapeCsvValue = (value: string): string => {
@@ -360,7 +381,7 @@ export class UserDataService {
       return value;
     };
 
-    for (const userDataId of userDataIds.reverse()) {
+    for (const userDataId of [...userDataIds].reverse()) {
       const userData = await this.getUserData(userDataId, { kycSteps: true });
 
       if (!userData) {
@@ -399,7 +420,15 @@ export class UserDataService {
           continue;
         }
 
-        for (const { name: fileNameFn, fileTypes, prefixes, filter, handleFileNotFound, sort } of fileConfig) {
+        for (const {
+          name: fileNameFn,
+          fileTypes,
+          prefixes,
+          filter,
+          handleFileNotFound,
+          sort,
+          selectAll,
+        } of fileConfig) {
           const files = allFiles
             .filter((f) => prefixes(userData).some((p) => f.path.startsWith(p)))
             .filter((f) => !fileTypes || fileTypes.some((t) => f.contentType.startsWith(t)))
@@ -417,19 +446,25 @@ export class UserDataService {
 
           if (checkOnly) continue;
 
-          const selectedFile = files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c));
+          const selectedFiles = selectAll
+            ? files
+            : [files.reduce((l, c) => (sort ? sort(l, c) : l.updated > c.updated ? l : c))];
 
-          try {
-            const fileData = await this.documentService.downloadFile(
-              selectedFile.category,
-              userDataId,
-              selectedFile.type,
-              selectedFile.name,
-            );
-            const filePath = `${userDataId}-${fileNameFn?.(selectedFile) ?? name}.${selectedFile.name.split('.').pop()}`;
-            subFolder.file(filePath, fileData.data);
-          } catch {
-            errors.push({ userDataId, errorType: 'DownloadFailed', folder: folderName, details: selectedFile.name });
+          for (const selectedFile of selectedFiles) {
+            try {
+              const fileData = await this.documentService.downloadFile(
+                selectedFile.category,
+                userDataId,
+                selectedFile.type,
+                selectedFile.name,
+              );
+              const filePath = `${userDataId}-${fileNameFn?.(selectedFile) ?? name}.${selectedFile.name
+                .split('.')
+                .pop()}`;
+              subFolder.file(filePath, fileData.data);
+            } catch {
+              errors.push({ userDataId, errorType: 'DownloadFailed', folder: folderName, details: selectedFile.name });
+            }
           }
         }
       }
@@ -508,7 +543,8 @@ export class UserDataService {
       organizationLocation: data.organizationAddress?.city,
       organizationZip: data.organizationAddress?.zip,
       organizationCountry: data.organizationAddress?.country,
-      tradeApprovalDate: data.accountType === AccountType.ORGANIZATION ? new Date() : undefined,
+      tradeApprovalDate:
+        !userData.tradeApprovalDate && data.accountType === AccountType.ORGANIZATION ? new Date() : undefined,
     };
 
     const isPersonalAccount =
@@ -567,6 +603,8 @@ export class UserDataService {
     }
 
     if (update.mail) await this.kycLogService.createMailChangeLog(userData, userData.mail, update.mail);
+    if (update.tradeApprovalDate)
+      await this.createTradeApprovalLog(userData, TradeApprovalReason.ORGANIZATION, update.tradeApprovalDate);
 
     await this.userDataRepo.update(userData.id, update);
 
@@ -587,15 +625,23 @@ export class UserDataService {
   }
 
   async updateUserName(userData: UserData, dto: UserNameDto) {
+    const update: Partial<UserData> = {
+      firstname: transliterate(dto.firstName),
+      surname: transliterate(dto.lastName),
+    };
+
+    if (userData.verifiedName) update.verifiedName = `${update.firstname} ${update.surname}`;
+
+    await this.userDataRepo.update(userData.id, update);
+    Object.assign(userData, update);
+
     for (const user of userData.users) {
       this.siftService.updateAccount({
         $user_id: user.id.toString(),
         $time: Date.now(),
-        $name: `${dto.firstName} ${dto.lastName}`,
+        $name: `${update.firstname} ${update.surname}`,
       } as CreateAccount);
     }
-
-    await this.userDataRepo.update(userData.id, { firstname: dto.firstName, surname: dto.lastName });
   }
 
   async deactivateUserData(userData: UserData): Promise<void> {
@@ -612,6 +658,18 @@ export class UserDataService {
 
   async refreshLastNameCheckDate(userData: UserData): Promise<void> {
     await this.userDataRepo.update(...userData.refreshLastCheckedTimestamp());
+  }
+
+  async createTradeApprovalLog(
+    userData: UserData,
+    reason: TradeApprovalReason,
+    tradeApprovalDate?: Date,
+  ): Promise<void> {
+    return this.kycLogService.createLogInternal(
+      userData,
+      KycLogType.KYC,
+      `TradeApprovalDate set to ${(tradeApprovalDate ?? userData.tradeApprovalDate).toISOString()}, reason: ${reason}`,
+    );
   }
 
   // --- MAIL UPDATE --- //
@@ -680,6 +738,8 @@ export class UserDataService {
       if (mergeRequested) errorMessage += ' - account merge request sent';
     }
 
+    await this.kycService.failContactStepForMail(userData, mail, errorMessage);
+
     throw new ConflictException(errorMessage);
   }
 
@@ -709,12 +769,85 @@ export class UserDataService {
     return userData;
   }
 
-  // --- SETTINGS UPDATE --- //
-  async updateUserSettings(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
-    // check phone KYC is already started
-    if (userData.kycLevel != KycLevel.LEVEL_0 && (dto.phone === null || dto.phone === ''))
+  // --- PHONE UPDATE --- //
+  async updatePhone(userData: UserData, phone: string, createStep = true): Promise<void> {
+    if (userData.kycLevel !== KycLevel.LEVEL_0 && !phone)
       throw new BadRequestException('KYC already started, user data deletion not allowed');
 
+    const previousPhone = userData.phone;
+
+    await this.userDataRepo.update(userData.id, {
+      phone,
+      phoneCallCheckDate: null,
+      phoneCallIpCheckDate: null,
+      phoneCallIpCountryCheckDate: null,
+    });
+
+    Object.assign(userData, {
+      phone,
+      phoneCallCheckDate: null,
+      phoneCallIpCheckDate: null,
+      phoneCallIpCountryCheckDate: null,
+    });
+
+    // update Sift
+    for (const user of userData.users) {
+      this.siftService.updateAccount({
+        $user_id: user.id.toString(),
+        $time: Date.now(),
+        $phone: phone,
+      });
+    }
+
+    // create KYC step
+    if (createStep) {
+      if (!userData.kycSteps) {
+        userData.kycSteps = await this.kycService.getStepsByUserData(userData.id);
+      }
+
+      await this.kycService.createCustomKycStep(userData, KycStepName.PHONE_CHANGE, ReviewStatus.COMPLETED, {
+        phone,
+        previousPhone,
+      });
+    }
+  }
+
+  // --- ADDRESS UPDATE --- //
+  async updateUserAddress(userData: UserData, address: KycAddress): Promise<void> {
+    const country = await this.countryService.getCountry(address.country.id);
+    if (!country) throw new BadRequestException('Country not found');
+    if (!country.isEnabled(userData.kycType))
+      throw new BadRequestException(`Country not allowed for ${userData.kycType}`);
+
+    const update: Partial<UserData> = {
+      street: transliterate(address.street),
+      houseNumber: transliterate(address.houseNumber),
+      location: transliterate(address.city),
+      zip: transliterate(address.zip),
+      country,
+    };
+
+    await this.userDataRepo.update(userData.id, update);
+    Object.assign(userData, update);
+
+    // update Sift
+    for (const user of userData.users) {
+      this.siftService.updateAccount({
+        $user_id: user.id.toString(),
+        $time: Date.now(),
+        $billing_address: {
+          $name: `${userData.firstname} ${userData.surname}`,
+          $address_1: `${update.street} ${update.houseNumber}`,
+          $city: update.location,
+          $country: country.symbol,
+          $zipcode: update.zip,
+        },
+      });
+    }
+  }
+
+  // --- SETTINGS UPDATE --- //
+  async updateUserSettings(userData: UserData, dto: UpdateUserDto): Promise<UserData> {
     // check language
     if (dto.language) {
       dto.language = await this.languageService.getLanguage(dto.language.id);
@@ -727,17 +860,18 @@ export class UserDataService {
       if (!dto.currency) throw new BadRequestException('Currency not found');
     }
 
-    const phoneChanged = dto.phone && dto.phone !== userData.phone;
+    if (
+      userData.phoneCallStatus &&
+      ![PhoneCallStatus.UNAVAILABLE, PhoneCallStatus.USER_REJECTED, PhoneCallStatus.REPEAT].includes(
+        userData.phoneCallStatus,
+      ) &&
+      (dto.acceptCall || dto.acceptCall === false)
+    )
+      throw new BadRequestException('Phone call status is already set');
 
-    const updateSiftAccount: CreateAccount = { $time: Date.now() };
-
-    if (phoneChanged) updateSiftAccount.$phone = dto.phone;
-
-    if (phoneChanged) {
-      for (const user of userData.users) {
-        updateSiftAccount.$user_id = user.id.toString();
-        this.siftService.updateAccount(updateSiftAccount);
-      }
+    // check phone
+    if (dto.phone && dto.phone !== userData.phone) {
+      await this.updatePhone(userData, dto.phone);
     }
 
     await this.userDataRepo.update(...userData.setUserDataSettings(dto));
@@ -816,6 +950,7 @@ export class UserDataService {
   }
 
   // --- HELPER METHODS --- //
+
   private async loadRelationsAndVerify(
     userData: Partial<UserData> | UserData,
     dto: UpdateUserDataDto | CreateUserDataDto,
@@ -1078,6 +1213,7 @@ export class UserDataService {
 
     // Adapt slave kyc step sequenceNumber
     const sequenceNumberOffset = master.kycSteps.length ? Util.minObjValue(master.kycSteps, 'sequenceNumber') - 100 : 0;
+    const kycStepMerge = !!slave.kycSteps?.length;
     for (const kycStep of slave.kycSteps) {
       await this.kycAdminService.updateKycStepInternal(
         kycStep.update(
@@ -1138,6 +1274,7 @@ export class UserDataService {
     // optional master updates
     if (master.status === UserDataStatus.KYC_ONLY && slave.users.length && slave.wallet) master.wallet = slave.wallet;
     if ([UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED].includes(master.status)) master.status = slave.status;
+    if ((!master.wallet || master.wallet.id === Config.defaultWalletId) && slave.wallet) master.wallet = slave.wallet;
     if (!master.amlListAddedDate && slave.amlListAddedDate) {
       master.amlListAddedDate = slave.amlListAddedDate;
       master.amlListExpiredDate = slave.amlListExpiredDate;
@@ -1152,9 +1289,15 @@ export class UserDataService {
     }
     if (!master.verifiedName && slave.verifiedName) master.verifiedName = slave.verifiedName;
     master.mail = mail ?? slave.mail ?? master.mail;
-    if (!master.tradeApprovalDate && slave.tradeApprovalDate) master.tradeApprovalDate = slave.tradeApprovalDate;
+    if (!master.tradeApprovalDate && slave.tradeApprovalDate) {
+      master.tradeApprovalDate = slave.tradeApprovalDate;
 
-    const pendingRecommendation = master.kycSteps.find((k) => k.name === KycStepName.RECOMMENDATION && !k.isDone);
+      await this.createTradeApprovalLog(master, TradeApprovalReason.USER_DATA_MERGE);
+    }
+
+    const pendingRecommendation = master.kycSteps.find(
+      (k) => k.name === KycStepName.RECOMMENDATION && (k.isInProgress || k.isInReview),
+    );
     if (master.tradeApprovalDate && pendingRecommendation)
       await this.kycAdminService.updateKycStepInternal(pendingRecommendation.update(ReviewStatus.COMPLETED));
 
@@ -1203,6 +1346,9 @@ export class UserDataService {
     }
 
     await this.kycLogService.createMergeLog(master, log);
+    await this.kycLogService.createMergeLog(slave, log);
+
+    if (kycStepMerge) await this.kycService.checkDfxApproval(master);
 
     // Notify user about added address
     if (notifyUser) await this.userDataNotificationService.userDataAddedAddressInfo(master, slave);
@@ -1210,7 +1356,7 @@ export class UserDataService {
 
   private async updateBankTxTime(userDataId: number): Promise<void> {
     const txList = await this.repos.bankTx.find({
-      select: ['id'],
+      select: { id: true },
       where: [
         { buyCrypto: { buy: { user: { userData: { id: userDataId } } } } },
         { buyFiats: { sell: { user: { userData: { id: userDataId } } } } },
@@ -1264,6 +1410,23 @@ export class UserDataService {
       .andWhere(`userData.${field} <= :end`, { end })
       .getRawOne<{ maxKycFileId: number }>()
       .then((r) => r?.maxKycFileId ?? 0);
+  }
+
+  async getByPhoneCallStatuses(statuses: PhoneCallStatus[], limit?: number): Promise<UserData[]> {
+    return this.userDataRepo.find({
+      where: { phoneCallStatus: In(statuses), status: Not(UserDataStatus.MERGED) },
+      relations: { organization: true, language: true, country: true },
+      loadEagerRelations: false,
+      order: { phoneCallCheckDate: 'ASC' },
+      take: limit,
+    });
+  }
+
+  async countByPhoneCallStatuses(statuses: PhoneCallStatus[]): Promise<number> {
+    return this.userDataRepo.countBy({
+      phoneCallStatus: In(statuses),
+      status: Not(UserDataStatus.MERGED),
+    });
   }
 }
 

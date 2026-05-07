@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
-import { BlockchainClient } from '../shared/util/blockchain-client';
+import { BlockchainClient, CoinOnly } from '../shared/util/blockchain-client';
 import {
   AddressResultDto,
   GetAddressResultDto,
@@ -24,7 +24,7 @@ import {
 } from './dto/monero.dto';
 import { MoneroHelper } from './monero-helper';
 
-export class MoneroClient extends BlockchainClient {
+export class MoneroClient extends BlockchainClient implements CoinOnly {
   constructor(private readonly http: HttpService) {
     super();
   }

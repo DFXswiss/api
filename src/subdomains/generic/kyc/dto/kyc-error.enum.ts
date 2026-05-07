@@ -6,6 +6,7 @@ export enum KycError {
   BLOCKED = 'Blocked',
   RELEASED = 'Released',
   EXPIRED_STEP = 'ExpiredStep',
+  USER_CANCELED = 'UserCanceled',
 
   // Ident errors
   USER_DATA_MERGED = 'UserDataMerged',
@@ -29,13 +30,15 @@ export enum KycError {
   IP_COUNTRY_MISMATCH = 'IpCountryMismatch',
   COUNTRY_IP_COUNTRY_MISMATCH = 'CountryIpCountryMismatch',
   RESIDENCE_PERMIT_CHECK_REQUIRED = 'ResidencePermitCheckRequired',
+  MANUAL_REVIEW_REQUIRED = 'ManualReviewRequired',
+  DUPLICATE_ACCOUNT_SUSPECTED = 'DuplicateAccountSuspected',
 
   // Recommendation errors
   EXPIRED_RECOMMENDATION = 'ExpiredRecommendation',
   DENIED_RECOMMENDATION = 'DeniedRecommendation',
   RECOMMENDER_BLOCKED = 'RecommenderBlocked',
 
-  // FinancialData errors
+  // FinancialData errors/reasons
   MISSING_INFO = 'MissingInfo',
   RISKY_BUSINESS = 'RiskyBusiness',
   INCORRECT_INFO = 'IncorrectInfo',
@@ -48,6 +51,9 @@ export enum KycError {
 
   // DfxApproval errors
   BANK_RECALL_FEE_NOT_PAID = 'BankRecallFeeNotPaid',
+  OPEN_SANCTIONED_NAME_CHECK = 'OpenSanctionedNameCheck',
+  RISK_ACCEPTED = 'RiskAccepted',
+  NO_GWG_RISK = 'NoGwgRisk',
 
   // Deactivated userData errors
   USER_DATA_DEACTIVATED = 'UserDataDeactivated',
@@ -88,9 +94,15 @@ export const KycErrorMap: Record<KycError, string> = {
   [KycError.EXPIRED_RECOMMENDATION]: 'Your recommendation request is expired',
   [KycError.RECOMMENDER_BLOCKED]: 'Unknown error',
   [KycError.BANK_RECALL_FEE_NOT_PAID]: 'Recall fee not paid',
+  [KycError.OPEN_SANCTIONED_NAME_CHECK]: 'Open sanctioned name check pending evaluation',
   [KycError.INCORRECT_INFO]: 'Incorrect response',
   [KycError.RESIDENCE_PERMIT_CHECK_REQUIRED]: undefined,
   [KycError.EXPIRED_STEP]: 'Your documents are expired',
+  [KycError.MANUAL_REVIEW_REQUIRED]: undefined,
+  [KycError.RISK_ACCEPTED]: undefined,
+  [KycError.NO_GWG_RISK]: undefined,
+  [KycError.USER_CANCELED]: 'You have canceled this KYC step',
+  [KycError.DUPLICATE_ACCOUNT_SUSPECTED]: undefined,
 };
 
 export const KycReasonMap: { [e in KycError]?: KycStepReason } = {

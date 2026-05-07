@@ -13,8 +13,8 @@ export class FiatDtoMapper {
       name: fiat.name,
       buyable: fiat.buyable,
       sellable: fiat.sellable,
-      cardBuyable: fiat.cardBuyable,
-      cardSellable: fiat.cardSellable,
+      cardBuyable: false,
+      cardSellable: false,
       instantBuyable: fiat.instantBuyable,
       instantSellable: fiat.instantSellable,
     };
@@ -37,10 +37,7 @@ export class FiatDtoMapper {
           fiat.instantBuyable || fiat.instantSellable
             ? this.convert(spec.minVolume, Config.tradingLimits.yearlyDefault, fiat)
             : this.zeroLimits,
-        [FiatPaymentMethod.CARD]:
-          fiat.cardBuyable || fiat.cardSellable
-            ? this.convert(spec.minVolume, Config.tradingLimits.cardDefault, fiat)
-            : this.zeroLimits,
+        [FiatPaymentMethod.CARD]: this.zeroLimits,
       },
       allowedIbanCountries,
     });

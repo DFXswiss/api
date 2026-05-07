@@ -8,11 +8,12 @@ import {
 import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { PhoneCallStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionRequestType } from '../../payment/entities/transaction-request.entity';
@@ -21,14 +22,19 @@ import { TransactionRequestService } from '../../payment/services/transaction-re
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
-import { GetSupportIssueFilter } from '../dto/get-support-issue.dto';
+import { GetSupportIssueFilter, GetSupportIssueListFilter } from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
-import { SupportIssueDto, SupportIssueInternalDataDto, SupportMessageDto } from '../dto/support-issue.dto';
+import {
+  SupportIssueDto,
+  SupportIssueInternalDataDto,
+  SupportIssueListDto,
+  SupportMessageDto,
+} from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
-import { Department } from '../enums/department.enum';
-import { SupportIssueInternalState } from '../enums/support-issue.enum';
+import { RoleDepartmentMap } from '../enums/department.enum';
+import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
 import { SupportMessageRepository } from '../repositories/support-message.repository';
@@ -50,8 +56,49 @@ export class SupportIssueService {
     private readonly transactionRequestService: TransactionRequestService,
     private readonly supportLogService: SupportLogService,
     private readonly bankDataService: BankDataService,
-    private readonly fiatService: FiatService,
+    private readonly settingService: SettingService,
   ) {}
+
+  async getSupportIssueClerks(): Promise<string[]> {
+    const clerks = await this.settingService.getObj<string[]>('supportClerks', []);
+    return clerks.length > 0 ? clerks : ['Support'];
+  }
+
+  async getSupportIssueCounts(role: UserRole): Promise<Record<SupportIssueInternalState, number>> {
+    const qb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .select('issue.state', 'state')
+      .addSelect('COUNT(*)', 'count')
+      .groupBy('issue.state');
+
+    const departmentByRole = RoleDepartmentMap[role];
+    if (departmentByRole) qb.andWhere('issue.department = :department', { department: departmentByRole });
+
+    const raw: { state: SupportIssueInternalState; count: string }[] = await qb.getRawMany();
+
+    const counts = Object.values(SupportIssueInternalState).reduce(
+      (acc, state) => ({ ...acc, [state]: 0 }),
+      {} as Record<SupportIssueInternalState, number>,
+    );
+    for (const row of raw) counts[row.state] = +row.count;
+
+    return counts;
+  }
+
+  async getSupportIssueActivity(since: Date | undefined, role: UserRole): Promise<{ count: number; latestAt?: Date }> {
+    const departmentByRole = RoleDepartmentMap[role];
+
+    const qb = this.messageRepo
+      .createQueryBuilder('m')
+      .innerJoin('m.issue', 'i')
+      .select('COUNT(*)', 'count')
+      .addSelect('MAX(m.created)', 'latestAt');
+    if (since) qb.andWhere('m.created > :since', { since: since.toISOString() });
+    if (departmentByRole) qb.andWhere('i.department = :department', { department: departmentByRole });
+
+    const raw = await qb.getRawOne<{ count: string | number; latestAt: Date | null }>();
+    return { count: +(raw?.count ?? 0), latestAt: raw?.latestAt ?? undefined };
+  }
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
     if (!dto?.transaction?.orderUid) throw new BadRequestException('JWT Token or quoteUid missing');
@@ -145,9 +192,22 @@ export class SupportIssueService {
       }
 
       // create limit request
-      if (dto.limitRequest) {
-        newIssue.department = Department.COMPLIANCE;
+      if (dto.limitRequest)
         newIssue.limitRequest = await this.limitRequestService.increaseLimitInternal(dto.limitRequest, userData);
+
+      if (
+        !userData.phoneCallStatus &&
+        dto.type === SupportIssueType.VERIFICATION_CALL &&
+        [SupportIssueReason.REJECT_CALL, SupportIssueReason.REPEAT_CALL].includes(dto.reason)
+      ) {
+        await this.userDataService.updateUserDataInternal(userData, {
+          phoneCallStatus:
+            dto.reason === SupportIssueReason.REJECT_CALL
+              ? PhoneCallStatus.USER_REJECTED
+              : dto.reason === SupportIssueReason.REPEAT_CALL
+                ? PhoneCallStatus.REPEAT
+                : undefined,
+        });
       }
     }
 
@@ -168,15 +228,16 @@ export class SupportIssueService {
   }
 
   async updateIssueInternal(entity: SupportIssue, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
-    Object.assign(entity, dto);
-
     await this.supportLogService.createSupportLog(entity.userData, {
-      type: SupportLogType.SUPPORT,
-      supportIssue: entity,
       ...dto,
+      supportIssue: entity,
+      supportIssueType: dto.type,
+      type: SupportLogType.SUPPORT,
     });
 
-    return this.supportIssueRepo.save(entity);
+    await this.supportIssueRepo.update(entity.id, { state: dto.state, clerk: dto.clerk, department: dto.department });
+
+    return Object.assign(entity, dto);
   }
 
   async createMessage(id: string, dto: CreateSupportMessageDto, userDataId?: number): Promise<SupportMessageDto> {
@@ -197,6 +258,118 @@ export class SupportIssueService {
     if (!issue) throw new NotFoundException('Support issue not found');
 
     return this.createMessageInternal(issue, dto);
+  }
+
+  async getSupportIssueList(
+    filter: GetSupportIssueListFilter,
+    role: UserRole,
+  ): Promise<{ data: SupportIssueListDto[]; total: number }> {
+    const where: FindOptionsWhere<SupportIssue> = {};
+
+    // department filtering based on role
+    const departmentByRole = RoleDepartmentMap[role];
+    if (departmentByRole) {
+      where.department = departmentByRole;
+    } else if (filter.department) {
+      where.department = filter.department;
+    }
+
+    if (filter.type) where.type = filter.type;
+
+    // server-side search: split query into terms, each term must match at least one field (AND between terms, OR between fields)
+    const terms = (filter.query ?? '')
+      .split(/\s+/)
+      .map((t) => t.trim())
+      .filter((t) => t.length > 0)
+      .slice(0, 10);
+
+    const qb = this.supportIssueRepo.createQueryBuilder('issue');
+    if (terms.length > 0) qb.leftJoin('issue.userData', 'userData');
+
+    if (where.department) qb.andWhere('issue.department = :department', { department: where.department });
+    if (filter.states?.length) qb.andWhere('issue.state IN (:...states)', { states: filter.states });
+    if (where.type) qb.andWhere('issue.type = :type', { type: where.type });
+
+    const termCount = Math.min(terms.length, 10);
+    for (let i = 0; i < termCount; i++) {
+      const param = `term${i}`;
+      qb.andWhere(
+        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR userData.firstname LIKE :${param} OR userData.surname LIKE :${param} OR userData.organizationName LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m.issueId = issue.id AND m.message LIKE :${param}))`,
+        { [param]: `%${terms[i]}%` },
+      );
+    }
+
+    qb.orderBy('issue.created', 'DESC');
+
+    if (filter.take != null) {
+      qb.take(filter.take);
+      if (filter.skip != null) qb.skip(filter.skip);
+    }
+
+    const [issues, total] = await qb.getManyAndCount();
+
+    const stats = await this.getMessageStats(issues.map((i) => i.id));
+
+    return {
+      data: issues.map((i) => SupportIssueDtoMapper.mapSupportIssueListItem(i, stats.get(i.id))),
+      total,
+    };
+  }
+
+  private async getMessageStats(
+    issueIds: number[],
+  ): Promise<Map<number, { count: number; lastDate?: Date; lastAuthor?: string }>> {
+    if (issueIds.length === 0) return new Map();
+
+    // batched to stay below SQL Server's 2100 parameter limit
+    const rows = await Util.doInBatchesAndJoin(
+      issueIds,
+      (chunk): Promise<{ issueId: string; count: string; lastDate: Date | null; lastAuthor: string | null }[]> =>
+        this.messageRepo
+          .createQueryBuilder('m')
+          .select('m.issueId', 'issueId')
+          .addSelect('COUNT(*)', 'count')
+          .addSelect(
+            (sub) =>
+              sub
+                .select('m2.created')
+                .from(SupportMessage, 'm2')
+                .where('m2.issueId = m.issueId')
+                .orderBy('m2.id', 'DESC')
+                .limit(1),
+            'lastDate',
+          )
+          .addSelect(
+            (sub) =>
+              sub
+                .select('m2.author')
+                .from(SupportMessage, 'm2')
+                .where('m2.issueId = m.issueId')
+                .orderBy('m2.id', 'DESC')
+                .limit(1),
+            'lastAuthor',
+          )
+          .where('m.issueId IN (:...ids)', { ids: chunk })
+          .groupBy('m.issueId')
+          .getRawMany(),
+      1000,
+    );
+
+    return new Map(
+      rows.map((r) => [
+        +r.issueId,
+        { count: +r.count, lastDate: r.lastDate ?? undefined, lastAuthor: r.lastAuthor ?? undefined },
+      ]),
+    );
+  }
+
+  async getIssueEntities(userDataId: number): Promise<SupportIssue[]> {
+    return this.supportIssueRepo.find({
+      where: { userData: { id: userDataId } },
+      relations: { transaction: true, limitRequest: true, messages: true },
+      loadEagerRelations: false,
+      order: { created: 'DESC' },
+    });
   }
 
   async getIssues(userDataId: number): Promise<SupportIssueDto[]> {
@@ -227,13 +400,15 @@ export class SupportIssueService {
     const issue = await this.supportIssueRepo.findOne({
       where: { id },
       relations: {
+        userData: { country: true },
         transaction: {
           user: { wallet: true },
-          buyCrypto: { transaction: true, cryptoInput: true },
-          buyFiat: { transaction: true, cryptoInput: true },
+          buyCrypto: { outputAsset: true, cryptoInput: { asset: true } },
+          buyFiat: { outputAsset: true, cryptoInput: { asset: true } },
         },
         limitRequest: true,
       },
+      loadEagerRelations: false,
     });
     if (!issue) throw new NotFoundException('Support issue not found');
 
@@ -264,6 +439,7 @@ export class SupportIssueService {
 
   async createMessageInternal(issue: SupportIssue, dto: CreateSupportMessageDto): Promise<SupportMessageDto> {
     if (!dto.author) throw new BadRequestException('Author for message is missing');
+    if (!dto.message && !dto.file) throw new BadRequestException('Message or file is required');
     if (dto.message?.length > 4000) throw new BadRequestException('Message has too many characters');
 
     const entity = this.messageRepo.create({ ...dto, issue });

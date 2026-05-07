@@ -1,6 +1,6 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiOkResponse, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { GetConfig } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -27,15 +27,22 @@ export class KycClientController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.CLIENT_COMPANY))
   @ApiOkResponse({ type: PaymentWebhookData, isArray: true })
+  @ApiQuery({ name: 'from', required: false, description: 'Start date filter' })
+  @ApiQuery({ name: 'to', required: false, description: 'End date filter' })
+  @ApiQuery({ name: 'limit', required: false, description: 'Maximum number of results (default/max: 1000)' })
   async getAllPayments(
     @GetJwt() jwt: JwtPayload,
     @Query('from') from: string,
     @Query('to') to: string,
+    @Query('limit') limit?: string,
   ): Promise<PaymentWebhookData[]> {
+    const parsedLimit = Math.min(limit ? parseInt(limit) : 1000, 1000);
+
     return this.kycClientService.getAllPayments(
       jwt.user,
       from ? new Date(from) : undefined,
       to ? new Date(to) : undefined,
+      parsedLimit,
     );
   }
 

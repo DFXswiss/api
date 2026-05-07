@@ -1,6 +1,7 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
+import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BankTxModule } from '../bank-tx/bank-tx.module';
 import { BankModule } from '../bank/bank.module';
@@ -22,6 +23,7 @@ import { TransactionService } from './services/transaction.service';
     forwardRef(() => UserModule),
     forwardRef(() => BankTxModule),
     forwardRef(() => BankModule),
+    forwardRef(() => BuyCryptoModule),
     SharedModule,
     TypeOrmModule.forFeature([Transaction, TransactionRiskAssessment]),
   ],

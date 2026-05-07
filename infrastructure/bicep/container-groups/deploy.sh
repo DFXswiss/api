@@ -9,10 +9,11 @@ API_NAME="api"
 environmentOptions=("loc" "dev" "prd")
 
 # "hb-deuro-usdt": Hummingbot (dEURO/USDT)
-# "hb-deuro-btc":  Hummingbot (dEURO/BTC)
+# "hb-jusd-usdt":  Hummingbot (JuiceDollar/USDT)
 # "hb-deps-usdt":  Hummingbot (dEPS/USDT)
-# "hb-deps-btc":   Hummingbot (dEPS/BTC)
-instanceNameOptions=("hb-deuro-usdt" "hb-deuro-btc" "hb-deps-usdt" "hb-deps-btc")
+# "hb-keep-market": Hummingbot (Cross pair bot to keep a certain 24h volumen)
+# "rk":            RangeKeeper Liquidity Bot
+instanceNameOptions=("hb-deuro-usdt" "hb-jusd-usdt" "hb-deps-usdt" "hb-keep-market" "rk")
 
 # --- ARGUMENTS --- #
 DOCKER_USERNAME=

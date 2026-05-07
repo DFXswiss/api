@@ -132,6 +132,7 @@ export interface ScryptExecutionReport {
   OrdRejReason?: string;
   CxlRejReason?: string;
   Text?: string;
+  SubmitTime?: string;
 }
 
 export interface ScryptOrderResponse {

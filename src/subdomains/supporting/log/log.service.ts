@@ -43,6 +43,26 @@ export class LogService {
     return this.logRepo.findOne({ where: { system, subsystem, severity, valid }, order: { id: 'DESC' } });
   }
 
+  async getFinancialLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
+    return this.logRepo.getFinancialLogs(from, dailySample);
+  }
+
+  async getLatestFinancialLog(): Promise<Log | undefined> {
+    return this.logRepo.getLatestFinancialLog();
+  }
+
+  async getLatestFinancialChangesLog(): Promise<Log | undefined> {
+    return this.logRepo.getLatestFinancialChangesLog();
+  }
+
+  async getFinancialChangesLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
+    return this.logRepo.getFinancialChangesLogs(from, dailySample);
+  }
+
+  async getFinancialLogAt(targetDate: Date, direction: 'before' | 'after'): Promise<Log | undefined> {
+    return this.logRepo.getFinancialLogAt(targetDate, direction);
+  }
+
   async getBankLog(batchId: string): Promise<Log> {
     return this.logRepo
       .createQueryBuilder('log')

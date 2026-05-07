@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
+import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -12,6 +13,7 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { createCustomBuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { createCustomLiquidityBalance } from 'src/subdomains/core/liquidity-management/__mocks__/liquidity-balance.entity.mock';
+import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { createCustomBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { createCustomSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -46,6 +48,7 @@ describe('FiatOutputJobService', () => {
   let yapealService: YapealService;
   let olkypayService: OlkypayService;
   let virtualIbanService: VirtualIbanService;
+  let scryptService: ScryptService;
 
   beforeEach(async () => {
     fiatOutputRepo = createMock<FiatOutputRepository>();
@@ -60,6 +63,7 @@ describe('FiatOutputJobService', () => {
     yapealService = createMock<YapealService>();
     olkypayService = createMock<OlkypayService>();
     virtualIbanService = createMock<VirtualIbanService>();
+    scryptService = createMock<ScryptService>();
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
 
     // Default mock: no virtual IBANs
@@ -71,6 +75,7 @@ describe('FiatOutputJobService', () => {
       providers: [
         FiatOutputJobService,
         { provide: FiatOutputRepository, useValue: fiatOutputRepo },
+        { provide: BuyFiatRepository, useValue: createMock<BuyFiatRepository>() },
         { provide: BankTxService, useValue: bankTxService },
         { provide: Ep2ReportService, useValue: ep2ReportService },
         { provide: CountryService, useValue: countryService },
@@ -82,6 +87,7 @@ describe('FiatOutputJobService', () => {
         { provide: YapealService, useValue: yapealService },
         { provide: OlkypayService, useValue: olkypayService },
         { provide: VirtualIbanService, useValue: virtualIbanService },
+        { provide: ScryptService, useValue: scryptService },
 
         TestUtil.provideConfig(),
       ],

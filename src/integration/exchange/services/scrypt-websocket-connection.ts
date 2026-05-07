@@ -16,10 +16,12 @@ interface ScryptMessage {
   initial?: boolean;
   seqNum?: number;
   error?: string;
+  next?: string;
 }
 
 export enum ScryptMessageType {
   NEW_WITHDRAW_REQUEST = 'NewWithdrawRequest',
+  NEW_DEPOSIT_REQUEST = 'NewDepositRequest',
   BALANCE_TRANSACTION = 'BalanceTransaction',
   BALANCE = 'Balance',
   TRADE = 'Trade',
@@ -38,6 +40,13 @@ export enum ScryptMessageType {
 enum ScryptRequestType {
   SUBSCRIBE = 'subscribe',
   UNSUBSCRIBE = 'unsubscribe',
+  PAGE = 'page',
+}
+
+export const TRANSIENT_WS_ERROR_MARKERS = ['Connection closed', 'unknown reqid'];
+
+export function isTransientWsError(e: Error): boolean {
+  return TRANSIENT_WS_ERROR_MARKERS.some((m) => e.message?.toLowerCase().includes(m.toLowerCase()));
 }
 
 interface ScryptRequest {
@@ -81,19 +90,71 @@ export class ScryptWebSocketConnection {
 
   // --- PUBLIC METHODS --- //
 
+  async send(type: ScryptMessageType, data: any[]): Promise<void> {
+    return this.notify({ type, data });
+  }
+
   async fetch<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
-    const response = await this.request({
-      type: ScryptRequestType.SUBSCRIBE,
-      streams: [{ name: streamName, ...filters }],
-    });
+    const doFetch = async (): Promise<T[]> => {
+      const response = await this.request({
+        type: ScryptRequestType.SUBSCRIBE,
+        streams: [{ name: streamName, ...filters }],
+      });
 
-    if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
+      if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
 
-    return (response.data ?? []) as T[];
+      return (response.data ?? []) as T[];
+    };
+
+    return this.retryOnTransientWsError(doFetch, `fetch ${streamName}`);
+  }
+
+  async fetchAll<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
+    const doFetch = async (): Promise<T[]> => {
+      const allData: T[] = [];
+      const reqId = ++this.reqIdCounter;
+
+      // First request
+      let response = await this.requestWithId(reqId, {
+        type: ScryptRequestType.SUBSCRIBE,
+        streams: [{ name: streamName, ...filters }],
+      });
+
+      if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
+
+      allData.push(...((response.data ?? []) as T[]));
+
+      // Paginate through all pages
+      while (response.next) {
+        response = await this.requestWithId(reqId, {
+          type: ScryptRequestType.PAGE,
+          streams: [{ name: streamName, after: response.next }],
+        });
+
+        allData.push(...((response.data ?? []) as T[]));
+      }
+
+      return allData;
+    };
+
+    return this.retryOnTransientWsError(doFetch, `fetchAll ${streamName}`);
+  }
+
+  private async retryOnTransientWsError<T>(operation: () => Promise<T>, label: string): Promise<T> {
+    try {
+      return await operation();
+    } catch (error) {
+      if (isTransientWsError(error)) {
+        this.logger.warn(`Retrying ${label} after transient error: ${error.message}`);
+        return operation();
+      }
+      throw error;
+    }
   }
 
   async requestAndWaitForUpdate<T>(
-    request: ScryptRequest,
+    type: ScryptMessageType,
+    data: any[],
     streamName: ScryptMessageType,
     matcher: (data: T[]) => T | null,
     timeoutMs: number,
@@ -113,7 +174,7 @@ export class ScryptWebSocketConnection {
         }
       });
 
-      this.request(request, timeoutMs).catch((error) => {
+      this.request({ type, data }, timeoutMs).catch((error) => {
         clearTimeout(timeoutId);
         unsubscribe();
         reject(error);
@@ -242,10 +303,23 @@ export class ScryptWebSocketConnection {
 
   // --- REQUEST/RESPONSE --- //
 
-  private async request(message: ScryptRequest, timeoutMs = 30000): Promise<ScryptMessage> {
+  private async notify(message: ScryptRequest): Promise<void> {
     const ws = await this.ensureConnected();
 
     const reqId = ++this.reqIdCounter;
+    const request: ScryptRequest = { ...message, reqid: reqId };
+
+    ws.send(JSON.stringify(request));
+  }
+
+  private async request(message: ScryptRequest, timeoutMs = 30000): Promise<ScryptMessage> {
+    const reqId = ++this.reqIdCounter;
+    return this.requestWithId(reqId, message, timeoutMs);
+  }
+
+  private async requestWithId(reqId: number, message: ScryptRequest, timeoutMs = 30000): Promise<ScryptMessage> {
+    const ws = await this.ensureConnected();
+
     const request: ScryptRequest = { ...message, reqid: reqId };
 
     return new Promise((resolve, reject) => {

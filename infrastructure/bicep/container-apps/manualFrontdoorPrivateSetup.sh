@@ -8,7 +8,8 @@ set -e
 environmentOptions=("loc" "dev" "prd")
 
 # "rup": RealUnit Ponder
-appNameOptions=("rup")
+# "nbt": Nanobot
+appNameOptions=("rup" "nbt")
 
 # --- FUNCTIONS --- #
 selectOption() {

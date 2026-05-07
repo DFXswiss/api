@@ -1024,6 +1024,7 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.CARD_NAME_MISMATCH]: DeclineCategory.OTHER,
   [AmlReason.USER_BLOCKED]: DeclineCategory.OTHER,
   [AmlReason.USER_DATA_BLOCKED]: DeclineCategory.OTHER,
+  [AmlReason.USER_DATA_SUSPICIOUS]: DeclineCategory.RISKY,
   [AmlReason.USER_DELETED]: DeclineCategory.OTHER,
   [AmlReason.VIDEO_IDENT_NEEDED]: DeclineCategory.OTHER,
   [AmlReason.MISSING_LIQUIDITY]: DeclineCategory.OTHER,
@@ -1034,10 +1035,13 @@ export const SiftAmlDeclineMap: { [method in AmlReason]: DeclineCategory } = {
   [AmlReason.MANUAL_CHECK_PHONE]: DeclineCategory.RISKY,
   [AmlReason.MANUAL_CHECK_IP_PHONE]: DeclineCategory.RISKY,
   [AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE]: DeclineCategory.RISKY,
+  [AmlReason.MANUAL_CHECK_PHONE_FAILED]: DeclineCategory.RISKY,
   [AmlReason.BANK_RELEASE_PENDING]: DeclineCategory.OTHER,
   [AmlReason.VIRTUAL_IBAN_USER_MISMATCH]: DeclineCategory.RISKY,
   [AmlReason.INTERMEDIARY_WITHOUT_SENDER]: DeclineCategory.RISKY,
   [AmlReason.NAME_TOO_SHORT]: DeclineCategory.OTHER,
+  [AmlReason.ASSET_INPUT_NOT_ALLOWED]: DeclineCategory.INVALID,
+  [AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE]: DeclineCategory.RISKY,
 };
 
 export interface ScoreRsponse {

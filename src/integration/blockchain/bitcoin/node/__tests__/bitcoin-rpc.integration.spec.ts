@@ -14,12 +14,12 @@
  *   npm run test -- --testPathPattern=bitcoin-rpc.integration
  */
 
-import { Test, TestingModule } from '@nestjs/testing';
-import { ConfigModule } from '@nestjs/config';
-import { BitcoinService, BitcoinNodeType } from '../bitcoin.service';
-import { BitcoinClient } from '../bitcoin-client';
 import { HttpModule } from '@nestjs/axios';
+import { ConfigModule } from '@nestjs/config';
+import { Test, TestingModule } from '@nestjs/testing';
 import { HttpService } from 'src/shared/services/http.service';
+import { BitcoinNodeType, BitcoinService } from '../../services/bitcoin.service';
+import { BitcoinClient } from '../bitcoin-client';
 
 // Skip tests if no Bitcoin node is configured
 const SKIP_INTEGRATION_TESTS = !process.env.NODE_BTC_INP_URL_ACTIVE;

@@ -22,9 +22,10 @@ import {
   LnurlpLinkUpdateDto,
 } from './dto/lnurlp.dto';
 import { LnurlWithdrawRequestDto, LnurlwInvoiceDto, LnurlwLinkDto, LnurlwLinkRemoveDto } from './dto/lnurlw.dto';
+import { CoinOnly } from 'src/integration/blockchain/shared/util/blockchain-client';
 import { LightningHelper } from './lightning-helper';
 
-export class LightningClient {
+export class LightningClient implements CoinOnly {
   constructor(private readonly http: HttpService) {}
 
   // --- LND --- //
@@ -69,6 +70,10 @@ export class LightningClient {
     );
   }
 
+  async getNativeCoinBalance(): Promise<number> {
+    return this.getBalance();
+  }
+
   async getBalance(): Promise<number> {
     const channels = await this.getChannels();
 
@@ -94,7 +99,7 @@ export class LightningClient {
   }
 
   async getLndRoutes(publicKey: string, amount: number): Promise<LndRouteDto[]> {
-    const amountInSat = LightningHelper.btcToSat(amount);
+    const amountInSat = Math.ceil(LightningHelper.btcToSat(amount));
 
     return this.http
       .get<{
@@ -139,7 +144,7 @@ export class LightningClient {
       `${Config.blockchain.lightning.lnd.apiUrl}/channels/transactions`,
       {
         dest: Buffer.from(publicKey, 'hex').toString('base64'),
-        amt: LightningHelper.btcToSat(amount),
+        amt: Math.round(LightningHelper.btcToSat(amount)),
         final_cltv_delta: 0,
         payment_hash: paymentHash,
         dest_custom_records: { 5482373484: preImage.toString('base64') },

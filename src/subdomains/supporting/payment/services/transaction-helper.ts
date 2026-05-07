@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Inject, Injectable, OnModuleInit, forwardRef } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, forwardRef, Inject, Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config, Environment } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -9,6 +9,8 @@ import { Active, amountType, feeAmountType, isAsset, isFiat } from 'src/shared/m
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
+import { Country } from 'src/shared/models/country/country.entity';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -38,7 +40,7 @@ import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { CryptoInput, PayInConfirmationType } from '../../payin/entities/crypto-input.entity';
 import { PriceCurrency, PriceValidity, PricingService } from '../../pricing/services/pricing.service';
-import { FeeDto, InternalFeeDto } from '../dto/fee.dto';
+import { FeeAmountsDto, FeeInfo, FeeSpec, InternalFeeDto, toFeeDto } from '../dto/fee.dto';
 import { FiatPaymentMethod, PaymentMethod } from '../dto/payment-method.enum';
 import { QuoteError } from '../dto/transaction-helper/quote-error.enum';
 import { TargetEstimation, TransactionDetails } from '../dto/transaction-helper/transaction-details.dto';
@@ -74,6 +76,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly transactionService: TransactionService,
     private readonly buyService: BuyService,
     private readonly assetService: AssetService,
+    private readonly countryService: CountryService,
   ) {}
 
   onModuleInit() {
@@ -197,7 +200,7 @@ export class TransactionHelper implements OnModuleInit {
     bankIn: CardBankName | IbanBankName | undefined,
     bankOut: CardBankName | IbanBankName | undefined,
     user: User,
-  ): Promise<InternalFeeDto & FeeDto> {
+  ): Promise<InternalFeeDto> {
     // get fee
     const [fee, networkStartFee] = await this.getAllFees(
       user,
@@ -219,30 +222,28 @@ export class TransactionHelper implements OnModuleInit {
     const specs: TxSpec = {
       fee: {
         min: minSpecs.minFee,
-        fixed: fee.fixed,
         network: fee.network,
         networkStart: networkStartFee,
-        bankFixed: fee.bankFixed,
+        dfx: fee.dfx,
+        bank: fee.bank,
+        partner: fee.partner,
       },
       volume: { min: minSpecs.minVolume, max: Number.MAX_VALUE },
     };
 
     const sourceSpecs = await this.getSourceSpecs(fromReference, specs, PriceValidity.VALID_ONLY);
 
-    const { dfx, bank, total } = this.calculateTotalFee(
-      inputReferenceAmount,
-      fee.rate,
-      fee.bankRate,
-      sourceSpecs,
-      from,
-    );
+    const amounts = this.calculateTotalFee(inputReferenceAmount, sourceSpecs, from);
+
+    const feeDto = toFeeDto(amounts, sourceSpecs);
 
     return {
-      ...fee,
-      ...sourceSpecs.fee,
-      total,
-      dfx,
-      bank,
+      ...feeDto,
+      fees: fee.fees,
+      partner: amounts.partner,
+      bankFixed: amounts.bankFixed,
+      bankPercent: amounts.bankPercent,
+      payoutRefBonus: fee.payoutRefBonus,
     };
   }
 
@@ -258,6 +259,7 @@ export class TransactionHelper implements OnModuleInit {
     walletName?: string,
     specialCodes: string[] = [],
     ibanCountry?: string,
+    country?: string,
   ): Promise<TransactionDetails> {
     const priceValidity = exactPrice ? PriceValidity.PREFER_VALID : PriceValidity.ANY;
 
@@ -291,9 +293,11 @@ export class TransactionHelper implements OnModuleInit {
     // get specs (CHF)
     const specs = this.getMinSpecs(from, to);
 
-    const { kycLimit, defaultLimit } = await this.getLimits(paymentMethodIn, paymentMethodOut, user);
+    const { kycLimit, defaultLimit } = await this.getLimits(from, to, paymentMethodIn, paymentMethodOut, user);
 
-    const error = this.getTxError(
+    const resolvedCountry = country ? await this.countryService.getCountryWithSymbol(country) : undefined;
+
+    const errors = this.getTxErrors(
       from,
       to,
       paymentMethodIn,
@@ -303,20 +307,22 @@ export class TransactionHelper implements OnModuleInit {
       kycLimit,
       user,
       ibanCountry,
+      resolvedCountry,
     );
 
     // target estimation
     const extendedSpecs: TxSpec = {
       fee: {
-        network: fee.network,
-        fixed: fee.fixed,
         min: specs.minFee,
+        network: fee.network,
         networkStart: networkStartFee,
-        bankFixed: fee.bankFixed,
+        dfx: fee.dfx,
+        bank: fee.bank,
+        partner: fee.partner,
       },
       volume: {
         min: specs.minVolume,
-        max: error === QuoteError.LIMIT_EXCEEDED ? kycLimit : Math.min(kycLimit, defaultLimit),
+        max: errors.includes(QuoteError.LIMIT_EXCEEDED) ? kycLimit : Math.min(kycLimit, defaultLimit),
       },
     };
 
@@ -328,8 +334,6 @@ export class TransactionHelper implements OnModuleInit {
     const target = await this.getTargetEstimation(
       sourceAmount,
       targetAmount,
-      fee.rate,
-      fee.bankRate,
       sourceSpecs,
       targetSpecs,
       from,
@@ -343,8 +347,9 @@ export class TransactionHelper implements OnModuleInit {
       minVolumeTarget: targetSpecs.volume.min,
       maxVolume: sourceSpecs.volume.max ?? undefined,
       maxVolumeTarget: targetSpecs.volume.max ?? undefined,
-      isValid: error == null,
-      error,
+      isValid: !errors.length,
+      error: errors[0],
+      errors,
     };
   }
 
@@ -399,16 +404,12 @@ export class TransactionHelper implements OnModuleInit {
     refundTarget: string,
     isFiat: boolean,
   ): Promise<RefundDataDto> {
-    const inputCurrency = await this.getRefundActive(refundEntity);
+    const inputCurrency = await this.getRefundInputCurrency(refundEntity);
     if (!inputCurrency.refundEnabled) throw new BadRequestException(`Refund for ${inputCurrency.name} not allowed`);
 
-    // CHF refunds only to domestic IBANs
-    const refundCurrency =
-      isFiat && inputCurrency.name === 'CHF' && refundTarget && !Config.isDomesticIban(refundTarget)
-        ? await this.fiatService.getFiatByName('EUR')
-        : inputCurrency;
+    const refundCurrency = await this.getRefundCurrency(inputCurrency, refundTarget);
 
-    const price =
+    const chfPrice =
       refundEntity.manualChfPrice ??
       (await this.pricingService.getPrice(PriceCurrency.CHF, inputCurrency, PriceValidity.PREFER_VALID));
 
@@ -419,7 +420,7 @@ export class TransactionHelper implements OnModuleInit {
 
     const chargebackFee = await this.feeService.getChargebackFee({
       from: inputCurrency,
-      txVolume: price.invert().convert(inputAmount),
+      txVolume: chfPrice.invert().convert(inputAmount),
       paymentMethodIn: refundEntity.paymentMethodIn,
       bankIn,
       specialCodes: [],
@@ -427,17 +428,17 @@ export class TransactionHelper implements OnModuleInit {
       userData,
     });
 
-    const dfxFeeAmount = inputAmount * chargebackFee.rate + price.convert(chargebackFee.fixed);
+    const dfxFeeAmount = inputAmount * chargebackFee.dfx.rate + chfPrice.convert(chargebackFee.dfx.fixed);
 
-    let networkFeeAmount = price.convert(chargebackFee.network);
+    let networkFeeAmount = chfPrice.convert(chargebackFee.network);
 
     if (isAsset(inputCurrency) && inputCurrency.blockchain === Blockchain.SOLANA)
       networkFeeAmount += await this.getSolanaRentExemptionFee(inputCurrency);
 
     const bankFeeAmount =
       refundEntity.paymentMethodIn === FiatPaymentMethod.BANK
-        ? price.convert(
-            chargebackFee.bankRate * inputAmount + chargebackFee.bankFixed + refundEntity.chargebackBankFee * 1.01,
+        ? chfPrice.convert(
+            chargebackFee.bank.rate * inputAmount + chargebackFee.bank.fixed + refundEntity.chargebackBankFee * 1.01,
           )
         : 0; // Bank fee buffer 1%
 
@@ -452,7 +453,7 @@ export class TransactionHelper implements OnModuleInit {
     // convert to refund currency
     const refundPrice = await this.pricingService.getPrice(inputCurrency, refundCurrency, PriceValidity.VALID_ONLY);
 
-    const refundAmount = Util.roundReadable(refundPrice.convert(inputAmount - totalFeeAmount), amountType);
+    const targetRefundAmount = Util.roundReadable(refundPrice.convert(inputAmount - totalFeeAmount), amountType);
     const feeDfx = Util.roundReadable(refundPrice.convert(dfxFeeAmount), feeAmountType);
     const feeNetwork = Util.roundReadable(refundPrice.convert(networkFeeAmount), feeAmountType);
     const feeBank = Util.roundReadable(refundPrice.convert(bankFeeAmount), feeAmountType);
@@ -464,7 +465,9 @@ export class TransactionHelper implements OnModuleInit {
       expiryDate: Util.secondsAfter(Config.transactionRefundExpirySeconds),
       inputAmount: Util.roundReadable(inputAmount, amountType),
       inputAsset,
-      refundAmount,
+      refundAmount:
+        inputAsset.id !== refundAsset.id ? targetRefundAmount : Math.min(refundEntity.refundAmount, targetRefundAmount),
+      refundPrice,
       fee: {
         dfx: feeDfx,
         network: feeNetwork,
@@ -502,6 +505,7 @@ export class TransactionHelper implements OnModuleInit {
       buyCrypto: { buy: { user: { wallet: true } }, cryptoRoute: true, cryptoInput: true },
       buyFiat: { sell: true, cryptoInput: true },
       refReward: { user: { userData: true } },
+      bankTxReturn: true,
       request: true,
     };
 
@@ -514,12 +518,24 @@ export class TransactionHelper implements OnModuleInit {
     if (!transaction.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
     if (transaction.userData.id !== userDataId) throw new ForbiddenException('Not your transaction');
 
-    // Handle pending transactions (no targetEntity yet, but has request)
-    if (!transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn) {
+    // Handle pending or refunded transactions (no targetEntity yet, or has bankTxReturn)
+    if (!transaction.targetEntity || transaction.targetEntity instanceof BankTxReturn || transaction.bankTxReturn) {
       if (statementType === TxStatementType.RECEIPT)
-        throw new BadRequestException('Receipt not available for pending transactions');
-      if (!transaction.request) throw new BadRequestException('Transaction not found');
-      return this.getTxStatementDetailsFromRequest(transaction, statementType);
+        throw new BadRequestException('Receipt not available for returned transactions');
+      if (transaction.request) return this.getTxStatementDetailsFromRequest(transaction, statementType);
+
+      // Refunded transactions without request: build details from buyCrypto data
+      if (transaction.buyCrypto && !transaction.buyCrypto.isCryptoCryptoTransaction) {
+        const fiat = await this.fiatService.getFiatByName(transaction.buyCrypto.inputAsset);
+        return {
+          statementType,
+          transactionType: TransactionType.BUY,
+          transaction,
+          currency: fiat.name,
+        };
+      }
+
+      throw new BadRequestException('Invoice data not available for this transaction');
     }
 
     if (statementType === TxStatementType.RECEIPT && !transaction.targetEntity.isComplete)
@@ -630,7 +646,17 @@ export class TransactionHelper implements OnModuleInit {
     };
   }
 
-  async getRefundActive(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): Promise<Active> {
+  async getRefundCurrency(inputCurrency: Active, refundTarget: string): Promise<Active> {
+    // CHF refunds only to domestic IBANs
+    return isFiat(inputCurrency) &&
+      inputCurrency?.name === 'CHF' &&
+      refundTarget &&
+      !Config.isDomesticIban(refundTarget)
+      ? this.fiatService.getFiatByName('EUR')
+      : inputCurrency;
+  }
+
+  async getRefundInputCurrency(refundEntity: BankTx | BuyCrypto | BuyFiat | BankTxReturn): Promise<Active> {
     if (refundEntity instanceof BankTxReturn) return this.fiatService.getFiatByName(refundEntity.bankTx.currency);
     if (refundEntity instanceof BankTx) return this.fiatService.getFiatByName(refundEntity.currency);
     if (refundEntity instanceof BuyCrypto && refundEntity.bankTx)
@@ -652,7 +678,7 @@ export class TransactionHelper implements OnModuleInit {
     specialCodes: string[],
     exactPrice: boolean,
     allowCachedBlockchainFee: boolean,
-  ): Promise<[InternalFeeDto, number]> {
+  ): Promise<[FeeInfo, number]> {
     const [fee, networkStartFee] = await Promise.all([
       this.getTxFee(
         user,
@@ -754,7 +780,7 @@ export class TransactionHelper implements OnModuleInit {
     txVolumeChf: number,
     specialCodes: string[],
     allowCachedBlockchainFee: boolean,
-  ): Promise<InternalFeeDto> {
+  ): Promise<FeeInfo> {
     const feeRequest: UserFeeRequest = {
       user,
       wallet,
@@ -775,8 +801,6 @@ export class TransactionHelper implements OnModuleInit {
   private async getTargetEstimation(
     inputAmount: number | undefined,
     outputAmount: number | undefined,
-    feeRate: number,
-    bankFeeRate: number,
     sourceSpecs: TxSpec,
     targetSpecs: TxSpec,
     from: Active,
@@ -786,14 +810,17 @@ export class TransactionHelper implements OnModuleInit {
     const price = await this.pricingService.getPrice(from, to, priceValidity);
     const outputAmountSource = outputAmount && price.invert().convert(outputAmount);
 
-    const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, feeRate, bankFeeRate, sourceSpecs);
-    const sourceFees = this.calculateTotalFee(sourceAmount, feeRate, bankFeeRate, sourceSpecs, from);
+    const sourceAmount = inputAmount ?? this.getInputAmount(outputAmountSource, sourceSpecs);
+    const sourceFees = this.calculateTotalFee(sourceAmount, sourceSpecs, from);
 
     const targetAmount = outputAmount ?? price.convert(Math.max(inputAmount - sourceFees.total, 0));
-    const targetFees = {
+    const targetFees: FeeAmountsDto = {
       dfx: this.convertFee(sourceFees.dfx, price, to),
-      total: this.convertFee(sourceFees.total, price, to),
       bank: this.convertFee(sourceFees.bank, price, to),
+      bankFixed: this.convertFee(sourceFees.bankFixed, price, to),
+      bankPercent: this.convertFee(sourceFees.bankPercent, price, to),
+      partner: this.convertFee(sourceFees.partner, price, to),
+      total: this.convertFee(sourceFees.total, price, to),
     };
 
     return {
@@ -804,27 +831,20 @@ export class TransactionHelper implements OnModuleInit {
       estimatedAmount: Util.roundReadable(targetAmount, amountType(to)),
       exactPrice: price.isValid,
       priceSteps: price.steps,
-      feeSource: {
-        rate: feeRate,
-        ...sourceSpecs.fee,
-        ...sourceFees,
-      },
-      feeTarget: {
-        rate: feeRate,
-        ...targetSpecs.fee,
-        ...targetFees,
-      },
+      feeSource: toFeeDto(sourceFees, sourceSpecs),
+      feeTarget: toFeeDto(targetFees, targetSpecs),
     };
   }
 
   private getInputAmount(
     outputAmount: number,
-    rate: number,
-    bankRate: number,
-    { fee: { min, fixed, network, bankFixed, networkStart } }: TxSpec,
+    { fee: { min, network, dfx, bank, partner, networkStart } }: TxSpec,
   ): number {
-    const inputAmountNormal = (outputAmount + fixed + network + bankFixed + networkStart) / (1 - (rate + bankRate));
-    const inputAmountWithMinFee = outputAmount + network + bankFixed + networkStart + min;
+    const inputAmountNormal =
+      (outputAmount + dfx.fixed + bank.fixed + partner.fixed + network + networkStart) /
+      (1 - (dfx.rate + bank.rate + partner.rate));
+    const inputAmountWithMinFee =
+      (outputAmount + network + bank.fixed + partner.fixed + networkStart + min) / (1 - (bank.rate + partner.rate));
 
     return Math.max(inputAmountNormal, inputAmountWithMinFee);
   }
@@ -850,8 +870,9 @@ export class TransactionHelper implements OnModuleInit {
     return {
       fee: {
         min: this.convertFee(fee.min, price, from),
-        fixed: this.convertFee(fee.fixed, price, from),
-        bankFixed: fee.bankFixed, // no conversion - 1 CHF/EUR/USD = 1 unit
+        dfx: this.convertFeeSpec(fee.dfx, price, from),
+        bank: { rate: fee.bank.rate, fixed: fee.bank.fixed }, // no conversion - 1 CHF/EUR/USD = 1 unit
+        partner: this.convertFeeSpec(fee.partner, price, from),
         network: this.convertFee(fee.network, price, from),
         networkStart: fee.networkStart != null ? this.convertFee(fee.networkStart, price, from) : undefined,
       },
@@ -868,8 +889,9 @@ export class TransactionHelper implements OnModuleInit {
     return {
       fee: {
         min: this.convertFee(fee.min, price, to),
-        fixed: this.convertFee(fee.fixed, price, to),
-        bankFixed: fee.bankFixed, // no conversion - 1 CHF/EUR/USD = 1 unit
+        dfx: this.convertFeeSpec(fee.dfx, price, to),
+        bank: { rate: fee.bank.rate, fixed: fee.bank.fixed }, // no conversion - 1 CHF/EUR/USD = 1 unit
+        partner: this.convertFeeSpec(fee.partner, price, to),
         network: this.convertFee(fee.network, price, to),
         networkStart: fee.networkStart != null ? this.convertFee(fee.networkStart, price, to) : undefined,
       },
@@ -882,25 +904,37 @@ export class TransactionHelper implements OnModuleInit {
 
   private calculateTotalFee(
     amount: number,
-    rate: number,
-    bankRate: number,
-    { fee: { fixed, min, network, networkStart, bankFixed } }: TxSpec,
+    { fee: { min, network, networkStart, dfx, bank, partner } }: TxSpec,
     roundingActive: Active,
-  ): { dfx: number; bank: number; total: number } {
-    const bank = amount * bankRate + bankFixed;
-    const dfx = Math.max(amount * rate + fixed, min);
-    const total = dfx + bank + network + (networkStart ?? 0);
+  ): FeeAmountsDto {
+    const dfxAmount = Math.max(this.calculateFee(amount, dfx), min);
+    const bankPercentAmount = amount * bank.rate;
+    const bankFixedAmount = bank.fixed;
+    const bankAmount = bankPercentAmount + bankFixedAmount;
+    const partnerAmount = this.calculateFee(amount, partner);
+    const totalAmount = dfxAmount + partnerAmount + bankAmount + network + (networkStart ?? 0);
 
     return {
-      dfx: Util.roundReadable(dfx, feeAmountType(roundingActive)),
-      bank: Util.roundReadable(bank, feeAmountType(roundingActive)),
-      total: Util.roundReadable(total, feeAmountType(roundingActive)),
+      dfx: Util.roundReadable(dfxAmount, feeAmountType(roundingActive)),
+      bank: Util.roundReadable(bankAmount, feeAmountType(roundingActive)),
+      bankFixed: Util.roundReadable(bankFixedAmount, feeAmountType(roundingActive)),
+      bankPercent: Util.roundReadable(bankPercentAmount, feeAmountType(roundingActive)),
+      partner: Util.roundReadable(partnerAmount, feeAmountType(roundingActive)),
+      total: Util.roundReadable(totalAmount, feeAmountType(roundingActive)),
     };
+  }
+
+  private calculateFee(amount: number, spec: FeeSpec): number {
+    return amount * spec.rate + spec.fixed;
   }
 
   private convert(amount: number, price: Price, roundingActive: Active): number {
     const targetAmount = price.convert(amount);
     return Util.roundReadable(targetAmount, amountType(roundingActive));
+  }
+
+  private convertFeeSpec(spec: FeeSpec, price: Price, roundingActive: Active): FeeSpec {
+    return { rate: spec.rate, fixed: this.convertFee(spec.fixed, price, roundingActive) };
   }
 
   private convertFee(amount: number, price: Price, roundingActive: Active): number {
@@ -913,10 +947,17 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   private async getLimits(
+    from: Active,
+    to: Active,
     paymentMethodIn: PaymentMethod,
     paymentMethodOut: PaymentMethod,
     user?: User,
   ): Promise<{ kycLimit: number; defaultLimit: number }> {
+    const isSellingRealUnitForFiat = isAsset(from) && from.name === 'REALU' && isFiat(to);
+    if (this.isRealUnitTransaction(from, to) && !isSellingRealUnitForFiat) {
+      return { kycLimit: Number.MAX_VALUE, defaultLimit: Number.MAX_VALUE };
+    }
+
     const volume30d =
       user?.userData.kycLevel < KycLevel.LEVEL_50
         ? await this.user30dVolumeCache.get(user.id.toString(), () =>
@@ -933,7 +974,7 @@ export class TransactionHelper implements OnModuleInit {
     return { kycLimit: Math.max(0, kycLimit), defaultLimit };
   }
 
-  private getTxError(
+  private getTxErrors(
     from: Active,
     to: Active,
     paymentMethodIn: PaymentMethod,
@@ -943,45 +984,55 @@ export class TransactionHelper implements OnModuleInit {
     kycLimitChf: number,
     user?: User,
     ibanCountry?: string,
-  ): QuoteError | undefined {
+    country?: Country,
+  ): QuoteError[] {
+    const errors: QuoteError[] = [];
     const nationality = user?.userData.nationality;
     const isBuy = isFiat(from) && isAsset(to);
     const isSell = isAsset(from) && isFiat(to);
     const isSwap = isAsset(from) && isAsset(to);
+    const isRealUnit = this.isRealUnitTransaction(from, to);
 
+    // Skip all checks for test environments with SKIP_AML_CHECK
     if (
       user?.wallet.amlRuleList.includes(AmlRule.SKIP_AML_CHECK) &&
       [Environment.LOC, Environment.DEV].includes(Config.environment)
     )
-      return;
+      return [];
 
+    // Trade approval check (mutually exclusive: EMAIL_REQUIRED or RECOMMENDATION_REQUIRED)
     if (
       !DisabledProcess(Process.TRADE_APPROVAL_DATE) &&
       user?.userData &&
       !user.userData.tradeApprovalDate &&
       !user.wallet.autoTradeApproval
     ) {
-      return user.userData.kycLevel >= KycLevel.LEVEL_10
-        ? QuoteError.RECOMMENDATION_REQUIRED
-        : QuoteError.EMAIL_REQUIRED;
+      errors.push(
+        user.userData.kycLevel >= KycLevel.LEVEL_10 ? QuoteError.RECOMMENDATION_REQUIRED : QuoteError.EMAIL_REQUIRED,
+      );
     }
 
     // Credit card payments disabled
-    if (paymentMethodIn === FiatPaymentMethod.CARD) return QuoteError.PAYMENT_METHOD_NOT_ALLOWED;
+    if (paymentMethodIn === FiatPaymentMethod.CARD) errors.push(QuoteError.PAYMENT_METHOD_NOT_ALLOWED);
 
-    if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) return QuoteError.IBAN_CURRENCY_MISMATCH;
+    // IBAN country check
+    if (isSell && ibanCountry && !to.isIbanCountryAllowed(ibanCountry)) errors.push(QuoteError.IBAN_CURRENCY_MISMATCH);
 
+    // Country restriction check (address country)
+    if (country && !country.dfxEnable) errors.push(QuoteError.COUNTRY_NOT_ALLOWED);
+
+    // Nationality check
     if (nationality && ((isBuy && !nationality.bankEnable) || ((isSell || isSwap) && !nationality.cryptoEnable)))
-      return QuoteError.NATIONALITY_NOT_ALLOWED;
+      errors.push(QuoteError.NATIONALITY_NOT_ALLOWED);
 
-    // KYC checks
+    // KYC checks - AML rules
     const amlRuleError = AmlHelperService.amlRuleQuoteCheck(
       [from.amlRuleFrom, to.amlRuleTo, nationality?.amlRule],
       user?.wallet.exceptAmlRuleList,
       user,
       paymentMethodIn,
     );
-    if (amlRuleError) return amlRuleError;
+    if (amlRuleError) errors.push(amlRuleError);
 
     const walletAmlRuleError =
       isBuy &&
@@ -991,34 +1042,38 @@ export class TransactionHelper implements OnModuleInit {
         user,
         paymentMethodIn,
       );
-    if (walletAmlRuleError) return walletAmlRuleError;
+    if (walletAmlRuleError) errors.push(walletAmlRuleError);
 
+    // KYC level checks
     if (isSwap && user?.userData.kycLevel < KycLevel.LEVEL_30 && user?.userData.status !== UserDataStatus.ACTIVE)
-      return QuoteError.KYC_REQUIRED;
+      errors.push(QuoteError.KYC_REQUIRED);
 
     if ((isSell || isSwap) && user?.userData.kycLevel < KycLevel.LEVEL_30 && from.dexName === 'XMR')
-      return QuoteError.KYC_REQUIRED;
+      errors.push(QuoteError.KYC_REQUIRED);
 
     if (paymentMethodIn === FiatPaymentMethod.INSTANT && user && !user.userData.olkypayAllowed)
-      return QuoteError.KYC_REQUIRED_INSTANT;
+      errors.push(QuoteError.KYC_REQUIRED_INSTANT);
 
-    if (isSell && user && !user.userData.isDataComplete) return QuoteError.KYC_DATA_REQUIRED;
+    if (isSell && user && !user.userData.isDataComplete) errors.push(QuoteError.KYC_DATA_REQUIRED);
 
-    // limit checks
-    if (user && txAmountChf > kycLimitChf) return QuoteError.LIMIT_EXCEEDED;
+    // Limit checks
+    if (user && txAmountChf > kycLimitChf) errors.push(QuoteError.LIMIT_EXCEEDED);
 
-    // verification checks
+    // Verification checks
     if (
       ((isSell && to.name !== 'CHF') || isSwap) &&
+      !isRealUnit &&
       user &&
       !user.userData.hasBankTxVerification &&
       txAmountChf > Config.tradingLimits.monthlyDefaultWoKyc
     )
-      return QuoteError.BANK_TRANSACTION_OR_VIDEO_MISSING;
+      errors.push(QuoteError.BANK_TRANSACTION_OR_VIDEO_MISSING);
 
-    // amount checks
-    if (txAmountChf < minAmountChf) return QuoteError.AMOUNT_TOO_LOW;
-    if (txAmountChf > maxAmountChf) return QuoteError.AMOUNT_TOO_HIGH;
+    // Amount checks (mutually exclusive: only one can apply)
+    if (txAmountChf < minAmountChf) errors.push(QuoteError.AMOUNT_TOO_LOW);
+    else if (txAmountChf > maxAmountChf) errors.push(QuoteError.AMOUNT_TOO_HIGH);
+
+    return errors;
   }
 
   private async getInvoiceCurrency(userData: UserData): Promise<Fiat> {
@@ -1030,5 +1085,9 @@ export class TransactionHelper implements OnModuleInit {
     if (!currency) throw new BadRequestException('Preferred currency not found');
 
     return currency;
+  }
+
+  private isRealUnitTransaction(from: Active, to: Active): boolean {
+    return (isAsset(from) && from.name === 'REALU') || (isAsset(to) && to.name === 'REALU');
   }
 }

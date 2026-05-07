@@ -230,6 +230,7 @@ export class SumsubService {
         'X-App-Access-Sig': signature,
         'X-App-Access-Ts': ts,
       },
+      tryCount: 3,
     });
   }
 

@@ -102,6 +102,7 @@ export class LnUrlForwardService {
       quoteUniqueId: params.quote,
       tx: params.tx,
       hex: params.hex,
+      sender: params.sender,
     };
   }
 

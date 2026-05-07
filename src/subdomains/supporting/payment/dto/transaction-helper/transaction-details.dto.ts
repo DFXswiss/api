@@ -20,5 +20,7 @@ export interface TransactionDetails extends TargetEstimation {
   maxVolume: number;
   maxVolumeTarget: number;
   isValid: boolean;
+  /** @deprecated Use `errors` instead */
   error?: QuoteError;
+  errors: QuoteError[];
 }

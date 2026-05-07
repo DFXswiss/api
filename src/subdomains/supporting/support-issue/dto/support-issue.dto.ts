@@ -20,6 +20,7 @@ export enum SupportMessageTranslationKey {
   MONERO_NOT_DISPLAYED = 'support-issue.monero_not_displayed',
   SEPA_STANDARD = 'support-issue.sepa_standard',
   SEPA_WEEKEND = 'support-issue.sepa_weekend',
+  MISSING_LIQUIDITY = 'support-issue.missing_liquidity',
 }
 
 export class SupportMessageDto {
@@ -191,6 +192,17 @@ export class SupportIssueInternalLimitRequestDataDto {
   decision?: LimitRequestDecision;
 }
 
+export class SupportIssueInternalTransactionMissingDataDto {
+  @ApiPropertyOptional()
+  senderIban?: string;
+
+  @ApiPropertyOptional()
+  receiverIban?: string;
+
+  @ApiPropertyOptional()
+  date?: string;
+}
+
 export class SupportIssueInternalDataDto {
   @ApiProperty()
   id: number;
@@ -216,6 +228,9 @@ export class SupportIssueInternalDataDto {
   @ApiProperty()
   name: string;
 
+  @ApiPropertyOptional()
+  clerk?: string;
+
   @ApiProperty({ type: SupportIssueInternalAccountDataDto })
   account: SupportIssueInternalAccountDataDto;
 
@@ -224,6 +239,47 @@ export class SupportIssueInternalDataDto {
 
   @ApiPropertyOptional({ type: SupportIssueInternalLimitRequestDataDto })
   limitRequest?: SupportIssueInternalLimitRequestDataDto;
+
+  @ApiPropertyOptional({ type: SupportIssueInternalTransactionMissingDataDto })
+  transactionMissing?: SupportIssueInternalTransactionMissingDataDto;
+}
+
+export class SupportIssueListDto {
+  @ApiProperty()
+  id: number;
+
+  @ApiProperty()
+  uid: string;
+
+  @ApiProperty({ enum: SupportIssueType })
+  type: SupportIssueType;
+
+  @ApiProperty({ enum: SupportIssueReason })
+  reason: SupportIssueReason;
+
+  @ApiProperty({ enum: SupportIssueInternalState })
+  state: SupportIssueInternalState;
+
+  @ApiProperty()
+  name: string;
+
+  @ApiPropertyOptional()
+  clerk?: string;
+
+  @ApiPropertyOptional({ enum: Department })
+  department?: Department;
+
+  @ApiProperty({ type: Date })
+  created: Date;
+
+  @ApiProperty()
+  messageCount: number;
+
+  @ApiPropertyOptional({ type: Date })
+  lastMessageDate?: Date;
+
+  @ApiPropertyOptional()
+  lastMessageAuthor?: string;
 }
 
 export const SupportIssueStateMapper: {

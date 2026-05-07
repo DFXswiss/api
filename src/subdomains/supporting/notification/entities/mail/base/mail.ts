@@ -1,4 +1,4 @@
-import { GetConfig } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Notification, NotificationOptions } from '../../notification.entity';
 
 export interface MailParamBase {
@@ -9,6 +9,7 @@ export interface MailParamBase {
   cc?: string;
   bcc?: string;
   template?: string;
+  walletName?: string;
   options?: NotificationOptions;
   correlationId?: string;
 }
@@ -31,29 +32,30 @@ export interface MailParamsNew extends MailParamBase {
 }
 
 export class Mail extends Notification {
-  readonly #from: { name: string; address: string } = {
-    name: 'DFX.swiss',
-    address: GetConfig().mail.contact.noReplyMail,
-  };
+  readonly #from: { name: string; address: string };
   readonly #to: string | string[];
   readonly #cc: string;
   readonly #bcc: string;
   readonly #subject: string;
-  readonly #template: string = GetConfig().mail.defaultMailTemplate;
+  readonly #template: string;
   readonly #templateParams: { [name: string]: any };
+  readonly #walletName?: string;
 
   constructor(params: MailParams | MailParamsNew) {
     super();
 
+    const walletMailConfig = params.walletName ? Config.mail.wallet[params.walletName] : undefined;
+
+    this.#walletName = params.walletName;
     this.#to = params.to;
     this.#subject = params.subject;
     this.#from = {
-      name: params.displayName ?? 'DFX.swiss',
-      address: params.from ?? GetConfig().mail.contact.noReplyMail,
+      name: params.displayName ?? walletMailConfig?.displayName ?? 'DFX.swiss',
+      address: params.from ?? walletMailConfig?.fromAddress ?? Config.mail.contact.noReplyMail,
     };
-    this.#cc = params.cc ?? this.#cc;
-    this.#bcc = params.bcc ?? this.#bcc;
-    this.#template = params.template ?? this.#template;
+    this.#cc = params.cc;
+    this.#bcc = params.bcc;
+    this.#template = params.template ?? Config.mail.defaultMailTemplate;
     this.#templateParams = params.templateParams;
   }
 
@@ -84,5 +86,9 @@ export class Mail extends Notification {
 
   get subject(): string {
     return this.#subject;
+  }
+
+  get walletName(): string | undefined {
+    return this.#walletName;
   }
 }

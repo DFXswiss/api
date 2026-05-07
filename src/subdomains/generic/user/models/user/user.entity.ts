@@ -1,4 +1,3 @@
-import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -6,9 +5,9 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
+import { CustodyAccount } from 'src/subdomains/core/custody/entities/custody-account.entity';
 import { CustodyBalance } from 'src/subdomains/core/custody/entities/custody-balance.entity';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
-import { CustodyAccount } from 'src/subdomains/core/custody/entities/custody-account.entity';
 import { CustodyAddressType } from 'src/subdomains/core/custody/enums/custody';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
@@ -19,7 +18,7 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { CustodyProvider } from '../custody-provider/custody-provider.entity';
-import { UserAddressType, UserStatus, WalletType } from './user.enum';
+import { RefPayoutFrequency, UserAddressType, UserStatus, WalletType } from './user.enum';
 
 @Entity()
 export class User extends IEntity {
@@ -128,11 +127,20 @@ export class User extends IEntity {
   @Column({ type: 'float', default: 0.25 })
   refFeePercent: number;
 
+  @Column({ length: 256, default: RefPayoutFrequency.DAILY })
+  refPayoutFrequency: RefPayoutFrequency;
+
   @Column({ type: 'float', default: 0 })
   refVolume: number; // EUR
 
   @Column({ type: 'float', default: 0 })
   refCredit: number; // EUR
+
+  @Column({ type: 'float', default: 0 })
+  partnerRefVolume: number; // EUR
+
+  @Column({ type: 'float', default: 0 })
+  partnerRefCredit: number; // EUR
 
   @Column({ type: 'float', default: 0 })
   paidRefCredit: number; // EUR
@@ -208,12 +216,6 @@ export class User extends IEntity {
     return [this.id, update];
   }
 
-  get specifiedRef(): { usedRef: string; refProvision: number } {
-    return this.wallet?.name === 'CakeWallet'
-      ? { usedRef: '160-195', refProvision: 2 }
-      : { usedRef: this.usedRef, refProvision: this.usedRef === Config.defaultRef ? 0 : this.refFeePercent };
-  }
-
   get blockchains(): Blockchain[] {
     // wallet name / blockchain map
     const customChains = {
@@ -233,6 +235,14 @@ export class User extends IEntity {
 
   get isDeleted(): boolean {
     return this.status === UserStatus.DELETED;
+  }
+
+  get totalRefVolume(): number {
+    return this.refVolume + this.partnerRefVolume;
+  }
+
+  get totalRefCredit(): number {
+    return this.refCredit + this.partnerRefCredit;
   }
 }
 

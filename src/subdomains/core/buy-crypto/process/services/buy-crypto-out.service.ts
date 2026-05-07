@@ -16,6 +16,8 @@ import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In } from 'typeorm';
+import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { UserStatus } from '../../../../generic/user/models/user/user.enum';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoBatchRepository } from '../repositories/buy-crypto-batch.repository';
@@ -81,8 +83,14 @@ export class BuyCryptoOutService {
             transaction.userData.isBlocked ||
             transaction.userData.isRiskBlocked ||
             transaction.userData.isRiskBuyCryptoBlocked
-          )
-            throw new Error('Payout stopped for blocked user');
+          ) {
+            const reason = this.getBlockedAmlReason(transaction);
+            this.logger.warn(`Stopping payout for transaction ${transaction.id}: ${reason}`);
+
+            transaction.stop(reason);
+            await this.buyCryptoRepo.save(transaction);
+            continue;
+          }
 
           await this.doPayout(transaction);
           successfulRequests.push(transaction);
@@ -170,6 +178,21 @@ export class BuyCryptoOutService {
         continue;
       }
 
+      // stop transactions for blocked/deleted users to unblock batch completion
+      if (
+        tx.user.isBlockedOrDeleted ||
+        tx.userData.isBlocked ||
+        tx.userData.isRiskBlocked ||
+        tx.userData.isRiskBuyCryptoBlocked
+      ) {
+        const reason = this.getBlockedAmlReason(tx);
+        this.logger.warn(`Stopping transaction ${tx.id} in batch ${batch.id}: ${reason}`);
+
+        tx.stop(reason);
+        await this.buyCryptoRepo.save(tx);
+        continue;
+      }
+
       try {
         const {
           isComplete,
@@ -231,7 +254,7 @@ export class BuyCryptoOutService {
       }
     }
 
-    const isBatchComplete = batch.transactions.every((tx) => tx.isComplete);
+    const isBatchComplete = batch.transactions.every((tx) => tx.isComplete || tx.status === BuyCryptoStatus.STOPPED);
 
     if (isBatchComplete) {
       this.logger.verbose(`Buy-crypto payout complete (batch ID: ${batch.id})`);
@@ -240,6 +263,14 @@ export class BuyCryptoOutService {
       await this.buyCryptoBatchRepo.save(batch);
       await this.dexService.completeOrders(LiquidityOrderContext.BUY_CRYPTO, batch.id.toString());
     }
+  }
+
+  private getBlockedAmlReason(tx: BuyCrypto): AmlReason {
+    if (tx.user.isBlockedOrDeleted)
+      return tx.user.status === UserStatus.DELETED ? AmlReason.USER_DELETED : AmlReason.USER_BLOCKED;
+    if (tx.userData.isBlocked) return AmlReason.USER_DATA_BLOCKED;
+
+    return AmlReason.USER_BLOCKED;
   }
 
   //*** LOGS ***//

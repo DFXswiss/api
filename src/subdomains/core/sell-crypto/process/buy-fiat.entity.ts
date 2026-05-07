@@ -14,12 +14,13 @@ import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { FeeDto, InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
+import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import {
   CryptoPaymentMethod,
   FiatPaymentMethod,
   PaymentMethod,
 } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { FeeType } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -87,6 +88,9 @@ export class BuyFiat extends IEntity {
   @Column({ length: 256, nullable: true })
   usedRef?: string;
 
+  @Column({ length: 256, nullable: true })
+  usedPartnerRef?: string;
+
   @Column({ type: 'float', nullable: true })
   refProvision?: number;
 
@@ -115,6 +119,15 @@ export class BuyFiat extends IEntity {
 
   @Column({ type: 'float', nullable: true })
   bankFeeAmount?: number; //inputAsset
+
+  @Column({ type: 'float', nullable: true })
+  bankFixedFeeAmount?: number; //inputAsset
+
+  @Column({ type: 'float', nullable: true })
+  bankPercentFeeAmount?: number; //inputAsset
+
+  @Column({ type: 'float', nullable: true })
+  partnerFeeAmount?: number; //inputAsset
 
   @Column({ type: 'float', nullable: true })
   percentFeeAmount?: number; //inputAsset
@@ -163,7 +176,13 @@ export class BuyFiat extends IEntity {
   chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })
-  chargebackAmount?: number;
+  chargebackReferenceAmount?: number; // inputAsset
+
+  @Column({ type: 'float', nullable: true })
+  chargebackAmount?: number; // chargebackAsset
+
+  @Column({ length: 256, nullable: true })
+  chargebackAsset?: string;
 
   @Column({ length: 256, nullable: true })
   chargebackAllowedBy?: string;
@@ -186,6 +205,15 @@ export class BuyFiat extends IEntity {
 
   @Column({ length: 'MAX', nullable: true })
   priceSteps?: string;
+
+  /**
+   * Ratio of quoted rate to market rate at execution.
+   * > 1 = user got better rate than market
+   * < 1 = user got worse rate than market
+   * null = quote not used (expired or not available)
+   */
+  @Column({ type: 'float', nullable: true })
+  quoteMarketRatio?: number;
 
   // Transaction details
   @Column({ length: 256, nullable: true })
@@ -246,6 +274,26 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
+  skipPendingMail(): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      mail2SendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  skipChargebackMail(): UpdateResult<BuyFiat> {
+    const update: Partial<BuyFiat> = {
+      mailReturnSendDate: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   fiatToBankTransferInitiated(): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       recipientMail: this.noCommunication ? null : this.userData.mail,
@@ -259,7 +307,9 @@ export class BuyFiat extends IEntity {
 
   chargebackFillUp(
     chargebackAddress: string,
+    chargebackReferenceAmount: number,
     chargebackAmount: number,
+    chargebackAsset: string,
     chargebackAllowedDate: Date,
     chargebackAllowedDateUser: Date,
     chargebackAllowedBy: string,
@@ -270,7 +320,9 @@ export class BuyFiat extends IEntity {
       chargebackAllowedDate,
       chargebackAllowedDateUser,
       chargebackAddress,
+      chargebackReferenceAmount,
       chargebackAmount,
+      chargebackAsset,
       chargebackAllowedBy,
       amlCheck: CheckStatus.FAIL,
       mailReturnSendDate: null,
@@ -283,11 +335,11 @@ export class BuyFiat extends IEntity {
   }
 
   setFeeAndFiatReference(
-    fee: InternalFeeDto & FeeDto,
+    fee: InternalFeeDto,
     minFeeAmountFiat: number,
     totalFeeAmountChf: number,
   ): UpdateResult<BuyFiat> {
-    const { usedRef, refProvision } = this.user.specifiedRef;
+    const partnerFee = fee.partner ? fee.fees.find((f) => f.type === FeeType.PARTNER) : undefined;
     const inputReferenceAmountMinusFee = this.inputReferenceAmount - fee.total;
 
     const update: Partial<BuyFiat> =
@@ -303,10 +355,14 @@ export class BuyFiat extends IEntity {
             totalFeeAmountChf,
             blockchainFee: fee.network,
             bankFeeAmount: fee.bank,
+            bankFixedFeeAmount: fee.bankFixed,
+            bankPercentFeeAmount: fee.bankPercent,
+            partnerFeeAmount: fee.partner,
+            usedPartnerRef: fee.partner ? partnerFee.wallet.owner.ref : undefined,
             inputReferenceAmountMinusFee,
-            usedRef,
-            refProvision,
-            refFactor: !fee.payoutRefBonus || usedRef === Config.defaultRef ? 0 : 1,
+            usedRef: this.user.usedRef,
+            refProvision: this.user.refFeePercent,
+            refFactor: !fee.payoutRefBonus || this.user.usedRef === Config.defaultRef ? 0 : 1,
             usedFees: fee.fees?.map((fee) => fee.id).join(';'),
           };
 
@@ -360,13 +416,14 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  setOutput(outputAmount: number, priceSteps: PriceStep[]): UpdateResult<BuyFiat> {
-    this.priceStepsObject = [...this.priceStepsObject, ...(priceSteps ?? [])];
+  setOutput(outputAmount: number, priceSteps: PriceStep[], quoteMarketRatio?: number): UpdateResult<BuyFiat> {
+    this.priceStepsObject = quoteMarketRatio ? priceSteps : [...this.priceStepsObject, ...(priceSteps ?? [])];
 
     const update: Partial<BuyFiat> = {
       outputAmount,
       outputReferenceAmount: this.outputReferenceAmount ?? outputAmount,
       priceSteps: this.priceSteps,
+      quoteMarketRatio,
     };
 
     Object.assign(this, update);
@@ -396,8 +453,10 @@ export class BuyFiat extends IEntity {
     last365dVolume: number,
     bankData: BankData,
     blacklist: SpecialExternalAccount[],
+    phoneCallList: SpecialExternalAccount[],
     ibanCountry: Country,
     refUser?: User,
+    recommender?: UserData,
   ): UpdateResult<BuyFiat> {
     const update: Partial<BuyFiat> = {
       ...AmlHelperService.getAmlResult(
@@ -410,8 +469,10 @@ export class BuyFiat extends IEntity {
         last365dVolume,
         bankData,
         blacklist,
+        phoneCallList,
         ibanCountry,
         refUser,
+        recommender,
       ),
       amountInChf,
       amountInEur,
@@ -469,10 +530,14 @@ export class BuyFiat extends IEntity {
       chargebackAllowedDateUser: null,
       chargebackAmount: null,
       chargebackAllowedBy: null,
+      partnerFeeAmount: null,
+      usedPartnerRef: null,
       priceSteps: null,
       priceDefinitionAllowedDate: null,
       usedFees: null,
       bankFeeAmount: null,
+      bankFixedFeeAmount: null,
+      bankPercentFeeAmount: null,
     };
 
     Object.assign(this, update);
@@ -583,6 +648,7 @@ export const BuyFiatAmlReasonPendingStates = [
   AmlReason.MERGE_INCOMPLETE,
   AmlReason.MANUAL_CHECK_IP_PHONE,
   AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
+  AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
 ];
 
 export const BuyFiatEditableAmlCheck = [CheckStatus.PENDING, CheckStatus.GSHEET, CheckStatus.FAIL];

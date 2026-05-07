@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { createCustomPrice } from 'src/integration/exchange/dto/__mocks__/price.dto.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { CountryService } from 'src/shared/models/country/country.service';
 import { createCustomFiat, createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
@@ -16,9 +17,9 @@ import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/
 import { createDefaultCheckoutTx } from 'src/subdomains/supporting/fiat-payin/__mocks__/checkout-tx.entity.mock';
 import { createDefaultCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import {
-  createCustomInternalChargebackFeeDto,
-  createInternalChargebackFeeDto,
-} from 'src/subdomains/supporting/payment/__mocks__/internal-fee.dto.mock';
+  createChargebackFeeInfo,
+  createCustomChargebackFeeInfo,
+} from 'src/subdomains/supporting/payment/__mocks__/fee.dto.mock';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
 import { TransactionSpecificationRepository } from 'src/subdomains/supporting/payment/repositories/transaction-specification.repository';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -44,6 +45,7 @@ describe('TransactionHelper', () => {
   let transactionService: TransactionService;
   let buyService: BuyService;
   let assetService: AssetService;
+  let countryService: CountryService;
 
   beforeEach(async () => {
     specRepo = createMock<TransactionSpecificationRepository>();
@@ -57,6 +59,7 @@ describe('TransactionHelper', () => {
     transactionService = createMock<TransactionService>();
     buyService = createMock<BuyService>();
     assetService = createMock<AssetService>();
+    countryService = createMock<CountryService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -73,6 +76,7 @@ describe('TransactionHelper', () => {
         { provide: TransactionService, useValue: transactionService },
         { provide: BuyService, useValue: buyService },
         { provide: AssetService, useValue: assetService },
+        { provide: CountryService, useValue: countryService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -97,7 +101,7 @@ describe('TransactionHelper', () => {
     });
 
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createCustomFiat({ name: 'CHF' }));
-    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createInternalChargebackFeeDto());
+    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createChargebackFeeInfo());
     jest
       .spyOn(pricingService, 'getPrice')
       .mockResolvedValue(createCustomPrice({ source: 'CHF', target: 'CHF', price: 1 }));
@@ -129,7 +133,7 @@ describe('TransactionHelper', () => {
     });
 
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createCustomFiat({ name: 'CHF' }));
-    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createInternalChargebackFeeDto());
+    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createChargebackFeeInfo());
     jest
       .spyOn(pricingService, 'getPrice')
       .mockResolvedValue(createCustomPrice({ source: 'CHF', target: 'CHF', price: 1 }));
@@ -159,7 +163,7 @@ describe('TransactionHelper', () => {
 
     jest.spyOn(feeService, 'getBlockchainFee').mockResolvedValue(0.01);
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createDefaultFiat());
-    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createInternalChargebackFeeDto());
+    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createChargebackFeeInfo());
     jest.spyOn(pricingService, 'getPrice').mockResolvedValue(createCustomPrice({ price: 1 }));
 
     await expect(
@@ -187,9 +191,7 @@ describe('TransactionHelper', () => {
 
     jest.spyOn(feeService, 'getBlockchainFee').mockResolvedValue(0.01);
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createDefaultFiat());
-    jest
-      .spyOn(feeService, 'getChargebackFee')
-      .mockResolvedValue(createCustomInternalChargebackFeeDto({ network: 0.01 }));
+    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createCustomChargebackFeeInfo({ network: 0.01 }));
     jest.spyOn(pricingService, 'getPrice').mockResolvedValue(createCustomPrice({ price: 1 }));
 
     await expect(
@@ -218,9 +220,7 @@ describe('TransactionHelper', () => {
 
     jest.spyOn(feeService, 'getBlockchainFee').mockResolvedValue(0.01);
     jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue(createDefaultFiat());
-    jest
-      .spyOn(feeService, 'getChargebackFee')
-      .mockResolvedValue(createCustomInternalChargebackFeeDto({ network: 0.01 }));
+    jest.spyOn(feeService, 'getChargebackFee').mockResolvedValue(createCustomChargebackFeeInfo({ network: 0.01 }));
     jest.spyOn(pricingService, 'getPrice').mockResolvedValue(createCustomPrice({ price: 1 }));
 
     await expect(

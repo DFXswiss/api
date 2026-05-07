@@ -10,12 +10,18 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
-import { GetSupportIssueFilter } from './dto/get-support-issue.dto';
-import { SupportIssueDto, SupportIssueInternalDataDto, SupportMessageDto } from './dto/support-issue.dto';
+import { GetSupportIssueFilter, GetSupportIssueListFilter } from './dto/get-support-issue.dto';
+import {
+  SupportIssueDto,
+  SupportIssueInternalDataDto,
+  SupportIssueListDto,
+  SupportMessageDto,
+} from './dto/support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
 import { SupportIssue } from './entities/support-issue.entity';
 import { CustomerAuthor } from './entities/support-message.entity';
 import { Department } from './enums/department.enum';
+import { SupportIssueInternalState, SupportIssueType } from './enums/support-issue.enum';
 import { SupportIssueService } from './services/support-issue.service';
 
 @ApiTags('Support')
@@ -30,7 +36,14 @@ export class SupportIssueController {
     @GetJwt() jwt: JwtPayload | undefined,
     @Body() dto: CreateSupportIssueDto,
   ): Promise<SupportIssueDto> {
-    const input: CreateSupportIssueDto = { ...dto, author: CustomerAuthor, department: Department.SUPPORT };
+    const input: CreateSupportIssueDto = {
+      ...dto,
+      author: CustomerAuthor,
+      department:
+        dto.type === SupportIssueType.VERIFICATION_CALL || dto.limitRequest
+          ? Department.COMPLIANCE
+          : Department.SUPPORT,
+    };
     return jwt?.account
       ? this.supportIssueService.createIssue(jwt.account, input)
       : this.supportIssueService.createTransactionRequestIssue(input);
@@ -43,8 +56,13 @@ export class SupportIssueController {
   async createIssueBySupport(
     @Query('userDataId') userDataId: string,
     @Body() dto: CreateSupportIssueSupportDto,
+    @GetJwt() jwt: JwtPayload,
   ): Promise<SupportIssueDto> {
-    return this.supportIssueService.createIssue(+userDataId, dto);
+    const input: CreateSupportIssueSupportDto = {
+      ...dto,
+      department: jwt.role === UserRole.COMPLIANCE ? Department.COMPLIANCE : Department.SUPPORT,
+    };
+    return this.supportIssueService.createIssue(+userDataId, input);
   }
 
   @Get()
@@ -52,6 +70,44 @@ export class SupportIssueController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT))
   async getIssues(@GetJwt() jwt: JwtPayload): Promise<SupportIssueDto[]> {
     return this.supportIssueService.getIssues(jwt?.account);
+  }
+
+  @Get('list')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportIssueList(
+    @GetJwt() jwt: JwtPayload,
+    @Query() filter: GetSupportIssueListFilter,
+  ): Promise<{ data: SupportIssueListDto[]; total: number }> {
+    return this.supportIssueService.getSupportIssueList(filter, jwt.role);
+  }
+
+  @Get('counts')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportIssueCounts(@GetJwt() jwt: JwtPayload): Promise<Record<SupportIssueInternalState, number>> {
+    return this.supportIssueService.getSupportIssueCounts(jwt.role);
+  }
+
+  @Get('activity')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportIssueActivity(
+    @GetJwt() jwt: JwtPayload,
+    @Query('since') since?: string,
+  ): Promise<{ count: number; latestAt?: Date }> {
+    return this.supportIssueService.getSupportIssueActivity(since ? new Date(since) : undefined, jwt.role);
+  }
+
+  @Get('clerks')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportIssueClerks(): Promise<string[]> {
+    return this.supportIssueService.getSupportIssueClerks();
   }
 
   @Get(':id')
@@ -81,7 +137,7 @@ export class SupportIssueController {
     @Param('id') id: string,
     @Body() dto: CreateSupportMessageDto,
   ): Promise<SupportMessageDto> {
-    return [UserRole.SUPPORT, UserRole.COMPLIANCE, UserRole.ADMIN].includes(jwt?.role)
+    return jwt?.role && [UserRole.SUPPORT, UserRole.COMPLIANCE, UserRole.ADMIN].includes(jwt.role)
       ? this.supportIssueService.createMessageSupport(+id, dto)
       : this.supportIssueService.createMessage(id, dto, jwt?.account);
   }

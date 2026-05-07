@@ -192,7 +192,7 @@ Authorization: Bearer {{authToken}}
 
 @authToken = {{login.response.body.accessToken}}
 
-PUT {{url}}/v1/buyCrypto/refVolumes
+PUT {{url}}/v1/buyCrypto/refVolumes?start=xxx&end=yyy
 Authorization: Bearer {{authToken}}
 
 ###
@@ -295,8 +295,13 @@ Authorization: Bearer {{authToken}}
 
 @authToken = {{login.response.body.accessToken}}
 
-PUT {{url}}/v1/kyc/admin/step/xxx/ident
+PUT {{url}}/v1/kyc/admin/step/xxx
+content-type: application/json
 Authorization: Bearer {{authToken}}
+
+{
+  "status": "Completed"
+}
 
 ###
 
@@ -355,22 +360,9 @@ Authorization: Bearer {{authToken}}
 
 {
   "address": "xxx",
-  "blockchain": "Cardano"
-}
-
-###
-
-@authToken = {{login.response.body.accessToken}}
-
-POST {{url}}/v1/alchemy/syncTransactions
-content-type: application/json
-Authorization: Bearer {{authToken}}
-
-{
-  "blockchain": "Polygon",
-  "fromBlock": 63869127,
-  "toBlock": 63869127,
-  "address": "0x..."
+  "blockchain": "Ethereum",
+  "fromBlock": 24525738,
+  "toBlock": 24525740
 }
 
 ###

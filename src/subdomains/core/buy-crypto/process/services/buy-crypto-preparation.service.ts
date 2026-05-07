@@ -21,6 +21,7 @@ import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import {
   PriceCurrency,
@@ -54,6 +55,7 @@ export class BuyCryptoPreparationService {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly bankTxService: BankTxService,
     private readonly virtualIbanService: VirtualIbanService,
+    private readonly transactionService: TransactionService,
   ) {}
 
   async doAmlCheck(): Promise<void> {
@@ -62,7 +64,6 @@ export class BuyCryptoPreparationService {
       inputAsset: Not(IsNull()),
       chargebackAllowedDateUser: IsNull(),
       isComplete: false,
-      transaction: { userData: { riskStatus: Not(RiskStatus.SUSPICIOUS) } },
     };
     const entities = await this.buyCryptoRepo.find({
       where: [
@@ -94,6 +95,7 @@ export class BuyCryptoPreparationService {
         if (entity.cryptoInput && !entity.cryptoInput.isConfirmed) continue;
 
         const amlCheckBefore = entity.amlCheck;
+        const isFirstRun = entity.amlCheck == null;
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
         const inputReferenceCurrency =
@@ -108,8 +110,17 @@ export class BuyCryptoPreparationService {
           isPayment,
         );
 
-        const { users, refUser, bankData, blacklist, banks, ipLogCountries, multiAccountBankNames } =
-          await this.amlService.getAmlCheckInput(entity);
+        const {
+          users,
+          refUser,
+          recommender,
+          bankData,
+          blacklist,
+          phoneCallList,
+          banks,
+          ipLogCountries,
+          multiAccountBankNames,
+        } = await this.amlService.getAmlCheckInput(entity);
         if (!users.length || (bankData && bankData.status === ReviewStatus.INTERNAL_REVIEW)) continue;
 
         const referenceChfPrice = await this.pricingService.getPrice(
@@ -180,16 +191,18 @@ export class BuyCryptoPreparationService {
             last365dVolume,
             bankData,
             blacklist,
+            phoneCallList,
             banks,
             ibanCountry,
             refUser,
+            recommender,
             ipLogCountries,
             virtualIban,
             multiAccountBankNames,
           ),
         );
 
-        await this.amlService.postProcessing(entity, last30dVolume);
+        await this.amlService.postProcessing(entity, last30dVolume, isFirstRun);
 
         if (amlCheckBefore !== entity.amlCheck) await this.buyCryptoWebhookService.triggerWebhook(entity);
 
@@ -296,6 +309,10 @@ export class BuyCryptoPreparationService {
           ),
         );
 
+        if (entity.feeAmountChf != null) {
+          await this.transactionService.updateInternal(entity.transaction, { feeAmountInChf: entity.feeAmountChf });
+        }
+
         if (entity.amlCheck === CheckStatus.FAIL) {
           // create sift transaction (non-blocking)
           void this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
@@ -305,7 +322,7 @@ export class BuyCryptoPreparationService {
         if (isFirstRun) {
           await this.buyCryptoService.updateBuyVolume([entity.buy?.id]);
           await this.buyCryptoService.updateCryptoRouteVolume([entity.cryptoRoute?.id]);
-          await this.buyCryptoService.updateRefVolume([entity.usedRef]);
+          await this.buyCryptoService.updateRefVolume([entity.usedRef, entity.usedPartnerRef]);
         }
       } catch (e) {
         this.logger.error(`Error during buy-crypto ${entity.id} fee and fiat reference refresh:`, e);
@@ -417,6 +434,10 @@ export class BuyCryptoPreparationService {
           ),
         );
 
+        if (entity.feeAmountChf != null) {
+          await this.transactionService.updateInternal(entity.transaction, { feeAmountInChf: entity.feeAmountChf });
+        }
+
         if (entity.amlCheck === CheckStatus.FAIL) return;
 
         await this.buyCryptoService.updateCryptoRouteVolume([entity.cryptoRoute.id]);
@@ -435,8 +456,9 @@ export class BuyCryptoPreparationService {
     const groups = Util.groupByAccessor(entities, (e) => `${e.targetAddress}-${e.outputAsset.id}`);
 
     for (const transactions of groups.values()) {
+      const blockchain = transactions[0].outputAsset.blockchain;
       const totalAmount = Util.sumObjValue(transactions, 'amountInChf');
-      if (totalAmount >= Config.payment.cryptoPayoutMinAmount) {
+      if (totalAmount >= Config.payment.cryptoPayoutMinAmount(blockchain)) {
         await this.buyCryptoRepo.update(
           transactions.map((t) => t.id),
           { status: BuyCryptoStatus.CREATED },
@@ -462,10 +484,14 @@ export class BuyCryptoPreparationService {
     };
     const entities = await this.buyCryptoRepo.find({
       where: [
-        // Bank refund: requires creditorData for FiatOutput
-        { ...baseRequest, chargebackIban: Not(IsNull()), chargebackCreditorData: Not(IsNull()) },
-        // Checkout refund: no creditorData needed
+        {
+          ...baseRequest,
+          bankTx: { id: Not(IsNull()) },
+          chargebackIban: Not(IsNull()),
+          chargebackCreditorData: Not(IsNull()),
+        },
         { ...baseRequest, checkoutTx: { id: Not(IsNull()) } },
+        { ...baseRequest, cryptoInput: { id: Not(IsNull()) }, chargebackIban: Not(IsNull()) },
       ],
       relations: { checkoutTx: true, bankTx: true, cryptoInput: true, transaction: { userData: true } },
     });
@@ -476,7 +502,12 @@ export class BuyCryptoPreparationService {
         const chargebackAllowedBy = 'API';
 
         if (entity.bankTx) {
-          await this.buyCryptoService.refundBankTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
+          if (
+            Util.includesSameName(entity.userData.verifiedName, entity.creditorData.name) ||
+            Util.includesSameName(entity.userData.completeName, entity.creditorData.name) ||
+            (!entity.userData.verifiedName && !entity.userData.completeName)
+          )
+            await this.buyCryptoService.refundBankTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
         } else if (entity.cryptoInput) {
           await this.buyCryptoService.refundCryptoInput(entity, { chargebackAllowedDate, chargebackAllowedBy });
         } else {

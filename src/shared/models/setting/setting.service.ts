@@ -4,9 +4,9 @@ import { validate } from 'class-validator';
 import { Process } from 'src/shared/services/process.service';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
 import { UpdateProcessDto } from './dto/update-process.dto';
+import { isArraySchema, isPrimitiveSchema, SettingSchema, SettingSchemaRegistry } from './setting-schema.registry';
 import { Setting } from './setting.entity';
 import { SettingRepository } from './setting.repository';
-import { isArraySchema, isPrimitiveSchema, SettingSchema, SettingSchemaRegistry } from './setting-schema.registry';
 
 @Injectable()
 export class SettingService {
@@ -102,6 +102,14 @@ export class SettingService {
 
   async getIpBlacklist(): Promise<string[]> {
     return this.getObjCached<string[]>('ipBlacklist', []);
+  }
+
+  async getCustomBalanceSettings(): Promise<{ addresses: string[]; assets: string[] }> {
+    const [addresses, assets] = await Promise.all([
+      this.getObjCached<string[]>('customBalanceAddresses', []),
+      this.getObjCached<string[]>('customBalanceAssets', []),
+    ]);
+    return { addresses, assets };
   }
 
   async addIpToBlacklist(ip: string): Promise<void> {

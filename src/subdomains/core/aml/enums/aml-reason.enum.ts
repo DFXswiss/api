@@ -26,6 +26,7 @@ export enum AmlReason {
   CARD_NAME_MISMATCH = 'CardNameMismatch',
   USER_BLOCKED = 'UserBlocked',
   USER_DATA_BLOCKED = 'UserDataBlocked',
+  USER_DATA_SUSPICIOUS = 'UserDataSuspicious',
   USER_DELETED = 'UserDeleted',
   VIDEO_IDENT_NEEDED = 'VideoIdentNeeded',
   MISSING_LIQUIDITY = 'MissingLiquidity',
@@ -36,10 +37,13 @@ export enum AmlReason {
   MANUAL_CHECK_PHONE = 'ManualCheckPhone',
   MANUAL_CHECK_IP_PHONE = 'ManualCheckIpPhone',
   MANUAL_CHECK_IP_COUNTRY_PHONE = 'ManualCheckIpCountryPhone',
+  MANUAL_CHECK_PHONE_FAILED = 'ManualCheckPhoneFailed',
   BANK_RELEASE_PENDING = 'BankReleasePending',
   VIRTUAL_IBAN_USER_MISMATCH = 'VirtualIbanUserMismatch',
   INTERMEDIARY_WITHOUT_SENDER = 'IntermediaryWithoutSender',
   NAME_TOO_SHORT = 'NameTooShort',
+  ASSET_INPUT_NOT_ALLOWED = 'AssetInputNotAllowed',
+  MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE = 'ManualCheckExternalAccountPhone',
 }
 
 export const KycAmlReasons = [
@@ -66,6 +70,8 @@ export const RecheckAmlReasons = [
   AmlReason.ASSET_KYC_NEEDED,
   AmlReason.KYC_DATA_NEEDED,
   AmlReason.BANK_RELEASE_PENDING,
+  AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
+  AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
 ];
 
 export const BlockAmlReasons = [AmlReason.MANUAL_CHECK, AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE];
@@ -76,6 +82,7 @@ export const AmlReasonWithoutReason = [
   AmlReason.MANUAL_CHECK_BANK_DATA,
   AmlReason.USER_BLOCKED,
   AmlReason.USER_DATA_BLOCKED,
+  AmlReason.USER_DATA_SUSPICIOUS,
   AmlReason.BANK_RELEASE_PENDING,
 ];
 

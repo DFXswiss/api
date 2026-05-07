@@ -27,7 +27,7 @@ export class UserRepository extends BaseRepository<User> {
   private async getNextRef(): Promise<string> {
     // get highest numerical ref
     const nextRef = await this.findOne({
-      select: ['id', 'ref'],
+      select: { id: true, ref: true },
       where: { ref: Like('%[0-9]-[0-9]%') },
       order: { ref: 'DESC' },
     }).then((u) => +u.ref.replace('-', '') + 1);

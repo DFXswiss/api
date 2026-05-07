@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BinanceService } from 'src/integration/exchange/services/binance.service';
 import { ExchangeRegistryService } from 'src/integration/exchange/services/exchange-registry.service';
 import { LndInvoiceState } from 'src/integration/lightning/dto/lnd.dto';
@@ -22,6 +23,7 @@ export enum BinanceAdapterCommands {
 }
 
 const BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC = 0.00999;
+const BINANCE_LIGHTNING_MIN_WITHDRAWAL_BTC = 0.00002;
 
 @Injectable()
 export class BinanceAdapter extends CcxtExchangeAdapter {
@@ -54,17 +56,23 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
 
   private async lightningWithdraw(order: LiquidityManagementOrder): Promise<CorrelationId> {
     const asset = order.pipeline.rule.targetAsset.dexName;
+    const network = this.exchangeService.mapNetwork(Blockchain.LIGHTNING) || undefined;
     const balance = await this.exchangeService.getAvailableBalance(asset);
+    const withdrawalFee = await this.exchangeService.getWithdrawalFee(asset, network);
 
-    const amount = Util.floor(Math.min(order.maxAmount, balance, BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC), 8);
+    const desiredAmount = Math.max(order.maxAmount, BINANCE_LIGHTNING_MIN_WITHDRAWAL_BTC);
+    const availableAmount = balance - withdrawalFee;
 
-    if (amount <= 0)
+    const amount = Util.floor(Math.min(desiredAmount, availableAmount, BINANCE_LIGHTNING_MAX_WITHDRAWAL_BTC), 8);
+
+    if (amount < BINANCE_LIGHTNING_MIN_WITHDRAWAL_BTC)
       throw new OrderNotProcessableException(
         `${this.exchangeService.name}: not enough balance for ${asset} (balance: ${balance}, min. requested: ${order.minAmount}, max. requested: ${order.maxAmount})`,
       );
+
     const amountSats = LightningHelper.btcToSat(amount);
 
-    // Generate invoice via LnBits
+    // Generate invoice via LnBits for the target amount
     const invoice = await this.lightningClient.getLnBitsWalletPayment({
       amount: amountSats,
       memo: `LM Order ${order.id}`,
@@ -75,8 +83,14 @@ export class BinanceAdapter extends CcxtExchangeAdapter {
     order.inputAsset = asset;
     order.outputAsset = asset;
 
-    // Send invoice to Binance for withdrawal
-    const response = await this.exchangeService.withdrawFunds(asset, amount, invoice.pr, undefined, 'LIGHTNING');
+    // Binance requires: withdrawal amount = invoice BTC value + withdrawal fee
+    const response = await this.exchangeService.withdrawFunds(
+      asset,
+      amount + withdrawalFee,
+      invoice.pr,
+      undefined,
+      network,
+    );
 
     return response.id;
   }

@@ -143,14 +143,15 @@ export class ClementineClient {
 
     // Parse the deposit address from CLI output
     const addressMatch =
-      output.match(/(?:deposit\s+)?address[:\s]+([a-zA-Z0-9]+)/i) ||
-      output.match(/bc1[a-zA-Z0-9]{59,}/i) ||
-      output.match(/tb1[a-zA-Z0-9]{59,}/i);
+      output.match(/bc1p[a-zA-Z0-9]{58}/i) ||
+      output.match(/tb1p[a-zA-Z0-9]{58}/i) ||
+      output.match(/bc1q[a-zA-Z0-9]{38,}/i) ||
+      output.match(/tb1q[a-zA-Z0-9]{38,}/i);
     if (!addressMatch) {
       throw new Error(`Failed to parse deposit address from CLI output: ${output}`);
     }
 
-    return { depositAddress: addressMatch[1] || addressMatch[0] };
+    return { depositAddress: addressMatch[0] };
   }
 
   /**
@@ -327,11 +328,17 @@ export class ClementineClient {
    * @returns Status result with NOT_FOUND if no withdrawal exists for this UTXO
    */
   async withdrawStatus(withdrawalUtxo: string): Promise<WithdrawStatusResult> {
-    const output = await this.executeCommand(['withdraw', 'status', withdrawalUtxo]);
+    const output = await this.executeCommand(['withdraw', 'status', withdrawalUtxo]).catch((e) => {
+      // Handle "Withdrawal not found for outpoint" error - return empty to trigger NOT_FOUND
+      if (e.message?.includes('not found for outpoint') || e.message?.includes('wait for confirmation')) {
+        this.logger.verbose(`withdrawStatus: withdrawal not found for ${withdrawalUtxo}, may need confirmation`);
+        return '';
+      }
+      throw e;
+    });
 
     // Check if no withdrawal exists for this UTXO
-    // CLI outputs "No withdrawals found for OutPoint ..." if never submitted
-    if (output.toLowerCase().includes('no withdrawals found')) {
+    if (!output || output.toLowerCase().includes('no withdrawals found')) {
       return {
         withdrawalUtxo,
         status: WithdrawStatus.NOT_FOUND,

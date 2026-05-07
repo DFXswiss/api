@@ -462,7 +462,7 @@ describe('BitcoinClient', () => {
     });
   });
 
-  // --- isTxComplete() Tests (uses getRawTx/getrawtransaction) --- //
+  // --- isTxComplete() Tests (uses getTx/gettransaction) --- //
 
   describe('isTxComplete()', () => {
     it('should return true when TX has blockhash and confirmations > minConfirmations', async () => {
@@ -473,10 +473,11 @@ describe('BitcoinClient', () => {
     });
 
     it('should return false when TX has no blockhash (unconfirmed)', async () => {
-      // getrawtransaction does not require wallet unlock
+      // gettransaction requires wallet unlock first
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' })); // walletpassphrase
       mockRpcPost.mockImplementationOnce(() =>
         Promise.resolve({
-          result: { txid: 'txid123', confirmations: 0, vin: [], vout: [] },
+          result: { txid: 'txid123', confirmations: 0, time: 0, amount: 0 },
           error: null,
           id: 'test',
         }),
@@ -488,11 +489,11 @@ describe('BitcoinClient', () => {
     });
 
     it('should return false when TX not found', async () => {
-      // getrawtransaction returns error -5 for non-existent TX
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' })); // walletpassphrase
       mockRpcPost.mockImplementationOnce(() =>
         Promise.resolve({
           result: null,
-          error: { code: -5, message: 'No such mempool or blockchain transaction' },
+          error: { code: -5, message: 'Invalid or non-wallet transaction id' },
           id: 'test',
         }),
       );
@@ -503,23 +504,17 @@ describe('BitcoinClient', () => {
     });
 
     it('should use 0 as default minConfirmations', async () => {
-      mockRpcPost.mockImplementationOnce(() =>
-        Promise.resolve({
-          result: { txid: 'txid123', blockhash: '000...', confirmations: 1, vin: [], vout: [] },
-          error: null,
-          id: 'test',
-        }),
-      );
-
+      // Default mock returns confirmations: 6, so 6 > 0 should be true
       const result = await client.isTxComplete('txid123');
 
       expect(result).toBe(true);
     });
 
     it('should return false when confirmations equals minConfirmations (boundary)', async () => {
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' })); // walletpassphrase
       mockRpcPost.mockImplementationOnce(() =>
         Promise.resolve({
-          result: { txid: 'txid123', blockhash: '000...', confirmations: 5, vin: [], vout: [] },
+          result: { txid: 'txid123', blockhash: '000...', confirmations: 5, time: 0, amount: 0 },
           error: null,
           id: 'test',
         }),
@@ -532,9 +527,10 @@ describe('BitcoinClient', () => {
     });
 
     it('should handle undefined confirmations as 0', async () => {
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' })); // walletpassphrase
       mockRpcPost.mockImplementationOnce(() =>
         Promise.resolve({
-          result: { txid: 'txid123', blockhash: '000...', vin: [], vout: [] },
+          result: { txid: 'txid123', blockhash: '000...', time: 0, amount: 0 },
           error: null,
           id: 'test',
         }),

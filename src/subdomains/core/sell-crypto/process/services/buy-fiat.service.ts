@@ -27,6 +27,7 @@ import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/su
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
 import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
+import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../../history/dto/history.dto';
@@ -283,6 +284,14 @@ export class BuyFiatService {
     return this.buyFiatRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }
 
+  async getBuyFiatsByTransactionIds(transactionIds: number[]): Promise<BuyFiat[]> {
+    if (!transactionIds.length) return [];
+    return this.buyFiatRepo.find({
+      where: { transaction: { id: In(transactionIds) } },
+      relations: { transaction: true, fiatOutput: { bankTx: true } },
+    });
+  }
+
   async getBuyFiat(from: Date, relations?: FindOptionsRelations<BuyFiat>): Promise<BuyFiat[]> {
     return this.buyFiatRepo.find({ where: { transaction: { created: MoreThan(from) } }, relations });
   }
@@ -322,6 +331,7 @@ export class BuyFiatService {
     await this.refundBuyFiatInternal(buyFiat, {
       refundUserId: dto.refundUser?.id,
       chargebackAmount: dto.chargebackAmount,
+      chargebackCurrency: dto.chargebackAsset,
       chargebackAllowedDate: dto.chargebackAllowedDate,
       chargebackAllowedBy: dto.chargebackAllowedBy,
     });
@@ -340,7 +350,7 @@ export class BuyFiatService {
 
     const chargebackAmount = dto.chargebackAmount ?? buyFiat.chargebackAmount;
 
-    TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount });
+    TransactionUtilService.validateRefund(buyFiat, { refundUser, chargebackAmount, assetMismatch: false });
 
     let blockchainFee: number;
     if (dto.chargebackAllowedDate && chargebackAmount) {
@@ -354,6 +364,8 @@ export class BuyFiatService {
       ...buyFiat.chargebackFillUp(
         refundUser.address ?? buyFiat.chargebackAddress,
         chargebackAmount,
+        chargebackAmount,
+        dto.chargebackCurrency,
         dto.chargebackAllowedDate,
         dto.chargebackAllowedDateUser,
         dto.chargebackAllowedBy,
@@ -374,7 +386,7 @@ export class BuyFiatService {
       relations: { fiatOutput: true, transaction: { userData: true }, outputAsset: true },
     });
     if (!entity) throw new NotFoundException('BuyFiat not found');
-    if (entity.isComplete || entity.fiatOutput?.isComplete)
+    if (entity.isComplete || entity.fiatOutput?.isComplete || entity.chargebackAllowedDate)
       throw new BadRequestException('BuyFiat is already complete');
     if (!entity.amlCheck) throw new BadRequestException('BuyFiat amlcheck is not set');
 
@@ -553,13 +565,18 @@ export class BuyFiatService {
 
     for (const ref of refs) {
       const { volume: buyFiatVolume, credit: buyFiatCredit } = await this.getRefVolume(ref);
+      const { volume: buyFiatPartnerVolume, credit: buyFiatPartnerCredit } = await this.getPartnerFeeRefVolume(ref);
       const { volume: buyCryptoVolume, credit: buyCryptoCredit } = await this.buyCryptoService.getRefVolume(ref);
+      const { volume: buyCryptoPartnerVolume, credit: buyCryptoPartnerCredit } =
+        await this.buyCryptoService.getPartnerFeeRefVolume(ref);
       const { volume: manualVolume, credit: manualCredit } = await this.transactionService.getManualRefVolume(ref);
 
       await this.userService.updateRefVolume(
         ref,
         buyFiatVolume + buyCryptoVolume + manualVolume,
         buyFiatCredit + buyCryptoCredit + manualCredit,
+        buyFiatPartnerVolume + buyCryptoPartnerVolume,
+        buyFiatPartnerCredit + buyCryptoPartnerCredit,
       );
     }
   }
@@ -570,6 +587,18 @@ export class BuyFiatService {
       .select('SUM(amountInEur * refFactor)', 'volume')
       .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
       .where('usedRef = :ref', { ref })
+      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
+      .getRawOne<{ volume: number; credit: number }>();
+
+    return { volume: volume ?? 0, credit: credit ?? 0 };
+  }
+
+  async getPartnerFeeRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
+    const { volume, credit } = await this.buyFiatRepo
+      .createQueryBuilder('buyFiat')
+      .select('SUM(amountInEur)', 'volume')
+      .addSelect('SUM(partnerFeeAmount * (amountInEur/inputAmount ))', 'credit')
+      .where('usedPartnerRef = :ref', { ref })
       .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 
@@ -593,5 +622,22 @@ export class BuyFiatService {
       cryptoAmount: v.cryptoInput?.amount,
       cryptoCurrency: v.cryptoInput?.asset?.name,
     }));
+  }
+
+  async getByAmlReason(reason: AmlReason, status: CheckStatus, limit?: number): Promise<BuyFiat[]> {
+    return this.buyFiatRepo.find({
+      where: { amlReason: reason, amlCheck: status },
+      relations: {
+        cryptoInput: { asset: true },
+        transaction: { user: true, userData: { organization: true, language: true, country: true } },
+      },
+      loadEagerRelations: false,
+      order: { created: 'ASC' },
+      take: limit,
+    });
+  }
+
+  async countByAmlReason(reason: AmlReason, status: CheckStatus): Promise<number> {
+    return this.buyFiatRepo.countBy({ amlReason: reason, amlCheck: status });
   }
 }

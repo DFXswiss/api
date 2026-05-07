@@ -1,6 +1,7 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -13,6 +14,12 @@ import { BalancePdfService } from '../services/balance-pdf.service';
 @Controller('balance')
 export class BalanceController {
   constructor(private readonly balancePdfService: BalancePdfService) {}
+
+  @Get('pdf/blockchains')
+  @ApiOkResponse({ type: String, isArray: true, description: 'Supported blockchains for balance PDF' })
+  async getSupportedBlockchains(): Promise<Blockchain[]> {
+    return this.balancePdfService.getSupportedBlockchains();
+  }
 
   @Get('pdf')
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())

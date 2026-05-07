@@ -9,6 +9,7 @@ export enum SupportIssueInternalState {
 export enum SupportIssueType {
   GENERIC_ISSUE = 'GenericIssue',
   TRANSACTION_ISSUE = 'TransactionIssue',
+  VERIFICATION_CALL = 'VerificationCall',
   KYC_ISSUE = 'KycIssue',
   LIMIT_REQUEST = 'LimitRequest',
   PARTNERSHIP_REQUEST = 'PartnershipRequest',
@@ -17,12 +18,19 @@ export enum SupportIssueType {
 }
 
 export enum SupportIssueReason {
+  // general
   OTHER = 'Other',
+
+  // support
   DATA_REQUEST = 'DataRequest',
 
   // transaction issue
   FUNDS_NOT_RECEIVED = 'FundsNotReceived',
   TRANSACTION_MISSING = 'TransactionMissing',
+
+  // verification call
+  REJECT_CALL = 'RejectCall',
+  REPEAT_CALL = 'RepeatCall',
 
   // notification of changes issue
   NAME_CHANGED = 'NameChanged',

@@ -43,7 +43,7 @@ export enum NodeCommand {
 }
 
 export abstract class NodeClient extends BlockchainClient {
-  private readonly logger = new DfxLogger(NodeClient);
+  protected readonly logger = new DfxLogger(NodeClient);
 
   protected readonly rpc: BitcoinRpcClient;
   private readonly queue: QueueHandler;
@@ -156,6 +156,11 @@ export abstract class NodeClient extends BlockchainClient {
   async getUtxo(includeUnconfirmed = false): Promise<UTXO[]> {
     const minConf = includeUnconfirmed ? 0 : 1;
     return this.callNode(() => this.rpc.listUnspent(minConf), true);
+  }
+
+  async getUtxoForAddresses(addresses: string[], includeUnconfirmed = false): Promise<UTXO[]> {
+    const minConf = includeUnconfirmed ? 0 : 1;
+    return this.callNode(() => this.rpc.listUnspent(minConf, 9999999, addresses), true);
   }
 
   async getBalance(): Promise<number> {

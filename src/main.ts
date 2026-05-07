@@ -3,13 +3,14 @@ import { NestFactory } from '@nestjs/core';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as AppInsights from 'applicationinsights';
-import { useContainer } from 'class-validator';
 import { spawnSync } from 'child_process';
+import { useContainer } from 'class-validator';
 import cors from 'cors';
 import { json, raw, text } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { join } from 'path';
+import { getVerifiedIp } from './shared/utils/ip.util';
 import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
@@ -21,6 +22,21 @@ import {
 } from './subdomains/generic/user/services/webhook/dto/kyc-webhook.dto';
 import { PaymentWebhookDto } from './subdomains/generic/user/services/webhook/dto/payment-webhook.dto';
 import { PricingService } from './subdomains/supporting/pricing/services/pricing.service';
+
+process.on('uncaughtException', (error) => {
+  const logger = new DfxLogger('UncaughtException');
+
+  const isSparkError =
+    error?.constructor?.name?.includes('Spark') || error?.message?.includes('Channel has been shut down');
+
+  if (isSparkError) {
+    logger.error('Spark SDK uncaught exception (process kept alive):', error);
+    return;
+  }
+
+  logger.error('Uncaught exception, shutting down:', error);
+  process.exit(1);
+});
 
 async function bootstrap() {
   if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
@@ -52,6 +68,11 @@ async function bootstrap() {
     }),
   );
 
+  app.use((req, _res, next) => {
+    req.realIp = getVerifiedIp(req);
+    next();
+  });
+
   app.use('/v2/kyc/ident/sumsub', raw({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/alchemy/addressWebhook', raw({ type: 'application/json', limit: '10mb' }));
   app.use('/v1/tatum/addressWebhook', raw({ type: 'application/json', limit: '10mb' }));
@@ -77,7 +98,10 @@ async function bootstrap() {
 
   const swaggerOptions = new DocumentBuilder()
     .setTitle('DFX API')
-    .setDescription(`DFX API ${Config.environment.toUpperCase()} (updated on ${new Date().toLocaleString()})`)
+    .setDescription(
+      `DFX API ${Config.environment.toUpperCase()} (updated on ${new Date().toLocaleString()})\n\n` +
+        '**Amount Convention:** All amount fields use human-readable display units (e.g., 1.5 BTC, not 150,000,000 satoshis). ',
+    )
     .setExternalDoc('Github documentation', Config.social.github)
     .setVersion(Config.defaultVersionString)
     .addBearerAuth()

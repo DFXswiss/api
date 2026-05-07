@@ -106,7 +106,7 @@ export class SwapService {
     const { user } = await this.swapRepo.findOne({
       where: { id: swapId },
       relations: { user: true },
-      select: ['id', 'user'],
+      select: { id: true, user: true },
     });
     const userVolume = await this.getUserVolume(user.id);
 
@@ -175,6 +175,13 @@ export class SwapService {
       where: { user: { id: In(userIds) } },
       relations: { user: true },
       order: { id: 'DESC' },
+    });
+  }
+
+  async getSwapsByUserDataId(userDataId: number): Promise<Swap[]> {
+    return this.swapRepo.find({
+      where: { user: { userData: { id: userDataId } } },
+      relations: { asset: true, deposit: true, user: true },
     });
   }
 
@@ -290,7 +297,7 @@ export class SwapService {
         type = 'signed transaction';
         payIn = await this.transactionUtilService.handleSignedTxInput(route, request, dto.signedTxHex);
       } else if (dto.txHash) {
-        type = 'EIP-5792 sponsored transfer';
+        type = 'txHash';
         payIn = await this.transactionUtilService.handleTxHashInput(route, request, dto.txHash);
       } else {
         throw new BadRequestException('Either permit, signedTxHex, txHash, or authorization must be provided');

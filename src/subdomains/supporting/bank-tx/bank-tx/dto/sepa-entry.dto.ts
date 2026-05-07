@@ -1,6 +1,7 @@
 import { ChargeRecord, SepaAddress, SepaAgent, SepaAmount, SepaCdi } from './sepa.dto';
 
 export interface SepaEntry {
+  AcctSvcrRef: string;
   BookgDt: {
     Dt: string;
   };
@@ -81,6 +82,19 @@ export interface SepaEntry {
         Ustrd: string;
       };
       AddtlTxInf: string;
+    };
+  };
+  AmtDtls: {
+    InstdAmt: {
+      Amt: SepaAmount;
+    };
+    TxAmt: {
+      Amt: SepaAmount;
+      CcyXchg: {
+        SrcCcy: string;
+        TrgtCcy: string;
+        XchgRate: string;
+      };
     };
   };
   AddtlNtryInf: string;

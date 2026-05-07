@@ -37,6 +37,7 @@ export class ScryptService extends PricingProvider {
   private readonly securities: AsyncSubscription<ScryptSecurity[]>;
   private readonly balances: AsyncSubscription<Map<string, ScryptBalance>>;
   private readonly executionReports: Map<string, ScryptExecutionReport> = new Map();
+  private readonly balanceTransactions: Map<string, ScryptBalanceTransaction> = new Map();
 
   readonly name: string = 'Scrypt';
 
@@ -60,32 +61,69 @@ export class ScryptService extends PricingProvider {
       });
     });
 
-    // ExecutionReport subscription (accumulate into Map, no await needed)
+    const cacheMaxAge = Util.daysBefore(365);
+
+    // ExecutionReport subscription (all pages + subscription)
+    this.connection
+      .fetchAll<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT)
+      .then((reports) => {
+        const recent = reports.filter((r) => !r.SubmitTime || new Date(r.SubmitTime) >= cacheMaxAge);
+        for (const r of recent) this.executionReports.set(r.ClOrdID, r);
+      })
+      .catch((error) => this.logger.error('Failed to fetch execution reports:', error));
+
     this.connection.subscribeToStream<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, (reports) => {
       for (const report of reports) {
         this.executionReports.set(report.ClOrdID, report);
       }
     });
+
+    // BalanceTransaction subscription (all pages + subscription)
+    this.connection
+      .fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION)
+      .then((transactions) => {
+        const recent = transactions.filter((t) => new Date(t.Timestamp) >= cacheMaxAge);
+        for (const t of recent) this.balanceTransactions.set(t.ClReqID, t);
+      })
+      .catch((error) => this.logger.error('Failed to fetch balance transactions:', error));
+
+    this.connection.subscribeToStream<ScryptBalanceTransaction>(
+      ScryptMessageType.BALANCE_TRANSACTION,
+      (transactions) => {
+        for (const t of transactions) {
+          this.balanceTransactions.set(t.ClReqID, t);
+        }
+      },
+    );
   }
 
   // --- BALANCES --- //
 
-  async getTotalBalances(): Promise<Record<string, number>> {
+  async getBalances(): Promise<{ total: Record<string, number>; available: Record<string, number> }> {
     const balances = await this.balances;
 
-    const totalBalances: Record<string, number> = {};
+    const total: Record<string, number> = {};
+    const available: Record<string, number> = {};
+
     for (const balance of balances.values()) {
-      totalBalances[balance.Currency] = parseFloat(balance.Amount) || 0;
+      const amount = parseFloat(balance.Amount) || 0;
+      const availableAmount = parseFloat(balance.AvailableAmount) || amount;
+
+      total[balance.Currency] = amount;
+      available[balance.Currency] = availableAmount;
     }
 
-    return totalBalances;
+    return { total, available };
   }
 
   async getAvailableBalance(currency: string): Promise<number> {
     const balances = await this.balances;
 
     const balance = balances.get(currency);
-    return balance ? parseFloat(balance.AvailableAmount) || 0 : 0;
+    if (!balance) return 0;
+
+    const amount = parseFloat(balance.Amount) || 0;
+    return parseFloat(balance.AvailableAmount) || amount;
   }
 
   // --- WITHDRAWALS --- //
@@ -98,25 +136,21 @@ export class ScryptService extends PricingProvider {
   ): Promise<ScryptWithdrawResponse> {
     const clReqId = randomUUID();
 
-    const withdrawRequest = {
-      type: ScryptMessageType.NEW_WITHDRAW_REQUEST,
-      data: [
-        {
-          Quantity: amount.toString(),
-          Currency: currency,
-          MarketAccount: 'default',
-          RoutingInfo: {
-            WalletAddress: address,
-            Memo: memo ?? '',
-            DestinationTag: '',
-          },
-          ClReqID: clReqId,
-        },
-      ],
+    const withdrawData = {
+      Quantity: amount.toString(),
+      Currency: currency,
+      MarketAccount: 'default',
+      RoutingInfo: {
+        WalletAddress: address,
+        Memo: memo ?? '',
+        DestinationTag: '',
+      },
+      ClReqID: clReqId,
     };
 
     const transaction = await this.connection.requestAndWaitForUpdate<ScryptBalanceTransaction>(
-      withdrawRequest,
+      ScryptMessageType.NEW_WITHDRAW_REQUEST,
+      [withdrawData],
       ScryptMessageType.BALANCE_TRANSACTION,
       (transactions) =>
         transactions.find((t) => t.ClReqID === clReqId && t.TransactionType === ScryptTransactionType.WITHDRAWAL) ??
@@ -137,12 +171,9 @@ export class ScryptService extends PricingProvider {
   }
 
   async getWithdrawalStatus(clReqId: string): Promise<ScryptWithdrawStatus | null> {
-    const transactions = await this.fetchBalanceTransactions();
-    const transaction = transactions.find(
-      (t) => t.ClReqID === clReqId && t.TransactionType === ScryptTransactionType.WITHDRAWAL,
-    );
+    const transaction = this.balanceTransactions.get(clReqId);
 
-    if (!transaction) return null;
+    if (!transaction || transaction.TransactionType !== ScryptTransactionType.WITHDRAWAL) return null;
 
     return {
       id: transaction.TransactionID,
@@ -154,15 +185,38 @@ export class ScryptService extends PricingProvider {
     };
   }
 
+  // --- DEPOSITS --- //
+
+  async sendDepositRequest(params: {
+    currency: string;
+    amount: number;
+    reqId: string;
+    timeStamp: Date;
+    txHashes?: string[];
+  }): Promise<void> {
+    const depositData = {
+      Currency: params.currency,
+      ClReqID: params.reqId,
+      Quantity: params.amount.toString(),
+      TransactTime: params.timeStamp.toISOString(),
+      TxHashes: (params.txHashes?.length ? params.txHashes : [params.reqId]).map((hash) => ({ TxHash: hash })),
+    };
+
+    await this.connection.send(ScryptMessageType.NEW_DEPOSIT_REQUEST, [depositData]);
+  }
+
   // --- TRANSACTIONS --- //
 
   async getAllTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
-    const transactions = await this.fetchBalanceTransactions();
+    const transactions = Array.from(this.balanceTransactions.values());
     return transactions.filter((t) => !since || (t.TransactTime && new Date(t.TransactTime) >= since));
   }
 
-  private async fetchBalanceTransactions(): Promise<ScryptBalanceTransaction[]> {
-    return this.connection.fetch<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION);
+  private async fetchExecutionReports(since?: Date): Promise<ScryptExecutionReport[]> {
+    const filters: Record<string, unknown> = {};
+    if (since) filters.StartDate = since.toISOString();
+
+    return this.connection.fetch<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, filters);
   }
 
   async getTrades(since?: Date): Promise<ScryptTrade[]> {
@@ -239,7 +293,19 @@ export class ScryptService extends PricingProvider {
   }
 
   async getOrderStatus(clOrdId: string): Promise<ScryptOrderInfo | null> {
-    const report = this.executionReports.get(clOrdId);
+    // Try in-memory cache first
+    let report = this.executionReports.get(clOrdId);
+
+    // Fallback: fetch from Scrypt API (e.g. after restart or WS reconnect)
+    if (!report) {
+      const reports = await this.fetchExecutionReports(Util.daysBefore(30));
+      report = reports.find((r) => r.ClOrdID === clOrdId);
+
+      if (report) {
+        this.executionReports.set(report.ClOrdID, report);
+      }
+    }
+
     if (!report) return null;
 
     return {
@@ -257,9 +323,17 @@ export class ScryptService extends PricingProvider {
     };
   }
 
-  async checkTrade(clOrdId: string, from: string, to: string): Promise<boolean> {
+  async checkTrade(clOrdId: string, from: string, to: string, orderCreated?: Date): Promise<boolean> {
     const orderInfo = await this.getOrderStatus(clOrdId);
     if (!orderInfo) {
+      // If the order is older than 1 hour and still not found, it's lost
+      const ageMinutes = orderCreated ? Util.minutesDiff(orderCreated) : 0;
+      if (ageMinutes > 60) {
+        throw new Error(
+          `Order ${clOrdId} not found after ${Math.round(ageMinutes)} minutes — likely completed or cancelled outside of tracked state`,
+        );
+      }
+
       this.logger.verbose(`No order info for id ${clOrdId} at ${this.name} found`);
       return false;
     }
@@ -380,13 +454,9 @@ export class ScryptService extends PricingProvider {
       orderData.Price = price.toString();
     }
 
-    const orderRequest = {
-      type: ScryptMessageType.NEW_ORDER_SINGLE,
-      data: [orderData],
-    };
-
     const report = await this.connection.requestAndWaitForUpdate<ScryptExecutionReport>(
-      orderRequest,
+      ScryptMessageType.NEW_ORDER_SINGLE,
+      [orderData],
       ScryptMessageType.EXECUTION_REPORT,
       (reports) => reports.find((r) => r.ClOrdID === clOrdId) ?? null,
       60000,
@@ -404,24 +474,19 @@ export class ScryptService extends PricingProvider {
 
   private async cancelOrder(clOrdId: string, from: string, to: string): Promise<boolean> {
     const { symbol } = await this.getTradePair(from, to);
-    const origClOrdId = clOrdId;
     const newClOrdId = randomUUID();
 
-    const cancelRequest = {
-      type: ScryptMessageType.ORDER_CANCEL_REQUEST,
-      data: [
-        {
-          OrigClOrdID: origClOrdId,
-          ClOrdID: newClOrdId,
-          Symbol: symbol,
-        },
-      ],
+    const cancelData = {
+      OrigClOrdID: clOrdId,
+      ClOrdID: newClOrdId,
+      Symbol: symbol,
     };
 
     const report = await this.connection.requestAndWaitForUpdate<ScryptExecutionReport>(
-      cancelRequest,
+      ScryptMessageType.ORDER_CANCEL_REQUEST,
+      [cancelData],
       ScryptMessageType.EXECUTION_REPORT,
-      (reports) => reports.find((r) => r.OrigClOrdID === origClOrdId || r.ClOrdID === newClOrdId) ?? null,
+      (reports) => reports.find((r) => r.OrigClOrdID === clOrdId || r.ClOrdID === newClOrdId) ?? null,
       60000,
     );
 
@@ -436,24 +501,19 @@ export class ScryptService extends PricingProvider {
     newPrice: number,
   ): Promise<string> {
     const { symbol } = await this.getTradePair(from, to);
-    const origClOrdId = clOrdId;
     const newClOrdId = randomUUID();
 
-    const replaceRequest = {
-      type: ScryptMessageType.ORDER_CANCEL_REPLACE_REQUEST,
-      data: [
-        {
-          OrigClOrdID: origClOrdId,
-          ClOrdID: newClOrdId,
-          Symbol: symbol,
-          OrderQty: newQuantity.toString(),
-          Price: newPrice.toString(),
-        },
-      ],
+    const editData = {
+      OrigClOrdID: clOrdId,
+      ClOrdID: newClOrdId,
+      Symbol: symbol,
+      OrderQty: newQuantity.toString(),
+      Price: newPrice.toString(),
     };
 
     const report = await this.connection.requestAndWaitForUpdate<ScryptExecutionReport>(
-      replaceRequest,
+      ScryptMessageType.ORDER_CANCEL_REPLACE_REQUEST,
+      [editData],
       ScryptMessageType.EXECUTION_REPORT,
       (reports) => reports.find((r) => r.ClOrdID === newClOrdId) ?? null,
       60000,

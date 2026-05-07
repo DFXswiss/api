@@ -29,6 +29,7 @@ export enum TransactionState {
   RETURNED = 'Returned',
   UNASSIGNED = 'Unassigned',
   WAITING_FOR_PAYMENT = 'WaitingForPayment',
+  STOPPED = 'Stopped',
 }
 
 export enum TransactionReason {
@@ -80,6 +81,7 @@ export const TransactionReasonMapper: {
   [AmlReason.NO_COMMUNICATION]: TransactionReason.UNKNOWN,
   [AmlReason.USER_BLOCKED]: TransactionReason.UNKNOWN,
   [AmlReason.USER_DATA_BLOCKED]: TransactionReason.UNKNOWN,
+  [AmlReason.USER_DATA_SUSPICIOUS]: TransactionReason.UNKNOWN,
   [AmlReason.USER_DELETED]: TransactionReason.USER_DELETED,
   [AmlReason.MONTHLY_LIMIT]: TransactionReason.MONTHLY_LIMIT_EXCEEDED,
   [AmlReason.ANNUAL_LIMIT]: TransactionReason.ANNUAL_LIMIT_EXCEEDED,
@@ -111,10 +113,13 @@ export const TransactionReasonMapper: {
   [AmlReason.MANUAL_CHECK_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
   [AmlReason.MANUAL_CHECK_IP_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
   [AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
+  [AmlReason.MANUAL_CHECK_PHONE_FAILED]: TransactionReason.PHONE_VERIFICATION_NEEDED,
   [AmlReason.BANK_RELEASE_PENDING]: TransactionReason.BANK_RELEASE_PENDING,
   [AmlReason.VIRTUAL_IBAN_USER_MISMATCH]: TransactionReason.UNKNOWN,
   [AmlReason.INTERMEDIARY_WITHOUT_SENDER]: TransactionReason.BANK_NOT_ALLOWED,
   [AmlReason.NAME_TOO_SHORT]: TransactionReason.KYC_DATA_NEEDED,
+  [AmlReason.ASSET_INPUT_NOT_ALLOWED]: TransactionReason.ASSET_NOT_AVAILABLE,
+  [AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE]: TransactionReason.PHONE_VERIFICATION_NEEDED,
 };
 
 export class UnassignedTransactionDto {
@@ -142,8 +147,14 @@ export class UnassignedTransactionDto {
   @ApiPropertyOptional({ description: 'Fiat ID for buy transactions, asset ID otherwise' })
   inputAssetId?: number;
 
+  @ApiPropertyOptional({ description: 'Contract address of the input asset (for tokens)' })
+  inputChainId?: string;
+
   @ApiPropertyOptional({ enum: Blockchain })
   inputBlockchain?: Blockchain;
+
+  @ApiPropertyOptional({ description: 'EVM chain ID of the input asset (e.g. 1 for Ethereum)' })
+  inputEvmChainId?: number;
 
   @ApiPropertyOptional({ enum: PaymentMethodSwagger })
   inputPaymentMethod?: PaymentMethod;
@@ -153,6 +164,9 @@ export class UnassignedTransactionDto {
 
   @ApiPropertyOptional()
   inputTxUrl?: string;
+
+  @ApiPropertyOptional({ description: 'Deposit address for crypto input transactions' })
+  depositAddress?: string;
 
   @ApiPropertyOptional({ description: 'Chargeback address or chargeback IBAN' })
   chargebackTarget?: string;
@@ -215,8 +229,14 @@ export class TransactionDto extends UnassignedTransactionDto {
   @ApiPropertyOptional({ description: 'Fiat ID for sell transactions, asset ID otherwise' })
   outputAssetId?: number;
 
+  @ApiPropertyOptional({ description: 'Contract address of the output asset (for tokens)' })
+  outputChainId?: string;
+
   @ApiPropertyOptional({ enum: Blockchain })
   outputBlockchain?: Blockchain;
+
+  @ApiPropertyOptional({ description: 'EVM chain ID of the output asset (e.g. 1 for Ethereum)' })
+  outputEvmChainId?: number;
 
   @ApiPropertyOptional({ enum: PaymentMethodSwagger })
   outputPaymentMethod?: PaymentMethod;

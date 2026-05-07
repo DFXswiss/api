@@ -2,23 +2,39 @@ import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { LessThan } from 'typeorm';
 import { DfxOrderStepAdapter } from '../adapter/dfx-order-step.adapter';
+import { EquityOrderStepAdapter } from '../adapter/equity-order-step.adapter';
 import { OrderConfig } from '../config/order-config';
 
 import { Config } from 'src/config/config';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
-import { CustodyOrderStatus, CustodyOrderStepContext, CustodyOrderStepStatus } from '../enums/custody';
+import { CustodyOrderStep } from '../entities/custody-order-step.entity';
+import {
+  CustodyOrderStatus,
+  CustodyOrderStepCommand,
+  CustodyOrderStepContext,
+  CustodyOrderStepStatus,
+} from '../enums/custody';
 import { CustodyOrderStepRepository } from '../repositories/custody-order-step.repository';
 import { CustodyOrderRepository } from '../repositories/custody-order.repository';
 import { CustodyOrderService } from './custody-order.service';
 
+interface OrderStepAdapter {
+  execute(step: CustodyOrderStep): Promise<string>;
+  isComplete(step: CustodyOrderStep): Promise<boolean>;
+}
+
 @Injectable()
 export class CustodyJobService {
+  private readonly logger = new DfxLogger(CustodyJobService);
+
   constructor(
     private readonly custodyOrderRepo: CustodyOrderRepository,
     private readonly custodyOrderStepRepo: CustodyOrderStepRepository,
     private readonly dfxOrderStepAdapter: DfxOrderStepAdapter,
+    private readonly equityOrderStepAdapter: EquityOrderStepAdapter,
     private readonly custodyOrderService: CustodyOrderService,
   ) {}
 
@@ -67,10 +83,9 @@ export class CustodyJobService {
     });
 
     for (const step of newSteps) {
-      switch (step.context) {
-        case CustodyOrderStepContext.DFX:
-          await this.custodyOrderStepRepo.update(...step.progress(await this.dfxOrderStepAdapter.execute(step)));
-          break;
+      const adapter = this.getAdapter(step.context);
+      if (adapter) {
+        await this.custodyOrderStepRepo.update(...step.progress(await adapter.execute(step)));
       }
     }
   }
@@ -81,14 +96,43 @@ export class CustodyJobService {
     });
 
     for (const step of runningSteps) {
-      switch (step.context) {
-        case CustodyOrderStepContext.DFX:
-          if (step.correlationId === 'NA' || (await this.dfxOrderStepAdapter.isComplete(step))) {
-            await this.custodyOrderStepRepo.update(...step.complete());
-            await this.custodyOrderService.startNextStep(step);
-          }
-          break;
+      const adapter = this.getAdapter(step.context);
+      if (!adapter) continue;
+
+      if (step.correlationId === 'NA' || (await adapter.isComplete(step))) {
+        await this.onStepComplete(step);
       }
+    }
+  }
+
+  private async onStepComplete(step: CustodyOrderStep) {
+    const isFinalEquityStep = [CustodyOrderStepCommand.MINT, CustodyOrderStepCommand.REDEEM].includes(step.command);
+
+    if (isFinalEquityStep) {
+      // load relations
+      step.order = await this.custodyOrderRepo.findOne({
+        where: { id: step.order.id },
+        relations: { user: true },
+      });
+
+      const outputAmount = await this.equityOrderStepAdapter.getOutputAmount(step);
+
+      await this.custodyOrderService.updateCustodyOrderInternal(step.order, {
+        status: CustodyOrderStatus.COMPLETED,
+        inputAmount: outputAmount,
+      });
+    }
+
+    await this.custodyOrderStepRepo.update(...step.complete());
+    await this.custodyOrderService.startNextStep(step);
+  }
+
+  private getAdapter(context: CustodyOrderStepContext): OrderStepAdapter | undefined {
+    switch (context) {
+      case CustodyOrderStepContext.DFX:
+        return this.dfxOrderStepAdapter;
+      case CustodyOrderStepContext.EQUITY:
+        return this.equityOrderStepAdapter;
     }
   }
 }

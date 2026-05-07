@@ -3,6 +3,7 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { User } from '../../user/models/user/user.entity';
 import { UserService } from '../../user/models/user/user.service';
@@ -32,13 +33,14 @@ export class KycClientService {
     return wallet.users.map((b) => this.toKycDataDto(b));
   }
 
-  async getAllPayments(walletId: number, dateFrom: Date, dateTo: Date): Promise<PaymentWebhookData[]> {
+  async getAllPayments(walletId: number, dateFrom: Date, dateTo: Date, limit?: number): Promise<PaymentWebhookData[]> {
     const wallet = await this.walletService.getByIdOrName(walletId, undefined, { users: { userData: true } });
     if (!wallet) throw new NotFoundException('Wallet not found');
 
-    return Util.asyncMap(wallet.users, async (user) => {
-      return this.toPaymentDto(user.id, dateFrom, dateTo);
-    }).then((dto) => dto.flat());
+    const userIds = wallet.users.map((u) => u.id);
+    const transactions = await this.transactionService.getTransactionsForUsers(userIds, dateFrom, dateTo, limit);
+
+    return this.toPaymentDtos(transactions);
   }
 
   async getAllUserPayments(
@@ -53,7 +55,9 @@ export class KycClientService {
     const user = wallet.users.find((u) => u.address === userAddress);
     if (!user) throw new NotFoundException('User not found');
 
-    return this.toPaymentDto(user.id, dateFrom, dateTo);
+    const transactions = await this.transactionService.getTransactionsForUsers([user.id], dateFrom, dateTo);
+
+    return this.toPaymentDtos(transactions);
   }
 
   async getKycFiles(userAddress: string, walletId: number): Promise<KycReportDto[]> {
@@ -83,10 +87,8 @@ export class KycClientService {
   }
 
   // --- HELPER METHODS --- //
-  private async toPaymentDto(userId: number, dateFrom: Date, dateTo: Date): Promise<PaymentWebhookData[]> {
-    const txList = await this.transactionService
-      .getTransactionsForUser(userId, dateFrom, dateTo)
-      .then((txs) => txs.filter((t) => t.buyCrypto || t.buyFiat).map((t) => t.buyCrypto || t.buyFiat));
+  private async toPaymentDtos(transactions: Transaction[]): Promise<PaymentWebhookData[]> {
+    const txList = transactions.filter((t) => t.buyCrypto || t.buyFiat).map((t) => t.buyCrypto || t.buyFiat);
 
     return Util.asyncMap(txList, async (tx) => {
       if (tx instanceof BuyCrypto) {

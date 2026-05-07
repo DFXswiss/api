@@ -1,4 +1,5 @@
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
 import { LiquidityManagementRule } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-rule.entity';
@@ -129,6 +130,10 @@ export class Asset extends IEntity {
 
   get minimalPriceReferenceAmount() {
     return this.approxPriceChf ? 1 / this.approxPriceChf : 1;
+  }
+
+  get evmChainId(): number | undefined {
+    return EvmUtil.getChainId(this.blockchain);
   }
 
   isBuyableOn(blockchains: Blockchain[]): boolean {
