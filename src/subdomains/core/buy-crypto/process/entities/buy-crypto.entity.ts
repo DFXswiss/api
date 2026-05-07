@@ -520,7 +520,6 @@ export class BuyCrypto extends IEntity {
   stop(): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       status: BuyCryptoStatus.STOPPED,
-      isComplete: true,
     };
 
     Object.assign(this, update);

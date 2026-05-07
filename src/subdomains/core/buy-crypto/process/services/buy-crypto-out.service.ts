@@ -250,7 +250,7 @@ export class BuyCryptoOutService {
       }
     }
 
-    const isBatchComplete = batch.transactions.every((tx) => tx.isComplete);
+    const isBatchComplete = batch.transactions.every((tx) => tx.isComplete || tx.status === BuyCryptoStatus.STOPPED);
 
     if (isBatchComplete) {
       this.logger.verbose(`Buy-crypto payout complete (batch ID: ${batch.id})`);
