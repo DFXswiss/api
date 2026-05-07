@@ -517,9 +517,10 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  stop(): UpdateResult<BuyCrypto> {
+  stop(amlReason?: AmlReason): UpdateResult<BuyCrypto> {
     const update: Partial<BuyCrypto> = {
       status: BuyCryptoStatus.STOPPED,
+      ...(amlReason && { amlCheck: CheckStatus.FAIL, amlReason }),
     };
 
     Object.assign(this, update);
