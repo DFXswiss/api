@@ -19,12 +19,22 @@ export enum CustodyOrderType {
   SAVING_WITHDRAWAL = 'SavingWithdrawal',
 }
 
+export const CustodyIncomingTypes = [CustodyOrderType.DEPOSIT, CustodyOrderType.RECEIVE];
+export const CustodySwapTypes = [
+  CustodyOrderType.SWAP,
+  CustodyOrderType.EQUITY_MINT,
+  CustodyOrderType.EQUITY_REDEEM,
+  CustodyOrderType.SAVING_DEPOSIT,
+  CustodyOrderType.SAVING_WITHDRAWAL,
+];
+
 export enum CustodyOrderStatus {
   CREATED = 'Created',
   CONFIRMED = 'Confirmed',
   APPROVED = 'Approved',
   IN_PROGRESS = 'InProgress',
   COMPLETED = 'Completed',
+  FAILED = 'Failed',
 }
 
 export enum CustodyOrderStepStatus {

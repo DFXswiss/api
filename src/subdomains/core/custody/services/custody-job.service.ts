@@ -1,12 +1,15 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { LessThan } from 'typeorm';
 import { DfxOrderStepAdapter } from '../adapter/dfx-order-step.adapter';
 import { EquityOrderStepAdapter } from '../adapter/equity-order-step.adapter';
 import { OrderConfig } from '../config/order-config';
 
+import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
+import { Util } from 'src/shared/utils/util';
 import { CustodyOrderStep } from '../entities/custody-order-step.entity';
 import {
   CustodyOrderStatus,
@@ -40,6 +43,22 @@ export class CustodyJobService {
     await this.executeOrder();
     await this.executeStep();
     await this.checkStep();
+  }
+
+  @DfxCron(CronExpression.EVERY_DAY_AT_4AM, { process: Process.CUSTODY })
+  async resetExpiredConfirmedOrders() {
+    const expiryDate = Util.daysBefore(Config.txRequestWaitingExpiryDays);
+
+    const expiredOrders = await this.custodyOrderRepo.find({
+      where: {
+        status: CustodyOrderStatus.CONFIRMED,
+        updated: LessThan(expiryDate),
+      },
+    });
+
+    for (const order of expiredOrders) {
+      await this.custodyOrderRepo.update(...order.reset());
+    }
   }
 
   private async executeOrder() {

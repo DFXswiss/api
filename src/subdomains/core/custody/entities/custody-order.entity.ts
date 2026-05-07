@@ -91,4 +91,16 @@ export class CustodyOrder extends IEntity {
       status: CustodyOrderStatus.COMPLETED,
     });
   }
+
+  fail(): UpdateResult<CustodyOrder> {
+    return Util.updateEntity<CustodyOrder>(this, {
+      status: CustodyOrderStatus.FAILED,
+    });
+  }
+
+  reset(): UpdateResult<CustodyOrder> {
+    return Util.updateEntity<CustodyOrder>(this, {
+      status: CustodyOrderStatus.CREATED,
+    });
+  }
 }
