@@ -19,6 +19,7 @@ import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
 import { SwapService } from '../../buy-crypto/routes/swap/swap.service';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { SellService } from '../../sell-crypto/route/sell.service';
+import { EquityDirection, EquityPairMatch, EquityPairService } from './equity-pair.service';
 import { OrderConfig } from '../config/order-config';
 import { CreateCustodyOrderInternalDto } from '../dto/input/create-custody-order.dto';
 import { GetCustodyInfoDto } from '../dto/input/get-custody-info.dto';
@@ -57,6 +58,7 @@ export class CustodyOrderService {
     private readonly swapService: SwapService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
+    private readonly equityPairService: EquityPairService,
   ) {}
 
   // --- ORDERS --- //
@@ -115,6 +117,20 @@ export class CustodyOrderService {
         if (!targetAsset) throw new NotFoundException('Target asset not found');
 
         this.checkBalance(sourceAsset, dto.sourceAmount, user.custodyBalances);
+
+        const equityPair = this.equityPairService.getEquityPairConfig(sourceAsset.name, targetAsset.name);
+
+        if (equityPair) {
+          orderDto.type =
+            equityPair.direction === EquityDirection.MINT
+              ? CustodyOrderType.EQUITY_MINT
+              : CustodyOrderType.EQUITY_REDEEM;
+          orderDto.outputAsset = sourceAsset;
+          orderDto.outputAmount = dto.sourceAmount;
+          orderDto.inputAsset = targetAsset;
+          paymentInfo = await this.createEquityPaymentInfo(sourceAsset, targetAsset, dto.sourceAmount, equityPair);
+          break;
+        }
 
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
@@ -270,6 +286,40 @@ export class CustodyOrderService {
     if (nextStep) {
       await this.createStep(order, nextIndex, nextStep.command, nextStep.context);
     }
+  }
+
+  // --- EQUITY HELPERS --- //
+  private async createEquityPaymentInfo(
+    sourceAsset: Asset,
+    targetAsset: Asset,
+    sourceAmount: number,
+    equityPair: EquityPairMatch,
+  ): Promise<CustodyOrderResponseDto> {
+    const equityPrice = await equityPair.config.service.getEquityPrice();
+
+    const estimatedAmount =
+      equityPair.direction === EquityDirection.MINT ? sourceAmount / equityPrice : sourceAmount * equityPrice;
+
+    const zeroFee = { min: 0, rate: 0, fixed: 0, dfx: 0, network: 0, platform: 0 };
+
+    return Object.assign(new CustodyOrderResponseDto(), {
+      id: undefined,
+      timestamp: new Date(),
+      minVolume: 0,
+      maxVolume: sourceAmount,
+      amount: sourceAmount,
+      sourceAsset: sourceAsset.name,
+      targetAsset: targetAsset.name,
+      fees: zeroFee,
+      feesTarget: zeroFee,
+      minVolumeTarget: 0,
+      maxVolumeTarget: estimatedAmount,
+      exchangeRate: equityPair.direction === EquityDirection.MINT ? equityPrice : 1 / equityPrice,
+      rate: equityPair.direction === EquityDirection.MINT ? equityPrice : 1 / equityPrice,
+      priceSteps: [],
+      estimatedAmount,
+      isValid: true,
+    });
   }
 
   // --- HELPERS --- //

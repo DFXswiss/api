@@ -240,7 +240,7 @@ export abstract class CitreaBaseClient extends EvmClient {
     return tx.hash;
   }
 
-  override async getSwapResult(txId: string, asset: Asset): Promise<number> {
+  override async getSwapResult(txId: string, asset: Asset, recipientAddress?: string): Promise<number> {
     if (asset.type === AssetType.COIN) {
       const receipt = await this.getTxReceipt(txId);
       const withdrawalTopic = ethers.utils.id('Withdrawal(address,uint256)');
@@ -251,7 +251,7 @@ export abstract class CitreaBaseClient extends EvmClient {
       return EvmUtil.fromWeiAmount(withdrawalLog.data);
     }
 
-    return super.getSwapResult(txId, asset);
+    return super.getSwapResult(txId, asset, recipientAddress);
   }
 
   // --- FEE METHODS --- //
