@@ -120,21 +120,30 @@ export class CustodyOrderService {
         const targetAsset = await this.getCustodyAsset(dto.targetAsset);
         if (!targetAsset) throw new NotFoundException('Target asset not found');
 
-        await this.checkBalance(sourceAsset, dto.sourceAmount, user);
-
         const equityPair = this.equityPairService.getEquityPairConfig(sourceAsset.name, targetAsset.name);
 
         if (equityPair) {
+          const equityPrice = await equityPair.config.service.getEquityPrice();
+          const sourceAmount =
+            dto.sourceAmount ??
+            (equityPair.direction === EquityDirection.MINT
+              ? dto.targetAmount * equityPrice
+              : dto.targetAmount / equityPrice);
+
+          await this.checkBalance(sourceAsset, sourceAmount, user);
+
           orderDto.type =
             equityPair.direction === EquityDirection.MINT
               ? CustodyOrderType.EQUITY_MINT
               : CustodyOrderType.EQUITY_REDEEM;
           orderDto.outputAsset = sourceAsset;
-          orderDto.outputAmount = dto.sourceAmount;
+          orderDto.outputAmount = sourceAmount;
           orderDto.inputAsset = targetAsset;
-          paymentInfo = await this.createEquityPaymentInfo(sourceAsset, targetAsset, dto.sourceAmount, equityPair);
+          paymentInfo = await this.createEquityPaymentInfo(sourceAsset, targetAsset, sourceAmount, equityPair);
           break;
         }
+
+        await this.checkBalance(sourceAsset, dto.sourceAmount, user);
 
         const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
           jwt.user,
