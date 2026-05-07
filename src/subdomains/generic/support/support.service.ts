@@ -69,6 +69,7 @@ import { PhoneCallStatus } from '../user/models/user-data/user-data.enum';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { User } from '../user/models/user/user.entity';
 import { UserService } from '../user/models/user/user.service';
+import { CryptoInputReturnDto } from './dto/crypto-input-return.dto';
 import { ComplianceDecision, GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
@@ -1332,6 +1333,18 @@ export class SupportService {
       ),
       ...baseRefund,
     });
+  }
+
+  // Trigger an on-chain return for a CryptoInput that is not attached to the
+  // standard BuyCrypto/BuyFiat refund flow (e.g. an unassigned deposit that
+  // could not be routed). The cron-driven send pipeline picks the record up
+  // and submits the actual transaction.
+  async processCryptoInputReturn(cryptoInputId: number, dto: CryptoInputReturnDto): Promise<void> {
+    const payIn = await this.payInService.getCryptoInputForReturn(cryptoInputId);
+    if (!payIn) throw new NotFoundException('CryptoInput not found');
+    if (!payIn.asset) throw new BadRequestException('CryptoInput has no asset — pipeline cannot process it');
+    if (!payIn.isConfirmed) throw new BadRequestException('CryptoInput is not confirmed yet');
+    await this.payInService.returnPayIn(payIn, dto.destinationAddress, dto.chargebackAmount);
   }
 
   private async getChargebackRefundTarget(transaction: Transaction): Promise<string | undefined> {

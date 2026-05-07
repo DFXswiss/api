@@ -19,6 +19,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { ChargebackRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
+import { CryptoInputReturnDto } from './dto/crypto-input-return.dto';
 import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import { ReviewStatus } from '../kyc/enums/review-status.enum';
@@ -194,5 +195,13 @@ export class SupportController {
     @GetJwt() jwt: JwtPayload,
   ): Promise<void> {
     await this.supportService.processTransactionRefund(+id, dto, jwt.account);
+  }
+
+  @Put('crypto-input/:id/return')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async returnCryptoInput(@Param('id') id: string, @Body() dto: CryptoInputReturnDto): Promise<void> {
+    await this.supportService.processCryptoInputReturn(+id, dto);
   }
 }

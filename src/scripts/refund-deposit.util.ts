@@ -145,7 +145,12 @@ export function validateArgs(args: RawArgs): RefundOptions {
 }
 
 export function helpText(): string {
-  return `Refund / forward funds from a DFX EVM deposit address.
+  return `Refund / forward funds from a DFX EVM deposit address — LAST-RESORT TOOL.
+
+Prefer PUT /support/crypto-input/:id/return for normal cases (it updates the
+crypto_input record, lets the cron pipeline send and tracks confirmations).
+Use this script only when the pipeline cannot process the record at all
+(asset null, not confirmed, or no record exists).
 
 Required:
   --chain <name>           ${CHAIN_NAMES.join(', ')}

@@ -151,6 +151,13 @@ export class PayInService {
     return query.getOne();
   }
 
+  async getCryptoInputForReturn(id: number): Promise<CryptoInput> {
+    return this.payInRepository.findOne({
+      where: { id },
+      relations: { asset: true, route: { user: true }, transaction: true },
+    });
+  }
+
   private async fetchPayment(payIn: CryptoInput): Promise<void> {
     try {
       payIn.paymentQuote = await this.paymentLinkPaymentService.getPaymentQuoteByCryptoInput(payIn);

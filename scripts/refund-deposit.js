@@ -1,8 +1,21 @@
 #!/usr/bin/env node
 //
-// Refund / forward funds from a DFX EVM deposit address.
+// Refund / forward funds from a DFX EVM deposit address — LAST-RESORT TOOL.
 //
-// Bootstraps the NestJS application context and uses the existing
+// Prefer the support endpoint for normal refund cases:
+//
+//   PUT /support/crypto-input/:id/return
+//   Body: { destinationAddress, chargebackAmount }
+//
+// That endpoint calls payInService.returnPayIn(), which sets the correct
+// status/action on the crypto_input record and lets the existing send-strategy
+// cron broadcast the tx, update returnTxId and track confirmations — full
+// audit trail.
+//
+// This script bypasses all of that. Use it ONLY when a CryptoInput record
+// cannot be processed by the pipeline at all (asset is null, not confirmed,
+// or no record exists), and the funds need to come back without a clean
+// audit trail. Bootstraps the NestJS application context and uses the existing
 // BlockchainRegistryService + EvmClient to derive the deposit wallet
 // (EVM_DEPOSIT_SEED + accountIndex) and forward a chosen asset to a chosen
 // recipient. Recipient can be derived from a deposit transaction (sender of
