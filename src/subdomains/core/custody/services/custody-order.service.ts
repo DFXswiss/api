@@ -357,7 +357,7 @@ export class CustodyOrderService {
       status: In([CustodyOrderStatus.CONFIRMED, CustodyOrderStatus.APPROVED, CustodyOrderStatus.IN_PROGRESS]),
     });
 
-    if (balance < pendingAmount + amount)
+    if (balance < (pendingAmount ?? 0) + amount)
       throw new BadRequestException('This transaction can only be created manually by support');
   }
 }

@@ -38,6 +38,9 @@ export class CustodyOrderHistoryDtoMapper {
 
       case CustodyOrderStatus.FAILED:
         return CustodyOrderHistoryStatus.FAILED;
+
+      default:
+        return CustodyOrderHistoryStatus.PROCESSING;
     }
   }
 }

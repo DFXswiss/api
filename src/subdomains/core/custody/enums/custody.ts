@@ -22,6 +22,8 @@ export enum CustodyOrderType {
 export const CustodyIncomingTypes = [CustodyOrderType.DEPOSIT, CustodyOrderType.RECEIVE];
 export const CustodySwapTypes = [
   CustodyOrderType.SWAP,
+  CustodyOrderType.EQUITY_MINT,
+  CustodyOrderType.EQUITY_REDEEM,
   CustodyOrderType.SAVING_DEPOSIT,
   CustodyOrderType.SAVING_WITHDRAWAL,
 ];
