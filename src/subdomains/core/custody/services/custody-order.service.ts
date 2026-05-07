@@ -194,6 +194,7 @@ export class CustodyOrderService {
         );
 
         orderDto.swap = await this.swapService.getById(swapPaymentInfo.routeId);
+        orderDto.inputAsset = targetAsset;
         paymentInfo = CustodyOrderResponseDtoMapper.mapSwapPaymentInfo(swapPaymentInfo);
         break;
       }
