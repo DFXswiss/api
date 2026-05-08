@@ -328,8 +328,7 @@ export class CustodyOrderService {
     const estimatedAmount =
       equityPair.direction === EquityDirection.MINT ? sourceAmount / equityPrice : sourceAmount * equityPrice;
 
-    const exchangeRate =
-      equityPair.direction === EquityDirection.MINT ? equityPrice : 1 / equityPrice;
+    const exchangeRate = equityPair.direction === EquityDirection.MINT ? equityPrice : 1 / equityPrice;
 
     const zeroFee = { min: 0, rate: 0, fixed: 0, dfx: 0, network: 0, platform: 0, bank: 0, total: 0 };
 

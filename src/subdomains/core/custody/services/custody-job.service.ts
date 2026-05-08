@@ -80,7 +80,14 @@ export class CustodyJobService {
     const newSteps = await this.custodyOrderStepRepo.find({
       where: { status: CustodyOrderStepStatus.CREATED },
       relations: {
-        order: { sell: { deposit: true }, swap: { deposit: true }, user: true, outputAsset: true, inputAsset: true, transactionRequest: true },
+        order: {
+          sell: { deposit: true },
+          swap: { deposit: true },
+          user: true,
+          outputAsset: true,
+          inputAsset: true,
+          transactionRequest: true,
+        },
       },
     });
 
