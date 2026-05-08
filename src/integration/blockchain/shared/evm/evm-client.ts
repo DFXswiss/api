@@ -291,6 +291,7 @@ export abstract class EvmClient extends BlockchainClient {
   ): Promise<ethers.providers.TransactionResponse> {
     let { gasPrice, value } = request;
 
+    request.from ??= wallet.address;
     const currentNonce = await this.getNonce(request.from);
     const txNonce = request.nonce ? +request.nonce.toString() : currentNonce;
 
