@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
@@ -35,6 +36,7 @@ import { TransactionUtilService } from 'src/subdomains/core/transaction/transact
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -66,7 +68,7 @@ import { BuyCryptoNotificationService } from './buy-crypto-notification.service'
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
-export class BuyCryptoService {
+export class BuyCryptoService implements OnModuleInit {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyRepo: BuyRepository,
@@ -101,7 +103,12 @@ export class BuyCryptoService {
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly custodyOrderService: CustodyOrderService,
+    private readonly userDataService: UserDataService,
   ) {}
+
+  onModuleInit() {
+    this.userDataService.buyCryptoObservable.subscribe((buyCrypto) => this.resetAmlCheckInternal(buyCrypto));
+  }
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
     let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });

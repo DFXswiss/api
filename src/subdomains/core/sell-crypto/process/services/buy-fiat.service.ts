@@ -1,4 +1,4 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -11,6 +11,7 @@ import { TransactionUtilService } from 'src/subdomains/core/transaction/transact
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -43,7 +44,7 @@ import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 
 @Injectable()
-export class BuyFiatService {
+export class BuyFiatService implements OnModuleInit {
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     @Inject(forwardRef(() => BuyCryptoService))
@@ -72,7 +73,12 @@ export class BuyFiatService {
     private readonly custodyOrderService: CustodyOrderService,
     private readonly supportLogService: SupportLogService,
     private readonly payoutService: PayoutService,
+    private readonly userDataService: UserDataService,
   ) {}
+
+  onModuleInit() {
+    this.userDataService.buyFiatObservable.subscribe((buyFiat) => this.resetAmlCheckInternal(buyFiat));
+  }
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
     let entity = this.buyFiatRepo.create({

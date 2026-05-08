@@ -11,6 +11,7 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import JSZip from 'jszip';
+import { Observable, Subject } from 'rxjs';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -26,14 +27,14 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { PhoneAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { CustodyService } from 'src/subdomains/core/custody/services/custody.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import {
   DefaultPaymentLinkConfig,
   PaymentLinkConfig,
 } from 'src/subdomains/core/payment-link/entities/payment-link.config';
-import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { KycAddress, KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
@@ -85,6 +86,8 @@ export class UserDataService {
   private readonly logger = new DfxLogger(UserDataService);
 
   private readonly secretCache: Map<number, SecretCacheEntry> = new Map();
+  private readonly buyCryptoResetSubject: Subject<BuyCrypto> = new Subject<BuyCrypto>();
+  private readonly buyFiatResetSubject: Subject<BuyFiat> = new Subject<BuyFiat>();
 
   constructor(
     private readonly repos: RepositoryFactory,
@@ -116,11 +119,17 @@ export class UserDataService {
     private readonly ipLogService: IpLogService,
     @Inject(forwardRef(() => CustodyService))
     private readonly custodyService: CustodyService,
-    private readonly buyCryptoService: BuyCryptoService,
-    private readonly buyFiatService: BuyFiatService,
   ) {}
 
   // --- GETTERS --- //
+  get buyCryptoObservable(): Observable<BuyCrypto> {
+    return this.buyCryptoResetSubject.asObservable();
+  }
+
+  get buyFiatObservable(): Observable<BuyFiat> {
+    return this.buyFiatResetSubject.asObservable();
+  }
+
   async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
@@ -328,16 +337,18 @@ export class UserDataService {
             !tx.buyCrypto.isComplete &&
             !tx.buyCrypto.chargebackAllowedDate &&
             PhoneAmlReasons.includes(tx.buyCrypto.amlReason)
-          )
-            await this.buyCryptoService.resetAmlCheckInternal(tx.buyCrypto);
+          ) {
+            this.buyCryptoResetSubject.next(tx.buyCrypto);
+          }
 
           if (
             tx.buyFiat &&
             !tx.buyFiat.isComplete &&
             !tx.buyFiat.chargebackAllowedDate &&
             PhoneAmlReasons.includes(tx.buyFiat.amlReason)
-          )
-            await this.buyFiatService.resetAmlCheckInternal(tx.buyFiat);
+          ) {
+            this.buyFiatResetSubject.next(tx.buyFiat);
+          }
         }
       }
     }
