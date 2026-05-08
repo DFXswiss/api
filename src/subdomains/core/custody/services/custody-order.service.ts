@@ -11,6 +11,7 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { AmountType, Util } from 'src/shared/utils/util';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
@@ -327,6 +328,9 @@ export class CustodyOrderService {
     const estimatedAmount =
       equityPair.direction === EquityDirection.MINT ? sourceAmount / equityPrice : sourceAmount * equityPrice;
 
+    const exchangeRate =
+      equityPair.direction === EquityDirection.MINT ? equityPrice : 1 / equityPrice;
+
     const zeroFee = { min: 0, rate: 0, fixed: 0, dfx: 0, network: 0, platform: 0, bank: 0, total: 0 };
 
     return Object.assign(new CustodyOrderResponseDto(), {
@@ -340,11 +344,11 @@ export class CustodyOrderService {
       fees: zeroFee,
       feesTarget: zeroFee,
       minVolumeTarget: 0,
-      maxVolumeTarget: estimatedAmount,
-      exchangeRate: equityPair.direction === EquityDirection.MINT ? equityPrice : 1 / equityPrice,
-      rate: equityPair.direction === EquityDirection.MINT ? equityPrice : 1 / equityPrice,
+      maxVolumeTarget: Util.roundReadable(estimatedAmount, AmountType.ASSET),
+      exchangeRate: Util.roundReadable(exchangeRate, AmountType.ASSET),
+      rate: Util.roundReadable(exchangeRate, AmountType.ASSET),
       priceSteps: [],
-      estimatedAmount,
+      estimatedAmount: Util.roundReadable(estimatedAmount, AmountType.ASSET),
       isValid: true,
     });
   }
