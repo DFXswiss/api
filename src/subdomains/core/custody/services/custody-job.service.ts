@@ -79,16 +79,7 @@ export class CustodyJobService {
   private async executeStep() {
     const newSteps = await this.custodyOrderStepRepo.find({
       where: { status: CustodyOrderStepStatus.CREATED },
-      relations: {
-        order: {
-          sell: { deposit: true },
-          swap: { deposit: true },
-          user: true,
-          outputAsset: true,
-          inputAsset: true,
-          transactionRequest: true,
-        },
-      },
+      relations: { order: { sell: { deposit: true }, swap: { deposit: true }, user: true } },
     });
 
     for (const step of newSteps) {
@@ -102,7 +93,6 @@ export class CustodyJobService {
   private async checkStep() {
     const runningSteps = await this.custodyOrderStepRepo.find({
       where: { status: CustodyOrderStepStatus.IN_PROGRESS },
-      relations: { order: { outputAsset: true, inputAsset: true } },
     });
 
     for (const step of runningSteps) {
