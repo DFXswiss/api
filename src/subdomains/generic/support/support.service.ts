@@ -2,31 +2,29 @@ import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef 
 import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
-import { SettingService } from 'src/shared/models/setting/setting.service';
+import { addressExplorerUrl, txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
+import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { AmountType, Util } from 'src/shared/utils/util';
-import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AmlReason, NotRefundableAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { ChargebackRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
-import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
-import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
-import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
-import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
-import { Notification } from 'src/subdomains/supporting/notification/entities/notification.entity';
-import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { BankTxReturnService } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service';
-import { Recall } from 'src/subdomains/supporting/recall/recall.entity';
-import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
 import {
   BankTx,
   BankTxComplianceSearchableTypes,
@@ -35,26 +33,27 @@ import {
 } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { Notification } from 'src/subdomains/supporting/notification/entities/notification.entity';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
-import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
-import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
-import { addressExplorerUrl, txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
-import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { Recall } from 'src/subdomains/supporting/recall/recall.entity';
+import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
+import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
+import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
+import { FileSubType, FileType } from '../kyc/dto/kyc-file.dto';
 import { KycFile } from '../kyc/entities/kyc-file.entity';
 import { KycLog } from '../kyc/entities/kyc-log.entity';
 import { KycStep } from '../kyc/entities/kyc-step.entity';
+import { ContentType } from '../kyc/enums/content-type.enum';
 import { KycStepName } from '../kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from '../kyc/enums/review-status.enum';
-import { FileSubType, FileType } from '../kyc/dto/kyc-file.dto';
-import { ContentType } from '../kyc/enums/content-type.enum';
-import { SupportPdfService } from './support-pdf.service';
 import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
 import { KycFileService } from '../kyc/services/kyc-file.service';
 import { KycLogService } from '../kyc/services/kyc-log.service';
@@ -75,42 +74,43 @@ import {
   BankDataSupportInfo,
   BankTxSupportInfo,
   BuySupportInfo,
+  CallQueue,
+  CallQueueItem,
+  CallQueueSummaryEntry,
+  ComplianceSearchType,
   CryptoInputSupportInfo,
   IpLogSupportInfo,
-  SupportIssueSupportInfo,
-  ComplianceSearchType,
   KycFileListEntry,
   KycFileYearlyStats,
   KycLogSupportInfo,
   KycStepSupportInfo,
+  NotificationSupportInfo,
+  OnboardingStatus,
+  PendingOnboardingInfo,
+  PendingReviewItem,
+  PendingReviewSummaryEntry,
+  PendingReviewType,
   RecallSupportInfo,
   RecommendationEntry,
   RecommendationGraph,
   RecommendationGraphEdge,
   RecommendationGraphNode,
   RecommendationUserInfo,
-  SellSupportInfo,
-  SwapSupportInfo,
-  VirtualIbanSupportInfo,
   RefRewardSupportInfo,
-  NotificationSupportInfo,
+  SellSupportInfo,
+  SupportIssueSupportInfo,
   SupportPermissions,
+  SwapSupportInfo,
   TransactionListEntry,
   TransactionSupportInfo,
-  CallQueue,
-  CallQueueItem,
-  CallQueueSummaryEntry,
-  OnboardingStatus,
-  PendingOnboardingInfo,
-  PendingReviewItem,
-  PendingReviewSummaryEntry,
-  PendingReviewType,
   UserDataSupportInfo,
   UserDataSupportInfoDetails,
   UserDataSupportInfoResult,
   UserDataSupportQuery,
   UserSupportInfo,
+  VirtualIbanSupportInfo,
 } from './dto/user-data-support.dto';
+import { SupportPdfService } from './support-pdf.service';
 import { toUserDataDetailDto } from './user-data-detail.mapper';
 
 interface UserDataComplianceSearchTypePair {
@@ -196,7 +196,7 @@ export class SupportService {
 
     // Load KycFiles and KycSteps
     const [kycFiles, kycSteps] = await Promise.all([
-      this.kycFileService.getUserDataKycFiles(userDataId),
+      this.kycFileService.getUserDataKycFiles(userDataId, { kycStep: true }),
       this.kycService.getStepsByUserData(userDataId),
     ]);
 
