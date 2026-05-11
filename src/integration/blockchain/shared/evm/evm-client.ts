@@ -291,6 +291,7 @@ export abstract class EvmClient extends BlockchainClient {
   ): Promise<ethers.providers.TransactionResponse> {
     let { gasPrice, value } = request;
 
+    request.from ??= wallet.address;
     const currentNonce = await this.getNonce(request.from);
     const txNonce = request.nonce ? +request.nonce.toString() : currentNonce;
 
@@ -680,10 +681,10 @@ export abstract class EvmClient extends BlockchainClient {
     return { pool, amountOut, sqrtPriceX96After, gasEstimate, route };
   }
 
-  async getSwapResult(txId: string, asset: Asset): Promise<number> {
+  async getSwapResult(txId: string, asset: Asset, recipientAddress?: string): Promise<number> {
     const receipt = await this.getTxReceipt(txId);
 
-    const walletTopic = ethers.utils.hexZeroPad(this.walletAddress.toLowerCase(), 32);
+    const walletTopic = ethers.utils.hexZeroPad((recipientAddress ?? this.walletAddress).toLowerCase(), 32);
 
     const swapLog = receipt?.logs?.find(
       (l) => l.address.toLowerCase() === asset.chainId.toLowerCase() && l.topics[2]?.toLowerCase() === walletTopic,

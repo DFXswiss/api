@@ -12,9 +12,21 @@ export enum CustodyOrderType {
 
   SWAP = 'Swap',
 
+  EQUITY_MINT = 'EquityMint',
+  EQUITY_REDEEM = 'EquityRedeem',
+
   SAVING_DEPOSIT = 'SavingDeposit',
   SAVING_WITHDRAWAL = 'SavingWithdrawal',
 }
+
+export const CustodyIncomingTypes = [CustodyOrderType.DEPOSIT, CustodyOrderType.RECEIVE];
+export const CustodySwapTypes = [
+  CustodyOrderType.SWAP,
+  CustodyOrderType.EQUITY_MINT,
+  CustodyOrderType.EQUITY_REDEEM,
+  CustodyOrderType.SAVING_DEPOSIT,
+  CustodyOrderType.SAVING_WITHDRAWAL,
+];
 
 export enum CustodyOrderStatus {
   CREATED = 'Created',
@@ -22,6 +34,7 @@ export enum CustodyOrderStatus {
   APPROVED = 'Approved',
   IN_PROGRESS = 'InProgress',
   COMPLETED = 'Completed',
+  FAILED = 'Failed',
 }
 
 export enum CustodyOrderStepStatus {
@@ -33,11 +46,16 @@ export enum CustodyOrderStepStatus {
 
 export enum CustodyOrderStepContext {
   DFX = 'DFX',
+  EQUITY = 'Equity',
 }
 
 export enum CustodyOrderStepCommand {
   CHARGE_ROUTE = 'ChargeRoute',
   SEND_TO_ROUTE = 'SendToRoute',
+  CHARGE_CUSTODY = 'ChargeCustody',
+  APPROVE_TOKEN = 'ApproveToken',
+  MINT = 'Mint',
+  REDEEM = 'Redeem',
 }
 
 // accounts
