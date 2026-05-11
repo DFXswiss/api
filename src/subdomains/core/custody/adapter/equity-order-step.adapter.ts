@@ -119,13 +119,13 @@ export class EquityOrderStepAdapter {
     const custodyAddress = this.getCustodyWalletAddress(step);
     const equityContract = config.service.getEquityContract();
 
-    const equityPrice = await config.service.getEquityPrice();
-    const expectedProceeds = EvmUtil.toWeiAmount(amount * equityPrice * 0.98, 18); // 2% slippage tolerance
+    const expectedProceeds = await equityContract.calculateProceeds(weiAmount);
+    const minProceeds = expectedProceeds.mul(98).div(100); // 2% slippage tolerance
 
     const data = equityContract.interface.encodeFunctionData('redeemExpected', [
       custodyAddress,
       weiAmount,
-      expectedProceeds,
+      minProceeds,
     ]);
 
     const tx = await client.sendRawTransactionFromAccount(custodyAccount, {
