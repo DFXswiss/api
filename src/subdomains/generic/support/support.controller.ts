@@ -29,6 +29,7 @@ import {
   KycFileListEntry,
   KycFileYearlyStats,
   PendingOnboardingInfo,
+  PendingTransactionInfo,
   PendingReviewItem,
   PendingReviewSummaryEntry,
   PendingReviewType,
@@ -90,6 +91,14 @@ export class SupportController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async getPendingOnboardings(): Promise<PendingOnboardingInfo[]> {
     return this.supportService.getPendingOnboardings();
+  }
+
+  @Get('pending-transactions')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getPendingTransactions(): Promise<PendingTransactionInfo[]> {
+    return this.supportService.getPendingTransactions();
   }
 
   @Get('pending-reviews')

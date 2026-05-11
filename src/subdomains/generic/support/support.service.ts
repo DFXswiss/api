@@ -71,6 +71,7 @@ import { UserService } from '../user/models/user/user.service';
 import { ComplianceDecision, GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
+  BankDataAlternative,
   BankDataSupportInfo,
   BankTxSupportInfo,
   BuySupportInfo,
@@ -87,6 +88,7 @@ import {
   NotificationSupportInfo,
   OnboardingStatus,
   PendingOnboardingInfo,
+  PendingTransactionInfo,
   PendingReviewItem,
   PendingReviewSummaryEntry,
   PendingReviewType,
@@ -327,7 +329,7 @@ export class SupportService {
       ipLogs: ipLogs?.map((l) => this.toIpLogSupportInfo(l)),
       supportIssues: supportIssues?.map((s) => this.toSupportIssueSupportInfo(s)),
       users: await this.toUserSupportInfos(users),
-      bankDatas: bankDatas.map((b) => this.toBankDataSupportInfo(b)),
+      bankDatas: await this.toBankDataSupportInfos(bankDatas),
       buyRoutes: buyRoutes.map((b) => this.toBuySupportInfo(b)),
       sellRoutes: sellRoutes.map((s) => this.toSellSupportInfo(s)),
       swapRoutes: swapRoutes.map((s) => this.toSwapSupportInfo(s)),
@@ -529,7 +531,26 @@ export class SupportService {
     });
   }
 
-  private toBankDataSupportInfo(bankData: BankData): BankDataSupportInfo {
+  private async toBankDataSupportInfos(bankDatas: BankData[]): Promise<BankDataSupportInfo[]> {
+    const alternatives = await this.bankDataService.getApprovedAlternatives(bankDatas);
+    const alternativesByIban = new Map<string, BankDataAlternative[]>();
+    for (const a of alternatives) {
+      const list = alternativesByIban.get(a.iban) ?? [];
+      list.push({
+        id: a.id,
+        userDataId: a.userData?.id,
+        name: a.name,
+        verifiedName: a.userData?.verifiedName,
+        accountType: a.userData?.accountType,
+        type: a.type,
+      });
+      alternativesByIban.set(a.iban, list);
+    }
+
+    return bankDatas.map((b) => this.toBankDataSupportInfo(b, alternativesByIban.get(b.iban)));
+  }
+
+  private toBankDataSupportInfo(bankData: BankData, alternatives?: BankDataAlternative[]): BankDataSupportInfo {
     return {
       id: bankData.id,
       iban: bankData.iban,
@@ -541,6 +562,7 @@ export class SupportService {
       active: bankData.active,
       comment: bankData.comment,
       created: bankData.created,
+      alternatives: alternatives && alternatives.length > 0 ? alternatives : undefined,
     };
   }
 
@@ -734,6 +756,41 @@ export class SupportService {
       type: searchResult.type,
       userDatas: uniqueUserDatas.map((u) => this.toUserDataDto(u, onboardingStatuses)),
       bankTx: bankTx.sort((a, b) => a.id - b.id).map((b) => this.toBankTxDto(b, recallByBankTxId.get(b.id))),
+    };
+  }
+
+  async getPendingTransactions(): Promise<PendingTransactionInfo[]> {
+    const [buyCryptos, buyFiats] = await Promise.all([
+      this.buyCryptoService.getByAmlReason(AmlReason.MANUAL_CHECK, CheckStatus.PENDING),
+      this.buyFiatService.getByAmlReason(AmlReason.MANUAL_CHECK, CheckStatus.PENDING),
+    ]);
+    const items: PendingTransactionInfo[] = [
+      ...buyCryptos.map((bc) => this.toPendingTransactionInfo(bc, 'BuyCrypto')),
+      ...buyFiats.map((bf) => this.toPendingTransactionInfo(bf, 'BuyFiat')),
+    ];
+    return items.sort((a, b) => a.date.getTime() - b.date.getTime());
+  }
+
+  private toPendingTransactionInfo(
+    tx: BuyCrypto | BuyFiat,
+    sourceType: 'BuyCrypto' | 'BuyFiat',
+  ): PendingTransactionInfo {
+    const ud = tx.userData;
+    const inputAsset =
+      sourceType === 'BuyCrypto' ? (tx as BuyCrypto).inputAsset : (tx as BuyFiat).cryptoInput?.asset?.name;
+    return {
+      txId: tx.transaction.id,
+      uid: tx.transaction.uid,
+      sourceType,
+      userDataId: ud.id,
+      userName: this.formatUserName(ud),
+      accountType: ud.accountType,
+      kycLevel: ud.kycLevel,
+      inputAmount: tx.inputAmount,
+      inputAsset,
+      amlCheck: tx.amlCheck,
+      amlReason: tx.amlReason,
+      date: tx.created,
     };
   }
 
