@@ -549,8 +549,7 @@ export class RealUnitService {
   }
 
   async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
-    const userData = await this.userDataService.getUserData(userDataId, { users: true });
-    if (!userData) throw new NotFoundException('User not found');
+    const userData = await this.userDataService.getActiveUserData(userDataId, { users: true });
 
     if (!userData.mail) {
       try {
