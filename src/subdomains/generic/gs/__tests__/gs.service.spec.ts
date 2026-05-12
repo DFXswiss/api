@@ -23,6 +23,7 @@ import { LimitRequestService } from 'src/subdomains/supporting/support-issue/ser
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 
 describe('GsService', () => {
   let service: GsService;
@@ -68,67 +69,93 @@ describe('GsService', () => {
         ['SELECT * FROM [user] FOR  XML AUTO', 'double-space bypass attempt'],
         ['SELECT * FROM [user] FOR -- comment\nXML AUTO', 'inline comment bypass attempt'],
       ])('should block: %s (%s)', async (sql) => {
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'FOR XML/JSON not allowed',
+        );
       });
 
       it('should NOT block FOR XML in string literals (no false positives)', async () => {
         jest.spyOn(dataSource, 'query').mockResolvedValue([{ label: 'FOR XML' }]);
 
-        const result = await service.executeDebugQuery("SELECT 'FOR XML' as label FROM [user]", 'test-user');
+        const result = await service.executeDebugQuery(
+          "SELECT 'FOR XML' as label FROM [user]",
+          'test-user',
+          UserRole.DEBUG,
+        );
 
         expect(result).toBeDefined();
       });
 
       it('should block FOR XML in subqueries (SELECT column)', async () => {
         const sql = "SELECT id, (SELECT name FROM items FOR XML PATH('')) as xml FROM [user]";
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'FOR XML/JSON not allowed',
+        );
       });
 
       it('should block FOR XML in derived tables (FROM clause)', async () => {
         const sql = 'SELECT * FROM (SELECT id FROM [user] FOR XML AUTO) as t';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'FOR XML/JSON not allowed',
+        );
       });
 
       it('should block FOR XML in HAVING clause', async () => {
         const sql =
           'SELECT COUNT(*) FROM [user] GROUP BY status HAVING (SELECT id FROM items FOR XML AUTO) IS NOT NULL';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'FOR XML/JSON not allowed',
+        );
       });
 
       it('should block FOR XML in ORDER BY clause', async () => {
         const sql = 'SELECT * FROM [user] ORDER BY (SELECT id FROM items FOR XML AUTO)';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'FOR XML/JSON not allowed',
+        );
       });
 
       it('should block FOR XML in JOIN ON condition', async () => {
         const sql = 'SELECT * FROM [user] u JOIN items i ON i.id = (SELECT id FOR XML AUTO)';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'FOR XML/JSON not allowed',
+        );
       });
 
       it('should block FOR XML in CASE expression', async () => {
         const sql = 'SELECT CASE WHEN 1=1 THEN (SELECT id FOR XML AUTO) END FROM [user]';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'FOR XML/JSON not allowed',
+        );
       });
 
       it('should block FOR XML in GROUP BY clause', async () => {
         const sql = 'SELECT COUNT(*) FROM [user] GROUP BY (SELECT id FOR XML AUTO)';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'FOR XML/JSON not allowed',
+        );
       });
 
       it('should block FOR XML in WINDOW OVER ORDER BY clause', async () => {
         const sql = 'SELECT id, ROW_NUMBER() OVER (ORDER BY (SELECT id FOR XML AUTO)) FROM [user]';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'FOR XML/JSON not allowed',
+        );
       });
 
       it('should block FOR XML in WINDOW OVER PARTITION BY clause', async () => {
         const sql = 'SELECT id, ROW_NUMBER() OVER (PARTITION BY (SELECT id FOR XML AUTO) ORDER BY id) FROM [user]';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'FOR XML/JSON not allowed',
+        );
       });
 
       it('should block FOR XML in COALESCE function', async () => {
         const sql = 'SELECT COALESCE((SELECT id FOR XML AUTO), 1) FROM [user]';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('FOR XML/JSON not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'FOR XML/JSON not allowed',
+        );
       });
     });
 
@@ -139,12 +166,14 @@ describe('GsService', () => {
         ['DELETE FROM [user]', 'DELETE'],
         ['DROP TABLE [user]', 'DROP'],
       ])('should block non-SELECT: %s (%s)', async (sql) => {
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
 
       it('should block multiple statements', async () => {
         const sql = 'SELECT * FROM [user]; SELECT * FROM user_data';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('Only single statements allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'Only single statements allowed',
+        );
       });
     });
 
@@ -157,13 +186,15 @@ describe('GsService', () => {
         ['SELECT mail AS m FROM user_data', 'aliased mail'],
         ['SELECT firstname, surname FROM user_data', 'multiple PII columns'],
       ])('should block PII column access: %s (%s)', async (sql) => {
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(/Access to column .* is not allowed/);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          /Access to column .* is not allowed/,
+        );
       });
 
       it('should block PII in subqueries', async () => {
         const sql = 'SELECT id, (SELECT mail FROM user_data WHERE id = 1) FROM [user]';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
     });
 
@@ -173,49 +204,49 @@ describe('GsService', () => {
         ['SELECT * FROM INFORMATION_SCHEMA.TABLES', 'INFORMATION_SCHEMA'],
         ['SELECT * FROM master.dbo.sysdatabases', 'master database'],
       ])('should block system schema access: %s (%s)', async (sql) => {
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
 
       it('should block sys schema in SELECT column subquery', async () => {
         const sql = 'SELECT (SELECT TOP 1 name FROM sys.sql_logins) FROM [user]';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
 
       it('should block sys schema in HAVING subquery', async () => {
         const sql = 'SELECT COUNT(*) FROM [user] GROUP BY status HAVING (SELECT 1 FROM sys.sql_logins) = 1';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
 
       it('should block sys schema in ORDER BY subquery', async () => {
         const sql = 'SELECT * FROM [user] ORDER BY (SELECT 1 FROM sys.sql_logins)';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
 
       it('should block sys schema in GROUP BY subquery', async () => {
         const sql = 'SELECT COUNT(*) FROM [user] GROUP BY (SELECT 1 FROM sys.sql_logins)';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
 
       it('should block sys schema in CTE', async () => {
         const sql = 'WITH cte AS (SELECT * FROM sys.sql_logins) SELECT * FROM cte';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
 
       it('should block sys schema in JOIN ON subquery', async () => {
         const sql = 'SELECT * FROM [user] u JOIN [order] o ON o.id = (SELECT 1 FROM sys.sql_logins)';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
 
       it('should block linked server access (4-part names)', async () => {
         const sql = 'SELECT * FROM [LinkedServer].[database].[schema].[table]';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
           'Linked server access is not allowed',
         );
       });
 
       it('should block linked server access even with non-blocked database', async () => {
         const sql = 'SELECT * FROM [ExternalServer].[otherdb].[dbo].[users]';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
           'Linked server access is not allowed',
         );
       });
@@ -227,34 +258,34 @@ describe('GsService', () => {
         ["SELECT * FROM OPENQUERY(LinkedServer, 'SELECT 1')", 'OPENQUERY'],
         ["SELECT * FROM OPENDATASOURCE('SQLNCLI', 'Data Source=x;').db.schema.table", 'OPENDATASOURCE'],
       ])('should block dangerous function: %s', async (sql) => {
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
 
       it('should block OPENROWSET in HAVING subquery', async () => {
         const sql = "SELECT COUNT(*) FROM [user] GROUP BY status HAVING (SELECT 1 FROM OPENROWSET('a','b','c')) = 1";
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
 
       it('should block OPENROWSET in ORDER BY subquery', async () => {
         const sql = "SELECT * FROM [user] ORDER BY (SELECT 1 FROM OPENROWSET('a','b','c'))";
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
 
       it('should block OPENROWSET in CTE', async () => {
         const sql = "WITH cte AS (SELECT * FROM OPENROWSET('a','b','c')) SELECT * FROM cte";
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
 
       it('should block OPENROWSET in GROUP BY subquery', async () => {
         const sql = "SELECT COUNT(*) FROM [user] GROUP BY (SELECT 1 FROM OPENROWSET('a','b','c'))";
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(BadRequestException);
       });
     });
 
     describe('UNION/INTERSECT/EXCEPT', () => {
       it('should block UNION queries', async () => {
         const sql = 'SELECT id FROM [user] UNION SELECT id FROM user_data';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
           'UNION/INTERSECT/EXCEPT queries not allowed',
         );
       });
@@ -263,7 +294,9 @@ describe('GsService', () => {
     describe('SELECT INTO', () => {
       it('should block SELECT INTO', async () => {
         const sql = 'SELECT * INTO #temp FROM [user]';
-        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow('SELECT INTO not allowed');
+        await expect(service.executeDebugQuery(sql, 'test-user', UserRole.DEBUG)).rejects.toThrow(
+          'SELECT INTO not allowed',
+        );
       });
     });
 
@@ -271,7 +304,7 @@ describe('GsService', () => {
       it('should allow SELECT on non-PII columns', async () => {
         jest.spyOn(dataSource, 'query').mockResolvedValue([{ id: 1, status: 'Active' }]);
 
-        const result = await service.executeDebugQuery('SELECT id, status FROM [user]', 'test-user');
+        const result = await service.executeDebugQuery('SELECT id, status FROM [user]', 'test-user', UserRole.DEBUG);
 
         expect(result).toEqual([{ id: 1, status: 'Active' }]);
         expect(dataSource.query).toHaveBeenCalled();
@@ -280,7 +313,7 @@ describe('GsService', () => {
       it('should allow SELECT with TOP clause', async () => {
         jest.spyOn(dataSource, 'query').mockResolvedValue([{ id: 1 }]);
 
-        const result = await service.executeDebugQuery('SELECT TOP 10 id FROM [user]', 'test-user');
+        const result = await service.executeDebugQuery('SELECT TOP 10 id FROM [user]', 'test-user', UserRole.DEBUG);
 
         expect(result).toBeDefined();
       });
@@ -288,9 +321,35 @@ describe('GsService', () => {
       it('should allow SELECT with WHERE clause', async () => {
         jest.spyOn(dataSource, 'query').mockResolvedValue([{ id: 1 }]);
 
-        const result = await service.executeDebugQuery("SELECT id FROM [user] WHERE status = 'Active'", 'test-user');
+        const result = await service.executeDebugQuery(
+          "SELECT id FROM [user] WHERE status = 'Active'",
+          'test-user',
+          UserRole.DEBUG,
+        );
 
         expect(result).toBeDefined();
+      });
+    });
+
+    describe('Admin PII unmask (bank_tx.iban)', () => {
+      it('should block bank_tx.iban for DEBUG role', async () => {
+        await expect(
+          service.executeDebugQuery('SELECT iban FROM bank_tx', 'test-user', UserRole.DEBUG),
+        ).rejects.toThrow(/Access to column .*iban.* is not allowed/);
+      });
+
+      it('should allow bank_tx.iban for ADMIN role', async () => {
+        jest.spyOn(dataSource, 'query').mockResolvedValue([{ iban: 'CH9300762011623852957' }]);
+
+        const result = await service.executeDebugQuery('SELECT iban FROM bank_tx', 'test-user', UserRole.ADMIN);
+
+        expect(result).toEqual([{ iban: 'CH9300762011623852957' }]);
+      });
+
+      it('should still block bank_tx.name for ADMIN role (only iban is unmasked)', async () => {
+        await expect(
+          service.executeDebugQuery('SELECT name FROM bank_tx', 'test-user', UserRole.ADMIN),
+        ).rejects.toThrow(/Access to column .*name.* is not allowed/);
       });
     });
   });

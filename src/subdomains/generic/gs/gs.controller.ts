@@ -53,7 +53,7 @@ export class GsController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
   async executeDebugQuery(@GetJwt() jwt: JwtPayload, @Body() dto: DebugQueryDto): Promise<Record<string, unknown>[]> {
-    return this.gsService.executeDebugQuery(dto.sql, jwt.address ?? `account:${jwt.account}`);
+    return this.gsService.executeDebugQuery(dto.sql, jwt.address ?? `account:${jwt.account}`, jwt.role);
   }
 
   @Post('debug/logs')

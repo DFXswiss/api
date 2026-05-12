@@ -30,6 +30,7 @@ import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import {
+  DebugAdminUnmaskCols,
   DebugBlockedCols,
   DebugBlockedSchemas,
   DebugDangerousFunctions,
@@ -191,7 +192,9 @@ export class GsService {
     };
   }
 
-  async executeDebugQuery(sql: string, userIdentifier: string): Promise<Record<string, unknown>[]> {
+  async executeDebugQuery(sql: string, userIdentifier: string, role: UserRole): Promise<Record<string, unknown>[]> {
+    const blockedCols = this.getEffectiveDebugBlockedCols(role);
+
     // 1. Parse SQL to AST for robust validation
     let ast;
     try {
@@ -232,7 +235,7 @@ export class GsService {
 
     // 8. Check for blocked columns BEFORE execution (prevents alias bypass)
     const tables = this.getTablesFromQuery(sql);
-    const blockedColumn = this.findBlockedColumnInQuery(sql, stmt, tables);
+    const blockedColumn = this.findBlockedColumnInQuery(sql, stmt, tables, blockedCols);
     if (blockedColumn) {
       throw new BadRequestException(`Access to column '${blockedColumn}' is not allowed`);
     }
@@ -251,7 +254,7 @@ export class GsService {
       const result = await this.dataSource.query(limitedSql);
 
       // 12. Post-execution masking (defense in depth - also catches pre-execution failures)
-      this.maskDebugBlockedColumns(result, tables);
+      this.maskDebugBlockedColumns(result, tables, blockedCols);
 
       return result;
     } catch (e) {
@@ -600,13 +603,29 @@ export class GsService {
     }
   }
 
-  private maskDebugBlockedColumns(data: Record<string, unknown>[], tables: string[]): void {
+  private getEffectiveDebugBlockedCols(role: UserRole): Record<string, string[]> {
+    const isAdminOrHigher = role === UserRole.ADMIN || role === UserRole.SUPER_ADMIN;
+    if (!isAdminOrHigher) return DebugBlockedCols;
+
+    const effective: Record<string, string[]> = {};
+    for (const [table, cols] of Object.entries(DebugBlockedCols)) {
+      const unmask = DebugAdminUnmaskCols[table];
+      effective[table] = unmask?.length ? cols.filter((c) => !unmask.includes(c)) : cols;
+    }
+    return effective;
+  }
+
+  private maskDebugBlockedColumns(
+    data: Record<string, unknown>[],
+    tables: string[],
+    blockedColsMap: Record<string, string[]>,
+  ): void {
     if (!data?.length || !tables?.length) return;
 
     // Collect all blocked columns from all tables in the query
     const blockedColumns = new Set<string>();
     for (const table of tables) {
-      const tableCols = DebugBlockedCols[table];
+      const tableCols = blockedColsMap[table];
       if (tableCols) {
         for (const col of tableCols) {
           blockedColumns.add(col.toLowerCase());
@@ -655,23 +674,33 @@ export class GsService {
     return map;
   }
 
-  private isColumnBlockedInTable(columnName: string, table: string | null, allTables: string[]): boolean {
+  private isColumnBlockedInTable(
+    columnName: string,
+    table: string | null,
+    allTables: string[],
+    blockedColsMap: Record<string, string[]>,
+  ): boolean {
     const lower = columnName.toLowerCase();
 
     if (table) {
       // Explicit table known → check if this column is blocked in this table
-      const blockedCols = DebugBlockedCols[table];
+      const blockedCols = blockedColsMap[table];
       return blockedCols?.some((b) => b.toLowerCase() === lower) ?? false;
     } else {
       // No explicit table → if ANY of the query tables blocks this column, block it
       return allTables.some((t) => {
-        const blockedCols = DebugBlockedCols[t];
+        const blockedCols = blockedColsMap[t];
         return blockedCols?.some((b) => b.toLowerCase() === lower) ?? false;
       });
     }
   }
 
-  private findBlockedColumnInQuery(sql: string, ast: any, tables: string[]): string | null {
+  private findBlockedColumnInQuery(
+    sql: string,
+    ast: any,
+    tables: string[],
+    blockedColsMap: Record<string, string[]>,
+  ): string | null {
     try {
       // columnList returns: ['select::table::column', 'select::null::column', ...]
       const columns = this.sqlParser.columnList(sql, { database: 'TransactSQL' });
@@ -694,7 +723,7 @@ export class GsService {
             : aliasMap.get(tableOrAlias) || tableOrAlias;
 
         // Check if column is blocked in this table
-        if (this.isColumnBlockedInTable(columnName, resolvedTable, tables)) {
+        if (this.isColumnBlockedInTable(columnName, resolvedTable, tables, blockedColsMap)) {
           return `${resolvedTable || 'unknown'}.${columnName}`;
         }
       }

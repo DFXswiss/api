@@ -126,6 +126,11 @@ export const DebugBlockedCols: Record<string, string[]> = {
   webhook: ['data'],
   notification: ['data'],
 };
+
+// Columns from DebugBlockedCols that are unmasked for Admin (and higher) roles in the debug endpoint
+export const DebugAdminUnmaskCols: Record<string, string[]> = {
+  bank_tx: ['iban'],
+};
 export const DebugLogQueryTemplates: Record<
   LogQueryTemplate,
   { kql: string; requiredParams: (keyof LogQueryDto)[]; defaultLimit: number }
