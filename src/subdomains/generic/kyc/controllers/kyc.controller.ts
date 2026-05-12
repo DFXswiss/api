@@ -26,11 +26,11 @@ import {
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Request } from 'express';
-import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { GetConfig } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
+import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -65,6 +65,7 @@ import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { SumSubWebhookResult } from '../dto/sum-sub.dto';
+import { KycStepName } from '../enums/kyc-step-name.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
@@ -213,7 +214,7 @@ export class KycController {
     @Body() data: KycFileData,
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('stock-register', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.STOCK_REGISTER);
+    return this.kycService.updateFileData(code, +id, KycStepName.OWNER_DIRECTORY, data, FileType.STOCK_REGISTER);
   }
 
   @Put('data/nationality/:id')
@@ -294,7 +295,14 @@ export class KycController {
     @Body() data: KycFileData,
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('sole-proprietorship-confirmation', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.SOLE_PROPRIETORSHIP_CONFIRMATION, true);
+    return this.kycService.updateFileData(
+      code,
+      +id,
+      KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION,
+      data,
+      FileType.SOLE_PROPRIETORSHIP_CONFIRMATION,
+      true,
+    );
   }
 
   @Put('data/residence/:id')
@@ -306,7 +314,7 @@ export class KycController {
     @Body() data: KycFileData,
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('residence-permit', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.RESIDENCE_PERMIT);
+    return this.kycService.updateFileData(code, +id, KycStepName.RESIDENCE_PERMIT, data, FileType.RESIDENCE_PERMIT);
   }
 
   @Put('data/statutes/:id')
@@ -318,7 +326,7 @@ export class KycController {
     @Body() data: KycFileData,
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('statutes', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.STATUTES);
+    return this.kycService.updateFileData(code, +id, KycStepName.STATUTES, data, FileType.STATUTES);
   }
 
   @Put('data/additional/:id')
@@ -330,7 +338,13 @@ export class KycController {
     @Body() data: KycFileData,
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('additional-documents', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.ADDITIONAL_DOCUMENTS);
+    return this.kycService.updateFileData(
+      code,
+      +id,
+      KycStepName.ADDITIONAL_DOCUMENTS,
+      data,
+      FileType.ADDITIONAL_DOCUMENTS,
+    );
   }
 
   @Put('data/recall/:id')
@@ -344,6 +358,7 @@ export class KycController {
     return this.kycService.updateKycStep(
       code,
       +id,
+      KycStepName.RECALL_AGREEMENT,
       { recallAgreementAccepted: data.accepted },
       data.accepted ? ReviewStatus.COMPLETED : ReviewStatus.FAILED,
     );
@@ -360,6 +375,7 @@ export class KycController {
     return this.kycService.updateKycStep(
       code,
       +id,
+      KycStepName.SIGNATORY_POWER,
       data,
       data.signatoryPower === SignatoryPower.SINGLE ? ReviewStatus.MANUAL_REVIEW : ReviewStatus.INTERNAL_REVIEW,
     );
@@ -396,7 +412,7 @@ export class KycController {
     @Body() data: KycFileData,
   ): Promise<KycStepBase> {
     data.fileName = this.fileName('authority', data.fileName);
-    return this.kycService.updateFileData(code, +id, data, FileType.AUTHORITY);
+    return this.kycService.updateFileData(code, +id, KycStepName.AUTHORITY, data, FileType.AUTHORITY);
   }
 
   @Get('data/financial/:id')

@@ -13,3 +13,8 @@ export interface FeeResult {
   asset: Asset;
   amount: number;
 }
+
+export type PayoutTxStatus =
+  | { state: 'pending' }
+  | { state: 'complete'; fee: number }
+  | { state: 'failed'; isOutOfGas: boolean };

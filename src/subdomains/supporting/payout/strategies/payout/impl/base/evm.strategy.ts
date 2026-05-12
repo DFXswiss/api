@@ -4,7 +4,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
-import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
+import { FeeResult, PayoutTxStatus } from 'src/subdomains/supporting/payout/interfaces';
 import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
@@ -52,19 +52,34 @@ export abstract class EvmStrategy extends PayoutStrategy {
   async checkPayoutCompletionData(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
       try {
-        const [isComplete, payoutFee] = await this.getPayoutCompletionData(order.payoutTxId);
+        const status = await this.getPayoutCompletionData(order.payoutTxId);
 
-        if (isComplete) {
+        if (status.state === 'complete') {
           order.complete();
 
           const feeAsset = await this.feeAsset();
           const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
-          order.recordPayoutFee(feeAsset, payoutFee, price.convert(payoutFee, Config.defaultVolumeDecimal));
+          order.recordPayoutFee(feeAsset, status.fee, price.convert(status.fee, Config.defaultVolumeDecimal));
 
           await this.payoutOrderRepo.save(order);
-        } else if (await this.canRetryFailedPayout(order)) {
-          // TX expired (not on-chain, not in mempool) - retry immediately, no gas costs incurred
-          this.logger.info(`Payout order ${order.id} has expired TX (${order.payoutTxId}), retrying immediately`);
+        } else if (status.state === 'failed' && !status.isOutOfGas) {
+          // Non-recoverable on-chain revert (paused contract, balance mismatch, etc.).
+          // Designate for investigation - processFailedOrders will mail and move to PayoutUncertain.
+          this.logger.error(`Payout order ${order.id} reverted on-chain (tx ${order.payoutTxId}, not OOG)`);
+          order.designatePayout();
+          await this.payoutOrderRepo.save(order);
+        } else if (await this.canRetryFailedPayout(order, status)) {
+          if (status.state === 'failed' && status.isOutOfGas) {
+            // OOG: free the spent nonce so the retry gets a fresh one
+            this.logger.warn(
+              `Payout order ${order.id} failed with out-of-gas (tx ${order.payoutTxId}), retrying with fresh nonce`,
+            );
+            order.rollbackPayout();
+            await this.payoutOrderRepo.save(order);
+          } else {
+            // TX expired (not on-chain, not in mempool) - retry immediately, no gas costs incurred
+            this.logger.info(`Payout order ${order.id} has expired TX (${order.payoutTxId}), retrying immediately`);
+          }
           await this.doPayout([order]);
         }
       } catch (e) {
@@ -73,7 +88,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
     }
   }
 
-  protected async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
+  protected async getPayoutCompletionData(payoutTxId: string): Promise<PayoutTxStatus> {
     return this.payoutEvmService.getPayoutCompletionData(payoutTxId);
   }
 
@@ -83,11 +98,14 @@ export abstract class EvmStrategy extends PayoutStrategy {
     }
   }
 
-  override async canRetryFailedPayout(order: PayoutOrder): Promise<boolean> {
+  override async canRetryFailedPayout(order: PayoutOrder, status?: PayoutTxStatus): Promise<boolean> {
     if (!order.payoutTxId) return false;
 
-    if (Util.hoursDiff(order.updated) < 1) return false;
+    // OOG-mined: retry immediately, re-estimation should resolve the state divergence
+    if (status?.state === 'failed' && status.isOutOfGas) return true;
 
+    // Expired in mempool: retry after 1h cooldown
+    if (Util.hoursDiff(order.updated) < 1) return false;
     return this.payoutEvmService.isTxExpired(order.payoutTxId);
   }
 }

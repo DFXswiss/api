@@ -110,6 +110,23 @@ describe('PayoutOrder', () => {
     });
   });
 
+  describe('#rollbackPayout(...)', () => {
+    it('clears payoutTxId and resets status to PayoutOrderStatus.PREPARATION_CONFIRMED for retry', () => {
+      const entity = createCustomPayoutOrder({
+        payoutTxId: 'PID_01',
+        status: PayoutOrderStatus.PAYOUT_PENDING,
+      });
+
+      expect(entity.payoutTxId).toBe('PID_01');
+      expect(entity.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+
+      entity.rollbackPayout();
+
+      expect(entity.payoutTxId).toBeNull();
+      expect(entity.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+    });
+  });
+
   describe('#complete(...)', () => {
     it('sets status to PayoutOrderStatus.COMPLETE', () => {
       const entity = createCustomPayoutOrder({
