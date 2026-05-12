@@ -62,26 +62,24 @@ export abstract class EvmStrategy extends PayoutStrategy {
           order.recordPayoutFee(feeAsset, status.fee, price.convert(status.fee, Config.defaultVolumeDecimal));
 
           await this.payoutOrderRepo.save(order);
-        } else if (status.state === 'failed') {
-          if (status.isOutOfGas) {
-            // Recoverable: TX consumed full gas limit, likely due to EIP-2200 SSTORE swing
-            // between estimate-time and execution-time. Rollback to PreparationConfirmed so
-            // the next cron pass retries with a fresh nonce and a re-estimated gas limit.
+        } else if (status.state === 'failed' && !status.isOutOfGas) {
+          // Non-recoverable on-chain revert (paused contract, balance mismatch, etc.).
+          // Designate for investigation - processFailedOrders will mail and move to PayoutUncertain.
+          this.logger.error(`Payout order ${order.id} reverted on-chain (tx ${order.payoutTxId}, not OOG)`);
+          order.designatePayout();
+          await this.payoutOrderRepo.save(order);
+        } else if (await this.canRetryFailedPayout(order, status)) {
+          if (status.state === 'failed') {
+            // OOG: free the spent nonce so the retry gets a fresh one
             this.logger.warn(
-              `Payout order ${order.id} failed with out-of-gas (tx ${order.payoutTxId}), rolling back for retry`,
+              `Payout order ${order.id} failed with out-of-gas (tx ${order.payoutTxId}), retrying with fresh nonce`,
             );
             order.rollbackPayout();
             await this.payoutOrderRepo.save(order);
           } else {
-            // Non-recoverable on-chain revert (paused contract, balance mismatch, etc.).
-            // Designate for investigation - processFailedOrders will mail and move to PayoutUncertain.
-            this.logger.error(`Payout order ${order.id} reverted on-chain (tx ${order.payoutTxId}, not OOG)`);
-            order.designatePayout();
-            await this.payoutOrderRepo.save(order);
+            // TX expired (not on-chain, not in mempool) - retry immediately, no gas costs incurred
+            this.logger.info(`Payout order ${order.id} has expired TX (${order.payoutTxId}), retrying immediately`);
           }
-        } else if (await this.canRetryFailedPayout(order)) {
-          // TX expired (not on-chain, not in mempool) - retry immediately, no gas costs incurred
-          this.logger.info(`Payout order ${order.id} has expired TX (${order.payoutTxId}), retrying immediately`);
           await this.doPayout([order]);
         }
       } catch (e) {
@@ -100,11 +98,14 @@ export abstract class EvmStrategy extends PayoutStrategy {
     }
   }
 
-  override async canRetryFailedPayout(order: PayoutOrder): Promise<boolean> {
+  override async canRetryFailedPayout(order: PayoutOrder, status?: PayoutTxStatus): Promise<boolean> {
     if (!order.payoutTxId) return false;
 
-    if (Util.hoursDiff(order.updated) < 1) return false;
+    // OOG-mined: retry immediately, re-estimation should resolve the state divergence
+    if (status?.state === 'failed' && status.isOutOfGas) return true;
 
+    // Expired in mempool: retry after 1h cooldown
+    if (Util.hoursDiff(order.updated) < 1) return false;
     return this.payoutEvmService.isTxExpired(order.payoutTxId);
   }
 }
