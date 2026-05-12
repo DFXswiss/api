@@ -1,11 +1,7 @@
 import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-
-export type PayoutTxStatus =
-  | { state: 'pending' }
-  | { state: 'complete'; fee: number }
-  | { state: 'failed'; isOutOfGas: boolean };
+import { PayoutTxStatus } from '../interfaces';
 
 export abstract class PayoutEvmService {
   private readonly client: EvmClient;

@@ -4,11 +4,11 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
-import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
+import { FeeResult, PayoutTxStatus } from 'src/subdomains/supporting/payout/interfaces';
 import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
-import { PayoutEvmService, PayoutTxStatus } from '../../../../services/payout-evm.service';
+import { PayoutEvmService } from '../../../../services/payout-evm.service';
 import { PayoutStrategy } from './payout.strategy';
 
 export abstract class EvmStrategy extends PayoutStrategy {
