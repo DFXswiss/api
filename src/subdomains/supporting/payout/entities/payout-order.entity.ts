@@ -122,6 +122,13 @@ export class PayoutOrder extends IEntity {
     return this;
   }
 
+  rollbackPayout(): this {
+    this.payoutTxId = null;
+    this.status = PayoutOrderStatus.PREPARATION_CONFIRMED;
+
+    return this;
+  }
+
   recordPayoutFee(payoutFeeAsset: Asset, payoutFeeAmount: number, payoutFeeAmountChf: number): this {
     this.payoutFeeAsset = payoutFeeAsset;
     this.payoutFeeAmount = payoutFeeAmount;

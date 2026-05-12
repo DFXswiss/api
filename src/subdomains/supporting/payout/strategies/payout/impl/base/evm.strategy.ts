@@ -70,8 +70,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
             this.logger.warn(
               `Payout order ${order.id} failed with out-of-gas (tx ${order.payoutTxId}), rolling back for retry`,
             );
-            order.rollbackPayoutDesignation();
-            order.payoutTxId = null;
+            order.rollbackPayout();
             await this.payoutOrderRepo.save(order);
           } else {
             // Non-recoverable on-chain revert (paused contract, balance mismatch, etc.).
