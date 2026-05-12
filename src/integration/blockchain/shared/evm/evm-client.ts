@@ -867,13 +867,13 @@ export abstract class EvmClient extends BlockchainClient {
     amount: number,
     nonce?: number,
   ): Promise<string> {
-    const gasLimit = +(await this.getTokenGasLimitForContact(contract, toAddress));
+    const token = await this.getTokenByContract(contract);
+    const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
+
+    const gasLimit = +(await this.getTokenGasLimitForContact(contract, toAddress, targetAmount));
     const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;
-
-    const token = await this.getTokenByContract(contract);
-    const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
 
