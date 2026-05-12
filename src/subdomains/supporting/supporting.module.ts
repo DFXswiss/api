@@ -6,7 +6,6 @@ import { BankModule } from './bank/bank.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { DexModule } from './dex/dex.module';
 import { FiatOutputModule } from './fiat-output/fiat-output.module';
-import { FiatPayInModule } from './fiat-payin/fiat-payin.module';
 import { LogModule } from './log/log.module';
 import { MrosModule } from './mros/mros.module';
 import { NotificationModule } from './notification/notification.module';
@@ -31,7 +30,6 @@ import { SupportIssueModule } from './support-issue/support-issue.module';
     PayoutModule,
     PricingModule,
     RealUnitModule,
-    FiatPayInModule,
     FiatOutputModule,
     SupportIssueModule,
     RecallModule,

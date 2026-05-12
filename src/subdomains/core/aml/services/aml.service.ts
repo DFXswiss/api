@@ -148,10 +148,7 @@ export class AmlService {
           entity instanceof BuyCrypto &&
           !entity.isCryptoCryptoTransaction &&
           (Util.isSameName(bankData.userData.verifiedName, entity.userData.verifiedName) ||
-            Util.isSameName(
-              entity.bankTx?.name ?? entity.checkoutTx?.cardName,
-              entity.userData.verifiedName ?? bankData.name,
-            ) ||
+            Util.isSameName(entity.bankTx?.name, entity.userData.verifiedName ?? bankData.name) ||
             Util.isSameName(entity.bankTx?.ultimateName, entity.userData.verifiedName ?? bankData.name)) &&
           (!entity.bankTx || !multiAccountBankNames.includes(entity.bankTx.name) || entity.bankTx.ultimateName) &&
           !multiAccountBankNames.includes(bankData.name)
@@ -261,7 +258,7 @@ export class AmlService {
     if (entity instanceof BuyFiat) return this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
     if (entity.cryptoInput) return undefined;
 
-    const countryCode = entity.checkoutTx?.cardIssuerCountry ?? entity.bankTx?.iban?.substring(0, 2);
+    const countryCode = entity.bankTx?.iban?.substring(0, 2);
     if (!countryCode) return undefined;
 
     return this.countryService.getCountryWithSymbol(countryCode);
@@ -279,11 +276,8 @@ export class AmlService {
       return bankDatas?.find((b) => b.type === BankDataType.IDENT) ?? bankDatas?.[0];
     }
 
-    return this.bankDataService.getVerifiedBankDataWithIban(
-      entity.bankTx?.senderAccount ?? entity.checkoutTx?.cardFingerPrint,
-      undefined,
-      undefined,
-      { userData: true },
-    );
+    return this.bankDataService.getVerifiedBankDataWithIban(entity.bankTx?.senderAccount, undefined, undefined, {
+      userData: true,
+    });
   }
 }

@@ -150,7 +150,6 @@ export class TransactionRequestService {
           transactionRequest.targetPaymentMethod = CryptoPaymentMethod.CRYPTO;
           transactionRequest.sourceId = buyResponse.currency.id;
           transactionRequest.targetId = buyResponse.asset.id;
-          transactionRequest.paymentLink = buyResponse.paymentLink;
           sourceCurrencyName = buyResponse.currency.name;
           targetCurrencyName = buyResponse.asset.name;
           blockchain = buyResponse.asset.blockchain;

@@ -1,0 +1,102 @@
+{"pr": 253, "id": 1004382449, "state": "APPROVED", "body": "Looks good! :-)", "submitted_at": "2022-06-13T13:59:46Z"}
+{"pr": 354, "id": 1078737897, "state": "COMMENTED", "body": "Generally, it looks very good \ud83d\udc4f  I'm missing a bit of an overview, as it includes quite a few layers of abstraction. Do you have a drawing of all concerned services? Or would you mind setting up something?", "submitted_at": "2022-08-19T13:36:40Z"}
+{"pr": 357, "id": 1075383451, "state": "APPROVED", "body": "Looks good \ud83d\ude09", "submitted_at": "2022-08-17T09:39:13Z"}
+{"pr": 373, "id": 1086532824, "state": "CHANGES_REQUESTED", "body": "Waiting for\r\n- [x] DB Migration\r\n- [x] Environment update on DEV", "submitted_at": "2022-08-26T07:31:16Z"}
+{"pr": 422, "id": 1127934918, "state": "COMMENTED", "body": "Thunderclient collection can be removed", "submitted_at": "2022-10-03T07:52:00Z"}
+{"pr": 443, "id": 1134071988, "state": "COMMENTED", "body": "Need to clarify if min. deposit display makes sense like this.", "submitted_at": "2022-10-07T08:01:11Z"}
+{"pr": 470, "id": 1153014826, "state": "APPROVED", "body": "Use a mailto-link", "submitted_at": "2022-10-24T11:54:28Z"}
+{"pr": 476, "id": 1164636896, "state": "CHANGES_REQUESTED", "body": "Changes in `infrastructure/bicep/dfx-api.bicep` missing", "submitted_at": "2022-11-02T07:49:45Z"}
+{"pr": 512, "id": 1185790028, "state": "COMMENTED", "body": "![image](https://user-images.githubusercontent.com/85513542/202672469-471628c1-d657-46e9-8128-42892070974e.png)\r\nDouble migration ;-)", "submitted_at": "2022-11-18T09:48:40Z"}
+{"pr": 537, "id": 1195925220, "state": "APPROVED", "body": "Should we add a unique index on LiquidityOrder table?", "submitted_at": "2022-11-28T14:35:28Z"}
+{"pr": 548, "id": 1203036309, "state": "COMMENTED", "body": "![image](https://user-images.githubusercontent.com/85513542/205379640-9d6166c5-2562-4d8e-8d1e-712547bd5025.png)\r\nIs the method `getMinDepost` still used?", "submitted_at": "2022-12-02T20:25:44Z"}
+{"pr": 556, "id": 1215496335, "state": "COMMENTED", "body": "We probably need to differentiate between\r\n- FiatCrypto\r\n- CryptoCrypto\r\n- CryptoFiat\r\n- FiatFiat", "submitted_at": "2022-12-13T13:45:18Z"}
+{"pr": 559, "id": 1215605527, "state": "COMMENTED", "body": "Missing migration", "submitted_at": "2022-12-13T14:42:30Z"}
+{"pr": 582, "id": 1232043034, "state": "APPROVED", "body": "![image](https://user-images.githubusercontent.com/85513542/209876750-66fa4994-2bec-4529-9774-7fc3baf23b16.png)\r\n![image](https://user-images.githubusercontent.com/85513542/209876822-53466f34-604c-4fdb-8ebd-b95e22959763.png)", "submitted_at": "2022-12-28T22:05:01Z"}
+{"pr": 594, "id": 1245959831, "state": "COMMENTED", "body": "PR looks good ... let's wait for external feedback.", "submitted_at": "2023-01-12T16:29:54Z"}
+{"pr": 595, "id": 1244194300, "state": "APPROVED", "body": "Very good solution \ud83d\udc4f", "submitted_at": "2023-01-11T16:07:03Z"}
+{"pr": 634, "id": 1280060044, "state": "COMMENTED", "body": "Restructure the query DTO to:\r\n```ts\r\n{\r\n  table: 'string',\r\n  key: 'string',\r\n  value: any\r\n}\r\n```", "submitted_at": "2023-02-02T00:01:27Z"}
+{"pr": 634, "id": 1296265813, "state": "COMMENTED", "body": "Fix linter errors", "submitted_at": "2023-02-13T18:59:16Z"}
+{"pr": 637, "id": 1287142562, "state": "COMMENTED", "body": "See comments for [LOCK PR](https://github.com/LOCKbusiness/api/pull/241)", "submitted_at": "2023-02-07T13:50:53Z"}
+{"pr": 637, "id": 1289541468, "state": "COMMENTED", "body": "Add performance improvements from LOCK", "submitted_at": "2023-02-08T16:20:34Z"}
+{"pr": 666, "id": 1307059175, "state": "COMMENTED", "body": "Copy changes to LOCK", "submitted_at": "2023-02-21T09:49:38Z"}
+{"pr": 678, "id": 1329365327, "state": "APPROVED", "body": "Need to update DEV environment", "submitted_at": "2023-03-07T19:29:03Z"}
+{"pr": 679, "id": 1320122324, "state": "COMMENTED", "body": "Missing things\r\n- infrastructure (config)\r\n- config (+ .env.example)\r\n- mail translations\r\n- DB fields + migrations (caution on `UserService.getAllLinkedUsers`)\r\n- Thunder client", "submitted_at": "2023-03-06T23:17:26Z"}
+{"pr": 679, "id": 1327369589, "state": "COMMENTED", "body": "Verify if DTO fields can be removed without compatibility issues", "submitted_at": "2023-03-06T23:19:01Z"}
+{"pr": 679, "id": 1338640557, "state": "APPROVED", "body": "Wait for synchronization with frontends", "submitted_at": "2023-03-14T07:53:14Z"}
+{"pr": 704, "id": 1345855183, "state": "APPROVED", "body": "Add migration", "submitted_at": "2023-03-17T12:29:59Z"}
+{"pr": 704, "id": 1345879311, "state": "APPROVED", "body": "Add migration", "submitted_at": "2023-03-17T12:46:50Z"}
+{"pr": 710, "id": 1349505042, "state": "COMMENTED", "body": "- Update database", "submitted_at": "2023-03-20T22:52:53Z"}
+{"pr": 734, "id": 1383556915, "state": "COMMENTED", "body": "Additional changes", "submitted_at": "2023-04-14T08:45:51Z"}
+{"pr": 734, "id": 1387510014, "state": "COMMENTED", "body": "Missing changes", "submitted_at": "2023-04-17T08:14:15Z"}
+{"pr": 770, "id": 1435966110, "state": "COMMENTED", "body": "![image](https://github.com/DFXswiss/api/assets/85513542/a145d886-5632-4699-8d27-ea9df612f20e)\r\nUse the new logger", "submitted_at": "2023-05-22T07:43:04Z"}
+{"pr": 792, "id": 1461978923, "state": "COMMENTED", "body": "Wait for changes in DFX Exchange", "submitted_at": "2023-06-05T08:19:03Z"}
+{"pr": 821, "id": 1514654354, "state": "COMMENTED", "body": "Adapt as discussed", "submitted_at": "2023-07-05T14:22:47Z"}
+{"pr": 841, "id": 1541090361, "state": "COMMENTED", "body": "Add a new field `wallet: string` to CreateUserDto. Wallet can be selected either by name (new field) or id (existing walletId field).", "submitted_at": "2023-07-21T12:44:33Z"}
+{"pr": 850, "id": 1560407951, "state": "CHANGES_REQUESTED", "body": "I think this doesn't work. Adapt as discussed.", "submitted_at": "2023-08-03T07:25:38Z"}
+{"pr": 883, "id": 1654818403, "state": "COMMENTED", "body": "Add currency comments to volume fields", "submitted_at": "2023-10-03T09:58:21Z"}
+{"pr": 890, "id": 1674063453, "state": "COMMENTED", "body": "Fix linter warnings", "submitted_at": "2023-10-19T19:34:31Z"}
+{"pr": 925, "id": 1782173613, "state": "CHANGES_REQUESTED", "body": "Update Bicep with Alchemy settings", "submitted_at": "2023-12-14T16:13:20Z"}
+{"pr": 934, "id": 1737418161, "state": "CHANGES_REQUESTED", "body": "Update environment (Bicep, parameter files)", "submitted_at": "2023-11-17T16:31:37Z"}
+{"pr": 964, "id": 1770377426, "state": "COMMENTED", "body": "Deposit address generation missing", "submitted_at": "2023-12-07T17:21:13Z"}
+{"pr": 978, "id": 1778539457, "state": "COMMENTED", "body": "Rename `verification` to `ident`? \ud83e\udd14", "submitted_at": "2023-12-12T22:26:20Z"}
+{"pr": 1073, "id": 1878410036, "state": "APPROVED", "body": "Add migration", "submitted_at": "2024-02-13T16:18:30Z"}
+{"pr": 1118, "id": 1899807362, "state": "COMMENTED", "body": "Send mail (master + slave)", "submitted_at": "2024-02-26T00:45:34Z"}
+{"pr": 1163, "id": 1977149492, "state": "APPROVED", "body": "Add migration", "submitted_at": "2024-04-03T15:12:11Z"}
+{"pr": 1236, "id": 1996972566, "state": "COMMENTED", "body": "Wait for Services update", "submitted_at": "2024-04-12T13:15:15Z"}
+{"pr": 1275, "id": 2041030199, "state": "APPROVED", "body": "- [x] Add migration\r\n- [x] Prepare services\r\n- [ ] add prd env", "submitted_at": "2024-05-06T15:16:24Z"}
+{"pr": 1286, "id": 2058416924, "state": "APPROVED", "body": "- [x] Update environment", "submitted_at": "2024-05-15T15:49:07Z"}
+{"pr": 1350, "id": 2108068036, "state": "CHANGES_REQUESTED", "body": "- [x] Build fails", "submitted_at": "2024-06-10T15:04:01Z"}
+{"pr": 1350, "id": 2108123570, "state": "COMMENTED", "body": "Why do we need to update the Services?", "submitted_at": "2024-06-10T15:27:19Z"}
+{"pr": 1434, "id": 2163680058, "state": "APPROVED", "body": "- [x] Add migration", "submitted_at": "2024-07-08T15:27:04Z"}
+{"pr": 1454, "id": 2169018284, "state": "COMMENTED", "body": "- [x] Reactivate on merge\r\n- [ ] Update existing users", "submitted_at": "2024-07-10T13:34:31Z"}
+{"pr": 1478, "id": 2191029951, "state": "APPROVED", "body": "- [x] Wait for [PR 1484](https://github.com/DFXswiss/api/pull/1484) to be merged (has some related changes)", "submitted_at": "2024-07-22T09:03:10Z"}
+{"pr": 1480, "id": 2201756763, "state": "APPROVED", "body": "- [x] Wait for an approve from @Yannick1712", "submitted_at": "2024-07-26T12:49:41Z"}
+{"pr": 1508, "id": 2221499704, "state": "APPROVED", "body": "- [ ] Update existing users", "submitted_at": "2024-08-06T14:35:12Z"}
+{"pr": 1517, "id": 2223837701, "state": "COMMENTED", "body": "- [x] Add migration", "submitted_at": "2024-08-07T09:55:10Z"}
+{"pr": 1523, "id": 2244076897, "state": "APPROVED", "body": "Wait for [[DEV-2933]](https://github.com/DFXswiss/api/pull/1533)", "submitted_at": "2024-08-17T09:45:20Z"}
+{"pr": 1575, "id": 2276775419, "state": "APPROVED", "body": "- [x] Wait for [[DEV-3035]](https://github.com/DFXswiss/api/pull/1574)\r\n- [x] Redo migration", "submitted_at": "2024-09-03T08:36:24Z"}
+{"pr": 1633, "id": 2317665032, "state": "COMMENTED", "body": "Maybe we should do the same for buy/swap?", "submitted_at": "2024-09-20T08:50:30Z"}
+{"pr": 1655, "id": 2337995220, "state": "APPROVED", "body": "- [ ] Update environment", "submitted_at": "2024-09-30T16:00:41Z"}
+{"pr": 1664, "id": 2356432756, "state": "APPROVED", "body": "- [x] Add migration", "submitted_at": "2024-10-09T08:25:22Z"}
+{"pr": 1671, "id": 2356384481, "state": "COMMENTED", "body": "- [x] Get last 7 days of receiver and 14 days of sender transactions (instead of fixed IDs)", "submitted_at": "2024-10-09T08:14:22Z"}
+{"pr": 1685, "id": 2362420435, "state": "COMMENTED", "body": "- [x] Remove BSC special case in `src/subdomains/core/liquidity-management/adapters/balances/blockchain.adapter.ts`\r\n- [x] Search for other BSC special cases?", "submitted_at": "2024-10-11T09:53:48Z"}
+{"pr": 1754, "id": 2429857119, "state": "COMMENTED", "body": "- [x] Adapt as discussed", "submitted_at": "2024-11-12T15:00:30Z"}
+{"pr": 1784, "id": 2492810940, "state": "COMMENTED", "body": "- [x] Summarize Bicep and deploy scripts for container apps", "submitted_at": "2024-12-10T16:04:12Z"}
+{"pr": 1785, "id": 2444750656, "state": "APPROVED", "body": "- [x] Wait for approval from @Yannick1712", "submitted_at": "2024-11-19T08:49:23Z"}
+{"pr": 1786, "id": 2444971537, "state": "APPROVED", "body": "- [x] Wait for BankData conflicts resolve", "submitted_at": "2024-11-19T10:14:53Z"}
+{"pr": 1801, "id": 2481649644, "state": "COMMENTED", "body": "- [x] Create ticket to update Services", "submitted_at": "2024-12-05T13:08:04Z"}
+{"pr": 1804, "id": 2488461642, "state": "APPROVED", "body": "- [ ] Add migration\r\n- [ ] Check all non-nulled columns with PRD data", "submitted_at": "2024-12-09T11:01:10Z"}
+{"pr": 1812, "id": 2533789458, "state": "APPROVED", "body": "- [x] Resolve merge conflicts", "submitted_at": "2025-01-07T09:17:29Z"}
+{"pr": 1826, "id": 2481636487, "state": "COMMENTED", "body": "- [x] Document endpoints", "submitted_at": "2024-12-05T13:01:44Z"}
+{"pr": 1870, "id": 2520602380, "state": "APPROVED", "body": "- [ ] Check all relations in DB fetches (add user data)", "submitted_at": "2024-12-23T13:30:45Z"}
+{"pr": 1916, "id": 2572143049, "state": "COMMENTED", "body": "Search for `24h`, `day` and `daily` to find some more places? E.g.\r\n- [x] translations `daily_limit`\r\n- [x] AML reason `DAILY_LIMIT`", "submitted_at": "2025-01-24T09:34:57Z"}
+{"pr": 1931, "id": 2587152574, "state": "APPROVED", "body": "- [x] Add migration", "submitted_at": "2025-01-31T15:57:00Z"}
+{"pr": 1940, "id": 2593302463, "state": "COMMENTED", "body": "- [ ] Update services (transaction DTO)", "submitted_at": "2025-03-14T17:10:03Z"}
+{"pr": 1943, "id": 2596205733, "state": "APPROVED", "body": "- [x] Update services", "submitted_at": "2025-02-05T15:40:22Z"}
+{"pr": 1994, "id": 2642672909, "state": "COMMENTED", "body": "- [x] Update services", "submitted_at": "2025-02-25T23:18:02Z"}
+{"pr": 1995, "id": 2642652044, "state": "COMMENTED", "body": "- [x] Update services\r\n- [x] Update existing steps", "submitted_at": "2025-02-25T23:06:19Z"}
+{"pr": 2002, "id": 2675299295, "state": "APPROVED", "body": "- [x] Update environment (use DFX liquidity address)", "submitted_at": "2025-03-11T16:22:14Z"}
+{"pr": 2082, "id": 2787160694, "state": "APPROVED", "body": "- [x] Wait for approval from @Yannick1712", "submitted_at": "2025-04-23T12:43:05Z"}
+{"pr": 2130, "id": 2840448345, "state": "COMMENTED", "body": "- [ ] Update environment", "submitted_at": "2025-05-16T13:30:41Z"}
+{"pr": 2148, "id": 2871066112, "state": "COMMENTED", "body": "- [x] Generate a migration", "submitted_at": "2025-05-27T13:38:34Z"}
+{"pr": 2154, "id": 2904457648, "state": "COMMENTED", "body": "- [ ] Update environment", "submitted_at": "2025-06-06T10:05:09Z"}
+{"pr": 2168, "id": 2904463941, "state": "APPROVED", "body": "- [x] Update services", "submitted_at": "2025-06-06T10:07:45Z"}
+{"pr": 2318, "id": 3104875490, "state": "APPROVED", "body": "- [x] Update environment", "submitted_at": "2025-08-11T09:38:23Z"}
+{"pr": 2336, "id": 3106077665, "state": "COMMENTED", "body": "- [x] DEX strategies are missing", "submitted_at": "2025-08-11T14:18:32Z"}
+{"pr": 2350, "id": 3127379390, "state": "APPROVED", "body": "- [x] Update environment (Zano payment address)", "submitted_at": "2025-08-18T08:47:25Z"}
+{"pr": 2377, "id": 3131446336, "state": "APPROVED", "body": "- [x] Update DEV environment", "submitted_at": "2025-08-19T09:15:37Z"}
+{"pr": 2461, "id": 3239244307, "state": "COMMENTED", "body": "- [x] We should also set the `hasIpRisk` flag during sign-in/-up, if the user logs in with a blacklisted IP.", "submitted_at": "2025-09-18T12:12:38Z"}
+{"pr": 2464, "id": 3243628793, "state": "APPROVED", "body": "- [ ] Test packages with minor version changes", "submitted_at": "2025-09-19T07:48:28Z"}
+{"pr": 2481, "id": 3266927892, "state": "APPROVED", "body": "- [x] Adapt services", "submitted_at": "2025-09-25T10:19:11Z"}
+{"pr": 2491, "id": 3334118858, "state": "COMMENTED", "body": "- [x] Improve naming", "submitted_at": "2025-10-14T06:43:59Z"}
+{"pr": 2491, "id": 3454286123, "state": "CHANGES_REQUESTED", "body": "- [x] Implement partner fee payout", "submitted_at": "2025-11-12T16:14:37Z"}
+{"pr": 2491, "id": 3900054529, "state": "APPROVED", "body": "- [x] Requires thorough testing", "submitted_at": "2026-03-05T22:19:20Z"}
+{"pr": 2547, "id": 3515890894, "state": "APPROVED", "body": "- [x] Add migration", "submitted_at": "2025-11-27T14:55:24Z"}
+{"pr": 2560, "id": 3479979293, "state": "APPROVED", "body": "- [x] Wait for https://github.com/DFXswiss/api/pull/2561 merge", "submitted_at": "2025-11-18T22:51:02Z"}
+{"pr": 2608, "id": 3561542659, "state": "APPROVED", "body": "- [ ] Wait for approval from @Yannick1712", "submitted_at": "2025-12-10T09:26:45Z"}
+{"pr": 2669, "id": 3597616503, "state": "APPROVED", "body": "Let's see if this works", "submitted_at": "2025-12-19T08:54:21Z"}
+{"pr": 3075, "id": 3937603144, "state": "APPROVED", "body": "- [x] Fix merge conflicts", "submitted_at": "2026-03-12T15:29:48Z"}
+{"pr": 3198, "id": 3807630989, "state": "APPROVED", "body": "Fix formatting", "submitted_at": "2026-02-16T09:47:58Z"}
+{"pr": 3221, "id": 3826529237, "state": "COMMENTED", "body": "Rename as discussed", "submitted_at": "2026-02-19T15:13:20Z"}
+{"pr": 3276, "id": 3862020256, "state": "APPROVED", "body": "- [x] Revert changes in AmlService", "submitted_at": "2026-02-26T16:13:21Z"}
+{"pr": 3589, "id": 4140859040, "state": "APPROVED", "body": "- [ ] Update packages", "submitted_at": "2026-04-20T14:28:28Z"}

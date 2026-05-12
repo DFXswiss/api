@@ -1,0 +1,104 @@
+--- PR #461 | COMMENTED ---
+PR needs to wait until BuyCrypto uses asset references instead of strings.
+
+--- PR #464 | COMMENTED ---
+@TonySemikin does this logic make sense or should we rather add a new option?
+
+--- PR #831 | COMMENTED ---
+Optimize code with DEV-1679 (payment requests)
+
+--- PR #1892 | COMMENTED ---
+- [x] Update environment
+
+--- PR #1900 | APPROVED ---
+Das war ja leicht 😁 👍
+
+--- PR #2027 | APPROVED ---
+- [ ] Update environment
+
+--- PR #2034 | APPROVED ---
+Would be a bit simpler with
+```ts
+const assetLog = await this.getAssetLog(assets).catch((e) => this.logger.error(`Error in FinancialLog assetLog`, e));
+```
+
+--- PR #2055 | APPROVED ---
+- [x] Update environment
+
+--- PR #2086 | COMMENTED ---
+- [x] Solve the Dilisense rate limit problem
+
+--- PR #2129 | APPROVED ---
+- [x] Update Services
+
+--- PR #2221 | APPROVED ---
+- [x] Linter warning in LogJobService
+
+--- PR #2293 | COMMENTED ---
+- [x] Add Tron config
+- [x] Check for pending `CommercialRegister` KYC steps
+
+--- PR #2305 | COMMENTED ---
+- [ ] Adapt services
+
+--- PR #2335 | APPROVED ---
+- [x] Merge [Services PR](https://github.com/DFXswiss/services/pull/667)
+
+--- PR #2340 | APPROVED ---
+- [ ] Test on DEV
+
+--- PR #2342 | COMMENTED ---
+- [x] Update field for failed files
+
+--- PR #2349 | COMMENTED ---
+- [x] Update Zano environment
+
+--- PR #2564 | APPROVED ---
+- [x] Wait for network start fee Services PR
+
+--- PR #2622 | APPROVED ---
+- [ ] Wait for approval from @Yannick1712
+
+--- PR #3162 | COMMENTED ---
+- [ ] fix rounding issues:
+```TS
+  // custody-asset-balance-dto.mapper.ts:30
+  balance: Util.floorReadable(balance, AmountType.ASSET),
+```
+
+--- PR #3262 | COMMENTED ---
+- [x] Generate an SQL script to migrate existing data
+
+--- PR #3278 | COMMENTED ---
+There is already an AML error ASSET_NOT_SELLABLE for non-sellable assets. Can't we use this one?
+
+--- PR #3382 | APPROVED ---
+The transaction helper already returns proper QuoteErrors:
+  - QuoteError.KYC_REQUIRED - for KYC level issues
+  - QuoteError.LIMIT_EXCEEDED - for limit issues
+  - QuoteError.KYC_DATA_REQUIRED - for incomplete data
+
+-> map them to errors
+
+--- PR #3598 | COMMENTED ---
+# Missing from issue #3654                                                                                                  
+                                                                   
+  1. **`walletName` parameter threading through the translation chain** — `translate()`, `translateParams()`, `getMailAffix()
+  `, `mapMailAffix()` all got `walletName` added as a parameter that's passed down 4 levels deep. This should be refactored i
+  nto a translation context/strategy object that's resolved once at the top of `createUserV2Mail`, rather than threaded throu
+  gh every method call. F1 partially addresses the notification service side, but the MailFactory internal plumbing is still 
+  messy.                                                                       
+                                                                               
+  2. **The `.filter((a) => a.text || a.url || a.mail)` added to `getMailAffix`** — this filters out empty lines (`DefaultEmpt
+  yLine` has `text: ''`), which changes spacing behavior for ALL wallets, not just RealUnit. That's a regression risk for exi
+  sting DFX mails.
+
+--- PR #3624 | APPROVED ---
+- [ ] Fix merge conflicts
+
+--- PR #3634 | COMMENTED ---
+Could we use Util.doInBatches?
+
+--- PR #3635 | COMMENTED ---
+- [ ] Fix TS errors
+

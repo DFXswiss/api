@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
@@ -27,7 +26,7 @@ import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity'
 import { BankSelectorInput, BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
-import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
+import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -55,7 +54,6 @@ export class BuyService {
     private readonly transactionRequestService: TransactionRequestService,
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
-    private readonly checkoutService: CheckoutService,
     private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
@@ -333,17 +331,6 @@ export class BuyService {
       sepaInstant: bankInfo.sepaInstant,
       remittanceInfo: buy.active ? bankInfo.reference : undefined,
       paymentRequest: isValid ? this.generateQRCode(bankInfo, dto, user.userData) : undefined,
-      // card info
-      paymentLink:
-        isValid && buy.active && dto.paymentMethod === FiatPaymentMethod.CARD
-          ? await this.checkoutService.createPaymentLink(
-              buy.bankUsage,
-              amount,
-              dto.currency,
-              dto.asset,
-              user.userData.language,
-            )
-          : undefined,
     };
 
     await this.transactionRequestService.create(TransactionRequestType.BUY, dto, buyDto, user.id);

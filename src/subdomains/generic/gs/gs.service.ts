@@ -180,7 +180,6 @@ export class GsService {
         bankTxRepeat: true,
         refReward: true,
         cryptoInput: true,
-        checkoutTx: true,
         request: true,
         custodyOrder: true,
       }),

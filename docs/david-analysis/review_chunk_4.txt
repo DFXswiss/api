@@ -1,0 +1,2148 @@
+--- PR #1445 | src/subdomains/core/payment-llink/dto/create-payment-link.dto.ts ---
+Context: +  @ApiProperty() | +  @IsString() | +  externalId: string;
+David: ```ts
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+```
+
+--- PR #1445 | src/subdomains/core/payment-llink/dto/create-payment-link-payment.dto.ts ---
+David: Missing `externalId`?
+
+--- PR #1445 | src/subdomains/core/payment-llink/dto/create-payment-link.dto.ts ---
+Context: +  @ApiProperty() | +  @IsOptional() | +  payment: CreatePaymentLinkPaymentDto;
+David: `@ApiPropertyOptional({ type: CreatePaymentLinkPaymentDto })`
+
+--- PR #1445 | src/subdomains/core/payment-llink/dto/create-payment-link.dto.ts ---
+Context: +  @ApiProperty() | +  @IsOptional() | +  payment: CreatePaymentLinkPaymentDto;
+David: Add `@Type` and `@ValidateNested`
+
+--- PR #1445 | src/subdomains/core/payment-llink/dto/payment-link.dto.ts ---
+Context: +  ACTIVE = 'active', | +  INACTIVE = 'inactive', | +}
+David: Capital case
+
+--- PR #1445 | src/subdomains/core/payment-llink/dto/payment-link.dto.ts ---
+Context: +  SINGLE = 'single', | +  MULTIPLE = 'multiple', | +}
+David: Capital case
+
+--- PR #1445 | src/subdomains/core/payment-llink/dto/payment-link.dto.ts ---
+Context: + | +export interface TransferPrice { | +  asset: string;
+David: `TransferInfo`?
+
+--- PR #1445 | src/subdomains/core/payment-llink/dto/create-payment-link-payment.dto.ts ---
+Context: +export class CreatePaymentLinkPaymentDto { | +  @ApiProperty() | +  @IsNotEmpty()
+David: `  @ApiProperty({ enum: PaymentLinkPaymentMode })`
+
+--- PR #1445 | src/subdomains/core/payment-llink/dto/update-payment-link.dto.ts ---
+Context: +export class UpdatePaymentLinkDto { | +  @ApiProperty() | +  status: PaymentLinkStatus;
+David: ```ts
+  @ApiProperty({ enum: PaymentLinkStatus })
+  @IsNotEmpty()
+  @IsEnum(PaymentLinkStatus)
+```
+
+--- PR #1445 | src/subdomains/core/payment-llink/entities/payment-link-payment.entity.ts ---
+Context: +export class PaymentLinkPayment extends IEntity { | +  @OneToOne(() => PaymentLink) | +  paymentLink: PaymentLink;
+David: `@ManyToOne`
+
+--- PR #1445 | src/subdomains/core/payment-llink/entities/payment-link-payment.entity.ts ---
+Context: + | +  @Column({ length: 256, nullable: false }) | +  externalId: string;
+David: `nullable: true`
+
+--- PR #1445 | src/subdomains/core/payment-llink/entities/payment-link-payment.entity.ts ---
+Context: + | +  @ManyToOne(() => Fiat, { nullable: false }) | +  fiat: Fiat;
+David: `currency: Fiat;`
+
+--- PR #1445 | src/subdomains/core/payment-llink/entities/payment-link-payment.entity.ts ---
+Context: + | +  @Column({ length: 256, nullable: false }) | +  uniqueId: string;
+David: `unique: true`
+
+--- PR #1445 | src/subdomains/core/payment-llink/entities/payment-link.entity.ts ---
+Context: +export class PaymentLink extends IEntity { | +  @OneToOne(() => PaymentLinkPayment, { nullable: true, eager: true }) | +  paymentLinkPayment: PaymentLinkPayment;
+David: `@OneToMany`
+
+--- PR #1445 | src/subdomains/core/payment-llink/entities/payment-link.entity.ts ---
+Context: +export class PaymentLink extends IEntity { | +  @OneToOne(() => PaymentLinkPayment, { nullable: true, eager: true }) | +  paymentLinkPayment: PaymentLinkPayment;
+David: payments: PaymentLinkPayment[];
+
+--- PR #1445 | src/subdomains/core/payment-llink/entities/payment-link-payment.entity.ts ---
+Context: +export class PaymentLinkPayment extends IEntity { | +  @OneToOne(() => PaymentLink) | +  paymentLink: PaymentLink;
+David: `link: PaymentLink;`
+
+--- PR #1445 | src/subdomains/core/payment-llink/entities/payment-link.entity.ts ---
+Context: + | +  @Column({ length: 256, nullable: false }) | +  uniqueId: string;
+David: `unique: true`
+
+--- PR #1445 | src/subdomains/core/payment-llink/payment-link.controller.ts ---
+Context: + | +@ApiTags('PaymentLink') | +@Controller('paymentLink')
+David: `@ApiTags('Payment Link')`
+
+--- PR #1445 | src/subdomains/core/payment-llink/payment-link.controller.ts ---
+Context: +  async getSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLink> { | +    return this.paymentLinkService.get(+jwt.user, +id); | +  }
+David: Add a mapper
+
+--- PR #1445 | src/subdomains/core/payment-llink/payment-link.controller.ts ---
+Context: +  @ApiOkResponse({ type: PaymentLink }) | +  async getSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLink> { | +    return this.paymentLinkService.get(+jwt.user, +id);
+David: `getPaymentLink`
+
+--- PR #1445 | src/subdomains/core/payment-llink/payment-link.controller.ts ---
+Context: + | +  @Delete(':id') | +  @ApiBearerAuth()
+David: `  @Delete(':id/payment')`
+
+--- PR #1445 | src/subdomains/core/payment-llink/payment-link.controller.ts ---
+Context: +  @ApiOkResponse({ type: PaymentLink }) | +  async cancelPaymentLinkPayment(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLink> { | +    return this.paymentLinkService.cancelPaymentLinkPayment(+jwt.user, id);
+David: `cancelPayment`
+
+--- PR #1445 | src/subdomains/core/payment-llink/services/payment-link.services.ts ---
+Context: +    if (!paymentLink) throw new NotFoundException('Payment link not found'); | +    paymentLink.status = dto.status; | +    return this.paymentLinkRepo.save(paymentLink);
+David: Use `this.paymentLinkRepo.update()`?
+
+--- PR #1445 | src/subdomains/core/payment-llink/services/payment-link.services.ts ---
+Context: +  async createPaymentLinkPayment(dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> { | +    return this.paymentLinkPaymentService.create(dto); | +  }
+David: This method looks a bit useless 🤔
+
+--- PR #1445 | src/subdomains/core/payment-llink/services/payment-link-payment.services.ts ---
+Context: + | +    return this.paymentLinkPaymentRepo.save(paymentLinkPayment); | +  }
+David: Only one pending payment per link allowed
+
+--- PR #1445 | src/subdomains/core/payment-link/dto/payment-link-dto.mapper.ts ---
+Context: +        mode: paymentLinkPayment.mode, | +        expiryDate: paymentLinkPayment.expiryDate, | +      },
+David: paymentLinkPayment might be undefined
+
+--- PR #1445 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: + | +  @ApiProperty() | +  externalId: string;
+David: Optional
+
+--- PR #1445 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: + | +  @ApiProperty() | +  status: PaymentLinkPaymentStatus;
+David: enum: PaymentLinkPaymentStatus
+
+--- PR #1445 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: + | +  @ApiProperty() | +  currency: Fiat;
+David: type: FiatDto
+
+--- PR #1445 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: + | +  @ApiProperty() | +  mode: PaymentLinkPaymentMode;
+David: enum: PaymentLinkPaymentMode
+
+--- PR #1445 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: + | +  @ApiProperty() | +  currency: Fiat;
+David: Map to FiatDto
+
+--- PR #1445 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: + | +  @ApiProperty() | +  externalId: string;
+David: Optional
+
+--- PR #1445 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: + | +  @ApiProperty() | +  status: PaymentLinkStatus;
+David: enum: PaymentLinkStatus
+
+--- PR #1445 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: + | +  @ApiPropertyOptional() | +  payment: PaymentLinkPaymentDto;
+David: type: PaymentLinkPaymentDto
+
+--- PR #1445 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: + | +  @ApiProperty() | +  uniqueId: string;
+David: Return url and lnurl instead of uniqueId
+url: /v1/lnurlp/{uniqueId}
+
+--- PR #1445 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: + | +  @ApiProperty() | +  uniqueId: string;
+David: Return url and lnurl instead of uniqueId
+url: /v1/lnurlp/{uniqueId}
+
+--- PR #1445 | src/subdomains/core/payment-link/payment-link.controller.ts ---
+Context: +  async getPaymentLink(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLink> { | +    return this.paymentLinkService.get(+jwt.user, +id); | +  }
+David: Mapper?
+
+--- PR #1445 | src/subdomains/core/payment-link/payment-link.controller.ts ---
+Context: +  async cancelPayment(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PaymentLink> { | +    return this.paymentLinkService.cancelPaymentLinkPayment(+jwt.user, +id); | +  }
+David: Return PaymentLlinkDto
+
+--- PR #1445 | src/subdomains/core/payment-link/payment-link.controller.ts ---
+Context: +  ): Promise<PaymentLink> { | +    return this.paymentLinkService.updatePaymentLink(+jwt.user, +id, dto); | +  }
+David: Mapper?
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-link-payment.services.ts ---
+Context: +  async create(dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> { | +    const pendingLinkPayment = await this.paymentLinkPaymentRepo.findBy({ status: PaymentLinkPaymentStatus.PENDING }); | +
+David: Höm 🤣
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-link-payment.services.ts ---
+Context: +  async create(dto: CreatePaymentLinkPaymentDto): Promise<PaymentLinkPayment> { | +    const pendingLinkPayment = await this.paymentLinkPaymentRepo.findBy({ status: PaymentLinkPaymentStatus.PENDING }); | +
+David: Use exists
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-link-payment.services.ts ---
+Context: +      transferAmounts: await this.createTransferAmounts(dto.currency, dto.amount).then(JSON.stringify), | +      status: PaymentLinkPaymentStatus.PENDING, | +    });
+David: paymentLink?
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-link.services.ts ---
+Context: +    const paymentLinkPayment = await this.paymentLinkPaymentService.create(dto); | +    return this.paymentLinkPaymentService.save(paymentLinkPayment); | +  }
+David: Is already saved?
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-link.services.ts ---
+Context: +    const paymentLinkPayment = paymentLink.payments.find((p) => p.status == PaymentLinkPaymentStatus.PENDING).cancel(); | +    await this.paymentLinkPaymentService.save(paymentLinkPayment); | +    return paymentLink;
+David: Easier on payment link payment repo
+
+--- PR #1445 | src/subdomains/core/payment-link/payment-link.controller.ts ---
+Context: +  ): Promise<PaymentLinkPayment> { | +    return this.paymentLinkService.createPayment(+jwt.user, +id, dto); | +  }
+David: Return PaymentLinkDto
+
+--- PR #1445 | src/subdomains/core/payment-link/payment-link.controller.ts ---
+Context: +  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER)) | +  @ApiOkResponse({ type: PaymentLink }) | +  async cancelPayment(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
+David: Remove ApiOkResponse
+
+--- PR #1445 | src/subdomains/core/payment-link/payment-link.controller.ts ---
+Context: +  ): Promise<PaymentLink> { | +    return this.paymentLinkService.updatePaymentLink(+jwt.user, +id, dto); | +  }
+David: Update ApiOkResponse
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-link-payment.services.ts ---
+Context: +    const pendingLinkPayment = await this.paymentLinkPaymentRepo.exists({ | +      where: { status: PaymentLinkPaymentStatus.PENDING }, | +    });
+David: Whooot? 🤔
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-link.services.ts ---
+Context: +      ? [await this.paymentLinkPaymentService.create(paymentLink, dto.payment)] | +      : undefined; | +    return this.paymentLinkRepo.save(paymentLink);
+David: Link save must me before payment save
+
+--- PR #1445 | src/config/config.ts ---
+Context: + | +    evmAddress: process.env.PAYMENT_EVM_ADDRESS, | +  };
+David: Can be removed?
+
+--- PR #1445 | src/config/config.ts ---
+Context:        depositSeed: process.env.EVM_DEPOSIT_SEED, | +      paymentSeed: process.env.EVM_PAYMENT_SEED, |        minimalPreparationFee: 0.00000001,
+David: Move to payment?
+
+--- PR #1445 | src/subdomains/core/sell-crypto/route/sell.service.ts ---
+Context:   | +  async getLastest(userId: number): Promise<Sell> { | +    const sells = await this.sellRepo.find({
+David: `Promise<Sell | undefined>`
+
+--- PR #1445 | src/subdomains/core/sell-crypto/route/sell.service.ts ---
+Context: +    if (!sells.length) return; | + | +    return sells[0];
+David: length check is not required
+
+--- PR #1445 | src/subdomains/generic/user/models/user-data/user-data.entity.ts ---
+Context: +  // Point of Sale | +  @Column({ nullable: true }) | +  paymentLinksAllowed: boolean;
+David: `default: false` (no nullable)
+
+--- PR #1445 | src/subdomains/core/payment-link/controllers/payment-link.controller.ts ---
+Context: +  @ApiOkResponse({ type: PaymentLinkDto, isArray: true }) | +  async getAllPaymentLinks(@GetJwt() jwt: JwtPayload): Promise<PaymentLinkDto[]> { | +    await this.checkPaymentLinksAllowed(+jwt.user);
+David: Use `jwt.account` for payment link allowed check (everywhere)
+
+--- PR #1445 | src/subdomains/core/payment-link/controllers/payment-link.controller.ts ---
+Context: +    @GetJwt() jwt: JwtPayload, | +    @Param('idOrExternalId') idOrExternalId: string, | +  ): Promise<PaymentLinkDto> {
+David: How do we solve the problem where id and external-id are the same?
+
+--- PR #1445 | src/subdomains/core/payment-link/entities/payment-activation.entity.ts ---
+Context: +  FAILED = 'Failed', | +  COMPLETED = 'Completed', | +}
+David: Is `DUPLICATE` used somewhere? 🤔
+
+--- PR #1445 | src/subdomains/core/payment-link/entities/payment-activation.entity.ts ---
+Context: + | +  @ManyToOne(() => Asset, { eager: true }) | +  asset: Asset;
+David: `nullable: false`
+
+--- PR #1445 | src/subdomains/core/payment-link/controllers/payment-webhook.controller.ts ---
+David: Move this to pay-in module
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context: +        amount: transferInfo.amount, | +        method: transferInfo.method, | +      },
+David: Add asset?
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-link-payment.service.ts ---
+Context: +  async processPendingPayments() { | +    const maxDate = Util.secondsBefore(Config.payment.timeoutDelay); | +
+David: What is this timeoutDelay?
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-link-payment.service.ts ---
+Context: +    if (!pendingPayments.length) throw new NotFoundException(`No pending payment found by unique id ${uniqueId}`); | + | +    return pendingPayments[0];
+David: findOne?
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-link-payment.service.ts ---
+Context: +    if (!pendingPayments.length) throw new NotFoundException(`No pending payment found by unique id ${paymentLinkId}`); | + | +    const pendingPayment = pendingPayments[0];
+David: findOne?
+
+--- PR #1445 | src/subdomains/generic/forwarding/services/lnurl-forward.service.ts ---
+Context: + | +    return this.createLnurlpPayRequest(id); | +  }
+David: id can start with `PAYMENT_LINK_PAYMENT_PREFIX`, this should also be supported
+
+--- PR #1445 | src/subdomains/generic/forwarding/services/lnurl-forward.service.ts ---
+Context: +    const paymentLinkPaymentInfo = await this.paymentLinkPaymentService.getPaymentLinkForwardInfo(paymentLinkId); | +    const metaData = `Payment to ${paymentLinkPaymentInfo.paymentLinkExternalId}: ${paymentLinkPaymentInfo.paymentLinkPaymentExternalId}`; | +
+David: External IDs can be null -> use internal IDs as fallback?
+
+--- PR #1445 | src/subdomains/generic/forwarding/services/lnurl-forward.service.ts ---
+Context: +      tag: 'payRequest', | +      callback: LightningHelper.createLnurlpCallbackUrl(paymentLinkPaymentInfo.paymentLinkPaymentId), | +      minSendable: satsSendable,
+David: Use `paymentLinkId` for the callback
+
+--- PR #1445 | src/subdomains/generic/forwarding/services/lnurl-forward.service.ts ---
+Context: + | +    return this.createLnurlpInvoice(id, params); | +  }
+David: Support PL and PLP links
+
+--- PR #1445 | src/subdomains/generic/forwarding/services/lnurl-forward.service.ts ---
+Context: + | +    return lightningPayment; | +  }
+David: It looks like this method is better moved to payment activation service?
+
+--- PR #1445 | src/subdomains/generic/forwarding/services/lnurl-forward.service.ts ---
+Context: + | +    return evmPayment; | +  }
+David: Same here?
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context: + | +  async saveLightningPaymentRequest(paymentLinkPaymentId: string, pr: string, transferInfo: TransferInfo) { | +    const paymentLinkPayment = await this.paymentLinkPaymentService.getPaymentByUniqueId(paymentLinkPaymentId);
+David: Remove lightning from method name?
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context: +    this.logger.info(`Wallet Address: ${this.walletAddress}`); | +  } | +
+David: Remove log?
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context: + | +    await this.paymentActivationRepo.save(newPaymentActivation); | +  }
+David: It looks like there is quite some duplicated code here
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context: +        amount: cryptoInput.amount, | +        asset: cryptoInput.asset, | +        status: PaymentActivationStatus.PENDING,
+David: `asset: { id: cryptoInput.asset.id },`
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context: + | +    if (!pendingActivation) | +      throw new NotFoundException(`No pending activation found for crypto input ${cryptoInput.id}`);
+David: Return `undefined`?
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context: + | +    await this.paymentActivationRepo.save(pendingActivation.complete()); | +
+David: Expire all other activations
+
+--- PR #1445 | src/subdomains/supporting/payin/services/payin.service.ts ---
+Context:        if (!exists) { |          payIn.transaction = await this.transactionService.create({ sourceType: TransactionSourceType.CRYPTO_INPUT }); | +        payIn.paymentLinkPayment = await this.paymentActivationService.getPaymentByCryptoInput(payIn);
+David: For me it would be more logical to get the payment with PaymentLinkPaymentService, not PaymentActivationService
+
+--- PR #1445 | src/subdomains/core/sell-crypto/route/sell.service.ts ---
+Context: +    if (!sells) return; | + | +    return sells[0];
+David: `.findOne`?
+
+--- PR #1445 | src/subdomains/core/payment-link/services/payment-link-payment.service.ts ---
+Context: +  async processPendingPayments() { | +    const maxDate = Util.secondsBefore(Config.payment.timeoutDelay); | +
+David: I think if a payment is expired, it's expired. Or why should we add an additional delay there?
+
+--- PR #1445 | src/config/config.ts ---
+Context: +    timeoutDelay: +(process.env.PAYMENT_TIMEOUT_DELAY ?? 0), | +    paymentSeed: process.env.EVM_PAYMENT_SEED, | +  };
+David: `evmSeed: process.env.PAYMENT_EVM_SEED,`
+
+--- PR #1446 | src/subdomains/supporting/payment/dto/transaction.dto.ts ---
+Context:    ASSET_KYC_NEEDED = 'AssetKycNeeded', | +  CARD_NAME_NOT_MATCHING = 'CardNameNotMatching', |  }
+David: `CardNameMismatch`?
+
+--- PR #1447 | src/subdomains/supporting/fiat-payin/services/fiat-payin-sync.service.ts ---
+Context: +          await this.siftService.createChargeback({ | +            $transaction_id: checkoutTx.transaction?.id.toString(), | +            $order_id: checkoutTx.transaction?.request?.id.toString(),
+David: You need to load the transaction and request in DB call. Every checkout TX has a transaction
+
+--- PR #1447 | src/subdomains/supporting/fiat-payin/services/fiat-payin-sync.service.ts ---
+Context: +            $chargeback_reason: ChargebackReason.OTHER, | +            $chargeback_state: ChargebackState.ACCEPTED, | +          });
+David: Only create a chargeback, if the TX status is refunded?
+
+--- PR #1447 | src/subdomains/supporting/fiat-payin/services/fiat-payin-sync.service.ts ---
+Context: +        if (checkoutTx?.status === CheckoutPaymentStatus.REFUNDED) { | +          const transaction = await this.transactionService.getTransactionById(checkoutTx.transaction.id); | +          const transactionRequest = await this.transactionRequestService.getById(transaction.request.id);
+David: Add to relations
+
+--- PR #1447 | src/subdomains/supporting/payment/services/transaction-request.service.ts ---
+Context: +      where: { id }, | +    }); | +  }
+David: Revert
+
+--- PR #1449 | src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity.ts ---
+Context: +  @JoinColumn() | +  fiatOutput: FiatOutput; | +
+David: `chargebackOutput: FiatOutput;`?
+
+--- PR #1454 | src/subdomains/generic/user/models/user-data/user-data.entity.ts ---
+Context: -      kycLevel: KycLevel.TERMINATED, | -    }; | +    const update: Partial<UserData> = { status: UserDataStatus.DELETED };
+David: Set KYC level to max. 20
+
+--- PR #1454 | src/subdomains/generic/user/models/user-data/user-data.entity.ts ---
+Context: -      kycLevel: KycLevel.TERMINATED, | -    }; | +    const update: Partial<UserData> = { status: UserDataStatus.DELETED };
+David: Set KYC steps (ident, financial) to cancelled?
+
+--- PR #1454 | src/subdomains/generic/user/models/user/user.service.ts ---
+Context: +      .andWhere('userData.status NOT IN (:...userDataStatus)', { | +        userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DELETED], | +      })
+David: Same for user status?
+
+--- PR #1454 | src/subdomains/generic/user/models/user/user.service.ts ---
+Context: @@ -239,9 +241,9 @@ export class UserService { |    async blockUser(id: number, allUser = false): Promise<void> {
+David: Maybe we should rename all the methods as well? Maybe deactivate?
+
+--- PR #1454 | src/subdomains/generic/kyc/dto/mapper/kyc-info.mapper.ts ---
+Context:    private static getUiSteps(userData: UserData): KycStep[] { | -    if (userData.isKycTerminated) return []; | +    if (userData.isBlocked || userData.isDeleted) return [];
+David: I think we can revert this. Only if the KYC is terminated we want to hide the KYC steps
+
+--- PR #1454 | src/subdomains/generic/kyc/enums/kyc.enum.ts ---
+Context:    OUTDATED = 'Outdated', | +  DEACTIVATED = 'Deactivated', |  }
+David: I think we can use the `Canceled` status instead. Canceled steps are not shown in UI.
+
+--- PR #1454 | src/subdomains/generic/kyc/services/kyc-admin.service.ts ---
+Context: +    for (const kycStep of kycSteps) { | +      if ([KycStepName.FINANCIAL_DATA, KycStepName.IDENT].includes(kycStep.name) && kycStep.isCompleted) | +        await this.kycStepRepo.update(kycStep.id, { status: KycStepStatus.DEACTIVATED });
+David: `kycStep.isDone`?
+
+--- PR #1454 | src/subdomains/generic/user/models/user-data/user-data.service.ts ---
+Context: +  async deactivateUserData(userData: UserData): Promise<void> { |      await this.userDataRepo.update(...userData.blockUserData()); | +    await this.kycAdminService.deactivateKycSteps(userData.kycSteps);
+David: `deactivateUserData`?
+
+--- PR #1454 | src/subdomains/generic/user/models/user-data/user-data.service.ts ---
+Context:   | +    if (slave.isDeleted) slave.status = master.status; | +    if (master.isDeleted) master.status = slave.status;
+David: Are you sure we should reactivate the slave? It's dead anyway 🤔
+
+--- PR #1454 | src/subdomains/generic/user/models/user-data/user-data.entity.ts ---
+Context: -      kycLevel: KycLevel.TERMINATED, | +      status: UserDataStatus.DELETED, | +      kycLevel: this.kycLevel < KycLevel.LEVEL_20 ? this.kycLevel : KycLevel.LEVEL_20,
+David: `Math.min`
+
+--- PR #1454 | src/subdomains/generic/user/models/user/user.service.ts ---
+Context: +    if (mainUser.userData.status === UserDataStatus.DELETED) | +      throw new BadRequestException('User Account already deleted'); | +    if (mainUser.status === UserStatus.DELETED) throw new BadRequestException('User already deleted');
+David: Check for Blocked and Deleted?
+
+--- PR #1454 | src/subdomains/generic/user/models/user/user.service.ts ---
+Context: +      .andWhere('userData.status NOT IN (:...userDataStatus)', { | +        userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DELETED], | +      })
+David: Same change is required in
+- UserDtoMapper
+- getAllLinkedUsers above
+- AuthService
+- UserEntity (isPaymentStatusEnabled)
+
+--- PR #1454 | src/subdomains/generic/kyc/services/kyc-admin.service.ts ---
+Context:   | +  async deactivateKycSteps(kycSteps: KycStep[]): Promise<void> { | +    for (const kycStep of kycSteps) {
+David: `cancelKycSteps`?
+
+--- PR #1454 | src/subdomains/generic/kyc/services/kyc-admin.service.ts ---
+Context:   | +  async deactivateKycSteps(kycSteps: KycStep[]): Promise<void> { | +    for (const kycStep of kycSteps) {
+David: It's a bit weird to have a list of steps as parameter but only cancel a few of them. Maybe we should name the method `resetKyc` and have the userData as parameter?
+
+--- PR #1454 | src/subdomains/generic/kyc/dto/output/kyc-info.dto.ts ---
+Context:    OUTDATED = 'Outdated', | +  DEACTIVATED = 'Deactivated', |  }
+David: Remove?
+
+--- PR #1454 | src/subdomains/generic/user/models/user/user.entity.ts ---
+Context: + | +  get isBlockedOrDeleted(): boolean { | +    return [UserStatus.BLOCKED, UserStatus.DEACTIVATED].includes(this.status);
+David: `isBlockedOrDeactivated`?
+
+--- PR #1456 | src/integration/blockchain/shared/util/blockchain.util.ts ---
+Context: @@ -11,7 +11,7 @@ export function assetExplorerUrl(asset: Asset): string | undefined { |    if (asset.type === AssetType.COIN) return undefined;
+David: Do we want undefined for coins?
+
+--- PR #1456 | src/integration/blockchain/shared/util/blockchain.util.ts ---
+Context:    const assetPath = assetPaths(asset); | -  return assetPath ? `${BlockchainExplorerUrls[asset.blockchain]}/${assetPath}` : undefined; | +  return `${BlockchainExplorerUrls[asset.blockchain]}/${assetPath ?? ''}`;
+David: What if `BlockchainExplorerUrls[asset.blockchain]` is undefined
+
+--- PR #1460 | src/subdomains/supporting/fiat-payin/services/fiat-payin-sync.service.ts ---
+Context:            await this.siftService.createChargeback({ | +            $user_id: checkoutTx.buyCrypto.user.id.toString(), |              $transaction_id: checkoutTx.transaction.id.toString(),
+David: Use `checkoutTx.transaction.user` and make sure to load it in the DB call
+
+--- PR #1460 | src/subdomains/supporting/fiat-payin/services/fiat-payin-sync.service.ts ---
+Context:            await this.siftService.createChargeback({ | +            $user_id: checkoutTx.buyCrypto.user.id.toString(), |              $transaction_id: checkoutTx.transaction.id.toString(),
+David: And add some `?` in case there is no user assigned to the TX
+
+--- PR #1461 | src/subdomains/core/trading/services/trading-rule.service.ts ---
+Context: +      .select('MAX(tradingOrder.id)', 'tradingOrderId') | +      .innerJoin('tradingOrder.tradingRule', 'tradingRule') | +      .groupBy('tradingRule.id')
+David: Ist this join required? Can't we `.groupBy('tradingOrder.tradingRuleId')`?
+
+--- PR #1461 | src/subdomains/supporting/log/log-job.module.ts ---
+Context: + | +@Module({ | +  imports: [TypeOrmModule.forFeature([Log]), SharedModule, TradingModule, LiquidityManagementModule, LogModule],
+David: `TypeOrmModule` should not be necessary here
+
+--- PR #1461 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: +          assets: assets.map((a) => { | +            return { ...a, ...liqBalances.find((b) => b.asset.id === a.id) }; | +          }),
+David: I wouldn't store the whole asset and balance entity, only `id`, `balance`, `approxPriceChf` and `approxPriceUsd`
+
+--- PR #1461 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: +              leftAsset: o.tradingRule.leftAsset.id, | +              rightAsset: o.tradingRule.rightAsset.id, | +            },
+David: I wouldn't store the rule, maybe just the id?
+
+--- PR #1467 | src/subdomains/core/sell-crypto/process/services/buy-fiat-job.service.ts ---
+Context: +        this.buyFiatPreparationService.refreshFee(), | +        this.buyFiatPreparationService.fillPaymentLinkPayments(), | +      ]);
+David: Why this in parallel? 🤔
+
+--- PR #1467 | src/subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service.ts ---
+Context: +        sell: true, | +        cryptoInput: { paymentLinkPayment: true }, | +        transaction: { user: { wallet: true, userData: true } },
+David: Relations are not required for filtering?
+
+--- PR #1467 | src/subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service.ts ---
+Context: +          outputReferenceCurrency.name, | +          entity.inputAmount / outputReferenceAmount, | +        );
+David: Why one `entity.inputReferenceAmount` and once `entity.inputAmount`?
+
+--- PR #1468 | src/subdomains/core/sell-crypto/process/dto/update-buy-fiat.dto.ts ---
+Context: +  @IsOptional() | +  @IsBoolean() | +  activateBankData: boolean;
+David: Maybe `bankDataActive` is a better name? Because `activateBankData=false` sounds like nothing is done, but it will deactivate the bank data.
+Same for buy-crypto.
+
+--- PR #1472 | src/subdomains/core/buy-crypto/process/services/buy-crypto-preparation.service.ts ---
+Context:   | -        await this.buyCryptoWebhookService.triggerWebhook(entity); | +        if (amlCheckBefore !== entity.amlCheck) await this.buyCryptoWebhookService.triggerWebhook(entity);
+David: Do we need the same for buy-fiat?
+
+--- PR #1477 | src/subdomains/supporting/payment/services/fee.service.ts ---
+Context: +    const discountFees = fees.filter((fee) => fee.type === FeeType.DISCOUNT); | +    const relativeDiscountFees = fees.filter((fee) => fee.type === FeeType.RELATIVE_DISCOUNT); | +    relativeDiscountFees.forEach((fee) => Object.assign(fee, { rate: baseFee.rate * fee.rate }));
+David: Could use map:
+```ts
+const relativeDiscountFees = fees
+   .filter((fee) => fee.type === FeeType.RELATIVE_DISCOUNT)
+   .map((fee) => Object.assign(fee, { rate: baseFee.rate * fee.rate }));
+```
+
+--- PR #1478 | src/subdomains/generic/user/models/user/dto/update-user.dto.ts ---
+Context: +  @ValidateNested() | +  @Type(() => PartialUserDto) | +  users?: PartialUserDto[];
+David: Update as discussed
+
+--- PR #1478 | src/subdomains/generic/user/models/user/dto/update-address.dto.ts ---
+Context: +  @IsOptional() | +  @Transform(Util.trim) | +  label?: string;
+David: `@IsString()`
+
+--- PR #1478 | src/subdomains/generic/user/models/user/user.controller.ts ---
+Context: -  async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> { | -    return this.userService.deactivateUser(jwt.user, true); | -  }
+David: Keep these endpoints for backward compatibility, but deprecate them with ` @ApiOperation({ deprecated: true })`
+
+--- PR #1478 | src/subdomains/generic/user/models/user/user.controller.ts ---
+Context: +  async deleteUser(@GetJwt() jwt: JwtPayload, @Param('address') address: string): Promise<void> { | +    return this.userService.deactivateUser(jwt.account, address); | +  }
+David: `deleteAddress`
+
+--- PR #1478 | src/subdomains/generic/user/models/user/user.controller.ts ---
+Context: +  async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> { | +    return this.userService.deactivateUser(jwt.account); | +  }
+David: `deleteAccount`
+
+--- PR #1478 | src/subdomains/generic/user/models/user/user.controller.ts ---
+Context: +  async deleteUserAccount(@GetJwt() jwt: JwtPayload): Promise<void> { | +    return this.userService.deactivateUser(jwt.account); | +  }
+David: `new RoleGuard(UserRole.ACCOUNT)`
+
+--- PR #1478 | src/subdomains/generic/user/models/user/user.controller.ts ---
+Context: +  @ApiOkResponse({ type: UserV2Dto }) | +  @ApiAcceptedResponse(AccountExistsResponse) | +  async updateAddress(
+David: `@ApiAcceptedResponse(AccountExistsResponse)` can be removed?
+
+--- PR #1478 | src/shared/models/fiat/fiat.service.ts ---
+Context: +    IT: 'EUR', | +    FR: 'EUR', | +  };
+David: Maybe it's better located in the config. I'll do a suggestion.
+
+--- PR #1478 | src/subdomains/generic/user/models/user/user.service.ts ---
+Context: +      const user = userData.users.find((u) => u.address === address); | +      if (!user) throw new NotFoundException('User not found'); | +      if (user.isBlockedOrDeactivated) throw new BadRequestException('User already deactivated');
+David: `'Address not found'`
+`'Address already deactivated'`
+
+--- PR #1478 | src/subdomains/generic/user/models/user/user.service.ts ---
+Context: + | +    return { user: UserDtoMapper.mapUser(userData) }; | +  }
+David: Why not return the user directly?
+`return UserDtoMapper.mapUser(userData);`
+
+--- PR #1478 | src/subdomains/generic/user/models/user/user.controller.ts ---
+Context: +  async deleteAccount(@GetJwt() jwt: JwtPayload): Promise<void> { | +    return this.userService.deactivateUser(jwt.account); | +  }
+David: This is in the v2 controller, so there should be no clashes.
+
+--- PR #1478 | migration/1721730420883-AddressLabel.js ---
+Context: +    async down(queryRunner) { | +        await queryRunner.query(`ALTER TABLE "user" DROP COLUMN "label"`); | +        await queryRunner.query(`ALTER TABLE "wallet" DROP COLUMN "displayName"`);
+David: Should work without `dbo` IMO
+
+--- PR #1480 | src/subdomains/generic/kyc/dto/input/kyc-data.dto.ts ---
+Context: +  @IsNotEmpty() | +  @IsString() | +  fileName?: string;
+David: I would make this non-optional, `ValidateIf` can be removed
+
+--- PR #1480 | src/subdomains/generic/kyc/entities/kyc-step.entity.ts ---
+Context: + | +      case KycStepName.DFX_APPROVAL: | +        return { url: `${apiUrl}/approval/${this.id}`, type: UrlType.API };
+David: No URL for approval step? Maybe UrlType `NONE`?
+
+--- PR #1480 | src/subdomains/generic/user/models/user-data/user-data.service.ts ---
+Context: +  async updateNationality(userData: UserData, nationality: KycNationalityData): Promise<UserData> { | +    const country = this.countryService.getCountry(nationality.country.id ?? userData?.nationality?.id); | +    if (!country) throw new BadRequestException('Country not found');
+David: Why this fallback? `nationality.country.id` is never null.
+
+--- PR #1480 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: + | +    const updatedUser = await this.userDataService.updateNationality(user, data); | +    user = updatedUser.nationality ? updatedUser.failStep(kycStep, data) : updatedUser.completeStep(kycStep, data);
+David: `updateNationality` throws an error, if the country is not found, so this check looks useless 🤔
+
+--- PR #1480 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context:      let user = transaction.user; |      const kycStep = user.getStepOrThrow(transaction.stepId); | +    const nationalityMatch = dto.userdata.nationality.value !== user.nationality?.symbol;
+David: Do the nationality check in `getIdentCheckErrors` -> add a new `IdentCheckError` (step will go to manual review)
+
+--- PR #1480 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: +      case KycStepName.DFX_APPROVAL: | +        kycStep.manualReview(); | +        break;
+David: `internalReview()`
+
+--- PR #1480 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: + | +    return KycStepMapper.toKycResult(kycStep); | +  }
+David: Both steps should go to `InternalReview` on completion
+
+--- PR #1480 | src/subdomains/generic/user/models/user-data/user-data.service.ts ---
+David: Update the `updateUserData` method. If KYC level >= 50 and the user data has a non-complete DFX-approval KYC step, complete it.
+
+--- PR #1480 | src/subdomains/generic/kyc/dto/input/kyc-data.dto.ts ---
+Context: +  @IsNotEmpty() | +  @IsString() | +  fileName?: string;
+David: Remove `?`
+
+--- PR #1480 | src/subdomains/generic/kyc/entities/kyc-step.entity.ts ---
+Context: + | +      case KycStepName.DFX_APPROVAL: | +        return { url: `${apiUrl}/approval/${this.id}`, type: UrlType.NONE };
+David: No URL? `approval` endpoint does not exist.
+
+--- PR #1480 | src/subdomains/generic/user/models/user-data/user-data.service.ts ---
+Context: +      if (!dfxApprovalCompleted) { | +        const pendingDfxApproval = userData.getPendingStepWith(KycStepName.DFX_APPROVAL); | +        if (pendingDfxApproval) userData.completeStep(pendingDfxApproval);
+David: `getPendingStepWith` will not find the step, because it's in `INTERNAL_REVIEW` and not `IN_PROGRESS`
+
+--- PR #1480 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: +    ); | + | +    user = user.internalReviewStep(kycStep);
+David: Use the document URL as step result:
+```ts
+const url = await this.storageService.uploadFile(...);
+
+user = user.internalReviewStep(kycStep, url);
+```
+
+--- PR #1480 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: -          identDocumentId: `${userData.organizationName.split(' ').join('') ?? ''}${ | -            result.identificationdocument.number.value | -          }`,
+David: Revert (except nationality)
+
+--- PR #1482 | src/subdomains/core/aml/aml.service.ts ---
+David: Explanatory comments should be in regular english 😉 
+```ts
+// merge & bank transaction verification
+// verified country
+// KYC file ID
+```
+
+--- PR #1483 | src/subdomains/generic/user/models/wallet/wallet.controller.ts ---
+Context: +  async updateUserData(@Param('id') id: string, @Body() wallet: UpdateWalletDto): Promise<Wallet> { | +    return this.walletService.updateWallet(+id, wallet); | +  }
+David: Copy&paste? 😉
+
+--- PR #1483 | src/subdomains/generic/user/models/wallet/dto/create-wallet.dto.ts ---
+Context: +  @IsEnum(AmlRule) | +  amlRule: AmlRule; | +}
+David: Why is this different from WalletDto and UpdateWalletDto?
+
+--- PR #1484 | src/subdomains/generic/user/models/user/dto/user-dto.mapper.ts ---
+Context: +        .filter((u) => !userData.isBlockedOrDeactivated && !u.isBlockedOrDeactivated && !u.wallet.isKycClient) |          .map((u) => this.mapAddress(u)), |        activeAddress: activeUser && this.mapAddress(activeUser),
+David: I'm not sure if it makes sense to filter by user-data status here 🤔  these users all have the same user-data. And the user can't login anymore.
+
+--- PR #1484 | src/subdomains/generic/user/models/user/user.service.ts ---
+Context: +      .andWhere('userData.status NOT IN (:...userDataStatus)', { | +        userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED], | +      })
+David: Same here
+
+--- PR #1486 | src/shared/models/setting/setting.controller.ts ---
+Context: +  @Get('infoBanner') | +  @ApiBearerAuth() | +  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+David: I think we can omit authentication here -> remove `ApiBearerAuth` and `UseGuards`
+
+--- PR #1486 | src/shared/models/setting/setting.controller.ts ---
+Context: +  async getInfoBanner(): Promise<InfoBannerDto> { | +    const json = await this.settingService.get('infoBanner', undefined); | +    return json ? JSON.parse(json) : undefined;
+David: `return this.settingService.getObj('infoBanner', undefined);`
+
+--- PR #1493 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context:   | +    const existingPaymentRequest = await this.getExistingPaymentRequest(transferInfo); | +    if (existingPaymentRequest) return existingPaymentRequest;
+David: Throw conflict, if the payment is different
+
+--- PR #1493 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context:   | +    const existingPaymentRequest = await this.getExistingPaymentRequest(transferInfo); | +    if (existingPaymentRequest) return existingPaymentRequest;
+David: ```ts
+if (existingPaymentRequest) {
+  if (existingPaymentRequest.payment.id === pendingPayment.id) return PaymentRequestMapper.toPaymentRequest(existingPaymentRequest);
+
+  throw new ConflictException(`Duplicate payment request`);
+}
+```
+
+--- PR #1494 | src/subdomains/generic/user/models/user/dto/user-v2.dto.ts ---
+Context:    address: string; |   | +  @ApiProperty()
+David: `@ApiPropertyOptional`
+
+--- PR #1510 | src/subdomains/generic/forwarding/services/lnurl-forward.service.ts ---
+Context: -  private static readonly PAYMENT_LINK_PAYMENT_PREFIX = `${PaymentLinkPaymentService.PREFIX_UNIQUE_ID}_`; | +  static readonly PAYMENT_LINK_PREFIX = `${PaymentLinkService.PREFIX_UNIQUE_ID}_`; | +  static readonly PAYMENT_LINK_PAYMENT_PREFIX = `${PaymentLinkPaymentService.PREFIX_UNIQUE_ID}_`;
+David: Why is this not private anymore?
+
+--- PR #1510 | src/config/config.ts ---
+Context: +    signingPrivKey: process.env.DFX_SIGNING_PRIV_KEY?.split('<br>').join('\n'), | +    signingPubKey: process.env.DFX_SIGNING_PUB_KEY?.split('<br>').join('\n'), | +  };
+David: This is the DFX API, so it's kind of weird to call the config `dfx` 😉  what are these keys used for?
+
+--- PR #1510 | src/subdomains/supporting/address-pool/deposit/deposit.service.ts ---
+Context:   | +    addresses.push(await this.saveEvmDeposit(Config.payment.walletAccount(0), applicableChains, 0)); | +
+David: We don't want to save the payment collect address as a deposit address, it's not a deposit address.
+
+--- PR #1510 | src/subdomains/supporting/address-pool/deposit/deposit.controller.ts ---
+Context: +  async updateLightningDepositWebhook(): Promise<void> { | +    await this.depositService.updateLightningDepositWebhook(); | +  }
+David: Is this temporary code?
+
+--- PR #1510 | src/subdomains/supporting/payin/controllers/payin-webhook.controller.ts ---
+Context:   |  @ApiTags('Payment Webhook') |  @Controller('paymentWebhook')
+David: Change to pay-in?
+```ts
+@ApiTags('Pay-In')
+@Controller('payIn')
+```
+-> adapt webhook URLs
+
+--- PR #1510 | src/subdomains/core/payment-link/services/payment-link.services.ts ---
+Context: + | +    const pendingPayment = await this.paymentLinkPaymentService.getPendingPaymentByUniqueId(link.uniqueId); | +    if (pendingPayment) link.payments.push(pendingPayment);
+David: We want the most recent payment, not the pending one.
+
+--- PR #1510 | src/subdomains/core/payment-link/services/payment-link.services.ts ---
+Context: +    } | + | +    return allPaymentLinks;
+David: Same here
+
+--- PR #1510 | src/subdomains/core/payment-link/services/payment-link.services.ts ---
+Context: +        paymentLink.payments.push(pendingPayment); | +      } | +    }
+David: This is inefficient for many payment links. Can this be parallelized?
+
+--- PR #1510 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context: +        ); | +        return; | +      }
+David: Get address by linking the route in the DB call
+
+--- PR #1510 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context:    async getPaymentByCryptoInput(cryptoInput: CryptoInput): Promise<PaymentLinkPayment | undefined> { | -    if (!Util.equalsIgnoreCase(cryptoInput.address?.address, this.walletAddress)) return; | +    if (!this.isDepositAddress(cryptoInput.address?.address)) return;
+David: Use the `txType` field of the crypto input to detect the payment pay-ins
+
+--- PR #1510 | src/subdomains/supporting/address-pool/deposit/deposit.controller.ts ---
+Context: +  async updateLightningDepositWebhook(): Promise<void> { | +    await this.depositService.updateLightningDepositWebhook(); | +  }
+David: Ok, I see 👍
+
+--- PR #1510 | src/config/config.ts ---
+Context: +    signingPrivKey: process.env.DFX_SIGNING_PRIV_KEY?.split('<br>').join('\n'), | +    signingPubKey: process.env.DFX_SIGNING_PUB_KEY?.split('<br>').join('\n'), | +  };
+David: We should maybe put it under lightning.lnbits?
+![image](https://github.com/user-attachments/assets/5c9c4499-a2a9-4a69-8016-eecd46bab7a9)
+
+--- PR #1510 | src/subdomains/supporting/address-pool/deposit/deposit.service.ts ---
+Context: + | +    if (!deposit) { | +      await this.depositRepo.save(Deposit.create(wallet.address, applicableChains, accountIndex));
+David: This check is not necessary anymore
+
+--- PR #1511 | src/subdomains/core/buy-crypto/routes/swap/swap.service.ts ---
+Context: +          asset, | +        }, | +      ]);
+David: Can we share this somehow with SellService?
+
+--- PR #1511 | src/subdomains/core/transaction/transaction-util.service.ts ---
+Context: + | +  async confirmCryptoInput(route: Swap | Sell, request: TransactionRequest, dto: ConfirmDto): Promise<CryptoInput> { | +    const asset = await this.assetService.getAssetById(request.sourceId);
+David: `handlePermitInput`?
+
+--- PR #1514 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context:      data: Partial<UserData>, |      requiresInternalReview: boolean, | +    updateUserData: boolean,
+David: I think 2 methods would be cleaner 🤔
+
+--- PR #1514 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: +      if (!nationality) throw new BadRequestException('Nationality not found'); | + | +      data.nationality.symbol = nationality.symbol;
+David: I think it's ok to just store the data as it comes, the ID should be enough, don't you think?
+
+--- PR #1514 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+David: Is probably a bit late now, there are already a bunch of steps with URL results.
+
+--- PR #1514 | src/subdomains/generic/kyc/entities/kyc-step.entity.ts ---
+Context: +export interface KycStepNationalityData { | +  nationality: { id: number; symbol: string }; | +}
+David: Remove this and use IEntity instead?
+
+--- PR #1514 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: +    const nationalityStepResult = entity.userData.kycSteps | +      .find((k) => k.name === KycStepName.NATIONALITY_DATA && k.status === KycStepStatus.COMPLETED) | +      .getResult<KycStepNationalityData>();
+David: `entity.userData.getStepsWith(KycStepName.NATIONALITY_DATA).find((s) => s.isCompleted)`
+
+--- PR #1514 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: -    if (entity.userData.nationality?.symbol !== result.userdata.nationality?.value) | -      errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING); | +    if (nationalityStepResult.nationality.id !== nationality?.id) errors.push(IdentCheckError.NATIONALITY_NOT_MATCHING);
+David: `nationalityStepResult` might be undefined?
+
+--- PR #1517 | src/subdomains/generic/user/models/bank-data/bank-data.entity.ts ---
+Context:   | +  @Column({ nullable: true }) | +  manualCheck: boolean;
+David: Was does this mean, `manualCheck`?
+
+--- PR #1518 | src/subdomains/generic/user/models/account-merge/account-merge.service.ts ---
+Context: +      where: { code }, | +      relations: { master: { users: true }, slave: { users: true } }, | +    });
+David: Can be reverted?
+
+--- PR #1518 | src/subdomains/generic/user/models/account-merge/account-merge.service.ts ---
+Context: -    return `${Config.url()}/auth/mail/confirm?code=${code}`; | +    return `${Config.frontend.services}/kyc?merge-code=${code}`; |    }
+David: Are you sure you want to do it on the KYC screen? Maybe a separate screen is easier?
+
+--- PR #1518 | src/subdomains/generic/user/models/account-merge/account-merge.service.ts ---
+Context: -    return `${Config.url()}/auth/mail/confirm?code=${code}`; | +    return `${Config.frontend.services}/kyc?merge-code=${code}`; |    }
+David: Adapt Mail with new link
+
+--- PR #1518 | src/subdomains/generic/user/models/auth/auth.controller.ts ---
+Context: +      accessToken: this.authService.generateUserToken(newUser, ip), | +    }; |    }
+David: Ok, I see some issues here:
+- The user will click a link he received by mail. Therefore he might not be logged in in the Services
+   - We cannot have an auth guard
+   - We can only return an access token, if the user came with one
+   - Maybe we should remove the `redirectUrl` in the response and just return the master's KYC code and the JWT, if the user was logged in
+- The User might have an "account-only" account, which means he has no user
+   - In this case (there is no `user` in the JWT) use `generateAccountToken`
+
+--- PR #1518 | src/subdomains/generic/user/models/auth/dto/redirect-url.dto.ts ---
+Context: +    description: 'Access token of DFX API', | +  }) | +  accessToken?: string;
+David: `ApiPropertyOptional`
+
+--- PR #1518 | src/subdomains/generic/user/models/auth/dto/redirect-url.dto.ts ---
+Context: +    description: 'Access token of DFX API', | +  }) | +  accessToken?: string;
+David: Maybe `description: 'Updated access token'`?
+
+--- PR #1523 | src/subdomains/core/payment-link/entities/payment-link-payment-quote.entity.ts ---
+Context: +export class PaymentLinkPaymentQuote extends IEntity { | +  @Column({ length: 256, nullable: false, unique: true }) | +  uniqueId: string;
+David: Maybe we should call it just `PaymentQuote` (enum, repo, service as well)?
+
+--- PR #1523 | src/subdomains/core/payment-link/entities/payment-link-payment-quote.entity.ts ---
+Context: +    if (!transferAmount) return false; | + | +    return transferAmount.assets.find((a) => a.asset === asset && a.amount === amount) !== undefined;
+David: Reuse the helper method?
+```ts
+ const amount = this.getTransferAmountFor(method, asset);
+ return transferAmount?.amount === amount;
+```
+
+--- PR #1523 | src/subdomains/generic/forwarding/services/lnurl-forward.service.ts ---
+Context: +        asset: pendingPayment.currency.name, | +        amount: pendingPayment.amount, | +      },
+David: Rename to `requestedAmount`?
+
+--- PR #1523 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context: +  @Inject() private readonly paymentLinkPaymentQuoteService: PaymentLinkPaymentQuoteService; | +  @Inject(forwardRef(() => PaymentLinkPaymentService)) | +  private readonly paymentLinkPaymentService: PaymentLinkPaymentService;
+David: Why not constructor injection?
+
+--- PR #1523 | src/subdomains/core/payment-link/services/payment-link-payment-quote.service.ts ---
+Context: +    for (const paymentAssetMapEntry of paymentAssetMap.entries()) { | +      const blockchain = paymentAssetMapEntry[0]; | +      const assets = paymentAssetMapEntry[1];
+David: ```ts
+    for (const [blockchain, assets] of paymentAssetMap.entries()) {
+```
+
+--- PR #1523 | src/integration/blockchain/shared/evm/evm-gas-price.service.ts ---
+Context: +          timestamp: new Date(), | +          gasPrice: EvmUtil.fromWeiAmount(await this.evmRegistryService.getClient(blockchain).getRecommendedGasPrice()), | +        });
+David: I think I would store the gas price in wei
+
+--- PR #1523 | src/subdomains/core/payment-link/services/payment-quote.service.ts ---
+Context: +      gasPrice: gasPrice, | +      assets: [], | +    };
+David: `gasPrice` -> `minFee`
+
+--- PR #1523 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: -  transferAmounts: TransferInfo[]; | +  quoteId: string; | +  requestedAmount: RequestedAmountAsset;
+David: Maybe like this?
+```ts
+quote: {
+  id: string,
+  expiration: Date,
+}
+```
+
+--- PR #1523 | src/subdomains/core/payment-link/services/payment-quote.service.ts ---
+Context: +      gasPrice: gasPrice, | +      assets: [], | +    };
+David: gas price in wei?
+
+--- PR #1523 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: -  transferAmounts: TransferInfo[]; | +  quoteId: string; | +  requestedAmount: RequestedAmountAsset;
+David: Add `displayName` (use `requestMemo` from payment entity, rename this to `displayName`)
+
+--- PR #1523 | src/subdomains/generic/forwarding/services/lnurl-forward.service.ts ---
+Context: +      }, | +      transferAmounts: actualQuote.transferAmountsAsObj, |      };
+David: Filter out `MSAT` amount
+
+--- PR #1523 | src/subdomains/generic/forwarding/services/lnurl-forward.service.ts ---
+Context: +      amount: isBtc ? LightningHelper.msatToBtc(amount) : amount, |        quoteUniqueId: params.quote, |      };
+David: Does this make sense? If the asset is BTC, convert from MSAT to BTC? I think we can leave this as is, or just remove `|| params.asset === 'MSAT'` (line 98/104)
+
+--- PR #1523 | src/integration/blockchain/shared/evm/evm-gas-price.service.ts ---
+Context: +  private convertGasPrice(amount: BigNumber): number { | +    return parseFloat(ethers.utils.formatUnits(amount, 'wei')); | +  }
+David: Isn't it just `+amount`?
+
+--- PR #1526 | src/subdomains/core/sell-crypto/process/dto/refund-crypto-input.dto.ts ---
+Context: +import { IsNotEmpty, IsNumber, IsOptional, ValidateNested } from 'class-validator'; | +import { EntityDto } from 'src/shared/dto/entity.dto'; | +import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+David: Linter warning
+
+--- PR #1526 | src/subdomains/core/history/dto/transaction-refund.dto.ts ---
+Context: +  @ValidateNested() | +  @Type(() => EntityDto) | +  refundUserId?: number;
+David: ?
+
+--- PR #1526 | src/subdomains/core/history/dto/transaction-refund.dto.ts ---
+Context: +  @IsString() | +  refundAddress?: string; | +}
+David: Both `@ApiPropertyOptional()`?
+
+--- PR #1526 | src/subdomains/core/history/dto/transaction-refund.dto.ts ---
+Context: +  @ValidateNested() | +  @Type(() => EntityDto) | +  refundUserId?: number;
+David: Add `@IsNotEmpty()`
+
+--- PR #1526 | src/subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts ---
+Context: -              ); | -              continue; | -            }
+David: Remove `PAY_IN_NOT_SELLABLE` enum value?
+
+--- PR #1526 | src/subdomains/core/buy-crypto/process/services/buy-crypto.service.ts ---
+Context: +          { refundUserId: dto.refundUser.id, refundAddress: buyCrypto.chargebackIban }, | +          dto.chargebackAmount, | +        );
+David: ```ts
+    if (buyCrypto.checkoutTx) return this.refundCheckoutTx(buyCrypto);
+    if (buyCrypto.cryptoInput) return this.refundCryptoInput(
+          buyCrypto,
+          { refundUserId: dto.refundUser.id, refundAddress: buyCrypto.chargebackIban },
+          dto.chargebackAmount,
+        );
+
+    throw new BadRequestException('Return is only supported with checkoutTx or cryptoInput');
+```
+
+--- PR #1526 | src/subdomains/core/history/controllers/transaction.controller.ts ---
+Context: +      throw new ForbiddenException('You can only refund your own transaction'); | +    if (!(transaction.targetEntity instanceof BuyCrypto) && !(transaction.targetEntity instanceof BuyFiat)) | +      throw new NotFoundException('Transaction not found');
+David: Transaction might be null?
+
+--- PR #1526 | src/subdomains/core/history/controllers/transaction.controller.ts ---
+Context: +    transaction.targetEntity instanceof BuyFiat | +      ? await this.buyFiatService.refundBuyFiatInternal(transaction.targetEntity, dto) | +      : await this.buyCryptoService.refundCryptoInput(transaction.targetEntity, dto);
+David: What if it's not crypto-crypto?
+
+--- PR #1526 | src/subdomains/supporting/payin/entities/crypto-input.entity.ts ---
+Context: -  amlCheck: CheckStatus; | +  @Column({ nullable: true }) | +  isForwardConfirmed: boolean;
+David: Maybe it's more an `approved` than `confirmed`?
+
+--- PR #1526 | src/subdomains/supporting/payin/services/payin-bitcoin.service.ts ---
+Context: -      input.amount, | +      type === SendType.RETURN ? input.chargebackAmount : input.amount, |        input.txSequence,
+David: Maybe this should be an entity method? It's used on multiple places.
+
+--- PR #1526 | src/subdomains/supporting/payin/services/payin.service.ts ---
+Context: -    const amlCheck = route.user.userData.kycLevel === KycLevel.REJECTED ? CheckStatus.FAIL : CheckStatus.PASS; | -    payIn.triggerReturn(purpose, returnAddress, route, amlCheck); | +    if (payIn.isForwardConfirmed) throw new BadRequestException('CryptoInput already forwarded');
+David: Is it already forwarded, or just approved for forwarding?
+
+--- PR #1526 | src/subdomains/supporting/payin/services/payin.service.ts ---
+Context: + | +    // Remove that? |      if (payIn.transaction)
+David: TODO?
+
+--- PR #1526 | src/subdomains/core/sell-crypto/process/services/buy-fiat.service.ts ---
+Context: +  ): Promise<void> { | +    if (!chargebackDto.refundAddress && !chargebackDto.refundUserId) | +      throw new BadRequestException('You have to define a chargebackAddress');
+David: Check is already done with DTO validation?
+
+--- PR #1526 | src/subdomains/core/buy-crypto/process/services/buy-crypto.service.ts ---
+Context: +      throw new BadRequestException('Only failed transactions are refundable'); | +    if (chargebackAmount && chargebackAmount > buyCrypto.inputAmount) | +      throw new BadRequestException('You can not refund more than the input amount');
+David: Can we somehow share these checks with BuyFiat?
+
+--- PR #1526 | src/subdomains/core/buy-crypto/process/services/buy-crypto-registration.service.ts ---
+Context: -              ); | -              continue; | -            }
+David: Yes, we can probably change it
+
+--- PR #1526 | src/subdomains/core/sell-crypto/process/services/buy-fiat.service.ts ---
+Context: +  ): Promise<void> { | +    if (!chargebackDto.refundAddress && !chargebackDto.refundUserId) | +      throw new BadRequestException('You have to define a chargebackAddress');
+David: Ok
+
+--- PR #1526 | src/subdomains/supporting/payin/entities/crypto-input.entity.ts ---
+David: Adapt as discussed
+
+--- PR #1526 | src/subdomains/supporting/payin/services/payin.service.ts ---
+Context: + | +    // Remove that? |      if (payIn.transaction)
+David: Yes, remove, if Robin agrees
+
+--- PR #1526 | src/subdomains/core/buy-crypto/process/services/buy-crypto.service.ts ---
+Context: +      throw new BadRequestException('Only failed transactions are refundable'); | +    if (chargebackAmount && chargebackAmount > buyCrypto.inputAmount) | +      throw new BadRequestException('You can not refund more than the input amount');
+David: Maybe a helper?
+
+--- PR #1526 | src/subdomains/core/buy-crypto/process/services/buy-crypto-job.service.ts ---
+Context:    } |   |    @Cron(CronExpression.EVERY_MINUTE)
+David: Join these jobs?
+
+--- PR #1526 | src/subdomains/supporting/payin/entities/crypto-input.entity.ts ---
+Context:      this.status = PayInStatus.COMPLETED; | -    this.sendType = null; | +    this.action = null;
+David: Should we remove the action reset?
+
+--- PR #1526 | src/subdomains/supporting/payin/services/payin.service.ts ---
+Context: -        user: route.user, | +        user: payIn.route.user, |        });
+David: Remove this?
+
+--- PR #1526 | src/subdomains/core/history/controllers/transaction.controller.ts ---
+Context: +      throw new ForbiddenException('You can only refund your own transaction'); | +    if (!transaction.cryptoInput) throw new BadRequestException('You can only refund cryptoInput transaction'); | +
+David: `You can only refund sell or swap transactions`
+
+--- PR #1526 | src/subdomains/core/history/dto/transaction-refund.dto.ts ---
+Context: +  @IsNotEmpty() | +  @IsInt() | +  refundUserId?: number;
+David: `refundUserId` is a bit pointless since the user IDs are not exposed via API, and externally we speak of addresses, not users.
+
+--- PR #1526 | src/subdomains/core/transaction/transaction-share.service.ts ---
+Context: + | +export class TransactionShareService { | +  static validateRefund(entity: BuyCrypto | BuyFiat, refundUser: User, chargebackAmount?: number): void {
+David: `TransactionUtil`?
+
+--- PR #1526 | src/subdomains/supporting/payin/services/payin.service.ts ---
+Context: -        user: route.user, | +        user: payIn.route.user, |        });
+David: Ok 😉
+
+--- PR #1526 | src/subdomains/supporting/payin/entities/crypto-input.entity.ts ---
+Context:      this.status = PayInStatus.COMPLETED; | -    this.sendType = null; | +    this.action = null;
+David: I have no idea 😆
+
+--- PR #1526 | src/subdomains/supporting/payin/entities/crypto-input.entity.ts ---
+Context:      this.status = PayInStatus.COMPLETED; | -    this.sendType = null; | +    this.action = null;
+David: Is somebody filtering on this?
+
+--- PR #1538 | src/subdomains/core/payment-link/dto/create-payment-link.dto.ts ---
+Context: +  @IsOptional() | +  @IsUrl() | +  website?: string;
+David: Maybe also use the `PaymentLinkRecipientDto` here?
+
+--- PR #1538 | src/subdomains/core/payment-link/dto/update-payment-link.dto.ts ---
+Context: +  @IsOptional() | +  @IsUrl() | +  website?: string;
+David: Same here?
+
+--- PR #1538 | src/subdomains/core/payment-link/dto/create-payment-link-payment.dto.ts ---
+Context: +  @IsOptional() | +  @IsString() | +  website?: string;
+David: Why in payment DTO?
+
+--- PR #1538 | src/subdomains/core/payment-link/dto/payment-link-dto.mapper.ts ---
+Context: +      return { | +        name: `${userData.firstname} ${userData.surname}`, | +        address: {
+David: `name` only if there is a firstname and surname (will be `undefined undefined` otherwise 😉)
+
+--- PR #1538 | src/subdomains/core/payment-link/dto/payment-link-dto.mapper.ts ---
+Context: +    if (userData.firstname) return userData.firstname; | +    if (userData.surname) return userData.surname; | +  }
+David: Ah, there is already a helper for this, use `userData.completeName || null`
+
+--- PR #1540 | src/subdomains/supporting/payment/dto/transaction.dto.ts ---
+Context:    USER_DELETED = 'UserDeleted', | +  VIDEO_IDENT_NEEDED = 'VideoIdentNeeded', |  }
+David: Update Services
+
+--- PR #1540 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: -            type: await this.userDataService.getIdentMethod(user), | +            type: | +              lastTry.type === KycStepType.VIDEO ? KycStepType.VIDEO : await this.userDataService.getIdentMethod(user),
+David: `lastTry` might be null
+
+--- PR #1540 | src/subdomains/generic/kyc/services/kyc-admin.service.ts ---
+Context: +  async triggerVideoIdentInternal(userData: UserData): Promise<void> { | +    await this.kycService.initiateStep(userData, KycStepName.IDENT, KycStepType.VIDEO); | +  }
+David: Maybe we should check if there is already a pending video ident?
+
+--- PR #1540 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context:   | -  private async initiateStep( | +  async initiateStep(
+David: Revert
+
+--- PR #1541 | src/subdomains/core/payment-link/controllers/payment-link.controller.ts ---
+Context: + | +    return this.paymentLinkService.waitForPayment(+jwt.user, +id, externalId).then(PaymentLinkDtoMapper.toLinkDto); | +  }
+David: Move down to `createPayment`
+
+--- PR #1541 | src/subdomains/core/payment-link/controllers/payment-link.controller.ts ---
+Context: + | +    return this.paymentLinkService.waitForPayment(+jwt.user, +id, externalId).then(PaymentLinkDtoMapper.toLinkDto); | +  }
+David: Maybe `@Get('payment/wait')`?
+
+--- PR #1543 | src/shared/models/asset/asset.entity.ts ---
+Context:    @Column({ length: 256, default: Blockchain.DEFICHAIN }) | -  blockchain: Blockchain; | +  blockchain: Blockchain; //| BankName | ExchangeName;
+David: What about this? 😉
+
+--- PR #1543 | src/subdomains/core/liquidity-management/enums/index.ts ---
+Context: +import { BankName } from 'src/subdomains/supporting/bank/bank/bank.entity'; | + | +export type LiquidityManagementType = Blockchain | BankName | ExchangeName;
+David: I would still call it `LiquidityManagementContext`
+
+--- PR #1543 | src/subdomains/core/liquidity-management/entities/liquidity-management-rule.entity.ts ---
+Context:    @Column({ length: 256, nullable: true }) | -  context: LiquidityManagementContext; | +  context: Blockchain | BankName | ExchangeName;
+David: `LiquidityManagementType`?
+
+--- PR #1543 | src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-batch.service.ts ---
+Context: +  async getBankTxBatchByIban(iban: string): Promise<BankTxBatch> { | +    return this.bankTxBatchRepo.findOneBy({ iban }); | +  }
+David: We should probably get the latest?
+
+--- PR #1543 | src/subdomains/core/liquidity-management/adapters/balances/bank.adapter.ts ---
+Context: +  getNumberOfPendingOrders(_asset: Asset): Promise<number> { |      throw new Error(`Method not implemented.`); |    }
+David: `return 0;`?
+
+--- PR #1544 | src/subdomains/core/payment-link/dto/create-payment-link-payment.dto.ts ---
+Context:    @IsOptional() | -  @ValidateNested() | -  @Type(() => EntityDto)
+David: `@IsString()`
+
+--- PR #1546 | src/subdomains/generic/user/models/user/user.repository.ts ---
+Context: -    if (user.status === UserStatus.NA) { | +    if (user.status === UserStatus.NA) await Util.retry(() => this.update(...user.activateUser()), 3, 0); | +  }
+David: This method can be removed, no retry required to set the user status 😉
+
+--- PR #1546 | src/subdomains/generic/user/models/user/user.repository.ts ---
+Context: +  async setUserRef(user: User): Promise<void> { | +    if (!user.ref) { |        let ref = user.ref ?? (await this.getNextRef());
+David: Either remove the check or the `user.ref ?? `
+
+--- PR #1546 | src/subdomains/generic/user/models/user-data/user-data.service.ts ---
+Context:          await this.userRepo.activateUser(user); | +        await this.userRepo.setUserRef(user); |        }
+David: Only if KYC level >= 50?
+
+--- PR #1549 | src/subdomains/supporting/payin/services/payin.service.ts ---
+Context: + | +  private async confirmReturnedPayIns(): Promise<void> { |      const payIns = await this.payInRepository.findBy({
+David: Weird method name? Nothing is confirmed here
+
+--- PR #1552 | src/subdomains/core/payment-link/controllers/payment-link.controller.ts ---
+Context: -    @Query('externalId') externalId: string, | +    @Query('externalLinkId') externalLinkId: string, | +    @Query('externalPaymentId') externalPaymentId: string,
+David: Rename `id` to `linkId` everywhere
+
+--- PR #1552 | src/subdomains/core/payment-link/services/payment-link-payment.service.ts ---
+Context: +      relations: { | +        link: true, | +      },
+David: This relation shouldn't be necessary?
+
+--- PR #1557 | src/subdomains/core/payment-link/__mocks__/payment-link-payment.entity.mock.ts ---
+Context: + | +const defaultFiat: Partial<Fiat> = { name: 'CHF' }; | +
+David: Use `createCustomFiat` from `src/shared/models/fiat/__mocks__/fiat.entity.mock.ts`
+
+--- PR #1557 | src/subdomains/core/payment-link/__mocks__/payment-link.entity.mock.ts ---
+Context: +  fiat: Object.assign(new Fiat(), defaultFiat), | +  deposit: Object.assign(new Deposit(), defaultDeposit), | +};
+David: Same here (also for other entities)
+
+--- PR #1557 | src/subdomains/core/payment-link/__tests__/payment-test.helper.ts ---
+Context: + | +    return user; | +  }
+David: Use the UserMock?
+
+--- PR #1557 | src/subdomains/core/payment-link/__tests__/payment-test.helper.ts ---
+Context: + | +    return paymentActivation; | +  }
+David: Maybe we can move some logic to `src/shared/utils/test.util.ts`, it looks quite repetitive.
+
+--- PR #1558 | src/subdomains/generic/user/models/user/user.entity.ts ---
+Context: +  LIGHTNING = 'Lightning', | +  UMA = 'UMA', | +}
+David: - Remove `FIAT`
+- Use values from `LightningAddressType` (`src/integration/lightning/lightning-helper.ts`) instead of `LNNID` and `LIGHTNING`
+- Add Monero, Liquid, Arweave and Cardano
+
+--- PR #1558 | src/subdomains/generic/user/models/user/user.entity.ts ---
+David: Add logic to set the type during registration?
+
+--- PR #1559 | src/subdomains/generic/kyc/entities/kyc-step.entity.ts ---
+Context: +      .split(';') | +      .map((c) => `<li>${IdentCheckErrorMap[Object.values(IdentCheckError).find((e) => e === c)]}</li>`) | +      .join('')}</ul>`;
+David: `IdentCheckErrorMap[c as IdentCheckError]`?
+
+--- PR #1565 | src/subdomains/supporting/log/log-job.service.ts ---
+Context:   | +    const assetByFinancialType = []; | +
+David: `balancesByFinancialType`?
+
+--- PR #1565 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: + | +      assetByFinancialType.push({ financialType, plusBalance, minusBalance: 0 }); | +    }
+David: Could be done with a map/reduce:
+```ts
+    const balancesByFinancialType = Array.from(financialTypeMap.entries()).map(([financialType, assets]) => ({
+      financialType,
+      plusBalance: assets.reduce(
+        (prev, curr) => prev + (liqBalances.find((b) => b.asset.id === curr.id)?.amount ?? 0),
+        0,
+      ),
+    }));
+```
+
+--- PR #1565 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: +        0, | +      ), | +    }));
+David: Oops, forgot the `minusBalance`
+
+--- PR #1569 | src/subdomains/core/history/dto/transaction-refund.dto.ts ---
+Context: +  @IsString() | +  refundIban: string; |  }
+David: Maybe just call it `refundTarget?`
+
+--- PR #1569 | src/subdomains/core/history/controllers/transaction.controller.ts ---
+Context: +  feeAmount: number; | +  chargebackAmount: number; | +}
+David: `refundAmount`?
+
+--- PR #1570 | src/subdomains/supporting/bank/bank-account/bank-account.service.ts ---
+Context: + | +    return bankAccounts.length ? bankAccounts[0] : await this.createBankAccountInternal(iban); |    }
+David: Linter warning
+
+--- PR #1573 | src/subdomains/core/payment-link/controllers/payment-link.controller.ts ---
+Context: +  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN)) | +  async updateUserAdmin( | +    @Param('id') id: string,
+David: Copy&paste?
+
+--- PR #1575 | src/subdomains/core/payment-link/services/payment-quote.service.ts ---
+Context: +      } | +    } | +  }
+David: Store `txBlockchain` to quote, remove `activations` relation
+
+--- PR #1578 | src/subdomains/core/route/route.controller.ts ---
+David: There is already a `RouteController`, but it's a bit misplaced 🤔
+
+--- PR #1578 | src/subdomains/core/route/route.controller.ts ---
+Context: +  async createRoute(@Body() dto: CreateRouteDto): Promise<Route> { | +    return this.routeService.createRoute(dto); | +  }
+David: I think we don't need an API to create a route. We should add some code to add a route for every existing buy/sell/swap route and automatically create them for new ones.
+
+--- PR #1578 | src/subdomains/core/route/route.entity.ts ---
+Context: +@Entity() | +export class Route extends IEntity { | +  @Column({ length: 256, unique: true })
+David: Yes, should be nullable
+
+--- PR #1578 | src/subdomains/core/route/route.controller.ts ---
+David: Can't we move the existing code into the new controller?
+
+--- PR #1578 | src/subdomains/core/route/route.entity.ts ---
+Context: +export class Route extends IEntity { | +  @Column({ length: 256, unique: true, nullable: true }) | +  label: string;
+David: I think this unique index is not helpful/required?
+
+--- PR #1578 | src/subdomains/core/route/route.service.ts ---
+Context: + | +    if (update.label && (await this.routeRepo.existsBy({ label: update.label }))) | +      throw new BadRequestException('Label already in use');
+David: Same here
+
+--- PR #1578 | src/subdomains/core/route/route.service.ts ---
+Context: +      entity.swap = await this.swapService.get(undefined, dto.swap.id); | +      if (!entity.swap) throw new NotFoundException('Swap not found'); | +    }
+David: I think these checks can be removed. The method is only used internally with an existing route.
+
+--- PR #1578 | src/subdomains/core/route/route.service.ts ---
+David: I think we should add some code create a route directly when creating a buy/sell/swap. Or do you want to add this later?
+
+--- PR #1578 | src/subdomains/core/route/route.entity.ts ---
+Context: +export class Route extends IEntity { | +  @Column({ length: 256, unique: true, nullable: true }) | +  label: string;
+David: Ah, true, you're right
+
+--- PR #1578 | src/subdomains/core/route/route.service.ts ---
+Context: +    if (dto.buy) entity.buy = await this.buyService.get(undefined, dto.buy.id); | +    if (dto.sell) entity.sell = await this.sellService.get(undefined, dto.sell.id); | +    if (dto.swap) entity.swap = await this.swapService.get(undefined, dto.swap.id);
+David: Remove
+
+--- PR #1580 | src/subdomains/supporting/bank-tx/bank-tx/bank-tx.controller.ts ---
+Context:    @ApiExcludeEndpoint() | -  @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT)) | +  @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
+David: Revert?
+
+--- PR #1580 | src/subdomains/supporting/support-issue/support-issue.controller.ts ---
+Context: +  async getFile(@GetJwt() jwt: JwtPayload, @Query() query: GetSupportFile): Promise<BlobContent> { | +    return this.supportIssueService.getSupportIssueFile(jwt.account, query.name); | +  }
+David: I would probably use `:ticket-id/message/:message-id/file` as URL and omit the query
+
+--- PR #1580 | src/subdomains/supporting/support-issue/services/support-issue.service.ts ---
+Context: + | +  async getSupportIssue(userDataId: number, query: GetSupportIssueFilter): Promise<SupportIssueDto> { | +    if (!query.type && !query.id) throw new BadRequestException('Type or id is required');
+David: Use can use a `@ValidateIf` to enforce that one of the two fields must be set (see e.g. `src/subdomains/generic/user/models/user/dto/ref-info-query.dto.ts`)
+
+--- PR #1580 | src/subdomains/supporting/support-issue/services/support-issue.service.ts ---
+Context: +        : query.lastMessages > 0 | +        ? messages.slice(-query.lastMessages) | +        : messages;
+David: Integrate this into the SQL query?
+
+--- PR #1580 | src/subdomains/supporting/support-issue/services/support-issue.service.ts ---
+Context: + | +    return this.storageService.downloadFile(userDataId, document.type, document.name); |    }
+David: We are currently moving all support files to a different container, means we will need to change things a bit here.
+
+--- PR #1580 | src/subdomains/supporting/support-issue/services/support-issue.service.ts ---
+Context:      await this.createSupportMessage(entity.id, { ...dto, author: CustomerAuthor }, userDataId); | + | +    return this.getSupportIssue(userDataId, { type: entity.type, id: entity.id, lastMessages: 1 });
+David: Do we really need to fetch the issue again?
+
+--- PR #1580 | src/subdomains/supporting/support-issue/dto/get-support-issue.dto.ts ---
+Context: +  @Transform(({ value }) => +value) | +  @IsInt() | +  lastMessages?: number;
+David: Naming of `lastMessages` is a bit unintuitive 😆
+
+--- PR #1580 | src/subdomains/supporting/support-issue/dto/support-issue-dto.mapper.ts ---
+Context: +      created: supportIssue.created, | +      information: supportIssue.information, | +      transaction: supportIssue.transaction,
+David: Remove these fields or map them somehow
+
+--- PR #1580 | src/subdomains/supporting/support-issue/dto/support-issue-dto.mapper.ts ---
+Context: +      messages: supportIssue.messages.map(SupportIssueDtoMapper.mapSupportMessage), | +      limitRequest: supportIssue.limitRequest, | +    };
+David: Same for `limitRequest`
+
+--- PR #1580 | src/subdomains/supporting/support-issue/dto/support-issue-dto.mapper.ts ---
+Context: +      message: supportMessage.message, | +      fileUrl: supportMessage.fileUrl, | +    };
+David: I think we need to use the file URL where the file can be downloaded
+
+--- PR #1580 | src/subdomains/supporting/support-issue/dto/create-support-message.dto.ts ---
+Context:    @IsString() | +  @ValidateIf((m: CreateSupportMessageDto) => Boolean(!m.message || m.file)) |    file?: string;
+David: If you use `ValidateIf`, you need to set `IsNotEmpty` (if you want it to be not empty if validated)
+
+--- PR #1580 | src/subdomains/supporting/support-issue/dto/get-support-file.dto.ts ---
+David: Remove?
+
+--- PR #1580 | src/subdomains/supporting/support-issue/entities/support-message.entity.ts ---
+Context: +    const fileName = this.fileUrl?.split('/').pop(); | +    return fileName ? decodeURIComponent(fileName) : ''; | +  }
+David: Return `undefined` instead of `''`?
+
+--- PR #1580 | src/subdomains/supporting/support-issue/services/support-issue.service.ts ---
+Context: + | +    const supportIssue = SupportIssueDtoMapper.mapSupportIssue(entity); | +    if (!supportIssue.messages) supportIssue.messages = [];
+David: Add the empty array default in the mapper?
+
+--- PR #1580 | src/subdomains/supporting/support-issue/dto/support-issue.dto.ts ---
+Context: + | +  @ApiProperty() | +  message: string;
+David: Is message optional?
+
+--- PR #1580 | src/subdomains/supporting/support-issue/dto/support-issue.dto.ts ---
+Context: + | +  @ApiProperty({ type: [SupportMessageDto] }) | +  messages: SupportMessageDto[];
+David: `@ApiProperty({ type: SupportMessageDto, isArray: true })`
+
+--- PR #1580 | src/subdomains/supporting/support-issue/dto/support-issue.dto.ts ---
+Context: + | +  @ApiPropertyOptional() | +  information?: string;
+David: Do you use this in the frontend? I would probably remove it 🤔
+
+--- PR #1580 | src/subdomains/supporting/support-issue/dto/support-issue-dto.mapper.ts ---
+Context: +      message: supportMessage.message, | +      fileUrl: `${Config.url()}/support/issue/${supportMessage.issue.id}/message/${supportMessage.id}/file`, | +      fileName: supportMessage.fileName,
+David: Add a `fileUrl` getter to SupportMessage?
+
+--- PR #1581 | src/subdomains/core/liquidity-management/adapters/balances/bank.adapter.ts ---
+Context:            default: |              const bank = await this.bankService.getBankInternal(bankName, asset.dexName); |              const bankTxBatch = await this.bankTxBatchService.getBankTxBatchByIban(bank.iban);
+David: This looks very confusing. Maybe we should move the switch out of the for loop?
+
+--- PR #1581 | src/subdomains/core/liquidity-management/adapters/balances/bank.adapter.ts ---
+Context: +        case CardBankName.CHECKOUT: | +          const checkoutBalances = | +            bankName === CardBankName.CHECKOUT ? await this.checkoutService.getBalances() : undefined;
+David: Check can be removed
+
+--- PR #1581 | src/subdomains/core/liquidity-management/adapters/balances/bank.adapter.ts ---
+Context: +              .filter((b) => b.holding_currency === asset.dexName) | +              .map((b) => b.balances.collateral / 100) | +              .reduce((sum, cur) => sum + cur);
+David: I think we can use find here
+
+--- PR #1583 | src/subdomains/generic/gs/gs.service.ts ---
+Context: +    for (const select of jsonSelects) { | +      const jsonSource = select.split('-'); | +
+David: `const [field, select] = select.split('-');`?
+
+--- PR #1583 | src/subdomains/generic/gs/gs.service.ts ---
+Context: + | +          if (parsedJsonData == jsonValue) parsedJsonData = null; | +        } catch {}
+David: Maybe moving this to a helper would make it more readable?
+
+--- PR #1583 | src/subdomains/generic/gs/gs.service.ts ---
+Context: +              if (Array.isArray(o) && k.includes('=')) { | +                const searchSplit = k.split('='); | +                return o.find((e) => e[searchSplit[0]]?.toString() === searchSplit[1]?.toString());
+David: `const [key, value] = k.split('='); `
+
+--- PR #1586 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: +  possibleStandards: PaymentStandard[]; | +  recipient: PaymentLinkRecipientDto; | +}
+David: Maybe use a little "inheritance"?
+
+```ts
+export interface PaymentLinkRequestDto {
+  displayName: string;
+  standard: PaymentStandard;
+  possibleStandards: PaymentStandard[];
+  recipient: PaymentLinkRecipientDto;
+}
+
+export interface PaymentLinkPayRequestDto extends PaymentLinkRequestDto {
+  tag: string;
+  callback: string;
+  minSendable: number;
+  maxSendable: number;
+  metadata: string;
+  quote: {
+    id: string;
+    expiration: Date;
+  };
+  requestedAmount: RequestedAmountAsset;
+  transferAmounts: TransferAmount[];
+}
+
+export interface PaymentLinkPaymentNotFoundDto extends PaymentLinkRequestDto, ErrorDto {}
+```
+
+--- PR #1592 | src/subdomains/supporting/log/log-job.service.ts ---
+Context:   | +    const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalance'); | +    const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalance');
+David: Sum `Chf` fields?
+
+--- PR #1595 | src/subdomains/supporting/log/log-job.service.ts ---
+David: Linter warning
+
+--- PR #1595 | src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity.ts ---
+Context: +      default: | +        return this.cryptoInput?.asset.id === asset.id ? this.inputAmount : 0; | +    }
+David: Handle based on blockchain and asset
+
+--- PR #1595 | src/subdomains/core/sell-crypto/process/buy-fiat.entity.ts ---
+Context: +      default: | +        return 0; | +    }
+David: Same here
+
+--- PR #1595 | src/subdomains/core/sell-crypto/process/buy-fiat.entity.ts ---
+Context: +      (asset.blockchain as string) === 'MaerkiBaumann' | +      ? this.outputAmount | +      : 0;
+David: Maybe better `pendingInputAmount` and `pendingOutputAmount`?
+
+--- PR #1597 | src/subdomains/supporting/bank-tx/bank-tx/bank-tx.controller.ts ---
+Context:    @ApiExcludeEndpoint() | -  @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT)) | +  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
+David: This was correct, can be reverted
+
+--- PR #1602 | src/subdomains/supporting/payment/services/transaction-helper.ts ---
+Context: +        : 0; | + | +    const minVolume = isPayment ? Config.payment.minVolume : Math.max(inSpec, outSpec);
+David: Add separate method?
+
+--- PR #1602 | src/subdomains/supporting/payment/services/transaction-helper.ts ---
+Context:      private readonly feeService: FeeService, | +    @Inject(forwardRef(() => BuyCryptoService)) |      private readonly buyCryptoService: BuyCryptoService,
+David: Is this required?
+
+--- PR #1609 | src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity.ts ---
+Context: + | +      case 'Olkypay': | +        return this.bankTx.accountIban === 'LU116060002000005040' ? this.bankTx.amount : 0;
+David: This logic is now in several different places. Maybe we can join that somehow?
+
+--- PR #1621 | src/subdomains/generic/kyc/dto/sum-sub.dto.ts ---
+Context: +    imageStatuses: []; | +  }; | +}
+David: Fix types (remove fixed string values, nulls, booleans, ...)
+
+--- PR #1621 | src/subdomains/generic/kyc/dto/sum-sub.dto.ts ---
+Context: +  FINAL = 'final', | +  RETRY = 'retry', | +}
+David: Looks a bit unfinished 🤔  (e.g. IdDocType)
+
+--- PR #1621 | src/subdomains/generic/kyc/dto/sum-sub.dto.ts ---
+Context: +  GREEN = 'green', | +  RED = 'red', | +}
+David: Is it `'green'` or `'GREEN'`?
+
+--- PR #1621 | src/subdomains/generic/kyc/controllers/kyc.controller.ts ---
+Context: +  @Post('sumSub') | +  @ApiExcludeEndpoint() | +  async sumSubWebhook(@Req() req: Request, @Body() data: SumSubResult) {
+David: `@Post('ident/sumSub')` and move the endpoint above `ident/:type`
+
+--- PR #1621 | src/subdomains/generic/kyc/services/integration/sum-sub.service.ts ---
+Context: +        return undefined; | +      }); | +  }
+David: Move the `JSON.stringify` into the `callApi` method?
+
+--- PR #1621 | src/subdomains/generic/kyc/services/integration/sum-sub.service.ts ---
+Context: + | +  async createApplicant(user: UserData, kycStep: KycStep, kycLevel: string): Promise<void> { | +    await this.callApi<{ id: string }>(
+David: What is this `kycLevel` string?
+
+--- PR #1621 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: + | +  private async downloadSumSubDocuments(user: UserData, namePrefix = '') { | +    const data = await this.sumSubService.getDocument('669a1dd87953b83e1ae80426', ApplicantType.INDIVIDUAL);
+David: Fancy number?
+
+--- PR #1621 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: +        await this.downloadSumSubDocuments(user, 'fail/'); | +        //await this.kycNotificationService.identFailed(user, getIdentReason(reason)); TODO: Create notifications | +        break;
+David: TODO?
+
+--- PR #1621 | src/subdomains/generic/kyc/dto/sum-sub.dto.ts ---
+Context: +  FINAL = 'final', | +  RETRY = 'retry', | +}
+David: Ok 👍
+
+--- PR #1621 | src/subdomains/generic/kyc/dto/sum-sub.dto.ts ---
+Context: +    imageStatuses: []; | +  }; | +}
+David: Ok 👍
+
+--- PR #1627 | src/subdomains/core/payment-link/services/payment-link.service.ts ---
+Context: +      dto.country = await this.countryService.getCountry(dto.country.id); | +      if (!dto.country) throw new NotFoundException('Country not found'); | +    }
+David: This can be moved to `updatePaymentLinkAdmin`? Is already done in `update` method
+
+--- PR #1627 | src/subdomains/core/payment-link/services/payment-link.service.ts ---
+Context: + | +  async updatePaymentLinkInternal(paymentLink: PaymentLink, dto: Partial<PaymentLink>): Promise<PaymentLink> { | +    if (dto.country) {
+David: private
+
+--- PR #1628 | src/subdomains/core/payment-link/dto/create-payment-link-payment.dto.ts ---
+Context: +  @IsOptional() | +  @IsString() | +  webhookUrl?: string;
+David: - [ ] Add webhookUrl to payment entity
+- [ ] Use URL from payment, if it exists
+
+--- PR #1628 | src/subdomains/core/payment-link/dto/create-payment-link-payment.dto.ts ---
+Context: +  @IsOptional() | +  @IsString() | +  webhookUrl?: string;
+David: Yes, good idea 👍
+
+--- PR #1632 | src/subdomains/generic/kyc/controllers/kyc.controller.ts ---
+Context: +    data.fileName = this.fileName('additional-documents', data.fileName); | +    return this.kycService.updateFileData(code, +id, data, FileType.ADDITIONAL_DOCUMENTS); | +  }
+David: Why this `get or create`?
+
+--- PR #1634 | src/subdomains/generic/kyc/services/integration/sum-sub.service.ts ---
+Context: +  async getApplicantData(transactionId: string): Promise<DataResult> { | +    return this.callApi<DataResult>(`/resources/applicants/-;externalUserId=${transactionId}/one`, 'POST'); | +  }
+David: Is this correct with the `/-;`?
+
+--- PR #1634 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: + | +    await this.updateIdent(transactionId, { webhook: dto, data } as SumsubResult, result, IdentReason.IDENT_OTHER); // TODO: map reasons |    }
+David: Is the ` as SumsubResult` needed?
+
+--- PR #1634 | src/shared/models/country/country.entity.ts ---
+Context:   | +  @Column({ unique: true, length: 10 }) | +  symbol3: string;
+David: Add migration
+
+--- PR #1634 | src/shared/models/country/country.entity.ts ---
+Context:   | +  @Column({ default: '' }) | +  symbol3: string;
+David: `@Column({ nullable: true, length: 10 })`?
+
+--- PR #1647 | src/subdomains/generic/kyc/dto/input/kyc-data.dto.ts ---
+Context: +  @IsString() | +  @Transform(Util.trim) | +  documentType: string;
+David: Enum?
+
+--- PR #1647 | src/subdomains/generic/kyc/dto/input/kyc-data.dto.ts ---
+Context: +  @IsString() | +  @Transform(Util.trim) | +  gender: string;
+David: Same here?
+
+--- PR #1647 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: + | +    return KycStepMapper.toKycResult(kycStep); | +  }
+David: File should be uploaded to document storage and removed from result.
+
+--- PR #1647 | src/subdomains/generic/kyc/dto/input/kyc-data.dto.ts ---
+Context: +  @IsNotEmpty() | +  @IsString() | +  file: string;
+David: Do we need the file name?
+
+--- PR #1647 | src/subdomains/generic/kyc/dto/ident-result-data.dto.ts ---
+Context:    success: boolean; | +  file?: string; |  }
+David: Are these changes needed?
+
+--- PR #1647 | src/subdomains/generic/kyc/controllers/kyc.controller.ts ---
+Context: +  ): Promise<KycResultDto> { | +    return this.kycService.updateIdentManual(code, +id, data); | +  }
+David: Move down to ident endpoints, maybe use `@Put('ident/manual/:id')`?
+
+--- PR #1647 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: +      FileType.IDENTIFICATION, | +      dto.document.fileName, | +      buffer,
+David: Use `${Util.isoDateTime(new Date())}-manual-ident-${Util.randomId()}-${dto.document.fileName}` as file name
+
+--- PR #1651 | src/subdomains/generic/gs/gs.service.ts ---
+Context: +      arraySelects.forEach((select) => { | +        const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(select)!; | +        const parsedIndex = index === 'max' ? 'max' : parseInt(index, 10);
+David: Linter warning
+
+--- PR #1651 | src/subdomains/generic/gs/gs.service.ts ---
+Context: +    const groupedData = data.reduce((acc, row) => { | +      const issueId = row[`${table}_id`]; | +
+David: `issueId`?
+
+--- PR #1651 | src/subdomains/generic/gs/gs.service.ts ---
+Context: +    const arraySelects = selects.filter((s) => s.includes('[')); | + | +    let currentIndex = 0;
+David: Maybe refactor with a ID set?
+
+--- PR #1651 | src/subdomains/generic/gs/gs.service.ts ---
+Context: + | +    const newData = Array.from(new Set(data.map((d) => d[`${table}_id`]))); | +    const result = [];
+David: `newData` -> `parentIds`?
+
+--- PR #1651 | src/subdomains/generic/gs/gs.service.ts ---
+Context: + | +        currentEntry[`${select}`] = searchIndex < entities.length ? entities[searchIndex][`${field}_${prop}`] : null; | +      }),
+David: Could be replaced with 
+```ts
+      const selectedData = arraySelects.reduce((prev, curr) => {
+        const [_, field, index, prop] = /^(.*)\[(\w+)\]\.(.*)$/.exec(curr)!;
+        const searchIndex = index === 'max' ? entities.length - 1 : +index;
+        prev[`${select}`] = entities[searchIndex]?.[`${field}_${prop}`];
+        return prev;
+      }, {});
+```
+
+--- PR #1651 | src/subdomains/generic/gs/gs.service.ts ---
+Context: +    }); | + | +    return Object.values(result);
+David: The `Object.values` is unnecessary?
+Use 
+```ts
+    return parentIds.map((nd) => {
+      ...
+
+      return {
+        ...Object.fromEntries(Object.entries(entities[0]).filter(([key]) => key.startsWith(`${table}_`))),
+        ...selectedData,
+      };
+    });
+```
+
+--- PR #1655 | src/subdomains/supporting/payin/strategies/register/impl/monero.strategy.ts ---
+Context: + | +    return PayInType.DEPOSIT; | +  }
+David: There might theoretically be a payment with multiple outputs. Maybe you can just check every destination?
+```ts
+return transfer.destinations?.some((d) => Util.equalsIgnoreCase(Config.payment.moneroAddress, d.address)
+   ? PayInType.PAYMENT
+   : PayInType.DEPOSIT;
+```
+
+--- PR #1655 | src/subdomains/core/payment-link/services/payment-activation.service.ts ---
+Context:          ? await this.createLightningRequest(payment, transferInfo, expirySec) | -        : await this.createEvmRequest(transferInfo); | +        : await this.createBlockchainRequest(transferInfo);
+David: Move `this.createLightningRequest(payment, transferInfo, expirySec)` into method `createBlockchainRequest`?
+
+--- PR #1660 | src/subdomains/generic/user/models/account-merge/account-merge.service.ts ---
+Context: +    reason: MergeReason, | +    target: 'master' | 'slave' = 'slave', | +  ): Promise<boolean> {
+David: Use a boolean instead?
+
+--- PR #1664 | src/subdomains/generic/user/models/bank-data/bank-data.entity.ts ---
+Context: +  unique: true, | +  where: `type = '${BankDataType.USER}'`, | +})
+David: Does this interfere with current data?
+
+--- PR #1664 | src/subdomains/supporting/bank/bank-account/bank-account.entity.ts ---
+Context:   | +  @Column({ nullable: true }) | +  synced: boolean;
+David: `default: false`?
+
+--- PR #1666 | src/subdomains/generic/kyc/dto/sum-sub.dto.ts ---
+Context: +  //[RejectionLabels.SELFIE_WITH_PAYMENT]: 'A special selfie is required', | +  //[RejectionLabels.OK]: 'Unknown', | +};
+David: `kyc` -> `KYC`?
+
+--- PR #1666 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: +      result, | +      dto.reviewResult.rejectLabels, | +    ); // TODO: map reasons
+David: The TODO can now be removed?
+
+--- PR #1671 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: +        'Bank Frick (SEPA)', | +      ) | +      .then((p) => p.filter((p) => p.currency === 'EUR'));
+David: Maybe this methods should be renamed to `getRecent...`, they are not pending 😉
+
+--- PR #1671 | src/integration/exchange/entities/exchange-tx.entity.ts ---
+David: Why these changes? 🤔
+
+--- PR #1671 | src/integration/exchange/entities/exchange-tx.entity.ts ---
+David: You can just use `export type ExchangeTxDto = Omit<ExchangeTx, keyof IEntity | 'pendingBankAmount'>;` 😉 and I think the `?`s should stay as the fields are optional.
+
+--- PR #1681 | src/subdomains/supporting/payment/services/transaction-helper.ts ---
+Context: +          ([user?.wallet.amlRule, from.amlRule, to.amlRule].includes(AmlRule.RULE_7) && |              paymentMethodIn === FiatPaymentMethod.CARD && |              user?.userData.kycLevel < KycLevel.LEVEL_50))
+David: Maybe we should create a variable for `[user?.wallet.amlRule, from.amlRule, to.amlRule]`? 😉
+
+--- PR #1681 | src/subdomains/supporting/payment/services/transaction-helper.ts ---
+Context:              paymentMethodIn === FiatPaymentMethod.CARD && |              user?.userData.kycLevel < KycLevel.LEVEL_50)) |        )
+David: Maybe we can move this to AML helper? Would keep the logic (which is the same) together.
+
+--- PR #1681 | src/subdomains/core/aml/services/aml-helper.service.ts ---
+Context: + | +    return undefined; | +  }
+David: I would just return a boolean here, to keep the `QuoteError`s in the transaction helper. And adapt the method name accordingly 😉
+
+--- PR #1686 | src/subdomains/generic/gs/gs-evm.controller.ts ---
+Context: +  async sendRawInputData(@Body() dto: EvmRawInputDataDto): Promise<ethers.providers.TransactionResponse> { | +    return this.gsEvmService.sendRawInputData(dto); | +  }
+David: Maybe it's more a `contractTransaction` instead of `rawInputData`?
+
+--- PR #1686 | src/integration/blockchain/shared/evm/dto/evm-raw-input-data.dto.ts ---
+Context: +  @IsNotEmpty() | +  @IsString() | +  file: string;
+David: Does it have to be a file, can't it just be JSON? 🤣
+
+--- PR #1686 | src/integration/blockchain/shared/evm/dto/evm-raw-input-data.dto.ts ---
+Context: +  @IsNotEmpty() | +  @IsString() | +  file: string;
+David: And maybe use a more meaningful name, e.g. `callData`?
+
+--- PR #1693 | src/subdomains/core/buy-crypto/process/services/buy-crypto-preparation.service.ts ---
+Context: +          inputReferenceCurrency, | +          false, | +        );
+David: Looks a bit confusing 😉
+
+--- PR #1693 | src/subdomains/core/sell-crypto/process/services/buy-fiat-preparation.service.ts ---
+Context: +          inputReferenceCurrency, | +          false, | +        );
+David: Same here
+
+--- PR #1695 | src/subdomains/generic/user/models/user-data/user-data.entity.ts ---
+David: Remove `{ cascade: true }` on `kycSteps` property (might need a migration)
+
+--- PR #1698 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: +        (sum, balanceResult) => (sum + balanceResult.contractAddress === curr.chainId ? balanceResult.balance : 0), | +        0, | +      );
+David: Filter by chain and contract address?
+
+--- PR #1698 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: +    } | +    return customBalances; | +  }
+David: You could use `asyncMap`:
+```ts
+return Util.asyncMap(Config.financialLog.customAddresses, (a) => client.getTokenBalances(assets, a));
+```
+(the flattening is done in the calling method) or `Promise.all` if you want to run it in parallel.
+
+--- PR #1698 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: +      }), | +    ).then((b) => b.flat()); | +
+David: `flat()` is useless?
+
+--- PR #1700 | src/subdomains/generic/kyc/controllers/kyc.controller.ts ---
+Context: +    if (!SumsubService.checkWebhook(req, req.body)) { |        this.logger.error(`Received invalid sumsub webhook: ${JSON.stringify(data)}`); |        throw new ForbiddenException('Invalid key');
+David: Do we have to parse the `data`, or is it already parsed?
+
+--- PR #1700 | src/subdomains/generic/kyc/controllers/kyc.controller.ts ---
+Context: +    if (!SumsubService.checkWebhook(req, req.body)) { | +      this.logger.error(`Received invalid sumsub webhook: ${JSON.stringify(JSON.parse(data))}`); |        throw new ForbiddenException('Invalid key');
+David: `JSON.stringify(JSON.parse(...))` is a bit useless 😁
+
+--- PR #1705 | src/subdomains/supporting/fiat-output/fiat-output.service.ts ---
+Context: +  async checkAndSetActive() { | +    if (DisabledProcess(Process.FIAT_OUTPUT_COMPLETE)) return; | +
+David: The name looks like copy&paste 😁
+
+--- PR #1706 | src/integration/alchemy/services/alchemy.service.ts ---
+Context:   | +    if (!params.toBlock) params.toBlock = await alchemy.core.getBlockNumber(); | +    if (params.toBlock < params.fromBlock) return [];
+David: Move to `BscStrategy`
+
+--- PR #1718 | src/integration/blockchain/shared/evm/evm-client.ts ---
+Context: +  FROM_ADDRESS, | +  TO_ADDRESS, | +}
+David: Maybe direction (`INCOMING`, `OUTGOING` and `BOTH`) would be easier to understand?
+
+--- PR #1719 | src/subdomains/supporting/support-issue/support-issue.controller.ts ---
+Context: +  async getIssues(@GetJwt() jwt: JwtPayload): Promise<SupportIssueDto[]> { | +    return this.supportIssueService.getIssues(jwt?.account); | +  }
+David: I think we want the real auth guard here (not the optional one)
+
+--- PR #1721 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: + | +    // balances sorted by financialType | +    const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
+David: `grouped by` instead of `sorted by`? 😄
+
+--- PR #1721 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: + | +  private getBalancesByFinancialType(assets: Asset[], assetLog: any): BalancesByFinancialType { | +    const financialTypeMap = Util.groupBy<Asset, string>(
+David: Maybe we should define a type/interface for the asset log?
+
+--- PR #1721 | src/integration/exchange/services/exchange-tx.service.ts ---
+Context: + | +          entity.feeAmountChf = Util.round(price.convert(entity.feeAmount), Config.defaultVolumeDecimal); | +        }
+David: `price.convert(entity.feeAmount, Config.defaultVolumeDecimal)`?
+
+--- PR #1721 | src/subdomains/core/trading/entities/trading-order.entity.ts ---
+Context: +  get feeAmountChf(): number { | +    return this.txFeeAmountChf + this.swapFeeAmountChf; | +  }
+David: We're only interested in txFee, the swapFee is already subtracted in the profit.
+
+--- PR #1721 | src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts ---
+Context: +        const chargeCurrency = await this.fiatService.getFiatByName(tx.chargeCurrency); | +        const referenceChfPrice = await this.pricingService.getPrice(chargeCurrency, this.chf, false); | +
+David: `reference`?
+
+--- PR #1721 | src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service.ts ---
+Context: + | +        tx.chargeAmountChf = Util.round(referenceChfPrice.convert(tx.chargeAmount), Config.defaultVolumeDecimal); | +      }
+David: `referenceChfPrice.convert(tx.chargeAmount, Config.defaultVolumeDecimal);`
+
+--- PR #1721 | src/subdomains/supporting/payin/strategies/send/impl/base/evm.strategy.ts ---
+Context: +      payInGroup.payIns.map(async (p) => await this.updatePayInWithSendData(p, type, outTxId)).filter((p) => p != null), | +    ); |    }
+David: Linter warning
+
+--- PR #1721 | src/subdomains/supporting/payin/strategies/send/impl/base/bitcoin-based.strategy.ts ---
+Context:          const { outTxId, feeAmount } = await this.payInService.sendTransfer(payIn); | -        this.updatePayInWithSendData(payIn, type, outTxId, feeAmount); | +        await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
+David: Same for monero strategy
+
+--- PR #1721 | src/subdomains/core/trading/services/trading-order.service.ts ---
+Context: - | -    order.complete(outputAmount, txFee, coinChfPrice.convert(txFee), swapFee, inChfPrice.convert(swapFee)); | +    const outChfPrice = await this.pricingService.getPrice(order.assetIn, this.chf, true);
+David: assetOut?
+
+--- PR #1721 | src/subdomains/supporting/payin/entities/crypto-input.entity.ts ---
+Context:   | -  forward(outTxId: string, forwardFeeAmount?: number): this { | +  forward(outTxId: string, forwardFeeAmount?: number, feeAmountChf?: number): this {
+David: Same for `preparing()` (fee is in native coin)
+
+--- PR #1721 | src/subdomains/supporting/payin/strategies/send/impl/base/send.strategy.ts ---
+Context: +      ? await this.pricingService | +          .getPrice(payIn.asset, this.chf, false) | +          .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
+David: Fee is in native coin
+
+--- PR #1721 | src/subdomains/supporting/payin/strategies/send/impl/base/evm.strategy.ts ---
+Context: +    return Promise.all( | +      payInGroup.payIns.map(async (p) => this.updatePayInWithSendData(p, type, outTxId)).filter((p) => p != null), | +    );
+David: `async` can be removed, the filter should be in a `.then()` after the `Promise.all`
+
+--- PR #1721 | src/subdomains/supporting/payin/strategies/send/impl/base/send.strategy.ts ---
+Context: +      ? await this.pricingService | +          .getPrice(feeAsset, this.chf, false) | +          .then((p) => p.convert(feeAmount, Config.defaultVolumeDecimal))
+David: Can we allow expired prices (`.getPrice(feeAsset, this.chf, true)`) for CHF amounts everywhere?
+
+--- PR #1721 | src/subdomains/supporting/payout/entities/payout-order.entity.ts ---
+Context: + | +  get feeAmountChf(): number { | +    return this.preparationFeeAmountChf + this.payoutFeeAmountChf;
+David: Is correct
+
+--- PR #1723 | src/subdomains/generic/user/models/bank-data/dto/update-bank-data.dto.ts ---
+Context: +export class UpdateUserBankDataDto { | +  @ApiPropertyOptional() | +  @IsOptional()
+David: I would call it BankAccount instead of BankData (for the user)
+
+--- PR #1723 | src/subdomains/generic/user/models/bank-data/bank-data.service.ts ---
+Context: +    const bankData = await this.bankDataRepo.findOne({ where: { id }, relations: { userData: true } }); | +    if (!bankData) throw new NotFoundException('Bank data not found'); | +    if (bankData.userData.id !== userDataId) throw new BadRequestException('You can only update your own bankData');
+David: Error messages with bank account?
+
+--- PR #1723 | src/subdomains/supporting/bank/bank-account/bank-account.controller.ts ---
+Context: +  async addUserIban(@GetJwt() jwt: JwtPayload, @Body() dto: CreateIbanDto): Promise<IbanDto> { | +    return this.bankDataService.createIbanForUser(jwt.account, dto).then((b) => ({ iban: b.iban })); |    }
+David: IBAN endpoints can be labeled as deprecated?
+
+--- PR #1723 | src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto.ts ---
+Context: +  @ValidateNested() | +  @Type(() => EntityDto) | +  preferredCurrency: Fiat;
+David: Why not extend `UpdateBankAccountDto`?
+
+--- PR #1727 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: +          (receiverTx instanceof BankTx ? receiverTx.instructedAmount : receiverTx.amount) && | +        receiverTx.created > (s instanceof BankTx ? s.valueDate : s.created), | +    );
+David: Should it be `receiverTx.created >= ` since the value data time is also 00:00?
+
+--- PR #1728 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context:    @ApiPropertyOptional({ type: PaymentLinkPaymentDto }) | -  payment?: PaymentLinkPaymentDto; | +  payment?: PaymentLinkPaymentDto | PaymentLinkPaymentDto[];
+David: Might be a bit confusing to have both types in one DTO. Maybe create a separate DTO for the history and use a base class for the common fields?
+
+--- PR #1728 | src/subdomains/core/payment-link/dto/get-payment-link-history.dto.ts ---
+Context: +  @IsOptional() | +  @IsString() | +  status?: string;
+David: Add a description (comma-separated list of statuses)
+
+--- PR #1728 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: +  @ApiPropertyOptional({ type: PaymentLinkPaymentDto, isArray: true }) | +  payment?: PaymentLinkPaymentDto[]; |  }
+David: `payments`
+
+--- PR #1733 | src/subdomains/generic/forwarding/controllers/lnurlp-forward.controller.ts ---
+Context: + | +  @Delete('payment/:id') | +  async cancelPayment(@Param('id') id: string): Promise<PaymentLinkPaymentDto> {
+David: `@Delete(':id')`
+
+--- PR #1735 | src/subdomains/core/payment-link/services/payment-link-payment.service.ts ---
+Context:   | +    const expiry = paymentLink.expiry ?? Config.payment.defaultPaymentTimeout; | +
+David: Move the `Config.payment.defaultPaymentTimeout` to `DefaultPaymentLinkConfig`?
+
+--- PR #1735 | src/subdomains/core/payment-link/entities/payment-link.config.ts ---
+Context:    recipient?: PaymentLinkRecipientDto; | +  expiry?: number; |  }
+David: Maybe we should rather call it `paymentTimeout` (same as in the config)?
+
+--- PR #1739 | src/subdomains/supporting/payin/strategies/send/impl/bsc-coin.strategy.ts ---
+Context: +  get forwardRequired(): boolean { | +    return true; | +  }
+David: Move this to `EvmStrategy` (is true for all EVM strategies)
+
+--- PR #1739 | src/subdomains/core/history/controllers/transaction.controller.ts ---
+Context: +      transaction.targetEntity?.cryptoInput?.paymentLinkPayment || | +      transaction.targetEntity?.cryptoInput?.txType === PayInType.PAYMENT | +    )
+David: Check for `PayInType` should be enough?
+
+--- PR #1739 | src/subdomains/supporting/payin/entities/crypto-input.entity.ts ---
+Context:          break; |   |        case 'Output':
+David: Remove `completed()` logic in `doSend` method?
+
+--- PR #1739 | src/subdomains/supporting/payin/strategies/send/impl/monero.strategy.ts ---
+Context: -      } | +      throw new Error('Lightning inputs not required to forward'); |      } else {
+David: Copy&paste
+
+--- PR #1740 | src/subdomains/generic/kyc/services/tfa.service.ts ---
+Context: +    const userData = await this.userDataRepo.findOne({ where: { id: userDataId } }); | +    if (!userData) throw new NotFoundException('User data not found'); | +
+David: Use the `UserDataService` and remove the Repository from KycModule providers (services/repos should be provided only once)
+
+--- PR #1740 | src/subdomains/generic/kyc/controllers/kyc.controller.ts ---
+Context: +  async check2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Query() { level }: Start2faDto): Promise<void> { | +    return this.tfaService.check(jwt.account, ip, level); | +  }
+David: `UserRole.ACCOUNT`?
+
+--- PR #1740 | src/subdomains/generic/kyc/controllers/kyc.controller.ts ---
+Context: +  async check2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Query() { level }: Start2faDto): Promise<void> { | +    return this.tfaService.check(jwt.account, ip, level); | +  }
+David: Maybe just `@Get('2fa')`?
+
+--- PR #1740 | src/subdomains/generic/user/user.module.ts ---
+David: Import services from other modules (should not be provided multiple times)
+
+--- PR #1740 | src/subdomains/generic/user/models/user/user.controller.ts ---
+Context: +    @GetJwt() jwt: JwtPayload, | +    @Body() verificationCode: { token: string }, |      @Res({ passthrough: true }) res: Response,
+David: Define a DTO (for Swagger documentation)
+
+--- PR #1740 | src/subdomains/generic/user/models/user/user.service.ts ---
+Context: + | +      const user = await this.userRepo.findOneBy({ userData: { mail: dto.mail } }); | +      if (user) throw new BadRequestException('Mail already in use');
+David: I would use the method `isKnownKycUser` (needs to be adapted slightly)
+
+--- PR #1740 | src/subdomains/generic/user/models/user/user.service.ts ---
+David: Maybe we should remove the mail update from `UserDataService.updateUserSettings` and create a separate method for it?
+
+--- PR #1740 | src/subdomains/generic/kyc/controllers/kyc.controller.ts ---
+Context: +  @Get('2fa') | +  @ApiCreatedResponse({ description: '2FA active' }) | +  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT))
+David: `@ApiOkResponse`
+
+--- PR #1740 | src/subdomains/generic/user/user.module.ts ---
+Context:      AccountMergeRepository, | +    TfaLogRepository, |      UserService,
+David: Remove `TfaLogRepository`
+
+--- PR #1740 | src/subdomains/generic/kyc/services/tfa.service.ts ---
+Context:        this.logger.error(`Failed to send verification mail ${userData.id}:`, e); | +      throw new BadRequestException('Failed to send verification mail'); |      }
+David: `ServiceNotAvailableException`?
+
+--- PR #1740 | src/subdomains/generic/user/models/user-data/user-data.service.ts ---
+Context:      dto: UpdateUserDto, |      forceUpdate?: boolean, |    ): Promise<{ user: UserData; isKnownUser: boolean }> {
+David: `forceUpdate` parameter can be removed
+
+--- PR #1740 | src/subdomains/generic/user/models/user-data/user-data.service.ts ---
+Context: -    const isKnownUser = (mailChanged || forceUpdate) && (await this.isKnownKycUser(userData)); | +    const isKnownUser = forceUpdate && (await this.isKnownKycUser(userData)); |      return { user: userData, isKnownUser };
+David: The `isKnownUser` check can be removed here since the mail doesn't change
+
+--- PR #1741 | src/subdomains/generic/user/models/user-data/user-data.controller.ts ---
+Context: +  async updateApiFilter(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<HistoryFilterKey[]> { | +    return this.userDataService.updateApiFilter(jwt.user, filter); | +  }
+David: I would keep it in the UserController (we don't have anything public in the UserDataController), the user doesn't know about UserData
+
+--- PR #1741 | src/subdomains/generic/user/models/user-data/user-data.controller.ts ---
+Context: +  async updateApiFilter(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<HistoryFilterKey[]> { | +    return this.userDataService.updateApiFilter(jwt.user, filter); | +  }
+David: `UserRole.ACCOUNT`?
+
+--- PR #1741 | src/subdomains/core/history/controllers/history.controller.ts ---
+Context: -    const user = await this.userService.checkApiKey(key, sign, timestamp); | +    const user = | +      key.charAt(key.length - 1) === '0'
+David: `.endsWith('0')`
+
+--- PR #1741 | src/subdomains/core/history/controllers/history.controller.ts ---
+Context: +                { format: ExportFormat.JSON, userAddress: u.address, ...query }, | +                ExportType.COIN_TRACKING, | +              );
+David: Linter warning
+
+--- PR #1741 | src/subdomains/core/history/controllers/history.controller.ts ---
+Context: +              ); | +            }), | +          ).then((t) => t.flat())
+David: Can't we use the new transaction history thing instead of using the Promise.all (which is probably more expensive)?
+
+--- PR #1741 | src/subdomains/generic/user/models/user-data/user-data.controller.ts ---
+Context: +  async updateApiFilter(@GetJwt() jwt: JwtPayload, @Query() filter: HistoryFilter): Promise<HistoryFilterKey[]> { | +    return this.userDataService.updateApiFilter(jwt.user, filter); | +  }
+David: I think I would create the API key on user data, for all new keys. For existing ones, we would need to update/delete it on the user. WDYT?
+
+--- PR #1741 | src/subdomains/generic/user/models/user/user.service.ts ---
+David: Remove `createApiKey`?
+
+--- PR #1741 | src/subdomains/generic/user/models/user/user.controller.ts ---
+Context: +    await this.userService.updateApiFilter(jwt.user, filter); | +    return this.userDataService.updateApiFilter(jwt.account, filter); |    }
+David: Update on user only if `jwt.user` is not null
+
+--- PR #1744 | src/subdomains/generic/user/models/account-merge/account-merge.service.ts ---
+Context: +        : [request.master.id, request.slave.id]; | + | +    await this.userDataService.mergeUserData(masterId, slaveId, request.slave.mail);
+David: We should either do this check before creating the entity, or update it here. Will be quite confusing, if in we do not merge as saved in the DB (master <-> slave)
+
+--- PR #1745 | src/subdomains/supporting/bank/bank-account/bank-account.service.ts ---
+David: This can cause errors because bank accounts are linked in sells/buys
+
+--- PR #1745 | src/subdomains/supporting/bank/bank-account/bank-account.service.ts ---
+Context: -import { IsNull } from 'typeorm'; | +import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service'; | +import { IsNull, MoreThan } from 'typeorm';
+David: Unused import
+
+--- PR #1754 | src/subdomains/core/payment-link/dto/payment-link-config.dto.ts ---
+Context: +  @ApiPropertyOptional() | +  @IsOptional() | +  fee?: number;
+David: Fee cannot be edited in UI
+
+--- PR #1754 | src/subdomains/core/payment-link/dto/payment-link-config.dto.ts ---
+Context: +  @ApiPropertyOptional() | +  @IsOptional() | +  displayQr?: boolean;
+David: `@IsBoolean()`
+
+--- PR #1754 | src/subdomains/core/payment-link/dto/payment-link-config.dto.ts ---
+Context: +  @ApiPropertyOptional() | +  @IsOptional() | +  paymentTimeout?: number;
+David: `@IsNumber()`
+
+--- PR #1754 | src/subdomains/core/payment-link/dto/payment-link-config.dto.ts ---
+Context: +  @IsOptional() | +  @IsArray() | +  standards?: PaymentStandard[];
+David: `@IsEnum(PaymentStandard, { each: true })` (don't know if it works 😉)
+
+--- PR #1754 | src/subdomains/core/payment-link/dto/payment-link-config.dto.ts ---
+Context: +  @IsOptional() | +  @IsArray() | +  blockchains?: Blockchain[];
+David: `@IsEnum(Blockchain, { each: true })`
+
+--- PR #1754 | src/subdomains/core/payment-link/dto/payment-link-recipient.dto.ts ---
+Context: +  @Type() | +  @ValidateNested() | +  address?: PaymentLinkRecipientAddressDto;
+David: `@Type(() => PaymentLinkRecipientAddressDto)`
+
+--- PR #1754 | src/subdomains/generic/user/models/user/dto/update-user.dto.ts ---
+Context: +  @ValidateNested() | +  config: PaymentLinkConfigDto; | +}
+David: Why nest it into an object with a single field?
+
+--- PR #1754 | src/subdomains/generic/user/models/user-data/user-data.service.ts ---
+Context:   | +  async updatePaymentLinksConfig(user: UserData, dto: UpdatePaymentLinkConfigDto): Promise<void> { | +    const paymentLinksConfig = JSON.stringify(dto);
+David: Assign DTO to existing config (not overwrite everything)?
+
+--- PR #1754 | src/subdomains/core/payment-link/services/payment-link.service.ts ---
+Context:        website, | +      config: JSON.stringify(config), |      };
+David: Assign update
+
+--- PR #1755 | src/shared/models/ip-log/ip-log.service.ts ---
+Context:        address, | +      user, |      });
+David: Get the user from `checkIpCountry` instead of by parameter
+
+--- PR #1757 | src/subdomains/core/transaction/transaction-util.service.ts ---
+Context: -        address: BlockchainAddress.create(route.deposit.address, asset.blockchain), | +        senderAddresses: null, | +        receiverAddress: BlockchainAddress.create(route.deposit.address, asset.blockchain),
+David: Use `dto.permit.address`
+
+--- PR #1760 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: +        const balances = await this.getCustomBalances(client, a, [ | +          EvmUtil.createWallet({ seed: Config.payment.evmSeed, index: 0 }).address, | +        ]).then((b) => b.flat());
+David: Hm ok, it's a bit more complex here 🤔  we also have Lightning/BTC and Monero/XMR which are payment enabled. Lightning we can ignore, because there is no separate address. But for XMR there is one (see payment config) and we need to get the balance of this address.
+
+--- PR #1760 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: +      const depositBalance = depositBalances | +        .find((c) => c.blockchain === curr.blockchain) | +        ?.balances?.reduce((sum, result) => sum + (result.contractAddress === curr.chainId ? result.balance : 0), 0);
+David: Chain ID comparison does not work for Monero
+
+--- PR #1760 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: +        const balances = await this.getCustomBalances(client, a, [ | +          e === Blockchain.MONERO | +            ? Config.payment.moneroAddress
+David: Hm, Monero isn't a EVM chain. This means the EVM registry service will throw an error. Either we just manually get the Monero client. Or we extend the EVM registry service so it works for all blockchains 🤔
+
+--- PR #1760 | src/subdomains/core/payment-link/services/payment-quote.service.ts ---
+Context: +    const client = this.blockchainRegistryService.getClient(transferInfo.method); | +    const transactionResponse = | +      client instanceof EvmClient ? await client.sendSignedTransaction(transferInfo.hex) : undefined;
+David: Throw an error, if `!(client instanceof EvmClient)`?
+
+--- PR #1760 | src/subdomains/core/trading/services/trading-order.service.ts ---
+Context: -    const client = this.evmRegistryService.getClient(order.assetIn.blockchain); | +    const client = this.blockchainRegistryService.getClient(order.assetIn.blockchain); | +    if (!(client instanceof EvmClient)) throw new Error('Client can not purchase liquidity');
+David: Maybe it would be good to have a `getEvmClient` method in the blockchain registry service?
+
+--- PR #1760 | src/integration/blockchain/monero/monero-client.ts ---
+Context: +  async isTxComplete(_: string, __?: number): Promise<boolean> { | +    throw new Error('Monero method not implemented.'); | +  }
+David: Implement it quickly?
+```ts
+const transaction = await this.getTransaction(txId);
+return MoneroHelper.isTransactionComplete(transaction);
+```
+and use it everywhere, where `MoneroHelper.isTransactionComplete` is currently used.
+
+--- PR #1762 | src/subdomains/generic/kyc/entities/kyc-step.entity.ts ---
+Context:          birthname: identResultData.birthName, | -        birthday: null, | +        birthday: identResultData.birthday,
+David: `new Date(...)` (`JSON.parse()` does not create date objects)
+
+--- PR #1766 | src/subdomains/supporting/log/log-job.service.ts ---
+Context: +      valid: true, | +      category: '', |      });
+David: ```ts
+      valid: null,
+      category: null,
+```
+
+--- PR #1772 | src/subdomains/generic/user/models/bank-data/bank-data.service.ts ---
+Context: +    if (!(await this.isValidIbanCountry(dto.iban))) | +      throw new BadRequestException('Iban country is currently not supported'); | +
+David: `IBAN country ...`
+
+--- PR #1772 | src/subdomains/core/buy-crypto/routes/buy/buy.service.ts ---
+Context: +  @Lock(1800) | +  async checkCryptoPayIn() { | +    if (DisabledProcess(Process.BUY_BANK_ACCOUNT_SYNC)) return;
+David: Copy&paste 😉
+
+--- PR #1772 | src/subdomains/core/sell-crypto/route/sell.service.ts ---
+Context: +  @Lock(1800) | +  async checkCryptoPayIn() { | +    if (DisabledProcess(Process.SELL_BANK_ACCOUNT_SYNC)) return;
+David: Copy&paste 😉
+
+--- PR #1773 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: +      this.logger.error('Failed to store existing KYC files:', error); | +    } | +  }
+David: We need to create a KYC file every time a document is uploaded (by user or admin) and directly link it to the user and KYC step (if there is one).
+
+--- PR #1773 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: +      this.logger.error('Failed to store existing KYC files:', error); | +    } | +  }
+David: We need a way to find out which users have already been "synced", to avoid data duplication. Maybe filter out all users, that already have an entry in KYC file table?
+
+--- PR #1773 | src/subdomains/generic/kyc/services/kyc-log.service.ts ---
+Context: + | +    await this.kycLogRepo.save(entity); | +  }
+David: Add a new `KycLogType`, create a `KycFileLog` entity which extends `KycLog` and a corresponding repository (see `MergeLog` and `MergeLogRespository`)
+
+--- PR #1773 | src/subdomains/generic/kyc/services/kyc-log.service.ts ---
+Context: + | +    await this.kycLogRepo.save(entity); | +  }
+David: Add the KYC file ID to the result and the ID of the user who accessed the document (if available, get from JWT)
+
+--- PR #1773 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: +    if (kycFile.protected && (!userDataId || !this.userDataService.hasRole(userDataId, UserRole.ADMIN))) { | +      throw new BadRequestException('Requires admin role'); | +    }
+David: Just check the role in the JWT?
+
+--- PR #1773 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: + | +    if (kycFile.protected && (!userDataId || !this.userDataService.hasRole(userDataId, UserRole.ADMIN))) { | +      throw new BadRequestException('Requires admin role');
+David: ForbiddenException
+
+--- PR #1773 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: + | +      for (const userData of allUserData) { | +        if (this.kycFileService.userIsSynced(userData.id)) continue;
+David: Maybe filter in SQL?
+
+- Add backward navigation property to user data (`kycFiles`)
+- Filter using `userDataRepo.findBy({ kycFiles: { id: IsNull() }})`
+
+--- PR #1773 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context: +        false, | +        kycStep, |        );
+David: This is not user upload -> protected
+
+--- PR #1773 | src/subdomains/generic/kyc/services/integration/kyc-document.service.ts ---
+Context: +      userData: await this.userDataService.getUserData(userDataId), | +      kycStep, | +    });
+David: Have `userData` instead of `userDataId` as a parameter (no need to refetch the entity)
+
+--- PR #1773 | src/subdomains/generic/kyc/entities/kyc-file.entity.ts ---
+Context: + | +    return [this.id, update]; | +  }
+David: Is this used somewhere?
+
+--- PR #1782 | src/integration/railgun/railgun.module.ts ---
+David: Move Railgun folder into blockchain folder?
+
+--- PR #1782 | src/config/config.ts ---
+Context:    defichainAddressFormat = |      this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}'; | +  railgunAddressFormat = '0zk[a-z0-9]{1,124}';
+David: Signature format is the same as Ethereum?
+
+--- PR #1782 | src/config/config.ts ---
+Context:    defichainAddressFormat = |      this.environment === Environment.PRD ? '8\\w{33}|d\\w{33}|d\\w{41}' : '[78]\\w{33}|[td]\\w{33}|[td]\\w{41}'; | +  railgunAddressFormat = '0zk[a-z0-9]{1,124}';
+David: Ok, interesting 👍
+
+--- PR #1782 | src/integration/railgun/railgun.module.ts ---
+David: Hm yes, funny thing 🤔 let's leave it as is 👍
+
+--- PR #1784 | infrastructure/bicep/container-apps/apps/deploy.sh ---
+David: Fix for MacOS
+
+--- PR #1792 | src/subdomains/core/history/controllers/transaction.controller.ts ---
+Context: + | +      const forexFee = transaction.bankTx.txCurrency === transaction.bankTx.currency ? 0 : 0.02; | +      const forexFeeAmount = (transaction.bankTx.amount + transaction.bankTx.chargeAmount) * forexFee;
+David: `0.02` probably should go into config (also in `buy-crypto.service.ts`)
+
+--- PR #1792 | src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.service.ts ---
+Context: + | +    const chargebackAmount = dto.chargebackAmount ?? bankTxReturn.chargebackAmount; | +    const chargebackIban = dto.refundIban ?? bankTxReturn.chargebackIban;
+David: Move check to below line 75 and use `chargebackIban` variable 😉
+
+--- PR #1797 | src/integration/sift/dto/sift.dto.ts ---
+Context: +  AUTOMATED_RULE = 'AUTOMATED_RULE', | +  SESSION = 'CHARGEBACK', | +}
+David: Copy&paste error? 🤔
+
+--- PR #1797 | src/subdomains/generic/user/models/user/user.service.ts ---
+Context:   | +    if (update.status && update.status == UserStatus.BLOCKED && user.status == UserStatus.NA) | +      await this.siftService.sendDecision(user.id.toString(), update.comment);
+David: Remove `&& user.status == UserStatus.NA`
+
+--- PR #1797 | src/integration/sift/services/sift.service.ts ---
+Context: +    const data = { | +      decision_id: 'looks_suspicious_payment_abuse', | +      analyst: Config.sift.analyst,
+David: What is this `decision_id`?
+
+--- PR #1798 | src/subdomains/supporting/bank/bank/bank.service.ts ---
+Context: +  async getBankByIban(iban: string): Promise<Bank> { | +    return this.bankRepo.findOneCachedBy(`${iban}`, { iban }); | +  }
+David: `iban` is already string
+
+--- PR #1799 | src/subdomains/supporting/payin/strategies/send/impl/base/evm.strategy.ts ---
+David: Implement method `getMinConfirmations` in base strategy (`SendStrategy`), use `TransactionHelper`
+
+--- PR #1799 | src/subdomains/supporting/payin/strategies/send/impl/bitcoin.strategy.ts ---
+David: Same for Monero strategy
+
+--- PR #1799 | src/subdomains/supporting/payin/strategies/send/impl/bitcoin.strategy.ts ---
+Context: +      payIn.asset.name, | +      direction == 'Input' ? TransactionDirection.IN : TransactionDirection.OUT, | +    );
+David: Use method from base strategy (to be implemented)
+
+--- PR #1799 | src/subdomains/supporting/payment/services/transaction-helper.ts ---
+Context: +    ); | +    return spec.minConfirmations; | +  }
+David: Fallback 1
+
+--- PR #1799 | src/subdomains/supporting/payin/services/base/payin-evm.service.ts ---
+Context: -  constructor(protected readonly service: EvmService) { | +  constructor(protected readonly service: EvmService, protected readonly repoFactory?: RepositoryFactory) { |      this.#client = service.getDefaultClient();
+David: Revert
+
+--- PR #1799 | src/subdomains/supporting/payin/services/base/payin-evm.service.ts ---
+Context: +    const confirmations = await this.#client.getConfirmations(txId); | +    return confirmations >= minConfirmation; | +  }
+David: Use `checkTransactionCompletion` (add `minConfirmations` parameter)
+
+--- PR #1799 | src/subdomains/supporting/payin/services/payin-monero.service.ts ---
+Context: +    const transaction = await this.client.getTransaction(txId); | +    return transaction.confirmations; | +  }
+David: Use `checkTransactionCompletion` (add `minConfirmations` parameter)
+
+--- PR #1799 | src/subdomains/supporting/payin/services/payin-monero.service.ts ---
+Context: +    const transaction = await this.client.getTransaction(txId); | +    return transaction.confirmations; | +  }
+David: Looks like this method is unused?
+
+--- PR #1799 | src/integration/blockchain/shared/evm/evm-client.ts ---
+Context: +    const transaction = await this.provider.getTransaction(txHash); | +    return transaction.confirmations; | +  }
+David: Same here?
+
+--- PR #1799 | src/subdomains/supporting/payment/entities/transaction-specification.entity.ts ---
+Context:      spec.minVolume = 0; |      spec.minFee = 0; | +    spec.minConfirmations = 1;
+David: Seems like we use `tx.confirmations > minConfirmations` everywhere -> the default would probably be 0. Or we change the comparison to `>=`.
+
+--- PR #1799 | src/subdomains/supporting/payment/services/transaction-helper.ts ---
+Context: +    ); | +    return spec?.minConfirmations ? spec.minConfirmations : 1; | +  }
+David: `return spec?.minConfirmations  ?? 1;` (or 0)
+
+--- PR #1801 | src/subdomains/supporting/payment/dto/transaction.dto.ts ---
+Context:   | +export const LimitExceededReason = [TransactionReason.DAILY_LIMIT_EXCEEDED, TransactionReason.ANNUAL_LIMIT_EXCEEDED]; | +
+David: Remove these two from above (`KycRequiredReason`)?
+
+--- PR #1802 | src/subdomains/supporting/bank/bank-account/bank-account.service.ts ---
+Context:   |      return bankAccounts.length ? bankAccounts[0] : this.createBankAccountInternal(iban); |    }
+David: `.findOneBy()`?
+
+--- PR #1805 | src/subdomains/generic/user/models/service-provider/dto/service-provider.dto.ts ---
+Context: +export class ServiceProviderDto { | +  @IsString() | +  name: string;
+David: `@IsNotEmpty()`
+
+--- PR #1805 | src/subdomains/generic/user/models/service-provider/dto/service-provider.dto.ts ---
+Context: + | +  @IsString() | +  masterKey: string;
+David: `@IsNotEmpty()`
+
+--- PR #1805 | src/subdomains/generic/user/models/service-provider/service-provider.entity.ts ---
+Context: + | +  @Column({ length: 256 }) | +  masterKey: string;
+David: `unique: true`
+
+--- PR #1805 | src/subdomains/generic/user/models/service-provider/service-provider.entity.ts ---
+Context: +@Entity() | +export class ServiceProvider extends IEntity { | +  @Column({ length: 256 })
+David: Rename everything to `CustodyProvider`
+
+--- PR #1805 | src/subdomains/generic/user/models/custody-provider/custody-provider.repository.ts ---
+Context: +  async getByMasterKey(masterKey: string): Promise<CustodyProvider> { | +    return this.findOneBy({ masterKey }); | +  }
+David: Not used?
+
+--- PR #1807 | src/subdomains/supporting/payment/services/fee.service.ts ---
+Context: +    const combinedChargebackFixedFee = Util.sumObjValue(chargebackFees, 'fixed'); | + | +    if (!chargebackFees) throw new InternalServerErrorException('Chargeback fee is missing');
+David: `chargebackFees` can never be undefined, it's a list
+
+--- PR #1807 | src/subdomains/core/history/__tests__/transaction-helper.spec.ts ---
+Context: +    ip: '1.1.1.1', | +    account: 1, | +  };
+David: Unused variable
+
+--- PR #1809 | src/subdomains/core/payment-link/dto/payment-link.dto.ts ---
+Context: +  statusCode: number; | +  message: string; | +}
+David: I would use the same thing for completed as for not found (extend `ErrorDto`, in this case the error is `'Conflict'`)
+
+--- PR #1809 | src/subdomains/core/payment-link/services/payment-link.service.ts ---
+Context:    ): Promise<PaymentLinkPayRequestDto> { | +    const paymentComplete = await this.checkPaymentComplete(uniqueId, standardParam); | +    if (paymentComplete) throw new ConflictException(await this.paymentCompleteResponse(uniqueId, standardParam));
+David: This check should only be done, if the `GET paymentLink/payment` endpoint is called
+
+--- PR #1809 | src/subdomains/core/payment-link/services/payment-link.service.ts ---
+Context: + | +    return false; | +  }
+David: Why only for `PaymentStandard.OPEN_CRYPTO_PAY`?
+
+--- PR #1811 | src/subdomains/generic/kyc/services/kyc.service.ts ---
+Context:      if (entity.userData.accountType === AccountType.PERSONAL) { | +      if ((entity.userData.verifiedCountry?.dfxEnable ?? entity.userData.country?.dfxEnable) === false) | +        errors.push(IdentCheckError.COUNTRY_NOT_ALLOWED);
+David: `const userCountry = entity.userData.verifiedCountry ?? entity.userData.country;`
+
+--- PR #1812 | src/subdomains/generic/user/models/auth/auth.service.ts ---
+Context:      } else if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) { |        throw new UnauthorizedException('Invalid credentials'); |      } else if (!user.signature) {
+David: ```ts
+    if (!user.custodyProvider || user.custodyProvider.masterKey !== dto.signature) {
+       if (!(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature))) {
+             throw new UnauthorizedException('Invalid credentials');
+       } else if (!user.signature) {
+             // TODO: temporary code to update empty signatures (remove?)
+             await this.userRepo.update({ address: dto.address }, { signature: dto.signature });
+       }
+    }
+
+```
+
+--- PR #1818 | src/subdomains/generic/user/models/user-data/user-data.entity.ts ---
+Context:    get address() { | +    // Only for Organization, not for SoleProprietorship? |      return this.accountType === AccountType.ORGANIZATION
+David: ToDo
+
+--- PR #1818 | src/subdomains/generic/user/models/organization/dto/create-organization.dto.ts ---
+David: Is this used?
+
+--- PR #1818 | src/subdomains/generic/user/models/organization/dto/organization.dto.ts ---
+Context: + | +export class OrganizationDto { | +  name?: string;
+David: interface
+
+--- PR #1818 | src/subdomains/generic/user/models/organization/organization.service.ts ---
+Context: + | +  async getOrganizationByName(name: string, zip): Promise<Organization> { | +    return this.organizationRepo.findOneBy({ name, zip });
+David: `zip: string`
+
+--- PR #1819 | src/subdomains/generic/user/models/user-data/user-data.controller.ts ---
+Context: +  @ApiExcludeEndpoint() | +  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ACCOUNT)) // TODO: Change to ADMIN | +  async downloadUserData(@Body() data: DownloadUserDataDto): Promise<string> {
+David: TODO
+
+--- PR #1819 | src/subdomains/generic/user/models/user-data/user-data.service.ts ---
+Context: +            subFolder.file(latestFile.name, fileData.data); | +          } catch (error) { | +            throw new BadRequestException(`Failed to download file '${latestFile.name}' for UserData ${userDataId}`);
+David: These errors seem to be `InternalServerErrorException` or `ServiceUnavailableException` instead of `BadRequestException`
+
+--- PR #1819 | src/subdomains/generic/user/models/user-data/user-data.service.ts ---
+Context: + | +      const baseFolderName = `${(count++).toString().padStart(2, '0')}_${String(userDataId)}_${userData.completeName}`; | +      const parentFolder = zip.folder(baseFolderName);
+David: `userData.verifiedName`
+
+--- PR #1820 | src/subdomains/core/sell-crypto/route/sell.entity.ts ---
+David: Revert?
+
+--- PR #1825 | src/config/config.ts ---
+David: Looks like we can remove the reduce filter and just always take the latest one 😁
+
+--- PR #1826 | src/subdomains/core/history/controllers/transaction.controller.ts ---
+Context: +    const dfxFeeAmount = transaction.targetEntity.cryptoInput |        ? await this.feeService.getBlockchainFee(transaction.targetEntity.cryptoInput.asset, false) |        : 0;
+David: Shouldn't this be network fee instead of dfx?
+
+--- PR #1826 | src/subdomains/core/history/dto/refund-data.dto.ts ---
+Context: +  @ApiProperty({ oneOf: [{ $ref: getSchemaPath(AssetDto) }, { $ref: getSchemaPath(FiatDto) }] }) | +  refundAsset: ActiveDto; | +
+David: Crazy 🤯
+
+--- PR #1829 | src/config/config.ts ---
+Context: +        (file.category === FileCategory.USER && file.name.includes('postversand')) || | +        (file.category === FileCategory.SPIDER && | +          file.name.toLowerCase().startsWith(`${userData.firstname.toLowerCase()}`)),
+David: `startsWith(userData.firstname.toLowerCase())`?
+
+--- PR #1831 | src/subdomains/generic/user/models/bank-data/bank-data.entity.ts ---
+Context: +      label: null, | +      preferredCurrency: null, | +    };
+David: Why set to `null`?
+
+--- PR #1831 | src/subdomains/supporting/bank/bank-account/bank-account.controller.ts ---
+Context: +        } | +      : undefined; |    }
+David: Is this required?
+
+--- PR #1831 | src/subdomains/generic/user/models/bank-data/bank-data.entity.ts ---
+Context: +      label: null, | +      preferredCurrency: null, | +    };
+David: Use settings from DTO
+
+--- PR #1835 | src/subdomains/generic/user/models/auth/auth.service.ts ---
+Context:      return existingUser |        ? this.doSignIn(existingUser, dto, userIp, false) |        : this.doSignUp(dto, userIp, false).catch((e) => {
+David: I wouldn't throw an error if the user exists, just log in ...
+
+```ts
+const existingUser = await this.userService.getUserByAddress(dto.address, { userData: true, wallet: true });
+const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true }));
+
+return existingUser
+      ? this.doSignIn(existingUser, dto, userIp, false)
+      : userData
+            ? this.doAddUser(dto, userIp, userData)
+            : this.doSignUp(dto, userIp, false).catch(...);
+```
+and define a method `doAddUser` with the corresponding logic in it.
+
+--- PR #1835 | src/subdomains/generic/user/models/auth/auth.service.ts ---
+Context:      return existingUser |        ? this.doSignIn(existingUser, dto, userIp, false) |        : this.doSignUp(dto, userIp, false).catch((e) => {
+David: For adding a user, we should apply the same logic as for the signup
+- checking the signature
+- getting ref and wallet infos
+
+-> maybe we should combine `doAddUser` and `doSignUp` and the former just has an existing user data?
+
+--- PR #1835 | src/subdomains/generic/user/models/auth/auth.service.ts ---
+Context: +      const newUser = await this.userService.createUser({ userDetails: dto, userIp, userData }); | +      await this.userDataService.addNewUser(userData, newUser); | +
+David: The `this.userDataService.addNewUser` step is actually not required 🤔  UserData connection is already saved in `createUser`
+
+--- PR #1835 | src/subdomains/generic/user/models/user/user.service.ts ---
+Context: +        language, | +        currency, | +      }));
+David: If the existing UserData has status `ACTIVE`, the new user should
+- also get status `ACTIVE`
+- get a ref code (user `UserRepository.setUserRef(...)`)
+

@@ -1,0 +1,4277 @@
+=== 6334a520 | 2022-10-27T21:04:54+02:00 | [DEV-835] New Deposit Limit (#467) ===
+Files: migration/1666347510059-DepositLimitDefaultNull.js, src/config/config.ts, src/user/models/kyc/kyc.service.ts, src/user/models/user-data/user-data.entity.ts, src/user/models/user/dto/user.dto.ts, src/user/models/user/user.controller.ts, src/user/models/user/user.service.ts
+diff --git a/migration/1666347510059-DepositLimitDefaultNull.js b/migration/1666347510059-DepositLimitDefaultNull.js
+new file mode 100644
+index 000000000..bc8decf97
+--- /dev/null
++++ b/migration/1666347510059-DepositLimitDefaultNull.js
+@@ -0,0 +1,15 @@
++const { MigrationInterface, QueryRunner } = require("typeorm");
++
++module.exports = class DepositLimitDefaultNull1666347510059 {
++    name = 'DepositLimitDefaultNull1666347510059'
++
++    async up(queryRunner) {
++        await queryRunner.query(`ALTER TABLE "dbo"."user_data" ALTER COLUMN "depositLimit" float`);
++        await queryRunner.query(`ALTER TABLE "dbo"."user_data" DROP CONSTRAINT "DF_008a555620164eed6e1107d9814"`);
++    }
++
++    async down(queryRunner) {
++        await queryRunner.query(`ALTER TABLE "dbo"."user_data" ADD CONSTRAINT "DF_008a555620164eed6e1107d9814" DEFAULT 90000 FOR "depositLimit"`);
++        await queryRunner.query(`ALTER TABLE "dbo"."user_data" ALTER COLUMN "depositLimit" float NOT NULL`);
++    }
++}
+diff --git a/src/config/config.ts b/src/config/config.ts
+index c4713ad63..7742d854b 100644
+--- a/src/config/config.ts
++++ b/src/config/config.ts
+@@ -23,6 +23,7 @@ export class Configuration {
+   defaultTwitterUrl = 'https://twitter.com/DFX_Swiss';
+   defaultVolumeDecimal = 2;
+   defaultPercentageDecimal = 2;
++  defaultDailyTradingLimit = 1000; // EUR
+   apiKeyVersionCT = '0'; // single digit hex number
+   azureIpSubstring = '169.254';
+ 
+diff --git a/src/user/models/kyc/kyc.service.ts b/src/user/models/kyc/kyc.service.ts
+index 172870583..77a3470d2 100644
+--- a/src/user/models/kyc/kyc.service.ts
++++ b/src/user/models/kyc/kyc.service.ts
+@@ -30,6 +30,7 @@ import { WalletRepository } from '../wallet/wallet.repository';
+ import { HttpService } from 'src/shared/services/http.service';
+ import { UserRepository } from '../user/user.repository';
+ import { WalletService } from '../wallet/wallet.service';
++import { TradingLimit } from '../user/dto/user.dto';
+ 
+ export interface KycInfo {
+   kycStatus: KycStatus;
+@@ -37,7 +38,7 @@ export interface KycInfo {
+   kycHash: string;
+   kycDataComplete: boolean;
+   accountType: AccountType;
+-  depositLimit: number;
++  tradingLimit: TradingLimit;
+   sessionUrl?: string;
+   setupUrl?: string;
+   blankedPhone?: string;
+@@ -270,7 +271,7 @@ export class KycService {
+       kycHash: userData.kycHash,
+       kycDataComplete: this.isDataComplete(userData),
+       accountType: userData.accountType,
+-      depositLimit: userData.depositLimit,
++      tradingLimit: userData.tradingLimit,
+       blankedPhone: Blank(userData.phone, BlankType.PHONE),
+       blankedMail: Blank(userData.mail, BlankType.MAIL),
+       sessionUrl: hasSecondUrl ? userData.spiderData?.secondUrl : userData.spiderData?.url,
+diff --git a/src/user/models/user-data/user-data.entity.ts b/src/user/models/user-data/user-data.entity.ts
+index e919d2c89..c46f77a34 100644
+--- a/src/user/models/user-data/user-data.entity.ts
++++ b/src/user/models/user-data/user-data.entity.ts
+@@ -1,3 +1,4 @@
++import { Config } from 'src/config/config';
+ import { Country } from 'src/shared/models/country/country.entity';
+ import { IEntity } from 'src/shared/models/entity';
+ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+@@ -6,6 +7,7 @@ import { BankData } from 'src/user/models/bank-data/bank-data.entity';
+ import { User } from 'src/user/models/user/user.entity';
+ import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne, Index, Generated } from 'typeorm';
+ import { SpiderData } from '../spider-data/spider-data.entity';
++import { TradingLimit } from '../user/dto/user.dto';
+ import { AccountType } from './account-type.enum';
+ 
+ export enum KycStatus {
+@@ -38,6 +40,11 @@ export enum BlankType {
+   WALLET_ADDRESS,
+ }
+ 
++export enum LimitPeriod {
++  DAY = 'Day',
++  YEAR = 'Year',
++}
++
+ @Entity()
+ export class UserData extends IEntity {
+   @Column({ default: AccountType.PERSONAL, length: 256 })
+@@ -132,7 +139,7 @@ export class UserData extends IEntity {
+   @Index({ unique: true })
+   kycHash: string;
+ 
+-  @Column({ type: 'float', default: 90000 })
++  @Column({ type: 'float', nullable: true })
+   depositLimit: number;
+ 
+   @Column({ type: 'integer', nullable: true })
+@@ -178,6 +185,16 @@ export class UserData extends IEntity {
+   get hasExternalUser(): boolean {
+     return !!this.users.find((e) => e.wallet.isKycClient === true);
+   }
++
++  get tradingLimit(): TradingLimit {
++    if (KycCompleted(this.kycStatus)) {
++      return { limit: this.depositLimit, period: LimitPeriod.YEAR };
++    } else if (this.kycStatus === KycStatus.REJECTED) {
++      return { limit: 0, period: LimitPeriod.DAY };
++    } else {
++      return { limit: Config.defaultDailyTradingLimit, period: LimitPeriod.DAY };
++    }
++  }
+ }
+ 
+ export const KycInProgressStates = [KycStatus.CHATBOT, KycStatus.ONLINE_ID, KycStatus.VIDEO_ID];
+diff --git a/src/user/models/user/dto/user.dto.ts b/src/user/models/user/dto/user.dto.ts
+index cef9012b2..e866a3b7e 100644
+--- a/src/user/models/user/dto/user.dto.ts
++++ b/src/user/models/user/dto/user.dto.ts
+@@ -1,49 +1,111 @@
+-import { HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
++import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
++import { HistoryFilter, HistoryFilterKey } from 'src/payment/models/history/dto/history-filter.dto';
+ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+ import { Language } from 'src/shared/models/language/language.entity';
+ import { AccountType } from '../../user-data/account-type.enum';
+-import { KycState, KycStatus } from '../../user-data/user-data.entity';
++import { KycState, KycStatus, LimitPeriod } from '../../user-data/user-data.entity';
+ import { UserStatus } from '../user.entity';
+ import { LinkedUserOutDto } from './linked-user.dto';
+ 
+-export interface UserDto {
++export class VolumeInformation {
++  @ApiProperty()
++  total: number;
++
++  @ApiProperty()
++  annual: number;
++}
++
++export class TradingLimit {
++  @ApiProperty()
++  limit: number;
++
++  @ApiProperty({ enum: LimitPeriod })
++  period: LimitPeriod;
++}
++
++export class UserDto {
++  @ApiProperty({ enum: AccountType })
+   accountType: AccountType;
++
++  @ApiProperty()
+   address: string;
++
++  @ApiProperty({ enum: UserStatus })
+   status: UserStatus;
++
++  @ApiProperty()
+   usedRef: string;
++
++  @ApiProperty({ type: Fiat })
+   currency: Fiat;
++
++  @ApiProperty()
+   mail: string;
++
++  @ApiProperty()
+   phone: string;
++
++  @ApiProperty({ type: Language })
+   language: Language;
+ 
++  @ApiProperty({ enum: KycStatus })
+   kycStatus: KycStatus;
++
++  @ApiProperty({ enum: KycState })
+   kycState: KycState;
++
++  @ApiProperty()
+   kycHash: string;
+-  depositLimit: number;
++
++  @ApiProperty({ type: TradingLimit })
++  tradingLimit: TradingLimit;
++
++  @ApiProperty()
+   kycDataComplete: boolean;
++
++  @ApiProperty()
+   apiKeyCT: string;
++
++  @ApiProperty({ type: String, isArray: true })
+   apiFilterCT: HistoryFilterKey[];
+ }
+ 
+-export interface UserDetails {
++export type UserDetails = Omit<UserDetailDto, keyof UserDto>;
++
++export class UserDetailDto extends UserDto implements UserDetails {
++  @ApiPropertyOptional()
+   ref?: string;
++
++  @ApiPropertyOptional()
+   refFeePercent?: number;
++
++  @ApiProperty()
+   refVolume: number;
++
++  @ApiProperty()
+   refCredit: number;
++
++  @ApiProperty()
+   paidRefCredit: number;
++
++  @ApiProperty()
+   refCount: number;
++
++  @ApiProperty()
+   refCountActive: number;
++
++  @ApiProperty({ type: VolumeInformation })
+   buyVolume: VolumeInformation;
++
++  @ApiProperty({ type: VolumeInformation })
+   sellVolume: VolumeInformation;
++
++  @ApiProperty({ type: VolumeInformation })
+   cryptoVolume: VolumeInformation;
++
++  @ApiProperty()
+   stakingBalance: number;
+ 
++  @ApiPropertyOptional({ type: LinkedUserOutDto, isArray: true })
+   linkedAddresses?: LinkedUserOutDto[];
+ }
+-
+-export interface VolumeInformation {
+-  total: number;
+-  annual: number;
+-}
+-
+-export type UserDetailDto = UserDto & UserDetails;
+diff --git a/src/user/models/user/user.controller.ts b/src/user/models/user/user.controller.ts
+index 1f08d195e..9c8b1e7b2 100644
+--- a/src/user/models/user/user.controller.ts
++++ b/src/user/models/user/user.controller.ts
+@@ -1,6 +1,6 @@
+ import { Body, Controller, Delete, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+ import { AuthGuard } from '@nestjs/passport';
+-import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
++import { ApiBearerAuth, ApiExcludeEndpoint, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
+ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+ import { RoleGuard } from 'src/shared/auth/role.guard';
+ import { UpdateUserDto } from './dto/update-user.dto';
+@@ -27,6 +27,7 @@ export class UserController {
+   @Get()
+   @ApiBearerAuth()
+   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
++  @ApiResponse({ status: 200, type: UserDto })
+   async getUser(@GetJwt() jwt: JwtPayload): Promise<UserDto> {
+     return this.userService.getUserDto(jwt.id, false);
+   }
+@@ -34,6 +35,7 @@ export class UserController {
+   @Get('detail')
+   @ApiBearerAuth()
+   @UseGuards(AuthGuard(), new RoleGuard(UserRole.USER))
++  @ApiResponse({ status: 200, type: UserDetailDto })
+   async getUserDetail(@GetJwt() jwt: JwtPayload): Promise<UserDetailDto> {
+     return this.userService.getUserDto(jwt.id, true);
+   }
+diff --git a/src/user/models/user/user.service.ts b/src/user/models/user/user.service.ts
+index ba3221e6e..8712ae11e 100644
+--- a/src/user/models/user/user.service.ts
++++ b/src/user/models/user/user.service.ts
+@@ -472,7 +472,7 @@ export class UserService {
+       kycStatus: user.userData?.kycStatus,
+       kycState: user.userData?.kycState,
+       kycHash: user.userData?.kycHash,
+-      depositLimit: user.userData?.depositLimit,
++      tradingLimit: user.userData?.tradingLimit,
+       kycDataComplete: this.kycService.isDataComplete(user.userData),
+       apiKeyCT: user.apiKeyCT,
+       apiFilterCT: this.apiKeyService.getFilterArray(user.apiFilterCT),
+
+=== ae984fc5 | 2022-10-20T15:55:08+02:00 | [DEV-893] BTC Fee (#463) ===
+Files: infrastructure/bicep/dfx-api.bicep, infrastructure/bicep/parameters/dev.json, infrastructure/bicep/parameters/loc.json, infrastructure/bicep/parameters/prd.json, src/blockchain/ain/ain.module.ts, src/blockchain/ain/node/btc-client.ts, src/blockchain/ain/services/btc-fee.service.ts, src/config/config.ts, src/payment/models/crypto-input/btc-input.service.ts, src/payment/models/payout/services/payout-bitcoin.service.ts
+diff --git a/infrastructure/bicep/dfx-api.bicep b/infrastructure/bicep/dfx-api.bicep
+index 22882dda6..3253a2fc7 100644
+--- a/infrastructure/bicep/dfx-api.bicep
++++ b/infrastructure/bicep/dfx-api.bicep
+@@ -38,6 +38,7 @@ param intWalletAddress string
+ param stakingWalletAddress string
+ param utxoSpenderAddress string
+ param btcCollectorAddress string
++param btcOutWalletAddress string
+ 
+ param ethWalletAddress string
+ @secure()
+@@ -565,6 +566,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
+           name: 'BTC_COLLECTOR_ADDRESS'
+           value: btcCollectorAddress
+         }
++        {
++          name: 'BTC_OUT_WALLET_ADDRESS'
++          value: btcOutWalletAddress
++        }
+         {
+           name: 'FTP_HOST'
+           value: '138.201.74.234'
+diff --git a/infrastructure/bicep/parameters/dev.json b/infrastructure/bicep/parameters/dev.json
+index a60e92d50..10180af8b 100644
+--- a/infrastructure/bicep/parameters/dev.json
++++ b/infrastructure/bicep/parameters/dev.json
+@@ -110,6 +110,9 @@
+     "btcCollectorAddress": {
+       "value": "xxx"
+     },
++    "btcOutWalletAddress": {
++      "value": "xxx"
++    },
+     "nodeServicePlanSkuName": {
+       "value": "P1v2"
+     },
+diff --git a/infrastructure/bicep/parameters/loc.json b/infrastructure/bicep/parameters/loc.json
+index f2f99b3a3..09b97f23f 100644
+--- a/infrastructure/bicep/parameters/loc.json
++++ b/infrastructure/bicep/parameters/loc.json
+@@ -110,6 +110,9 @@
+     "btcCollectorAddress": {
+       "value": "xxx"
+     },
++    "btcOutWalletAddress": {
++      "value": "xxx"
++    },
+     "nodeServicePlanSkuName": {
+       "value": "B1"
+     },
+diff --git a/infrastructure/bicep/parameters/prd.json b/infrastructure/bicep/parameters/prd.json
+index d7772428b..876fe9cd0 100644
+--- a/infrastructure/bicep/parameters/prd.json
++++ b/infrastructure/bicep/parameters/prd.json
+@@ -110,6 +110,9 @@
+     "btcCollectorAddress": {
+       "value": "xxx"
+     },
++    "btcOutWalletAddress": {
++      "value": "xxx"
++    },
+     "nodeServicePlanSkuName": {
+       "value": "P2v2"
+     },
+diff --git a/src/blockchain/ain/ain.module.ts b/src/blockchain/ain/ain.module.ts
+index 1dad110db..6dc7ae380 100644
+--- a/src/blockchain/ain/ain.module.ts
++++ b/src/blockchain/ain/ain.module.ts
+@@ -5,11 +5,12 @@ import { NodeController } from './node/node.controller';
+ import { NodeService } from './node/node.service';
+ import { WhaleService } from './whale/whale.service';
+ import { DeFiChainUtil } from './utils/defichain.util';
++import { BtcFeeService } from './services/btc-fee.service';
+ 
+ @Module({
+   imports: [SharedModule],
+-  providers: [CryptoService, NodeService, WhaleService, DeFiChainUtil],
+-  exports: [CryptoService, NodeService, WhaleService, DeFiChainUtil],
++  providers: [CryptoService, NodeService, WhaleService, DeFiChainUtil, BtcFeeService],
++  exports: [CryptoService, NodeService, WhaleService, DeFiChainUtil, BtcFeeService],
+   controllers: [NodeController],
+ })
+ export class AinModule {}
+diff --git a/src/blockchain/ain/node/btc-client.ts b/src/blockchain/ain/node/btc-client.ts
+index dc1ceb4bd..594b828f3 100644
+--- a/src/blockchain/ain/node/btc-client.ts
++++ b/src/blockchain/ain/node/btc-client.ts
+@@ -1,4 +1,5 @@
+ import { SchedulerRegistry } from '@nestjs/schedule';
++import { Config } from 'src/config/config';
+ import { HttpService } from 'src/shared/services/http.service';
+ import { NodeClient, NodeCommand, NodeMode } from './node-client';
+ 
+@@ -27,4 +28,24 @@ export class BtcClient extends NodeClient {
+       true,
+     ).then((r) => r.txid);
+   }
++
++  async sendMany(payload: { addressTo: string; amount: number }[], feeRate: number): Promise<string> {
++    const batch = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: `${p.amount}` }), {});
++
++    return await this.callNode<{ txid: string }>(
++      (c) =>
++        c.call(
++          NodeCommand.SEND,
++          [
++            batch,
++            null,
++            'unset',
++            null,
++            { fee_rate: feeRate, replaceable: true, change_address: Config.blockchain.default.btcOutWalletAddress },
++          ],
++          'number',
++        ),
++      true,
++    ).then((r) => r.txid);
++  }
+ }
+diff --git a/src/blockchain/ain/services/btc-fee.service.ts b/src/blockchain/ain/services/btc-fee.service.ts
+new file mode 100644
+index 000000000..bb2b38054
+--- /dev/null
++++ b/src/blockchain/ain/services/btc-fee.service.ts
+@@ -0,0 +1,23 @@
++import { Injectable } from '@nestjs/common';
++import { HttpService } from 'src/shared/services/http.service';
++
++@Injectable()
++export class BtcFeeService {
++  private readonly btcFeeUrl = 'https://mempool.space/api/v1/fees/recommended';
++
++  constructor(private readonly http: HttpService) {}
++
++  async getRecommendedFeeRate(): Promise<number> {
++    const { fastestFee } = await this.http.get<{
++      fastestFee: number;
++      halfHourFee: number;
++      hourFee: number;
++      economyFee: number;
++      minimumFee: number;
++    }>(this.btcFeeUrl, {
++      tryCount: 3,
++    });
++
++    return fastestFee;
++  }
++}
+diff --git a/src/config/config.ts b/src/config/config.ts
+index 3d9a1c5fd..df89ab278 100644
+--- a/src/config/config.ts
++++ b/src/config/config.ts
+@@ -199,6 +199,7 @@ export class Configuration {
+       intWalletAddress: process.env.INT_WALLET_ADDRESS,
+       stakingWalletAddress: process.env.STAKING_WALLET_ADDRESS,
+       btcCollectorAddress: process.env.BTC_COLLECTOR_ADDRESS,
++      btcOutWalletAddress: process.env.BTC_OUT_WALLET_ADDRESS,
+       minTxAmount: 0.00000297,
+       minDeposit: {
+         Fiat: {
+diff --git a/src/payment/models/crypto-input/btc-input.service.ts b/src/payment/models/crypto-input/btc-input.service.ts
+index 61e6489cb..7c7cfcb87 100644
+--- a/src/payment/models/crypto-input/btc-input.service.ts
++++ b/src/payment/models/crypto-input/btc-input.service.ts
+@@ -13,27 +13,26 @@ import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessib
+ import { CryptoInputService } from './crypto-input.service';
+ import { BtcClient } from 'src/blockchain/ain/node/btc-client';
+ import { CryptoRouteService } from '../crypto-route/crypto-route.service';
+-import { HttpService } from 'src/shared/services/http.service';
+ import { BuyCryptoService } from '../buy-crypto/services/buy-crypto.service';
+ import { ChainalysisService } from './chainalysis.service';
+ import { Blockchain } from 'src/blockchain/shared/enums/blockchain.enum';
+ import { AmlCheck } from '../buy-crypto/enums/aml-check.enum';
++import { BtcFeeService } from 'src/blockchain/ain/services/btc-fee.service';
+ 
+ @Injectable()
+ export class BtcInputService extends CryptoInputService {
+   private readonly lock = new Lock(7200);
+-  private readonly btcFeeUrl = 'https://mempool.space/api/v1/fees/recommended';
+ 
+   private btcClient: BtcClient;
+ 
+   constructor(
+     nodeService: NodeService,
+     cryptoInputRepo: CryptoInputRepository,
+-    private readonly http: HttpService,
+     private readonly assetService: AssetService,
+     private readonly cryptoRouteService: CryptoRouteService,
+     private readonly buyCryptoService: BuyCryptoService,
+     private readonly chainalysisService: ChainalysisService,
++    private readonly feeService: BtcFeeService,
+   ) {
+     super(cryptoInputRepo);
+     nodeService.getConnectedNode(NodeType.BTC_INPUT).subscribe((bitcoinClient) => (this.btcClient = bitcoinClient));
+@@ -177,16 +176,8 @@ export class BtcInputService extends CryptoInputService {
+   }
+ 
+   private async getFeeRate(amount: number): Promise<number> {
+-    const { fastestFee } = await this.http.get<{
+-      fastestFee: number;
+-      halfHourFee: number;
+-      hourFee: number;
+-      economyFee: number;
+-      minimumFee: number;
+-    }>(this.btcFeeUrl, {
+-      tryCount: 3,
+-    });
+-    return Math.floor(Math.max(Math.min(fastestFee, 500 * amount), 1));
++    const feeRate = await this.feeService.getRecommendedFeeRate();
++    return Math.floor(Math.max(Math.min(feeRate, 500 * amount), 1));
+   }
+ 
+   // --- CONFIRMATION HANDLING --- //
+diff --git a/src/payment/models/payout/services/payout-bitcoin.service.ts b/src/payment/models/payout/services/payout-bitcoin.service.ts
+index a6d2d83ab..e670ddbfd 100644
+--- a/src/payment/models/payout/services/payout-bitcoin.service.ts
++++ b/src/payment/models/payout/services/payout-bitcoin.service.ts
+@@ -1,6 +1,7 @@
+ import { Injectable } from '@nestjs/common';
+ import { BtcClient } from 'src/blockchain/ain/node/btc-client';
+ import { NodeService, NodeType } from 'src/blockchain/ain/node/node.service';
++import { BtcFeeService } from 'src/blockchain/ain/services/btc-fee.service';
+ import { PayoutOrderContext } from '../entities/payout-order.entity';
+ import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.service';
+ 
+@@ -8,7 +9,7 @@ import { PayoutGroup, PayoutJellyfishService } from './base/payout-jellyfish.ser
+ export class PayoutBitcoinService extends PayoutJellyfishService {
+   #client: BtcClient;
+ 
+-  constructor(readonly nodeService: NodeService) {
++  constructor(readonly nodeService: NodeService, private readonly feeService: BtcFeeService) {
+     super();
+     nodeService.getConnectedNode(NodeType.BTC_OUTPUT).subscribe((client) => (this.#client = client));
+   }
+@@ -22,7 +23,8 @@ export class PayoutBitcoinService extends PayoutJellyfishService {
+   }
+ 
+   async sendUtxoToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
+-    return this.#client.sendUtxoToMany(payout);
++    const feeRate = await this.feeService.getRecommendedFeeRate();
++    return this.#client.sendMany(payout, feeRate);
+   }
+ 
+   async checkPayoutCompletion(_context: any, payoutTxId: string): Promise<boolean> {
+
+=== 7d1eb8fc | 2022-10-20T15:17:07+02:00 | Send payment mails to liq address (#464) ===
+Files: src/config/config.ts, src/notification/entities/mail/base/mail.ts, src/notification/entities/mail/error-monitoring-mail.ts, src/notification/services/mail.service.ts
+diff --git a/src/config/config.ts b/src/config/config.ts
+index 018e4d20d..3d9a1c5fd 100644
+--- a/src/config/config.ts
++++ b/src/config/config.ts
+@@ -149,6 +149,7 @@ export class Configuration {
+     contact: {
+       supportMail: process.env.SUPPORT_MAIL || 'support@dfx.swiss',
+       monitoringMail: process.env.MONITORING_MAIL || 'monitoring@dfx.swiss',
++      liqMail: process.env.LIQ_MAIL || 'liq@dfx.swiss',
+       noReplyMail: process.env.NOREPLY_MAIL || 'noreply@dfx.swiss',
+     },
+   };
+diff --git a/src/notification/entities/mail/base/mail.ts b/src/notification/entities/mail/base/mail.ts
+index 5a1e380ed..debf920e2 100644
+--- a/src/notification/entities/mail/base/mail.ts
++++ b/src/notification/entities/mail/base/mail.ts
+@@ -3,7 +3,7 @@ import { NotificationType } from 'src/notification/enums';
+ import { Notification, NotificationOptions, NotificationMetadata } from '../../notification.entity';
+ 
+ export interface MailParams {
+-  to: string;
++  to: string | string[];
+   subject: string;
+   salutation: string;
+   body: string;
+@@ -26,7 +26,7 @@ export class Mail extends Notification {
+     name: 'DFX.swiss',
+     address: GetConfig().mail.contact.noReplyMail,
+   };
+-  readonly #to: string;
++  readonly #to: string | string[];
+   readonly #cc: string;
+   readonly #bcc: string;
+   readonly #template: string = GetConfig().mail.defaultMailTemplate;
+@@ -66,7 +66,7 @@ export class Mail extends Notification {
+     return { name, address };
+   }
+ 
+-  get to(): string {
++  get to(): string | string[] {
+     return this.#to;
+   }
+ 
+diff --git a/src/notification/entities/mail/error-monitoring-mail.ts b/src/notification/entities/mail/error-monitoring-mail.ts
+index cf848d669..6b1e52534 100644
+--- a/src/notification/entities/mail/error-monitoring-mail.ts
++++ b/src/notification/entities/mail/error-monitoring-mail.ts
+@@ -1,4 +1,5 @@
+ import { GetConfig } from 'src/config/config';
++import { MailContext } from 'src/notification/enums';
+ import { NotificationMetadata, NotificationOptions } from '../notification.entity';
+ import { Mail } from './base/mail';
+ 
+@@ -13,8 +14,11 @@ export interface ErrorMonitoringMailParams {
+ 
+ export class ErrorMonitoringMail extends Mail {
+   constructor(params: ErrorMonitoringMailParams) {
++    const to = [GetConfig().mail.contact.monitoringMail];
++    ErrorMonitoringMail.isLiqMail(params) && to.push(GetConfig().mail.contact.liqMail);
++
+     const _params = {
+-      to: GetConfig().mail.contact.monitoringMail,
++      to: to,
+       subject: `${params.subject} (${GetConfig().environment.toUpperCase()})`,
+       salutation: 'Hi DFX Tech Support',
+       body: ErrorMonitoringMail.createBody(params.errors),
+@@ -25,6 +29,12 @@ export class ErrorMonitoringMail extends Mail {
+     super(_params);
+   }
+ 
++  private static isLiqMail(params: ErrorMonitoringMailParams): boolean {
++    return [MailContext.BUY_CRYPTO, MailContext.DEX, MailContext.PAYOUT, MailContext.PRICING].includes(
++      params.metadata?.context,
++    );
++  }
++
+   static createBody(errors: string[]): string {
+     const env = GetConfig().environment.toUpperCase();
+ 
+diff --git a/src/notification/services/mail.service.ts b/src/notification/services/mail.service.ts
+index 3a00e704e..8fd64eb52 100644
+--- a/src/notification/services/mail.service.ts
++++ b/src/notification/services/mail.service.ts
+@@ -9,6 +9,7 @@ export interface MailOptions {
+   contact: {
+     supportMail: string;
+     monitoringMail: string;
++    liqMail: string;
+     noReplyMail: string;
+   };
+ }
+
+=== aa675a60 | 2022-10-12T11:07:22+02:00 | Improved logging for BuyCrypto and Spider errors (#451) ===
+Files: src/payment/models/dex/services/dex-defichain.service.ts, src/payment/models/dex/strategies/purchase-liquidity/base/purchase-liquidity-defichain-non-poolpair.strategy.ts, src/user/services/spider/spider-sync.service.ts
+diff --git a/src/payment/models/dex/services/dex-defichain.service.ts b/src/payment/models/dex/services/dex-defichain.service.ts
+index 84dde21e2..4e00f0f09 100644
+--- a/src/payment/models/dex/services/dex-defichain.service.ts
++++ b/src/payment/models/dex/services/dex-defichain.service.ts
+@@ -70,7 +70,7 @@ export class DexDeFiChainService {
+     } catch (e) {
+       if (this.isCompositeSwapSlippageError(e)) {
+         throw new PriceSlippageException(
+-          `Price is higher than indicated. Composite swap. Maximum price for asset ${targetAsset} is ${maxPrice} ${swapAsset}.`,
++          `Price is higher than indicated. Composite swap ${swapAmount} ${swapAsset} to ${targetAsset}. Maximum price for asset ${targetAsset} is ${maxPrice} ${swapAsset}.`,
+         );
+       }
+ 
+@@ -185,7 +185,7 @@ export class DexDeFiChainService {
+ 
+     if (targetAmount > 0.000001 && targetAmount < minimalAllowedTargetAmount) {
+       throw new PriceSlippageException(
+-        `Price is higher than indicated. Test swap. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${Util.round(
++        `Price is higher than indicated. Test swap ${sourceAmount} ${sourceAsset} to ${targetAmount} ${targetAsset}. Maximum price for asset ${targetAsset} is ${maxPrice} ${sourceAsset}. Actual price is ${Util.round(
+           sourceAmount / targetAmount,
+           8,
+         )} ${sourceAsset}`,
+diff --git a/src/payment/models/dex/strategies/purchase-liquidity/base/purchase-liquidity-defichain-non-poolpair.strategy.ts b/src/payment/models/dex/strategies/purchase-liquidity/base/purchase-liquidity-defichain-non-poolpair.strategy.ts
+index a4de5d540..457156098 100644
+--- a/src/payment/models/dex/strategies/purchase-liquidity/base/purchase-liquidity-defichain-non-poolpair.strategy.ts
++++ b/src/payment/models/dex/strategies/purchase-liquidity/base/purchase-liquidity-defichain-non-poolpair.strategy.ts
+@@ -87,7 +87,7 @@ export abstract class PurchaseLiquidityDeFiChainNonPoolPairStrategy extends Purc
+     }
+ 
+     throw new NotEnoughLiquidityException(
+-      'Failed to find suitable source asset for liquidity order. '.concat(...errors),
++      `Failed to find suitable source asset for liquidity order (target asset ${targetAsset}). `.concat(...errors),
+     );
+   }
+ }
+diff --git a/src/user/services/spider/spider-sync.service.ts b/src/user/services/spider/spider-sync.service.ts
+index 4775d3ee4..bd16d7a7c 100644
+--- a/src/user/services/spider/spider-sync.service.ts
++++ b/src/user/services/spider/spider-sync.service.ts
+@@ -103,7 +103,7 @@ export class SpiderSyncService {
+         await this.syncKycUser(userDataId);
+       } catch (e) {
+         console.error(`Exception during KYC sync for user ${userDataId}:`, e);
+-        await this.mailService.sendErrorMail('KYC Error',[`Exception during KYC sync for user ${userDataId}: ${e}`]);
++        await this.mailService.sendErrorMail('KYC Error', [`Exception during KYC sync for user ${userDataId}: ${e}`]);
+       }
+     }
+   }
+@@ -136,6 +136,9 @@ export class SpiderSyncService {
+           });
+         }
+       }
++
++      if (!userData.spiderData.identPdf) console.error(`Failed to fetch ident PDF for user ${userDataId}`);
++
+       await this.spiderDataRepo.save(userData.spiderData);
+     }
+ 
+@@ -215,7 +218,7 @@ export class SpiderSyncService {
+ 
+   private async getIdentPdfUrl(userData: UserData): Promise<string> {
+     const result = await this.getIdentResult(userData, KycContentType.PDF);
+-    return result
++    return result?.part
+       ? this.spiderService.getDocumentUrl(userData.kycCustomerId, result.document, result.version, result.part.name)
+       : null;
+   }
+
+=== 9a62365b | 2022-09-20T17:58:56+02:00 | Ignore Dust DFI (#426) ===
+Files: .github/workflows/node-dev.yaml, src/payment/models/crypto-input/defi-input.service.ts
+diff --git a/.github/workflows/node-dev.yaml b/.github/workflows/node-dev.yaml
+deleted file mode 100644
+index ed5350aa6..000000000
+--- a/.github/workflows/node-dev.yaml
++++ /dev/null
+@@ -1,35 +0,0 @@
+-name: Node DEV CD
+-
+-on:
+-  push:
+-    branches: [ develop ]
+-    paths: [ infrastructure/docker/defi-node-dev.yml ]
+-  workflow_dispatch:
+-
+-jobs:
+-  build-and-deploy:
+-    name: Deploy to DEV
+-    runs-on: ubuntu-latest
+-    steps:
+-      - name: Checkout
+-        uses: actions/checkout@v2
+-
+-      - name: Login
+-        uses: azure/login@v1
+-        with:
+-          creds: ${{ secrets.DEV_CREDENTIALS }}
+-
+-      - name: Deploy to Azure App Service (DEV)
+-        uses: azure/CLI@v1
+-        with:
+-          inlineScript: |
+-            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-inp-dev --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-dev.yml
+-            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-dex-dev --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-dev.yml
+-            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-inp-dev --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-dev.yml --slot stg
+-            az webapp config container set --resource-group rg-dfx-api-dev --name app-dfx-node-dex-dev --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-dev.yml --slot stg
+-      
+-      - name: Logout
+-        run: |
+-          az logout
+-        if: always()
+-
+diff --git a/src/payment/models/crypto-input/defi-input.service.ts b/src/payment/models/crypto-input/defi-input.service.ts
+index dc0120ec5..f4e139ec2 100644
+--- a/src/payment/models/crypto-input/defi-input.service.ts
++++ b/src/payment/models/crypto-input/defi-input.service.ts
+@@ -81,6 +81,11 @@ export class DeFiInputService extends CryptoInputService {
+               await this.sendFeeUtxo(token.owner);
+             }
+           } else {
++            // ignoring dust DFI transactions
++            if (asset === 'DFI' && amount < Config.blockchain.default.minTxAmount) {
++              continue;
++            }
++
+             // check for min. deposit
+             // TODO: remove temporary DUSD pool fix
+             const usdtAmount = asset === 'DUSD' ? amount : await this.client.testCompositeSwap(asset, 'USDT', amount);
+
+=== 0d393d98 | 2022-09-14T17:59:03+02:00 | [DEV-618] BTC Output Node (#416) ===
+Files: .env.example, infrastructure/Readme.md, infrastructure/bicep/btc-node.bicep, infrastructure/bicep/defi-node.bicep, infrastructure/bicep/dfx-api.bicep, src/blockchain/ain/node/node.service.ts, src/config/config.ts
+diff --git a/.env.example b/.env.example
+index 2b982a986..4f4202e87 100644
+--- a/.env.example
++++ b/.env.example
+@@ -24,6 +24,8 @@ NODE_INP_URL_ACTIVE=
+ NODE_DEX_URL_ACTIVE=
+ NODE_OUT_URL_ACTIVE=
+ NODE_REF_URL_ACTIVE=
++NODE_BTC_INP_URL_ACTIVE=
++NODE_BTC_OUT_URL_ACTIVE=
+ NODE_WALLET_PASSWORD=
+ DEX_WALLET_ADDRESS=
+ OUT_WALLET_ADDRESS=
+diff --git a/infrastructure/Readme.md b/infrastructure/Readme.md
+index 497cad9c7..8ccbd30b7 100644
+--- a/infrastructure/Readme.md
++++ b/infrastructure/Readme.md
+@@ -1,6 +1,13 @@
+ # Infrastructure Deployment
+-1. Update parameter files (stash)
++1. Update parameter files
+ 1. Temp: Update JWT secret
+ 1. Do deployment: `az deployment group create -g rg-dfx-api-{env} -f infrastructure/bicep/dfx-api.bicep -p infrastructure/bicep/parameters/{env}.json`
+-1. Loc: remove unused resources (API app service, app insights)
+-1. Dev: remove unused resources (INT node), node url app configuration
+\ No newline at end of file
++1. Loc: remove unused resources (API app service + plan, app insights)
++1. Dev: remove unused resources (INT node), node url app configuration
++
++# BTC Node Setup
++1. Connect to BTC node: `ssh dfx@vm-dfx-btc-{type}-{env}.westeurope.cloudapp.azure.com`
++1. Create scripts (`setup.sh` and `start.sh` from `infrastructure/scripts/btc`) and make them executable (`chmod +x {file}`)
++1. Execute setup script: `sudo ./setup.sh`
++1. Copy content of config file (`infrastructure/config/{env}.conf`) to virtual machine (`.bitcoin/bitcoin.conf`)
++1. Start the node: `./start.sh`
+\ No newline at end of file
+diff --git a/infrastructure/bicep/btc-node.bicep b/infrastructure/bicep/btc-node.bicep
+new file mode 100644
+index 000000000..33ee76b29
+--- /dev/null
++++ b/infrastructure/bicep/btc-node.bicep
+@@ -0,0 +1,96 @@
++// --- PARAMETERS --- //
++param location string
++
++param pipName string
++param vmName string
++param vmDiskName string
++param nicName string
++
++param vmUser string
++@secure()
++param vmPassword string
++
++param subnetId string
++
++
++// --- RESOURCES --- //
++resource pip 'Microsoft.Network/publicIPAddresses@2020-11-01' = {
++  name: pipName
++  location: location
++  sku: {
++    name: 'Standard'
++  }
++  properties: {
++    publicIPAllocationMethod: 'Static'
++    dnsSettings: {
++      domainNameLabel: vmName
++    }
++  }
++}
++
++resource nic 'Microsoft.Network/networkInterfaces@2020-11-01' = {
++  name: nicName
++  location: location
++  properties: {
++    ipConfigurations: [
++      {
++        name: 'ipconfig1'
++        properties: {
++          privateIPAllocationMethod: 'Dynamic'
++          publicIPAddress: {
++            id: pip.id
++          }
++          subnet: {
++            id: subnetId
++          }
++        }
++      }
++    ]
++  }
++}
++
++resource vm 'Microsoft.Compute/virtualMachines@2022-03-01' = {
++  name: vmName
++  location: location
++  properties: {
++    hardwareProfile: {
++      vmSize: 'Standard_B2s'
++    }
++    storageProfile: {
++      imageReference: {
++        publisher: 'canonical'
++        offer: '0001-com-ubuntu-server-focal'
++        sku: '20_04-lts-gen2'
++        version: 'latest'
++      }
++      osDisk: {
++        name: vmDiskName
++        createOption: 'FromImage'
++        caching: 'ReadWrite'
++        managedDisk: {
++          storageAccountType: 'StandardSSD_LRS'
++        }
++        diskSizeGB: 1023
++      }
++    }
++    osProfile: {
++      computerName: vmName
++      adminUsername: vmUser
++      adminPassword: vmPassword
++    }
++    networkProfile: {
++      networkInterfaces: [
++        {
++          id: nic.id
++        }
++      ]
++    }
++    diagnosticsProfile: {
++      bootDiagnostics: {
++        enabled: true
++      }
++    }
++  }
++}
++
++output url string = 'http://${nic.properties.ipConfigurations[0].properties.privateIPAddress}:8332'
+diff --git a/infrastructure/bicep/defi-node.bicep b/infrastructure/bicep/defi-node.bicep
+index ad5500b2f..d6ce4ca7d 100644
+--- a/infrastructure/bicep/defi-node.bicep
++++ b/infrastructure/bicep/defi-node.bicep
+@@ -19,6 +19,14 @@ param hasBackup bool
+ 
+ 
+ // --- RESOURCES --- //
++resource fileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
++  name: '${storageAccountName}/default/${fileShareNameA}'
++}
++
++resource fileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
++  name: '${storageAccountName}/default/${fileShareNameB}'
++}
++
+ resource appServicePlan 'Microsoft.Web/serverfarms@2018-02-01' = {
+   name: servicePlanName
+   location: location
+diff --git a/infrastructure/bicep/dfx-api.bicep b/infrastructure/bicep/dfx-api.bicep
+index cc04525d7..947c39648 100644
+--- a/infrastructure/bicep/dfx-api.bicep
++++ b/infrastructure/bicep/dfx-api.bicep
+@@ -119,19 +119,10 @@ var nodeName = 'node'
+ var virtualNetName = 'vnet-${compName}-${apiName}-${env}'
+ var subNetName = 'snet-${compName}-${apiName}-${env}'
+ var vmSubNetName = 'snet-${compName}-vm-${env}'
++var vmNsgName = 'nsg-${compName}-vm-${env}'
+ 
+ var storageAccountName = replace('st-${compName}-${apiName}-${env}', '-', '')
+ var dbBackupContainerName = 'db-bak'
+-var nodeInpFileShareNameA = 'node-inp-data-a'
+-var nodeInpFileShareNameB = 'node-inp-data-b'
+-var nodeDexFileShareNameA = 'node-dex-data-a'
+-var nodeDexFileShareNameB = 'node-dex-data-b'
+-var nodeOutFileShareNameA = 'node-out-data-a'
+-var nodeOutFileShareNameB = 'node-out-data-b'
+-var nodeIntFileShareNameA = 'node-int-data-a'
+-var nodeIntFileShareNameB = 'node-int-data-b'
+-var nodeRefFileShareNameA = 'node-ref-data-a'
+-var nodeRefFileShareNameB = 'node-ref-data-b'
+ 
+ var sqlServerName = 'sql-${compName}-${apiName}-${env}'
+ var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
+@@ -140,59 +131,59 @@ var apiServicePlanName = 'plan-${compName}-${apiName}-${env}'
+ var apiAppName = 'app-${compName}-${apiName}-${env}'
+ var appInsightsName = 'appi-${compName}-${apiName}-${env}'
+ 
+-var nodeInpServicePlanName = 'plan-${compName}-${nodeName}-inp-${env}'
+-var nodeInpAppName = 'app-${compName}-${nodeName}-inp-${env}'
+-var nodeDexServicePlanName = 'plan-${compName}-${nodeName}-dex-${env}'
+-var nodeDexAppName = 'app-${compName}-${nodeName}-dex-${env}'
+-var nodeOutServicePlanName = 'plan-${compName}-${nodeName}-out-${env}'
+-var nodeOutAppName = 'app-${compName}-${nodeName}-out-${env}'
+-var nodeIntServicePlanName = 'plan-${compName}-${nodeName}-int-${env}'
+-var nodeIntAppName = 'app-${compName}-${nodeName}-int-${env}'
+-var nodeRefServicePlanName = 'plan-${compName}-${nodeName}-ref-${env}'
+-var nodeRefAppName = 'app-${compName}-${nodeName}-ref-${env}'
+-
+-var btcVmName = 'vm-${compName}-btc-inp-${env}'
+-var btcVmDiskName = 'osdisk-${compName}-btc-inp-${env}'
+-var btcNicName = 'nic-${compName}-btc-inp-${env}'
+-var btcPipName = 'ip-${compName}-btc-inp-${env}'
+-var btcNsgName = 'nsg-${compName}-btc-inp-${env}'
+-
+ 
+ var nodeProps = [
+   {
+     name: 'nodes-input-${env}'
+-    servicePlanName: nodeInpServicePlanName
+-    appName: nodeInpAppName
+-    fileShareNameA: nodeInpFileShareNameA
+-    fileShareNameB: nodeInpFileShareNameB
++    servicePlanName: 'plan-${compName}-${nodeName}-inp-${env}'
++    appName: 'app-${compName}-${nodeName}-inp-${env}'
++    fileShareNameA: 'node-inp-data-a'
++    fileShareNameB: 'node-inp-data-b'
+   }
+   {
+     name: 'nodes-dex-${env}'
+-    servicePlanName: nodeDexServicePlanName
+-    appName: nodeDexAppName
+-    fileShareNameA: nodeDexFileShareNameA
+-    fileShareNameB: nodeDexFileShareNameB
++    servicePlanName: 'plan-${compName}-${nodeName}-dex-${env}'
++    appName: 'app-${compName}-${nodeName}-dex-${env}'
++    fileShareNameA: 'node-dex-data-a'
++    fileShareNameB: 'node-dex-data-b'
+   }
+   {
+     name: 'nodes-output-${env}'
+-    servicePlanName: nodeOutServicePlanName
+-    appName: nodeOutAppName
+-    fileShareNameA: nodeOutFileShareNameA
+-    fileShareNameB: nodeOutFileShareNameB
++    servicePlanName: 'plan-${compName}-${nodeName}-out-${env}'
++    appName: 'app-${compName}-${nodeName}-out-${env}'
++    fileShareNameA: 'node-out-data-a'
++    fileShareNameB: 'node-out-data-b'
+   }
+   {
+     name: 'nodes-int-${env}'
+-    servicePlanName: nodeIntServicePlanName
+-    appName: nodeIntAppName
+-    fileShareNameA: nodeIntFileShareNameA
+-    fileShareNameB: nodeIntFileShareNameB
++    servicePlanName: 'plan-${compName}-${nodeName}-int-${env}'
++    appName: 'app-${compName}-${nodeName}-int-${env}'
++    fileShareNameA: 'node-int-data-a'
++    fileShareNameB: 'node-int-data-b'
+   }
+   {
+     name: 'nodes-ref-${env}'
+-    servicePlanName: nodeRefServicePlanName
+-    appName: nodeRefAppName
+-    fileShareNameA: nodeRefFileShareNameA
+-    fileShareNameB: nodeRefFileShareNameB
++    servicePlanName: 'plan-${compName}-${nodeName}-ref-${env}'
++    appName: 'app-${compName}-${nodeName}-ref-${env}'
++    fileShareNameA: 'node-ref-data-a'
++    fileShareNameB: 'node-ref-data-b'
++  }
++]
++
++var btcNodeProps = [
++  {
++    name: 'btc-node-input-${env}'
++    pipName: 'ip-${compName}-btc-inp-${env}'
++    vmName: 'vm-${compName}-btc-inp-${env}'
++    vmDiskName: 'osdisk-${compName}-btc-inp-${env}'
++    nicName: 'nic-${compName}-btc-inp-${env}'
++  }
++  {
++    name: 'btc-node-output-${env}'
++    pipName: 'ip-${compName}-btc-out-${env}'
++    vmName: 'vm-${compName}-btc-out-${env}'
++    vmDiskName: 'osdisk-${compName}-btc-out-${env}'
++    nicName: 'nic-${compName}-btc-out-${env}'
+   }
+ ]
+ 
+@@ -243,6 +234,9 @@ resource virtualNet 'Microsoft.Network/virtualNetworks@2020-11-01' = {
+         name: vmSubNetName
+         properties: {
+           addressPrefix: '10.0.1.0/24'
++          networkSecurityGroup: {
++            id: vmNsg.id
++          }
+         }
+       }
+     ]
+@@ -270,46 +264,6 @@ resource dbBackupContainer 'Microsoft.Storage/storageAccounts/blobServices/conta
+   name: '${storageAccount.name}/default/${dbBackupContainerName}'
+ }
+ 
+-resource nodeInpFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+-  name: '${storageAccount.name}/default/${nodeInpFileShareNameA}'
+-}
+-
+-resource nodeInpFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+-  name: '${storageAccount.name}/default/${nodeInpFileShareNameB}'
+-}
+-
+-resource nodeDexFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+-  name: '${storageAccount.name}/default/${nodeDexFileShareNameA}'
+-}
+-
+-resource nodeDexFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+-  name: '${storageAccount.name}/default/${nodeDexFileShareNameB}'
+-}
+-
+-resource nodeOutFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+-  name: '${storageAccount.name}/default/${nodeOutFileShareNameA}'
+-}
+-
+-resource nodeOutFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+-  name: '${storageAccount.name}/default/${nodeOutFileShareNameB}'
+-}
+-
+-resource nodeIntFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+-  name: '${storageAccount.name}/default/${nodeIntFileShareNameA}'
+-}
+-
+-resource nodeIntFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+-  name: '${storageAccount.name}/default/${nodeIntFileShareNameB}'
+-}
+-
+-resource nodeRefFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+-  name: '${storageAccount.name}/default/${nodeRefFileShareNameA}'
+-}
+-
+-resource nodeRefFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+-  name: '${storageAccount.name}/default/${nodeRefFileShareNameB}'
+-}
+-
+ 
+ // SQL Database
+ resource sqlServer 'Microsoft.Sql/servers@2021-02-01-preview' = {
+@@ -535,7 +489,11 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
+         }
+         {
+           name: 'NODE_BTC_INP_URL_ACTIVE'
+-          value: 'http://${btcNic.properties.ipConfigurations[0].properties.privateIPAddress}:8332'
++          value: btcNodes[0].outputs.url
++        }
++        {
++          name: 'NODE_BTC_OUT_URL_ACTIVE'
++          value: btcNodes[1].outputs.url
+         }
+         {
+           name: 'DEX_WALLET_ADDRESS'
+@@ -736,22 +694,8 @@ module nodes 'defi-node.bicep' = [for node in nodeProps: {
+ 
+ 
+ // BTC Node
+-resource btcPip 'Microsoft.Network/publicIPAddresses@2020-11-01' = {
+-  name: btcPipName
+-  location: location
+-  sku: {
+-    name: 'Standard'
+-  }
+-  properties: {
+-    publicIPAllocationMethod: 'Static'
+-    dnsSettings: {
+-      domainNameLabel: btcVmName
+-    }
+-  }
+-}
+-
+-resource btcNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
+-  name: btcNsgName
++resource vmNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
++  name: vmNsgName
+   location: location
+   properties: {
+     securityRules: [
+@@ -773,7 +717,7 @@ resource btcNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
+ }
+ 
+ resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-01' = if (nodeAllowAllIps) {
+-  parent: btcNsg
++  parent: vmNsg
+   name: 'RPC'
+   properties: {
+     protocol: 'TCP'
+@@ -787,70 +731,16 @@ resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-
+   }
+ }
+ 
+-resource btcNic 'Microsoft.Network/networkInterfaces@2020-11-01' = {
+-  name: btcNicName
+-  location: location
+-  properties: {
+-    ipConfigurations: [
+-      {
+-        name: 'ipconfig1'
+-        properties: {
+-          privateIPAllocationMethod: 'Dynamic'
+-          publicIPAddress: {
+-            id: btcPip.id
+-          }
+-          subnet: {
+-            id: virtualNet.properties.subnets[1].id
+-          }
+-        }
+-      }
+-    ]
+-    networkSecurityGroup: {
+-      id: btcNsg.id
+-    }
+-  }
+-}
+-
+-resource btcVm 'Microsoft.Compute/virtualMachines@2022-03-01' = {
+-  name: btcVmName
+-  location: location
+-  properties: {
+-    hardwareProfile: {
+-      vmSize: 'Standard_B2s'
+-    }
+-    storageProfile: {
+-      imageReference: {
+-        publisher: 'canonical'
+-        offer: '0001-com-ubuntu-server-focal'
+-        sku: '20_04-lts-gen2'
+-        version: 'latest'
+-      }
+-      osDisk: {
+-        name: btcVmDiskName
+-        createOption: 'FromImage'
+-        caching: 'ReadWrite'
+-        managedDisk: {
+-          storageAccountType: 'StandardSSD_LRS'
+-        }
+-        diskSizeGB: 1023
+-      }
+-    }
+-    osProfile: {
+-      computerName: btcVmName
+-      adminUsername: btcVmUser
+-      adminPassword: btcVmPassword
+-    }
+-    networkProfile: {
+-      networkInterfaces: [
+-        {
+-          id: btcNic.id
+-        }
+-      ]
+-    }
+-    diagnosticsProfile: {
+-      bootDiagnostics: {
+-        enabled: true
+-      }
+-    }
++module btcNodes 'btc-node.bicep' = [for node in btcNodeProps: {
++  name: node.name
++  params: {
++    location: location
++    pipName: node.pipName
++    vmName: node.vmName
++    vmDiskName: node.vmDiskName
++    nicName: node.nicName
++    vmUser: btcVmUser
++    vmPassword: btcVmPassword
++    subnetId: virtualNet.properties.subnets[1].id
+   }
+-}
++}]
+diff --git a/src/blockchain/ain/node/node.service.ts b/src/blockchain/ain/node/node.service.ts
+index 4f3a924b8..4a444d44b 100644
+--- a/src/blockchain/ain/node/node.service.ts
++++ b/src/blockchain/ain/node/
+... (truncated)
+
+=== a6fb11d4 | 2022-09-12T12:39:55+02:00 | [DEV-695] Refactoring + fixed remaining order amount (#409) ===
+Files: src/payment/models/exchange/dto/trade-response.dto.ts, src/payment/models/exchange/services/exchange.service.spec.ts, src/payment/models/exchange/services/exchange.service.ts
+diff --git a/src/payment/models/exchange/dto/trade-response.dto.ts b/src/payment/models/exchange/dto/trade-response.dto.ts
+index 1fd3a7ea9..f91e8a715 100644
+--- a/src/payment/models/exchange/dto/trade-response.dto.ts
++++ b/src/payment/models/exchange/dto/trade-response.dto.ts
+@@ -1,9 +1,10 @@
+-import { Fee } from "ccxt";
++import { Fee } from 'ccxt';
+ 
+ export interface PartialTradeResponse {
+   id: string;
+   price: number;
+-  amount: number;
++  fromAmount: number;
++  toAmount: number;
+   timestamp: Date;
+   fee: Fee;
+ }
+diff --git a/src/payment/models/exchange/services/exchange.service.spec.ts b/src/payment/models/exchange/services/exchange.service.spec.ts
+index 1298f0028..37c9a7f96 100644
+--- a/src/payment/models/exchange/services/exchange.service.spec.ts
++++ b/src/payment/models/exchange/services/exchange.service.spec.ts
+@@ -1,4 +1,5 @@
+ import { kraken } from 'ccxt';
++import { PartialTradeResponse } from '../dto/trade-response.dto';
+ import { ExchangeService, OrderSide } from './exchange.service';
+ 
+ describe('ExchangeService', () => {
+@@ -17,14 +18,17 @@ describe('ExchangeService', () => {
+   });
+ 
+   it('should return BTC/EUR and sell', async () => {
+-    await expect(service.getCurrencyPair('BTC', 'EUR')).resolves.toEqual({ pair: 'BTC/EUR', direction: OrderSide.SELL });
++    await expect(service.getCurrencyPair('BTC', 'EUR')).resolves.toEqual({
++      pair: 'BTC/EUR',
++      direction: OrderSide.SELL,
++    });
+   });
+ 
+   it('should return correct weighted average', () => {
+     const list = [
+-      { price: 0.1, amount: 3.8, fee: { cost: 2.3 } },
+-      { price: 1.2, amount: 1.4, fee: { cost: 1.4 } },
+-    ];
++      { price: 0.1, toAmount: 3.8, fee: { cost: 2.3 } },
++      { price: 1.2, toAmount: 1.4, fee: { cost: 1.4 } },
++    ] as PartialTradeResponse[];
+     expect(service.getWeightedAveragePrice(list)).toEqual({ price: 0.39615385, amountSum: 5.2, feeSum: 3.7 });
+   });
+ });
+diff --git a/src/payment/models/exchange/services/exchange.service.ts b/src/payment/models/exchange/services/exchange.service.ts
+index 52db49533..823fbdcf5 100644
+--- a/src/payment/models/exchange/services/exchange.service.ts
++++ b/src/payment/models/exchange/services/exchange.service.ts
+@@ -34,20 +34,21 @@ export class ExchangeService implements PriceProvider {
+   }
+ 
+   async getPrice(fromCurrency: string, toCurrency: string): Promise<Price> {
++    const orderPrice = await Util.retry(() => this.fetchOrderPrice(fromCurrency, toCurrency), 3);
++
+     const { pair, direction } = await this.getCurrencyPair(fromCurrency, toCurrency);
+-    const price = await Util.retry(() => this.fetchOrderPrice(pair, direction), 3);
+     const [left, right] = pair.split('/');
+ 
+     return direction === OrderSide.BUY
+       ? {
+           source: right,
+           target: left,
+-          price: price,
++          price: orderPrice,
+         }
+       : {
+           source: left,
+           target: right,
+-          price: 1 / price,
++          price: 1 / orderPrice,
+         };
+   }
+ 
+@@ -71,8 +72,7 @@ export class ExchangeService implements PriceProvider {
+     }
+ 
+     // place the order
+-    const { pair, direction } = await this.getCurrencyPair(fromCurrency, toCurrency);
+-    return this.tryToOrder(pair, 'limit', direction, amount);
++    return this.tryToOrder(fromCurrency, toCurrency, amount, 'limit');
+   }
+ 
+   async withdrawFunds(
+@@ -114,48 +114,51 @@ export class ExchangeService implements PriceProvider {
+ 
+     return { pair: selectedPair, direction: selectedDirection };
+   }
++  private async fetchOrderPrice(from: string, to: string): Promise<number> {
++    const { pair, direction } = await this.getCurrencyPair(from, to);
+ 
+-  private async fetchOrderPrice(currencyPair: string, orderSide: OrderSide): Promise<number> {
+     /* 
+         If 'buy' we want to buy token1 using token2. Example BTC/EUR on 'buy' means we buy BTC using EUR
+             > We want to have the highest 'bids' price in the orderbook
+         If 'sell' we want to sell token1 using token2. Example BTC/EUR on 'sell' means we sell BTC using EUR
+             > We want to have the lowest 'asks' price in the orderbook
+     */
+-    const orderBook = await this.callApi((e) => e.fetchOrderBook(currencyPair));
+-    return orderSide == OrderSide.BUY ? orderBook.bids[0][0] : orderBook.asks[0][0];
++    const orderBook = await this.callApi((e) => e.fetchOrderBook(pair));
++    return direction == OrderSide.BUY ? orderBook.bids[0][0] : orderBook.asks[0][0];
+   }
+ 
+   // orders
+   private async tryToOrder(
+-    currencyPair: string,
++    from: string,
++    to: string,
++    amount: number,
+     orderType: string,
+-    orderSide: OrderSide,
+-    totalAmount: number,
+     maxRetries = 100,
+   ): Promise<TradeResponse> {
+     const orders: { [id: string]: PartialTradeResponse } = {};
+     let order: Order;
+     let numRetries = 0;
+-    let amount = totalAmount;
++    let remainingAmount = amount;
+ 
+     do {
+-      // (re)create order
+-      order = await this.createOrder(currencyPair, orderType, orderSide, amount, order);
+-      if (!order) break;
++      // create a new order with the remaining amount, if order undefined or price changed
++      const price = await this.fetchOrderPrice(from, to);
++      if (price !== order?.price) {
++        remainingAmount = amount - Util.sumObj(Object.values(orders), 'fromAmount');
++
++        order = await this.createOrUpdateOrder(from, to, orderType, remainingAmount, price, order);
++        if (!order) break;
++      }
+ 
+       // wait for completion
+-      order = await Util.poll<Order>(
+-        () => this.callApi((e) => e.fetchOrder(order.id, currencyPair)),
+-        (o) => [OrderStatus.CLOSED, OrderStatus.CANCELED].includes(o?.status as OrderStatus),
+-        5000,
+-        120000,
+-        true,
+-      );
++      order = await this.pollOrder(order);
++
++      // get amounts
++      const fromAmount = order.side === OrderSide.BUY ? order.filled * order.price : order.filled;
++      const toAmount = order.side === OrderSide.BUY ? order.filled : order.filled * order.price;
+ 
+-      const filledAmount = orderSide === OrderSide.BUY ? order.filled * order.price : order.filled;
+       console.log(
+-        `${this.name}: order ${order.id} is ${order.status} (filled: ${filledAmount}/${amount} at price ${order.price}, total: ${totalAmount})`,
++        `${this.name}: order ${order.id} is ${order.status} (filled: ${fromAmount}/${remainingAmount} at price ${order.price}, total: ${amount})`,
+       );
+ 
+       // check for partial orders
+@@ -163,12 +166,11 @@ export class ExchangeService implements PriceProvider {
+         orders[order.id] = {
+           id: order.id,
+           price: order.price,
+-          amount: orderSide == OrderSide.BUY ? order.filled : order.filled * order.price,
++          fromAmount: fromAmount,
++          toAmount: toAmount,
+           timestamp: new Date(order.timestamp),
+           fee: order.fee,
+         };
+-
+-        amount -= filledAmount;
+       }
+ 
+       numRetries++;
+@@ -176,53 +178,68 @@ export class ExchangeService implements PriceProvider {
+ 
+     // cancel existing order
+     if (order?.status === OrderStatus.OPEN) {
+-      await this.callApi((e) => e.cancelOrder(order.id, currencyPair));
++      await this.cancelOrder(order);
+     }
+ 
+     const orderList = Object.values(orders);
+     const avg = this.getWeightedAveragePrice(orderList);
+     return {
+       orderSummary: {
+-        currencyPair: currencyPair,
++        currencyPair: order.symbol,
+         price: avg.price,
+         amount: avg.amountSum,
+-        orderSide: orderSide,
++        orderSide: order.side,
+         fees: avg.feeSum,
+       },
+       orderList: orderList,
+     };
+   }
+ 
+-  private async createOrder(
+-    currencyPair: string,
++  private async createOrUpdateOrder(
++    from: string,
++    to: string,
+     orderType: string,
+-    orderSide: OrderSide,
+     amount: number,
++    price: number,
+     order?: Order,
+   ): Promise<Order | undefined> {
+-    // determine price and amount
+-    const currentPrice = await this.fetchOrderPrice(currencyPair, orderSide);
+-    const currencyAmount = orderSide == OrderSide.BUY ? amount / currentPrice : amount;
+-
+-    const minAmount = await this.getMarkets().then((m) => m.find((m) => m.symbol === currencyPair).limits.amount.min);
+-    if (currencyAmount < minAmount) return undefined;
+-
+-    // create a new order, if order undefined or price changed
+-    if (currentPrice != order?.price) {
+-      // cancel existing order
+-      if (order?.status === OrderStatus.OPEN) {
+-        await this.callApi((e) => e.cancelOrder(order.id, currencyPair));
+-      }
++    // cancel existing order
++    if (order?.status === OrderStatus.OPEN) {
++      await this.cancelOrder(order);
++    }
+ 
+-      console.log(`${this.name}: creating new order (amount: ${currencyAmount}, price: ${currentPrice})`);
+-      return this.callApi((e) =>
+-        e.createOrder(currencyPair, orderType, orderSide, currencyAmount, currentPrice, {
+-          oflags: 'post',
+-        }),
+-      );
++    const { pair, direction } = await this.getCurrencyPair(from, to);
++    const orderAmount = direction === OrderSide.BUY ? amount / price : amount;
++
++    // check for min amount
++    const minAmount = await this.getMarkets().then((m) => m.find((m) => m.symbol === pair).limits.amount.min);
++    if (orderAmount < minAmount) {
++      console.log(`${this.name}: amount (${amount} ${from}) is too small to create a ${direction} order for ${pair}`);
++      return undefined;
+     }
+ 
+-    return order;
++    console.log(
++      `${this.name}: creating new ${direction} order on ${pair} (${amount} ${from} for price ${price}, order amount ${orderAmount})`,
++    );
++    return this.callApi((e) =>
++      e.createOrder(pair, orderType, direction, orderAmount, price, {
++        oflags: 'post',
++      }),
++    );
++  }
++
++  private async pollOrder(order: Order): Promise<Order> {
++    return await Util.poll<Order>(
++      () => this.callApi((e) => e.fetchOrder(order.id, order.symbol)),
++      (o) => [OrderStatus.CLOSED, OrderStatus.CANCELED].includes(o?.status as OrderStatus),
++      5000,
++      120000,
++      true,
++    );
++  }
++
++  private async cancelOrder(order: Order): Promise<void> {
++    await this.callApi((e) => e.cancelOrder(order.id, order.symbol));
+   }
+ 
+   // other
+@@ -232,10 +249,10 @@ export class ExchangeService implements PriceProvider {
+     });
+   }
+ 
+-  getWeightedAveragePrice(list: any[]): { price: number; amountSum: number; feeSum: number } {
+-    const priceSum = list.reduce((a, b) => a + b.price * b.amount, 0);
++  getWeightedAveragePrice(list: PartialTradeResponse[]): { price: number; amountSum: number; feeSum: number } {
++    const priceSum = list.reduce((a, b) => a + b.price * b.toAmount, 0);
+     const amountSum = Util.round(
+-      list.reduce((a, b) => a + b.amount, 0),
++      list.reduce((a, b) => a + b.toAmount, 0),
+       8,
+     );
+     const price = Util.round(priceSum / amountSum, 8);
+
+=== ebe44811 | 2022-09-09T15:50:21+02:00 | Improved KYC error logs (#407) ===
+Files: src/user/services/spider/spider-sync.service.ts
+diff --git a/src/user/services/spider/spider-sync.service.ts b/src/user/services/spider/spider-sync.service.ts
+index 0db61bfaa..4775d3ee4 100644
+--- a/src/user/services/spider/spider-sync.service.ts
++++ b/src/user/services/spider/spider-sync.service.ts
+@@ -64,8 +64,8 @@ export class SpiderSyncService {
+       try {
+         await this.syncKycUser(user.id);
+       } catch (e) {
+-        console.error('Exception during KYC check:', e);
+-        await this.mailService.sendErrorMail('KYC Error', [e]);
++        console.error(`Exception during KYC check for user ${user.id}:`, e);
++        await this.mailService.sendErrorMail('KYC Error', [`Exception during KYC check for user ${user.id}: ${e}`]);
+       }
+     }
+   }
+@@ -102,8 +102,8 @@ export class SpiderSyncService {
+       try {
+         await this.syncKycUser(userDataId);
+       } catch (e) {
+-        console.error('Exception during KYC sync:', e);
+-        await this.mailService.sendErrorMail('KYC Error', [e]);
++        console.error(`Exception during KYC sync for user ${userDataId}:`, e);
++        await this.mailService.sendErrorMail('KYC Error',[`Exception during KYC sync for user ${userDataId}: ${e}`]);
+       }
+     }
+   }
+
+=== 2f1d4c9a | 2022-09-08T12:00:35+02:00 | [DEV-448] Do not send mails if no mail defined (#402) ===
+Files: src/payment/models/buy-fiat/buy-fiat-notification.service.ts, src/payment/models/buy-fiat/buy-fiat.entity.ts
+diff --git a/src/payment/models/buy-fiat/buy-fiat-notification.service.ts b/src/payment/models/buy-fiat/buy-fiat-notification.service.ts
+index 21df3f8d6..a12639e90 100644
+--- a/src/payment/models/buy-fiat/buy-fiat-notification.service.ts
++++ b/src/payment/models/buy-fiat/buy-fiat-notification.service.ts
+@@ -33,19 +33,23 @@ export class BuyFiatNotificationService {
+ 
+     for (const entity of entities) {
+       try {
+-        const recipientMail = entity.sell.user?.userData?.mail;
++        const recipientMail = entity.sell.user.userData.mail;
+ 
+         entity.offRampInitiated(recipientMail);
+ 
+-        await this.mailService.sendTranslatedMail({
+-          userData: entity.sell.user.userData,
+-          translationKey: 'mail.payment.withdrawal.offRampInitiated',
+-          params: {
+-            inputAmount: entity.cryptoInput.amount,
+-            inputAsset: entity.cryptoInput.asset.dexName,
+-            inputTransactionLink: `https://defiscan.live/transactions/${entity.cryptoInput.inTxId}`,
+-          },
+-        });
++        if (recipientMail) {
++          await this.mailService.sendTranslatedMail({
++            userData: entity.sell.user.userData,
++            translationKey: 'mail.payment.withdrawal.offRampInitiated',
++            params: {
++              inputAmount: entity.cryptoInput.amount,
++              inputAsset: entity.cryptoInput.asset.dexName,
++              inputTransactionLink: `https://defiscan.live/transactions/${entity.cryptoInput.inTxId}`,
++            },
++          });
++        } else {
++          console.error(`Failed to send buy fiat mails ${entity.id}: user has no email`);
++        }
+ 
+         await this.buyFiatRepo.update(
+           { id: entity.id },
+@@ -69,18 +73,20 @@ export class BuyFiatNotificationService {
+       try {
+         entity.cryptoExchangedToFiat();
+ 
+-        await this.mailService.sendTranslatedMail({
+-          userData: entity.sell.user.userData,
+-          translationKey: 'mail.payment.withdrawal.cryptoExchangedToFiat',
+-          params: {
+-            inputAmount: entity.inputAmount,
+-            inputAsset: entity.inputAsset,
+-            percentFee: entity.percentFeeString,
+-            exchangeRate: entity.exchangeRateString,
+-            outputAmount: entity.outputAmount,
+-            outputAsset: entity.outputAsset,
+-          },
+-        });
++        if (entity.sell.user.userData.mail) {
++          await this.mailService.sendTranslatedMail({
++            userData: entity.sell.user.userData,
++            translationKey: 'mail.payment.withdrawal.cryptoExchangedToFiat',
++            params: {
++              inputAmount: entity.inputAmount,
++              inputAsset: entity.inputAsset,
++              percentFee: entity.percentFeeString,
++              exchangeRate: entity.exchangeRateString,
++              outputAmount: entity.outputAmount,
++              outputAsset: entity.outputAsset,
++            },
++          });
++        }
+ 
+         await this.buyFiatRepo.update({ id: entity.id }, { mail2SendDate: entity.mail2SendDate });
+       } catch (e) {
+@@ -101,16 +107,18 @@ export class BuyFiatNotificationService {
+       try {
+         entity.fiatToBankTransferInitiated();
+ 
+-        await this.mailService.sendTranslatedMail({
+-          userData: entity.sell.user.userData,
+-          translationKey: 'mail.payment.withdrawal.fiatToBankTransferInitiated',
+-          params: {
+-            outputAmount: entity.outputAmount,
+-            outputAsset: entity.outputAsset,
+-            bankAccountTrimmed: Util.trimIBAN(entity.sell.iban),
+-            remittanceInfo: entity.remittanceInfo,
+-          },
+-        });
++        if (entity.sell.user.userData.mail) {
++          await this.mailService.sendTranslatedMail({
++            userData: entity.sell.user.userData,
++            translationKey: 'mail.payment.withdrawal.fiatToBankTransferInitiated',
++            params: {
++              outputAmount: entity.outputAmount,
++              outputAsset: entity.outputAsset,
++              bankAccountTrimmed: Util.trimIBAN(entity.sell.iban),
++              remittanceInfo: entity.remittanceInfo,
++            },
++          });
++        }
+ 
+         await this.buyFiatRepo.update({ id: entity.id }, { mail3SendDate: entity.mail3SendDate });
+       } catch (e) {
+diff --git a/src/payment/models/buy-fiat/buy-fiat.entity.ts b/src/payment/models/buy-fiat/buy-fiat.entity.ts
+index d30461f9d..79df045ce 100644
+--- a/src/payment/models/buy-fiat/buy-fiat.entity.ts
++++ b/src/payment/models/buy-fiat/buy-fiat.entity.ts
+@@ -123,10 +123,6 @@ export class BuyFiat extends IEntity {
+   isComplete: boolean;
+ 
+   offRampInitiated(recipientMail: string): this {
+-    if (!recipientMail) {
+-      throw new Error(`Cannot record off-ramp first email, no recipientMail provided. BuyFiat ID: ${this.id}`);
+-    }
+-
+     this.recipientMail = recipientMail;
+     this.mail1SendDate = new Date();
+
+=== 60b1ae75 | 2022-09-01T15:39:38+02:00 | [DEV-658] KYC Bugs (#391) ===
+Files: src/payment/models/exchange/exchange.service.ts, src/user/models/kyc/kyc.service.ts
+diff --git a/src/payment/models/exchange/exchange.service.ts b/src/payment/models/exchange/exchange.service.ts
+index 00bb1d211..fcca36ee6 100644
+--- a/src/payment/models/exchange/exchange.service.ts
++++ b/src/payment/models/exchange/exchange.service.ts
+@@ -146,12 +146,13 @@ export class ExchangeService {
+         true,
+       );
+ 
++      const filledAmount = orderSide === OrderSide.BUY ? order.filled * order.price : order.filled;
+       console.log(
+-        `${this.name}: order ${order.id} is ${order.status} (filled: ${order.filled})/${amount} at price ${order.price}, total: ${totalAmount})`,
++        `${this.name}: order ${order.id} is ${order.status} (filled: ${filledAmount}/${amount} at price ${order.price}, total: ${totalAmount})`,
+       );
+ 
+       // check for partial orders
+-      if (order?.status != OrderStatus.CANCELED && order?.filled) {
++      if (order.status != OrderStatus.CANCELED && order.filled) {
+         orders[order.id] = {
+           id: order.id,
+           price: order.price,
+@@ -160,7 +161,7 @@ export class ExchangeService {
+           fee: order.fee,
+         };
+ 
+-        amount -= orderSide == OrderSide.BUY ? order.filled * order.price : order.filled;
++        amount -= filledAmount;
+       }
+ 
+       numRetries++;
+diff --git a/src/user/models/kyc/kyc.service.ts b/src/user/models/kyc/kyc.service.ts
+index cbf660052..a661851f3 100644
+--- a/src/user/models/kyc/kyc.service.ts
++++ b/src/user/models/kyc/kyc.service.ts
+@@ -23,6 +23,7 @@ export interface KycInfo {
+   kycState: KycState;
+   kycHash: string;
+   kycDataComplete: boolean;
++  accountType: AccountType;
+   depositLimit: number;
+   sessionUrl?: string;
+   setupUrl?: string;
+@@ -213,6 +214,7 @@ export class KycService {
+       kycState: userData.kycState,
+       kycHash: userData.kycHash,
+       kycDataComplete: this.isDataComplete(userData),
++      accountType: userData.accountType,
+       depositLimit: userData.depositLimit,
+       blankedPhone: Blank(userData.phone, BlankType.PHONE),
+       blankedMail: Blank(userData.mail, BlankType.MAIL),
+
+=== d035bc76 | 2022-08-30T23:24:32+02:00 | [DEV-696] Adapted price mismatch threshold, added error mail (#387) ===
+Files: src/payment/models/exchange/exchange-utility.service.ts
+diff --git a/src/payment/models/exchange/exchange-utility.service.ts b/src/payment/models/exchange/exchange-utility.service.ts
+index a96fb8496..77f834a64 100644
+--- a/src/payment/models/exchange/exchange-utility.service.ts
++++ b/src/payment/models/exchange/exchange-utility.service.ts
+@@ -1,4 +1,5 @@
+ import { Injectable } from '@nestjs/common';
++import { MailService } from 'src/shared/services/mail.service';
+ import { BinanceService } from './binance.service';
+ import { BitpandaService } from './bitpanda.service';
+ import { BitstampService } from './bitstamp.service';
+@@ -15,9 +16,10 @@ export class ExchangeUtilityService {
+     private readonly binanceService: BinanceService,
+     private readonly bitstampService: BitstampService,
+     private readonly bitpandaService: BitpandaService,
++    private readonly mailService: MailService,
+   ) {}
+ 
+-  async getMatchingPrice(fromCurrency: string, toCurrency: string, matchThreshold = 0.02): Promise<Price> {
++  async getMatchingPrice(fromCurrency: string, toCurrency: string, matchThreshold = 0.005): Promise<Price> {
+     const mainPrice = await this.krakenService.getPrice(fromCurrency, toCurrency);
+ 
+     try {
+@@ -28,10 +30,13 @@ export class ExchangeUtilityService {
+ 
+       if (Math.abs(_refPrice - _mainPrice) / _mainPrice > matchThreshold)
+         throw new PriceMismatchException(
+-          `${fromCurrency} to ${toCurrency} price mismatch (kraken: ${_mainPrice}, ${refSource}: ${_refPrice})`,
++          `${fromCurrency} to ${toCurrency} price mismatch (Kraken: ${_mainPrice}, ${refSource}: ${_refPrice})`,
+         );
+     } catch (e) {
+-      if (e instanceof PriceMismatchException) throw e;
++      if (e instanceof PriceMismatchException) {
++        await this.mailService.sendErrorMail('Exchange Price Mismatch', [e.message]);
++        throw e;
++      }
+ 
+       console.warn(
+         `Proceeding without reference check from Binance, Bitstamp and Bitpanda. From ${fromCurrency} to ${toCurrency}`,
+
+=== 1b50abab | 2022-08-29T17:31:23+02:00 | [DEV-695] Overwriting existing orders, added log (#383) ===
+Files: src/payment/models/exchange/exchange.service.ts
+diff --git a/src/payment/models/exchange/exchange.service.ts b/src/payment/models/exchange/exchange.service.ts
+index 49fc5b775..00bb1d211 100644
+--- a/src/payment/models/exchange/exchange.service.ts
++++ b/src/payment/models/exchange/exchange.service.ts
+@@ -124,12 +124,13 @@ export class ExchangeService {
+     currencyPair: string,
+     orderType: string,
+     orderSide: OrderSide,
+-    amount: number,
++    totalAmount: number,
+     maxRetries = 100,
+   ): Promise<TradeResponse> {
+-    const orderList: PartialTradeResponse[] = [];
++    const orders: { [id: string]: PartialTradeResponse } = {};
+     let order: Order;
+     let numRetries = 0;
++    let amount = totalAmount;
+ 
+     do {
+       // (re)create order
+@@ -145,15 +146,20 @@ export class ExchangeService {
+         true,
+       );
+ 
++      console.log(
++        `${this.name}: order ${order.id} is ${order.status} (filled: ${order.filled})/${amount} at price ${order.price}, total: ${totalAmount})`,
++      );
++
+       // check for partial orders
+       if (order?.status != OrderStatus.CANCELED && order?.filled) {
+-        orderList.push({
++        orders[order.id] = {
+           id: order.id,
+           price: order.price,
+           amount: orderSide == OrderSide.BUY ? order.filled : order.filled * order.price,
+           timestamp: new Date(order.timestamp),
+           fee: order.fee,
+-        });
++        };
++
+         amount -= orderSide == OrderSide.BUY ? order.filled * order.price : order.filled;
+       }
+ 
+@@ -165,6 +171,7 @@ export class ExchangeService {
+       await this.callApi((e) => e.cancelOrder(order.id, currencyPair));
+     }
+ 
++    const orderList = Object.values(orders);
+     const avg = this.getWeightedAveragePrice(orderList);
+     return {
+       orderSummary: {
+@@ -199,7 +206,7 @@ export class ExchangeService {
+         await this.callApi((e) => e.cancelOrder(order.id, currencyPair));
+       }
+ 
+-      console.log(`Creating new order (amount: ${currencyAmount}, price: ${currentPrice})`);
++      console.log(`${this.name}: creating new order (amount: ${currencyAmount}, price: ${currentPrice})`);
+       return this.callApi((e) =>
+         e.createOrder(currencyPair, orderType, orderSide, currencyAmount, currentPrice, {
+           oflags: 'post',
+
+=== 2612e358 | 2022-08-23T14:41:42+02:00 | [DEV-671] New Reference Currencies (#370) ===
+Files: .vscode/settings.json, src/payment/models/buy-crypto/entities/buy-crypto.entity.ts, src/payment/models/buy-crypto/services/buy-crypto-batch.service.ts, src/payment/models/exchange/bitpanda.service.ts, src/payment/models/exchange/dto/price.dto.ts, src/payment/models/exchange/exchange-utility.service.ts, src/payment/models/exchange/exchange.service.ts, src/payment/payment.module.ts
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index 9b2aa0da6..94202f82f 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -2,6 +2,7 @@
+   "cSpell.words": [
+     "APPINSIGHTS",
+     "authorises",
++    "Bitpanda",
+     "Bitstamp",
+     "ccxt",
+     "chargeback",
+diff --git a/src/payment/models/buy-crypto/entities/buy-crypto.entity.ts b/src/payment/models/buy-crypto/entities/buy-crypto.entity.ts
+index 03bc08a7b..540ca4d35 100644
+--- a/src/payment/models/buy-crypto/entities/buy-crypto.entity.ts
++++ b/src/payment/models/buy-crypto/entities/buy-crypto.entity.ts
+@@ -125,9 +125,7 @@ export class BuyCrypto extends IEntity {
+     if (this.inputReferenceAsset === this.outputReferenceAsset) {
+       this.outputReferenceAmount = Util.round(this.inputReferenceAmountMinusFee, 8);
+     } else {
+-      const price = prices.find(
+-        (p) => p.currencyPair.includes(this.inputReferenceAsset) && p.currencyPair.includes(this.outputReferenceAsset),
+-      );
++      const price = prices.find((p) => p.source === this.inputReferenceAsset && p.target === this.outputReferenceAsset);
+ 
+       if (!price) {
+         throw new Error(
+diff --git a/src/payment/models/buy-crypto/services/buy-crypto-batch.service.ts b/src/payment/models/buy-crypto/services/buy-crypto-batch.service.ts
+index d0320aa76..22807aff5 100644
+--- a/src/payment/models/buy-crypto/services/buy-crypto-batch.service.ts
++++ b/src/payment/models/buy-crypto/services/buy-crypto-batch.service.ts
+@@ -57,10 +57,12 @@ export class BuyCryptoBatchService {
+   }
+ 
+   private async getReferencePrices(txWithAssets: BuyCrypto[]): Promise<Price[]> {
+-    const referenceAssets = [...new Set(txWithAssets.map((tx) => tx.outputReferenceAsset))];
++    const referenceAssetPairs = [
++      ...new Set(txWithAssets.map((tx) => `${tx.inputReferenceAsset}/${tx.outputReferenceAsset}`)),
++    ].map((assets) => assets.split('/'));
+ 
+     return await Promise.all(
+-      referenceAssets.map(async (asset) => await this.exchangeUtilityService.getMatchingPrice('EUR', asset)),
++      referenceAssetPairs.map(async (pair) => await this.exchangeUtilityService.getMatchingPrice(pair[0], pair[1])),
+     );
+   }
+ 
+diff --git a/src/payment/models/exchange/bitpanda.service.ts b/src/payment/models/exchange/bitpanda.service.ts
+new file mode 100644
+index 000000000..2f03ea5af
+--- /dev/null
++++ b/src/payment/models/exchange/bitpanda.service.ts
+@@ -0,0 +1,11 @@
++import { Injectable } from '@nestjs/common';
++import { ExchangeService } from './exchange.service';
++import { bitpanda } from 'ccxt';
++import { GetConfig } from 'src/config/config';
++
++@Injectable()
++export class BitpandaService extends ExchangeService {
++  constructor() {
++    super(new bitpanda(GetConfig().exchange));
++  }
++}
+diff --git a/src/payment/models/exchange/dto/price.dto.ts b/src/payment/models/exchange/dto/price.dto.ts
+index d4d3711c8..8701c9ae1 100644
+--- a/src/payment/models/exchange/dto/price.dto.ts
++++ b/src/payment/models/exchange/dto/price.dto.ts
+@@ -1,5 +1,5 @@
+ export class Price {
+-    currencyPair: string;
+-    orderSide: string;
++    source: string;
++    target: string;
+     price: number;
+ }
+\ No newline at end of file
+diff --git a/src/payment/models/exchange/exchange-utility.service.ts b/src/payment/models/exchange/exchange-utility.service.ts
+index 71abbe1d5..17e7938c0 100644
+--- a/src/payment/models/exchange/exchange-utility.service.ts
++++ b/src/payment/models/exchange/exchange-utility.service.ts
+@@ -1,5 +1,6 @@
+ import { Injectable } from '@nestjs/common';
+ import { BinanceService } from './binance.service';
++import { BitpandaService } from './bitpanda.service';
+ import { BitstampService } from './bitstamp.service';
+ import { Price } from './dto/price.dto';
+ import { KrakenService } from './kraken.service';
+@@ -12,6 +13,7 @@ export class ExchangeUtilityService {
+     private readonly krakenService: KrakenService,
+     private readonly binanceService: BinanceService,
+     private readonly bitstampService: BitstampService,
++    private readonly bitpandaService: BitpandaService,
+   ) {}
+ 
+   async getMatchingPrice(fromCurrency: string, toCurrency: string, matchThreshold = 0.02): Promise<Price> {
+@@ -30,16 +32,16 @@ export class ExchangeUtilityService {
+   }
+ 
+   private async getReferencePrice(fromCurrency: string, toCurrency: string): Promise<[Price, PriceSource]> {
+-    try {
+-      return [await this.binanceService.getPrice(fromCurrency, toCurrency), 'binance'];
+-    } catch {}
++    const referenceExchanges = [this.binanceService, this.bitstampService, this.bitpandaService];
+ 
+-    try {
+-      return [await this.bitstampService.getPrice(fromCurrency, toCurrency), 'bitstamp'];
+-    } catch {}
++    for (const exchange of referenceExchanges) {
++      try {
++        return [await exchange.getPrice(fromCurrency, toCurrency), exchange.name];
++      } catch {}
++    }
+ 
+     throw new Error(
+-      `Could not find reference price at both Binance and Bitstamp. From ${fromCurrency} to ${toCurrency}`,
++      `Could not find reference price at Binance, Bitstamp and Bitpanda. From ${fromCurrency} to ${toCurrency}`,
+     );
+   }
+ }
+diff --git a/src/payment/models/exchange/exchange.service.ts b/src/payment/models/exchange/exchange.service.ts
+index 243f16b37..49fc5b775 100644
+--- a/src/payment/models/exchange/exchange.service.ts
++++ b/src/payment/models/exchange/exchange.service.ts
+@@ -20,6 +20,10 @@ export class ExchangeService {
+ 
+   constructor(private readonly exchange: Exchange) {}
+ 
++  get name(): string {
++    return this.exchange.name;
++  }
++
+   async getBalances() {
+     return this.callApi((e) => e.fetchBalance());
+   }
+@@ -31,11 +35,19 @@ export class ExchangeService {
+   async getPrice(fromCurrency: string, toCurrency: string): Promise<Price> {
+     const { pair, direction } = await this.getCurrencyPair(fromCurrency, toCurrency);
+     const price = await Util.retry(() => this.fetchOrderPrice(pair, direction), 3);
+-    return {
+-      currencyPair: pair,
+-      orderSide: direction,
+-      price: direction === OrderSide.BUY ? price : 1 / price,
+-    };
++    const [left, right] = pair.split('/');
++
++    return direction === OrderSide.BUY
++      ? {
++          source: right,
++          target: left,
++          price: price,
++        }
++      : {
++          source: left,
++          target: right,
++          price: 1 / price,
++        };
+   }
+ 
+   async trade(fromCurrency: string, toCurrency: string, amount: number): Promise<TradeResponse> {
+diff --git a/src/payment/payment.module.ts b/src/payment/payment.module.ts
+index 5374a1752..80ae61e4c 100644
+--- a/src/payment/payment.module.ts
++++ b/src/payment/payment.module.ts
+@@ -74,6 +74,7 @@ import { OlkypayService } from './models/bank-tx/olkypay.service';
+ import { ChainalysisService } from './models/crypto-input/chainalysis.service';
+ import { BuyFiatNotificationService } from './models/buy-fiat/buy-fiat-notification.service';
+ import { BankAccountController } from './models/bank-account/bank-account.controller';
++import { BitpandaService } from './models/exchange/bitpanda.service';
+ 
+ @Module({
+   imports: [
+@@ -144,6 +145,7 @@ import { BankAccountController } from './models/bank-account/bank-account.contro
+     KrakenService,
+     BinanceService,
+     BitstampService,
++    BitpandaService,
+     ExchangeUtilityService,
+     HistoryService,
+     BuyService,
+
+=== f2bf379e | 2022-07-19T09:40:53+02:00 | DEV-369 Bitcoin Inputs (#306) ===
+Files: infrastructure/bicep/dfx-api.bicep, infrastructure/bicep/parameters/dev.json, infrastructure/bicep/parameters/loc.json, infrastructure/bicep/parameters/prd.json, infrastructure/config/dev.conf, infrastructure/config/loc.conf, infrastructure/config/prd.conf, infrastructure/scripts/btc/setup.sh, infrastructure/scripts/btc/start.sh, infrastructure/scripts/check-node-state.sh
+diff --git a/infrastructure/bicep/dfx-api.bicep b/infrastructure/bicep/dfx-api.bicep
+index 957f3729c..35d074cbd 100644
+--- a/infrastructure/bicep/dfx-api.bicep
++++ b/infrastructure/bicep/dfx-api.bicep
+@@ -27,6 +27,7 @@ param kycWebhookIps string
+ param githubToken string
+ 
+ param nodeAllowAllIps bool
++param allowedIpRange string
+ @secure()
+ param nodePassword string
+ @secure()
+@@ -35,6 +36,7 @@ param dexWalletAddress string
+ param outWalletAddress string
+ param stakingWalletAddress string
+ param utxoSpenderAddress string
++param btcCollectorAddress string
+ 
+ param nodeServicePlanSkuName string
+ param nodeServicePlanSkuTier string
+@@ -63,6 +65,10 @@ param sepaToolsUser string
+ @secure()
+ param sepaToolsPassword string
+ 
++param btcVmUser string
++@secure()
++param btcVmPassword string
++
+ 
+ // --- VARIABLES --- //
+ var compName = 'dfx'
+@@ -71,6 +77,7 @@ var nodeName = 'node'
+ 
+ var virtualNetName = 'vnet-${compName}-${apiName}-${env}'
+ var subNetName = 'snet-${compName}-${apiName}-${env}'
++var vmSubNetName = 'snet-${compName}-vm-${env}'
+ 
+ var storageAccountName = replace('st-${compName}-${apiName}-${env}', '-', '')
+ var dbBackupContainerName = 'db-bak'
+@@ -84,8 +91,6 @@ var nodeIntFileShareNameA = 'node-int-data-a'
+ var nodeIntFileShareNameB = 'node-int-data-b'
+ var nodeRefFileShareNameA = 'node-ref-data-a'
+ var nodeRefFileShareNameB = 'node-ref-data-b'
+-var nodeBtcInpFileShareNameA = 'node-btc-inp-data-a'
+-var nodeBtcInpFileShareNameB = 'node-btc-inp-data-b'
+ 
+ var sqlServerName = 'sql-${compName}-${apiName}-${env}'
+ var sqlDbName = 'sqldb-${compName}-${apiName}-${env}'
+@@ -104,8 +109,13 @@ var nodeIntServicePlanName = 'plan-${compName}-${nodeName}-int-${env}'
+ var nodeIntAppName = 'app-${compName}-${nodeName}-int-${env}'
+ var nodeRefServicePlanName = 'plan-${compName}-${nodeName}-ref-${env}'
+ var nodeRefAppName = 'app-${compName}-${nodeName}-ref-${env}'
+-var nodeBtcInpServicePlanName = 'plan-${compName}-${nodeName}-btc-inp-${env}'
+-var nodeBtcInpAppName = 'app-${compName}-${nodeName}-btc-inp-${env}'
++
++var btcVmName = 'vm-${compName}-btc-inp-${env}'
++var btcVmDiskName = 'osdisk-${compName}-btc-inp-${env}'
++var btcNicName = 'nic-${compName}-btc-inp-${env}'
++var btcPipName = 'ip-${compName}-btc-inp-${env}'
++var btcNsgName = 'nsg-${compName}-btc-inp-${env}'
++
+ 
+ var nodeProps = [
+   {
+@@ -143,13 +153,6 @@ var nodeProps = [
+     fileShareNameA: nodeRefFileShareNameA
+     fileShareNameB: nodeRefFileShareNameB
+   }
+-  {
+-    name: 'nodes-btc-inp-${env}'
+-    servicePlanName: nodeBtcInpServicePlanName
+-    appName: nodeBtcInpAppName
+-    fileShareNameA: nodeBtcInpFileShareNameA
+-    fileShareNameB: nodeBtcInpFileShareNameB
+-  }
+ ]
+ 
+ // --- RESOURCES --- //
+@@ -195,13 +198,18 @@ resource virtualNet 'Microsoft.Network/virtualNetworks@2020-11-01' = {
+           privateLinkServiceNetworkPolicies: 'Enabled'
+         }
+       }
++      {
++        name: vmSubNetName
++        properties: {
++          addressPrefix: '10.0.1.0/24'
++        }
++      }
+     ]
+   }
+ }
+ 
+ 
+ // Storage Account
+-// TODO: VNet integration
+ resource storageAccount 'Microsoft.Storage/storageAccounts@2021-04-01' = {
+   name: storageAccountName
+   location: location
+@@ -261,14 +269,6 @@ resource nodeRefFileShareB 'Microsoft.Storage/storageAccounts/fileServices/share
+   name: '${storageAccount.name}/default/${nodeRefFileShareNameB}'
+ }
+ 
+-resource nodeBtcInpFileShareA 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+-  name: '${storageAccount.name}/default/${nodeBtcInpFileShareNameA}'
+-}
+-
+-resource nodeBtcInpFileShareB 'Microsoft.Storage/storageAccounts/fileServices/shares@2021-04-01' = {
+-  name: '${storageAccount.name}/default/${nodeBtcInpFileShareNameB}'
+-}
+-
+ 
+ // SQL Database
+ resource sqlServer 'Microsoft.Sql/servers@2021-02-01-preview' = {
+@@ -494,11 +494,7 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
+         }
+         {
+           name: 'NODE_BTC_INP_URL_ACTIVE'
+-          value: nodes[5].outputs.url
+-        }
+-        {
+-          name: 'NODE_BTC_INP_URL_PASSIVE'
+-          value: nodes[5].outputs.urlStg
++          value: 'http://${btcNic.properties.ipConfigurations[0].properties.privateIPAddress}:8332'
+         }
+         {
+           name: 'DEX_WALLET_ADDRESS'
+@@ -516,6 +512,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
+           name: 'UTXO_SPENDER_ADDRESS'
+           value: utxoSpenderAddress
+         }
++        {
++          name: 'BTC_COLLECTOR_ADDRESS'
++          value: btcCollectorAddress
++        }
+         {
+           name: 'FTP_HOST'
+           value: '138.201.74.234'
+@@ -604,3 +604,124 @@ module nodes 'defi-node.bicep' = [for node in nodeProps: {
+     hasBackup: hasBackupNodes
+   }
+ }]
++
++
++// BTC Node
++resource btcPip 'Microsoft.Network/publicIPAddresses@2020-11-01' = {
++  name: btcPipName
++  location: location
++  sku: {
++    name: 'Standard'
++  }
++  properties: {
++    publicIPAllocationMethod: 'Static'
++    dnsSettings: {
++      domainNameLabel: btcVmName
++    }
++  }
++}
++
++resource btcNsg 'Microsoft.Network/networkSecurityGroups@2020-11-01' = {
++  name: btcNsgName
++  location: location
++  properties: {
++    securityRules: [
++      {
++        name: 'SSH'
++        properties: {
++          protocol: 'TCP'
++          sourcePortRange: '*'
++          destinationPortRange: '22'
++          sourceAddressPrefix: allowedIpRange
++          destinationAddressPrefix: '*'
++          access: 'Allow'
++          priority: 300
++          direction: 'Inbound'
++        }
++      }
++    ]
++  }
++}
++
++resource rpcRule 'Microsoft.Network/networkSecurityGroups/securityRules@2020-11-01' = if (nodeAllowAllIps) {
++  parent: btcNsg
++  name: 'RPC'
++  properties: {
++    protocol: 'TCP'
++    sourcePortRange: '*'
++    destinationPortRange: '8332'
++    sourceAddressPrefix: allowedIpRange
++    destinationAddressPrefix: '*'
++    access: 'Allow'
++    priority: 350
++    direction: 'Inbound'
++  }
++}
++
++resource btcNic 'Microsoft.Network/networkInterfaces@2020-11-01' = {
++  name: btcNicName
++  location: location
++  properties: {
++    ipConfigurations: [
++      {
++        name: 'ipconfig1'
++        properties: {
++          privateIPAllocationMethod: 'Dynamic'
++          publicIPAddress: {
++            id: btcPip.id
++          }
++          subnet: {
++            id: virtualNet.properties.subnets[1].id
++          }
++        }
++      }
++    ]
++    networkSecurityGroup: {
++      id: btcNsg.id
++    }
++  }
++}
++
++resource btcVm 'Microsoft.Compute/virtualMachines@2022-03-01' = {
++  name: btcVmName
++  location: location
++  properties: {
++    hardwareProfile: {
++      vmSize: 'Standard_B2s'
++    }
++    storageProfile: {
++      imageReference: {
++        publisher: 'canonical'
++        offer: '0001-com-ubuntu-server-focal'
++        sku: '20_04-lts-gen2'
++        version: 'latest'
++      }
++      osDisk: {
++        name: btcVmDiskName
++        createOption: 'FromImage'
++        caching: 'ReadWrite'
++        managedDisk: {
++          storageAccountType: 'StandardSSD_LRS'
++        }
++        diskSizeGB: 1023
++      }
++    }
++    osProfile: {
++      computerName: btcVmName
++      adminUsername: btcVmUser
++      adminPassword: btcVmPassword
++    }
++    networkProfile: {
++      networkInterfaces: [
++        {
++          id: btcNic.id
++        }
++      ]
++    }
++    diagnosticsProfile: {
++      bootDiagnostics: {
++        enabled: true
++      }
++    }
++  }
++}
+diff --git a/infrastructure/bicep/parameters/dev.json b/infrastructure/bicep/parameters/dev.json
+index bdebbfe09..9ce152e6f 100644
+--- a/infrastructure/bicep/parameters/dev.json
++++ b/infrastructure/bicep/parameters/dev.json
+@@ -50,6 +50,9 @@
+     "nodeAllowAllIps": {
+       "value": false
+     },
++    "allowedIpRange": {
++      "value": "xxx"
++    },
+     "nodePassword": {
+       "value": "xxx"
+     },
+@@ -68,6 +71,9 @@
+     "utxoSpenderAddress": {
+       "value": "xxx"
+     },
++    "btcCollectorAddress": {
++      "value": "xxx"
++    },
+     "nodeServicePlanSkuName": {
+       "value": "P1v2"
+     },
+@@ -109,6 +115,12 @@
+     },
+     "sepaToolsPassword": {
+       "value": "xxx"
++    },
++    "btcVmUser": {
++      "value": "xxx"
++    },
++    "btcVmPassword": {
++      "value": "xxx"
+     }
+   }
+ }
+diff --git a/infrastructure/bicep/parameters/loc.json b/infrastructure/bicep/parameters/loc.json
+index 3f3f114ac..2609ee60b 100644
+--- a/infrastructure/bicep/parameters/loc.json
++++ b/infrastructure/bicep/parameters/loc.json
+@@ -50,6 +50,9 @@
+     "nodeAllowAllIps": {
+       "value": true
+     },
++    "allowedIpRange": {
++      "value": "xxx"
++    },
+     "nodePassword": {
+       "value": "xxx"
+     },
+@@ -68,6 +71,9 @@
+     "utxoSpenderAddress": {
+       "value": "xxx"
+     },
++    "btcCollectorAddress": {
++      "value": "xxx"
++    },
+     "nodeServicePlanSkuName": {
+       "value": "B1"
+     },
+@@ -109,6 +115,12 @@
+     },
+     "sepaToolsPassword": {
+       "value": "xxx"
++    },
++    "btcVmUser": {
++      "value": "xxx"
++    },
++    "btcVmPassword": {
++      "value": "xxx"
+     }
+   }
+ }
+diff --git a/infrastructure/bicep/parameters/prd.json b/infrastructure/bicep/parameters/prd.json
+index ae8dd8d14..498245315 100644
+--- a/infrastructure/bicep/parameters/prd.json
++++ b/infrastructure/bicep/parameters/prd.json
+@@ -24,7 +24,7 @@
+       "value": "Standard"
+     },
+     "dbCapacity": {
+-      "value": 20
++      "value": 50
+     },
+     "mailUser": {
+       "value": "xxx"
+@@ -50,6 +50,9 @@
+     "nodeAllowAllIps": {
+       "value": false
+     },
++    "allowedIpRange": {
++      "value": "xxx"
++    },
+     "nodePassword": {
+       "value": "xxx"
+     },
+@@ -68,6 +71,9 @@
+     "utxoSpenderAddress": {
+       "value": "xxx"
+     },
++    "btcCollectorAddress": {
++      "value": "xxx"
++    },
+     "nodeServicePlanSkuName": {
+       "value": "P2v2"
+     },
+@@ -109,6 +115,12 @@
+     },
+     "sepaToolsPassword": {
+       "value": "xxx"
++    },
++    "btcVmUser": {
++      "value": "xxx"
++    },
++    "btcVmPassword": {
++      "value": "xxx"
+     }
+   }
+ }
+diff --git a/infrastructure/config/dev.conf b/infrastructure/config/dev.conf
+new file mode 100644
+index 000000000..54abdcab0
+--- /dev/null
++++ b/infrastructure/config/dev.conf
+@@ -0,0 +1,6 @@
++server=1
++rpcallowip=0.0.0.0/0
++rpcbind=0.0.0.0
++rpcauth=dfx-api:7fcd535abd3eaa2d4d297e8d7dbd818b$2bfec69247f7fccb03c6cf901ddbf987dab9006752a061cfceaeeaae6a158829
++wallet=dfx-api
++addresstype=p2sh-segwit
+\ No newline at end of file
+diff --git a/infrastructure/config/loc.conf b/infrastructure/config/loc.conf
+new file mode 100644
+index 000000000..7712caa4e
+--- /dev/null
++++ b/infrastructure/config/loc.conf
+@@ -0,0 +1,6 @@
++server=1
++rpcallowip=0.0.0.0/0
++rpcbind=0.0.0.0
++rpcauth=dfx-api:86966de74994d5d96930833b4b6e1131$11fb708701e00db4349ca669863aedc5de90590564c48ff90a899c8c97411e02
++wallet=dfx-api
++addresstype=p2sh-segwit
+\ No newline at end of file
+diff --git a/infrastructure/config/prd.conf b/infrastructure/config/prd.conf
+new file mode 100644
+index 000000000..8194bac92
+--- /dev/null
++++ b/infrastructure/config/prd.conf
+@@ -0,0 +1,6 @@
++server=1
++rpcallowip=0.0.0.0/0
++rpcbind=0.0.0.0
++rpcauth=dfx-api:fbb58c85dfc76270169fb15c3cb7191b$9e4e41a896f6c2dec933d585ec9ddef40a1a6619b7a6d266fa89e01275412fb0
++wallet=dfx-api
++addresstype=p2sh-segwit
+\ No newline at end of file
+diff --git a/infrastructure/scripts/btc/setup.sh b/infrastructure/scripts/btc/setup.sh
+new file mode 100644
+index 000000000..2122f6e08
+--- /dev/null
++++ b/infrastructure/scripts/btc/setup.sh
+@@ -0,0 +1,10 @@
++#!/bin/bash
++mkdir /home/dfx/.bitcoin
++chown dfx:dfx /home/dfx/.bitcoin
++cd /home/dfx/.bitcoin
++
++touch bitcoin.conf
++
++wget https://bitcoincore.org/bin/bitcoin-core-22.0/bitcoin-22.0-x86_64-linux-gnu.tar.gz
++tar -xzf ./bitcoin-22.0-x86_64-linux-gnu.tar.gz
++rm ./bitcoin-22.0-x86_64-linux-gnu.tar.gz
+\ No newline at end of file
+diff --git a/infrastructure/scripts/btc/start.sh b/infrastructure/scripts/btc/start.sh
+new file mode 100644
+index 000000000..7643b76e1
+--- /dev/null
++++ b/infrastructure/scripts/btc/start.sh
+@@ -0,0 +1,4 @@
++#!/bin/bash
++/home/dfx/.bitcoin/bitcoin-22.0/bin/bitcoind -daemonwait \
++                                             -datadir=/home/dfx/.bitcoin \
++                                             -conf=/home/dfx/.bitcoin/bitcoin.conf
+\ No newline at end of file
+diff --git a/infrastructure/scripts/check-node-state.sh b/infrastructure/scripts/check-node-state.sh
+index 222dc5291..1c1329e28 100755
+--- a/infrastructure/scripts/check-node-state.sh
++++ b/infrastructure/scripts/check-node-state.sh
+@@ -1,4 +1,4 @@
+-nodes=( "inp" "dex" "out" "int" "ref" "btc-inp")
++nodes=( "inp" "dex" "out" "int" "ref")
+ 
+ for i in "${nodes[@]}"
+ do
+diff --git a/infrastructure/scripts/swap-nodes.sh b/infrastructure/scripts/swap-nodes.sh
+index 52b74bf1e..14b444e32 100755
+--- a/infrastructure/scripts/swap-nodes.sh
++++ b/infrastructure/scripts/swap-nodes.sh
+@@ -3,4 +3,3 @@ az webapp deployment slot swap --resource-group rg-dfx-api-$1 --name app-dfx-nod
+ az webapp deployment slot swap --resource-group rg-dfx-api-$1 --name app-dfx-node-out-$1 --slot stg
+ az webapp deployment slot swap --resource-group rg-dfx-api-$1 --name app-dfx-node-int-$1 --slot stg
+ az webapp deployment slot swap --resource-group rg-dfx-api-$1 --name app-dfx-node-ref-$1 --slot stg
+-az webapp deployment slot swap --resource-group rg-dfx-api-$1 --name app-dfx-node-btc-inp-$1 --slot stg
+diff --git a/infrastructure/scripts/update-nodes.sh b/infrastructure/scripts/update-nodes.sh
+index 9e3275737..584bf17e2 100755
+--- a/infrastructure/scripts/update-nodes.sh
++++ b/infrastructure/scripts/update-nodes.sh
+@@ -3,11 +3,9 @@ az webapp config container set --resource-group rg-dfx-api-$1 --name app-dfx-nod
+ az webapp config container set --resource-group rg-dfx-api-$1 --name app-dfx-node-out-$1 --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-$1.yml --slot stg
+ az webapp config container set --resource-group rg-dfx-api-$1 --name app-dfx-node-int-$1 --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-$1.yml --slot stg
+ az webapp config container set --resource-group rg-dfx-api-$1 --name app-dfx-node-ref-$1 --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-$1.yml --slot stg
+-az webapp config container set --resource-group rg-dfx-api-$1 --name app-dfx-node-btc-inp-$1 --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/btc-node-$1.yml --slot stg
+ 
+ az webapp config container set --resource-group rg-dfx-api-$1 --name app-dfx-node-inp-$1 --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-$1.yml
+ az webapp config container set --resource-group rg-dfx-api-$1 --name app-dfx-node-dex-$1 --multicontainer-config-type compose --multicontainer-config-file infrastructure/docker/defi-node-$1.yml
+ az webapp config container set --resource-group rg-dfx-api-$1 --name app-dfx-node-out-$1 --multicontainer-config-type compose --multicontainer-confi
+... (truncated)
+
+=== 4058cfd2 | 2022-07-16T12:54:28+02:00 | DEV-190 Added banking bot user (#307) ===
+Files: src/payment/models/bank-tx/bank-tx.controller.ts, src/shared/auth/user-role.enum.ts
+diff --git a/src/payment/models/bank-tx/bank-tx.controller.ts b/src/payment/models/bank-tx/bank-tx.controller.ts
+index 5c6282f4a..812bc221c 100644
+--- a/src/payment/models/bank-tx/bank-tx.controller.ts
++++ b/src/payment/models/bank-tx/bank-tx.controller.ts
+@@ -27,7 +27,7 @@ export class BankTxController {
+   @Post()
+   @ApiBearerAuth()
+   @ApiExcludeEndpoint()
+-  @UseGuards(AuthGuard(), new RoleGuard(UserRole.ADMIN))
++  @UseGuards(AuthGuard(), new RoleGuard(UserRole.BANKING_BOT))
+   @UseInterceptors(FilesInterceptor('files'))
+   async uploadSepaFiles(@UploadedFiles() files: Express.Multer.File[]): Promise<(BankTxBatch | Error)[]> {
+     const batches = await this.bankTxService.storeSepaFiles(files.map((f) => f.buffer.toString()));
+diff --git a/src/shared/auth/user-role.enum.ts b/src/shared/auth/user-role.enum.ts
+index 1d960f76c..272afaffa 100644
+--- a/src/shared/auth/user-role.enum.ts
++++ b/src/shared/auth/user-role.enum.ts
+@@ -8,4 +8,5 @@ export enum UserRole {
+   // service roles
+   MASTERNODE_OPERATOR = 'MasternodeOperator',
+   DEFICHAIN_INCOME = 'DeFiChainIncome',
++  BANKING_BOT = 'BankingBot',
+ }
+
+=== 47f47db0 | 2022-07-15T10:54:37+02:00 | Added chargeback fields and update logic (#304) ===
+Files: .vscode/settings.json, migration/1657872324388-AddedBuyCryptoChargeback.js, src/payment/models/buy-crypto/dto/update-buy-crypto.dto.ts, src/payment/models/buy-crypto/entities/buy-crypto.entity.ts, src/payment/models/buy-crypto/services/buy-crypto.service.ts
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index a36ec0284..9b2aa0da6 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -4,6 +4,7 @@
+     "authorises",
+     "Bitstamp",
+     "ccxt",
++    "chargeback",
+     "citizenships",
+     "Datas",
+     "datetime",
+diff --git a/migration/1657872324388-AddedBuyCryptoChargeback.js b/migration/1657872324388-AddedBuyCryptoChargeback.js
+new file mode 100644
+index 000000000..44a3acd75
+--- /dev/null
++++ b/migration/1657872324388-AddedBuyCryptoChargeback.js
+@@ -0,0 +1,21 @@
++const { MigrationInterface, QueryRunner } = require("typeorm");
++
++module.exports = class AddedBuyCryptoChargeback1657872324388 {
++    name = 'AddedBuyCryptoChargeback1657872324388'
++
++    async up(queryRunner) {
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" ADD "chargebackDate" datetime2`);
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" ADD "chargebackRemittanceInfo" nvarchar(256)`);
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" ADD "chargebackBankTxId" int`);
++        await queryRunner.query(`CREATE UNIQUE INDEX "REL_d46d412c82765cddfc3b5284be" ON "dbo"."buy_crypto" ("chargebackBankTxId") WHERE "chargebackBankTxId" IS NOT NULL`);
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" ADD CONSTRAINT "FK_d46d412c82765cddfc3b5284be6" FOREIGN KEY ("chargebackBankTxId") REFERENCES "bank_tx"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
++    }
++
++    async down(queryRunner) {
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" DROP CONSTRAINT "FK_d46d412c82765cddfc3b5284be6"`);
++        await queryRunner.query(`DROP INDEX "REL_d46d412c82765cddfc3b5284be" ON "dbo"."buy_crypto"`);
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" DROP COLUMN "chargebackBankTxId"`);
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" DROP COLUMN "chargebackRemittanceInfo"`);
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" DROP COLUMN "chargebackDate"`);
++    }
++}
+diff --git a/src/payment/models/buy-crypto/dto/update-buy-crypto.dto.ts b/src/payment/models/buy-crypto/dto/update-buy-crypto.dto.ts
+index 1aac38130..930da6775 100644
+--- a/src/payment/models/buy-crypto/dto/update-buy-crypto.dto.ts
++++ b/src/payment/models/buy-crypto/dto/update-buy-crypto.dto.ts
+@@ -95,4 +95,17 @@ export class UpdateBuyCryptoDto {
+   @IsOptional()
+   @IsNumber()
+   refFactor: number;
++
++  @IsOptional()
++  @IsDate()
++  @Type(() => Date)
++  chargebackDate: Date;
++
++  @IsOptional()
++  @IsString()
++  chargebackRemittanceInfo: string;
++
++  @IsOptional()
++  @IsInt()
++  chargebackBankTxId: number;
+ }
+diff --git a/src/payment/models/buy-crypto/entities/buy-crypto.entity.ts b/src/payment/models/buy-crypto/entities/buy-crypto.entity.ts
+index da59a2499..1251ac77f 100644
+--- a/src/payment/models/buy-crypto/entities/buy-crypto.entity.ts
++++ b/src/payment/models/buy-crypto/entities/buy-crypto.entity.ts
+@@ -88,6 +88,16 @@ export class BuyCrypto extends IEntity {
+   @Column({ type: 'float', nullable: true })
+   refFactor: number;
+ 
++  @Column({ type: 'datetime2', nullable: true })
++  chargebackDate: Date;
++
++  @Column({ length: 256, nullable: true })
++  chargebackRemittanceInfo: string;
++
++  @OneToOne(() => BankTx, { nullable: true })
++  @JoinColumn()
++  chargebackBankTx: BankTx;
++
+   defineAssetExchangePair(): this {
+     this.outputAsset = this.buy?.asset?.dexName;
+ 
+diff --git a/src/payment/models/buy-crypto/services/buy-crypto.service.ts b/src/payment/models/buy-crypto/services/buy-crypto.service.ts
+index fa8ec8559..aa18d8812 100644
+--- a/src/payment/models/buy-crypto/services/buy-crypto.service.ts
++++ b/src/payment/models/buy-crypto/services/buy-crypto.service.ts
+@@ -61,6 +61,12 @@ export class BuyCryptoService {
+ 
+     const update = this.buyCryptoRepo.create(dto);
+ 
++    // bank tx
++    if (dto.chargebackBankTxId) {
++      update.chargebackBankTx = await this.bankTxRepo.findOne({ id: dto.chargebackBankTxId });
++      if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
++    }
++
+     // buy
+     if (dto.buyId) update.buy = await this.getBuy(dto.buyId);
+
+=== e3cec395 | 2022-07-15T10:52:41+02:00 | Added chargeback fields and update logic (#303) ===
+Files: .vscode/settings.json, migration/1657872324388-AddedBuyCryptoChargeback.js, src/payment/models/buy-crypto/dto/update-buy-crypto.dto.ts, src/payment/models/buy-crypto/entities/buy-crypto.entity.ts, src/payment/models/buy-crypto/services/buy-crypto.service.ts
+diff --git a/.vscode/settings.json b/.vscode/settings.json
+index a36ec0284..9b2aa0da6 100644
+--- a/.vscode/settings.json
++++ b/.vscode/settings.json
+@@ -4,6 +4,7 @@
+     "authorises",
+     "Bitstamp",
+     "ccxt",
++    "chargeback",
+     "citizenships",
+     "Datas",
+     "datetime",
+diff --git a/migration/1657872324388-AddedBuyCryptoChargeback.js b/migration/1657872324388-AddedBuyCryptoChargeback.js
+new file mode 100644
+index 000000000..44a3acd75
+--- /dev/null
++++ b/migration/1657872324388-AddedBuyCryptoChargeback.js
+@@ -0,0 +1,21 @@
++const { MigrationInterface, QueryRunner } = require("typeorm");
++
++module.exports = class AddedBuyCryptoChargeback1657872324388 {
++    name = 'AddedBuyCryptoChargeback1657872324388'
++
++    async up(queryRunner) {
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" ADD "chargebackDate" datetime2`);
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" ADD "chargebackRemittanceInfo" nvarchar(256)`);
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" ADD "chargebackBankTxId" int`);
++        await queryRunner.query(`CREATE UNIQUE INDEX "REL_d46d412c82765cddfc3b5284be" ON "dbo"."buy_crypto" ("chargebackBankTxId") WHERE "chargebackBankTxId" IS NOT NULL`);
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" ADD CONSTRAINT "FK_d46d412c82765cddfc3b5284be6" FOREIGN KEY ("chargebackBankTxId") REFERENCES "bank_tx"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
++    }
++
++    async down(queryRunner) {
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" DROP CONSTRAINT "FK_d46d412c82765cddfc3b5284be6"`);
++        await queryRunner.query(`DROP INDEX "REL_d46d412c82765cddfc3b5284be" ON "dbo"."buy_crypto"`);
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" DROP COLUMN "chargebackBankTxId"`);
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" DROP COLUMN "chargebackRemittanceInfo"`);
++        await queryRunner.query(`ALTER TABLE "dbo"."buy_crypto" DROP COLUMN "chargebackDate"`);
++    }
++}
+diff --git a/src/payment/models/buy-crypto/dto/update-buy-crypto.dto.ts b/src/payment/models/buy-crypto/dto/update-buy-crypto.dto.ts
+index 1aac38130..930da6775 100644
+--- a/src/payment/models/buy-crypto/dto/update-buy-crypto.dto.ts
++++ b/src/payment/models/buy-crypto/dto/update-buy-crypto.dto.ts
+@@ -95,4 +95,17 @@ export class UpdateBuyCryptoDto {
+   @IsOptional()
+   @IsNumber()
+   refFactor: number;
++
++  @IsOptional()
++  @IsDate()
++  @Type(() => Date)
++  chargebackDate: Date;
++
++  @IsOptional()
++  @IsString()
++  chargebackRemittanceInfo: string;
++
++  @IsOptional()
++  @IsInt()
++  chargebackBankTxId: number;
+ }
+diff --git a/src/payment/models/buy-crypto/entities/buy-crypto.entity.ts b/src/payment/models/buy-crypto/entities/buy-crypto.entity.ts
+index da59a2499..1251ac77f 100644
+--- a/src/payment/models/buy-crypto/entities/buy-crypto.entity.ts
++++ b/src/payment/models/buy-crypto/entities/buy-crypto.entity.ts
+@@ -88,6 +88,16 @@ export class BuyCrypto extends IEntity {
+   @Column({ type: 'float', nullable: true })
+   refFactor: number;
+ 
++  @Column({ type: 'datetime2', nullable: true })
++  chargebackDate: Date;
++
++  @Column({ length: 256, nullable: true })
++  chargebackRemittanceInfo: string;
++
++  @OneToOne(() => BankTx, { nullable: true })
++  @JoinColumn()
++  chargebackBankTx: BankTx;
++
+   defineAssetExchangePair(): this {
+     this.outputAsset = this.buy?.asset?.dexName;
+ 
+diff --git a/src/payment/models/buy-crypto/services/buy-crypto.service.ts b/src/payment/models/buy-crypto/services/buy-crypto.service.ts
+index fa8ec8559..aa18d8812 100644
+--- a/src/payment/models/buy-crypto/services/buy-crypto.service.ts
++++ b/src/payment/models/buy-crypto/services/buy-crypto.service.ts
+@@ -61,6 +61,12 @@ export class BuyCryptoService {
+ 
+     const update = this.buyCryptoRepo.create(dto);
+ 
++    // bank tx
++    if (dto.chargebackBankTxId) {
++      update.chargebackBankTx = await this.bankTxRepo.findOne({ id: dto.chargebackBankTxId });
++      if (!update.chargebackBankTx) throw new BadRequestException('Bank TX not found');
++    }
++
+     // buy
+     if (dto.buyId) update.buy = await this.getBuy(dto.buyId);
+
+=== f2f7b47f | 2022-07-15T10:52:30+02:00 | [DEV-349] Added new user data fields (#301) ===
+Files: migration/1657834977332-AdditionalUserDataFields.js, src/user/models/user-data/dto/update-user-data.dto.ts, src/user/models/user-data/user-data.entity.ts
+diff --git a/migration/1657834977332-AdditionalUserDataFields.js b/migration/1657834977332-AdditionalUserDataFields.js
+new file mode 100644
+index 000000000..fcdbd0654
+--- /dev/null
++++ b/migration/1657834977332-AdditionalUserDataFields.js
+@@ -0,0 +1,15 @@
++const { MigrationInterface, QueryRunner } = require("typeorm");
++
++module.exports = class AdditionalUserDataFields1657834977332 {
++    name = 'AdditionalUserDataFields1657834977332'
++
++    async up(queryRunner) {
++        await queryRunner.query(`ALTER TABLE "dbo"."user_data" ADD "highRisk" bit`);
++        await queryRunner.query(`ALTER TABLE "dbo"."user_data" ADD "complexOrgStructure" bit`);
++    }
++
++    async down(queryRunner) {
++        await queryRunner.query(`ALTER TABLE "dbo"."user_data" DROP COLUMN "complexOrgStructure"`);
++        await queryRunner.query(`ALTER TABLE "dbo"."user_data" DROP COLUMN "highRisk"`);
++    }
++}
+diff --git a/src/user/models/user-data/dto/update-user-data.dto.ts b/src/user/models/user-data/dto/update-user-data.dto.ts
+index e7c148111..d62a04851 100644
+--- a/src/user/models/user-data/dto/update-user-data.dto.ts
++++ b/src/user/models/user-data/dto/update-user-data.dto.ts
+@@ -1,4 +1,4 @@
+-import { IsOptional, IsInt, IsEnum, IsEmail, IsString } from 'class-validator';
++import { IsOptional, IsInt, IsEnum, IsEmail, IsString, IsBoolean } from 'class-validator';
+ import { AccountType } from '../account-type.enum';
+ import { KycState, KycStatus } from '../user-data.entity';
+ 
+@@ -83,6 +83,14 @@ export class UpdateUserDataDto {
+   @IsEnum(KycState)
+   kycState: KycState;
+ 
++  @IsOptional()
++  @IsBoolean()
++  highRisk: boolean;
++
++  @IsOptional()
++  @IsBoolean()
++  complexOrgStructure: boolean;
++
+   @IsOptional()
+   @IsInt()
+   mainBankDataId: number;
+diff --git a/src/user/models/user-data/user-data.entity.ts b/src/user/models/user-data/user-data.entity.ts
+index 726a1f4dc..7576700d9 100644
+--- a/src/user/models/user-data/user-data.entity.ts
++++ b/src/user/models/user-data/user-data.entity.ts
+@@ -98,6 +98,12 @@ export class UserData extends IEntity {
+   @Column({ length: 'MAX', nullable: true })
+   riskRoots: string;
+ 
++  @Column({ nullable: true })
++  highRisk: boolean;
++
++  @Column({ nullable: true })
++  complexOrgStructure: boolean;
++
+   @Column({ length: 256, default: KycStatus.NA })
+   kycStatus: KycStatus;
+
+=== f49219d2 | 2022-07-12T23:54:42+02:00 | DEV-36 BuyFiat (#297) ===
+Files: migration/1657577348235-AddedBuyFiat.js, src/monitoring/observers/payment.observer.ts, src/payment/models/bank-tx/bank-tx.repository.ts, src/payment/models/buy-fiat/buy-fiat.controller.ts, src/payment/models/buy-fiat/buy-fiat.entity.ts, src/payment/models/buy-fiat/buy-fiat.repository.ts, src/payment/models/buy-fiat/buy-fiat.service.ts, src/payment/models/crypto-buy/crypto-buy.service.ts, src/payment/models/crypto-input/crypto-input.entity.ts, src/payment/models/crypto-input/crypto-input.repository.ts
+diff --git a/migration/1657577348235-AddedBuyFiat.js b/migration/1657577348235-AddedBuyFiat.js
+new file mode 100644
+index 000000000..f5a53eb9e
+--- /dev/null
++++ b/migration/1657577348235-AddedBuyFiat.js
+@@ -0,0 +1,21 @@
++const { MigrationInterface, QueryRunner } = require("typeorm");
++
++module.exports = class AddedBuyFiat1657577348235 {
++    name = 'AddedBuyFiat1657577348235'
++
++    async up(queryRunner) {
++        await queryRunner.query(`CREATE TABLE "buy_fiat" ("id" int NOT NULL IDENTITY(1,1), "updated" datetime2 NOT NULL CONSTRAINT "DF_c022cde69d029bd0e0dc631289c" DEFAULT getdate(), "created" datetime2 NOT NULL CONSTRAINT "DF_43d231812a176b6770389cb8bc8" DEFAULT getdate(), "cryptoInputId" int NOT NULL, "sellId" int NOT NULL, CONSTRAINT "PK_c34bd02937a743168a974d5b93b" PRIMARY KEY ("id"))`);
++        await queryRunner.query(`CREATE UNIQUE INDEX "REL_82e290b1157691f3f3ccf57dc2" ON "buy_fiat" ("cryptoInputId") WHERE "cryptoInputId" IS NOT NULL`);
++        await queryRunner.query(`ALTER TABLE "dbo"."crypto_input" ALTER COLUMN "type" nvarchar(256) NOT NULL`);
++        await queryRunner.query(`ALTER TABLE "buy_fiat" ADD CONSTRAINT "FK_82e290b1157691f3f3ccf57dc2a" FOREIGN KEY ("cryptoInputId") REFERENCES "crypto_input"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
++        await queryRunner.query(`ALTER TABLE "buy_fiat" ADD CONSTRAINT "FK_17cdc5fdbc341100fde982dcd29" FOREIGN KEY ("sellId") REFERENCES "deposit_route"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
++    }
++
++    async down(queryRunner) {
++        await queryRunner.query(`ALTER TABLE "buy_fiat" DROP CONSTRAINT "FK_17cdc5fdbc341100fde982dcd29"`);
++        await queryRunner.query(`ALTER TABLE "buy_fiat" DROP CONSTRAINT "FK_82e290b1157691f3f3ccf57dc2a"`);
++        await queryRunner.query(`ALTER TABLE "dbo"."crypto_input" ALTER COLUMN "type" nvarchar(256)`);
++        await queryRunner.query(`DROP INDEX "REL_82e290b1157691f3f3ccf57dc2" ON "buy_fiat"`);
++        await queryRunner.query(`DROP TABLE "buy_fiat"`);
++    }
++}
+diff --git a/src/monitoring/observers/payment.observer.ts b/src/monitoring/observers/payment.observer.ts
+index 4444d61d4..8b0606776 100644
+--- a/src/monitoring/observers/payment.observer.ts
++++ b/src/monitoring/observers/payment.observer.ts
+@@ -4,17 +4,20 @@ import { MetricObserver } from 'src/monitoring/metric.observer';
+ import { MonitoringService } from 'src/monitoring/monitoring.service';
+ import { BankTxRepository } from 'src/payment/models/bank-tx/bank-tx.repository';
+ import { BuyCryptoRepository } from 'src/payment/models/buy-crypto/repositories/buy-crypto.repository';
++import { CryptoInputType } from 'src/payment/models/crypto-input/crypto-input.entity';
++import { CryptoInputRepository } from 'src/payment/models/crypto-input/crypto-input.repository';
+ import { CryptoSellRepository } from 'src/payment/models/crypto-sell/crypto-sell.repository';
+ import { DepositRepository } from 'src/payment/models/deposit/deposit.repository';
+ import { StakingRefRewardRepository } from 'src/payment/models/staking-ref-reward/staking-ref-reward.repository';
+ import { StakingRewardRepository } from 'src/payment/models/staking-reward/staking-reward.respository';
+-import { getCustomRepository, IsNull } from 'typeorm';
++import { getCustomRepository, IsNull, Not } from 'typeorm';
+ 
+ interface PaymentData {
+   lastOutputDates: LastOutputDates;
+   incomplete: IncompleteTransactions;
+   bankTxWithoutType: number;
+   freeDeposit: number;
++  unhandledCryptoInputs: number;
+ }
+ 
+ interface LastOutputDates {
+@@ -56,6 +59,15 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
+         .leftJoin('deposit.route', 'route')
+         .where('route.id IS NULL')
+         .getCount(),
++      unhandledCryptoInputs: await getCustomRepository(CryptoInputRepository).count({
++        where: {
++          type: Not(CryptoInputType.CRYPTO_CRYPTO),
++          buyFiat: { id: IsNull() },
++          cryptoStaking: { id: IsNull() },
++          /* TODO: Buy_Crypto */
++        },
++        relations: ['buyFiat', 'cryptoStaking'],
++      }),
+     };
+   }
+ 
+diff --git a/src/payment/models/bank-tx/bank-tx.repository.ts b/src/payment/models/bank-tx/bank-tx.repository.ts
+index 2d56428e1..91f4deb60 100644
+--- a/src/payment/models/bank-tx/bank-tx.repository.ts
++++ b/src/payment/models/bank-tx/bank-tx.repository.ts
+@@ -17,8 +17,4 @@ export class BankTxRepository extends Repository<BankTx> {
+ 
+     return results;
+   }
+-
+-  async setNewUpdateTime(bankTxId: number): Promise<void> {
+-    await this.update(bankTxId, { updated: new Date() });
+-  }
+ }
+diff --git a/src/payment/models/buy-fiat/buy-fiat.controller.ts b/src/payment/models/buy-fiat/buy-fiat.controller.ts
+new file mode 100644
+index 000000000..5460c4f96
+--- /dev/null
++++ b/src/payment/models/buy-fiat/buy-fiat.controller.ts
+@@ -0,0 +1,9 @@
++import { Controller } from '@nestjs/common';
++import { ApiTags } from '@nestjs/swagger';
++import { BuyFiatService } from './buy-fiat.service';
++
++@ApiTags('buyFiat')
++@Controller('buyFiat')
++export class BuyFiatController {
++  constructor(private readonly buyFiatService: BuyFiatService) {}
++}
+diff --git a/src/payment/models/buy-fiat/buy-fiat.entity.ts b/src/payment/models/buy-fiat/buy-fiat.entity.ts
+new file mode 100644
+index 000000000..32d6f0dda
+--- /dev/null
++++ b/src/payment/models/buy-fiat/buy-fiat.entity.ts
+@@ -0,0 +1,14 @@
++import { IEntity } from 'src/shared/models/entity';
++import { Entity, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
++import { CryptoInput } from '../crypto-input/crypto-input.entity';
++import { Sell } from '../sell/sell.entity';
++
++@Entity()
++export class BuyFiat extends IEntity {
++  @OneToOne(() => CryptoInput, { nullable: false })
++  @JoinColumn()
++  cryptoInput: CryptoInput;
++
++  @ManyToOne(() => Sell, (sell) => sell.buyFiats, { nullable: false })
++  sell: Sell;
++}
+diff --git a/src/payment/models/buy-fiat/buy-fiat.repository.ts b/src/payment/models/buy-fiat/buy-fiat.repository.ts
+new file mode 100644
+index 000000000..e9b867072
+--- /dev/null
++++ b/src/payment/models/buy-fiat/buy-fiat.repository.ts
+@@ -0,0 +1,5 @@
++import { EntityRepository, Repository } from 'typeorm';
++import { BuyFiat } from './buy-fiat.entity';
++
++@EntityRepository(BuyFiat)
++export class BuyFiatRepository extends Repository<BuyFiat> {}
+diff --git a/src/payment/models/buy-fiat/buy-fiat.service.ts b/src/payment/models/buy-fiat/buy-fiat.service.ts
+new file mode 100644
+index 000000000..70d26f7a7
+--- /dev/null
++++ b/src/payment/models/buy-fiat/buy-fiat.service.ts
+@@ -0,0 +1,24 @@
++import { Injectable } from '@nestjs/common';
++import { BuyFiat } from './buy-fiat.entity';
++import { BuyFiatRepository } from './buy-fiat.repository';
++import { CryptoInput } from '../crypto-input/crypto-input.entity';
++import { Sell } from '../sell/sell.entity';
++
++@Injectable()
++export class BuyFiatService {
++  // TODO: copy logic from CryptoSellService:
++  // - Update sell volumes
++  // - Activate user (move to user.service)
++  // - Methods for history and statistic service
++
++  constructor(private readonly buyFiatRepo: BuyFiatRepository) {}
++
++  async create(cryptoInput: CryptoInput): Promise<BuyFiat> {
++    const entity = this.buyFiatRepo.create();
++
++    entity.cryptoInput = cryptoInput;
++    entity.sell = cryptoInput.route as Sell;
++
++    return await this.buyFiatRepo.save(entity);
++  }
++}
+diff --git a/src/payment/models/crypto-buy/crypto-buy.service.ts b/src/payment/models/crypto-buy/crypto-buy.service.ts
+index 9531ec5bb..0d3ac21a4 100644
+--- a/src/payment/models/crypto-buy/crypto-buy.service.ts
++++ b/src/payment/models/crypto-buy/crypto-buy.service.ts
+@@ -34,8 +34,6 @@ export class CryptoBuyService {
+     await this.updateBuyVolume([entity.buy?.id]);
+     await this.updateRefVolume([entity.usedRef]);
+ 
+-    await this.bankTxRepo.setNewUpdateTime(dto.bankTxId);
+-
+     return entity;
+   }
+ 
+diff --git a/src/payment/models/crypto-input/crypto-input.entity.ts b/src/payment/models/crypto-input/crypto-input.entity.ts
+index 1027d6d07..657cee197 100644
+--- a/src/payment/models/crypto-input/crypto-input.entity.ts
++++ b/src/payment/models/crypto-input/crypto-input.entity.ts
+@@ -7,6 +7,7 @@ import { IEntity } from 'src/shared/models/entity';
+ import { CryptoSell } from '../crypto-sell/crypto-sell.entity';
+ import { CryptoStaking } from '../crypto-staking/crypto-staking.entity';
+ import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
++import { BuyFiat } from '../buy-fiat/buy-fiat.entity';
+ 
+ export enum CryptoInputType {
+   RETURN = 'Return',
+@@ -43,7 +44,7 @@ export class CryptoInput extends IEntity {
+   @ManyToOne(() => Asset, { nullable: false, eager: true })
+   asset: Asset;
+ 
+-  @Column({ length: 256, nullable: true })
++  @Column({ length: 256, nullable: false })
+   type: CryptoInputType;
+ 
+   @ManyToOne(() => DepositRoute, { nullable: false })
+@@ -58,6 +59,9 @@ export class CryptoInput extends IEntity {
+   @OneToOne(() => CryptoSell, (sell) => sell.cryptoInput, { nullable: true })
+   cryptoSell?: CryptoSell;
+ 
++  @OneToOne(() => BuyFiat, (buyFiat) => buyFiat.cryptoInput, { nullable: true })
++  buyFiat?: BuyFiat;
++
+   @OneToOne(() => CryptoStaking, (staking) => staking.cryptoInput, { nullable: true })
+   cryptoStaking?: CryptoStaking;
+ }
+diff --git a/src/payment/models/crypto-input/crypto-input.repository.ts b/src/payment/models/crypto-input/crypto-input.repository.ts
+index 267184649..92096a42e 100644
+--- a/src/payment/models/crypto-input/crypto-input.repository.ts
++++ b/src/payment/models/crypto-input/crypto-input.repository.ts
+@@ -2,8 +2,4 @@ import { EntityRepository, Repository } from 'typeorm';
+ import { CryptoInput } from './crypto-input.entity';
+ 
+ @EntityRepository(CryptoInput)
+-export class CryptoInputRepository extends Repository<CryptoInput> {
+-  async setNewUpdateTime(cryptoInputId: number): Promise<void> {
+-    await this.update(cryptoInputId, { updated: new Date() });
+-  }
+-}
++export class CryptoInputRepository extends Repository<CryptoInput> {}
+diff --git a/src/payment/models/crypto-input/crypto-input.service.ts b/src/payment/models/crypto-input/crypto-input.service.ts
+index 038eacca1..e3a40423e 100644
+--- a/src/payment/models/crypto-input/crypto-input.service.ts
++++ b/src/payment/models/crypto-input/crypto-input.service.ts
+@@ -13,7 +13,7 @@ import { StakingService } from 'src/payment/models/staking/staking.service';
+ import { CryptoInput, CryptoInputType } from './crypto-input.entity';
+ import { CryptoInputRepository } from './crypto-input.repository';
+ import { Lock } from 'src/shared/lock';
+-import { In, Not } from 'typeorm';
++import { In, IsNull, Not } from 'typeorm';
+ import { Sell } from '../sell/sell.entity';
+ import { Staking } from '../staking/staking.entity';
+ import { CryptoStakingService } from '../crypto-staking/crypto-staking.service';
+@@ -22,6 +22,7 @@ import { KycStatus } from 'src/user/models/user-data/user-data.entity';
+ 
+ import { NodeNotAccessibleError } from 'src/payment/exceptions/node-not-accessible.exception';
+ import { AmlCheck } from '../crypto-buy/enums/aml-check.enum';
++import { BuyFiatService } from '../buy-fiat/buy-fiat.service';
+ 
+ interface HistoryAmount {
+   amount: number;
+@@ -43,8 +44,31 @@ export class CryptoInputService {
+     private readonly sellService: SellService,
+     private readonly stakingService: StakingService,
+     private readonly cryptoStakingService: CryptoStakingService,
++    private readonly buyFiatService: BuyFiatService,
+   ) {
+     nodeService.getConnectedNode(NodeType.INPUT).subscribe((client) => (this.client = client));
++
++    // TODO: remove
++    this.createMissingBuyFiats();
++  }
++
++  private async createMissingBuyFiats() {
++    try {
++      const inputs = await this.cryptoInputRepo.find({
++        where: { type: CryptoInputType.BUY_FIAT, buyFiat: { id: IsNull() } },
++        relations: ['buyFiat', 'route'],
++      });
++
++      for (const input of inputs) {
++        try {
++          await this.buyFiatService.create(input);
++        } catch (e) {
++          console.error(`Failed to create buyFiat for input ${input.id}:`, e);
++        }
++      }
++    } catch (e) {
++      console.error('Error creating buy fiats:', e);
++    }
+   }
+ 
+   async update(cryptoInputId: number, dto: UpdateCryptoInputDto): Promise<CryptoInput> {
+@@ -169,8 +193,16 @@ export class CryptoInputService {
+     // side effect, assuming that cryptoStakingRepo and stakingRepo are faultless on save
+     for (const input of newInputs) {
+       await this.cryptoInputRepo.save(input);
+-      if (input?.route.type === RouteType.STAKING && input.amlCheck === AmlCheck.PASS) {
+-        await this.cryptoStakingService.create(input);
++
++      switch (input?.route.type) {
++        case RouteType.SELL:
++          await this.buyFiatService.create(input);
++          break;
++        case RouteType.STAKING:
++          if (input.amlCheck === AmlCheck.PASS) {
++            await this.cryptoStakingService.create(input);
++          }
++          break;
+       }
+     }
+   }
+diff --git a/src/payment/models/crypto-sell/crypto-sell.service.ts b/src/payment/models/crypto-sell/crypto-sell.service.ts
+index 95d4b27e5..09757d853 100644
+--- a/src/payment/models/crypto-sell/crypto-sell.service.ts
++++ b/src/payment/models/crypto-sell/crypto-sell.service.ts
+@@ -35,9 +35,6 @@ export class CryptoSellService {
+ 
+     await this.updateSellVolume([entity.cryptoInput.route.id]);
+ 
+-    await this.cryptoInputRepo.setNewUpdateTime(dto.cryptoInputId);
+-    if (dto.bankTxId) await this.bankTxRepo.setNewUpdateTime(dto.bankTxId);
+-
+     return entity;
+   }
+ 
+@@ -63,8 +60,6 @@ export class CryptoSellService {
+ 
+     await this.updateSellVolume([sellIdBefore, entity.cryptoInput.route.id]);
+ 
+-    if (dto.bankTxId) await this.bankTxRepo.setNewUpdateTime(dto.bankTxId);
+-
+     return entity;
+   }
+ 
+diff --git a/src/payment/models/sell/sell.entity.ts b/src/payment/models/sell/sell.entity.ts
+index 853a543ab..f75655cd3 100644
+--- a/src/payment/models/sell/sell.entity.ts
++++ b/src/payment/models/sell/sell.entity.ts
+@@ -4,6 +4,8 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+ import { DepositRoute } from '../route/deposit-route.entity';
+ import { CryptoInput } from '../crypto-input/crypto-input.entity';
+ import { BankAccount } from '../bank-account/bank-account.entity';
++import { BuyFiat } from '../buy-fiat/buy-fiat.entity';
++
+ @ChildEntity()
+ export class Sell extends DepositRoute {
+   @Column({ length: 256 })
+@@ -23,4 +25,7 @@ export class Sell extends DepositRoute {
+ 
+   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.route)
+   cryptoInputs: CryptoInput[];
++
++  @OneToMany(() => BuyFiat, (buyFiat) => buyFiat.sell)
++  buyFiats: BuyFiat[];
+ }
+diff --git a/src/payment/payment.module.ts b/src/payment/payment.module.ts
+index 669e9d5d5..ec2dc13fc 100644
+--- a/src/payment/payment.module.ts
++++ b/src/payment/payment.module.ts
+@@ -65,6 +65,9 @@ import { BankAccountRepository } from './models/bank-account/bank-account.reposi
+ import { CryptoRouteController } from './models/crypto-route/crypto-route.con
+... (truncated)
+
+=== 91c175c4 | 2022-07-11T07:22:47+02:00 | [DEV-167] Typed Node Clients (#293) ===
+Files: src/ain/node/btc-client.ts, src/ain/node/defi-client.ts, src/ain/node/node-client.ts, src/ain/node/node.service.ts, src/monitoring/monitoring.service.ts, src/payment/models/buy-crypto/services/buy-crypto-dex.service.ts, src/payment/models/buy-crypto/services/buy-crypto-out.service.ts, src/payment/models/buy-crypto/utils/buy-crypto-chain.util.ts, src/payment/models/crypto-input/crypto-input.service.spec.ts, src/payment/models/crypto-input/crypto-input.service.ts
+diff --git a/src/ain/node/btc-client.ts b/src/ain/node/btc-client.ts
+new file mode 100644
+index 000000000..227dcd443
+--- /dev/null
++++ b/src/ain/node/btc-client.ts
+@@ -0,0 +1,9 @@
++import { SchedulerRegistry } from '@nestjs/schedule';
++import { HttpService } from 'src/shared/services/http.service';
++import { NodeClient, NodeMode } from './node-client';
++
++export class BtcClient extends NodeClient {
++  constructor(http: HttpService, url: string, scheduler: SchedulerRegistry, mode: NodeMode) {
++    super(http, url, scheduler, mode);
++  }
++}
+diff --git a/src/ain/node/defi-client.ts b/src/ain/node/defi-client.ts
+new file mode 100644
+index 000000000..ec74320ad
+--- /dev/null
++++ b/src/ain/node/defi-client.ts
+@@ -0,0 +1,149 @@
++import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
++import { SchedulerRegistry } from '@nestjs/schedule';
++import BigNumber from 'bignumber.js';
++import { HttpService } from 'src/shared/services/http.service';
++import { NodeClient, NodeCommand, NodeMode } from './node-client';
++
++export class DeFiClient extends NodeClient {
++  constructor(http: HttpService, url: string, scheduler: SchedulerRegistry, mode: NodeMode) {
++    super(http, url, scheduler, mode);
++  }
++
++  // common
++  async getHistories(addresses: string[], fromBlock: number, toBlock: number): Promise<AccountHistory[]> {
++    let results = [];
++    for (const address of addresses) {
++      results = results.concat(await this.getHistory(address, fromBlock, toBlock));
++    }
++    return results;
++  }
++
++  private async getHistory(address: string, fromBlock: number, toBlock: number): Promise<AccountHistory[]> {
++    return this.callNode((c) =>
++      c.account.listAccountHistory(address, {
++        depth: toBlock - fromBlock,
++        maxBlockHeight: toBlock,
++      }),
++    );
++  }
++
++  async getNodeBalance(): Promise<{ utxo: BigNumber; token: AccountResult<string, string>[] }> {
++    return { utxo: await this.getBalance(), token: await this.getToken() };
++  }
++
++  // UTXO
++  get utxoFee(): number {
++    return this.chain === 'mainnet' ? 0.00000132 : 0.0000222;
++  }
++
++  async sendUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
++    return this.callNode(
++      (c) => c.call(NodeCommand.SEND_UTXO, [addressFrom, addressTo, this.roundAmount(amount)], 'number'),
++      true,
++    );
++  }
++
++  async sendCompleteUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
++    return this.callNode(
++      (c) =>
++        c.call(
++          NodeCommand.SEND_UTXO,
++          [addressFrom, addressTo, this.roundAmount(amount - this.utxoFee), addressTo],
++          'number',
++        ),
++      true,
++    );
++  }
++
++  // token
++  async getToken(): Promise<AccountResult<string, string>[]> {
++    return this.callNode((c) => c.account.listAccounts({}, false, { indexedAmounts: false, isMineOnly: true }));
++  }
++
++  async testCompositeSwap(tokenFrom: string, tokenTo: string, amount: number): Promise<number> {
++    if (tokenFrom === tokenTo) return amount;
++
++    return this.callNode((c) =>
++      c.call(
++        NodeCommand.TEST_POOL_SWAP,
++        [
++          {
++            from: undefined,
++            tokenFrom: tokenFrom,
++            amountFrom: this.roundAmount(amount),
++            to: undefined,
++            tokenTo: tokenTo,
++          },
++          'auto',
++        ],
++        'number',
++      ),
++    ).then((r: string) => this.parseAmount(r).amount);
++  }
++
++  async compositeSwap(
++    addressFrom: string,
++    tokenFrom: string,
++    addressTo: string,
++    tokenTo: string,
++    amount: number,
++    utxos?: SpendUTXO[],
++  ): Promise<string> {
++    return this.callNode(
++      (c) =>
++        c.poolpair.compositeSwap(
++          {
++            from: addressFrom,
++            tokenFrom: tokenFrom,
++            amountFrom: this.roundAmount(amount),
++            to: addressTo,
++            tokenTo: tokenTo,
++          },
++          utxos,
++        ),
++      true,
++    );
++  }
++
++  async sendToken(
++    addressFrom: string,
++    addressTo: string,
++    token: string,
++    amount: number,
++    utxos: SpendUTXO[] = [],
++  ): Promise<string> {
++    return token === 'DFI'
++      ? this.toUtxo(addressFrom, addressTo, amount, utxos)
++      : this.callNode(
++          (c) =>
++            c.account.accountToAccount(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@${token}` }, { utxos }),
++          true,
++        );
++  }
++
++  async sendTokenToMany(
++    addressFrom: string,
++    token: string,
++    payload: { addressTo: string; amount: number }[],
++    utxos: SpendUTXO[] = [],
++  ): Promise<string> {
++    if (payload.length > 10) {
++      throw new Error('Too many addresses in one transaction batch, allowed max 10 for tokens');
++    }
++
++    const batch = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: `${p.amount}@${token}` }), {});
++
++    return this.callNode((c) => c.account.accountToAccount(addressFrom, batch, { utxos }), true);
++  }
++
++  async toUtxo(addressFrom: string, addressTo: string, amount: number, utxos?: SpendUTXO[]): Promise<string> {
++    return this.callNode(
++      (c) => c.account.accountToUtxos(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@DFI` }, { utxos }),
++      true,
++    );
++  }
++
++  async removePoolLiquidity(address: string, amount: string, utxos?: SpendUTXO[]): Promise<string> {
++    return this.callNode((c) => c.poolpair.removePoolLiquidity(address, amount, { utxos }), true);
++  }
++}
+diff --git a/src/ain/node/node-client.ts b/src/ain/node/node-client.ts
+index d6be4868e..b6fe18b06 100644
+--- a/src/ain/node/node-client.ts
++++ b/src/ain/node/node-client.ts
+@@ -1,5 +1,4 @@
+ import { ApiClient, BigNumber } from '@defichain/jellyfish-api-core';
+-import { AccountHistory, AccountResult, UTXO as SpendUTXO } from '@defichain/jellyfish-api-core/dist/category/account';
+ import { Block, BlockchainInfo } from '@defichain/jellyfish-api-core/dist/category/blockchain';
+ import { InWalletTransaction, UTXO } from '@defichain/jellyfish-api-core/dist/category/wallet';
+ import { JsonRpcClient } from '@defichain/jellyfish-api-jsonrpc';
+@@ -22,7 +21,7 @@ export enum NodeMode {
+ }
+ 
+ export class NodeClient {
+-  private chain = Config.network;
++  protected chain = Config.network;
+   private readonly client: ApiClient;
+   private readonly queue: QueueHandler;
+ 
+@@ -50,23 +49,6 @@ export class NodeClient {
+     return this.callNode((c) => c.blockchain.getBlock(hash, 1));
+   }
+ 
+-  async getHistories(addresses: string[], fromBlock: number, toBlock: number): Promise<AccountHistory[]> {
+-    let results = [];
+-    for (const address of addresses) {
+-      results = results.concat(await this.getHistory(address, fromBlock, toBlock));
+-    }
+-    return results;
+-  }
+-
+-  private async getHistory(address: string, fromBlock: number, toBlock: number): Promise<AccountHistory[]> {
+-    return this.callNode((c) =>
+-      c.account.listAccountHistory(address, {
+-        depth: toBlock - fromBlock,
+-        maxBlockHeight: toBlock,
+-      }),
+-    );
+-  }
+-
+   async waitForTx(txId: string, timeout = 600000): Promise<InWalletTransaction> {
+     const tx = await Util.poll(
+       () => this.callNode((c) => c.wallet.getTransaction(txId)),
+@@ -84,10 +66,6 @@ export class NodeClient {
+   }
+ 
+   // UTXO
+-  get utxoFee(): number {
+-    return this.chain === 'mainnet' ? 0.00000132 : 0.0000222;
+-  }
+-
+   async getUtxo(): Promise<UTXO[]> {
+     return this.callNode((c) => c.wallet.listUnspent());
+   }
+@@ -96,29 +74,6 @@ export class NodeClient {
+     return this.callNode((c) => c.wallet.getBalance());
+   }
+ 
+-  async getNodeBalance(): Promise<{ utxo: BigNumber; token: AccountResult<string, string>[] }> {
+-    return { utxo: await this.getBalance(), token: await this.getToken() };
+-  }
+-
+-  async sendUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
+-    return this.callNode(
+-      (c) => c.call(NodeCommand.SEND_UTXO, [addressFrom, addressTo, this.roundAmount(amount)], 'number'),
+-      true,
+-    );
+-  }
+-
+-  async sendCompleteUtxo(addressFrom: string, addressTo: string, amount: number): Promise<string> {
+-    return this.callNode(
+-      (c) =>
+-        c.call(
+-          NodeCommand.SEND_UTXO,
+-          [addressFrom, addressTo, this.roundAmount(amount - this.utxoFee), addressTo],
+-          'number',
+-        ),
+-      true,
+-    );
+-  }
+-
+   async sendUtxoToMany(payload: { addressTo: string; amount: number }[]): Promise<string> {
+     if (payload.length > 100) {
+       throw new Error('Too many addresses in one transaction batch, allowed max 100 for UTXO');
+@@ -129,98 +84,6 @@ export class NodeClient {
+     return this.callNode((c) => c.wallet.sendMany(batch), true);
+   }
+ 
+-  // token
+-  async getToken(): Promise<AccountResult<string, string>[]> {
+-    return this.callNode((c) => c.account.listAccounts({}, false, { indexedAmounts: false, isMineOnly: true }));
+-  }
+-
+-  async testCompositeSwap(tokenFrom: string, tokenTo: string, amount: number): Promise<number> {
+-    if (tokenFrom === tokenTo) return amount;
+-
+-    return this.callNode((c) =>
+-      c.call(
+-        NodeCommand.TEST_POOL_SWAP,
+-        [
+-          {
+-            from: undefined,
+-            tokenFrom: tokenFrom,
+-            amountFrom: this.roundAmount(amount),
+-            to: undefined,
+-            tokenTo: tokenTo,
+-          },
+-          'auto',
+-        ],
+-        'number',
+-      ),
+-    ).then((r: string) => this.parseAmount(r).amount);
+-  }
+-
+-  async compositeSwap(
+-    addressFrom: string,
+-    tokenFrom: string,
+-    addressTo: string,
+-    tokenTo: string,
+-    amount: number,
+-    utxos?: SpendUTXO[],
+-  ): Promise<string> {
+-    return this.callNode(
+-      (c) =>
+-        c.poolpair.compositeSwap(
+-          {
+-            from: addressFrom,
+-            tokenFrom: tokenFrom,
+-            amountFrom: this.roundAmount(amount),
+-            to: addressTo,
+-            tokenTo: tokenTo,
+-          },
+-          utxos,
+-        ),
+-      true,
+-    );
+-  }
+-
+-  async sendToken(
+-    addressFrom: string,
+-    addressTo: string,
+-    token: string,
+-    amount: number,
+-    utxos: SpendUTXO[] = [],
+-  ): Promise<string> {
+-    return token === 'DFI'
+-      ? this.toUtxo(addressFrom, addressTo, amount, utxos)
+-      : this.callNode(
+-          (c) =>
+-            c.account.accountToAccount(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@${token}` }, { utxos }),
+-          true,
+-        );
+-  }
+-
+-  async sendTokenToMany(
+-    addressFrom: string,
+-    token: string,
+-    payload: { addressTo: string; amount: number }[],
+-    utxos: SpendUTXO[] = [],
+-  ): Promise<string> {
+-    if (payload.length > 10) {
+-      throw new Error('Too many addresses in one transaction batch, allowed max 10 for tokens');
+-    }
+-
+-    const batch = payload.reduce((acc, p) => ({ ...acc, [p.addressTo]: `${p.amount}@${token}` }), {});
+-
+-    return this.callNode((c) => c.account.accountToAccount(addressFrom, batch, { utxos }), true);
+-  }
+-
+-  async toUtxo(addressFrom: string, addressTo: string, amount: number, utxos?: SpendUTXO[]): Promise<string> {
+-    return this.callNode(
+-      (c) => c.account.accountToUtxos(addressFrom, { [addressTo]: `${this.roundAmount(amount)}@DFI` }, { utxos }),
+-      true,
+-    );
+-  }
+-
+-  async removePoolLiquidity(address: string, amount: string, utxos?: SpendUTXO[]): Promise<string> {
+-    return this.callNode((c) => c.poolpair.removePoolLiquidity(address, amount, { utxos }), true);
+-  }
+-
+   // forwarding
+   async sendRpcCommand(command: string): Promise<any> {
+     return this.http.post(this.url, command, {
+@@ -246,7 +109,7 @@ export class NodeClient {
+   }
+ 
+   // --- HELPER METHODS --- //
+-  private async callNode<T>(call: (client: ApiClient) => Promise<T>, unlock = false): Promise<T> {
++  protected async callNode<T>(call: (client: ApiClient) => Promise<T>, unlock = false): Promise<T> {
+     try {
+       if (unlock) await this.unlock();
+       return await this.call(call);
+@@ -275,7 +138,7 @@ export class NodeClient {
+     return { Authorization: 'Basic ' + passwordHash };
+   }
+ 
+-  private roundAmount(amount: number): number {
++  protected roundAmount(amount: number): number {
+     return Util.round(amount, 8);
+   }
+ 
+diff --git a/src/ain/node/node.service.ts b/src/ain/node/node.service.ts
+index da3789996..7d0121c3b 100644
+--- a/src/ain/node/node.service.ts
++++ b/src/ain/node/node.service.ts
+@@ -6,6 +6,8 @@ import { Config } from 'src/config/config';
+ import { HttpService } from 'src/shared/services/http.service';
+ import { MailService } from 'src/shared/services/mail.service';
+ import { Util } from 'src/shared/util';
++import { BtcClient } from './btc-client';
++import { DeFiClient } from './defi-client';
+ import { NodeClient, NodeMode } from './node-client';
+ 
+ export enum NodeType {
+@@ -30,6 +32,8 @@ interface NodeCheckResult {
+ 
+ type MailMessage = string;
+ 
++type TypedNodeClient<T> = T extends NodeType.BTC_INPUT ? BtcClient : DeFiClient;
++
+ @Injectable()
+ export class NodeService {
+   #allNodesUp = true;
+@@ -56,6 +60,7 @@ export class NodeService {
+       this.checkNodePair(NodeType.OUTPUT),
+       this.checkNodePair(NodeType.INT),
+       this.checkNodePair(NodeType.REF),
++      // TODO: check BTC nodes
+     ]).then((errors) => errors.reduce((prev, curr) => prev.concat(curr), []));
+ 
+     this.handleNodeErrors(errors);
+@@ -63,31 +68,31 @@ export class NodeService {
+ 
+   // --- PUBLIC API --- //
+ 
+-  getConnectedNode(type: NodeType): Observable<NodeClient> {
++  getConnectedNode<T extends NodeType>(type: T): Observable<TypedNodeClient<T>> {
+     const client = this.connectedNodes.get(type);
+ 
+     if (client) {
+-      return client.asObservable();
++      return client.asObservable() as Observable<TypedNodeClient<T>>;
+     }
+ 
+     throw new BadRequestException(`No node for type '${type}'`);
+   }
+ 
+-  getCurrentConnectedNode(type: NodeType): NodeClient {
++  getCurrentConnectedNode<T extends NodeType>(type: T): TypedNodeClient<T> {
+     const client = this.connectedNodes.get(type);
+ 
+     if (client) {
+-      return client.getValue();
++      return client.getValue() as TypedNodeClient<T>;
+     }
+ 
+     throw new BadRequestException(`No node for type '${type}'`);
+   }
+ 
+-  getNodeFromPool(type: NodeType, mode: NodeMode): NodeClient {
++  getNodeFromPool<T extends NodeType>(type: T, mode: NodeMode): TypedNodeClient<T> {
+     const client = this.allNodes.get(type)[mode];
+ 
+     if (client) {
+-      return client;
++      return client as TypedNodeClient<T>;
+     }
+ 
+     throw new BadRequestException(`No node for type '${type}' and mode '${mode}'`);
+@@ -97,38 +102,42 @@ export class NodeService {
+ 
+   private initAllNodes(): void {
+     this.allNodes.set(NodeType.INPUT, {
+-      [NodeMode.ACTIVE]: this.createNodeClient(Config.node.inp.active, NodeMode.ACTIVE),
+-      [NodeMode.PASSIVE]: this.createNodeClient(Config.node.inp.passive, NodeMode.PASSIVE),
++      [NodeMode.ACTIVE]: this.createNodeCl
+... (truncated)
+
+=== d203dd50 | 2022-07-05T14:07:33+02:00 | Feature/DEV-320 improve dto validation (#284) ===
+Files: src/payment/models/buy/dto/create-buy.dto.ts, src/payment/models/crypto-sell/dto/create-crypto-sell.dto.ts, src/payment/models/crypto-sell/dto/crypto-sell.dto.ts, src/payment/models/crypto-sell/dto/update-crypto-sell.dto.ts, src/payment/models/sell/dto/create-sell.dto.ts, src/payment/models/sell/dto/sell.dto.ts, src/payment/models/staking/dto/create-staking.dto.ts, src/shared/dto/entity.dto.ts, src/user/models/kyc/dto/kyc-user-data.dto.ts, src/user/models/user/dto/update-user.dto.ts
+diff --git a/src/payment/models/buy/dto/create-buy.dto.ts b/src/payment/models/buy/dto/create-buy.dto.ts
+index 28864fb0c..25e56ed70 100644
+--- a/src/payment/models/buy/dto/create-buy.dto.ts
++++ b/src/payment/models/buy/dto/create-buy.dto.ts
+@@ -1,5 +1,7 @@
+ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+-import { IsEnum, IsNotEmpty, IsObject, ValidateIf } from 'class-validator';
++import { Type } from 'class-transformer';
++import { IsEnum, IsNotEmpty, IsNotEmptyObject, IsObject, ValidateIf, ValidateNested } from 'class-validator';
++import { EntityDto } from 'src/shared/dto/entity.dto';
+ import { Asset } from 'src/shared/models/asset/asset.entity';
+ import { StakingDto } from '../../staking/dto/staking.dto';
+ import { BuyType } from './buy-type.enum';
+@@ -17,13 +19,17 @@ export class CreateBuyDto {
+ 
+   @ApiPropertyOptional()
+   @ValidateIf((b: CreateBuyDto) => b.type === BuyType.WALLET)
+-  @IsNotEmpty()
++  @IsNotEmptyObject()
+   @IsObject()
++  @ValidateNested()
++  @Type(() => EntityDto)
+   asset: Asset;
+ 
+   @ApiPropertyOptional()
+   @ValidateIf((b: CreateBuyDto) => b.type === BuyType.STAKING)
+-  @IsNotEmpty()
++  @IsNotEmptyObject()
+   @IsObject()
++  @ValidateNested()
++  @Type(() => EntityDto)
+   staking: StakingDto;
+ }
+diff --git a/src/payment/models/crypto-sell/dto/create-crypto-sell.dto.ts b/src/payment/models/crypto-sell/dto/create-crypto-sell.dto.ts
+index c945accf2..ae402c995 100644
+--- a/src/payment/models/crypto-sell/dto/create-crypto-sell.dto.ts
++++ b/src/payment/models/crypto-sell/dto/create-crypto-sell.dto.ts
+@@ -1,9 +1,7 @@
+-import { ApiProperty } from '@nestjs/swagger';
+ import { IsInt, IsNotEmpty } from 'class-validator';
+ import { CryptoSellDto } from './crypto-sell.dto';
+ 
+ export class CreateCryptoSellDto extends CryptoSellDto {
+-  @ApiProperty()
+   @IsNotEmpty()
+   @IsInt()
+   cryptoInputId: number;
+diff --git a/src/payment/models/crypto-sell/dto/crypto-sell.dto.ts b/src/payment/models/crypto-sell/dto/crypto-sell.dto.ts
+index 8d1903d4e..dd54030d4 100644
+--- a/src/payment/models/crypto-sell/dto/crypto-sell.dto.ts
++++ b/src/payment/models/crypto-sell/dto/crypto-sell.dto.ts
+@@ -1,86 +1,69 @@
+-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+ import { Type } from 'class-transformer';
+ import { IsInt, IsOptional, IsDate, IsString, IsNumber, IsEnum } from 'class-validator';
+ import { AmlCheck } from '../../crypto-buy/enums/aml-check.enum';
+ 
+ export abstract class CryptoSellDto {
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsString()
+   recipientMail: string;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsNumber()
+   mail1SendDate: number;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsNumber()
+   mail2SendDate: number;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsNumber()
+   mail3SendDate: number;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsNumber()
+   fee: number;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsNumber()
+   fiatReferenceAmount: number;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsString()
+   fiatReferenceCurrency: string;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsNumber()
+   amountInChf: number;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsNumber()
+   amountInEur: number;
+ 
+-  @ApiProperty()
+   @IsOptional()
+   @IsEnum(AmlCheck)
+   amlCheck: AmlCheck;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsString()
+   iban: string;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsNumber()
+   outputAmount: number;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsString()
+   outputCurrency: string;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsString()
+   bankUsage: string;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsDate()
+   @Type(() => Date)
+   outputDate: Date;
+ 
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsInt()
+   bankTxId: number;
+diff --git a/src/payment/models/crypto-sell/dto/update-crypto-sell.dto.ts b/src/payment/models/crypto-sell/dto/update-crypto-sell.dto.ts
+index d8372ac6d..090d4720e 100644
+--- a/src/payment/models/crypto-sell/dto/update-crypto-sell.dto.ts
++++ b/src/payment/models/crypto-sell/dto/update-crypto-sell.dto.ts
+@@ -1,9 +1,7 @@
+-import { ApiPropertyOptional } from '@nestjs/swagger';
+ import { IsInt, IsOptional } from 'class-validator';
+ import { CryptoSellDto } from './crypto-sell.dto';
+ 
+ export class UpdateCryptoSellDto extends CryptoSellDto {
+-  @ApiPropertyOptional()
+   @IsOptional()
+   @IsInt()
+   cryptoInputId: number;
+diff --git a/src/payment/models/sell/dto/create-sell.dto.ts b/src/payment/models/sell/dto/create-sell.dto.ts
+index 92cbac023..71db42d5a 100644
+--- a/src/payment/models/sell/dto/create-sell.dto.ts
++++ b/src/payment/models/sell/dto/create-sell.dto.ts
+@@ -1,5 +1,7 @@
+ import { ApiProperty } from '@nestjs/swagger';
+-import { IsNotEmpty, IsObject, IsString } from 'class-validator';
++import { Type } from 'class-transformer';
++import { IsNotEmpty, IsNotEmptyObject, IsObject, IsString, ValidateNested } from 'class-validator';
++import { EntityDto } from 'src/shared/dto/entity.dto';
+ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+ 
+ export class CreateSellDto {
+@@ -9,7 +11,9 @@ export class CreateSellDto {
+   iban: string;
+ 
+   @ApiProperty()
+-  @IsNotEmpty()
++  @IsNotEmptyObject()
+   @IsObject()
++  @ValidateNested()
++  @Type(() => EntityDto)
+   fiat: Fiat;
+ }
+diff --git a/src/payment/models/sell/dto/sell.dto.ts b/src/payment/models/sell/dto/sell.dto.ts
+index 2a4dc7f45..340a18c14 100644
+--- a/src/payment/models/sell/dto/sell.dto.ts
++++ b/src/payment/models/sell/dto/sell.dto.ts
+@@ -1,13 +1,13 @@
+-import { Fiat } from "src/shared/models/fiat/fiat.entity";
+-import { Deposit } from "../../deposit/deposit.entity";
++import { Fiat } from 'src/shared/models/fiat/fiat.entity';
++import { Deposit } from '../../deposit/deposit.entity';
+ 
+ export class SellDto {
+-    id: number;
+-    active: boolean;
+-    deposit: Deposit;
+-    iban: string;
+-    fiat: Fiat;
+-    volume: number;
+-    fee: number;
+-    isInUse: boolean;
++  id: number;
++  active: boolean;
++  deposit: Deposit;
++  iban: string;
++  fiat: Fiat;
++  volume: number;
++  fee: number;
++  isInUse: boolean;
+ }
+diff --git a/src/payment/models/staking/dto/create-staking.dto.ts b/src/payment/models/staking/dto/create-staking.dto.ts
+index 1b2ec87a3..8fa3aa155 100644
+--- a/src/payment/models/staking/dto/create-staking.dto.ts
++++ b/src/payment/models/staking/dto/create-staking.dto.ts
+@@ -1,5 +1,7 @@
+ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+-import { IsEnum, IsNotEmpty, IsObject, ValidateIf } from 'class-validator';
++import { Type } from 'class-transformer';
++import { IsEnum, IsNotEmpty, IsNotEmptyObject, IsObject, ValidateIf, ValidateNested } from 'class-validator';
++import { EntityDto } from 'src/shared/dto/entity.dto';
+ import { Asset } from 'src/shared/models/asset/asset.entity';
+ import { Sell } from '../../sell/sell.entity';
+ import { PayoutType } from '../../staking-reward/staking-reward.entity';
+@@ -12,14 +14,18 @@ export class CreateStakingDto {
+ 
+   @ApiPropertyOptional()
+   @ValidateIf((b: CreateStakingDto) => b.rewardType === PayoutType.BANK_ACCOUNT)
+-  @IsNotEmpty()
++  @IsNotEmptyObject()
+   @IsObject()
++  @ValidateNested()
++  @Type(() => EntityDto)
+   rewardSell?: Sell;
+ 
+   @ApiPropertyOptional()
+   @ValidateIf((b: CreateStakingDto) => b.rewardType === PayoutType.WALLET)
+-  @IsNotEmpty()
++  @IsNotEmptyObject()
+   @IsObject()
++  @ValidateNested()
++  @Type(() => EntityDto)
+   rewardAsset: Asset;
+ 
+   @ApiProperty()
+@@ -29,13 +35,17 @@ export class CreateStakingDto {
+ 
+   @ApiPropertyOptional()
+   @ValidateIf((b: CreateStakingDto) => b.paybackType === PayoutType.BANK_ACCOUNT)
+-  @IsNotEmpty()
++  @IsNotEmptyObject()
+   @IsObject()
++  @ValidateNested()
++  @Type(() => EntityDto)
+   paybackSell?: Sell;
+ 
+   @ApiPropertyOptional()
+   @ValidateIf((b: CreateStakingDto) => b.paybackType === PayoutType.WALLET)
+-  @IsNotEmpty()
++  @IsNotEmptyObject()
+   @IsObject()
++  @ValidateNested()
++  @Type(() => EntityDto)
+   paybackAsset: Asset;
+ }
+diff --git a/src/shared/dto/entity.dto.ts b/src/shared/dto/entity.dto.ts
+new file mode 100644
+index 000000000..59e307f7c
+--- /dev/null
++++ b/src/shared/dto/entity.dto.ts
+@@ -0,0 +1,7 @@
++import { IsInt, IsNotEmpty } from 'class-validator';
++
++export class EntityDto {
++  @IsNotEmpty()
++  @IsInt()
++  id: number;
++}
+diff --git a/src/user/models/kyc/dto/kyc-user-data.dto.ts b/src/user/models/kyc/dto/kyc-user-data.dto.ts
+index 4068a3e5d..c26351861 100644
+--- a/src/user/models/kyc/dto/kyc-user-data.dto.ts
++++ b/src/user/models/kyc/dto/kyc-user-data.dto.ts
+@@ -1,5 +1,7 @@
+ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+-import { IsNotEmpty, IsEnum, IsString, IsObject, ValidateIf } from 'class-validator';
++import { Type } from 'class-transformer';
++import { IsNotEmpty, IsEnum, IsString, IsObject, ValidateIf, IsNotEmptyObject, ValidateNested } from 'class-validator';
++import { EntityDto } from 'src/shared/dto/entity.dto';
+ import { Country } from 'src/shared/models/country/country.entity';
+ import { AccountType } from '../../user-data/account-type.enum';
+ 
+@@ -40,8 +42,10 @@ export class KycUserDataDto {
+   zip: string;
+ 
+   @ApiProperty()
+-  @IsNotEmpty()
++  @IsNotEmptyObject()
+   @IsObject()
++  @ValidateNested()
++  @Type(() => EntityDto)
+   country: Country;
+ 
+   @ApiPropertyOptional()
+@@ -76,7 +80,9 @@ export class KycUserDataDto {
+ 
+   @ApiPropertyOptional()
+   @ValidateIf((d: KycUserDataDto) => d.accountType !== AccountType.PERSONAL)
+-  @IsNotEmpty()
++  @IsNotEmptyObject()
+   @IsObject()
++  @ValidateNested()
++  @Type(() => EntityDto)
+   organizationCountry: Country;
+ }
+diff --git a/src/user/models/user/dto/update-user.dto.ts b/src/user/models/user/dto/update-user.dto.ts
+index 89a98af29..9b954f725 100644
+--- a/src/user/models/user/dto/update-user.dto.ts
++++ b/src/user/models/user/dto/update-user.dto.ts
+@@ -1,5 +1,7 @@
+ import { ApiPropertyOptional } from '@nestjs/swagger';
+-import { IsEmail, IsOptional, IsString, IsNumber, Matches, IsObject } from 'class-validator';
++import { Type } from 'class-transformer';
++import { IsEmail, IsOptional, IsString, IsNumber, Matches, IsObject, ValidateNested } from 'class-validator';
++import { EntityDto } from 'src/shared/dto/entity.dto';
+ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+ import { Language } from 'src/shared/models/language/language.entity';
+ 
+@@ -28,10 +30,14 @@ export class UpdateUserDto {
+   @ApiPropertyOptional()
+   @IsOptional()
+   @IsObject()
++  @ValidateNested()
++  @Type(() => EntityDto)
+   language?: Language;
+ 
+   @ApiPropertyOptional()
+   @IsOptional()
+   @IsObject()
++  @ValidateNested()
++  @Type(() => EntityDto)
+   currency?: Fiat;
+ }
+
+=== 7d45266b | 2022-06-15T18:07:37+02:00 | Fixed bank TX extended for empty types (#259) ===
+Files: src/admin/admin.controller.ts
+diff --git a/src/admin/admin.controller.ts b/src/admin/admin.controller.ts
+index b21bc184c..45956282f 100644
+--- a/src/admin/admin.controller.ts
++++ b/src/admin/admin.controller.ts
+@@ -213,11 +213,9 @@ export class AdminController {
+       .select('bank_tx', 'bankTx')
+       .where('bank_tx.id >= :id', { id })
+       .andWhere('bank_tx.updated >= :updated', { updated })
+-      .andWhere('bank_tx.type != :buyCryptoType', {
+-        buyCryptoType: BankTxType.BUY_CRYPTO,
+-      })
+-      .andWhere('bank_tx.type != :buyFiatType', {
+-        buyFiatType: BankTxType.BUY_FIAT,
++      .andWhere('(type IS NULL OR type NOT IN (:crypto, :fiat))', {
++        crypto: BankTxType.BUY_CRYPTO,
++        fiat: BankTxType.BUY_FIAT,
+       })
+       .getRawMany()
+       .catch((e: Error) => {
+
+=== 2e548aed | 2022-06-14T15:35:57+02:00 | Unused operators (#257) ===
+Files: migration/1655213109083-RemovedMnEnable.js, migration/1655213220947-UniqueKycHash.js, src/monitoring/monitoring.service.ts, src/payment/models/masternode/dto/create-masternode.dto.ts, src/payment/models/masternode/masternode.controller.ts, src/payment/models/masternode/masternode.entity.ts, src/payment/models/masternode/masternode.service.ts, src/user/models/user-data/user-data.entity.ts, thunder-tests/thunderclient.json
+diff --git a/migration/1655213109083-RemovedMnEnable.js b/migration/1655213109083-RemovedMnEnable.js
+new file mode 100644
+index 000000000..f1af013d5
+--- /dev/null
++++ b/migration/1655213109083-RemovedMnEnable.js
+@@ -0,0 +1,15 @@
++const { MigrationInterface, QueryRunner } = require("typeorm");
++
++module.exports = class RemovedMnEnable1655213109083 {
++    name = 'RemovedMnEnable1655213109083'
++
++    async up(queryRunner) {
++        await queryRunner.query(`ALTER TABLE "dbo"."masternode" DROP CONSTRAINT "DF_bb2493b02b73827db0946c32949"`);
++        await queryRunner.query(`ALTER TABLE "dbo"."masternode" DROP COLUMN "enabled"`);
++    }
++
++    async down(queryRunner) {
++        await queryRunner.query(`ALTER TABLE "dbo"."masternode" ADD "enabled" bit NOT NULL`);
++        await queryRunner.query(`ALTER TABLE "dbo"."masternode" ADD CONSTRAINT "DF_bb2493b02b73827db0946c32949" DEFAULT 0 FOR "enabled"`);
++    }
++}
+diff --git a/migration/1655213220947-UniqueKycHash.js b/migration/1655213220947-UniqueKycHash.js
+new file mode 100644
+index 000000000..6d2912fd0
+--- /dev/null
++++ b/migration/1655213220947-UniqueKycHash.js
+@@ -0,0 +1,13 @@
++const { MigrationInterface, QueryRunner } = require("typeorm");
++
++module.exports = class UniqueKycHash1655213220947 {
++    name = 'UniqueKycHash1655213220947'
++
++    async up(queryRunner) {
++        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_ae1f8052958afa82055fdef34f" ON "dbo"."user_data" ("kycHash") WHERE kycHash IS NOT NULL`);
++    }
++
++    async down(queryRunner) {
++        await queryRunner.query(`DROP INDEX "IDX_ae1f8052958afa82055fdef34f" ON "dbo"."user_data"`);
++    }
++}
+diff --git a/src/monitoring/monitoring.service.ts b/src/monitoring/monitoring.service.ts
+index f2c765ba6..f6e7e4d40 100644
+--- a/src/monitoring/monitoring.service.ts
++++ b/src/monitoring/monitoring.service.ts
+@@ -102,6 +102,6 @@ export class MonitoringService {
+   }
+ 
+   async getFreeOperators(): Promise<number> {
+-    return await this.masternodeService.getFreeOperators();
++    return await this.masternodeService.getFreeOperatorCount();
+   }
+ }
+diff --git a/src/payment/models/masternode/dto/create-masternode.dto.ts b/src/payment/models/masternode/dto/create-masternode.dto.ts
+index 72bf9e5c5..fb2055a63 100644
+--- a/src/payment/models/masternode/dto/create-masternode.dto.ts
++++ b/src/payment/models/masternode/dto/create-masternode.dto.ts
+@@ -1,21 +1,19 @@
+-import { IsInt, IsNotEmpty, IsString } from 'class-validator';
++import { Type } from 'class-transformer';
++import { IsDate, IsInt, IsNotEmpty, IsString } from 'class-validator';
+ 
+ export class CreateMasternodeDto {
+   @IsNotEmpty()
+-  @IsString()
+-  hash: string;
+-
+-  @IsNotEmpty()
+-  @IsString()
+-  owner: string;
++  @IsDate()
++  @Type(() => Date)
++  creationDate: Date;
+ 
+   @IsNotEmpty()
+   @IsString()
+-  operator: string;
++  creationHash: string;
+ 
+   @IsNotEmpty()
+   @IsString()
+-  server: string;
++  owner: string;
+ 
+   @IsNotEmpty()
+   @IsInt()
+diff --git a/src/payment/models/masternode/masternode.controller.ts b/src/payment/models/masternode/masternode.controller.ts
+index b8ad94800..12ff1b55d 100644
+--- a/src/payment/models/masternode/masternode.controller.ts
++++ b/src/payment/models/masternode/masternode.controller.ts
+@@ -1,4 +1,4 @@
+-import { Body, Controller, Param, Post, Put, UseGuards } from '@nestjs/common';
++import { Body, Controller, Get, Param, Put, UseGuards } from '@nestjs/common';
+ import { AuthGuard } from '@nestjs/passport';
+ import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+ import { RoleGuard } from 'src/shared/auth/role.guard';
+@@ -13,19 +13,27 @@ import { MasternodeService } from './masternode.service';
+ export class MasternodeController {
+   constructor(private readonly masternodeService: MasternodeService) {}
+ 
+-  @Post()
++  @Get()
+   @ApiBearerAuth()
+   @ApiExcludeEndpoint()
+   @UseGuards(AuthGuard(), new RoleGuard(UserRole.MASTERNODE_OPERATOR))
+-  createMasternode(@Body() dto: CreateMasternodeDto): Promise<Masternode> {
+-    return this.masternodeService.create(dto);
++  getMasternodes(): Promise<Masternode[]> {
++    return this.masternodeService.get();
+   }
+ 
+-  @Put(':hash')
++  @Put(':id/create')
+   @ApiBearerAuth()
+   @ApiExcludeEndpoint()
+   @UseGuards(AuthGuard(), new RoleGuard(UserRole.MASTERNODE_OPERATOR))
+-  async resignMasternode(@Param('hash') hash: string, @Body() dto: ResignMasternodeDto): Promise<Masternode> {
+-    return this.masternodeService.resign(hash, dto);
++  createMasternode(@Param('id') id: string, @Body() dto: CreateMasternodeDto): Promise<Masternode> {
++    return this.masternodeService.create(+id, dto);
++  }
++
++  @Put(':id/resign')
++  @ApiBearerAuth()
++  @ApiExcludeEndpoint()
++  @UseGuards(AuthGuard(), new RoleGuard(UserRole.MASTERNODE_OPERATOR))
++  async resignMasternode(@Param('id') id: string, @Body() dto: ResignMasternodeDto): Promise<Masternode> {
++    return this.masternodeService.resign(+id, dto);
+   }
+ }
+diff --git a/src/payment/models/masternode/masternode.entity.ts b/src/payment/models/masternode/masternode.entity.ts
+index 87e0d76e6..4431d9801 100644
+--- a/src/payment/models/masternode/masternode.entity.ts
++++ b/src/payment/models/masternode/masternode.entity.ts
+@@ -9,9 +9,6 @@ export class Masternode extends IEntity {
+   @Column({ length: 256, unique: true })
+   operator: string;
+ 
+-  @Column({ default: false })
+-  enabled: boolean;
+-
+   @Column({ length: 256, nullable: true })
+   @Index({ unique: true, where: 'owner IS NOT NULL' })
+   owner: string;
+diff --git a/src/payment/models/masternode/masternode.service.ts b/src/payment/models/masternode/masternode.service.ts
+index feaeb680a..71e322aaa 100644
+--- a/src/payment/models/masternode/masternode.service.ts
++++ b/src/payment/models/masternode/masternode.service.ts
+@@ -1,6 +1,6 @@
+-import { Injectable, NotFoundException } from '@nestjs/common';
++import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+ import { MasternodeRepository } from 'src/payment/models/masternode/masternode.repository';
+-import { IsNull, LessThan, MoreThan } from 'typeorm';
++import { IsNull, LessThan, MoreThan, Not } from 'typeorm';
+ import { CreateMasternodeDto } from './dto/create-masternode.dto';
+ import { ResignMasternodeDto } from './dto/resign-masternode.dto';
+ import { Masternode } from './masternode.entity';
+@@ -13,19 +13,20 @@ export class MasternodeService {
+     return this.masternodeRepo.find();
+   }
+ 
+-  async create(dto: CreateMasternodeDto): Promise<Masternode> {
+-    const masternode = this.masternodeRepo.create(dto);
+-    masternode.enabled = true;
+-    masternode.creationHash = dto.hash;
+-    masternode.creationDate = new Date();
+-    return this.masternodeRepo.save(masternode);
++  async create(id: number, dto: CreateMasternodeDto): Promise<Masternode> {
++    const masternode = await this.masternodeRepo.findOne(id);
++    if (!masternode) throw new NotFoundException('Masternode not found');
++    if (masternode.creationHash) throw new ConflictException('Masternode already created');
++
++    return await this.masternodeRepo.save({ ...masternode, ...dto });
+   }
+ 
+-  async resign(hash: string, dto: ResignMasternodeDto): Promise<Masternode> {
+-    const masternode = await this.masternodeRepo.findOne({ creationHash: hash });
++  async resign(id: number, dto: ResignMasternodeDto): Promise<Masternode> {
++    const masternode = await this.masternodeRepo.findOne(id);
+     if (!masternode) throw new NotFoundException('Masternode not found');
++    if (!masternode.creationHash) throw new ConflictException('Masternode not yet created');
++    if (masternode.resignHash) throw new ConflictException('Masternode already resigned');
+ 
+-    masternode.enabled = false;
+     return await this.masternodeRepo.save({ ...masternode, ...dto });
+   }
+ 
+@@ -43,10 +44,10 @@ export class MasternodeService {
+   }
+ 
+   async getActive(): Promise<Masternode[]> {
+-    return this.masternodeRepo.find({ where: { enabled: true } });
++    return this.masternodeRepo.find({ where: { creationHash: Not(IsNull()), resignHash: IsNull() } });
+   }
+ 
+-  async getFreeOperators(): Promise<number> {
++  async getFreeOperatorCount(): Promise<number> {
+     return await this.masternodeRepo.count({ where: { creationHash: IsNull() } });
+   }
+ }
+diff --git a/src/user/models/user-data/user-data.entity.ts b/src/user/models/user-data/user-data.entity.ts
+index c626448ad..6f1efa5a6 100644
+--- a/src/user/models/user-data/user-data.entity.ts
++++ b/src/user/models/user-data/user-data.entity.ts
+@@ -4,7 +4,7 @@ import { Fiat } from 'src/shared/models/fiat/fiat.entity';
+ import { Language } from 'src/shared/models/language/language.entity';
+ import { BankData } from 'src/user/models/bank-data/bank-data.entity';
+ import { User } from 'src/user/models/user/user.entity';
+-import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne } from 'typeorm';
++import { Entity, Column, OneToMany, OneToOne, JoinColumn, ManyToOne, Index } from 'typeorm';
+ import { SpiderData } from '../spider-data/spider-data.entity';
+ import { AccountType } from './account-type.enum';
+ 
+@@ -114,6 +114,7 @@ export class UserData extends IEntity {
+   kycCustomerId: number;
+ 
+   @Column({ length: 256, nullable: true })
++  @Index({ unique: true, where: 'kycHash IS NOT NULL' })
+   kycHash: string;
+ 
+   @Column({ type: 'float', default: 90000 })
+diff --git a/thunder-tests/thunderclient.json b/thunder-tests/thunderclient.json
+index 5212f92b2..44d8a1a83 100644
+--- a/thunder-tests/thunderclient.json
++++ b/thunder-tests/thunderclient.json
+@@ -523,16 +523,16 @@
+     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+     "containerId": "ff6a426b-fcf1-4eb2-bb1c-fa412402dfed",
+     "name": "Create Masternode",
+-    "url": "{{url}}/v1/masternode",
+-    "method": "POST",
++    "url": "{{url}}/v1/masternode/4/create",
++    "method": "PUT",
+     "sortNum": 190000,
+     "created": "2022-02-01T17:41:08.086Z",
+-    "modified": "2022-03-26T14:44:56.016Z",
++    "modified": "2022-06-14T13:13:13.193Z",
+     "headers": [],
+     "params": [],
+     "body": {
+       "type": "json",
+-      "raw": "{\n  \"hash\": \"string5\",\n  \"owner\": \"string;\",\n  \"operator\": \"string;\",\n  \"server\": \"string;\",\n  \"timelock\": 0\n}",
++      "raw": "{\n  \"creationHash\": \"string5\",\n  \"creationDate\": \"2022-01-01\",\n  \"owner\": \"owner\",\n  \"timelock\": 0\n}",
+       "form": []
+     },
+     "tests": []
+@@ -787,16 +787,16 @@
+     "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
+     "containerId": "ff6a426b-fcf1-4eb2-bb1c-fa412402dfed",
+     "name": "Resign Masternode",
+-    "url": "{{url}}/v1/masternode/string4",
++    "url": "{{url}}/v1/masternode/4/resign",
+     "method": "PUT",
+     "sortNum": 200000,
+     "created": "2022-03-26T14:41:22.341Z",
+-    "modified": "2022-03-26T14:43:26.438Z",
++    "modified": "2022-06-14T13:13:44.832Z",
+     "headers": [],
+     "params": [],
+     "body": {
+       "type": "json",
+-      "raw": "{\n  \"resignDate\": \"2022-04-01\",\n  \"resignHash\": \"resign4\"\n}",
++      "raw": "{\n  \"resignDate\": \"2022-04-01\",\n  \"resignHash\": \"resign 4\"\n}",
+       "form": []
+     },
+     "tests": []
+@@ -1011,6 +1011,20 @@
+     "params": [],
+     "tests": []
+   },
++  {
++    "_id": "c56af162-5681-4d4c-8c8b-05de16534430",
++    "colId": "62eefab7-84cd-496b-8f93-253c15d4f841",
++    "containerId": "ff6a426b-fcf1-4eb2-bb1c-fa412402dfed",
++    "name": "Get Masternodes",
++    "url": "{{url}}/v1/masternode",
++    "method": "GET",
++    "sortNum": 380000,
++    "created": "2022-06-08T10:26:56.667Z",
++    "modified": "2022-06-08T10:27:04.613Z",
++    "headers": [],
++    "params": [],
++    "tests": []
++  },
+   {
+     "_id": "1d73b590-4edf-4e99-8dbb-e56d1a582631",
+     "colId": "fe4684e3-a4f1-4bd6-8d2c-37af07de365b",
+@@ -1027,7 +1041,6 @@
+       "type": "json",
+       "raw": "{\"hex\":\"04000000000101b7280b37e1a7e66a3828e92137f1f319094fcbf1dd42e833b1deeb9de57a32170100000000ffffffff02081defa30b0000001600147713cba47625c239c09f36254d6bfd37a6b98bb10091949800000000001600141c5b16bc2dc3a9d87bd81b49a0e2f7f4bc6254290002473044022010ed907b9ffc22421a0918033de2e8acfdf1af45ecb549983b98c1bc5c9d79f9022076a307c35ef1a5894eb3502a3d3883e86f609f5e57c87379f6363e3abd39cf510121039a8c6ed7d007b1dbd3199ea1f62fc2c3229e93efaf4cb18200af793155fb4f2500000000\"}",
+       "form": []
+-    },
+-    "tests": []
++    }
+   }
+ ]
+\ No newline at end of file
+
+=== caa2f94d | 2022-06-10T10:15:02+02:00 | Saving crypto inputs sequentially (#254) ===
+Files: src/payment/models/crypto-input/crypto-input.service.ts
+diff --git a/src/payment/models/crypto-input/crypto-input.service.ts b/src/payment/models/crypto-input/crypto-input.service.ts
+index 3ac35799e..a7d28c541 100644
+--- a/src/payment/models/crypto-input/crypto-input.service.ts
++++ b/src/payment/models/crypto-input/crypto-input.service.ts
+@@ -165,10 +165,13 @@ export class CryptoInputService {
+ 
+     newInputs.length > 0 && console.log(`New crypto inputs (${newInputs.length}):`, newInputs);
+ 
+-    const savedInputs = await this.cryptoInputRepo.save(newInputs);
+-
+-    // create staking entities
+-    this.createStaking(savedInputs);
++    // side effect, assuming that cryptoStakingRepo and stakingRepo are faultless on save
++    for (const input of newInputs) {
++      await this.cryptoInputRepo.save(input);
++      if (input?.route.type === RouteType.STAKING) {
++        await this.cryptoStakingService.create(input);
++      }
++    }
+   }
+ 
+   private async createEntities(histories: AccountHistory[]): Promise<CryptoInput[]> {
+@@ -291,17 +294,6 @@ export class CryptoInputService {
+     }
+   }
+ 
+-  private async createStaking(inputs: CryptoInput[]): Promise<CryptoInput[]> {
+-    // side effect, assuming that cryptoStakingRepo and stakingRepo are faultless on save
+-    for (const input of inputs) {
+-      if (input?.route.type === RouteType.STAKING) {
+-        await this.cryptoStakingService.create(input);
+-      }
+-    }
+-
+-    return inputs;
+-  }
+-
+   private async forwardInputs(): Promise<void> {
+     const inputs = await this.cryptoInputRepo.find({
+       where: { outTxId: '', amlCheck: AmlCheck.PASS },
+

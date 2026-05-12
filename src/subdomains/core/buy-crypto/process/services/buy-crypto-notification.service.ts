@@ -268,12 +268,10 @@ export class BuyCryptoNotificationService {
       where: [
         { ...search, chargebackBankTx: Not(IsNull()), chargebackIban: Not(IsNull()) },
         { ...search, chargebackCryptoTxId: Not(IsNull()) },
-        { ...search, checkoutTx: Not(IsNull()) },
       ],
       relations: {
         cryptoInput: true,
         bankTx: true,
-        checkoutTx: true,
         transaction: { userData: true, user: { wallet: true } },
       },
     });
