@@ -54,7 +54,7 @@ export class EquityOrderStepAdapter {
 
     const gasPrice = await client.getRecommendedGasPrice();
     const isMint = step.order.type === CustodyOrderType.EQUITY_MINT;
-    const gasUnits = isMint ? 400000 : 200000; // approve + mint, or just redeem
+    const gasUnits = isMint ? 400000 : 300000; // approve + mint, or just redeem
     const gasAmount = EvmUtil.fromWeiAmount(gasPrice.mul(gasUnits));
     const chargeAmount = gasAmount * 1.5; // 50% buffer
 
