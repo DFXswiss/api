@@ -22,7 +22,6 @@ import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
-import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -73,10 +72,6 @@ export class BuyCrypto extends IEntity {
   @OneToOne(() => BankTx, { nullable: true })
   @JoinColumn()
   bankTx?: BankTx;
-
-  @OneToOne(() => CheckoutTx, { nullable: true })
-  @JoinColumn()
-  checkoutTx?: CheckoutTx;
 
   @ManyToOne(() => Buy, (buy) => buy.buyCryptos, { nullable: true })
   buy?: Buy;
@@ -602,8 +597,6 @@ export class BuyCrypto extends IEntity {
       amlCheck: CheckStatus.FAIL,
       mailSendDate: null,
       blockchainFee,
-      isComplete: this.checkoutTx && chargebackAllowedDate ? true : undefined,
-      status: this.checkoutTx && chargebackAllowedDate ? BuyCryptoStatus.COMPLETE : undefined,
       chargebackCreditorData: hasCreditorData ? JSON.stringify(creditorData) : undefined,
     };
 
@@ -656,7 +649,6 @@ export class BuyCrypto extends IEntity {
     minVolume: number,
     amountInEur: number,
     amountInChf: number,
-    last7dCheckoutVolume: number,
     last30dVolume: number,
     last365dVolume: number,
     bankData: BankData,
@@ -676,7 +668,6 @@ export class BuyCrypto extends IEntity {
         inputAsset,
         minVolume,
         amountInChf,
-        last7dCheckoutVolume,
         last30dVolume,
         last365dVolume,
         bankData,
@@ -784,9 +775,6 @@ export class BuyCrypto extends IEntity {
       case Blockchain.YAPEAL:
         return BankService.isBankMatching(asset, this.bankTx?.accountIban) ? this.inputReferenceAmount : 0;
 
-      case Blockchain.CHECKOUT:
-        return this.checkoutTx?.currency === asset.dexName ? this.inputReferenceAmount : 0;
-
       default:
         return this.cryptoInput?.asset.id === asset.id ? this.inputAmount : 0;
     }
@@ -892,7 +880,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get paymentMethodIn(): PaymentMethod {
-    return this.checkoutTx ? FiatPaymentMethod.CARD : this.bankTx ? FiatPaymentMethod.BANK : CryptoPaymentMethod.CRYPTO;
+    return this.bankTx ? FiatPaymentMethod.BANK : CryptoPaymentMethod.CRYPTO;
   }
 
   get paymentMethodOut(): PaymentMethod {
@@ -920,9 +908,7 @@ export class BuyCrypto extends IEntity {
   }
 
   get mailReturnReason(): string {
-    return [AmlReason.HIGH_RISK_BLOCKED, AmlReason.HIGH_RISK_KYC_NEEDED].includes(this.amlReason) && this.checkoutTx
-      ? `${this.amlReason}Checkout`
-      : this.amlReason;
+    return this.amlReason;
   }
 
   // --- HELPER METHODS --- //

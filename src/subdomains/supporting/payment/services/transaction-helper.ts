@@ -359,7 +359,7 @@ export class TransactionHelper implements OnModuleInit {
     dateFrom: Date,
     dateTo: Date,
     priceValidity: PriceValidity,
-    type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+    type?: 'cryptoInput' | 'bankTx',
     price?: Price,
     from?: Active,
   ): Promise<number> {
@@ -375,7 +375,7 @@ export class TransactionHelper implements OnModuleInit {
     dateTo: Date,
     users: User[],
     excluded?: BuyCrypto | BuyFiat,
-    type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+    type?: 'cryptoInput' | 'bankTx',
   ): Promise<number> {
     const buyCryptoVolume = await this.buyCryptoService.getUserVolume(
       users.map((u) => u.id),
@@ -1030,18 +1030,11 @@ export class TransactionHelper implements OnModuleInit {
       [from.amlRuleFrom, to.amlRuleTo, nationality?.amlRule],
       user?.wallet.exceptAmlRuleList,
       user,
-      paymentMethodIn,
     );
     if (amlRuleError) errors.push(amlRuleError);
 
     const walletAmlRuleError =
-      isBuy &&
-      AmlHelperService.amlRuleQuoteCheck(
-        user?.wallet.amlRuleList,
-        user?.wallet.exceptAmlRuleList,
-        user,
-        paymentMethodIn,
-      );
+      isBuy && AmlHelperService.amlRuleQuoteCheck(user?.wallet.amlRuleList, user?.wallet.exceptAmlRuleList, user);
     if (walletAmlRuleError) errors.push(walletAmlRuleError);
 
     // KYC level checks

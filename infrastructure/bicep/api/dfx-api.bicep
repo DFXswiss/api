@@ -287,13 +287,6 @@ param albyClientSecret string
 param iknaKey string
 
 @secure()
-param ckoPublicKey string
-@secure()
-param ckoSecretKey string
-@secure()
-param ckoEntityId string
-
-@secure()
 param siftApiKey string
 @secure()
 param siftAccountId string
@@ -1308,18 +1301,6 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'IKNA_KEY'
           value: iknaKey
-        }
-        {
-          name: 'CKO_PUBLIC_KEY'
-          value: ckoPublicKey
-        }
-        {
-          name: 'CKO_SECRET_KEY'
-          value: ckoSecretKey
-        }
-        {
-          name: 'CKO_ENTITY_ID'
-          value: ckoEntityId
         }
         {
           name: 'SIFT_API_KEY'

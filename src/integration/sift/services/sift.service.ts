@@ -7,11 +7,9 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
-import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
 import {
   TransactionRequest,
   TransactionRequestType,
@@ -27,7 +25,6 @@ import {
   SiftAmlDeclineMap,
   SiftAssetType,
   SiftBase,
-  SiftCheckoutDeclineMap,
   SiftDecisionSource,
   SiftPaymentMethodMap,
   SiftResponse,
@@ -127,38 +124,20 @@ export class SiftService {
     void this.send(EventType.TRANSACTION, data);
   }
 
-  checkoutTransaction(checkoutTx: CheckoutTx, status: TransactionStatus, buy: Buy): void {
-    const data = this.getTxData(
-      buy.user,
-      checkoutTx,
-      buy.asset,
-      status,
-      SiftCheckoutDeclineMap[checkoutTx.authStatusReason],
-    );
-
-    void this.send(EventType.TRANSACTION, data);
-  }
-
   // --- HELPER METHODS --- //
   private getTxData(
     user: User,
-    tx: BuyCrypto | CheckoutTx,
+    tx: BuyCrypto,
     asset: Asset,
     status: TransactionStatus,
     declineCategory: DeclineCategory,
   ): Transaction {
-    const isBuyCrypto = tx instanceof BuyCrypto;
-
-    const amount = isBuyCrypto ? tx.inputAmount : tx.amount;
-    const currency = isBuyCrypto ? tx.inputAsset : tx.currency;
-    const paymentMethod = isBuyCrypto
-      ? this.createPaymentMethod(SiftPaymentMethodMap[tx.paymentMethodIn], tx.bankTx ?? tx.checkoutTx)
-      : this.createPaymentMethod(PaymentType.CREDIT_CARD, tx);
-    const ip = isBuyCrypto ? undefined : tx.ip;
+    const amount = tx.inputAmount;
+    const currency = tx.inputAsset;
+    const paymentMethod = this.createPaymentMethod(SiftPaymentMethodMap[tx.paymentMethodIn], tx.bankTx);
 
     const data: Transaction = {
       $user_id: user.id.toString(),
-      $ip: ip,
       $transaction_id: tx.transaction.id.toString(),
       $transaction_type: TransactionType.BUY,
       $time: tx.updated.getTime(),
@@ -168,9 +147,7 @@ export class SiftService {
       $currency_code: currency,
       $amount: this.transformAmount(amount),
       $payment_method: paymentMethod,
-      $digital_orders: [
-        this.createDigitalOrder(SiftAssetType.CRYPTO, currency, asset.name, isBuyCrypto ? tx.outputAmount : undefined),
-      ],
+      $digital_orders: [this.createDigitalOrder(SiftAssetType.CRYPTO, currency, asset.name, tx.outputAmount)],
       blockchain: asset.blockchain,
     };
 
@@ -181,29 +158,20 @@ export class SiftService {
     return Util.round(amount * 1000000, 0); // amount in micros in the base unit
   }
 
-  private createPaymentMethod(paymentType: PaymentType, tx: BankTx | CheckoutTx): any {
-    return tx instanceof CheckoutTx
+  private createPaymentMethod(paymentType: PaymentType, tx: BankTx | undefined): any {
+    return tx instanceof BankTx
       ? {
           $payment_type: paymentType,
-          $account_holder_name: tx.cardName,
-          $card_bin: tx.cardBin,
-          $card_last4: tx.cardLast4,
-          $bank_name: tx.cardIssuer ?? undefined,
-          $bank_country: tx.cardIssuerCountry ?? undefined,
+          $account_holder_name: tx.name,
+          $shortened_iban_first6: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(0, 6) : undefined,
+          $shortened_iban_last4: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(-4) : undefined,
+          $bank_name: tx.bankName ?? undefined,
+          $bank_country: tx.country ?? undefined,
+          $routing_number: tx.aba ?? undefined,
         }
-      : tx instanceof BankTx
-        ? {
-            $payment_type: paymentType,
-            $account_holder_name: tx.name,
-            $shortened_iban_first6: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(0, 6) : undefined,
-            $shortened_iban_last4: IbanTools.validateIBAN(tx.iban).valid ? tx.iban.slice(-4) : undefined,
-            $bank_name: tx.bankName ?? undefined,
-            $bank_country: tx.country ?? undefined,
-            $routing_number: tx.aba ?? undefined,
-          }
-        : {
-            $payment_type: paymentType,
-          };
+      : {
+          $payment_type: paymentType,
+        };
   }
 
   private createDigitalOrder(type: SiftAssetType, from: string, to: string, amount?: number): DigitalOrder {

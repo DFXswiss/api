@@ -8,8 +8,6 @@ export class CustodyOrderBuyResponseDto {
   @ApiPropertyOptional()
   remittanceInfo?: string;
 
-  paymentLink?: string;
-
   @ApiPropertyOptional()
   name?: string;
 

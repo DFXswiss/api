@@ -114,8 +114,6 @@ export class BuyPaymentInfoDto extends BankInfoDto {
   @ApiPropertyOptional({ description: 'Payment request (e.g. GiroCode content)' })
   paymentRequest?: string;
 
-  paymentLink?: string;
-
   @ApiProperty()
   isValid: boolean;
 

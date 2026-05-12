@@ -8,7 +8,6 @@ import {
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
-import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -24,7 +23,6 @@ import { CustodyOrderService } from 'src/subdomains/core/custody/services/custod
 import { HistoryDtoDeprecated, PaymentStatusMapper } from 'src/subdomains/core/history/dto/history.dto';
 import {
   BankTxRefund,
-  CheckoutTxRefund,
   CryptoInputRefund,
   RefundInternalDto,
 } from 'src/subdomains/core/history/dto/refund-internal.dto';
@@ -40,8 +38,6 @@ import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
-import { CheckoutTx } from 'src/subdomains/supporting/fiat-payin/entities/checkout-tx.entity';
-import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { UpdateTransactionInternalDto } from 'src/subdomains/supporting/payment/dto/input/update-transaction-internal.dto';
@@ -85,11 +81,8 @@ export class BuyCryptoService {
     private readonly bankDataService: BankDataService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly transactionService: TransactionService,
-    @Inject(forwardRef(() => CheckoutTxService))
-    private readonly checkoutTxService: CheckoutTxService,
     private readonly siftService: SiftService,
     private readonly specialExternalAccountService: SpecialExternalAccountService,
-    private readonly checkoutService: CheckoutService,
     @Inject(forwardRef(() => PayInService))
     private readonly payInService: PayInService,
     private readonly fiatOutputService: FiatOutputService,
@@ -158,51 +151,6 @@ export class BuyCryptoService {
     });
   }
 
-  async createFromCheckoutTx(checkoutTx: CheckoutTx, buy: Buy): Promise<void> {
-    let entity = await this.buyCryptoRepo.findOneBy({ checkoutTx: { id: checkoutTx.id } });
-    if (entity) throw new ConflictException('There is already a buy-crypto for the specified checkout TX');
-
-    // create bank data
-    if (checkoutTx.cardFingerPrint && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA)) {
-      const bankData = await this.bankDataService.getVerifiedBankDataWithIban(
-        checkoutTx.cardFingerPrint,
-        buy.userData.id,
-        BankDataType.CARD_IN,
-      );
-
-      if (!bankData || bankData.type !== BankDataType.CARD_IN) {
-        const createDto: CreateBankDataDto = {
-          type: BankDataType.CARD_IN,
-          iban: checkoutTx.cardFingerPrint,
-          name: checkoutTx.cardName ?? buy.userData.completeName ?? buy.userData.verifiedName,
-        };
-
-        if (bankData) {
-          await this.bankDataService.replaceBankDataWithNewType(bankData, createDto);
-        } else {
-          await this.bankDataService.createVerifyBankData(buy.userData, createDto);
-        }
-      }
-    }
-
-    // create entity
-    entity = this.buyCryptoRepo.create({
-      checkoutTx,
-      buy,
-      inputAmount: checkoutTx.amount,
-      inputAsset: checkoutTx.currency,
-      inputReferenceAmount: checkoutTx.amount,
-      inputReferenceAsset: checkoutTx.currency,
-      transaction: { id: checkoutTx.transaction.id },
-    });
-
-    await this.createEntity(entity, {
-      type: TransactionTypeInternal.BUY_CRYPTO,
-      user: buy.user,
-      userData: buy.userData,
-    });
-  }
-
   async createFromCryptoInput(cryptoInput: CryptoInput, swap: Swap, request?: TransactionRequest): Promise<BuyCrypto> {
     // create entity
     const entity = this.buyCryptoRepo.create({
@@ -234,7 +182,6 @@ export class BuyCryptoService {
         cryptoRoute: true,
         cryptoInput: true,
         bankTx: true,
-        checkoutTx: true,
         transaction: { user: { wallet: true }, userData: { users: true, kycSteps: true } },
         chargebackOutput: true,
         bankData: true,
@@ -301,11 +248,6 @@ export class BuyCryptoService {
             country: dto.chargebackCreditorCountry ?? entity.creditorData?.country,
           },
         );
-      }
-
-      if (entity.checkoutTx) {
-        await this.refundCheckoutTx(entity, { chargebackAllowedDate: new Date(), chargebackAllowedBy: 'GS' });
-        Object.assign(dto, { isComplete: true, chargebackDate: new Date() });
       }
     }
 
@@ -440,18 +382,12 @@ export class BuyCryptoService {
       where: { id: buyCryptoId },
       relations: {
         bankTx: true,
-        checkoutTx: true,
         cryptoInput: { route: { user: true }, transaction: true },
         transaction: { userData: true },
       },
     });
 
     if (!buyCrypto) throw new NotFoundException('BuyCrypto not found');
-    if (buyCrypto.checkoutTx)
-      return this.refundCheckoutTx(buyCrypto, {
-        chargebackAllowedDate: dto.chargebackAllowedDate,
-        chargebackAllowedBy: dto.chargebackAllowedBy,
-      });
     if (buyCrypto.cryptoInput)
       return this.refundCryptoInput(buyCrypto, {
         refundUserId: dto.refundUser?.id,
@@ -468,31 +404,6 @@ export class BuyCryptoService {
       chargebackAllowedDate: dto.chargebackAllowedDate,
       chargebackAllowedBy: dto.chargebackAllowedBy,
     });
-  }
-
-  async refundCheckoutTx(buyCrypto: BuyCrypto, dto: CheckoutTxRefund): Promise<void> {
-    const chargebackAmount = dto.chargebackAmount ?? buyCrypto.chargebackAmount ?? buyCrypto.inputAmount;
-
-    TransactionUtilService.validateRefund(buyCrypto, { chargebackAmount, assetMismatch: false });
-
-    if (dto.chargebackAllowedDate && chargebackAmount) {
-      dto.chargebackRemittanceInfo = await this.checkoutService.refundPayment(buyCrypto.checkoutTx.paymentId);
-      await this.checkoutTxService.paymentRefunded(buyCrypto.checkoutTx.id);
-    }
-
-    await this.buyCryptoRepo.update(
-      ...buyCrypto.chargebackFillUp(
-        undefined,
-        chargebackAmount,
-        chargebackAmount,
-        dto.chargebackCurrency,
-        dto.chargebackAllowedDate,
-        dto.chargebackAllowedDateUser,
-        dto.chargebackAllowedBy,
-        undefined,
-        dto.chargebackRemittanceInfo?.reference,
-      ),
-    );
   }
 
   async refundCryptoInput(buyCrypto: BuyCrypto, dto: CryptoInputRefund): Promise<void> {
@@ -687,13 +598,12 @@ export class BuyCryptoService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
     excludedId?: number,
-    type?: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+    type?: 'cryptoInput' | 'bankTx',
   ): Promise<number> {
     if (type) return this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, type);
 
     const volumes = await Promise.all([
       this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'cryptoInput'),
-      this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'checkoutTx'),
       this.getUserVolumeForType(userIds, dateFrom, dateTo, excludedId, 'bankTx'),
     ]);
 
@@ -705,7 +615,7 @@ export class BuyCryptoService {
     dateFrom: Date = new Date(0),
     dateTo: Date = new Date(),
     excludedId: number | undefined,
-    type: 'cryptoInput' | 'checkoutTx' | 'bankTx',
+    type: 'cryptoInput' | 'bankTx',
   ): Promise<number> {
     const request = this.buyCryptoRepo.createQueryBuilder('buyCrypto').select('SUM(amountInChf)', 'volume');
 
@@ -715,13 +625,6 @@ export class BuyCryptoService {
           .innerJoin('buyCrypto.cryptoRoute', 'route')
           .innerJoin('buyCrypto.cryptoInput', 'cryptoInput')
           .where('cryptoInput.created BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
-        break;
-
-      case 'checkoutTx':
-        request
-          .innerJoin('buyCrypto.buy', 'route')
-          .innerJoin('buyCrypto.checkoutTx', 'checkoutTx')
-          .where('checkoutTx.requestedOn BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
         break;
 
       case 'bankTx':
@@ -750,7 +653,6 @@ export class BuyCryptoService {
       where: { usedRef: In(refCodes), outputDate: Between(dateFrom, dateTo) },
       relations: {
         bankTx: true,
-        checkoutTx: true,
         cryptoInput: true,
         buy: { user: true },
         cryptoRoute: { user: true },
@@ -781,7 +683,7 @@ export class BuyCryptoService {
   async getPendingTransactions(): Promise<BuyCrypto[]> {
     return this.buyCryptoRepo.find({
       where: { isComplete: false },
-      relations: { cryptoInput: true, checkoutTx: true, bankTx: true },
+      relations: { cryptoInput: true, bankTx: true },
     });
   }
 
@@ -1001,7 +903,6 @@ export class BuyCryptoService {
       where: { usedRef: In(refCodes) },
       relations: {
         bankTx: true,
-        checkoutTx: true,
         cryptoInput: true,
         buy: { user: true },
         cryptoRoute: { user: true },
@@ -1018,14 +919,12 @@ export class BuyCryptoService {
     return this.buyCryptoRepo.find({
       where: [
         { buy: { user: { id: In(userIds) } }, bankTx: { created: Between(dateFrom, dateTo) } },
-        { buy: { user: { id: In(userIds) } }, checkoutTx: { created: Between(dateFrom, dateTo) } },
         { cryptoRoute: { user: { id: In(userIds) } }, cryptoInput: { created: Between(dateFrom, dateTo) } },
       ],
       relations: {
         bankTx: true,
         buy: { user: true },
         cryptoInput: true,
-        checkoutTx: true,
         cryptoRoute: { user: true },
         chargebackBankTx: true,
         bankData: true,

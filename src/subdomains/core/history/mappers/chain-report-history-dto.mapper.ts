@@ -187,7 +187,7 @@ export class ChainReportHistoryDtoMapper {
           buyCrypto.inputAmount &&
           buyCrypto.outputAmount &&
           buyCrypto.inputAsset &&
-          (buyCrypto.bankTx || buyCrypto.checkoutTx) &&
+          buyCrypto.bankTx &&
           buyCrypto.outputDate &&
           buyCrypto.txId &&
           buyCrypto.buy,
@@ -202,9 +202,7 @@ export class ChainReportHistoryDtoMapper {
           outputAsset: null,
           feeAmount: null,
           feeAsset: null,
-          txid:
-            buyCrypto.bankTx?.id.toString() ??
-            (buyCrypto.checkoutTx ? `CC-${buyCrypto.checkoutTx.id.toString()}` : undefined),
+          txid: buyCrypto.bankTx?.id.toString(),
           description: 'DFX Purchase',
         },
         {
@@ -233,7 +231,7 @@ export class ChainReportHistoryDtoMapper {
           buyCrypto.inputAmount &&
           buyCrypto.outputAmount &&
           buyCrypto.inputAsset &&
-          (buyCrypto.bankTx || buyCrypto.checkoutTx) &&
+          buyCrypto.bankTx &&
           buyCrypto.outputDate &&
           buyCrypto.txId &&
           buyCrypto.buy,
@@ -251,9 +249,7 @@ export class ChainReportHistoryDtoMapper {
           tradeGroup: null,
           comment: 'DFX Purchase',
           date: this.createRandomDate(buyCrypto.outputDate, -20, buyCrypto.inputAmount).getTime() / 1000,
-          txid:
-            buyCrypto.bankTx?.id.toString() ??
-            (buyCrypto.checkoutTx ? `CC-${buyCrypto.checkoutTx.id.toString()}` : undefined),
+          txid: buyCrypto.bankTx?.id.toString(),
           buyValueInEur: buyCrypto.amountInEur,
           sellValueInEur: null,
           inputBlockchain: null,

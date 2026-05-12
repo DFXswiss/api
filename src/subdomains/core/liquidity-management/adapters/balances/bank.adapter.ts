@@ -1,13 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
-import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BankTxBatchService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-batch.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { LiquidityBalance } from '../../entities/liquidity-balance.entity';
 import { LiquidityManagementContext } from '../../enums';
 import { LiquidityBalanceIntegration, LiquidityManagementAsset } from '../../interfaces';
@@ -20,7 +19,6 @@ export class BankAdapter implements LiquidityBalanceIntegration {
     private readonly bankService: BankService,
     private readonly bankTxBatchService: BankTxBatchService,
     private readonly olkypayService: OlkypayService,
-    private readonly checkoutService: CheckoutService,
     private readonly yapealService: YapealService,
   ) {}
 
@@ -33,7 +31,7 @@ export class BankAdapter implements LiquidityBalanceIntegration {
     const balances = await Util.doGetFulfilled(
       Array.from(liquidityManagementAssets.entries()).map(([e, a]) =>
         this.getForBank(
-          [...Object.values(IbanBankName), ...Object.values(CardBankName)].find((b) => b === e),
+          Object.values(IbanBankName).find((b) => b === e),
           a,
         ),
       ),
@@ -48,10 +46,7 @@ export class BankAdapter implements LiquidityBalanceIntegration {
 
   // --- HELPER METHODS --- //
 
-  async getForBank(
-    bankName: IbanBankName | CardBankName,
-    assets: LiquidityManagementAsset[],
-  ): Promise<LiquidityBalance[]> {
+  async getForBank(bankName: IbanBankName, assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
     const balances: LiquidityBalance[] = [];
 
     try {
@@ -70,19 +65,6 @@ export class BankAdapter implements LiquidityBalanceIntegration {
             const matchingAssets = assets.filter((asset) => asset.dexName === balance.currency);
             matchingAssets.forEach((asset) => balances.push(LiquidityBalance.create(asset, balance.availableBalance)));
           }
-
-          break;
-        }
-
-        case CardBankName.CHECKOUT: {
-          const checkoutBalances = await this.checkoutService.getBalances();
-
-          assets.forEach((asset) => {
-            const balance =
-              checkoutBalances.find((b) => b.holding_currency === asset.dexName).balances.collateral / 100;
-
-            balances.push(LiquidityBalance.create(asset, balance));
-          });
 
           break;
         }

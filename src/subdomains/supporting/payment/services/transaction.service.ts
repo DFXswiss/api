@@ -135,10 +135,6 @@ export class TransactionService {
     return this.repo.findOne({ where: { externalId, user: { userData: { id: accountId } } }, relations });
   }
 
-  async getTransactionByCkoId(ckoId: string, relations: FindOptionsRelations<Transaction> = {}): Promise<Transaction> {
-    return this.repo.findOne({ where: { checkoutTx: { paymentId: ckoId } }, relations });
-  }
-
   async getTransactionsWithoutUid(filterDate: Date): Promise<Transaction[]> {
     return this.repo.findBy({ uid: IsNull(), created: LessThanOrEqual(filterDate) });
   }
@@ -213,7 +209,6 @@ export class TransactionService {
           buy: true,
           cryptoRoute: true,
           bankTx: true,
-          checkoutTx: true,
           cryptoInput: true,
           chargebackOutput: true,
         },
@@ -245,7 +240,6 @@ export class TransactionService {
               buy: true,
               cryptoRoute: true,
               bankTx: true,
-              checkoutTx: true,
               cryptoInput: true,
               chargebackOutput: true,
             },

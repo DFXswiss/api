@@ -1,6 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -16,7 +15,6 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
-import { CheckoutTxService } from 'src/subdomains/supporting/fiat-payin/services/checkout-tx.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
@@ -60,8 +58,6 @@ describe('BuyCryptoService', () => {
   let specialExternalBankAccountService: SpecialExternalAccountService;
   let transactionService: TransactionService;
   let siftService: SiftService;
-  let checkoutService: CheckoutService;
-  let checkoutTxService: CheckoutTxService;
   let payInService: PayInService;
   let fiatOutputService: FiatOutputService;
   let transactionUtilService: TransactionUtilService;
@@ -86,8 +82,6 @@ describe('BuyCryptoService', () => {
     specialExternalBankAccountService = createMock<SpecialExternalAccountService>();
     transactionService = createMock<TransactionService>();
     siftService = createMock<SiftService>();
-    checkoutService = createMock<CheckoutService>();
-    checkoutTxService = createMock<CheckoutTxService>();
     payInService = createMock<PayInService>();
     fiatOutputService = createMock<FiatOutputService>();
     transactionUtilService = createMock<TransactionUtilService>();
@@ -115,8 +109,6 @@ describe('BuyCryptoService', () => {
         { provide: SpecialExternalAccountService, useValue: specialExternalBankAccountService },
         { provide: TransactionService, useValue: transactionService },
         { provide: SiftService, useValue: siftService },
-        { provide: CheckoutService, useValue: checkoutService },
-        { provide: CheckoutTxService, useValue: checkoutTxService },
         { provide: PayInService, useValue: payInService },
         { provide: FiatOutputService, useValue: fiatOutputService },
         { provide: TransactionUtilService, useValue: transactionUtilService },

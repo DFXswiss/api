@@ -11,7 +11,6 @@ import { BuyFiat } from '../../../core/sell-crypto/process/buy-fiat.entity';
 import { BankTxRepeat } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
-import { CheckoutTx } from '../../fiat-payin/entities/checkout-tx.entity';
 import { MailContext } from '../../notification/enums';
 import { CryptoInput } from '../../payin/entities/crypto-input.entity';
 import { SupportIssue } from '../../support-issue/entities/support-issue.entity';
@@ -43,7 +42,6 @@ export enum TransactionTypeInternal {
 export enum TransactionSourceType {
   BANK_TX = 'BankTx',
   CRYPTO_INPUT = 'CryptoInput',
-  CHECKOUT_TX = 'CheckoutTx',
   REF = 'Ref',
   MANUAL_REF = 'ManualRef',
 }
@@ -122,9 +120,6 @@ export class Transaction extends IEntity {
   @OneToOne(() => CryptoInput, (cryptoInput) => cryptoInput.transaction, { nullable: true })
   cryptoInput?: CryptoInput;
 
-  @OneToOne(() => CheckoutTx, (checkoutTx) => checkoutTx.transaction, { nullable: true })
-  checkoutTx?: CheckoutTx;
-
   @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.transaction)
   supportIssues?: SupportIssue[];
 
@@ -163,13 +158,10 @@ export class Transaction extends IEntity {
     return this.buyCrypto ? MailContext.BUY_CRYPTO : this.buyFiat ? MailContext.BUY_FIAT : undefined;
   }
 
-  get sourceEntity(): BankTx | CryptoInput | CheckoutTx | RefReward {
+  get sourceEntity(): BankTx | CryptoInput | RefReward {
     switch (this.sourceType) {
       case TransactionSourceType.BANK_TX:
         return this.bankTx;
-
-      case TransactionSourceType.CHECKOUT_TX:
-        return this.checkoutTx;
 
       case TransactionSourceType.CRYPTO_INPUT:
         return this.cryptoInput;

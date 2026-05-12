@@ -69,7 +69,6 @@ export class BuyCryptoBatchService {
         ],
         relations: {
           bankTx: true,
-          checkoutTx: true,
           cryptoInput: true,
           buy: { user: true },
           cryptoRoute: { user: true },

@@ -2,7 +2,6 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { In } from 'typeorm';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
-import { CheckoutTxService } from '../fiat-payin/services/checkout-tx.service';
 import { CreateRecallDto } from './dto/create-recall.dto';
 import { UpdateRecallDto } from './dto/update-recall.dto';
 import { Recall } from './recall.entity';
@@ -14,7 +13,6 @@ export class RecallService {
     private readonly repo: RecallRepository,
     private readonly userService: UserService,
     private readonly bankTxService: BankTxService,
-    private readonly checkoutTxService: CheckoutTxService,
   ) {}
 
   async create(dto: CreateRecallDto): Promise<Recall> {
@@ -39,11 +37,6 @@ export class RecallService {
       if (!entity.user) entity.user = entity.bankTx.user;
     }
 
-    if (dto.checkoutTxId) {
-      entity.checkoutTx = await this.checkoutTxService.getCheckoutTx(dto.checkoutTxId);
-      if (!entity.checkoutTx) throw new NotFoundException('CheckoutTx not found');
-    }
-
     return this.repo.save(entity);
   }
 
@@ -60,7 +53,7 @@ export class RecallService {
   }
 
   async getAll(): Promise<Recall[]> {
-    return this.repo.find({ relations: { bankTx: true, checkoutTx: true, user: true } });
+    return this.repo.find({ relations: { bankTx: true, user: true } });
   }
 
   async getByBankTxIds(bankTxIds: number[]): Promise<Recall[]> {
@@ -74,7 +67,7 @@ export class RecallService {
   async getById(id: number): Promise<Recall> {
     const entity = await this.repo.findOne({
       where: { id },
-      relations: { bankTx: true, checkoutTx: true, user: true },
+      relations: { bankTx: true, user: true },
     });
     if (!entity) throw new NotFoundException('Recall not found');
 

@@ -1200,10 +1200,6 @@ export class Configuration {
     analyst: process.env.SIFT_ANALYST,
   };
 
-  checkout = {
-    entityId: process.env.CKO_ENTITY_ID,
-  };
-
   cronJobDelay = process.env.CRON_JOB_DELAY?.split(';').map(Number) ?? [];
 
   // --- GETTERS --- //

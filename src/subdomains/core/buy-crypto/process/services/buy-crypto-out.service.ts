@@ -129,7 +129,6 @@ export class BuyCryptoOutService {
           cryptoRoute: true,
           cryptoInput: true,
           bankTx: true,
-          checkoutTx: true,
           transaction: { user: { wallet: true }, userData: true },
         },
       },
