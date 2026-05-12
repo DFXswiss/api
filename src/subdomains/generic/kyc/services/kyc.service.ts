@@ -582,7 +582,7 @@ export class KycService {
   // --- UPDATE METHODS --- //
   async updateContactData(kycHash: string, stepId: number, data: KycContactData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.CONTACT_DATA);
 
     const result = await this.trySetMail(user, kycStep, data.mail);
     await this.kycStepRepo.update(...result);
@@ -595,7 +595,7 @@ export class KycService {
 
   async updatePersonalData(kycHash: string, stepId: number, data: KycPersonalData): Promise<KycStepBase> {
     let user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.PERSONAL_DATA);
 
     user = await this.userDataService.updatePersonalData(user, data);
 
@@ -612,11 +612,12 @@ export class KycService {
   async updateKycStep(
     kycHash: string,
     stepId: number,
+    stepName: KycStepName,
     data: Partial<UserData>,
     reviewStatus: ReviewStatus,
   ): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, stepName);
 
     await this.userDataService.updateUserDataInternal(user, data);
 
@@ -625,7 +626,7 @@ export class KycService {
 
   async updateNationalityStep(kycHash: string, stepId: number, data: KycNationalityData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.NATIONALITY_DATA);
 
     const nationality = await this.countryService.getCountry(data.nationality.id);
     if (!nationality) throw new BadRequestException('Nationality not found');
@@ -641,7 +642,7 @@ export class KycService {
 
   async updateBeneficialOwnerData(kycHash: string, stepId: number, data: KycBeneficialData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.BENEFICIAL_OWNER);
 
     const allBeneficialOwnersName = [];
     const allBeneficialOwnersDomicile = [];
@@ -674,14 +675,14 @@ export class KycService {
 
   async updateOperationActivityData(kycHash: string, stepId: number, data: KycOperationalData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.OPERATIONAL_ACTIVITY);
 
     return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
   }
 
   async updateRecommendationData(kycHash: string, stepId: number, data: KycRecommendationData) {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.RECOMMENDATION);
 
     await this.recommendationService.handleRecommendationRequest(kycStep, user, data.key);
 
@@ -696,12 +697,13 @@ export class KycService {
   async updateFileData(
     kycHash: string,
     stepId: number,
+    stepName: KycStepName,
     data: KycFileData,
     fileType: FileType,
     urlAsJson = false,
   ): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, stepName);
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
@@ -724,7 +726,7 @@ export class KycService {
 
   async updateLegalData(kycHash: string, stepId: number, data: KycLegalEntityData, fileType: FileType) {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.LEGAL_ENTITY);
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
@@ -748,7 +750,7 @@ export class KycService {
 
   async updateAddressChangeData(kycHash: string, stepId: number, data: KycChangeAddressData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.ADDRESS_CHANGE);
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
@@ -779,7 +781,7 @@ export class KycService {
 
   async updateNameChangeData(kycHash: string, stepId: number, data: KycChangeNameData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.NAME_CHANGE);
 
     // upload file
     const { contentType, buffer } = Util.fromBase64(data.file);
@@ -815,7 +817,7 @@ export class KycService {
 
   async updatePhoneChangeData(kycHash: string, stepId: number, data: KycChangePhoneData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.PHONE_CHANGE);
 
     await this.userDataService.updatePhone(user, data.phone, false);
 
@@ -828,7 +830,7 @@ export class KycService {
 
   async getFinancialData(kycHash: string, ip: string, stepId: number, lang?: string): Promise<KycFinancialOutData> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.FINANCIAL_DATA);
 
     await this.verify2fa(user, ip);
 
@@ -846,7 +848,7 @@ export class KycService {
     data: KycFinancialInData,
   ): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.FINANCIAL_DATA);
 
     await this.verify2fa(user, ip);
 
@@ -865,7 +867,7 @@ export class KycService {
 
   async updatePaymentData(kycHash: string, stepId: number, data: PaymentDataDto): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.PAYMENT_AGREEMENT);
 
     if (data.contractAccepted) {
       const recipient: PaymentLinkRecipientDto = {
@@ -1070,7 +1072,7 @@ export class KycService {
 
   async updateIdentManual(kycHash: string, stepId: number, dto: KycManualIdentData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
-    const kycStep = user.getPendingStepOrThrow(stepId);
+    const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.IDENT);
 
     dto.nationality = await this.countryService.getCountry(dto.nationality.id);
     if (!dto.nationality) throw new NotFoundException('Country not found');
