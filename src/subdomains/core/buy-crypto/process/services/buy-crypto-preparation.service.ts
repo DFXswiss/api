@@ -16,7 +16,6 @@ import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { CryptoPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -76,7 +75,6 @@ export class BuyCryptoPreparationService {
       ],
       relations: {
         bankTx: true,
-        checkoutTx: true,
         cryptoInput: { asset: { balance: true, liquidityManagementRule: true } },
         buy: true,
         cryptoRoute: true,
@@ -134,16 +132,6 @@ export class BuyCryptoPreparationService {
           PriceValidity.VALID_ONLY,
         );
 
-        const last7dCheckoutVolume = await this.transactionHelper.getVolumeChfSince(
-          entity,
-          users,
-          Util.daysBefore(7, entity.transaction.created),
-          Util.daysAfter(7, entity.transaction.created),
-          PriceValidity.VALID_ONLY,
-          'checkoutTx',
-          referenceChfPrice,
-        );
-
         const last30dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
           users,
@@ -164,7 +152,7 @@ export class BuyCryptoPreparationService {
           referenceChfPrice,
         );
 
-        const ibanCountryCode = entity.bankTx?.iban?.substring(0, 2) ?? entity.checkoutTx?.cardIssuerCountry;
+        const ibanCountryCode = entity.bankTx?.iban?.substring(0, 2);
         const ibanCountry = ibanCountryCode
           ? await this.countryService.getCountryWithSymbol(ibanCountryCode)
           : undefined;
@@ -186,7 +174,6 @@ export class BuyCryptoPreparationService {
             minVolume,
             referenceEurPrice.convert(entity.inputReferenceAmount, 2),
             referenceChfPrice.convert(entity.inputReferenceAmount, 2),
-            last7dCheckoutVolume,
             last30dVolume,
             last365dVolume,
             bankData,
@@ -243,7 +230,6 @@ export class BuyCryptoPreparationService {
       ],
       relations: {
         bankTx: true,
-        checkoutTx: true,
         cryptoInput: true,
         buy: true,
         cryptoRoute: true,
@@ -275,9 +261,7 @@ export class BuyCryptoPreparationService {
 
         const bankIn = entity.bankTx
           ? await this.bankService.getBankByIban(entity.bankTx.accountIban).then((b) => b.name)
-          : entity.checkoutTx
-            ? CardBankName.CHECKOUT
-            : undefined;
+          : undefined;
 
         const fee = await this.transactionHelper.getTxFeeInfos(
           entity.inputReferenceAmount,
@@ -490,10 +474,9 @@ export class BuyCryptoPreparationService {
           chargebackIban: Not(IsNull()),
           chargebackCreditorData: Not(IsNull()),
         },
-        { ...baseRequest, checkoutTx: { id: Not(IsNull()) } },
         { ...baseRequest, cryptoInput: { id: Not(IsNull()) }, chargebackIban: Not(IsNull()) },
       ],
-      relations: { checkoutTx: true, bankTx: true, cryptoInput: true, transaction: { userData: true } },
+      relations: { bankTx: true, cryptoInput: true, transaction: { userData: true } },
     });
 
     for (const entity of entities) {
@@ -510,8 +493,6 @@ export class BuyCryptoPreparationService {
             await this.buyCryptoService.refundBankTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
         } else if (entity.cryptoInput) {
           await this.buyCryptoService.refundCryptoInput(entity, { chargebackAllowedDate, chargebackAllowedBy });
-        } else {
-          await this.buyCryptoService.refundCheckoutTx(entity, { chargebackAllowedDate, chargebackAllowedBy });
         }
       } catch (e) {
         this.logger.error(`Failed to chargeback buy-crypto ${entity.id}:`, e);

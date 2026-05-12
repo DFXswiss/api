@@ -1,6 +1,5 @@
 import { Transform, Type } from 'class-transformer';
 import { IsDate, IsIBAN, IsNumber, IsOptional, IsString, ValidateNested } from 'class-validator';
-import { CheckoutReverse } from 'src/integration/checkout/services/checkout.service';
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Util } from 'src/shared/utils/util';
 import { CreditorData } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
@@ -50,10 +49,6 @@ export class BankTxRefund extends BaseRefund {
   chargebackOutput?: FiatOutput;
   creditorData?: CreditorData;
   chargebackReferenceAmount?: number;
-}
-
-export class CheckoutTxRefund extends BaseRefund {
-  chargebackRemittanceInfo?: CheckoutReverse;
 }
 
 export class CryptoInputRefund extends BaseRefund {

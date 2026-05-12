@@ -11,7 +11,6 @@ export class CustodyOrderResponseDtoMapper {
       targetAsset: paymentInfo.asset.name,
       buyInfos: {
         remittanceInfo: paymentInfo.remittanceInfo,
-        paymentLink: paymentInfo.paymentLink,
         name: paymentInfo.name,
         bank: paymentInfo.bank,
         street: paymentInfo.street,

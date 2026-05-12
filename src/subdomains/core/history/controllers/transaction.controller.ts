@@ -44,7 +44,6 @@ import {
 } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -133,13 +132,11 @@ export class TransactionController {
   @ApiOkResponse({ type: TransactionDto })
   @ApiQuery({ name: 'uid', description: 'Transaction unique ID', required: false })
   @ApiQuery({ name: 'order-uid', description: 'Order unique ID', required: false })
-  @ApiQuery({ name: 'cko-id', description: 'CKO ID', required: false })
   async getSingleTransaction(
     @Query('uid') uid?: string,
     @Query('order-uid') orderUid?: string,
-    @Query('cko-id') ckoId?: string,
   ): Promise<TransactionDto | UnassignedTransactionDto> {
-    const tx = await this.getTransaction({ uid, orderUid, ckoId });
+    const tx = await this.getTransaction({ uid, orderUid });
 
     const dto = await this.getTransactionDto(tx);
     if (!dto) throw new NotFoundException('Transaction not found');
@@ -311,11 +308,10 @@ export class TransactionController {
     const transaction = await this.transactionService.getTransactionById(+id, {
       bankTx: { bankTxReturn: true },
       cryptoInput: true,
-      checkoutTx: true,
       bankTxReturn: { bankTx: true },
       userData: true,
       user: { wallet: true },
-      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
+      buyCrypto: { cryptoInput: true, bankTx: true },
       buyFiat: { cryptoInput: true },
       refReward: true,
     });
@@ -365,9 +361,7 @@ export class TransactionController {
 
     const bankIn = transaction.cryptoInput
       ? undefined
-      : transaction.checkoutTx
-        ? CardBankName.CHECKOUT
-        : await this.bankService.getBankByIban(transaction.bankTx.accountIban).then((b) => b?.name);
+      : await this.bankService.getBankByIban(transaction.bankTx.accountIban).then((b) => b?.name);
 
     const refundTarget = await this.getRefundTarget(transaction);
 
@@ -411,7 +405,6 @@ export class TransactionController {
       transaction.buyCrypto = await this.buyCryptoService.getBuyCryptoByTransactionId(transaction.id, {
         cryptoInput: true,
         bankTx: true,
-        checkoutTx: true,
         transaction: { userData: true },
       });
     if (transaction.type === TransactionTypeInternal.BUY_FIAT)
@@ -541,9 +534,7 @@ export class TransactionController {
       const bankIn =
         targetEntity instanceof BankTxReturn || (targetEntity instanceof BuyCrypto && targetEntity.bankTx)
           ? await this.bankService.getBankByIban(transaction.bankTx.accountIban).then((b) => b?.name)
-          : targetEntity instanceof BuyCrypto && targetEntity.checkoutTx
-            ? CardBankName.CHECKOUT
-            : undefined;
+          : undefined;
 
       refundData = await this.transactionHelper.getRefundData(
         transaction.refundTargetEntity,
@@ -596,8 +587,6 @@ export class TransactionController {
         ...refundDto,
       });
 
-    if (targetEntity.checkoutTx) return this.buyCryptoService.refundCheckoutTx(targetEntity, { ...refundDto });
-
     // BuyCrypto bank refund
     if (!dto.creditorData) throw new BadRequestException('Creditor data is required for bank refunds');
 
@@ -631,10 +620,7 @@ export class TransactionController {
         : transaction.refundTargetEntity?.chargebackIban;
     }
 
-    if (transaction.refundTargetEntity instanceof BuyCrypto)
-      return transaction.refundTargetEntity.checkoutTx
-        ? `${transaction.refundTargetEntity.checkoutTx.cardBin}****${transaction.refundTargetEntity.checkoutTx.cardLast4}`
-        : transaction.refundTargetEntity.chargebackIban;
+    if (transaction.refundTargetEntity instanceof BuyCrypto) return transaction.refundTargetEntity.chargebackIban;
   }
 
   private async validateIban(iban: string): Promise<boolean> {
@@ -699,14 +685,12 @@ export class TransactionController {
       orderId,
       orderUid,
       externalId,
-      ckoId,
     }: {
       id?: string;
       uid?: string;
       orderId?: string;
       orderUid?: string;
       externalId?: string;
-      ckoId?: string;
     },
     accountId?: number,
   ): Promise<Transaction | TransactionRequest | undefined> {
@@ -717,13 +701,11 @@ export class TransactionController {
         cryptoInput: true,
         bankTx: true,
         chargebackOutput: true,
-        checkoutTx: true,
       },
       buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
       refReward: true,
       bankTx: { transaction: true },
       cryptoInput: true,
-      checkoutTx: true,
       userData: true,
       user: { userData: true },
       request: true,
@@ -748,8 +730,6 @@ export class TransactionController {
 
     if (externalId && accountId)
       tx = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
-
-    if (ckoId) tx = await this.transactionService.getTransactionByCkoId(ckoId, relations);
 
     return tx;
   }

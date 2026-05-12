@@ -11,7 +11,6 @@ import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { TxValidationService } from 'src/integration/blockchain/shared/services/tx-validation.service';
-import { CheckoutPaymentStatus } from 'src/integration/checkout/dto/checkout.dto';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
@@ -55,15 +54,6 @@ export class TransactionUtilService {
         throw new ForbiddenException('You can only refund to your own addresses');
       if (!dto.refundUser.blockchains.includes(entity.cryptoInput.asset.blockchain))
         throw new BadRequestException('You can only refund to a address on the origin blockchain');
-    } else if (entity instanceof BuyCrypto && entity.checkoutTx) {
-      if (
-        [
-          CheckoutPaymentStatus.REFUNDED,
-          CheckoutPaymentStatus.REFUND_PENDING,
-          CheckoutPaymentStatus.PARTIALLY_REFUNDED,
-        ].includes(entity.checkoutTx.status)
-      )
-        throw new BadRequestException('CheckoutTx already refunded');
     } else {
       if (!dto.refundIban) throw new BadRequestException('Missing refund iban');
       if (!IbanTools.validateIBAN(dto.refundIban).valid) throw new BadRequestException('Refund iban not valid');

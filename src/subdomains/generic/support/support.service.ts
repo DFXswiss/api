@@ -33,7 +33,6 @@ import {
 } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
-import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { Notification } from 'src/subdomains/supporting/notification/entities/notification.entity';
@@ -1220,7 +1219,7 @@ export class SupportService {
   async getTransactionRefundData(transactionId: number): Promise<RefundDataDto | undefined> {
     const transaction = await this.transactionService.getTransactionById(transactionId, {
       bankTx: { bankTxReturn: true },
-      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
+      buyCrypto: { cryptoInput: true, bankTx: true },
       buyFiat: { cryptoInput: true },
       userData: true,
     });
@@ -1237,12 +1236,10 @@ export class SupportService {
 
       const bankIn = transaction.buyCrypto.bankTx
         ? await this.bankService.getBankByIban(transaction.buyCrypto.bankTx.accountIban).then((b) => b?.name)
-        : transaction.buyCrypto.checkoutTx
-          ? CardBankName.CHECKOUT
-          : undefined;
+        : undefined;
 
       const refundTarget = await this.getChargebackRefundTarget(transaction);
-      const isFiat = !!transaction.buyCrypto.bankTx || !!transaction.buyCrypto.checkoutTx;
+      const isFiat = !!transaction.buyCrypto.bankTx;
 
       const refundData = await this.transactionHelper.getRefundData(
         transaction.buyCrypto,
@@ -1305,7 +1302,7 @@ export class SupportService {
     agentUserDataId: number,
   ): Promise<void> {
     const transaction = await this.transactionService.getTransactionById(transactionId, {
-      buyCrypto: { cryptoInput: true, bankTx: true, checkoutTx: true },
+      buyCrypto: { cryptoInput: true, bankTx: true },
       buyFiat: { cryptoInput: true },
       bankTx: { bankTxReturn: true },
       bankTxReturn: { bankTx: true, chargebackOutput: true },
@@ -1366,10 +1363,6 @@ export class SupportService {
     // BuyCrypto refunds
     const buyCrypto = transaction.buyCrypto;
 
-    if (buyCrypto.checkoutTx) {
-      return this.buyCryptoService.refundCheckoutTx(buyCrypto, baseRefund);
-    }
-
     if (buyCrypto.cryptoInput) {
       return this.buyCryptoService.refundCryptoInput(buyCrypto, {
         refundUserAddress: dto.refundTarget,
@@ -1403,10 +1396,6 @@ export class SupportService {
         // fall through
       }
       return buyCrypto.chargebackIban;
-    }
-
-    if (buyCrypto.checkoutTx) {
-      return `${buyCrypto.checkoutTx.cardBin}****${buyCrypto.checkoutTx.cardLast4}`;
     }
 
     return buyCrypto.chargebackIban;

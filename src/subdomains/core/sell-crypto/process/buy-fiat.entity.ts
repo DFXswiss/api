@@ -464,7 +464,6 @@ export class BuyFiat extends IEntity {
         inputAsset,
         minVolume,
         amountInChf,
-        0,
         last30dVolume,
         last365dVolume,
         bankData,

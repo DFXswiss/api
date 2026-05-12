@@ -20,7 +20,6 @@ export class BuyCryptoWebhookService {
         transaction: { user: { wallet: true }, userData: true },
         cryptoInput: true,
         bankTx: true,
-        checkoutTx: true,
         chargebackOutput: true,
       },
     });

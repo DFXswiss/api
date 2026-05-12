@@ -463,7 +463,6 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
           entity.chargebackDate &&
           (Util.daysDiff(entity.chargebackDate) > 7 ||
             entity.chargebackCryptoTxId ||
-            entity.checkoutTx ||
             entity.chargebackOutput?.isTransmittedDate)
         )
           return { state: TransactionState.RETURNED, reason };

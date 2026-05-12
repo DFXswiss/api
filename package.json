@@ -85,7 +85,6 @@
     "bolt11": "^1.4.1",
     "bs58check": "^4.0.0",
     "ccxt": "^4.5.14",
-    "checkout-sdk-node": "^2.8.1",
     "class-transformer": "^0.5.1",
     "class-validator": "^0.14.2",
     "coingecko-api-v3": "^0.0.25",

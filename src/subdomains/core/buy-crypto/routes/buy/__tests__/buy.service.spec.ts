@@ -1,6 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { RouteService } from 'src/subdomains/core/route/route.service';
@@ -24,7 +23,6 @@ describe('BuyService', () => {
   let paymentInfoService: PaymentInfoService;
   let bankService: BankService;
   let transactionRequestService: TransactionRequestService;
-  let checkoutService: CheckoutService;
   let virtualIbanService: VirtualIbanService;
 
   beforeEach(async () => {
@@ -36,7 +34,6 @@ describe('BuyService', () => {
     bankService = createMock<BankService>();
     transactionRequestService = createMock<TransactionRequestService>();
     transactionHelper = createMock<TransactionHelper>();
-    checkoutService = createMock<CheckoutService>();
     virtualIbanService = createMock<VirtualIbanService>();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -51,7 +48,6 @@ describe('BuyService', () => {
         { provide: PaymentInfoService, useValue: paymentInfoService },
         { provide: BankService, useValue: bankService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
-        { provide: CheckoutService, useValue: checkoutService },
         { provide: VirtualIbanService, useValue: virtualIbanService },
       ],
     }).compile();

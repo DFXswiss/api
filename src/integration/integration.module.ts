@@ -2,7 +2,6 @@ import { Module } from '@nestjs/common';
 import { SharedModule } from 'src/shared/shared.module';
 import { BankIntegrationModule } from './bank/bank.module';
 import { BlockchainModule } from './blockchain/blockchain.module';
-import { CheckoutModule } from './checkout/checkout.module';
 import { ExchangeModule } from './exchange/exchange.module';
 import { IknaModule } from './ikna/ikna.module';
 import { AppInsightsQueryService } from './infrastructure/app-insights-query.service';
@@ -17,7 +16,6 @@ import { SiftModule } from './sift/sift.module';
     ExchangeModule,
     LetterModule,
     IknaModule,
-    CheckoutModule,
     SiftModule,
   ],
   controllers: [],
@@ -28,7 +26,6 @@ import { SiftModule } from './sift/sift.module';
     ExchangeModule,
     LetterModule,
     IknaModule,
-    CheckoutModule,
     AppInsightsQueryService,
     SiftModule,
   ],

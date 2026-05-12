@@ -1,6 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { PaymentInfoService } from 'src/shared/services/payment-info.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
@@ -25,7 +24,6 @@ describe('BuyController', () => {
   let bankService: BankService;
   let paymentInfoService: PaymentInfoService;
   let transactionHelper: TransactionHelper;
-  let checkoutService: CheckoutService;
   let transactionRequestService: TransactionRequestService;
   let fiatService: FiatService;
   let swissQrService: SwissQRService;
@@ -39,7 +37,6 @@ describe('BuyController', () => {
     bankService = createMock<BankService>();
     paymentInfoService = createMock<PaymentInfoService>();
     transactionHelper = createMock<TransactionHelper>();
-    checkoutService = createMock<CheckoutService>();
     transactionRequestService = createMock<TransactionRequestService>();
     fiatService = createMock<FiatService>();
     swissQrService = createMock<SwissQRService>();
@@ -56,7 +53,6 @@ describe('BuyController', () => {
         { provide: BankService, useValue: bankService },
         { provide: PaymentInfoService, useValue: paymentInfoService },
         { provide: TransactionHelper, useValue: transactionHelper },
-        { provide: CheckoutService, useValue: checkoutService },
         { provide: TransactionRequestService, useValue: transactionRequestService },
         { provide: FiatService, useValue: fiatService },
         { provide: SwissQRService, useValue: swissQrService },

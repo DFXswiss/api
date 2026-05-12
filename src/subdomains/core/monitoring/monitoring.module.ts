@@ -8,7 +8,6 @@ import { LightningModule } from 'src/integration/lightning/lightning.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
-import { FiatPayInModule } from 'src/subdomains/supporting/fiat-payin/fiat-payin.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
 import { PricingModule } from 'src/subdomains/supporting/pricing/pricing.module';
 import { MonitorConnectionPoolService } from './monitor-connection-pool.service';
@@ -18,7 +17,6 @@ import { MonitoringService } from './monitoring.service';
 import { AmlObserver } from './observers/aml.observer';
 import { BankObserver } from './observers/bank.observer';
 import { BankingBotObserver } from './observers/banking-bot.observer';
-import { CheckoutObserver } from './observers/checkout.observer';
 import { ExchangeObserver } from './observers/exchange.observer';
 import { ExternalServicesObserver } from './observers/external-services.observer';
 import { LiquidityObserver } from './observers/liquidity.observer';
@@ -41,7 +39,6 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     LetterModule,
     IntegrationModule,
     LightningModule,
-    FiatPayInModule,
     PricingModule,
   ],
   providers: [
@@ -55,7 +52,6 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     BankingBotObserver,
     BankObserver,
     ExternalServicesObserver,
-    CheckoutObserver,
     AmlObserver,
     ExchangeObserver,
     LiquidityObserver,

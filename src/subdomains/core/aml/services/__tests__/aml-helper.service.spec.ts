@@ -11,7 +11,7 @@
  *   !entity.userData.phoneCallCheckDate &&
  *   !entity.user.wallet.amlRuleList.includes(AmlRule.RULE_14) &&
  *   !refUser?.userData?.isTrustedReferrer &&  // <-- This is the new condition
- *   (entity.bankTx || entity.checkoutTx) &&
+ *   (entity.bankTx || entity.bankTx only) &&
  *   entity.userData.phone &&
  *   entity.userData.birthday &&
  *   (!entity.userData.accountType || entity.userData.accountType === AccountType.PERSONAL) &&
@@ -29,7 +29,7 @@ describe('AmlHelperService - isTrustedReferrer Logic', () => {
     phoneCallCheckDate?: Date;
     walletHasRule14: boolean;
     refUserIsTrusted?: boolean;
-    hasBankTxOrCheckoutTx: boolean;
+    hasBankTx: boolean;
     hasPhone: boolean;
     hasBirthday: boolean;
     isPersonalAccount: boolean;
@@ -39,7 +39,7 @@ describe('AmlHelperService - isTrustedReferrer Logic', () => {
       phoneCallCheckDate,
       walletHasRule14,
       refUserIsTrusted,
-      hasBankTxOrCheckoutTx,
+      hasBankTx,
       hasPhone,
       hasBirthday,
       isPersonalAccount,
@@ -50,7 +50,7 @@ describe('AmlHelperService - isTrustedReferrer Logic', () => {
       !phoneCallCheckDate &&
       !walletHasRule14 &&
       !refUserIsTrusted && // This is the new condition
-      hasBankTxOrCheckoutTx &&
+      hasBankTx &&
       hasPhone &&
       hasBirthday &&
       isPersonalAccount &&
@@ -62,7 +62,7 @@ describe('AmlHelperService - isTrustedReferrer Logic', () => {
     const baseParams = {
       phoneCallCheckDate: undefined,
       walletHasRule14: false,
-      hasBankTxOrCheckoutTx: true,
+      hasBankTx: true,
       hasPhone: true,
       hasBirthday: true,
       isPersonalAccount: true,
@@ -186,11 +186,11 @@ describe('AmlHelperService - isTrustedReferrer Logic', () => {
       });
     });
 
-    describe('when transaction is swap (no bankTx or checkoutTx)', () => {
+    describe('when transaction is swap (no bankTx or bankTx only)', () => {
       it('should NOT require phone verification', () => {
         const result = shouldRequirePhoneVerification({
           ...baseParams,
-          hasBankTxOrCheckoutTx: false,
+          hasBankTx: false,
           refUserIsTrusted: undefined,
         });
         expect(result).toBe(false);
@@ -205,7 +205,7 @@ describe('AmlHelperService - isTrustedReferrer Logic', () => {
         phoneCallCheckDate: undefined,
         walletHasRule14: false,
         refUserIsTrusted: true,
-        hasBankTxOrCheckoutTx: true,
+        hasBankTx: true,
         hasPhone: true,
         hasBirthday: true,
         isPersonalAccount: true,
@@ -218,7 +218,7 @@ describe('AmlHelperService - isTrustedReferrer Logic', () => {
         phoneCallCheckDate: undefined,
         walletHasRule14: false,
         refUserIsTrusted: false,
-        hasBankTxOrCheckoutTx: true,
+        hasBankTx: true,
         hasPhone: true,
         hasBirthday: true,
         isPersonalAccount: true,
@@ -233,7 +233,7 @@ describe('AmlHelperService - isTrustedReferrer Logic', () => {
       const testCases = [
         { phoneCallCheckDate: new Date(), expected: false },
         { walletHasRule14: true, expected: false },
-        { hasBankTxOrCheckoutTx: false, expected: false },
+        { hasBankTx: false, expected: false },
         { hasPhone: false, expected: false },
         { hasBirthday: false, expected: false },
         { isPersonalAccount: false, expected: false },
@@ -245,7 +245,7 @@ describe('AmlHelperService - isTrustedReferrer Logic', () => {
           phoneCallCheckDate: undefined,
           walletHasRule14: false,
           refUserIsTrusted: false,
-          hasBankTxOrCheckoutTx: true,
+          hasBankTx: true,
           hasPhone: true,
           hasBirthday: true,
           isPersonalAccount: true,
@@ -271,7 +271,7 @@ describe('AmlHelperService - isTrustedReferrer Logic', () => {
           phoneCallCheckDate: undefined,
           walletHasRule14: false,
           refUserIsTrusted,
-          hasBankTxOrCheckoutTx: true,
+          hasBankTx: true,
           hasPhone: true,
           hasBirthday: true,
           isPersonalAccount: true,
