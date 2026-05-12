@@ -47,6 +47,21 @@ export class PendingOnboardingInfo {
   date: Date;
 }
 
+export class PendingTransactionInfo {
+  txId: number;
+  uid: string;
+  sourceType: 'BuyCrypto' | 'BuyFiat';
+  userDataId: number;
+  userName?: string;
+  accountType?: string;
+  kycLevel?: number;
+  inputAmount?: number;
+  inputAsset?: string;
+  amlCheck?: CheckStatus;
+  amlReason?: AmlReason;
+  date: Date;
+}
+
 export enum PendingReviewType {
   KYC_STEP = 'KycStep',
   BANK_DATA = 'BankData',
@@ -193,6 +208,15 @@ export class KycLogSupportInfo {
   created: Date;
 }
 
+export class BankDataAlternative {
+  id: number;
+  userDataId: number;
+  name?: string;
+  verifiedName?: string;
+  accountType?: string;
+  type?: string;
+}
+
 export class BankDataSupportInfo {
   id: number;
   iban: string;
@@ -204,6 +228,7 @@ export class BankDataSupportInfo {
   active: boolean;
   comment?: string;
   created: Date;
+  alternatives?: BankDataAlternative[];
 }
 
 export class BuySupportInfo {
