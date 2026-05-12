@@ -57,7 +57,6 @@ export const DebugBlockedCols: Record<string, string[]> = {
   bank_tx: [
     'name',
     'ultimateName',
-    'iban',
     'country',
     'senderAccount',
     'bic',
