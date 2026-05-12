@@ -69,7 +69,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
           order.designatePayout();
           await this.payoutOrderRepo.save(order);
         } else if (await this.canRetryFailedPayout(order, status)) {
-          if (status.state === 'failed') {
+          if (status.state === 'failed' && status.isOutOfGas) {
             // OOG: free the spent nonce so the retry gets a fresh one
             this.logger.warn(
               `Payout order ${order.id} failed with out-of-gas (tx ${order.payoutTxId}), retrying with fresh nonce`,
