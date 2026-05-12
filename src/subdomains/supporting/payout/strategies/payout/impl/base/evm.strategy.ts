@@ -8,7 +8,7 @@ import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { PayoutOrder } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
-import { PayoutEvmService } from '../../../../services/payout-evm.service';
+import { PayoutEvmService, PayoutTxStatus } from '../../../../services/payout-evm.service';
 import { PayoutStrategy } from './payout.strategy';
 
 export abstract class EvmStrategy extends PayoutStrategy {
@@ -52,16 +52,34 @@ export abstract class EvmStrategy extends PayoutStrategy {
   async checkPayoutCompletionData(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
       try {
-        const [isComplete, payoutFee] = await this.getPayoutCompletionData(order.payoutTxId);
+        const status = await this.getPayoutCompletionData(order.payoutTxId);
 
-        if (isComplete) {
+        if (status.state === 'complete') {
           order.complete();
 
           const feeAsset = await this.feeAsset();
           const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
-          order.recordPayoutFee(feeAsset, payoutFee, price.convert(payoutFee, Config.defaultVolumeDecimal));
+          order.recordPayoutFee(feeAsset, status.fee, price.convert(status.fee, Config.defaultVolumeDecimal));
 
           await this.payoutOrderRepo.save(order);
+        } else if (status.state === 'failed') {
+          if (status.isOutOfGas) {
+            // Recoverable: TX consumed full gas limit, likely due to EIP-2200 SSTORE swing
+            // between estimate-time and execution-time. Rollback to PreparationConfirmed so
+            // the next cron pass retries with a fresh nonce and a re-estimated gas limit.
+            this.logger.warn(
+              `Payout order ${order.id} failed with out-of-gas (tx ${order.payoutTxId}), rolling back for retry`,
+            );
+            order.rollbackPayoutDesignation();
+            order.payoutTxId = null;
+            await this.payoutOrderRepo.save(order);
+          } else {
+            // Non-recoverable on-chain revert (paused contract, balance mismatch, etc.).
+            // Designate for investigation - processFailedOrders will mail and move to PayoutUncertain.
+            this.logger.error(`Payout order ${order.id} reverted on-chain (tx ${order.payoutTxId}, not OOG)`);
+            order.designatePayout();
+            await this.payoutOrderRepo.save(order);
+          }
         } else if (await this.canRetryFailedPayout(order)) {
           // TX expired (not on-chain, not in mempool) - retry immediately, no gas costs incurred
           this.logger.info(`Payout order ${order.id} has expired TX (${order.payoutTxId}), retrying immediately`);
@@ -73,7 +91,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
     }
   }
 
-  protected async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
+  protected async getPayoutCompletionData(payoutTxId: string): Promise<PayoutTxStatus> {
     return this.payoutEvmService.getPayoutCompletionData(payoutTxId);
   }
 

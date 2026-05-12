@@ -194,14 +194,18 @@ export abstract class EvmClient extends BlockchainClient {
 
     try {
       const gasEstimate = await contract.estimateGas.transfer(to, estimateAmount);
-      return gasEstimate.mul(12).div(10);
+      // 50% buffer + 80k floor: covers EIP-2200 SSTORE swing (~15k gas) when recipient
+      // balance slot changes between estimate-time and execution-time (cold zero→nonzero
+      // costs 22.1k vs warm nonzero→nonzero 7.1k)
+      const buffered = gasEstimate.mul(15).div(10);
+      const floor = ethers.BigNumber.from(80_000);
+      return buffered.gt(floor) ? buffered : floor;
     } catch (error) {
       // If gas estimation fails (e.g., from EIP-7702 delegated address), use a safe default
-      // Standard ERC20 transfer is ~65k gas, using 100k as safe upper bound with buffer
       this.logger.verbose(
-        `Gas estimation failed for token transfer to ${to}: ${error.message}. Using default gas limit of 100000`,
+        `Gas estimation failed for token transfer to ${to}: ${error.message}. Using default gas limit of 150000`,
       );
-      return ethers.BigNumber.from(100000);
+      return ethers.BigNumber.from(150_000);
     }
   }
 
@@ -867,13 +871,13 @@ export abstract class EvmClient extends BlockchainClient {
     amount: number,
     nonce?: number,
   ): Promise<string> {
-    const gasLimit = +(await this.getTokenGasLimitForContact(contract, toAddress));
+    const token = await this.getTokenByContract(contract);
+    const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
+
+    const gasLimit = +(await this.getTokenGasLimitForContact(contract, toAddress, targetAmount));
     const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;
-
-    const token = await this.getTokenByContract(contract);
-    const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
 

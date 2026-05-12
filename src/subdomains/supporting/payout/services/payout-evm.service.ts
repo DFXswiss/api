@@ -2,6 +2,11 @@ import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmService } from 'src/integration/blockchain/shared/evm/evm.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 
+export type PayoutTxStatus =
+  | { state: 'pending' }
+  | { state: 'complete'; fee: number }
+  | { state: 'failed'; isOutOfGas: boolean };
+
 export abstract class PayoutEvmService {
   private readonly client: EvmClient;
 
@@ -17,11 +22,18 @@ export abstract class PayoutEvmService {
     return this.client.sendTokenFromDex(address, tokenName, amount, nonce);
   }
 
-  async getPayoutCompletionData(txHash: string): Promise<[boolean, number]> {
-    const isComplete = await this.client.isTxComplete(txHash);
-    const payoutFee = isComplete ? await this.client.getTxActualFee(txHash) : 0;
+  async getPayoutCompletionData(txHash: string): Promise<PayoutTxStatus> {
+    const receipt = await this.client.getTxReceipt(txHash);
+    if (!receipt || receipt.confirmations <= 0) return { state: 'pending' };
 
-    return [isComplete, payoutFee];
+    if (receipt.status === 1) {
+      const fee = await this.client.getTxActualFee(txHash);
+      return { state: 'complete', fee };
+    }
+
+    const tx = await this.client.getTx(txHash);
+    const isOutOfGas = tx ? receipt.gasUsed.eq(tx.gasLimit) : false;
+    return { state: 'failed', isOutOfGas };
   }
 
   async getCurrentGasForCoinTransaction(): Promise<number> {

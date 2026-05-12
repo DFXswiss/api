@@ -38,8 +38,4 @@ export class GnosisCoinStrategy extends EvmStrategy {
   protected getFeeAsset(): Promise<Asset> {
     return this.assetService.getGnosisCoin();
   }
-
-  protected async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
-    return this.gnosisService.getPayoutCompletionData(payoutTxId);
-  }
 }
