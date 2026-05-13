@@ -103,8 +103,7 @@ export class CustodyAccountService {
 
   // --- CREATE --- //
   async createCustodyAccount(accountId: number, title: string, description?: string): Promise<CustodyAccount> {
-    const owner = await this.userDataService.getUserData(accountId);
-    if (!owner) throw new NotFoundException('User not found');
+    const owner = await this.userDataService.getActiveUserData(accountId);
 
     const custodyAccount = this.custodyAccountRepo.create({
       title,
