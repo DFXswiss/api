@@ -27,6 +27,7 @@ import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/su
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
 import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
+import { canManualPass } from '../../../aml/enums/aml-error.enum';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
@@ -413,6 +414,16 @@ export class BuyFiatService {
         comment: `AML check reset. Previous state: ${JSON.stringify(resetDetails)}`,
       });
     }
+  }
+
+  async manualPassAmlCheck(id: number, responsible: string): Promise<BuyFiat> {
+    const entity = await this.buyFiatRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('BuyFiat not found');
+    if (entity.amlCheck !== CheckStatus.PENDING) throw new BadRequestException('BuyFiat amlCheck must be Pending');
+    if (!canManualPass(entity.comment))
+      throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
+
+    return this.update(id, { amlCheck: CheckStatus.PASS, amlResponsible: responsible } as UpdateBuyFiatDto);
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {

@@ -53,6 +53,7 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { canManualPass } from '../../../aml/enums/aml-error.enum';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -680,6 +681,16 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.update(...entity.resetAmlCheck());
     if (fee) await this.buyCryptoRepo.deleteFee(fee);
     if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
+  }
+
+  async manualPassAmlCheck(id: number, responsible: string): Promise<BuyCrypto> {
+    const entity = await this.buyCryptoRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('BuyCrypto not found');
+    if (entity.amlCheck !== CheckStatus.PENDING) throw new BadRequestException('BuyCrypto amlCheck must be Pending');
+    if (!canManualPass(entity.comment))
+      throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
+
+    return this.update(id, { amlCheck: CheckStatus.PASS, amlResponsible: responsible } as UpdateBuyCryptoDto);
   }
 
   async getUserVolume(
