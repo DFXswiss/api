@@ -12,6 +12,7 @@ import { UserAddressType } from 'src/subdomains/generic/user/models/user/user.en
 import { ArkadeService } from '../../arkade/arkade.service';
 import { ArweaveService } from '../../arweave/services/arweave.service';
 import { BitcoinService } from '../../bitcoin/services/bitcoin.service';
+import { isP2wshAddress, verifyBip322P2wshSignature } from '@dfx.swiss/bip322-multisig';
 import { CardanoService } from '../../cardano/services/cardano.service';
 import { FiroService } from '../../firo/services/firo.service';
 import { InternetComputerService } from '../../icp/services/icp.service';
@@ -375,8 +376,12 @@ export class CryptoService {
       try {
         isValid = verify(message, address, signature, prefix);
       } catch {
-        // ignore - verification failed
+        // ignore - try next verification method
       }
+    }
+
+    if (!isValid && prefix === null && isP2wshAddress(address)) {
+      isValid = verifyBip322P2wshSignature(message, address, signature);
     }
 
     return isValid;
