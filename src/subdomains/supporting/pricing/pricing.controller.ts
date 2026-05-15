@@ -1,6 +1,6 @@
 import { Controller, Get, NotFoundException, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CoinListResponseItem } from 'coingecko-api-v3';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
@@ -31,6 +31,29 @@ export class PricingController {
     description:
       'Public, cached pass-through to CoinGecko /coins/list using the central CoinGecko Pro key. ' +
       'Response is cached server-side for 24 h.',
+  })
+  @ApiOkResponse({
+    schema: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          symbol: { type: 'string' },
+          name: { type: 'string' },
+          platforms: { type: 'object', additionalProperties: { type: 'string' } },
+        },
+      },
+      example: [
+        { id: 'bitcoin', symbol: 'btc', name: 'Bitcoin', platforms: {} },
+        {
+          id: 'tether',
+          symbol: 'usdt',
+          name: 'Tether',
+          platforms: { ethereum: '0xdac17f958d2ee523a2206206994597c13d831ec7' },
+        },
+      ],
+    },
   })
   async getCoinsList(@Query() dto: CoinsListRequest): Promise<CoinListResponseItem[]> {
     return this.coinGeckoService.getCoinsList(dto.include_platform ?? false);
