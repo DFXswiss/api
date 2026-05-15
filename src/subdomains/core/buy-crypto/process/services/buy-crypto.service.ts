@@ -36,6 +36,7 @@ import { TransactionUtilService } from 'src/subdomains/core/transaction/transact
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
@@ -55,7 +56,7 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
-import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
@@ -107,7 +108,24 @@ export class BuyCryptoService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.userDataService.buyCryptoObservable.subscribe((buyCrypto) => this.resetAmlCheckInternal(buyCrypto));
+    this.userDataService.phoneCallCompletedObservable.subscribe((userData) => this.checkAmlResetTx(userData));
+  }
+
+  async checkAmlResetTx(userData: UserData): Promise<void> {
+    const entities = await this.buyCryptoRepo.findBy({
+      transaction: { userData: { id: userData.id } },
+    });
+
+    for (const entity of entities) {
+      if (
+        Util.daysDiff(entity.created) > 90 &&
+        entity.amlCheck === CheckStatus.FAIL &&
+        !entity.isComplete &&
+        !entity.chargebackAllowedDate &&
+        PhoneAmlReasons.includes(entity.amlReason)
+      )
+        await this.resetAmlCheckInternal(entity);
+    }
   }
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {

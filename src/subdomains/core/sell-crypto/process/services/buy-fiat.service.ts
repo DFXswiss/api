@@ -11,6 +11,7 @@ import { TransactionUtilService } from 'src/subdomains/core/transaction/transact
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
@@ -28,7 +29,7 @@ import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/su
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
 import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
-import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../../history/dto/history.dto';
@@ -77,7 +78,24 @@ export class BuyFiatService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.userDataService.buyFiatObservable.subscribe((buyFiat) => this.resetAmlCheckInternal(buyFiat));
+    this.userDataService.phoneCallCompletedObservable.subscribe((userData) => this.checkAmlResetTx(userData));
+  }
+
+  async checkAmlResetTx(userData: UserData): Promise<void> {
+    const entities = await this.buyFiatRepo.findBy({
+      transaction: { userData: { id: userData.id } },
+    });
+
+    for (const entity of entities) {
+      if (
+        Util.daysDiff(entity.created) > 90 &&
+        entity.amlCheck === CheckStatus.FAIL &&
+        !entity.isComplete &&
+        !entity.chargebackAllowedDate &&
+        PhoneAmlReasons.includes(entity.amlReason)
+      )
+        await this.resetAmlCheckInternal(entity);
+    }
   }
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {

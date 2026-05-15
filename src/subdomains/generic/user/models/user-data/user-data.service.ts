@@ -25,16 +25,13 @@ import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
 import { AmountType, Util } from 'src/shared/utils/util';
-import { PhoneAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { CustodyService } from 'src/subdomains/core/custody/services/custody.service';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import {
   DefaultPaymentLinkConfig,
   PaymentLinkConfig,
 } from 'src/subdomains/core/payment-link/entities/payment-link.config';
-import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { KycAddress, KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycError } from 'src/subdomains/generic/kyc/dto/kyc-error.enum';
 import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
@@ -86,8 +83,7 @@ export class UserDataService {
   private readonly logger = new DfxLogger(UserDataService);
 
   private readonly secretCache: Map<number, SecretCacheEntry> = new Map();
-  private readonly buyCryptoResetSubject: Subject<BuyCrypto> = new Subject<BuyCrypto>();
-  private readonly buyFiatResetSubject: Subject<BuyFiat> = new Subject<BuyFiat>();
+  private readonly phoneCallCompletedSubject: Subject<UserData> = new Subject<UserData>();
 
   constructor(
     private readonly repos: RepositoryFactory,
@@ -122,12 +118,8 @@ export class UserDataService {
   ) {}
 
   // --- GETTERS --- //
-  get buyCryptoObservable(): Observable<BuyCrypto> {
-    return this.buyCryptoResetSubject.asObservable();
-  }
-
-  get buyFiatObservable(): Observable<BuyFiat> {
-    return this.buyFiatResetSubject.asObservable();
+  get phoneCallCompletedObservable(): Observable<UserData> {
+    return this.phoneCallCompletedSubject.asObservable();
   }
 
   async getUserDataByUser(userId: number): Promise<UserData> {
@@ -316,7 +308,6 @@ export class UserDataService {
         users: { wallet: true },
         kycSteps: true,
         wallet: true,
-        transactions: { buyCrypto: true, buyFiat: true },
       },
     });
     if (!userData) throw new NotFoundException('User data not found');
@@ -329,29 +320,8 @@ export class UserDataService {
     if (
       dto.phoneCallStatus === PhoneCallStatus.COMPLETED &&
       [PhoneCallStatus.FAILED, PhoneCallStatus.USER_REJECTED].includes(userData.phoneCallStatus)
-    ) {
-      for (const tx of userData.transactions.filter((t) => t.buyCrypto || t.buyFiat)) {
-        if (tx.amlCheck === CheckStatus.FAIL) {
-          if (
-            tx.buyCrypto &&
-            !tx.buyCrypto.isComplete &&
-            !tx.buyCrypto.chargebackAllowedDate &&
-            PhoneAmlReasons.includes(tx.buyCrypto.amlReason)
-          ) {
-            this.buyCryptoResetSubject.next(tx.buyCrypto);
-          }
-
-          if (
-            tx.buyFiat &&
-            !tx.buyFiat.isComplete &&
-            !tx.buyFiat.chargebackAllowedDate &&
-            PhoneAmlReasons.includes(tx.buyFiat.amlReason)
-          ) {
-            this.buyFiatResetSubject.next(tx.buyFiat);
-          }
-        }
-      }
-    }
+    )
+      this.phoneCallCompletedSubject.next(userData);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
