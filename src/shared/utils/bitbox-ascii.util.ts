@@ -4,86 +4,76 @@
 // row. Distinct from the npm `transliteration` package — that one maps
 // `ü` to `u` (single char) while the BitBox-safe convention follows the
 // German romanization (`ü` → `ue`, `ß` → `ss`).
-
-// prettier-ignore
-const MULTI_CHAR_REPLACEMENTS: Record<string, string> = {
-  // German
-  ä: 'ae', ö: 'oe', ü: 'ue', ß: 'ss',
-  Ä: 'Ae', Ö: 'Oe', Ü: 'Ue', ẞ: 'SS',
-  // Nordic
-  æ: 'ae', Æ: 'Ae',
-  œ: 'oe', Œ: 'Oe',
-  ø: 'oe', Ø: 'Oe',
-  ð: 'd',  Ð: 'D',
-  þ: 'th', Þ: 'Th',
-};
-
-// prettier-ignore
-const SINGLE_CHAR_REPLACEMENTS: Record<string, string> = {
-  à: 'a', á: 'a', â: 'a', ã: 'a', å: 'a', ā: 'a', ă: 'a', ą: 'a',
-  À: 'A', Á: 'A', Â: 'A', Ã: 'A', Å: 'A', Ā: 'A', Ă: 'A', Ą: 'A',
-  ç: 'c', ć: 'c', č: 'c', ĉ: 'c', ċ: 'c',
-  Ç: 'C', Ć: 'C', Č: 'C', Ĉ: 'C', Ċ: 'C',
-  ď: 'd', đ: 'd',
-  Ď: 'D', Đ: 'D',
-  è: 'e', é: 'e', ê: 'e', ë: 'e', ē: 'e', ė: 'e', ę: 'e', ě: 'e',
-  È: 'E', É: 'E', Ê: 'E', Ë: 'E', Ē: 'E', Ė: 'E', Ę: 'E', Ě: 'E',
-  ğ: 'g', ġ: 'g',
-  Ğ: 'G', Ġ: 'G',
-  ħ: 'h', Ħ: 'H',
-  ì: 'i', í: 'i', î: 'i', ï: 'i', ī: 'i', į: 'i', ı: 'i',
-  Ì: 'I', Í: 'I', Î: 'I', Ï: 'I', Ī: 'I', Į: 'I', İ: 'I',
-  ĵ: 'j', Ĵ: 'J',
-  ķ: 'k', Ķ: 'K',
-  ł: 'l', ľ: 'l', ĺ: 'l', ļ: 'l',
-  Ł: 'L', Ľ: 'L', Ĺ: 'L', Ļ: 'L',
-  ñ: 'n', ń: 'n', ň: 'n', ņ: 'n',
-  Ñ: 'N', Ń: 'N', Ň: 'N', Ņ: 'N',
-  ò: 'o', ó: 'o', ô: 'o', õ: 'o', ō: 'o', ő: 'o',
-  Ò: 'O', Ó: 'O', Ô: 'O', Õ: 'O', Ō: 'O', Ő: 'O',
-  ŕ: 'r', ř: 'r', ŗ: 'r',
-  Ŕ: 'R', Ř: 'R', Ŗ: 'R',
-  ś: 's', š: 's', ş: 's', ŝ: 's', ș: 's',
-  Ś: 'S', Š: 'S', Ş: 'S', Ŝ: 'S', Ș: 'S',
-  ť: 't', ţ: 't', ț: 't', ŧ: 't',
-  Ť: 'T', Ţ: 'T', Ț: 'T', Ŧ: 'T',
-  ù: 'u', ú: 'u', û: 'u', ū: 'u', ů: 'u', ű: 'u', ų: 'u',
-  Ù: 'U', Ú: 'U', Û: 'U', Ū: 'U', Ů: 'U', Ű: 'U', Ų: 'U',
-  ŵ: 'w', Ŵ: 'W',
-  ý: 'y', ÿ: 'y', ŷ: 'y',
-  Ý: 'Y', Ÿ: 'Y', Ŷ: 'Y',
-  ź: 'z', ż: 'z', ž: 'z',
-  Ź: 'Z', Ż: 'Z', Ž: 'Z',
-};
-
-function isPrintableAscii(value: string): boolean {
-  for (let i = 0; i < value.length; i++) {
-    const c = value.charCodeAt(i);
-    if (c < 0x20 || c >= 0x7f) return false;
-  }
-  return true;
-}
+//
+// Same chained-replace idiom as `Util.removeSpecialChars`. Digraph rules
+// must run before the single-char fallback, and the final catch-all
+// replaces any leftover non-ASCII with `?` so the BitBox firmware never
+// sees a non-printable byte.
 
 export function toBitboxAscii(value: string): string {
-  if (isPrintableAscii(value)) return value;
+  if (/^[\x20-\x7E]*$/.test(value)) return value;
 
-  let out = '';
-  for (const char of value) {
-    const multi = MULTI_CHAR_REPLACEMENTS[char];
-    if (multi !== undefined) {
-      out += multi;
-      continue;
-    }
-    const single = SINGLE_CHAR_REPLACEMENTS[char];
-    if (single !== undefined) {
-      out += single;
-      continue;
-    }
-    if (isPrintableAscii(char)) {
-      out += char;
-      continue;
-    }
-    out += '?';
-  }
-  return out;
+  return (
+    value
+      // Digraph romanizations — must come before single-char fallbacks
+      .replace(/ä/g, 'ae')
+      .replace(/ö/g, 'oe')
+      .replace(/ü/g, 'ue')
+      .replace(/ß/g, 'ss')
+      .replace(/Ä/g, 'Ae')
+      .replace(/Ö/g, 'Oe')
+      .replace(/Ü/g, 'Ue')
+      .replace(/ẞ/g, 'SS')
+      .replace(/æ/g, 'ae')
+      .replace(/Æ/g, 'Ae')
+      .replace(/œ/g, 'oe')
+      .replace(/Œ/g, 'Oe')
+      .replace(/ø/g, 'oe')
+      .replace(/Ø/g, 'Oe')
+      .replace(/þ/g, 'th')
+      .replace(/Þ/g, 'Th')
+      .replace(/ð/g, 'd')
+      .replace(/Ð/g, 'D')
+      // Single-char base-letter equivalents
+      .replace(/[àáâãåāăą]/g, 'a')
+      .replace(/[ÀÁÂÃÅĀĂĄ]/g, 'A')
+      .replace(/[çćčĉċ]/g, 'c')
+      .replace(/[ÇĆČĈĊ]/g, 'C')
+      .replace(/[ďđ]/g, 'd')
+      .replace(/[ĎĐ]/g, 'D')
+      .replace(/[èéêëēėęě]/g, 'e')
+      .replace(/[ÈÉÊËĒĖĘĚ]/g, 'E')
+      .replace(/[ğġ]/g, 'g')
+      .replace(/[ĞĠ]/g, 'G')
+      .replace(/ħ/g, 'h')
+      .replace(/Ħ/g, 'H')
+      .replace(/[ìíîïīįı]/g, 'i')
+      .replace(/[ÌÍÎÏĪĮİ]/g, 'I')
+      .replace(/ĵ/g, 'j')
+      .replace(/Ĵ/g, 'J')
+      .replace(/ķ/g, 'k')
+      .replace(/Ķ/g, 'K')
+      .replace(/[łľĺļ]/g, 'l')
+      .replace(/[ŁĽĹĻ]/g, 'L')
+      .replace(/[ñńňņ]/g, 'n')
+      .replace(/[ÑŃŇŅ]/g, 'N')
+      .replace(/[òóôõōő]/g, 'o')
+      .replace(/[ÒÓÔÕŌŐ]/g, 'O')
+      .replace(/[ŕřŗ]/g, 'r')
+      .replace(/[ŔŘŖ]/g, 'R')
+      .replace(/[śšşŝș]/g, 's')
+      .replace(/[ŚŠŞŜȘ]/g, 'S')
+      .replace(/[ťţțŧ]/g, 't')
+      .replace(/[ŤŢȚŦ]/g, 'T')
+      .replace(/[ùúûūůűų]/g, 'u')
+      .replace(/[ÙÚÛŪŮŰŲ]/g, 'U')
+      .replace(/ŵ/g, 'w')
+      .replace(/Ŵ/g, 'W')
+      .replace(/[ýÿŷ]/g, 'y')
+      .replace(/[ÝŸŶ]/g, 'Y')
+      .replace(/[źżž]/g, 'z')
+      .replace(/[ŹŻŽ]/g, 'Z')
+      // Any remaining non-ASCII or non-printable rune
+      .replace(/[^\x20-\x7E]/g, '?')
+  );
 }
