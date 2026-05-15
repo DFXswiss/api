@@ -35,6 +35,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { toBitboxAscii } from 'src/shared/utils/bitbox-ascii.util';
 import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -102,6 +103,16 @@ import { KycLevelRequiredException, RegistrationRequiredException } from './exce
 import { RealUnitDevService } from './realunit-dev.service';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
+
+// realunit-app v0.0.3+ transliterates EIP-712 string fields to BitBox-safe
+// ASCII (Krüger → Krueger) but keeps the kycData copy in UTF-8 so ID
+// verification still sees the legal name with diacritics. Accept either
+// representation so registrations from both old and new app versions pass.
+function matchesSignedField(kycValue: string | undefined, signedValue: string | undefined): boolean {
+  if (kycValue === signedValue) return true;
+  if (kycValue == null || signedValue == null) return false;
+  return toBitboxAscii(kycValue) === signedValue;
+}
 
 @Injectable()
 export class RealUnitService {
@@ -721,7 +732,7 @@ export class RealUnitService {
       }
 
       // organization name
-      if (dto.kycData.organizationName !== dto.name) {
+      if (!matchesSignedField(dto.kycData.organizationName, dto.name)) {
         throw new BadRequestException('organizationName must match signed name');
       }
 
@@ -729,15 +740,15 @@ export class RealUnitService {
       const combinedOrgAddress = dto.kycData.organizationAddress.houseNumber
         ? `${dto.kycData.organizationAddress.street} ${dto.kycData.organizationAddress.houseNumber}`
         : dto.kycData.organizationAddress.street;
-      if (combinedOrgAddress !== dto.addressStreet) {
+      if (!matchesSignedField(combinedOrgAddress, dto.addressStreet)) {
         throw new BadRequestException('organizationAddress street + houseNumber must match signed addressStreet');
       }
 
-      if (dto.kycData.organizationAddress.zip !== dto.addressPostalCode) {
+      if (!matchesSignedField(dto.kycData.organizationAddress.zip, dto.addressPostalCode)) {
         throw new BadRequestException('organizationAddress zip must match signed addressPostalCode');
       }
 
-      if (dto.kycData.organizationAddress.city !== dto.addressCity) {
+      if (!matchesSignedField(dto.kycData.organizationAddress.city, dto.addressCity)) {
         throw new BadRequestException('organizationAddress city must match signed addressCity');
       }
 
@@ -752,7 +763,7 @@ export class RealUnitService {
 
       // personal name
       const combinedName = `${dto.kycData.firstName} ${dto.kycData.lastName}`;
-      if (combinedName !== dto.name) {
+      if (!matchesSignedField(combinedName, dto.name)) {
         throw new BadRequestException('firstName + lastName does not match signed name');
       }
 
@@ -760,7 +771,7 @@ export class RealUnitService {
       const combinedAddress = dto.kycData.address.houseNumber
         ? `${dto.kycData.address.street} ${dto.kycData.address.houseNumber}`
         : dto.kycData.address.street;
-      if (combinedAddress !== dto.addressStreet) {
+      if (!matchesSignedField(combinedAddress, dto.addressStreet)) {
         throw new BadRequestException('street + houseNumber does not match signed addressStreet');
       }
     }
@@ -808,8 +819,24 @@ export class RealUnitService {
 
     const signatureToUse = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
     const recoveredAddress = verifyTypedData(domain, types, message, signatureToUse);
+    if (Util.equalsIgnoreCase(recoveredAddress, data.walletAddress)) return true;
 
-    return Util.equalsIgnoreCase(recoveredAddress, data.walletAddress);
+    // Backwards-compat: app v0.0.3+ signs BitBox-safe ASCII. If the stored
+    // accountData still holds UTF-8 from a pre-transliteration registration,
+    // retry verify with the same fields transliterated so re-login (add new
+    // wallet) keeps working for those users.
+    const asciiMessage = {
+      ...message,
+      email: toBitboxAscii(message.email),
+      name: toBitboxAscii(message.name),
+      phoneNumber: toBitboxAscii(message.phoneNumber),
+      birthday: toBitboxAscii(message.birthday),
+      addressStreet: toBitboxAscii(message.addressStreet),
+      addressPostalCode: toBitboxAscii(message.addressPostalCode),
+      addressCity: toBitboxAscii(message.addressCity),
+    };
+    const asciiRecovered = verifyTypedData(domain, types, asciiMessage, signatureToUse);
+    return Util.equalsIgnoreCase(asciiRecovered, data.walletAddress);
   }
 
   async forwardRegistrationToAktionariat(kycStepId: number): Promise<void> {
