@@ -1,6 +1,6 @@
-import { BadRequestException, Controller, Get, NotFoundException, Put, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, NotFoundException, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { SimplePriceResponse } from 'coingecko-api-v3';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
@@ -28,15 +28,18 @@ export class PricingController {
   @Get('simple-price')
   @ApiOperation({
     summary: 'CoinGecko simple/price proxy',
-    description: 'Public, cached pass-through to CoinGecko /simple/price using the central CoinGecko Pro key.',
+    description:
+      'Public, cached pass-through to CoinGecko /simple/price using the central CoinGecko Pro key. ' +
+      'Response is cached server-side for 60 s.',
+  })
+  @ApiOkResponse({
+    schema: {
+      type: 'object',
+      additionalProperties: { type: 'object', additionalProperties: { type: 'number' } },
+      example: { bitcoin: { usd: 67000, eur: 62000 }, ethereum: { usd: 3500, eur: 3240 } },
+    },
   })
   async getSimplePrice(@Query() dto: SimplePriceRequest): Promise<SimplePriceResponse> {
-    const supported = this.coinGeckoService.getSupportedCurrencies();
-    if (supported.length) {
-      const invalid = dto.vs_currencies.map((c) => c.toLowerCase()).filter((c) => !supported.includes(c));
-      if (invalid.length) throw new BadRequestException(`Unsupported vs_currencies: ${invalid.join(',')}`);
-    }
-
     return this.coinGeckoService.getSimplePrice(dto.ids, dto.vs_currencies);
   }
 

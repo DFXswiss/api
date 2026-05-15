@@ -1,10 +1,10 @@
-import { Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { CoinGeckoClient, SimplePriceResponse } from 'coingecko-api-v3';
-import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Environment, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Price } from '../../domain/entities/price';
 import { PricingProvider } from './pricing-provider';
 
@@ -59,13 +59,15 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
     return this.getPriceFromToken(from, to);
   }
 
-  getSupportedCurrencies(): string[] {
-    return this.currencies ?? [];
-  }
-
   async getSimplePrice(ids: string[], vsCurrencies: string[]): Promise<SimplePriceResponse> {
     const normalizedIds = [...new Set(ids.map((i) => i.toLowerCase()))].sort();
     const normalizedCurrencies = [...new Set(vsCurrencies.map((c) => c.toLowerCase()))].sort();
+
+    if (this.currencies) {
+      const invalid = normalizedCurrencies.filter((c) => !this.currencies.includes(c));
+      if (invalid.length) throw new BadRequestException(`Unsupported vs_currencies: ${invalid.join(',')}`);
+    }
+
     const cacheKey = `${normalizedIds.join(',')}|${normalizedCurrencies.join(',')}`;
 
     return this.simplePriceCache.get(cacheKey, async () => {
