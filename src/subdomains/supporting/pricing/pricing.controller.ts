@@ -1,6 +1,7 @@
-import { Controller, Get, NotFoundException, Put, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Controller, Get, NotFoundException, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiExcludeEndpoint, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { SimplePriceResponse } from 'coingecko-api-v3';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -10,6 +11,8 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Price } from './domain/entities/price';
 import { CurrencyType, PriceRequest } from './dto/price-request';
 import { PriceRequestRaw } from './dto/price-request-raw';
+import { SimplePriceRequest } from './dto/simple-price-request';
+import { CoinGeckoService } from './services/integration/coin-gecko.service';
 import { PricingService } from './services/pricing.service';
 
 @ApiTags('pricing')
@@ -19,7 +22,23 @@ export class PricingController {
     private readonly pricingService: PricingService,
     private readonly assetService: AssetService,
     private readonly fiatService: FiatService,
+    private readonly coinGeckoService: CoinGeckoService,
   ) {}
+
+  @Get('simple-price')
+  @ApiOperation({
+    summary: 'CoinGecko simple/price proxy',
+    description: 'Public, cached pass-through to CoinGecko /simple/price using the central CoinGecko Pro key.',
+  })
+  async getSimplePrice(@Query() dto: SimplePriceRequest): Promise<SimplePriceResponse> {
+    const supported = this.coinGeckoService.getSupportedCurrencies();
+    if (supported.length) {
+      const invalid = dto.vs_currencies.map((c) => c.toLowerCase()).filter((c) => !supported.includes(c));
+      if (invalid.length) throw new BadRequestException(`Unsupported vs_currencies: ${invalid.join(',')}`);
+    }
+
+    return this.coinGeckoService.getSimplePrice(dto.ids, dto.vs_currencies);
+  }
 
   @Get('price')
   @ApiBearerAuth()

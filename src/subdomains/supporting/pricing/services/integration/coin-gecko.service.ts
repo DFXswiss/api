@@ -1,5 +1,6 @@
 import { Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
-import { CoinGeckoClient } from 'coingecko-api-v3';
+import { CoinGeckoClient, SimplePriceResponse } from 'coingecko-api-v3';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Environment, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
@@ -34,6 +35,7 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
   private readonly logger = new DfxLogger(CoinGeckoService);
 
   private readonly client: CoinGeckoClient;
+  private readonly simplePriceCache = new AsyncCache<SimplePriceResponse>(CacheItemResetPeriod.EVERY_1_MINUTE);
   private currencies: string[];
 
   constructor() {
@@ -55,6 +57,28 @@ export class CoinGeckoService extends PricingProvider implements OnModuleInit {
     if (param === 'contract') return this.getPriceFromContract(from, to);
 
     return this.getPriceFromToken(from, to);
+  }
+
+  getSupportedCurrencies(): string[] {
+    return this.currencies ?? [];
+  }
+
+  async getSimplePrice(ids: string[], vsCurrencies: string[]): Promise<SimplePriceResponse> {
+    const normalizedIds = [...new Set(ids.map((i) => i.toLowerCase()))].sort();
+    const normalizedCurrencies = [...new Set(vsCurrencies.map((c) => c.toLowerCase()))].sort();
+    const cacheKey = `${normalizedIds.join(',')}|${normalizedCurrencies.join(',')}`;
+
+    return this.simplePriceCache.get(cacheKey, async () => {
+      try {
+        return await this.client.simplePrice({
+          ids: normalizedIds.join(','),
+          vs_currencies: normalizedCurrencies.join(','),
+        });
+      } catch (e) {
+        this.logger.error(`Failed to get simple price for ${normalizedIds} -> ${normalizedCurrencies}:`, e);
+        throw new ServiceUnavailableException('Failed to get simple price');
+      }
+    });
   }
 
   private async getPriceFromContract(contractAddress: string, to: string): Promise<Price> {
