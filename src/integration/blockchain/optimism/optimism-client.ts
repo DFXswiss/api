@@ -145,31 +145,27 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
    * @overwrite
    */
 
-  async getCurrentGasCostForCoinTransaction(): Promise<number> {
+  async getCurrentGasCostForCoinTransaction(amount: number): Promise<number> {
     const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
       from: this.walletAddress,
       to: this.randomReceiverAddress,
-      value: 1,
+      value: EvmUtil.toWeiAmount(amount).toString(),
       type: 2,
     });
 
     return EvmUtil.fromWeiAmount(totalGasCost);
   }
 
-  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
-    try {
-      const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
-        from: this.walletAddress,
-        to: token.chainId,
-        data: this.dummyTokenPayload,
-        type: 2,
-      });
+  async getCurrentGasCostForTokenTransaction(token: Asset, amount: number): Promise<number> {
+    const amountWei = EvmUtil.toWeiAmount(amount, token.decimals);
+    const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
+      from: this.walletAddress,
+      to: token.chainId,
+      data: EvmUtil.encodeErc20Transfer(this.randomReceiverAddress, amountWei),
+      type: 2,
+    });
 
-      return EvmUtil.fromWeiAmount(totalGasCost);
-    } catch (e) {
-      this.logger.verbose(`Gas estimation failed for token ${token.uniqueName}: ${e.message}. Using default.`);
-      return 0.00001;
-    }
+    return EvmUtil.fromWeiAmount(totalGasCost);
   }
 
   async getTxActualFee(txHash: string): Promise<number> {
@@ -186,13 +182,5 @@ export class OptimismClient extends EvmClient implements L2BridgeEvmClient {
 
   private get l2Provider(): L2Provider<ethers.providers.JsonRpcProvider> {
     return asL2Provider(this.provider);
-  }
-
-  private get dummyTokenPayload(): string {
-    const method = 'a9059cbb000000000000000000000000';
-    const destination = this.randomReceiverAddress.slice(2);
-    const value = '0000000000000000000000000000000000000000000000000000000000000001';
-
-    return '0x' + method + destination + value;
   }
 }

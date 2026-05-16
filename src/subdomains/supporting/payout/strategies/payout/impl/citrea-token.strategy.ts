@@ -31,8 +31,8 @@ export class CitreaTokenStrategy extends EvmStrategy {
     return this.citreaService.sendToken(order.destinationAddress, order.asset, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(token: Asset): Promise<number> {
-    return this.citreaService.getCurrentGasForTokenTransaction(token);
+  protected getCurrentGasForTransaction(amount: number, token: Asset): Promise<number> {
+    return this.citreaService.getCurrentGasForTokenTransaction(token, amount);
   }
 
   protected async getFeeAsset(): Promise<Asset> {

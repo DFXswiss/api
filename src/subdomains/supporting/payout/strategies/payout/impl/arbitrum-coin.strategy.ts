@@ -31,8 +31,8 @@ export class ArbitrumCoinStrategy extends EvmStrategy {
     return this.arbitrumService.sendNativeCoin(order.destinationAddress, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(): Promise<number> {
-    return this.arbitrumService.getCurrentGasForCoinTransaction();
+  protected getCurrentGasForTransaction(amount: number, _token: Asset): Promise<number> {
+    return this.arbitrumService.getCurrentGasForCoinTransaction(amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {

@@ -62,7 +62,8 @@ export class PolygonClient extends EvmClient implements L2BridgeEvmClient {
     }
 
     // Increase the gas limit by a factor of 5 to enable the smart contract to be executed without "out of gas" error
-    const gasLimit = (await this.getTokenGasLimitForAsset(l1Token)).mul(5);
+    const amountWei = EvmUtil.toWeiAmount(amount, l1Token.decimals);
+    const gasLimit = (await this.getTokenGasLimitForAsset(l1Token, amountWei)).mul(5);
 
     const l1Erc20Token = this.posClient.erc20(l1Token.chainId, true);
 

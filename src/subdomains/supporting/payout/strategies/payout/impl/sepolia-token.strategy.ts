@@ -31,8 +31,8 @@ export class SepoliaTokenStrategy extends EvmStrategy {
     return this.sepoliaService.sendToken(order.destinationAddress, order.asset, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(token: Asset): Promise<number> {
-    return this.sepoliaService.getCurrentGasForTokenTransaction(token);
+  protected getCurrentGasForTransaction(amount: number, token: Asset): Promise<number> {
+    return this.sepoliaService.getCurrentGasForTokenTransaction(token, amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {

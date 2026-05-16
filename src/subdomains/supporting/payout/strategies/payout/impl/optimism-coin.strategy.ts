@@ -31,8 +31,8 @@ export class OptimismCoinStrategy extends EvmStrategy {
     return this.optimismService.sendNativeCoin(order.destinationAddress, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(): Promise<number> {
-    return this.optimismService.getCurrentGasForCoinTransaction();
+  protected getCurrentGasForTransaction(amount: number, _token: Asset): Promise<number> {
+    return this.optimismService.getCurrentGasForCoinTransaction(amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {

@@ -2,7 +2,6 @@ import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
 import { FeeResult, PayoutTxStatus } from 'src/subdomains/supporting/payout/interfaces';
 import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
@@ -14,8 +13,6 @@ import { PayoutStrategy } from './payout.strategy';
 export abstract class EvmStrategy extends PayoutStrategy {
   private readonly logger = new DfxLogger(EvmStrategy);
 
-  private readonly txFees = new AsyncCache<number>(CacheItemResetPeriod.EVERY_30_SECONDS);
-
   constructor(
     protected readonly payoutEvmService: PayoutEvmService,
     protected readonly payoutOrderRepo: PayoutOrderRepository,
@@ -24,16 +21,21 @@ export abstract class EvmStrategy extends PayoutStrategy {
   }
 
   protected abstract dispatchPayout(order: PayoutOrder): Promise<string>;
-  protected abstract getCurrentGasForTransaction(token?: Asset): Promise<number>;
+  protected abstract getCurrentGasForTransaction(amount: number, token: Asset): Promise<number>;
 
-  async estimateFee(asset: Asset): Promise<FeeResult> {
-    const gasPerTransaction = await this.txFees.get(asset.id.toString(), () => this.getCurrentGasForTransaction(asset));
+  async estimateFee(targetAsset: Asset, _address: string, amount: number, _asset: Asset): Promise<FeeResult> {
+    const gasPerTransaction = await this.getCurrentGasForTransaction(amount, targetAsset);
 
     return { asset: await this.feeAsset(), amount: gasPerTransaction };
   }
 
   async estimateBlockchainFee(asset: Asset): Promise<FeeResult> {
-    return this.estimateFee(asset);
+    // Amount-independent preview: gas cost for plain ERC-20 / coin transfers does not depend on
+    // the transferred amount, so any positive sample produces the same fee estimate.
+    const previewAmount = 1;
+    const gasPerTransaction = await this.getCurrentGasForTransaction(previewAmount, asset);
+
+    return { asset: await this.feeAsset(), amount: gasPerTransaction };
   }
 
   async doPayout(orders: PayoutOrder[]): Promise<void> {

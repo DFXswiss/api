@@ -31,8 +31,8 @@ export class BaseTokenStrategy extends EvmStrategy {
     return this.baseService.sendToken(order.destinationAddress, order.asset, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(token: Asset): Promise<number> {
-    return this.baseService.getCurrentGasForTokenTransaction(token);
+  protected getCurrentGasForTransaction(amount: number, token: Asset): Promise<number> {
+    return this.baseService.getCurrentGasForTokenTransaction(token, amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {
