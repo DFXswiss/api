@@ -13,11 +13,11 @@ export class PayoutGnosisService extends PayoutEvmService {
     this.gnosisClient = gnosisService.getDefaultClient<GnosisClient>();
   }
 
-  async getCurrentGasForCoinTransaction(amount: number): Promise<number> {
+  async getCurrentGasCostForCoinTransaction(amount: number): Promise<number> {
     return this.gnosisClient.getCurrentGasCostForCoinTransaction(amount);
   }
 
-  async getCurrentGasForTokenTransaction(token: Asset, amount: number): Promise<number> {
+  async getCurrentGasCostForTokenTransaction(token: Asset, amount: number): Promise<number> {
     return this.gnosisClient.getCurrentGasCostForTokenTransaction(token, amount);
   }
 }

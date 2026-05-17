@@ -31,8 +31,8 @@ export class EthereumTokenStrategy extends EvmStrategy {
     return this.ethereumService.sendToken(order.destinationAddress, order.asset, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(token: Asset, amount: number): Promise<number> {
-    return this.ethereumService.getCurrentGasForTokenTransaction(token, amount);
+  protected getCurrentGasCostForTransaction(token: Asset, amount: number): Promise<number> {
+    return this.ethereumService.getCurrentGasCostForTokenTransaction(token, amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {

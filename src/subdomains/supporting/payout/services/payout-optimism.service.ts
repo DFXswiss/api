@@ -13,11 +13,11 @@ export class PayoutOptimismService extends PayoutEvmService {
     this.optimismClient = optimismService.getDefaultClient<OptimismClient>();
   }
 
-  async getCurrentGasForCoinTransaction(amount: number): Promise<number> {
+  async getCurrentGasCostForCoinTransaction(amount: number): Promise<number> {
     return this.optimismClient.getCurrentGasCostForCoinTransaction(amount);
   }
 
-  async getCurrentGasForTokenTransaction(token: Asset, amount: number): Promise<number> {
+  async getCurrentGasCostForTokenTransaction(token: Asset, amount: number): Promise<number> {
     return this.optimismClient.getCurrentGasCostForTokenTransaction(token, amount);
   }
 }

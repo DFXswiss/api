@@ -23,7 +23,7 @@ export abstract class PayInEvmService {
     return this.#client.sendTokenFromAccount(account, addressTo, tokenName, amount);
   }
 
-  async getGasCostForCoinTransaction(amount: number): Promise<number> {
+  async getCurrentGasCostForCoinTransaction(amount: number): Promise<number> {
     return this.#client.getCurrentGasCostForCoinTransaction(amount);
   }
 

@@ -46,7 +46,7 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
 
     const groupAmount = this.getTotalGroupAmount(payInGroup, type);
     // use fresh gas cost (not cached estimate) to avoid value + gas > balance
-    const freshGasCost = await this.payInEvmService.getGasCostForCoinTransaction(groupAmount);
+    const freshGasCost = await this.payInEvmService.getCurrentGasCostForCoinTransaction(groupAmount);
     const gasCost = Math.max(freshGasCost, estimatedNativeFee);
     const amount = Util.round(groupAmount - gasCost * 1.05, 12);
 
