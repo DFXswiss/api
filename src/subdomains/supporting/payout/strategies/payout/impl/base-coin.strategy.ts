@@ -31,7 +31,7 @@ export class BaseCoinStrategy extends EvmStrategy {
     return this.baseService.sendNativeCoin(order.destinationAddress, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(amount: number, _token: Asset): Promise<number> {
+  protected getCurrentGasForTransaction(_token: Asset, amount: number): Promise<number> {
     return this.baseService.getCurrentGasForCoinTransaction(amount);
   }
 

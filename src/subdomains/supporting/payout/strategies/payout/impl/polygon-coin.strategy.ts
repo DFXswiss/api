@@ -31,7 +31,7 @@ export class PolygonCoinStrategy extends EvmStrategy {
     return this.polygonService.sendNativeCoin(order.destinationAddress, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(amount: number, _token: Asset): Promise<number> {
+  protected getCurrentGasForTransaction(_token: Asset, amount: number): Promise<number> {
     return this.polygonService.getCurrentGasForCoinTransaction(amount);
   }
 

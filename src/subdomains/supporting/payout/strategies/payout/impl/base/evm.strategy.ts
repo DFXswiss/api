@@ -22,10 +22,10 @@ export abstract class EvmStrategy extends PayoutStrategy {
   }
 
   protected abstract dispatchPayout(order: PayoutOrder): Promise<string>;
-  protected abstract getCurrentGasForTransaction(amount: number, token: Asset): Promise<number>;
+  protected abstract getCurrentGasForTransaction(token: Asset, amount: number): Promise<number>;
 
   async estimateFee(targetAsset: Asset, _address: string, amount: number, _asset: Asset): Promise<FeeResult> {
-    const gasPerTransaction = await this.getCurrentGasForTransaction(amount, targetAsset);
+    const gasPerTransaction = await this.getCurrentGasForTransaction(targetAsset, amount);
 
     return { asset: await this.feeAsset(), amount: gasPerTransaction };
   }
@@ -35,7 +35,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
     // the transferred amount. Use 1 wei (minimal non-zero amount) to avoid balance-related
     // estimateGas reverts on the dex wallet.
     const previewAmount = EvmUtil.fromWeiAmount(1, asset.decimals);
-    const gasPerTransaction = await this.getCurrentGasForTransaction(previewAmount, asset);
+    const gasPerTransaction = await this.getCurrentGasForTransaction(asset, previewAmount);
 
     return { asset: await this.feeAsset(), amount: gasPerTransaction };
   }
