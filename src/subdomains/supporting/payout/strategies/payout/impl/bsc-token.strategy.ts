@@ -31,8 +31,8 @@ export class BscTokenStrategy extends EvmStrategy {
     return this.bscService.sendToken(order.destinationAddress, order.asset, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(token: Asset): Promise<number> {
-    return this.bscService.getCurrentGasForTokenTransaction(token);
+  protected getCurrentGasForTransaction(token: Asset, amount: number): Promise<number> {
+    return this.bscService.getCurrentGasForTokenTransaction(token, amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {

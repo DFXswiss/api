@@ -31,8 +31,8 @@ export class GnosisCoinStrategy extends EvmStrategy {
     return this.gnosisService.sendNativeCoin(order.destinationAddress, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(): Promise<number> {
-    return this.gnosisService.getCurrentGasForCoinTransaction();
+  protected getCurrentGasForTransaction(_token: Asset, amount: number): Promise<number> {
+    return this.gnosisService.getCurrentGasForCoinTransaction(amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {

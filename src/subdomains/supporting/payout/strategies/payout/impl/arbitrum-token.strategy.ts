@@ -31,8 +31,8 @@ export class ArbitrumTokenStrategy extends EvmStrategy {
     return this.arbitrumService.sendToken(order.destinationAddress, order.asset, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(token: Asset): Promise<number> {
-    return this.arbitrumService.getCurrentGasForTokenTransaction(token);
+  protected getCurrentGasForTransaction(token: Asset, amount: number): Promise<number> {
+    return this.arbitrumService.getCurrentGasForTokenTransaction(token, amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {

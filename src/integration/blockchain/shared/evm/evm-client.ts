@@ -181,11 +181,10 @@ export abstract class EvmClient extends BlockchainClient {
     return this.provider.getTransactionCount(address);
   }
 
-  protected async getTokenGasLimitForAsset(token: Asset): Promise<EthersNumber> {
+  protected async getTokenGasLimitForAsset(token: Asset, amount: EthersNumber): Promise<EthersNumber> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
-    // Sample amount of 1 wei for fee estimation only (no concrete TX context here)
-    return this.getTokenGasLimitForContact(contract, this.randomReceiverAddress, ethers.BigNumber.from(1));
+    return this.getTokenGasLimitForContact(contract, this.randomReceiverAddress, amount);
   }
 
   async getTokenGasLimitForContact(contract: Contract, to: string, amount: EthersNumber): Promise<EthersNumber> {
@@ -799,15 +798,16 @@ export abstract class EvmClient extends BlockchainClient {
     );
   }
 
-  async getCurrentGasCostForCoinTransaction(): Promise<number> {
-    const totalGas = await this.getCurrentGasForCoinTransaction(this.walletAddress, this.randomReceiverAddress, 1e-18);
+  async getCurrentGasCostForCoinTransaction(amount: number): Promise<number> {
+    const totalGas = await this.getCurrentGasForCoinTransaction(this.walletAddress, this.randomReceiverAddress, amount);
     const gasPrice = await this.getRecommendedGasPrice();
 
     return EvmUtil.fromWeiAmount(totalGas.mul(gasPrice));
   }
 
-  async getCurrentGasCostForTokenTransaction(token: Asset): Promise<number> {
-    const totalGas = await this.getTokenGasLimitForAsset(token);
+  async getCurrentGasCostForTokenTransaction(token: Asset, amount: number): Promise<number> {
+    const amountWei = EvmUtil.toWeiAmount(amount, token.decimals);
+    const totalGas = await this.getTokenGasLimitForAsset(token, amountWei);
     const gasPrice = await this.getRecommendedGasPrice();
 
     return EvmUtil.fromWeiAmount(totalGas.mul(gasPrice));
