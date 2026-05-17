@@ -31,8 +31,9 @@ export abstract class EvmStrategy extends PayoutStrategy {
 
   async estimateBlockchainFee(asset: Asset): Promise<FeeResult> {
     // Amount-independent preview: gas cost for plain ERC-20 / coin transfers does not depend on
-    // the transferred amount, so any positive sample produces the same fee estimate.
-    const previewAmount = 1;
+    // the transferred amount. Use 1 wei (minimal non-zero amount) to avoid balance-related
+    // estimateGas reverts on the dex wallet.
+    const previewAmount = 1 / Math.pow(10, asset.decimals);
     const gasPerTransaction = await this.getCurrentGasForTransaction(previewAmount, asset);
 
     return { asset: await this.feeAsset(), amount: gasPerTransaction };
