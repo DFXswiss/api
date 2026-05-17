@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -33,7 +34,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
     // Amount-independent preview: gas cost for plain ERC-20 / coin transfers does not depend on
     // the transferred amount. Use 1 wei (minimal non-zero amount) to avoid balance-related
     // estimateGas reverts on the dex wallet.
-    const previewAmount = 1 / Math.pow(10, asset.decimals);
+    const previewAmount = EvmUtil.fromWeiAmount(1, asset.decimals);
     const gasPerTransaction = await this.getCurrentGasForTransaction(previewAmount, asset);
 
     return { asset: await this.feeAsset(), amount: gasPerTransaction };
