@@ -1,21 +1,15 @@
-import { CrossChainMessenger, L2Provider, MessageStatus, asL2Provider, estimateTotalGasCost } from '@eth-optimism/sdk';
-import { BigNumber, ethers } from 'ethers';
+import { CrossChainMessenger, MessageStatus } from '@eth-optimism/sdk';
+import { ethers } from 'ethers';
 import { GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { EvmClient, EvmClientParams } from '../shared/evm/evm-client';
+import { EvmClientParams } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { L2BridgeEvmClient } from '../shared/evm/interfaces';
+import { OpStackEvmClient } from '../shared/evm/op-stack-evm-client';
 
-interface BaseTransactionReceipt extends ethers.providers.TransactionReceipt {
-  l1Fee: BigNumber;
-  l1GasPrice: BigNumber;
-  l1GasUsed: BigNumber;
-  l1FeeScalar: number;
-}
-
-export class BaseClient extends EvmClient implements L2BridgeEvmClient {
+export class BaseClient extends OpStackEvmClient implements L2BridgeEvmClient {
   protected override readonly logger = new DfxLogger(BaseClient);
 
   private readonly l1Provider: ethers.providers.JsonRpcProvider;
@@ -139,48 +133,5 @@ export class BaseClient extends EvmClient implements L2BridgeEvmClient {
     } catch {
       return false;
     }
-  }
-
-  /**
-   * @overwrite
-   */
-
-  async getCurrentGasCostForCoinTransaction(amount: number): Promise<number> {
-    const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
-      from: this.walletAddress,
-      to: this.randomReceiverAddress,
-      value: EvmUtil.toWeiAmount(amount).toString(),
-      type: 2,
-    });
-
-    return EvmUtil.fromWeiAmount(totalGasCost);
-  }
-
-  async getCurrentGasCostForTokenTransaction(token: Asset, amount: number): Promise<number> {
-    const amountWei = EvmUtil.toWeiAmount(amount, token.decimals);
-    const totalGasCost = await estimateTotalGasCost(this.l2Provider, {
-      from: this.walletAddress,
-      to: token.chainId,
-      data: EvmUtil.encodeErc20Transfer(this.randomReceiverAddress, amountWei),
-      type: 2,
-    });
-
-    return EvmUtil.fromWeiAmount(totalGasCost);
-  }
-
-  async getTxActualFee(txHash: string): Promise<number> {
-    const receipt = await this.l2Provider.getTransactionReceipt(txHash);
-
-    const { gasUsed, effectiveGasPrice, l1Fee } = receipt as BaseTransactionReceipt;
-
-    const l2Fee = gasUsed.mul(effectiveGasPrice);
-
-    return EvmUtil.fromWeiAmount(l1Fee.add(l2Fee));
-  }
-
-  //*** HELPER METHODS ***//
-
-  private get l2Provider(): L2Provider<ethers.providers.JsonRpcProvider> {
-    return asL2Provider(this.provider);
   }
 }
