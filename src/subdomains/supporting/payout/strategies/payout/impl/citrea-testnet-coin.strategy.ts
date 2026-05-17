@@ -31,8 +31,8 @@ export class CitreaTestnetCoinStrategy extends EvmStrategy {
     return this.citreaTestnetService.sendNativeCoin(order.destinationAddress, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(_token: Asset, amount: number): Promise<number> {
-    return this.citreaTestnetService.getCurrentGasForCoinTransaction(amount);
+  protected getCurrentGasCostForTransaction(_token: Asset, amount: number): Promise<number> {
+    return this.citreaTestnetService.getCurrentGasCostForCoinTransaction(amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {

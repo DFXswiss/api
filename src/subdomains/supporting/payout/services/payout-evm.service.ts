@@ -32,11 +32,11 @@ export abstract class PayoutEvmService {
     return { state: 'failed', isOutOfGas };
   }
 
-  async getCurrentGasForCoinTransaction(amount: number): Promise<number> {
+  async getCurrentGasCostForCoinTransaction(amount: number): Promise<number> {
     return this.client.getCurrentGasCostForCoinTransaction(amount);
   }
 
-  async getCurrentGasForTokenTransaction(token: Asset, amount: number): Promise<number> {
+  async getCurrentGasCostForTokenTransaction(token: Asset, amount: number): Promise<number> {
     return this.client.getCurrentGasCostForTokenTransaction(token, amount);
   }
 

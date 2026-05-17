@@ -184,10 +184,10 @@ export abstract class EvmClient extends BlockchainClient {
   protected async getTokenGasLimitForAsset(token: Asset, amount: EthersNumber): Promise<EthersNumber> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
-    return this.getTokenGasLimitForContact(contract, this.randomReceiverAddress, amount);
+    return this.getTokenGasLimitForContract(contract, this.randomReceiverAddress, amount);
   }
 
-  async getTokenGasLimitForContact(contract: Contract, to: string, amount: EthersNumber): Promise<EthersNumber> {
+  async getTokenGasLimitForContract(contract: Contract, to: string, amount: EthersNumber): Promise<EthersNumber> {
     const gasEstimate = await contract.estimateGas.transfer(to, amount);
     return gasEstimate.mul(12).div(10);
   }
@@ -241,7 +241,7 @@ export abstract class EvmClient extends BlockchainClient {
         to: asset.chainId,
         data: EvmUtil.encodeErc20Transfer(toAddress, amountWei),
         value: '0',
-        gasLimit: await this.getTokenGasLimitForContact(contract, toAddress, amountWei),
+        gasLimit: await this.getTokenGasLimitForContract(contract, toAddress, amountWei),
       };
     }
   }
@@ -858,7 +858,7 @@ export abstract class EvmClient extends BlockchainClient {
     const token = await this.getTokenByContract(contract);
     const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
 
-    const gasLimit = +(await this.getTokenGasLimitForContact(contract, toAddress, targetAmount));
+    const gasLimit = +(await this.getTokenGasLimitForContract(contract, toAddress, targetAmount));
     const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;

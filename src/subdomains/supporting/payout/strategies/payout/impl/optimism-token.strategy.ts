@@ -31,8 +31,8 @@ export class OptimismTokenStrategy extends EvmStrategy {
     return this.optimismService.sendToken(order.destinationAddress, order.asset, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(token: Asset, amount: number): Promise<number> {
-    return this.optimismService.getCurrentGasForTokenTransaction(token, amount);
+  protected getCurrentGasCostForTransaction(token: Asset, amount: number): Promise<number> {
+    return this.optimismService.getCurrentGasCostForTokenTransaction(token, amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {

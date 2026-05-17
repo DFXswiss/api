@@ -31,8 +31,8 @@ export class GnosisTokenStrategy extends EvmStrategy {
     return this.gnosisService.sendToken(order.destinationAddress, order.asset, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(token: Asset, amount: number): Promise<number> {
-    return this.gnosisService.getCurrentGasForTokenTransaction(token, amount);
+  protected getCurrentGasCostForTransaction(token: Asset, amount: number): Promise<number> {
+    return this.gnosisService.getCurrentGasCostForTokenTransaction(token, amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {
