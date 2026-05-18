@@ -86,16 +86,14 @@ export class TransactionRequest extends IEntity {
   totalFee?: number;
 
   @Column({
-    type: 'nvarchar',
-    length: 'MAX',
+    type: 'text',
     nullable: true,
     transformer: { to: (v) => (v ? JSON.stringify(v) : v), from: (v) => (v ? JSON.parse(v) : v) },
   })
   fees?: FeeDto;
 
   @Column({
-    type: 'nvarchar',
-    length: 'MAX',
+    type: 'text',
     nullable: true,
     transformer: { to: (v) => (v ? JSON.stringify(v) : v), from: (v) => (v ? JSON.parse(v) : v) },
   })
