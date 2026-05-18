@@ -5,6 +5,7 @@ import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/b
 import { RecallReason } from 'src/subdomains/supporting/recall/recall-reason.enum';
 import { KycFile } from '../../kyc/entities/kyc-file.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
+import { SupportNoteDto } from './support-note.dto';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
 import {
   KycLevel,
@@ -573,6 +574,7 @@ export class UserDataSupportInfoDetails {
   virtualIbans: VirtualIbanSupportInfo[];
   refRewards: RefRewardSupportInfo[];
   notifications: NotificationSupportInfo[];
+  notes: SupportNoteDto[];
   permissions: SupportPermissions;
 }
 

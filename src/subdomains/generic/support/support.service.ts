@@ -112,6 +112,7 @@ import {
   UserSupportInfo,
   VirtualIbanSupportInfo,
 } from './dto/user-data-support.dto';
+import { SupportNoteService } from './services/support-note.service';
 import { SupportPdfService } from './support-pdf.service';
 import { toUserDataDetailDto } from './user-data-detail.mapper';
 
@@ -168,6 +169,7 @@ export class SupportService {
     private readonly kycDocumentService: KycDocumentService,
     private readonly supportPdfService: SupportPdfService,
     private readonly recallService: RecallService,
+    private readonly supportNoteService: SupportNoteService,
   ) {}
 
   async generateIpLogPdf(userDataId: number): Promise<string> {
@@ -221,7 +223,7 @@ export class SupportService {
     return { pdfData, fileName };
   }
 
-  async getUserDataDetails(id: number, role: UserRole): Promise<UserDataSupportInfoDetails> {
+  async getUserDataDetails(id: number, role: UserRole, jwtAccount: number): Promise<UserDataSupportInfoDetails> {
     const userData = await this.userDataService.getUserData(id, { wallet: true, bankDatas: true });
     if (!userData) throw new NotFoundException(`User not found`);
 
@@ -252,6 +254,7 @@ export class SupportService {
       notifications,
       ipLogs,
       supportIssues,
+      notes,
     ] = await Promise.all([
       permissions.viewKycFiles
         ? this.kycFileService.getUserDataKycFiles(id)
@@ -273,6 +276,7 @@ export class SupportService {
       permissions.viewSupportIssues
         ? this.supportIssueService.getIssueEntities(id)
         : Promise.resolve<SupportIssue[] | undefined>(undefined),
+      this.supportNoteService.getByUserDataId(id, role),
     ]);
 
     // Load bank transactions for the loaded transactions (incoming + outgoing)
@@ -336,6 +340,7 @@ export class SupportService {
       virtualIbans: virtualIbans.map((v) => this.toVirtualIbanSupportInfo(v)),
       refRewards: refRewards.map((r) => this.toRefRewardSupportInfo(r)),
       notifications: notifications.map((n) => this.toNotificationSupportInfo(n)),
+      notes: notes.map((n) => this.supportNoteService.toDto(n, role, jwtAccount)),
       permissions,
     };
   }

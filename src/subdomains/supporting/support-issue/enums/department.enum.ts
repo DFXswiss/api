@@ -10,4 +10,5 @@ export enum Department {
 export const RoleDepartmentMap: Partial<Record<UserRole, Department>> = {
   [UserRole.SUPPORT]: Department.SUPPORT,
   [UserRole.COMPLIANCE]: Department.COMPLIANCE,
+  [UserRole.MARKETING]: Department.MARKETING,
 };
