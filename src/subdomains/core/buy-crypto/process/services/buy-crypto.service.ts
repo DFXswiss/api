@@ -687,7 +687,10 @@ export class BuyCryptoService {
   async manualPassAmlCheck(id: number, dto: ManualAmlCheckDto): Promise<BuyCrypto> {
     const entity = await this.buyCryptoRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('BuyCrypto not found');
-    if (entity.amlCheck !== CheckStatus.PENDING) throw new BadRequestException('BuyCrypto amlCheck must be Pending');
+    if (entity.isComplete || entity.chargebackAllowedDateUser)
+      throw new BadRequestException('BuyCrypto is already complete or chargeback initiated');
+    if ([CheckStatus.PASS, CheckStatus.FAIL].includes(entity.amlCheck))
+      throw new BadRequestException('BuyCrypto amlCheck is already finalized');
     if (dto.amlCheck === CheckStatus.PASS && !canManualPass(entity.comment))
       throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
 
