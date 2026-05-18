@@ -770,8 +770,9 @@ export class GsService {
     // Check CTEs (WITH clause)
     if (stmt.with) {
       for (const cte of stmt.with) {
-        if (cte.stmt?.ast) {
-          this.checkForBlockedSchemas(cte.stmt.ast);
+        const cteStmt = cte.stmt?.ast ?? cte.stmt;
+        if (cteStmt) {
+          this.checkForBlockedSchemas(cteStmt);
         }
       }
     }
