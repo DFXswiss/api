@@ -31,3 +31,12 @@ export enum KycStepName {
 }
 
 export const KycStepCancelable = [KycStepName.ADDRESS_CHANGE, KycStepName.PHONE_CHANGE, KycStepName.NAME_CHANGE];
+export const KycStepIdentRequiredForReview = [
+  KycStepName.LEGAL_ENTITY,
+  KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION,
+  KycStepName.AUTHORITY,
+  KycStepName.OWNER_DIRECTORY,
+  KycStepName.SIGNATORY_POWER,
+  KycStepName.BENEFICIAL_OWNER,
+  KycStepName.OPERATIONAL_ACTIVITY,
+];

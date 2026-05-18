@@ -81,7 +81,7 @@ import {
 import { KycStep, KycStepResult } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
-import { KycStepCancelable, KycStepName } from '../enums/kyc-step-name.enum';
+import { KycStepCancelable, KycStepIdentRequiredForReview, KycStepName } from '../enums/kyc-step-name.enum';
 import { KycLogType, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
@@ -621,7 +621,14 @@ export class KycService {
 
     await this.userDataService.updateUserDataInternal(user, data);
 
-    return this.updateKycStepAndLog(kycStep, user, data, reviewStatus);
+    return this.updateKycStepAndLog(
+      kycStep,
+      user,
+      data,
+      KycStepIdentRequiredForReview.includes(stepName) && user.kycLevel < KycLevel.LEVEL_30
+        ? ReviewStatus.INTERNAL_REVIEW
+        : reviewStatus,
+    );
   }
 
   async updateNationalityStep(kycHash: string, stepId: number, data: KycNationalityData): Promise<KycStepBase> {
@@ -670,14 +677,28 @@ export class KycService {
       allBeneficialOwnersDomicile: allBeneficialOwnersDomicile.join('\n'),
     });
 
-    return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
+    return this.updateKycStepAndLog(
+      kycStep,
+      user,
+      data,
+      KycStepIdentRequiredForReview.includes(KycStepName.BENEFICIAL_OWNER) && user.kycLevel < KycLevel.LEVEL_30
+        ? ReviewStatus.INTERNAL_REVIEW
+        : ReviewStatus.MANUAL_REVIEW,
+    );
   }
 
   async updateOperationActivityData(kycHash: string, stepId: number, data: KycOperationalData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.OPERATIONAL_ACTIVITY);
 
-    return this.updateKycStepAndLog(kycStep, user, data, ReviewStatus.MANUAL_REVIEW);
+    return this.updateKycStepAndLog(
+      kycStep,
+      user,
+      data,
+      KycStepIdentRequiredForReview.includes(KycStepName.OPERATIONAL_ACTIVITY) && user.kycLevel < KycLevel.LEVEL_30
+        ? ReviewStatus.INTERNAL_REVIEW
+        : ReviewStatus.MANUAL_REVIEW,
+    );
   }
 
   async updateRecommendationData(kycHash: string, stepId: number, data: KycRecommendationData) {
@@ -717,7 +738,13 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.manualReview(undefined, urlAsJson ? { url } : url));
+    const result = urlAsJson ? { url } : url;
+
+    await this.kycStepRepo.update(
+      ...(KycStepIdentRequiredForReview.includes(stepName) && user.kycLevel < KycLevel.LEVEL_30
+        ? kycStep.internalReview(result)
+        : kycStep.manualReview(undefined, result)),
+    );
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
 
@@ -740,7 +767,13 @@ export class KycService {
       kycStep,
     );
 
-    await this.kycStepRepo.update(...kycStep.manualReview(undefined, { url, legalEntity: data.legalEntity }));
+    const result = { url, legalEntity: data.legalEntity };
+
+    await this.kycStepRepo.update(
+      ...(KycStepIdentRequiredForReview.includes(KycStepName.LEGAL_ENTITY) && user.kycLevel < 30
+        ? kycStep.internalReview(result)
+        : kycStep.manualReview(undefined, result)),
+    );
 
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);
@@ -1494,6 +1527,17 @@ export class KycService {
           olkypayAllowed: userData.olkypayAllowed ?? true,
           nationality,
         });
+
+        if (userData.kycLevel >= KycLevel.LEVEL_30) {
+          await this.kycStepRepo.update(
+            {
+              name: In(KycStepIdentRequiredForReview),
+              status: ReviewStatus.INTERNAL_REVIEW,
+              userData: { id: kycStep.userData.id },
+            },
+            { status: ReviewStatus.MANUAL_REVIEW },
+          );
+        }
 
         if (kycStep.isValidCreatingBankData && !DisabledProcess(Process.AUTO_CREATE_BANK_DATA))
           await this.bankDataService.createBankDataInternal(kycStep.userData, {
