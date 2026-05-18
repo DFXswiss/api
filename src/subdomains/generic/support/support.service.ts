@@ -584,10 +584,17 @@ export class SupportService {
   }
 
   private toSellSupportInfo(sell: Sell): SellSupportInfo {
+    const depositBlockchains = sell.deposit?.blockchainList;
     return {
       id: sell.id,
       iban: sell.iban,
       fiatName: sell.fiat?.name,
+      depositAddress: sell.deposit?.address,
+      depositBlockchains,
+      depositAddressExplorerUrl:
+        depositBlockchains?.[0] && sell.deposit?.address
+          ? addressExplorerUrl(depositBlockchains[0], sell.deposit.address)
+          : undefined,
       volume: sell.annualVolume,
       active: sell.active,
       created: sell.created,
