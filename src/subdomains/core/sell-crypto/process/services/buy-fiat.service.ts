@@ -88,7 +88,6 @@ export class BuyFiatService implements OnModuleInit {
 
     for (const entity of entities) {
       if (
-        Util.daysDiff(entity.created) > 90 &&
         entity.amlCheck === CheckStatus.FAIL &&
         !entity.isComplete &&
         !entity.chargebackAllowedDate &&
