@@ -694,7 +694,12 @@ export class BuyCryptoService {
     if (dto.amlCheck === CheckStatus.PASS && !canManualPass(entity.comment))
       throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
 
-    return this.update(id, { amlCheck: dto.amlCheck, amlResponsible: dto.responsible } as UpdateBuyCryptoDto);
+    return this.update(id, {
+      amlCheck: dto.amlCheck,
+      amlResponsible: dto.responsible,
+      amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
+      priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
+    } as UpdateBuyCryptoDto);
   }
 
   async getUserVolume(
