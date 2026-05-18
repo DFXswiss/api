@@ -76,7 +76,7 @@ export class CryptoInput extends IEntity {
   @Column({ length: 256, nullable: true })
   recipientMail?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   mailReturnSendDate?: Date;
 
   @Column({ nullable: true })
@@ -137,7 +137,7 @@ export class CryptoInput extends IEntity {
   @ManyToOne(() => PaymentQuote, (quote) => quote.cryptoInputs, { nullable: true })
   paymentQuote?: PaymentQuote;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   senderAddresses?: string;
 
   //*** FACTORY METHODS ***//

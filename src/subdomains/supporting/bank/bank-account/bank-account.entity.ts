@@ -40,10 +40,10 @@ export class BankAccount extends IEntity implements BankAccountInfos {
   @Column({ length: 256, nullable: true })
   checks?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   bic?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   allBicCandidates?: string;
 
   @Column({ length: 256, nullable: true })
@@ -55,7 +55,7 @@ export class BankAccount extends IEntity implements BankAccountInfos {
   @Column({ length: 256, nullable: true })
   bankName?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   bankAddress?: string;
 
   @Column({ length: 256, nullable: true })
@@ -82,7 +82,7 @@ export class BankAccount extends IEntity implements BankAccountInfos {
   @Column({ nullable: true })
   sctInst?: boolean;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   sctInstReadinessDate?: Date;
 
   @Column({ length: 256, nullable: true })

@@ -13,7 +13,7 @@ export class SiftErrorLog extends IEntity {
   @Column({ type: 'int', nullable: true })
   httpStatusCode?: number;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   errorMessage: string;
 
   @Column({ type: 'int' })
@@ -22,6 +22,6 @@ export class SiftErrorLog extends IEntity {
   @Column({ default: false })
   isTimeout: boolean;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   requestPayload?: string;
 }

@@ -50,9 +50,9 @@ export class TradingOrderService {
   async getTradingOrderYield(from: Date): Promise<{ profit: number; fee: number }> {
     const { profit, fee } = await this.orderRepo
       .createQueryBuilder('tradingOrder')
-      .select('SUM(profitChf)', 'profit')
-      .addSelect('SUM(txFeeAmountChf)', 'fee')
-      .where('created >= :from', { from })
+      .select('SUM(tradingOrder.profitChf)', 'profit')
+      .addSelect('SUM(tradingOrder.txFeeAmountChf)', 'fee')
+      .where('tradingOrder.created >= :from', { from })
       .getRawOne<{ profit: number; fee: number }>();
 
     return { profit: profit ?? 0, fee: fee ?? 0 };

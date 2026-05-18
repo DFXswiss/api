@@ -212,9 +212,11 @@ export class RefRewardService {
   async getRefRewardVolume(from: Date): Promise<number> {
     const { volume } = await this.rewardRepo
       .createQueryBuilder('refReward')
-      .select('SUM(amountInChf)', 'volume')
-      .where('created >= :from', { from })
-      .andWhere('status NOT IN (:...rewardStatus)', { rewardStatus: [RewardStatus.FAILED, RewardStatus.USER_SWITCH] })
+      .select('SUM(refReward.amountInChf)', 'volume')
+      .where('refReward.created >= :from', { from })
+      .andWhere('refReward.status NOT IN (:...rewardStatus)', {
+        rewardStatus: [RewardStatus.FAILED, RewardStatus.USER_SWITCH],
+      })
       .getRawOne<{ volume: number }>();
 
     return volume ?? 0;
@@ -227,7 +229,7 @@ export class RefRewardService {
     for (const id of userIds) {
       const { volume } = await this.rewardRepo
         .createQueryBuilder('refReward')
-        .select('SUM(amountInEur)', 'volume')
+        .select('SUM(refReward.amountInEur)', 'volume')
         .innerJoin('refReward.user', 'user')
         .where('user.id = :id', { id })
         .andWhere('refReward.status IN (:...status)', { status: [RewardStatus.COMPLETE, RewardStatus.USER_SWITCH] })

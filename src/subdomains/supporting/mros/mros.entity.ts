@@ -27,7 +27,7 @@ export class Mros extends IEntity {
   @Column({ length: 256, default: 'SAR' })
   reportCode: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   submissionDate?: Date;
 
   @Column({ length: 256, nullable: true })
@@ -36,14 +36,14 @@ export class Mros extends IEntity {
   @Column({ length: 256 })
   caseManager: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   reason?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   action?: string;
 
   // JSON-serialized string[] of goAML indicator codes (e.g. ["0002M","1004V"])
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   indicators?: string;
 
   get indicatorCodes(): string[] {

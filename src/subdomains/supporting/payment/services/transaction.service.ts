@@ -268,7 +268,7 @@ export class TransactionService {
       .addSelect('SUM(refReward.amountInEur)', 'credit')
       .leftJoin('transaction.user', 'user')
       .leftJoin('transaction.refReward', 'refReward')
-      .where('sourceType = :sourceType', { sourceType: TransactionSourceType.MANUAL_REF })
+      .where('transaction.sourceType = :sourceType', { sourceType: TransactionSourceType.MANUAL_REF })
       .andWhere('user.ref = :ref', { ref })
       .getRawOne<{ volume: number; credit: number }>();
 

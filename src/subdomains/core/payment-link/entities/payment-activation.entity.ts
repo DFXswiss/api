@@ -24,13 +24,13 @@ export class PaymentActivation extends IEntity {
   @Column({ type: 'float' })
   amount: number;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   paymentRequest: string;
 
   @Column({ length: 256, nullable: true })
   paymentHash?: string;
 
-  @Column({ type: 'datetime2' })
+  @Column({ type: 'timestamp' })
   expiryDate: Date;
 
   @Column({ length: 256 })

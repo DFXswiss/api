@@ -9,7 +9,7 @@ export class CustodyAccount extends IEntity {
   @Column({ length: 256 })
   title: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   description?: string;
 
   @ManyToOne(() => UserData, { nullable: false })

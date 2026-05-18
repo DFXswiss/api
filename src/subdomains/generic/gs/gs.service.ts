@@ -195,7 +195,7 @@ export class GsService {
     // 1. Parse SQL to AST for robust validation
     let ast;
     try {
-      ast = this.sqlParser.astify(sql, { database: 'TransactSQL' });
+      ast = this.sqlParser.astify(sql, { database: 'PostgresQL' });
     } catch {
       throw new BadRequestException('Invalid SQL syntax');
     }
@@ -237,9 +237,9 @@ export class GsService {
       throw new BadRequestException(`Access to column '${blockedColumn}' is not allowed`);
     }
 
-    // 9. Validate TOP value if present (use AST for accurate detection including TOP(n) syntax)
-    if (stmt.top?.value > DebugMaxResults) {
-      throw new BadRequestException(`TOP value exceeds maximum of ${DebugMaxResults}`);
+    // 9. Validate LIMIT value if present
+    if (stmt.limit?.value?.[0]?.value > DebugMaxResults) {
+      throw new BadRequestException(`LIMIT value exceeds maximum of ${DebugMaxResults}`);
     }
 
     // 10. Log query for audit trail
@@ -638,7 +638,7 @@ export class GsService {
   }
 
   private getTablesFromQuery(sql: string): string[] {
-    const tableList = this.sqlParser.tableList(sql, { database: 'TransactSQL' });
+    const tableList = this.sqlParser.tableList(sql, { database: 'PostgresQL' });
     // Format: 'select::null::table_name' → extract table_name
     return tableList.map((t) => t.split('::')[2]).filter(Boolean);
   }
@@ -674,7 +674,7 @@ export class GsService {
   private findBlockedColumnInQuery(sql: string, ast: any, tables: string[]): string | null {
     try {
       // columnList returns: ['select::table::column', 'select::null::column', ...]
-      const columns = this.sqlParser.columnList(sql, { database: 'TransactSQL' });
+      const columns = this.sqlParser.columnList(sql, { database: 'PostgresQL' });
       const aliasMap = this.getAliasToTableMap(ast);
 
       for (const col of columns) {
@@ -770,8 +770,9 @@ export class GsService {
     // Check CTEs (WITH clause)
     if (stmt.with) {
       for (const cte of stmt.with) {
-        if (cte.stmt?.ast) {
-          this.checkForBlockedSchemas(cte.stmt.ast);
+        const cteStmt = cte.stmt?.ast ?? cte.stmt;
+        if (cteStmt) {
+          this.checkForBlockedSchemas(cteStmt);
         }
       }
     }
@@ -1061,20 +1062,15 @@ export class GsService {
   private ensureResultLimit(sql: string): string {
     const normalized = sql.trim().toLowerCase();
 
-    // Check if query already has a LIMIT/TOP clause
-    if (normalized.includes(' top ') || normalized.includes(' limit ')) {
+    // Check if query already has a LIMIT clause
+    if (normalized.includes(' limit ')) {
       return sql;
     }
-
-    // MSSQL requires ORDER BY for OFFSET/FETCH - add dummy order if missing
-    // Regex on normalized string is safe: input bounded by @MaxLength(10000), pattern has no catastrophic backtracking
-    const hasOrderBy = /order\s+by/i.test(normalized);
-    const orderByClause = hasOrderBy ? '' : ' ORDER BY (SELECT NULL)';
 
     // Remove trailing semicolons using string operations to avoid CodeQL false positive
     let trimmed = sql.trim();
     while (trimmed.endsWith(';')) trimmed = trimmed.slice(0, -1);
 
-    return `${trimmed}${orderByClause} OFFSET 0 ROWS FETCH NEXT ${DebugMaxResults} ROWS ONLY`;
+    return `${trimmed} LIMIT ${DebugMaxResults}`;
   }
 }

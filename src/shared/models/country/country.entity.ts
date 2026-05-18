@@ -63,7 +63,7 @@ export class Country extends IEntity {
   @Column({ default: false })
   manualReviewRequiredOrganization: boolean;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   enabledKycDocuments: string; // semicolon separated KycDocuments
 
   get enabledKycDocumentList(): IdentDocumentType[] {
