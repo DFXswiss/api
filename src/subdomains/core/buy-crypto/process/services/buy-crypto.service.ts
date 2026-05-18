@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
@@ -35,6 +36,8 @@ import { TransactionUtilService } from 'src/subdomains/core/transaction/transact
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -53,14 +56,14 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { canManualPass } from '../../../aml/enums/aml-error.enum';
-import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
 import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
-import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { BuyCrypto, BuyCryptoEditableAmlCheck, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
@@ -68,7 +71,7 @@ import { BuyCryptoNotificationService } from './buy-crypto-notification.service'
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
-export class BuyCryptoService {
+export class BuyCryptoService implements OnModuleInit {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyRepo: BuyRepository,
@@ -103,7 +106,26 @@ export class BuyCryptoService {
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly custodyOrderService: CustodyOrderService,
+    private readonly userDataService: UserDataService,
   ) {}
+
+  onModuleInit() {
+    this.userDataService.phoneCallCompletedObservable.subscribe((userData) => this.checkAmlResetTx(userData));
+  }
+
+  async checkAmlResetTx(userData: UserData): Promise<void> {
+    const entities = await this.buyCryptoRepo.findBy({
+      transaction: { userData: { id: userData.id } },
+      amlCheck: CheckStatus.FAIL,
+      amlReason: In(PhoneAmlReasons),
+      isComplete: false,
+      chargebackAllowedDate: IsNull(),
+    });
+
+    for (const entity of entities) {
+      await this.resetAmlCheckInternal(entity);
+    }
+  }
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
     let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });
@@ -672,6 +694,11 @@ export class BuyCryptoService {
   async resetAmlCheck(id: number): Promise<void> {
     const entity = await this.buyCryptoRepo.findOne({ where: { id }, relations: { chargebackOutput: true } });
     if (!entity) throw new NotFoundException('BuyCrypto not found');
+
+    await this.resetAmlCheckInternal(entity);
+  }
+
+  async resetAmlCheckInternal(entity: BuyCrypto): Promise<void> {
     if (entity.isComplete || entity.batch || entity.chargebackOutput?.isComplete || entity.chargebackAllowedDate)
       throw new BadRequestException('BuyCrypto is already complete or payout initiated');
     if (!entity.amlCheck) throw new BadRequestException('BuyCrypto AML check is not set');

@@ -57,6 +57,14 @@ export const KycAmlReasons = [
   AmlReason.KYC_DATA_NEEDED,
 ];
 
+export const PhoneAmlReasons = [
+  AmlReason.MANUAL_CHECK_PHONE,
+  AmlReason.MANUAL_CHECK_PHONE_FAILED,
+  AmlReason.MANUAL_CHECK_IP_PHONE,
+  AmlReason.MANUAL_CHECK_IP_COUNTRY_PHONE,
+  AmlReason.MANUAL_CHECK_EXTERNAL_ACCOUNT_PHONE,
+];
+
 export const RecheckAmlReasons = [
   AmlReason.MANUAL_CHECK_PHONE,
   AmlReason.MANUAL_CHECK_IP_PHONE,
