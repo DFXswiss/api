@@ -276,7 +276,7 @@ export class SupportService {
       permissions.viewSupportIssues
         ? this.supportIssueService.getIssueEntities(id)
         : Promise.resolve<SupportIssue[] | undefined>(undefined),
-      this.supportNoteService.getByUserDataId(id, role),
+      this.supportNoteService.search(role, { userDataId: id }),
     ]);
 
     // Load bank transactions for the loaded transactions (incoming + outgoing)

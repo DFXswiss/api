@@ -49,9 +49,9 @@ export class UpdateSupportNoteDto {
 }
 
 export enum SupportNoteScope {
-  ALL = 'all',
-  FREE = 'free',
-  BOUND = 'bound',
+  ALL = 'All',
+  FREE = 'Free',
+  BOUND = 'Bound',
 }
 
 export class SupportNoteListQuery {

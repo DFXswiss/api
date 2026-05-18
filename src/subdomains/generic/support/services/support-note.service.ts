@@ -1,6 +1,8 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Department, RoleDepartmentMap } from 'src/subdomains/supporting/support-issue/enums/department.enum';
+import { FindOptionsWhere, In, IsNull, Like, Not } from 'typeorm';
+import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import {
   CreateSupportNoteDto,
@@ -29,47 +31,48 @@ export class SupportNoteService {
     private readonly userDataService: UserDataService,
   ) {}
 
-  async getByUserDataId(userDataId: number, role: UserRole): Promise<SupportNote[]> {
-    const departments = visibleDepartments(role);
-    if (departments.length === 0) return [];
-
-    return this.noteRepo
-      .createQueryBuilder('note')
-      .where('note.userDataId = :userDataId', { userDataId })
-      .andWhere('note.department IN (:...departments)', { departments })
-      .orderBy('note.created', 'DESC')
-      .getMany();
-  }
-
   async search(role: UserRole, query: SupportNoteListQuery): Promise<SupportNote[]> {
     const departments = visibleDepartments(role);
     if (departments.length === 0) return [];
 
-    const qb = this.noteRepo
-      .createQueryBuilder('note')
-      .leftJoinAndSelect('note.userData', 'userData')
-      .where('note.department IN (:...departments)', { departments });
-
     const scope = query.scope ?? SupportNoteScope.ALL;
-    if (scope === SupportNoteScope.FREE) {
-      qb.andWhere('note.userDataId IS NULL');
-    } else if (scope === SupportNoteScope.BOUND) {
-      qb.andWhere('note.userDataId IS NOT NULL');
-    }
+    const baseFilter: FindOptionsWhere<SupportNote> = { department: In(departments) };
 
-    if (query.userDataId != null) {
-      qb.andWhere('note.userDataId = :uid', { uid: query.userDataId });
+    if (scope === SupportNoteScope.FREE) {
+      baseFilter.userData = IsNull();
+    } else if (query.userDataId != null) {
+      baseFilter.userData = { id: query.userDataId };
+    } else if (scope === SupportNoteScope.BOUND) {
+      baseFilter.userData = { id: Not(IsNull()) };
     }
 
     const search = query.search?.trim();
-    if (search) {
-      qb.andWhere(
-        '(note.subject LIKE :s OR note.content LIKE :s OR userData.firstname LIKE :s OR userData.surname LIKE :s OR userData.organizationName LIKE :s)',
-        { s: `%${search}%` },
-      );
-    }
+    const findOptions = {
+      relations: { userData: true },
+      order: { created: 'DESC' as const },
+      take: SEARCH_LIMIT,
+    };
 
-    return qb.orderBy('note.created', 'DESC').limit(SEARCH_LIMIT).getMany();
+    if (!search) return this.noteRepo.find({ where: baseFilter, ...findOptions });
+
+    const pattern = `%${search}%`;
+    const userDataWhere = (extra: FindOptionsWhere<UserData>): FindOptionsWhere<UserData> => ({
+      ...((baseFilter.userData ?? {}) as FindOptionsWhere<UserData>),
+      ...extra,
+    });
+    const where: FindOptionsWhere<SupportNote>[] = [
+      { ...baseFilter, subject: Like(pattern) },
+      { ...baseFilter, content: Like(pattern) },
+      ...(scope === SupportNoteScope.FREE
+        ? []
+        : [
+            { ...baseFilter, userData: userDataWhere({ firstname: Like(pattern) }) },
+            { ...baseFilter, userData: userDataWhere({ surname: Like(pattern) }) },
+            { ...baseFilter, userData: userDataWhere({ organizationName: Like(pattern) }) },
+          ]),
+    ];
+
+    return this.noteRepo.find({ where, ...findOptions });
   }
 
   async listUsers(role: UserRole): Promise<SupportNoteUserDto[]> {
@@ -101,7 +104,7 @@ export class SupportNoteService {
     return rows
       .map((r) => ({
         userDataId: r.userDataId,
-        name: r.organizationName ?? [r.firstname, r.surname].filter((n) => n).join(' ') ?? '',
+        name: r.organizationName ?? [r.firstname, r.surname].filter(Boolean).join(' ') ?? '',
         count: Number(r.count),
       }))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -110,17 +113,15 @@ export class SupportNoteService {
   async create(role: UserRole, jwtAccount: number, dto: CreateSupportNoteDto): Promise<SupportNote> {
     const department = this.resolveDepartmentForCreate(role, dto.department);
 
-    if (dto.userDataId) {
-      const userData = await this.userDataService.getUserData(dto.userDataId);
-      if (!userData) throw new NotFoundException('User not found');
-    }
+    const userData = dto.userDataId ? await this.userDataService.getUserData(dto.userDataId) : undefined;
+    if (dto.userDataId && !userData) throw new NotFoundException('User not found');
 
     const author = await this.userDataService.getUserData(jwtAccount);
     if (!author) throw new ForbiddenException('Author user data not found');
 
     return this.noteRepo.save(
       this.noteRepo.create({
-        userDataId: dto.userDataId,
+        userData,
         department,
         authorId: jwtAccount,
         authorMail: author.mail ?? `userData#${jwtAccount}`,
@@ -131,7 +132,7 @@ export class SupportNoteService {
   }
 
   async update(id: number, role: UserRole, jwtAccount: number, dto: UpdateSupportNoteDto): Promise<SupportNote> {
-    const note = await this.noteRepo.findOneBy({ id });
+    const note = await this.noteRepo.findOne({ where: { id }, relations: { userData: true } });
     if (!note) throw new NotFoundException('Note not found');
 
     if (!this.canModify(note, role, jwtAccount)) {
@@ -161,7 +162,7 @@ export class SupportNoteService {
       authorMail: note.authorMail,
       subject: note.subject,
       content: note.content,
-      userDataId: note.userDataId,
+      userDataId: note.userData?.id,
       userName: note.userData?.completeName,
       isOwn: note.authorId === jwtAccount,
       isAdmin: role === UserRole.ADMIN,

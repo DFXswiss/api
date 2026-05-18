@@ -1,16 +1,12 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { Department } from 'src/subdomains/supporting/support-issue/enums/department.enum';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 
 @Entity()
-@Index(['userDataId'])
 export class SupportNote extends IEntity {
-  @Column({ nullable: true })
-  userDataId?: number;
-
+  @Index()
   @ManyToOne(() => UserData, { nullable: true })
-  @JoinColumn({ name: 'userDataId' })
   userData?: UserData;
 
   @Column({ length: 256 })

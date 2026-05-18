@@ -190,16 +190,7 @@ export class SupportController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
-  async getNotes(@Query('userDataId') userDataId: string, @GetJwt() jwt: JwtPayload): Promise<SupportNoteDto[]> {
-    const notes = await this.supportNoteService.getByUserDataId(+userDataId, jwt.role);
-    return notes.map((n) => this.supportNoteService.toDto(n, jwt.role, jwt.account));
-  }
-
-  @Get('note/list')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
-  async listNotes(@Query() query: SupportNoteListQuery, @GetJwt() jwt: JwtPayload): Promise<SupportNoteDto[]> {
+  async getNotes(@Query() query: SupportNoteListQuery, @GetJwt() jwt: JwtPayload): Promise<SupportNoteDto[]> {
     const notes = await this.supportNoteService.search(jwt.role, query);
     return notes.map((n) => this.supportNoteService.toDto(n, jwt.role, jwt.account));
   }
