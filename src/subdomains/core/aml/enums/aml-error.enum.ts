@@ -83,6 +83,27 @@ export const DelayResultError = [
   AmlError.BANK_RELEASE_DATE_MISSING,
 ];
 
+// Keep in sync with packages/core/src/definitions/compliance.ts (ManualPassWhitelistErrors / canManualPass)
+export const ManualPassWhitelistErrors: AmlError[] = [
+  AmlError.PHONE_VERIFICATION_NEEDED,
+  AmlError.IP_PHONE_VERIFICATION_NEEDED,
+  AmlError.BIC_PHONE_VERIFICATION_NEEDED,
+  AmlError.IBAN_PHONE_VERIFICATION_NEEDED,
+  AmlError.IP_COUNTRY_MISMATCH,
+  AmlError.TRADE_APPROVAL_DATE_MISSING,
+  AmlError.USER_DATA_FAILED_CALL,
+  AmlError.USER_DATA_REJECTED_CALL,
+  AmlError.REFERRAL_NO_TRADE_HISTORY,
+];
+
+export function canManualPass(comment: string | null | undefined): boolean {
+  const errors = (comment ?? '')
+    .split(';')
+    .map((e) => e.trim())
+    .filter(Boolean);
+  return errors.length > 0 && errors.every((e) => ManualPassWhitelistErrors.includes(e as AmlError));
+}
+
 export enum AmlErrorType {
   SINGLE = 'Single', // Only one error may occur
   MULTI = 'Multi', // All errors must have the same amlCheck
