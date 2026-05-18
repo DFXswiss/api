@@ -38,8 +38,4 @@ export class BaseTokenStrategy extends EvmStrategy {
   protected getFeeAsset(): Promise<Asset> {
     return this.assetService.getBaseCoin();
   }
-
-  protected async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
-    return this.baseService.getPayoutCompletionData(payoutTxId);
-  }
 }

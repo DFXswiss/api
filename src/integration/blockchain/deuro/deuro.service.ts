@@ -13,6 +13,7 @@ import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { PriceCurrency, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FrankencoinService } from '../frankencoin/frankencoin.service';
 import { CollateralWithTotalBalance } from '../shared/dto/frankencoin-based.dto';
+import { Blockchain } from '../shared/enums/blockchain.enum';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { FrankencoinBasedService } from '../shared/frankencoin/frankencoin-based.service';
 import { BlockchainRegistryService } from '../shared/services/blockchain-registry.service';
@@ -32,6 +33,10 @@ import {
 export class DEuroService extends FrankencoinBasedService implements OnModuleInit {
   private static readonly LOG_SYSTEM = 'EvmInformation';
   private static readonly LOG_SUBSYSTEM = 'DEuroSmartContract';
+
+  readonly stableTokenName = 'dEURO';
+  readonly equityTokenName = 'nDEPS';
+  readonly blockchain = Blockchain.ETHEREUM;
 
   private deuroClient: DEuroClient;
 

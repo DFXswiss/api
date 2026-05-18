@@ -1,5 +1,6 @@
 import { Request } from 'express';
 import { isIP } from 'net';
+import { Config, Environment } from 'src/config/config';
 
 const PRIVATE_IP_RANGES = [
   /^10\./,
@@ -16,19 +17,28 @@ function isPrivateIp(ip: string): boolean {
   return PRIVATE_IP_RANGES.some((range) => range.test(ip));
 }
 
+function normalizeIp(ip: string): string {
+  if (ip.startsWith('::ffff:')) ip = ip.slice(7);
+  const portMatch = /^(\d+\.\d+\.\d+\.\d+):\d+$/.exec(ip);
+  if (portMatch) ip = portMatch[1];
+  return ip;
+}
+
 /**
  * Extract the verified client IP from the request.
  *
  * Priority:
- * 1. X-Azure-SocketIP — set by Azure Front Door, cannot be spoofed
- * 2. CF-Connecting-IP — set by Cloudflare, cannot be spoofed (when origin is locked to CF IPs)
- * 3. Rightmost non-private IP from X-Forwarded-For (appended by the trusted reverse proxy)
+ * 1. X-Azure-SocketIP — only on DEV where Azure Front Door sets this header
+ * 2. CF-Connecting-IP — set by Cloudflare, trusted when origin is locked to CF IPs
+ * 3. Rightmost non-private IP from X-Forwarded-For (reverse proxy appends real client IP)
  * 4. req.socket.remoteAddress
  */
 export function getVerifiedIp(req: Request): string {
-  // 1. Azure Front Door
-  const azureSocketIp = getHeader(req, 'x-azure-socketip');
-  if (azureSocketIp && isIP(azureSocketIp)) return azureSocketIp;
+  // 1. Azure Front Door (only on DEV where Front Door is in the path)
+  if (Config.environment === Environment.DEV) {
+    const azureSocketIp = getHeader(req, 'x-azure-socketip');
+    if (azureSocketIp && isIP(azureSocketIp)) return azureSocketIp;
+  }
 
   // 2. Cloudflare
   const cfConnectingIp = getHeader(req, 'cf-connecting-ip');
@@ -37,14 +47,14 @@ export function getVerifiedIp(req: Request): string {
   // 3. Rightmost non-private IP from X-Forwarded-For
   const xff = getHeader(req, 'x-forwarded-for');
   if (xff) {
-    const ips = xff.split(',').map((s) => s.trim());
+    const ips = xff.split(',').map((s) => normalizeIp(s.trim()));
     for (let i = ips.length - 1; i >= 0; i--) {
       if (isIP(ips[i]) && !isPrivateIp(ips[i])) return ips[i];
     }
   }
 
   // 4. Socket remote address
-  return req.socket?.remoteAddress ?? 'unknown';
+  return normalizeIp(req.socket?.remoteAddress ?? 'unknown');
 }
 
 function getHeader(req: Request, name: string): string | undefined {

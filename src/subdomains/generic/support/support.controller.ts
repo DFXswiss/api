@@ -19,9 +19,9 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { ChargebackRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
+import { ReviewStatus } from '../kyc/enums/review-status.enum';
 import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionListQuery } from './dto/transaction-list-query.dto';
-import { ReviewStatus } from '../kyc/enums/review-status.enum';
 import {
   CallQueue,
   CallQueueItem,
@@ -32,6 +32,7 @@ import {
   PendingReviewItem,
   PendingReviewSummaryEntry,
   PendingReviewType,
+  PendingTransactionInfo,
   RecommendationGraph,
   TransactionListEntry,
   UserDataSupportInfoDetails,
@@ -92,6 +93,14 @@ export class SupportController {
     return this.supportService.getPendingOnboardings();
   }
 
+  @Get('pending-transactions')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getPendingTransactions(): Promise<PendingTransactionInfo[]> {
+    return this.supportService.getPendingTransactions();
+  }
+
   @Get('pending-reviews')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -148,7 +157,7 @@ export class SupportController {
   @Get(':id/transaction-pdf')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getTransactionPdf(@Param('id') id: string): Promise<{ pdfData: string }> {
     const pdfData = await this.supportService.generateTransactionPdf(+id);
     return { pdfData };
@@ -168,9 +177,9 @@ export class SupportController {
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async getUserData(@Param('id') id: string): Promise<UserDataSupportInfoDetails> {
-    return this.supportService.getUserDataDetails(+id);
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getUserData(@Param('id') id: string, @GetJwt() jwt: JwtPayload): Promise<UserDataSupportInfoDetails> {
+    return this.supportService.getUserDataDetails(+id, jwt.role);
   }
 
   @Get('transaction/:id/refund')

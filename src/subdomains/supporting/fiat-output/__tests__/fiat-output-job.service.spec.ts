@@ -13,6 +13,7 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { createCustomBuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { createCustomLiquidityBalance } from 'src/subdomains/core/liquidity-management/__mocks__/liquidity-balance.entity.mock';
+import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { createCustomBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { createCustomSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -74,6 +75,7 @@ describe('FiatOutputJobService', () => {
       providers: [
         FiatOutputJobService,
         { provide: FiatOutputRepository, useValue: fiatOutputRepo },
+        { provide: BuyFiatRepository, useValue: createMock<BuyFiatRepository>() },
         { provide: BankTxService, useValue: bankTxService },
         { provide: Ep2ReportService, useValue: ep2ReportService },
         { provide: CountryService, useValue: countryService },

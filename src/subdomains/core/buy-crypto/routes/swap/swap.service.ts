@@ -178,6 +178,13 @@ export class SwapService {
     });
   }
 
+  async getSwapsByUserDataId(userDataId: number): Promise<Swap[]> {
+    return this.swapRepo.find({
+      where: { user: { userData: { id: userDataId } } },
+      relations: { asset: true, deposit: true, user: true },
+    });
+  }
+
   async createSwapPaymentInfo(
     userId: number,
     dto: GetSwapPaymentInfoDto,

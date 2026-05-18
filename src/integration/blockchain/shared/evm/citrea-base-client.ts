@@ -78,14 +78,18 @@ export abstract class CitreaBaseClient extends EvmClient {
     const balances: BlockchainTokenBalance[] = [];
 
     for (const asset of assets) {
-      const balance = isPoolBalance
-        ? await this.getPoolTokenBalance(asset, owner)
-        : await this.getTokenBalance(asset, owner);
-      balances.push({
-        owner,
-        contractAddress: asset.chainId,
-        balance,
-      });
+      try {
+        const balance = isPoolBalance
+          ? await this.getPoolTokenBalance(asset, owner)
+          : await this.getTokenBalance(asset, owner);
+        balances.push({
+          owner,
+          contractAddress: asset.chainId,
+          balance,
+        });
+      } catch (e) {
+        this.logger.error(`Failed to process token balance for ${asset.uniqueName}:`, e);
+      }
     }
 
     return balances;
@@ -236,7 +240,7 @@ export abstract class CitreaBaseClient extends EvmClient {
     return tx.hash;
   }
 
-  override async getSwapResult(txId: string, asset: Asset): Promise<number> {
+  override async getSwapResult(txId: string, asset: Asset, recipientAddress?: string): Promise<number> {
     if (asset.type === AssetType.COIN) {
       const receipt = await this.getTxReceipt(txId);
       const withdrawalTopic = ethers.utils.id('Withdrawal(address,uint256)');
@@ -247,7 +251,7 @@ export abstract class CitreaBaseClient extends EvmClient {
       return EvmUtil.fromWeiAmount(withdrawalLog.data);
     }
 
-    return super.getSwapResult(txId, asset);
+    return super.getSwapResult(txId, asset, recipientAddress);
   }
 
   // --- FEE METHODS --- //

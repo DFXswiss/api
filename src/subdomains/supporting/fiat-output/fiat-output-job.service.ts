@@ -25,6 +25,10 @@ import { Bank } from '../bank/bank/bank.entity';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
 import { VirtualIbanService } from '../bank/virtual-iban/virtual-iban.service';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
+import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { LogService } from '../log/log.service';
 import { Ep2ReportService } from './ep2-report.service';
 import { FiatOutput, FiatOutputType } from './fiat-output.entity';
@@ -36,6 +40,7 @@ export class FiatOutputJobService {
 
   constructor(
     private readonly fiatOutputRepo: FiatOutputRepository,
+    private readonly buyFiatRepo: BuyFiatRepository,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
     private readonly ep2ReportService: Ep2ReportService,
@@ -223,7 +228,6 @@ export class FiatOutputJobService {
 
       const pendingFiatOutputs = accountIbanGroup.filter((tx) => {
         if (!tx.isReadyDate) return false;
-        if (tx.id === 80741) return false; // TODO: excluded from pending balance calculation
 
         switch (tx.bank?.name) {
           case IbanBankName.YAPEAL:
@@ -241,8 +245,20 @@ export class FiatOutputJobService {
           if (
             (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked) &&
             entity.type === FiatOutputType.BUY_FIAT
-          )
-            throw new Error('Payout stopped for blocked user');
+          ) {
+            const reason = entity.user?.isBlockedOrDeleted
+              ? entity.user.status === UserStatus.DELETED
+                ? AmlReason.USER_DELETED
+                : AmlReason.USER_BLOCKED
+              : AmlReason.USER_DATA_BLOCKED;
+
+            for (const buyFiat of entity.buyFiats ?? []) {
+              await this.buyFiatRepo.update(buyFiat.id, { amlCheck: CheckStatus.FAIL, amlReason: reason });
+            }
+
+            this.logger.warn(`Stopping fiat output ${entity.id}: user is blocked or deleted (${reason})`);
+            continue;
+          }
           if (entity.originEntity && (!entity.originEntity.amountInChf || !entity.originEntity.amountInEur)) continue;
 
           const asset = assets.find((a) => a.bank.iban === entity.sourceIban);

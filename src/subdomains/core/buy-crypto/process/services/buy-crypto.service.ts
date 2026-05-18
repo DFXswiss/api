@@ -56,6 +56,8 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
+import { canManualPass } from '../../../aml/enums/aml-error.enum';
 import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -709,6 +711,24 @@ export class BuyCryptoService implements OnModuleInit {
     await this.buyCryptoRepo.update(...entity.resetAmlCheck());
     if (fee) await this.buyCryptoRepo.deleteFee(fee);
     if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
+  }
+
+  async manualPassAmlCheck(id: number, dto: ManualAmlCheckDto): Promise<BuyCrypto> {
+    const entity = await this.buyCryptoRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('BuyCrypto not found');
+    if (entity.isComplete || entity.chargebackAllowedDateUser)
+      throw new BadRequestException('BuyCrypto is already complete or chargeback initiated');
+    if ([CheckStatus.PASS, CheckStatus.FAIL].includes(entity.amlCheck))
+      throw new BadRequestException('BuyCrypto amlCheck is already finalized');
+    if (dto.amlCheck === CheckStatus.PASS && !canManualPass(entity.comment))
+      throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
+
+    return this.update(id, {
+      amlCheck: dto.amlCheck,
+      amlResponsible: dto.responsible,
+      amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
+      priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
+    } as UpdateBuyCryptoDto);
   }
 
   async getUserVolume(

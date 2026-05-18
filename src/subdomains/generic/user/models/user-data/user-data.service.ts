@@ -145,6 +145,13 @@ export class UserDataService {
       : this.userDataRepo.findOne(request);
   }
 
+  async getActiveUserData(userDataId: number, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
+    const userData = await this.getUserData(userDataId, relations);
+    if (!userData) throw new NotFoundException('UserData not found');
+    if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User data is merged');
+    return userData;
+  }
+
   async getUserDataByIds(ids: number[]): Promise<UserData[]> {
     if (!ids.length) return [];
     return this.userDataRepo.find({ where: { id: In(ids) } });

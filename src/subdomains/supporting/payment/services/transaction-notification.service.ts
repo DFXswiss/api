@@ -137,7 +137,6 @@ export class TransactionNotificationService {
           context: MailContext.UNASSIGNED_TX,
           input: {
             userData,
-            wallet: userData.wallet,
             title: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.title`,
             salutation: { key: `${MailTranslationKey.UNASSIGNED_FIAT_INPUT}.salutation` },
             texts: [

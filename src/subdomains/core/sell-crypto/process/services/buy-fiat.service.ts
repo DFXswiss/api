@@ -29,6 +29,8 @@ import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/su
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
 import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
+import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
+import { canManualPass } from '../../../aml/enums/aml-error.enum';
 import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
@@ -441,6 +443,24 @@ export class BuyFiatService implements OnModuleInit {
         comment: `AML check reset. Previous state: ${JSON.stringify(resetDetails)}`,
       });
     }
+  }
+
+  async manualPassAmlCheck(id: number, dto: ManualAmlCheckDto): Promise<BuyFiat> {
+    const entity = await this.buyFiatRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('BuyFiat not found');
+    if (entity.isComplete || entity.chargebackAllowedDateUser)
+      throw new BadRequestException('BuyFiat is already complete or chargeback initiated');
+    if ([CheckStatus.PASS, CheckStatus.FAIL].includes(entity.amlCheck))
+      throw new BadRequestException('BuyFiat amlCheck is already finalized');
+    if (dto.amlCheck === CheckStatus.PASS && !canManualPass(entity.comment))
+      throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
+
+    return this.update(id, {
+      amlCheck: dto.amlCheck,
+      amlResponsible: dto.responsible,
+      amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
+      priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
+    } as UpdateBuyFiatDto);
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {

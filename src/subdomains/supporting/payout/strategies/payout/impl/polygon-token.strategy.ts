@@ -38,8 +38,4 @@ export class PolygonTokenStrategy extends EvmStrategy {
   protected getFeeAsset(): Promise<Asset> {
     return this.assetService.getPolygonCoin();
   }
-
-  protected async getPayoutCompletionData(payoutTxId: string): Promise<[boolean, number]> {
-    return this.polygonService.getPayoutCompletionData(payoutTxId);
-  }
 }
