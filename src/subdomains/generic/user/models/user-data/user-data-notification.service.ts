@@ -33,7 +33,6 @@ export class UserDataNotificationService {
           context: MailContext.ACCOUNT_DEACTIVATION,
           input: {
             userData,
-            wallet: userData.wallet,
             title: `${MailTranslationKey.ACCOUNT_DEACTIVATION}.title`,
             salutation: { key: `${MailTranslationKey.ACCOUNT_DEACTIVATION}.salutation` },
             texts: [
@@ -66,7 +65,6 @@ export class UserDataNotificationService {
             context: MailContext.ADDED_ADDRESS,
             input: {
               userData: master,
-              wallet: master.wallet,
               title: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.title`,
               salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_ADDED_ADDRESS}.salutation` },
               texts: [
@@ -105,7 +103,6 @@ export class UserDataNotificationService {
           context: MailContext.CHANGED_MAIL,
           input: {
             userData: master,
-            wallet: master.wallet,
             title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
             salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
             texts: [
@@ -130,7 +127,6 @@ export class UserDataNotificationService {
         context: MailContext.CHANGED_MAIL,
         input: {
           userData: slave,
-          wallet: slave.wallet,
           title: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.title`,
           salutation: { key: `${MailTranslationKey.ACCOUNT_MERGE_CHANGED_MAIL}.salutation` },
           texts: [
@@ -178,7 +174,6 @@ export class UserDataNotificationService {
             context: MailContext.BLACK_SQUAD,
             input: {
               userData: entity,
-              wallet: entity.wallet,
               title: `${MailTranslationKey.BLACK_SQUAD}.title`,
               prefix: [
                 {

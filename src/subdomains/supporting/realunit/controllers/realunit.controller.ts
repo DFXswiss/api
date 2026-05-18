@@ -54,7 +54,12 @@ import {
   RealUnitRegistrationStatus,
   RealUnitWalletStatusDto,
 } from '../dto/realunit-registration.dto';
-import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from '../dto/realunit-sell.dto';
+import {
+  RealUnitSellBroadcastDto,
+  RealUnitSellConfirmDto,
+  RealUnitSellDto,
+  RealUnitSellPaymentInfoDto,
+} from '../dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
@@ -397,10 +402,10 @@ export class RealUnitController {
   @ApiOperation({
     summary: 'Get payment info for RealUnit sell',
     description:
-      'Returns EIP-7702 delegation data for gasless REALU transfer and fallback deposit info. Requires KYC Level 20 and RealUnit registration.',
+      'Returns EIP-7702 delegation data for gasless REALU transfer and fallback deposit info. Requires KYC Level 30 and RealUnit registration.',
   })
   @ApiOkResponse({ type: RealUnitSellPaymentInfoDto })
-  @ApiBadRequestResponse({ description: 'KYC Level 20 required or registration missing' })
+  @ApiBadRequestResponse({ description: 'KYC Level 30 required or registration missing' })
   async getSellPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: RealUnitSellDto,
@@ -425,6 +430,42 @@ export class RealUnitController {
     @Body() dto: RealUnitSellConfirmDto,
   ): Promise<{ txHash: string }> {
     return this.realunitService.confirmSell(jwt.user, +id, dto);
+  }
+
+  @Put('sell/:id/unsigned-transactions')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get unsigned EVM transactions for both sell steps with consecutive nonces',
+    description:
+      'Returns unsigned transactions for brokerbotSell (nonce N) and zchfDeposit (nonce N+1) in one call, ensuring no nonce collision when both are broadcast.',
+  })
+  @ApiParam({ name: 'id', description: 'Transaction request ID' })
+  @ApiOkResponse({ schema: { properties: { swap: { type: 'string' }, deposit: { type: 'string' } } } })
+  @ApiBadRequestResponse({ description: 'Invalid request or insufficient ETH for gas' })
+  async getSellUnsignedTransactions(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+  ): Promise<{ swap: string; deposit: string }> {
+    return this.realunitService.createSellUnsignedTransactions(jwt.user, +id);
+  }
+
+  @Put('sell/:id/broadcast')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Broadcast a signed EVM transaction for a sell step',
+    description: 'Broadcasts a signed EIP-1559 transaction for the specified sell step (brokerbotSell or zchfDeposit).',
+  })
+  @ApiParam({ name: 'id', description: 'Transaction request ID' })
+  @ApiOkResponse({ description: 'Transaction broadcast', schema: { properties: { txHash: { type: 'string' } } } })
+  @ApiBadRequestResponse({ description: 'Invalid signed transaction or broadcast failure' })
+  async broadcastSellTransaction(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RealUnitSellBroadcastDto,
+  ): Promise<{ txHash: string }> {
+    return this.realunitService.broadcastSellTransaction(jwt.user, +id, dto);
   }
 
   // --- Wallet Status Endpoint ---

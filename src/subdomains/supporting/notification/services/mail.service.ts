@@ -18,6 +18,9 @@ export interface WalletMailConfig {
   fromAddress: string;
   displayName: string;
   template: string;
+  forcedLang: string; // when set, all UserMailV2 mails for this wallet are rendered in this language regardless of userData.language
+  centralizedWelcome: boolean; // when true, MailFactory prepends a personal welcome line to every UserMailV2/PersonalMail of this wallet (no need for service callers to add it manually)
+  isPreferred: boolean;
 }
 
 export interface MailOptions {

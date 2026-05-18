@@ -7,9 +7,11 @@ import {
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { BigNumber, ethers } from 'ethers';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
 import { Config, Environment, GetConfig } from 'src/config/config';
+import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
 import {
   BrokerbotBuyPriceDto,
   BrokerbotBuySharesDto,
@@ -20,8 +22,10 @@ import {
   BrokerbotSellSharesDto,
 } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
+import { SepoliaService } from 'src/integration/blockchain/sepolia/sepolia.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import { EvmClient } from 'src/integration/blockchain/shared/evm/evm-client';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -31,9 +35,11 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { toBitboxAscii } from 'src/shared/utils/bitbox-ascii.util';
 import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
@@ -76,7 +82,12 @@ import {
   RealUnitUserType,
   RealUnitWalletStatusDto,
 } from './dto/realunit-registration.dto';
-import { RealUnitSellConfirmDto, RealUnitSellDto, RealUnitSellPaymentInfoDto } from './dto/realunit-sell.dto';
+import {
+  RealUnitSellBroadcastDto,
+  RealUnitSellConfirmDto,
+  RealUnitSellDto,
+  RealUnitSellPaymentInfoDto,
+} from './dto/realunit-sell.dto';
 import {
   AccountHistoryDto,
   AccountSummaryDto,
@@ -92,6 +103,16 @@ import { KycLevelRequiredException, RegistrationRequiredException } from './exce
 import { RealUnitDevService } from './realunit-dev.service';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
+
+// realunit-app v0.0.3+ transliterates EIP-712 string fields to BitBox-safe
+// ASCII (Krüger → Krueger) but keeps the kycData copy in UTF-8 so ID
+// verification still sees the legal name with diacritics. Accept either
+// representation so registrations from both old and new app versions pass.
+function matchesSignedField(kycValue: string | undefined, signedValue: string | undefined): boolean {
+  if (kycValue === signedValue) return true;
+  if (kycValue == null || signedValue == null) return false;
+  return toBitboxAscii(kycValue) === signedValue;
+}
 
 @Injectable()
 export class RealUnitService {
@@ -122,12 +143,15 @@ export class RealUnitService {
     @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
     private readonly eip7702DelegationService: Eip7702DelegationService,
+    private readonly ethereumService: EthereumService,
+    private readonly sepoliaService: SepoliaService,
     private readonly transactionRequestService: TransactionRequestService,
     private readonly transactionService: TransactionService,
     private readonly accountMergeService: AccountMergeService,
     private readonly devService: RealUnitDevService,
     private readonly swissQrService: SwissQRService,
     private readonly feeService: FeeService,
+    private readonly faucetRequestService: FaucetRequestService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -536,8 +560,7 @@ export class RealUnitService {
   }
 
   async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
-    const userData = await this.userDataService.getUserData(userDataId, { users: true });
-    if (!userData) throw new NotFoundException('User not found');
+    const userData = await this.userDataService.getActiveUserData(userDataId, { users: true });
 
     if (!userData.mail) {
       try {
@@ -709,7 +732,7 @@ export class RealUnitService {
       }
 
       // organization name
-      if (dto.kycData.organizationName !== dto.name) {
+      if (!matchesSignedField(dto.kycData.organizationName, dto.name)) {
         throw new BadRequestException('organizationName must match signed name');
       }
 
@@ -717,15 +740,15 @@ export class RealUnitService {
       const combinedOrgAddress = dto.kycData.organizationAddress.houseNumber
         ? `${dto.kycData.organizationAddress.street} ${dto.kycData.organizationAddress.houseNumber}`
         : dto.kycData.organizationAddress.street;
-      if (combinedOrgAddress !== dto.addressStreet) {
+      if (!matchesSignedField(combinedOrgAddress, dto.addressStreet)) {
         throw new BadRequestException('organizationAddress street + houseNumber must match signed addressStreet');
       }
 
-      if (dto.kycData.organizationAddress.zip !== dto.addressPostalCode) {
+      if (!matchesSignedField(dto.kycData.organizationAddress.zip, dto.addressPostalCode)) {
         throw new BadRequestException('organizationAddress zip must match signed addressPostalCode');
       }
 
-      if (dto.kycData.organizationAddress.city !== dto.addressCity) {
+      if (!matchesSignedField(dto.kycData.organizationAddress.city, dto.addressCity)) {
         throw new BadRequestException('organizationAddress city must match signed addressCity');
       }
 
@@ -740,7 +763,7 @@ export class RealUnitService {
 
       // personal name
       const combinedName = `${dto.kycData.firstName} ${dto.kycData.lastName}`;
-      if (combinedName !== dto.name) {
+      if (!matchesSignedField(combinedName, dto.name)) {
         throw new BadRequestException('firstName + lastName does not match signed name');
       }
 
@@ -748,7 +771,7 @@ export class RealUnitService {
       const combinedAddress = dto.kycData.address.houseNumber
         ? `${dto.kycData.address.street} ${dto.kycData.address.houseNumber}`
         : dto.kycData.address.street;
-      if (combinedAddress !== dto.addressStreet) {
+      if (!matchesSignedField(combinedAddress, dto.addressStreet)) {
         throw new BadRequestException('street + houseNumber does not match signed addressStreet');
       }
     }
@@ -796,8 +819,24 @@ export class RealUnitService {
 
     const signatureToUse = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
     const recoveredAddress = verifyTypedData(domain, types, message, signatureToUse);
+    if (Util.equalsIgnoreCase(recoveredAddress, data.walletAddress)) return true;
 
-    return Util.equalsIgnoreCase(recoveredAddress, data.walletAddress);
+    // Backwards-compat: app v0.0.3+ signs BitBox-safe ASCII. If the stored
+    // accountData still holds UTF-8 from a pre-transliteration registration,
+    // retry verify with the same fields transliterated so re-login (add new
+    // wallet) keeps working for those users.
+    const asciiMessage = {
+      ...message,
+      email: toBitboxAscii(message.email),
+      name: toBitboxAscii(message.name),
+      phoneNumber: toBitboxAscii(message.phoneNumber),
+      birthday: toBitboxAscii(message.birthday),
+      addressStreet: toBitboxAscii(message.addressStreet),
+      addressPostalCode: toBitboxAscii(message.addressPostalCode),
+      addressCity: toBitboxAscii(message.addressCity),
+    };
+    const asciiRecovered = verifyTypedData(domain, types, asciiMessage, signatureToUse);
+    return Util.equalsIgnoreCase(asciiRecovered, data.walletAddress);
   }
 
   async forwardRegistrationToAktionariat(kycStepId: number): Promise<void> {
@@ -1000,11 +1039,32 @@ export class RealUnitService {
       );
     }
 
-    // 8. Prepare EIP-7702 delegation data (ALWAYS for RealUnit - app supports eth_sign)
-    const delegationData = await this.eip7702DelegationService.prepareDelegationDataForRealUnit(
-      user.address,
-      realuAsset.blockchain,
-    );
+    // 8. Prepare EIP-7702 delegation data, fetch gas info, and get accurate brokerbot ZCHF in parallel
+    const evmClient = this.getEvmClient();
+    const shares = Math.floor(sellPaymentInfo.amount);
+    const [delegationData, zchfAsset, ethBalance, gasPrice, brokerbotResult] = await Promise.all([
+      this.eip7702DelegationService.prepareDelegationDataForRealUnit(user.address, realuAsset.blockchain),
+      this.getZchfAsset(),
+      evmClient.getNativeCoinBalanceForAddress(user.address),
+      evmClient.getRecommendedGasPrice(),
+      shares > 0
+        ? this.blockchainService.getBrokerbotSellPrice(this.getBrokerbotAddress(), shares).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    // Override estimatedAmount with on-chain brokerbot price so quote matches what the swap will actually pay
+    let estimatedAmount = sellPaymentInfo.estimatedAmount;
+    if (brokerbotResult && sellPaymentInfo.id) {
+      estimatedAmount = EvmUtil.fromWeiAmount(
+        ethers.BigNumber.from(brokerbotResult.zchfAmountWei.toString()),
+        zchfAsset.decimals,
+      );
+      await this.transactionRequestService.updateEstimatedAmount(sellPaymentInfo.id, estimatedAmount);
+    }
+
+    // 350k for brokerbotSell + 100k conservative estimate for zchfDeposit (standard ERC20 transfer)
+    const totalGasLimit = ethers.BigNumber.from(450_000);
+    const requiredGasEth = EvmUtil.fromWeiAmount(gasPrice.mul(totalGasLimit));
 
     // 9. Build response with EIP-7702 data AND fallback transfer info
     const amountWei = EvmUtil.toWeiAmount(sellPaymentInfo.amount, realuAsset.decimals);
@@ -1042,18 +1102,144 @@ export class RealUnitService {
       priceSteps: sellPaymentInfo.priceSteps,
 
       // Result
-      estimatedAmount: sellPaymentInfo.estimatedAmount,
+      estimatedAmount,
       currency: sellPaymentInfo.currency.name,
       beneficiary: {
         name: sellPaymentInfo.beneficiary.name,
         iban: sellPaymentInfo.beneficiary.iban,
       },
 
+      ethBalance,
+      requiredGasEth,
+
       isValid: sellPaymentInfo.isValid,
       error: sellPaymentInfo.error,
     };
 
     return response;
+  }
+
+  // --- Sell Transaction Methods for BitBox ---
+
+  async createSellUnsignedTransactions(userId: number, requestId: number): Promise<{ swap: string; deposit: string }> {
+    const request = await this.transactionRequestService.getOrThrow(requestId, userId);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+    const client = this.getEvmClient();
+    const realuAsset = await this.getRealuAsset();
+    if (!realuAsset.chainId) throw new BadRequestException('REALU asset has no contract address');
+
+    const [sell, zchfAsset, nonce, gasPrice] = await Promise.all([
+      this.sellService.getById(request.routeId, { relations: { deposit: true } }),
+      this.getZchfAsset(),
+      client.getTransactionCount(request.user.address),
+      client.getRecommendedGasPrice(),
+    ]);
+    if (!sell) throw new NotFoundException('Sell route not found');
+
+    const swapGasLimit = ethers.BigNumber.from(350_000);
+    const depositGasLimit = ethers.BigNumber.from(100_000);
+
+    const ethBalance = await client.getNativeCoinBalanceForAddress(request.user.address);
+    const requiredEth = EvmUtil.fromWeiAmount(gasPrice.mul(swapGasLimit.add(depositGasLimit)));
+    if (ethBalance < requiredEth) {
+      throw new BadRequestException(
+        `Insufficient ETH for gas: need ${requiredEth.toFixed(6)} ETH, have ${ethBalance.toFixed(6)} ETH`,
+      );
+    }
+
+    // Swap tx: nonce N — REALU transferAndCall to brokerbot
+    const ERC677_INTERFACE = new ethers.utils.Interface([
+      'function transferAndCall(address to, uint256 value, bytes data) returns (bool)',
+    ]);
+    const shares = Math.floor(request.amount);
+    const swapAmountWei = ethers.utils.parseUnits(shares.toString(), realuAsset.decimals ?? 18);
+    const swapData = ERC677_INTERFACE.encodeFunctionData('transferAndCall', [
+      this.getBrokerbotAddress(),
+      swapAmountWei,
+      '0x',
+    ]);
+
+    const swap = ethers.utils.serializeTransaction({
+      type: 2,
+      chainId: client.chainId,
+      nonce,
+      maxPriorityFeePerGas: gasPrice,
+      maxFeePerGas: gasPrice,
+      gasLimit: swapGasLimit,
+      to: realuAsset.chainId,
+      value: ethers.BigNumber.from(0),
+      data: swapData,
+      accessList: [],
+    });
+
+    // Deposit tx: nonce N+1 — ZCHF ERC20 transfer to deposit address
+    // Query the brokerbot for the exact ZCHF amount at current price so deposit matches swap output
+    const { zchfAmountWei: depositAmountWei } = await this.blockchainService.getBrokerbotSellPrice(
+      this.getBrokerbotAddress(),
+      shares,
+    );
+    const depositData = EvmUtil.encodeErc20Transfer(sell.deposit.address, BigNumber.from(depositAmountWei.toString()));
+
+    const deposit = ethers.utils.serializeTransaction({
+      type: 2,
+      chainId: client.chainId,
+      nonce: nonce + 1,
+      maxPriorityFeePerGas: gasPrice,
+      maxFeePerGas: gasPrice,
+      gasLimit: depositGasLimit,
+      to: zchfAsset.chainId,
+      value: ethers.BigNumber.from(0),
+      data: depositData,
+      accessList: [],
+    });
+
+    return { swap, deposit };
+  }
+
+  async broadcastSellTransaction(
+    userId: number,
+    requestId: number,
+    dto: RealUnitSellBroadcastDto,
+  ): Promise<{ txHash: string }> {
+    const request = await this.transactionRequestService.getOrThrow(requestId, userId);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+    const { unsignedTx, r, s, v } = dto;
+    const parsed = ethers.utils.parseTransaction(unsignedTx);
+    const signedHex = ethers.utils.serializeTransaction(
+      {
+        type: 2,
+        chainId: parsed.chainId,
+        nonce: parsed.nonce,
+        maxPriorityFeePerGas: parsed.maxPriorityFeePerGas ?? ethers.BigNumber.from(0),
+        maxFeePerGas: parsed.maxFeePerGas ?? ethers.BigNumber.from(0),
+        gasLimit: parsed.gasLimit,
+        to: parsed.to,
+        value: parsed.value,
+        data: parsed.data,
+        accessList: parsed.accessList ?? [],
+      },
+      { r, s, v },
+    );
+
+    const client = this.getEvmClient();
+    const result = await client.sendSignedTransaction(signedHex);
+
+    if (result.error) throw new BadRequestException(`Broadcast failed: ${result.error.message}`);
+
+    const txHash = result.response?.hash;
+    if (!txHash) throw new BadRequestException('Broadcast returned no transaction hash');
+
+    await this.faucetRequestService.resetFaucet(userId);
+
+    return { txHash };
+  }
+
+  private getEvmClient(): EvmClient {
+    return [Environment.DEV, Environment.LOC].includes(Config.environment)
+      ? this.sepoliaService.getDefaultClient()
+      : this.ethereumService.getDefaultClient();
   }
 
   // --- Admin Methods ---

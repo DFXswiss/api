@@ -1,4 +1,15 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  ParseEnumPipe,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -8,12 +19,20 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { ChargebackRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
+import { ReviewStatus } from '../kyc/enums/review-status.enum';
 import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
+  CallQueue,
+  CallQueueItem,
+  CallQueueSummaryEntry,
   KycFileListEntry,
   KycFileYearlyStats,
   PendingOnboardingInfo,
+  PendingReviewItem,
+  PendingReviewSummaryEntry,
+  PendingReviewType,
+  PendingTransactionInfo,
   RecommendationGraph,
   TransactionListEntry,
   UserDataSupportInfoDetails,
@@ -74,6 +93,58 @@ export class SupportController {
     return this.supportService.getPendingOnboardings();
   }
 
+  @Get('pending-transactions')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getPendingTransactions(): Promise<PendingTransactionInfo[]> {
+    return this.supportService.getPendingTransactions();
+  }
+
+  @Get('pending-reviews')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getPendingReviews(): Promise<PendingReviewSummaryEntry[]> {
+    return this.supportService.getPendingReviewsSummary();
+  }
+
+  @Get('pending-reviews/items')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getPendingReviewItems(
+    @Query('type') type: PendingReviewType,
+    @Query('status') status: ReviewStatus,
+    @Query('name') name?: string,
+  ): Promise<PendingReviewItem[]> {
+    return this.supportService.getPendingReviewsList(type, name, status);
+  }
+
+  @Get('call-queues')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getCallQueues(): Promise<CallQueueSummaryEntry[]> {
+    return this.supportService.getCallQueuesSummary();
+  }
+
+  @Get('call-queues/clerks')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getCallQueueClerks(): Promise<string[]> {
+    return this.supportService.getCallQueueClerks();
+  }
+
+  @Get('call-queues/:queue/items')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  async getCallQueueItems(@Param('queue', new ParseEnumPipe(CallQueue)) queue: CallQueue): Promise<CallQueueItem[]> {
+    return this.supportService.getCallQueueItems(queue);
+  }
+
   @Get(':id/ip-log-pdf')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -86,7 +157,7 @@ export class SupportController {
   @Get(':id/transaction-pdf')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getTransactionPdf(@Param('id') id: string): Promise<{ pdfData: string }> {
     const pdfData = await this.supportService.generateTransactionPdf(+id);
     return { pdfData };
@@ -106,9 +177,9 @@ export class SupportController {
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async getUserData(@Param('id') id: string): Promise<UserDataSupportInfoDetails> {
-    return this.supportService.getUserDataDetails(+id);
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getUserData(@Param('id') id: string, @GetJwt() jwt: JwtPayload): Promise<UserDataSupportInfoDetails> {
+    return this.supportService.getUserDataDetails(+id, jwt.role);
   }
 
   @Get('transaction/:id/refund')

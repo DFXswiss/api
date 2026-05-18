@@ -64,7 +64,6 @@ export class BuyCryptoPreparationService {
       inputAsset: Not(IsNull()),
       chargebackAllowedDateUser: IsNull(),
       isComplete: false,
-      transaction: { userData: { riskStatus: Not(RiskStatus.SUSPICIOUS) } },
     };
     const entities = await this.buyCryptoRepo.find({
       where: [
@@ -457,8 +456,9 @@ export class BuyCryptoPreparationService {
     const groups = Util.groupByAccessor(entities, (e) => `${e.targetAddress}-${e.outputAsset.id}`);
 
     for (const transactions of groups.values()) {
+      const blockchain = transactions[0].outputAsset.blockchain;
       const totalAmount = Util.sumObjValue(transactions, 'amountInChf');
-      if (totalAmount >= Config.payment.cryptoPayoutMinAmount) {
+      if (totalAmount >= Config.payment.cryptoPayoutMinAmount(blockchain)) {
         await this.buyCryptoRepo.update(
           transactions.map((t) => t.id),
           { status: BuyCryptoStatus.CREATED },

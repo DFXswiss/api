@@ -150,10 +150,14 @@ export abstract class EvmClient extends BlockchainClient {
     const tokenBalances = await this.alchemyService.getTokenBalances(this.chainId, owner, assets);
 
     for (const tokenBalance of tokenBalances) {
-      const token = await this.getTokenByAddress(tokenBalance.contractAddress);
-      const balance = EvmUtil.fromWeiAmount(tokenBalance.tokenBalance ?? 0, token.decimals);
+      try {
+        const token = await this.getTokenByAddress(tokenBalance.contractAddress);
+        const balance = EvmUtil.fromWeiAmount(tokenBalance.tokenBalance ?? 0, token.decimals);
 
-      evmTokenBalances.push({ owner, contractAddress: tokenBalance.contractAddress, balance: balance });
+        evmTokenBalances.push({ owner, contractAddress: tokenBalance.contractAddress, balance: balance });
+      } catch (e) {
+        this.logger.error(`Failed to process token balance for ${tokenBalance.contractAddress}:`, e);
+      }
     }
 
     return evmTokenBalances;
@@ -180,25 +184,13 @@ export abstract class EvmClient extends BlockchainClient {
   protected async getTokenGasLimitForAsset(token: Asset): Promise<EthersNumber> {
     const contract = this.getERC20ContractForDex(token.chainId);
 
-    return this.getTokenGasLimitForContact(contract, this.randomReceiverAddress);
+    // Sample amount of 1 wei for fee estimation only (no concrete TX context here)
+    return this.getTokenGasLimitForContact(contract, this.randomReceiverAddress, ethers.BigNumber.from(1));
   }
 
-  async getTokenGasLimitForContact(contract: Contract, to: string, amount?: EthersNumber): Promise<EthersNumber> {
-    // Use actual amount if provided, otherwise use 1 for gas estimation
-    // Some tokens may have minimum transfer amounts or balance checks that fail with 1 Wei
-    const estimateAmount = amount ?? 1;
-
-    try {
-      const gasEstimate = await contract.estimateGas.transfer(to, estimateAmount);
-      return gasEstimate.mul(12).div(10);
-    } catch (error) {
-      // If gas estimation fails (e.g., from EIP-7702 delegated address), use a safe default
-      // Standard ERC20 transfer is ~65k gas, using 100k as safe upper bound with buffer
-      this.logger.verbose(
-        `Gas estimation failed for token transfer to ${to}: ${error.message}. Using default gas limit of 100000`,
-      );
-      return ethers.BigNumber.from(100000);
-    }
+  async getTokenGasLimitForContact(contract: Contract, to: string, amount: EthersNumber): Promise<EthersNumber> {
+    const gasEstimate = await contract.estimateGas.transfer(to, amount);
+    return gasEstimate.mul(12).div(10);
   }
 
   async prepareTransaction(
@@ -287,6 +279,7 @@ export abstract class EvmClient extends BlockchainClient {
   ): Promise<ethers.providers.TransactionResponse> {
     let { gasPrice, value } = request;
 
+    request.from ??= wallet.address;
     const currentNonce = await this.getNonce(request.from);
     const txNonce = request.nonce ? +request.nonce.toString() : currentNonce;
 
@@ -676,10 +669,10 @@ export abstract class EvmClient extends BlockchainClient {
     return { pool, amountOut, sqrtPriceX96After, gasEstimate, route };
   }
 
-  async getSwapResult(txId: string, asset: Asset): Promise<number> {
+  async getSwapResult(txId: string, asset: Asset, recipientAddress?: string): Promise<number> {
     const receipt = await this.getTxReceipt(txId);
 
-    const walletTopic = ethers.utils.hexZeroPad(this.walletAddress.toLowerCase(), 32);
+    const walletTopic = ethers.utils.hexZeroPad((recipientAddress ?? this.walletAddress).toLowerCase(), 32);
 
     const swapLog = receipt?.logs?.find(
       (l) => l.address.toLowerCase() === asset.chainId.toLowerCase() && l.topics[2]?.toLowerCase() === walletTopic,
@@ -862,13 +855,13 @@ export abstract class EvmClient extends BlockchainClient {
     amount: number,
     nonce?: number,
   ): Promise<string> {
-    const gasLimit = +(await this.getTokenGasLimitForContact(contract, toAddress));
+    const token = await this.getTokenByContract(contract);
+    const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
+
+    const gasLimit = +(await this.getTokenGasLimitForContact(contract, toAddress, targetAmount));
     const gasPrice = +(await this.getRecommendedGasPrice());
     const currentNonce = await this.getNonce(fromAddress);
     const txNonce = nonce ?? currentNonce;
-
-    const token = await this.getTokenByContract(contract);
-    const targetAmount = EvmUtil.toWeiAmount(amount, token.decimals);
 
     const tx = await contract.transfer(toAddress, targetAmount, { gasPrice, gasLimit, nonce: txNonce });
 

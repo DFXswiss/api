@@ -20,7 +20,7 @@ import { BankAccountService } from 'src/subdomains/supporting/bank/bank-account/
 import { CreateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/create-bank-account.dto';
 import { UpdateBankAccountDto } from 'src/subdomains/supporting/bank/bank-account/dto/update-bank-account.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { FindOptionsRelations, FindOptionsWhere, IsNull, Like, Not } from 'typeorm';
+import { FindOptionsRelations, FindOptionsWhere, In, IsNull, Like, Not } from 'typeorm';
 import { AccountMerge, MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
 import { KycType, UserDataStatus } from '../user-data/user-data.enum';
@@ -303,6 +303,16 @@ export class BankDataService {
     });
   }
 
+  async getApprovedAlternatives(bankDatas: BankData[]): Promise<BankData[]> {
+    const ibans = [...new Set(bankDatas.map((b) => b.iban).filter(Boolean))];
+    if (ibans.length === 0) return [];
+    const ids = bankDatas.map((b) => b.id);
+    return this.bankDataRepo.find({
+      where: { iban: In(ibans), id: Not(In(ids)), approved: true },
+      relations: { userData: true },
+    });
+  }
+
   async getVerifiedBankDataWithIban(
     iban: string,
     userDataId?: number,
@@ -464,5 +474,31 @@ export class BankDataService {
 
   get bankDataObservable(): Observable<BankData> {
     return this.newUserBankDataSubject.asObservable();
+  }
+
+  // --- Pending Review Queries ---
+
+  async getPendingReviewSummary(): Promise<{ status: ReviewStatus; count: number }[]> {
+    return this.bankDataRepo
+      .createQueryBuilder('bankData')
+      .select('bankData.status', 'status')
+      .addSelect('COUNT(bankData.id)', 'count')
+      .innerJoin('bankData.userData', 'userData')
+      .where('bankData.status IN (:...statuses)', {
+        statuses: [ReviewStatus.MANUAL_REVIEW, ReviewStatus.INTERNAL_REVIEW],
+      })
+      .andWhere('userData.status != :mergedStatus', { mergedStatus: UserDataStatus.MERGED })
+      .groupBy('bankData.status')
+      .getRawMany<{ status: ReviewStatus; count: string }>()
+      .then((rows) => rows.map((r) => ({ status: r.status, count: Number(r.count) })));
+  }
+
+  async getPendingReviewList(status: ReviewStatus): Promise<BankData[]> {
+    return this.bankDataRepo.find({
+      where: { status, userData: { status: Not(UserDataStatus.MERGED) } },
+      relations: { userData: true },
+      loadEagerRelations: false,
+      order: { updated: 'ASC' },
+    });
   }
 }

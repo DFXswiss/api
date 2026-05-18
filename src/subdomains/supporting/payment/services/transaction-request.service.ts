@@ -130,6 +130,8 @@ export class TransactionRequestService {
         dfxFee: response.fees.dfx,
         networkFee: response.fees.network,
         totalFee: response.fees.total,
+        fees: response.fees,
+        priceSteps: response.priceSteps,
         user: { id: userId },
         uid,
       });
@@ -295,6 +297,10 @@ export class TransactionRequestService {
 
   async complete(id: number): Promise<void> {
     await this.transactionRequestRepo.update(id, { isComplete: true, status: TransactionRequestStatus.COMPLETED });
+  }
+
+  async updateEstimatedAmount(id: number, estimatedAmount: number): Promise<void> {
+    await this.transactionRequestRepo.update(id, { estimatedAmount });
   }
 
   async extendTransactionRequest(txRequest: TransactionRequest): Promise<TransactionRequestExtended> {

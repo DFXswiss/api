@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
@@ -33,4 +34,10 @@ export class KycFile extends IEntity {
 
   @OneToMany(() => KycLog, (l) => l.file)
   logs?: KycLog[];
+
+  // --- ENTITY METHODS --- //
+
+  get url(): string {
+    return `${Config.frontend.services}/file/${this.uid}?show`;
+  }
 }

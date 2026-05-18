@@ -427,3 +427,9 @@ export const BankTxUnassignedTypes = [BankTxType.GSHEET, BankTxType.UNKNOWN, Ban
 export function BankTxTypeUnassigned(bankTxType?: BankTxType): boolean {
   return BankTxUnassignedTypes.includes(bankTxType);
 }
+
+export const BankTxComplianceSearchableTypes = [
+  ...BankTxUnassignedTypes,
+  BankTxType.BANK_TX_RETURN,
+  BankTxType.BANK_TX_REPEAT,
+];

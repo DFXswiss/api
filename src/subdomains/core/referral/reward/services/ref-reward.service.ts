@@ -201,6 +201,14 @@ export class RefRewardService {
     });
   }
 
+  async getRefRewardsByUserDataId(userDataId: number): Promise<RefReward[]> {
+    return this.rewardRepo.find({
+      where: { user: { userData: { id: userDataId } } },
+      relations: { user: true },
+      order: { id: 'DESC' },
+    });
+  }
+
   async getRefRewardVolume(from: Date): Promise<number> {
     const { volume } = await this.rewardRepo
       .createQueryBuilder('refReward')

@@ -34,8 +34,7 @@ export class RecommendationService {
   ) {}
 
   async createRecommendationByRecommender(userDataId: number, dto: CreateRecommendationDto): Promise<Recommendation> {
-    const userData = await this.userDataService.getUserData(userDataId, { users: true });
-    if (!userData) throw new NotFoundException('Account not found');
+    const userData = await this.userDataService.getActiveUserData(userDataId, { users: true });
     if (userData.kycLevel < KycLevel.LEVEL_50) throw new BadRequestException('Missing KYC');
     if (!userData.tradeApprovalDate) throw new BadRequestException('Trade approval date missing');
     if (!userData.hasTradeHistory) throw new BadRequestException('Trade history required');
@@ -357,7 +356,6 @@ export class RecommendationService {
           context: MailContext.RECOMMENDATION_MAIL,
           input: {
             userData: entity.recommended,
-            wallet: entity.recommended.wallet,
             title: `${MailTranslationKey.RECOMMENDATION_MAIL}.title`,
             salutation: { key: `${MailTranslationKey.RECOMMENDATION_MAIL}.salutation` },
             texts: [
@@ -402,7 +400,6 @@ export class RecommendationService {
           context: MailContext.RECOMMENDATION_CONFIRMATION,
           input: {
             userData: entity.recommender,
-            wallet: entity.recommender.wallet,
             title: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.title`,
             salutation: { key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.salutation` },
             texts: [

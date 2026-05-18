@@ -2,6 +2,7 @@ import { Inject, Injectable, forwardRef } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScryptOrderInfo, ScryptOrderSide, ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
+import { isTransientWsError } from 'src/integration/exchange/services/scrypt-websocket-connection';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -285,6 +286,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       if (e instanceof TradeChangedException) {
         order.updateCorrelationId(e.id);
         await this.orderRepo.save(order);
+        return false;
+      }
+
+      if (isTransientWsError(e)) {
+        this.logger.warn(`Transient WS error checking order ${order.id}, will retry next tick: ${e.message}`);
         return false;
       }
 

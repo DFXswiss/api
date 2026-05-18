@@ -1,5 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { DataSource, In } from 'typeorm';
 import { UpdateNotificationDto } from '../dto/update-notification.dto';
 import { Notification } from '../entities/notification.entity';
 import { MailFactory } from '../factories/mail.factory';
@@ -15,9 +18,12 @@ export class NotificationService {
     private readonly mailFactory: MailFactory,
     private readonly mailService: MailService,
     private readonly notificationRepo: NotificationRepository,
+    private readonly dataSource: DataSource,
   ) {}
 
   async sendMail(request: MailRequest): Promise<void> {
+    await this.resolveMailWallet(request);
+
     const mail = this.mailFactory.createMail(request);
     if (!mail) return;
 
@@ -103,5 +109,29 @@ export class NotificationService {
       order: { id: 'DESC' },
     });
     if (existingNotification) return newNotification.isSuppressed(existingNotification);
+  }
+
+  private async resolveMailWallet(request: MailRequest): Promise<void> {
+    const input = request.input;
+    if (!('userData' in input) || !input.userData?.id) return;
+
+    // skip if caller explicitly set a wallet
+    if (input.wallet) return;
+
+    const brandedWalletNames = Object.entries(Config.mail.wallet)
+      .filter(([, config]) => config.isPreferred)
+      .map(([name]) => name);
+
+    const mailWallet = brandedWalletNames.length
+      ? await this.dataSource
+          .getRepository(User)
+          .findOne({
+            where: { userData: { id: input.userData.id }, wallet: { name: In(brandedWalletNames) } },
+            relations: { wallet: true },
+          })
+          .then((u) => u?.wallet)
+      : undefined;
+
+    input.wallet = mailWallet ?? input.userData.wallet;
   }
 }

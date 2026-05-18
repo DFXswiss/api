@@ -120,9 +120,7 @@ export class KycService {
   }
 
   private async getUserById(id: number): Promise<UserData> {
-    const userData = await this.userDataService.getUserData(id, { users: true });
-    if (!userData) throw new NotFoundException('User not found');
-    return userData;
+    return this.userDataService.getActiveUserData(id, { users: true });
   }
 
   private async getUserByKycCode(code: string): Promise<UserData> {

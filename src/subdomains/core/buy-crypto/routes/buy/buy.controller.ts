@@ -235,7 +235,7 @@ export class BuyController {
   )
   @ApiOkResponse({ type: VirtualIbanDto })
   async createPersonalIban(@GetJwt() jwt: JwtPayload, @Body() dto: CreateVirtualIbanDto): Promise<VirtualIbanDto> {
-    const userData = await this.userDataService.getUserData(jwt.account);
+    const userData = await this.userDataService.getActiveUserData(jwt.account);
 
     if (userData.kycLevel < KycLevel.LEVEL_50)
       throw new BadRequestException('KYC level 50 or higher required for personal IBAN');

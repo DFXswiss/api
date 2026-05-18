@@ -34,6 +34,10 @@ export class JuiceService extends FrankencoinBasedService implements OnModuleIni
   private static readonly LOG_SYSTEM = 'EvmInformation';
   private static readonly LOG_SUBSYSTEM = 'JuiceSmartContract';
 
+  readonly stableTokenName = 'JUSD';
+  readonly equityTokenName = 'JUICE';
+  readonly blockchain = Blockchain.CITREA;
+
   private juiceClient: JuiceClient;
 
   constructor(

@@ -6,7 +6,7 @@ import { Mail } from './base/mail';
 
 export interface MailRequestPersonalInput {
   userData: UserData;
-  wallet: Wallet;
+  wallet?: Wallet;
   bcc?: string;
   title: string;
   salutation?: TranslationItem;

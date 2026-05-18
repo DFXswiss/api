@@ -43,6 +43,12 @@ enum ScryptRequestType {
   PAGE = 'page',
 }
 
+export const TRANSIENT_WS_ERROR_MARKERS = ['Connection closed', 'unknown reqid'];
+
+export function isTransientWsError(e: Error): boolean {
+  return TRANSIENT_WS_ERROR_MARKERS.some((m) => e.message?.toLowerCase().includes(m.toLowerCase()));
+}
+
 interface ScryptRequest {
   reqid?: number;
   type: ScryptRequestType | ScryptMessageType;
@@ -89,14 +95,18 @@ export class ScryptWebSocketConnection {
   }
 
   async fetch<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
-    const response = await this.request({
-      type: ScryptRequestType.SUBSCRIBE,
-      streams: [{ name: streamName, ...filters }],
-    });
+    const doFetch = async (): Promise<T[]> => {
+      const response = await this.request({
+        type: ScryptRequestType.SUBSCRIBE,
+        streams: [{ name: streamName, ...filters }],
+      });
 
-    if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
+      if (!response.initial) throw new Error(`Expected initial ${streamName} message`);
 
-    return (response.data ?? []) as T[];
+      return (response.data ?? []) as T[];
+    };
+
+    return this.retryOnTransientWsError(doFetch, `fetch ${streamName}`);
   }
 
   async fetchAll<T>(streamName: ScryptMessageType, filters?: Record<string, unknown>): Promise<T[]> {
@@ -127,13 +137,16 @@ export class ScryptWebSocketConnection {
       return allData;
     };
 
-    // Retry once on connection/session errors
+    return this.retryOnTransientWsError(doFetch, `fetchAll ${streamName}`);
+  }
+
+  private async retryOnTransientWsError<T>(operation: () => Promise<T>, label: string): Promise<T> {
     try {
-      return await doFetch();
+      return await operation();
     } catch (error) {
-      if (error.message?.includes('unknown reqid') || error.message?.includes('Connection closed')) {
-        this.logger.warn(`Retrying fetchAll for ${streamName} after error: ${error.message}`);
-        return doFetch();
+      if (isTransientWsError(error)) {
+        this.logger.warn(`Retrying ${label} after transient error: ${error.message}`);
+        return operation();
       }
       throw error;
     }

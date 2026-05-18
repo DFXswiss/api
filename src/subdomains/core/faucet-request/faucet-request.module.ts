@@ -21,6 +21,6 @@ import { FaucetRequestService } from './services/faucet-request.service';
   ],
   controllers: [FaucetRequestController],
   providers: [FaucetRequestService, FaucetRequestRepository],
-  exports: [],
+  exports: [FaucetRequestService],
 })
 export class FaucetRequestModule {}
