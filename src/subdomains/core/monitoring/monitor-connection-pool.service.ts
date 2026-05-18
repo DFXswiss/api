@@ -30,14 +30,10 @@ export class MonitorConnectionPoolService {
 
     if (dbMaxPoolConnections === total && idle === 0) {
       // Warning, if there are all connections in use
-      this.logger.warn(
-        `ConnectionPool with max. borrowed connections: T${total}/I${idle}/W${waiting}`,
-      );
+      this.logger.warn(`ConnectionPool with max. borrowed connections: T${total}/I${idle}/W${waiting}`);
     } else if (waiting > 0) {
       // Info, if there is a pending connection
-      this.logger.info(
-        `ConnectionPool with pending connections: T${total}/I${idle}/W${waiting}`,
-      );
+      this.logger.info(`ConnectionPool with pending connections: T${total}/I${idle}/W${waiting}`);
     }
   }
 
@@ -47,8 +43,6 @@ export class MonitorConnectionPoolService {
     const idle = this.dbConnectionPool.idleCount;
     const waiting = this.dbConnectionPool.waitingCount;
 
-    this.logger.info(
-      `ConnectionPool connections: T${total}/I${idle}/W${waiting}`,
-    );
+    this.logger.info(`ConnectionPool connections: T${total}/I${idle}/W${waiting}`);
   }
 }
