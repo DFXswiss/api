@@ -155,6 +155,7 @@ export class TransactionSupportInfo {
   uid: string;
   buyCryptoId?: number;
   buyFiatId?: number;
+  bankDataId?: number;
   type?: string;
   sourceType: string;
   inputAmount?: number;
