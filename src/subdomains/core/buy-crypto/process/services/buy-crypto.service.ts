@@ -116,16 +116,14 @@ export class BuyCryptoService implements OnModuleInit {
   async checkAmlResetTx(userData: UserData): Promise<void> {
     const entities = await this.buyCryptoRepo.findBy({
       transaction: { userData: { id: userData.id } },
+      amlCheck: CheckStatus.FAIL,
+      amlReason: In(PhoneAmlReasons),
+      isComplete: false,
+      chargebackAllowedDate: IsNull(),
     });
 
     for (const entity of entities) {
-      if (
-        entity.amlCheck === CheckStatus.FAIL &&
-        !entity.isComplete &&
-        !entity.chargebackAllowedDate &&
-        PhoneAmlReasons.includes(entity.amlReason)
-      )
-        await this.resetAmlCheckInternal(entity);
+      await this.resetAmlCheckInternal(entity);
     }
   }
 

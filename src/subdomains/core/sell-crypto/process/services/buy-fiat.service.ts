@@ -27,7 +27,7 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/support-log.enum';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
-import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
+import { Between, FindOptionsRelations, In, IsNull, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { canManualPass } from '../../../aml/enums/aml-error.enum';
@@ -86,16 +86,14 @@ export class BuyFiatService implements OnModuleInit {
   async checkAmlResetTx(userData: UserData): Promise<void> {
     const entities = await this.buyFiatRepo.findBy({
       transaction: { userData: { id: userData.id } },
+      amlCheck: CheckStatus.FAIL,
+      amlReason: In(PhoneAmlReasons),
+      isComplete: false,
+      chargebackAllowedDate: IsNull(),
     });
 
     for (const entity of entities) {
-      if (
-        entity.amlCheck === CheckStatus.FAIL &&
-        !entity.isComplete &&
-        !entity.chargebackAllowedDate &&
-        PhoneAmlReasons.includes(entity.amlReason)
-      )
-        await this.resetAmlCheckInternal(entity);
+      await this.resetAmlCheckInternal(entity);
     }
   }
 
