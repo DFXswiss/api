@@ -6,7 +6,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundInternalDto } from '../../history/dto/refund-internal.dto';
 import { BuyFiat } from './buy-fiat.entity';
-import { ManualPassAmlCheckDto } from './dto/manual-pass-aml-check.dto';
+import { ManualAmlCheckDto } from '../../aml/dto/manual-aml-check.dto';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
 import { BuyFiatService } from './services/buy-fiat.service';
 
@@ -63,11 +63,11 @@ export class BuyFiatController {
     return this.buyFiatService.resetAmlCheck(+id);
   }
 
-  @Put(':id/amlCheck/pass')
+  @Put(':id/amlCheck')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async manualPassAmlCheck(@Param('id') id: string, @Body() dto: ManualPassAmlCheckDto): Promise<BuyFiat> {
-    return this.buyFiatService.manualPassAmlCheck(+id, dto.responsible);
+  async manualPassAmlCheck(@Param('id') id: string, @Body() dto: ManualAmlCheckDto): Promise<BuyFiat> {
+    return this.buyFiatService.manualPassAmlCheck(+id, dto);
   }
 }

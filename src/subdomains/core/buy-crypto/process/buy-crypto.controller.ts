@@ -5,7 +5,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundInternalDto } from '../../history/dto/refund-internal.dto';
-import { ManualPassAmlCheckDto } from './dto/manual-pass-aml-check.dto';
+import { ManualAmlCheckDto } from '../../aml/dto/manual-aml-check.dto';
 import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
 import { BuyCrypto } from './entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from './services/buy-crypto-webhook.service';
@@ -67,11 +67,11 @@ export class BuyCryptoController {
     return this.buyCryptoService.resetAmlCheck(+id);
   }
 
-  @Put(':id/amlCheck/pass')
+  @Put(':id/amlCheck')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async manualPassAmlCheck(@Param('id') id: string, @Body() dto: ManualPassAmlCheckDto): Promise<BuyCrypto> {
-    return this.buyCryptoService.manualPassAmlCheck(+id, dto.responsible);
+  async manualPassAmlCheck(@Param('id') id: string, @Body() dto: ManualAmlCheckDto): Promise<BuyCrypto> {
+    return this.buyCryptoService.manualPassAmlCheck(+id, dto);
   }
 }

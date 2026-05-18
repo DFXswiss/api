@@ -60,6 +60,7 @@ import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
 import { BuyHistoryDto } from '../../routes/buy/dto/buy-history.dto';
+import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { UpdateBuyCryptoDto } from '../dto/update-buy-crypto.dto';
 import { BuyCrypto, BuyCryptoEditableAmlCheck, BuyCryptoStatus } from '../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../repositories/buy-crypto.repository';
@@ -683,14 +684,14 @@ export class BuyCryptoService {
     if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
   }
 
-  async manualPassAmlCheck(id: number, responsible: string): Promise<BuyCrypto> {
+  async manualPassAmlCheck(id: number, dto: ManualAmlCheckDto): Promise<BuyCrypto> {
     const entity = await this.buyCryptoRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('BuyCrypto not found');
     if (entity.amlCheck !== CheckStatus.PENDING) throw new BadRequestException('BuyCrypto amlCheck must be Pending');
-    if (!canManualPass(entity.comment))
+    if (dto.amlCheck === CheckStatus.PASS && !canManualPass(entity.comment))
       throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
 
-    return this.update(id, { amlCheck: CheckStatus.PASS, amlResponsible: responsible } as UpdateBuyCryptoDto);
+    return this.update(id, { amlCheck: dto.amlCheck, amlResponsible: dto.responsible } as UpdateBuyCryptoDto);
   }
 
   async getUserVolume(

@@ -40,6 +40,7 @@ import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
 import { BuyFiat, BuyFiatEditableAmlCheck } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
+import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 
@@ -416,14 +417,14 @@ export class BuyFiatService {
     }
   }
 
-  async manualPassAmlCheck(id: number, responsible: string): Promise<BuyFiat> {
+  async manualPassAmlCheck(id: number, dto: ManualAmlCheckDto): Promise<BuyFiat> {
     const entity = await this.buyFiatRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('BuyFiat not found');
     if (entity.amlCheck !== CheckStatus.PENDING) throw new BadRequestException('BuyFiat amlCheck must be Pending');
-    if (!canManualPass(entity.comment))
+    if (dto.amlCheck === CheckStatus.PASS && !canManualPass(entity.comment))
       throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
 
-    return this.update(id, { amlCheck: CheckStatus.PASS, amlResponsible: responsible } as UpdateBuyFiatDto);
+    return this.update(id, { amlCheck: dto.amlCheck, amlResponsible: dto.responsible } as UpdateBuyFiatDto);
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {
