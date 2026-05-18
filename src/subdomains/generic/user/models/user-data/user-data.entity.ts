@@ -841,6 +841,7 @@ export const UserDataComplianceUpdateCols = [
   'phoneCallIpCheckDate',
   'phoneCallIpCountryCheckDate',
   'phoneCallExternalAccountCheckDate',
+  'phoneCallExternalAccountCheckValue',
 ];
 
 export function KycCompleted(kycStatus?: KycStatus): boolean {

@@ -145,6 +145,8 @@ export class AuthService {
     userId?: number,
   ): Promise<AuthResponseDto> {
     const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true, wallet: true }));
+    if (userData?.status === UserDataStatus.MERGED) throw new UnauthorizedException('User data is merged');
+
     const primaryUser = userId && (await this.userService.getUser(userId));
 
     const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature).catch(() => undefined);
@@ -207,6 +209,8 @@ export class AuthService {
       wallet: true,
     });
     if (!user) throw new NotFoundException('User not found');
+
+    if (user.userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User data is merged');
 
     if (user.userData.isDeactivated)
       user.userData = await this.userDataService.updateUserDataInternal(
@@ -326,6 +330,7 @@ export class AuthService {
       if (!this.isMailKeyValid(entry)) throw new Error('Login link expired');
 
       const account = await this.userDataService.getUserData(entry.userDataId, { users: true, wallet: true });
+      if (account.status === UserDataStatus.MERGED) throw new UnauthorizedException('User data is merged');
 
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail, undefined, account);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
@@ -379,6 +384,7 @@ export class AuthService {
     if (!user) throw new NotFoundException('User not found');
     if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
       throw new BadRequestException('User is deactivated or blocked');
+    if (user.userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User data is merged');
 
     if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, user.wallet);
 

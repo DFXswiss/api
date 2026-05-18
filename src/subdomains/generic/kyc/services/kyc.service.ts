@@ -384,6 +384,9 @@ export class KycService {
   }
 
   async checkDfxApproval(userData: UserData, kycStep?: KycStep): Promise<void> {
+    const missingCompletedSteps = requiredKycSteps(userData).filter((rs) => !userData.hasCompletedStep(rs));
+    if (!missingCompletedSteps.includes(KycStepName.DFX_APPROVAL)) return;
+
     const expiredSteps = [
       ...userData.getStepsWith(KycStepName.IDENT, KycStepType.SUMSUB_AUTO),
       ...userData.getStepsWith(KycStepName.IDENT, KycStepType.AUTO),
@@ -407,8 +410,6 @@ export class KycService {
 
       return this.kycNotificationService.kycStepReminder(userData);
     }
-
-    const missingCompletedSteps = requiredKycSteps(userData).filter((rs) => !userData.hasCompletedStep(rs));
 
     if (
       (missingCompletedSteps.length === 2 &&
