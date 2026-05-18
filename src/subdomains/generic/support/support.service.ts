@@ -592,7 +592,7 @@ export class SupportService {
       depositAddress: sell.deposit?.address,
       depositBlockchains,
       depositAddressExplorerUrl:
-        depositBlockchains?.[0] && sell.deposit?.address
+        depositBlockchains?.length === 1 && sell.deposit?.address
           ? addressExplorerUrl(depositBlockchains[0], sell.deposit.address)
           : undefined,
       volume: sell.annualVolume,
@@ -602,15 +602,15 @@ export class SupportService {
   }
 
   private toSwapSupportInfo(swap: Swap): SwapSupportInfo {
-    const depositBlockchain = swap.deposit?.blockchainList?.[0];
+    const depositBlockchains = swap.deposit?.blockchainList;
     return {
       id: swap.id,
       assetName: swap.asset?.name,
       blockchain: swap.asset?.blockchain,
       depositAddress: swap.deposit?.address,
       depositAddressExplorerUrl:
-        depositBlockchain && swap.deposit?.address
-          ? addressExplorerUrl(depositBlockchain, swap.deposit.address)
+        depositBlockchains?.length === 1 && swap.deposit?.address
+          ? addressExplorerUrl(depositBlockchains[0], swap.deposit.address)
           : undefined,
       volume: swap.volume,
       annualVolume: swap.annualVolume,
