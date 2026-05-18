@@ -1,4 +1,4 @@
-import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -11,6 +11,8 @@ import { TransactionUtilService } from 'src/subdomains/core/transaction/transact
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -25,9 +27,11 @@ import { PayoutOrderContext } from 'src/subdomains/supporting/payout/entities/pa
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { SupportLogType } from 'src/subdomains/supporting/support-issue/enums/support-log.enum';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
-import { Between, FindOptionsRelations, In, MoreThan } from 'typeorm';
+import { Between, FindOptionsRelations, In, IsNull, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
-import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
+import { canManualPass } from '../../../aml/enums/aml-error.enum';
+import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../../history/dto/history.dto';
@@ -43,7 +47,7 @@ import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 
 @Injectable()
-export class BuyFiatService {
+export class BuyFiatService implements OnModuleInit {
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     @Inject(forwardRef(() => BuyCryptoService))
@@ -72,7 +76,26 @@ export class BuyFiatService {
     private readonly custodyOrderService: CustodyOrderService,
     private readonly supportLogService: SupportLogService,
     private readonly payoutService: PayoutService,
+    private readonly userDataService: UserDataService,
   ) {}
+
+  onModuleInit() {
+    this.userDataService.phoneCallCompletedObservable.subscribe((userData) => this.checkAmlResetTx(userData));
+  }
+
+  async checkAmlResetTx(userData: UserData): Promise<void> {
+    const entities = await this.buyFiatRepo.findBy({
+      transaction: { userData: { id: userData.id } },
+      amlCheck: CheckStatus.FAIL,
+      amlReason: In(PhoneAmlReasons),
+      isComplete: false,
+      chargebackAllowedDate: IsNull(),
+    });
+
+    for (const entity of entities) {
+      await this.resetAmlCheckInternal(entity);
+    }
+  }
 
   async createFromCryptoInput(cryptoInput: CryptoInput, sell: Sell, request?: TransactionRequest): Promise<BuyFiat> {
     let entity = this.buyFiatRepo.create({
@@ -386,6 +409,11 @@ export class BuyFiatService {
       relations: { fiatOutput: true, transaction: { userData: true }, outputAsset: true },
     });
     if (!entity) throw new NotFoundException('BuyFiat not found');
+
+    await this.resetAmlCheckInternal(entity);
+  }
+
+  async resetAmlCheckInternal(entity: BuyFiat): Promise<void> {
     if (entity.isComplete || entity.fiatOutput?.isComplete || entity.chargebackAllowedDate)
       throw new BadRequestException('BuyFiat is already complete');
     if (!entity.amlCheck) throw new BadRequestException('BuyFiat amlcheck is not set');
@@ -413,6 +441,24 @@ export class BuyFiatService {
         comment: `AML check reset. Previous state: ${JSON.stringify(resetDetails)}`,
       });
     }
+  }
+
+  async manualPassAmlCheck(id: number, dto: ManualAmlCheckDto): Promise<BuyFiat> {
+    const entity = await this.buyFiatRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('BuyFiat not found');
+    if (entity.isComplete || entity.chargebackAllowedDateUser)
+      throw new BadRequestException('BuyFiat is already complete or chargeback initiated');
+    if ([CheckStatus.PASS, CheckStatus.FAIL].includes(entity.amlCheck))
+      throw new BadRequestException('BuyFiat amlCheck is already finalized');
+    if (dto.amlCheck === CheckStatus.PASS && !canManualPass(entity.comment))
+      throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
+
+    return this.update(id, {
+      amlCheck: dto.amlCheck,
+      amlResponsible: dto.responsible,
+      amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
+      priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
+    } as UpdateBuyFiatDto);
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {

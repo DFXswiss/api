@@ -135,7 +135,7 @@ export class SellService {
   async getSellsByUserDataId(userDataId: number): Promise<Sell[]> {
     return this.sellRepo.find({
       where: { user: { userData: { id: userDataId } } },
-      relations: { fiat: true, user: true },
+      relations: { fiat: true, user: true, deposit: true },
     });
   }
 
