@@ -100,12 +100,17 @@ export class LogRepository extends BaseRepository<Log> {
 
   private async getSampledFinancialLogs(subsystem: string, from?: Date, dailySample?: boolean): Promise<Log[]> {
     if (dailySample) {
-      const subQuery = this.createQueryBuilder('subLog')
+      let subQuery = this.createQueryBuilder('subLog')
         .select('MAX(subLog.id)', 'max_id')
         .where('subLog.system = :system', { system: 'LogService' })
         .andWhere('subLog.subsystem = :subsystem', { subsystem })
-        .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO })
-        .groupBy('CAST(subLog.created AS DATE)');
+        .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO });
+
+      if (from) {
+        subQuery = subQuery.andWhere('subLog.created >= :from', { from });
+      }
+
+      subQuery = subQuery.groupBy('CAST(subLog.created AS DATE)');
 
       let query = this.createQueryBuilder('log')
         .where(`log.id IN (${subQuery.getQuery()})`)
@@ -124,12 +129,19 @@ export class LogRepository extends BaseRepository<Log> {
     if (bucketMinutes != null) {
       // DB-side N-minute bucketing: pick the latest id per bucket, then fetch those rows.
       // Mirrors the dailySample shape but uses DATEADD/DATEDIFF for sub-day buckets.
-      const subQuery = this.createQueryBuilder('subLog')
+      let subQuery = this.createQueryBuilder('subLog')
         .select('MAX(subLog.id)', 'max_id')
         .where('subLog.system = :system', { system: 'LogService' })
         .andWhere('subLog.subsystem = :subsystem', { subsystem })
-        .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO })
-        .groupBy(`DATEADD(MINUTE, (DATEDIFF(MINUTE, 0, subLog.created) / ${bucketMinutes}) * ${bucketMinutes}, 0)`);
+        .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO });
+
+      if (from) {
+        subQuery = subQuery.andWhere('subLog.created >= :from', { from });
+      }
+
+      subQuery = subQuery.groupBy(
+        `DATEADD(MINUTE, (DATEDIFF(MINUTE, 0, subLog.created) / ${bucketMinutes}) * ${bucketMinutes}, 0)`,
+      );
 
       let query = this.createQueryBuilder('log')
         .where(`log.id IN (${subQuery.getQuery()})`)
