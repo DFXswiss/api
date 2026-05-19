@@ -259,21 +259,13 @@ export class DashboardFinancialService {
     // Fast path: use denormalised aggregate columns when present (populated for new rows by the
     // FinancialDataLog cron). Falls back to JSON.parse of `message` for legacy rows pre-migration.
     if (log.totalBalanceChf != null && log.plusBalanceChf != null && log.minusBalanceChf != null) {
-      let balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }> = {};
-      if (log.balancesByTypeJson) {
-        try {
-          balancesByType = JSON.parse(log.balancesByTypeJson);
-        } catch {
-          balancesByType = {};
-        }
-      }
       return {
         timestamp: log.created,
         totalBalanceChf: log.totalBalanceChf,
         plusBalanceChf: log.plusBalanceChf,
         minusBalanceChf: log.minusBalanceChf,
         btcPriceChf: log.btcPriceChf ?? 0,
-        balancesByType,
+        balancesByType: log.balancesByType,
       };
     }
 

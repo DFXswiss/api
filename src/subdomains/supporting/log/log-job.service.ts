@@ -54,7 +54,7 @@ import {
   ManualLogPosition,
   TradingLog,
 } from './dto/log.dto';
-import { LogSeverity } from './log.entity';
+import { BalancesByTypeMap, LogSeverity } from './log.entity';
 import { LogService } from './log.service';
 
 @Injectable()
@@ -135,14 +135,13 @@ export class LogJobService {
       const btcPriceChf = btcAsset ? (assetLog[btcAsset.id]?.priceChf ?? 0) : 0;
 
       // Compact per-type aggregate snapshot (chart consumes only plus/minus CHF per type).
-      const balancesByTypeCompact: Record<string, { plusBalanceChf: number; minusBalanceChf: number }> = {};
+      const balancesByType: BalancesByTypeMap = {};
       for (const [type, data] of Object.entries(balancesByFinancialType)) {
-        balancesByTypeCompact[type] = {
+        balancesByType[type] = {
           plusBalanceChf: data.plusBalanceChf,
           minusBalanceChf: data.minusBalanceChf,
         };
       }
-      const balancesByTypeJson = JSON.stringify(balancesByTypeCompact);
 
       await this.logService.create({
         system: 'LogService',
@@ -166,7 +165,7 @@ export class LogJobService {
         plusBalanceChf: roundedPlusBalanceChf,
         minusBalanceChf: roundedMinusBalanceChf,
         btcPriceChf,
-        balancesByTypeJson,
+        balancesByType,
       });
 
       await this.logService.create({
