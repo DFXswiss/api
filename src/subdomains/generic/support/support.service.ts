@@ -87,7 +87,6 @@ import {
   KycStepSupportInfo,
   NotificationSupportInfo,
   OnboardingStatus,
-  PendingOnboardingInfo,
   PendingTransactionInfo,
   PendingReviewItem,
   PendingReviewSummaryEntry,
@@ -805,25 +804,6 @@ export class SupportService {
       amlReason: tx.amlReason,
       date: tx.created,
     };
-  }
-
-  async getPendingOnboardings(): Promise<PendingOnboardingInfo[]> {
-    const pendingEntries = await this.kycService.getPendingCompanyOnboardings();
-    if (pendingEntries.length === 0) return [];
-
-    const userDataIds = pendingEntries.map((e) => e.userDataId);
-    const userDatas = await Promise.all(userDataIds.map((id) => this.userDataService.getUserData(id)));
-
-    const dateMap = new Map(pendingEntries.map((e) => [e.userDataId, e.date]));
-
-    return userDatas
-      .filter((ud): ud is UserData => !!ud)
-      .map((ud) => ({
-        id: ud.id,
-        name: this.formatUserName(ud),
-        accountType: ud.accountType,
-        date: dateMap.get(ud.id) ?? ud.created,
-      }));
   }
 
   async getPendingReviewsSummary(): Promise<PendingReviewSummaryEntry[]> {
