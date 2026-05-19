@@ -41,13 +41,6 @@ export class UserDataSupportInfo {
   onboardingStatus?: OnboardingStatus;
 }
 
-export class PendingOnboardingInfo {
-  id: number;
-  name?: string;
-  accountType?: string;
-  date: Date;
-}
-
 export class PendingTransactionInfo {
   txId: number;
   uid: string;

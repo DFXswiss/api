@@ -36,7 +36,6 @@ import {
   CallQueueSummaryEntry,
   KycFileListEntry,
   KycFileYearlyStats,
-  PendingOnboardingInfo,
   PendingReviewItem,
   PendingReviewSummaryEntry,
   PendingReviewType,
@@ -95,14 +94,6 @@ export class SupportController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async getRecommendationGraph(@Param('id') id: string): Promise<RecommendationGraph> {
     return this.supportService.getRecommendationGraph(+id);
-  }
-
-  @Get('pending-onboardings')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async getPendingOnboardings(): Promise<PendingOnboardingInfo[]> {
-    return this.supportService.getPendingOnboardings();
   }
 
   @Get('pending-transactions')

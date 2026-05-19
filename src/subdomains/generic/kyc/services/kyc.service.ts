@@ -1842,48 +1842,6 @@ export class KycService {
     }
   }
 
-  // --- Company Onboarding Queries ---
-
-  async getPendingCompanyOnboardings(): Promise<{ userDataId: number; date: Date }[]> {
-    const companyStepNames = [
-      KycStepName.LEGAL_ENTITY,
-      KycStepName.AUTHORITY,
-      KycStepName.OWNER_DIRECTORY,
-      KycStepName.SIGNATORY_POWER,
-      KycStepName.BENEFICIAL_OWNER,
-      KycStepName.OPERATIONAL_ACTIVITY,
-      KycStepName.DFX_APPROVAL,
-    ];
-
-    const results = await this.kycStepRepo
-      .createQueryBuilder('step')
-      .select('step.userDataId', 'userDataId')
-      .addSelect('MIN(step.updated)', 'date')
-      .innerJoin('step.userData', 'userData')
-      .where('step.name IN (:...names)', { names: companyStepNames })
-      .andWhere('step.status = :status', { status: ReviewStatus.MANUAL_REVIEW })
-      .andWhere('userData.accountType IN (:...accountTypes)', {
-        accountTypes: [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP],
-      })
-      .andWhere('userData.kycLevel >= :minLevel', { minLevel: KycLevel.LEVEL_30 })
-      .andWhere('userData.status != :mergedStatus', { mergedStatus: UserDataStatus.MERGED })
-      .andWhere(
-        `step.userDataId NOT IN (
-          SELECT s2.userDataId FROM kyc_step s2
-          WHERE s2.name = :approvalName AND s2.status IN (:...doneStatuses)
-        )`,
-        {
-          approvalName: KycStepName.DFX_APPROVAL,
-          doneStatuses: [ReviewStatus.COMPLETED, ReviewStatus.FAILED],
-        },
-      )
-      .groupBy('step.userDataId')
-      .orderBy('date', 'ASC')
-      .getRawMany<{ userDataId: number; date: Date }>();
-
-    return results;
-  }
-
   async getDfxApprovalSteps(userDataIds: number[]): Promise<KycStep[]> {
     if (userDataIds.length === 0) return [];
 
