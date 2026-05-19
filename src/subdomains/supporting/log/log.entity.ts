@@ -26,4 +26,23 @@ export class Log extends IEntity {
 
   @Column({ nullable: true })
   valid?: boolean;
+
+  // Denormalised aggregates for FinancialDataLog, used by the dashboard chart endpoint to avoid
+  // parsing the nvarchar(MAX) message JSON for every row. Nullable so legacy rows fall back to JSON.
+  @Column({ type: 'float', nullable: true })
+  totalBalanceChf?: number;
+
+  @Column({ type: 'float', nullable: true })
+  plusBalanceChf?: number;
+
+  @Column({ type: 'float', nullable: true })
+  minusBalanceChf?: number;
+
+  @Column({ type: 'float', nullable: true })
+  btcPriceChf?: number;
+
+  // Compact JSON snapshot of the per-financialType plus/minus aggregates (orders of magnitude
+  // smaller than the full message), kept separate so the chart endpoint avoids the full parse.
+  @Column({ length: 4000, nullable: true })
+  balancesByTypeJson?: string;
 }

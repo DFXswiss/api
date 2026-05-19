@@ -126,6 +126,24 @@ export class LogJobService {
       const lastLog = await this.logService.maxEntity('LogService', 'FinancialDataLog', LogSeverity.INFO, true);
       const lastTotalBalance = (JSON.parse(lastLog.message) as FinanceLog).balancesTotal.totalBalanceChf;
 
+      // Aggregate values needed by the dashboard chart endpoint. Mirrored to dedicated columns so
+      // the chart query can read them directly instead of JSON.parse'ing the nvarchar(MAX) message.
+      const roundedTotalBalanceChf = this.getJsonValue(totalBalanceChf, AmountType.FIAT, true);
+      const roundedPlusBalanceChf = this.getJsonValue(plusBalanceChf, AmountType.FIAT, true);
+      const roundedMinusBalanceChf = this.getJsonValue(minusBalanceChf, AmountType.FIAT, true);
+      const btcAsset = assets.find((a) => a.name === 'BTC' && (a.blockchain as string) === Blockchain.BITCOIN);
+      const btcPriceChf = btcAsset ? (assetLog[btcAsset.id]?.priceChf ?? 0) : 0;
+
+      // Compact per-type aggregate snapshot (chart consumes only plus/minus CHF per type).
+      const balancesByTypeCompact: Record<string, { plusBalanceChf: number; minusBalanceChf: number }> = {};
+      for (const [type, data] of Object.entries(balancesByFinancialType)) {
+        balancesByTypeCompact[type] = {
+          plusBalanceChf: data.plusBalanceChf,
+          minusBalanceChf: data.minusBalanceChf,
+        };
+      }
+      const balancesByTypeJson = JSON.stringify(balancesByTypeCompact);
+
       await this.logService.create({
         system: 'LogService',
         subsystem: 'FinancialDataLog',
@@ -135,15 +153,20 @@ export class LogJobService {
           tradings: tradingLog,
           balancesByFinancialType,
           balancesTotal: {
-            plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
-            minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
-            totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
+            plusBalanceChf: roundedPlusBalanceChf,
+            minusBalanceChf: roundedMinusBalanceChf,
+            totalBalanceChf: roundedTotalBalanceChf,
           },
         }),
         valid:
           Math.abs(totalBalanceChf - lastTotalBalance) <= Config.financeLogTotalBalanceChangeLimit ||
           Util.minutesDiff(lastLog.created) > 15,
         category: null,
+        totalBalanceChf: roundedTotalBalanceChf,
+        plusBalanceChf: roundedPlusBalanceChf,
+        minusBalanceChf: roundedMinusBalanceChf,
+        btcPriceChf,
+        balancesByTypeJson,
       });
 
       await this.logService.create({

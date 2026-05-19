@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { RefRewardService } from '../../core/referral/reward/services/ref-reward.service';
 import { Log } from '../log/log.entity';
 import { LogService } from '../log/log.service';
@@ -16,6 +17,20 @@ import {
 
 @Injectable()
 export class DashboardFinancialService {
+  // The underlying data is written by a cron every minute; a 30s TTL hides repeated dashboard
+  // refreshes (multiple admins, polling, page revisits) without ever serving data older than the
+  // next cron tick on average.
+  private readonly latestBalanceCache = new AsyncCache<LatestBalanceResponseDto | undefined>(
+    CacheItemResetPeriod.EVERY_30_SECONDS,
+  );
+  private readonly latestChangesCache = new AsyncCache<FinancialChangesEntryDto | undefined>(
+    CacheItemResetPeriod.EVERY_30_SECONDS,
+  );
+  private readonly financialLogCache = new AsyncCache<FinancialLogResponseDto>(CacheItemResetPeriod.EVERY_30_SECONDS);
+  private readonly financialChangesCache = new AsyncCache<FinancialChangesResponseDto>(
+    CacheItemResetPeriod.EVERY_30_SECONDS,
+  );
+
   constructor(
     private readonly logService: LogService,
     private readonly assetService: AssetService,
@@ -23,6 +38,11 @@ export class DashboardFinancialService {
   ) {}
 
   async getFinancialLog(from?: Date, dailySample?: boolean): Promise<FinancialLogResponseDto> {
+    const cacheKey = `from=${from?.toISOString() ?? ''}|dailySample=${dailySample ?? ''}`;
+    return this.financialLogCache.get(cacheKey, () => this.loadFinancialLog(from, dailySample));
+  }
+
+  private async loadFinancialLog(from?: Date, dailySample?: boolean): Promise<FinancialLogResponseDto> {
     const [logs, btcAsset] = await Promise.all([
       this.logService.getFinancialLogs(from, dailySample),
       this.assetService.getBtcCoin(),
@@ -41,12 +61,19 @@ export class DashboardFinancialService {
   }
 
   async getLatestFinancialChanges(): Promise<FinancialChangesEntryDto | undefined> {
-    const latest = await this.logService.getLatestFinancialChangesLog();
-    if (!latest) return undefined;
-    return this.mapChangesLogToEntry(latest);
+    return this.latestChangesCache.get('latest', async () => {
+      const latest = await this.logService.getLatestFinancialChangesLog();
+      if (!latest) return undefined;
+      return this.mapChangesLogToEntry(latest);
+    });
   }
 
   async getFinancialChanges(from?: Date, dailySample?: boolean): Promise<FinancialChangesResponseDto> {
+    const cacheKey = `from=${from?.toISOString() ?? ''}|dailySample=${dailySample ?? ''}`;
+    return this.financialChangesCache.get(cacheKey, () => this.loadFinancialChanges(from, dailySample));
+  }
+
+  private async loadFinancialChanges(from?: Date, dailySample?: boolean): Promise<FinancialChangesResponseDto> {
     const logs = await this.logService.getFinancialChangesLogs(from, dailySample);
 
     const entries = logs
@@ -103,6 +130,10 @@ export class DashboardFinancialService {
   }
 
   async getLatestBalance(): Promise<LatestBalanceResponseDto | undefined> {
+    return this.latestBalanceCache.get('latest', () => this.loadLatestBalance());
+  }
+
+  private async loadLatestBalance(): Promise<LatestBalanceResponseDto | undefined> {
     const latest = await this.logService.getLatestFinancialLog();
     if (!latest) return undefined;
 
@@ -225,6 +256,27 @@ export class DashboardFinancialService {
   }
 
   private mapLogToEntry(log: Log, btcAssetId?: number): FinancialLogEntryDto | undefined {
+    // Fast path: use denormalised aggregate columns when present (populated for new rows by the
+    // FinancialDataLog cron). Falls back to JSON.parse of `message` for legacy rows pre-migration.
+    if (log.totalBalanceChf != null && log.plusBalanceChf != null && log.minusBalanceChf != null) {
+      let balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }> = {};
+      if (log.balancesByTypeJson) {
+        try {
+          balancesByType = JSON.parse(log.balancesByTypeJson);
+        } catch {
+          balancesByType = {};
+        }
+      }
+      return {
+        timestamp: log.created,
+        totalBalanceChf: log.totalBalanceChf,
+        plusBalanceChf: log.plusBalanceChf,
+        minusBalanceChf: log.minusBalanceChf,
+        btcPriceChf: log.btcPriceChf ?? 0,
+        balancesByType,
+      };
+    }
+
     try {
       const financeLog: FinanceLog = JSON.parse(log.message);
 
