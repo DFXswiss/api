@@ -11,6 +11,7 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import JSZip from 'jszip';
+import { Observable, Subject } from 'rxjs';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -82,6 +83,7 @@ export class UserDataService {
   private readonly logger = new DfxLogger(UserDataService);
 
   private readonly secretCache: Map<number, SecretCacheEntry> = new Map();
+  private readonly phoneCallCompletedSubject: Subject<UserData> = new Subject<UserData>();
 
   constructor(
     private readonly repos: RepositoryFactory,
@@ -116,6 +118,10 @@ export class UserDataService {
   ) {}
 
   // --- GETTERS --- //
+  get phoneCallCompletedObservable(): Observable<UserData> {
+    return this.phoneCallCompletedSubject.asObservable();
+  }
+
   async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
@@ -137,6 +143,13 @@ export class UserDataService {
     return useCachedValues
       ? this.userDataRepo.findOneCached(JSON.stringify(request), request)
       : this.userDataRepo.findOne(request);
+  }
+
+  async getActiveUserData(userDataId: number, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
+    const userData = await this.getUserData(userDataId, relations);
+    if (!userData) throw new NotFoundException('UserData not found');
+    if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User data is merged');
+    return userData;
   }
 
   async getUserDataByIds(ids: number[]): Promise<UserData[]> {
@@ -298,7 +311,11 @@ export class UserDataService {
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
-      relations: { users: { wallet: true }, kycSteps: true, wallet: true },
+      relations: {
+        users: { wallet: true },
+        kycSteps: true,
+        wallet: true,
+      },
     });
     if (!userData) throw new NotFoundException('User data not found');
 
@@ -306,6 +323,12 @@ export class UserDataService {
 
     if (dto.phoneCallExternalAccountCheckValue)
       userData.addPhoneCallExternalAccountCheckValue(dto.phoneCallExternalAccountCheckValue);
+
+    if (
+      dto.phoneCallStatus === PhoneCallStatus.COMPLETED &&
+      [PhoneCallStatus.FAILED, PhoneCallStatus.USER_REJECTED].includes(userData.phoneCallStatus)
+    )
+      this.phoneCallCompletedSubject.next(userData);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed

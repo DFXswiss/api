@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   NotFoundException,
   Param,
@@ -19,31 +20,41 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { ChargebackRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
-import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
-import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import { ReviewStatus } from '../kyc/enums/review-status.enum';
+import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
+import {
+  CreateSupportNoteDto,
+  SupportNoteDto,
+  SupportNoteListQuery,
+  SupportNoteUserDto,
+  UpdateSupportNoteDto,
+} from './dto/support-note.dto';
+import { TransactionListQuery } from './dto/transaction-list-query.dto';
 import {
   CallQueue,
   CallQueueItem,
   CallQueueSummaryEntry,
   KycFileListEntry,
   KycFileYearlyStats,
-  PendingOnboardingInfo,
-  PendingTransactionInfo,
   PendingReviewItem,
   PendingReviewSummaryEntry,
   PendingReviewType,
+  PendingTransactionInfo,
   RecommendationGraph,
   TransactionListEntry,
   UserDataSupportInfoDetails,
   UserDataSupportInfoResult,
   UserDataSupportQuery,
 } from './dto/user-data-support.dto';
+import { SupportNoteService } from './services/support-note.service';
 import { SupportService } from './support.service';
 
 @Controller('support')
 export class SupportController {
-  constructor(private readonly supportService: SupportService) {}
+  constructor(
+    private readonly supportService: SupportService,
+    private readonly supportNoteService: SupportNoteService,
+  ) {}
 
   @Get()
   @ApiBearerAuth()
@@ -83,14 +94,6 @@ export class SupportController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async getRecommendationGraph(@Param('id') id: string): Promise<RecommendationGraph> {
     return this.supportService.getRecommendationGraph(+id);
-  }
-
-  @Get('pending-onboardings')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async getPendingOnboardings(): Promise<PendingOnboardingInfo[]> {
-    return this.supportService.getPendingOnboardings();
   }
 
   @Get('pending-transactions')
@@ -157,7 +160,7 @@ export class SupportController {
   @Get(':id/transaction-pdf')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getTransactionPdf(@Param('id') id: string): Promise<{ pdfData: string }> {
     const pdfData = await this.supportService.generateTransactionPdf(+id);
     return { pdfData };
@@ -174,12 +177,59 @@ export class SupportController {
     return this.supportService.generateAndSaveOnboardingPdf(+id, dto);
   }
 
+  @Get('note')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getNotes(@Query() query: SupportNoteListQuery, @GetJwt() jwt: JwtPayload): Promise<SupportNoteDto[]> {
+    const notes = await this.supportNoteService.search(jwt.role, query);
+    return notes.map((n) => this.supportNoteService.toDto(n, jwt.role, jwt.account));
+  }
+
+  @Get('note/users')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async listNoteUsers(@GetJwt() jwt: JwtPayload): Promise<SupportNoteUserDto[]> {
+    return this.supportNoteService.listUsers(jwt.role);
+  }
+
+  @Post('note')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async createNote(@Body() dto: CreateSupportNoteDto, @GetJwt() jwt: JwtPayload): Promise<SupportNoteDto> {
+    const note = await this.supportNoteService.create(jwt.role, jwt.account, dto);
+    return this.supportNoteService.toDto(note, jwt.role, jwt.account);
+  }
+
+  @Put('note/:id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async updateNote(
+    @Param('id') id: string,
+    @Body() dto: UpdateSupportNoteDto,
+    @GetJwt() jwt: JwtPayload,
+  ): Promise<SupportNoteDto> {
+    const note = await this.supportNoteService.update(+id, jwt.role, jwt.account, dto);
+    return this.supportNoteService.toDto(note, jwt.role, jwt.account);
+  }
+
+  @Delete('note/:id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async deleteNote(@Param('id') id: string, @GetJwt() jwt: JwtPayload): Promise<void> {
+    await this.supportNoteService.delete(+id, jwt.role, jwt.account);
+  }
+
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getUserData(@Param('id') id: string, @GetJwt() jwt: JwtPayload): Promise<UserDataSupportInfoDetails> {
-    return this.supportService.getUserDataDetails(+id, jwt.role);
+    return this.supportService.getUserDataDetails(+id, jwt.role, jwt.account);
   }
 
   @Get('transaction/:id/refund')

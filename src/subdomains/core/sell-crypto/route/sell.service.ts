@@ -135,7 +135,7 @@ export class SellService {
   async getSellsByUserDataId(userDataId: number): Promise<Sell[]> {
     return this.sellRepo.find({
       where: { user: { userData: { id: userDataId } } },
-      relations: { fiat: true, user: true },
+      relations: { fiat: true, user: true, deposit: true },
     });
   }
 
@@ -414,7 +414,7 @@ export class SellService {
       timestamp,
       routeId: sell.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
-      depositAddress: sell.active ? sell.deposit.address : undefined,
+      depositAddress: sell.active && isValid ? sell.deposit.address : undefined,
       blockchain: dto.asset.blockchain,
       minDeposit: { amount: minVolume, asset: dto.asset.dexName },
       minVolume,
