@@ -1,5 +1,5 @@
 import { Util } from 'src/shared/utils/util';
-import { getSampleIntervalMinutes } from '../log.repository';
+import { getSampleIntervalMinutes } from '../log.util';
 
 describe('getSampleIntervalMinutes', () => {
   it('returns null when dailySample is true (caller picks daily bucket)', () => {
