@@ -487,6 +487,7 @@ export class SupportService {
       uid: tx.uid,
       buyCryptoId: tx.buyCrypto?.id,
       buyFiatId: tx.buyFiat?.id,
+      bankDataId: tx.buyCrypto?.bankData?.id ?? tx.buyFiat?.bankData?.id,
       type: tx.type,
       sourceType: tx.sourceType,
       inputAmount: tx.buyCrypto?.inputAmount ?? tx.buyFiat?.inputAmount,
