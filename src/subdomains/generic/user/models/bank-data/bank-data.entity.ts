@@ -39,7 +39,7 @@ export class BankData extends IEntity {
   approved?: boolean;
 
   @Column({ length: 256 })
-  @Index({ unique: true, where: 'approved = 1' })
+  @Index({ unique: true, where: 'approved = true' })
   iban: string;
 
   @Column({ length: 256, nullable: true })

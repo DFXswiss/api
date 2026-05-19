@@ -15,7 +15,7 @@ export enum VirtualIbanStatus {
 @Entity()
 @Index((vi: VirtualIban) => [vi.currency, vi.buy], {
   unique: true,
-  where: 'buyId IS NOT NULL',
+  where: '"buyId" IS NOT NULL',
 })
 export class VirtualIban extends IEntity {
   @Column({ length: 34, unique: true })

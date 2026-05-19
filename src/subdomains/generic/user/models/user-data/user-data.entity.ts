@@ -54,7 +54,7 @@ import {
   (userData: UserData) => [userData.identDocumentId, userData.nationality, userData.accountType, userData.kycType],
   {
     unique: true,
-    where: 'identDocumentId IS NOT NULL AND accountType IS NOT NULL AND kycType IS NOT NULL',
+    where: '"identDocumentId" IS NOT NULL AND "accountType" IS NOT NULL AND "kycType" IS NOT NULL',
   },
 )
 export class UserData extends IEntity {
@@ -311,7 +311,7 @@ export class UserData extends IEntity {
 
   // CT
   @Column({ length: 256, nullable: true })
-  @Index({ unique: true, where: 'apiKeyCT IS NOT NULL' })
+  @Index({ unique: true, where: '"apiKeyCT" IS NOT NULL' })
   apiKeyCT?: string;
 
   @Column({ length: 256, nullable: true })

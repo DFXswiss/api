@@ -62,7 +62,7 @@ export class User extends IEntity {
   origin?: string;
 
   @Column({ length: 256, nullable: true })
-  @Index({ unique: true, where: 'apiKeyCT IS NOT NULL' })
+  @Index({ unique: true, where: '"apiKeyCT" IS NOT NULL' })
   apiKeyCT?: string;
 
   @Column({ length: 256, nullable: true })
@@ -161,7 +161,7 @@ export class User extends IEntity {
   comment?: string;
 
   @Column({ type: 'int', nullable: true })
-  @Index({ unique: true, where: 'custodyAddressIndex IS NOT NULL' })
+  @Index({ unique: true, where: '"custodyAddressIndex" IS NOT NULL' })
   custodyAddressIndex?: number;
 
   @Column({ nullable: true })
