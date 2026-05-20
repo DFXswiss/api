@@ -8,7 +8,7 @@ export class SupportIssueTemplate extends IEntity {
   name: string;
 
   @Column({ length: 'MAX' })
-  content: string;
+  contentDe: string;
 
   @Column({ length: 'MAX', nullable: true })
   contentEn?: string | null;

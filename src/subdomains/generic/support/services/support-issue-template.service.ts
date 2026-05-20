@@ -28,7 +28,7 @@ export class SupportIssueTemplateService {
 
     const pattern = `%${search}%`;
     return this.templateRepo.find({
-      where: [{ name: Like(pattern) }, { content: Like(pattern) }, { contentEn: Like(pattern) }],
+      where: [{ name: Like(pattern) }, { contentDe: Like(pattern) }, { contentEn: Like(pattern) }],
       ...findOptions,
     });
   }
@@ -40,7 +40,7 @@ export class SupportIssueTemplateService {
     return this.templateRepo.save(
       this.templateRepo.create({
         name: dto.name,
-        content: dto.contents.de,
+        contentDe: dto.contents.de,
         contentEn: dto.contents.en?.trim() || null,
         authorId: jwtAccount,
         authorMail: author.mail ?? `userData#${jwtAccount}`,
@@ -64,7 +64,7 @@ export class SupportIssueTemplateService {
     if (dto.name != null) template.name = dto.name;
 
     if (dto.contents) {
-      if (dto.contents.de != null) template.content = dto.contents.de;
+      if (dto.contents.de != null) template.contentDe = dto.contents.de;
       if (dto.contents.en !== undefined) template.contentEn = dto.contents.en.trim() || null;
     }
 
@@ -87,7 +87,7 @@ export class SupportIssueTemplateService {
       id: template.id,
       name: template.name,
       contents: {
-        de: template.content,
+        de: template.contentDe,
         en: template.contentEn || undefined,
       },
       authorMail: template.authorMail,
