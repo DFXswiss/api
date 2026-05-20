@@ -1,5 +1,6 @@
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
+import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { LimitRequest } from '../entities/limit-request.entity';
@@ -114,6 +115,7 @@ export class SupportIssueDtoMapper {
       annualVolume: userData.annualBuyVolume + userData.annualSellVolume + userData.annualCryptoVolume,
       kycHash: userData.kycHash,
       country: userData.country ? CountryDtoMapper.entityToDto(userData.country) : undefined,
+      language: userData.language ? LanguageDtoMapper.entityToDto(userData.language) : undefined,
     };
   }
 
