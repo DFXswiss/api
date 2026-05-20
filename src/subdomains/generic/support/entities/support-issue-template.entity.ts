@@ -11,7 +11,7 @@ export class SupportIssueTemplate extends IEntity {
   content: string;
 
   @Column({ length: 'MAX', nullable: true })
-  contentEn?: string;
+  contentEn?: string | null;
 
   @Column({ type: 'int' })
   authorId: number;

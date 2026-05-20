@@ -41,7 +41,7 @@ export class SupportIssueTemplateService {
       this.templateRepo.create({
         name: dto.name,
         content: dto.contents.de,
-        contentEn: dto.contents.en,
+        contentEn: dto.contents.en?.trim() || null,
         authorId: jwtAccount,
         authorMail: author.mail ?? `userData#${jwtAccount}`,
       }),
@@ -65,7 +65,7 @@ export class SupportIssueTemplateService {
 
     if (dto.contents) {
       if (dto.contents.de != null) template.content = dto.contents.de;
-      if (dto.contents.en !== undefined) template.contentEn = dto.contents.en || undefined;
+      if (dto.contents.en !== undefined) template.contentEn = dto.contents.en.trim() || null;
     }
 
     return this.templateRepo.save(template);
