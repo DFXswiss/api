@@ -21,7 +21,7 @@ export class DashboardFinancialController {
   @Get('log')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN, UserRole.COMPLIANCE, UserRole.MONITORING), UserActiveGuard())
   async getFinancialLog(
     @Query('from') from?: string,
     @Query('dailySample') dailySample?: string,
@@ -35,7 +35,7 @@ export class DashboardFinancialController {
   @Get('latest')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN, UserRole.COMPLIANCE, UserRole.MONITORING), UserActiveGuard())
   async getLatestBalance(): Promise<LatestBalanceResponseDto> {
     const result = await this.dashboardFinancialService.getLatestBalance();
     if (!result) throw new NotFoundException('No financial data available');
@@ -45,7 +45,7 @@ export class DashboardFinancialController {
   @Get('changes/latest')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN, UserRole.COMPLIANCE, UserRole.MONITORING), UserActiveGuard())
   async getLatestChanges(): Promise<FinancialChangesEntryDto> {
     const result = await this.dashboardFinancialService.getLatestFinancialChanges();
     if (!result) throw new NotFoundException('No financial changes available');
@@ -55,7 +55,7 @@ export class DashboardFinancialController {
   @Get('ref-recipients')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN, UserRole.COMPLIANCE, UserRole.MONITORING), UserActiveGuard())
   async getRefRewardRecipients(@Query('from') from?: string): Promise<RefRewardRecipientDto[]> {
     return this.dashboardFinancialService.getRefRewardRecipients(this.parseDate(from));
   }
@@ -63,7 +63,7 @@ export class DashboardFinancialController {
   @Get('changes')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN, UserRole.COMPLIANCE, UserRole.MONITORING), UserActiveGuard())
   async getFinancialChanges(
     @Query('from') from?: string,
     @Query('dailySample') dailySample?: string,
