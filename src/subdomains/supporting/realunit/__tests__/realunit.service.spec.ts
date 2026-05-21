@@ -26,6 +26,7 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
+import { RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
 import { RealUnitDevService } from '../realunit-dev.service';
 import { RealUnitService } from '../realunit.service';
 
@@ -87,6 +88,7 @@ jest.mock('src/shared/services/dfx-logger', () => ({
 jest.mock('src/shared/utils/util', () => ({
   Util: {
     createUid: jest.fn().mockReturnValue('MOCK-UID'),
+    equalsIgnoreCase: (a?: string, b?: string) => a?.toLowerCase() === b?.toLowerCase(),
   },
 }));
 
@@ -97,6 +99,8 @@ describe('RealUnitService', () => {
   let eip7702DelegationService: jest.Mocked<Eip7702DelegationService>;
   let transactionRequestService: jest.Mocked<TransactionRequestService>;
   let sellService: jest.Mocked<SellService>;
+  let userService: jest.Mocked<UserService>;
+  let kycService: jest.Mocked<KycService>;
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -136,8 +140,18 @@ describe('RealUnitService', () => {
           },
         },
         { provide: UserDataService, useValue: {} },
-        { provide: UserService, useValue: {} },
-        { provide: KycService, useValue: {} },
+        {
+          provide: UserService,
+          useValue: {
+            getUserByAddress: jest.fn(),
+          },
+        },
+        {
+          provide: KycService,
+          useValue: {
+            createCustomKycStep: jest.fn(),
+          },
+        },
         { provide: CountryService, useValue: {} },
         { provide: LanguageService, useValue: {} },
         { provide: HttpService, useValue: {} },
@@ -179,6 +193,8 @@ describe('RealUnitService', () => {
     eip7702DelegationService = module.get(Eip7702DelegationService);
     transactionRequestService = module.get(TransactionRequestService);
     sellService = module.get(SellService);
+    userService = module.get(UserService);
+    kycService = module.get(KycService);
   });
 
   afterEach(() => {
@@ -370,6 +386,82 @@ describe('RealUnitService', () => {
       assetService.getAssetByQuery.mockResolvedValue(realuAsset);
 
       await expect(service.confirmSell(42, 1, {})).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('completeRegistrationForWalletAddress (idempotency)', () => {
+    const walletAddress = '0x1111111111111111111111111111111111111111';
+    const userDataId = 42;
+    const matchingSignature = '0xSIGNATURE_MATCHING';
+    const registrationDate = '2026-05-21';
+
+    function buildExistingStep(opts: { signature: string; isCompleted: boolean }): any {
+      return {
+        getResult: () => ({
+          signature: opts.signature,
+          walletAddress,
+          registrationDate,
+        }),
+        isCompleted: opts.isCompleted,
+        isFailed: false,
+        isCanceled: false,
+        result: 'non-empty',
+      };
+    }
+
+    function mockUserWithSteps(steps: any[]): void {
+      const userData = {
+        id: userDataId,
+        getStepsWith: jest.fn().mockReturnValue(steps),
+      };
+      userService.getUserByAddress.mockResolvedValue({ userData } as any);
+    }
+
+    const dto = {
+      walletAddress,
+      signature: matchingSignature,
+      registrationDate,
+    };
+
+    it('returns COMPLETED without creating a new KycStep when signature matches a completed registration', async () => {
+      const existingStep = buildExistingStep({ signature: matchingSignature, isCompleted: true });
+      mockUserWithSteps([existingStep]);
+
+      const status = await service.completeRegistrationForWalletAddress(userDataId, dto);
+
+      expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
+      expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
+    });
+
+    it('returns FORWARDING_FAILED when signature matches but the existing registration is not completed', async () => {
+      const existingStep = buildExistingStep({ signature: matchingSignature, isCompleted: false });
+      mockUserWithSteps([existingStep]);
+
+      const status = await service.completeRegistrationForWalletAddress(userDataId, dto);
+
+      expect(status).toBe(RealUnitRegistrationStatus.FORWARDING_FAILED);
+      expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
+    });
+
+    it('matches signatures case-insensitively (stored upper-case, incoming lower-case)', async () => {
+      const existingStep = buildExistingStep({ signature: matchingSignature.toUpperCase(), isCompleted: true });
+      mockUserWithSteps([existingStep]);
+
+      const status = await service.completeRegistrationForWalletAddress(userDataId, {
+        ...dto,
+        signature: matchingSignature.toLowerCase(),
+      });
+
+      expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
+      expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when an existing registration for the same wallet has a different signature', async () => {
+      const existingStep = buildExistingStep({ signature: '0xDIFFERENT_SIGNATURE', isCompleted: true });
+      mockUserWithSteps([existingStep]);
+
+      await expect(service.completeRegistrationForWalletAddress(userDataId, dto)).rejects.toThrow(BadRequestException);
+      expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
     });
   });
 });
