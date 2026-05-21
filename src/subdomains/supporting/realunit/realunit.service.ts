@@ -907,11 +907,13 @@ export class RealUnitService {
       throw new BadRequestException('RealUnit registration already exists for this wallet with a different signature');
     }
 
-    // findRegistrationStep filters out FAILED and CANCELED, so the step is in one of the three
-    // states this service produces for REALUNIT_REGISTRATION: INTERNAL_REVIEW (created, forward
-    // not run yet), MANUAL_REVIEW (forward failed, awaiting admin retry), or COMPLETED (forward
-    // succeeded). Only COMPLETED is a terminal success; the other two map to FORWARDING_FAILED
-    // so the client surfaces the same retry path it would have seen on the original call.
+    // Under the normal REALUNIT_REGISTRATION flow the step is in INTERNAL_REVIEW (created,
+    // forward not run yet), MANUAL_REVIEW (forward failed, awaiting admin retry), or COMPLETED
+    // (forward succeeded). findRegistrationStep filters out FAILED and CANCELED, but admin
+    // overrides via kyc-admin.updateKycStep can leave other non-failed/non-canceled statuses
+    // (e.g. ON_HOLD, OUTDATED) reachable here. Only COMPLETED is a terminal success; every
+    // other reachable status falls through to FORWARDING_FAILED, which surfaces the same retry
+    // path the client would have seen on the original call.
     const status = step.isCompleted
       ? RealUnitRegistrationStatus.COMPLETED
       : RealUnitRegistrationStatus.FORWARDING_FAILED;
