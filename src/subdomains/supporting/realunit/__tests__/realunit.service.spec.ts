@@ -443,6 +443,19 @@ describe('RealUnitService', () => {
       expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
     });
 
+    it('matches signatures case-insensitively (stored upper-case, incoming lower-case)', async () => {
+      const existingStep = buildExistingStep({ signature: matchingSignature.toUpperCase(), isCompleted: true });
+      mockUserWithSteps([existingStep]);
+
+      const status = await service.completeRegistrationForWalletAddress(userDataId, {
+        ...dto,
+        signature: matchingSignature.toLowerCase(),
+      });
+
+      expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
+      expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
+    });
+
     it('throws BadRequestException when an existing registration for the same wallet has a different signature', async () => {
       const existingStep = buildExistingStep({ signature: '0xDIFFERENT_SIGNATURE', isCompleted: true });
       mockUserWithSteps([existingStep]);

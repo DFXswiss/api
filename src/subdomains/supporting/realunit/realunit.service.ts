@@ -903,7 +903,7 @@ export class RealUnitService {
     incomingSignature: string,
   ): RealUnitRegistrationStatus {
     const existingData = step.getResult<RealUnitRegistrationDto>();
-    if (existingData?.signature !== incomingSignature) {
+    if (!Util.equalsIgnoreCase(existingData?.signature, incomingSignature)) {
       throw new BadRequestException('RealUnit registration already exists for this wallet with a different signature');
     }
 
