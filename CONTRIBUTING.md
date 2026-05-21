@@ -24,6 +24,7 @@ Run `format`, `lint` and `type-check` before pushing.
 ### PR Completeness
 
 Every PR must include:
+
 1. **Migration** (if entity/column changes)
 2. **Environment/Infrastructure updates** (config, environment variables)
 3. **Service updates** (if DTOs/interfaces changed)
@@ -36,7 +37,7 @@ Missing any of these = changes requested.
 - Fix all linter errors and warnings (never disable lint rules without justification)
 - Fix formatting (`npm run format`)
 - Remove all `console.log` / debug statements
-- Resolve all TODO comments
+- Resolve all TODO comments (if possible)
 - Remove merge markers
 - Check if changes need to be mirrored in related repos
 
@@ -176,16 +177,16 @@ const amount = Math.max(availableAmount, 0);
 return banks.map(BankMapper.toDto);
 
 // Use .includes() not .some() for equality
-ipBlacklist.includes(ip);  // not: ipBlacklist.some(b => b === ip)
+ipBlacklist.includes(ip); // not: ipBlacklist.some(b => b === ip)
 
 // Use .some() not .find() for boolean checks
-items.some(i => i.active);  // not: !!items.find(i => i.active)
+items.some((i) => i.active); // not: !!items.find(i => i.active)
 
 // Use .find() not .filter()[0]
-items.find(i => i.id === id);  // not: items.filter(i => i.id === id)[0]
+items.find((i) => i.id === id); // not: items.filter(i => i.id === id)[0]
 
 // Use .endsWith() / .startsWith() for string checks
-key.endsWith('0');  // not: key.charAt(key.length - 1) === '0'
+key.endsWith('0'); // not: key.charAt(key.length - 1) === '0'
 
 // Sort by difference not comparison
 transfers.sort((a, b) => b.timestamp - a.timestamp);
@@ -237,10 +238,10 @@ Config.formats.bankUsage.test(key);
 Config.formats.address.test(address);
 
 // Use Config.xxx not GetConfig().xxx
-Config.scrypt;  // not: GetConfig().scrypt
+Config.scrypt; // not: GetConfig().scrypt
 
 // Use factors not percentages internally
-0.012  // not: 1.2%
+0.012; // not: 1.2%
 ```
 
 ### Complex Expressions — Split into Variables
@@ -295,9 +296,8 @@ const url = `${baseUrl}/${encodeURIComponent(name)}`;
 - **English only**: no German comments in code
 - **Remove stale comments**: delete comments that no longer reflect the code
 - **Remove commented-out code**: dead code must be deleted
-- **TODOs must be resolved before merge**
+- **TODOs must be resolved before merge (if possible)**
 - **Currency hints on numeric config**: `maxBlockchainFee = 50; // CHF`
-- **No AI-generated comments**: especially not in other languages
 
 ---
 
@@ -469,6 +469,7 @@ export class CreateRiskAssessmentDto extends UpdateRiskAssessmentDto {
 ```
 
 **Key rules:**
+
 - `@ApiPropertyOptional()` for optional fields (not `@ApiProperty()`)
 - `@ApiProperty({ enum: EnumType })` for enum fields
 - `@ApiProperty({ type: ChildDto, isArray: true })` for arrays
@@ -536,10 +537,10 @@ Prefer longer intervals (15min) over aggressive polling (1min). Only use short i
 await this.repo.save(entity);
 
 // Use void for fire-and-forget (must handle errors)
-void this.notificationService.send(msg).catch(e => this.logger.error('...', e));
+void this.notificationService.send(msg).catch((e) => this.logger.error('...', e));
 
 // Don't await before return (unless inside try-catch where you need the error caught)
-return this.service.getData();  // not: return await this.service.getData();
+return this.service.getData(); // not: return await this.service.getData();
 ```
 
 ### No `any` Type
@@ -592,13 +593,13 @@ export class Recall extends IEntity {
 ```
 
 **Rules:**
+
 - Relations via lambda: `@ManyToOne(() => BankTx)` — never strings
 - `nullable: false` explicit where needed
 - `type: 'datetime2'` for date columns
 - `eager: false` is the default — don't annotate it
 - Use `eager: true` sparingly — explicit relation loading is preferred
 - Column length always specified
-- Boolean columns: `default: false` (no nullable)
 - `unique: true` on uniqueId columns
 - No custom index names
 - New columns that existing rows can't populate → `nullable: true`
@@ -697,15 +698,15 @@ Don't eagerly load relations unless truly always needed. Loading user with all r
 <prefix>_ + sha1(tableName + '_' + columnNames.sort().join('_')).substring(0, N)
 ```
 
-| Prefix | N  | Constraint type |
-|--------|----|-----------------|
-| `PK_`  | 27 | Primary key     |
-| `FK_`  | 27 | Foreign key     |
-| `UQ_`  | 27 | Unique          |
-| `DF_`  | 27 | Default         |
-| `REL_` | 26 | Relation        |
-| `IDX_` | 26 | Index           |
-| `CHK_` | 26 | Check           |
+| Prefix | N   | Constraint type |
+| ------ | --- | --------------- |
+| `PK_`  | 27  | Primary key     |
+| `FK_`  | 27  | Foreign key     |
+| `UQ_`  | 27  | Unique          |
+| `DF_`  | 27  | Default         |
+| `REL_` | 26  | Relation        |
+| `IDX_` | 26  | Index           |
+| `CHK_` | 26  | Check           |
 
 ---
 
@@ -713,16 +714,16 @@ Don't eagerly load relations unless truly always needed. Loading user with all r
 
 ### Correct Exception Types
 
-| Situation | Exception |
-|---|---|
-| Client sent bad data | `BadRequestException` |
-| Resource not found | `NotFoundException` |
-| Duplicate resource | `ConflictException` |
-| Authorization failure | `ForbiddenException` |
-| External service down | `ServiceUnavailableException` |
+| Situation                 | Exception                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------ |
+| Client sent bad data      | `BadRequestException`                                                          |
+| Resource not found        | `NotFoundException`                                                            |
+| Duplicate resource        | `ConflictException`                                                            |
+| Authorization failure     | `ForbiddenException`                                                           |
+| External service down     | `ServiceUnavailableException`                                                  |
 | Internal processing error | `throw new Error(...)` (plain Error, **never** `InternalServerErrorException`) |
-| Order can't process now | `OrderNotProcessableException` (custom) |
-| Order permanently failed | `OrderFailedException` (custom) |
+| Order can't process now   | `OrderNotProcessableException` (custom)                                        |
+| Order permanently failed  | `OrderFailedException` (custom)                                                |
 
 ### Guard Clauses — Early Return
 
@@ -741,6 +742,7 @@ if (!withdrawal?.txid) {
 ```
 
 Single-line guard clauses when simple:
+
 ```typescript
 if (user.hasRole(UserRole.COMPLIANCE)) throw new BadRequestException('...');
 if (this.networkValidated) return;
@@ -770,8 +772,7 @@ this.logger.warn(`Retrying fetchAll for ${streamName}: ${error.message}`);
 
 ```typescript
 // Always handle errors on non-awaited promises
-this.service.doAsync()
-  .catch(e => this.logger.error('Failed to process:', e));
+this.service.doAsync().catch((e) => this.logger.error('Failed to process:', e));
 
 // Use .catch(() => null) for graceful degradation
 const result = await this.service.tryGet().catch(() => null);
@@ -811,7 +812,6 @@ if (errors.length > 0) throw new Error(`Validation failed:\n${errors.join('\n')}
 - `find()` returns undefined — handle it
 - Check `!= null` (not `!== 0`) when 0 is a valid value
 - Watch for `[undefined]` when mapping nullable arrays
-- Name fields: `name` only if firstname AND surname exist (avoid `undefined undefined`)
 
 ---
 
@@ -822,7 +822,7 @@ if (errors.length > 0) throw new Error(`Validation failed:\n${errors.join('\n')}
 ```typescript
 // BAD: loading 5000 entities then filtering
 const all = await this.repo.find();
-return all.filter(e => e.status === Status.ACTIVE);
+return all.filter((e) => e.status === Status.ACTIVE);
 
 // GOOD: SQL filter
 return this.repo.find({ where: { status: Status.ACTIVE } });
@@ -846,11 +846,11 @@ return this.userRepo.find({ relations: { wallet: true } });
 ```typescript
 // BAD: O(n²) array search
 for (const item of items) {
-  const match = list.find(l => l.id === item.id);
+  const match = list.find((l) => l.id === item.id);
 }
 
 // GOOD: create a map
-const map = new Map(list.map(l => [l.id, l]));
+const map = new Map(list.map((l) => [l.id, l]));
 const match = map.get(item.id);
 ```
 
@@ -922,7 +922,7 @@ Never expose `apiUrl`, `apiKey`, `address`, or other sensitive internal fields i
 
 ### Decouple API Enums from Internal Enums
 
-Create separate output enums for API responses, decoupled from internal service enums.
+Create separate output enums for API responses, decoupled from internal service enums, only if required.
 
 ### `+id` for String-to-Number
 
@@ -935,6 +935,7 @@ async get(@Param('id') id: string): Promise<Entity> {
 ### Deprecated Endpoints
 
 Keep old endpoints for backward compatibility but annotate:
+
 ```typescript
 @ApiOperation({ deprecated: true })
 ```
@@ -971,27 +972,27 @@ return hasPermission ? await this.getData() : undefined;
 
 ## Anti-Patterns
 
-| Anti-Pattern | Correct Pattern |
-|---|---|
+| Anti-Pattern                               | Correct Pattern                                   |
+| ------------------------------------------ | ------------------------------------------------- | ------------- | ---- |
 | Magic booleans: `getPrice(from, to, true)` | Use enum: `getPrice(from, to, PriceValidity.ANY)` |
-| Hardcoded values: `fee = 5` | Config object or DB setting |
-| `else if` after return/throw | Separate `if` blocks with early returns |
-| `console.log` in production code | Use `this.logger.*` with proper levels |
-| `parseInt(id)` | `+id` |
-| `filter()[0]` | `find()` |
-| `forEach` + push | `.map()` |
-| `||` for nullish | `??` |
-| `== null ? x : y` | `?? x` |
-| Loading all then filtering in JS | SQL WHERE clause |
-| `any` type | Proper typed interface/class |
-| `string` for enum values | Typed enum |
-| `@Interval(60000)` | `@DfxCron(CronExpression.EVERY_MINUTE)` |
-| `eager: true` everywhere | Explicit relation loading |
-| Providing service in multiple modules | Single module, import from there |
-| `JSON.stringify(JSON.parse(...))` | Unnecessary — remove |
-| Default parameters hiding intent | Explicit parameters |
-| `forwardRef` when avoidable | Restructure module dependencies |
-| Base64 encode then immediately decode | Pass the buffer directly |
-| Parameter threading through 4+ layers | Context/strategy object resolved once |
-| Method-forwarding without added logic | Call the sub-service directly |
-| Disabling ESLint rules without reason | Fix the code instead |
+| Hardcoded values: `fee = 5`                | Config object or DB setting                       |
+| `else if` after return/throw               | Separate `if` blocks with early returns           |
+| `console.log` in production code           | Use `this.logger.*` with proper levels            |
+| `parseInt(id)`                             | `+id`                                             |
+| `filter()[0]`                              | `find()`                                          |
+| `forEach` + push                           | `.map()`                                          |
+| `                                          |                                                   | ` for nullish | `??` |
+| `== null ? x : y`                          | `?? x`                                            |
+| Loading all then filtering in JS           | SQL WHERE clause                                  |
+| `any` type                                 | Proper typed interface/class                      |
+| `string` for enum values                   | Typed enum                                        |
+| `@Interval(60000)`                         | `@DfxCron(CronExpression.EVERY_MINUTE)`           |
+| `eager: true` everywhere                   | Explicit relation loading                         |
+| Providing service in multiple modules      | Single module, import from there                  |
+| `JSON.stringify(JSON.parse(...))`          | Unnecessary — remove                              |
+| Default parameters hiding intent           | Explicit parameters                               |
+| `forwardRef` when avoidable                | Restructure module dependencies                   |
+| Base64 encode then immediately decode      | Pass the buffer directly                          |
+| Parameter threading through 4+ layers      | Context/strategy object resolved once             |
+| Method-forwarding without added logic      | Call the sub-service directly                     |
+| Disabling ESLint rules without reason      | Fix the code instead                              |
