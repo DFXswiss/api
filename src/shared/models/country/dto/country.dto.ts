@@ -36,4 +36,10 @@ export class CountryDto {
 
   @ApiProperty({ description: 'Allowed for crypto transactions' })
   cryptoAllowed: boolean;
+
+  @ApiProperty({
+    description:
+      'Display order for country pickers — lower is higher in the list. Default 999. Clients should sort their picker by this field instead of hardcoded priority sets.',
+  })
+  displayOrder: number;
 }

@@ -16,6 +16,7 @@ export class CountryDtoMapper {
       bankAllowed: country.bankEnable && country.dfxEnable,
       cardAllowed: country.checkoutEnable && country.fatfEnable,
       cryptoAllowed: country.cryptoEnable,
+      displayOrder: country.displayOrder,
     };
 
     return Object.assign(new CountryDto(), dto);

@@ -15,6 +15,10 @@ import { AssetController } from './models/asset/asset.controller';
 import { Asset } from './models/asset/asset.entity';
 import { AssetRepository } from './models/asset/asset.repository';
 import { AssetService } from './models/asset/asset.service';
+import { CompanyInfoController } from './models/company-info/company-info.controller';
+import { CompanyInfo } from './models/company-info/company-info.entity';
+import { CompanyInfoRepository } from './models/company-info/company-info.repository';
+import { CompanyInfoService } from './models/company-info/company-info.service';
 import { CountryController } from './models/country/country.controller';
 import { Country } from './models/country/country.entity';
 import { CountryRepository } from './models/country/country.repository';
@@ -30,6 +34,10 @@ import { LanguageController } from './models/language/language.controller';
 import { Language } from './models/language/language.entity';
 import { LanguageRepository } from './models/language/language.repository';
 import { LanguageService } from './models/language/language.service';
+import { LegalDocumentController } from './models/legal-document/legal-document.controller';
+import { LegalDocument } from './models/legal-document/legal-document.entity';
+import { LegalDocumentRepository } from './models/legal-document/legal-document.repository';
+import { LegalDocumentService } from './models/legal-document/legal-document.service';
 import { SettingController } from './models/setting/setting.controller';
 import { Setting } from './models/setting/setting.entity';
 import { SettingRepository } from './models/setting/setting.repository';
@@ -46,20 +54,30 @@ import { ProcessService } from './services/process.service';
     HttpModule,
     ConfigModule,
     GeoLocationModule,
-    TypeOrmModule.forFeature([Asset, Fiat, Country, Language, Setting, IpLog]),
+    TypeOrmModule.forFeature([Asset, Fiat, Country, Language, LegalDocument, CompanyInfo, Setting, IpLog]),
     PassportModule.register({ defaultStrategy: 'jwt', session: true }),
     JwtModule.register(GetConfig().auth.jwt),
     I18nModule.forRoot(GetConfig().i18n),
     ScheduleModule.forRoot(),
     ThrottlerModule.forRoot(),
   ],
-  controllers: [AssetController, FiatController, CountryController, LanguageController, SettingController],
+  controllers: [
+    AssetController,
+    FiatController,
+    CountryController,
+    LanguageController,
+    LegalDocumentController,
+    CompanyInfoController,
+    SettingController,
+  ],
   providers: [
     RepositoryFactory,
     AssetRepository,
     FiatRepository,
     CountryRepository,
     LanguageRepository,
+    LegalDocumentRepository,
+    CompanyInfoRepository,
     SettingRepository,
     IpLogRepository,
     HttpService,
@@ -67,6 +85,8 @@ import { ProcessService } from './services/process.service';
     FiatService,
     CountryService,
     LanguageService,
+    LegalDocumentService,
+    CompanyInfoService,
     SettingService,
     JwtStrategy,
     PaymentInfoService,
@@ -85,6 +105,8 @@ import { ProcessService } from './services/process.service';
     FiatService,
     CountryService,
     LanguageService,
+    LegalDocumentService,
+    CompanyInfoService,
     SettingService,
     PaymentInfoService,
     IpLogService,

@@ -63,6 +63,13 @@ export class Country extends IEntity {
   @Column({ default: false })
   manualReviewRequiredOrganization: boolean;
 
+  // Lower number = higher in country pickers. Default 999 keeps everything
+  // sorted alphabetically as before unless an admin promotes a country.
+  // The realunit-app's hardcoded priorityCountries (`['CH','DE','IT','FR']`)
+  // is seeded as 1..4 by the W4.3 migration.
+  @Column({ default: 999 })
+  displayOrder: number;
+
   @Column({ type: 'text', nullable: true })
   enabledKycDocuments: string; // semicolon separated KycDocuments
 
