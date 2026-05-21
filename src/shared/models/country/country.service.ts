@@ -13,9 +13,7 @@ export class CountryService {
     // Sort by `displayOrder` ascending, with `name` as the tiebreaker.
     // Clients (e.g. the realunit-app country picker) consume this order
     // verbatim instead of hardcoded priority lists.
-    return [...countries].sort(
-      (a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name),
-    );
+    return [...countries].sort((a, b) => a.displayOrder - b.displayOrder || a.name.localeCompare(b.name));
   }
 
   async getCountry(id: number): Promise<Country> {

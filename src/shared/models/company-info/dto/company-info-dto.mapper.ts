@@ -3,8 +3,7 @@ import { CompanyInfoAddressDto, CompanyInfoDto } from './company-info.dto';
 
 export class CompanyInfoDtoMapper {
   static entityToDto(info: CompanyInfo): CompanyInfoDto {
-    const hasAnyAddressField =
-      info.addressStreet || info.addressZip || info.addressCity || info.addressCountry;
+    const hasAnyAddressField = info.addressStreet || info.addressZip || info.addressCity || info.addressCountry;
 
     const address: CompanyInfoAddressDto | undefined = hasAnyAddressField
       ? {
