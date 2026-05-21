@@ -604,8 +604,9 @@ export class RealUnitService {
       throw new BadRequestException('Email does not match registered email');
     }
 
-    if (this.hasRegistrationForWallet(userData, dto.walletAddress)) {
-      throw new BadRequestException('RealUnit registration already exists for this wallet');
+    const existingForWallet = this.findRegistrationStep(userData, dto.walletAddress);
+    if (existingForWallet.isForCurrentWallet) {
+      return this.idempotentRegistrationResult(existingForWallet.step!, dto.signature);
     }
 
     // validate personal data
@@ -667,7 +668,7 @@ export class RealUnitService {
     const { step: registrationStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
 
     if (isForCurrentWallet) {
-      throw new BadRequestException('RealUnit registration already exists for this wallet');
+      return this.idempotentRegistrationResult(registrationStep!, dto.signature);
     }
 
     if (!registrationStep) {
@@ -888,6 +889,20 @@ export class RealUnitService {
       });
 
     return { step: otherWalletStep, isForCurrentWallet: false };
+  }
+
+  /**
+   * Idempotent fallback for repeated register/wallet calls (e.g. client retry after a lost
+   * response). Same wallet + same EIP-712 signature → return the existing registration's
+   * status without creating a new KycStep or re-forwarding. Different signature for the same
+   * wallet stays a hard error: it means a fresh sign was produced over conflicting data.
+   */
+  private idempotentRegistrationResult(step: KycStep, incomingSignature: string): RealUnitRegistrationStatus {
+    const existingData = step.getResult<RealUnitRegistrationDto>();
+    if (existingData?.signature !== incomingSignature) {
+      throw new BadRequestException('RealUnit registration already exists for this wallet with a different signature');
+    }
+    return step.isCompleted ? RealUnitRegistrationStatus.COMPLETED : RealUnitRegistrationStatus.FORWARDING_FAILED;
   }
 
   private toUserDataDto(step: KycStep | undefined): RealUnitUserDataDto | undefined {
