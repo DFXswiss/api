@@ -214,7 +214,9 @@ export class KycService {
 
         const nationalityStep = entity.userData.getStepsWith(KycStepName.NATIONALITY_DATA).find((s) => s.isCompleted);
 
-        const suspectedDuplicateUser = await this.userDataService.getUserDataByBirthday(result.birthday);
+        const suspectedDuplicateUser = await this.userDataService
+          .getUserDataByBirthday(result.birthday)
+          .then((u) => u.filter((u) => u.id !== entity.userData.id));
 
         const errors = this.getIdentCheckErrors(
           entity,

@@ -604,8 +604,9 @@ export class RealUnitService {
       throw new BadRequestException('Email does not match registered email');
     }
 
-    if (this.hasRegistrationForWallet(userData, dto.walletAddress)) {
-      throw new BadRequestException('RealUnit registration already exists for this wallet');
+    const { step: existingStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
+    if (isForCurrentWallet) {
+      return this.idempotentRegistrationResult(userData, existingStep!, dto.signature);
     }
 
     // validate personal data
@@ -667,7 +668,7 @@ export class RealUnitService {
     const { step: registrationStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
 
     if (isForCurrentWallet) {
-      throw new BadRequestException('RealUnit registration already exists for this wallet');
+      return this.idempotentRegistrationResult(userData, registrationStep!, dto.signature);
     }
 
     if (!registrationStep) {
@@ -888,6 +889,40 @@ export class RealUnitService {
       });
 
     return { step: otherWalletStep, isForCurrentWallet: false };
+  }
+
+  /**
+   * Idempotent fallback for repeated register/wallet calls (e.g. client retry after a lost
+   * response). Same wallet + same EIP-712 signature → return the existing registration's
+   * status without creating a new KycStep or re-forwarding. Different signature for the same
+   * wallet stays a hard error: it means a fresh sign was produced over conflicting data.
+   */
+  private idempotentRegistrationResult(
+    userData: UserData,
+    step: KycStep,
+    incomingSignature: string,
+  ): RealUnitRegistrationStatus {
+    const existingData = step.getResult<RealUnitRegistrationDto>();
+    if (!Util.equalsIgnoreCase(existingData?.signature, incomingSignature)) {
+      throw new BadRequestException('RealUnit registration already exists for this wallet with a different signature');
+    }
+
+    // Under the normal REALUNIT_REGISTRATION flow the step is in INTERNAL_REVIEW (created,
+    // forward not run yet), MANUAL_REVIEW (forward failed, awaiting admin retry), or COMPLETED
+    // (forward succeeded). findRegistrationStep filters out FAILED and CANCELED, but admin
+    // overrides via kyc-admin.updateKycStep can leave other non-failed/non-canceled statuses
+    // (e.g. ON_HOLD, OUTDATED) reachable here. Only COMPLETED is a terminal success; every
+    // other reachable status falls through to FORWARDING_FAILED, which surfaces the same retry
+    // path the client would have seen on the original call.
+    const status = step.isCompleted
+      ? RealUnitRegistrationStatus.COMPLETED
+      : RealUnitRegistrationStatus.FORWARDING_FAILED;
+
+    this.logger.info(
+      `RealUnit registration idempotent retry for userData ${userData.id}, kycStep ${step.id} → ${status}`,
+    );
+
+    return status;
   }
 
   private toUserDataDto(step: KycStep | undefined): RealUnitUserDataDto | undefined {
