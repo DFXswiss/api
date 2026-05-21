@@ -136,7 +136,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const targetAsset = order.pipeline.rule.targetAsset;
     const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`Scrypt/${tradeAsset}`);
 
-    await this.getAndCheckTradePrice(targetAsset, tradeAssetEntity, maxPriceDeviation);
+    const { priceCap } = await this.getAndCheckTradePrice(targetAsset, tradeAssetEntity, maxPriceDeviation);
 
     const availableBalance = await this.scryptService.getAvailableBalance(targetAsset.dexName);
     const effectiveMax = Math.min(order.maxAmount, availableBalance);
@@ -149,7 +149,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
     const amount = Util.floor(effectiveMax, 6);
 
-    return this.executeSell(order, amount, targetAsset.dexName, tradeAsset);
+    return this.executeSell(order, amount, targetAsset.dexName, tradeAsset, priceCap);
   }
 
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
@@ -158,9 +158,13 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const targetAssetEntity = order.pipeline.rule.targetAsset;
     const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`Scrypt/${tradeAsset}`);
 
-    const price = await this.getAndCheckTradePrice(tradeAssetEntity, targetAssetEntity, maxPriceDeviation);
-    const minSellAmount = Util.floor(order.minAmount * price, 6);
-    const maxSellAmount = Util.floor(order.maxAmount * price, 6);
+    const { scryptPrice, priceCap } = await this.getAndCheckTradePrice(
+      tradeAssetEntity,
+      targetAssetEntity,
+      maxPriceDeviation,
+    );
+    const minSellAmount = Util.floor(order.minAmount * scryptPrice, 6);
+    const maxSellAmount = Util.floor(order.maxAmount * scryptPrice, 6);
 
     const availableBalance = await this.getAvailableTradeBalance(tradeAsset, targetAssetEntity.dexName);
     const fiatOrderCap = ['CHF', 'EUR'].includes(tradeAsset) ? 200_000 : Infinity;
@@ -179,7 +183,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     order.outputAsset = targetAssetEntity.dexName;
 
     try {
-      return await this.scryptService.sell(tradeAsset, targetAssetEntity.dexName, amount);
+      return await this.scryptService.sell(tradeAsset, targetAssetEntity.dexName, amount, priceCap);
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
@@ -224,11 +228,15 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     const targetAsset = order.pipeline.rule.targetAsset;
     const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`Scrypt/${tradeAsset}`);
 
-    const price = await this.getAndCheckTradePrice(targetAsset, tradeAssetEntity, maxPriceDeviation);
+    const { scryptPrice, priceCap } = await this.getAndCheckTradePrice(
+      targetAsset,
+      tradeAssetEntity,
+      maxPriceDeviation,
+    );
     const availableBalance = await this.scryptService.getAvailableBalance(targetAsset.dexName);
 
-    // price = targetAsset per tradeAsset (e.g., EUR per BTC)
-    const sellAmount = Util.floor(deficitAmount * price, 6);
+    // scryptPrice = targetAsset per tradeAsset (e.g., EUR per BTC)
+    const sellAmount = Util.floor(deficitAmount * scryptPrice, 6);
     const amount = Util.floor(Math.min(sellAmount, order.maxAmount, availableBalance), 6);
 
     if (amount <= 0) {
@@ -237,7 +245,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       );
     }
 
-    return this.executeSell(order, amount, targetAsset.dexName, tradeAsset);
+    return this.executeSell(order, amount, targetAsset.dexName, tradeAsset, priceCap);
   }
 
   // --- COMPLETION CHECKS --- //
@@ -265,22 +273,33 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   }
 
   private async checkSellCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
-    const asset = order.pipeline.rule.targetAsset.dexName;
+    const { tradeAsset, maxPriceDeviation } = this.parseTradeParams(order.action.paramMap);
+    const targetAsset = order.pipeline.rule.targetAsset;
+    const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`Scrypt/${tradeAsset}`);
 
-    return this.checkTradeCompletion(order, asset, tradeAsset);
+    const priceCap = await this.computePriceCap(targetAsset, tradeAssetEntity, maxPriceDeviation);
+
+    return this.checkTradeCompletion(order, targetAsset.dexName, tradeAsset, priceCap);
   }
 
   private async checkBuyCompletion(order: LiquidityManagementOrder): Promise<boolean> {
-    const { tradeAsset } = this.parseTradeParams(order.action.paramMap);
-    const asset = order.pipeline.rule.targetAsset.dexName;
+    const { tradeAsset, maxPriceDeviation } = this.parseTradeParams(order.action.paramMap);
+    const targetAsset = order.pipeline.rule.targetAsset;
+    const tradeAssetEntity = await this.assetService.getAssetByUniqueName(`Scrypt/${tradeAsset}`);
 
-    return this.checkTradeCompletion(order, tradeAsset, asset);
+    const priceCap = await this.computePriceCap(tradeAssetEntity, targetAsset, maxPriceDeviation);
+
+    return this.checkTradeCompletion(order, tradeAsset, targetAsset.dexName, priceCap);
   }
 
-  private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
+  private async checkTradeCompletion(
+    order: LiquidityManagementOrder,
+    from: string,
+    to: string,
+    priceCap?: number,
+  ): Promise<boolean> {
     try {
-      const isComplete = await this.scryptService.checkTrade(order.correlationId, from, to, order.created);
+      const isComplete = await this.scryptService.checkTrade(order.correlationId, from, to, order.created, priceCap);
 
       if (isComplete) {
         order.outputAmount = await this.aggregateTradeOutput(order);
@@ -425,13 +444,14 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     amount: number,
     fromAsset: string,
     toAsset: string,
+    priceCap?: number,
   ): Promise<CorrelationId> {
     order.inputAmount = amount;
     order.inputAsset = fromAsset;
     order.outputAsset = toAsset;
 
     try {
-      return await this.scryptService.sell(fromAsset, toAsset, amount);
+      return await this.scryptService.sell(fromAsset, toAsset, amount, priceCap);
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
@@ -458,26 +478,46 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     from: Asset,
     to: Asset,
     maxPriceDeviation = Config.scrypt.maxPriceDeviation,
-  ): Promise<number> {
-    const price = await this.scryptService.getCurrentPrice(from.name, to.name);
+  ): Promise<{ scryptPrice: number; priceCap: number; side: ScryptOrderSide }> {
+    const { side } = await this.scryptService.getTradePair(from.name, to.name);
+    const scryptPrice = await this.scryptService.getCurrentPrice(from.name, to.name);
 
     const checkPrice = await this.pricingService.getPrice(from, to, PriceValidity.VALID_ONLY);
 
-    const deviation = Math.abs((price - checkPrice.price) / checkPrice.price);
+    const deviation = Math.abs((scryptPrice - checkPrice.price) / checkPrice.price);
 
     if (deviation > maxPriceDeviation) {
       const message =
         `Scrypt ${from.name}/${to.name} price deviation ${(deviation * 100).toFixed(4)}% ` +
         `exceeds max ${(maxPriceDeviation * 100).toFixed(4)}% ` +
-        `(exchange price ${price}, reference ${checkPrice.price}). Trade aborted.`;
+        `(exchange price ${scryptPrice}, reference ${checkPrice.price}). Trade aborted.`;
 
       this.logger.error(message);
-      await this.notifyPriceDeviation(message, from, to, price, checkPrice.price, deviation, maxPriceDeviation);
+      await this.notifyPriceDeviation(message, from, to, scryptPrice, checkPrice.price, deviation, maxPriceDeviation);
 
       throw new OrderFailedException(message);
     }
 
-    return price;
+    return { scryptPrice, priceCap: this.toPriceCap(checkPrice.price, side, maxPriceDeviation), side };
+  }
+
+  private async computePriceCap(
+    from: Asset,
+    to: Asset,
+    maxPriceDeviation = Config.scrypt.maxPriceDeviation,
+  ): Promise<number> {
+    const { side } = await this.scryptService.getTradePair(from.name, to.name);
+    const checkPrice = await this.pricingService.getPrice(from, to, PriceValidity.VALID_ONLY);
+    return this.toPriceCap(checkPrice.price, side, maxPriceDeviation);
+  }
+
+  private toPriceCap(referencePrice: number, side: ScryptOrderSide, maxPriceDeviation: number): number {
+    // pricingService returns "to per from"; Scrypt LIMIT orders use quote per base.
+    // For side=BUY (from=quote, to=base) we need the inverse; for side=SELL it matches.
+    const refQuotePerBase = side === ScryptOrderSide.BUY ? 1 / referencePrice : referencePrice;
+    return side === ScryptOrderSide.BUY
+      ? refQuotePerBase * (1 + maxPriceDeviation)
+      : refQuotePerBase * (1 - maxPriceDeviation);
   }
 
   private async notifyPriceDeviation(

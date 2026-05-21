@@ -242,10 +242,16 @@ export class ScryptService extends PricingProvider {
     return side === ScryptOrderSide.BUY ? price : 1 / price;
   }
 
-  async sell(from: string, to: string, amount: number): Promise<string> {
+  async sell(from: string, to: string, amount: number, priceCap?: number): Promise<string> {
     const { symbol, side } = await this.getTradePair(from, to);
-    const price = await this.getOrderBookPrice(symbol, side);
+    const orderbookPrice = await this.getOrderBookPrice(symbol, side);
     const sizeIncrement = await this.getSizeIncrement(symbol);
+
+    // Hard execution-price cap (Scrypt embeds its commission into the quote, so the
+    // only way to bound implicit cost is the LIMIT price itself).
+    // - BUY (we pay quote per base): cap is upper bound, LIMIT = min(orderbook, cap)
+    // - SELL (we receive quote per base): cap is lower bound, LIMIT = max(orderbook, cap)
+    const price = ScryptService.applyPriceCap(orderbookPrice, side, priceCap);
 
     // OrderQty must be in base currency
     // SELL (from=base): orderQty = amount
@@ -254,6 +260,11 @@ export class ScryptService extends PricingProvider {
     const orderQty = Util.floorToValue(rawQty, sizeIncrement);
 
     return this.placeAndReturnId(symbol, side, orderQty, price);
+  }
+
+  static applyPriceCap(orderbookPrice: number, side: ScryptOrderSide, priceCap?: number): number {
+    if (priceCap == null) return orderbookPrice;
+    return side === ScryptOrderSide.BUY ? Math.min(orderbookPrice, priceCap) : Math.max(orderbookPrice, priceCap);
   }
 
   async buy(from: string, to: string, amount: number): Promise<string> {
@@ -323,7 +334,13 @@ export class ScryptService extends PricingProvider {
     };
   }
 
-  async checkTrade(clOrdId: string, from: string, to: string, orderCreated?: Date): Promise<boolean> {
+  async checkTrade(
+    clOrdId: string,
+    from: string,
+    to: string,
+    orderCreated?: Date,
+    priceCap?: number,
+  ): Promise<boolean> {
     const orderInfo = await this.getOrderStatus(clOrdId);
     if (!orderInfo) {
       // If the order is older than 1 hour and still not found, it's lost
@@ -341,15 +358,17 @@ export class ScryptService extends PricingProvider {
     switch (orderInfo.status) {
       case ScryptOrderStatus.NEW:
       case ScryptOrderStatus.PARTIALLY_FILLED: {
+        const { side } = await this.getTradePair(from, to);
         const currentPrice = await this.getTradePrice(from, to);
+        const cappedPrice = ScryptService.applyPriceCap(currentPrice, side, priceCap);
 
         // Use tolerance for float comparison to avoid unnecessary updates due to rounding
-        const priceChanged = orderInfo.price && Math.abs(currentPrice - orderInfo.price) > 0.000001;
+        const priceChanged = orderInfo.price && Math.abs(cappedPrice - orderInfo.price) > 0.000001;
         if (priceChanged) {
-          this.logger.verbose(`Order ${clOrdId}: price changed ${orderInfo.price} -> ${currentPrice}, updating order`);
+          this.logger.verbose(`Order ${clOrdId}: price changed ${orderInfo.price} -> ${cappedPrice}, updating order`);
 
           try {
-            const newId = await this.editOrder(clOrdId, from, to, orderInfo.remainingQuantity, currentPrice);
+            const newId = await this.editOrder(clOrdId, from, to, orderInfo.remainingQuantity, cappedPrice);
             this.logger.verbose(`Order ${clOrdId} changed to ${newId}`);
             throw new TradeChangedException(newId);
           } catch (e) {
@@ -364,7 +383,7 @@ export class ScryptService extends PricingProvider {
             }
           }
         } else {
-          this.logger.verbose(`Order ${clOrdId} open, price is still ${currentPrice}`);
+          this.logger.verbose(`Order ${clOrdId} open, price is still ${cappedPrice}`);
         }
         return false;
       }
@@ -383,7 +402,8 @@ export class ScryptService extends PricingProvider {
 
         // Restart order with remaining amount (already in base currency)
         const { symbol, side } = await this.getTradePair(from, to);
-        const price = await this.getOrderBookPrice(symbol, side);
+        const orderbookPrice = await this.getOrderBookPrice(symbol, side);
+        const price = ScryptService.applyPriceCap(orderbookPrice, side, priceCap);
 
         this.logger.verbose(`Order ${clOrdId} cancelled, restarting with remaining ${remaining} (base currency)`);
 
