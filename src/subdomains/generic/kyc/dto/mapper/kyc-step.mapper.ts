@@ -10,10 +10,11 @@ import {
 } from '../output/kyc-info.dto';
 
 export class KycStepMapper {
-  static toStep(kycStep: KycStep, currentStep?: KycStep): KycStepDto {
+  static toStep(kycStep: KycStep, currentStep?: KycStep, isRequired = false): KycStepDto {
     const dto: KycStepDto = {
       ...KycStepMapper.toStepBase(kycStep),
       isCurrent: kycStep.id && kycStep.id === currentStep?.id,
+      isRequired,
     };
 
     return Object.assign(new KycStepDto(), dto);

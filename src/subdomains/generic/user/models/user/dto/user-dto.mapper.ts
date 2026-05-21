@@ -8,6 +8,8 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { requiredKycSteps } from 'src/subdomains/generic/kyc/enums/kyc.enum';
+import { KycLevel } from '../../user-data/user-data.enum';
 import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
 import { UserProfileDto } from './user-profile.dto';
@@ -36,6 +38,7 @@ export class UserDtoMapper {
         hash: userData.kycHash,
         level: userData.kycLevelDisplay,
         dataComplete: userData.isDataComplete,
+        canTrade: UserDtoMapper.computeCanTrade(userData),
         phoneCallAccepted: userData.phoneCallAccepted,
         phoneCallStatus: userData.phoneCallStatus ? PhoneCallStatusMapper[userData.phoneCallStatus] : undefined,
         preferredPhoneTimes: userData.phoneCallTimesObject,
@@ -90,6 +93,35 @@ export class UserDtoMapper {
       canEditAddress: !personalDataLocked,
       supportAvailable: hasVerifiedMail,
     };
+  }
+
+  // Authoritative trading-permission flag. Mirrors the routing rule the
+  // realunit-app cubit was reimplementing locally: numeric level alone is
+  // not enough — a level-50 user with an `Outdated` Ident step is *not*
+  // tradeable until the expired step is re-done. See
+  // `docs/api-authority-plan.md` (Wave 2) in the app repo.
+  private static computeCanTrade(userData: UserData): boolean {
+    if (userData.isKycTerminated || userData.isBlocked) return false;
+    if (userData.kycLevel < KycLevel.LEVEL_30) return false;
+
+    const required = requiredKycSteps(userData);
+    if (!required.every((rs) => userData.hasCompletedStep(rs))) return false;
+
+    // Any non-Completed Ident or FinancialData step (Outdated / InProgress /
+    // InReview / OnHold / Failed) blocks trading even if an earlier
+    // sequence of the same step was once Completed.
+    const blocking = [KycStepName.IDENT, KycStepName.FINANCIAL_DATA];
+    for (const name of blocking) {
+      const blocked = userData
+        .getStepsWith(name)
+        .some(
+          (s) =>
+            s.isInProgress || s.isInReview || s.isOnHold || s.isOutdated || s.isFailed,
+        );
+      if (blocked) return false;
+    }
+
+    return true;
   }
 
   private static mapVolumes(user: UserData | User): VolumesDto {

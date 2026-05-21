@@ -182,4 +182,104 @@ describe('UserDtoMapper', () => {
       expect(result.capabilities.canEditPhone).toBe(false);
     });
   });
+
+  // Regression scaffolding for the `kyc.canTrade` flag introduced as part of
+  // the API-as-Decision-Authority work (see realunit-app
+  // `docs/api-authority-plan.md` Wave 2). The flag has to mirror the routing
+  // rule the client cubit was re-implementing locally — numeric level alone is
+  // not enough.
+  describe('mapUser: kyc.canTrade', () => {
+    // `userData.tradingLimit` reaches into the singleton `Config` for the
+    // sub-LEVEL_50 branch. Tests don't go through `ConfigModule`, so wire it
+    // up once here.
+    beforeAll(() => {
+      new ConfigService();
+    });
+
+    const buildLanguage = (): Language => {
+      const lang = new Language();
+      lang.symbol = 'EN';
+      lang.name = 'English';
+      lang.foreignName = 'English';
+      lang.enable = true;
+      return lang;
+    };
+
+    const buildStep = (name: KycStepName, status: ReviewStatus, sequenceNumber = 0): KycStep => {
+      const step = new KycStep();
+      step.name = name;
+      step.status = status;
+      step.sequenceNumber = sequenceNumber;
+      return step;
+    };
+
+    const buildUserData = (overrides: Partial<UserData> = {}): UserData => {
+      const userData = new UserData();
+      userData.id = 1;
+      userData.kycHash = 'h';
+      userData.status = UserDataStatus.ACTIVE;
+      userData.accountType = AccountType.PERSONAL;
+      userData.kycLevel = KycLevel.LEVEL_50;
+      userData.language = buildLanguage();
+      userData.currency = createDefaultFiat();
+      userData.users = [];
+      userData.kycSteps = [
+        buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+        buildStep(KycStepName.PERSONAL_DATA, ReviewStatus.COMPLETED),
+        buildStep(KycStepName.NATIONALITY_DATA, ReviewStatus.COMPLETED),
+        buildStep(KycStepName.IDENT, ReviewStatus.COMPLETED),
+        buildStep(KycStepName.FINANCIAL_DATA, ReviewStatus.COMPLETED),
+        buildStep(KycStepName.DFX_APPROVAL, ReviewStatus.COMPLETED),
+      ];
+      return Object.assign(userData, overrides);
+    };
+
+    it('canTrade = true when level ≥ 30 and every required step is completed', () => {
+      const result = UserDtoMapper.mapUser(buildUserData());
+
+      expect(result.kyc.canTrade).toBe(true);
+    });
+
+    it('canTrade = false when kycLevel is below LEVEL_30', () => {
+      const result = UserDtoMapper.mapUser(buildUserData({ kycLevel: KycLevel.LEVEL_20 }));
+
+      expect(result.kyc.canTrade).toBe(false);
+    });
+
+    it('canTrade = false when Ident step is Outdated even at level 50', () => {
+      // Reproduces user_data 338759 (2026-05-21 incident): level 53, original
+      // Ident expired by `checkDfxApproval`, a fresh sequence-1 Ident step
+      // sits in `InProgress`. Numerically a Level-50 account but practically
+      // not tradeable until the re-verification clears.
+      const userData = buildUserData({ kycLevel: KycLevel.LEVEL_50 });
+      userData.kycSteps = [
+        ...userData.kycSteps.filter((s) => s.name !== KycStepName.IDENT),
+        buildStep(KycStepName.IDENT, ReviewStatus.COMPLETED, 0),
+        buildStep(KycStepName.IDENT, ReviewStatus.OUTDATED, 0),
+        buildStep(KycStepName.IDENT, ReviewStatus.IN_PROGRESS, 1),
+      ];
+
+      const result = UserDtoMapper.mapUser(userData);
+
+      expect(result.kyc.canTrade).toBe(false);
+    });
+
+    it('canTrade = false when FinancialData step is Outdated', () => {
+      const userData = buildUserData();
+      userData.kycSteps = [
+        ...userData.kycSteps.filter((s) => s.name !== KycStepName.FINANCIAL_DATA),
+        buildStep(KycStepName.FINANCIAL_DATA, ReviewStatus.OUTDATED, 0),
+      ];
+
+      const result = UserDtoMapper.mapUser(userData);
+
+      expect(result.kyc.canTrade).toBe(false);
+    });
+
+    it('canTrade = false when the account is KYC-terminated', () => {
+      const result = UserDtoMapper.mapUser(buildUserData({ kycLevel: KycLevel.REJECTED }));
+
+      expect(result.kyc.canTrade).toBe(false);
+    });
+  });
 });
