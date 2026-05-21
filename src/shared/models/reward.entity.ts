@@ -30,7 +30,7 @@ export class Reward extends IEntity {
   @Column({ length: 256, nullable: true })
   txId?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   outputDate?: Date;
 
   @Column({ type: 'float', nullable: true })
@@ -42,6 +42,6 @@ export class Reward extends IEntity {
   @Column({ length: 256, nullable: true })
   recipientMail?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   mailSendDate?: Date;
 }

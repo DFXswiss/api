@@ -12,7 +12,7 @@ export enum RouteType {
 }
 
 @Entity()
-@TableInheritance({ column: { type: 'nvarchar', name: 'type' } })
+@TableInheritance({ column: { type: 'varchar', name: 'type' } })
 export class DepositRoute extends IEntity {
   @Column()
   type: RouteType;

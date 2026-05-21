@@ -64,7 +64,7 @@ export class TransactionRequest extends IEntity {
   @Column({ type: 'float' })
   rate: number;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   paymentRequest?: string;
 
   @Column({ nullable: true })
@@ -86,16 +86,14 @@ export class TransactionRequest extends IEntity {
   totalFee?: number;
 
   @Column({
-    type: 'nvarchar',
-    length: 'MAX',
+    type: 'text',
     nullable: true,
     transformer: { to: (v) => (v ? JSON.stringify(v) : v), from: (v) => (v ? JSON.parse(v) : v) },
   })
   fees?: FeeDto;
 
   @Column({
-    type: 'nvarchar',
-    length: 'MAX',
+    type: 'text',
     nullable: true,
     transformer: { to: (v) => (v ? JSON.stringify(v) : v), from: (v) => (v ? JSON.parse(v) : v) },
   })
@@ -111,10 +109,10 @@ export class TransactionRequest extends IEntity {
   @ManyToOne(() => User, { nullable: false })
   user: User;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   siftResponse?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   aktionariatResponse?: string;
 
   @OneToOne(() => Transaction, (transaction) => transaction.request, { nullable: true })

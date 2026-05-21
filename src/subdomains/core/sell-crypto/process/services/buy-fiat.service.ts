@@ -475,8 +475,8 @@ export class BuyFiatService implements OnModuleInit {
   async updateRefVolumes(start = 1, end = 100000): Promise<void> {
     const refs = await this.buyFiatRepo
       .createQueryBuilder('buyFiat')
-      .select('usedRef')
-      .groupBy('usedRef')
+      .select('buyFiat.usedRef')
+      .groupBy('buyFiat.usedRef')
       .where('buyFiat.id BETWEEN :start AND :end', { start, end })
       .getRawMany<{ usedRef: string }>()
       .then((refs) => refs.map((r) => r.usedRef));
@@ -492,7 +492,7 @@ export class BuyFiatService implements OnModuleInit {
   ): Promise<number> {
     const request = this.buyFiatRepo
       .createQueryBuilder('buyFiat')
-      .select('SUM(amountInChf)', 'volume')
+      .select('SUM(buyFiat.amountInChf)', 'volume')
       .leftJoin('buyFiat.cryptoInput', 'cryptoInput')
       .leftJoin('buyFiat.sell', 'sell')
       .where('sell.userId IN (:...userIds)', { userIds })
@@ -630,10 +630,10 @@ export class BuyFiatService implements OnModuleInit {
   async getRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
     const { volume, credit } = await this.buyFiatRepo
       .createQueryBuilder('buyFiat')
-      .select('SUM(amountInEur * refFactor)', 'volume')
-      .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
-      .where('usedRef = :ref', { ref })
-      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
+      .select('SUM(buyFiat.amountInEur * buyFiat.refFactor)', 'volume')
+      .addSelect('SUM(buyFiat.amountInEur * buyFiat.refFactor * buyFiat.refProvision * 0.01)', 'credit')
+      .where('buyFiat.usedRef = :ref', { ref })
+      .andWhere('buyFiat.amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 
     return { volume: volume ?? 0, credit: credit ?? 0 };
@@ -642,10 +642,10 @@ export class BuyFiatService implements OnModuleInit {
   async getPartnerFeeRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
     const { volume, credit } = await this.buyFiatRepo
       .createQueryBuilder('buyFiat')
-      .select('SUM(amountInEur)', 'volume')
-      .addSelect('SUM(partnerFeeAmount * (amountInEur/inputAmount ))', 'credit')
-      .where('usedPartnerRef = :ref', { ref })
-      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
+      .select('SUM(buyFiat.amountInEur)', 'volume')
+      .addSelect('SUM(buyFiat.partnerFeeAmount * (buyFiat.amountInEur / buyFiat.inputAmount))', 'credit')
+      .where('buyFiat.usedPartnerRef = :ref', { ref })
+      .andWhere('buyFiat.amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 
     return { volume: volume ?? 0, credit: credit ?? 0 };

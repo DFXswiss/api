@@ -8,7 +8,7 @@ import { KycStep } from './kyc-step.entity';
 
 @Entity()
 export class KycFile extends IEntity {
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   name: string;
 
   @Column({ length: 256 })

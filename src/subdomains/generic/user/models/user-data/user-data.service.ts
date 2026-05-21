@@ -1086,17 +1086,17 @@ export class UserDataService {
   async updateVolumes(userDataId: number): Promise<void> {
     const volumes = await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(buyVolume)', 'buyVolume')
-      .addSelect('SUM(annualBuyVolume)', 'annualBuyVolume')
-      .addSelect('SUM(monthlyBuyVolume)', 'monthlyBuyVolume')
-      .addSelect('SUM(sellVolume)', 'sellVolume')
-      .addSelect('SUM(annualSellVolume)', 'annualSellVolume')
-      .addSelect('SUM(monthlySellVolume)', 'monthlySellVolume')
-      .addSelect('SUM(cryptoVolume)', 'cryptoVolume')
-      .addSelect('SUM(annualCryptoVolume)', 'annualCryptoVolume')
-      .addSelect('SUM(monthlyCryptoVolume)', 'monthlyCryptoVolume')
+      .select('SUM(user.buyVolume)', 'buyVolume')
+      .addSelect('SUM(user.annualBuyVolume)', 'annualBuyVolume')
+      .addSelect('SUM(user.monthlyBuyVolume)', 'monthlyBuyVolume')
+      .addSelect('SUM(user.sellVolume)', 'sellVolume')
+      .addSelect('SUM(user.annualSellVolume)', 'annualSellVolume')
+      .addSelect('SUM(user.monthlySellVolume)', 'monthlySellVolume')
+      .addSelect('SUM(user.cryptoVolume)', 'cryptoVolume')
+      .addSelect('SUM(user.annualCryptoVolume)', 'annualCryptoVolume')
+      .addSelect('SUM(user.monthlyCryptoVolume)', 'monthlyCryptoVolume')
 
-      .where('userDataId = :id', { id: userDataId })
+      .where('user.userDataId = :id', { id: userDataId })
       .getRawOne<{
         buyVolume: number;
         annualBuyVolume: number;

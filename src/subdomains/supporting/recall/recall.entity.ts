@@ -20,7 +20,7 @@ export class Recall extends IEntity {
   @ManyToOne(() => User, { nullable: true })
   user?: User;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   comment: string;
 
   @Column({ type: 'float' })

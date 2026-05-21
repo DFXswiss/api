@@ -66,7 +66,8 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
       bankTxGsType: await this.repos.bankTx.countBy({ type: BankTxType.GSHEET }),
       freeDeposit: await this.repos.deposit
         .createQueryBuilder('deposit')
-        .select('deposit.blockchains, COUNT(deposit.blockchains) as count')
+        .select('deposit.blockchains', 'blockchains')
+        .addSelect('COUNT(deposit.blockchains)', 'count')
         .leftJoin('deposit.route', 'route')
         .where('route.id IS NULL')
         .groupBy('deposit.blockchains')

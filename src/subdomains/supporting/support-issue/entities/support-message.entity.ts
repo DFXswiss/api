@@ -11,7 +11,7 @@ export class SupportMessage extends IEntity {
   @Column({ length: 256 })
   author: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   message?: string;
 
   @Column({ length: 256, nullable: true })

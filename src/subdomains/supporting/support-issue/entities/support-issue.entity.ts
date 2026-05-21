@@ -33,7 +33,7 @@ export class SupportIssue extends IEntity {
   @Column({ length: 256 })
   name: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   information?: string;
 
   @ManyToOne(() => Transaction, (transaction) => transaction.supportIssues, { nullable: true, eager: true })

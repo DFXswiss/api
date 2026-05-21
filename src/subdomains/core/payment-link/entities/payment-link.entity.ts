@@ -31,13 +31,13 @@ export class PaymentLink extends IEntity {
   @Column({ length: 256, nullable: true })
   publicStatus?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   comment?: string;
 
   @Column({ length: 256, default: PaymentLinkMode.MULTIPLE })
   mode: PaymentLinkMode;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   webhookUrl?: string;
 
   @Column({ length: 256, nullable: true })
@@ -49,7 +49,7 @@ export class PaymentLink extends IEntity {
   @Column({ length: 256, nullable: true })
   storeOwner?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   config?: string; // PaymentLinkConfig
 
   // --- ENTITY METHODS --- //

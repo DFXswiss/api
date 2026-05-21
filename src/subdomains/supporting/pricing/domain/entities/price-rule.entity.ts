@@ -94,7 +94,7 @@ export class PriceRule extends IEntity {
   @Column({ type: 'integer' })
   priceValiditySeconds: number;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   priceTimestamp?: Date;
 
   // getters

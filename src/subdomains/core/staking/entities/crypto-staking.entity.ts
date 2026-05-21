@@ -8,7 +8,7 @@ import { Staking } from './staking.entity';
 
 @Entity()
 export class CryptoStaking extends IEntity {
-  @Column({ type: 'datetime2' })
+  @Column({ type: 'timestamp' })
   inputDate: Date;
 
   @Column({ length: 256 })
@@ -26,7 +26,7 @@ export class CryptoStaking extends IEntity {
   @Column()
   inputAsset: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   inputMailSendDate?: Date;
 
   @Column({ type: 'float', nullable: true })
@@ -41,10 +41,10 @@ export class CryptoStaking extends IEntity {
   @Column({ nullable: true })
   outputAsset?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   outputMailSendDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: false })
+  @Column({ type: 'timestamp', nullable: false })
   outputDate: Date;
 
   @Column({ length: 256, nullable: true })

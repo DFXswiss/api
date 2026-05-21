@@ -4,21 +4,21 @@ import { Column, Entity, ManyToOne, TableInheritance } from 'typeorm';
 import { SupportLogType } from '../enums/support-log.enum';
 
 @Entity()
-@TableInheritance({ column: { type: 'nvarchar', name: 'type' } })
+@TableInheritance({ column: { type: 'varchar', name: 'type' } })
 export class SupportLog extends IEntity {
   @Column({ length: 256 })
   type: SupportLogType;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   message?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   comment?: string;
 
   @Column({ length: 256, nullable: true })
   clerk?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   eventDate?: Date;
 
   @ManyToOne(() => UserData, { nullable: false })
