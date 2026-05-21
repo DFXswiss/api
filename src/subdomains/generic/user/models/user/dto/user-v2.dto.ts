@@ -138,6 +138,35 @@ export class UserPaymentLinkDto {
   active: boolean;
 }
 
+export class UserCapabilitiesDto {
+  @ApiProperty({
+    description:
+      'Whether the user may edit their first/last name. False when the personal-data step is in any review or completed state.',
+  })
+  canEditName: boolean;
+
+  @ApiProperty({
+    description: 'Whether the user may edit their primary email address.',
+  })
+  canEditMail: boolean;
+
+  @ApiProperty({
+    description: 'Whether the user may edit their phone number.',
+  })
+  canEditPhone: boolean;
+
+  @ApiProperty({
+    description: 'Whether the user may edit their postal address.',
+  })
+  canEditAddress: boolean;
+
+  @ApiProperty({
+    description:
+      'Whether the support / ticket flow is currently available for this user (requires a verified email).',
+  })
+  supportAvailable: boolean;
+}
+
 export class UserV2Dto {
   @ApiProperty({ description: 'Unique account id' })
   accountId: number;
@@ -162,6 +191,13 @@ export class UserV2Dto {
 
   @ApiProperty({ type: UserKycDto })
   kyc: UserKycDto;
+
+  @ApiProperty({
+    type: UserCapabilitiesDto,
+    description:
+      'Per-action capability flags. Clients render UI affordances (edit buttons, support links, …) from this object instead of inferring them from KYC step status.',
+  })
+  capabilities: UserCapabilitiesDto;
 
   @ApiProperty({ type: VolumesDto })
   volumes: VolumesDto;

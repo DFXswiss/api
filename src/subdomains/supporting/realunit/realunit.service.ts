@@ -914,8 +914,12 @@ export class RealUnitService {
     // (e.g. ON_HOLD, OUTDATED) reachable here. Only COMPLETED is a terminal success; every
     // other reachable status falls through to FORWARDING_FAILED, which surfaces the same retry
     // path the client would have seen on the original call.
+    // Surface ALREADY_REGISTERED (not COMPLETED) on the idempotent path so
+    // clients can distinguish "registration just completed in this call"
+    // from "registration was already in place". The wallet-app uses this
+    // to skip the post-registration onboarding screens on retry.
     const status = step.isCompleted
-      ? RealUnitRegistrationStatus.COMPLETED
+      ? RealUnitRegistrationStatus.ALREADY_REGISTERED
       : RealUnitRegistrationStatus.FORWARDING_FAILED;
 
     this.logger.info(
