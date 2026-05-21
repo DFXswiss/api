@@ -1,4 +1,5 @@
 import { Inject, Injectable, forwardRef } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScryptOrderInfo, ScryptOrderSide, ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
@@ -10,6 +11,9 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import {
   PriceCurrency,
   PriceValidity,
@@ -46,6 +50,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     private readonly assetService: AssetService,
     private readonly ruleRepo: LiquidityManagementRuleRepository,
     private readonly balanceRepo: LiquidityBalanceRepository,
+    private readonly notificationService: NotificationService,
     @Inject(forwardRef(() => BuyCryptoService)) private readonly buyCryptoService: BuyCryptoService,
   ) {
     super(LiquidityManagementSystem.SCRYPT);
@@ -449,17 +454,62 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     return side === ScryptOrderSide.BUY ? availableBalance * 0.99 : availableBalance;
   }
 
-  private async getAndCheckTradePrice(from: Asset, to: Asset, maxPriceDeviation = 0.05): Promise<number> {
+  private async getAndCheckTradePrice(
+    from: Asset,
+    to: Asset,
+    maxPriceDeviation = Config.scrypt.maxPriceDeviation,
+  ): Promise<number> {
     const price = await this.scryptService.getCurrentPrice(from.name, to.name);
 
     const checkPrice = await this.pricingService.getPrice(from, to, PriceValidity.VALID_ONLY);
 
-    if (Math.abs((price - checkPrice.price) / checkPrice.price) > maxPriceDeviation) {
-      throw new OrderFailedException(
-        `Trade price out of range: exchange price ${price}, check price ${checkPrice.price}, max deviation ${maxPriceDeviation}`,
-      );
+    const deviation = Math.abs((price - checkPrice.price) / checkPrice.price);
+
+    if (deviation > maxPriceDeviation) {
+      const message =
+        `Scrypt ${from.name}/${to.name} price deviation ${(deviation * 100).toFixed(4)}% ` +
+        `exceeds max ${(maxPriceDeviation * 100).toFixed(4)}% ` +
+        `(exchange price ${price}, reference ${checkPrice.price}). Trade aborted.`;
+
+      this.logger.error(message);
+      await this.notifyPriceDeviation(message, from, to, price, checkPrice.price, deviation, maxPriceDeviation);
+
+      throw new OrderFailedException(message);
     }
 
     return price;
+  }
+
+  private async notifyPriceDeviation(
+    summary: string,
+    from: Asset,
+    to: Asset,
+    price: number,
+    referencePrice: number,
+    deviation: number,
+    maxPriceDeviation: number,
+  ): Promise<void> {
+    const mailRequest: MailRequest = {
+      type: MailType.ERROR_MONITORING,
+      context: MailContext.LIQUIDITY_MANAGEMENT,
+      input: {
+        subject: `Scrypt ${from.name}/${to.name} price deviation too high`,
+        errors: [
+          summary,
+          `Exchange price (Scrypt): ${price}`,
+          `Reference price (pricing service): ${referencePrice}`,
+          `Deviation: ${(deviation * 100).toFixed(4)} % (cap: ${(maxPriceDeviation * 100).toFixed(4)} %)`,
+        ],
+        isLiqMail: true,
+      },
+      correlationId: `scrypt-price-deviation-${from.name}-${to.name}`,
+      options: { debounce: 60 * 60 * 1000, suppressRecurring: true },
+    };
+
+    try {
+      await this.notificationService.sendMail(mailRequest);
+    } catch (e) {
+      this.logger.error('Failed to send Scrypt price deviation notification', e);
+    }
   }
 }

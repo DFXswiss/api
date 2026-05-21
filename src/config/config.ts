@@ -1265,6 +1265,11 @@ export class Configuration {
     wsUrl: process.env.SCRYPT_WS_URL,
     apiKey: process.env.SCRYPT_API_KEY,
     apiSecret: process.env.SCRYPT_API_SECRET,
+    // Hard cap on the spread between Scrypt's executable price and our pricing reference.
+    // Scrypt embeds its fee in the quote ("price you see is what you get"), so a wide
+    // spread is the only pre-trade signal that the implicit cost is too high. Abort + alert
+    // when exceeded to avoid silent overpayment like the 2026-05-21 BTC/EUR incident.
+    maxPriceDeviation: 0.003,
   };
 
   get evmWallets(): Map<string, string> {
