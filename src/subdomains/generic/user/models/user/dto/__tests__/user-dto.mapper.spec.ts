@@ -150,9 +150,7 @@ describe('UserDtoMapper', () => {
 
     it('canEditName is false once PersonalData is completed', () => {
       const userData = buildUserData();
-      userData.kycSteps = [
-        buildStep(KycStepName.PERSONAL_DATA, ReviewStatus.COMPLETED),
-      ];
+      userData.kycSteps = [buildStep(KycStepName.PERSONAL_DATA, ReviewStatus.COMPLETED)];
 
       const result = UserDtoMapper.mapUser(userData);
 
@@ -162,9 +160,7 @@ describe('UserDtoMapper', () => {
 
     it('canEditName is false while PersonalData is in review', () => {
       const userData = buildUserData();
-      userData.kycSteps = [
-        buildStep(KycStepName.PERSONAL_DATA, ReviewStatus.MANUAL_REVIEW),
-      ];
+      userData.kycSteps = [buildStep(KycStepName.PERSONAL_DATA, ReviewStatus.MANUAL_REVIEW)];
 
       const result = UserDtoMapper.mapUser(userData);
 
@@ -180,9 +176,7 @@ describe('UserDtoMapper', () => {
     });
 
     it('all edit flags collapse to false on KYC-terminated accounts', () => {
-      const result = UserDtoMapper.mapUser(
-        buildUserData({ kycLevel: KycLevel.REJECTED }),
-      );
+      const result = UserDtoMapper.mapUser(buildUserData({ kycLevel: KycLevel.REJECTED }));
 
       expect(result.capabilities.canEditMail).toBe(false);
       expect(result.capabilities.canEditPhone).toBe(false);
