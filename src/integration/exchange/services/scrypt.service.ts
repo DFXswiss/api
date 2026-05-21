@@ -263,7 +263,7 @@ export class ScryptService extends PricingProvider {
   }
 
   static applyPriceCap(orderbookPrice: number, side: ScryptOrderSide, priceCap?: number): number {
-    if (priceCap == null) return orderbookPrice;
+    if (priceCap == null || !Number.isFinite(priceCap) || priceCap <= 0) return orderbookPrice;
     return side === ScryptOrderSide.BUY ? Math.min(orderbookPrice, priceCap) : Math.max(orderbookPrice, priceCap);
   }
 

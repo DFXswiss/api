@@ -498,7 +498,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
       throw new OrderFailedException(message);
     }
 
-    return { scryptPrice, priceCap: this.toPriceCap(checkPrice.price, side, maxPriceDeviation), side };
+    return { scryptPrice, priceCap: ScryptAdapter.toPriceCap(checkPrice.price, side, maxPriceDeviation), side };
   }
 
   private async computePriceCap(
@@ -508,13 +508,17 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   ): Promise<number> {
     const { side } = await this.scryptService.getTradePair(from.name, to.name);
     const checkPrice = await this.pricingService.getPrice(from, to, PriceValidity.VALID_ONLY);
-    return this.toPriceCap(checkPrice.price, side, maxPriceDeviation);
+    return ScryptAdapter.toPriceCap(checkPrice.price, side, maxPriceDeviation);
   }
 
-  private toPriceCap(referencePrice: number, side: ScryptOrderSide, maxPriceDeviation: number): number {
-    // pricingService returns "to per from"; Scrypt LIMIT orders use quote per base.
-    // For side=BUY (from=quote, to=base) we need the inverse; for side=SELL it matches.
-    const refQuotePerBase = side === ScryptOrderSide.BUY ? 1 / referencePrice : referencePrice;
+  static toPriceCap(referencePrice: number, side: ScryptOrderSide, maxPriceDeviation: number): number {
+    // pricingService.getPrice(from, to) returns Price.price = source/target = from-per-to
+    // (verified via Price.convert(amount) = amount / price, see Price entity).
+    // Scrypt LIMIT orders use quote-per-base.
+    //
+    // side=BUY  (from=quote, to=base): from-per-to = quote-per-base → no inversion
+    // side=SELL (from=base,  to=quote): from-per-to = base-per-quote → invert
+    const refQuotePerBase = side === ScryptOrderSide.SELL ? 1 / referencePrice : referencePrice;
     return side === ScryptOrderSide.BUY
       ? refQuotePerBase * (1 + maxPriceDeviation)
       : refQuotePerBase * (1 - maxPriceDeviation);
@@ -543,7 +547,7 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         isLiqMail: true,
       },
       correlationId: `scrypt-price-deviation-${from.name}-${to.name}`,
-      options: { debounce: 60 * 60 * 1000, suppressRecurring: true },
+      options: { debounce: 60 * 60 * 1000 },
     };
 
     try {
