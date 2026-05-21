@@ -114,10 +114,7 @@ export class UserDtoMapper {
     for (const name of blocking) {
       const blocked = userData
         .getStepsWith(name)
-        .some(
-          (s) =>
-            s.isInProgress || s.isInReview || s.isOnHold || s.isOutdated || s.isFailed,
-        );
+        .some((s) => s.isInProgress || s.isInReview || s.isOnHold || s.isOutdated || s.isFailed);
       if (blocked) return false;
     }
 

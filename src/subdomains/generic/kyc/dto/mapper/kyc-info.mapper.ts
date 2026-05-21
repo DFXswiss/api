@@ -30,9 +30,7 @@ export class KycInfoMapper {
       tradingLimit: userData.tradingLimit,
       kycClients: userKycClients.map((kc) => kc.name),
       language: LanguageDtoMapper.entityToDto(userData.language),
-      kycSteps: kycSteps.map((s) =>
-        KycStepMapper.toStep(s, currentStep, requiredStepNames.has(s.name)),
-      ),
+      kycSteps: kycSteps.map((s) => KycStepMapper.toStep(s, currentStep, requiredStepNames.has(s.name))),
       processStatus: KycInfoMapper.computeProcessStatus(userData, kycSteps, requiredStepNames),
       currentStep: withSession && currentStep ? KycStepMapper.toStepSession(currentStep) : undefined,
     };
