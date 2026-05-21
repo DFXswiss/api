@@ -604,9 +604,9 @@ export class RealUnitService {
       throw new BadRequestException('Email does not match registered email');
     }
 
-    const existingForWallet = this.findRegistrationStep(userData, dto.walletAddress);
-    if (existingForWallet.isForCurrentWallet) {
-      return this.idempotentRegistrationResult(existingForWallet.step!, dto.signature);
+    const { step: existingStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
+    if (isForCurrentWallet) {
+      return this.idempotentRegistrationResult(userData, existingStep!, dto.signature);
     }
 
     // validate personal data
@@ -668,7 +668,7 @@ export class RealUnitService {
     const { step: registrationStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
 
     if (isForCurrentWallet) {
-      return this.idempotentRegistrationResult(registrationStep!, dto.signature);
+      return this.idempotentRegistrationResult(userData, registrationStep!, dto.signature);
     }
 
     if (!registrationStep) {
@@ -897,12 +897,30 @@ export class RealUnitService {
    * status without creating a new KycStep or re-forwarding. Different signature for the same
    * wallet stays a hard error: it means a fresh sign was produced over conflicting data.
    */
-  private idempotentRegistrationResult(step: KycStep, incomingSignature: string): RealUnitRegistrationStatus {
+  private idempotentRegistrationResult(
+    userData: UserData,
+    step: KycStep,
+    incomingSignature: string,
+  ): RealUnitRegistrationStatus {
     const existingData = step.getResult<RealUnitRegistrationDto>();
     if (existingData?.signature !== incomingSignature) {
       throw new BadRequestException('RealUnit registration already exists for this wallet with a different signature');
     }
-    return step.isCompleted ? RealUnitRegistrationStatus.COMPLETED : RealUnitRegistrationStatus.FORWARDING_FAILED;
+
+    // findRegistrationStep filters out FAILED and CANCELED, so the step is in one of the three
+    // states this service produces for REALUNIT_REGISTRATION: INTERNAL_REVIEW (created, forward
+    // not run yet), MANUAL_REVIEW (forward failed, awaiting admin retry), or COMPLETED (forward
+    // succeeded). Only COMPLETED is a terminal success; the other two map to FORWARDING_FAILED
+    // so the client surfaces the same retry path it would have seen on the original call.
+    const status = step.isCompleted
+      ? RealUnitRegistrationStatus.COMPLETED
+      : RealUnitRegistrationStatus.FORWARDING_FAILED;
+
+    this.logger.info(
+      `RealUnit registration idempotent retry for userData ${userData.id}, kycStep ${step.id} → ${status}`,
+    );
+
+    return status;
   }
 
   private toUserDataDto(step: KycStep | undefined): RealUnitUserDataDto | undefined {
