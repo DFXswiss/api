@@ -36,12 +36,14 @@ function format(value: unknown): string {
 }
 
 /**
- * DEV-only request/response tracer for the RealUnit internal test phase.
+ * Full request/response tracer for the RealUnit internal test phase.
+ * Enabled on DEV and PRD — see the environment gate in `main.ts`.
  *
  * Emits one log block per call originating from the realunit-app — detected
  * either via the `X-Client: realunit-app` header or a `/v{n}/realunit/*` path
  * (the latter also covers app builds shipped before the header existed).
- * Secrets are masked; KYC/PII bodies are kept intact by design.
+ * Secrets are masked; KYC/PII bodies are kept intact by design — on PRD this
+ * means real customer data is written to the container logs.
  */
 export function apiTraceMiddleware(): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {

@@ -80,8 +80,8 @@ async function bootstrap() {
   app.use('*', json({ type: 'application/json', limit: '20mb' }));
   app.use('/v1/node/*/rpc', text({ type: 'text/plain' }));
 
-  // DEV-only full request/response tracing for the RealUnit internal test phase
-  if (Config.environment === Environment.DEV) {
+  // Full request/response tracing for the RealUnit internal test phase (DEV + PRD)
+  if ([Environment.DEV, Environment.PRD].includes(Config.environment)) {
     app.use(apiTraceMiddleware());
   }
 
