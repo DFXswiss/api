@@ -21,6 +21,6 @@ export class SupportNote extends IEntity {
   @Column({ length: 256, nullable: true })
   subject?: string;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   content: string;
 }

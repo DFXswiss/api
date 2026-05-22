@@ -35,10 +35,10 @@ export class Recommendation extends IEntity {
   @Column({ nullable: true })
   isConfirmed: boolean; // true = confirmed, false = denied
 
-  @Column({ type: 'datetime2' })
+  @Column({ type: 'timestamp' })
   expirationDate: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   confirmationDate: Date; // only set for recommendations created by Recommended
 
   @ManyToOne(() => UserData, { nullable: false })

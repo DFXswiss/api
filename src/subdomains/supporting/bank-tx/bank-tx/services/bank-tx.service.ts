@@ -434,8 +434,8 @@ export class BankTxService implements OnModuleInit {
   async getBankTxFee(from: Date): Promise<number> {
     const { fee } = await this.bankTxRepo
       .createQueryBuilder('bankTx')
-      .select('SUM(chargeAmountChf)', 'fee')
-      .where('created >= :from', { from })
+      .select('SUM(bankTx.chargeAmountChf)', 'fee')
+      .where('bankTx.created >= :from', { from })
       .getRawOne<{ fee: number }>();
 
     return fee ?? 0;

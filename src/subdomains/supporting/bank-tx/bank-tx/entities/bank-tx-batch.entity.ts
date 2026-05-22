@@ -10,13 +10,13 @@ export class BankTxBatch extends IEntity {
   @Column({ type: 'integer', nullable: true })
   sequenceNumber?: number;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   creationDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   fromDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   toDate?: Date;
 
   @Column({ length: 256, nullable: true })

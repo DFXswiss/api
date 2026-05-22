@@ -46,7 +46,7 @@ export class Fiat extends IEntity {
   @Column({ default: AmlRule.DEFAULT })
   amlRuleTo: AmlRule;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   ibanCountryConfig?: string; // JSON string
 
   get ibanCountryConfigObject(): IbanCountryConfig | undefined {

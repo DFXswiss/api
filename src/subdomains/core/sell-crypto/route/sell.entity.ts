@@ -8,7 +8,7 @@ import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-inp
 import { Check, ChildEntity, Column, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BuyFiat } from '../process/buy-fiat.entity';
 
-@Check(`"active" = 0 OR "bankDataId" IS NOT NULL OR "type" <> 'Sell'`)
+@Check(`"active" = false OR "bankDataId" IS NOT NULL OR "type" <> 'Sell'`)
 @ChildEntity()
 export class Sell extends DepositRoute {
   @Column({ length: 256 })

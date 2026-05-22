@@ -5,12 +5,12 @@ import { KycLogType } from '../enums/kyc.enum';
 import { KycFile } from './kyc-file.entity';
 
 @Entity()
-@TableInheritance({ column: { type: 'nvarchar', name: 'type' } })
+@TableInheritance({ column: { type: 'varchar', name: 'type' } })
 export class KycLog extends IEntity {
   @Column({ length: 256 })
   type: KycLogType;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   result?: string;
 
   @Column({ length: 256, nullable: true })
@@ -19,10 +19,10 @@ export class KycLog extends IEntity {
   @ManyToOne(() => KycFile, (f) => f.logs, { nullable: true })
   file?: KycFile;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   comment?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   eventDate?: Date;
 
   @ManyToOne(() => UserData, { nullable: false })

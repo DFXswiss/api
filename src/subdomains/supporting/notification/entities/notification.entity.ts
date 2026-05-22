@@ -16,19 +16,19 @@ export class Notification extends IEntity {
   @Column({ length: 256 })
   context: MailContext;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   correlationId?: string;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   data: string;
 
-  @Column({ type: 'datetime2' })
+  @Column({ type: 'timestamp' })
   lastTryDate: Date;
 
   @Column({ default: false })
   isComplete: boolean;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   error?: string;
 
   @Column({ default: false })

@@ -9,7 +9,7 @@ export const GsRestrictedColumns: Record<string, string[]> = {
 
 // Debug endpoint
 export const DebugMaxResults = 10000;
-export const DebugBlockedSchemas = ['sys', 'information_schema', 'master', 'msdb', 'tempdb'];
+export const DebugBlockedSchemas = ['sys', 'information_schema', 'master', 'msdb', 'tempdb', 'pg_catalog', 'pg_toast'];
 export const DebugDangerousFunctions = ['openrowset', 'openquery', 'opendatasource', 'openxml'];
 export const DebugBlockedCols: Record<string, string[]> = {
   user_data: [

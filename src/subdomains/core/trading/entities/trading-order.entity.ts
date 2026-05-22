@@ -55,7 +55,7 @@ export class TradingOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   swapFeeAmountChf?: number;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   errorMessage?: string;
 
   @Column({ type: 'float', nullable: true })

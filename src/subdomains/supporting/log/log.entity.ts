@@ -18,7 +18,7 @@ export class Log extends IEntity {
   @Column({ length: 256 })
   severity: LogSeverity;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   message: string;
 
   @Column({ length: 256, nullable: true })

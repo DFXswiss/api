@@ -14,7 +14,7 @@ export class StakingReward extends Reward {
   @Column({ type: 'float', nullable: true })
   fee?: number;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   inputDate?: Date;
 
   @Column({ length: 256 })
