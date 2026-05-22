@@ -2,7 +2,7 @@ import { Column, Entity, Index } from 'typeorm';
 import { IEntity } from '../entity';
 
 @Entity()
-@Index(['brand'], { unique: true, where: '"enabled" = 1' })
+@Index(['brand'], { unique: true, where: '"enabled" = true' })
 export class CompanyInfo extends IEntity {
   // Brand identifier — `RealUnit`, `DFX`, etc. Lets a single backend serve
   // multiple branded apps from one endpoint.

@@ -6,9 +6,9 @@ import { LegalDocumentRepository } from './legal-document.repository';
 export class LegalDocumentService {
   constructor(private readonly repo: LegalDocumentRepository) {}
 
-  /// Returns every enabled document, optionally filtered by type / language.
-  /// The cache key encodes both so repeated identical queries share the
-  /// cached result.
+  // Returns every enabled document, optionally filtered by type / language.
+  // The cache key encodes both so repeated identical queries share the
+  // cached result.
   async getDocuments(filters: { type?: LegalDocumentType; language?: string } = {}): Promise<LegalDocument[]> {
     const cacheKey = `enabled:${filters.type ?? '*'}:${filters.language ?? '*'}`;
     const where: Partial<LegalDocument> = { enabled: true };

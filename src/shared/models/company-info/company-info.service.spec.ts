@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ILike } from 'typeorm';
 import { CompanyInfo } from './company-info.entity';
 import { CompanyInfoRepository } from './company-info.repository';
 import { CompanyInfoService } from './company-info.service';
@@ -41,7 +42,7 @@ describe('CompanyInfoService', () => {
 
     expect(result).toBe(info);
     expect(repo.findOneCachedBy).toHaveBeenCalledWith('brand:realunit', {
-      brand: 'RealUnit',
+      brand: ILike('RealUnit'),
       enabled: true,
     });
   });

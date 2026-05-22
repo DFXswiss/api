@@ -29,24 +29,22 @@ module.exports = class AddLegalDocumentAndCompanyInfo1779370800171 {
   async up(queryRunner) {
     // --- legal_document table ---
     await queryRunner.query(
-      `CREATE TABLE "legal_document" ("id" int NOT NULL IDENTITY(1,1), "updated" datetime2 NOT NULL CONSTRAINT "DF_legal_document_updated" DEFAULT getdate(), "created" datetime2 NOT NULL CONSTRAINT "DF_legal_document_created" DEFAULT getdate(), "type" nvarchar(64) NOT NULL, "language" nvarchar(8), "version" nvarchar(32) NOT NULL, "url" nvarchar(1024) NOT NULL, "enabled" bit NOT NULL CONSTRAINT "DF_legal_document_enabled" DEFAULT 1, CONSTRAINT "PK_legal_document" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "legal_document" ("id" SERIAL NOT NULL, "updated" TIMESTAMP NOT NULL DEFAULT now(), "created" TIMESTAMP NOT NULL DEFAULT now(), "type" character varying(64) NOT NULL, "language" character varying(8), "version" character varying(32) NOT NULL, "url" character varying(1024) NOT NULL, "enabled" boolean NOT NULL DEFAULT true, CONSTRAINT "PK_950166ad59d051a80cad8337c76" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "IDX_legal_document_type_language" ON "legal_document" ("type", "language") WHERE "enabled" = 1`,
+      `CREATE UNIQUE INDEX "IDX_c3408d5be699dbdc15f529c2ce" ON "legal_document" ("type", "language") WHERE "enabled" = true`,
     );
 
     // --- company_info table ---
     await queryRunner.query(
-      `CREATE TABLE "company_info" ("id" int NOT NULL IDENTITY(1,1), "updated" datetime2 NOT NULL CONSTRAINT "DF_company_info_updated" DEFAULT getdate(), "created" datetime2 NOT NULL CONSTRAINT "DF_company_info_created" DEFAULT getdate(), "brand" nvarchar(64) NOT NULL, "name" nvarchar(256) NOT NULL, "phone" nvarchar(64), "email" nvarchar(256), "website" nvarchar(256), "addressStreet" nvarchar(256), "addressZip" nvarchar(64), "addressCity" nvarchar(256), "addressCountry" nvarchar(8), "enabled" bit NOT NULL CONSTRAINT "DF_company_info_enabled" DEFAULT 1, CONSTRAINT "PK_company_info" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "company_info" ("id" SERIAL NOT NULL, "updated" TIMESTAMP NOT NULL DEFAULT now(), "created" TIMESTAMP NOT NULL DEFAULT now(), "brand" character varying(64) NOT NULL, "name" character varying(256) NOT NULL, "phone" character varying(64), "email" character varying(256), "website" character varying(256), "addressStreet" character varying(256), "addressZip" character varying(64), "addressCity" character varying(256), "addressCountry" character varying(8), "enabled" boolean NOT NULL DEFAULT true, CONSTRAINT "PK_88c3e323679d0747ffbb83f3f78" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(
-      `CREATE UNIQUE INDEX "IDX_company_info_brand" ON "company_info" ("brand") WHERE "enabled" = 1`,
+      `CREATE UNIQUE INDEX "IDX_9a97b98884dfa6dfb6c8cc7b11" ON "company_info" ("brand") WHERE "enabled" = true`,
     );
 
     // --- country.displayOrder column ---
-    await queryRunner.query(
-      `ALTER TABLE "country" ADD "displayOrder" int NOT NULL CONSTRAINT "DF_country_displayOrder" DEFAULT 999`,
-    );
+    await queryRunner.query(`ALTER TABLE "country" ADD "displayOrder" integer NOT NULL DEFAULT 999`);
     // Seed the priority order the realunit-app used to hardcode:
     //   const priorityCountries = ['CH', 'DE', 'IT', 'FR']
     await queryRunner.query(`UPDATE "country" SET "displayOrder" = 1 WHERE "symbol" = 'CH'`);
@@ -67,14 +65,14 @@ module.exports = class AddLegalDocumentAndCompanyInfo1779370800171 {
     ];
     for (const doc of legalDocs) {
       await queryRunner.query(
-        `INSERT INTO "legal_document" ("type", "language", "version", "url", "enabled") VALUES (@0, @1, @2, @3, 1)`,
+        `INSERT INTO "legal_document" ("type", "language", "version", "url", "enabled") VALUES ($1, $2, $3, $4, true)`,
         [doc.type, doc.language, doc.version, doc.url],
       );
     }
 
     // --- seed company_info with the contact info the realunit-app used to ship hardcoded ---
     await queryRunner.query(
-      `INSERT INTO "company_info" ("brand", "name", "phone", "email", "website", "addressStreet", "addressZip", "addressCity", "addressCountry", "enabled") VALUES (@0, @1, @2, @3, @4, @5, @6, @7, @8, 1)`,
+      `INSERT INTO "company_info" ("brand", "name", "phone", "email", "website", "addressStreet", "addressZip", "addressCity", "addressCountry", "enabled") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, true)`,
       [
         'RealUnit',
         'RealUnit Schweiz AG',
@@ -93,13 +91,12 @@ module.exports = class AddLegalDocumentAndCompanyInfo1779370800171 {
    * @param {QueryRunner} queryRunner
    */
   async down(queryRunner) {
-    await queryRunner.query(`ALTER TABLE "country" DROP CONSTRAINT "DF_country_displayOrder"`);
     await queryRunner.query(`ALTER TABLE "country" DROP COLUMN "displayOrder"`);
 
-    await queryRunner.query(`DROP INDEX "IDX_company_info_brand" ON "company_info"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_9a97b98884dfa6dfb6c8cc7b11"`);
     await queryRunner.query(`DROP TABLE "company_info"`);
 
-    await queryRunner.query(`DROP INDEX "IDX_legal_document_type_language" ON "legal_document"`);
+    await queryRunner.query(`DROP INDEX "public"."IDX_c3408d5be699dbdc15f529c2ce"`);
     await queryRunner.query(`DROP TABLE "legal_document"`);
   }
 };

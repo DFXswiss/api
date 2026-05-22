@@ -11,7 +11,7 @@ export enum LegalDocumentType {
 }
 
 @Entity()
-@Index(['type', 'language'], { unique: true, where: '"enabled" = 1' })
+@Index(['type', 'language'], { unique: true, where: '"enabled" = true' })
 export class LegalDocument extends IEntity {
   @Column({ length: 64 })
   type: LegalDocumentType;
