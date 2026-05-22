@@ -414,7 +414,21 @@ export class BuyCryptoService implements OnModuleInit {
       await this.updateCryptoRouteVolume([cryptoRouteIdBefore, entity.cryptoRoute?.id]);
     if (dto.usedRef || dto.amountInEur) await this.updateRefVolume([usedRefBefore, entity.usedRef]);
 
-    return entity;
+    // reload without userData.kycSteps/users: TypeORM sets the inverse back-reference on those
+    // collections, producing a circular graph that breaks JSON serialization of the response
+    return this.buyCryptoRepo.findOne({
+      where: { id },
+      relations: {
+        buy: true,
+        cryptoRoute: true,
+        cryptoInput: true,
+        bankTx: true,
+        checkoutTx: true,
+        transaction: { user: { wallet: true }, userData: true },
+        chargebackOutput: true,
+        bankData: true,
+      },
+    });
   }
 
   private async changeRoute(entity: BuyCrypto, route: Buy | Swap) {
