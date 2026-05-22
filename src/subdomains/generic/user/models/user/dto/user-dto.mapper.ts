@@ -8,7 +8,6 @@ import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.m
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
-import { KycLevel } from '../../user-data/user-data.enum';
 import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
 import { UserProfileDto } from './user-profile.dto';
@@ -37,7 +36,6 @@ export class UserDtoMapper {
         hash: userData.kycHash,
         level: userData.kycLevelDisplay,
         dataComplete: userData.isDataComplete,
-        canTrade: UserDtoMapper.computeCanTrade(userData),
         phoneCallAccepted: userData.phoneCallAccepted,
         phoneCallStatus: userData.phoneCallStatus ? PhoneCallStatusMapper[userData.phoneCallStatus] : undefined,
         preferredPhoneTimes: userData.phoneCallTimesObject,
@@ -92,12 +90,6 @@ export class UserDtoMapper {
       canEditAddress: !personalDataLocked,
       supportAvailable: hasVerifiedMail,
     };
-  }
-
-  // Matches the actual trade-endpoint gates (aml-helper, swap, buy, etc.).
-  private static computeCanTrade(userData: UserData): boolean {
-    if (userData.isKycTerminated || userData.isBlocked) return false;
-    return userData.kycLevel >= KycLevel.LEVEL_30;
   }
 
   private static mapVolumes(user: UserData | User): VolumesDto {

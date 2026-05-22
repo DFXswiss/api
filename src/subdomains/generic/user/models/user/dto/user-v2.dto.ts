@@ -123,12 +123,6 @@ export class UserKycDto {
   @ApiProperty()
   dataComplete: boolean;
 
-  @ApiProperty({
-    description:
-      'Trading-permission flag. `true` ⇔ not terminated, not blocked, and kycLevel ≥ LEVEL_30. Matches the actual trade-endpoint gates.',
-  })
-  canTrade: boolean;
-
   @ApiProperty({ enum: PhoneCallPreferredTime, isArray: true })
   preferredPhoneTimes: PhoneCallPreferredTime[];
 
