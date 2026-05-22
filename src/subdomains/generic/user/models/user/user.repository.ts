@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { Util } from 'src/shared/utils/util';
-import { EntityManager, Like } from 'typeorm';
+import { EntityManager, Raw } from 'typeorm';
 import { KycLevel } from '../user-data/user-data.enum';
 import { User } from './user.entity';
 
@@ -25,13 +25,16 @@ export class UserRepository extends BaseRepository<User> {
   }
 
   private async getNextRef(): Promise<string> {
-    // get highest numerical ref
-    const nextRef = await this.findOne({
+    // get highest numerical ref — POSIX regex on the column is PG-compatible;
+    // the prior `LIKE '%[0-9]-[0-9]%'` form relied on MSSQL character classes
+    // and silently matched nothing on Postgres, leaving setUserRef to throw.
+    const user = await this.findOne({
       select: { id: true, ref: true },
-      where: { ref: Like('%[0-9]-[0-9]%') },
+      where: { ref: Raw((alias) => `${alias} ~ '[0-9]-[0-9]'`) },
       order: { ref: 'DESC' },
-    }).then((u) => +u.ref.replace('-', '') + 1);
+    });
 
+    const nextRef = user?.ref ? +user.ref.replace('-', '') + 1 : 1;
     const ref = nextRef.toString().padStart(6, '0');
     return `${ref.slice(0, 3)}-${ref.slice(3, 6)}`;
   }
