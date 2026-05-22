@@ -400,7 +400,7 @@ export class SupportIssueService {
     const issue = await this.supportIssueRepo.findOne({
       where: { id },
       relations: {
-        userData: { country: true },
+        userData: { country: true, language: true },
         transaction: {
           user: { wallet: true },
           buyCrypto: { outputAsset: true, cryptoInput: { asset: true } },

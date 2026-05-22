@@ -23,6 +23,12 @@ import { ChargebackRefundDto } from 'src/subdomains/core/history/dto/transaction
 import { ReviewStatus } from '../kyc/enums/review-status.enum';
 import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
 import {
+  CreateSupportIssueTemplateDto,
+  SupportIssueTemplateDto,
+  SupportIssueTemplateListQuery,
+  UpdateSupportIssueTemplateDto,
+} from './dto/support-issue-template.dto';
+import {
   CreateSupportNoteDto,
   SupportNoteDto,
   SupportNoteListQuery,
@@ -46,6 +52,7 @@ import {
   UserDataSupportInfoResult,
   UserDataSupportQuery,
 } from './dto/user-data-support.dto';
+import { SupportIssueTemplateService } from './services/support-issue-template.service';
 import { SupportNoteService } from './services/support-note.service';
 import { SupportService } from './support.service';
 
@@ -54,6 +61,7 @@ export class SupportController {
   constructor(
     private readonly supportService: SupportService,
     private readonly supportNoteService: SupportNoteService,
+    private readonly supportIssueTemplateService: SupportIssueTemplateService,
   ) {}
 
   @Get()
@@ -222,6 +230,51 @@ export class SupportController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async deleteNote(@Param('id') id: string, @GetJwt() jwt: JwtPayload): Promise<void> {
     await this.supportNoteService.delete(+id, jwt.role, jwt.account);
+  }
+
+  @Get('template')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getTemplates(
+    @Query() query: SupportIssueTemplateListQuery,
+    @GetJwt() jwt: JwtPayload,
+  ): Promise<SupportIssueTemplateDto[]> {
+    const templates = await this.supportIssueTemplateService.search(query);
+    return templates.map((t) => this.supportIssueTemplateService.toDto(t, jwt.role, jwt.account));
+  }
+
+  @Post('template')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async createTemplate(
+    @Body() dto: CreateSupportIssueTemplateDto,
+    @GetJwt() jwt: JwtPayload,
+  ): Promise<SupportIssueTemplateDto> {
+    const template = await this.supportIssueTemplateService.create(jwt.account, dto);
+    return this.supportIssueTemplateService.toDto(template, jwt.role, jwt.account);
+  }
+
+  @Put('template/:id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async updateTemplate(
+    @Param('id') id: string,
+    @Body() dto: UpdateSupportIssueTemplateDto,
+    @GetJwt() jwt: JwtPayload,
+  ): Promise<SupportIssueTemplateDto> {
+    const template = await this.supportIssueTemplateService.update(+id, jwt.role, jwt.account, dto);
+    return this.supportIssueTemplateService.toDto(template, jwt.role, jwt.account);
+  }
+
+  @Delete('template/:id')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async deleteTemplate(@Param('id') id: string, @GetJwt() jwt: JwtPayload): Promise<void> {
+    await this.supportIssueTemplateService.delete(+id, jwt.role, jwt.account);
   }
 
   @Get(':id')

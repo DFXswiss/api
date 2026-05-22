@@ -14,8 +14,11 @@ import { RecallModule } from 'src/subdomains/supporting/recall/recall.module';
 import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
 import { KycModule } from '../kyc/kyc.module';
 import { UserModule } from '../user/user.module';
+import { SupportIssueTemplate } from './entities/support-issue-template.entity';
 import { SupportNote } from './entities/support-note.entity';
+import { SupportIssueTemplateRepository } from './repositories/support-issue-template.repository';
 import { SupportNoteRepository } from './repositories/support-note.repository';
+import { SupportIssueTemplateService } from './services/support-issue-template.service';
 import { SupportNoteService } from './services/support-note.service';
 import { SupportController } from './support.controller';
 import { SupportPdfService } from './support-pdf.service';
@@ -23,7 +26,7 @@ import { SupportService } from './support.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([SupportNote]),
+    TypeOrmModule.forFeature([SupportNote, SupportIssueTemplate]),
     SharedModule,
     UserModule,
     BuyCryptoModule,
@@ -40,7 +43,14 @@ import { SupportService } from './support.service';
     forwardRef(() => PaymentModule),
   ],
   controllers: [SupportController],
-  providers: [SupportService, SupportPdfService, SupportNoteService, SupportNoteRepository],
+  providers: [
+    SupportService,
+    SupportPdfService,
+    SupportNoteService,
+    SupportNoteRepository,
+    SupportIssueTemplateService,
+    SupportIssueTemplateRepository,
+  ],
   exports: [],
 })
 export class SupportModule {}
