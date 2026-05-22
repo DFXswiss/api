@@ -212,6 +212,8 @@ export class ExchangeTxService {
     // 'failed') is still re-fetched and persisted on a later sync.
     const recheckHorizon = Util.daysBefore(Config.exchangeTxSyncRecheckDays);
 
+    // Keyed on externalCreated (the exchange's own timestamp) to align with the downstream
+    // getAllTransactions(since) filter, which matches its in-memory cache against that field.
     const oldestUnsettled = await this.exchangeTxRepo.findOne({
       where: {
         exchange,
