@@ -86,7 +86,7 @@ export class IpLogService {
       .innerJoin(User, 'user', 'ipLog.address=user.address')
       .innerJoin('user.userData', 'userData')
       .where('ipLog.ip = :ip', { ip })
-      .andWhere('(userData.hasIpRisk = 0 OR userData.hasIpRisk IS NULL)')
+      .andWhere('(userData.hasIpRisk = false OR userData.hasIpRisk IS NULL)')
       .getRawMany<{ id: number }>()
       .then((u) => u.map((userData) => userData.id));
 
@@ -97,7 +97,7 @@ export class IpLogService {
       .innerJoin(UserData, 'userData', 'ipLog.address=userData.mail')
       .where('ipLog.ip = :ip', { ip })
       .andWhere(`ipLog.address LIKE '%@%'`)
-      .andWhere('(userData.hasIpRisk = 0 OR userData.hasIpRisk IS NULL)')
+      .andWhere('(userData.hasIpRisk = false OR userData.hasIpRisk IS NULL)')
       .getRawMany<{ id: number }>()
       .then((u) => u.map((userData) => userData.id));
 

@@ -138,7 +138,7 @@ export class UserService {
       .leftJoin('userData.users', 'linkedUser')
       .leftJoin('linkedUser.wallet', 'wallet')
       .where('user.id = :id', { id })
-      .andWhere('wallet.isKycClient = 0')
+      .andWhere('wallet.isKycClient = false')
       .andWhere('linkedUser.status NOT IN (:...userStatus)', {
         userStatus: [UserStatus.BLOCKED, UserStatus.DELETED],
       })
