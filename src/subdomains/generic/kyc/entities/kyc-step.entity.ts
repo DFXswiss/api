@@ -469,7 +469,7 @@ export class KycStep extends IEntity {
 
   // prevent circular reference: KycStep.userData -> UserData.kycSteps -> KycStep
   toJSON(): any {
-    const { userData, ...rest } = this;
+    const { userData: _userData, ...rest } = this;
     return rest;
   }
 }
