@@ -221,6 +221,7 @@ export class Configuration {
     synchronize: process.env.SQL_SYNCHRONIZE === 'true',
     migrationsRun: process.env.SQL_MIGRATE === 'true',
     migrations: ['migration/*.js'],
+    relationLoadStrategy: 'query',
     connectTimeoutMS: 30000,
     poolSize: +(process.env.SQL_POOL_MAX ?? 10),
     logging: process.env.SQL_LOGGING as LoggerOptions,

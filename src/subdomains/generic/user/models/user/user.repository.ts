@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { Util } from 'src/shared/utils/util';
-import { EntityManager, Like } from 'typeorm';
+import { EntityManager, Raw } from 'typeorm';
 import { KycLevel } from '../user-data/user-data.enum';
 import { User } from './user.entity';
 
@@ -28,7 +28,7 @@ export class UserRepository extends BaseRepository<User> {
     // get highest numerical ref
     const nextRef = await this.findOne({
       select: { id: true, ref: true },
-      where: { ref: Like('%[0-9]-[0-9]%') },
+      where: { ref: Raw((alias) => `${alias} ~ '[0-9]-[0-9]'`) },
       order: { ref: 'DESC' },
     }).then((u) => +u.ref.replace('-', '') + 1);
 
