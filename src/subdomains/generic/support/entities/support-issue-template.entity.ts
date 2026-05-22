@@ -7,10 +7,10 @@ export class SupportIssueTemplate extends IEntity {
   @Column({ length: 256 })
   name: string;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   contentDe: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   contentEn?: string | null;
 
   @Column({ type: 'int' })
