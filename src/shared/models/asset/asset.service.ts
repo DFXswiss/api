@@ -115,7 +115,7 @@ export class AssetService {
       .select('DISTINCT asset.name', 'name')
       .innerJoin('asset.liquidityManagementRule', 'lmRule')
       .innerJoin('lmRule.deficitStartAction', 'deficitAction')
-      .where('asset.buyable = 1')
+      .where('asset.buyable = true')
       .andWhere('deficitAction.system = :exchange', { exchange })
       .getRawMany<{ name: string }>()
       .then((l) => l.map((a) => a.name));
