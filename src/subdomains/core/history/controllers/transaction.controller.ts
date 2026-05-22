@@ -710,16 +710,8 @@ export class TransactionController {
     },
     accountId?: number,
   ): Promise<Transaction | TransactionRequest | undefined> {
-    const relations: FindOptionsRelations<Transaction> = {
-      buyCrypto: {
-        buy: true,
-        cryptoRoute: true,
-        cryptoInput: true,
-        bankTx: true,
-        chargebackOutput: true,
-        checkoutTx: true,
-      },
-      buyFiat: { sell: true, cryptoInput: true, bankTx: true, fiatOutput: true },
+    // Split into two queries to stay under PostgreSQL's 1664 column limit
+    const baseRelations: FindOptionsRelations<Transaction> = {
       refReward: true,
       bankTx: { transaction: true },
       cryptoInput: true,
@@ -731,25 +723,43 @@ export class TransactionController {
     };
 
     let tx: Transaction | TransactionRequest;
-    if (id) tx = await this.transactionService.getTransactionById(+id, relations);
+    if (id) tx = await this.transactionService.getTransactionById(+id, baseRelations);
 
     const uidParam = uid ?? orderUid;
     if (uidParam) {
       tx = Config.formats.transactionUid.test(uidParam)
-        ? await this.transactionService.getTransactionByUid(uidParam, relations)
-        : ((await this.transactionService.getTransactionByRequestUid(uidParam, relations)) ??
+        ? await this.transactionService.getTransactionByUid(uidParam, baseRelations)
+        : ((await this.transactionService.getTransactionByRequestUid(uidParam, baseRelations)) ??
           (await this.transactionRequestService.getTransactionRequestByUid(uidParam, { user: { userData: true } })));
     }
 
     if (orderId)
       tx =
-        (await this.transactionService.getTransactionByRequestId(+orderId, relations)) ??
+        (await this.transactionService.getTransactionByRequestId(+orderId, baseRelations)) ??
         (await this.transactionRequestService.getTransactionRequest(+orderId, { user: { userData: true } }));
 
     if (externalId && accountId)
-      tx = await this.transactionService.getTransactionByExternalId(externalId, accountId, relations);
+      tx = await this.transactionService.getTransactionByExternalId(externalId, accountId, baseRelations);
 
-    if (ckoId) tx = await this.transactionService.getTransactionByCkoId(ckoId, relations);
+    if (ckoId) tx = await this.transactionService.getTransactionByCkoId(ckoId, baseRelations);
+
+    // Load buyCrypto/buyFiat separately
+    if (tx instanceof Transaction) {
+      tx.buyCrypto = await this.buyCryptoService.getBuyCryptoByTransactionId(tx.id, {
+        buy: true,
+        cryptoRoute: true,
+        cryptoInput: true,
+        bankTx: true,
+        chargebackOutput: true,
+        checkoutTx: true,
+      });
+      tx.buyFiat = await this.buyFiatService.getBuyFiatByTransactionId(tx.id, {
+        sell: true,
+        cryptoInput: true,
+        bankTx: true,
+        fiatOutput: true,
+      });
+    }
 
     return tx;
   }

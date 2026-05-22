@@ -466,4 +466,10 @@ export class KycStep extends IEntity {
   get isManual(): boolean {
     return this.type === KycStepType.MANUAL;
   }
+
+  // prevent circular reference: KycStep.userData -> UserData.kycSteps -> KycStep
+  toJSON(): any {
+    const { userData: _userData, ...rest } = this;
+    return rest;
+  }
 }
