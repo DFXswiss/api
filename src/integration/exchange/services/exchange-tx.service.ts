@@ -213,7 +213,7 @@ export class ExchangeTxService {
     const recheckHorizon = Util.daysBefore(Config.exchangeTxSyncRecheckDays);
 
     // Keyed on externalCreated (the exchange's own timestamp) to align with the downstream
-    // getAllTransactions(since) filter, which matches its in-memory cache against that field.
+    // getAllTransactions(since) filter, which matches cached transactions by that exchange timestamp.
     const oldestUnsettled = await this.exchangeTxRepo.findOne({
       where: {
         exchange,
