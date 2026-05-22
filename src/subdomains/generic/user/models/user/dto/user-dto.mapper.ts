@@ -7,10 +7,18 @@ import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
 import { UserProfileDto } from './user-profile.dto';
-import { PhoneCallStatusMapper, ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
+import {
+  PhoneCallStatusMapper,
+  ReferralDto,
+  UserAddressDto,
+  UserCapabilitiesDto,
+  UserV2Dto,
+  VolumesDto,
+} from './user-v2.dto';
 
 export class UserDtoMapper {
   static mapUser(userData: UserData, activeUserId?: number): UserV2Dto {
@@ -32,6 +40,7 @@ export class UserDtoMapper {
         phoneCallStatus: userData.phoneCallStatus ? PhoneCallStatusMapper[userData.phoneCallStatus] : undefined,
         preferredPhoneTimes: userData.phoneCallTimesObject,
       },
+      capabilities: UserDtoMapper.computeCapabilities(userData),
       volumes: this.mapVolumes(userData),
       addresses: userData.users
         .filter((u) => !u.isBlockedOrDeleted && !u.wallet.usesDummyAddresses)
@@ -63,6 +72,24 @@ export class UserDtoMapper {
     };
 
     return Object.assign(new UserAddressDto(), dto);
+  }
+
+  // Per-action capabilities. Mirrors the gating the realunit-app cubits
+  // were re-implementing locally (settings-edit visibility, support-link
+  // visibility) — surfacing them here lets the app render UI affordances
+  // without iterating step status.
+  private static computeCapabilities(userData: UserData): UserCapabilitiesDto {
+    const personalDataLocked = userData
+      .getStepsWith(KycStepName.PERSONAL_DATA)
+      .some((s) => s.isCompleted || s.isInReview);
+    const hasVerifiedMail = !!userData.mail;
+    return {
+      canEditName: !personalDataLocked,
+      canEditMail: !userData.isKycTerminated,
+      canEditPhone: !userData.isKycTerminated,
+      canEditAddress: !personalDataLocked,
+      supportAvailable: hasVerifiedMail,
+    };
   }
 
   private static mapVolumes(user: UserData | User): VolumesDto {

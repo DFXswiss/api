@@ -423,13 +423,13 @@ describe('RealUnitService', () => {
       registrationDate,
     };
 
-    it('returns COMPLETED without creating a new KycStep when signature matches a completed registration', async () => {
+    it('returns ALREADY_REGISTERED without creating a new KycStep when signature matches a completed registration', async () => {
       const existingStep = buildExistingStep({ signature: matchingSignature, isCompleted: true });
       mockUserWithSteps([existingStep]);
 
       const status = await service.completeRegistrationForWalletAddress(userDataId, dto);
 
-      expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
+      expect(status).toBe(RealUnitRegistrationStatus.ALREADY_REGISTERED);
       expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
     });
 
@@ -452,7 +452,7 @@ describe('RealUnitService', () => {
         signature: matchingSignature.toLowerCase(),
       });
 
-      expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
+      expect(status).toBe(RealUnitRegistrationStatus.ALREADY_REGISTERED);
       expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
     });
 
