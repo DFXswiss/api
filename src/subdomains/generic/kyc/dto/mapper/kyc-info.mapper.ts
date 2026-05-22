@@ -30,7 +30,7 @@ export class KycInfoMapper {
       tradingLimit: userData.tradingLimit,
       kycClients: userKycClients.map((kc) => kc.name),
       language: LanguageDtoMapper.entityToDto(userData.language),
-      kycSteps: kycSteps.map((s) => KycStepMapper.toStep(s, currentStep, requiredStepNames.has(s.name))),
+      kycSteps: kycSteps.map((s) => KycStepMapper.toStep(s, currentStep, requiredStepNames)),
       processStatus: KycInfoMapper.computeProcessStatus(userData, kycSteps, requiredStepNames),
       currentStep: withSession && currentStep ? KycStepMapper.toStepSession(currentStep) : undefined,
     };
@@ -59,9 +59,12 @@ export class KycInfoMapper {
       ReviewStatus.DATA_REQUESTED,
     ]);
     const pending = new Set<ReviewStatus>([
+      ReviewStatus.FINISHED,
       ReviewStatus.INTERNAL_REVIEW,
       ReviewStatus.EXTERNAL_REVIEW,
       ReviewStatus.MANUAL_REVIEW,
+      ReviewStatus.PARTIALLY_APPROVED,
+      ReviewStatus.PAUSED,
       ReviewStatus.ON_HOLD,
     ]);
 

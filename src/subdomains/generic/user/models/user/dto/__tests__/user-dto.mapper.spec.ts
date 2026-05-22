@@ -246,11 +246,7 @@ describe('UserDtoMapper', () => {
       expect(result.kyc.canTrade).toBe(false);
     });
 
-    it('canTrade = false when Ident step is Outdated even at level 50', () => {
-      // Reproduces user_data 338759 (2026-05-21 incident): level 53, original
-      // Ident expired by `checkDfxApproval`, a fresh sequence-1 Ident step
-      // sits in `InProgress`. Numerically a Level-50 account but practically
-      // not tradeable until the re-verification clears.
+    it('canTrade = true when Ident step is Outdated but level ≥ 30 (matches endpoint behavior)', () => {
       const userData = buildUserData({ kycLevel: KycLevel.LEVEL_50 });
       userData.kycSteps = [
         ...userData.kycSteps.filter((s) => s.name !== KycStepName.IDENT),
@@ -261,10 +257,10 @@ describe('UserDtoMapper', () => {
 
       const result = UserDtoMapper.mapUser(userData);
 
-      expect(result.kyc.canTrade).toBe(false);
+      expect(result.kyc.canTrade).toBe(true);
     });
 
-    it('canTrade = false when FinancialData step is Outdated', () => {
+    it('canTrade = true when FinancialData step is Outdated but level ≥ 30 (matches endpoint behavior)', () => {
       const userData = buildUserData();
       userData.kycSteps = [
         ...userData.kycSteps.filter((s) => s.name !== KycStepName.FINANCIAL_DATA),
@@ -273,7 +269,7 @@ describe('UserDtoMapper', () => {
 
       const result = UserDtoMapper.mapUser(userData);
 
-      expect(result.kyc.canTrade).toBe(false);
+      expect(result.kyc.canTrade).toBe(true);
     });
 
     it('canTrade = false when the account is KYC-terminated', () => {

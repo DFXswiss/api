@@ -125,7 +125,7 @@ export class UserKycDto {
 
   @ApiProperty({
     description:
-      'Authoritative trading-permission flag. `true` ⇔ kycLevel ≥ LEVEL_30 AND every required step is `Completed` AND no Ident/FinancialData step is in `Outdated`/`InProgress`/`OnHold`. Clients render this directly instead of comparing `level` against a hardcoded minimum.',
+      'Trading-permission flag. `true` ⇔ not terminated, not blocked, and kycLevel ≥ LEVEL_30. Matches the actual trade-endpoint gates.',
   })
   canTrade: boolean;
 
