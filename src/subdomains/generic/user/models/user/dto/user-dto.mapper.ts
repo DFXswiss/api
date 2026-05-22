@@ -94,11 +94,7 @@ export class UserDtoMapper {
     };
   }
 
-  // Authoritative trading-permission flag. Mirrors the routing rule the
-  // realunit-app cubit was reimplementing locally: numeric level alone is
-  // not enough — a level-50 user with an `Outdated` Ident step is *not*
-  // tradeable until the expired step is re-done. See
-  // `docs/api-authority-plan.md` (Wave 2) in the app repo.
+  // Matches the actual trade-endpoint gates (aml-helper, swap, buy, etc.).
   private static computeCanTrade(userData: UserData): boolean {
     if (userData.isKycTerminated || userData.isBlocked) return false;
     return userData.kycLevel >= KycLevel.LEVEL_30;
