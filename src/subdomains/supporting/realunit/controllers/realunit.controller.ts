@@ -543,7 +543,10 @@ export class RealUnitController {
     const response: RealUnitRegistrationResponseDto = {
       status: status,
     };
-    const statusCode = status === RealUnitRegistrationStatus.COMPLETED ? HttpStatus.CREATED : HttpStatus.ACCEPTED;
+    const statusCode =
+      status === RealUnitRegistrationStatus.COMPLETED || status === RealUnitRegistrationStatus.ALREADY_REGISTERED
+        ? HttpStatus.CREATED
+        : HttpStatus.ACCEPTED;
     res.status(statusCode).json(response);
   }
 
@@ -567,7 +570,10 @@ export class RealUnitController {
   ): Promise<void> {
     const status = await this.realunitService.completeRegistrationForWalletAddress(jwt.account, dto);
     const response: RealUnitRegistrationResponseDto = { status };
-    const statusCode = status === RealUnitRegistrationStatus.COMPLETED ? HttpStatus.CREATED : HttpStatus.ACCEPTED;
+    const statusCode =
+      status === RealUnitRegistrationStatus.COMPLETED || status === RealUnitRegistrationStatus.ALREADY_REGISTERED
+        ? HttpStatus.CREATED
+        : HttpStatus.ACCEPTED;
     res.status(statusCode).json(response);
   }
 
