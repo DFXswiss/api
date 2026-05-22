@@ -56,7 +56,6 @@ export class KycInfoMapper {
       ReviewStatus.IN_PROGRESS,
       ReviewStatus.FAILED,
       ReviewStatus.OUTDATED,
-      ReviewStatus.DATA_REQUESTED,
     ]);
     const pending = new Set<ReviewStatus>([
       ReviewStatus.FINISHED,
@@ -64,6 +63,7 @@ export class KycInfoMapper {
       ReviewStatus.EXTERNAL_REVIEW,
       ReviewStatus.MANUAL_REVIEW,
       ReviewStatus.PARTIALLY_APPROVED,
+      ReviewStatus.DATA_REQUESTED,
       ReviewStatus.PAUSED,
       ReviewStatus.ON_HOLD,
     ]);
