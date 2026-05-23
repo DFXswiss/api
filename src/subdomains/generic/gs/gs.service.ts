@@ -284,12 +284,16 @@ export class GsService {
     // Add limit
     kql += `\n| take ${template.defaultLimit}`;
 
-    // Log for audit. Verbose so the TRACES_BY_MESSAGE template (which filters
-    // out severityLevel 0) does not surface these audit entries — otherwise
-    // a high-frequency caller would see its own queries recursively. To
-    // retrieve the audit trail, query AppInsights directly or add a dedicated
-    // audit-only template.
-    this.logger.verbose(`Log query by ${userIdentifier}: template=${dto.template}, params=${JSON.stringify(dto)}`);
+    // Redact free-text user inputs before audit-logging: otherwise the same
+    // value passed as messageFilter would self-match on the next TRACES_BY_MESSAGE call.
+    const redactedDto = {
+      ...dto,
+      messageFilter: dto.messageFilter ? `[redacted-len=${dto.messageFilter.length}]` : undefined,
+      eventName: dto.eventName ? `[redacted-len=${dto.eventName.length}]` : undefined,
+    };
+    this.logger.verbose(
+      `Log query by ${userIdentifier}: template=${dto.template}, params=${JSON.stringify(redactedDto)}`,
+    );
 
     // Execute
     const timespan = `PT${dto.hours ?? 1}H`;
