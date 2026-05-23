@@ -139,8 +139,13 @@ export const DebugLogQueryTemplates: Record<
     defaultLimit: 500,
   },
   [LogQueryTemplate.TRACES_BY_MESSAGE]: {
+    // Excluding severityLevel 0 (Verbose) drops the audit log this very
+    // endpoint emits on each call — otherwise a high-frequency caller
+    // (e.g. the RealUnit tracing dashboard polling every 5 s) sees its
+    // own audit entries recursively crowd the 200-row result.
     kql: `traces
 | where timestamp > ago({hours}h)
+| where severityLevel != 0
 | where message contains "{messageFilter}"
 | project timestamp, severityLevel, message, operation_Id
 | order by timestamp desc`,
