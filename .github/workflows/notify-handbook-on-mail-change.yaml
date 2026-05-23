@@ -1,0 +1,76 @@
+name: Notify RealUnit handbook on mail change
+
+# Pings DFXswiss/realunit-app (Handbook CI/CD) whenever the RealUnit mail
+# templates, the German i18n strings used by those templates, or the
+# preview-generator script itself change on develop.
+#
+# The realunit-app handbook image embeds an HTML preview of every customer
+# mail. Those previews are generated at handbook-build-time from THIS repo
+# (single source of truth) — see DFXswiss/api/scripts/generate-realunit-previews.js
+# and the consumer step in DFXswiss/realunit-app/.github/workflows/handbook.yaml
+# ("Generate RealUnit mail previews from api repo").
+#
+# Without this dispatch, a change to a mail template here would only land in
+# the handbook the next time someone pushed an unrelated commit to the
+# realunit-app repo — i.e. the handbook would drift behind production mail
+# content silently. With the dispatch, the handbook DEV+PRD deploy is
+# triggered immediately after the develop push that changed the mail.
+#
+# Path filter mirrors exactly what the generator script reads (verified via
+# `grep -E "readFileSync|require" scripts/generate-realunit-previews.js`):
+#   - mail-realunit.json  → RealUnit-specific i18n strings
+#   - mail.json           → DFX defaults, used as fallback for missing keys
+#   - realunit.hbs        → the Handlebars template itself
+#   - generate-realunit-previews.js → wiring (also covers index/wrapping)
+
+on:
+  push:
+    branches: [develop]
+    paths:
+      - 'src/shared/i18n/de/mail-realunit.json'
+      - 'src/shared/i18n/de/mail.json'
+      - 'src/subdomains/supporting/notification/templates/realunit.hbs'
+      - 'scripts/generate-realunit-previews.js'
+      - '.github/workflows/notify-handbook-on-mail-change.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Serialize so a burst of mail-template commits collapses into a single
+# handbook rebuild rather than queuing up N parallel deploys (each one would
+# rebuild the same handbook image and race on Docker Hub :beta).
+concurrency:
+  group: notify-handbook-mails
+  cancel-in-progress: false
+
+jobs:
+  dispatch:
+    name: Send repository_dispatch to realunit-app
+    runs-on: ubuntu-latest
+    steps:
+      # peter-evans/repository-dispatch is the standard wrapper used across
+      # the org for cross-repo dispatches. Pinned to a major tag so a
+      # behaviour change in a future major is opt-in.
+      - name: Trigger handbook rebuild
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          # PAT (classic, scope: repo) for DFXswiss/realunit-app. Stored as a
+          # repository secret in DFXswiss/api so this workflow can dispatch
+          # into the realunit-app repo (the default GITHUB_TOKEN of THIS
+          # workflow is scoped to THIS repo and cannot trigger workflows in
+          # another repo, even within the same org).
+          token: ${{ secrets.HANDBOOK_DISPATCH_TOKEN }}
+          repository: DFXswiss/realunit-app
+          event-type: mails-updated
+          # Small payload that ends up in the receiver's
+          # github.event.client_payload — useful for tracing back which commit
+          # caused a rebuild when triaging a regression.
+          client-payload: |
+            {
+              "source_repo": "${{ github.repository }}",
+              "source_sha": "${{ github.sha }}",
+              "source_ref": "${{ github.ref }}",
+              "source_actor": "${{ github.actor }}",
+              "source_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+            }
