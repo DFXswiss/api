@@ -66,11 +66,23 @@ jobs:
           # Small payload that ends up in the receiver's
           # github.event.client_payload — useful for tracing back which commit
           # caused a rebuild when triaging a regression.
+          #
+          # Each value is wrapped in `toJSON(...)` (which emits a fully
+          # JSON-escaped string *including* the surrounding double-quotes),
+          # rather than the simpler "${{ ... }}" interpolation. Most of these
+          # fields are safe by construction today (github.actor is a GitHub
+          # username, refs/sha are constrained character sets), but
+          # github.actor in particular can legally contain '[' / ']' (bot
+          # accounts like `dependabot[bot]`) and refs can include characters
+          # that would need escaping. toJSON() makes the payload robust to
+          # any future GitHub-side widening of those character sets, at zero
+          # cost. Note: NO surrounding quotes around `${{ toJSON(...) }}` —
+          # toJSON already supplies them.
           client-payload: |
             {
-              "source_repo": "${{ github.repository }}",
-              "source_sha": "${{ github.sha }}",
-              "source_ref": "${{ github.ref }}",
-              "source_actor": "${{ github.actor }}",
-              "source_run_url": "${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+              "source_repo": ${{ toJSON(github.repository) }},
+              "source_sha": ${{ toJSON(github.sha) }},
+              "source_ref": ${{ toJSON(github.ref) }},
+              "source_actor": ${{ toJSON(github.actor) }},
+              "source_run_url": ${{ toJSON(format('{0}/{1}/actions/runs/{2}', github.server_url, github.repository, github.run_id)) }}
             }

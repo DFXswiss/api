@@ -4,6 +4,24 @@
  * Uses RealUnit translations with fallback to DFX defaults (same as production).
  * Usage: node scripts/generate-realunit-previews.js
  * Output: scripts/email-previews/realunit/
+ *
+ * CROSS-REPO COUPLING — read before adding a language/locale
+ * ----------------------------------------------------------
+ * This script is also invoked from the DFXswiss/realunit-app handbook build
+ * (.github/workflows/handbook.yaml → step "Generate RealUnit mail previews
+ * from api repo"). Whenever you add a NEW locale here (e.g. a French
+ * mail-realunit-fr.json + a French generator-output directory), you MUST
+ * also widen the `paths:` filter in this repo's
+ * .github/workflows/notify-handbook-on-mail-change.yaml — otherwise a
+ * commit that only touches the new locale will not fire the
+ * repository_dispatch and the handbook will silently fall behind. The
+ * filter currently lists the German files explicitly by path; it does not
+ * use a wildcard, because we want every locale add to be a deliberate edit
+ * to both files in the same PR.
+ *
+ * The realunit-app side ALSO has a hard-coded mail-count check
+ * (EXPECTED_HTML_COUNT) — adding/removing a mail here without bumping
+ * that count over there will fail the handbook build. That is intentional.
  */
 
 const fs = require('fs');
