@@ -196,11 +196,8 @@ describe('GsService', () => {
   });
 
   describe('executeLogQuery - Audit Log Redaction', () => {
-    it('audit log redacts user-supplied filter values', async () => {
-      const appInsightsQueryService = createMock<AppInsightsQueryService>();
-      jest.spyOn(appInsightsQueryService, 'query').mockResolvedValue({ tables: [] } as never);
-
-      const localService = new GsService(
+    const buildLocalService = (appInsightsQueryService: AppInsightsQueryService) =>
+      new GsService(
         appInsightsQueryService,
         createMock(),
         createMock(),
@@ -225,6 +222,12 @@ describe('GsService', () => {
         createMock(),
       );
 
+    it('audit log redacts user-supplied filter values', async () => {
+      const appInsightsQueryService = createMock<AppInsightsQueryService>();
+      jest.spyOn(appInsightsQueryService, 'query').mockResolvedValue({ tables: [] } as never);
+
+      const localService = buildLocalService(appInsightsQueryService);
+
       const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
 
       await localService.executeLogQuery(
@@ -239,6 +242,56 @@ describe('GsService', () => {
       const auditMessage = auditCall![0] as string;
       expect(auditMessage).not.toContain('SENTINEL-VALUE-XYZ');
       expect(auditMessage).toContain('[redacted');
+
+      verboseSpy.mockRestore();
+    });
+
+    it('audit log redacts user-supplied eventName values', async () => {
+      const appInsightsQueryService = createMock<AppInsightsQueryService>();
+      jest.spyOn(appInsightsQueryService, 'query').mockResolvedValue({ tables: [] } as never);
+
+      const localService = buildLocalService(appInsightsQueryService);
+
+      const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
+
+      await localService.executeLogQuery(
+        { template: LogQueryTemplate.CUSTOM_EVENTS, eventName: 'SENTINEL-EVENT-XYZ', hours: 1 },
+        'tester',
+      );
+
+      const auditCall = verboseSpy.mock.calls.find(
+        (args) => typeof args[0] === 'string' && args[0].includes('Log query by'),
+      );
+      expect(auditCall).toBeDefined();
+      const auditMessage = auditCall![0] as string;
+      expect(auditMessage).not.toContain('SENTINEL-EVENT-XYZ');
+      expect(auditMessage).toContain('[redacted');
+
+      verboseSpy.mockRestore();
+    });
+
+    it('audit log keeps non-redacted fields visible', async () => {
+      const appInsightsQueryService = createMock<AppInsightsQueryService>();
+      jest.spyOn(appInsightsQueryService, 'query').mockResolvedValue({ tables: [] } as never);
+
+      const localService = buildLocalService(appInsightsQueryService);
+
+      const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
+
+      await localService.executeLogQuery(
+        { template: LogQueryTemplate.TRACES_BY_MESSAGE, messageFilter: 'foo', hours: 7 },
+        '0xtester',
+      );
+
+      const auditCall = verboseSpy.mock.calls.find(
+        (args) => typeof args[0] === 'string' && args[0].includes('Log query by'),
+      );
+      expect(auditCall).toBeDefined();
+      const auditMessage = auditCall![0] as string;
+      expect(auditMessage).toContain('template=traces-by-message');
+      expect(auditMessage).toContain('"hours":7');
+      expect(auditMessage).toContain('0xtester');
+      expect(auditMessage).not.toContain('"foo"');
 
       verboseSpy.mockRestore();
     });
