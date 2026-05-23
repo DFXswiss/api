@@ -284,10 +284,8 @@ export class GsService {
     // Add limit
     kql += `\n| take ${template.defaultLimit}`;
 
-    // Audit log: user-input fields redacted to prevent self-match in TRACES_BY_MESSAGE queries.
-    this.logger.verbose(
-      `Log query by ${userIdentifier}: template=${dto.template}, params=${JSON.stringify(this.redactAuditDto(dto))}`,
-    );
+    // Log for audit
+    this.logger.verbose(`Log query by ${userIdentifier}: template=${dto.template}, params=${JSON.stringify(dto)}`);
 
     // Execute
     const timespan = `PT${dto.hours ?? 1}H`;
@@ -312,26 +310,6 @@ export class GsService {
   private escapeKqlString(value: string): string {
     // Escape quotes and backslashes for KQL string literals
     return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  }
-
-  /**
-   * Redacts free-text user inputs from the DTO before they land in the audit log.
-   *
-   * `messageFilter` (used by TRACES_BY_MESSAGE with `message contains`) and
-   * `eventName` (used by CUSTOM_EVENTS with `name ==`) are the caller-supplied
-   * strings that drive matching queries. If they appear verbatim in the audit
-   * trace itself, a follow-up query with the same filter recursively
-   * self-matches and crowds the real results out of the 200-row default.
-   *
-   * When adding new free-text/contains-style fields to LogQueryDto, redact
-   * them here as well — otherwise the self-match recursion comes back.
-   */
-  private redactAuditDto(dto: LogQueryDto): Partial<LogQueryDto> {
-    return {
-      ...dto,
-      messageFilter: dto.messageFilter ? `[redacted-len=${dto.messageFilter.length}]` : undefined,
-      eventName: dto.eventName ? `[redacted-len=${dto.eventName.length}]` : undefined,
-    };
   }
 
   // --- Helper Methods ---

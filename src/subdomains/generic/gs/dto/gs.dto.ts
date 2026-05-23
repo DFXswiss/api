@@ -138,10 +138,16 @@ export const DebugLogQueryTemplates: Record<
     requiredParams: ['operationId'],
     defaultLimit: 500,
   },
+  // The audit log this very endpoint emits (verbose success-audit and info
+  // failure-audit) starts with "[GsService] Log query by " — excluding that
+  // prefix prevents a high-frequency caller (e.g. the RealUnit tracing
+  // dashboard polling every 5 s) from recursively matching its own queries
+  // and crowding real traces out of the 200-row response.
   [LogQueryTemplate.TRACES_BY_MESSAGE]: {
     kql: `traces
 | where timestamp > ago({hours}h)
 | where message contains "{messageFilter}"
+| where not(message startswith "[GsService] Log query by ")
 | project timestamp, severityLevel, message, operation_Id
 | order by timestamp desc`,
     requiredParams: ['messageFilter'],

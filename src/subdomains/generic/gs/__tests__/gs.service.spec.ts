@@ -2,8 +2,6 @@ import { BadRequestException } from '@nestjs/common';
 import { createMock } from '@golevelup/ts-jest';
 import { DataSource } from 'typeorm';
 import { AppInsightsQueryService } from 'src/integration/infrastructure/app-insights-query.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { LogQueryTemplate } from '../dto/log-query.dto';
 import { GsService } from '../gs.service';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UserService } from '../../user/models/user/user.service';
@@ -192,108 +190,6 @@ describe('GsService', () => {
 
         expect(result).toBeDefined();
       });
-    });
-  });
-
-  describe('executeLogQuery - Audit Log Redaction', () => {
-    const buildLocalService = (appInsightsQueryService: AppInsightsQueryService) =>
-      new GsService(
-        appInsightsQueryService,
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock<DataSource>(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-        createMock(),
-      );
-
-    it('audit log redacts user-supplied filter values', async () => {
-      const appInsightsQueryService = createMock<AppInsightsQueryService>();
-      jest.spyOn(appInsightsQueryService, 'query').mockResolvedValue({ tables: [] } as never);
-
-      const localService = buildLocalService(appInsightsQueryService);
-
-      const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
-
-      await localService.executeLogQuery(
-        { template: LogQueryTemplate.TRACES_BY_MESSAGE, messageFilter: 'SENTINEL-VALUE-XYZ', hours: 1 },
-        'tester',
-      );
-
-      const auditCall = verboseSpy.mock.calls.find(
-        (args) => typeof args[0] === 'string' && args[0].includes('Log query by'),
-      );
-      expect(auditCall).toBeDefined();
-      const auditMessage = auditCall![0] as string;
-      expect(auditMessage).not.toContain('SENTINEL-VALUE-XYZ');
-      expect(auditMessage).toContain('[redacted');
-
-      verboseSpy.mockRestore();
-    });
-
-    it('audit log redacts user-supplied eventName values', async () => {
-      const appInsightsQueryService = createMock<AppInsightsQueryService>();
-      jest.spyOn(appInsightsQueryService, 'query').mockResolvedValue({ tables: [] } as never);
-
-      const localService = buildLocalService(appInsightsQueryService);
-
-      const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
-
-      await localService.executeLogQuery(
-        { template: LogQueryTemplate.CUSTOM_EVENTS, eventName: 'SENTINEL-EVENT-XYZ', hours: 1 },
-        'tester',
-      );
-
-      const auditCall = verboseSpy.mock.calls.find(
-        (args) => typeof args[0] === 'string' && args[0].includes('Log query by'),
-      );
-      expect(auditCall).toBeDefined();
-      const auditMessage = auditCall![0] as string;
-      expect(auditMessage).not.toContain('SENTINEL-EVENT-XYZ');
-      expect(auditMessage).toContain('[redacted');
-
-      verboseSpy.mockRestore();
-    });
-
-    it('audit log keeps non-redacted fields visible', async () => {
-      const appInsightsQueryService = createMock<AppInsightsQueryService>();
-      jest.spyOn(appInsightsQueryService, 'query').mockResolvedValue({ tables: [] } as never);
-
-      const localService = buildLocalService(appInsightsQueryService);
-
-      const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
-
-      await localService.executeLogQuery(
-        { template: LogQueryTemplate.TRACES_BY_MESSAGE, messageFilter: 'foo', hours: 7 },
-        '0xtester',
-      );
-
-      const auditCall = verboseSpy.mock.calls.find(
-        (args) => typeof args[0] === 'string' && args[0].includes('Log query by'),
-      );
-      expect(auditCall).toBeDefined();
-      const auditMessage = auditCall![0] as string;
-      expect(auditMessage).toContain('template=traces-by-message');
-      expect(auditMessage).toContain('"hours":7');
-      expect(auditMessage).toContain('0xtester');
-      expect(auditMessage).not.toContain('"foo"');
-
-      verboseSpy.mockRestore();
     });
   });
 });
