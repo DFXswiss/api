@@ -1,4 +1,5 @@
 import { KycStep } from '../../entities/kyc-step.entity';
+import { KycStepName } from '../../enums/kyc-step-name.enum';
 import { ReviewStatus } from '../../enums/review-status.enum';
 import { KycReasonMap } from '../kyc-error.enum';
 import {
@@ -10,10 +11,11 @@ import {
 } from '../output/kyc-info.dto';
 
 export class KycStepMapper {
-  static toStep(kycStep: KycStep, currentStep?: KycStep): KycStepDto {
+  static toStep(kycStep: KycStep, currentStep: KycStep | undefined, requiredStepNames: Set<KycStepName>): KycStepDto {
     const dto: KycStepDto = {
       ...KycStepMapper.toStepBase(kycStep),
       isCurrent: kycStep.id && kycStep.id === currentStep?.id,
+      isRequired: requiredStepNames.has(kycStep.name),
     };
 
     return Object.assign(new KycStepDto(), dto);

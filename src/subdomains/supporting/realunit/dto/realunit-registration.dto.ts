@@ -27,6 +27,10 @@ export enum RealUnitRegistrationStatus {
   COMPLETED = 'completed',
   PENDING_REVIEW = 'pending_review',
   FORWARDING_FAILED = 'forwarding_failed',
+  // Returned when the wallet is already registered for this user. Clients
+  // treat this as a non-error success state — the merge / re-entry path
+  // depends on this being a structured response, not a thrown 400.
+  ALREADY_REGISTERED = 'already_registered',
 }
 
 export class RealUnitRegistrationResponseDto {

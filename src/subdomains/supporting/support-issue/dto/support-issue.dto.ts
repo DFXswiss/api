@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CountryDto } from 'src/shared/models/country/dto/country.dto';
+import { LanguageDto } from 'src/shared/models/language/dto/language.dto';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
@@ -115,6 +116,9 @@ export class SupportIssueInternalAccountDataDto {
 
   @ApiPropertyOptional({ type: CountryDto })
   country?: CountryDto;
+
+  @ApiPropertyOptional({ type: LanguageDto })
+  language?: LanguageDto;
 }
 
 export class SupportIssueInternalWalletDto {

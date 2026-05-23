@@ -6,7 +6,7 @@ import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepName } from '../../enums/kyc-step-name.enum';
 import { KycStepType, getKycStepIndex, getKycTypeIndex, requiredKycSteps } from '../../enums/kyc.enum';
 import { ReviewStatus } from '../../enums/review-status.enum';
-import { KycLevelDto, KycSessionDto } from '../output/kyc-info.dto';
+import { KycLevelDto, KycProcessStatus, KycSessionDto } from '../output/kyc-info.dto';
 import { KycStepMapper } from './kyc-step.mapper';
 
 export class KycInfoMapper {
@@ -23,16 +23,54 @@ export class KycInfoMapper {
 
     const userKycClients = kycClients.filter((kc) => userData.kycClientList.includes(kc.id));
 
+    const requiredStepNames = new Set(requiredKycSteps(userData));
+
     const dto: KycLevelDto | KycSessionDto = {
       kycLevel: userData.kycLevelDisplay,
       tradingLimit: userData.tradingLimit,
       kycClients: userKycClients.map((kc) => kc.name),
       language: LanguageDtoMapper.entityToDto(userData.language),
-      kycSteps: kycSteps.map((s) => KycStepMapper.toStep(s, currentStep)),
+      kycSteps: kycSteps.map((s) => KycStepMapper.toStep(s, currentStep, requiredStepNames)),
+      processStatus: KycInfoMapper.computeProcessStatus(userData, kycSteps, requiredStepNames),
       currentStep: withSession && currentStep ? KycStepMapper.toStepSession(currentStep) : undefined,
     };
 
     return withSession ? Object.assign(new KycSessionDto(), dto) : Object.assign(new KycLevelDto(), dto);
+  }
+
+  // Reflects the routing semantics the realunit-app currently re-implements
+  // locally (`KycCubit._runCheckKyc`): completed vs pending-review vs actionable
+  // is derived from the status of the *required* steps, not from `kycLevel`.
+  // Surfacing it here lets the client render the verdict without inferring it.
+  private static computeProcessStatus(
+    userData: UserData,
+    kycSteps: KycStep[],
+    requiredStepNames: Set<KycStepName>,
+  ): KycProcessStatus {
+    if (userData.isKycTerminated) return KycProcessStatus.FAILED;
+
+    const requiredSteps = kycSteps.filter((s) => requiredStepNames.has(s.name));
+
+    const actionable = new Set<ReviewStatus>([
+      ReviewStatus.NOT_STARTED,
+      ReviewStatus.IN_PROGRESS,
+      ReviewStatus.FAILED,
+      ReviewStatus.OUTDATED,
+    ]);
+    const pending = new Set<ReviewStatus>([
+      ReviewStatus.FINISHED,
+      ReviewStatus.INTERNAL_REVIEW,
+      ReviewStatus.EXTERNAL_REVIEW,
+      ReviewStatus.MANUAL_REVIEW,
+      ReviewStatus.PARTIALLY_APPROVED,
+      ReviewStatus.DATA_REQUESTED,
+      ReviewStatus.PAUSED,
+      ReviewStatus.ON_HOLD,
+    ]);
+
+    if (requiredSteps.some((s) => actionable.has(s.status))) return KycProcessStatus.IN_PROGRESS;
+    if (requiredSteps.some((s) => pending.has(s.status))) return KycProcessStatus.PENDING_REVIEW;
+    return KycProcessStatus.COMPLETED;
   }
 
   // --- HELPER METHODS --- //
