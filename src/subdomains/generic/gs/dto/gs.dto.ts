@@ -12,6 +12,10 @@ export const GsRestrictedColumns: Record<string, string[]> = {
  * (`[GsService] Log query by ...`). The ALL_TRACES template excludes lines
  * with this prefix to prevent recursive self-match for high-frequency
  * callers. Keep service and template in sync via this constant.
+ *
+ * Note: the leading `[GsService] ` is prepended by `DfxLogger` from the
+ * `GsService` class name, not from this constant. Renaming the service
+ * class would break the KQL filter silently — no test covers that path.
  */
 export const LogQueryAuditPrefix = 'Log query by ';
 
