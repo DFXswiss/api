@@ -284,7 +284,11 @@ export class GsService {
     // Add limit
     kql += `\n| take ${template.defaultLimit}`;
 
-    // Log for audit
+    // Log for audit. Verbose so the TRACES_BY_MESSAGE template (which filters
+    // out severityLevel 0) does not surface these audit entries — otherwise
+    // a high-frequency caller would see its own queries recursively. To
+    // retrieve the audit trail, query AppInsights directly or add a dedicated
+    // audit-only template.
     this.logger.verbose(`Log query by ${userIdentifier}: template=${dto.template}, params=${JSON.stringify(dto)}`);
 
     // Execute
