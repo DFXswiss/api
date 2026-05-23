@@ -7,6 +7,7 @@ export enum LogQueryTemplate {
   REQUEST_FAILURES = 'request-failures',
   DEPENDENCIES_SLOW = 'dependencies-slow',
   CUSTOM_EVENTS = 'custom-events',
+  ALL_TRACES = 'all-traces',
 }
 
 export class LogQueryDto {

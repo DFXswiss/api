@@ -182,6 +182,19 @@ export const DebugLogQueryTemplates: Record<
     requiredParams: ['eventName'],
     defaultLimit: 500,
   },
+  [LogQueryTemplate.ALL_TRACES]: {
+    // Returns all trace entries in the given window. Self-emitted audit lines
+    // from /gs/debug/logs (start with "[GsService] Log query by ") are filtered
+    // out at the source so they don't crowd the result for high-frequency
+    // dashboard callers.
+    kql: `traces
+| where timestamp > ago({hours}h)
+| where not(message startswith "[GsService] Log query by ")
+| project timestamp, severityLevel, message, operation_Id
+| order by timestamp desc`,
+    requiredParams: [],
+    defaultLimit: 500,
+  },
 };
 
 // Support endpoint
