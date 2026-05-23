@@ -7,6 +7,14 @@ export const GsRestrictedColumns: Record<string, string[]> = {
   asset: ['ikna'],
 };
 
+/**
+ * Prefix of the verbose audit message emitted by `gs.service.executeLogQuery`
+ * (`[GsService] Log query by ...`). The ALL_TRACES template excludes lines
+ * with this prefix to prevent recursive self-match for high-frequency
+ * callers. Keep service and template in sync via this constant.
+ */
+export const LogQueryAuditPrefix = 'Log query by ';
+
 // Debug endpoint
 export const DebugMaxResults = 10000;
 export const DebugBlockedSchemas = ['sys', 'information_schema', 'master', 'msdb', 'tempdb', 'pg_catalog', 'pg_toast'];
@@ -184,12 +192,15 @@ export const DebugLogQueryTemplates: Record<
   },
   [LogQueryTemplate.ALL_TRACES]: {
     // Returns all trace entries in the given window. Self-emitted audit lines
-    // from /gs/debug/logs (start with "[GsService] Log query by ") are filtered
-    // out at the source so they don't crowd the result for high-frequency
-    // dashboard callers.
+    // from /gs/debug/logs (start with "[GsService] " + LogQueryAuditPrefix)
+    // are filtered out at the source so they don't crowd the result for
+    // high-frequency dashboard callers. The "[GsService] " prefix is added by
+    // DfxLogger's class-context; LogQueryAuditPrefix is the message prefix
+    // emitted by gs.service.executeLogQuery — both sides reference the same
+    // constant to keep service and template in sync.
     kql: `traces
 | where timestamp > ago({hours}h)
-| where not(message startswith "[GsService] Log query by ")
+| where not(message startswith "[GsService] ${LogQueryAuditPrefix}")
 | project timestamp, severityLevel, message, operation_Id
 | order by timestamp desc`,
     requiredParams: [],
