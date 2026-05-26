@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ApiBadRequestResponse, ApiBearerAuth, ApiExcludeEndpoint, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -32,6 +32,18 @@ export class SupportIssueController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({
+    summary: 'Create a support issue',
+    description:
+      'Creates a support ticket for the authenticated user (or for an anonymous transaction-request flow if no JWT is supplied). ' +
+      'A verified email on the user account is required — see the Bad Request response below for the prerequisite endpoint.',
+  })
+  @ApiBadRequestResponse({
+    description:
+      'Mail is missing. The user must register an email first via `POST /realunit/register/email` before a support ticket can be created. ' +
+      'Mirrors the structured `UserCapabilitiesDto.createSupportTicket` capability on `GET /v2/user`, which surfaces the same prerequisite ' +
+      'as machine-readable data for client UIs.',
+  })
   async createIssue(
     @GetJwt() jwt: JwtPayload | undefined,
     @Body() dto: CreateSupportIssueDto,
