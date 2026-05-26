@@ -5,7 +5,7 @@ import { PaymentLink } from 'src/subdomains/core/payment-link/entities/payment-l
 import { Route } from 'src/subdomains/core/route/route.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { ChildEntity, Column, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { ChildEntity, Column, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { Deposit } from '../../../../supporting/address-pool/deposit/deposit.entity';
 import { DepositRoute, RouteType } from '../../../../supporting/address-pool/route/deposit-route.entity';
 
@@ -22,9 +22,11 @@ export class Swap extends DepositRoute {
   @ManyToOne(() => User, (user) => user.swaps, { nullable: false })
   declare user: User;
 
+  @Index()
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   asset?: Asset;
 
+  @Index()
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
   targetDeposit?: Deposit;
 

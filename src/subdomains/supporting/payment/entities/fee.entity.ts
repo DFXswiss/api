@@ -5,7 +5,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { Bank } from '../../bank/bank/bank.entity';
 import { FeeRequest } from '../services/fee.service';
 
@@ -80,9 +80,11 @@ export class Fee extends IEntity {
   @Column({ type: 'text', nullable: true })
   financialTypes?: string; // semicolon separated financialTypes
 
+  @Index()
   @ManyToOne(() => Wallet, { nullable: true, eager: true })
   wallet?: Wallet;
 
+  @Index()
   @ManyToOne(() => Bank, { nullable: true, eager: true })
   bank?: Bank;
 

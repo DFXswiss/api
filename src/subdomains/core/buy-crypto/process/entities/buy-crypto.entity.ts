@@ -36,7 +36,7 @@ import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entiti
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -78,6 +78,7 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   checkoutTx?: CheckoutTx;
 
+  @Index()
   @ManyToOne(() => Buy, (buy) => buy.buyCryptos, { nullable: true })
   buy?: Buy;
 
@@ -85,9 +86,11 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   cryptoInput?: CryptoInput;
 
+  @Index()
   @ManyToOne(() => Swap, (cryptoRoute) => cryptoRoute.buyCryptos, { nullable: true })
   cryptoRoute?: Swap;
 
+  @Index()
   @ManyToOne(() => BuyCryptoBatch, (batch) => batch.transactions, { eager: true, nullable: true })
   batch?: BuyCryptoBatch;
 

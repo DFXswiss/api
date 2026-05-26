@@ -3,7 +3,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { PriceSource } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { TradingRuleStatus } from '../enums';
 
 export interface PriceConfig {
@@ -18,9 +18,11 @@ export class TradingRule extends IEntity {
   @Column()
   status: TradingRuleStatus;
 
+  @Index()
   @ManyToOne(() => Asset, { nullable: false, eager: true })
   leftAsset: Asset;
 
+  @Index()
   @ManyToOne(() => Asset, { nullable: false, eager: true })
   rightAsset: Asset;
 

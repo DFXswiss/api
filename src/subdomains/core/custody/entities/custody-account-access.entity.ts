@@ -7,9 +7,11 @@ import { CustodyAccount } from './custody-account.entity';
 @Entity()
 @Index((a: CustodyAccountAccess) => [a.account, a.userData], { unique: true })
 export class CustodyAccountAccess extends IEntity {
+  @Index()
   @ManyToOne(() => CustodyAccount, (custodyAccount) => custodyAccount.accessGrants, { nullable: false })
   account: CustodyAccount;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 

@@ -1,6 +1,6 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, ManyToOne, TableInheritance } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, TableInheritance } from 'typeorm';
 import { KycLogType } from '../enums/kyc.enum';
 import { KycFile } from './kyc-file.entity';
 
@@ -16,6 +16,7 @@ export class KycLog extends IEntity {
   @Column({ length: 256, nullable: true })
   pdfUrl?: string;
 
+  @Index()
   @ManyToOne(() => KycFile, (f) => f.logs, { nullable: true })
   file?: KycFile;
 
@@ -25,6 +26,7 @@ export class KycLog extends IEntity {
   @Column({ type: 'timestamp', nullable: true })
   eventDate?: Date;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 

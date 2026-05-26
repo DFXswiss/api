@@ -1,5 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { SignatoryState, UserDataRelationState } from './dto/user-data-relation.enum';
 
@@ -12,9 +12,11 @@ export class UserDataRelation extends IEntity {
   signatory: SignatoryState;
 
   // --- REFERENCES --- //
+  @Index()
   @ManyToOne(() => UserData, (userData) => userData.accountRelations, { nullable: false })
   account: UserData;
 
+  @Index()
   @ManyToOne(() => UserData, (userData) => userData.relatedAccountRelations, { nullable: false })
   relatedAccount: UserData;
 }

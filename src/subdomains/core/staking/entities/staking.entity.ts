@@ -3,19 +3,23 @@ import { StakingReward } from 'src/subdomains/core/staking/entities/staking-rewa
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Deposit } from 'src/subdomains/supporting/address-pool/deposit/deposit.entity';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
-import { ChildEntity, Column, ManyToOne, OneToMany } from 'typeorm';
+import { ChildEntity, Column, Index, ManyToOne, OneToMany } from 'typeorm';
 
 @ChildEntity()
 export class Staking extends DepositRoute {
+  @Index()
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
   rewardDeposit?: Deposit;
 
+  @Index()
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   rewardAsset?: Asset;
 
+  @Index()
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
   paybackDeposit?: Deposit;
 
+  @Index()
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   paybackAsset?: Asset;
 

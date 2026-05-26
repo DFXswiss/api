@@ -38,12 +38,14 @@ export class LiquidityOrder extends IEntity {
   @Column({ length: 256 })
   chain: Blockchain;
 
+  @Index()
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   referenceAsset?: Asset;
 
   @Column({ type: 'float' })
   referenceAmount: number;
 
+  @Index()
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   targetAsset?: Asset;
 
@@ -59,6 +61,7 @@ export class LiquidityOrder extends IEntity {
   @Column({ default: false })
   isComplete: boolean;
 
+  @Index()
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   swapAsset?: Asset;
 
@@ -74,6 +77,7 @@ export class LiquidityOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   purchasedAmount?: number;
 
+  @Index()
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   feeAsset?: Asset;
 

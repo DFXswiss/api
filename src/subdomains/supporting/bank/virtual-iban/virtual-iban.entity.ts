@@ -27,6 +27,7 @@ export class VirtualIban extends IEntity {
   @Column({ length: 256, nullable: true })
   yapealAccountUid?: string;
 
+  @Index()
   @ManyToOne(() => Fiat, { nullable: false, eager: true })
   currency: Fiat;
 
@@ -36,9 +37,11 @@ export class VirtualIban extends IEntity {
   @Column({ length: 256, nullable: true })
   status?: VirtualIbanStatus;
 
+  @Index()
   @ManyToOne(() => UserData, (userData) => userData.virtualIbans, { nullable: false })
   userData: UserData;
 
+  @Index()
   @ManyToOne(() => Bank, { nullable: false, eager: true })
   bank: Bank;
 
@@ -54,6 +57,7 @@ export class VirtualIban extends IEntity {
   @Column({ length: 256, nullable: true })
   label?: string;
 
+  @Index()
   @ManyToOne(() => Buy, { nullable: true, eager: true })
   buy?: Buy;
 }

@@ -4,7 +4,7 @@ import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-manag
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Reward } from '../../../../shared/models/reward.entity';
 
 export enum RewardStatus {
@@ -21,6 +21,7 @@ export enum RewardStatus {
 
 @Entity()
 export class RefReward extends Reward {
+  @Index()
   @ManyToOne(() => User, { nullable: false })
   user: User;
 
@@ -41,6 +42,7 @@ export class RefReward extends Reward {
   @JoinColumn()
   sourceTransaction?: Transaction;
 
+  @Index()
   @ManyToOne(() => LiquidityManagementPipeline, { nullable: true })
   liquidityPipeline?: LiquidityManagementPipeline;
 

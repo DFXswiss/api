@@ -5,7 +5,7 @@ import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BuyCrypto } from '../../../core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../../core/sell-crypto/process/buy-fiat.entity';
 import { BankTxRepeat } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
@@ -128,9 +128,11 @@ export class Transaction extends IEntity {
   @OneToMany(() => SupportIssue, (supportIssue) => supportIssue.transaction)
   supportIssues?: SupportIssue[];
 
+  @Index()
   @ManyToOne(() => User, (user) => user.transactions, { nullable: true, eager: true })
   user?: User;
 
+  @Index()
   @ManyToOne(() => UserData, (userData) => userData.transactions, { nullable: true })
   userData?: UserData;
 

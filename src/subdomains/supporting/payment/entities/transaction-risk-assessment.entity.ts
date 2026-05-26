@@ -1,5 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { Transaction } from './transaction.entity';
 
 export enum RiskType {
@@ -41,6 +41,7 @@ export class TransactionRiskAssessment extends IEntity {
   @Column({ default: AssessmentStatus.CREATED })
   status: AssessmentStatus;
 
+  @Index()
   @ManyToOne(() => Transaction, (t) => t.riskAssessments, { nullable: false })
   @JoinColumn()
   transaction: Transaction;

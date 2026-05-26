@@ -1,11 +1,12 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { CustodyOrderStepCommand, CustodyOrderStepContext, CustodyOrderStepStatus } from '../enums/custody';
 import { CustodyOrder } from './custody-order.entity';
 
 @Entity()
 export class CustodyOrderStep extends IEntity {
+  @Index()
   @ManyToOne(() => CustodyOrder, (order) => order.steps, { nullable: false, eager: true })
   order: CustodyOrder;
 

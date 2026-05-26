@@ -24,7 +24,7 @@ import { FeeType } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
@@ -40,15 +40,19 @@ export class BuyFiat extends IEntity {
   @JoinColumn()
   cryptoInput: CryptoInput;
 
+  @Index()
   @ManyToOne(() => FiatOutput, (o) => o.buyFiats, { nullable: true })
   fiatOutput?: FiatOutput;
 
+  @Index()
   @ManyToOne(() => Sell, (sell) => sell.buyFiats, { nullable: false })
   sell: Sell;
 
+  @Index()
   @ManyToOne(() => BankTx, { nullable: true })
   bankTx?: BankTx;
 
+  @Index()
   @ManyToOne(() => BankData, { nullable: true })
   bankData?: BankData;
 
@@ -194,6 +198,7 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount?: number;
 
+  @Index()
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
   outputReferenceAsset?: Fiat;
 

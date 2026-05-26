@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, ManyToOne, TableInheritance } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, TableInheritance } from 'typeorm';
 import { SupportLogType } from '../enums/support-log.enum';
 
 @Entity()
@@ -21,6 +21,7 @@ export class SupportLog extends IEntity {
   @Column({ type: 'timestamp', nullable: true })
   eventDate?: Date;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 }
