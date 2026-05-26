@@ -1,5 +1,9 @@
 # Container Group Deployment
 
+> **All Hummingbot instances are currently STOPPED (since 2026-05-26).**
+> Dev: 4 instances stopped. Prd: 3 instances stopped (hb-jusd-usdt does not exist in prd).
+> The RangeKeeper (rk) instance is not affected by this change.
+
 ## Container Instance Setup
 
 1. Run script `deploy.sh` with the first parameter `-u [DOCKER USER]` and `-p [DOCKER PASSWORD]`
@@ -10,10 +14,10 @@
 
 Container Instances are:
 
-- hb-deuro-usdt: Hummingbot (dEURO/USDT)
-- hb-jusd-usdt: Hummingbot (JUSD/BTC)
-- hb-deps-usdt: Hummingbot (dEPS/USDT)
-- hb-keep-market: Hummingbot (Cross pair bot to keep a certain 24h volumen)
+- hb-deuro-usdt: Hummingbot (dEURO/USDT) — **STOPPED**
+- hb-jusd-usdt: Hummingbot (JUSD/BTC) — **STOPPED**
+- hb-deps-usdt: Hummingbot (dEPS/USDT) — **STOPPED**
+- hb-keep-market: Hummingbot (Cross pair bot to keep a certain 24h volumen) — **STOPPED**
 - rk: RangeKeeper Liquidity Bot
 
 ### Fileshare
