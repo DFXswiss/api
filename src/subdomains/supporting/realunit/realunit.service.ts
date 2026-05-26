@@ -942,16 +942,18 @@ export class RealUnitService {
 
   private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
     const kycData = dto.kycData;
+    // Transliterate both sides: legacy rows still hold ASCII (pre-fix), new rows hold UTF-8.
+    const asciiEq = (a?: string, b?: string): boolean => transliterate(a ?? '') === transliterate(b ?? '');
 
-    if (transliterate(kycData.firstName) !== userData.firstname) return false;
-    if (transliterate(kycData.lastName) !== userData.surname) return false;
+    if (!asciiEq(kycData.firstName, userData.firstname)) return false;
+    if (!asciiEq(kycData.lastName, userData.surname)) return false;
     if (kycData.phone !== userData.phone) return false;
     if (kycData.accountType !== userData.accountType) return false;
 
-    if (transliterate(kycData.address.street) !== userData.street) return false;
-    if (transliterate(kycData.address.houseNumber ?? '') !== (userData.houseNumber ?? '')) return false;
-    if (transliterate(kycData.address.city) !== userData.location) return false;
-    if (transliterate(kycData.address.zip) !== userData.zip) return false;
+    if (!asciiEq(kycData.address.street, userData.street)) return false;
+    if (!asciiEq(kycData.address.houseNumber, userData.houseNumber)) return false;
+    if (!asciiEq(kycData.address.city, userData.location)) return false;
+    if (!asciiEq(kycData.address.zip, userData.zip)) return false;
     if (kycData.address.country?.id !== userData.country?.id) return false;
 
     if (kycData.accountType !== AccountType.PERSONAL) {
