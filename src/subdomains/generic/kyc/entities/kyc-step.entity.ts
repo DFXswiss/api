@@ -9,7 +9,7 @@ import { IdNowResult } from '../dto/ident-result.dto';
 import { ManualIdentResult } from '../dto/manual-ident-result.dto';
 import { KycSessionInfoDto } from '../dto/output/kyc-info.dto';
 import { IdDocTypeMap, ReviewAnswer, SumsubResult } from '../dto/sum-sub.dto';
-import { KycStepName } from '../enums/kyc-step-name.enum';
+import { KycStepIdentRequiredForReview, KycStepName } from '../enums/kyc-step-name.enum';
 import { KycStepType, UrlType } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
 import { SumsubService } from '../services/integration/sum-sub.service';
@@ -366,6 +366,12 @@ export class KycStep extends IEntity {
 
   addComment(comment: string): string | undefined {
     return [this.comment, comment].filter((c) => c).join(';');
+  }
+
+  getRequiredReviewStatus(fallback: ReviewStatus): ReviewStatus {
+    return KycStepIdentRequiredForReview.includes(this.name) && this.userData.kycLevel < KycLevel.LEVEL_30
+      ? ReviewStatus.INTERNAL_REVIEW
+      : fallback;
   }
 
   get resultData(): IdentResultData {
