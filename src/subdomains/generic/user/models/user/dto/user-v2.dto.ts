@@ -159,11 +159,6 @@ export class UserCapabilitiesDto {
     description: 'Whether the user may edit their postal address.',
   })
   canEditAddress: boolean;
-
-  @ApiProperty({
-    description: 'Whether the support / ticket flow is currently available for this user (requires a verified email).',
-  })
-  supportAvailable: boolean;
 }
 
 export class UserV2Dto {
