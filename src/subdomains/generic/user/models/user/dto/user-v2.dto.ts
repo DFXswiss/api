@@ -21,7 +21,6 @@ export enum UserPhoneCallStatus {
 
 export enum MissingPrerequisite {
   EMAIL = 'Email',
-  PHONE = 'Phone',
 }
 
 export const PhoneCallStatusMapper: {
