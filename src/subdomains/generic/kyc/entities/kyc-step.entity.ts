@@ -19,6 +19,7 @@ import { StepLog } from './step-log.entity';
 export type KycStepResult = string | object;
 
 @Entity()
+// NOTE: migration adds NULLS NOT DISTINCT to enforce uniqueness when type IS NULL
 @Index((s: KycStep) => [s.userData, s.name, s.type, s.sequenceNumber], { unique: true })
 export class KycStep extends IEntity {
   @Index()
