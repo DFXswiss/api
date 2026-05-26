@@ -86,6 +86,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   verifiedName?: string;
 
+  @Index()
   @ManyToOne(() => Country, { eager: true, nullable: true })
   verifiedCountry?: Country;
 
@@ -101,9 +102,11 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   zip?: string;
 
+  @Index()
   @ManyToOne(() => Country, { eager: true })
   country?: Country;
 
+  @Index()
   @ManyToOne(() => Country, { eager: true, nullable: true })
   nationality?: Country;
 
@@ -135,6 +138,7 @@ export class UserData extends IEntity {
   organizationZip?: string;
 
   // TODO remove
+  @Index()
   @ManyToOne(() => Country, { eager: true })
   organizationCountry?: Country;
 
@@ -159,9 +163,11 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   phone?: string;
 
+  @Index()
   @ManyToOne(() => Language, { eager: true, nullable: false })
   language: Language;
 
+  @Index()
   @ManyToOne(() => Fiat, { eager: true })
   currency?: Fiat;
 
@@ -365,6 +371,7 @@ export class UserData extends IEntity {
   isTrustedReferrer: boolean;
 
   // References
+  @Index()
   @ManyToOne(() => Wallet, { nullable: true })
   wallet?: Wallet;
 
@@ -372,10 +379,12 @@ export class UserData extends IEntity {
   transactions?: Transaction[];
 
   // TODO remove
+  @Index()
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
   accountOpener?: UserData;
 
+  @Index()
   @ManyToOne(() => Organization, { nullable: true, eager: true })
   organization?: Organization;
 

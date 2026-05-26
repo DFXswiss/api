@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Deposit } from '../../../supporting/address-pool/deposit/deposit.entity';
 import { DepositRoute } from '../../../supporting/address-pool/route/deposit-route.entity';
 import { PayoutType } from './staking-reward.entity';
@@ -56,6 +56,7 @@ export class CryptoStaking extends IEntity {
   @Column({ length: 256, nullable: false })
   payoutType: PayoutType;
 
+  @Index()
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
   paybackDeposit?: Deposit;
 
@@ -63,6 +64,7 @@ export class CryptoStaking extends IEntity {
   @JoinColumn()
   cryptoInput: CryptoInput;
 
+  @Index()
   @ManyToOne(() => DepositRoute, { nullable: false })
   stakingRoute: Staking;
 

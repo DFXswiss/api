@@ -1,5 +1,5 @@
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { UserData } from '../../models/user-data/user-data.entity';
 import { User } from '../../models/user/user.entity';
 import { Wallet } from '../../models/wallet/wallet.entity';
@@ -29,12 +29,15 @@ export class Webhook extends IEntity {
   isComplete: boolean;
 
   // References
+  @Index()
   @ManyToOne(() => User, { nullable: true, eager: true })
   user?: User;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;
 
+  @Index()
   @ManyToOne(() => Wallet, { nullable: false, eager: true })
   wallet: Wallet;
 

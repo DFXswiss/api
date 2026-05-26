@@ -75,20 +75,18 @@ export class UserDtoMapper {
   }
 
   // Per-action capabilities. Mirrors the gating the realunit-app cubits
-  // were re-implementing locally (settings-edit visibility, support-link
-  // visibility) — surfacing them here lets the app render UI affordances
-  // without iterating step status.
+  // were re-implementing locally (settings-edit visibility) — surfacing
+  // them here lets the app render UI affordances without iterating step
+  // status.
   private static computeCapabilities(userData: UserData): UserCapabilitiesDto {
     const personalDataLocked = userData
       .getStepsWith(KycStepName.PERSONAL_DATA)
       .some((s) => s.isCompleted || s.isInReview);
-    const hasVerifiedMail = !!userData.mail;
     return {
       canEditName: !personalDataLocked,
       canEditMail: !userData.isKycTerminated,
       canEditPhone: !userData.isKycTerminated,
       canEditAddress: !personalDataLocked,
-      supportAvailable: hasVerifiedMail,
     };
   }
 

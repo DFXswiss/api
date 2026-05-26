@@ -2,7 +2,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Util } from 'src/shared/utils/util';
-import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { PricingProviderMap } from '../interfaces';
 import { Price } from './price';
 
@@ -43,6 +43,7 @@ export class PriceRule extends IEntity {
   @OneToMany(() => Fiat, (f) => f.priceRule)
   fiats: Fiat[];
 
+  @Index()
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   reference?: Asset;
 

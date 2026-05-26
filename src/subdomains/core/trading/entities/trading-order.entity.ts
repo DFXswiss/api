@@ -1,6 +1,6 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { TradingInfo } from '../dto/trading.dto';
 import { TradingOrderStatus } from '../enums';
 import { TradingRule } from './trading-rule.entity';
@@ -10,6 +10,7 @@ export class TradingOrder extends IEntity {
   @Column()
   status: TradingOrderStatus;
 
+  @Index()
   @ManyToOne(() => TradingRule, { nullable: false, eager: true })
   tradingRule: TradingRule;
 
@@ -25,9 +26,11 @@ export class TradingOrder extends IEntity {
   @Column({ type: 'float' })
   priceImpact: number;
 
+  @Index()
   @ManyToOne(() => Asset, { nullable: false, eager: true })
   assetIn: Asset;
 
+  @Index()
   @ManyToOne(() => Asset, { nullable: false, eager: true })
   assetOut: Asset;
 

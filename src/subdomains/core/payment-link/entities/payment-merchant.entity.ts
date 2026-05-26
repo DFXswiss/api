@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { PaymentMerchantStatus } from '../enums';
 
 @Entity()
@@ -14,6 +14,7 @@ export class PaymentMerchant extends IEntity {
   @Column({ type: 'text' })
   data: string;
 
+  @Index()
   @ManyToOne(() => User, { nullable: false })
   user: User;
 }

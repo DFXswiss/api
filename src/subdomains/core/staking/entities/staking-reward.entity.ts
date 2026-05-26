@@ -20,6 +20,7 @@ export class StakingReward extends Reward {
   @Column({ length: 256 })
   payoutType: PayoutType;
 
+  @Index()
   @ManyToOne(() => Staking, (staking) => staking.rewards, { nullable: false })
   staking: Staking;
 

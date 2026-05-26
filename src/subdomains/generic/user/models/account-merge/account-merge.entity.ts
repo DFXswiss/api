@@ -12,9 +12,11 @@ export enum MergeReason {
 
 @Entity()
 export class AccountMerge extends IEntity {
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   master: UserData;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   slave: UserData;
 

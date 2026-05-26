@@ -2,7 +2,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { FaucetRequestStatus } from '../enums/faucet-request';
 
 @Entity()
@@ -13,12 +13,15 @@ export class FaucetRequest extends IEntity {
   @Column({ type: 'float' })
   amount: number;
 
+  @Index()
   @ManyToOne(() => Asset, { eager: true, nullable: false })
   asset: Asset;
 
+  @Index()
   @ManyToOne(() => UserData, (userData) => userData.faucetRequests, { nullable: false })
   userData: UserData;
 
+  @Index()
   @ManyToOne(() => User, { nullable: false })
   user: User;
 

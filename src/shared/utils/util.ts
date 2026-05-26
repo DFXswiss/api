@@ -6,7 +6,7 @@ import { XMLParser, XMLValidator } from 'fast-xml-parser';
 import { readFile } from 'fs';
 import { isEqual } from 'lodash';
 import sanitizeHtml from 'sanitize-html';
-import { FindOperator, Like } from 'typeorm';
+import { FindOperator, ILike } from 'typeorm';
 import { IEntity, UpdateResult } from '../models/entity';
 
 export type KeyType<T, U> = {
@@ -501,7 +501,7 @@ export class Util {
   // --- DB --- //
 
   static contains(search: string): FindOperator<string> {
-    return Like(`%${search}%`);
+    return ILike(`%${search}%`);
   }
 
   // --- MISC --- //

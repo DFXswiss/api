@@ -1,5 +1,5 @@
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, JoinColumn, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne } from 'typeorm';
 import { LiquidityManagementSystem } from '../enums';
 
 @Entity()
@@ -16,10 +16,12 @@ export class LiquidityManagementAction extends IEntity {
   @Column({ type: 'text', nullable: true })
   params?: string;
 
+  @Index()
   @ManyToOne(() => LiquidityManagementAction, { nullable: true })
   @JoinColumn()
   onSuccess?: LiquidityManagementAction | null;
 
+  @Index()
   @ManyToOne(() => LiquidityManagementAction, { nullable: true })
   @JoinColumn()
   onFail?: LiquidityManagementAction | null;

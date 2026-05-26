@@ -1,7 +1,7 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
-import { Column, Entity, JoinTable, ManyToMany, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinTable, ManyToMany, ManyToOne } from 'typeorm';
 import { MrosStatus } from './mros-status.enum';
 
 export interface MrosPersonOverrides {
@@ -18,6 +18,7 @@ export interface MrosPersonOverrides {
 
 @Entity()
 export class Mros extends IEntity {
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 

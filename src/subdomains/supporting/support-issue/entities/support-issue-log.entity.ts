@@ -1,4 +1,4 @@
-import { ChildEntity, Column, ManyToOne } from 'typeorm';
+import { ChildEntity, Column, Index, ManyToOne } from 'typeorm';
 import { Department } from '../enums/department.enum';
 import { SupportIssueInternalState } from '../enums/support-issue.enum';
 import { SupportIssue } from './support-issue.entity';
@@ -6,6 +6,7 @@ import { SupportLog } from './support-log.entity';
 
 @ChildEntity()
 export class SupportIssueLog extends SupportLog {
+  @Index()
   @ManyToOne(() => SupportIssue, (s) => s.logs, { onDelete: 'CASCADE' })
   supportIssue: SupportIssue;
 

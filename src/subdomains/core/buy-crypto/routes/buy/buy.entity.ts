@@ -28,12 +28,15 @@ export class Buy extends IEntity {
   @Column({ default: true })
   active: boolean;
 
+  @Index()
   @ManyToOne(() => User, (user) => user.buys)
   user: User;
 
+  @Index()
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   asset?: Asset;
 
+  @Index()
   @ManyToOne(() => Deposit, { eager: true, nullable: true })
   deposit?: Deposit;
 

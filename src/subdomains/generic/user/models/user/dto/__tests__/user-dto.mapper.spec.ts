@@ -167,14 +167,6 @@ describe('UserDtoMapper', () => {
       expect(result.capabilities.canEditName).toBe(false);
     });
 
-    it('supportAvailable mirrors whether the user has a mail set', () => {
-      const withMail = UserDtoMapper.mapUser(buildUserData());
-      const withoutMail = UserDtoMapper.mapUser(buildUserData({ mail: undefined }));
-
-      expect(withMail.capabilities.supportAvailable).toBe(true);
-      expect(withoutMail.capabilities.supportAvailable).toBe(false);
-    });
-
     it('all edit flags collapse to false on KYC-terminated accounts', () => {
       const result = UserDtoMapper.mapUser(buildUserData({ kycLevel: KycLevel.REJECTED }));
 
