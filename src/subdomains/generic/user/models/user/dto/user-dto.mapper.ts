@@ -12,6 +12,8 @@ import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
 import { UserProfileDto } from './user-profile.dto';
 import {
+  CreateSupportTicketCapability,
+  MissingPrerequisite,
   PhoneCallStatusMapper,
   ReferralDto,
   UserAddressDto,
@@ -87,7 +89,18 @@ export class UserDtoMapper {
       canEditMail: !userData.isKycTerminated,
       canEditPhone: !userData.isKycTerminated,
       canEditAddress: !personalDataLocked,
+      createSupportTicket: this.computeCreateSupportTicketCapability(userData),
     };
+  }
+
+  // Mirrors the backend gate that rejects ticket creation without a
+  // registered email. Frontend uses this for a pre-tap check so the
+  // user is routed to the mail-capture flow before reaching the ticket
+  // form, instead of bouncing off a post-submit 400.
+  // Returns the discriminated union (not the DTO class) so the compiler
+  // pins the invariant `!available implies missingPrerequisite defined`.
+  private static computeCreateSupportTicketCapability(userData: UserData): CreateSupportTicketCapability {
+    return userData.mail ? { available: true } : { available: false, missingPrerequisite: MissingPrerequisite.EMAIL };
   }
 
   private static mapVolumes(user: UserData | User): VolumesDto {

@@ -173,5 +173,43 @@ describe('UserDtoMapper', () => {
       expect(result.capabilities.canEditMail).toBe(false);
       expect(result.capabilities.canEditPhone).toBe(false);
     });
+
+    // createSupportTicket mirrors the backend gate
+    // `if (!userData.mail) throw new BadRequestException('Mail is missing')`
+    // in support-issue.service.ts:123. Frontend uses it as a pre-tap check.
+    describe('createSupportTicket capability', () => {
+      it('is available when the user has a mail address', () => {
+        const result = UserDtoMapper.mapUser(buildUserData({ mail: 'john@example.com' }));
+
+        expect(result.capabilities.createSupportTicket).toEqual({ available: true });
+      });
+
+      it('is unavailable with missingPrerequisite=Email when mail is null', () => {
+        const result = UserDtoMapper.mapUser(buildUserData({ mail: null as unknown as string }));
+
+        expect(result.capabilities.createSupportTicket).toEqual({
+          available: false,
+          missingPrerequisite: 'Email',
+        });
+      });
+
+      it('is unavailable with missingPrerequisite=Email when mail is an empty string', () => {
+        const result = UserDtoMapper.mapUser(buildUserData({ mail: '' }));
+
+        expect(result.capabilities.createSupportTicket).toEqual({
+          available: false,
+          missingPrerequisite: 'Email',
+        });
+      });
+
+      it('is unavailable with missingPrerequisite=Email when mail is undefined', () => {
+        const result = UserDtoMapper.mapUser(buildUserData({ mail: undefined }));
+
+        expect(result.capabilities.createSupportTicket).toEqual({
+          available: false,
+          missingPrerequisite: 'Email',
+        });
+      });
+    });
   });
 });

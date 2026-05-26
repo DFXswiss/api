@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ApiBadRequestResponse, ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -32,6 +32,10 @@ export class SupportIssueController {
   @Post()
   @ApiBearerAuth()
   @UseGuards(OptionalJwtAuthGuard)
+  @ApiBadRequestResponse({
+    description:
+      'Includes prerequisite failures (e.g. missing email — register first via POST /v1/realunit/register/email) and request-validation failures. Pre-tap state is exposed via /v2/user as the createSupportTicket capability.',
+  })
   async createIssue(
     @GetJwt() jwt: JwtPayload | undefined,
     @Body() dto: CreateSupportIssueDto,
