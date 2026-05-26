@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import * as AppInsights from 'applicationinsights';
 import { spawnSync } from 'child_process';
 import { useContainer } from 'class-validator';
+import compression from 'compression';
 import cors from 'cors';
 import { json, raw, text } from 'express';
 import helmet from 'helmet';
@@ -63,6 +64,7 @@ async function bootstrap() {
 
   app.use(morgan('dev'));
   app.use(helmet());
+  app.use(compression());
   app.use(
     cors({
       exposedHeaders: ['content-disposition'],

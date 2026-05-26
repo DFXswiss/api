@@ -4,6 +4,7 @@ import { Util } from 'src/shared/utils/util';
 import { EntityManager, FindOptionsWhere, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { LogCleanupSetting } from './dto/create-log.dto';
 import { Log, LogSeverity } from './log.entity';
+import { getSampleIntervalMinutes } from './log.util';
 
 @Injectable()
 export class LogRepository extends BaseRepository<Log> {
@@ -67,47 +68,57 @@ export class LogRepository extends BaseRepository<Log> {
   }
 
   async getFinancialChangesLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
-    if (dailySample) {
-      const subQuery = this.createQueryBuilder('subLog')
-        .select('MAX(subLog.id)', 'max_id')
-        .where('subLog.system = :system', { system: 'LogService' })
-        .andWhere('subLog.subsystem = :subsystem', { subsystem: 'FinancialChangesLog' })
-        .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO })
-        .groupBy('CAST(subLog.created AS DATE)');
-
-      let query = this.createQueryBuilder('log')
-        .where(`log.id IN (${subQuery.getQuery()})`)
-        .setParameters(subQuery.getParameters())
-        .orderBy('log.created', 'ASC');
-
-      if (from) {
-        query = query.andWhere('log.created >= :from', { from });
-      }
-
-      return query.getMany();
-    }
-
-    const where: FindOptionsWhere<Log> = {
-      system: 'LogService',
-      subsystem: 'FinancialChangesLog',
-      severity: LogSeverity.INFO,
-    };
-
-    if (from) {
-      where.created = MoreThanOrEqual(from);
-    }
-
-    return this.find({ where, order: { created: 'ASC' } });
+    return this.getSampledFinancialLogs('FinancialChangesLog', from, dailySample);
   }
 
   async getFinancialLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
+    return this.getSampledFinancialLogs('FinancialDataLog', from, dailySample);
+  }
+
+  private async getSampledFinancialLogs(subsystem: string, from?: Date, dailySample?: boolean): Promise<Log[]> {
     if (dailySample) {
-      const subQuery = this.createQueryBuilder('subLog')
+      let subQuery = this.createQueryBuilder('subLog')
         .select('MAX(subLog.id)', 'max_id')
         .where('subLog.system = :system', { system: 'LogService' })
-        .andWhere('subLog.subsystem = :subsystem', { subsystem: 'FinancialDataLog' })
-        .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO })
-        .groupBy('CAST(subLog.created AS DATE)');
+        .andWhere('subLog.subsystem = :subsystem', { subsystem })
+        .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO });
+
+      if (from) {
+        subQuery = subQuery.andWhere('subLog.created >= :from', { from });
+      }
+
+      subQuery = subQuery.groupBy('CAST(subLog.created AS DATE)');
+
+      let query = this.createQueryBuilder('log')
+        .where(`log.id IN (${subQuery.getQuery()})`)
+        .setParameters(subQuery.getParameters())
+        .orderBy('log.created', 'ASC');
+
+      if (from) {
+        query = query.andWhere('log.created >= :from', { from });
+      }
+
+      return query.getMany();
+    }
+
+    const bucketMinutes = getSampleIntervalMinutes(from, dailySample);
+
+    if (bucketMinutes != null) {
+      // DB-side N-minute bucketing: pick the latest id per bucket, then fetch those rows.
+      // Mirrors the dailySample shape but uses DATEADD/DATEDIFF for sub-day buckets.
+      let subQuery = this.createQueryBuilder('subLog')
+        .select('MAX(subLog.id)', 'max_id')
+        .where('subLog.system = :system', { system: 'LogService' })
+        .andWhere('subLog.subsystem = :subsystem', { subsystem })
+        .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO });
+
+      if (from) {
+        subQuery = subQuery.andWhere('subLog.created >= :from', { from });
+      }
+
+      subQuery = subQuery.groupBy(
+        `DATEADD(MINUTE, (DATEDIFF(MINUTE, 0, subLog.created) / ${bucketMinutes}) * ${bucketMinutes}, 0)`,
+      );
 
       let query = this.createQueryBuilder('log')
         .where(`log.id IN (${subQuery.getQuery()})`)
@@ -123,7 +134,7 @@ export class LogRepository extends BaseRepository<Log> {
 
     const where: FindOptionsWhere<Log> = {
       system: 'LogService',
-      subsystem: 'FinancialDataLog',
+      subsystem,
       severity: LogSeverity.INFO,
     };
 

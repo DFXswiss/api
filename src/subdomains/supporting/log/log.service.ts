@@ -28,7 +28,9 @@ export class LogService {
     if (dto.message === maxEntity?.message && dto.valid === maxEntity?.valid && dto.category === maxEntity?.category)
       return maxEntity;
 
-    const newEntity = this.logRepo.create(dto);
+    const { balancesByType, ...rest } = dto;
+    const newEntity = this.logRepo.create(rest);
+    if (balancesByType) newEntity.balancesByType = balancesByType;
     return this.logRepo.save(newEntity);
   }
 

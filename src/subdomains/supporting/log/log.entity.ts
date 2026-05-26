@@ -7,6 +7,8 @@ export enum LogSeverity {
   ERROR = 'Error',
 }
 
+export type BalancesByTypeMap = Record<string, { plusBalanceChf: number; minusBalanceChf: number }>;
+
 @Entity()
 export class Log extends IEntity {
   @Column({ length: 256 })
@@ -26,4 +28,33 @@ export class Log extends IEntity {
 
   @Column({ nullable: true })
   valid?: boolean;
+
+  // Denormalised aggregates for FinancialDataLog, used by the dashboard chart endpoint to avoid
+  // parsing the nvarchar(MAX) message JSON for every row. Nullable so legacy rows fall back to JSON.
+  @Column({ type: 'float', nullable: true })
+  totalBalanceChf?: number;
+
+  @Column({ type: 'float', nullable: true })
+  plusBalanceChf?: number;
+
+  @Column({ type: 'float', nullable: true })
+  minusBalanceChf?: number;
+
+  @Column({ type: 'float', nullable: true })
+  btcPriceChf?: number;
+
+  // Compact JSON snapshot of the per-financialType plus/minus aggregates (orders of magnitude
+  // smaller than the full message), kept separate so the chart endpoint avoids the full parse.
+  // Access via the typed `balancesByType` getter/setter — never read/write this raw string from
+  // business logic.
+  @Column({ length: 4000, nullable: true })
+  balancesByTypeJson?: string;
+
+  get balancesByType(): BalancesByTypeMap {
+    return this.balancesByTypeJson ? JSON.parse(this.balancesByTypeJson) : {};
+  }
+
+  set balancesByType(balances: BalancesByTypeMap) {
+    this.balancesByTypeJson = JSON.stringify(balances);
+  }
 }

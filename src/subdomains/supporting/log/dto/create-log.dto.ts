@@ -1,5 +1,5 @@
-import { IsBoolean, IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-import { LogSeverity } from '../log.entity';
+import { IsBoolean, IsEnum, IsNotEmpty, IsNumber, IsObject, IsOptional, IsString } from 'class-validator';
+import { BalancesByTypeMap, LogSeverity } from '../log.entity';
 
 export class CreateLogDto {
   @IsNotEmpty()
@@ -25,6 +25,26 @@ export class CreateLogDto {
   @IsOptional()
   @IsBoolean()
   valid: boolean;
+
+  @IsOptional()
+  @IsNumber()
+  totalBalanceChf?: number;
+
+  @IsOptional()
+  @IsNumber()
+  plusBalanceChf?: number;
+
+  @IsOptional()
+  @IsNumber()
+  minusBalanceChf?: number;
+
+  @IsOptional()
+  @IsNumber()
+  btcPriceChf?: number;
+
+  @IsOptional()
+  @IsObject()
+  balancesByType?: BalancesByTypeMap;
 }
 
 export class UpdateLogDto {
