@@ -47,7 +47,6 @@ import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.se
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { transliterate } from 'transliteration';
 import { Equal, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
@@ -552,12 +551,12 @@ export class UserDataService {
   async updatePersonalData(userData: UserData, data: KycPersonalData): Promise<UserData> {
     const update: Partial<UserData> = {
       accountType: data.accountType,
-      firstname: transliterate(data.firstName),
-      surname: transliterate(data.lastName),
-      street: transliterate(data.address.street),
-      houseNumber: transliterate(data.address.houseNumber),
-      location: transliterate(data.address.city),
-      zip: transliterate(data.address.zip),
+      firstname: data.firstName,
+      surname: data.lastName,
+      street: data.address.street,
+      houseNumber: data.address.houseNumber,
+      location: data.address.city,
+      zip: data.address.zip,
       country: data.address.country,
       phone: data.phone,
       organizationName: data.organizationName,
@@ -649,8 +648,8 @@ export class UserDataService {
 
   async updateUserName(userData: UserData, dto: UserNameDto) {
     const update: Partial<UserData> = {
-      firstname: transliterate(dto.firstName),
-      surname: transliterate(dto.lastName),
+      firstname: dto.firstName,
+      surname: dto.lastName,
     };
 
     if (userData.verifiedName) update.verifiedName = `${update.firstname} ${update.surname}`;
@@ -843,10 +842,10 @@ export class UserDataService {
       throw new BadRequestException(`Country not allowed for ${userData.kycType}`);
 
     const update: Partial<UserData> = {
-      street: transliterate(address.street),
-      houseNumber: transliterate(address.houseNumber),
-      location: transliterate(address.city),
-      zip: transliterate(address.zip),
+      street: address.street,
+      houseNumber: address.houseNumber,
+      location: address.city,
+      zip: address.zip,
       country,
     };
 
