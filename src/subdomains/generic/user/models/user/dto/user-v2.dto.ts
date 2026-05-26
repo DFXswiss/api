@@ -3,6 +3,7 @@ import { Type } from 'class-transformer';
 import { IsEnum, IsOptional, ValidateNested } from 'class-validator';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EntityDto } from 'src/shared/dto/entity.dto';
+import { HttpMethod } from 'src/shared/enums/http-method.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetDto } from 'src/shared/models/asset/dto/asset.dto';
 import { FiatDto } from 'src/shared/models/fiat/dto/fiat.dto';
@@ -138,6 +139,61 @@ export class UserPaymentLinkDto {
   active: boolean;
 }
 
+export class ActionEndpointDto {
+  @ApiProperty({
+    enum: HttpMethod,
+    description: 'HTTP method for this action',
+  })
+  method: HttpMethod;
+
+  @ApiProperty({
+    description:
+      'Controller-relative API path, without the global URI version prefix (e.g. "/support/issue"). Consumers prepend the versioned base URL of their target environment.',
+  })
+  path: string;
+}
+
+export enum PrerequisiteType {
+  EMAIL = 'Email',
+  PHONE = 'Phone',
+  // Closed enum — future types added explicitly so consumers can render
+  // a typed widget per kind.
+}
+
+export class PrerequisiteDto {
+  @ApiProperty({ enum: PrerequisiteType })
+  type: PrerequisiteType;
+
+  @ApiProperty({ type: ActionEndpointDto })
+  endpoint: ActionEndpointDto;
+
+  @ApiProperty({
+    description:
+      'i18n key for the prerequisite label. This is a frontend-i18n contract — the API does not provide translations. Consumers map the key to their localized strings.',
+  })
+  labelKey: string;
+}
+
+export class ActionCapabilityDto {
+  @ApiProperty({
+    description: 'Whether the user can perform this action right now',
+  })
+  available: boolean;
+
+  @ApiPropertyOptional({
+    type: ActionEndpointDto,
+    description: 'Where to invoke the action when available. Omitted when !available.',
+  })
+  endpoint?: ActionEndpointDto;
+
+  @ApiPropertyOptional({
+    type: [PrerequisiteDto],
+    description:
+      'Ordered list of prerequisites the user must fulfill before the action becomes available. Omitted when available.',
+  })
+  missing?: PrerequisiteDto[];
+}
+
 export class UserCapabilitiesDto {
   @ApiProperty({
     description:
@@ -159,6 +215,16 @@ export class UserCapabilitiesDto {
     description: 'Whether the user may edit their postal address.',
   })
   canEditAddress: boolean;
+
+  // Mapper always emits this field — the optional marker is purely a
+  // schema-tolerance hint for generated client SDKs that pin against
+  // older API versions that did not yet expose the capability.
+  @ApiPropertyOptional({
+    type: ActionCapabilityDto,
+    description:
+      'Whether the user can create a support ticket. When unavailable, lists the prerequisites (e.g. add email) the user must complete first.',
+  })
+  createSupportTicket?: ActionCapabilityDto;
 }
 
 export class UserV2Dto {

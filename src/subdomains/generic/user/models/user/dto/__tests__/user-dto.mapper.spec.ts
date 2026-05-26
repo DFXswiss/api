@@ -173,5 +173,66 @@ describe('UserDtoMapper', () => {
       expect(result.capabilities.canEditMail).toBe(false);
       expect(result.capabilities.canEditPhone).toBe(false);
     });
+
+    // Structured support-ticket capability: replaces the `supportAvailable`
+    // bool removed in api#3761. The "contact support" tile stays visible
+    // for every user, so the DTO has to tell the client both whether the
+    // action is reachable now and which prerequisite step to surface
+    // otherwise.
+    //
+    // Endpoint paths are controller-relative (no `/v1` prefix); NestJS
+    // adds the version globally via URI versioning. Treating versioning
+    // as an API-gateway concern keeps the path canonical regardless of
+    // `Config.defaultVersion`.
+    describe('createSupportTicket', () => {
+      // Helper — the unavailable branch is identical for every falsy mail
+      // value, so we keep a single expected shape and reuse it across the
+      // empty-string / null / undefined cases below.
+      const missingMailCapability = {
+        available: false,
+        missing: [
+          {
+            type: 'Email',
+            endpoint: { method: 'POST', path: '/realunit/register/email' },
+            labelKey: 'prerequisite.email',
+          },
+        ],
+      };
+
+      it('is available with the create-issue endpoint when the user has a mail', () => {
+        const result = UserDtoMapper.mapUser(buildUserData());
+
+        expect(result.capabilities.createSupportTicket).toEqual({
+          available: true,
+          endpoint: { method: 'POST', path: '/support/issue' },
+        });
+      });
+
+      it('is unavailable and lists email prerequisite when the user has no mail (undefined)', () => {
+        const result = UserDtoMapper.mapUser(buildUserData({ mail: undefined }));
+
+        expect(result.capabilities.createSupportTicket).toEqual(missingMailCapability);
+      });
+
+      // Empty string is treated identically to undefined: the support
+      // service rejects empty mails (`if (!userData.mail) throw …`), so
+      // the capability must not advertise an endpoint that the service
+      // would refuse to honour. Pinning the behaviour in a test prevents
+      // future refactors from breaking that contract silently.
+      it('is unavailable when mail is an empty string', () => {
+        const result = UserDtoMapper.mapUser(buildUserData({ mail: '' }));
+
+        expect(result.capabilities.createSupportTicket).toEqual(missingMailCapability);
+      });
+
+      // Distinct test from `undefined` even though the code path collapses
+      // — explicitness matters here because TypeORM nullable columns load
+      // as `null` at the DB layer while in-memory defaults are `undefined`.
+      it('is unavailable when mail is null', () => {
+        const result = UserDtoMapper.mapUser(buildUserData({ mail: null }));
+
+        expect(result.capabilities.createSupportTicket).toEqual(missingMailCapability);
+      });
+    });
   });
 });

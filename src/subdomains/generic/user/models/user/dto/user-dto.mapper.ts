@@ -1,5 +1,6 @@
 import { addressExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { HttpMethod } from 'src/shared/enums/http-method.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetDtoMapper } from 'src/shared/models/asset/dto/asset-dto.mapper';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
@@ -12,7 +13,9 @@ import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
 import { UserProfileDto } from './user-profile.dto';
 import {
+  ActionCapabilityDto,
   PhoneCallStatusMapper,
+  PrerequisiteType,
   ReferralDto,
   UserAddressDto,
   UserCapabilitiesDto,
@@ -87,6 +90,43 @@ export class UserDtoMapper {
       canEditMail: !userData.isKycTerminated,
       canEditPhone: !userData.isKycTerminated,
       canEditAddress: !personalDataLocked,
+      createSupportTicket: this.computeCreateSupportTicketCapability(userData),
+    };
+  }
+
+  // Structured capability for the "contact support" action: the tile must
+  // stay visible for every user (incl. pre-signin), so a bool flag is not
+  // enough — we surface the prerequisite (verified mail + where to fulfil it)
+  // when the user cannot create a ticket directly. Replaces the
+  // `supportAvailable` bool removed in api#3761; see realunit-app
+  // `docs/api-authority-plan.md` (Wave 3).
+  //
+  // Endpoint paths are controller-relative (no `/v1` prefix). NestJS adds
+  // the version prefix globally via URI versioning (main.ts), so embedding
+  // it here would silently desync if `Config.defaultVersion` ever changes.
+  // Treating versioning as an API-gateway concern keeps the resource path
+  // canonical and matches the upstream RESTful convention.
+  //
+  // Empty-string mail intentionally falls into the unavailable branch —
+  // mirrors `support-issue.service.ts` (`if (!userData.mail) throw …`) so
+  // we never advertise an endpoint the service would reject.
+  private static computeCreateSupportTicketCapability(userData: UserData): ActionCapabilityDto {
+    if (userData.mail) {
+      return {
+        available: true,
+        endpoint: { method: HttpMethod.POST, path: '/support/issue' },
+      };
+    }
+
+    return {
+      available: false,
+      missing: [
+        {
+          type: PrerequisiteType.EMAIL,
+          endpoint: { method: HttpMethod.POST, path: '/realunit/register/email' },
+          labelKey: 'prerequisite.email',
+        },
+      ],
     };
   }
 
