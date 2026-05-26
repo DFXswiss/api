@@ -54,8 +54,7 @@ import {
   (userData: UserData) => [userData.identDocumentId, userData.nationality, userData.accountType, userData.kycType],
   {
     unique: true,
-    where:
-      '"identDocumentId" IS NOT NULL AND "accountType" IS NOT NULL AND "kycType" IS NOT NULL AND "nationalityId" IS NOT NULL',
+    where: '"identDocumentId" IS NOT NULL AND "accountType" IS NOT NULL AND "kycType" IS NOT NULL',
   },
 )
 export class UserData extends IEntity {
