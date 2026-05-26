@@ -21,6 +21,7 @@ export enum WebhookConfigOption {
 
 @Entity()
 export class Wallet extends IEntity {
+  @Index()
   @ManyToOne(() => User, { nullable: true })
   owner?: User;
 

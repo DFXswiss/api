@@ -1,9 +1,10 @@
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 
 @Entity()
 export class AssetPrice extends IEntity {
+  @Index()
   @ManyToOne(() => Asset, (a) => a.prices)
   asset: Asset;
 

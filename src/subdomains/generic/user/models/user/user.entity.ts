@@ -37,9 +37,11 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   label?: string;
 
+  @Index()
   @ManyToOne(() => Wallet)
   wallet: Wallet;
 
+  @Index()
   @ManyToOne(() => CustodyProvider)
   custodyProvider: CustodyProvider;
 
@@ -113,9 +115,11 @@ export class User extends IEntity {
   @OneToMany(() => Staking, (staking) => staking.user)
   stakingRoutes: Staking[];
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 
+  @Index()
   @ManyToOne(() => User, { nullable: true })
   primaryUser: User;
 
@@ -151,6 +155,7 @@ export class User extends IEntity {
   @OneToMany(() => StakingRefReward, (reward) => reward.user)
   stakingRefRewards: StakingRefReward[];
 
+  @Index()
   @ManyToOne(() => Asset, { nullable: true, eager: true })
   refAsset: Asset;
 
@@ -167,6 +172,7 @@ export class User extends IEntity {
   @Column({ nullable: true })
   custodyAddressType: CustodyAddressType;
 
+  @Index()
   @ManyToOne(() => CustodyAccount, { nullable: true })
   custodyAccount?: CustodyAccount;
 

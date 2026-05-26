@@ -2,7 +2,7 @@ import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { TransactionRequest } from '../../payment/entities/transaction-request.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
 import { Department } from '../enums/department.enum';
@@ -36,15 +36,18 @@ export class SupportIssue extends IEntity {
   @Column({ type: 'text', nullable: true })
   information?: string;
 
+  @Index()
   @ManyToOne(() => Transaction, (transaction) => transaction.supportIssues, { nullable: true, eager: true })
   transaction?: Transaction;
 
+  @Index()
   @ManyToOne(() => TransactionRequest, (request) => request.supportIssues, { nullable: true, eager: true })
   transactionRequest?: TransactionRequest;
 
   @OneToMany(() => SupportMessage, (supportMessage) => supportMessage.issue)
   messages: SupportMessage[];
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;
 

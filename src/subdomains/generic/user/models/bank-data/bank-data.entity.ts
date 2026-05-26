@@ -60,9 +60,11 @@ export class BankData extends IEntity {
   @Column({ default: false })
   default: boolean;
 
+  @Index()
   @ManyToOne(() => Fiat, { nullable: true, eager: true })
   preferredCurrency?: Fiat;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 

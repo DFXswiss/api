@@ -2,7 +2,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { FiatOutput } from '../../fiat-output/fiat-output.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
@@ -30,6 +30,7 @@ export class BankTxRepeat extends IEntity {
   @JoinColumn()
   transaction?: Transaction;
 
+  @Index()
   @ManyToOne(() => User, { nullable: true })
   user?: User;
 

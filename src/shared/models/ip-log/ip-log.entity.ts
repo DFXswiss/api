@@ -2,7 +2,7 @@ import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { WalletType } from 'src/subdomains/generic/user/models/user/user.enum';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 
 @Entity()
 export class IpLog extends IEntity {
@@ -24,9 +24,11 @@ export class IpLog extends IEntity {
   @Column({ length: 256, nullable: true })
   walletType?: WalletType;
 
+  @Index()
   @ManyToOne(() => User, { nullable: true })
   user?: User;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: true })
   userData?: UserData;
 }

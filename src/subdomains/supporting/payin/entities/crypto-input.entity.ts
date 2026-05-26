@@ -109,6 +109,7 @@ export class CryptoInput extends IEntity {
   @Column({ type: 'float', nullable: true })
   forwardFeeAmountChf?: number;
 
+  @Index()
   @ManyToOne(() => Asset, { nullable: true, eager: true })
   asset?: Asset;
 
@@ -118,6 +119,7 @@ export class CryptoInput extends IEntity {
   @Column({ length: 256, nullable: true })
   purpose?: PayInPurpose;
 
+  @Index()
   @ManyToOne(() => DepositRoute, { eager: true, nullable: true })
   route?: DepositRoute;
 
@@ -131,9 +133,11 @@ export class CryptoInput extends IEntity {
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoInput, { nullable: true })
   buyCrypto?: BuyCrypto;
 
+  @Index()
   @ManyToOne(() => PaymentLinkPayment, (payment) => payment.cryptoInputs, { nullable: true })
   paymentLinkPayment?: PaymentLinkPayment;
 
+  @Index()
   @ManyToOne(() => PaymentQuote, (quote) => quote.cryptoInputs, { nullable: true })
   paymentQuote?: PaymentQuote;
 

@@ -8,15 +8,18 @@ import { RecallReason } from './recall-reason.enum';
 @Entity()
 @Index((r: Recall) => [r.bankTx, r.checkoutTx, r.sequence], { unique: true })
 export class Recall extends IEntity {
+  @Index()
   @ManyToOne(() => BankTx)
   bankTx: BankTx;
 
+  @Index()
   @ManyToOne(() => CheckoutTx)
   checkoutTx: CheckoutTx;
 
   @Column({ type: 'int' })
   sequence: number;
 
+  @Index()
   @ManyToOne(() => User, { nullable: true })
   user?: User;
 

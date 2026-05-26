@@ -33,6 +33,7 @@ export class PaymentLinkPayment extends IEntity {
   @Column({ type: 'float' })
   amount: number;
 
+  @Index()
   @ManyToOne(() => Fiat, { nullable: false, eager: true })
   currency: Fiat;
 

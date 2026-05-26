@@ -23,6 +23,7 @@ export class LiquidityManagementRule extends IEntity {
   @JoinColumn()
   targetAsset?: Asset;
 
+  @Index()
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
   targetFiat?: Fiat;
 
@@ -38,9 +39,11 @@ export class LiquidityManagementRule extends IEntity {
   @Column({ type: 'float', nullable: true })
   limit?: number;
 
+  @Index()
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   deficitStartAction?: LiquidityManagementAction;
 
+  @Index()
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   redundancyStartAction?: LiquidityManagementAction;
 

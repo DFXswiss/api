@@ -5,7 +5,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { Buy } from '../../buy-crypto/routes/buy/buy.entity';
 import { Swap } from '../../buy-crypto/routes/swap/swap.entity';
 import { Sell } from '../../sell-crypto/route/sell.entity';
@@ -42,6 +42,7 @@ export class CustodyOrder extends IEntity {
   @ManyToOne(() => CustodyAccount, { nullable: true })
   account?: CustodyAccount;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: true })
   initiatedBy?: UserData;
 
