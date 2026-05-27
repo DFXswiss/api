@@ -207,6 +207,11 @@ export class Configuration {
     accountServiceRef: /^([A-Z]{2}\d{8}\/\d+\/\d+|[a-f0-9]{32})$/,
     number: /^\d+$/,
     transactionUid: new RegExp(`^${this.prefixes.transactionUidPrefix}[A-Za-z0-9]{16}$`),
+    // SIX SIG IG QR-Bill v2.3 permitted character set — printable ASCII plus
+    // the Latin diacritics required for the four Swiss national languages.
+    // Used to validate user-supplied name and address fields so all stored
+    // values are renderable by Helvetica/WinAnsi and accepted by Swiss banks.
+    swissPaymentText: /^[\x20-\x7EÀÁÂÄÇÈÉÊËÌÍÎÏÑÒÓÔÖÙÚÛÜÝàáâäçèéêëìíîïñòóôöùúûüýß\n]*$/u,
   };
 
   database: TypeOrmModuleOptions = {
