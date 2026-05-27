@@ -75,6 +75,7 @@ import {
   AktionariatRegistrationDto,
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationStatus,
+  RealUnitLanguage,
   RealUnitRegisterWalletDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationStatus,
@@ -646,9 +647,12 @@ export class RealUnitService {
   getAddressWalletStatus(userData: UserData, walletAddress: string): RealUnitWalletStatusDto {
     const { step, isForCurrentWallet } = this.findRegistrationStep(userData, walletAddress);
 
+    // Prefer the signed Aktionariat payload from a prior registration step; otherwise fall back to the
+    // user's existing DFX KYC data so the app can pre-fill the registration form with values that the
+    // backend will accept verbatim (isPersonalDataMatching).
     return {
       isRegistered: isForCurrentWallet,
-      userData: this.toUserDataDto(step),
+      userData: this.toUserDataDto(step) ?? this.toUserDataDtoFromUserData(userData),
     };
   }
 
@@ -938,6 +942,61 @@ export class RealUnitService {
     const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...userDataDto } = registrationData;
 
     return userDataDto as RealUnitUserDataDto;
+  }
+
+  // Pre-fill source for first-time RealUnit registrations: maps the user's existing DFX KYC data into
+  // the Aktionariat-shaped DTO. The corresponding `completeRegistration` validation
+  // (`isPersonalDataMatching`) compares the submitted KycPersonalData/address against the same
+  // user_data fields, so the values returned here are guaranteed to pass that check.
+  private toUserDataDtoFromUserData(userData: UserData): RealUnitUserDataDto | undefined {
+    // Without verified personal data there is nothing useful to pre-fill — the app will continue to
+    // collect every field manually.
+    if (!userData.firstname && !userData.surname) return undefined;
+
+    const lang = Object.values(RealUnitLanguage).find((l) => l === userData.language?.symbol?.toUpperCase());
+    const addressStreet = [userData.street, userData.houseNumber].filter((s) => s).join(' ');
+    const tinEntries: { country: string; tin: string }[] = userData.tin ? JSON.parse(userData.tin) : [];
+
+    return {
+      email: userData.mail ?? '',
+      name: userData.naturalPersonName ?? '',
+      type: RealUnitUserType.HUMAN,
+      phoneNumber: userData.phone ?? '',
+      birthday: userData.birthday ? Util.isoDate(userData.birthday) : '',
+      nationality: userData.nationality?.symbol ?? '',
+      addressStreet,
+      addressPostalCode: userData.zip ?? '',
+      addressCity: userData.location ?? '',
+      addressCountry: userData.country?.symbol ?? '',
+      // Swiss tax residence cannot be derived from KYC data alone; default to the country-of-residence
+      // signal so a CH-resident pre-fills the common case. The user can still override before signing.
+      swissTaxResidence: userData.country?.symbol === 'CH',
+      lang: lang ?? RealUnitLanguage.EN,
+      countryAndTINs: tinEntries.length ? tinEntries : undefined,
+      kycData: {
+        accountType: userData.accountType ?? AccountType.PERSONAL,
+        firstName: userData.firstname ?? '',
+        lastName: userData.surname ?? '',
+        phone: userData.phone ?? '',
+        address: {
+          street: userData.street ?? '',
+          houseNumber: userData.houseNumber,
+          city: userData.location ?? '',
+          zip: userData.zip ?? '',
+          country: userData.country!,
+        },
+        organizationName: userData.organizationName ?? undefined,
+        organizationAddress: userData.organizationCountry
+          ? {
+              street: userData.organizationStreet ?? '',
+              houseNumber: userData.organizationHouseNumber,
+              city: userData.organizationLocation ?? '',
+              zip: userData.organizationZip ?? '',
+              country: userData.organizationCountry,
+            }
+          : undefined,
+      },
+    };
   }
 
   private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
