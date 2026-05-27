@@ -54,10 +54,12 @@ export class ExchangeTxService {
 
     if (staleDeposits.length === 0) return;
 
-    await this.exchangeTxRepo.update(
-      staleDeposits.map((d) => d.id),
-      { status: 'failed' },
-    );
+    // Scrypt SEPA inbound has no historical chargebacks — stale pending = missed status update, funds did arrive.
+    const scryptIds = staleDeposits.filter((d) => d.exchange === ExchangeName.SCRYPT).map((d) => d.id);
+    const otherIds = staleDeposits.filter((d) => d.exchange !== ExchangeName.SCRYPT).map((d) => d.id);
+
+    if (scryptIds.length > 0) await this.exchangeTxRepo.update(scryptIds, { status: 'ok' });
+    if (otherIds.length > 0) await this.exchangeTxRepo.update(otherIds, { status: 'failed' });
   }
 
   async syncExchanges(from?: Date, exchange?: ExchangeName) {
