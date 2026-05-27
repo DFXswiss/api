@@ -3,7 +3,7 @@ import { Util } from 'src/shared/utils/util';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
-import { KycStepName } from '../../enums/kyc-step-name.enum';
+import { KycStepName, KycStepRepeatable } from '../../enums/kyc-step-name.enum';
 import { KycStepType, getKycStepIndex, getKycTypeIndex, requiredKycSteps } from '../../enums/kyc.enum';
 import { ReviewStatus } from '../../enums/review-status.enum';
 import { KycLevelDto, KycProcessStatus, KycSessionDto } from '../output/kyc-info.dto';
@@ -110,7 +110,9 @@ export class KycInfoMapper {
       }, new Map<string, KycStep[]>());
 
     const visibleSteps = Array.from(groupedSteps.values()).map((steps) => {
-      const completedAndInProgressSteps = steps.filter((s) => s.isCompleted || s.isInProgress);
+      const completedAndInProgressSteps = steps.filter(
+        (s) => s.isCompleted || (s.isInProgress && KycStepRepeatable.includes(s.name)),
+      );
       return Util.maxObj(completedAndInProgressSteps.length ? completedAndInProgressSteps : steps, 'sequenceNumber');
     });
 
