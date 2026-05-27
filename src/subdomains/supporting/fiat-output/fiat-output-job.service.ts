@@ -430,8 +430,6 @@ export class FiatOutputJobService {
           isApprovedDate: new Date(),
           ...(entity.info?.startsWith('YAPEAL error') && { info: null }),
         });
-
-        await this.notifyScryptDepositIfApplicable(entity);
       } catch (e) {
         this.logger.error(`Failed to transmit YAPEAL payment for fiat output ${entity.id}:`, e);
 
@@ -491,8 +489,6 @@ export class FiatOutputJobService {
           remittanceInfo,
           ...(entity.info?.startsWith('OLKYPAY error') && { info: null }),
         });
-
-        await this.notifyScryptDepositIfApplicable(entity);
       } catch (e) {
         this.logger.error(`Failed to transmit OLKYPAY payment for fiat output ${entity.id}:`, e);
 
@@ -532,6 +528,8 @@ export class FiatOutputJobService {
         }
 
         await this.fiatOutputRepo.update(entity.id, updateData);
+
+        await this.notifyScryptDepositIfApplicable(entity);
 
         if (entity.type === FiatOutputType.BANK_TX_RETURN)
           await this.bankTxReturnService.updateInternal(entity.bankTxReturn, { chargebackBankTx: bankTx });
