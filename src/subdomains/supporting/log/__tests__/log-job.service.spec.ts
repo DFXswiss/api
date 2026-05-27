@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { createCustomExchangeTx } from 'src/integration/exchange/dto/__mocks__/exchange-tx.entity.mock';
+import { ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -531,5 +532,58 @@ describe('LogJobService', () => {
     ];
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
+  });
+
+  // --- isMatchableScryptDeposit: pin Kraken ⇄ Scrypt status-filter symmetry
+
+  it('should treat failed Scrypt EUR DEPOSIT as matchable receiver', () => {
+    const receivers = [
+      createCustomExchangeTx({
+        id: 1,
+        created: Util.hoursBefore(20),
+        type: ExchangeTxType.DEPOSIT,
+        status: 'failed',
+        currency: 'EUR',
+        txId: 'DEPOSIT-90100',
+      }),
+    ];
+
+    expect(receivers.filter(service.isMatchableScryptDeposit('EUR'))).toEqual(receivers);
+  });
+
+  it('should exclude pending Scrypt EUR DEPOSIT from receiver set', () => {
+    const senderBankTx = [
+      createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: 'DFX Deposit 90100' }),
+    ];
+    const receivers = [
+      createCustomExchangeTx({
+        id: 1,
+        created: Util.hoursBefore(20),
+        type: ExchangeTxType.DEPOSIT,
+        status: 'pending',
+        currency: 'EUR',
+        txId: 'DEPOSIT-90100',
+      }),
+    ];
+
+    const filteredReceivers = receivers.filter(service.isMatchableScryptDeposit('EUR'));
+
+    expect(filteredReceivers).toEqual([]);
+    expect(service.getUnmatchedSenders(senderBankTx, filteredReceivers)).toEqual(senderBankTx);
+  });
+
+  it('should treat failed Scrypt CHF DEPOSIT as matchable receiver', () => {
+    const receivers = [
+      createCustomExchangeTx({
+        id: 1,
+        created: Util.hoursBefore(20),
+        type: ExchangeTxType.DEPOSIT,
+        status: 'failed',
+        currency: 'CHF',
+        txId: 'DEPOSIT-90200',
+      }),
+    ];
+
+    expect(receivers.filter(service.isMatchableScryptDeposit('CHF'))).toEqual(receivers);
   });
 });

@@ -390,9 +390,7 @@ export class LogJobService {
     const chfSenderScryptBankTx = recentScryptBankTx.filter(
       (b) => b.accountIban === yapealChfBank.iban && b.creditDebitIndicator === BankTxIndicator.DEBIT,
     );
-    const chfReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
-      (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'CHF',
-    );
+    const chfReceiverScryptExchangeTx = recentScryptExchangeTx.filter(this.isMatchableScryptDeposit('CHF'));
 
     // sender and receiver data
     const { sender: recentChfKrakenYapealTx, receiver: recentChfKrakenBankTx } = this.filterSenderPendingList(
@@ -420,9 +418,7 @@ export class LogJobService {
         b.creditDebitIndicator === BankTxIndicator.DEBIT &&
         b.instructedCurrency,
     );
-    const eurReceiverScryptExchangeTx = recentScryptExchangeTx.filter(
-      (k) => k.type === ExchangeTxType.DEPOSIT && k.status === 'ok' && k.currency === 'EUR',
-    );
+    const eurReceiverScryptExchangeTx = recentScryptExchangeTx.filter(this.isMatchableScryptDeposit('EUR'));
 
     // CHF: Scrypt -> Yapeal
     const chfSenderScryptExchangeTx = recentScryptExchangeTx.filter(
@@ -1075,6 +1071,11 @@ export class LogJobService {
       (prev, curr) => prev + pendingTx.reduce((sum, tx) => sum + tx.pendingBankAmount(curr, type, source, target), 0),
       0,
     );
+  }
+
+  // DEPOSIT receiver filter must accept any non-pending status (e.g. 'ok', 'failed'); narrowing to 'ok' broke Kraken in PR #2929.
+  public isMatchableScryptDeposit(currency: 'EUR' | 'CHF'): (tx: ExchangeTx) => boolean {
+    return (tx) => tx.type === ExchangeTxType.DEPOSIT && tx.status !== 'pending' && tx.currency === currency;
   }
 
   public getUnmatchedSenders(
