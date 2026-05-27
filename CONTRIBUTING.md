@@ -949,6 +949,144 @@ Keep old endpoints for backward compatibility but annotate:
 return hasPermission ? await this.getData() : undefined;
 ```
 
+### API Capability Design
+
+Capabilities tell the client (a) whether an action is currently available
+to the user, and, for discoverable actions, (b) what prerequisite is
+missing. They make the backend the single source of truth for business
+rules so the client never has to encode them.
+
+Synthesised from the
+`#3733 → #3761 → #3767(closed) → #3772(merged 2026-05-26)` review
+sequence with @davidleomay. **Read these eight rules before adding any
+new capability flag.**
+
+#### 1. Heterogeneous capabilities — `bool` for hide-able, struct for discoverable
+
+| Action type | Schema |
+|---|---|
+| Hide-able (e.g. Edit button — UI just hides/disables it when forbidden) | `canEditName: boolean` |
+| Discoverable (tile MUST stay visible; user is guided through a prerequisite) | `createSupportTicket: { available, missingPrerequisite? }` |
+
+Don't mix the two. Hide-able stays `bool`. Discoverable needs a
+discriminator so the client knows *which* prerequisite to render.
+
+#### 2. Static info belongs in Swagger, NOT in the `/user` response
+
+Endpoint paths don't change per user. Never ship `{ method, path }`
+objects on every `/v2/user` response. Instead:
+
+```typescript
+@ApiBadRequestResponse({
+  description: 'Includes prerequisite failures (e.g. missing email — register first via POST /v1/realunit/register/email) and request-validation failures.',
+})
+async createIssue(...) { ... }
+```
+
+Consumers read Swagger for the static remediation path; the dynamic
+per-user signal stays on `/v2/user`.
+
+#### 3. YAGNI for enum members and optional fields
+
+Don't ship "future-proof" enum values without a current backend gate
+that emits them. Reviewers flag this as dead code (correctly).
+
+```typescript
+// Now:
+export enum MissingPrerequisite {
+  EMAIL = 'Email',
+}
+
+// Add PHONE = 'Phone' the day a phone-prerequisite gate actually
+// throws — additive, backwards-compatible.
+```
+
+#### 4. Discriminated union for compiler-enforced invariants
+
+The mapper return type is the discriminated union; the DTO class stays
+for Swagger because NestJS decorators don't model TS unions cleanly.
+
+```typescript
+export type CreateSupportTicketCapability =
+  | { available: true }
+  | { available: false; missingPrerequisite: MissingPrerequisite };
+
+private static computeCreateSupportTicketCapability(userData: UserData): CreateSupportTicketCapability {
+  return userData.mail
+    ? { available: true }
+    : { available: false, missingPrerequisite: MissingPrerequisite.EMAIL };
+}
+```
+
+The DTO class is the structural supertype — Swagger stays permissive,
+the mapper is type-safe.
+
+#### 5. Pre-tap signal for discoverable actions
+
+If the tile/button stays unconditionally visible (so the user can
+discover the action), the backend MUST expose pre-tap capability info.
+Letting the app attempt the action and react to a 400 is forbidden,
+because:
+
+- the user fills out the form for nothing,
+- the app would have to parse the error body to decide control flow
+  (anti-pattern),
+- form data is lost or navigation becomes fragile.
+
+Capability on `/v2/user`, checked before `pushNamed(targetRoute)`.
+
+#### 6. Pair-PR with a documented trade-off
+
+Backend PR (this repo) lands on `develop` first; the consumer's app PR
+follows within one week and **deletes the local logic in the same PR**.
+
+If you deviate from a reviewer's suggestion, post a comment on the PR
+that names:
+
+- what you adopted,
+- where you diverged,
+- the UX or architectural reason for diverging,
+- alternatives considered and rejected (with quantitative arguments where possible — LOC, payload bytes, round-trips).
+
+Reference template:
+<https://github.com/DFXswiss/api/pull/3772#issuecomment-4549147861>
+
+#### 7. Backend owns business rules; client only maps types to UI
+
+The client should never encode "mail required for support". The client
+encodes "if `missingPrerequisite: 'Email'` arrives, render the email
+form". That's UI-component mapping, not business-rule replication.
+
+Anti-patterns that violate this:
+
+- `if (user.mail == null) hideTile()` — capability flag missing
+- `if (response.error === 'AmountTooLow') showXyz()` — typed error code missing
+- `if (kyc.level < 30) showWarning()` — capability flag missing
+- Client orchestrates N sequential calls — workflow endpoint missing
+
+#### 8. Reduction before extension — test the UX requirement first
+
+When a reviewer says "too complex", **test the reduced proposal against
+every explicit UX requirement first**:
+
+1. Does the reduced solution satisfy all explicit product/UX needs? → adopt it.
+2. If not, formulate the **minimum** structural addition that closes the
+   gap, and post the trade-off comment from rule #6.
+3. Never hold on to the original design just because it's already built.
+
+Concrete example from this codebase: PR #3767 proposed a 4-DTO
+capability tree (170 LOC); reviewer pushed for the Swagger-only approach;
+the minimum compromise that preserved the pre-tap UX requirement was a
+single DTO with two fields (PR #3772, 91 LOC, ~50% reduction).
+
+#### Where this is documented for consumers
+
+- The consumer-side mirror of these rules lives in
+  [`DFXswiss/realunit-app:CONTRIBUTING.md`](https://github.com/DFXswiss/realunit-app/blob/develop/CONTRIBUTING.md)
+  under "API as Decision Authority".
+- The phased roll-out plan lives in
+  [`DFXswiss/realunit-app:docs/api-authority-plan.md`](https://github.com/DFXswiss/realunit-app/blob/develop/docs/api-authority-plan.md).
+
 ---
 
 ## Testing
