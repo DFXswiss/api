@@ -89,6 +89,7 @@ jest.mock('src/shared/utils/util', () => ({
   Util: {
     createUid: jest.fn().mockReturnValue('MOCK-UID'),
     equalsIgnoreCase: (a?: string, b?: string) => a?.toLowerCase() === b?.toLowerCase(),
+    isoDate: (date: Date) => date.toISOString().split('T')[0],
   },
 }));
 
@@ -462,6 +463,93 @@ describe('RealUnitService', () => {
 
       await expect(service.completeRegistrationForWalletAddress(userDataId, dto)).rejects.toThrow(BadRequestException);
       expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getAddressWalletStatus (user_data fallback)', () => {
+    const walletAddress = '0x2222222222222222222222222222222222222222';
+
+    function buildVerifiedUserData(): any {
+      return {
+        firstname: 'Max',
+        surname: 'Mustermann',
+        mail: 'max@example.com',
+        phone: '+41791234567',
+        birthday: new Date('1990-05-21T00:00:00.000Z'),
+        nationality: { id: 1, symbol: 'CH' },
+        country: { id: 1, symbol: 'CH' },
+        street: 'Bahnhofstrasse',
+        houseNumber: '1',
+        location: 'Zürich',
+        zip: '8001',
+        language: { symbol: 'DE' },
+        accountType: 'Personal',
+        tin: null,
+        organizationName: null,
+        organizationStreet: null,
+        organizationHouseNumber: null,
+        organizationLocation: null,
+        organizationZip: null,
+        organizationCountry: null,
+        get naturalPersonName() {
+          return [this.firstname, this.surname].filter((n) => n).join(' ');
+        },
+        getStepsWith: jest.fn().mockReturnValue([]),
+      };
+    }
+
+    it('falls back to user_data when no RealUnit registration step exists, for KYC-verified accounts', () => {
+      const userData = buildVerifiedUserData();
+
+      const status = service.getAddressWalletStatus(userData, walletAddress);
+
+      expect(status.isRegistered).toBe(false);
+      expect(status.userData).toBeDefined();
+      expect(status.userData!.email).toBe('max@example.com');
+      expect(status.userData!.name).toBe('Max Mustermann');
+      expect(status.userData!.phoneNumber).toBe('+41791234567');
+      expect(status.userData!.birthday).toBe('1990-05-21');
+      expect(status.userData!.nationality).toBe('CH');
+      expect(status.userData!.addressStreet).toBe('Bahnhofstrasse 1');
+      expect(status.userData!.addressPostalCode).toBe('8001');
+      expect(status.userData!.addressCity).toBe('Zürich');
+      expect(status.userData!.addressCountry).toBe('CH');
+      expect(status.userData!.swissTaxResidence).toBe(true);
+      expect(status.userData!.lang).toBe('DE');
+      expect(status.userData!.kycData.firstName).toBe('Max');
+      expect(status.userData!.kycData.lastName).toBe('Mustermann');
+    });
+
+    it('returns undefined userData when no KYC data is available (no step, no firstname/surname)', () => {
+      const userData = {
+        firstname: null,
+        surname: null,
+        getStepsWith: jest.fn().mockReturnValue([]),
+      } as any;
+
+      const status = service.getAddressWalletStatus(userData, walletAddress);
+
+      expect(status.isRegistered).toBe(false);
+      expect(status.userData).toBeUndefined();
+    });
+
+    it('defaults swissTaxResidence to false when the residence country is not CH', () => {
+      const userData = buildVerifiedUserData();
+      userData.country = { id: 2, symbol: 'DE' };
+
+      const status = service.getAddressWalletStatus(userData, walletAddress);
+
+      expect(status.userData!.swissTaxResidence).toBe(false);
+      expect(status.userData!.addressCountry).toBe('DE');
+    });
+
+    it('falls back to EN when the user language is not one of the RealUnit-supported codes', () => {
+      const userData = buildVerifiedUserData();
+      userData.language = { symbol: 'ES' };
+
+      const status = service.getAddressWalletStatus(userData, walletAddress);
+
+      expect(status.userData!.lang).toBe('EN');
     });
   });
 });

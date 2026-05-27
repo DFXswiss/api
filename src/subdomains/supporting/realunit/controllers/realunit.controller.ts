@@ -480,7 +480,9 @@ export class RealUnitController {
   })
   @ApiOkResponse({ type: RealUnitWalletStatusDto })
   async getWalletStatus(@GetJwt() jwt: JwtPayload): Promise<RealUnitWalletStatusDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true } });
+    const user = await this.userService.getUser(jwt.user, {
+      userData: { kycSteps: true, country: true, nationality: true, organizationCountry: true, language: true },
+    });
     return this.realunitService.getAddressWalletStatus(user.userData, jwt.address);
   }
 
