@@ -12,7 +12,7 @@ import {
   PriceValidity,
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { FindOptionsRelations, In, LessThan, MoreThan, MoreThanOrEqual } from 'typeorm';
+import { FindOptionsRelations, In, LessThan, MoreThan, MoreThanOrEqual, Not } from 'typeorm';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
 import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
 import { ExchangeName } from '../enums/exchange.enum';
@@ -49,6 +49,8 @@ export class ExchangeTxService {
         type: ExchangeTxType.DEPOSIT,
         status: 'pending',
         created: LessThan(Util.daysBefore(1)),
+        // Scrypt deposit status is owned by Scrypt — funds can arrive days after creation, so don't synthesize 'failed' here.
+        exchange: Not(ExchangeName.SCRYPT),
       },
     });
 
