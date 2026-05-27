@@ -475,7 +475,7 @@ export class BuyFiatService implements OnModuleInit {
   async updateRefVolumes(start = 1, end = 100000): Promise<void> {
     const refs = await this.buyFiatRepo
       .createQueryBuilder('buyFiat')
-      .select('buyFiat.usedRef')
+      .select('buyFiat.usedRef', 'usedRef')
       .groupBy('buyFiat.usedRef')
       .where('buyFiat.id BETWEEN :start AND :end', { start, end })
       .getRawMany<{ usedRef: string }>()
