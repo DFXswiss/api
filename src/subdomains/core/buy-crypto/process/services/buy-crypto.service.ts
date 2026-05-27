@@ -682,7 +682,7 @@ export class BuyCryptoService implements OnModuleInit {
   async updateRefVolumes(start = 1, end = 100000): Promise<void> {
     const refs = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('buyCrypto.usedRef')
+      .select('buyCrypto.usedRef', 'usedRef')
       .groupBy('buyCrypto.usedRef')
       .where('buyCrypto.id BETWEEN :start AND :end', { start, end })
       .getRawMany<{ usedRef: string }>()
