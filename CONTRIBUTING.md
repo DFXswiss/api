@@ -940,6 +940,42 @@ Keep old endpoints for backward compatibility but annotate:
 @ApiOperation({ deprecated: true })
 ```
 
+### RealUnit: `/quote/*` vs `/brokerbot/*`
+
+The RealUnit purchase and sale flows historically lived under `/v1/realunit/brokerbot/*`. That naming is misleading: most of those endpoints never touch the on-chain Brokerbot smart contract. Treat them as two distinct subsystems:
+
+| Path | What it does | On-chain? |
+|---|---|---|
+| `GET /v1/realunit/quote/price` | Spot price per share | No — Aktionariat REST (`/directinvestment/getPrice`, 30 s cache) |
+| `GET /v1/realunit/quote/buyPrice?shares=N` | `N × price` (buy direction) | No |
+| `GET /v1/realunit/quote/buyShares?amount=N` | `floor(N / price)` (buy direction) | No |
+| `GET /v1/realunit/quote/sellPrice?shares=N` | Estimated payout after user-specific fees | No — REST price + local fee math |
+| `GET /v1/realunit/quote/sellShares?amount=N` | Reverse of the above | No |
+| `GET /v1/realunit/quote/info` | Spot price + Brokerbot contract addresses (for clients that need them) | No |
+| `PUT /v1/realunit/buy` + `/buy/:id/confirm` | Fiat IBAN flow — Aktionariat allocates shares off-chain via `directinvestment/payAndAllocate` | No |
+| `PUT /v1/realunit/sell` | Anchors the quote against the live on-chain sell price before returning payment-info | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` (viem `readContract`) |
+| `PUT /v1/realunit/sell/:id/unsigned-transactions` | Reads the on-chain sell price and builds the EIP-7702 batch the user has to sign | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` |
+| `PUT /v1/realunit/sell/:id/confirm` | Verifies the user-signed batch against the live on-chain sell price | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` |
+| `PUT /v1/realunit/sell/:id/broadcast` | Submits the user-signed EIP-1559 transaction to the network | No — broadcast only, no `readContract` |
+
+Operational consequences:
+
+- Treat `/quote/*` as a thin pricing API. It can be public, cached, and oracle-style. Don't add transactional side effects there.
+- The actual on-chain Brokerbot interaction is `RealUnitBlockchainService.getBrokerbotSellPrice(brokerbotAddress, shares)` (viem `readContract`). It is invoked by `getSellPaymentInfo`, `createSellUnsignedTransactions` and `confirmSell` — i.e. every `PUT /sell*` route except `/broadcast`. Anything that names the smart contract directly (`getBrokerbot…`, `brokerbotAddress`) should stay scoped to that on-chain path.
+- The legacy `/brokerbot/*` endpoints are `deprecated: true` mirrors of the `/quote/*` ones. Don't add new functionality there.
+
+### RealUnit: `/registration` vs `/wallet/status`
+
+The endpoint that tells the client what to do to RealUnit-register the connected wallet historically lived under `/v1/realunit/wallet/status`. That naming is misleading: the resource being described is the user's Aktionariat registration, not a generic wallet status — and clients never ask "what is the wallet's status?", they ask "what do I need to do to be RealUnit-registered?". The canonical path is now `/v1/realunit/registration`; the legacy path is kept as a `deprecated: true` mirror.
+
+| Old | New |
+|---|---|
+| `GET /v1/realunit/wallet/status` | `GET /v1/realunit/registration` |
+| `RealUnitWalletStatusDto` | `RealUnitRegistrationInfoDto` |
+| `RealUnitService.getAddressWalletStatus(...)` | `RealUnitService.getRegistrationInfo(...)` |
+
+Operational consequence: treat `/wallet/status` as deprecated; consume `state` from the new `/registration` endpoint; the legacy path is kept for backwards compatibility on existing clients only.
+
 ### `undefined` vs Empty Array
 
 ```typescript
