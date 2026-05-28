@@ -964,6 +964,18 @@ Operational consequences:
 - The actual on-chain Brokerbot interaction is `RealUnitBlockchainService.getBrokerbotSellPrice(brokerbotAddress, shares)` (viem `readContract`). It is invoked by `getSellPaymentInfo`, `createSellUnsignedTransactions` and `confirmSell` — i.e. every `PUT /sell*` route except `/broadcast`. Anything that names the smart contract directly (`getBrokerbot…`, `brokerbotAddress`) should stay scoped to that on-chain path.
 - The legacy `/brokerbot/*` endpoints are `deprecated: true` mirrors of the `/quote/*` ones. Don't add new functionality there.
 
+### RealUnit: `/registration` vs `/wallet/status`
+
+The endpoint that tells the client what to do to RealUnit-register the connected wallet historically lived under `/v1/realunit/wallet/status`. That naming is misleading: the resource being described is the user's Aktionariat registration, not a generic wallet status — and clients never ask "what is the wallet's status?", they ask "what do I need to do to be RealUnit-registered?". The canonical path is now `/v1/realunit/registration`; the legacy path is kept as a `deprecated: true` mirror.
+
+| Old | New |
+|---|---|
+| `GET /v1/realunit/wallet/status` | `GET /v1/realunit/registration` |
+| `RealUnitWalletStatusDto` | `RealUnitRegistrationInfoDto` |
+| `RealUnitService.getAddressWalletStatus(...)` | `RealUnitService.getRegistrationInfo(...)` |
+
+Operational consequence: treat `/wallet/status` as deprecated; consume `state` from the new `/registration` endpoint; the legacy path is kept for backwards compatibility on existing clients only.
+
 ### `undefined` vs Empty Array
 
 ```typescript

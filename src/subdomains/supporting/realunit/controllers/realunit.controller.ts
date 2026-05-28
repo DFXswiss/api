@@ -50,9 +50,9 @@ import {
   RealUnitEmailRegistrationResponseDto,
   RealUnitRegisterWalletDto,
   RealUnitRegistrationDto,
+  RealUnitRegistrationInfoDto,
   RealUnitRegistrationResponseDto,
   RealUnitRegistrationStatus,
-  RealUnitWalletStatusDto,
 } from '../dto/realunit-registration.dto';
 import {
   RealUnitSellBroadcastDto,
@@ -604,7 +604,23 @@ export class RealUnitController {
     return this.realunitService.broadcastSellTransaction(jwt.user, +id, dto);
   }
 
-  // --- Wallet Status Endpoint ---
+  // --- Registration Info Endpoint ---
+
+  @Get('registration')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get RealUnit registration info for the connected wallet',
+    description:
+      'Returns the action the client should take to RealUnit-register the connected wallet (`state`), the registration data to pre-fill or display (`userData`), and a legacy `isRegistered` flag. Drives the registration UX: client routes on `state` (AlreadyRegistered / AddWallet / NewRegistration / KycRequired) without inferring it locally.',
+  })
+  @ApiOkResponse({ type: RealUnitRegistrationInfoDto })
+  async getRegistrationInfo(@GetJwt() jwt: JwtPayload): Promise<RealUnitRegistrationInfoDto> {
+    const user = await this.userService.getUser(jwt.user, {
+      userData: { kycSteps: true, country: true, nationality: true, organizationCountry: true, language: true },
+    });
+    return this.realunitService.getRegistrationInfo(user.userData, jwt.address);
+  }
 
   @Get('wallet/status')
   @ApiBearerAuth()
@@ -612,12 +628,15 @@ export class RealUnitController {
   @ApiOperation({
     summary: 'Get wallet status and user data',
     description:
-      'Returns registration status for the connected wallet and user data if available. Can be used to check registration, get data for account merge, or display user profile.',
+      'Deprecated mirror of `GET /v1/realunit/registration`. See that endpoint for the canonical description.',
+    deprecated: true,
   })
-  @ApiOkResponse({ type: RealUnitWalletStatusDto })
-  async getWalletStatus(@GetJwt() jwt: JwtPayload): Promise<RealUnitWalletStatusDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true } });
-    return this.realunitService.getAddressWalletStatus(user.userData, jwt.address);
+  @ApiOkResponse({ type: RealUnitRegistrationInfoDto })
+  async getWalletStatus(@GetJwt() jwt: JwtPayload): Promise<RealUnitRegistrationInfoDto> {
+    const user = await this.userService.getUser(jwt.user, {
+      userData: { kycSteps: true, country: true, nationality: true, organizationCountry: true, language: true },
+    });
+    return this.realunitService.getRegistrationInfo(user.userData, jwt.address);
   }
 
   // --- Registration Endpoints ---
