@@ -940,6 +940,27 @@ Keep old endpoints for backward compatibility but annotate:
 @ApiOperation({ deprecated: true })
 ```
 
+### RealUnit: `/quote/*` vs `/brokerbot/*`
+
+The RealUnit purchase and sale flows historically lived under `/v1/realunit/brokerbot/*`. That naming is misleading: most of those endpoints never touch the on-chain Brokerbot smart contract. Treat them as two distinct subsystems:
+
+| Path | What it does | On-chain? |
+|---|---|---|
+| `GET /v1/realunit/quote/price` | Spot price per share | No — Aktionariat REST (`/directinvestment/getPrice`, 30 s cache) |
+| `GET /v1/realunit/quote/buyPrice?shares=N` | `N × price` (buy direction) | No |
+| `GET /v1/realunit/quote/buyShares?amount=N` | `floor(N / price)` (buy direction) | No |
+| `GET /v1/realunit/quote/sellPrice?shares=N` | Estimated payout after user-specific fees | No — REST price + local fee math |
+| `GET /v1/realunit/quote/sellShares?amount=N` | Reverse of the above | No |
+| `GET /v1/realunit/quote/info` | Spot price + Brokerbot contract addresses (for clients that need them) | No |
+| `PUT /v1/realunit/buy` + `/buy/:id/confirm` | Fiat IBAN flow — Aktionariat allocates shares off-chain via `directinvestment/payAndAllocate` | No |
+| `PUT /v1/realunit/sell/:id/unsigned-transactions` + `/broadcast` | Builds + broadcasts the EIP-7702 transaction that the user's wallet sends **to** the on-chain Brokerbot | **Yes** — viem `readContract` on the Brokerbot address, then user signs and we broadcast |
+
+Operational consequences:
+
+- Treat `/quote/*` as a thin pricing API. It can be public, cached, and oracle-style. Don't add transactional side effects there.
+- The actual on-chain Brokerbot interaction lives in `RealUnitBlockchainService.getBrokerbotSellPrice(brokerbotAddress, shares)` and the EIP-7702 broadcast path. Anything that names the smart contract directly (`getBrokerbot…`, `brokerbotAddress`) should stay scoped to that path.
+- The legacy `/brokerbot/*` endpoints are `deprecated: true` mirrors of the `/quote/*` ones. Don't add new functionality there.
+
 ### `undefined` vs Empty Array
 
 ```typescript
