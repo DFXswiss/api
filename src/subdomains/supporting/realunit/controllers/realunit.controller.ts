@@ -248,9 +248,10 @@ export class RealUnitController {
 
   // --- Quote Endpoints ---
   // Backed by the off-chain Aktionariat REST API (`/directinvestment/getPrice`, 30 s cache).
-  // The on-chain Brokerbot smart contract is touched only in the sell flow (see
-  // `PUT /sell/:id/unsigned-transactions` + `PUT /sell/:id/broadcast`). The legacy
-  // `/brokerbot/*` mirror endpoints below are deprecated.
+  // The on-chain Brokerbot smart contract is read by the sell-flow routes that anchor a quote
+  // against live chain state — `PUT /sell`, `PUT /sell/:id/unsigned-transactions`, and
+  // `PUT /sell/:id/confirm` — see the CONTRIBUTING.md "RealUnit: /quote/* vs /brokerbot/*"
+  // section for the full table. The legacy `/brokerbot/*` mirror endpoints below are deprecated.
 
   @Get('quote/info')
   @ApiOperation({
