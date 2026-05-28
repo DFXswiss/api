@@ -466,7 +466,7 @@ describe('RealUnitService', () => {
     });
   });
 
-  describe('getAddressWalletStatus', () => {
+  describe('getRegistrationInfo', () => {
     const walletAddress = '0x2222222222222222222222222222222222222222';
     const otherWalletAddress = '0x3333333333333333333333333333333333333333';
 
@@ -529,7 +529,7 @@ describe('RealUnitService', () => {
       const userData = buildVerifiedUserData();
       userData.getStepsWith.mockReturnValue([buildStepForWallet(walletAddress)]);
 
-      const status = service.getAddressWalletStatus(userData, walletAddress);
+      const status = service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.ALREADY_REGISTERED);
       expect(status.isRegistered).toBe(true);
@@ -542,7 +542,7 @@ describe('RealUnitService', () => {
       const userData = buildVerifiedUserData();
       userData.getStepsWith.mockReturnValue([buildStepForWallet(otherWalletAddress, { isCompleted: true })]);
 
-      const status = service.getAddressWalletStatus(userData, walletAddress);
+      const status = service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.ADD_WALLET);
       expect(status.isRegistered).toBe(false);
@@ -555,7 +555,7 @@ describe('RealUnitService', () => {
     it('returns state=NEW_REGISTRATION when no step exists but userData has firstname/surname', () => {
       const userData = buildVerifiedUserData();
 
-      const status = service.getAddressWalletStatus(userData, walletAddress);
+      const status = service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.isRegistered).toBe(false);
@@ -582,7 +582,7 @@ describe('RealUnitService', () => {
         getStepsWith: jest.fn().mockReturnValue([]),
       } as any;
 
-      const status = service.getAddressWalletStatus(userData, walletAddress);
+      const status = service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.KYC_REQUIRED);
       expect(status.isRegistered).toBe(false);
@@ -593,7 +593,7 @@ describe('RealUnitService', () => {
       const userData = buildVerifiedUserData();
       userData.country = { id: 2, symbol: 'DE' };
 
-      const status = service.getAddressWalletStatus(userData, walletAddress);
+      const status = service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.userData!.swissTaxResidence).toBe(false);
@@ -604,7 +604,7 @@ describe('RealUnitService', () => {
       const userData = buildVerifiedUserData();
       userData.language = { symbol: 'ES' };
 
-      const status = service.getAddressWalletStatus(userData, walletAddress);
+      const status = service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.userData!.lang).toBe('EN');

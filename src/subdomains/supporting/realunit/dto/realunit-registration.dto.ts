@@ -243,7 +243,7 @@ export enum RealUnitRegistrationState {
   KYC_REQUIRED = 'KycRequired',
 }
 
-export class RealUnitWalletStatusDto {
+export class RealUnitRegistrationInfoDto {
   @ApiProperty({
     deprecated: true,
     description:

@@ -78,11 +78,11 @@ import {
   RealUnitLanguage,
   RealUnitRegisterWalletDto,
   RealUnitRegistrationDto,
+  RealUnitRegistrationInfoDto,
   RealUnitRegistrationState,
   RealUnitRegistrationStatus,
   RealUnitUserDataDto,
   RealUnitUserType,
-  RealUnitWalletStatusDto,
 } from './dto/realunit-registration.dto';
 import {
   RealUnitSellBroadcastDto,
@@ -645,7 +645,7 @@ export class RealUnitService {
 
   // --- Wallet Methods ---
 
-  getAddressWalletStatus(userData: UserData, walletAddress: string): RealUnitWalletStatusDto {
+  getRegistrationInfo(userData: UserData, walletAddress: string): RealUnitRegistrationInfoDto {
     const { step, isForCurrentWallet } = this.findRegistrationStep(userData, walletAddress);
 
     // Dispatch to one of four states so the client can route to the right UX without inferring
