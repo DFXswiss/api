@@ -953,12 +953,15 @@ The RealUnit purchase and sale flows historically lived under `/v1/realunit/brok
 | `GET /v1/realunit/quote/sellShares?amount=N` | Reverse of the above | No |
 | `GET /v1/realunit/quote/info` | Spot price + Brokerbot contract addresses (for clients that need them) | No |
 | `PUT /v1/realunit/buy` + `/buy/:id/confirm` | Fiat IBAN flow — Aktionariat allocates shares off-chain via `directinvestment/payAndAllocate` | No |
-| `PUT /v1/realunit/sell/:id/unsigned-transactions` + `/broadcast` | Builds + broadcasts the EIP-7702 transaction that the user's wallet sends **to** the on-chain Brokerbot | **Yes** — viem `readContract` on the Brokerbot address, then user signs and we broadcast |
+| `PUT /v1/realunit/sell` | Anchors the quote against the live on-chain sell price before returning payment-info | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` (viem `readContract`) |
+| `PUT /v1/realunit/sell/:id/unsigned-transactions` | Reads the on-chain sell price and builds the EIP-7702 batch the user has to sign | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` |
+| `PUT /v1/realunit/sell/:id/confirm` | Verifies the user-signed batch against the live on-chain sell price | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` |
+| `PUT /v1/realunit/sell/:id/broadcast` | Submits the user-signed EIP-1559 transaction to the network | No — broadcast only, no `readContract` |
 
 Operational consequences:
 
 - Treat `/quote/*` as a thin pricing API. It can be public, cached, and oracle-style. Don't add transactional side effects there.
-- The actual on-chain Brokerbot interaction lives in `RealUnitBlockchainService.getBrokerbotSellPrice(brokerbotAddress, shares)` and the EIP-7702 broadcast path. Anything that names the smart contract directly (`getBrokerbot…`, `brokerbotAddress`) should stay scoped to that path.
+- The actual on-chain Brokerbot interaction is `RealUnitBlockchainService.getBrokerbotSellPrice(brokerbotAddress, shares)` (viem `readContract`). It is invoked by `getSellPaymentInfo`, `createSellUnsignedTransactions` and `confirmSell` — i.e. every `PUT /sell*` route except `/broadcast`. Anything that names the smart contract directly (`getBrokerbot…`, `brokerbotAddress`) should stay scoped to that on-chain path.
 - The legacy `/brokerbot/*` endpoints are `deprecated: true` mirrors of the `/quote/*` ones. Don't add new functionality there.
 
 ### `undefined` vs Empty Array

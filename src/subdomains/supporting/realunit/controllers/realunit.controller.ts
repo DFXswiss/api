@@ -256,7 +256,7 @@ export class RealUnitController {
   @ApiOperation({
     summary: 'Get RealUnit quote info',
     description:
-      'Returns the REALU spot price and the on-chain Brokerbot contract addresses (token / base currency / brokerbot). Price values come from the Aktionariat REST API, not the on-chain contract.',
+      'Returns the REALU spot price together with the on-chain Brokerbot contract addresses (token / base currency / brokerbot). The price values come from the Aktionariat REST API, not from an on-chain read.',
   })
   @ApiQuery({
     name: 'currency',
@@ -288,8 +288,8 @@ export class RealUnitController {
 
   @Get('quote/buyPrice')
   @ApiOperation({
-    summary: 'Quote: total cost for a given number of shares (buy)',
-    description: 'Calculates the total fiat amount needed to buy a specific number of REALU shares.',
+    summary: 'Get total fiat cost for a number of shares (buy quote)',
+    description: 'Returns the total fiat amount needed to buy a specific number of REALU shares.',
   })
   @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to buy' })
   @ApiQuery({
@@ -308,8 +308,8 @@ export class RealUnitController {
 
   @Get('quote/buyShares')
   @ApiOperation({
-    summary: 'Quote: shares received for a given fiat amount (buy)',
-    description: 'Calculates how many REALU shares can be purchased for a given fiat amount.',
+    summary: 'Get shares purchasable for a fiat amount (buy quote)',
+    description: 'Returns how many REALU shares can be purchased for a given fiat amount.',
   })
   @ApiQuery({ name: 'amount', type: String, description: 'Amount in specified currency (e.g., "1000.50")' })
   @ApiQuery({
@@ -330,7 +330,7 @@ export class RealUnitController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
-    summary: 'Quote: estimated payout for a given number of shares (sell, after fees)',
+    summary: 'Get estimated sell payout for a number of shares (after fees)',
     description:
       'Returns the estimated fiat payout when selling a specific number of REALU shares, including user-specific fees.',
   })
@@ -351,12 +351,37 @@ export class RealUnitController {
     return this.realunitService.getBrokerbotSellPrice(user, Number(shares), currency);
   }
 
+  @Get('quote/sellShares')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get shares needed for a target sell payout (after fees)',
+    description:
+      'Returns how many REALU shares need to be sold to receive a target fiat amount after user-specific fees.',
+  })
+  @ApiQuery({ name: 'amount', type: Number, description: 'Target amount to receive after fees (e.g., 1000.50)' })
+  @ApiQuery({
+    name: 'currency',
+    enum: BrokerbotCurrency,
+    required: false,
+    description: 'Currency for prices (CHF or EUR)',
+  })
+  @ApiOkResponse({ type: BrokerbotSellSharesDto })
+  async getQuoteSellShares(
+    @GetJwt() jwt: JwtPayload,
+    @Query('amount') amount: number,
+    @Query() { currency }: BrokerbotCurrencyQueryDto,
+  ): Promise<BrokerbotSellSharesDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+    return this.realunitService.getBrokerbotSellShares(user, Number(amount), currency);
+  }
+
   // --- Brokerbot Endpoints (deprecated — use the /quote/* mirrors above) ---
 
   @Get('brokerbot/info')
   @ApiOperation({
     summary: 'Get Brokerbot info',
-    description: 'Retrieves general information about the REALU Brokerbot (addresses, settings)',
+    description: 'Deprecated mirror of `/quote/info`. See that endpoint for the canonical description.',
     deprecated: true,
   })
   @ApiQuery({
@@ -373,7 +398,7 @@ export class RealUnitController {
   @Get('brokerbot/price')
   @ApiOperation({
     summary: 'Get current Brokerbot price',
-    description: 'Retrieves the current price per REALU share from the Brokerbot smart contract',
+    description: 'Deprecated mirror of `/quote/price`. See that endpoint for the canonical description.',
     deprecated: true,
   })
   @ApiQuery({
@@ -390,7 +415,7 @@ export class RealUnitController {
   @Get('brokerbot/buyPrice')
   @ApiOperation({
     summary: 'Get buy price for shares',
-    description: 'Calculates the total cost to buy a specific number of REALU shares (includes price increment)',
+    description: 'Deprecated mirror of `/quote/buyPrice`. See that endpoint for the canonical description.',
     deprecated: true,
   })
   @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to buy' })
@@ -411,7 +436,7 @@ export class RealUnitController {
   @Get('brokerbot/buyShares')
   @ApiOperation({
     summary: 'Get shares for amount',
-    description: 'Calculates how many REALU shares can be purchased for a given amount',
+    description: 'Deprecated mirror of `/quote/buyShares`. See that endpoint for the canonical description.',
     deprecated: true,
   })
   @ApiQuery({ name: 'amount', type: String, description: 'Amount in specified currency (e.g., "1000.50")' })
@@ -434,8 +459,7 @@ export class RealUnitController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
     summary: 'Get sell price for shares including fees',
-    description:
-      'Calculates the estimated payout when selling a specific number of REALU shares, including user-specific fees',
+    description: 'Deprecated mirror of `/quote/sellPrice`. See that endpoint for the canonical description.',
     deprecated: true,
   })
   @ApiQuery({ name: 'shares', type: Number, description: 'Number of shares to sell' })
@@ -460,7 +484,7 @@ export class RealUnitController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
     summary: 'Get shares needed to receive target amount including fees',
-    description: 'Calculates how many REALU shares need to be sold to receive a target amount after user-specific fees',
+    description: 'Deprecated mirror of `/quote/sellShares`. See that endpoint for the canonical description.',
     deprecated: true,
   })
   @ApiQuery({ name: 'amount', type: Number, description: 'Target amount to receive after fees (e.g., 1000.50)' })
@@ -472,31 +496,6 @@ export class RealUnitController {
   })
   @ApiOkResponse({ type: BrokerbotSellSharesDto })
   async getBrokerbotSellShares(
-    @GetJwt() jwt: JwtPayload,
-    @Query('amount') amount: number,
-    @Query() { currency }: BrokerbotCurrencyQueryDto,
-  ): Promise<BrokerbotSellSharesDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: true });
-    return this.realunitService.getBrokerbotSellShares(user, Number(amount), currency);
-  }
-
-  @Get('quote/sellShares')
-  @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
-  @ApiOperation({
-    summary: 'Quote: shares needed to receive a target fiat amount (sell, after fees)',
-    description:
-      'Returns how many REALU shares need to be sold to receive a target fiat amount after user-specific fees.',
-  })
-  @ApiQuery({ name: 'amount', type: Number, description: 'Target amount to receive after fees (e.g., 1000.50)' })
-  @ApiQuery({
-    name: 'currency',
-    enum: BrokerbotCurrency,
-    required: false,
-    description: 'Currency for prices (CHF or EUR)',
-  })
-  @ApiOkResponse({ type: BrokerbotSellSharesDto })
-  async getQuoteSellShares(
     @GetJwt() jwt: JwtPayload,
     @Query('amount') amount: number,
     @Query() { currency }: BrokerbotCurrencyQueryDto,
