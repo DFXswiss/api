@@ -78,6 +78,7 @@ import {
   RealUnitLanguage,
   RealUnitRegisterWalletDto,
   RealUnitRegistrationDto,
+  RealUnitRegistrationState,
   RealUnitRegistrationStatus,
   RealUnitUserDataDto,
   RealUnitUserType,
@@ -647,12 +648,38 @@ export class RealUnitService {
   getAddressWalletStatus(userData: UserData, walletAddress: string): RealUnitWalletStatusDto {
     const { step, isForCurrentWallet } = this.findRegistrationStep(userData, walletAddress);
 
-    // Prefer the signed Aktionariat payload from a prior registration step; otherwise fall back to the
-    // user's existing DFX KYC data so the app can pre-fill the registration form with values that the
-    // backend will accept verbatim (isPersonalDataMatching).
+    // Dispatch to one of four states so the client can route to the right UX without inferring
+    // it locally. Order matters: a registration step for the current wallet (ALREADY_REGISTERED)
+    // wins over any other signal; a step for a different wallet drives the one-tap Add-Wallet
+    // flow (ADD_WALLET); otherwise we pre-fill the full form from existing KYC data when
+    // available (NEW_REGISTRATION), falling back to KYC_REQUIRED when no usable data exists.
+    if (step) {
+      const stepUserData = this.toUserDataDto(step);
+      const state = isForCurrentWallet
+        ? RealUnitRegistrationState.ALREADY_REGISTERED
+        : RealUnitRegistrationState.ADD_WALLET;
+      return {
+        isRegistered: state === RealUnitRegistrationState.ALREADY_REGISTERED,
+        state,
+        userData: stepUserData,
+      };
+    }
+
+    // No step exists. Pre-fill from DFX KYC data (firstname/surname guarded by
+    // toUserDataDtoFromUserData) and fall through to KYC_REQUIRED when that returns undefined.
+    const prefill = this.toUserDataDtoFromUserData(userData);
+    if (prefill) {
+      return {
+        isRegistered: false,
+        state: RealUnitRegistrationState.NEW_REGISTRATION,
+        userData: prefill,
+      };
+    }
+
     return {
-      isRegistered: isForCurrentWallet,
-      userData: this.toUserDataDto(step) ?? this.toUserDataDtoFromUserData(userData),
+      isRegistered: false,
+      state: RealUnitRegistrationState.KYC_REQUIRED,
+      userData: undefined,
     };
   }
 

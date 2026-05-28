@@ -236,9 +236,26 @@ export class RealUnitUserDataDto {
   kycData: KycPersonalData;
 }
 
+export enum RealUnitRegistrationState {
+  ALREADY_REGISTERED = 'alreadyRegistered',
+  ADD_WALLET = 'addWallet',
+  NEW_REGISTRATION = 'newRegistration',
+  KYC_REQUIRED = 'kycRequired',
+}
+
 export class RealUnitWalletStatusDto {
-  @ApiProperty({ description: 'Whether the wallet is registered for RealUnit' })
+  @ApiProperty({
+    description:
+      'Whether the wallet is registered for RealUnit. Semantically equivalent to `state === alreadyRegistered`; kept for backwards compatibility. Prefer `state` for new clients.',
+  })
   isRegistered: boolean;
+
+  @ApiProperty({
+    enum: RealUnitRegistrationState,
+    description:
+      'Action the client should take for this wallet: alreadyRegistered → no UX needed; addWallet → render a one-tap Add-Wallet flow that submits to POST /register/wallet using the prior signed payload (userData is set); newRegistration → render the full registration form pre-filled with userData; kycRequired → user must complete DFX KYC first (userData not set, edge case).',
+  })
+  state: RealUnitRegistrationState;
 
   @ApiPropertyOptional({ type: RealUnitUserDataDto, description: 'User data if available' })
   userData?: RealUnitUserDataDto;
