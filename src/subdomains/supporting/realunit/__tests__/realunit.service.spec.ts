@@ -1,3 +1,4 @@
+import { createMock } from '@golevelup/ts-jest';
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
@@ -29,6 +30,7 @@ import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
 import { RealUnitDevService } from '../realunit-dev.service';
 import { RealUnitService } from '../realunit.service';
+import { AktionariatRegistrationRepository } from '../repositories/aktionariat-registration.repository';
 
 jest.mock('src/config/config', () => ({
   get Config() {
@@ -101,6 +103,7 @@ describe('RealUnitService', () => {
   let sellService: jest.Mocked<SellService>;
   let userService: jest.Mocked<UserService>;
   let kycService: jest.Mocked<KycService>;
+  let module: TestingModule;
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -121,7 +124,7 @@ describe('RealUnitService', () => {
   });
 
   beforeEach(async () => {
-    const module: TestingModule = await Test.createTestingModule({
+    module = await Test.createTestingModule({
       providers: [
         RealUnitService,
         { provide: AssetPricesService, useValue: {} },
@@ -184,6 +187,7 @@ describe('RealUnitService', () => {
         { provide: FaucetRequestService, useValue: {} },
         { provide: EthereumService, useValue: {} },
         { provide: SepoliaService, useValue: {} },
+        { provide: AktionariatRegistrationRepository, useValue: createMock<AktionariatRegistrationRepository>() },
       ],
     }).compile();
 
@@ -395,26 +399,39 @@ describe('RealUnitService', () => {
     const matchingSignature = '0xSIGNATURE_MATCHING';
     const registrationDate = '2026-05-21';
 
-    function buildExistingStep(opts: { signature: string; isCompleted: boolean }): any {
+    let registrationRepo: AktionariatRegistrationRepository;
+
+    beforeEach(() => {
+      registrationRepo = module.get(AktionariatRegistrationRepository);
+    });
+
+    function buildExistingRegistration(opts: { signature: string; isCompleted: boolean }): any {
       return {
-        getResult: () => ({
-          signature: opts.signature,
-          walletAddress,
-          registrationDate,
-        }),
-        isCompleted: opts.isCompleted,
-        isFailed: false,
-        isCanceled: false,
-        result: 'non-empty',
+        id: 1,
+        signature: opts.signature,
+        walletAddress,
+        registrationDate,
+        status: opts.isCompleted ? 'Completed' : 'InternalReview',
+        get isCompleted() {
+          return this.status === 'Completed';
+        },
+        get isFailed() {
+          return this.status === 'Failed';
+        },
+        get isCanceled() {
+          return this.status === 'Canceled';
+        },
+        result: JSON.stringify({ signature: opts.signature, walletAddress, registrationDate }),
+        getResult() {
+          return JSON.parse(this.result);
+        },
       };
     }
 
-    function mockUserWithSteps(steps: any[]): void {
-      const userData = {
-        id: userDataId,
-        getStepsWith: jest.fn().mockReturnValue(steps),
-      };
+    function mockUserWithRegistration(registration: any): void {
+      const userData = { id: userDataId };
       userService.getUserByAddress.mockResolvedValue({ userData } as any);
+      jest.spyOn(registrationRepo, 'findOneBy').mockResolvedValue(registration);
     }
 
     const dto = {
@@ -424,8 +441,8 @@ describe('RealUnitService', () => {
     };
 
     it('returns ALREADY_REGISTERED without creating a new KycStep when signature matches a completed registration', async () => {
-      const existingStep = buildExistingStep({ signature: matchingSignature, isCompleted: true });
-      mockUserWithSteps([existingStep]);
+      const existing = buildExistingRegistration({ signature: matchingSignature, isCompleted: true });
+      mockUserWithRegistration(existing);
 
       const status = await service.completeRegistrationForWalletAddress(userDataId, dto);
 
@@ -434,8 +451,8 @@ describe('RealUnitService', () => {
     });
 
     it('returns FORWARDING_FAILED when signature matches but the existing registration is not completed', async () => {
-      const existingStep = buildExistingStep({ signature: matchingSignature, isCompleted: false });
-      mockUserWithSteps([existingStep]);
+      const existing = buildExistingRegistration({ signature: matchingSignature, isCompleted: false });
+      mockUserWithRegistration(existing);
 
       const status = await service.completeRegistrationForWalletAddress(userDataId, dto);
 
@@ -444,8 +461,8 @@ describe('RealUnitService', () => {
     });
 
     it('matches signatures case-insensitively (stored upper-case, incoming lower-case)', async () => {
-      const existingStep = buildExistingStep({ signature: matchingSignature.toUpperCase(), isCompleted: true });
-      mockUserWithSteps([existingStep]);
+      const existing = buildExistingRegistration({ signature: matchingSignature.toUpperCase(), isCompleted: true });
+      mockUserWithRegistration(existing);
 
       const status = await service.completeRegistrationForWalletAddress(userDataId, {
         ...dto,
@@ -457,8 +474,8 @@ describe('RealUnitService', () => {
     });
 
     it('throws BadRequestException when an existing registration for the same wallet has a different signature', async () => {
-      const existingStep = buildExistingStep({ signature: '0xDIFFERENT_SIGNATURE', isCompleted: true });
-      mockUserWithSteps([existingStep]);
+      const existing = buildExistingRegistration({ signature: '0xDIFFERENT_SIGNATURE', isCompleted: true });
+      mockUserWithRegistration(existing);
 
       await expect(service.completeRegistrationForWalletAddress(userDataId, dto)).rejects.toThrow(BadRequestException);
       expect(kycService.createCustomKycStep).not.toHaveBeenCalled();

@@ -45,6 +45,9 @@ import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
+import { ILike } from 'typeorm';
+import { AktionariatRegistration } from './entities/aktionariat-registration.entity';
+import { AktionariatRegistrationRepository } from './repositories/aktionariat-registration.repository';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -152,6 +155,7 @@ export class RealUnitService {
     private readonly swissQrService: SwissQRService,
     private readonly feeService: FeeService,
     private readonly faucetRequestService: FaucetRequestService,
+    private readonly registrationRepo: AktionariatRegistrationRepository,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -410,7 +414,7 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    if (!this.hasRegistrationForWallet(userData, user.address)) {
+    if (!(await this.hasRegistrationForWallet(userData.id, user.address))) {
       throw new RegistrationRequiredException();
     }
 
@@ -555,8 +559,9 @@ export class RealUnitService {
 
   // --- Registration Methods ---
 
-  hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
-    return this.findRegistrationStep(userData, walletAddress).isForCurrentWallet;
+  async hasRegistrationForWallet(userDataId: number, walletAddress: string): Promise<boolean> {
+    const { isForCurrentWallet } = await this.findRegistration(userDataId, walletAddress);
+    return isForCurrentWallet;
   }
 
   async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
@@ -588,11 +593,10 @@ export class RealUnitService {
     await this.validateRegistrationDto(dto);
 
     // get and validate user
-    const userData = await this.userService
-      .getUserByAddress(dto.walletAddress, {
-        userData: { kycSteps: true, users: true, country: true, organizationCountry: true },
-      })
-      .then((u) => u?.userData);
+    const user = await this.userService.getUserByAddress(dto.walletAddress, {
+      userData: { users: true, country: true, organizationCountry: true },
+    });
+    const userData = user?.userData;
 
     if (!userData) throw new NotFoundException('User not found');
     if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
@@ -604,9 +608,9 @@ export class RealUnitService {
       throw new BadRequestException('Email does not match registered email');
     }
 
-    const { step: existingStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
+    const { registration: existing, isForCurrentWallet } = await this.findRegistration(userData.id, dto.walletAddress);
     if (isForCurrentWallet) {
-      return this.idempotentRegistrationResult(userData, existingStep!, dto.signature);
+      return this.idempotentRegistrationResult(userData, existing!, dto.signature);
     }
 
     // validate personal data
@@ -626,7 +630,7 @@ export class RealUnitService {
       });
     }
 
-    // store data with internal review
+    // store data (dual-write: KycStep for audit + AktionariatRegistration for lookups)
     const kycStep = await this.kycService.createCustomKycStep(
       userData,
       KycStepName.REALUNIT_REGISTRATION,
@@ -634,8 +638,21 @@ export class RealUnitService {
       dto,
     );
 
+    const registration = await this.registrationRepo.save(
+      this.registrationRepo.create({
+        user: user,
+        userData,
+        kycStep,
+        walletAddress: dto.walletAddress,
+        status: ReviewStatus.INTERNAL_REVIEW,
+        signature: dto.signature,
+        registrationDate: dto.registrationDate,
+        result: JSON.stringify(dto),
+      }),
+    );
+
     // forward to Aktionariat
-    const success = await this.forwardRegistration(kycStep, dto);
+    const success = await this.forwardRegistration(registration, kycStep, dto);
     if (!success) return RealUnitRegistrationStatus.FORWARDING_FAILED;
 
     return RealUnitRegistrationStatus.COMPLETED;
@@ -643,12 +660,12 @@ export class RealUnitService {
 
   // --- Wallet Methods ---
 
-  getAddressWalletStatus(userData: UserData, walletAddress: string): RealUnitWalletStatusDto {
-    const { step, isForCurrentWallet } = this.findRegistrationStep(userData, walletAddress);
+  async getAddressWalletStatus(userDataId: number, walletAddress: string): Promise<RealUnitWalletStatusDto> {
+    const { registration, isForCurrentWallet } = await this.findRegistration(userDataId, walletAddress);
 
     return {
       isRegistered: isForCurrentWallet,
-      userData: this.toUserDataDto(step),
+      userData: this.toUserDataDto(registration),
     };
   }
 
@@ -656,26 +673,28 @@ export class RealUnitService {
     userDataId: number,
     dto: RealUnitRegisterWalletDto,
   ): Promise<RealUnitRegistrationStatus> {
-    const userData = await this.userService
-      .getUserByAddress(dto.walletAddress, {
-        userData: { kycSteps: true, users: true, country: true },
-      })
-      .then((u) => u?.userData);
+    const user = await this.userService.getUserByAddress(dto.walletAddress, {
+      userData: { users: true, country: true },
+    });
+    const userData = user?.userData;
 
     if (!userData) throw new NotFoundException('User not found');
     if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
 
-    const { step: registrationStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
+    const { registration: existingRegistration, isForCurrentWallet } = await this.findRegistration(
+      userData.id,
+      dto.walletAddress,
+    );
 
     if (isForCurrentWallet) {
-      return this.idempotentRegistrationResult(userData, registrationStep!, dto.signature);
+      return this.idempotentRegistrationResult(userData, existingRegistration!, dto.signature);
     }
 
-    if (!registrationStep) {
+    if (!existingRegistration) {
       throw new BadRequestException('No RealUnit registration found');
     }
 
-    const registrationData = registrationStep.getResult<RealUnitRegistrationDto>();
+    const registrationData = existingRegistration.getResult<RealUnitRegistrationDto>();
     if (!registrationData) {
       throw new BadRequestException('Invalid registration data');
     }
@@ -693,6 +712,7 @@ export class RealUnitService {
       throw new BadRequestException('Invalid signature');
     }
 
+    // dual-write: KycStep for audit + AktionariatRegistration for lookups
     const kycStep = await this.kycService.createCustomKycStep(
       userData,
       KycStepName.REALUNIT_REGISTRATION,
@@ -700,7 +720,20 @@ export class RealUnitService {
       fullDto,
     );
 
-    const success = await this.forwardRegistration(kycStep, fullDto);
+    const registration = await this.registrationRepo.save(
+      this.registrationRepo.create({
+        user: user,
+        userData,
+        kycStep,
+        walletAddress: dto.walletAddress,
+        status: ReviewStatus.INTERNAL_REVIEW,
+        signature: dto.signature,
+        registrationDate: dto.registrationDate,
+        result: JSON.stringify(fullDto),
+      }),
+    );
+
+    const success = await this.forwardRegistration(registration, kycStep, fullDto);
 
     return success ? RealUnitRegistrationStatus.COMPLETED : RealUnitRegistrationStatus.FORWARDING_FAILED;
   }
@@ -850,45 +883,45 @@ export class RealUnitService {
       throw new BadRequestException('KYC step is not in MANUAL_REVIEW status');
     }
 
-    const dto = kycStep.getResult<RealUnitRegistrationDto>();
+    const registration = await this.registrationRepo.findOneBy({ kycStep: { id: kycStepId } });
+    if (!registration) throw new NotFoundException('Registration not found for KYC step');
+
+    const dto = registration.getResult<RealUnitRegistrationDto>();
     if (!dto) throw new BadRequestException('No registration data found');
 
-    const success = await this.forwardRegistration(kycStep, dto);
+    const success = await this.forwardRegistration(registration, kycStep, dto);
     if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
 
   /**
-   * Finds a registration step for the user.
+   * Finds a registration for the user.
    * First tries to find a registration for the current wallet.
    * If not found, falls back to finding a registration from another wallet (for account merge scenarios).
    */
-  private findRegistrationStep(
-    userData: UserData,
+  private async findRegistration(
+    userDataId: number,
     walletAddress: string,
-  ): { step: KycStep | undefined; isForCurrentWallet: boolean } {
-    const allSteps = userData.getStepsWith(KycStepName.REALUNIT_REGISTRATION);
+  ): Promise<{ registration: AktionariatRegistration | undefined; isForCurrentWallet: boolean }> {
+    // First: indexed lookup for current wallet
+    const currentWallet = await this.registrationRepo.findOneBy({
+      userData: { id: userDataId },
+      walletAddress: ILike(walletAddress),
+    });
 
-    // First: look for registration for the current wallet (non-failed, non-canceled)
-    const currentWalletStep = allSteps
-      .filter((s) => !(s.isFailed || s.isCanceled))
-      .find((s) => {
-        const result = s.getResult<AktionariatRegistrationDto>();
-        return result?.walletAddress && Util.equalsIgnoreCase(result.walletAddress, walletAddress);
-      });
-
-    if (currentWalletStep) {
-      return { step: currentWalletStep, isForCurrentWallet: true };
+    if (currentWallet && !currentWallet.isFailed && !currentWallet.isCanceled) {
+      return { registration: currentWallet, isForCurrentWallet: true };
     }
 
     // Second: look for registration from another wallet (for account merge)
-    const otherWalletStep = allSteps
-      .filter((s) => (s.isCompleted || s.isCanceled) && s.result)
-      .find((s) => {
-        const result = s.getResult<AktionariatRegistrationDto>();
-        return result?.walletAddress && !Util.equalsIgnoreCase(result.walletAddress, walletAddress);
-      });
+    const otherWallet = await this.registrationRepo
+      .find({ where: { userData: { id: userDataId } } })
+      .then((all) =>
+        all.find(
+          (r) => (r.isCompleted || r.isCanceled) && r.result && !Util.equalsIgnoreCase(r.walletAddress, walletAddress),
+        ),
+      );
 
-    return { step: otherWalletStep, isForCurrentWallet: false };
+    return { registration: otherWallet, isForCurrentWallet: false };
   }
 
   /**
@@ -899,40 +932,28 @@ export class RealUnitService {
    */
   private idempotentRegistrationResult(
     userData: UserData,
-    step: KycStep,
+    registration: AktionariatRegistration,
     incomingSignature: string,
   ): RealUnitRegistrationStatus {
-    const existingData = step.getResult<RealUnitRegistrationDto>();
-    if (!Util.equalsIgnoreCase(existingData?.signature, incomingSignature)) {
+    if (!Util.equalsIgnoreCase(registration.signature, incomingSignature)) {
       throw new BadRequestException('RealUnit registration already exists for this wallet with a different signature');
     }
 
-    // Under the normal REALUNIT_REGISTRATION flow the step is in INTERNAL_REVIEW (created,
-    // forward not run yet), MANUAL_REVIEW (forward failed, awaiting admin retry), or COMPLETED
-    // (forward succeeded). findRegistrationStep filters out FAILED and CANCELED, but admin
-    // overrides via kyc-admin.updateKycStep can leave other non-failed/non-canceled statuses
-    // (e.g. ON_HOLD, OUTDATED) reachable here. Only COMPLETED is a terminal success; every
-    // other reachable status falls through to FORWARDING_FAILED, which surfaces the same retry
-    // path the client would have seen on the original call.
-    // Surface ALREADY_REGISTERED (not COMPLETED) on the idempotent path so
-    // clients can distinguish "registration just completed in this call"
-    // from "registration was already in place". The wallet-app uses this
-    // to skip the post-registration onboarding screens on retry.
-    const status = step.isCompleted
+    const status = registration.isCompleted
       ? RealUnitRegistrationStatus.ALREADY_REGISTERED
       : RealUnitRegistrationStatus.FORWARDING_FAILED;
 
     this.logger.info(
-      `RealUnit registration idempotent retry for userData ${userData.id}, kycStep ${step.id} → ${status}`,
+      `RealUnit registration idempotent retry for userData ${userData.id}, registration ${registration.id} → ${status}`,
     );
 
     return status;
   }
 
-  private toUserDataDto(step: KycStep | undefined): RealUnitUserDataDto | undefined {
-    if (!step) return undefined;
+  private toUserDataDto(registration: AktionariatRegistration | undefined): RealUnitUserDataDto | undefined {
+    if (!registration) return undefined;
 
-    const registrationData = step.getResult<RealUnitRegistrationDto>();
+    const registrationData = registration.getResult<RealUnitRegistrationDto>();
     if (!registrationData) return undefined;
 
     const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...userDataDto } = registrationData;
@@ -973,7 +994,11 @@ export class RealUnitService {
     return true;
   }
 
-  private async forwardRegistration(kycStep: KycStep, dto: RealUnitRegistrationDto): Promise<boolean> {
+  private async forwardRegistration(
+    registration: AktionariatRegistration,
+    kycStep: KycStep,
+    dto: RealUnitRegistrationDto,
+  ): Promise<boolean> {
     const { api } = Config.blockchain.realunit;
 
     try {
@@ -1004,6 +1029,7 @@ export class RealUnitService {
       }
 
       await this.kycService.saveKycStepUpdate(kycStep.complete());
+      await this.registrationRepo.update(...registration.complete());
 
       // Set KYC Level 20 if not already higher (same as NATIONALITY_DATA step)
       if (kycStep.userData.kycLevel < KycLevel.LEVEL_20) {
@@ -1015,9 +1041,10 @@ export class RealUnitService {
       const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
 
       this.logger.error(
-        `Failed to forward RealUnit registration to Aktionariat for KYC step ${kycStep.id}: ${message}`,
+        `Failed to forward RealUnit registration to Aktionariat for registration ${registration.id}: ${message}`,
       );
       await this.kycService.saveKycStepUpdate(kycStep.manualReview(message));
+      await this.registrationRepo.update(...registration.manualReview(message));
       return false;
     }
   }
@@ -1029,7 +1056,7 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    if (!this.hasRegistrationForWallet(userData, user.address)) {
+    if (!(await this.hasRegistrationForWallet(userData.id, user.address))) {
       throw new RegistrationRequiredException();
     }
 

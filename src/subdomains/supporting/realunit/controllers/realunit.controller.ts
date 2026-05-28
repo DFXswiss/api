@@ -518,7 +518,7 @@ export class RealUnitController {
   @ApiOkResponse({ type: RealUnitPaymentInfoDto })
   @ApiBadRequestResponse({ description: 'KYC Level 30 required, registration missing, or address not on allowlist' })
   async getPaymentInfo(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
+    const user = await this.userService.getUser(jwt.user, { userData: { country: true } });
     return this.realunitService.getPaymentInfo(user, dto);
   }
 
@@ -546,7 +546,7 @@ export class RealUnitController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: RealUnitSellDto,
   ): Promise<RealUnitSellPaymentInfoDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
+    const user = await this.userService.getUser(jwt.user, { userData: { country: true } });
     return this.realunitService.getSellPaymentInfo(user, dto);
   }
 
@@ -616,8 +616,8 @@ export class RealUnitController {
   })
   @ApiOkResponse({ type: RealUnitWalletStatusDto })
   async getWalletStatus(@GetJwt() jwt: JwtPayload): Promise<RealUnitWalletStatusDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true } });
-    return this.realunitService.getAddressWalletStatus(user.userData, jwt.address);
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+    return this.realunitService.getAddressWalletStatus(user.userData.id, jwt.address);
   }
 
   // --- Registration Endpoints ---
@@ -631,8 +631,8 @@ export class RealUnitController {
   })
   @ApiOkResponse({ type: Boolean })
   async isRegistered(@GetJwt() jwt: JwtPayload): Promise<boolean> {
-    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true } });
-    return this.realunitService.hasRegistrationForWallet(user.userData, jwt.address);
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+    return this.realunitService.hasRegistrationForWallet(user.userData.id, jwt.address);
   }
 
   @Post('register/email')
