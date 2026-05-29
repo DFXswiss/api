@@ -152,9 +152,9 @@ export class PayoutOrder extends IEntity {
     return this;
   }
 
-  recordPayoutFailure(error: string): this {
+  recordPayoutFailure(message: string): this {
     this.retryCount = (this.retryCount ?? 0) + 1;
-    this.lastError = error?.substring(0, 2048);
+    this.lastError = message?.substring(0, 2048);
     this.lastAttemptDate = new Date();
 
     return this;

@@ -42,15 +42,22 @@ describe('PayoutBitcoinService', () => {
 
   describe('sendUtxoToMany()', () => {
     it('should quantize amounts to 8 decimals (strip JS float artifacts)', async () => {
-      // 0.1 + 0.2 = 0.30000000000000004 in JS — would be rejected by Bitcoin Core
-      const payout: PayoutGroup = [{ addressTo: 'ADDR_01', amount: 0.1 + 0.2 }];
+      // 1.000000003 has more than 8 decimal places and is observably distinct from 1
+      // in IEEE 754 — Bitcoin Core would reject it as "Invalid amount". This is a
+      // stronger probe than 0.1 + 0.2 because the un-rounded raw value cannot
+      // collapse to the asserted post-round value by coincidence.
+      const rawAmount = 1.000000003;
+      const payout: PayoutGroup = [{ addressTo: 'ADDR_01', amount: rawAmount }];
       mockFeeService.getSendFeeRate.mockResolvedValueOnce(5);
 
       await service.sendUtxoToMany(PayoutOrderContext.BUY_CRYPTO, payout);
 
       expect(sendManySpy).toHaveBeenCalledTimes(1);
       const [calledPayout] = sendManySpy.mock.calls[0];
-      expect(calledPayout).toEqual([{ addressTo: 'ADDR_01', amount: 0.3 }]);
+      expect(calledPayout[0].amount).toBe(1);
+      expect(calledPayout[0].amount).not.toBe(rawAmount);
+      // Verify the post-round value has at most 8 decimals (the Bitcoin Core ceiling).
+      expect(Number.isInteger(calledPayout[0].amount * 1e8)).toBe(true);
     });
 
     it('should round fee rate to 3 decimals as defense-in-depth even if fee service regresses', async () => {
