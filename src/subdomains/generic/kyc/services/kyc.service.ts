@@ -621,7 +621,7 @@ export class KycService {
 
     await this.userDataService.updateUserDataInternal(user, data);
 
-    return this.updateKycStepAndLog(kycStep, user, data, kycStep.getRequiredReviewStatus(reviewStatus));
+    return this.updateKycStepAndLog(kycStep, user, data, kycStep.reviewStatusForIdentLevel(reviewStatus));
   }
 
   async updateNationalityStep(kycHash: string, stepId: number, data: KycNationalityData): Promise<KycStepBase> {
@@ -670,14 +670,14 @@ export class KycService {
       allBeneficialOwnersDomicile: allBeneficialOwnersDomicile.join('\n'),
     });
 
-    return this.updateKycStepAndLog(kycStep, user, data, kycStep.getRequiredReviewStatus(ReviewStatus.MANUAL_REVIEW));
+    return this.updateKycStepAndLog(kycStep, user, data, kycStep.reviewStatusForIdentLevel(ReviewStatus.MANUAL_REVIEW));
   }
 
   async updateOperationActivityData(kycHash: string, stepId: number, data: KycOperationalData): Promise<KycStepBase> {
     const user = await this.getUser(kycHash);
     const kycStep = user.getPendingStepOrThrow(stepId, KycStepName.OPERATIONAL_ACTIVITY);
 
-    return this.updateKycStepAndLog(kycStep, user, data, kycStep.getRequiredReviewStatus(ReviewStatus.MANUAL_REVIEW));
+    return this.updateKycStepAndLog(kycStep, user, data, kycStep.reviewStatusForIdentLevel(ReviewStatus.MANUAL_REVIEW));
   }
 
   async updateRecommendationData(kycHash: string, stepId: number, data: KycRecommendationData) {
@@ -720,7 +720,7 @@ export class KycService {
     const result = urlAsJson ? { url } : url;
 
     await this.kycStepRepo.update(
-      ...kycStep.update(kycStep.getRequiredReviewStatus(ReviewStatus.MANUAL_REVIEW), result),
+      ...kycStep.update(kycStep.reviewStatusForIdentLevel(ReviewStatus.MANUAL_REVIEW), result),
     );
     await this.createStepLog(user, kycStep);
     await this.updateProgress(user, false);

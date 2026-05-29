@@ -368,7 +368,7 @@ export class KycStep extends IEntity {
     return [this.comment, comment].filter((c) => c).join(';');
   }
 
-  getRequiredReviewStatus(fallback: ReviewStatus): ReviewStatus {
+  reviewStatusForIdentLevel(fallback: ReviewStatus): ReviewStatus {
     return KycStepIdentRequiredForReview.includes(this.name) && this.userData.kycLevel < KycLevel.LEVEL_30
       ? ReviewStatus.INTERNAL_REVIEW
       : fallback;
