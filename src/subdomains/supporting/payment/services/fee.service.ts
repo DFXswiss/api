@@ -227,6 +227,12 @@ export class FeeService {
     return fee;
   }
 
+  async getCustomFeesForPartner(ref?: string, walletId?: number): Promise<Fee[]> {
+    const ids = await this.settingService.getCustomSignUpFees(ref, walletId);
+    if (!ids.length) return [];
+    return this.getAllFees().then((fees) => fees.filter((f) => ids.includes(f.id) && f.active));
+  }
+
   async getChargebackFee(request: OptionalFeeRequest): Promise<FeeInfo> {
     const userFees = await this.getValidFees(request);
 

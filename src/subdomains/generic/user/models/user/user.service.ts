@@ -180,6 +180,10 @@ export class UserService {
     return this.userRepo.find({ where: { ref: In(refs) }, relations: { userData: true } });
   }
 
+  async getUsersByUsedRef(usedRef: string): Promise<User[]> {
+    return this.userRepo.find({ where: { usedRef }, relations: { userData: true } });
+  }
+
   async getNexCustodyIndex(): Promise<number> {
     const currentIndex = await this.userRepo.maximum('custodyAddressIndex');
     return (currentIndex ?? -1) + 1;

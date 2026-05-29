@@ -3,11 +3,12 @@ import { AdminModule } from './admin/admin.module';
 import { ForwardingModule } from './forwarding/forwarding.module';
 import { GsModule } from './gs/gs.module';
 import { KycModule } from './kyc/kyc.module';
+import { PartnerModule } from './partner/partner.module';
 import { SupportModule } from './support/support.module';
 import { UserModule } from './user/user.module';
 
 @Module({
-  imports: [AdminModule, UserModule, GsModule, SupportModule, KycModule, ForwardingModule],
+  imports: [AdminModule, UserModule, GsModule, SupportModule, KycModule, ForwardingModule, PartnerModule],
   controllers: [],
   providers: [],
   exports: [],
