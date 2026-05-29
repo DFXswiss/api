@@ -70,6 +70,15 @@ export class PayoutOrder extends IEntity {
   @Column({ type: 'float', nullable: true })
   payoutFeeAmountChf?: number;
 
+  @Column({ type: 'int', default: 0 })
+  retryCount: number;
+
+  @Column({ length: 2048, nullable: true })
+  lastError?: string;
+
+  @Column({ type: 'timestamp', nullable: true })
+  lastAttemptDate?: Date;
+
   pendingPreparation(transferTxId: string): this {
     this.transferTxId = transferTxId;
     this.status = PayoutOrderStatus.PREPARATION_PENDING;
@@ -139,6 +148,22 @@ export class PayoutOrder extends IEntity {
 
   complete(): this {
     this.status = PayoutOrderStatus.COMPLETE;
+
+    return this;
+  }
+
+  recordPayoutFailure(error: string): this {
+    this.retryCount = (this.retryCount ?? 0) + 1;
+    this.lastError = error?.substring(0, 2048);
+    this.lastAttemptDate = new Date();
+
+    return this;
+  }
+
+  resetPayoutRetry(): this {
+    this.retryCount = 0;
+    this.lastError = null;
+    this.lastAttemptDate = null;
 
     return this;
   }

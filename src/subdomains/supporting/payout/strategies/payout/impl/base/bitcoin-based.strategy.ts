@@ -15,6 +15,12 @@ import { PayoutOrder, PayoutOrderContext } from '../../../../entities/payout-ord
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutStrategy } from './payout.strategy';
 
+// Operator-alert threshold for recurring payout RPC failures. With the ~30s payout
+// cron interval, 5 attempts maps to ~2.5 min of silent retry-loop before the first
+// notification fires. `suppressRecurring` then debounces follow-ups so the operator
+// inbox stays clean.
+const RECURRING_PAYOUT_FAILURE_THRESHOLD = 5;
+
 export abstract class BitcoinBasedStrategy extends PayoutStrategy {
   protected abstract readonly logger: DfxLogger;
 
@@ -145,6 +151,8 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
         e,
       );
 
+      await this.trackPayoutFailure(orders, e);
+
       if (e.message.includes('timeout')) throw e;
 
       await this.rollbackPayoutDesignation(orders);
@@ -154,6 +162,7 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
 
     for (const order of orders) {
       try {
+        order.resetPayoutRetry();
         const paidOrder = order.pendingPayout(payoutTxId);
         await this.payoutOrderRepo.save(paidOrder);
       } catch (e) {
@@ -163,6 +172,39 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
         await this.sendNonRecoverableErrorMail(order, errorMessage, e);
       }
     }
+  }
+
+  // Persistent retry tracking + threshold-based operator alert. Without this, an
+  // RPC error like "Invalid amount" silently loops every 30 s with no escalation
+  // (real incident 2026-05-29: 43 min stalled BTC payout, see PR #3729 context).
+  protected async trackPayoutFailure(orders: PayoutOrder[], error: Error): Promise<void> {
+    const message = error?.message ?? 'Unknown payout error';
+    for (const order of orders) {
+      order.recordPayoutFailure(message);
+      await this.payoutOrderRepo.save(order);
+    }
+
+    const minRetryCount = Math.min(...orders.map((o) => o.retryCount));
+    if (minRetryCount >= RECURRING_PAYOUT_FAILURE_THRESHOLD) {
+      await this.sendRecurringPayoutFailureAlert(orders, message);
+    }
+  }
+
+  protected async sendRecurringPayoutFailureAlert(orders: PayoutOrder[], lastError: string): Promise<void> {
+    const ids = orders.map((o) => o.id);
+    const minRetry = Math.min(...orders.map((o) => o.retryCount));
+
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      context: MailContext.PAYOUT,
+      input: {
+        subject: `Recurring ${orders[0].asset.name} payout failure: order(s) ${ids.join(', ')}`,
+        errors: [`Retry count: ${minRetry}`, `Last error: ${lastError}`],
+        isLiqMail: true,
+      },
+      options: { suppressRecurring: true, debounce: 3600000 },
+      correlationId: `PayoutOrderRecurringFailure&${orders[0].context}&${ids.join('-')}`,
+    });
   }
 
   protected aggregatePayout(orders: PayoutOrder[]): PayoutGroup {
