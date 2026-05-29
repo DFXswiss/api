@@ -97,6 +97,35 @@ describe('BitcoinFeeService', () => {
     });
   });
 
+  // --- getSendFeeRate() Tests --- //
+
+  describe('getSendFeeRate()', () => {
+    const feeConfig = { allowUnconfirmedUtxos: true, cpfpFeeMultiplier: 2.0, defaultFeeMultiplier: 1.5 };
+
+    beforeEach(() => {
+      Object.defineProperty(service, 'feeConfig', { get: () => feeConfig });
+    });
+
+    it('should round fee rate to 3 decimal places (Bitcoin Core send RPC limit)', async () => {
+      // estimatesmartfee returning 1.935 sat/vB multiplied by cpfpFeeMultiplier=2.0
+      // produces 3.8699999999999997 in JS due to floating-point arithmetic; Bitcoin Core
+      // rejects fee_rate with more than 3 decimal places via "Invalid amount".
+      mockClient.estimateSmartFee.mockResolvedValueOnce(1.935);
+
+      const result = await service.getSendFeeRate();
+
+      expect(result).toBe(3.87);
+    });
+
+    it('should preserve integer fee rates without artifacts', async () => {
+      mockClient.estimateSmartFee.mockResolvedValueOnce(10);
+
+      const result = await service.getSendFeeRate();
+
+      expect(result).toBe(20); // 10 * cpfpFeeMultiplier (2.0)
+    });
+  });
+
   // --- getTxFeeRate() Tests --- //
 
   describe('getTxFeeRate()', () => {
