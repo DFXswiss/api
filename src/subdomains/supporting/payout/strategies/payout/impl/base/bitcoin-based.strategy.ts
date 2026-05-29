@@ -17,8 +17,8 @@ import { PayoutStrategy } from './payout.strategy';
 
 // Operator-alert threshold for recurring payout RPC failures. With the ~30s payout
 // cron interval, 5 attempts maps to ~2.5 min of silent retry-loop before the first
-// notification fires. `suppressRecurring` then debounces follow-ups so the operator
-// inbox stays clean.
+// notification fires. A 1h `debounce` on the Notification then throttles follow-ups
+// so the operator inbox stays clean during long incidents.
 const RECURRING_PAYOUT_FAILURE_THRESHOLD = 5;
 
 export abstract class BitcoinBasedStrategy extends PayoutStrategy {
