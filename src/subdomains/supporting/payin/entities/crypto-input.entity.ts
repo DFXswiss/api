@@ -228,6 +228,15 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
+  resetPreparation(): this {
+    this.prepareTxId = null;
+    this.forwardFeeAmount = null;
+    this.forwardFeeAmountChf = null;
+    this.status = PayInStatus.ACKNOWLEDGED;
+
+    return this;
+  }
+
   designateForward(forwardAddress: BlockchainAddress): this {
     this.destinationAddress = forwardAddress;
 
