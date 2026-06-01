@@ -232,6 +232,111 @@ describe('PayoutBitcoinBasedStrategy', () => {
     });
   });
 
+  describe('#trackPayoutFailure(...)', () => {
+    it('increments retryCount, persists lastError and lastAttemptDate on every order', async () => {
+      const orders = [createCustomPayoutOrder({ id: 10 }), createCustomPayoutOrder({ id: 11 })];
+
+      await strategy.trackPayoutFailureWrapper(orders, new Error('Bitcoin RPC send failed: Invalid amount'));
+
+      expect(orders[0].retryCount).toBe(1);
+      expect(orders[1].retryCount).toBe(1);
+      expect(orders[0].lastError).toBe('Bitcoin RPC send failed: Invalid amount');
+      expect(orders[0].lastAttemptDate).toBeInstanceOf(Date);
+      expect(repoSaveSpy).toBeCalledTimes(2);
+    });
+
+    it('does not alert before the 5-attempt threshold', async () => {
+      const orders = [createCustomPayoutOrder({ id: 10, retryCount: 3 })];
+
+      await strategy.trackPayoutFailureWrapper(orders, new Error('Bitcoin RPC send failed: Invalid amount'));
+
+      expect(orders[0].retryCount).toBe(4);
+      expect(sendErrorMailSpy).not.toBeCalled();
+    });
+
+    it('fires the operator alert on the 5th attempt with 1h debounce (no suppressRecurring)', async () => {
+      const orders = [createCustomPayoutOrder({ id: 10, retryCount: 4 })];
+
+      await strategy.trackPayoutFailureWrapper(orders, new Error('Bitcoin RPC send failed: Invalid amount'));
+
+      expect(orders[0].retryCount).toBe(5);
+      expect(sendErrorMailSpy).toBeCalledTimes(1);
+      expect(sendErrorMailSpy).toBeCalledWith(
+        expect.objectContaining({
+          type: 'ErrorMonitoring',
+          context: 'Payout',
+          // Notification.isSuppressed short-circuits on `suppressRecurring`, so
+          // setting it would silence the debounce. Debounce alone gives the
+          // desired "1 alert per group per hour" semantic.
+          options: { debounce: 3600000 },
+          correlationId: expect.stringContaining('PayoutOrderRecurringFailure'),
+          input: expect.objectContaining({ isLiqMail: true }),
+        }),
+      );
+    });
+
+    it('builds a stable correlationId by sorting ids (PG row order is not guaranteed)', async () => {
+      const orders = [
+        createCustomPayoutOrder({ id: 20, retryCount: 4 }),
+        createCustomPayoutOrder({ id: 11, retryCount: 4 }),
+      ];
+
+      await strategy.trackPayoutFailureWrapper(orders, new Error('Bitcoin RPC send failed: Invalid amount'));
+
+      expect(sendErrorMailSpy).toBeCalledWith(
+        expect.objectContaining({
+          correlationId: expect.stringMatching(/PayoutOrderRecurringFailure&BuyCrypto&11-20$/),
+        }),
+      );
+    });
+
+    it('alerts on any single order over threshold (max semantic, not min)', async () => {
+      // Existing failing order at retryCount=4 (about to trip), plus a fresh
+      // order at retryCount=0 that joined this round. min would silence the
+      // alert (0 < 5); max keeps the operator informed.
+      const orders = [
+        createCustomPayoutOrder({ id: 10, retryCount: 4 }),
+        createCustomPayoutOrder({ id: 11, retryCount: 0 }),
+      ];
+
+      await strategy.trackPayoutFailureWrapper(orders, new Error('Bitcoin RPC send failed: Invalid amount'));
+
+      expect(orders[0].retryCount).toBe(5);
+      expect(orders[1].retryCount).toBe(1);
+      expect(sendErrorMailSpy).toBeCalledTimes(1);
+    });
+
+    it('returns early without saving or alerting on an empty orders array', async () => {
+      await strategy.trackPayoutFailureWrapper([], new Error('whatever'));
+
+      expect(repoSaveSpy).not.toBeCalled();
+      expect(sendErrorMailSpy).not.toBeCalled();
+    });
+
+    it('truncates very long error messages to 2048 chars', async () => {
+      const longError = 'X'.repeat(5000);
+      const orders = [createCustomPayoutOrder({ id: 10 })];
+
+      await strategy.trackPayoutFailureWrapper(orders, new Error(longError));
+
+      expect(orders[0].lastError?.length).toBe(2048);
+    });
+  });
+
+  describe('#resetPayoutRetry(...)', () => {
+    it('clears retryCount, lastError and lastAttemptDate on a previously failing order', () => {
+      const order = createCustomPayoutOrder({ id: 10, retryCount: 7 });
+      order.lastError = 'Bitcoin RPC send failed: Invalid amount';
+      order.lastAttemptDate = new Date();
+
+      order.resetPayoutRetry();
+
+      expect(order.retryCount).toBe(0);
+      expect(order.lastError).toBeNull();
+      expect(order.lastAttemptDate).toBeNull();
+    });
+  });
+
   describe('#sendNonRecoverableErrorMailWrapper(...)', () => {
     it('combines custom message with error message', async () => {
       await strategy.sendNonRecoverableErrorMailWrapper(
@@ -314,6 +419,10 @@ class PayoutBitcoinBasedStrategyWrapper extends BitcoinBasedStrategy {
 
   sendNonRecoverableErrorMailWrapper(order: PayoutOrder, message: string, e?: Error) {
     return this.sendNonRecoverableErrorMail(order, message, e);
+  }
+
+  trackPayoutFailureWrapper(orders: PayoutOrder[], error: Error) {
+    return this.trackPayoutFailure(orders, error);
   }
 
   estimateFee(): Promise<FeeResult> {

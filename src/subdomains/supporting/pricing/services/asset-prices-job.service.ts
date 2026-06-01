@@ -38,7 +38,8 @@ export class AssetPricesJobService {
 
         updates.push(asset.updatePrice(usdPrice.convert(1), chfPrice.convert(1), eurPrice.convert(1)));
 
-        if ([AssetType.COIN, AssetType.TOKEN].includes(asset.type)) await this.saveAssetPrices(asset);
+        if ([AssetType.COIN, AssetType.TOKEN, AssetType.CUSTODY].includes(asset.type))
+          await this.saveAssetPrices(asset);
       } catch (e) {
         const level = e instanceof PriceInvalidException ? LogLevel.INFO : LogLevel.ERROR;
         this.logger.log(level, `Failed to update price of asset ${asset.uniqueName}:`, e);

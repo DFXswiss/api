@@ -37,6 +37,18 @@ export abstract class EvmStrategy extends SendStrategy {
     for (const payInGroup of [...groups.values()]) {
       try {
         if (payInGroup.status === PayInStatus.PREPARING) {
+          // Reset individual stale pay-ins whose prepare tx was never mined
+          for (const payIn of payInGroup.payIns) {
+            if (payIn.updated < Util.hoursBefore(1)) {
+              this.logger.warn(`Resetting stale Preparing input ${payIn.id} — prepare tx not found after 1h`);
+              payIn.resetPreparation();
+              await this.payInRepo.save(payIn);
+            }
+          }
+
+          // Re-check: if any pay-ins were reset, skip this group (they'll be re-grouped next cycle)
+          if (payInGroup.payIns.some((p) => p.status === PayInStatus.ACKNOWLEDGED)) continue;
+
           const isReady = await this.checkPreparation(payInGroup);
 
           if (isReady) {
