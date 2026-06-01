@@ -6,7 +6,7 @@ import { KycStep } from '../../../entities/kyc-step.entity';
 import { KycStepName } from '../../../enums/kyc-step-name.enum';
 import { requiredKycSteps } from '../../../enums/kyc.enum';
 import { ReviewStatus } from '../../../enums/review-status.enum';
-import { KycLevelDto, KycProcessStatus } from '../../output/kyc-info.dto';
+import { KycLevelDto, KycProcessStatus, KycSessionDto } from '../../output/kyc-info.dto';
 import { KycInfoMapper } from '../kyc-info.mapper';
 
 jest.mock('../../../enums/kyc.enum', () => ({
@@ -212,6 +212,23 @@ describe('KycInfoMapper', () => {
       const result = KycInfoMapper.toDto(userData, false, []) as KycLevelDto;
 
       expect(result.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL)?.isCurrent).toBeFalsy();
+    });
+
+    it('drops an explicitly-passed DfxApproval currentStep (never emitted as the session currentStep)', () => {
+      // A caller can pass `currentStep` explicitly (4th arg), bypassing the
+      // internal `??=` derivation. A DfxApproval passed this way must still be
+      // dropped — otherwise it is emitted as the session currentStep (the
+      // blank-screen path).
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.DFX_APPROVAL);
+      const approval = buildStep(KycStepName.DFX_APPROVAL, ReviewStatus.IN_PROGRESS);
+      approval.id = 3;
+      const userData = buildUserData({
+        kycSteps: [buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED), approval],
+      });
+
+      const result = KycInfoMapper.toDto(userData, true, [], approval) as KycSessionDto;
+
+      expect(result.currentStep).toBeUndefined();
     });
 
     it('keeps returning PendingReview for an OnHold DfxApproval (unchanged behaviour)', () => {

@@ -20,6 +20,8 @@ export class KycInfoMapper {
     // A non-user-actionable step (e.g. DfxApproval, a DFX-side decision) is
     // never the user's `currentStep` — the user has no action to take on it, so
     // surfacing it as current produced a dead-end (blank) screen on the client.
+    if (currentStep && KycStepNonUserActionable.includes(currentStep.name)) currentStep = undefined;
+
     currentStep ??=
       kycSteps.find((s) => s.status === ReviewStatus.IN_PROGRESS && !KycStepNonUserActionable.includes(s.name)) ??
       kycSteps.find((s) => s.status === ReviewStatus.FAILED && !KycStepNonUserActionable.includes(s.name));
