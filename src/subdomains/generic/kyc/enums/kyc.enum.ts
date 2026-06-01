@@ -1,5 +1,6 @@
 import { Config } from 'src/config/config';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
+import { REALUNIT_WALLET_NAME } from 'src/subdomains/supporting/notification/realunit-mail-rules';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
@@ -48,7 +49,9 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
       : null,
     userData.recallAgreementAccepted === false ? KycStepName.RECALL_AGREEMENT : null,
     KycStepName.IDENT,
-    KycStepName.FINANCIAL_DATA,
+    // RealUnit wallets only need the Financial-Data questions on the sell side: gate them out
+    // on a first buy and surface them once the user has actually sold (sellVolume > 0).
+    userData.wallet?.name !== REALUNIT_WALLET_NAME || userData.sellVolume > 0 ? KycStepName.FINANCIAL_DATA : null,
     userData.legalEntity === LegalEntity.ASSOCIATION ? KycStepName.STATUTES : null,
     KycStepName.DFX_APPROVAL,
   ]
