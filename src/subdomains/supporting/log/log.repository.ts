@@ -54,7 +54,7 @@ export class LogRepository extends BaseRepository<Log> {
 
   async getLatestFinancialLog(): Promise<Log | undefined> {
     return this.findOne({
-      where: { system: 'LogService', subsystem: 'FinancialDataLog', severity: LogSeverity.INFO, valid: true },
+      where: { system: 'LogService', subsystem: 'FinancialDataLog', severity: LogSeverity.INFO },
       order: { id: 'DESC' },
     });
   }
