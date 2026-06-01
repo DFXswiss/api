@@ -44,17 +44,21 @@ export class AccountMergeService {
   ): Promise<boolean> {
     if (!master.isMergePossibleWith(slave)) return false;
 
-    const request =
-      (await this.accountMergeRepo.findOne({
-        where: {
-          master: { id: master.id },
-          slave: { id: slave.id },
-          expiration: MoreThan(new Date()),
-        },
-        relations: { master: true, slave: true },
-      })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave, reason)));
+    // Dedup at the entry: several code paths request the same logical merge (ident verification +
+    // re-check, IBAN conflict, mail change). If an open merge for this pair already exists, the
+    // original mail already pointed the user to the confirmation URL — reuse it instead of minting
+    // a new row (which would get a fresh correlationId and slip past the mail-layer debounce).
+    const openRequest = await this.accountMergeRepo.findOneBy({
+      master: { id: master.id },
+      slave: { id: slave.id },
+      isCompleted: false,
+      expiration: MoreThan(new Date()),
+    });
+    if (openRequest) return true;
 
-    const [receiver, mentioned] = sendToSlave ? [request.slave, request.master] : [request.master, request.slave];
+    const request = await this.accountMergeRepo.save(AccountMerge.create(master, slave, reason));
+
+    const [receiver, mentioned] = sendToSlave ? [slave, master] : [master, slave];
     if (!receiver.mail) return false;
 
     const name = mentioned.organizationName ?? mentioned.firstname ?? receiver.organizationName ?? receiver.firstname;
