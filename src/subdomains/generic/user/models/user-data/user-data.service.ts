@@ -1370,7 +1370,12 @@ export class UserDataService {
     await this.kycLogService.createMergeLog(master, log);
     await this.kycLogService.createMergeLog(slave, log);
 
-    if (kycStepMerge) await this.kycService.checkDfxApproval(master);
+    if (kycStepMerge) {
+      await this.kycService.checkDfxApproval(master);
+      // Drive the level transition + completion mail event-driven, within the merge, instead of
+      // waiting for the next KYC review cron cycle.
+      await this.kycService.completeKycAfterMerge(master);
+    }
 
     // Notify user about added address
     if (notifyUser) await this.userDataNotificationService.userDataAddedAddressInfo(master, slave);

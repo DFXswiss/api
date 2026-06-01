@@ -32,7 +32,13 @@ import { UserDataRelationService } from '../../user/models/user-data-relation/us
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
 import { UserData } from '../../user/models/user-data/user-data.entity';
-import { KycLevel, KycType, TradeApprovalReason, UserDataStatus } from '../../user/models/user-data/user-data.enum';
+import {
+  KycLevel,
+  KycStatus,
+  KycType,
+  TradeApprovalReason,
+  UserDataStatus,
+} from '../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { WalletService } from '../../user/models/wallet/wallet.service';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
@@ -438,6 +444,24 @@ export class KycService {
         if (newStep) await this.kycStepRepo.update(...newStep.manualReview());
       }
     }
+  }
+
+  // Event-driven completion after an account merge: if the merged master already satisfies every
+  // required KYC step (including a DFX_APPROVAL carried over from the slave account) and has no open
+  // name checks, reconcile the level to LEVEL_50 right away. Otherwise the level (and the
+  // KYC_CHANGED completion mail it triggers via updateUserDataInternal) only catches up on a later
+  // cron/step trigger — the source of the observed ~20 min mail lag. Mirrors the DFX_APPROVAL
+  // completion logic in KycAdminService.updateKycStep, so it never grants LEVEL_50 for a still-open
+  // or freshly-created approval.
+  async completeKycAfterMerge(user: UserData): Promise<void> {
+    if (user.kycLevel >= KycLevel.LEVEL_50) return;
+    if (requiredKycSteps(user).some((rs) => !user.hasCompletedStep(rs))) return;
+    if (await this.nameCheckService.hasOpenNameChecks(user)) return;
+
+    await this.userDataService.updateUserDataInternal(user, {
+      kycLevel: KycLevel.LEVEL_50,
+      kycStatus: KycStatus.COMPLETED,
+    });
   }
 
   async getInfo(kycHash: string): Promise<KycLevelDto> {
