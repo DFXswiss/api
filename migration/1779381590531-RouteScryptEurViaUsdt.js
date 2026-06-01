@@ -13,47 +13,34 @@ module.exports = class RouteScryptEurViaUsdt1779381590531 {
 
   async up(queryRunner) {
     // Skip if rule 313 or action 233 don't exist in this environment
-    const [rule] = await queryRunner.query(`SELECT "id" FROM "dbo"."liquidity_management_rule" WHERE "id" = 313`);
+    const [rule] = await queryRunner.query(`SELECT "id" FROM "liquidity_management_rule" WHERE "id" = 313`);
     if (!rule) return;
 
     const [fallbackAction] = await queryRunner.query(
-      `SELECT "id" FROM "dbo"."liquidity_management_action" WHERE "id" = 233`,
+      `SELECT "id" FROM "liquidity_management_action" WHERE "id" = 233`,
     );
     if (!fallbackAction) return;
 
     // 1. Point Rule 313 (Scrypt/EUR redundancy) at the USDT sell action
-    await queryRunner.query(`
-            UPDATE "dbo"."liquidity_management_rule"
-            SET "redundancyStartActionId" = 233
-            WHERE "id" = 313
-        `);
+    await queryRunner.query(`UPDATE "liquidity_management_rule" SET "redundancyStartActionId" = 233 WHERE "id" = 313`);
 
     // 2. Remove the now-unreferenced sell-if-deficit BTC action
-    await queryRunner.query(`
-            DELETE FROM "dbo"."liquidity_management_action"
-            WHERE "id" = 261 AND "system" = 'Scrypt' AND "command" = 'sell-if-deficit'
-        `);
+    await queryRunner.query(
+      `DELETE FROM "liquidity_management_action" WHERE "id" = 261 AND "system" = 'Scrypt' AND "command" = 'sell-if-deficit'`,
+    );
   }
 
   async down(queryRunner) {
-    // Restore the state from migration 1774100000000-AddScryptSellIfDeficitAction.js:
-    // re-insert Action 261 (Scrypt sell-if-deficit BTC) and re-point Rule 313 at it.
+    // Restore Action 261 (Scrypt sell-if-deficit BTC) and re-point Rule 313 at it.
     const [fallbackAction] = await queryRunner.query(
-      `SELECT "id" FROM "dbo"."liquidity_management_action" WHERE "id" = 233`,
+      `SELECT "id" FROM "liquidity_management_action" WHERE "id" = 233`,
     );
     if (!fallbackAction) return;
 
-    await queryRunner.query(`
-            SET IDENTITY_INSERT "dbo"."liquidity_management_action" ON;
-            INSERT INTO "dbo"."liquidity_management_action" ("id", "system", "command", "tag", "params", "onSuccessId", "onFailId")
-            VALUES (261, 'Scrypt', 'sell-if-deficit', 'SCRYPT BTC', '{"tradeAsset":"BTC","checkAssetId":113}', NULL, 233);
-            SET IDENTITY_INSERT "dbo"."liquidity_management_action" OFF;
-        `);
+    await queryRunner.query(
+      `INSERT INTO "liquidity_management_action" ("id", "system", "command", "tag", "params", "onSuccessId", "onFailId") VALUES (261, 'Scrypt', 'sell-if-deficit', 'SCRYPT BTC', '{"tradeAsset":"BTC","checkAssetId":113}', NULL, 233)`,
+    );
 
-    await queryRunner.query(`
-            UPDATE "dbo"."liquidity_management_rule"
-            SET "redundancyStartActionId" = 261
-            WHERE "id" = 313
-        `);
+    await queryRunner.query(`UPDATE "liquidity_management_rule" SET "redundancyStartActionId" = 261 WHERE "id" = 313`);
   }
 };
