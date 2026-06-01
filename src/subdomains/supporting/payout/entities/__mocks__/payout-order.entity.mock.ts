@@ -7,8 +7,19 @@ export function createDefaultPayoutOrder(): PayoutOrder {
 }
 
 export function createCustomPayoutOrder(customValues: Partial<PayoutOrder>): PayoutOrder {
-  const { id, context, correlationId, chain, asset, amount, destinationAddress, status, transferTxId, payoutTxId } =
-    customValues;
+  const {
+    id,
+    context,
+    correlationId,
+    chain,
+    asset,
+    amount,
+    destinationAddress,
+    status,
+    transferTxId,
+    payoutTxId,
+    retryCount,
+  } = customValues;
 
   const keys = Object.keys(customValues);
   const entity = new PayoutOrder();
@@ -23,6 +34,7 @@ export function createCustomPayoutOrder(customValues: Partial<PayoutOrder>): Pay
   entity.status = keys.includes('status') ? status : PayoutOrderStatus.CREATED;
   entity.transferTxId = keys.includes('transferTxId') ? transferTxId : 'TTX_01';
   entity.payoutTxId = keys.includes('payoutTxId') ? payoutTxId : 'PTX_01';
+  entity.retryCount = keys.includes('retryCount') ? retryCount : 0;
 
   return entity;
 }
