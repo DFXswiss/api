@@ -164,6 +164,71 @@ describe('KycInfoMapper', () => {
     });
   });
 
+  // DfxApproval is a DFX-side decision: the user can never act on it. A freshly
+  // initiated approval step can momentarily carry an actionable status
+  // (KycStep.create defaults to IN_PROGRESS); it must still read as
+  // PendingReview and never be surfaced as the user's currentStep — otherwise
+  // the client routes it into the actionable lane with no UI (blank screen).
+  describe('DfxApproval (non-user-actionable backend step)', () => {
+    it('returns PendingReview when the only open required step is DfxApproval InProgress (awaiting DFX)', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.DFX_APPROVAL);
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.DFX_APPROVAL, ReviewStatus.IN_PROGRESS),
+        ],
+      });
+
+      const result = KycInfoMapper.toDto(userData, false, []) as KycLevelDto;
+
+      expect(result.processStatus).toBe(KycProcessStatus.PENDING_REVIEW);
+    });
+
+    it('still returns InProgress when a real user-actionable step is open alongside DfxApproval', () => {
+      setRequiredSteps(KycStepName.IDENT, KycStepName.DFX_APPROVAL);
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.IDENT, ReviewStatus.IN_PROGRESS),
+          buildStep(KycStepName.DFX_APPROVAL, ReviewStatus.IN_PROGRESS),
+        ],
+      });
+
+      const result = KycInfoMapper.toDto(userData, false, []) as KycLevelDto;
+
+      expect(result.processStatus).toBe(KycProcessStatus.IN_PROGRESS);
+    });
+
+    it('never surfaces DfxApproval as the current step, even when it is the only open step', () => {
+      // The incident shape: every other required step done, DfxApproval the only
+      // open one in an actionable status. Without the guard it becomes
+      // `currentStep` and the client gets a step it has no UI for (blank screen).
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.DFX_APPROVAL);
+      const contact = buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED);
+      contact.id = 1;
+      const approval = buildStep(KycStepName.DFX_APPROVAL, ReviewStatus.IN_PROGRESS);
+      approval.id = 3;
+      const userData = buildUserData({ kycSteps: [contact, approval] });
+
+      const result = KycInfoMapper.toDto(userData, false, []) as KycLevelDto;
+
+      expect(result.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL)?.isCurrent).toBeFalsy();
+    });
+
+    it('keeps returning PendingReview for an OnHold DfxApproval (unchanged behaviour)', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.DFX_APPROVAL);
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.DFX_APPROVAL, ReviewStatus.ON_HOLD),
+        ],
+      });
+
+      const result = KycInfoMapper.toDto(userData, false, []) as KycLevelDto;
+
+      expect(result.processStatus).toBe(KycProcessStatus.PENDING_REVIEW);
+    });
+  });
+
   describe('isRequired flag', () => {
     it('marks a step whose name is in requiredStepNames as required', () => {
       setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.IDENT);
