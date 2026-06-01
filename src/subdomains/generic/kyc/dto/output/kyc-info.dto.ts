@@ -26,6 +26,7 @@ export enum KycProcessStatus {
   PENDING_REVIEW = 'PendingReview',
   COMPLETED = 'Completed',
   FAILED = 'Failed',
+  MERGE_PROCESSING = 'MergeProcessing',
 }
 
 // step
@@ -100,7 +101,7 @@ export class KycLevelDto {
   @ApiProperty({
     enum: KycProcessStatus,
     description:
-      'High-level KYC process status. `Completed` ⇒ all required steps completed; `PendingReview` ⇒ at least one required step is in backend review; `InProgress` ⇒ at least one required step is actionable by the user; `Failed` ⇒ KYC terminated. Clients render this verbatim instead of inferring it from `kycSteps`.',
+      'High-level KYC process status. `MergeProcessing` ⇒ a user-confirmed account merge is still being processed in the backend (render a waiting state, do not interpret a polling timeout as failure); `Completed` ⇒ all required steps completed; `PendingReview` ⇒ at least one required step is in backend review; `InProgress` ⇒ at least one required step is actionable by the user; `Failed` ⇒ KYC terminated. Clients render this verbatim instead of inferring it from `kycSteps`.',
   })
   processStatus: KycProcessStatus;
 }

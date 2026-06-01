@@ -60,6 +60,24 @@ describe('KycInfoMapper', () => {
       expect(result.processStatus).toBe(KycProcessStatus.FAILED);
     });
 
+    it('returns MergeProcessing when a merge is in progress, overriding actionable steps', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.IDENT);
+      const userData = buildUserData({ kycSteps: [] });
+
+      const result = KycInfoMapper.toDto(userData, false, [], undefined, true) as KycLevelDto;
+
+      expect(result.processStatus).toBe(KycProcessStatus.MERGE_PROCESSING);
+    });
+
+    it('does not return MergeProcessing for a KYC-terminated user (Failed wins)', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.IDENT);
+      const userData = buildUserData({ kycLevel: KycLevel.REJECTED });
+
+      const result = KycInfoMapper.toDto(userData, false, [], undefined, true) as KycLevelDto;
+
+      expect(result.processStatus).toBe(KycProcessStatus.FAILED);
+    });
+
     it('returns InProgress when there are no real steps and required steps exist (synthetic NotStarted steps)', () => {
       setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.IDENT);
       const userData = buildUserData({ kycSteps: [] });

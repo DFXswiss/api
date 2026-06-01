@@ -1740,8 +1740,9 @@ export class KycService {
     currentStep?: KycStep,
   ): Promise<KycLevelDto | KycSessionDto> {
     const kycClients = await this.walletService.getKycClients();
+    const isMergeProcessing = await this.accountMergeService.hasProcessingMerge(user.id);
 
-    return KycInfoMapper.toDto(user, withSession, kycClients, currentStep);
+    return KycInfoMapper.toDto(user, withSession, kycClients, currentStep, isMergeProcessing);
   }
 
   private async getUser(kycHash: string): Promise<UserData> {

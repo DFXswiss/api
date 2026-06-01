@@ -30,6 +30,9 @@ export class AccountMerge extends IEntity {
   @Column({ type: 'timestamp' })
   expiration: Date;
 
+  @Column({ type: 'timestamp', nullable: true })
+  processingStartedAt?: Date;
+
   @Column({ length: 256, nullable: true })
   reason?: MergeReason;
 
@@ -47,6 +50,14 @@ export class AccountMerge extends IEntity {
     return entity;
   }
 
+  startProcessing(): UpdateResult<AccountMerge> {
+    const update: Partial<AccountMerge> = { processingStartedAt: new Date() };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   complete(master: UserData, slave: UserData): UpdateResult<AccountMerge> {
     const update: Partial<AccountMerge> = {
       isCompleted: true,
@@ -61,5 +72,10 @@ export class AccountMerge extends IEntity {
 
   get isExpired(): boolean {
     return this.expiration < new Date();
+  }
+
+  // user has confirmed the merge and the backend is still processing it (re-parenting, KYC follow-up)
+  get isProcessing(): boolean {
+    return !this.isCompleted && this.processingStartedAt != null && !this.isExpired;
   }
 }
