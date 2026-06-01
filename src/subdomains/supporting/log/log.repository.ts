@@ -54,7 +54,7 @@ export class LogRepository extends BaseRepository<Log> {
 
   async getLatestFinancialLog(): Promise<Log | undefined> {
     return this.findOne({
-      where: { system: 'LogService', subsystem: 'FinancialDataLog', severity: LogSeverity.INFO },
+      where: { system: 'LogService', subsystem: 'FinancialDataLog', severity: LogSeverity.INFO, valid: true },
       order: { id: 'DESC' },
     });
   }
@@ -107,6 +107,7 @@ export class LogRepository extends BaseRepository<Log> {
         .where('subLog.system = :system', { system: 'LogService' })
         .andWhere('subLog.subsystem = :subsystem', { subsystem: 'FinancialDataLog' })
         .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO })
+        .andWhere('subLog.valid = :valid', { valid: true })
         .groupBy('CAST(subLog.created AS DATE)');
 
       let query = this.createQueryBuilder('log')
@@ -125,6 +126,7 @@ export class LogRepository extends BaseRepository<Log> {
       system: 'LogService',
       subsystem: 'FinancialDataLog',
       severity: LogSeverity.INFO,
+      valid: true,
     };
 
     if (from) {
