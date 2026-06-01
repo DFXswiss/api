@@ -1259,6 +1259,11 @@ export class UserDataService {
       );
     }
 
+    // Re-parent the slave's KYC steps onto the master at the DB level. The in-memory concat below
+    // is not enough: without this the slave rows keep userData_id = slave.id and disappear from the
+    // master on the next reload, re-flagging already-completed steps as missing.
+    if (kycStepMerge) await this.kycAdminService.reassignKycSteps(slave.id, master.id);
+
     // Adapt slave bankData in review
     for (const bankData of slave.bankDatas.filter((b) => b.isInReview)) {
       if (
