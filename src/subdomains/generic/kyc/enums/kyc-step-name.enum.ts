@@ -31,3 +31,9 @@ export enum KycStepName {
 }
 
 export const KycStepCancelable = [KycStepName.ADDRESS_CHANGE, KycStepName.PHONE_CHANGE, KycStepName.NAME_CHANGE];
+export const KycStepRepeatable = [
+  KycStepName.ADDRESS_CHANGE,
+  KycStepName.PHONE_CHANGE,
+  KycStepName.NAME_CHANGE,
+  KycStepName.CONTACT_DATA,
+];
