@@ -462,6 +462,7 @@ export class KycService {
       kycLevel: KycLevel.LEVEL_50,
       kycStatus: KycStatus.COMPLETED,
     });
+    await this.createKycLevelLog(user, KycLevel.LEVEL_50);
   }
 
   async getInfo(kycHash: string): Promise<KycLevelDto> {

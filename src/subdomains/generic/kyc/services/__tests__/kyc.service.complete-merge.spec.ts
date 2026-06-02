@@ -6,6 +6,7 @@ import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepName } from '../../enums/kyc-step-name.enum';
 import { requiredKycSteps } from '../../enums/kyc.enum';
 import { ReviewStatus } from '../../enums/review-status.enum';
+import { KycLogService } from '../kyc-log.service';
 import { KycService } from '../kyc.service';
 import { NameCheckService } from '../name-check.service';
 
@@ -18,6 +19,7 @@ describe('KycService.completeKycAfterMerge', () => {
   let service: KycService;
   let nameCheckService: jest.Mocked<Partial<NameCheckService>>;
   let userDataService: jest.Mocked<Partial<UserDataService>>;
+  let kycLogService: jest.Mocked<Partial<KycLogService>>;
 
   const required = [KycStepName.CONTACT_DATA, KycStepName.IDENT, KycStepName.DFX_APPROVAL];
 
@@ -35,21 +37,24 @@ describe('KycService.completeKycAfterMerge', () => {
     (requiredKycSteps as jest.Mock).mockReturnValue(required);
     nameCheckService = { hasOpenNameChecks: jest.fn().mockResolvedValue(false) };
     userDataService = { updateUserDataInternal: jest.fn() };
+    kycLogService = { createLogInternal: jest.fn() };
 
     service = Object.create(KycService.prototype) as KycService;
     (service as unknown as { nameCheckService: NameCheckService }).nameCheckService =
       nameCheckService as unknown as NameCheckService;
     (service as unknown as { userDataService: UserDataService }).userDataService =
       userDataService as unknown as UserDataService;
+    (service as unknown as { kycLogService: KycLogService }).kycLogService = kycLogService as unknown as KycLogService;
   });
 
-  it('reconciles to LEVEL_50 when all required steps are completed and no name check is open', async () => {
+  it('reconciles to LEVEL_50 (with a level log) when all required steps are completed — incl. a carried-over DFX_APPROVAL — and no name check is open', async () => {
     await service.completeKycAfterMerge(buildUser(KycLevel.LEVEL_20, required));
 
     expect(userDataService.updateUserDataInternal).toHaveBeenCalledWith(expect.any(UserData), {
       kycLevel: KycLevel.LEVEL_50,
       kycStatus: KycStatus.COMPLETED,
     });
+    expect(kycLogService.createLogInternal).toHaveBeenCalled();
   });
 
   it('does nothing when a required step (e.g. DFX_APPROVAL) is not yet completed', async () => {
