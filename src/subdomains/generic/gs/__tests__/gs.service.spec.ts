@@ -2,7 +2,10 @@ import { BadRequestException } from '@nestjs/common';
 import { createMock } from '@golevelup/ts-jest';
 import { DataSource } from 'typeorm';
 import { AppInsightsQueryService } from 'src/integration/infrastructure/app-insights-query.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { GsService } from '../gs.service';
+import { DebugLogQueryTemplates, LogQueryAuditPrefix } from '../dto/gs.dto';
+import { LogQueryTemplate } from '../dto/log-query.dto';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UserService } from '../../user/models/user/user.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -27,12 +30,14 @@ import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/
 describe('GsService', () => {
   let service: GsService;
   let dataSource: DataSource;
+  let appInsightsQueryService: AppInsightsQueryService;
 
   beforeEach(() => {
     dataSource = createMock<DataSource>();
+    appInsightsQueryService = createMock<AppInsightsQueryService>();
 
     service = new GsService(
-      createMock<AppInsightsQueryService>(),
+      appInsightsQueryService,
       createMock<UserDataService>(),
       createMock<UserService>(),
       createMock<BuyService>(),
@@ -190,6 +195,29 @@ describe('GsService', () => {
 
         expect(result).toBeDefined();
       });
+    });
+  });
+
+  describe('LogQueryAuditPrefix sync', () => {
+    it('ALL_TRACES template excludes the exact audit prefix that gs.service emits', async () => {
+      const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
+      jest.spyOn(appInsightsQueryService, 'query').mockResolvedValue({ tables: [{ columns: [], rows: [] }] } as never);
+
+      await service.executeLogQuery({ template: LogQueryTemplate.ALL_TRACES, hours: 1 }, '0xtester');
+
+      // 1) The service emits an audit log that starts with LogQueryAuditPrefix
+      const emitted = verboseSpy.mock.calls.map((args) => String(args[0])).join('\n');
+      expect(emitted).toContain(`${LogQueryAuditPrefix}0xtester`);
+      expect(emitted.startsWith(LogQueryAuditPrefix)).toBe(true);
+
+      // 2) The ALL_TRACES template KQL excludes lines with that exact prefix
+      //    (after DfxLogger's "[GsService] " class-context prefix). This binds
+      //    service and template via the shared constant — refactoring the
+      //    constant will update both sides at once.
+      const kql = DebugLogQueryTemplates[LogQueryTemplate.ALL_TRACES].kql;
+      expect(kql).toContain(`[GsService] ${LogQueryAuditPrefix}`);
+
+      verboseSpy.mockRestore();
     });
   });
 });

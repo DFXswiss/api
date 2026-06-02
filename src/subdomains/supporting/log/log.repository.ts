@@ -52,6 +52,7 @@ export class LogRepository extends BaseRepository<Log> {
     });
   }
 
+  // Unfiltered: exposes the exact newest snapshot for numeric balance displays.
   async getLatestFinancialLog(): Promise<Log | undefined> {
     return this.findOne({
       where: { system: 'LogService', subsystem: 'FinancialDataLog', severity: LogSeverity.INFO },
@@ -100,6 +101,7 @@ export class LogRepository extends BaseRepository<Log> {
     return this.find({ where, order: { created: 'ASC' } });
   }
 
+  // Filters valid = true so chart series skip spike/glitch snapshots; use getLatestFinancialLog for exact numeric values.
   async getFinancialLogs(from?: Date, dailySample?: boolean): Promise<Log[]> {
     if (dailySample) {
       const subQuery = this.createQueryBuilder('subLog')
@@ -107,6 +109,7 @@ export class LogRepository extends BaseRepository<Log> {
         .where('subLog.system = :system', { system: 'LogService' })
         .andWhere('subLog.subsystem = :subsystem', { subsystem: 'FinancialDataLog' })
         .andWhere('subLog.severity = :severity', { severity: LogSeverity.INFO })
+        .andWhere('subLog.valid = :valid', { valid: true })
         .groupBy('CAST(subLog.created AS DATE)');
 
       let query = this.createQueryBuilder('log')
@@ -125,6 +128,7 @@ export class LogRepository extends BaseRepository<Log> {
       system: 'LogService',
       subsystem: 'FinancialDataLog',
       severity: LogSeverity.INFO,
+      valid: true,
     };
 
     if (from) {

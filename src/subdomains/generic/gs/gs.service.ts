@@ -37,6 +37,7 @@ import {
   DebugMaxResults,
   GsRestrictedColumns,
   GsRestrictedMarker,
+  LogQueryAuditPrefix,
   SupportTable,
 } from './dto/gs.dto';
 import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
@@ -285,7 +286,9 @@ export class GsService {
     kql += `\n| take ${template.defaultLimit}`;
 
     // Log for audit
-    this.logger.verbose(`Log query by ${userIdentifier}: template=${dto.template}, params=${JSON.stringify(dto)}`);
+    this.logger.verbose(
+      `${LogQueryAuditPrefix}${userIdentifier}: template=${dto.template}, params=${JSON.stringify(dto)}`,
+    );
 
     // Execute
     const timespan = `PT${dto.hours ?? 1}H`;
@@ -302,7 +305,7 @@ export class GsService {
         rows: response.tables[0].rows,
       };
     } catch (e) {
-      this.logger.info(`Log query by ${userIdentifier} failed: ${e.message}`);
+      this.logger.info(`${LogQueryAuditPrefix}${userIdentifier} failed: ${e.message}`);
       throw new BadRequestException('Query execution failed');
     }
   }
