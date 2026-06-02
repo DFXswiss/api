@@ -11,6 +11,7 @@ import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/b
 import { PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { In, IsNull, LessThan, Not } from 'typeorm';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
+import { CustodyIncomingTypes, CustodyOrderStatus } from '../../custody/enums/custody';
 import { PaymentQuoteStatus } from '../../payment-link/enums';
 import { RewardStatus } from '../../referral/reward/ref-reward.entity';
 
@@ -24,6 +25,7 @@ interface PaymentData {
   bankTxGsType: number;
   refRewardManualCheck: number;
   stuckPayments: number;
+  pendingCustodyOrders: number;
 }
 
 interface LastOutputDates {
@@ -105,6 +107,10 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
           ]),
         ),
         created: LessThan(Util.hoursBefore(3)),
+      }),
+      pendingCustodyOrders: await this.repos.custodyOrder.countBy({
+        status: CustodyOrderStatus.CONFIRMED,
+        type: Not(In(CustodyIncomingTypes)),
       }),
     };
   }
