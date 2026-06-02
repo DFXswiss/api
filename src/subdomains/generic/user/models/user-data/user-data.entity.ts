@@ -343,6 +343,9 @@ export class UserData extends IEntity {
   @Column({ type: 'float', default: 0 })
   sellVolume: number; // CHF
 
+  @Column({ type: 'timestamp', nullable: true })
+  sellInitiatedDate?: Date; // set the first time the user signals sell intent (creates a sell route)
+
   @Column({ type: 'float', default: 0 })
   monthlyCryptoVolume: number; // CHF
 

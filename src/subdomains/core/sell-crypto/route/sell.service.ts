@@ -163,6 +163,10 @@ export class SellService {
     const userData = await this.userDataService.getUserDataByUser(userId);
     if (!userData.isDataComplete && !ignoreException) throw new BadRequestException('Ident data incomplete');
 
+    // requesting a sell route is the user's sell intent: record it so requiredKycSteps surfaces
+    // FINANCIAL_DATA (RealUnit) before LEVEL_50/DFX_APPROVAL instead of after a completed sell
+    await this.userDataService.setSellInitiated(userData);
+
     // check if exists
     const existing = await this.sellRepo.findOne({
       where: {

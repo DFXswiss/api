@@ -49,9 +49,14 @@ export function requiredKycSteps(userData: UserData): KycStepName[] {
       : null,
     userData.recallAgreementAccepted === false ? KycStepName.RECALL_AGREEMENT : null,
     KycStepName.IDENT,
-    // RealUnit wallets only need the Financial-Data questions on the sell side: gate them out
-    // on a first buy and surface them once the user has actually sold (sellVolume > 0).
-    userData.wallet?.name !== REALUNIT_WALLET_NAME || userData.sellVolume > 0 ? KycStepName.FINANCIAL_DATA : null,
+    // RealUnit wallets only need the Financial-Data questions on the sell side: keep them off the
+    // first buy and surface them as soon as the user signals sell intent (creating a sell route /
+    // requesting a deposit address sets sellInitiatedDate). Gating on completed sellVolume alone
+    // would deadlock — the user can never reach LEVEL_50/DFX_APPROVAL to sell. sellVolume > 0 stays
+    // as a safety net for users who already sold before the sellInitiatedDate column existed.
+    userData.wallet?.name !== REALUNIT_WALLET_NAME || userData.sellVolume > 0 || userData.sellInitiatedDate != null
+      ? KycStepName.FINANCIAL_DATA
+      : null,
     userData.legalEntity === LegalEntity.ASSOCIATION ? KycStepName.STATUTES : null,
     KycStepName.DFX_APPROVAL,
   ]

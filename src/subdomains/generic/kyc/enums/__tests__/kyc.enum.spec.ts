@@ -20,6 +20,7 @@ describe('requiredKycSteps', () => {
     userData.kycLevel = KycLevel.LEVEL_0;
     userData.kycSteps = [];
     userData.sellVolume = 0;
+    userData.sellInitiatedDate = undefined;
     return Object.assign(userData, overrides);
   };
 
@@ -35,14 +36,32 @@ describe('requiredKycSteps', () => {
     expect(requiredKycSteps(userData)).toContain(KycStepName.FINANCIAL_DATA);
   });
 
-  it('does not require FINANCIAL_DATA for a RealUnit wallet before the first sell', () => {
-    const userData = buildUserData({ wallet: buildWallet(REALUNIT_WALLET_NAME), sellVolume: 0 });
+  it('does not require FINANCIAL_DATA for a RealUnit wallet with no sell intent (buy relief)', () => {
+    const userData = buildUserData({
+      wallet: buildWallet(REALUNIT_WALLET_NAME),
+      sellVolume: 0,
+      sellInitiatedDate: undefined,
+    });
 
     expect(requiredKycSteps(userData)).not.toContain(KycStepName.FINANCIAL_DATA);
   });
 
-  it('requires FINANCIAL_DATA for a RealUnit wallet once the user has sold', () => {
-    const userData = buildUserData({ wallet: buildWallet(REALUNIT_WALLET_NAME), sellVolume: 100 });
+  it('requires FINANCIAL_DATA for a RealUnit wallet on sell intent before any volume (deadlock fix)', () => {
+    const userData = buildUserData({
+      wallet: buildWallet(REALUNIT_WALLET_NAME),
+      sellVolume: 0,
+      sellInitiatedDate: new Date(),
+    });
+
+    expect(requiredKycSteps(userData)).toContain(KycStepName.FINANCIAL_DATA);
+  });
+
+  it('requires FINANCIAL_DATA for a RealUnit wallet once the user has sold (pre-migration safety net)', () => {
+    const userData = buildUserData({
+      wallet: buildWallet(REALUNIT_WALLET_NAME),
+      sellVolume: 100,
+      sellInitiatedDate: undefined,
+    });
 
     expect(requiredKycSteps(userData)).toContain(KycStepName.FINANCIAL_DATA);
   });

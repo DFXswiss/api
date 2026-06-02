@@ -544,6 +544,17 @@ export class UserDataService {
     return userData;
   }
 
+  // Records the first sell intent (e.g. a sell route / deposit-address request). Idempotent and
+  // side-effect free on purpose: it must not go through updateUserDataInternal, which would also
+  // re-run organization and user-ref logic. requiredKycSteps reads this to surface FINANCIAL_DATA
+  // for RealUnit wallets on sell intent rather than on completed sell volume.
+  async setSellInitiated(userData: UserData): Promise<void> {
+    if (userData.sellInitiatedDate) return;
+
+    userData.sellInitiatedDate = new Date();
+    await this.userDataRepo.update(userData.id, { sellInitiatedDate: userData.sellInitiatedDate });
+  }
+
   async getLastKycFileId(): Promise<number> {
     return this.userDataRepo.findOne({ where: {}, order: { kycFileId: 'DESC' } }).then((u) => u.kycFileId);
   }
