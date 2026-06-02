@@ -68,6 +68,23 @@ describe('AccountMergeService', () => {
       expect(accountMergeRepo.findOneBy).toHaveBeenCalledWith(expect.objectContaining({ isCompleted: false }));
     });
 
+    it('scopes the dedup lookup to recently-touched open requests (re-trigger after the window gets a fresh mail)', async () => {
+      const master = buildUserData(1, 'master@test.com');
+      const slave = buildUserData(2, 'slave@test.com');
+      // a long-open request that the user re-triggers days later is outside the recency window, so the
+      // DB lookup (filtered on `updated`) returns nothing and a fresh request + mail is minted.
+      accountMergeRepo.findOneBy.mockResolvedValue(null);
+      accountMergeRepo.save.mockResolvedValue(Object.assign(new AccountMerge(), { id: 12, code: 'code-12' }));
+
+      const result = await service.sendMergeRequest(master, slave, MergeReason.IDENT_DOCUMENT);
+
+      expect(result).toBe(true);
+      // the dedup lookup carries the recency clause, not just isCompleted/expiration
+      expect(accountMergeRepo.findOneBy).toHaveBeenCalledWith(expect.objectContaining({ updated: expect.anything() }));
+      expect(accountMergeRepo.save).toHaveBeenCalledTimes(1);
+      expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
+    });
+
     it('returns false without touching the repo when the merge is not possible', async () => {
       const master = buildUserData(1, 'master@test.com');
       const slave = buildUserData(2, 'slave@test.com');
