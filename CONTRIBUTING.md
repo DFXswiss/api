@@ -581,7 +581,7 @@ export class Recall extends IEntity {
   @ManyToOne(() => User, { nullable: true })
   user?: User;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   comment: string;
 
   @Column({ type: 'float' })
@@ -596,7 +596,8 @@ export class Recall extends IEntity {
 
 - Relations via lambda: `@ManyToOne(() => BankTx)` — never strings
 - `nullable: false` explicit where needed
-- `type: 'datetime2'` for date columns
+- `type: 'timestamp'` for date columns
+- `type: 'text'` for unlimited-length string columns
 - `eager: false` is the default — don't annotate it
 - Use `eager: true` sparingly — explicit relation loading is preferred
 - Column length always specified
@@ -610,7 +611,7 @@ export class Recall extends IEntity {
 Use the getter/setter pattern for JSON data in columns:
 
 ```typescript
-@Column({ length: 'MAX', nullable: true })
+@Column({ type: 'text', nullable: true })
 indicators?: string; // JSON string
 
 get indicatorCodes(): string[] {
