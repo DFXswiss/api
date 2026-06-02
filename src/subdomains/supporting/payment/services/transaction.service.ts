@@ -147,8 +147,8 @@ export class TransactionService {
     return this.repo.find({
       where: { userData: { id: userDataId } },
       relations: {
-        buyCrypto: { cryptoInput: true, outputAsset: true },
-        buyFiat: { cryptoInput: true, outputAsset: true },
+        buyCrypto: { cryptoInput: true, outputAsset: true, bankData: true },
+        buyFiat: { cryptoInput: true, outputAsset: true, bankData: true },
         bankTxReturn: true,
         bankTxRepeat: true,
       },
@@ -268,7 +268,7 @@ export class TransactionService {
       .addSelect('SUM(refReward.amountInEur)', 'credit')
       .leftJoin('transaction.user', 'user')
       .leftJoin('transaction.refReward', 'refReward')
-      .where('sourceType = :sourceType', { sourceType: TransactionSourceType.MANUAL_REF })
+      .where('transaction.sourceType = :sourceType', { sourceType: TransactionSourceType.MANUAL_REF })
       .andWhere('user.ref = :ref', { ref })
       .getRawOne<{ volume: number; credit: number }>();
 

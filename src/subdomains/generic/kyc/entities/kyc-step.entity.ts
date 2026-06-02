@@ -21,6 +21,7 @@ export type KycStepResult = string | object;
 @Entity()
 @Index((s: KycStep) => [s.userData, s.name, s.type, s.sequenceNumber], { unique: true })
 export class KycStep extends IEntity {
+  @Index()
   @ManyToOne(() => UserData, (userData) => userData.kycSteps, { nullable: false })
   userData: UserData;
 
@@ -42,10 +43,10 @@ export class KycStep extends IEntity {
   @Column({ nullable: true })
   transactionId?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   result?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   comment?: string;
 
   @OneToMany(() => StepLog, (l) => l.kycStep)
@@ -58,7 +59,7 @@ export class KycStep extends IEntity {
   recommendation?: Recommendation;
 
   // Mail
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   reminderSentDate?: Date;
 
   // --- GETTERS --- //
@@ -471,5 +472,11 @@ export class KycStep extends IEntity {
 
   get isManual(): boolean {
     return this.type === KycStepType.MANUAL;
+  }
+
+  // prevent circular reference: KycStep.userData -> UserData.kycSteps -> KycStep
+  toJSON(): any {
+    const { userData: _userData, ...rest } = this;
+    return rest;
   }
 }

@@ -40,3 +40,9 @@ export const KycStepIdentRequiredForReview = [
   KycStepName.BENEFICIAL_OWNER,
   KycStepName.OPERATIONAL_ACTIVITY,
 ];
+export const KycStepRepeatable = [
+  KycStepName.ADDRESS_CHANGE,
+  KycStepName.PHONE_CHANGE,
+  KycStepName.NAME_CHANGE,
+  KycStepName.CONTACT_DATA,
+];

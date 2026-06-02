@@ -1,6 +1,6 @@
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity } from 'src/shared/models/entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { LegalEntity, SignatoryPower } from '../user-data/user-data.enum';
 
@@ -40,6 +40,7 @@ export class Organization extends IEntity {
 
   // --- RELATIONS --- //
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
   accountOpener?: UserData;
@@ -50,6 +51,7 @@ export class Organization extends IEntity {
   @Column({ length: 256, nullable: true })
   signatoryPower?: SignatoryPower;
 
+  @Index()
   @ManyToOne(() => Country, { eager: true, nullable: true })
   country?: Country;
 

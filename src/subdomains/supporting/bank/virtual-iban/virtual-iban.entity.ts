@@ -15,7 +15,7 @@ export enum VirtualIbanStatus {
 @Entity()
 @Index((vi: VirtualIban) => [vi.currency, vi.buy], {
   unique: true,
-  where: 'buyId IS NOT NULL',
+  where: '"buyId" IS NOT NULL',
 })
 export class VirtualIban extends IEntity {
   @Column({ length: 34, unique: true })
@@ -27,6 +27,7 @@ export class VirtualIban extends IEntity {
   @Column({ length: 256, nullable: true })
   yapealAccountUid?: string;
 
+  @Index()
   @ManyToOne(() => Fiat, { nullable: false, eager: true })
   currency: Fiat;
 
@@ -36,24 +37,27 @@ export class VirtualIban extends IEntity {
   @Column({ length: 256, nullable: true })
   status?: VirtualIbanStatus;
 
+  @Index()
   @ManyToOne(() => UserData, (userData) => userData.virtualIbans, { nullable: false })
   userData: UserData;
 
+  @Index()
   @ManyToOne(() => Bank, { nullable: false, eager: true })
   bank: Bank;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   reservedUntil?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   activatedAt?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   deactivatedAt?: Date;
 
   @Column({ length: 256, nullable: true })
   label?: string;
 
+  @Index()
   @ManyToOne(() => Buy, { nullable: true, eager: true })
   buy?: Buy;
 }

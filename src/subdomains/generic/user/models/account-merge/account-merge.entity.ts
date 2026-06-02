@@ -12,9 +12,11 @@ export enum MergeReason {
 
 @Entity()
 export class AccountMerge extends IEntity {
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   master: UserData;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   slave: UserData;
 
@@ -25,7 +27,7 @@ export class AccountMerge extends IEntity {
   @Column({ default: false })
   isCompleted: boolean;
 
-  @Column({ type: 'datetime2' })
+  @Column({ type: 'timestamp' })
   expiration: Date;
 
   @Column({ length: 256, nullable: true })

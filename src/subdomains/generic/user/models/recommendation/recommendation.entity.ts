@@ -1,7 +1,7 @@
 import { Config } from 'src/config/config';
 import { IEntity } from 'src/shared/models/entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 
 export enum RecommendationType {
@@ -35,15 +35,17 @@ export class Recommendation extends IEntity {
   @Column({ nullable: true })
   isConfirmed: boolean; // true = confirmed, false = denied
 
-  @Column({ type: 'datetime2' })
+  @Column({ type: 'timestamp' })
   expirationDate: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   confirmationDate: Date; // only set for recommendations created by Recommended
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   recommender: UserData;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: true })
   recommended?: UserData;
 

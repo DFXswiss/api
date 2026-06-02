@@ -21,6 +21,7 @@ export enum WebhookConfigOption {
 
 @Entity()
 export class Wallet extends IEntity {
+  @Index()
   @ManyToOne(() => User, { nullable: true })
   owner?: User;
 
@@ -64,10 +65,10 @@ export class Wallet extends IEntity {
   @Column({ nullable: true })
   exceptAmlRules: string; // semicolon separated amlRule id's
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   webhookConfig?: string; // JSON string
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   mailConfig?: string; // semicolon separated disabled MailContextTypes
 
   @Column({ default: false })

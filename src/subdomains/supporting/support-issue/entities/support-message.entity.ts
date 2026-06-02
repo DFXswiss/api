@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { SupportIssue } from './support-issue.entity';
 
 export const CustomerAuthor = 'Customer';
@@ -11,12 +11,13 @@ export class SupportMessage extends IEntity {
   @Column({ length: 256 })
   author: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   message?: string;
 
   @Column({ length: 256, nullable: true })
   fileUrl?: string;
 
+  @Index()
   @ManyToOne(() => SupportIssue, (issue) => issue.messages, { nullable: false, eager: true })
   issue: SupportIssue;
 

@@ -87,7 +87,6 @@ import {
   KycStepSupportInfo,
   NotificationSupportInfo,
   OnboardingStatus,
-  PendingOnboardingInfo,
   PendingTransactionInfo,
   PendingReviewItem,
   PendingReviewSummaryEntry,
@@ -112,6 +111,7 @@ import {
   UserSupportInfo,
   VirtualIbanSupportInfo,
 } from './dto/user-data-support.dto';
+import { SupportNoteService } from './services/support-note.service';
 import { SupportPdfService } from './support-pdf.service';
 import { toUserDataDetailDto } from './user-data-detail.mapper';
 
@@ -168,6 +168,7 @@ export class SupportService {
     private readonly kycDocumentService: KycDocumentService,
     private readonly supportPdfService: SupportPdfService,
     private readonly recallService: RecallService,
+    private readonly supportNoteService: SupportNoteService,
   ) {}
 
   async generateIpLogPdf(userDataId: number): Promise<string> {
@@ -221,7 +222,7 @@ export class SupportService {
     return { pdfData, fileName };
   }
 
-  async getUserDataDetails(id: number, role: UserRole): Promise<UserDataSupportInfoDetails> {
+  async getUserDataDetails(id: number, role: UserRole, jwtAccount: number): Promise<UserDataSupportInfoDetails> {
     const userData = await this.userDataService.getUserData(id, { wallet: true, bankDatas: true });
     if (!userData) throw new NotFoundException(`User not found`);
 
@@ -252,6 +253,7 @@ export class SupportService {
       notifications,
       ipLogs,
       supportIssues,
+      notes,
     ] = await Promise.all([
       permissions.viewKycFiles
         ? this.kycFileService.getUserDataKycFiles(id)
@@ -273,6 +275,7 @@ export class SupportService {
       permissions.viewSupportIssues
         ? this.supportIssueService.getIssueEntities(id)
         : Promise.resolve<SupportIssue[] | undefined>(undefined),
+      this.supportNoteService.search(role, { userDataId: id }),
     ]);
 
     // Load bank transactions for the loaded transactions (incoming + outgoing)
@@ -336,6 +339,7 @@ export class SupportService {
       virtualIbans: virtualIbans.map((v) => this.toVirtualIbanSupportInfo(v)),
       refRewards: refRewards.map((r) => this.toRefRewardSupportInfo(r)),
       notifications: notifications.map((n) => this.toNotificationSupportInfo(n)),
+      notes: notes.map((n) => this.supportNoteService.toDto(n, role, jwtAccount)),
       permissions,
     };
   }
@@ -482,6 +486,7 @@ export class SupportService {
       uid: tx.uid,
       buyCryptoId: tx.buyCrypto?.id,
       buyFiatId: tx.buyFiat?.id,
+      bankDataId: tx.buyCrypto?.bankData?.id ?? tx.buyFiat?.bankData?.id,
       type: tx.type,
       sourceType: tx.sourceType,
       inputAmount: tx.buyCrypto?.inputAmount ?? tx.buyFiat?.inputAmount,
@@ -584,10 +589,17 @@ export class SupportService {
   }
 
   private toSellSupportInfo(sell: Sell): SellSupportInfo {
+    const depositBlockchains = sell.deposit?.blockchainList;
     return {
       id: sell.id,
       iban: sell.iban,
       fiatName: sell.fiat?.name,
+      depositAddress: sell.deposit?.address,
+      depositBlockchains,
+      depositAddressExplorerUrl:
+        depositBlockchains?.length === 1 && sell.deposit?.address
+          ? addressExplorerUrl(depositBlockchains[0], sell.deposit.address)
+          : undefined,
       volume: sell.annualVolume,
       active: sell.active,
       created: sell.created,
@@ -595,15 +607,15 @@ export class SupportService {
   }
 
   private toSwapSupportInfo(swap: Swap): SwapSupportInfo {
-    const depositBlockchain = swap.deposit?.blockchainList?.[0];
+    const depositBlockchains = swap.deposit?.blockchainList;
     return {
       id: swap.id,
       assetName: swap.asset?.name,
       blockchain: swap.asset?.blockchain,
       depositAddress: swap.deposit?.address,
       depositAddressExplorerUrl:
-        depositBlockchain && swap.deposit?.address
-          ? addressExplorerUrl(depositBlockchain, swap.deposit.address)
+        depositBlockchains?.length === 1 && swap.deposit?.address
+          ? addressExplorerUrl(depositBlockchains[0], swap.deposit.address)
           : undefined,
       volume: swap.volume,
       annualVolume: swap.annualVolume,
@@ -792,25 +804,6 @@ export class SupportService {
       amlReason: tx.amlReason,
       date: tx.created,
     };
-  }
-
-  async getPendingOnboardings(): Promise<PendingOnboardingInfo[]> {
-    const pendingEntries = await this.kycService.getPendingCompanyOnboardings();
-    if (pendingEntries.length === 0) return [];
-
-    const userDataIds = pendingEntries.map((e) => e.userDataId);
-    const userDatas = await Promise.all(userDataIds.map((id) => this.userDataService.getUserData(id)));
-
-    const dateMap = new Map(pendingEntries.map((e) => [e.userDataId, e.date]));
-
-    return userDatas
-      .filter((ud): ud is UserData => !!ud)
-      .map((ud) => ({
-        id: ud.id,
-        name: this.formatUserName(ud),
-        accountType: ud.accountType,
-        date: dateMap.get(ud.id) ?? ud.created,
-      }));
   }
 
   async getPendingReviewsSummary(): Promise<PendingReviewSummaryEntry[]> {

@@ -20,16 +20,16 @@ export class WalletApp extends IEntity {
   @Column({ nullable: true })
   hasActionDeepLink?: boolean;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   appStoreUrl?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   playStoreUrl?: string;
 
   @Column({ nullable: true })
   recommended?: boolean;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   blockchains?: string; // semicolon separated blockchains
 
   @Column({ length: 256, nullable: true })

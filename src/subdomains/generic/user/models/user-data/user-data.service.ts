@@ -11,6 +11,7 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { randomUUID } from 'crypto';
 import JSZip from 'jszip';
+import { Observable, Subject } from 'rxjs';
 import { Config } from 'src/config/config';
 import { CreateAccount } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -46,7 +47,6 @@ import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.se
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { transliterate } from 'transliteration';
 import { Equal, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
@@ -82,6 +82,7 @@ export class UserDataService {
   private readonly logger = new DfxLogger(UserDataService);
 
   private readonly secretCache: Map<number, SecretCacheEntry> = new Map();
+  private readonly phoneCallCompletedSubject: Subject<UserData> = new Subject<UserData>();
 
   constructor(
     private readonly repos: RepositoryFactory,
@@ -116,6 +117,10 @@ export class UserDataService {
   ) {}
 
   // --- GETTERS --- //
+  get phoneCallCompletedObservable(): Observable<UserData> {
+    return this.phoneCallCompletedSubject.asObservable();
+  }
+
   async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
@@ -137,6 +142,13 @@ export class UserDataService {
     return useCachedValues
       ? this.userDataRepo.findOneCached(JSON.stringify(request), request)
       : this.userDataRepo.findOne(request);
+  }
+
+  async getActiveUserData(userDataId: number, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
+    const userData = await this.getUserData(userDataId, relations);
+    if (!userData) throw new NotFoundException('UserData not found');
+    if (userData.status === UserDataStatus.MERGED) throw new UnauthorizedException('User data is merged');
+    return userData;
   }
 
   async getUserDataByIds(ids: number[]): Promise<UserData[]> {
@@ -298,7 +310,11 @@ export class UserDataService {
   async updateUserData(userDataId: number, dto: UpdateUserDataDto): Promise<UserData> {
     const userData = await this.userDataRepo.findOne({
       where: { id: userDataId },
-      relations: { users: { wallet: true }, kycSteps: true, wallet: true },
+      relations: {
+        users: { wallet: true },
+        kycSteps: true,
+        wallet: true,
+      },
     });
     if (!userData) throw new NotFoundException('User data not found');
 
@@ -306,6 +322,12 @@ export class UserDataService {
 
     if (dto.phoneCallExternalAccountCheckValue)
       userData.addPhoneCallExternalAccountCheckValue(dto.phoneCallExternalAccountCheckValue);
+
+    if (
+      dto.phoneCallStatus === PhoneCallStatus.COMPLETED &&
+      [PhoneCallStatus.FAILED, PhoneCallStatus.USER_REJECTED].includes(userData.phoneCallStatus)
+    )
+      this.phoneCallCompletedSubject.next(userData);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
       // cancel a pending video ident, if ident is completed
@@ -529,12 +551,12 @@ export class UserDataService {
   async updatePersonalData(userData: UserData, data: KycPersonalData): Promise<UserData> {
     const update: Partial<UserData> = {
       accountType: data.accountType,
-      firstname: transliterate(data.firstName),
-      surname: transliterate(data.lastName),
-      street: transliterate(data.address.street),
-      houseNumber: transliterate(data.address.houseNumber),
-      location: transliterate(data.address.city),
-      zip: transliterate(data.address.zip),
+      firstname: data.firstName,
+      surname: data.lastName,
+      street: data.address.street,
+      houseNumber: data.address.houseNumber,
+      location: data.address.city,
+      zip: data.address.zip,
       country: data.address.country,
       phone: data.phone,
       organizationName: data.organizationName,
@@ -626,8 +648,8 @@ export class UserDataService {
 
   async updateUserName(userData: UserData, dto: UserNameDto) {
     const update: Partial<UserData> = {
-      firstname: transliterate(dto.firstName),
-      surname: transliterate(dto.lastName),
+      firstname: dto.firstName,
+      surname: dto.lastName,
     };
 
     if (userData.verifiedName) update.verifiedName = `${update.firstname} ${update.surname}`;
@@ -820,10 +842,10 @@ export class UserDataService {
       throw new BadRequestException(`Country not allowed for ${userData.kycType}`);
 
     const update: Partial<UserData> = {
-      street: transliterate(address.street),
-      houseNumber: transliterate(address.houseNumber),
-      location: transliterate(address.city),
-      zip: transliterate(address.zip),
+      street: address.street,
+      houseNumber: address.houseNumber,
+      location: address.city,
+      zip: address.zip,
       country,
     };
 
@@ -1063,17 +1085,17 @@ export class UserDataService {
   async updateVolumes(userDataId: number): Promise<void> {
     const volumes = await this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(buyVolume)', 'buyVolume')
-      .addSelect('SUM(annualBuyVolume)', 'annualBuyVolume')
-      .addSelect('SUM(monthlyBuyVolume)', 'monthlyBuyVolume')
-      .addSelect('SUM(sellVolume)', 'sellVolume')
-      .addSelect('SUM(annualSellVolume)', 'annualSellVolume')
-      .addSelect('SUM(monthlySellVolume)', 'monthlySellVolume')
-      .addSelect('SUM(cryptoVolume)', 'cryptoVolume')
-      .addSelect('SUM(annualCryptoVolume)', 'annualCryptoVolume')
-      .addSelect('SUM(monthlyCryptoVolume)', 'monthlyCryptoVolume')
+      .select('SUM(user.buyVolume)', 'buyVolume')
+      .addSelect('SUM(user.annualBuyVolume)', 'annualBuyVolume')
+      .addSelect('SUM(user.monthlyBuyVolume)', 'monthlyBuyVolume')
+      .addSelect('SUM(user.sellVolume)', 'sellVolume')
+      .addSelect('SUM(user.annualSellVolume)', 'annualSellVolume')
+      .addSelect('SUM(user.monthlySellVolume)', 'monthlySellVolume')
+      .addSelect('SUM(user.cryptoVolume)', 'cryptoVolume')
+      .addSelect('SUM(user.annualCryptoVolume)', 'annualCryptoVolume')
+      .addSelect('SUM(user.monthlyCryptoVolume)', 'monthlyCryptoVolume')
 
-      .where('userDataId = :id', { id: userDataId })
+      .where('user.userDataId = :id', { id: userDataId })
       .getRawOne<{
         buyVolume: number;
         annualBuyVolume: number;

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Network as TatumNetwork, TatumSDK, Solana as TatumSolana, Tron as TatumTron } from '@tatumio/tatum';
 import { Observable, Subject } from 'rxjs';
 import { Config, Environment } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Util } from 'src/shared/utils/util';
 import { CreateTatumWebhookDto, TatumWebhookDto } from '../dto/tatum.dto';
 import { TatumNetworkMapper } from '../tatum-network-mapper';
@@ -54,6 +55,16 @@ export class TatumWebhookService {
         }),
       ),
     ).then((s) => s.map((s) => s.data.id));
+  }
+
+  async hasAddressSubscription(blockchain: Blockchain, address: string): Promise<boolean> {
+    const network = TatumNetworkMapper.toTatumNetworkByBlockchain(blockchain);
+    if (!network) return false;
+
+    const tatumSdk = await this.getTatumSdk(network);
+    const result = await tatumSdk.notification.getAll({ pageSize: 50, address });
+
+    return result.data?.length > 0;
   }
 
   getAddressWebhookObservable(): Observable<TatumWebhookDto> {

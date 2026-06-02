@@ -76,7 +76,7 @@ export class CryptoInput extends IEntity {
   @Column({ length: 256, nullable: true })
   recipientMail?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   mailReturnSendDate?: Date;
 
   @Column({ nullable: true })
@@ -109,6 +109,7 @@ export class CryptoInput extends IEntity {
   @Column({ type: 'float', nullable: true })
   forwardFeeAmountChf?: number;
 
+  @Index()
   @ManyToOne(() => Asset, { nullable: true, eager: true })
   asset?: Asset;
 
@@ -118,6 +119,7 @@ export class CryptoInput extends IEntity {
   @Column({ length: 256, nullable: true })
   purpose?: PayInPurpose;
 
+  @Index()
   @ManyToOne(() => DepositRoute, { eager: true, nullable: true })
   route?: DepositRoute;
 
@@ -131,13 +133,15 @@ export class CryptoInput extends IEntity {
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.cryptoInput, { nullable: true })
   buyCrypto?: BuyCrypto;
 
+  @Index()
   @ManyToOne(() => PaymentLinkPayment, (payment) => payment.cryptoInputs, { nullable: true })
   paymentLinkPayment?: PaymentLinkPayment;
 
+  @Index()
   @ManyToOne(() => PaymentQuote, (quote) => quote.cryptoInputs, { nullable: true })
   paymentQuote?: PaymentQuote;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   senderAddresses?: string;
 
   //*** FACTORY METHODS ***//
@@ -220,6 +224,15 @@ export class CryptoInput extends IEntity {
     this.forwardFeeAmount = forwardFeeAmount;
     this.forwardFeeAmountChf = feeAmountChf;
     this.status = PayInStatus.PREPARING;
+
+    return this;
+  }
+
+  resetPreparation(): this {
+    this.prepareTxId = null;
+    this.forwardFeeAmount = null;
+    this.forwardFeeAmountChf = null;
+    this.status = PayInStatus.ACKNOWLEDGED;
 
     return this;
   }

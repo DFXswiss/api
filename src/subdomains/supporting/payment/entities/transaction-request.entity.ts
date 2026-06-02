@@ -4,7 +4,7 @@ import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { Column, Entity, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { SupportIssue } from '../../support-issue/entities/support-issue.entity';
 import { FeeDto } from '../dto/fee.dto';
 import { PaymentMethod } from '../dto/payment-method.enum';
@@ -64,7 +64,7 @@ export class TransactionRequest extends IEntity {
   @Column({ type: 'float' })
   rate: number;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   paymentRequest?: string;
 
   @Column({ nullable: true })
@@ -86,16 +86,14 @@ export class TransactionRequest extends IEntity {
   totalFee?: number;
 
   @Column({
-    type: 'nvarchar',
-    length: 'MAX',
+    type: 'text',
     nullable: true,
     transformer: { to: (v) => (v ? JSON.stringify(v) : v), from: (v) => (v ? JSON.parse(v) : v) },
   })
   fees?: FeeDto;
 
   @Column({
-    type: 'nvarchar',
-    length: 'MAX',
+    type: 'text',
     nullable: true,
     transformer: { to: (v) => (v ? JSON.stringify(v) : v), from: (v) => (v ? JSON.parse(v) : v) },
   })
@@ -108,13 +106,14 @@ export class TransactionRequest extends IEntity {
   @Column({ default: false })
   isComplete: boolean;
 
+  @Index()
   @ManyToOne(() => User, { nullable: false })
   user: User;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   siftResponse?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   aktionariatResponse?: string;
 
   @OneToOne(() => Transaction, (transaction) => transaction.request, { nullable: true })

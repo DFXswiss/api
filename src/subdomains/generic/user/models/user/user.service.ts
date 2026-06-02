@@ -138,7 +138,7 @@ export class UserService {
       .leftJoin('userData.users', 'linkedUser')
       .leftJoin('linkedUser.wallet', 'wallet')
       .where('user.id = :id', { id })
-      .andWhere('wallet.isKycClient = 0')
+      .andWhere('wallet.isKycClient = false')
       .andWhere('linkedUser.status NOT IN (:...userStatus)', {
         userStatus: [UserStatus.BLOCKED, UserStatus.DELETED],
       })
@@ -647,7 +647,7 @@ export class UserService {
   public async getTotalRefRewards(): Promise<number> {
     return this.userRepo
       .createQueryBuilder('user')
-      .select('SUM(paidRefCredit)', 'paidRefCredit')
+      .select('SUM(user.paidRefCredit)', 'paidRefCredit')
       .getRawOne<{ paidRefCredit: number }>()
       .then((r) => r.paidRefCredit);
   }

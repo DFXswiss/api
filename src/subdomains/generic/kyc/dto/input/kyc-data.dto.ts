@@ -17,6 +17,7 @@ import {
 import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Country } from 'src/shared/models/country/country.entity';
 import { Util } from 'src/shared/utils/util';
+import { IsSwissPaymentText } from 'src/shared/validators/is-swiss-payment-text.validator';
 import {
   GoodsCategory,
   GoodsType,
@@ -42,24 +43,28 @@ export class KycAddress {
   @IsNotEmpty()
   @IsString()
   @Transform(Util.sanitize)
+  @IsSwissPaymentText()
   street: string;
 
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   @Transform(Util.sanitize)
+  @IsSwissPaymentText()
   houseNumber?: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
   @Transform(Util.sanitize)
+  @IsSwissPaymentText()
   city: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
   @Transform(Util.sanitize)
+  @IsSwissPaymentText()
   zip: string;
 
   @ApiProperty({ type: EntityDto })
@@ -105,12 +110,14 @@ export class KycChangeNameData {
   @IsNotEmpty()
   @IsString()
   @Transform(Util.sanitize)
+  @IsSwissPaymentText()
   firstName: string;
 
   @ApiProperty({ description: 'New last name' })
   @IsNotEmpty()
   @IsString()
   @Transform(Util.sanitize)
+  @IsSwissPaymentText()
   lastName: string;
 }
 
@@ -133,12 +140,14 @@ export class KycPersonalData {
   @IsNotEmpty()
   @IsString()
   @Transform(Util.sanitize)
+  @IsSwissPaymentText()
   firstName: string;
 
   @ApiProperty()
   @IsNotEmpty()
   @IsString()
   @Transform(Util.sanitize)
+  @IsSwissPaymentText()
   lastName: string;
 
   @ApiProperty()
@@ -159,6 +168,7 @@ export class KycPersonalData {
   @IsNotEmpty()
   @IsString()
   @Transform(Util.sanitize)
+  @IsSwissPaymentText()
   organizationName?: string;
 
   @ApiPropertyOptional({ type: KycAddress })

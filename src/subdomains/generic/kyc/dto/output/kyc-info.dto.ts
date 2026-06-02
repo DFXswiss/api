@@ -21,6 +21,13 @@ export enum KycStepReason {
   ACCOUNT_MERGE_REQUESTED = 'AccountMergeRequested',
 }
 
+export enum KycProcessStatus {
+  IN_PROGRESS = 'InProgress',
+  PENDING_REVIEW = 'PendingReview',
+  COMPLETED = 'Completed',
+  FAILED = 'Failed',
+}
+
 // step
 export class KycAdditionalInfoBaseDto {}
 
@@ -60,6 +67,12 @@ export class KycStepBase {
 export class KycStepDto extends KycStepBase {
   @ApiProperty()
   isCurrent: boolean;
+
+  @ApiProperty({
+    description:
+      'Whether this step is required for the user to complete KYC (drives app-side routing instead of duplicating requiredKycSteps())',
+  })
+  isRequired: boolean;
 }
 
 export class KycStepSessionDto extends KycStepBase {
@@ -83,6 +96,13 @@ export class KycLevelDto {
 
   @ApiProperty({ type: KycStepDto, isArray: true })
   kycSteps: KycStepDto[];
+
+  @ApiProperty({
+    enum: KycProcessStatus,
+    description:
+      'High-level KYC process status. `Completed` ⇒ all required steps completed; `PendingReview` ⇒ at least one required step is in backend review; `InProgress` ⇒ at least one required step is actionable by the user; `Failed` ⇒ KYC terminated. Clients render this verbatim instead of inferring it from `kycSteps`.',
+  })
+  processStatus: KycProcessStatus;
 }
 
 export class KycSessionDto extends KycLevelDto {

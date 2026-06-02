@@ -1,5 +1,6 @@
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { Util } from 'src/shared/utils/util';
 import { NodeClient } from '../node/node-client';
 
 export type TxFeeRateStatus = 'unconfirmed' | 'confirmed' | 'not_found' | 'error';
@@ -89,6 +90,8 @@ export abstract class BitcoinBasedFeeService {
     const { allowUnconfirmedUtxos, cpfpFeeMultiplier, defaultFeeMultiplier } = this.feeConfig;
     const multiplier = allowUnconfirmedUtxos ? cpfpFeeMultiplier : defaultFeeMultiplier;
 
-    return baseRate * multiplier;
+    // Bitcoin Core's send RPC parses fee_rate with decimals=3; un-rounded floating-point
+    // products (e.g. 1.935 * 2 = 3.8699999999999997) are rejected with "Invalid amount".
+    return Util.round(baseRate * multiplier, 3);
   }
 }

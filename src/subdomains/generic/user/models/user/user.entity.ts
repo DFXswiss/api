@@ -28,7 +28,7 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   addressType?: UserAddressType;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   signature?: string;
 
   @Column({ length: 256, nullable: true })
@@ -37,9 +37,11 @@ export class User extends IEntity {
   @Column({ length: 256, nullable: true })
   label?: string;
 
+  @Index()
   @ManyToOne(() => Wallet)
   wallet: Wallet;
 
+  @Index()
   @ManyToOne(() => CustodyProvider)
   custodyProvider: CustodyProvider;
 
@@ -62,7 +64,7 @@ export class User extends IEntity {
   origin?: string;
 
   @Column({ length: 256, nullable: true })
-  @Index({ unique: true, where: 'apiKeyCT IS NOT NULL' })
+  @Index({ unique: true, where: '"apiKeyCT" IS NOT NULL' })
   apiKeyCT?: string;
 
   @Column({ length: 256, nullable: true })
@@ -98,7 +100,7 @@ export class User extends IEntity {
   @Column({ nullable: true })
   approved?: boolean;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   deactivationDate?: Date;
 
   @OneToMany(() => Buy, (buy) => buy.user)
@@ -113,9 +115,11 @@ export class User extends IEntity {
   @OneToMany(() => Staking, (staking) => staking.user)
   stakingRoutes: Staking[];
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 
+  @Index()
   @ManyToOne(() => User, { nullable: true })
   primaryUser: User;
 
@@ -151,22 +155,24 @@ export class User extends IEntity {
   @OneToMany(() => StakingRefReward, (reward) => reward.user)
   stakingRefRewards: StakingRefReward[];
 
+  @Index()
   @ManyToOne(() => Asset, { nullable: true, eager: true })
   refAsset: Asset;
 
   @OneToMany(() => Transaction, (transaction) => transaction.user)
   transactions: Transaction[];
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   comment?: string;
 
   @Column({ type: 'int', nullable: true })
-  @Index({ unique: true, where: 'custodyAddressIndex IS NOT NULL' })
+  @Index({ unique: true, where: '"custodyAddressIndex" IS NOT NULL' })
   custodyAddressIndex?: number;
 
   @Column({ nullable: true })
   custodyAddressType: CustodyAddressType;
 
+  @Index()
   @ManyToOne(() => CustodyAccount, { nullable: true })
   custodyAccount?: CustodyAccount;
 
@@ -176,7 +182,7 @@ export class User extends IEntity {
   @OneToMany(() => CustodyBalance, (custodyBalance) => custodyBalance.user)
   custodyBalances: CustodyBalance[];
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   travelRulePdfDate: Date;
 
   //*** FACTORY METHODS ***//

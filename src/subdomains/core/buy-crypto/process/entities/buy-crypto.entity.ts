@@ -36,7 +36,7 @@ import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entiti
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -78,6 +78,7 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   checkoutTx?: CheckoutTx;
 
+  @Index()
   @ManyToOne(() => Buy, (buy) => buy.buyCryptos, { nullable: true })
   buy?: Buy;
 
@@ -85,9 +86,11 @@ export class BuyCrypto extends IEntity {
   @JoinColumn()
   cryptoInput?: CryptoInput;
 
+  @Index()
   @ManyToOne(() => Swap, (cryptoRoute) => cryptoRoute.buyCryptos, { nullable: true })
   cryptoRoute?: Swap;
 
+  @Index()
   @ManyToOne(() => BuyCryptoBatch, (batch) => batch.transactions, { eager: true, nullable: true })
   batch?: BuyCryptoBatch;
 
@@ -108,7 +111,7 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   recipientMail?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   mailSendDate?: Date;
 
   // Pricing
@@ -215,7 +218,7 @@ export class BuyCrypto extends IEntity {
   paymentLinkFee?: number;
 
   // Fail
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackDate?: Date;
 
   @Column({ length: 256, nullable: true })
@@ -224,10 +227,10 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackCryptoTxId?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackAllowedDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })
@@ -245,7 +248,7 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackIban?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   chargebackCreditorData?: string;
 
   @OneToOne(() => FiatOutput, { nullable: true })
@@ -253,7 +256,7 @@ export class BuyCrypto extends IEntity {
   chargebackOutput?: FiatOutput;
 
   // Pass
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   priceDefinitionAllowedDate?: Date; // is set for tx with amlCheck = true or for manualPrice calculation for refunds with missingPrice error
 
   @Column({ type: 'float', nullable: true })
@@ -268,7 +271,7 @@ export class BuyCrypto extends IEntity {
   @ManyToOne(() => Asset, { eager: true, nullable: true })
   outputAsset?: Asset;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   priceSteps?: string;
 
   /**
@@ -284,7 +287,7 @@ export class BuyCrypto extends IEntity {
   @Column({ length: 256, nullable: true })
   txId?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   outputDate?: Date;
 
   @Column({ length: 256, default: BuyCryptoStatus.CREATED })
@@ -293,7 +296,7 @@ export class BuyCrypto extends IEntity {
   @Column({ default: false })
   isComplete: boolean;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   comment?: string;
 
   @OneToOne(() => Transaction, { eager: true, nullable: false })
@@ -303,7 +306,7 @@ export class BuyCrypto extends IEntity {
   // NOTE: This field is deprecated and no longer actively used.
   // Sift calls are now fire-and-forget to prevent blocking operations.
   // Consider removing in future migration or repurposing for error tracking.
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   siftResponse?: string;
 
   // --- ENTITY METHODS --- //

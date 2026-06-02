@@ -135,7 +135,7 @@ export class SellService {
   async getSellsByUserDataId(userDataId: number): Promise<Sell[]> {
     return this.sellRepo.find({
       where: { user: { userData: { id: userDataId } } },
-      relations: { fiat: true, user: true },
+      relations: { fiat: true, user: true, deposit: true },
     });
   }
 
@@ -255,17 +255,17 @@ export class SellService {
   async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number; monthlyVolume: number }> {
     return this.sellRepo
       .createQueryBuilder('sell')
-      .select('SUM(volume)', 'volume')
-      .addSelect('SUM(annualVolume)', 'annualVolume')
-      .addSelect('SUM(monthlyVolume)', 'monthlyVolume')
-      .where('userId = :id', { id: userId })
+      .select('SUM(sell.volume)', 'volume')
+      .addSelect('SUM(sell.annualVolume)', 'annualVolume')
+      .addSelect('SUM(sell.monthlyVolume)', 'monthlyVolume')
+      .where('sell.userId = :id', { id: userId })
       .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
   }
 
   async getTotalVolume(): Promise<number> {
     return this.sellRepo
       .createQueryBuilder('sell')
-      .select('SUM(volume)', 'volume')
+      .select('SUM(sell.volume)', 'volume')
       .getRawOne<{ volume: number }>()
       .then((r) => r.volume);
   }
@@ -414,7 +414,7 @@ export class SellService {
       timestamp,
       routeId: sell.id,
       fee: Util.round(feeSource.rate * 100, Config.defaultPercentageDecimal),
-      depositAddress: sell.active ? sell.deposit.address : undefined,
+      depositAddress: sell.active && isValid ? sell.deposit.address : undefined,
       blockchain: dto.asset.blockchain,
       minDeposit: { amount: minVolume, asset: dto.asset.dexName },
       minVolume,

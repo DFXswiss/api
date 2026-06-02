@@ -1,4 +1,4 @@
-import { ChildEntity, Column, ManyToOne } from 'typeorm';
+import { ChildEntity, Column, Index, ManyToOne } from 'typeorm';
 import { BankData } from '../../user/models/bank-data/bank-data.entity';
 import { KycLog } from './kyc-log.entity';
 
@@ -23,9 +23,10 @@ export class NameCheckLog extends KycLog {
   @Column({ length: 256, nullable: true })
   riskEvaluation?: RiskEvaluation;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   riskEvaluationDate?: Date;
 
+  @Index()
   @ManyToOne(() => BankData, { nullable: true })
   bankData?: BankData;
 }

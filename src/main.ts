@@ -14,6 +14,7 @@ import { getVerifiedIp } from './shared/utils/ip.util';
 import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
+import { apiTraceMiddleware } from './shared/middlewares/api-trace.middleware';
 import { DfxLogger } from './shared/services/dfx-logger';
 import { AccountChangedWebhookDto } from './subdomains/generic/user/services/webhook/dto/account-changed-webhook.dto';
 import {
@@ -78,6 +79,11 @@ async function bootstrap() {
   app.use('/v1/tatum/addressWebhook', raw({ type: 'application/json', limit: '10mb' }));
   app.use('*', json({ type: 'application/json', limit: '20mb' }));
   app.use('/v1/node/*/rpc', text({ type: 'text/plain' }));
+
+  // Full request/response tracing for the RealUnit internal test phase (DEV + PRD)
+  if ([Environment.DEV, Environment.PRD].includes(Config.environment)) {
+    app.use(apiTraceMiddleware());
+  }
 
   app.useWebSocketAdapter(new WsAdapter(app));
 

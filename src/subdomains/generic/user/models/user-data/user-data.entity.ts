@@ -54,7 +54,7 @@ import {
   (userData: UserData) => [userData.identDocumentId, userData.nationality, userData.accountType, userData.kycType],
   {
     unique: true,
-    where: 'identDocumentId IS NOT NULL AND accountType IS NOT NULL AND kycType IS NOT NULL',
+    where: '"identDocumentId" IS NOT NULL AND "accountType" IS NOT NULL AND "kycType" IS NOT NULL',
   },
 )
 export class UserData extends IEntity {
@@ -70,7 +70,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   moderator: Moderator;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   deactivationDate?: Date;
 
   // --- PERSONAL DATA --- //
@@ -86,6 +86,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   verifiedName?: string;
 
+  @Index()
   @ManyToOne(() => Country, { eager: true, nullable: true })
   verifiedCountry?: Country;
 
@@ -101,13 +102,15 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   zip?: string;
 
+  @Index()
   @ManyToOne(() => Country, { eager: true })
   country?: Country;
 
+  @Index()
   @ManyToOne(() => Country, { eager: true, nullable: true })
   nationality?: Country;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   birthday?: Date;
 
   @Column({ length: 256, nullable: true })
@@ -135,6 +138,7 @@ export class UserData extends IEntity {
   organizationZip?: string;
 
   // TODO remove
+  @Index()
   @ManyToOne(() => Country, { eager: true })
   organizationCountry?: Country;
 
@@ -159,9 +163,11 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   phone?: string;
 
+  @Index()
   @ManyToOne(() => Language, { eager: true, nullable: false })
   language: Language;
 
+  @Index()
   @ManyToOne(() => Fiat, { eager: true })
   currency?: Fiat;
 
@@ -216,7 +222,7 @@ export class UserData extends IEntity {
   @Column({ type: 'float', nullable: true })
   depositLimit?: number;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   letterSentDate?: Date;
 
   @Column({ length: 256, nullable: true })
@@ -228,7 +234,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   bankTransactionVerification?: CheckStatus;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   lastNameCheckDate?: Date;
 
   @Column({ length: 256, nullable: true })
@@ -240,16 +246,16 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   kycClients?: string; // semicolon separated wallet id's
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   phoneCallCheckDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   phoneCallIpCheckDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   phoneCallIpCountryCheckDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   phoneCallExternalAccountCheckDate?: Date;
 
   @Column({ length: 256, nullable: true })
@@ -264,17 +270,17 @@ export class UserData extends IEntity {
   @Column({ nullable: true })
   phoneCallAccepted?: boolean;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   tradeApprovalDate?: Date;
 
   // AML
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   amlListAddedDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   amlListExpiredDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   amlListReactivatedDate?: Date;
 
   @Column({ length: 256, nullable: true })
@@ -286,7 +292,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   amlAccountType?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   relatedUsers?: string;
 
   @Column({ length: 256, nullable: true })
@@ -302,7 +308,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   blackSquadRecipientMail?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   blackSquadMailSendDate?: Date;
 
   // Fee / Discounts
@@ -311,7 +317,7 @@ export class UserData extends IEntity {
 
   // CT
   @Column({ length: 256, nullable: true })
-  @Index({ unique: true, where: 'apiKeyCT IS NOT NULL' })
+  @Index({ unique: true, where: '"apiKeyCT" IS NOT NULL' })
   apiKeyCT?: string;
 
   @Column({ length: 256, nullable: true })
@@ -357,7 +363,7 @@ export class UserData extends IEntity {
   @Column({ length: 256, nullable: true })
   paymentLinksName?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   paymentLinksConfig?: string; // PaymentLinkConfig
 
   // Referral trust
@@ -365,6 +371,7 @@ export class UserData extends IEntity {
   isTrustedReferrer: boolean;
 
   // References
+  @Index()
   @ManyToOne(() => Wallet, { nullable: true })
   wallet?: Wallet;
 
@@ -372,10 +379,12 @@ export class UserData extends IEntity {
   transactions?: Transaction[];
 
   // TODO remove
+  @Index()
   @ManyToOne(() => UserData, { nullable: true })
   @JoinColumn()
   accountOpener?: UserData;
 
+  @Index()
   @ManyToOne(() => Organization, { nullable: true, eager: true })
   organization?: Organization;
 
@@ -841,6 +850,7 @@ export const UserDataComplianceUpdateCols = [
   'phoneCallIpCheckDate',
   'phoneCallIpCountryCheckDate',
   'phoneCallExternalAccountCheckDate',
+  'phoneCallExternalAccountCheckValue',
 ];
 
 export function KycCompleted(kycStatus?: KycStatus): boolean {

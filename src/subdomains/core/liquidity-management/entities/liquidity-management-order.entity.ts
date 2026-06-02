@@ -1,7 +1,7 @@
 import { Active } from 'src/shared/models/active';
 import { IEntity } from 'src/shared/models/entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { Column, Entity, JoinTable, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, JoinTable, ManyToOne } from 'typeorm';
 import { LiquidityManagementOrderStatus } from '../enums';
 import { OrderFailedException } from '../exceptions/order-failed.exception';
 import { OrderNotProcessableException } from '../exceptions/order-not-processable.exception';
@@ -31,6 +31,7 @@ export class LiquidityManagementOrder extends IEntity {
   @Column({ length: 256, nullable: true })
   outputAsset?: string;
 
+  @Index()
   @ManyToOne(() => LiquidityManagementPipeline, (liquidityPipeline) => liquidityPipeline.buyCryptos, {
     eager: true,
     nullable: false,
@@ -38,6 +39,7 @@ export class LiquidityManagementOrder extends IEntity {
   @JoinTable()
   pipeline: LiquidityManagementPipeline;
 
+  @Index()
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: false })
   @JoinTable()
   action: LiquidityManagementAction;
@@ -45,13 +47,13 @@ export class LiquidityManagementOrder extends IEntity {
   @Column({ type: 'int', nullable: true })
   previousOrderId?: number;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   correlationId?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   previousCorrelationIds?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   errorMessage?: string;
 
   //*** FACTORY ***//

@@ -5,7 +5,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { Bank } from '../../bank/bank/bank.entity';
 import { FeeRequest } from '../services/fee.service';
 
@@ -56,33 +56,35 @@ export class Fee extends IEntity {
   @Column({ length: 256, nullable: true })
   accountType?: AccountType;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   paymentMethodsIn?: string; // semicolon separated payment-methods
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   paymentMethodsOut?: string; // semicolon separated payment-methods
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   expiryDate?: Date;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   assets?: string; // semicolon separated id's
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   excludedAssets?: string; // semicolon separated id's
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   fiats?: string; // semicolon separated id's
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   excludedUserDatas?: string; // semicolon separated id's
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   financialTypes?: string; // semicolon separated financialTypes
 
+  @Index()
   @ManyToOne(() => Wallet, { nullable: true, eager: true })
   wallet?: Wallet;
 
+  @Index()
   @ManyToOne(() => Bank, { nullable: true, eager: true })
   bank?: Bank;
 
@@ -97,7 +99,7 @@ export class Fee extends IEntity {
   @Column({ type: 'float', nullable: true })
   maxAnnualUserTxVolume?: number; // CHF
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   annualUserTxVolumes?: string; // semicolon separated user volumes
 
   // Acceptance columns
@@ -117,7 +119,7 @@ export class Fee extends IEntity {
   @Column({ type: 'integer', nullable: true })
   maxUserTxUsages?: number;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   userTxUsages?: string;
 
   //*** FACTORY METHODS ***//

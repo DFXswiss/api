@@ -3,7 +3,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../bank-tx/bank-tx/entities/bank-tx.entity';
@@ -43,6 +43,7 @@ export class FiatOutput extends IEntity {
   @JoinColumn()
   bankTx?: BankTx;
 
+  @Index()
   @ManyToOne(() => Bank, { nullable: true, eager: true })
   bank: Bank;
 
@@ -67,7 +68,7 @@ export class FiatOutput extends IEntity {
   @Column({ default: false })
   isInstant?: boolean;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   valutaDate?: Date;
 
   @Column({ nullable: true })
@@ -121,16 +122,16 @@ export class FiatOutput extends IEntity {
   @Column({ length: 256, nullable: true })
   endToEndId?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   isReadyDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   isTransmittedDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   isConfirmedDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   isApprovedDate?: Date;
 
   @Column({ default: false })
@@ -139,7 +140,7 @@ export class FiatOutput extends IEntity {
   @Column({ length: 256, nullable: true })
   info?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   outputDate?: Date;
 
   @Column({ nullable: true })

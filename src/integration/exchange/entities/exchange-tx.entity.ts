@@ -25,10 +25,10 @@ export class ExchangeTx extends IEntity {
   @Column({ length: 256 })
   externalId: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   externalCreated?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   externalUpdated?: Date;
 
   @Column({ length: 256, nullable: true })
@@ -60,7 +60,7 @@ export class ExchangeTx extends IEntity {
   @Column({ length: 256, nullable: true })
   currency?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   address?: string;
 
   @Column({ length: 256, nullable: true })

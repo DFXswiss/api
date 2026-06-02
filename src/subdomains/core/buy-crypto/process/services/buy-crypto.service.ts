@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  OnModuleInit,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
@@ -35,6 +36,8 @@ import { TransactionUtilService } from 'src/subdomains/core/transaction/transact
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -53,7 +56,9 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
-import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
+import { canManualPass } from '../../../aml/enums/aml-error.enum';
+import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
@@ -66,7 +71,7 @@ import { BuyCryptoNotificationService } from './buy-crypto-notification.service'
 import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
-export class BuyCryptoService {
+export class BuyCryptoService implements OnModuleInit {
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyRepo: BuyRepository,
@@ -101,7 +106,26 @@ export class BuyCryptoService {
     @Inject(forwardRef(() => TransactionHelper))
     private readonly transactionHelper: TransactionHelper,
     private readonly custodyOrderService: CustodyOrderService,
+    private readonly userDataService: UserDataService,
   ) {}
+
+  onModuleInit() {
+    this.userDataService.phoneCallCompletedObservable.subscribe((userData) => this.checkAmlResetTx(userData));
+  }
+
+  async checkAmlResetTx(userData: UserData): Promise<void> {
+    const entities = await this.buyCryptoRepo.findBy({
+      transaction: { userData: { id: userData.id } },
+      amlCheck: CheckStatus.FAIL,
+      amlReason: In(PhoneAmlReasons),
+      isComplete: false,
+      chargebackAllowedDate: IsNull(),
+    });
+
+    for (const entity of entities) {
+      await this.resetAmlCheckInternal(entity);
+    }
+  }
 
   async createFromBankTx(bankTx: BankTx, buyId: number): Promise<void> {
     let entity = await this.buyCryptoRepo.findOneBy({ bankTx: { id: bankTx.id } });
@@ -658,8 +682,8 @@ export class BuyCryptoService {
   async updateRefVolumes(start = 1, end = 100000): Promise<void> {
     const refs = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('usedRef')
-      .groupBy('usedRef')
+      .select('buyCrypto.usedRef', 'usedRef')
+      .groupBy('buyCrypto.usedRef')
       .where('buyCrypto.id BETWEEN :start AND :end', { start, end })
       .getRawMany<{ usedRef: string }>()
       .then((refs) => refs.map((r) => r.usedRef));
@@ -670,6 +694,11 @@ export class BuyCryptoService {
   async resetAmlCheck(id: number): Promise<void> {
     const entity = await this.buyCryptoRepo.findOne({ where: { id }, relations: { chargebackOutput: true } });
     if (!entity) throw new NotFoundException('BuyCrypto not found');
+
+    await this.resetAmlCheckInternal(entity);
+  }
+
+  async resetAmlCheckInternal(entity: BuyCrypto): Promise<void> {
     if (entity.isComplete || entity.batch || entity.chargebackOutput?.isComplete || entity.chargebackAllowedDate)
       throw new BadRequestException('BuyCrypto is already complete or payout initiated');
     if (!entity.amlCheck) throw new BadRequestException('BuyCrypto AML check is not set');
@@ -680,6 +709,24 @@ export class BuyCryptoService {
     await this.buyCryptoRepo.update(...entity.resetAmlCheck());
     if (fee) await this.buyCryptoRepo.deleteFee(fee);
     if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
+  }
+
+  async manualPassAmlCheck(id: number, dto: ManualAmlCheckDto): Promise<BuyCrypto> {
+    const entity = await this.buyCryptoRepo.findOneBy({ id });
+    if (!entity) throw new NotFoundException('BuyCrypto not found');
+    if (entity.isComplete || entity.chargebackAllowedDateUser)
+      throw new BadRequestException('BuyCrypto is already complete or chargeback initiated');
+    if ([CheckStatus.PASS, CheckStatus.FAIL].includes(entity.amlCheck))
+      throw new BadRequestException('BuyCrypto amlCheck is already finalized');
+    if (dto.amlCheck === CheckStatus.PASS && !canManualPass(entity.comment))
+      throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
+
+    return this.update(id, {
+      amlCheck: dto.amlCheck,
+      amlResponsible: dto.responsible,
+      amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
+      priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
+    } as UpdateBuyCryptoDto);
   }
 
   async getUserVolume(
@@ -707,7 +754,7 @@ export class BuyCryptoService {
     excludedId: number | undefined,
     type: 'cryptoInput' | 'checkoutTx' | 'bankTx',
   ): Promise<number> {
-    const request = this.buyCryptoRepo.createQueryBuilder('buyCrypto').select('SUM(amountInChf)', 'volume');
+    const request = this.buyCryptoRepo.createQueryBuilder('buyCrypto').select('SUM(buyCrypto.amountInChf)', 'volume');
 
     switch (type) {
       case 'cryptoInput':
@@ -973,10 +1020,10 @@ export class BuyCryptoService {
   async getRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
     const { volume, credit } = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('SUM(amountInEur * refFactor)', 'volume')
-      .addSelect('SUM(amountInEur * refFactor * refProvision * 0.01)', 'credit')
-      .where('usedRef = :ref', { ref })
-      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
+      .select('SUM(buyCrypto.amountInEur * buyCrypto.refFactor)', 'volume')
+      .addSelect('SUM(buyCrypto.amountInEur * buyCrypto.refFactor * buyCrypto.refProvision * 0.01)', 'credit')
+      .where('buyCrypto.usedRef = :ref', { ref })
+      .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 
     return { volume: volume ?? 0, credit: credit ?? 0 };
@@ -985,10 +1032,10 @@ export class BuyCryptoService {
   async getPartnerFeeRefVolume(ref: string): Promise<{ volume: number; credit: number }> {
     const { volume, credit } = await this.buyCryptoRepo
       .createQueryBuilder('buyCrypto')
-      .select('SUM(amountInEur)', 'volume')
-      .addSelect('SUM(partnerFeeAmount * (amountInEur/inputReferenceAmount ))', 'credit')
-      .where('usedPartnerRef = :ref', { ref })
-      .andWhere('amlCheck = :check', { check: CheckStatus.PASS })
+      .select('SUM(buyCrypto.amountInEur)', 'volume')
+      .addSelect('SUM(buyCrypto.partnerFeeAmount * (buyCrypto.amountInEur / buyCrypto.inputReferenceAmount))', 'credit')
+      .where('buyCrypto.usedPartnerRef = :ref', { ref })
+      .andWhere('buyCrypto.amlCheck = :check', { check: CheckStatus.PASS })
       .getRawOne<{ volume: number; credit: number }>();
 
     return { volume: volume ?? 0, credit: credit ?? 0 };

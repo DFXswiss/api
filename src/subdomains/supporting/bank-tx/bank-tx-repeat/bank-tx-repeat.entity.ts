@@ -2,7 +2,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { IEntity } from 'src/shared/models/entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { FiatOutput } from '../../fiat-output/fiat-output.entity';
 import { Transaction } from '../../payment/entities/transaction.entity';
@@ -30,6 +30,7 @@ export class BankTxRepeat extends IEntity {
   @JoinColumn()
   transaction?: Transaction;
 
+  @Index()
   @ManyToOne(() => User, { nullable: true })
   user?: User;
 
@@ -45,16 +46,16 @@ export class BankTxRepeat extends IEntity {
   @Column({ type: 'float', nullable: true })
   amountInUsd?: number;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackDate?: Date;
 
   @Column({ length: 256, nullable: true })
   chargebackRemittanceInfo?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackAllowedDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })

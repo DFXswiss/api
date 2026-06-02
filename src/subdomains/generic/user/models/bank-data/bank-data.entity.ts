@@ -39,13 +39,13 @@ export class BankData extends IEntity {
   approved?: boolean;
 
   @Column({ length: 256 })
-  @Index({ unique: true, where: 'approved = 1' })
+  @Index({ unique: true, where: 'approved = true' })
   iban: string;
 
   @Column({ length: 256, nullable: true })
   type?: BankDataType;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   comment?: string;
 
   @Column({ nullable: true })
@@ -60,9 +60,11 @@ export class BankData extends IEntity {
   @Column({ default: false })
   default: boolean;
 
+  @Index()
   @ManyToOne(() => Fiat, { nullable: true, eager: true })
   preferredCurrency?: Fiat;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   userData: UserData;
 

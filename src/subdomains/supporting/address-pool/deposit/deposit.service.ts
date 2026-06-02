@@ -266,6 +266,11 @@ export class DepositService implements OnModuleInit {
       addresses.push(deposit.address);
     }
 
+    const paymentAddress = SolanaUtil.createWallet({ seed: Config.payment.solanaSeed, index: 0 }).address;
+    if (!(await this.tatumWebhookService.hasAddressSubscription(Blockchain.SOLANA, paymentAddress))) {
+      addresses.push(paymentAddress);
+    }
+
     await this.tatumWebhookService.createAddressWebhook({ blockchain: Blockchain.SOLANA, addresses: addresses });
   }
 
@@ -282,6 +287,11 @@ export class DepositService implements OnModuleInit {
       await this.depositRepo.save(deposit);
 
       addresses.push(deposit.address);
+    }
+
+    const paymentAddress = TronUtil.createWallet({ seed: Config.payment.tronSeed, index: 0 }).address;
+    if (!(await this.tatumWebhookService.hasAddressSubscription(Blockchain.TRON, paymentAddress))) {
+      addresses.push(paymentAddress);
     }
 
     await this.tatumWebhookService.createAddressWebhook({ blockchain: Blockchain.TRON, addresses: addresses });

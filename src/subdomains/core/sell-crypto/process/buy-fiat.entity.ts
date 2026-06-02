@@ -24,7 +24,7 @@ import { FeeType } from 'src/subdomains/supporting/payment/entities/fee.entity';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
@@ -40,15 +40,19 @@ export class BuyFiat extends IEntity {
   @JoinColumn()
   cryptoInput: CryptoInput;
 
+  @Index()
   @ManyToOne(() => FiatOutput, (o) => o.buyFiats, { nullable: true })
   fiatOutput?: FiatOutput;
 
+  @Index()
   @ManyToOne(() => Sell, (sell) => sell.buyFiats, { nullable: false })
   sell: Sell;
 
+  @Index()
   @ManyToOne(() => BankTx, { nullable: true })
   bankTx?: BankTx;
 
+  @Index()
   @ManyToOne(() => BankData, { nullable: true })
   bankData?: BankData;
 
@@ -56,13 +60,13 @@ export class BuyFiat extends IEntity {
   @Column({ length: 256, nullable: true })
   recipientMail?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   mail1SendDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   mail2SendDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   mail3SendDate?: Date;
 
   // Pricing
@@ -160,19 +164,19 @@ export class BuyFiat extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackTxId?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackDate?: Date;
 
   @Column({ length: 256, nullable: true })
   chargebackAddress?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   mailReturnSendDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackAllowedDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })
@@ -188,12 +192,13 @@ export class BuyFiat extends IEntity {
   chargebackAllowedBy?: string;
 
   // Pass
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   priceDefinitionAllowedDate?: Date; // is set for tx with amlCheck = true or for manualPrice calculation for refunds with missingPrice error
 
   @Column({ type: 'float', nullable: true })
   outputReferenceAmount?: number;
 
+  @Index()
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
   outputReferenceAsset?: Fiat;
 
@@ -203,7 +208,7 @@ export class BuyFiat extends IEntity {
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
   outputAsset?: Fiat;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   priceSteps?: string;
 
   /**
@@ -228,22 +233,22 @@ export class BuyFiat extends IEntity {
   @Column({ type: 'float', nullable: true })
   bankBatchId?: number;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   bankStartTimestamp?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   bankFinishTimestamp?: Date;
 
   @Column({ length: 256, nullable: true })
   info?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   outputDate?: Date;
 
   @Column({ default: false })
   isComplete: boolean;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   comment?: string;
 
   @OneToOne(() => Transaction, { eager: true, nullable: false })

@@ -18,27 +18,30 @@ export class PaymentActivation extends IEntity {
   @Column()
   method: TransferMethod;
 
+  @Index()
   @ManyToOne(() => Asset, { nullable: false, eager: true })
   asset: Asset;
 
   @Column({ type: 'float' })
   amount: number;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   paymentRequest: string;
 
   @Column({ length: 256, nullable: true })
   paymentHash?: string;
 
-  @Column({ type: 'datetime2' })
+  @Column({ type: 'timestamp' })
   expiryDate: Date;
 
   @Column({ length: 256 })
   standard: PaymentStandard;
 
+  @Index()
   @ManyToOne(() => PaymentLinkPayment, (p) => p.activations, { nullable: false })
   payment: PaymentLinkPayment;
 
+  @Index()
   @ManyToOne(() => PaymentQuote, (q) => q.activations, { nullable: true })
   quote?: PaymentQuote;
 }

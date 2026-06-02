@@ -96,17 +96,17 @@ export class BuyService {
   async getUserVolume(userId: number): Promise<{ volume: number; annualVolume: number; monthlyVolume: number }> {
     return this.buyRepo
       .createQueryBuilder('buy')
-      .select('SUM(volume)', 'volume')
-      .addSelect('SUM(annualVolume)', 'annualVolume')
-      .addSelect('SUM(monthlyVolume)', 'monthlyVolume')
-      .where('userId = :id', { id: userId })
+      .select('SUM(buy.volume)', 'volume')
+      .addSelect('SUM(buy.annualVolume)', 'annualVolume')
+      .addSelect('SUM(buy.monthlyVolume)', 'monthlyVolume')
+      .where('buy.userId = :id', { id: userId })
       .getRawOne<{ volume: number; annualVolume: number; monthlyVolume: number }>();
   }
 
   async getTotalVolume(): Promise<number> {
     return this.buyRepo
       .createQueryBuilder('buy')
-      .select('SUM(volume)', 'volume')
+      .select('SUM(buy.volume)', 'volume')
       .getRawOne<{ volume: number }>()
       .then((r) => r.volume);
   }

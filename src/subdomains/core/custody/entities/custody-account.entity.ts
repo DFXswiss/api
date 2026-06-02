@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { CustodyAccountStatus } from '../enums/custody';
 import { CustodyAccountAccess } from './custody-account-access.entity';
 
@@ -9,9 +9,10 @@ export class CustodyAccount extends IEntity {
   @Column({ length: 256 })
   title: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   description?: string;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: false })
   owner: UserData;
 

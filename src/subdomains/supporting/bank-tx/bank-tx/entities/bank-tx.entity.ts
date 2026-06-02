@@ -11,7 +11,7 @@ import { FiatOutput } from 'src/subdomains/supporting/fiat-output/fiat-output.en
 import { BankExchangeType } from 'src/subdomains/supporting/log/dto/log.dto';
 import { FiatPaymentMethod, PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
-import { Column, Entity, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import {
   SpecialExternalAccount,
   SpecialExternalAccountType,
@@ -53,13 +53,13 @@ export class BankTx extends IEntity {
   @Column({ length: 256, unique: true })
   accountServiceRef: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   bankReleaseDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   bookingDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   valueDate?: Date;
 
   @Column({ type: 'integer', nullable: true })
@@ -204,7 +204,7 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   txInfo?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   txRaw?: string;
 
   // routing id for american banks
@@ -224,6 +224,7 @@ export class BankTx extends IEntity {
   @Column({ length: 256, nullable: true })
   subFamilyCode?: string;
 
+  @Index()
   @ManyToOne(() => BankTxBatch, (batch) => batch.transactions, { nullable: true })
   batch?: BankTxBatch;
 

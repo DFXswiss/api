@@ -33,13 +33,14 @@ export class PaymentLinkPayment extends IEntity {
   @Column({ type: 'float' })
   amount: number;
 
+  @Index()
   @ManyToOne(() => Fiat, { nullable: false, eager: true })
   currency: Fiat;
 
   @Column({ length: 256 })
   mode: PaymentLinkPaymentMode;
 
-  @Column({ type: 'datetime2' })
+  @Column({ type: 'timestamp' })
   expiryDate: Date;
 
   @Column({ default: 0 })
@@ -51,7 +52,7 @@ export class PaymentLinkPayment extends IEntity {
   @Column({ length: 256, nullable: true })
   deviceId?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   deviceCommand?: string;
 
   @OneToMany(() => CryptoInput, (cryptoInput) => cryptoInput.paymentLinkPayment, { nullable: true })

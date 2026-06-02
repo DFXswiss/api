@@ -9,10 +9,10 @@ export class CheckoutTx extends IEntity {
   @Column({ unique: true })
   paymentId: string;
 
-  @Column({ type: 'datetime2' })
+  @Column({ type: 'timestamp' })
   requestedOn: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   expiresOn?: Date;
 
   @Column({ type: 'float' })
@@ -66,7 +66,7 @@ export class CheckoutTx extends IEntity {
   @Column({ nullable: true })
   authStatusReason?: string;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   raw: string;
 
   @OneToOne(() => BuyCrypto, (buyCrypto) => buyCrypto.checkoutTx, { nullable: true })

@@ -27,6 +27,10 @@ export enum RealUnitRegistrationStatus {
   COMPLETED = 'completed',
   PENDING_REVIEW = 'pending_review',
   FORWARDING_FAILED = 'forwarding_failed',
+  // Returned when the wallet is already registered for this user. Clients
+  // treat this as a non-error success state — the merge / re-entry path
+  // depends on this being a structured response, not a thrown 400.
+  ALREADY_REGISTERED = 'already_registered',
 }
 
 export class RealUnitRegistrationResponseDto {
@@ -232,9 +236,27 @@ export class RealUnitUserDataDto {
   kycData: KycPersonalData;
 }
 
-export class RealUnitWalletStatusDto {
-  @ApiProperty({ description: 'Whether the wallet is registered for RealUnit' })
+export enum RealUnitRegistrationState {
+  ALREADY_REGISTERED = 'AlreadyRegistered',
+  ADD_WALLET = 'AddWallet',
+  NEW_REGISTRATION = 'NewRegistration',
+  KYC_REQUIRED = 'KycRequired',
+}
+
+export class RealUnitRegistrationInfoDto {
+  @ApiProperty({
+    deprecated: true,
+    description:
+      'Whether the wallet is registered for RealUnit. Semantically equivalent to `state === AlreadyRegistered`; kept for backwards compatibility. Prefer `state` for new clients.',
+  })
   isRegistered: boolean;
+
+  @ApiProperty({
+    enum: RealUnitRegistrationState,
+    description:
+      'Action the client should take for this wallet. `AlreadyRegistered`: no UX needed. `AddWallet`: render a one-tap Add-Wallet flow that submits to POST /register/wallet using the prior signed payload (`userData` is set). `NewRegistration`: render the full registration form pre-filled with `userData`. `KycRequired`: user must complete DFX KYC first (`userData` not set; edge case).',
+  })
+  state: RealUnitRegistrationState;
 
   @ApiPropertyOptional({ type: RealUnitUserDataDto, description: 'User data if available' })
   userData?: RealUnitUserDataDto;

@@ -1,6 +1,6 @@
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { MailContext, MailType } from '../enums';
 
 export interface NotificationOptions {
@@ -16,19 +16,19 @@ export class Notification extends IEntity {
   @Column({ length: 256 })
   context: MailContext;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   correlationId?: string;
 
-  @Column({ length: 'MAX' })
+  @Column({ type: 'text' })
   data: string;
 
-  @Column({ type: 'datetime2' })
+  @Column({ type: 'timestamp' })
   lastTryDate: Date;
 
   @Column({ default: false })
   isComplete: boolean;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   error?: string;
 
   @Column({ default: false })
@@ -37,6 +37,7 @@ export class Notification extends IEntity {
   @Column({ type: 'float', nullable: true })
   debounce?: number;
 
+  @Index()
   @ManyToOne(() => UserData, { nullable: true })
   userData?: UserData;
 

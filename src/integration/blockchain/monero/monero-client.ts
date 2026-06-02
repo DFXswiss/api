@@ -162,7 +162,7 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
   }
 
   async createAddress(label?: string): Promise<AddressResultDto> {
-    return this.http
+    const result = await this.http
       .post<{ result: AddressResultDto }>(
         `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
@@ -176,6 +176,10 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
         this.httpConfig(),
       )
       .then((r) => this.mapAddress(r.result, label));
+
+    await this.store();
+
+    return result;
   }
 
   private mapAddress(addressResult: AddressResultDto, label?: string): AddressResultDto {
@@ -293,6 +297,16 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
     transfer.destinations?.forEach((d) => (d.amount = MoneroHelper.auToXmr(d.amount) ?? 0));
 
     return transfer;
+  }
+
+  async store(): Promise<void> {
+    await this.http.post(
+      `${Config.blockchain.monero.rpc.url}/json_rpc`,
+      {
+        method: 'store',
+      },
+      this.httpConfig(),
+    );
   }
 
   // --- HELPER --- //

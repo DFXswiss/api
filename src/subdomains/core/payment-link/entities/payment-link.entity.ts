@@ -2,7 +2,7 @@ import { merge } from 'lodash';
 import { IEntity } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
-import { Column, Entity, ManyToOne, OneToMany } from 'typeorm';
+import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
 import { PaymentLinkRecipientDto } from '../dto/payment-link-recipient.dto';
 import { PaymentLinkMode, PaymentLinkPaymentStatus, PaymentLinkStatus, PaymentStandard } from '../enums';
 import { PaymentLinkPayment } from './payment-link-payment.entity';
@@ -13,6 +13,7 @@ export class PaymentLink extends IEntity {
   @OneToMany(() => PaymentLinkPayment, (payment) => payment.link, { nullable: true })
   payments?: PaymentLinkPayment[];
 
+  @Index()
   @ManyToOne(() => DepositRoute, { nullable: false })
   route: DepositRoute;
 
@@ -31,13 +32,13 @@ export class PaymentLink extends IEntity {
   @Column({ length: 256, nullable: true })
   publicStatus?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   comment?: string;
 
   @Column({ length: 256, default: PaymentLinkMode.MULTIPLE })
   mode: PaymentLinkMode;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   webhookUrl?: string;
 
   @Column({ length: 256, nullable: true })
@@ -49,7 +50,7 @@ export class PaymentLink extends IEntity {
   @Column({ length: 256, nullable: true })
   storeOwner?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   config?: string; // PaymentLinkConfig
 
   // --- ENTITY METHODS --- //

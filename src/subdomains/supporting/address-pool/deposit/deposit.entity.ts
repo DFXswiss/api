@@ -6,7 +6,7 @@ import { DepositRoute } from '../route/deposit-route.entity';
 @Entity()
 @Index((deposit: Deposit) => [deposit.accountIndex, deposit.blockchains], {
   unique: true,
-  where: 'accountIndex IS NOT NULL',
+  where: '"accountIndex" IS NOT NULL',
 })
 export class Deposit extends IEntity {
   @Column({ length: 256, unique: true })

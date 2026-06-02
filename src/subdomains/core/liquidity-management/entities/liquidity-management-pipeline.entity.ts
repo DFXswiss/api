@@ -44,10 +44,12 @@ export class LiquidityManagementPipeline extends IEntity {
   @Column({ type: 'float', nullable: true })
   maxAmount?: number;
 
+  @Index()
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   @JoinTable()
   currentAction?: LiquidityManagementAction;
 
+  @Index()
   @ManyToOne(() => LiquidityManagementAction, { eager: true, nullable: true })
   @JoinTable()
   previousAction?: LiquidityManagementAction;

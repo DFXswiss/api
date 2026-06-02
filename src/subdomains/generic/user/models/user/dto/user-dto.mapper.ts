@@ -7,10 +7,20 @@ import { FiatDtoMapper } from 'src/shared/models/fiat/dto/fiat-dto.mapper';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { ApiKeyService } from 'src/shared/services/api-key.service';
 import { Util } from 'src/shared/utils/util';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { UserData } from '../../user-data/user-data.entity';
 import { User } from '../user.entity';
 import { UserProfileDto } from './user-profile.dto';
-import { PhoneCallStatusMapper, ReferralDto, UserAddressDto, UserV2Dto, VolumesDto } from './user-v2.dto';
+import {
+  CreateSupportTicketCapability,
+  MissingPrerequisite,
+  PhoneCallStatusMapper,
+  ReferralDto,
+  UserAddressDto,
+  UserCapabilitiesDto,
+  UserV2Dto,
+  VolumesDto,
+} from './user-v2.dto';
 
 export class UserDtoMapper {
   static mapUser(userData: UserData, activeUserId?: number): UserV2Dto {
@@ -32,6 +42,7 @@ export class UserDtoMapper {
         phoneCallStatus: userData.phoneCallStatus ? PhoneCallStatusMapper[userData.phoneCallStatus] : undefined,
         preferredPhoneTimes: userData.phoneCallTimesObject,
       },
+      capabilities: UserDtoMapper.computeCapabilities(userData),
       volumes: this.mapVolumes(userData),
       addresses: userData.users
         .filter((u) => !u.isBlockedOrDeleted && !u.wallet.usesDummyAddresses)
@@ -63,6 +74,33 @@ export class UserDtoMapper {
     };
 
     return Object.assign(new UserAddressDto(), dto);
+  }
+
+  // Per-action capabilities. Mirrors the gating the realunit-app cubits
+  // were re-implementing locally (settings-edit visibility) — surfacing
+  // them here lets the app render UI affordances without iterating step
+  // status.
+  private static computeCapabilities(userData: UserData): UserCapabilitiesDto {
+    const personalDataLocked = userData
+      .getStepsWith(KycStepName.PERSONAL_DATA)
+      .some((s) => s.isCompleted || s.isInReview);
+    return {
+      canEditName: !personalDataLocked,
+      canEditMail: !userData.isKycTerminated,
+      canEditPhone: !userData.isKycTerminated,
+      canEditAddress: !personalDataLocked,
+      createSupportTicket: this.computeCreateSupportTicketCapability(userData),
+    };
+  }
+
+  // Mirrors the backend gate that rejects ticket creation without a
+  // registered email. Frontend uses this for a pre-tap check so the
+  // user is routed to the mail-capture flow before reaching the ticket
+  // form, instead of bouncing off a post-submit 400.
+  // Returns the discriminated union (not the DTO class) so the compiler
+  // pins the invariant `!available implies missingPrerequisite defined`.
+  private static computeCreateSupportTicketCapability(userData: UserData): CreateSupportTicketCapability {
+    return userData.mail ? { available: true } : { available: false, missingPrerequisite: MissingPrerequisite.EMAIL };
   }
 
   private static mapVolumes(user: UserData | User): VolumesDto {

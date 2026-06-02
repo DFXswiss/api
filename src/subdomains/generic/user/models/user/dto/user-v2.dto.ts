@@ -19,6 +19,10 @@ export enum UserPhoneCallStatus {
   FAILED = 'Failed',
 }
 
+export enum MissingPrerequisite {
+  EMAIL = 'Email',
+}
+
 export const PhoneCallStatusMapper: {
   [key in PhoneCallStatus]: UserPhoneCallStatus;
 } = {
@@ -138,6 +142,60 @@ export class UserPaymentLinkDto {
   active: boolean;
 }
 
+export class CreateSupportTicketCapabilityDto {
+  @ApiProperty({
+    description:
+      'Capability gate for creating a support ticket. Mirrors the server-side prerequisite check enforced by `POST /v1/support/issue`.',
+  })
+  available: boolean;
+
+  @ApiPropertyOptional({
+    enum: MissingPrerequisite,
+    description:
+      'The single prerequisite blocking ticket creation. Present when `available` is false; omitted when `available` is true. Clients map the value to the matching capture flow (e.g. mail registration).',
+  })
+  missingPrerequisite?: MissingPrerequisite;
+}
+
+// Internal discriminated union mirroring CreateSupportTicketCapabilityDto.
+// Mappers should return this type so the compiler enforces the
+// invariant `!available implies missingPrerequisite defined` and
+// `available implies missingPrerequisite absent`. The class above
+// stays the surface for Swagger generation.
+export type CreateSupportTicketCapability =
+  | { available: true }
+  | { available: false; missingPrerequisite: MissingPrerequisite };
+
+export class UserCapabilitiesDto {
+  @ApiProperty({
+    description:
+      'Whether the user may edit their first/last name. False when the personal-data step is in any review or completed state.',
+  })
+  canEditName: boolean;
+
+  @ApiProperty({
+    description: 'Whether the user may edit their primary email address.',
+  })
+  canEditMail: boolean;
+
+  @ApiProperty({
+    description: 'Whether the user may edit their phone number.',
+  })
+  canEditPhone: boolean;
+
+  @ApiProperty({
+    description: 'Whether the user may edit their postal address.',
+  })
+  canEditAddress: boolean;
+
+  @ApiPropertyOptional({
+    type: CreateSupportTicketCapabilityDto,
+    description:
+      'Per-user gate for the support-ticket flow. When `available` is false, the client must satisfy `missingPrerequisite` before calling `POST /v1/support/issue`. Optional in the schema for client SDKs pinned to older API versions; the mapper always emits it.',
+  })
+  createSupportTicket?: CreateSupportTicketCapabilityDto;
+}
+
 export class UserV2Dto {
   @ApiProperty({ description: 'Unique account id' })
   accountId: number;
@@ -162,6 +220,13 @@ export class UserV2Dto {
 
   @ApiProperty({ type: UserKycDto })
   kyc: UserKycDto;
+
+  @ApiProperty({
+    type: UserCapabilitiesDto,
+    description:
+      'Per-action capability flags. Clients render UI affordances (edit buttons, support links, …) from this object instead of inferring them from KYC step status.',
+  })
+  capabilities: UserCapabilitiesDto;
 
   @ApiProperty({ type: VolumesDto })
   volumes: VolumesDto;

@@ -4,7 +4,7 @@
 #
 # Usage:
 #   ./scripts/db-debug.sh                                    # Default query (assets)
-#   ./scripts/db-debug.sh "SELECT TOP 10 id FROM asset"      # Custom SQL query
+#   ./scripts/db-debug.sh "SELECT id FROM asset LIMIT 10"     # Custom SQL query
 #   ./scripts/db-debug.sh --anomalies                        # Show invalid FinancialDataLog entries
 #   ./scripts/db-debug.sh --balance                          # Show recent balance history
 #   ./scripts/db-debug.sh --asset-history Yapeal/EUR 10      # Show asset balance history
@@ -48,14 +48,14 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  ./scripts/db-debug.sh --asset-history MaerkiBaumann/CHF 10"
   echo "  ./scripts/db-debug.sh --referral-chain 370625"
   echo "  ./scripts/db-debug.sh --referral-tree 370625"
-  echo "  ./scripts/db-debug.sh \"SELECT TOP 10 * FROM asset\""
+  echo "  ./scripts/db-debug.sh \"SELECT * FROM asset LIMIT 10\""
   exit 0
 fi
 
 # --- Predefined Queries ---
 query_anomalies() {
   local limit="${1:-20}"
-  echo "SELECT TOP $limit id, created, JSON_VALUE(message, '\$.balancesTotal.totalBalanceChf') as totalBalanceChf, JSON_VALUE(message, '\$.balancesTotal.plusBalanceChf') as plusBalanceChf, JSON_VALUE(message, '\$.balancesTotal.minusBalanceChf') as minusBalanceChf, valid FROM log WHERE subsystem = 'FinancialDataLog' AND valid = 0 ORDER BY id DESC"
+  echo "SELECT id, created, message::jsonb -> 'balancesTotal' ->> 'totalBalanceChf' as totalchf, message::jsonb -> 'balancesTotal' ->> 'plusBalanceChf' as pluschf, message::jsonb -> 'balancesTotal' ->> 'minusBalanceChf' as minuschf, valid FROM log WHERE subsystem = 'FinancialDataLog' AND valid = false ORDER BY id DESC LIMIT $limit"
 }
 
 query_stats() {
@@ -64,12 +64,12 @@ query_stats() {
 
 query_balance() {
   local limit="${1:-20}"
-  echo "SELECT TOP $limit id, created, JSON_VALUE(message, '\$.balancesTotal.totalBalanceChf') as totalBalanceChf, JSON_VALUE(message, '\$.balancesTotal.plusBalanceChf') as plusBalanceChf, JSON_VALUE(message, '\$.balancesTotal.minusBalanceChf') as minusBalanceChf, valid FROM log WHERE subsystem = 'FinancialDataLog' ORDER BY id DESC"
+  echo "SELECT id, created, message::jsonb -> 'balancesTotal' ->> 'totalBalanceChf' as totalchf, message::jsonb -> 'balancesTotal' ->> 'plusBalanceChf' as pluschf, message::jsonb -> 'balancesTotal' ->> 'minusBalanceChf' as minuschf, valid FROM log WHERE subsystem = 'FinancialDataLog' ORDER BY id DESC LIMIT $limit"
 }
 
 query_asset_raw() {
   local limit="${1:-10}"
-  echo "SELECT TOP $limit id, created, message FROM log WHERE subsystem = 'FinancialDataLog' ORDER BY id DESC"
+  echo "SELECT id, created, message FROM log WHERE subsystem = 'FinancialDataLog' ORDER BY id DESC LIMIT $limit"
 }
 
 # --- Parse arguments FIRST ---
@@ -126,7 +126,7 @@ case "${1:-}" in
     TARGET_USER_ID="$2"
     ;;
   *)
-    SQL="${1:-SELECT TOP 5 id, name, blockchain FROM asset ORDER BY id DESC}"
+    SQL="${1:-SELECT id, name, blockchain FROM asset ORDER BY id DESC LIMIT 5}"
     ;;
 esac
 
@@ -409,10 +409,11 @@ echo "=== Executing SQL Query ==="
 echo "Query: $SQL"
 echo ""
 
+PAYLOAD=$(jq -n --arg sql "$SQL" '{"sql": $sql}')
 RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"sql\":\"$SQL\"}")
+  -d "$PAYLOAD")
 
 echo "=== Result ==="
 

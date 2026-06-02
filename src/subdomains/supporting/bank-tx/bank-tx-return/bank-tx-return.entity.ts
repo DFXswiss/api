@@ -4,7 +4,7 @@ import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { CreditorData } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
-import { Column, Entity, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
+import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { BankService } from '../../bank/bank/bank.service';
 import { FiatOutput } from '../../fiat-output/fiat-output.entity';
 import { PaymentMethod } from '../../payment/dto/payment-method.enum';
@@ -48,16 +48,16 @@ export class BankTxReturn extends IEntity {
   @Column({ type: 'float', nullable: true })
   amountInUsd?: number;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackDate?: Date;
 
   @Column({ length: 256, nullable: true })
   chargebackRemittanceInfo?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackAllowedDate?: Date;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   chargebackAllowedDateUser?: Date;
 
   @Column({ type: 'float', nullable: true })
@@ -75,16 +75,17 @@ export class BankTxReturn extends IEntity {
   @Column({ length: 256, nullable: true })
   chargebackIban?: string;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   chargebackCreditorData?: string;
 
   // Mail
   @Column({ length: 256, nullable: true })
   recipientMail?: string;
 
-  @Column({ type: 'datetime2', nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   mailSendDate?: Date;
 
+  @Index()
   @ManyToOne(() => UserData, (userData) => userData.bankTxReturns, { nullable: true, eager: true })
   userData?: UserData;
 

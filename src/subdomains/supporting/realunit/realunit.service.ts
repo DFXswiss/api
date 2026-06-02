@@ -35,6 +35,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
+import { toBitboxAscii } from 'src/shared/utils/bitbox-ascii.util';
 import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -74,12 +75,14 @@ import {
   AktionariatRegistrationDto,
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationStatus,
+  RealUnitLanguage,
   RealUnitRegisterWalletDto,
   RealUnitRegistrationDto,
+  RealUnitRegistrationInfoDto,
+  RealUnitRegistrationState,
   RealUnitRegistrationStatus,
   RealUnitUserDataDto,
   RealUnitUserType,
-  RealUnitWalletStatusDto,
 } from './dto/realunit-registration.dto';
 import {
   RealUnitSellBroadcastDto,
@@ -102,6 +105,16 @@ import { KycLevelRequiredException, RegistrationRequiredException } from './exce
 import { RealUnitDevService } from './realunit-dev.service';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
+
+// realunit-app v0.0.3+ transliterates EIP-712 string fields to BitBox-safe
+// ASCII (Krüger → Krueger) but keeps the kycData copy in UTF-8 so ID
+// verification still sees the legal name with diacritics. Accept either
+// representation so registrations from both old and new app versions pass.
+function matchesSignedField(kycValue: string | undefined, signedValue: string | undefined): boolean {
+  if (kycValue === signedValue) return true;
+  if (kycValue == null || signedValue == null) return false;
+  return toBitboxAscii(kycValue) === signedValue;
+}
 
 @Injectable()
 export class RealUnitService {
@@ -549,8 +562,7 @@ export class RealUnitService {
   }
 
   async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
-    const userData = await this.userDataService.getUserData(userDataId, { users: true });
-    if (!userData) throw new NotFoundException('User not found');
+    const userData = await this.userDataService.getActiveUserData(userDataId, { users: true });
 
     if (!userData.mail) {
       try {
@@ -594,8 +606,9 @@ export class RealUnitService {
       throw new BadRequestException('Email does not match registered email');
     }
 
-    if (this.hasRegistrationForWallet(userData, dto.walletAddress)) {
-      throw new BadRequestException('RealUnit registration already exists for this wallet');
+    const { step: existingStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
+    if (isForCurrentWallet) {
+      return this.idempotentRegistrationResult(userData, existingStep!, dto.signature);
     }
 
     // validate personal data
@@ -632,12 +645,41 @@ export class RealUnitService {
 
   // --- Wallet Methods ---
 
-  getAddressWalletStatus(userData: UserData, walletAddress: string): RealUnitWalletStatusDto {
+  getRegistrationInfo(userData: UserData, walletAddress: string): RealUnitRegistrationInfoDto {
     const { step, isForCurrentWallet } = this.findRegistrationStep(userData, walletAddress);
 
+    // Dispatch to one of four states so the client can route to the right UX without inferring
+    // it locally. Order matters: a registration step for the current wallet (ALREADY_REGISTERED)
+    // wins over any other signal; a step for a different wallet drives the one-tap Add-Wallet
+    // flow (ADD_WALLET); otherwise we pre-fill the full form from existing KYC data when
+    // available (NEW_REGISTRATION), falling back to KYC_REQUIRED when no usable data exists.
+    if (step) {
+      const stepUserData = this.toUserDataDto(step);
+      const state = isForCurrentWallet
+        ? RealUnitRegistrationState.ALREADY_REGISTERED
+        : RealUnitRegistrationState.ADD_WALLET;
+      return {
+        isRegistered: state === RealUnitRegistrationState.ALREADY_REGISTERED,
+        state,
+        userData: stepUserData,
+      };
+    }
+
+    // No step exists. Pre-fill from DFX KYC data (firstname/surname guarded by
+    // toUserDataDtoFromUserData) and fall through to KYC_REQUIRED when that returns undefined.
+    const prefill = this.toUserDataDtoFromUserData(userData);
+    if (prefill) {
+      return {
+        isRegistered: false,
+        state: RealUnitRegistrationState.NEW_REGISTRATION,
+        userData: prefill,
+      };
+    }
+
     return {
-      isRegistered: isForCurrentWallet,
-      userData: this.toUserDataDto(step),
+      isRegistered: false,
+      state: RealUnitRegistrationState.KYC_REQUIRED,
+      userData: undefined,
     };
   }
 
@@ -657,7 +699,7 @@ export class RealUnitService {
     const { step: registrationStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
 
     if (isForCurrentWallet) {
-      throw new BadRequestException('RealUnit registration already exists for this wallet');
+      return this.idempotentRegistrationResult(userData, registrationStep!, dto.signature);
     }
 
     if (!registrationStep) {
@@ -722,7 +764,7 @@ export class RealUnitService {
       }
 
       // organization name
-      if (dto.kycData.organizationName !== dto.name) {
+      if (!matchesSignedField(dto.kycData.organizationName, dto.name)) {
         throw new BadRequestException('organizationName must match signed name');
       }
 
@@ -730,15 +772,15 @@ export class RealUnitService {
       const combinedOrgAddress = dto.kycData.organizationAddress.houseNumber
         ? `${dto.kycData.organizationAddress.street} ${dto.kycData.organizationAddress.houseNumber}`
         : dto.kycData.organizationAddress.street;
-      if (combinedOrgAddress !== dto.addressStreet) {
+      if (!matchesSignedField(combinedOrgAddress, dto.addressStreet)) {
         throw new BadRequestException('organizationAddress street + houseNumber must match signed addressStreet');
       }
 
-      if (dto.kycData.organizationAddress.zip !== dto.addressPostalCode) {
+      if (!matchesSignedField(dto.kycData.organizationAddress.zip, dto.addressPostalCode)) {
         throw new BadRequestException('organizationAddress zip must match signed addressPostalCode');
       }
 
-      if (dto.kycData.organizationAddress.city !== dto.addressCity) {
+      if (!matchesSignedField(dto.kycData.organizationAddress.city, dto.addressCity)) {
         throw new BadRequestException('organizationAddress city must match signed addressCity');
       }
 
@@ -753,7 +795,7 @@ export class RealUnitService {
 
       // personal name
       const combinedName = `${dto.kycData.firstName} ${dto.kycData.lastName}`;
-      if (combinedName !== dto.name) {
+      if (!matchesSignedField(combinedName, dto.name)) {
         throw new BadRequestException('firstName + lastName does not match signed name');
       }
 
@@ -761,7 +803,7 @@ export class RealUnitService {
       const combinedAddress = dto.kycData.address.houseNumber
         ? `${dto.kycData.address.street} ${dto.kycData.address.houseNumber}`
         : dto.kycData.address.street;
-      if (combinedAddress !== dto.addressStreet) {
+      if (!matchesSignedField(combinedAddress, dto.addressStreet)) {
         throw new BadRequestException('street + houseNumber does not match signed addressStreet');
       }
     }
@@ -809,8 +851,24 @@ export class RealUnitService {
 
     const signatureToUse = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
     const recoveredAddress = verifyTypedData(domain, types, message, signatureToUse);
+    if (Util.equalsIgnoreCase(recoveredAddress, data.walletAddress)) return true;
 
-    return Util.equalsIgnoreCase(recoveredAddress, data.walletAddress);
+    // Backwards-compat: app v0.0.3+ signs BitBox-safe ASCII. If the stored
+    // accountData still holds UTF-8 from a pre-transliteration registration,
+    // retry verify with the same fields transliterated so re-login (add new
+    // wallet) keeps working for those users.
+    const asciiMessage = {
+      ...message,
+      email: toBitboxAscii(message.email),
+      name: toBitboxAscii(message.name),
+      phoneNumber: toBitboxAscii(message.phoneNumber),
+      birthday: toBitboxAscii(message.birthday),
+      addressStreet: toBitboxAscii(message.addressStreet),
+      addressPostalCode: toBitboxAscii(message.addressPostalCode),
+      addressCity: toBitboxAscii(message.addressCity),
+    };
+    const asciiRecovered = verifyTypedData(domain, types, asciiMessage, signatureToUse);
+    return Util.equalsIgnoreCase(asciiRecovered, data.walletAddress);
   }
 
   async forwardRegistrationToAktionariat(kycStepId: number): Promise<void> {
@@ -864,6 +922,44 @@ export class RealUnitService {
     return { step: otherWalletStep, isForCurrentWallet: false };
   }
 
+  /**
+   * Idempotent fallback for repeated register/wallet calls (e.g. client retry after a lost
+   * response). Same wallet + same EIP-712 signature → return the existing registration's
+   * status without creating a new KycStep or re-forwarding. Different signature for the same
+   * wallet stays a hard error: it means a fresh sign was produced over conflicting data.
+   */
+  private idempotentRegistrationResult(
+    userData: UserData,
+    step: KycStep,
+    incomingSignature: string,
+  ): RealUnitRegistrationStatus {
+    const existingData = step.getResult<RealUnitRegistrationDto>();
+    if (!Util.equalsIgnoreCase(existingData?.signature, incomingSignature)) {
+      throw new BadRequestException('RealUnit registration already exists for this wallet with a different signature');
+    }
+
+    // Under the normal REALUNIT_REGISTRATION flow the step is in INTERNAL_REVIEW (created,
+    // forward not run yet), MANUAL_REVIEW (forward failed, awaiting admin retry), or COMPLETED
+    // (forward succeeded). findRegistrationStep filters out FAILED and CANCELED, but admin
+    // overrides via kyc-admin.updateKycStep can leave other non-failed/non-canceled statuses
+    // (e.g. ON_HOLD, OUTDATED) reachable here. Only COMPLETED is a terminal success; every
+    // other reachable status falls through to FORWARDING_FAILED, which surfaces the same retry
+    // path the client would have seen on the original call.
+    // Surface ALREADY_REGISTERED (not COMPLETED) on the idempotent path so
+    // clients can distinguish "registration just completed in this call"
+    // from "registration was already in place". The wallet-app uses this
+    // to skip the post-registration onboarding screens on retry.
+    const status = step.isCompleted
+      ? RealUnitRegistrationStatus.ALREADY_REGISTERED
+      : RealUnitRegistrationStatus.FORWARDING_FAILED;
+
+    this.logger.info(
+      `RealUnit registration idempotent retry for userData ${userData.id}, kycStep ${step.id} → ${status}`,
+    );
+
+    return status;
+  }
+
   private toUserDataDto(step: KycStep | undefined): RealUnitUserDataDto | undefined {
     if (!step) return undefined;
 
@@ -875,18 +971,75 @@ export class RealUnitService {
     return userDataDto as RealUnitUserDataDto;
   }
 
+  // Pre-fill source for first-time RealUnit registrations: maps the user's existing DFX KYC data into
+  // the Aktionariat-shaped DTO. The corresponding `completeRegistration` validation
+  // (`isPersonalDataMatching`) compares the submitted KycPersonalData/address against the same
+  // user_data fields, so the values returned here are guaranteed to pass that check.
+  private toUserDataDtoFromUserData(userData: UserData): RealUnitUserDataDto | undefined {
+    // Without verified personal data there is nothing useful to pre-fill — the app will continue to
+    // collect every field manually.
+    if (!userData.firstname && !userData.surname) return undefined;
+
+    const lang = Object.values(RealUnitLanguage).find((l) => l === userData.language?.symbol?.toUpperCase());
+    const addressStreet = [userData.street, userData.houseNumber].filter((s) => s).join(' ');
+    const tinEntries: { country: string; tin: string }[] = userData.tin ? JSON.parse(userData.tin) : [];
+
+    return {
+      email: userData.mail ?? '',
+      name: userData.naturalPersonName ?? '',
+      type: RealUnitUserType.HUMAN,
+      phoneNumber: userData.phone ?? '',
+      birthday: userData.birthday ? Util.isoDate(userData.birthday) : '',
+      nationality: userData.nationality?.symbol ?? '',
+      addressStreet,
+      addressPostalCode: userData.zip ?? '',
+      addressCity: userData.location ?? '',
+      addressCountry: userData.country?.symbol ?? '',
+      // Swiss tax residence cannot be derived from KYC data alone; default to the country-of-residence
+      // signal so a CH-resident pre-fills the common case. The user can still override before signing.
+      swissTaxResidence: userData.country?.symbol === 'CH',
+      lang: lang ?? RealUnitLanguage.EN,
+      countryAndTINs: tinEntries.length ? tinEntries : undefined,
+      kycData: {
+        accountType: userData.accountType ?? AccountType.PERSONAL,
+        firstName: userData.firstname ?? '',
+        lastName: userData.surname ?? '',
+        phone: userData.phone ?? '',
+        address: {
+          street: userData.street ?? '',
+          houseNumber: userData.houseNumber,
+          city: userData.location ?? '',
+          zip: userData.zip ?? '',
+          country: userData.country!,
+        },
+        organizationName: userData.organizationName ?? undefined,
+        organizationAddress: userData.organizationCountry
+          ? {
+              street: userData.organizationStreet ?? '',
+              houseNumber: userData.organizationHouseNumber,
+              city: userData.organizationLocation ?? '',
+              zip: userData.organizationZip ?? '',
+              country: userData.organizationCountry,
+            }
+          : undefined,
+      },
+    };
+  }
+
   private isPersonalDataMatching(userData: UserData, dto: RealUnitRegistrationDto): boolean {
     const kycData = dto.kycData;
+    // Transliterate both sides: legacy rows still hold ASCII (pre-fix), new rows hold UTF-8.
+    const asciiEq = (a?: string, b?: string): boolean => transliterate(a ?? '') === transliterate(b ?? '');
 
-    if (transliterate(kycData.firstName) !== userData.firstname) return false;
-    if (transliterate(kycData.lastName) !== userData.surname) return false;
+    if (!asciiEq(kycData.firstName, userData.firstname)) return false;
+    if (!asciiEq(kycData.lastName, userData.surname)) return false;
     if (kycData.phone !== userData.phone) return false;
     if (kycData.accountType !== userData.accountType) return false;
 
-    if (transliterate(kycData.address.street) !== userData.street) return false;
-    if (transliterate(kycData.address.houseNumber ?? '') !== (userData.houseNumber ?? '')) return false;
-    if (transliterate(kycData.address.city) !== userData.location) return false;
-    if (transliterate(kycData.address.zip) !== userData.zip) return false;
+    if (!asciiEq(kycData.address.street, userData.street)) return false;
+    if (!asciiEq(kycData.address.houseNumber, userData.houseNumber)) return false;
+    if (!asciiEq(kycData.address.city, userData.location)) return false;
+    if (!asciiEq(kycData.address.zip, userData.zip)) return false;
     if (kycData.address.country?.id !== userData.country?.id) return false;
 
     if (kycData.accountType !== AccountType.PERSONAL) {

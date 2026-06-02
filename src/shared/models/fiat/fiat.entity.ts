@@ -1,6 +1,6 @@
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { PriceRule } from 'src/subdomains/supporting/pricing/domain/entities/price-rule.entity';
-import { Column, Entity, ManyToOne } from 'typeorm';
+import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { IEntity } from '../entity';
 
 export interface IbanCountryConfig {
@@ -34,6 +34,7 @@ export class Fiat extends IEntity {
   @Column({ default: true })
   refundEnabled: boolean;
 
+  @Index()
   @ManyToOne(() => PriceRule)
   priceRule: PriceRule;
 
@@ -46,7 +47,7 @@ export class Fiat extends IEntity {
   @Column({ default: AmlRule.DEFAULT })
   amlRuleTo: AmlRule;
 
-  @Column({ length: 'MAX', nullable: true })
+  @Column({ type: 'text', nullable: true })
   ibanCountryConfig?: string; // JSON string
 
   get ibanCountryConfigObject(): IbanCountryConfig | undefined {

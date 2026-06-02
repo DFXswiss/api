@@ -1,4 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
@@ -13,12 +14,19 @@ import { RecallModule } from 'src/subdomains/supporting/recall/recall.module';
 import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
 import { KycModule } from '../kyc/kyc.module';
 import { UserModule } from '../user/user.module';
+import { SupportIssueTemplate } from './entities/support-issue-template.entity';
+import { SupportNote } from './entities/support-note.entity';
+import { SupportIssueTemplateRepository } from './repositories/support-issue-template.repository';
+import { SupportNoteRepository } from './repositories/support-note.repository';
+import { SupportIssueTemplateService } from './services/support-issue-template.service';
+import { SupportNoteService } from './services/support-note.service';
 import { SupportController } from './support.controller';
 import { SupportPdfService } from './support-pdf.service';
 import { SupportService } from './support.service';
 
 @Module({
   imports: [
+    TypeOrmModule.forFeature([SupportNote, SupportIssueTemplate]),
     SharedModule,
     UserModule,
     BuyCryptoModule,
@@ -35,7 +43,14 @@ import { SupportService } from './support.service';
     forwardRef(() => PaymentModule),
   ],
   controllers: [SupportController],
-  providers: [SupportService, SupportPdfService],
+  providers: [
+    SupportService,
+    SupportPdfService,
+    SupportNoteService,
+    SupportNoteRepository,
+    SupportIssueTemplateService,
+    SupportIssueTemplateRepository,
+  ],
   exports: [],
 })
 export class SupportModule {}

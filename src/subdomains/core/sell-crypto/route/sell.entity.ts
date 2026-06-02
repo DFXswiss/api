@@ -5,15 +5,16 @@ import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { DepositRoute, RouteType } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { Check, ChildEntity, Column, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
+import { Check, ChildEntity, Column, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BuyFiat } from '../process/buy-fiat.entity';
 
-@Check(`"active" = 0 OR "bankDataId" IS NOT NULL OR "type" <> 'Sell'`)
+@Check(`"active" = false OR "bankDataId" IS NOT NULL OR "type" <> 'Sell'`)
 @ChildEntity()
 export class Sell extends DepositRoute {
   @Column({ length: 256 })
   iban: string;
 
+  @Index()
   @ManyToOne(() => Fiat, { eager: true, nullable: true })
   fiat?: Fiat;
 
@@ -26,6 +27,7 @@ export class Sell extends DepositRoute {
   @ManyToOne(() => User, (user) => user.sells, { nullable: false })
   declare user: User;
 
+  @Index()
   @ManyToOne(() => BankData, (bankData) => bankData.sells, { nullable: true })
   bankData?: BankData;
 

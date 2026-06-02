@@ -7,9 +7,21 @@ export const GsRestrictedColumns: Record<string, string[]> = {
   asset: ['ikna'],
 };
 
+/**
+ * Prefix of the verbose audit message emitted by `gs.service.executeLogQuery`
+ * (`[GsService] Log query by ...`). The ALL_TRACES template excludes lines
+ * with this prefix to prevent recursive self-match for high-frequency
+ * callers. Keep service and template in sync via this constant.
+ *
+ * Note: the leading `[GsService] ` is prepended by `DfxLogger` from the
+ * `GsService` class name, not from this constant. Renaming the service
+ * class would break the KQL filter silently — no test covers that path.
+ */
+export const LogQueryAuditPrefix = 'Log query by ';
+
 // Debug endpoint
 export const DebugMaxResults = 10000;
-export const DebugBlockedSchemas = ['sys', 'information_schema', 'master', 'msdb', 'tempdb'];
+export const DebugBlockedSchemas = ['sys', 'information_schema', 'master', 'msdb', 'tempdb', 'pg_catalog', 'pg_toast'];
 export const DebugDangerousFunctions = ['openrowset', 'openquery', 'opendatasource', 'openxml'];
 export const DebugBlockedCols: Record<string, string[]> = {
   user_data: [
@@ -180,6 +192,22 @@ export const DebugLogQueryTemplates: Record<
 | project timestamp, name, customDimensions, operation_Id
 | order by timestamp desc`,
     requiredParams: ['eventName'],
+    defaultLimit: 500,
+  },
+  [LogQueryTemplate.ALL_TRACES]: {
+    // Returns all trace entries in the given window. Self-emitted audit lines
+    // from /gs/debug/logs (start with "[GsService] " + LogQueryAuditPrefix)
+    // are filtered out at the source so they don't crowd the result for
+    // high-frequency dashboard callers. The "[GsService] " prefix is added by
+    // DfxLogger's class-context; LogQueryAuditPrefix is the message prefix
+    // emitted by gs.service.executeLogQuery — both sides reference the same
+    // constant to keep service and template in sync.
+    kql: `traces
+| where timestamp > ago({hours}h)
+| where not(message startswith "[GsService] ${LogQueryAuditPrefix}")
+| project timestamp, severityLevel, message, operation_Id
+| order by timestamp desc`,
+    requiredParams: [],
     defaultLimit: 500,
   },
 };
