@@ -54,7 +54,13 @@ export class AccountMergeService {
       isCompleted: false,
       expiration: MoreThan(new Date()),
     });
-    if (openRequest) return true;
+    if (openRequest) {
+      // keep the audit trail of which trigger reasons hit an already-open merge
+      const reuseMessage = `Merge request ${openRequest.id} reused (reason ${reason}): master ${master.id}, slave ${slave.id}`;
+      await this.kycLogService.createMergeLog(master, reuseMessage);
+      await this.kycLogService.createMergeLog(slave, reuseMessage);
+      return true;
+    }
 
     const request = await this.accountMergeRepo.save(AccountMerge.create(master, slave, reason));
 
