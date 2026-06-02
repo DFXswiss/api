@@ -58,6 +58,14 @@ export class AccountMerge extends IEntity {
     return [this.id, update];
   }
 
+  stopProcessing(): UpdateResult<AccountMerge> {
+    const update: Partial<AccountMerge> = { processingStartedAt: null };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   complete(master: UserData, slave: UserData): UpdateResult<AccountMerge> {
     const update: Partial<AccountMerge> = {
       isCompleted: true,

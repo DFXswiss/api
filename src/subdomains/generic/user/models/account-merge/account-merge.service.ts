@@ -110,7 +110,14 @@ export class AccountMergeService {
     // mark the merge as processing so the status endpoint can surface a waiting state to the client
     await this.accountMergeRepo.update(...request.startProcessing());
 
-    await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
+    try {
+      await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
+    } catch (e) {
+      // clear the processing marker so a failed merge does not leave the client stuck on a
+      // never-ending waiting state (isProcessing would otherwise stay true until expiration)
+      await this.accountMergeRepo.update(...request.stopProcessing());
+      throw e;
+    }
 
     await this.accountMergeRepo.update(...request.complete(master, slave));
 
