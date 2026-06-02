@@ -11,7 +11,7 @@ describe('KycAdminService', () => {
   let kycStepRepo: jest.Mocked<Partial<KycStepRepository>>;
 
   beforeEach(() => {
-    kycStepRepo = { update: jest.fn() };
+    kycStepRepo = { update: jest.fn().mockResolvedValue({ affected: 3 }) };
 
     service = new KycAdminService(
       kycStepRepo as unknown as KycStepRepository,
