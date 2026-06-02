@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ExchangeTxRepository } from 'src/integration/exchange/repositories/exchange-tx.repository';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
+import { CustodyOrderRepository } from 'src/subdomains/core/custody/repositories/custody-order.repository';
 import { LiquidityManagementOrderRepository } from 'src/subdomains/core/liquidity-management/repositories/liquidity-management-order.repository';
 import { LiquidityManagementRuleRepository } from 'src/subdomains/core/liquidity-management/repositories/liquidity-management-rule.repository';
 import { PaymentQuoteRepository } from 'src/subdomains/core/payment-link/repositories/payment-quote.repository';
@@ -41,6 +42,7 @@ export class RepositoryFactory {
   public readonly liquidityOrder: LiquidityOrderRepository;
   public readonly lmOrder: LiquidityManagementOrderRepository;
   public readonly lmRule: LiquidityManagementRuleRepository;
+  public readonly custodyOrder: CustodyOrderRepository;
 
   constructor(manager: EntityManager) {
     this.user = new UserRepository(manager);
@@ -62,5 +64,6 @@ export class RepositoryFactory {
     this.liquidityOrder = new LiquidityOrderRepository(manager);
     this.lmOrder = new LiquidityManagementOrderRepository(manager);
     this.lmRule = new LiquidityManagementRuleRepository(manager);
+    this.custodyOrder = new CustodyOrderRepository(manager);
   }
 }
