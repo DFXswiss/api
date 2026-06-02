@@ -11,10 +11,11 @@ import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.servi
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { IsNull, MoreThan, Not } from 'typeorm';
+import { Util } from 'src/shared/utils/util';
+import { MoreThan } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
-import { AccountMerge, MergeReason } from './account-merge.entity';
+import { AccountMerge, MERGE_PROCESSING_TIMEOUT_MINUTES, MergeReason } from './account-merge.entity';
 import { AccountMergeRepository } from './account-merge.repository';
 
 @Injectable()
@@ -125,7 +126,12 @@ export class AccountMergeService {
   }
 
   async hasProcessingMerge(userDataId: number): Promise<boolean> {
-    const where = { isCompleted: false, processingStartedAt: Not(IsNull()), expiration: MoreThan(new Date()) };
+    // mirrors AccountMerge.isProcessing: open, recently started (so a crash-orphaned marker self-heals), not expired
+    const where = {
+      isCompleted: false,
+      processingStartedAt: MoreThan(Util.minutesBefore(MERGE_PROCESSING_TIMEOUT_MINUTES)),
+      expiration: MoreThan(new Date()),
+    };
     return this.accountMergeRepo.existsBy([
       { ...where, master: { id: userDataId } },
       { ...where, slave: { id: userDataId } },

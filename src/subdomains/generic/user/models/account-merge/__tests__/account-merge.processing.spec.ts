@@ -32,6 +32,10 @@ describe('AccountMerge processing state', () => {
     it('is false once the merge is expired', () => {
       expect(build({ processingStartedAt: new Date(), expiration: Util.daysBefore(1) }).isProcessing).toBe(false);
     });
+
+    it('is false once the processing marker is stale (crash-orphaned beyond the timeout)', () => {
+      expect(build({ processingStartedAt: Util.minutesBefore(30) }).isProcessing).toBe(false);
+    });
   });
 
   describe('hasProcessingMerge', () => {

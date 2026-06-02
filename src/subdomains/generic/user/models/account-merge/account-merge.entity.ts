@@ -10,6 +10,11 @@ export enum MergeReason {
   IBAN = 'Iban',
 }
 
+// Upper bound on how long a confirmed merge is considered "processing". A merge runs in seconds;
+// bounding it means a marker left behind by a pod crash between start and complete self-heals
+// instead of pinning the client on a waiting state until the merge request expires (days).
+export const MERGE_PROCESSING_TIMEOUT_MINUTES = 10;
+
 @Entity()
 export class AccountMerge extends IEntity {
   @Index()
@@ -84,6 +89,11 @@ export class AccountMerge extends IEntity {
 
   // user has confirmed the merge and the backend is still processing it (re-parenting, KYC follow-up)
   get isProcessing(): boolean {
-    return !this.isCompleted && this.processingStartedAt != null && !this.isExpired;
+    return (
+      !this.isCompleted &&
+      this.processingStartedAt != null &&
+      this.processingStartedAt > Util.minutesBefore(MERGE_PROCESSING_TIMEOUT_MINUTES) &&
+      !this.isExpired
+    );
   }
 }
