@@ -1,0 +1,11 @@
+node_modules
+dist
+.git
+.github
+infrastructure
+*.log
+.env
+.env.*
+test
+coverage
+README.md
