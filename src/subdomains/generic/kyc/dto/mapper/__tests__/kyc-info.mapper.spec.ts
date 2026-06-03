@@ -333,6 +333,29 @@ describe('KycInfoMapper', () => {
       expect(result.kycSteps.find((s) => s.name === KycStepName.FINANCIAL_DATA)?.isRequired).toBe(true);
     });
 
+    it('returns PendingReview for RealunitBuy when IDENT is still in ManualReview', () => {
+      setRequiredSteps(
+        KycStepName.CONTACT_DATA,
+        KycStepName.PERSONAL_DATA,
+        KycStepName.NATIONALITY_DATA,
+        KycStepName.IDENT,
+        KycStepName.FINANCIAL_DATA,
+        KycStepName.DFX_APPROVAL,
+      );
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.PERSONAL_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.NATIONALITY_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.IDENT, ReviewStatus.MANUAL_REVIEW),
+        ],
+      });
+
+      const result = KycInfoMapper.toDto(userData, false, [], undefined, KycContext.REALUNIT_BUY) as KycLevelDto;
+
+      expect(result.processStatus).toBe(KycProcessStatus.PENDING_REVIEW);
+    });
+
     it('intersects context whitelist with user-specific required steps (RECOMMENDATION only when both agree)', () => {
       setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.IDENT, KycStepName.RECOMMENDATION);
       const userData = buildUserData({
