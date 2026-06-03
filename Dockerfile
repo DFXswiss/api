@@ -31,6 +31,11 @@ COPY --from=builder /home/node/package.json /home/node/package-lock.json ./
 COPY --from=builder /home/node/node_modules ./node_modules
 COPY --from=builder /home/node/dist ./dist
 COPY --from=builder /home/node/migration ./migration
+# Runtime assets referenced by source path (not dist/) in the app config:
+#   - i18n translations: config.ts → join(process.cwd(), 'src/shared/i18n/')
+#   - notification templates: *.hbs files
+COPY --from=builder /home/node/src/shared/i18n ./src/shared/i18n
+COPY --from=builder /home/node/src/subdomains/supporting/notification/templates ./src/subdomains/supporting/notification/templates
 
 EXPOSE 3000
 
