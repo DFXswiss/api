@@ -23,6 +23,7 @@ export class KycInfoMapper {
     kycClients: Wallet[],
     currentStep?: KycStep,
     context?: KycContext,
+    isMergeProcessing = false,
   ): KycLevelDto | KycSessionDto {
     const kycSteps = KycInfoMapper.getUiSteps(userData);
     // A non-user-actionable step (e.g. DfxApproval, a DFX-side decision) is
@@ -48,7 +49,7 @@ export class KycInfoMapper {
       kycClients: userKycClients.map((kc) => kc.name),
       language: LanguageDtoMapper.entityToDto(userData.language),
       kycSteps: kycSteps.map((s) => KycStepMapper.toStep(s, currentStep, requiredStepNames)),
-      processStatus: KycInfoMapper.computeProcessStatus(userData, kycSteps, requiredStepNames),
+      processStatus: KycInfoMapper.computeProcessStatus(userData, kycSteps, requiredStepNames, isMergeProcessing),
       currentStep: withSession && currentStep ? KycStepMapper.toStepSession(currentStep) : undefined,
     };
 
@@ -63,8 +64,10 @@ export class KycInfoMapper {
     userData: UserData,
     kycSteps: KycStep[],
     requiredStepNames: Set<KycStepName>,
+    isMergeProcessing: boolean,
   ): KycProcessStatus {
     if (userData.isKycTerminated) return KycProcessStatus.FAILED;
+    if (isMergeProcessing) return KycProcessStatus.MERGE_PROCESSING;
 
     const requiredSteps = kycSteps.filter((s) => requiredStepNames.has(s.name));
 

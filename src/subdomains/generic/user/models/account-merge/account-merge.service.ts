@@ -15,7 +15,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { MoreThan } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { UserDataService } from '../user-data/user-data.service';
-import { AccountMerge, MergeReason } from './account-merge.entity';
+import { AccountMerge, MERGE_PROCESSING_TIMEOUT_MINUTES, MergeReason } from './account-merge.entity';
 import { AccountMergeRepository } from './account-merge.repository';
 
 @Injectable()
@@ -128,11 +128,34 @@ export class AccountMergeService {
     await this.kycLogService.createMergeLog(master, logMessage);
     await this.kycLogService.createMergeLog(slave, logMessage);
 
-    await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
+    // mark the merge as processing so the status endpoint can surface a waiting state to the client
+    await this.accountMergeRepo.update(...request.startProcessing());
+
+    try {
+      await this.userDataService.mergeUserData(master.id, slave.id, request.slave.mail);
+    } catch (e) {
+      // clear the processing marker so a failed merge does not leave the client stuck on a
+      // never-ending waiting state (isProcessing would otherwise stay true until expiration)
+      await this.accountMergeRepo.update(...request.stopProcessing());
+      throw e;
+    }
 
     await this.accountMergeRepo.update(...request.complete(master, slave));
 
     return request;
+  }
+
+  async hasProcessingMerge(userDataId: number): Promise<boolean> {
+    // mirrors AccountMerge.isProcessing: open, recently started (so a crash-orphaned marker self-heals), not expired
+    const where = {
+      isCompleted: false,
+      processingStartedAt: MoreThan(Util.minutesBefore(MERGE_PROCESSING_TIMEOUT_MINUTES)),
+      expiration: MoreThan(new Date()),
+    };
+    return this.accountMergeRepo.existsBy([
+      { ...where, master: { id: userDataId } },
+      { ...where, slave: { id: userDataId } },
+    ]);
   }
 
   async pendingMergeRequest(userDataId: number, referenceUserDataId: number): Promise<AccountMerge> {
