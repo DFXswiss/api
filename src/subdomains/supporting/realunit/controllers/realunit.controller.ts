@@ -61,6 +61,8 @@ import {
   RealUnitOcpPayStatusDto,
   RealUnitOcpPaySubmitDto,
   RealUnitOcpPayUnsignedTransactionDto,
+  RealUnitSwapDto,
+  RealUnitSwapPaymentInfoDto,
   RealUnitSwapUnsignedTransactionDto,
 } from '../dto/realunit-pay.dto';
 import {
@@ -618,13 +620,31 @@ export class RealUnitController {
   // Open CryptoPay recipient via the public lnurlp payment-link flow. The backend orchestrates the steps
   // (workflow endpoints) since the app cannot build EVM calldata or settle the OCP quote locally.
 
+  @Put('swap')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get swap quote for an IBAN-free REALU -> ZCHF swap (proceeds stay in the user wallet)',
+    description:
+      'Creates a SWAP-type transaction request for a REALU -> ZCHF swap WITHOUT a fiat IBAN, Sell route or payout, so the ZCHF proceeds stay in the connected wallet (to then pay at an OCP/SPAR POS). Same registration + KYC Level 30 gating as sell, and KYC trading limits are still enforced (a quote over the limit returns a typed error / KYC-level requirement). Step 0 of the OCP pay flow: feed the returned `id` into `PUT /swap/:id/unsigned-transaction`. Requires KYC Level 30 and RealUnit registration.',
+  })
+  @ApiOkResponse({ type: RealUnitSwapPaymentInfoDto })
+  @ApiBadRequestResponse({ description: 'KYC Level 30 required, registration missing, or trading limit exceeded' })
+  async getSwapPaymentInfo(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitSwapDto,
+  ): Promise<RealUnitSwapPaymentInfoDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
+    return this.realunitService.getSwapPaymentInfo(user, dto);
+  }
+
   @Put('swap/:id/unsigned-transaction')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
     summary: 'Get unsigned REALU -> ZCHF swap transaction (proceeds stay in the user wallet)',
     description:
-      'Builds the REALU transferAndCall swap transaction WITHOUT the deposit sweep, so the ZCHF proceeds land in the connected wallet. Step 1 of the OCP pay flow; broadcast the signed transaction via `PUT /sell/:id/broadcast`.',
+      'Builds the REALU transferAndCall swap transaction WITHOUT the deposit sweep, so the ZCHF proceeds land in the connected wallet. Step 1 of the OCP pay flow (obtain the request `id` from `PUT /swap` first); broadcast the signed transaction via `PUT /swap/:id/broadcast`.',
   })
   @ApiParam({ name: 'id', description: 'Transaction request ID' })
   @ApiOkResponse({ type: RealUnitSwapUnsignedTransactionDto })
@@ -636,13 +656,32 @@ export class RealUnitController {
     return this.realunitService.createSwapUnsignedTransaction(jwt.user, +id);
   }
 
+  @Put('swap/:id/broadcast')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Broadcast a signed REALU -> ZCHF swap transaction',
+    description:
+      'Broadcasts the user-signed EIP-1559 swap transaction (from `PUT /swap/:id/unsigned-transaction`) to the network. Step 1b of the OCP pay flow; afterwards request the OCP pay transaction via `PUT /pay/unsigned-transaction`.',
+  })
+  @ApiParam({ name: 'id', description: 'Transaction request ID' })
+  @ApiOkResponse({ description: 'Transaction broadcast', schema: { properties: { txHash: { type: 'string' } } } })
+  @ApiBadRequestResponse({ description: 'Invalid signed transaction or broadcast failure' })
+  async broadcastSwapTransaction(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RealUnitSellBroadcastDto,
+  ): Promise<{ txHash: string }> {
+    return this.realunitService.broadcastSwapTransaction(jwt.user, +id, dto);
+  }
+
   @Put('pay/unsigned-transaction')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
     summary: 'Get unsigned ZCHF transfer transaction for an Open CryptoPay payment',
     description:
-      'Resolves recipient and exact amount from the OCP payment-link quote (same source the lnurlp callback uses) and builds the unsigned ZCHF ERC-20 transfer transaction to the DFX deposit address. Step 2a of the OCP pay flow; submit the signed transaction via `PUT /pay/submit`. Broadcast the swap transaction (`PUT /sell/:id/broadcast`) before requesting this pay transaction — the pay-tx nonce is derived from the pending block so a still-pending swap tx is counted and the two transactions do not collide on the same nonce.',
+      'Resolves recipient and exact amount from the OCP payment-link quote (same source the lnurlp callback uses) and builds the unsigned ZCHF ERC-20 transfer transaction to the DFX deposit address. Step 2a of the OCP pay flow; submit the signed transaction via `PUT /pay/submit`. Broadcast the swap transaction (`PUT /swap/:id/broadcast`) before requesting this pay transaction — the pay-tx nonce is derived from the pending block so a still-pending swap tx is counted and the two transactions do not collide on the same nonce.',
   })
   @ApiOkResponse({ type: RealUnitOcpPayUnsignedTransactionDto })
   @ApiBadRequestResponse({ description: 'Invalid payment-link/quote reference or insufficient ETH for gas' })

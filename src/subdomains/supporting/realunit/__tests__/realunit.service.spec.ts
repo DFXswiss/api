@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ethers } from 'ethers';
 import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
@@ -16,6 +16,7 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { PaymentLinkPaymentStatus } from 'src/subdomains/core/payment-link/enums';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { LnUrlForwardService } from 'src/subdomains/generic/forwarding/services/lnurl-forward.service';
@@ -23,6 +24,7 @@ import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -107,6 +109,7 @@ describe('RealUnitService', () => {
   let eip7702DelegationService: jest.Mocked<Eip7702DelegationService>;
   let transactionRequestService: jest.Mocked<TransactionRequestService>;
   let sellService: jest.Mocked<SellService>;
+  let swapService: jest.Mocked<SwapService>;
   let userService: jest.Mocked<UserService>;
   let kycService: jest.Mocked<KycService>;
   let lnUrlForwardService: jest.Mocked<LnUrlForwardService>;
@@ -181,6 +184,12 @@ describe('RealUnitService', () => {
           },
         },
         {
+          provide: SwapService,
+          useValue: {
+            createSwapPaymentInfo: jest.fn(),
+          },
+        },
+        {
           provide: Eip7702DelegationService,
           useValue: {
             executeBrokerBotSellForRealUnit: jest.fn(),
@@ -198,7 +207,7 @@ describe('RealUnitService', () => {
         { provide: RealUnitDevService, useValue: {} },
         { provide: SwissQRService, useValue: {} },
         { provide: FeeService, useValue: {} },
-        { provide: FaucetRequestService, useValue: {} },
+        { provide: FaucetRequestService, useValue: { resetFaucet: jest.fn() } },
         { provide: EthereumService, useValue: { getDefaultClient: jest.fn().mockReturnValue(evmClient) } },
         { provide: SepoliaService, useValue: { getDefaultClient: jest.fn().mockReturnValue(evmClient) } },
         {
@@ -218,6 +227,7 @@ describe('RealUnitService', () => {
     eip7702DelegationService = module.get(Eip7702DelegationService);
     transactionRequestService = module.get(TransactionRequestService);
     sellService = module.get(SellService);
+    swapService = module.get(SwapService);
     userService = module.get(UserService);
     kycService = module.get(KycService);
     lnUrlForwardService = module.get(LnUrlForwardService);
@@ -477,6 +487,139 @@ describe('RealUnitService', () => {
       evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(0);
 
       await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getSwapPaymentInfo', () => {
+    const walletAddress = '0x4444444444444444444444444444444444444444';
+
+    function buildUser(opts: { kycLevel?: number; registered?: boolean } = {}): any {
+      const steps =
+        (opts.registered ?? true) ? [{ isFailed: false, isCanceled: false, getResult: () => ({ walletAddress }) }] : [];
+      return {
+        id: 42,
+        address: walletAddress,
+        userData: {
+          kycLevel: opts.kycLevel ?? 30,
+          getStepsWith: jest.fn().mockReturnValue(steps),
+        },
+      };
+    }
+
+    const swapInfo = {
+      id: 99,
+      uid: 'MOCK-UID',
+      routeId: 7,
+      timestamp: new Date('2026-06-03T00:00:00.000Z'),
+      amount: 10,
+      estimatedAmount: 950,
+      fees: { dfx: 1, network: 0.5, total: 1.5 } as any,
+      minVolume: 1,
+      maxVolume: 1000,
+      minVolumeTarget: 95,
+      maxVolumeTarget: 95000,
+      isValid: true,
+      error: undefined,
+    };
+
+    beforeEach(() => {
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+      evmClient.getRecommendedGasPrice.mockResolvedValue(ethers.BigNumber.from(1_000_000_000));
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(1);
+      blockchainService.getBrokerbotSellPrice.mockResolvedValue({ zchfAmountWei: BigInt('960000000000000000000') });
+      transactionRequestService.updateEstimatedAmount = jest.fn();
+    });
+
+    it('should create an IBAN-free SWAP quote (no iban/Sell route) and return the request id + ZCHF estimate', async () => {
+      swapService.createSwapPaymentInfo.mockResolvedValue(swapInfo as any);
+
+      const result = await service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any);
+
+      expect(result.id).toBe(99);
+      expect(result.uid).toBe('MOCK-UID');
+      expect(result.routeId).toBe(7);
+      expect(result.targetAsset).toBe('ZCHF');
+      expect(result.isValid).toBe(true);
+
+      // SWAP quote is created via the IBAN-free SwapService path (REALU -> ZCHF), NOT the Sell path
+      expect(sellService.getById).not.toHaveBeenCalled();
+      const [, dto] = swapService.createSwapPaymentInfo.mock.calls[0];
+      expect(dto.sourceAsset.name).toBe('REALU');
+      expect(dto.targetAsset.name).toBe('ZCHF');
+      // the DTO carries no iban field — the IBAN-free contract
+      expect('iban' in dto).toBe(false);
+
+      // estimated ZCHF is anchored to the live on-chain brokerbot price
+      expect(result.estimatedAmount).toBe(960);
+      expect(transactionRequestService.updateEstimatedAmount).toHaveBeenCalledWith(99, 960);
+    });
+
+    it('should surface a typed KYC-level error when the trading limit is exceeded (limits are NOT bypassed)', async () => {
+      swapService.createSwapPaymentInfo.mockResolvedValue({
+        ...swapInfo,
+        isValid: false,
+        error: QuoteError.LIMIT_EXCEEDED,
+      } as any);
+
+      await expect(service.getSwapPaymentInfo(buildUser(), { amount: 100000 } as any)).rejects.toThrow(
+        ForbiddenException,
+      );
+    });
+
+    it('should require RealUnit registration', async () => {
+      await expect(service.getSwapPaymentInfo(buildUser({ registered: false }), { amount: 10 } as any)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(swapService.createSwapPaymentInfo).not.toHaveBeenCalled();
+    });
+
+    it('should require KYC Level 30', async () => {
+      await expect(service.getSwapPaymentInfo(buildUser({ kycLevel: 20 }), { amount: 10 } as any)).rejects.toThrow(
+        ForbiddenException,
+      );
+      expect(swapService.createSwapPaymentInfo).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('broadcastSwapTransaction', () => {
+    const mockRequest = { id: 1, isValid: true, amount: 10, routeId: 7, user: { address: userAddress } };
+
+    const unsignedTx = ethers.utils.serializeTransaction({
+      type: 2,
+      chainId: 11155111,
+      nonce: 7,
+      maxPriorityFeePerGas: ethers.BigNumber.from(1),
+      maxFeePerGas: ethers.BigNumber.from(1),
+      gasLimit: ethers.BigNumber.from(350_000),
+      to: realuContract,
+      value: ethers.BigNumber.from(0),
+      data: '0x',
+      accessList: [],
+    });
+
+    const broadcastDto = {
+      unsignedTx,
+      r: '0x' + '1'.repeat(64),
+      s: '0x' + '2'.repeat(64),
+      v: 27,
+    };
+
+    it('should reconstruct the signed hex, broadcast it and return the txHash', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      evmClient.sendSignedTransaction.mockResolvedValue({ response: { hash: '0xSwapTxHash' } });
+
+      const result = await service.broadcastSwapTransaction(42, 1, broadcastDto);
+
+      expect(result.txHash).toBe('0xSwapTxHash');
+      expect(evmClient.sendSignedTransaction).toHaveBeenCalledTimes(1);
+      expect(evmClient.sendSignedTransaction.mock.calls[0][0]).toMatch(/^0x/);
+    });
+
+    it('should throw BadRequestException if the request is not valid', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue({ ...mockRequest, isValid: false } as any);
+
+      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(BadRequestException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
     });
   });
 

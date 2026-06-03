@@ -39,6 +39,7 @@ import { toBitboxAscii } from 'src/shared/utils/bitbox-ascii.util';
 import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
 import { PaymentLinkEvmHexBlockchains } from 'src/subdomains/core/payment-link/enums';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
@@ -92,6 +93,8 @@ import {
   RealUnitOcpPayStatusDto,
   RealUnitOcpPaySubmitDto,
   RealUnitOcpPayUnsignedTransactionDto,
+  RealUnitSwapDto,
+  RealUnitSwapPaymentInfoDto,
 } from './dto/realunit-pay.dto';
 import {
   RealUnitSellBroadcastDto,
@@ -153,6 +156,8 @@ export class RealUnitService {
     private readonly buyService: BuyService,
     @Inject(forwardRef(() => SellService))
     private readonly sellService: SellService,
+    @Inject(forwardRef(() => SwapService))
+    private readonly swapService: SwapService,
     private readonly eip7702DelegationService: Eip7702DelegationService,
     private readonly ethereumService: EthereumService,
     private readonly sepoliaService: SepoliaService,
@@ -1263,6 +1268,117 @@ export class RealUnitService {
     return response;
   }
 
+  // --- Swap Quote Methods (IBAN-free REALU -> ZCHF) ---
+
+  // Step 0 of the OCP pay flow: produces a SWAP-type TransactionRequest for REALU -> ZCHF WITHOUT a fiat
+  // IBAN, Sell route or payout — the ZCHF proceeds stay in the user wallet so they can be paid at an OCP/SPAR
+  // POS. A RealUnit holder paying at a POS need not have a DFX sell bank account, so requiring an IBAN (as
+  // the /sell quote does) would be a hard UX blocker. The request id returned here feeds
+  // `createSwapUnsignedTransaction` (PUT /swap/:id/unsigned-transaction).
+  //
+  // Gating mirrors the sell path exactly (registration + KYC Level 30) and KYC trading LIMITS are still
+  // enforced: SwapService.createSwapPaymentInfo runs the same TransactionHelper.getTxDetails limit check and
+  // surfaces QuoteError.LIMIT_EXCEEDED, which we translate into the same KYC-Level-50 exception the sell path
+  // throws. We deliberately reuse the existing crypto Swap-route machinery (TransactionRequestType.SWAP) so
+  // this is a genuine SWAP request — NOT a Sell — and no fiat route/IBAN is created.
+  //
+  // Design note: the standard SwapService payment-info models a DFX-custody swap (user deposits the source
+  // asset to a DFX deposit address). For RealUnit the on-chain execution stays the already-built user-signed
+  // brokerbot mechanism (buildSwapUnsignedTransaction), so the swap-route deposit address is unused here — we
+  // only consume the route binding, the limit-enforced quote and the SWAP-type TransactionRequest. includeTx
+  // is false so no DFX-custody deposit tx is built.
+  async getSwapPaymentInfo(user: User, dto: RealUnitSwapDto): Promise<RealUnitSwapPaymentInfoDto> {
+    const userData = user.userData;
+
+    // 1. Registration required
+    if (!this.hasRegistrationForWallet(userData, user.address)) {
+      throw new RegistrationRequiredException(undefined, KycContext.REALUNIT_SELL);
+    }
+
+    // 2. KYC Level check - Level 30 minimum (same as sell)
+    if (userData.kycLevel < KycLevel.LEVEL_30) {
+      throw new KycLevelRequiredException(
+        KycLevel.LEVEL_30,
+        userData.kycLevel,
+        'KYC Level 30 required for RealUnit swap',
+        KycContext.REALUNIT_SELL,
+      );
+    }
+
+    // 3. Get assets (source REALU -> target ZCHF)
+    const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
+    if (!realuAsset) throw new NotFoundException('REALU asset not found');
+    if (!zchfAsset) throw new NotFoundException('ZCHF asset not found');
+
+    // 4. Create the limit-enforced SWAP quote + SWAP-type TransactionRequest via the crypto Swap-route
+    // machinery (IBAN-free). includeTx=false: the on-chain execution uses the user-signed brokerbot tx, not a
+    // DFX-custody deposit tx.
+    const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
+      user.id,
+      {
+        sourceAsset: realuAsset,
+        targetAsset: zchfAsset,
+        amount: dto.amount,
+        targetAmount: dto.targetAmount,
+        exactPrice: false,
+      },
+      false,
+    );
+
+    // 5. Check if limit exceeded (do NOT bypass — same translation as the sell path)
+    if (swapPaymentInfo.error === QuoteError.LIMIT_EXCEEDED) {
+      throw new KycLevelRequiredException(
+        KycLevel.LEVEL_50,
+        userData.kycLevel,
+        'KYC Level 50 required for RealUnit swap exceeding trading limit',
+        KycContext.REALUNIT_SELL,
+      );
+    }
+
+    // 6. Fetch gas info and anchor the estimated ZCHF against the live on-chain brokerbot price (same as sell)
+    const evmClient = this.getEvmClient();
+    const shares = Math.floor(swapPaymentInfo.amount);
+    const [ethBalance, gasPrice, brokerbotResult] = await Promise.all([
+      evmClient.getNativeCoinBalanceForAddress(user.address),
+      evmClient.getRecommendedGasPrice(),
+      shares > 0
+        ? this.blockchainService.getBrokerbotSellPrice(this.getBrokerbotAddress(), shares).catch(() => null)
+        : Promise.resolve(null),
+    ]);
+
+    let estimatedAmount = swapPaymentInfo.estimatedAmount;
+    if (brokerbotResult && swapPaymentInfo.id) {
+      estimatedAmount = EvmUtil.fromWeiAmount(
+        ethers.BigNumber.from(brokerbotResult.zchfAmountWei.toString()),
+        zchfAsset.decimals,
+      );
+      await this.transactionRequestService.updateEstimatedAmount(swapPaymentInfo.id, estimatedAmount);
+    }
+
+    // Swap-only gas: 350k for the single brokerbotSell step (no deposit leg)
+    const swapGasLimit = ethers.BigNumber.from(350_000);
+    const requiredGasEth = EvmUtil.fromWeiAmount(gasPrice.mul(swapGasLimit));
+
+    return {
+      id: swapPaymentInfo.id,
+      uid: swapPaymentInfo.uid,
+      routeId: swapPaymentInfo.routeId,
+      timestamp: swapPaymentInfo.timestamp,
+      amount: swapPaymentInfo.amount,
+      estimatedAmount,
+      targetAsset: zchfAsset.name,
+      fees: swapPaymentInfo.fees,
+      minVolume: swapPaymentInfo.minVolume,
+      maxVolume: swapPaymentInfo.maxVolume,
+      minVolumeTarget: swapPaymentInfo.minVolumeTarget,
+      maxVolumeTarget: swapPaymentInfo.maxVolumeTarget,
+      ethBalance,
+      requiredGasEth,
+      isValid: swapPaymentInfo.isValid,
+      error: swapPaymentInfo.error,
+    };
+  }
+
   // --- Sell Transaction Methods for BitBox ---
 
   async createSellUnsignedTransactions(userId: number, requestId: number): Promise<{ swap: string; deposit: string }> {
@@ -1321,6 +1437,26 @@ export class RealUnitService {
   }
 
   async broadcastSellTransaction(
+    userId: number,
+    requestId: number,
+    dto: RealUnitSellBroadcastDto,
+  ): Promise<{ txHash: string }> {
+    return this.broadcastSignedTransaction(userId, requestId, dto);
+  }
+
+  // Dedicated swap broadcast (PUT /swap/:id/broadcast) for clean OCP-flow semantics: the app broadcasts a
+  // swap via a /swap/* route, not a /sell/* one. Reuses the shared reconstruction/broadcast helper.
+  async broadcastSwapTransaction(
+    userId: number,
+    requestId: number,
+    dto: RealUnitSellBroadcastDto,
+  ): Promise<{ txHash: string }> {
+    return this.broadcastSignedTransaction(userId, requestId, dto);
+  }
+
+  // Shared broadcast: validates the TransactionRequest, reconstructs the user-signed EIP-1559 hex and submits
+  // it to the network. Used by both the sell broadcast and the swap broadcast (REALU -> ZCHF brokerbot tx).
+  private async broadcastSignedTransaction(
     userId: number,
     requestId: number,
     dto: RealUnitSellBroadcastDto,
