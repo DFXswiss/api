@@ -116,16 +116,6 @@ export class KycAdminService {
     await this.kycStepRepo.update(...dto);
   }
 
-  // Re-parent all KYC steps from one userData to another at the DB level. Used by the account
-  // merge so the slave's completed steps remain reachable from the master after reload.
-  async reassignKycSteps(fromUserDataId: number, toUserDataId: number): Promise<void> {
-    const { affected } = await this.kycStepRepo.update(
-      { userData: { id: fromUserDataId } },
-      { userData: { id: toUserDataId } as UserData },
-    );
-    this.logger.info(`Reassigned ${affected ?? 0} KYC step(s) from userData ${fromUserDataId} to ${toUserDataId}`);
-  }
-
   async resetKyc(userData: UserData, comment: KycError): Promise<void> {
     for (const kycStep of userData.kycSteps) {
       if (

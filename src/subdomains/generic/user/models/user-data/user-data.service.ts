@@ -383,7 +383,14 @@ export class UserDataService {
       }
     }
 
-    await this.userDataRepo.save(userData);
+    // Persist scalars/FKs only. Excluding the loaded OneToMany collections (kycSteps, users) stops a
+    // stale snapshot from orphaning rows a concurrent account merge just re-parented onto this master
+    // (root cause of #3800; 2083 orphaned kyc_step rows in prod). save() reconciles loaded OneToMany
+    // relations, so a master loaded before the merge would null out the slave's re-parented steps.
+    // The returned `userData` keeps the collections for the response; user changes are persisted
+    // separately via userRepo.setUserRef.
+    const { kycSteps: _kycSteps, users: _users, ...persistable } = userData;
+    await this.userDataRepo.save(persistable as UserData);
 
     if (kycChanged) await this.kycNotificationService.kycChanged(userData, userData.kycLevel);
 
@@ -1258,11 +1265,6 @@ export class UserDataService {
         ),
       );
     }
-
-    // Re-parent the slave's KYC steps onto the master at the DB level. The in-memory concat below
-    // is not enough: without this the slave rows keep userData_id = slave.id and disappear from the
-    // master on the next reload, re-flagging already-completed steps as missing.
-    if (kycStepMerge) await this.kycAdminService.reassignKycSteps(slave.id, master.id);
 
     // Adapt slave bankData in review
     for (const bankData of slave.bankDatas.filter((b) => b.isInReview)) {
