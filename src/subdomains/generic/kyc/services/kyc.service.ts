@@ -441,8 +441,6 @@ export class KycService {
   }
 
   async getInfo(kycHash: string, context?: KycContext): Promise<KycLevelDto> {
-    this.validateContext(context);
-
     const user = await this.getUser(kycHash);
     await this.verifyUserDuplication(user);
 
@@ -472,8 +470,6 @@ export class KycService {
   }
 
   async continue(kycHash: string, ip: string, autoStep: boolean, context?: KycContext): Promise<KycSessionDto> {
-    this.validateContext(context);
-
     return Util.retry(
       () => this.tryContinue(kycHash, ip, autoStep, context),
       2,
@@ -1762,12 +1758,6 @@ export class KycService {
     });
 
     await this.stepLogRepo.save(entity);
-  }
-
-  private validateContext(context?: KycContext): void {
-    if (context && !Object.values(KycContext).includes(context)) {
-      throw new BadRequestException(`Invalid KYC context: ${context}`);
-    }
   }
 
   private async toDto(

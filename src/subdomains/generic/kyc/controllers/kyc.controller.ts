@@ -65,8 +65,8 @@ import { KycLevelDto, KycSessionDto, KycStepBase } from '../dto/output/kyc-info.
 import { MergedDto } from '../dto/output/kyc-merged.dto';
 import { Setup2faDto } from '../dto/output/setup-2fa.dto';
 import { SumSubWebhookResult } from '../dto/sum-sub.dto';
+import { KycContinueQueryDto, KycQueryDto } from '../dto/input/kyc-query.dto';
 import { KycStepName } from '../enums/kyc-step-name.enum';
-import { KycContext } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
 import { SumsubService } from '../services/integration/sum-sub.service';
 import { KycService } from '../services/kyc.service';
@@ -120,11 +120,8 @@ export class KycController {
   @Get()
   @ApiOkResponse({ type: KycLevelDto })
   @ApiUnauthorizedResponse(MergedResponse)
-  async getKycLevel(
-    @Headers(CodeHeaderName) code: string,
-    @Query('context') context?: KycContext,
-  ): Promise<KycLevelDto> {
-    return this.kycService.getInfo(code, context);
+  async getKycLevel(@Headers(CodeHeaderName) code: string, @Query() query: KycQueryDto): Promise<KycLevelDto> {
+    return this.kycService.getInfo(code, query.context);
   }
 
   @Put()
@@ -135,10 +132,9 @@ export class KycController {
   async continueKyc(
     @Headers(CodeHeaderName) code: string,
     @RealIP() ip: string,
-    @Query('autoStep') autoStep?: string,
-    @Query('context') context?: KycContext,
+    @Query() query: KycContinueQueryDto,
   ): Promise<KycSessionDto> {
-    return this.kycService.continue(code, ip, autoStep !== 'false', context);
+    return this.kycService.continue(code, ip, query.autoStep !== 'false', query.context);
   }
 
   @Get('countries')
