@@ -21,7 +21,9 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
+import { PaymentLinkPaymentStatus } from 'src/subdomains/core/payment-link/enums';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { LnUrlForwardService } from 'src/subdomains/generic/forwarding/services/lnurl-forward.service';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
@@ -38,8 +40,6 @@ import {
 } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { PaymentLinkPaymentStatus } from 'src/subdomains/core/payment-link/enums';
-import { LnUrlForwardService } from 'src/subdomains/generic/forwarding/services/lnurl-forward.service';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { SupportIssueReason, SupportIssueType } from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
@@ -48,7 +48,6 @@ import { FindOperator, IsNull } from 'typeorm';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAktionariatConfirmationStatus } from '../dto/realunit-confirm-aktionariat.dto';
-import {
   RealUnitEmailRegistrationStatus,
   RealUnitLanguage,
   RealUnitRegistrationState,
@@ -95,8 +94,7 @@ jest.mock('src/config/config', () => ({
           w2wGasLowBalanceThreshold: 0.05,
         },
       },
-    };
-  },
+    };  },
   Environment: {
     LOC: 'loc',
     DEV: 'dev',
@@ -316,7 +314,7 @@ describe('RealUnitService', () => {
         { provide: SwissQRService, useValue: {} },
         { provide: FeeService, useValue: {} },
         { provide: FaucetRequestService, useValue: {} },
-        { provide: EthereumService, useValue: {} },
+        { provide: EthereumService, useValue: { getDefaultClient: jest.fn().mockReturnValue(sepoliaClient) } },
         {
           provide: SepoliaService,
           useValue: {
@@ -940,8 +938,19 @@ describe('RealUnitService', () => {
     });
   });
 
+  // The OCP submit/pay endpoints fail fast on testnet (Sepolia) because the payment-link engine supports
+  // mainnet EVM methods only, so the engine-touching specs run under PRD (→ Ethereum). A dedicated block
+  // below asserts the fail-fast behaviour on the LOC/Sepolia branch.
   describe('createOcpPayUnsignedTransaction', () => {
     const amountWei = '5000000000000000000';
+
+    beforeAll(() => {
+      mockEnvironment = 'prd';
+    });
+
+    afterAll(() => {
+      mockEnvironment = 'loc';
+    });
 
     beforeEach(() => {
       evmClient.getTransactionCount.mockResolvedValue(3);
@@ -953,15 +962,15 @@ describe('RealUnitService', () => {
       assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
       lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
         expiryDate: new Date(),
-        blockchain: Blockchain.SEPOLIA,
-        uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        blockchain: Blockchain.ETHEREUM,
+        uri: `ethereum:${zchfTxAsset.chainId}@1/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
         hint: '',
       });
 
       const result = await service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz');
 
       expect(lnUrlForwardService.lnurlpCallbackForward).toHaveBeenCalledWith('pl_abc', {
-        method: Blockchain.SEPOLIA,
+        method: Blockchain.ETHEREUM,
         asset: 'ZCHF',
         quote: 'quote_xyz',
       });
@@ -972,6 +981,62 @@ describe('RealUnitService', () => {
       const parsed = ethers.utils.parseTransaction(result.unsignedTx);
       expect(parsed.to?.toLowerCase()).toBe(zchfTxAsset.chainId.toLowerCase());
       expect(parsed.nonce).toBe(3);
+    });
+
+    it('should derive the pay-tx nonce from the pending block tag (avoids collision with a still-pending swap tx)', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+
+      await service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz');
+
+      expect(evmClient.getTransactionCount).toHaveBeenCalledWith(userAddress, 'pending');
+    });
+
+    it('should throw BadRequestException if the EVM uri token contract does not match the ZCHF asset', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${realuContract}@11155111/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if the EVM uri amount is malformed', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=${dfxDepositAddress}&uint256=not-a-number`,
+        hint: '',
+      });
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if the EVM uri recipient is not a valid address', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=0xNotAnAddress&uint256=${amountWei}`,
+        hint: '',
+      });
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if the quote returns no EVM payment request', async () => {
@@ -1087,13 +1152,21 @@ describe('RealUnitService', () => {
       await expect(service.confirmPaymentReceived(1)).rejects.toThrow(NotFoundException);
       expect(devService()).not.toHaveBeenCalled();
   describe('submitOcpPay', () => {
+    beforeAll(() => {
+      mockEnvironment = 'prd';
+    });
+
+    afterAll(() => {
+      mockEnvironment = 'loc';
+    });
+
     it('should reconstruct the signed hex and forward it into the lnurlp tx path', async () => {
       assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
       lnUrlForwardService.txHexForward.mockResolvedValue({ txId: '0xTxId' });
 
       const unsignedTx = ethers.utils.serializeTransaction({
         type: 2,
-        chainId: 11155111,
+        chainId: 1,
         nonce: 1,
         maxPriorityFeePerGas: ethers.BigNumber.from(1),
         maxFeePerGas: ethers.BigNumber.from(1),
@@ -1116,7 +1189,7 @@ describe('RealUnitService', () => {
       expect(result.txId).toBe('0xTxId');
       expect(lnUrlForwardService.txHexForward).toHaveBeenCalledWith(
         'pl_abc',
-        expect.objectContaining({ method: Blockchain.SEPOLIA, asset: 'ZCHF', quote: 'quote_xyz' }),
+        expect.objectContaining({ method: Blockchain.ETHEREUM, asset: 'ZCHF', quote: 'quote_xyz' }),
       );
       expect(lnUrlForwardService.txHexForward.mock.calls[0][1].hex).toMatch(/^0x/);
     });
@@ -1660,6 +1733,35 @@ describe('RealUnitService', () => {
 
       expect(result).toEqual({ status: PaymentLinkPaymentStatus.COMPLETED });
       expect(lnUrlForwardService.waitForPayment).toHaveBeenCalledWith('pl_abc');
+    });
+  });
+
+  // On LOC/DEV the token blockchain resolves to Sepolia, which the payment-link engine does not support.
+  // Both OCP pay endpoints must fail fast with a typed BadRequestException without touching the engine.
+  describe('OCP pay fail-fast on unsupported method (Sepolia)', () => {
+    it('createOcpPayUnsignedTransaction throws BadRequestException and never activates the quote', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(lnUrlForwardService.lnurlpCallbackForward).not.toHaveBeenCalled();
+    });
+
+    it('submitOcpPay throws BadRequestException and never forwards the hex', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+
+      await expect(
+        service.submitOcpPay({
+          paymentLinkId: 'pl_abc',
+          quoteId: 'quote_xyz',
+          unsignedTx: '0x',
+          r: '0x' + '1'.repeat(64),
+          s: '0x' + '2'.repeat(64),
+          v: 27,
+        }),
+      ).rejects.toThrow(BadRequestException);
+      expect(lnUrlForwardService.txHexForward).not.toHaveBeenCalled();
     });
   });
 
