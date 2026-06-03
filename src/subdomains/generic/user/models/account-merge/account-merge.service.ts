@@ -7,6 +7,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
@@ -19,6 +20,10 @@ import { AccountMergeRepository } from './account-merge.repository';
 
 @Injectable()
 export class AccountMergeService {
+  // Only an open merge request touched within this window is reused; older open requests are left
+  // alone so a deliberate re-initiation gets a fresh mail instead of being silently swallowed.
+  private static readonly mergeRequestDedupWindowMinutes = 5;
+
   constructor(
     private readonly accountMergeRepo: AccountMergeRepository,
     private readonly notificationService: NotificationService,
@@ -44,17 +49,33 @@ export class AccountMergeService {
   ): Promise<boolean> {
     if (!master.isMergePossibleWith(slave)) return false;
 
-    const request =
-      (await this.accountMergeRepo.findOne({
-        where: {
-          master: { id: master.id },
-          slave: { id: slave.id },
-          expiration: MoreThan(new Date()),
-        },
-        relations: { master: true, slave: true },
-      })) ?? (await this.accountMergeRepo.save(AccountMerge.create(master, slave, reason)));
+    // Dedup at the entry: several code paths request the same logical merge (ident verification +
+    // re-check, IBAN conflict, mail change). If an open merge for this pair already exists, the
+    // original mail already pointed the user to the confirmation URL — reuse it instead of minting
+    // a new row (which would get a fresh correlationId and slip past the mail-layer debounce).
+    //
+    // The reuse window is bounded to recent requests only (`updated` within the last few minutes):
+    // an open request lives until its expiration (30d for IDENT/IBAN), but dedup should suppress the
+    // near-simultaneous trigger burst — not a user who deliberately re-initiates the flow hours or
+    // days later and legitimately expects a fresh mail.
+    const openRequest = await this.accountMergeRepo.findOneBy({
+      master: { id: master.id },
+      slave: { id: slave.id },
+      isCompleted: false,
+      expiration: MoreThan(new Date()),
+      updated: MoreThan(Util.minutesBefore(AccountMergeService.mergeRequestDedupWindowMinutes)),
+    });
+    if (openRequest) {
+      // keep the audit trail of which trigger reasons hit an already-open merge
+      const reuseMessage = `Merge request ${openRequest.id} reused (reason ${reason}): master ${master.id}, slave ${slave.id}`;
+      await this.kycLogService.createMergeLog(master, reuseMessage);
+      await this.kycLogService.createMergeLog(slave, reuseMessage);
+      return true;
+    }
 
-    const [receiver, mentioned] = sendToSlave ? [request.slave, request.master] : [request.master, request.slave];
+    const request = await this.accountMergeRepo.save(AccountMerge.create(master, slave, reason));
+
+    const [receiver, mentioned] = sendToSlave ? [slave, master] : [master, slave];
     if (!receiver.mail) return false;
 
     const name = mentioned.organizationName ?? mentioned.firstname ?? receiver.organizationName ?? receiver.firstname;
