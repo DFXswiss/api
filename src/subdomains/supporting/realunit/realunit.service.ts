@@ -1288,7 +1288,7 @@ export class RealUnitService {
   // Design note: the standard SwapService payment-info models a DFX-custody swap (user deposits the source
   // asset to a DFX deposit address). For RealUnit the on-chain execution stays the already-built user-signed
   // brokerbot mechanism (buildSwapUnsignedTransaction), so the swap-route deposit address is unused here — we
-  // only consume the route binding, the limit-enforced quote and the SWAP-type TransactionRequest. includeTx
+  // only consume the route binding, the quote, and the SWAP-type TransactionRequest. includeTx
   // is false so no DFX-custody deposit tx is built.
   async getSwapPaymentInfo(user: User, dto: RealUnitSwapDto): Promise<RealUnitSwapPaymentInfoDto> {
     const userData = user.userData;
@@ -1614,7 +1614,7 @@ export class RealUnitService {
     const { recipient, amountWei } = this.parseEvmPaymentRequest(activation.uri, zchfAsset);
 
     const client = this.getEvmClient();
-    // Use the `pending` nonce: in the documented flow the swap tx (broadcast via PUT /sell/:id/broadcast)
+    // Use the `pending` nonce: in the documented flow the swap tx (broadcast via PUT /v1/realunit/swap/:id/broadcast)
     // may still be in the mempool when this pay tx is built. Counting pending txs avoids reusing the
     // swap tx nonce, which would otherwise make both txs collide on the same nonce.
     const [nonce, gasPrice] = await Promise.all([
