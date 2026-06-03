@@ -106,6 +106,27 @@ export function getIdentificationType(type: IdentType, companyId: string): KycId
   }
 }
 
+export enum KycContext {
+  REALUNIT_BUY = 'RealunitBuy',
+  REALUNIT_SELL = 'RealunitSell',
+}
+
+export function contextRequiredSteps(context: KycContext): Set<KycStepName> | undefined {
+  switch (context) {
+    case KycContext.REALUNIT_BUY:
+      return new Set([
+        KycStepName.CONTACT_DATA,
+        KycStepName.PERSONAL_DATA,
+        KycStepName.NATIONALITY_DATA,
+        KycStepName.RECOMMENDATION,
+        KycStepName.RESIDENCE_PERMIT,
+        KycStepName.IDENT,
+      ]);
+    case KycContext.REALUNIT_SELL:
+      return undefined;
+  }
+}
+
 export enum UrlType {
   BROWSER = 'Browser',
   API = 'API',
