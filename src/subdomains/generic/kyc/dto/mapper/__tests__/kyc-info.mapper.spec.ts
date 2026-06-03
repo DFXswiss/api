@@ -244,6 +244,49 @@ describe('KycInfoMapper', () => {
 
       expect(result.processStatus).toBe(KycProcessStatus.PENDING_REVIEW);
     });
+
+    it('keeps returning PendingReview for a ManualReview DfxApproval (unchanged behaviour)', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.DFX_APPROVAL);
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.DFX_APPROVAL, ReviewStatus.MANUAL_REVIEW),
+        ],
+      });
+
+      const result = KycInfoMapper.toDto(userData, false, []) as KycLevelDto;
+
+      expect(result.processStatus).toBe(KycProcessStatus.PENDING_REVIEW);
+    });
+
+    it('returns Failed for a KYC-terminated user even when DfxApproval is Failed', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.DFX_APPROVAL);
+      const userData = buildUserData({
+        kycLevel: KycLevel.REJECTED,
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.DFX_APPROVAL, ReviewStatus.FAILED),
+        ],
+      });
+
+      const result = KycInfoMapper.toDto(userData, false, []) as KycLevelDto;
+
+      expect(result.processStatus).toBe(KycProcessStatus.FAILED);
+    });
+
+    it('returns PendingReview when DfxApproval is Failed but the user is not KYC-terminated', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.DFX_APPROVAL);
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.DFX_APPROVAL, ReviewStatus.FAILED),
+        ],
+      });
+
+      const result = KycInfoMapper.toDto(userData, false, []) as KycLevelDto;
+
+      expect(result.processStatus).toBe(KycProcessStatus.PENDING_REVIEW);
+    });
   });
 
   describe('isRequired flag', () => {
