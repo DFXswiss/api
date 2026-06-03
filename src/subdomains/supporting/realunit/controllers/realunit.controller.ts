@@ -6,6 +6,7 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiExcludeEndpoint,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -641,10 +642,11 @@ export class RealUnitController {
   @ApiOperation({
     summary: 'Get unsigned ZCHF transfer transaction for an Open CryptoPay payment',
     description:
-      'Resolves recipient and exact amount from the OCP payment-link quote (same source the lnurlp callback uses) and builds the unsigned ZCHF ERC-20 transfer transaction to the DFX deposit address. Step 2a of the OCP pay flow; submit the signed transaction via `PUT /pay/submit`.',
+      'Resolves recipient and exact amount from the OCP payment-link quote (same source the lnurlp callback uses) and builds the unsigned ZCHF ERC-20 transfer transaction to the DFX deposit address. Step 2a of the OCP pay flow; submit the signed transaction via `PUT /pay/submit`. Broadcast the swap transaction (`PUT /sell/:id/broadcast`) before requesting this pay transaction — the pay-tx nonce is derived from the pending block so a still-pending swap tx is counted and the two transactions do not collide on the same nonce.',
   })
   @ApiOkResponse({ type: RealUnitOcpPayUnsignedTransactionDto })
   @ApiBadRequestResponse({ description: 'Invalid payment-link/quote reference or insufficient ETH for gas' })
+  @ApiNotFoundResponse({ description: 'Unknown or expired payment-link/quote id' })
   async getOcpPayUnsignedTransaction(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: RealUnitOcpPayDto,
@@ -662,6 +664,7 @@ export class RealUnitController {
   })
   @ApiOkResponse({ type: RealUnitOcpPayResultDto })
   @ApiBadRequestResponse({ description: 'Invalid signed transaction or settlement failure' })
+  @ApiNotFoundResponse({ description: 'Unknown or expired payment-link/quote id' })
   async submitOcpPay(@Body() dto: RealUnitOcpPaySubmitDto): Promise<RealUnitOcpPayResultDto> {
     return this.realunitService.submitOcpPay(dto);
   }
@@ -675,6 +678,8 @@ export class RealUnitController {
   })
   @ApiParam({ name: 'id', description: 'Payment-link or payment-link-payment unique id of the OCP payment' })
   @ApiOkResponse({ type: RealUnitOcpPayStatusDto })
+  @ApiNotFoundResponse({ description: 'No pending payment found for the given id' })
+  @ApiBadRequestResponse({ description: 'Invalid payment-link/quote reference' })
   async getOcpPayStatus(@Param('id') id: string): Promise<RealUnitOcpPayStatusDto> {
     return this.realunitService.getOcpPayStatus(id);
   }

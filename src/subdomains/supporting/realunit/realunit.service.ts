@@ -40,12 +40,13 @@ import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
+import { PaymentLinkEvmHexBlockchains } from 'src/subdomains/core/payment-link/enums';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { LnUrlForwardService } from 'src/subdomains/generic/forwarding/services/lnurl-forward.service';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycContext } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
-import { LnUrlForwardService } from 'src/subdomains/generic/forwarding/services/lnurl-forward.service';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
@@ -1456,6 +1457,13 @@ export class RealUnitService {
     const zchfAsset = await this.getZchfAsset();
     if (!zchfAsset.chainId) throw new BadRequestException('ZCHF asset has no contract address');
 
+    // Fail fast and clean before touching the payment-link engine: on DEV/LOC the resolved method is
+    // SEPOLIA, which the payment-link engine (PaymentRequestMapper / executeHexPayment) does not support —
+    // it would throw a deep, opaque `Invalid method Sepolia`. The OCP submit step is therefore exercisable
+    // end-to-end on mainnet only; the swap-only step is fully DEV-testable. Mirrors the platform's existing
+    // mainnet-only payment-link scope.
+    this.assertPaymentLinkSupportsMethod();
+
     // Activate the quote via the same path as the lnurlp callback to obtain the DFX deposit recipient and amount
     const activation = await this.lnUrlForwardService.lnurlpCallbackForward(paymentLinkId, {
       method: this.tokenBlockchain,
@@ -1467,11 +1475,14 @@ export class RealUnitService {
       throw new BadRequestException('OCP quote did not return an EVM payment request');
     }
 
-    const { recipient, amountWei } = this.parseEvmPaymentRequest(activation.uri);
+    const { recipient, amountWei } = this.parseEvmPaymentRequest(activation.uri, zchfAsset);
 
     const client = this.getEvmClient();
+    // Use the `pending` nonce: in the documented flow the swap tx (broadcast via PUT /sell/:id/broadcast)
+    // may still be in the mempool when this pay tx is built. Counting pending txs avoids reusing the
+    // swap tx nonce, which would otherwise make both txs collide on the same nonce.
     const [nonce, gasPrice] = await Promise.all([
-      client.getTransactionCount(senderAddress),
+      client.getTransactionCount(senderAddress, 'pending'),
       client.getRecommendedGasPrice(),
     ]);
 
@@ -1509,8 +1520,14 @@ export class RealUnitService {
 
   // Step 2b: reconstructs the user-signed hex and submits it into the existing lnurlp tx settlement path so
   // DFX validates (recipient / amount / min-fee / ERC-20 selector), broadcasts, and settles the OCP quote.
+  // Auth note: the JWT (USER guard) is an access gate, NOT an ownership check — an OCP payment-link quote is
+  // a POS payment payable by whoever holds the quote, and the downstream lnurlp path re-validates
+  // recipient / amount / min-fee server-side.
   async submitOcpPay(dto: RealUnitOcpPaySubmitDto): Promise<RealUnitOcpPayResultDto> {
     const zchfAsset = await this.getZchfAsset();
+
+    // Fail fast on unsupported methods (e.g. SEPOLIA on DEV/LOC) — see createOcpPayUnsignedTransaction.
+    this.assertPaymentLinkSupportsMethod();
 
     const signedHex = this.reconstructSignedTransaction(dto);
 
@@ -1525,21 +1542,49 @@ export class RealUnitService {
   }
 
   // Step 3: exposes the OCP payment status by reusing the lnurlp wait path.
+  // Auth note: the JWT (USER guard) is an access gate, NOT an ownership check — an OCP payment-link quote is
+  // a POS payment payable by whoever holds the quote, and the downstream lnurlp path re-validates
+  // recipient / amount / min-fee server-side.
   async getOcpPayStatus(paymentLinkId: string): Promise<RealUnitOcpPayStatusDto> {
     const { status } = await this.lnUrlForwardService.waitForPayment(paymentLinkId);
     return { status };
   }
 
+  // Guards the OCP pay endpoints against payment methods the payment-link engine cannot settle. On DEV/LOC
+  // the resolved method is SEPOLIA, which PaymentRequestMapper / executeHexPayment reject — without this guard
+  // a deep, opaque `Invalid method Sepolia` would bubble up. Fails fast with a clear, typed error instead.
+  private assertPaymentLinkSupportsMethod(): void {
+    if (!PaymentLinkEvmHexBlockchains.includes(this.tokenBlockchain)) {
+      throw new BadRequestException(
+        `OCP pay is not available for ${this.tokenBlockchain}: the payment-link engine supports mainnet EVM methods only`,
+      );
+    }
+  }
+
   // Parses an ERC-20 EVM payment request URI of the form
   // `ethereum:<tokenContract>@<chainId>/transfer?address=<recipient>&uint256=<amount>` into recipient + amount.
-  private parseEvmPaymentRequest(uri: string): { recipient: string; amountWei: BigNumber } {
+  // Cross-checks the token contract in the URI path against the expected ZCHF asset and validates the
+  // recipient/amount so a malformed URI surfaces a typed BadRequestException instead of a raw parse throw.
+  private parseEvmPaymentRequest(uri: string, zchfAsset: Asset): { recipient: string; amountWei: BigNumber } {
+    // path token contract: `ethereum:<tokenContract>@<chainId>/transfer?...`
+    const uriTokenContract = uri.split('?')[0]?.split('@')[0]?.split(':')[1];
+    if (!uriTokenContract || !Util.equalsIgnoreCase(uriTokenContract, zchfAsset.chainId)) {
+      throw new BadRequestException('EVM payment request token contract does not match expected ZCHF asset');
+    }
+
     const query = uri.split('?')[1];
     const params = new URLSearchParams(query);
     const recipient = params.get('address');
     const amount = params.get('uint256');
     if (!recipient || !amount) throw new BadRequestException('Invalid EVM payment request URI');
 
-    return { recipient, amountWei: BigNumber.from(amount) };
+    try {
+      if (!ethers.utils.isAddress(recipient)) throw new Error('invalid recipient address');
+      const amountWei = BigNumber.from(amount);
+      return { recipient, amountWei };
+    } catch {
+      throw new BadRequestException('Invalid EVM payment request recipient or amount');
+    }
   }
 
   // --- Admin Methods ---

@@ -95,6 +95,18 @@ export enum PaymentMerchantStatus {
   PROCESSED = 'Processed',
 }
 
+// EVM blockchains the payment-link engine accepts for signed-hex payments (PaymentRequestMapper +
+// PaymentQuoteService.executeHexPayment). Mainnet-only — testnets such as Sepolia are intentionally absent.
+export const PaymentLinkEvmHexBlockchains = [
+  Blockchain.ETHEREUM,
+  Blockchain.ARBITRUM,
+  Blockchain.OPTIMISM,
+  Blockchain.BASE,
+  Blockchain.GNOSIS,
+  Blockchain.POLYGON,
+  Blockchain.BINANCE_SMART_CHAIN,
+];
+
 // Blockchains where user broadcasts tx and sends txId (not signed hex)
 export const UnverifiedTxIdBlockchains = [Blockchain.MONERO, Blockchain.ZANO, Blockchain.TRON, Blockchain.CARDANO];
 
