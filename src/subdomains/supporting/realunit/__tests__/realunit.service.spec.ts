@@ -554,16 +554,21 @@ describe('RealUnitService', () => {
       expect(transactionRequestService.updateEstimatedAmount).toHaveBeenCalledWith(99, 960);
     });
 
-    it('should surface a typed KYC-level error when the trading limit is exceeded (limits are NOT bypassed)', async () => {
+    it('should NOT throw a KYC-level error on a trading-limit signal — the swap is limit-exempt by design', async () => {
+      // KYC trading limits are enforced at the fiat boundary (buy/sell). A REALU -> ZCHF swap is a crypto ->
+      // crypto self-custody on-chain action, so the non-fiat RealUnit carve-out in TransactionHelper.getLimits
+      // means QuoteError.LIMIT_EXCEEDED can never fire for this pair. Even on a (hypothetical) limit signal the
+      // service must surface the DTO error rather than map it to a KYC level.
       swapService.createSwapPaymentInfo.mockResolvedValue({
         ...swapInfo,
         isValid: false,
         error: QuoteError.LIMIT_EXCEEDED,
       } as any);
 
-      await expect(service.getSwapPaymentInfo(buildUser(), { amount: 100000 } as any)).rejects.toThrow(
-        ForbiddenException,
-      );
+      const result = await service.getSwapPaymentInfo(buildUser(), { amount: 100000 } as any);
+
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.LIMIT_EXCEEDED);
     });
 
     it('should require RealUnit registration', async () => {

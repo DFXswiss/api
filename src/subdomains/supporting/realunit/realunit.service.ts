@@ -1276,11 +1276,14 @@ export class RealUnitService {
   // the /sell quote does) would be a hard UX blocker. The request id returned here feeds
   // `createSwapUnsignedTransaction` (PUT /swap/:id/unsigned-transaction).
   //
-  // Gating mirrors the sell path exactly (registration + KYC Level 30) and KYC trading LIMITS are still
-  // enforced: SwapService.createSwapPaymentInfo runs the same TransactionHelper.getTxDetails limit check and
-  // surfaces QuoteError.LIMIT_EXCEEDED, which we translate into the same KYC-Level-50 exception the sell path
-  // throws. We deliberately reuse the existing crypto Swap-route machinery (TransactionRequestType.SWAP) so
-  // this is a genuine SWAP request — NOT a Sell — and no fiat route/IBAN is created.
+  // Gating mirrors the sell path's access gates (registration + KYC Level 30) — these decide WHO may use the
+  // RealUnit features at all and are enforced here. KYC TRADING LIMITS, however, do NOT apply to this swap:
+  // they are enforced at the fiat boundary (buy/sell), whereas a REALU -> ZCHF swap is a crypto -> crypto,
+  // self-custody, on-chain Aktionariat-brokerbot action that DFX only relays. The existing non-fiat RealUnit
+  // carve-out in TransactionHelper.getLimits returns Number.MAX_VALUE for every RealUnit transaction that is
+  // not selling-REALU-for-fiat, so QuoteError.LIMIT_EXCEEDED can never fire for this pair (see step 5 below).
+  // We deliberately reuse the existing crypto Swap-route machinery (TransactionRequestType.SWAP) so this is a
+  // genuine SWAP request — NOT a Sell — and no fiat route/IBAN is created.
   //
   // Design note: the standard SwapService payment-info models a DFX-custody swap (user deposits the source
   // asset to a DFX deposit address). For RealUnit the on-chain execution stays the already-built user-signed
@@ -1310,9 +1313,8 @@ export class RealUnitService {
     if (!realuAsset) throw new NotFoundException('REALU asset not found');
     if (!zchfAsset) throw new NotFoundException('ZCHF asset not found');
 
-    // 4. Create the limit-enforced SWAP quote + SWAP-type TransactionRequest via the crypto Swap-route
-    // machinery (IBAN-free). includeTx=false: the on-chain execution uses the user-signed brokerbot tx, not a
-    // DFX-custody deposit tx.
+    // 4. Create the SWAP quote + SWAP-type TransactionRequest via the crypto Swap-route machinery (IBAN-free).
+    // includeTx=false: the on-chain execution uses the user-signed brokerbot tx, not a DFX-custody deposit tx.
     const swapPaymentInfo = await this.swapService.createSwapPaymentInfo(
       user.id,
       {
@@ -1325,15 +1327,13 @@ export class RealUnitService {
       false,
     );
 
-    // 5. Check if limit exceeded (do NOT bypass — same translation as the sell path)
-    if (swapPaymentInfo.error === QuoteError.LIMIT_EXCEEDED) {
-      throw new KycLevelRequiredException(
-        KycLevel.LEVEL_50,
-        userData.kycLevel,
-        'KYC Level 50 required for RealUnit swap exceeding trading limit',
-        KycContext.REALUNIT_SELL,
-      );
-    }
+    // 5. No KYC-trading-limit throw here BY DESIGN. KYC trading limits are enforced at the fiat boundary
+    // (buy/sell); a REALU -> ZCHF swap is a crypto -> crypto, self-custody, on-chain Aktionariat-brokerbot
+    // action and is limit-exempt by the existing non-fiat RealUnit carve-out in TransactionHelper.getLimits
+    // (it returns Number.MAX_VALUE for any RealUnit tx that is not selling-REALU-for-fiat), so the quote can
+    // never carry QuoteError.LIMIT_EXCEEDED for this pair. We still surface any genuine quote error (e.g.
+    // min/max volume) via isValid/error on the returned DTO, but we do NOT map a limit error to a KYC level
+    // here — that would be misleading dead code. Do not re-add a LIMIT_EXCEEDED -> KYC-level throw.
 
     // 6. Fetch gas info and anchor the estimated ZCHF against the live on-chain brokerbot price (same as sell)
     const evmClient = this.getEvmClient();

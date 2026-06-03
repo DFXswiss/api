@@ -626,10 +626,12 @@ export class RealUnitController {
   @ApiOperation({
     summary: 'Get swap quote for an IBAN-free REALU -> ZCHF swap (proceeds stay in the user wallet)',
     description:
-      'Creates a SWAP-type transaction request for a REALU -> ZCHF swap WITHOUT a fiat IBAN, Sell route or payout, so the ZCHF proceeds stay in the connected wallet (to then pay at an OCP/SPAR POS). Same registration + KYC Level 30 gating as sell, and KYC trading limits are still enforced (a quote over the limit returns a typed error / KYC-level requirement). Step 0 of the OCP pay flow: feed the returned `id` into `PUT /swap/:id/unsigned-transaction`. Requires KYC Level 30 and RealUnit registration.',
+      'Creates a SWAP-type transaction request for a REALU -> ZCHF swap WITHOUT a fiat IBAN, Sell route or payout, so the ZCHF proceeds stay in the connected wallet (to then pay at an OCP/SPAR POS). Same registration + KYC Level 30 gating as sell. KYC trading limits do NOT apply: they are enforced at the fiat boundary (buy/sell), whereas this is a crypto -> crypto self-custody on-chain swap (limit-exempt by design). Step 0 of the OCP pay flow: feed the returned `id` into `PUT /swap/:id/unsigned-transaction`. Requires KYC Level 30 and RealUnit registration.',
   })
   @ApiOkResponse({ type: RealUnitSwapPaymentInfoDto })
-  @ApiBadRequestResponse({ description: 'KYC Level 30 required, registration missing, or trading limit exceeded' })
+  @ApiBadRequestResponse({
+    description: 'KYC Level 30 required, registration missing, or invalid swap amount (min/max volume)',
+  })
   async getSwapPaymentInfo(
     @GetJwt() jwt: JwtPayload,
     @Body() dto: RealUnitSwapDto,
