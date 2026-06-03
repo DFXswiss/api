@@ -1,3 +1,5 @@
+# Legacy Azure deploy — will be removed after DFX server migration cutover.
+# New deploy pipeline: dfx-api-prd.yaml (Docker + SSH to dfxprd).
 name: API PRD CI/CD
 
 on:

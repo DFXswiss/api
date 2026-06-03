@@ -3,8 +3,15 @@ import { Util } from 'src/shared/utils/util';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
-import { KycStepName, KycStepRepeatable } from '../../enums/kyc-step-name.enum';
-import { KycStepType, getKycStepIndex, getKycTypeIndex, requiredKycSteps } from '../../enums/kyc.enum';
+import { KycStepName, KycStepNonUserActionable, KycStepRepeatable } from '../../enums/kyc-step-name.enum';
+import {
+  KycContext,
+  KycStepType,
+  contextRequiredSteps,
+  getKycStepIndex,
+  getKycTypeIndex,
+  requiredKycSteps,
+} from '../../enums/kyc.enum';
 import { ReviewStatus } from '../../enums/review-status.enum';
 import { KycLevelDto, KycProcessStatus, KycSessionDto } from '../output/kyc-info.dto';
 import { KycStepMapper } from './kyc-step.mapper';
@@ -15,16 +22,26 @@ export class KycInfoMapper {
     withSession: boolean,
     kycClients: Wallet[],
     currentStep?: KycStep,
+    context?: KycContext,
     isMergeProcessing = false,
   ): KycLevelDto | KycSessionDto {
     const kycSteps = KycInfoMapper.getUiSteps(userData);
+    // A non-user-actionable step (e.g. DfxApproval, a DFX-side decision) is
+    // never the user's `currentStep` — the user has no action to take on it, so
+    // surfacing it as current produced a dead-end (blank) screen on the client.
+    if (currentStep && KycStepNonUserActionable.includes(currentStep.name)) currentStep = undefined;
+
     currentStep ??=
-      kycSteps.find((s) => s.status === ReviewStatus.IN_PROGRESS) ??
-      kycSteps.find((s) => s.status === ReviewStatus.FAILED);
+      kycSteps.find((s) => s.status === ReviewStatus.IN_PROGRESS && !KycStepNonUserActionable.includes(s.name)) ??
+      kycSteps.find((s) => s.status === ReviewStatus.FAILED && !KycStepNonUserActionable.includes(s.name));
 
     const userKycClients = kycClients.filter((kc) => userData.kycClientList.includes(kc.id));
 
-    const requiredStepNames = new Set(requiredKycSteps(userData));
+    const allRequiredSteps = requiredKycSteps(userData);
+    const contextSteps = context ? contextRequiredSteps(context) : undefined;
+    const requiredStepNames = new Set(
+      contextSteps ? allRequiredSteps.filter((s) => contextSteps.has(s)) : allRequiredSteps,
+    );
 
     const dto: KycLevelDto | KycSessionDto = {
       kycLevel: userData.kycLevelDisplay,
@@ -71,8 +88,16 @@ export class KycInfoMapper {
       ReviewStatus.ON_HOLD,
     ]);
 
-    if (requiredSteps.some((s) => actionable.has(s.status))) return KycProcessStatus.IN_PROGRESS;
-    if (requiredSteps.some((s) => pending.has(s.status))) return KycProcessStatus.PENDING_REVIEW;
+    // A non-user-actionable step (e.g. DfxApproval) is a backend/DFX-side
+    // decision: while open it is "awaiting DFX", never a user action. Treat it
+    // as pending-review even when its raw status is in the actionable set, so it
+    // can never push the client into the user-actionable IN_PROGRESS lane.
+    const isUserActionable = (s: KycStep) => actionable.has(s.status) && !KycStepNonUserActionable.includes(s.name);
+    const isPendingReview = (s: KycStep) =>
+      pending.has(s.status) || (KycStepNonUserActionable.includes(s.name) && actionable.has(s.status));
+
+    if (requiredSteps.some(isUserActionable)) return KycProcessStatus.IN_PROGRESS;
+    if (requiredSteps.some(isPendingReview)) return KycProcessStatus.PENDING_REVIEW;
     return KycProcessStatus.COMPLETED;
   }
 

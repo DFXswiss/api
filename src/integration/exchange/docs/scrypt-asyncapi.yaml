@@ -1,0 +1,3791 @@
+asyncapi: 3.0.0
+id: 'urn:uuid:2e6c3c9a-5685-11ee-8c99-0242ac120002'
+info:
+  title: Scrypt WebSocket API
+  version: 1.0.0
+  x-logo: /scrypt-logo-dark.svg
+  x-download-name: scrypt-api.asyncapi.yaml
+  description: >
+    The websocket API provides the user with access to real-time market data subscription,
+    orders execution and balance information.
+
+    ## API Keys
+        
+    If you do not have an API key and a signature assigned, you will need to obtain them first. You can do so by using the following method.  
+
+    Email Scrypt support staff at: [trade@scrypt.swiss](mailto:trade@scrypt.swiss)  
+
+    You will need separate API Keys for connecting to the sandbox and production environments.
+
+    ## Rate Limits  
+
+    There is no limit to how many concurrent websocket connections you're allowed, though this may change in the future.
+    If you expect to have more than ~10 active connections, please contact [trade@scrypt.swiss](mailto:trade@scrypt.swiss).
+
+    ## General Notes
+
+      - Timestamps: In all API requests, the user has the option to
+      provide a timestamp (ts) in an ISO-8601 UTC string format with
+      microsecond resolution. While optional, we recommend taking
+      advantage of this field, as it will both enable our system to
+      monitor client-server latency and allow certain security features.
+
+      - All system responses are tied to a specific client request. The
+      user should provide a unique reqid (Request ID) on each request,
+      and the system will echo this reqid on the corresponding
+      responses.
+  contact:
+    name: SCRYPT Support
+    url: 'https://scrypt.swiss'
+    email: info@scrypt.swiss
+  license:
+    name: Proprietary
+  tags:
+    - name: Protocol
+    - name: Security Master
+    - name: Market Data
+    - name: Orders
+    - name: Post Trade
+    - name: RFQ
+    - name: Balances and Credit
+    - name: User Administration
+    - name: Servers
+defaultContentType: application/json
+x-fix-api:
+  url: https://uploads-ssl.webflow.com/65b7df67f3cf496d06acb907/65d77e3e7a09868617766110_Scrypt%20FIX%20API.pdf
+servers:
+  Production:
+    host: otc.scrypt.swiss
+    pathname: /ws/v1
+    protocol: wss
+    description: Production WebSocket endpoint
+    security:
+      - $ref: '#/components/securitySchemes/ApiKey'
+      - $ref: '#/components/securitySchemes/ApiTimestamp'
+      - $ref: '#/components/securitySchemes/ApiSign'
+    tags:
+      - name: Servers
+  Sandbox:
+    host: demo.scrypt.swiss
+    pathname: /ws/v1
+    protocol: wss
+    description: Sandbox WebSocket endpoint
+    security:
+      - $ref: '#/components/securitySchemes/ApiKey'
+      - $ref: '#/components/securitySchemes/ApiTimestamp'
+      - $ref: '#/components/securitySchemes/ApiSign'
+    tags:
+      - name: Servers
+x-auth-examples:
+  - name: WS
+    language: Python
+    code: |
+      ```python
+      # to install websocket lib:
+      # $ pip install websocket-client
+      from websocket import create_connection
+      import datetime
+      import hmac
+      import hashlib
+      import base64
+
+      api_key = "<apikey>"
+      api_secret = "<apisecret>"
+      utc_now = datetime.datetime.utcnow()
+      utc_datetime = utc_now.strftime("%Y-%m-%dT%H:%M:%S.000000Z")
+
+      host = "<websocket host>" # demo.scrypt.swiss, for example
+      path = "/ws/v1"
+      params = "\n".join([
+        "GET",
+        utc_datetime,
+        host,
+        path,
+      ])
+      hash = hmac.new(
+        api_secret.encode('ascii'), params.encode('ascii'), hashlib.sha256)
+      hash.hexdigest()
+      signature = base64.urlsafe_b64encode(hash.digest()).decode()
+      header = {
+        "ApiKey": api_key,
+        "ApiSign": signature,
+        "ApiTimestamp": utc_datetime,
+      }
+
+      ws = create_connection("wss://" + host + path, header=header)
+
+      while True:
+        print(ws.recv())
+      ```
+  - name: REST
+    language: Python
+    code: |
+      ```python
+      # to install requests lib:
+      # $ pip install requests
+      import requests
+      import datetime
+      import hmac
+      import hashlib
+      import base64
+
+      api_key = "<apikey>"
+      api_secret = "<apisecret>"
+      utc_now = datetime.datetime.utcnow()
+      utc_datetime = utc_now.strftime("%Y-%m-%dT%H:%M:%S.000000Z")
+
+      host = "<host>" # demo.scrypt.swiss, for example
+      path = "/v1"
+      query = ""
+      body = ""
+
+      params = [
+        "GET",
+        utc_datetime,
+        host,
+        path,
+      ]
+      endpoint = "https://" + host + path
+      if query:
+        endpoint += "?" + query
+        params.append(query)
+      if body:
+        params.append(body)
+
+      payload = "\n".join(params)
+      hashvalue = hmac.new(
+        api_secret.encode('ascii'), payload.encode('ascii'), hashlib.sha256)
+      hashvalue.hexdigest()
+      signature = base64.urlsafe_b64encode(hashvalue.digest()).decode()
+      headers = {
+        "ApiKey": api_key,
+        "ApiSign": signature,
+        "ApiTimestamp": utc_datetime,
+      }
+
+      print(requests.get(url=endpoint, headers=headers))
+      ```
+channels:
+  hello:
+    address: hello
+    messages:
+      helloEventMsg:
+        name: Hello
+        payload:
+          $ref: '#/components/schemas/HelloEvent'
+        examples:
+          - name: Hello
+            payload:
+              type: hello
+              ts: "2019-10-16T10:41:23.168807Z"
+              session_id: "1109RQ13KXR00"
+  subscribe:
+    address: subscribe
+    messages:
+      subscribeMessage:
+        name: Subscribe
+        payload:
+          type: object
+          required:
+            - reqid
+            - ts
+            - type
+            - streams
+          properties:
+            reqid:
+              type: integer
+              description: >
+                A number that identifies this request and will be included on responses to this request.
+                <div class="callout"><code>reqid</code> cannot be equal to 0.</div>
+            type:
+              type: string
+              enum: [subscribe]
+              description: '"subscribe" for initializing a subscription'
+            tag:
+              type: string
+              description: Optional user generated tag to attach to stream data
+            ts:
+              type: string
+              format: date-time
+              description: An ISO-8601 UTC string of the form 2019-02-13T05:17:32.000000Z
+            streams:
+              $ref: '#/components/schemas/AllStreams'
+        examples:
+          - name: Subscribe
+            payload:
+              reqid: 1
+              type: subscribe
+              tag: "my-tag"
+              streams:
+                - name: MessageType
+                  Arg1: 1
+              ts: "2019-02-13T05:17:32.000000Z"
+  amend:
+    address: amend
+    messages:
+      amendMessage:
+        name: Amend
+        payload:
+          type: object
+          required:
+            - reqid
+            - type
+            - tag
+            - streams
+          additionalProperties: false
+          properties:
+            reqid:
+              type: integer
+              description: Request ID - will be echoed back in the response structure
+            type:
+              type: string
+              enum: [amend]
+              description: '"amend" for amending a subscription'
+            tag:
+              type: string
+              description: Optional user generated tag to attach to stream data
+            streams:
+              type: array
+              items:
+                oneOf:
+                  - $ref: '#/components/schemas/MarketDataSnapshotSubscription'
+                  - $ref: '#/components/schemas/BalanceSubscription'
+                  - $ref: '#/components/schemas/SecuritySubscription'
+                  - $ref: '#/components/schemas/CurrencySubscription'
+                  - $ref: '#/components/schemas/CurrencyConversionSubscription'
+                  - $ref: '#/components/schemas/OrderSubscription'
+                  - $ref: '#/components/schemas/ExecutionReportSubscription'
+                  - $ref: '#/components/schemas/TradeSubscription'
+                  - $ref: '#/components/schemas/QuoteSubscription'
+                  - $ref: '#/components/schemas/ExposureSubscription'
+                  - $ref: '#/components/schemas/BalanceTransactionSubscription'
+                  - $ref: '#/components/schemas/UserSubscription'
+              description: Streams to subscribe to
+        examples:
+          - name: Amend
+            payload:
+              reqid: 1
+              type: amend
+              ts: "2019-02-13T05:17:32.000000Z"
+              streams:
+                - name: Security
+  page:
+    address: page
+    messages:
+      pageMessage:
+        name: Page
+        payload:
+          type: object
+          required:
+            - reqid
+            - type
+            - data
+          properties:
+            reqid:
+              type: integer
+              description: The request ID to continue the page, must match the original request ID
+            type:
+              type: string
+              enum: [page]
+              description: '"page" for continuing the paged stream'
+            data:
+              type: array
+              items:
+                type: object
+                required:
+                  - name
+                  - after
+                properties:
+                  name:
+                    type: string
+                    description: Subscription name to continue the page
+                  after:
+                    type: string
+                    description: Delivered `next` value from the paged stream payload
+              description: Stream request data to continue
+        examples:
+          - name: Page
+            payload:
+              reqid: 1
+              type: page
+              data:
+                - name: Security
+                  after: abcdefg
+  cancel:
+    address: cancel
+    messages:
+      cancelMessage:
+        name: Cancel
+        payload:
+          type: object
+          required:
+            - reqid
+            - type
+          properties:
+            reqid:
+              type: integer
+              description: Request ID to cancel
+            type:
+              type: string
+              enum: [cancel]
+              description: '"cancel" for cancelling the subscription'
+        examples:
+          - name: Cancel
+            payload:
+              reqid: 1
+              type: cancel
+  Security:
+    address: Security
+    messages:
+      securityEventMsg:
+        name: SecurityEvent
+        payload:
+          allOf:
+            - $ref: '#/components/schemas/BaseResponse'
+            - type: object
+              $id: 'SecurityEvent'
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [Security]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/SecurityEvent'
+        examples:
+          - name: SecurityEvent
+            payload:
+              reqid: 2
+              type: Security
+              ts: "2021-09-14T22:11:47.512168Z"
+              initial: true
+              seqNum: 1
+              data:
+                - Timestamp: "2021-09-14T22:11:47.512168Z"
+                  UpdateAction: Update
+                  SecurityID: 2
+                  Symbol: ETH-USD
+                  MinPriceIncrement: "0.01"
+                  MinSizeIncrement: "0.00000001"
+                  MinAmtIncrement: "0.01"
+                  MinimumSize: "0.00000001"
+                  MaximumSize: "10000000"
+                  QuoteCurrency: "USD"
+                  BaseCurrency: "ETH"
+                  DefaultPriceIncrement: "0.01"
+                  DefaultSizeIncrement: "0.0001"
+                  PriceDisplaySpec: "M.m"
+                  SizeDisplaySpec: "M.m"
+                  NormalSize: "2"
+                  ProductType: "Spot"
+                  PositionCurrency: "ETH"
+                  SettlementCurrency: "USD"
+                  NotionalMultiplier: "1"
+                  SizeBuckets:
+                    - Size: "0"
+                  DisplaySymbol: "ETH-USD"
+                  Description: "Ethereum/U.S. Dollar"
+  Currency:
+    address: Currency
+    messages:
+      currencyEventMsg:
+        name: CurrencyEvent
+        payload:
+          allOf:
+            - $ref: '#/components/schemas/BaseResponse'
+            - type: object
+              $id: 'CurrencyEvent'
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [Currency]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CurrencyEvent'
+        examples:
+          - name: CurrencyEvent
+            payload:
+              reqid: 2
+              type: Currency
+              ts: "2021-09-14T22:11:47.512168Z"
+              initial: true
+              seqNum: 1
+              data:
+                - Timestamp: "2021-09-14T22:11:47.512168Z"
+                  UpdateAction: Update
+                  CurrencyID: 2
+                  Symbol: USD
+                  MinIncrement: "0.01"
+                  DefaultIncrement: "0.01"
+                  Description: "U.S. Dollar"
+                - Timestamp: "2021-09-14T22:11:47.512168Z"
+                  UpdateAction: Update
+                  CurrencyID: 17
+                  Symbol: ETH
+                  MinIncrement: "0.00000001"
+                  DefaultIncrement: "0.0001"
+                  Description: "Ethereum"
+  MarketDataSnapshot:
+    address: MarketDataSnapshot
+    messages:
+      marketDataSnapshotEventMsg:
+        name: MarketDataSnapshotEvent
+        payload:
+          allOf:
+            - $ref: '#/components/schemas/BaseResponse'
+            - type: object
+              $id: 'MarketDataSnapshotEvent'
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [MarketDataSnapshot]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/MarketDataSnapshotEvent'
+        examples:
+          - name: MarketDataSnapshotEvent
+            payload:
+              reqid: 2
+              type: MarketDataSnapshot
+              ts: "2021-09-14T22:20:49.862930Z"
+              initial: true
+              seqNum: 1
+              data:
+                - Timestamp: "2021-09-14T22:20:49.862930Z"
+                  Symbol: "BTC-USD"
+                  Status: "Online"
+                  Bids:
+                    - Price: "46817.27965000"
+                      Size: "1.00000000"
+                    - Price: "46816.08025000"
+                      Size: "2.00000000"
+                  Offers:
+                    - Price: "46868.59755873"
+                      Size: "1.00000000"
+                    - Price: "46870.33345500"
+                      Size: "2.00000000"
+  Balance:
+    address: Balance
+    messages:
+      balanceEventMsg:
+        name: BalanceEvent
+        payload:
+          allOf:
+            - $ref: '#/components/schemas/BaseResponse'
+            - name: BalancePayload
+              type: object
+              $id: 'BalanceEvent'
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [Balance]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/BalanceEvent'
+        examples:
+          - name: BalanceEvent
+            payload:
+              reqid: 11
+              type: Balance
+              ts: "2021-09-16T16:17:06.892914Z"
+              initial: true
+              seqNum: 1
+              data:
+                - Currency: "USD"
+                  Amount: "-1928479.77953598"
+                  AvailableAmount: "-1928479.77953598"
+                  Equivalent:
+                    Currency: "USD"
+                    Amount: "-1928479.78"
+                    AvailableAmount: "-1928479.78"
+                - Currency: "BTC"
+                  Amount: "40.15480673"
+                  AvailableAmount: "40.15480673"
+                  Equivalent:
+                    Currency: "USD"
+                    Amount: "1930241.56"
+                    AvailableAmount: "1930241.56"
+                - Currency: "ETH"
+                  Amount: "11.00000000"
+                  AvailableAmount: "11.00000000"
+                  Equivalent:
+                    Currency: "USD"
+                    Amount: "39753.78"
+                    AvailableAmount: "39753.78"
+                - Currency: "BCH"
+                  Amount: "23.68787010"
+                  AvailableAmount: "23.68787010"
+                  Equivalent:
+                    Currency: "USD"
+                    Amount: "15066.67"
+                    AvailableAmount: "15066.67"
+                - Currency: "ADA"
+                  Amount: "10330.26832917"
+                  AvailableAmount: "10330.26832917"
+                  Equivalent:
+                    Currency: "USD"
+                    Amount: "25340.27"
+                    AvailableAmount: "25340.27"
+  CurrencyConversion:
+    address: CurrencyConversion
+    messages:
+      currencyConversionEventMsg:
+        name: CurrencyConversionEvent
+        payload:
+          allOf:
+            - $ref: '#/components/schemas/BaseResponse'
+            - type: object
+              $id: 'CurrencyConversionEvent'
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [CurrencyConversion]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/CurrencyConversionEvent'
+        examples:
+          - name: CurrencyConversionEvent
+            payload:
+              reqid: 4
+              type: CurrencyConversion
+              ts: "2021-09-14T22:16:18.604996Z"
+              initial: true
+              seqNum: 1
+              data:
+                - Timestamp: "2021-09-14T22:16:18.604674Z"
+                  EquivalentCurrency: "USD"
+                  Currency: "ETH"
+                  Rate: "3368.16"
+                  Status: "Online"
+                  ConversionPath: "(ETH-USD)"
+                - Timestamp: "2021-09-14T22:16:18.604674Z"
+                  EquivalentCurrency: "USD"
+                  Currency: "BTC"
+                  Rate: "46841.35"
+                  Status: "Online"
+                  ConversionPath: "(BTC-USD)"
+                - Timestamp: "2021-09-14T22:16:18.604674Z"
+                  EquivalentCurrency: "USD"
+                  Currency: "BCH-USD"
+                  Rate: "639.530000000000"
+                  Status: "Online"
+                  ConversionPath: "(BCH-USD)"
+  Order:
+    address: Order
+    description: >
+      ## Orders
+      
+      This section outlines how to send orders using the Scrypt API. To send orders, first subscribe to the [ExecutionReport](#api-operation-receive-ExecutionReport) stream. All order responses and updates are sent as [ExecutionReport](#api-operation-receive-ExecutionReport)'s. Send requests with the [NewOrderSingle](#api-operation-send-NewOrderSingle), [OrderCancelRequest](#api-operation-send-OrderCancelRequest), [OrderCancelReplaceRequest](#api-operation-send-OrderCancelReplaceRequest), and [OrderControlRequest](#api-operation-send-OrderControlRequest) messages.
+      
+      A typical trading strategy would do the following:
+      
+        1. Subscribe to `MarketDataSnapshot` for the relevant securities
+        2. Subscribe to `ExecutionReport` with `StartDate` of the `Timestamp` of the last `ExecutionReport` processed to recover order state
+        3. Subscribe to `Trade` with `StartDate` of the `Timestamp` of the last `Trade` processed to recover any missed trades
+        4. Maintain a map of (`OrderID`, last received `ExecutionReport`) for open orders
+        5. Maintain a set of `ClOrdID` for each pending request
+        6. To submit an order, first generate a new `ClOrdID`. Send a `NewOrderSingle` specifying the `ClOrdID`, `Side`, `Price`, `OrderQty`, `Strategy`, etc. for that request
+        7. The response for the request will be received on the `ExecutionReport` stream with the `ClOrdID` being the `ClOrdID` specified on the `NewOrderSingle`. If the order is accepted (`ExecType=PendingNew`), then add this order to the set of open orders
+        8. To cancel or modify the open order, generate a new `ClOrdID` and send an `OrderCancelRequest` or `OrderCancelReplaceRequest` specifying the `ClOrdID`, `OrigClOrdID` from the previous successful request, and remaining parameters
+        9. Fills will be received as `ExecutionReport` with `ExecType=Trade`
+      
+      <div class="callout">
+        To generate a <code>ClOrdID</code>, we recommend using a <a href="https://en.wikipedia.org/wiki/Universally_unique_identifier">UUID4</a> or another globally unique identifier. <code>ClOrdID</code> must be unique daily and among an y open order and must be less than 36 characters.
+      </div>
+
+      <div class="callout">
+        The orders API roughly follows the same semantics as the <a href="https://www.fixtrading.org/standards/">FIX Protocol</a>, though with some notable differences, see <a href="#order-state-change-matrices">Order State Change Matrices</a> for more details.
+      </div>
+
+
+      ## Supported Order Strategies
+
+      ### SteadyPace
+
+      A schedule-based algorithm that divides an order into suborders (clips) and submits them at equal, user defined intervals.
+      
+      #### SteadyPace Parameters
+
+      <table>
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Type</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>ClipSize</code></td>
+            <td>Qty</td>
+            <td>Y</td>
+            <td>
+              A quantity (subset of the total order size) to send on each
+              execution of the schedule.
+            </td>
+          </tr>
+          <tr>
+            <td><code>ClipInterval</code></td>
+            <td>string</td>
+            <td>Y</td>
+            <td>
+              Time interval between individual clips specified as an interval
+              string.
+            </td>
+          </tr>
+          <tr>
+            <td><code>StartTime</code></td>
+            <td>string</td>
+            <td>N</td>
+            <td>
+              Time at which this order will activate and begin sending orders.
+              An ISO-8601 UTC string of the form
+              <code>2019-02-13T05:17:32.000000Z</code>
+            </td>
+          </tr>
+          <tr>
+            <td><code>EndTime</code></td>
+            <td>string</td>
+            <td>N</td>
+            <td>
+              Optional expire time for the order. An ISO-8601 UTC string of
+              the form <code>2019-02-13T05:17:32.000000Z</code>
+            </td>
+          </tr>
+          <tr>
+            <td><code>Variance</code></td>
+            <td>decimal</td>
+            <td>N</td>
+            <td>Optional degree of randomization for clip sizes.</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <div class="callout">
+        An interval or duration string is a possibly signed sequence of
+        decimal numbers, each with optional fraction and a unit suffix, such
+        as <code>300ms</code> or <code>2h45m</code>. Valid time units are
+        <code>ns</code>, <code>us</code> (or <code>Вµs</code>),
+        <code>ms</code>, <code>s</code>, <code>m</code>, <code>h</code>.
+      </div>
+
+      <div class="callout">
+        A variance of <code>0.1</code> (implying a variance of
+        <code>10%</code>) for a clip size of <code>1.0</code> would result in
+        clips ranging between <code>0.9</code> and <code>1.1</code>.
+      </div>
+
+
+      ### StopLimit
+
+      This strategy will only place the order once the specified stop price
+      has been met. For a Buy StopLimit order, the stop price must be
+      *above* the current market price. For a Sell StopLimit order,
+      the stop price must be *below* the current market price.
+
+      #### StopLimit Parameters
+
+      <table>
+        <thead>
+          <tr>
+            <th>Parameter</th>
+            <th>Type</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>TriggerPrice</code></td>
+            <td>Price</td>
+            <td>Y</td>
+            <td>
+              The price that must be met to trigger execution of the order
+              with the configured limit price.
+            </td>
+          </tr>
+          <tr>
+            <td><code>EndTime</code></td>
+            <td>string</td>
+            <td>N</td>
+            <td>
+              Optional expire time for the order. An ISO-8601 UTC string of
+              the form <code>2019-02-13T05:17:32.000000Z</code>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    messages:
+      orderEventMsg:
+        name: OrderEvent
+        payload:
+          allOf:
+            - $ref: '#/components/schemas/BaseResponse'
+            - type: object
+              $id: 'OrderEvent'
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [Order]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/OrderEvent'
+        examples:
+          - name: OrderEvent
+            payload:
+              reqid: 7
+              type: Order
+              ts: "2021-09-14T22:26:44.518538Z"
+              initial: false
+              seqNum: 3
+              data:
+                - Timestamp: "2021-09-14T22:26:44.505519Z"
+                  Symbol: "BTC-USD"
+                  OrderID: "b35b1c3b-a304-4224-919f-9db1319de188"
+                  ClOrdID: "d7635e40-15aa-11ec-b0a2-2554a9e1e7a4"
+                  SubmitTime: "2021-09-14T22:26:44.457050Z"
+                  ExecID: "c73fcf77-aaa1-46e7-9260-f625d6416646"
+                  Side: "Buy"
+                  ExecType: "New"
+                  OrdStatus: "New"
+                  OrderQty: "0.10000000"
+                  OrdType: "Market"
+                  Currency: "BTC"
+                  LeavesQty: "0.10000000"
+                  CumQty: "0"
+                  AvgPx: "0"
+                  TimeInForce: "FillOrKill"
+                  LastPx: "0"
+                  LastQty: "0"
+                  LastAmt: "0"
+                  LastFee: "0"
+                  CumAmt: "0"
+                  DecisionStatus: "Active"
+                  AmountCurrency: "USD"
+                  CustomerUser: "tom@company.com"
+                  Parameters:
+                    ErrorAction: "Pause"
+  ExecutionReport:
+    address: ExecutionReport
+    messages:
+      executionReportEventMsg:
+        name: ExecutionReportEvent
+        payload:
+          allOf:
+            - $ref: '#/components/schemas/BaseResponse'
+            - type: object
+              $id: 'ExecutionReportEvent'
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [ExecutionReport]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ExecutionReportEvent'
+        examples:
+          - name: ExecutionReportEvent
+            payload:
+              reqid: 6
+              type: ExecutionReport
+              ts: "2021-09-14T22:23:11.920903Z"
+              initial: false
+              seqNum: 2
+              data:
+                - Timestamp: "2021-09-14T22:23:11.903074Z"
+                  Symbol: "BTC-USD"
+                  OrderID: "1b6b882b-e2fc-4774-ad2d-9db4df536f29"
+                  ClOrdID: "58b9adb0-15aa-11ec-b0a2-2554a9e1e7a4"
+                  SubmitTime: "2021-09-14T22:23:11.903074Z"
+                  ExecID: "4b423f54-4a54-4679-9ee7-1f5f417ec5f5"
+                  Side: "Buy"
+                  TransactTime: "2021-09-14T22:23:11.883000Z"
+                  ExecType: "PendingNew"
+                  OrdStatus: "PendingNew"
+                  OrderQty: "0.20000000"
+                  OrdType: "Market"
+                  Currency: "BTC"
+                  LeavesQty: "0.20000000"
+                  CumQty: "0"
+                  AvgPx: "0"
+                  TimeInForce: "FillOrKill"
+                  LastPx: "0"
+                  LastQty: "0"
+                  LastAmt: "0"
+                  LastFee: "0"
+                  CumAmt: "0"
+                  AmountCurrency: "USD"
+                  CustomerUser: "tom@company.com"
+                  Parameters:
+                    ErrorAction: "Pause"               
+  NewOrderSingle:
+    address: NewOrderSingle
+    messages:
+      newOrderSingleMessage:
+        name: NewOrderSingle
+        payload:
+          type: object
+          required: [reqid, type, data]
+          properties:
+            reqid:
+              type: integer
+              description: Request ID for this command
+            type:
+              type: string
+              enum: [NewOrderSingle]
+              description: Command type for submitting a new order
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/NewOrderSingleData'
+              description: Array of new order data
+        examples:
+          - name: NewOrderSingle
+            payload:
+              reqid: 12
+              type: NewOrderSingle
+              data:
+                - Symbol: "BTC-USD"
+                  ClOrdID: "4d489920-15da-11ec-b5e7-7f4881f01b7d"
+                  Side: "Buy"
+                  TransactTime: "2021-09-15T04:06:28.530000Z"
+                  OrderQty: "0.5"
+                  OrdType: "Limit"
+                  Price: "43000"
+                  Currency: "BTC"
+                  TimeInForce: "GoodTillCancel"
+                  Strategy: "Limit"
+                  Parameters:
+                    ErrorAction: "Pause"
+  OrderCancelRequest:
+    address: OrderCancelRequest
+    messages:
+      orderCancelRequestMessage:
+        name: OrderCancelRequest
+        payload:
+          type: object
+          required: [reqid, type, data]
+          properties:
+            reqid:
+              type: integer
+              description: Request ID for this command
+            type:
+              type: string
+              enum: [OrderCancelRequest]
+              description: Command type for canceling an order
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrderCancelRequestData'
+              description: Array of order cancel data
+        examples:
+          - name: OrderCancelRequest
+            payload:
+              reqid: 13
+              type: OrderCancelRequest
+              data:
+                - ClOrdID: "c0be17e0-15da-11ec-b5e7-7f4881f01b7d"
+                  OrderID: "16a55364-4248-4575-aa0b-dddd3f694ca3"
+                  TransactTime: "2021-09-15T04:09:42.238000Z"
+  OrderCancelReplaceRequest:
+    address: OrderCancelReplaceRequest
+    messages:
+      orderCancelReplaceRequestMessage:
+        name: OrderCancelReplaceRequest
+        payload:
+          type: object
+          required: [reqid, type, data]
+          properties:
+            reqid:
+              type: integer
+              description: Request ID for this command
+            type:
+              type: string
+              enum: [OrderCancelReplaceRequest]
+              description: Command type for modifying an order
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrderCancelReplaceRequestData'
+              description: Array of order cancel replace data
+        examples:
+          - name: OrderCancelReplaceRequest
+            payload:
+              reqid: 14
+              type: OrderCancelReplaceRequest
+              data:
+                - Price: "44000"
+                  Symbol: "BTC-USD"
+                  OrderID: "16a55364-4248-4575-aa0b-dddd3f694ca3"
+                  ClOrdID: "b5e52570-15da-11ec-b5e7-7f4881f01b7d"
+                  TransactTime: "2021-09-15T04:09:24.039000Z"
+                  OrderQty: "0.5"
+                  Parameters:
+                    ErrorAction: "Pause"
+  OrderControlRequest:
+    address: OrderControlRequest
+    messages:
+      orderControlRequestMessage:
+        name: OrderControlRequest
+        payload:
+          type: object
+          required: [reqid, type, data]
+          properties:
+            reqid:
+              type: integer
+              description: Request ID for this command
+            type:
+              type: string
+              enum: [OrderControlRequest]
+              description: Command type for controlling an order
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/OrderControlRequestData'
+              description: Array of order control data
+        examples:
+          - name: OrderControlRequest
+            payload:
+              reqid: 17
+              type: OrderControlRequest
+              data:
+                - ClOrdID: "9eb07120-15da-11ec-b5e7-7f4881f01b7d"
+                  OrderID: "16a55364-4248-4575-aa0b-dddd3f694ca3"
+                  Action: "Pause"
+  QuoteRequest:
+    address: QuoteRequest
+    messages:
+      quoteRequestMessage:
+        name: QuoteRequest
+        payload:
+          type: object
+          required: [reqid, type, data]
+          properties:
+            reqid:
+              type: integer
+              description: Request ID for this command
+            type:
+              type: string
+              enum: [QuoteRequest]
+              description: Command type for requesting a quote
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/QuoteRequestData'
+              description: Array of quote request data
+        examples:
+          - name: QuoteRequest
+            payload:
+              reqid: 15
+              type: QuoteRequest
+              data:
+                - QuoteReqID: "8e9540d0-15db-11ec-b5e7-7f4881f01b7d"
+                  OrderQty: "0.75"
+                  Currency: "BTC"
+                  Symbol: "BTC-USD"
+                  TransactTime: "2021-09-15T04:15:27.581000Z"
+                  Parameters: {}
+  QuoteCancelRequest:
+    address: QuoteCancelRequest
+    messages:
+      quoteCancelRequestMessage:
+        name: QuoteCancelRequest
+        payload:
+          type: object
+          required: [reqid, type, data]
+          properties:
+            reqid:
+              type: integer
+              description: Request ID for this command
+            type:
+              type: string
+              enum: [QuoteCancelRequest]
+              description: Command type for canceling a quote request
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/QuoteCancelRequestData'
+              description: Array of quote cancel request data
+        examples:
+          - name: QuoteCancelRequest
+            payload:
+              reqid: 16
+              type: QuoteCancelRequest
+              data:
+                - QuoteReqID: "8e9540d0-15db-11ec-b5e7-7f4881f01b7d"
+                  RFQID: "f47bfb99-4d1e-4179-b62c-a96e83cc93ba"
+                  TransactTime: "2021-09-15T04:15:24.581000Z"
+  NewWithdrawRequest:
+    address: NewWithdrawRequest
+    messages:
+      newWithdrawRequestMessage:
+        name: NewWithdrawRequest
+        payload:
+          type: object
+          required: [reqid, type, data]
+          properties:
+            reqid:
+              type: integer
+              description: Request ID for this command
+            type:
+              type: string
+              enum: [NewWithdrawRequest]
+              description: Command type for requesting a new withdrawal
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/NewWithdrawRequestData'
+              description: Array of new withdraw request data
+        examples:
+          - name: NewWithdrawRequest
+            payload:
+              reqid: 34
+              type: NewWithdrawRequest
+              data:
+                - Quantity: "1"
+                  Currency: "ETH"
+                  MarketAccount: "default"
+                  RoutingInfo:
+                    WalletAddress: "XXYYZZ"
+                    Memo: ""
+                    DestinationTag: ""
+                  ClReqID: "06b78113c1454174b9e403a1245d67ea"
+  WithdrawCancelRequest:
+    address: WithdrawCancelRequest
+    messages:
+      withdrawCancelRequestMessage:
+        name: WithdrawCancelRequest
+        payload:
+          type: object
+          required: [reqid, type, data]
+          properties:
+            reqid:
+              type: integer
+              description: Request ID for this command
+            type:
+              type: string
+              enum: [WithdrawCancelRequest]
+              description: Command type for canceling a withdrawal
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/WithdrawCancelRequestData'
+              description: Array of withdraw cancel request data
+        examples:
+          - name: WithdrawCancelRequest
+            payload:
+              reqid: 34
+              type: WithdrawCancelRequest
+              data:
+                - TransactionID: "1E19VMG980R00"
+  NewDepositRequest:
+    address: NewDepositRequest
+    messages:
+      newDepositRequestMessage:
+        name: NewDepositRequest
+        payload:
+          type: object
+          required: [reqid, type, data]
+          properties:
+            reqid:
+              type: integer
+              description: Request ID for this command
+            type:
+              type: string
+              enum: [NewDepositRequest]
+              description: Command type for requesting a new deposit
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/NewDepositRequestData'
+              description: Array of new deposit request data
+        examples:
+          - name: NewDepositRequest
+            payload:
+              reqid: 34
+              type: NewDepositRequest
+              data:
+                - Quantity: "1"
+                  Currency: "ETH"
+                  MarketAccount: "default"
+                  TxHashes:
+                    - TxHash: "0xf9b99f898ae45f221cd08c031f148ff4cb5b0b0fde99c7d42ab232ae0c0b8ec3"
+                  ClReqID: "06b78113c1454174b9e403a1245d67ea"
+  Trade:
+    address: Trade
+    messages:
+      tradeEventMsg:
+        name: TradeEvent
+        payload:
+          allOf:
+            - $ref: '#/components/schemas/BaseResponse'
+            - type: object
+              $id: 'TradeEvent'
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [Trade]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TradeEvent'
+        examples:
+          - name: Trade
+            payload:
+              reqid: 8
+              type: Trade
+              ts: "2021-09-14T22:29:32.255949Z"
+              initial: true
+              seqNum: 1
+              data:
+                - Timestamp: "2021-09-14T22:23:11.989845Z"
+                  Symbol: "BTC-USD"
+                  OrderID: "1b6b882b-e2fc-4774-ad2d-9db4df536f29"
+                  TradeID: "a0ec46f2-6d0e-451a-a4f1-2a0be7d32d26"
+                  Side: "Buy"
+                  TransactTime: "2021-09-14T22:23:11.964531Z"
+                  ExecType: "Trade"
+                  Currency: "BTC"
+                  Price: "47085.090668824440"
+                  Quantity: "0.20000000"
+                  Amount: "9417.02"
+                  Fee: "0"
+                  CustomerUser: "tom@company.com"
+                  TradeStatus: "Confirmed"
+                  AggressorSide: "Buy"
+                  AmountCurrency: "USD"
+                  DealtCurrency: "BTC"
+                - Timestamp: "2021-09-14T22:26:44.515692Z"
+                  Symbol: "BTC-USD"
+                  OrderID: "b35b1c3b-a304-4224-919f-9db1319de188"
+                  TradeID: "17f9da19-d3bd-4ba2-b29a-1f31516458f2"
+                  Side: "Buy"
+                  TransactTime: "2021-09-14T22:26:44.485836Z"
+                  ExecType: "Trade"
+                  Currency: "BTC"
+                  Price: "46945.3659525"
+                  Quantity: "0.10000000"
+                  Amount: "4694.54"
+                  Fee: "0"
+                  CustomerUser: "tom@company.com"
+                  TradeStatus: "Confirmed"
+                  AggressorSide: "Buy"
+                  AmountCurrency: "USD"
+                  DealtCurrency: "BTC"
+  Quote:
+    address: Quote
+    messages:
+      quoteEventMsg:
+        name: QuoteEvent
+        payload:
+          allOf:
+            - $ref: '#/components/schemas/BaseResponse'
+            - type: object
+              $id: 'QuoteEvent'
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [Quote]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/QuoteEvent'
+        examples:
+          - name: Quote
+            payload:
+              reqid: 9
+              type: Quote
+              ts: "2021-09-14T22:31:27.214025Z"
+              initial: false
+              seqNum: 3
+              data:
+                - Timestamp: "2021-09-14T22:31:27.204209Z"
+                  Symbol: "BTC-USD"
+                  Currency: "BTC"
+                  RFQID: "8688ceab-ea67-416c-8ce1-9b63d6c0fe4e"
+                  QuoteReqID: "7feb22f0-15ab-11ec-b0a2-2554a9e1e7a4"
+                  QuoteStatus: "Open"
+                  QuoteID: "20e240c5-9a82-4731-809e-91b3a2bf2f49"
+                  SubmitTime: "2021-09-14T22:31:27.183751Z"
+                  OrderQty: "0.30000000"
+                  AmountCurrency: "USD"
+                  EndTime: "2021-09-14T22:31:42.183751Z"
+                  BidPx: "46836.27"
+                  BidAmt: "14050.88"
+                  OfferPx: "46879.47"
+                  OfferAmt: "14063.85"
+                  ValidUntilTime: "2021-09-14T22:31:28.204209Z"
+                  CustomerUser: "tom@company.com"
+  Exposure:
+    address: Exposure
+    messages:
+      exposureEventMsg:
+        name: ExposureEvent
+        payload:
+          allOf:
+            - $ref: '#/components/schemas/BaseResponse'
+            - type: object
+              $id: 'ExposureEvent'
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [Exposure]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/ExposureEvent'
+        examples:
+          - name: Exposure
+            payload:
+              reqid: 11
+              type: Exposure
+              ts: "2021-09-16T16:17:06.892914Z"
+              initial: true
+              seqNum: 1
+              data:
+                - ExposureCurrency: "USD"
+                  Exposure: "1000000"
+                  ExposureLimit: "5000000"
+                  Status: "Online"
+                  Timestamp: "2021-09-16T16:17:06.892914Z"
+  BalanceTransaction:
+    address: BalanceTransaction
+    messages:
+      balanceTransactionEventMsg:
+        name: BalanceTransactionEvent
+        payload:
+          allOf:
+            - $ref: '#/components/schemas/BaseResponse'
+            - type: object
+              $id: 'BalanceTransactionEvent'
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [BalanceTransaction]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/BalanceTransactionEvent'
+        examples:
+          - name: BalanceTransaction
+            payload:
+              reqid: 9
+              type: BalanceTransaction
+              ts: "2023-02-10T16:49:18.300588Z"
+              initial: true
+              seqNum: 1
+              data:
+                - Timestamp: "2023-02-10T16:50:12.562757Z"
+                  ClReqID: "06b78113c1454174b9e403a1245d67ea"
+                  TransactionID: "1D2FBR4J00R00"
+                  Revision: 0
+                  TransactionType: "Withdrawal"
+                  MarketAccount: "default"
+                  Quantity: "1"
+                  Currency: "ETH"
+                  Status: "PendingApproval"
+                  LastUpdateTime: "2023-02-10T16:50:12.556229Z"
+  User:
+    address: User
+    messages:
+      userEventMsg:
+        name: UserEvent
+        payload:
+          allOf:
+            - $ref: '#/components/schemas/BaseResponse'
+            - type: object
+              $id: 'UserEvent'
+              required: [type, data]
+              properties:
+                type:
+                  type: string
+                  enum: [User]
+                data:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/UserEvent'
+        examples:
+          - name: User
+            payload:
+              reqid: 10
+              type: User
+              ts: "2021-09-15T03:33:07.545223Z"
+              initial: true
+              seqNum: 1
+              data:
+                - CustomerUserID: "174K1Q9GC0C00"
+                  Email: "tom@company.com"
+                  DisplayName: "Tom"
+                  Config:
+                    - Timestamp: 1628004805337309202
+                      CustomerUserID: "174K1Q9GC0C00"
+                      Key: "recentSymbols"
+                      Value: "{\"BTC-USD\":[1626111502357],\"ADA-USD\":[1626732116743],\"BCH-USD\":[1628004751665]}"
+                    - Timestamp: 1628004805377207692
+                      CustomerUserID: "174K1Q9GC0C00"
+                      Key: "symbol"
+                      Value: "\"BTC-USD\""
+  UserConfig:
+    address: UserConfig
+    messages:
+      userConfigMessage:
+        name: UserConfig
+        payload:
+          type: object
+          required: [reqid, type, data]
+          properties:
+            reqid:
+              type: integer
+              description: Request ID for this command
+            type:
+              type: string
+              enum: [UserConfig]
+              description: Command type for updating user configuration
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/UserConfigData'
+              description: Array of user config data
+        examples:
+          - name: UserConfig
+            payload:
+              reqid: 18
+              type: UserConfig
+              data:
+                - Key: "symbol"
+                  Value: "\"ETH-BTC\""
+operations:
+  Hello:
+    action: receive
+    channel:
+      $ref: '#/channels/hello'
+    description: 'After a client connects, the server will send an unsolicited hello message.'
+    messages:
+      - $ref: '#/channels/hello/messages/helloEventMsg'
+    tags:
+      - name: Protocol
+  Subscribe:
+    action: send
+    channel:
+      $ref: '#/channels/subscribe'
+    summary: Send a subscription request to begin a stream of data.
+    description: >
+      Clients issue requests to subscribe to data.
+      The server responds to requests with one or more response messages that reference the request by echoing back the `reqid` field.  
+      
+      Response structure is as follows:
+      <table>
+        <thead>
+          <tr>
+            <th>Key</th>
+            <th>Type</th>
+            <th>Required</th>
+            <th>Description</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><code>reqid</code></td>
+            <td>number</td>
+            <td>Y</td>
+            <td>A number that relates this response to a request.</td>
+          </tr>
+          <tr>
+            <td><code>seq</code></td>
+            <td>number</td>
+            <td>Y</td>
+            <td>
+              The sequence number for this response per request.
+              <code>seq</code> begins at 1 on the first message with this
+              <code>reqid</code> and increments by one for each message sent
+              on this <code>reqid</code>.
+            </td>
+          </tr>
+          <tr>
+            <td><code>type</code></td>
+            <td>string</td>
+            <td>Y</td>
+            <td>
+              The type of message sent. This document describes all valid
+              message types.
+            </td>
+          </tr>
+          <tr>
+            <td><code>tag</code></td>
+            <td>string</td>
+            <td>N</td>
+            <td>An optional tag from the stream request.</td>
+          </tr>
+          <tr>
+            <td><code>ts</code></td>
+            <td>number</td>
+            <td>Y</td>
+            <td>
+              An ISO-8601 UTC string of the form
+              <code>2019-02-13T05:17:32.000000Z</code>.
+            </td>
+          </tr>
+          <tr>
+            <td><code>initial</code></td>
+            <td>bool</td>
+            <td>N</td>
+            <td>
+              If this is initial data for a request, the
+              <code>initial</code> flag will be set.
+            </td>
+          </tr>
+          <tr>
+            <td><code>action</code></td>
+            <td>string</td>
+            <td>N</td>
+            <td>"Update" or "Remove"</td>
+          </tr>
+          <tr>
+            <td><code>total_count</code></td>
+            <td>number</td>
+            <td>N</td>
+            <td>The total number of records for this stream.</td>
+          </tr>
+        </tbody>
+      </table>
+      <aside class="callout">
+        <code>seq</code> is for debug purposes only, the client is not
+        required to do any sequencing.
+      </aside>
+      <aside class="callout">
+        If a request requires responses with different types, then multiple
+        responses may have the <code>initial</code> flag set for different types.
+      </aside>
+      <aside class="callout">
+        <code>action</code> is either <code>Update</code> or <code>Remove</code> and tells the client if the
+        given entity should be removed or added/updated. The key for a given
+        entity depends on the message type.
+      </aside>
+    messages:
+      - $ref: '#/channels/subscribe/messages/subscribeMessage'
+    tags:
+      - name: Protocol
+  Amend:
+    action: send
+    channel:
+      $ref: '#/channels/amend'
+    summary: Amend an Existing Stream
+    description: >
+      Amend an existing stream subscription by Request ID. Response structure
+      remains the same, just the content of the <code>data</code> will
+      change per the amendment.
+    messages:
+      - $ref: '#/channels/amend/messages/amendMessage'
+    tags:
+      - name: Protocol
+  Page:
+    action: send
+    channel:
+      $ref: '#/channels/page'
+    summary: Continue a Paged Stream
+    description: >
+      If you request a stream that is paged, the data on the stream will be delivered with a `next` field populated. If given this field, request the next set of data with the below structure. Response continues as with the original stream.
+    messages:
+      - $ref: '#/channels/page/messages/pageMessage'
+    tags:
+      - name: Protocol
+  Cancel:
+    action: send
+    channel:
+      $ref: '#/channels/cancel'
+    summary: Cancel an Existing Stream
+    description: >
+      Cancel an existing stream by Request ID. No response, unless there is
+      an error. Stream will just stop.
+    messages:
+      - $ref: '#/channels/cancel/messages/cancelMessage'
+    tags:
+      - name: Protocol
+  Security:
+    action: receive
+    channel:
+      $ref: '#/channels/Security'
+    summary: Stream of available securities for trading.
+    description: >
+      On initial request, a snapshot of all available securities is provided. All subsequent messages are deltas to the securities snapshot.
+    x-subscription:
+      $ref: '#/components/schemas/SecuritySubscription'
+    messages:
+      - $ref: '#/channels/Security/messages/securityEventMsg'
+    tags:
+      - name: Security Master
+  Currency:
+    action: receive
+    channel:
+      $ref: '#/channels/Currency'
+    summary: Stream of available currencies used within trading.
+    description: >
+      On initial request, a snapshot of all available currencies is provided. All subsequent messages are deltas to the currency snapshot.
+    x-subscription:
+      $ref: '#/components/schemas/CurrencySubscription'
+    messages:
+      - $ref: '#/channels/Currency/messages/currencyEventMsg'
+    tags:
+      - name: Security Master
+  MarketDataSnapshot:
+    action: receive
+    channel:
+      $ref: '#/channels/MarketDataSnapshot'
+    summary: Receive MarketDataSnapshot updates
+    x-subscription:
+      $ref: '#/components/schemas/MarketDataSnapshotSubscription'
+    messages:
+      - $ref: '#/channels/MarketDataSnapshot/messages/marketDataSnapshotEventMsg'
+    tags:
+      - name: Market Data
+  CurrencyConversion:
+    action: receive
+    channel:
+      $ref: '#/channels/CurrencyConversion'
+    summary: Stream of currency conversion rates.
+    x-subscription:
+      $ref: '#/components/schemas/CurrencyConversionSubscription'
+    messages:
+      - $ref: '#/channels/CurrencyConversion/messages/currencyConversionEventMsg'
+    tags:
+      - name: Market Data
+  Order:
+    action: receive
+    channel:
+      $ref: '#/channels/Order'
+    x-subscription:
+      $ref: '#/components/schemas/OrderSubscription'
+    messages:
+      - $ref: '#/channels/Order/messages/orderEventMsg'
+    tags:
+      - name: Orders
+  ExecutionReport:
+    action: receive
+    channel:
+      $ref: '#/channels/ExecutionReport'
+    summary: Receive ExecutionReport updates
+    x-subscription:
+      $ref: '#/components/schemas/ExecutionReportSubscription'
+    messages:
+      - $ref: '#/channels/ExecutionReport/messages/executionReportEventMsg'
+    tags:
+      - name: Orders
+  NewOrderSingle:
+    action: send
+    channel:
+      $ref: '#/channels/NewOrderSingle'
+    summary: Submit a new order
+    description: 'Command used to submit a new order either against any provided liquidity or an open RFQ. Results of this command will be visible in the `Order`, `ExecutionReport` and `Trade` streams which will track the lifecycle of the order.'
+    messages:
+      - $ref: '#/channels/NewOrderSingle/messages/newOrderSingleMessage'
+    tags:
+      - name: Orders
+  OrderCancelRequest:
+    action: send
+    channel:
+      $ref: '#/channels/OrderCancelRequest'
+    summary: Cancel an existing order
+    description: 'Command used to cancel an open order. Results of this command will be visible in the Order and ExecutionReport streams.'
+    messages:
+      - $ref: '#/channels/OrderCancelRequest/messages/orderCancelRequestMessage'
+    tags:
+      - name: Orders
+  OrderCancelReplaceRequest:
+    action: send
+    channel:
+      $ref: '#/channels/OrderCancelReplaceRequest'
+    summary: Modify an existing order
+    description: 'Command used to modify an open order. Results of this command will be visible in the `Order` and `ExecutionReport` streams.'
+    messages:
+      - $ref: '#/channels/OrderCancelReplaceRequest/messages/orderCancelReplaceRequestMessage'
+    tags:
+      - name: Orders
+  OrderControlRequest:
+    action: send
+    channel:
+      $ref: '#/channels/OrderControlRequest'
+    summary: Control an existing order
+    description: 'Command used to control an open order. Results of this command will be visible in the Order and ExecutionReport streams.'
+    x-post-doc:
+      description: >
+        ## Order State Change Matrices
+        
+        The orders API follows FIX 4.4 semantics closely. The main difference is that instead of sending separate OrderCancelReject messages, two extra ExecType are supported: CancelRejected and ReplaceRejected. The order state change matrices below are heavily inspired by the FIX documentation.
+
+        ### Filled Order
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Request (ClOrdID,OrigClOrdID)</th>
+                <th>Response (ClOrdID,OrigClOrdID)</th>
+                <th>ExecType</th>
+                <th>OrdStatus</th>
+                <th>OrderQty</th>
+                <th>CumQty</th>
+                <th>LeavesQty</th>
+                <th>LastQty</th>
+                <th>Comment</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1</td>
+                <td>NewOrderSingle(A)</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>PendingNew</td>
+                <td>PendingNew</td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><em>3</em></td>
+                <td></td>
+                <td><em>ExecutionReport(A)</em></td>
+                <td><em>Rejected</em></td>
+                <td><em>Rejected</em></td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td><em>If order is rejected</em></td>
+              </tr>
+              <tr>
+                <td>3</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>New</td>
+                <td>New</td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>4</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>Trade</td>
+                <td>PartiallyFilled</td>
+                <td>10</td>
+                <td>2</td>
+                <td>8</td>
+                <td>2</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>Trade</td>
+                <td>PartiallyFilled</td>
+                <td>10</td>
+                <td>3</td>
+                <td>7</td>
+                <td>1</td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>6</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>Trade</td>
+                <td>Filled</td>
+                <td>10</td>
+                <td>10</td>
+                <td>0</td>
+                <td>7</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="callout">
+          <strong>Note</strong>: Orders with <code>CumQty</code> > 0 will receive an Execution Report that will have <code>CumQty</code> for the filled size of the order. Orders that are partially filled and canceled will receive an ExecutionReport with a terminal state (Canceled) and a <code>CumQty</code> > 0
+        </div>
+
+
+        ### Canceled Order
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Request (ClOrdID,OrigClOrdID)</th>
+                <th>Response (ClOrdID,OrigClOrdID)</th>
+                <th>ExecType</th>
+                <th>OrdStatus</th>
+                <th>OrderQty</th>
+                <th>CumQty</th>
+                <th>LeavesQty</th>
+                <th>LastQty</th>
+                <th>Comment</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1</td>
+                <td>NewOrderSingle(A)</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>PendingNew</td>
+                <td>PendingNew</td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td><em>3</em></td>
+                <td></td>
+                <td><em>ExecutionReport(A)</em></td>
+                <td><em>Rejected</em></td>
+                <td><em>Rejected</em></td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td><em>If order is rejected</em></td>
+              </tr>
+              <tr>
+                <td>3</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>New</td>
+                <td>New</td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>4</td>
+                <td>OrderCancelRequest(B,A)</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td></td>
+                <td>ExecutionReport(B,A)</td>
+                <td><em>CancelRejected</em></td>
+                <td><em>New</em></td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td><em>If cancel is rejected</em></td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td></td>
+                <td>ExecutionReport(B,A)</td>
+                <td>PendingCancel</td>
+                <td>PendingCancel</td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>6</td>
+                <td></td>
+                <td>ExecutionReport(B,A)</td>
+                <td><em>CancelRejected</em></td>
+                <td><em>New</em></td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td><em>If cancel is rejected</em></td>
+              </tr>
+              <tr>
+                <td>7</td>
+                <td></td>
+                <td>ExecutionReport(B,A)</td>
+                <td>Canceled</td>
+                <td>Canceled</td>
+                <td>10</td>
+                <td>0</td>
+                <td>0</td>
+                <td></td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+
+        ### Replace to Increase Quantity
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Request (ClOrdID,OrigClOrdID)</th>
+                <th>Response (ClOrdID,OrigClOrdID)</th>
+                <th>ExecType</th>
+                <th>OrdStatus</th>
+                <th>OrderQty</th>
+                <th>CumQty</th>
+                <th>LeavesQty</th>
+                <th>LastQty</th>
+                <th>Comment</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1</td>
+                <td>NewOrderSingle(A)</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>PendingNew</td>
+                <td>PendingNew</td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>3</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>New</td>
+                <td>New</td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>4</td>
+                <td>OrderCancelReplaceRequest(B,A)</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>11</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td></td>
+                <td>ExecutionReport(B,A)</td>
+                <td><em>ReplaceRejected</em></td>
+                <td><em>New</em></td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td><em>If replace is rejected</em></td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td></td>
+                <td>ExecutionReport(B,A)</td>
+                <td>PendingReplace</td>
+                <td>PendingReplace</td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>6</td>
+                <td></td>
+                <td>ExecutionReport(B,A)</td>
+                <td><em>CancelRejected</em></td>
+                <td><em>New</em></td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td><em>If replace is rejected</em></td>
+              </tr>
+              <tr>
+                <td>7</td>
+                <td></td>
+                <td>ExecutionReport(B,A)</td>
+                <td>Replaced</td>
+                <td>New</td>
+                <td>11</td>
+                <td>0</td>
+                <td>0</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>8</td>
+                <td></td>
+                <td>ExecutionReport(B)</td>
+                <td>Trade</td>
+                <td>PartiallyFilled</td>
+                <td>11</td>
+                <td>1</td>
+                <td>10</td>
+                <td>1</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+
+        ### Replace During Fill
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>Request (ClOrdID,OrigClOrdID)</th>
+                <th>Response (ClOrdID,OrigClOrdID)</th>
+                <th>ExecType</th>
+                <th>OrdStatus</th>
+                <th>OrderQty</th>
+                <th>CumQty</th>
+                <th>LeavesQty</th>
+                <th>LastQty</th>
+                <th>Comment</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>1</td>
+                <td>NewOrderSingle(A)</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>2</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>PendingNew</td>
+                <td>PendingNew</td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>3</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>New</td>
+                <td>New</td>
+                <td>10</td>
+                <td>0</td>
+                <td>10</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>4</td>
+                <td>OrderCancelReplaceRequest(B,A)</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td>8</td>
+                <td></td>
+                <td></td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>5</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>Trade</td>
+                <td>PartiallyFilled</td>
+                <td>10</td>
+                <td>1</td>
+                <td>9</td>
+                <td>1</td>
+                <td>Fill before replace is received</td>
+              </tr>
+              <tr>
+                <td>6</td>
+                <td></td>
+                <td>ExecutionReport(B,A)</td>
+                <td>PendingReplace</td>
+                <td>PendingReplace</td>
+                <td>10</td>
+                <td>1</td>
+                <td>9</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>7</td>
+                <td></td>
+                <td>ExecutionReport(A)</td>
+                <td>Trade</td>
+                <td>PendingReplace</td>
+                <td>10</td>
+                <td>3</td>
+                <td>7</td>
+                <td>2</td>
+                <td>Fill before replace is processed</td>
+              </tr>
+              <tr>
+                <td>8</td>
+                <td></td>
+                <td>ExecutionReport(B,A)</td>
+                <td>Replaced</td>
+                <td>New</td>
+                <td>8</td>
+                <td>3</td>
+                <td>5</td>
+                <td></td>
+                <td></td>
+              </tr>
+              <tr>
+                <td>9</td>
+                <td></td>
+                <td>ExecutionReport(B)</td>
+                <td>Trade</td>
+                <td>Filled</td>
+                <td>8</td>
+                <td>8</td>
+                <td>0</td>
+                <td>5</td>
+                <td></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+    messages:
+      - $ref: '#/channels/OrderControlRequest/messages/orderControlRequestMessage'
+    tags:
+      - name: Orders
+  Trade:
+    action: receive
+    channel:
+      $ref: '#/channels/Trade'
+    summary: Stream of Trade updates
+    x-subscription:
+      $ref: '#/components/schemas/TradeSubscription'
+    description: >
+      Upon Subscription, the server will return all Trade for this client as long as the optional constraints are satisfied. Server will also send a Trade update when the order receives more fills or new fills arrive on a new order that came in as long as the optional constraints are satisfied.
+    messages:
+      - $ref: '#/channels/Trade/messages/tradeEventMsg'
+    tags:
+      - name: Post Trade
+  Quote:
+    action: receive
+    channel:
+      $ref: '#/channels/Quote'
+    summary: Receive Quote stream updates
+    x-subscription:
+      $ref: '#/components/schemas/QuoteSubscription'
+    messages:
+      - $ref: '#/channels/Quote/messages/quoteEventMsg'
+    tags:
+      - name: RFQ
+  QuoteRequest:
+    action: send
+    channel:
+      $ref: '#/channels/QuoteRequest'
+    summary: RFQ (Request for Quote)
+    description: >
+      This section outlines how to request quotes from multiple dealers simultaneously and accept them using the Scrypt API. To send a quote request, first subscribe to the [Quote](#api-operation-receive-Quote) stream, and the [ExecutionReport](#api-operation-receive-ExecutionReport) stream as with orders. All quote responses are sent as [Quote](#api-operation-receive-Quote) updates, and all order responses and updates are sent as [ExecutionReport](#api-operation-receive-ExecutionReport).
+      
+      To request a quote, send a [QuoteRequest](#api-operation-send-QuoteRequest) message. The server responds with one or many [Quote](#api-operation-receive-Quote) messages as the streaming prices update. An in-progress [Quote](#api-operation-receive-Quote) can be cancelled by sending a [QuoteCancelRequest](#api-operation-send-QuoteCancelRequest) message. [Quote](#api-operation-receive-Quote) time out automatically after 3 minutes by default.
+      
+      To accept a quote, send a [NewOrderSingle (RFQ)](#api-operation-send-NewOrderSingle) message.
+      
+      A typical workflow to request and accept a quote would be:
+      
+        1. Subscribe to `Quote`
+        2. Subscribe to `ExecutionReport`
+        3. Subscribe to Trade with `StartDate` of the `Timestamp` of the last Trade processed to recover any missed trades
+        4. **To request a quote, first generate a new `QuoteReqID` (see instructions below). Send a `QuoteRequest` specifying the `QuoteReqID`, `OrderQty`, `Currency` etc. for that request**
+        5. `Quote` updates will be received that are able to be priced
+        6. To accept a quote that is received, send a `NewOrderSingle` referencing the `RFQID` and parameters depending on `OrdType`
+        7. Fills will be received as `ExecutionReport` with `ExecType=Trade`
+        8. `QuoteStatus` will change to `Filled` when the `Quote` is successfully accepted
+      
+      To generate a `QuoteReqID`, we recommend using a UUID4 or another globally unique identifier. `QuoteReqID` must be unique and with length less than or equal to 36 characters.
+    messages:
+      - $ref: '#/channels/QuoteRequest/messages/quoteRequestMessage'
+    tags:
+      - name: RFQ
+  QuoteCancelRequest:
+    action: send
+    channel:
+      $ref: '#/channels/QuoteCancelRequest'
+    summary: Cancel a quote request
+    description: 'Command used to cancel an open RFQ. Results of this command will be visible in the Quote stream.'
+    messages:
+      - $ref: '#/channels/QuoteCancelRequest/messages/quoteCancelRequestMessage'
+    tags:
+      - name: RFQ
+  Balance:
+    action: receive
+    channel:
+      $ref: '#/channels/Balance'
+    summary: Receive Balance updates
+    x-subscription:
+      $ref: '#/components/schemas/BalanceSubscription'
+    messages:
+      - $ref: '#/channels/Balance/messages/balanceEventMsg'
+    tags:
+      - name: Balances and Credit
+  Exposure:
+    action: receive
+    channel:
+      $ref: '#/channels/Exposure'
+    summary: Receive Exposure stream updates
+    x-subscription:
+      $ref: '#/components/schemas/ExposureSubscription'
+    messages:
+      - $ref: '#/channels/Exposure/messages/exposureEventMsg'
+    tags:
+      - name: Balances and Credit
+  BalanceTransaction:
+    action: receive
+    channel:
+      $ref: '#/channels/BalanceTransaction'
+    summary: Receive BalanceTransaction stream updates
+    x-subscription:
+      $ref: '#/components/schemas/BalanceTransactionSubscription'
+    messages:
+      - $ref: '#/channels/BalanceTransaction/messages/balanceTransactionEventMsg'
+    tags:
+      - name: Balances and Credit
+  NewWithdrawRequest:
+    action: send
+    channel:
+      $ref: '#/channels/NewWithdrawRequest'
+    summary: Request a new withdrawal
+    description: 'Command used to request a new withdrawal.'
+    messages:
+      - $ref: '#/channels/NewWithdrawRequest/messages/newWithdrawRequestMessage'
+    tags:
+      - name: Balances and Credit
+  WithdrawCancelRequest:
+    action: send
+    channel:
+      $ref: '#/channels/WithdrawCancelRequest'
+    summary: Cancel a withdrawal request
+    description: 'Command used to cancel a withdrawal. Only transactions in `PendingApproval` state can be cancelled.'
+    messages:
+      - $ref: '#/channels/WithdrawCancelRequest/messages/withdrawCancelRequestMessage'
+    tags:
+      - name: Balances and Credit
+  NewDepositRequest:
+    action: send
+    channel:
+      $ref: '#/channels/NewDepositRequest'
+    summary: Request a new deposit
+    description: 'Command used to request a new deposit. Results of this command will be visible in the `BalanceTransaction` stream.'
+    messages:
+      - $ref: '#/channels/NewDepositRequest/messages/newDepositRequestMessage'
+    tags:
+      - name: Balances and Credit
+  User:
+    action: receive
+    channel:
+      $ref: '#/channels/User'
+    summary: Request for updates for this customer user. No subscription parameters.
+    x-subscription:
+      $ref: '#/components/schemas/UserSubscription'
+    messages:
+      - $ref: '#/channels/User/messages/userEventMsg'
+    tags:
+      - name: User Administration
+  UserConfig:
+    action: send
+    channel:
+      $ref: '#/channels/UserConfig'
+    summary: Update user configuration
+    description: 'Command used to update user config on behalf of session user. Results of this command will be visible in the `User` stream.'
+    messages:
+      - $ref: '#/channels/UserConfig/messages/userConfigMessage'
+    tags:
+      - name: User Administration
+x-extras:
+  title: REST API
+  paths:
+    /v1/symbols/{symbol}/ohlcv/{resolution}:
+      get:
+        name: OHLCV
+        summary: Get the open, high, low, close, and volume parameters for a given symbol and resolution
+        parameters:
+          $ref: '#/components/schemas/OHLCVParameters'
+        responses:
+          '200':
+            description: OK
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/OHLCV'
+components:
+  securitySchemes:
+    ApiKey:
+      type: httpApiKey
+      name: "ApiKey"
+      in: header
+      description: >
+        Your Scrypt API key.
+    ApiTimestamp:
+      x-custom-type: Timestamp
+      type: httpApiKey
+      name: "ApiTimestamp"
+      in: header
+      description: >
+        An ISO-8601 UTC string of the form 2019-02-13T05:17:32.000000Z
+    ApiSign:
+      x-custom-type: Signature
+      type: httpApiKey
+      name: "ApiSign"
+      in: header
+      description: >
+        The signature is a base64 encoded SHA256 HMAC using the API secret of the following:  
+
+        `GET\n<ApiTimestamp>\n<host>\n<path>`  
+
+        For example,  
+
+        `GET\n2019-02-13T05:17:32.000000Z\ndemo.scrypt.swiss\n/ws/v1`
+
+  schemas:
+    AllStreams:
+      type: array
+      items:
+        oneOf:
+          - $ref: '#/components/schemas/MarketDataSnapshotSubscription'
+          - $ref: '#/components/schemas/BalanceSubscription'
+          - $ref: '#/components/schemas/SecuritySubscription'
+          - $ref: '#/components/schemas/CurrencySubscription'
+          - $ref: '#/components/schemas/CurrencyConversionSubscription'
+          - $ref: '#/components/schemas/OrderSubscription'
+          - $ref: '#/components/schemas/ExecutionReportSubscription'
+          - $ref: '#/components/schemas/TradeSubscription'
+          - $ref: '#/components/schemas/QuoteSubscription'
+          - $ref: '#/components/schemas/ExposureSubscription'
+          - $ref: '#/components/schemas/BalanceTransactionSubscription'
+          - $ref: '#/components/schemas/UserSubscription'
+    BaseResponse:
+      type: object
+      required: [reqid, ts, seqNum]
+      properties:
+        reqid:
+          type: integer
+          description: Echoed back request ID
+        ts:
+          type: string
+          format: date-time
+          description: Timestamp of message publication
+        initial:
+          type: boolean
+          description: Flag to indicate if this message is the initial state of the stream
+        seqNum:
+          type: integer
+          description: Incrementing sequence number of messages for request ID starting with 1
+        tag:
+          type: string
+          description: Echoed back tag for this request
+        next:
+          type: string
+          description: If paging, tag for next page of data
+
+    HelloEvent:
+      type: object
+      required: [type, ts, session_id]
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum: [hello]
+          description: 'Always "hello"'
+        ts:
+          type: string
+          format: date-time
+          description: 'An ISO-8601 UTC string'
+        session_id:
+          type: string
+          description: 'A session ID that uniquely identifies this websocket session.'
+
+    MarketDataSnapshotSubscription:
+      type: object
+      required: [name, Symbol]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          enum: [MarketDataSnapshot]
+        Symbol:
+          type: string
+          description: Security to request
+        Throttle:
+          type: string
+          description: >
+            An optional throttle duration for updates, defaults to
+            configured `MinMarketDataThrottle`. A throttle is
+            specified by a time duration + units. For example: "300ms",
+            "500us". Valid time units are "ns", "us", "ms", "s".
+        PriceIncrement:
+          type: string
+          description: Price increment for levels to enable price bucketing
+        Depth:
+          type: string
+          description: Maximum number of bid / offer levels to stream prices for
+        SizeBuckets:
+          type: array
+          items:
+            type: string
+          description: >
+            A list of sizes to return price levels for; defaults to
+            configured Security SizeBuckets
+      examples:
+        - name: Subscribe
+          payload:
+            reqid: 2
+            type: subscribe
+            streams:
+              - name: MarketDataSnapshot
+                Symbol: BTC-USD
+
+    MarketDataSnapshotEvent:
+      type: object
+      required: [Timestamp, Symbol, Status, Bids, Offers]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp when the market data snapshot was generated
+        Symbol:
+          type: string
+          description: Trading symbol for the security (e.g., BTC-USD)
+        Status:
+          type: string
+          enum: [Online, Offline]
+          description: Current status of the market data (e.g., Online, Offline)
+        Bids:
+          type: array
+          items:
+            type: object
+            required: [Price, Size]
+            properties:
+              Price:
+                type: string
+                description: Bid price level
+              Size:
+                type: string
+                description: Total size available at this bid price level
+          description: Array of bid levels sorted by price (highest to lowest)
+        Offers:
+          type: array
+          items:
+            type: object
+            required: [Price, Size]
+            properties:
+              Price:
+                type: string
+                description: Offer/ask price level
+              Size:
+                type: string
+                description: Total size available at this offer price level
+          description: Array of offer/ask levels sorted by price (lowest to highest)
+
+    BalanceSubscription:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          enum: [Balance]
+        Currencies:
+          type: array
+          items:
+            type: string
+          description: Optional list of currencies to filter these balance updates by, default is all available currencies
+        EquivalentCurrency:
+          type: string
+          description: If provided, will provide converted equivalent amounts of each currency in the provided Equivalent Currency
+      examples:
+        - name: Subscribe
+          payload:
+            reqid: 11
+            type: subscribe
+            streams:
+              - name: Balance
+                EquivalentCurrency: "USD"
+
+    BalanceEvent:
+      type: object
+      required: [Currency, Amount, AvailableAmount]
+      additionalProperties: false
+      properties:
+        Currency:
+          type: string
+          description: Currency of this balance update
+        Amount:
+          type: string
+          description: Current balance amount in the specified currency
+        AvailableAmount:
+          type: string
+          description: Amount available for trading right now
+        Equivalent:
+          type: object
+          properties:
+            Currency:
+              type: string
+              description: Requested Equivalent Currency
+            Amount:
+              type: string
+              description: Amount of this balance in the equivalent currency
+            AvailableAmount:
+              type: string
+              description: Equivalent amount of amount available for trading right now
+          description: If requested equivalent balance amount, will provide a Balance update in the specified equivalent currency
+
+    SecuritySubscription:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          enum: [Security]
+        Symbols:
+          type: array
+          items:
+            type: string
+          description: Optional list of symbols to filter the subscription on
+      examples:
+        - name: Subscribe
+          payload:
+            reqid: 2
+            type: subscribe
+            streams:
+              - name: Security
+                Symbols:
+                  - ETH-USD
+                  - BTC-USD
+
+    CurrencySubscription:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          enum: [Currency]
+      examples:
+        - name: Currency
+          payload:
+            reqid: 2
+            type: subscribe
+            streams:
+              - name: Currency
+                Currencies:
+                  - CHF
+                  - EUR
+
+    CurrencyConversionSubscription:
+      type: object
+      required: [name, EquivalentCurrency]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          enum: [CurrencyConversion]
+        EquivalentCurrency:
+          type: string
+          description: Quote currency to base the conversion rates on
+        Currencies:
+          type: array
+          items:
+            type: string
+          description: List of currencies and securities to generate conversion rates for; defaults to all available currencies
+        Throttle:
+          type: string
+          description: 'Optional throttle interval for conversion rate updates. Minimal / default value: 10s'
+        Tolerance:
+          type: string
+          description: 'Optional param to indicate what conversation rate percent change should trigger sending out an update. Minimal / default value: 0.0001 which means 1 bps'
+      examples:
+        - name: Subscribe
+          payload:
+            reqid: 4
+            type: subscribe
+            streams:
+              - name: CurrencyConversion
+                EquivalentCurrency: "USD"
+                Currencies:
+                  - BTC
+                  - ETH
+                  - BCH-USD
+                Throttle: "15s"
+                Tolerance: "0.0002"
+
+    OrderSubscription:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          enum: [Order]
+        StartDate:
+          type: string
+          format: date-time
+          description: 'If provided, the subscription will return orders that were submitted after this time.'
+        EndDate:
+          type: string
+          format: date-time
+          description: 'If provided, the subscription will return orders that were submitted before this time.'
+        Symbol:
+          type: string
+          description: If provided, Symbol of the security to get the orders for
+        Statuses:
+          type: array
+          items:
+            type: string
+          description: 'If provided, comma-separated Statuses of orders to include e.g. New,Filled'
+        OrderID:
+          type: string
+          description: If provided, filter by OrderID
+        RFQID:
+          type: string
+          description: If provided, filter by RFQID
+      examples:
+        - name: Subscribe
+          payload:
+            reqid: 7
+            type: subscribe
+            streams:
+              - name: Order
+
+    ExecutionReportSubscription:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          enum: [ExecutionReport]
+        StartDate:
+          type: string
+          format: date-time
+          description: 'If provided, the subscription will return execution reports that were published at or after this time.'
+        EndDate:
+          type: string
+          format: date-time
+          description: 'If provided, the subscription will return execution reports that were published before this time.'
+        Symbol:
+          type: string
+          description: If provided, Symbol of the security to get the executions for
+        Statuses:
+          type: array
+          items:
+            type: string
+          description: 'If provided, comma-separated statuses of orders to include e.g. New,Filled'
+        OrderID:
+          type: string
+          description: If provided, filter by OrderID
+        RFQID:
+          type: string
+          description: If provided, filter by RFQID
+      examples:
+        - name: Subscribe
+          payload:
+            reqid: 6
+            type: subscribe
+            streams:
+              - name: ExecutionReport
+
+    TradeSubscription:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          enum: [Trade]
+        StartDate:
+          type: string
+          format: date-time
+          description: 'If provided, the subscription will return trades that were executed after this time.'
+        EndDate:
+          type: string
+          format: date-time
+          description: 'If provided, the subscription will return trades that were executed before this time.'
+        Symbol:
+          type: string
+          description: If provided, Symbol of the security to get the orders for
+        OrderID:
+          type: string
+          description: If provided, filter by OrderID
+        RFQID:
+          type: string
+          description: If provided, filter by RFQID
+
+    QuoteSubscription:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          enum: [Quote]
+        StartDate:
+          type: string
+          format: date-time
+          description: 'If provided, the subscription will return quotes for rfqs that were submitted after this time.'
+        EndDate:
+          type: string
+          format: date-time
+          description: 'If provided, the subscription will return quotes for rfqs that were submitted before this time.'
+        Symbol:
+          type: string
+          description: If provided, Symbol of the security to get the orders for
+        RFQID:
+          type: string
+          description: If provided, filter by RFQID
+
+    ExposureSubscription:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          enum: [Exposure]
+      additionalProperties: false
+      examples:
+        - name: Subscribe
+          payload:
+            reqid: 11
+            type: subscribe
+            streams:
+              - name: Exposure
+
+    SecurityEvent:
+      type: object
+      required: [Timestamp, UpdateAction, SecurityID, Symbol, MinPriceIncrement, MinSizeIncrement, MinimumSize, QuoteCurrency, BaseCurrency, DefaultPriceIncrement, DefaultSizeIncrement, PriceDisplaySpec, PositionCurrency, SizeBuckets, DisplaySymbol, Description]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of message publication
+        UpdateAction:
+          type: string
+          enum: [Update, Remove]
+          description: Update or Remove where the latter indicates the Security is no longer available
+        SecurityID:
+          type: string
+          description: System ID for Security - for information only
+        Symbol:
+          type: string
+          description: Symbol for security
+        MinPriceIncrement:
+          type: string
+          description: Minimum Price Increment for Security
+        MinSizeIncrement:
+          type: string
+          description: Minimum Size Increment for Security. This increment is used to validate orders and RFQS expressed in base currency of the security.
+        MinAmtIncrement:
+          type: string
+          description: Minimum Amount Increment for Security. This increment is used to validate orders and RFQS expressed in quote currency of the security.
+        MinimumSize:
+          type: string
+          description: Minimum Size for an Order on this Security
+        MaximumSize:
+          type: string
+          description: Maximum Size for an Order on this Security
+        QuoteCurrency:
+          type: string
+          description: Currency in which the Security is quoted
+        BaseCurrency:
+          type: string
+          description: Base currency for the Security
+        EndTime:
+          type: string
+          format: date-time
+          description: Date this security was Disabled
+        DefaultPriceIncrement:
+          type: string
+          description: Default price increment used in all Market Data and Orders
+        DefaultSizeIncrement:
+          type: string
+          description: Default size increment used in all Market Data and Orders
+        PriceDisplaySpec:
+          type: string
+          description: String specification describing the price display
+        SizeDisplaySpec:
+          type: string
+          description: String specification describing the size display
+        NormalSize:
+          type: string
+          description: Normal size of Security
+        ProductType:
+          type: string
+          description: Product type of Security
+        PositionCurrency:
+          type: string
+          description: Currency in which any position on this Security is tracked
+        SettlementCurrency:
+          type: string
+          description: Currency in which any settlement on this Security is negotiated
+        NotionalMultiplier:
+          type: string
+          description: Notional Multiplier of Security
+        Expiration:
+          type: string
+          description: Expiration of Security
+        SizeBuckets:
+          type: array
+          items:
+            type: object
+            properties:
+              Size:
+                type: string
+          description: Default array of Size Buckets for Market Data Snapshot Streams
+        DisplaySymbol:
+          type: string
+          description: Display symbol for Security
+        Description:
+          type: string
+          description: Description of Security
+
+    CurrencyEvent:
+      type: object
+      required: [Timestamp, UpdateAction, CurrencyID, Symbol, MinIncrement, DefaultIncrement, Description]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of message publication
+        UpdateAction:
+          type: string
+          enum: [Update, Remove]
+          description: Update or Remove where the latter indicates the Currency is no longer available
+        CurrencyID:
+          type: integer
+          description: System ID for Currency - for information only
+        Symbol:
+          type: string
+          description: Symbol for currency
+        MinIncrement:
+          type: string
+          description: Minimum increment for the currency
+        DefaultIncrement:
+          type: string
+          description: Default increment for the currency
+        Description:
+          type: string
+          description: Description of the currency
+
+    CurrencyConversionEvent:
+      type: object
+      required: [Timestamp, EquivalentCurrency, Currency, Rate]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of message publication
+        EquivalentCurrency:
+          type: string
+          description: Currency symbol for equivalent currency
+        Currency:
+          type: string
+          description: Currency symbol for base currency on conversion
+        Rate:
+          type: string
+          description: Currency conversion rate
+        Status:
+          type: string
+          enum: [Online, Offline]
+          description: Current status of the conversion rate (e.g., Online, Offline)
+        ConversionPath:
+          type: string
+          description: The path used for currency conversion (e.g., "(BTC-USD)")
+
+    OrderEvent:
+      type: object
+      required: [Timestamp, Symbol, OrderID, ClOrdID, SubmitTime, ExecID, Side, ExecType, OrdStatus, OrderQty, OrdType, Currency, LeavesQty, CumQty, AvgPx, TimeInForce, LastPx, LastQty, LastAmt, LastFee, CumAmt, DecisionStatus, AmountCurrency, CustomerUser]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the order event
+        Symbol:
+          type: string
+          description: Symbol of the security
+        OrderID:
+          type: string
+          description: Unique identifier for the order
+        ClOrdID:
+          type: string
+          description: Client order ID
+        SubmitTime:
+          type: string
+          format: date-time
+          description: Time when the order was submitted
+        ExecID:
+          type: string
+          description: Execution ID
+        Side:
+          type: string
+          enum: [Buy, Sell]
+          description: Side of the order
+        ExecType:
+          type: string
+          enum: [New, Filled, PartiallyFilled, Cancelled, Replaced, PendingNew, PendingReplace, PendingCancel, Rejected, Removed]
+          description: Execution type
+        OrdStatus:
+          type: string
+          enum: [New, Filled, PartiallyFilled, Cancelled, Replaced, PendingNew, PendingReplace, PendingCancel, Rejected, Removed]
+          description: Order status
+        OrderQty:
+          type: string
+          description: Order quantity
+        OrdType:
+          type: string
+          enum: [Market, Limit, Stop, StopLimit]
+          description: Order type
+        Currency:
+          type: string
+          description: Currency of the order
+        LeavesQty:
+          type: string
+          description: Quantity remaining to be executed
+        CumQty:
+          type: string
+          description: Cumulative quantity executed
+        AvgPx:
+          type: string
+          description: Average price of executed quantity
+        TimeInForce:
+          type: string
+          enum: [Day, GoodTillCancel, ImmediateOrCancel, FillOrKill, GoodTillDate]
+          description: Time in force for the order
+        LastPx:
+          type: string
+          description: Price of the last execution
+        LastQty:
+          type: string
+          description: Quantity of the last execution
+        LastAmt:
+          type: string
+          description: Amount of the last execution
+        LastFee:
+          type: string
+          description: Fee of the last execution
+        CumAmt:
+          type: string
+          description: Cumulative amount executed
+        DecisionStatus:
+          type: string
+          enum: [Active, Inactive, Paused]
+          description: Decision status of the order
+        AmountCurrency:
+          type: string
+          description: Currency for the amount calculations
+        CustomerUser:
+          type: string
+          description: Customer user who placed the order
+        Parameters:
+          type: object
+          description: Additional order parameters
+          properties:
+            ErrorAction:
+              type: string
+              enum: [Pause, Continue, Cancel]
+              description: Action to take on error
+
+    ExecutionReportEvent:
+      type: object
+      required: [Timestamp, Symbol, OrderID, ClOrdID, SubmitTime, ExecID, Side, ExecType, OrdStatus, OrderQty, OrdType, Currency, LeavesQty, CumQty, TimeInForce, AmountCurrency, SessionID, CustomerUser]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the message
+        Symbol:
+          type: string
+          description: Symbol of the order security
+        OrderID:
+          type: string
+          description: Server assigned Order ID, will be a UUID
+        ClOrdID:
+          type: string
+          description: Client assigned Order ID for the last request
+        OrigClOrdID:
+          type: string
+          description: Original client assigned Order ID
+        SubmitTime:
+          type: string
+          format: date-time
+          description: Time of original order submission
+        ExecID:
+          type: string
+          description: Server assigned ID of this update, will be a UUID
+        Side:
+          type: string
+          enum: [Buy, Sell]
+          description: Buy or Sell
+        TransactTime:
+          type: string
+          format: date-time
+          description: 'An ISO-8601 UTC string'
+        ExecType:
+          type: string
+          enum: [New, Trade, Canceled, Replaced, PendingCancel, Stopped, Rejected, PendingNew, Restated, PendingReplace, CancelRejected, ReplaceRejected, PendingResume, Resumed, PendingPause, Paused, Triggered, Started]
+          description: 'Describes the specific execution (e.g. Pending Cancel) while OrdStatus will always identify the current order status (e.g. Partially Filled)'
+        OrdStatus:
+          type: string
+          enum: [New, PartiallyFilled, Filled, Canceled, PendingCancel, Rejected, PendingNew, PendingReplace]
+          description: Identifies current status of order
+        OrderQty:
+          type: string
+          description: Order quantity
+        OrdType:
+          type: string
+          enum: [Market, Limit, RFQ]
+          description: Order type
+        Price:
+          type: string
+          description: 'Order limit price, required when OrdType=Limit'
+        Currency:
+          type: string
+          description: Currency of Quantity
+        LeavesQty:
+          type: string
+          description: 'Quantity open for further execution. If the OrdStatus is Canceled or Rejected (in which case the order is no longer active) then LeavesQty could be 0, otherwise LeavesQty = OrderQty - CumQty'
+        CumQty:
+          type: string
+          description: 'Total quantity filled. Always in Currency units (BTC of a BTC-USD order)'
+        AvgPx:
+          type: string
+          description: 'Average filled price of the order. Only valid if CumQty > 0. Does not include fees'
+        TimeInForce:
+          type: string
+          enum: [GoodTillCancel, FillAndKill, FillOrKill]
+          description: Specifies how long the order remains in effect
+        LastPx:
+          type: string
+          description: 'Last price, specified when ExecType=Trade'
+        LastQty:
+          type: string
+          description: 'Last qty, specified when ExecType=Trade'
+        LastAmt:
+          type: string
+          description: 'Last amount, specified when ExecType=Trade'
+        LastFee:
+          type: string
+          description: 'Last fee, specified when ExecType=Trade'
+        LastFeeCurrency:
+          type: string
+          description: 'Last fee currency, specified when ExecType=Trade. Note this may be different from the cumulative fee'
+        CumAmt:
+          type: string
+          description: 'Total amount filled. Always in Amount currency (USD of a BTC-USD order)'
+        FeeCurrency:
+          type: string
+          description: Cumulative fee currency
+        OrdRejReason:
+          type: string
+          enum: [UnknownSymbol, OrderExceedsLimit, TooLateToEnter, UnknownOrder, DuplicateOrder, StaleRequest, InternalError, BrokerOption, RateLimit, ForceCancel, ImmediateOrderDidNotCross, PostOnlyOrderWouldCross, InvalidStrategy, QuoteRequestTimeout, QuoteExpired]
+          description: 'Order reject reason, specified when ExecType=Rejected'
+        CxlRejReason:
+          type: string
+          enum: [UnknownOrder, Broker, OrderAlreadyInPendingCancelOrPendingReplaceStatus, DuplicateClOrdID, TooLateToCancel, StaleRequest, RateLimit, InvalidStrategy, Other]
+          description: 'Cancel reject reason, specified when ExecType=CancelRejected or ExecType=ReplaceRejected'
+        QuoteID:
+          type: string
+          description: Server assigned QuoteID for RFQ Orders
+        AmountCurrency:
+          type: string
+          description: Currency of Amount
+        SessionID:
+          type: string
+          description: SessionID that submitted this order
+        CancelSessionID:
+          type: string
+          description: 'If specified, the order will be cancelled when this session is closed'
+        Strategy:
+          type: string
+          description: Name of the Order Strategy to use
+        RFQID:
+          type: string
+          description: Server assigned RFQID for RFQ Orders
+        AllowedSlippage:
+          type: string
+          description: 'AllowedSlippage in absolute value (ie. 0.001 = 10 bps) if specified on order'
+        Text:
+          type: string
+          description: Human readable error message
+        CustomerUser:
+          type: string
+          description: The customer user associated with this execution report
+        Parameters:
+          type: object
+          description: Additional execution report parameters
+          properties:
+            ErrorAction:
+              type: string
+              enum: [Pause, Continue, Cancel]
+              description: Action to take on error
+
+    NewOrderSingleData:
+      type: object
+      required: [Symbol, ClOrdID, Side, OrderQty, OrdType, TimeInForce]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the message
+        Symbol:
+          type: string
+          description: Symbol of the security to submit an order on
+        ClOrdID:
+          type: string
+          description: Unique Client Order ID for this request, usually a UUID
+        Side:
+          type: string
+          enum: [Buy, Sell]
+          description: Side of the order, either Buy or Sell
+        OrderQty:
+          type: string
+          description: Order quantity in units of Currency
+        OrdType:
+          type: string
+          enum: [Market, Limit, RFQ]
+          description: Order type
+        Price:
+          type: string
+          description: Order limit price, required for Limit orders
+        TransactTime:
+          type: string
+          format: date-time
+          description: 'An ISO-8601 UTC string'
+        Currency:
+          type: string
+          description: The currency that the quantity is specified in. If not specified, defaults to the base currency for the symbol
+        QuoteID:
+          type: string
+          description: 'Optional QuoteID to trade on. Must be specified when OrdType=RFQ'
+        RFQID:
+          type: string
+          description: 'Optional RFQID to trade on. Must be specified when OrdType=RFQ'
+        TimeInForce:
+          type: string
+          enum: [GoodTillCancel, FillAndKill, FillOrKill]
+          description: Specifies how long the order remains in effect
+        Strategy:
+          type: string
+          description: 'Optional order strategy to use. For algorithmic orders SteadyPace, StopLimit are supported'
+        AllowedSlippage:
+          type: string
+          description: Optional allowed price slippage for Limit order placed against RFQ
+        Parameters:
+          type: object
+          description: Optional order strategy parameters
+          properties:
+            ErrorAction:
+              type: string
+              enum: [Pause, Continue, Cancel]
+              description: Action to take on error
+
+    OrderCancelRequestData:
+      type: object
+      required: [Symbol, ClOrdID, TransactTime]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the message
+        Symbol:
+          type: string
+          description: Symbol of the security to submit an order on
+        ClOrdID:
+          type: string
+          description: Unique Client Order ID for this request, usually a UUID
+        OrigClOrdID:
+          type: string
+          description: 'Client Order ID of the order to cancel, one of OrderID, OrigClOrdID is required'
+        OrderID:
+          type: string
+          description: 'Order ID of the order to cancel, one of OrderID, OrigClOrdID is required'
+        TransactTime:
+          type: string
+          format: date-time
+          description: 'An ISO-8601 UTC string'
+
+    OrderCancelReplaceRequestData:
+      type: object
+      required: [Symbol, ClOrdID, OrderQty, TransactTime]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the message
+        Symbol:
+          type: string
+          description: Symbol of the security to submit an order on
+        ClOrdID:
+          type: string
+          description: Unique Client Order ID for this request, usually a UUID
+        OrigClOrdID:
+          type: string
+          description: 'Client Order ID of the order to cancel, one of OrderID, OrigClOrdID is required'
+        OrderID:
+          type: string
+          description: 'Order ID of the order to cancel, one of OrderID, OrigClOrdID is required'
+        OrderQty:
+          type: string
+          description: Order quantity in units of Currency
+        Price:
+          type: string
+          description: Order limit price, required for Limit orders
+        TransactTime:
+          type: string
+          format: date-time
+          description: 'An ISO-8601 UTC string'
+        Strategy:
+          type: string
+          description: 'Optional order strategy to use. For algorithmic orders Pegged, TWAP, FullAmount, TimeSliced, and SteadyPace are supported'
+        EndTime:
+          type: string
+          format: date-time
+          description: 'Optional expire time for the order. An ISO-8601 UTC string'
+        Parameters:
+          type: object
+          description: Optional order strategy parameters
+          properties:
+            ErrorAction:
+              type: string
+              enum: [Pause, Continue, Cancel]
+              description: Action to take on error
+
+    OrderControlRequestData:
+      type: object
+      required: [ClOrdID, TransactTime, Action]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the message
+        ClOrdID:
+          type: string
+          description: Unique Client Order ID for this request, usually a UUID
+        OrigClOrdID:
+          type: string
+          description: 'Client Order ID of the order to submit the control request for, one of OrderID, OrigClOrdID is required'
+        OrderID:
+          type: string
+          description: 'Order ID of the order to submit the control request for, one of OrderID, OrigClOrdID is required'
+        TransactTime:
+          type: string
+          format: date-time
+          description: 'An ISO-8601 UTC string'
+        Action:
+          type: string
+          enum: [Pause, Resume]
+          description: 'Action to apply on the order, either Pause or Resume'
+
+    TradeEvent:
+      type: object
+      required: [Timestamp, Symbol, OrderID, TradeID, Side, TransactTime, ExecType, Currency, Quantity, Amount, Fee, TradeStatus, AmountCurrency]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the message
+        Symbol:
+          type: string
+          description: Symbol of the security
+        OrderID:
+          type: string
+          description: Server assigned Order ID, will be a UUID
+        TradeID:
+          type: string
+          description: Server assigned Trade ID, will be a UUID
+        Side:
+          type: string
+          enum: [Buy, Sell]
+          description: Buy or Sell
+        TransactTime:
+          type: string
+          format: date-time
+          description: 'An ISO-8601 UTC string'
+        ExecType:
+          type: string
+          enum: [New, Trade, Canceled, Replaced, PendingCancel, Stopped, Rejected, PendingNew, Restated, PendingReplace, CancelRejected, ReplaceRejected, PendingResume, Resumed, PendingPause, Paused, Triggered, Started]
+          description: 'Describes the specific execution (e.g. Pending Cancel) while OrdStatus will always identify the current order status (e.g. Partially Filled)'
+        Currency:
+          type: string
+          description: Currency of Quantity
+        Price:
+          type: string
+          description: Trade execution price
+        Quantity:
+          type: string
+          description: Trade quantity
+        Amount:
+          type: string
+          description: Trade amount
+        Fee:
+          type: string
+          description: Trade fee
+        FeeCurrency:
+          type: string
+          description: Cumulative fee currency
+        TradeStatus:
+          type: string
+          enum: [Pending, Confirmed, Canceled]
+          description: Status of the trade
+        QuoteID:
+          type: string
+          description: Server assigned QuoteID for RFQ Orders
+        AmountCurrency:
+          type: string
+          description: Currency of Amount
+        RFQID:
+          type: string
+          description: Server assigned RFQID for RFQ Orders
+        CustomerUser:
+          type: string
+          description: The customer user associated with this trade
+        AggressorSide:
+          type: string
+          enum: [Buy, Sell]
+          description: Side that initiated the trade
+        DealtCurrency:
+          type: string
+          description: Currency that was dealt in the trade
+
+    QuoteEvent:
+      type: object
+      required: [Timestamp, Symbol, Currency, QuoteReqID, QuoteStatus, QuoteID, SubmitTime, OrderQty, AmountCurrency, EndTime, Side, ValidUntilTime]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the message
+        Symbol:
+          type: string
+          description: Symbol of the order security
+        Currency:
+          type: string
+          description: Currency of Quantity
+        RFQID:
+          type: string
+          description: Server assigned RFQID for RFQ Orders
+        QuoteReqID:
+          type: string
+          description: Client assigned Quote Req ID for the quote request
+        QuoteStatus:
+          type: string
+          enum: [PendingNew, Open, PendingCancel, Canceled, PendingFill, Filled, Rejected]
+          description: Status of the quote
+        QuoteID:
+          type: string
+          description: Server assigned ID for this quote update
+        QuoteRequestRejectReason:
+          type: string
+          enum: [UnknownSymbol, OrderExceedsLimit, TooLateToEnter, UnknownOrder, DuplicateOrder, StaleRequest, InternalError, BrokerOption, RateLimit, ForceCancel, ImmediateOrderDidNotCross, PostOnlyOrderWouldCross, InvalidStrategy, QuoteRequestTimeout, QuoteExpired]
+          description: 'Quote request reject reason, specified when ExecType=Rejected'
+        SubmitTime:
+          type: string
+          format: date-time
+          description: Time of original quote request submission
+        OrderQty:
+          type: string
+          description: Order quantity
+        AmountCurrency:
+          type: string
+          description: Currency of Amount
+        EndTime:
+          type: string
+          format: date-time
+          description: End time of RFQ
+        Side:
+          type: string
+          enum: [Buy, Sell]
+          description: Buy or Sell
+        TradedPx:
+          type: string
+          description: The price of the trade if the quote is filled. This will be an all-in price that includes fees
+        TradedQty:
+          type: string
+          description: The quantity of the trade if the quote is filled in units of Currency
+        TradedAmt:
+          type: string
+          description: The amount of the trade if the quote is filled in units of AmountCurrency
+        TradedSide:
+          type: string
+          enum: [Buy, Sell]
+          description: The side of the trade if the quote is filled
+        BidPx:
+          type: string
+          description: Bid quote price
+        BidAmt:
+          type: string
+          description: Bid quote amount in units of AmountCurrency
+        OfferPx:
+          type: string
+          description: Offer quote price
+        OfferAmt:
+          type: string
+          description: Offer quote amount in units of AmountCurrency
+        ValidUntilTime:
+          type: string
+          format: date-time
+          description: The expire time of the quote
+        Text:
+          type: string
+          description: Human readable error message
+        CustomerUser:
+          type: string
+          description: The customer user associated with this quote
+
+    QuoteRequestData:
+      type: object
+      required: [QuoteReqID, OrderQty, Currency, Symbol]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the message
+        Symbol:
+          type: string
+          description: Symbol of the security to submit an order on
+        Currency:
+          type: string
+          description: The currency that the quantity is specified in
+        QuoteReqID:
+          type: string
+          description: Unique ID for this request, usually a UUID
+        Side:
+          type: string
+          enum: [Buy, Sell]
+          description: 'Optional side for a one sided request, either Buy or Sell. Leave blank for a two way quote'
+        OrderQty:
+          type: string
+          description: Requested quantity in units of Currency
+        TransactTime:
+          type: string
+          format: date-time
+          description: 'An ISO-8601 UTC string'
+        Parameters:
+          type: object
+          description: Additional quote request parameters
+
+    QuoteCancelRequestData:
+      type: object
+      required: [QuoteReqID, RFQID, TransactTime]
+      additionalProperties: false
+      properties:
+        QuoteReqID:
+          type: string
+          description: '`QuoteReqID` from the request to cancel'
+        RFQID:
+          type: string
+          description: '`RFQID` to cancel, required and must align with `QuoteReqID`'
+        TransactTime:
+          type: string
+          format: date-time
+          description: 'An ISO-8601 UTC string'
+
+    ExposureEvent:
+      type: object
+      required: [Timestamp, ExposureCurrency, Exposure, ExposureLimit, Status]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: The last time the credit was updated as an ISO-8601 UTC string
+        ExposureCurrency:
+          type: string
+          description: The currency all exposure values are expressed in
+        Exposure:
+          type: string
+          description: Current credit utilization expressed in the `ExposureCurrency`
+        ExposureLimit:
+          type: string
+          description: Credit limit expressed in the `ExposureCurrency`
+        Status:
+          type: string
+          enum: [Online, Offline]
+          description: Status of the exposure information
+
+    BalanceTransactionEvent:
+      type: object
+      required: [Timestamp, ClReqID, TransactionID, Revision, TransactionType, MarketAccount, Quantity, Currency, Status, LastUpdateTime]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the balance transaction event
+        ClReqID:
+          type: string
+          description: Client request ID for the transaction
+        TransactionID:
+          type: string
+          description: Unique identifier for the transaction
+        Revision:
+          type: integer
+          description: Revision number of the transaction
+        TransactionType:
+          type: string
+          description: Type of the transaction (e.g., Withdrawal, Deposit)
+        MarketAccount:
+          type: string
+          description: Market account associated with the transaction
+        Quantity:
+          type: string
+          description: Amount of the transaction
+        Currency:
+          type: string
+          description: Currency of the transaction
+        Status:
+          type: string
+          description: Current status of the transaction (e.g., PendingApproval, Approved, Rejected)
+        LastUpdateTime:
+          type: string
+          format: date-time
+          description: Last time the transaction was updated
+
+    UserEvent:
+      type: object
+      required: [CustomerUserID, Email, DisplayName, Config]
+      additionalProperties: false
+      properties:
+        CustomerUserID:
+          type: string
+          description: Unique identifier for the customer user
+        Email:
+          type: string
+          description: Email address of the user
+        DisplayName:
+          type: string
+          description: Display name of the user
+        Config:
+          type: array
+          items:
+            type: object
+            required: [Timestamp, CustomerUserID, Key, Value]
+            properties:
+              Timestamp:
+                type: integer
+                description: Unix timestamp in nanoseconds when the configuration was set
+              CustomerUserID:
+                type: string
+                description: Customer user ID associated with this configuration
+              Key:
+                type: string
+                description: Configuration key
+              Value:
+                type: string
+                description: Configuration value (JSON string)
+          description: Array of user configuration settings
+
+    BalanceTransactionSubscription:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          enum: [BalanceTransaction]
+      examples:
+        - name: Subscribe
+          payload:
+            reqid: 9
+            type: subscribe
+            streams:
+              - name: BalanceTransaction
+
+    UserSubscription:
+      type: object
+      required: [name]
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          enum: [User]
+
+    NewWithdrawRequestData:
+      type: object
+      required: [Currency, ClReqID, Quantity]
+      additionalProperties: false
+      properties:
+        Currency:
+          type: string
+          description: The currency that the quantity is specified in
+        ClReqID:
+          type: string
+          description: Unique ID for this request, usually a UUID
+        Quantity:
+          type: string
+          description: Requested quantity in units of Currency
+        TransactTime:
+          type: string
+          format: date-time
+          description: 'An ISO-8601 UTC string'
+        MarketAccount:
+          type: string
+          description: Market account associated with the transaction
+        RoutingInfo:
+          type: object
+          properties:
+            WalletAddress:
+              type: string
+              description: Destination wallet address
+            Memo:
+              type: string
+              description: Optional memo for the transaction
+            DestinationTag:
+              type: string
+              description: Optional destination tag for the transaction
+          description: 'Provides routing info for the transaction such as WalletAddress. If this cannot be mapped to an existing address, it will be included on the BalanceTransaction. Cannot be provided alongside AddressID'
+        AddressID:
+          type: string
+          description: 'Optional address ID to attach to the withdraw transaction. Cannot be provided alongside RoutingInfo'
+
+    WithdrawCancelRequestData:
+      type: object
+      required: [TransactionID]
+      additionalProperties: false
+      properties:
+        TransactionID:
+          type: string
+          description: ID of the transaction to cancel
+
+    NewDepositRequestData:
+      type: object
+      required: [Currency, ClReqID, Quantity, TxHashes]
+      additionalProperties: false
+      properties:
+        Currency:
+          type: string
+          description: The currency that the quantity is specified in
+        ClReqID:
+          type: string
+          description: Unique ID for this request, usually a UUID
+        Quantity:
+          type: string
+          description: Requested quantity in units of Currency
+        TransactTime:
+          type: string
+          format: date-time
+          description: 'An ISO-8601 UTC string'
+        MarketAccount:
+          type: string
+          description: Market account associated with the transaction
+        TxHashes:
+          type: array
+          items:
+            type: object
+            required: [TxHash]
+            properties:
+              TxHash:
+                type: string
+                description: Transaction hash
+          description: List of blockchain transaction hashes associated with that deposit request
+
+    UserConfigData:
+      type: object
+      required: [Key]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: Timestamp of the message
+        Mode:
+          type: string
+          enum: [Enabled, Disabled]
+          description: Optional mode on config, either Enabled or Disabled
+        Key:
+          type: string
+          description: Key of config
+        Value:
+          type: string
+          description: Value of config
+
+    OHLCVParameters:
+      type: object
+      required: [symbol, resolution]
+      additionalProperties: false
+      properties:
+        symbol:
+          x-in: path
+          schema:
+            type: string
+        resolution:
+          x-in: path
+          schema:
+            type: string
+            examples:
+              - 1h
+              - 1d
+        startDate:
+          x-in: query
+          description: >
+            If provided, will return data starting at this time. An ISO-8601 UTC string of the form `2019-02-13T05:17:32.000000Z`.
+          schema:
+            type: string
+            format: date-time
+        endDate:
+          x-in: query
+          description: >
+            If provided, will return data ending at this time. An ISO-8601 UTC string of the form `2019-02-13T05:17:32.000000Z`.
+          schema:
+            type: string
+            format: date-time
+      examples:
+        - name: Request
+          payload: 'GET /v1/symbols/BTC-USD/ohlcv/1h'
+
+    OHLCV:
+      type: object
+      required: [Timestamp, Symbol, Volume, Open, Close, High, Low, Ticks]
+      additionalProperties: false
+      properties:
+        Timestamp:
+          type: string
+          format: date-time
+          description: The start time for this interval
+        Symbol:
+          type: string
+          description: A unique symbol for this security
+        Volume:
+          type: string
+          format: decimal
+          description: Total base-currency volume traded (if any) for the symbol in the time interval
+        Open:
+          type: string
+          format: decimal
+          description: First trade price (if any) for the symbol in the time interval
+        Close:
+          type: string
+          format: decimal
+          description: Last trade price (if any) for the symbol in the time interval
+        High:
+          type: string
+          format: decimal
+          description: Highest traded price (if any) for the symbol in the time interval
+        Low:
+          type: string
+          format: decimal
+          description: Lowest traded price (if any) for the symbol in the time interval
+        Ticks:
+          type: string
+          format: decimal
+          description: Total number of ticks for the symbol in the time interval
+      examples:
+        - name: Response
+          payload:
+            type: OHLCV
+            ts: '2019-09-16T14:57:19.785823Z'
+            data:
+              - Timestamp: '2023-02-27T10:52:00.000000Z'
+                Symbol: 'BTC-USD'
+                Open: '23413.30000'
+                High: '23418.24'
+                Low: '23399.46'
+                Close: '23407.10000'
+                Volume: '0.49309984'
+                Ticks: 74
