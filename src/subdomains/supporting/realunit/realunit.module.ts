@@ -8,6 +8,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { FaucetRequestModule } from 'src/subdomains/core/faucet-request/faucet-request.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
+import { ForwardingModule } from 'src/subdomains/generic/forwarding/forwarding.module';
 import { KycModule } from 'src/subdomains/generic/kyc/kyc.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { LogModule } from 'src/subdomains/supporting/log/log.module';
@@ -52,6 +53,7 @@ import { RealUnitTransferRequestRepository } from './repositories/realunit-trans
     PaymentModule,
     TransactionModule,
     Eip7702DelegationModule,
+    ForwardingModule,
     forwardRef(() => BuyCryptoModule),
     forwardRef(() => SellCryptoModule),
     FaucetRequestModule,
