@@ -4,7 +4,7 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { KycStep } from '../../../entities/kyc-step.entity';
 import { KycStepName } from '../../../enums/kyc-step-name.enum';
-import { requiredKycSteps } from '../../../enums/kyc.enum';
+import { KycContext, requiredKycSteps } from '../../../enums/kyc.enum';
 import { ReviewStatus } from '../../../enums/review-status.enum';
 import { KycLevelDto, KycProcessStatus, KycSessionDto } from '../../output/kyc-info.dto';
 import { KycInfoMapper } from '../kyc-info.mapper';
@@ -272,6 +272,80 @@ describe('KycInfoMapper', () => {
       const financialStep = result.kycSteps.find((s) => s.name === KycStepName.FINANCIAL_DATA);
 
       expect(financialStep?.isRequired).toBe(false);
+    });
+  });
+
+  describe('KYC context filtering', () => {
+    it('returns Completed for RealunitBuy when LEVEL_30 steps are done, even with FINANCIAL_DATA incomplete', () => {
+      setRequiredSteps(
+        KycStepName.CONTACT_DATA,
+        KycStepName.PERSONAL_DATA,
+        KycStepName.NATIONALITY_DATA,
+        KycStepName.IDENT,
+        KycStepName.FINANCIAL_DATA,
+        KycStepName.DFX_APPROVAL,
+      );
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.PERSONAL_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.NATIONALITY_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.IDENT, ReviewStatus.COMPLETED),
+        ],
+      });
+
+      const result = KycInfoMapper.toDto(userData, false, [], undefined, KycContext.REALUNIT_BUY) as KycLevelDto;
+
+      expect(result.processStatus).toBe(KycProcessStatus.COMPLETED);
+      expect(result.kycSteps.find((s) => s.name === KycStepName.FINANCIAL_DATA)?.isRequired).toBe(false);
+      expect(result.kycSteps.find((s) => s.name === KycStepName.DFX_APPROVAL)?.isRequired).toBe(false);
+    });
+
+    it('returns InProgress for RealunitSell when FINANCIAL_DATA is incomplete (no filtering)', () => {
+      setRequiredSteps(
+        KycStepName.CONTACT_DATA,
+        KycStepName.IDENT,
+        KycStepName.FINANCIAL_DATA,
+        KycStepName.DFX_APPROVAL,
+      );
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.IDENT, ReviewStatus.COMPLETED),
+        ],
+      });
+
+      const result = KycInfoMapper.toDto(userData, false, [], undefined, KycContext.REALUNIT_SELL) as KycLevelDto;
+
+      expect(result.processStatus).toBe(KycProcessStatus.IN_PROGRESS);
+      expect(result.kycSteps.find((s) => s.name === KycStepName.FINANCIAL_DATA)?.isRequired).toBe(true);
+    });
+
+    it('behaves unchanged without a context (backwards compatible)', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.FINANCIAL_DATA);
+      const userData = buildUserData({
+        kycSteps: [buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED)],
+      });
+
+      const result = KycInfoMapper.toDto(userData, false, []) as KycLevelDto;
+
+      expect(result.processStatus).toBe(KycProcessStatus.IN_PROGRESS);
+      expect(result.kycSteps.find((s) => s.name === KycStepName.FINANCIAL_DATA)?.isRequired).toBe(true);
+    });
+
+    it('intersects context whitelist with user-specific required steps (RECOMMENDATION only when both agree)', () => {
+      setRequiredSteps(KycStepName.CONTACT_DATA, KycStepName.IDENT, KycStepName.RECOMMENDATION);
+      const userData = buildUserData({
+        kycSteps: [
+          buildStep(KycStepName.CONTACT_DATA, ReviewStatus.COMPLETED),
+          buildStep(KycStepName.IDENT, ReviewStatus.COMPLETED),
+        ],
+      });
+
+      const result = KycInfoMapper.toDto(userData, false, [], undefined, KycContext.REALUNIT_BUY) as KycLevelDto;
+
+      expect(result.kycSteps.find((s) => s.name === KycStepName.RECOMMENDATION)?.isRequired).toBe(true);
+      expect(result.processStatus).toBe(KycProcessStatus.IN_PROGRESS);
     });
   });
 });
