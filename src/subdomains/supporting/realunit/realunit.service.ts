@@ -43,6 +43,7 @@ import { FaucetRequestService } from 'src/subdomains/core/faucet-request/service
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { KycContext } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
@@ -413,14 +414,19 @@ export class RealUnitService {
 
     // 1. Registration required
     if (!this.hasRegistrationForWallet(userData, user.address)) {
-      throw new RegistrationRequiredException();
+      throw new RegistrationRequiredException(undefined, KycContext.REALUNIT_BUY);
     }
 
     // 2. KYC Level check - Level 30 required for all RealUnit purchases
     const currency = await this.fiatService.getFiatByName(currencyName);
 
     if (userData.kycLevel < KycLevel.LEVEL_30) {
-      throw new KycLevelRequiredException(KycLevel.LEVEL_30, userData.kycLevel, 'KYC Level 30 required for RealUnit');
+      throw new KycLevelRequiredException(
+        KycLevel.LEVEL_30,
+        userData.kycLevel,
+        'KYC Level 30 required for RealUnit',
+        KycContext.REALUNIT_BUY,
+      );
     }
 
     // 3. Get or create Buy route for REALU
@@ -1116,7 +1122,7 @@ export class RealUnitService {
 
     // 1. Registration required
     if (!this.hasRegistrationForWallet(userData, user.address)) {
-      throw new RegistrationRequiredException();
+      throw new RegistrationRequiredException(undefined, KycContext.REALUNIT_SELL);
     }
 
     // 2. KYC Level check - Level 30 minimum
@@ -1125,6 +1131,7 @@ export class RealUnitService {
         KycLevel.LEVEL_30,
         userData.kycLevel,
         'KYC Level 30 required for RealUnit sell',
+        KycContext.REALUNIT_SELL,
       );
     }
 
@@ -1163,6 +1170,7 @@ export class RealUnitService {
         KycLevel.LEVEL_50,
         userData.kycLevel,
         'KYC Level 50 required for RealUnit sell exceeding trading limit',
+        KycContext.REALUNIT_SELL,
       );
     }
 

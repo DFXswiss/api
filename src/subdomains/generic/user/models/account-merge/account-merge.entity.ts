@@ -10,6 +10,11 @@ export enum MergeReason {
   IBAN = 'Iban',
 }
 
+// Upper bound on how long a confirmed merge is considered "processing". A merge runs in seconds;
+// bounding it means a marker left behind by a pod crash between start and complete self-heals
+// instead of pinning the client on a waiting state until the merge request expires (days).
+export const MERGE_PROCESSING_TIMEOUT_MINUTES = 10;
+
 @Entity()
 export class AccountMerge extends IEntity {
   @Index()
@@ -30,6 +35,9 @@ export class AccountMerge extends IEntity {
   @Column({ type: 'timestamp' })
   expiration: Date;
 
+  @Column({ type: 'timestamp', nullable: true })
+  processingStartedAt?: Date;
+
   @Column({ length: 256, nullable: true })
   reason?: MergeReason;
 
@@ -47,6 +55,22 @@ export class AccountMerge extends IEntity {
     return entity;
   }
 
+  startProcessing(): UpdateResult<AccountMerge> {
+    const update: Partial<AccountMerge> = { processingStartedAt: new Date() };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  stopProcessing(): UpdateResult<AccountMerge> {
+    const update: Partial<AccountMerge> = { processingStartedAt: null };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   complete(master: UserData, slave: UserData): UpdateResult<AccountMerge> {
     const update: Partial<AccountMerge> = {
       isCompleted: true,
@@ -61,5 +85,15 @@ export class AccountMerge extends IEntity {
 
   get isExpired(): boolean {
     return this.expiration < new Date();
+  }
+
+  // user has confirmed the merge and the backend is still processing it (re-parenting, KYC follow-up)
+  get isProcessing(): boolean {
+    return (
+      !this.isCompleted &&
+      this.processingStartedAt != null &&
+      this.processingStartedAt > Util.minutesBefore(MERGE_PROCESSING_TIMEOUT_MINUTES) &&
+      !this.isExpired
+    );
   }
 }

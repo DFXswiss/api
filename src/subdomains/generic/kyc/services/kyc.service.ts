@@ -82,7 +82,7 @@ import { KycStep, KycStepResult } from '../entities/kyc-step.entity';
 import { ContentType } from '../enums/content-type.enum';
 import { FileCategory } from '../enums/file-category.enum';
 import { KycStepCancelable, KycStepIdentRequiredForReview, KycStepName } from '../enums/kyc-step-name.enum';
-import { KycLogType, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
+import { KycContext, KycLogType, KycStepType, getIdentificationType, requiredKycSteps } from '../enums/kyc.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
 import { StepLogRepository } from '../repositories/step-log.repository';
@@ -440,11 +440,11 @@ export class KycService {
     }
   }
 
-  async getInfo(kycHash: string): Promise<KycLevelDto> {
+  async getInfo(kycHash: string, context?: KycContext): Promise<KycLevelDto> {
     const user = await this.getUser(kycHash);
     await this.verifyUserDuplication(user);
 
-    return this.toDto(user, false);
+    return this.toDto(user, false, undefined, context);
   }
 
   async getFileByUid(uid: string, userDataId?: number, role?: UserRole): Promise<KycFileDataDto> {
@@ -469,9 +469,9 @@ export class KycService {
     return KycFileMapper.mapKycFile(kycFile, blob);
   }
 
-  async continue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
+  async continue(kycHash: string, ip: string, autoStep: boolean, context?: KycContext): Promise<KycSessionDto> {
     return Util.retry(
-      () => this.tryContinue(kycHash, ip, autoStep),
+      () => this.tryContinue(kycHash, ip, autoStep, context),
       2,
       0,
       undefined,
@@ -534,7 +534,12 @@ export class KycService {
     );
   }
 
-  private async tryContinue(kycHash: string, ip: string, autoStep: boolean): Promise<KycSessionDto> {
+  private async tryContinue(
+    kycHash: string,
+    ip: string,
+    autoStep: boolean,
+    context?: KycContext,
+  ): Promise<KycSessionDto> {
     let user = await this.getUser(kycHash);
 
     if (user.hasRole(UserRole.COMPLIANCE)) throw new BadRequestException('KYC not allowed for compliance accounts');
@@ -545,7 +550,7 @@ export class KycService {
 
     await this.verify2faIfRequired(user, ip);
 
-    return this.toDto(user, true);
+    return this.toDto(user, true, undefined, context);
   }
 
   private async verifyUserDuplication(user: UserData) {
@@ -1759,10 +1764,12 @@ export class KycService {
     user: UserData,
     withSession: boolean,
     currentStep?: KycStep,
+    context?: KycContext,
   ): Promise<KycLevelDto | KycSessionDto> {
     const kycClients = await this.walletService.getKycClients();
+    const isMergeProcessing = await this.accountMergeService.hasProcessingMerge(user.id);
 
-    return KycInfoMapper.toDto(user, withSession, kycClients, currentStep);
+    return KycInfoMapper.toDto(user, withSession, kycClients, currentStep, context, isMergeProcessing);
   }
 
   private async getUser(kycHash: string): Promise<UserData> {
