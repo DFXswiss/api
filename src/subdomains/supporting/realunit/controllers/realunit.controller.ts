@@ -55,6 +55,14 @@ import {
   RealUnitRegistrationStatus,
 } from '../dto/realunit-registration.dto';
 import {
+  RealUnitOcpPayDto,
+  RealUnitOcpPayResultDto,
+  RealUnitOcpPayStatusDto,
+  RealUnitOcpPaySubmitDto,
+  RealUnitOcpPayUnsignedTransactionDto,
+  RealUnitSwapUnsignedTransactionDto,
+} from '../dto/realunit-pay.dto';
+import {
   RealUnitSellBroadcastDto,
   RealUnitSellConfirmDto,
   RealUnitSellDto,
@@ -602,6 +610,73 @@ export class RealUnitController {
     @Body() dto: RealUnitSellBroadcastDto,
   ): Promise<{ txHash: string }> {
     return this.realunitService.broadcastSellTransaction(jwt.user, +id, dto);
+  }
+
+  // --- OCP Pay-Flow Endpoints ---
+  // Phase 2 pay flow: swap REALU -> ZCHF keeping the ZCHF in the user wallet, then pay that ZCHF to an
+  // Open CryptoPay recipient via the public lnurlp payment-link flow. The backend orchestrates the steps
+  // (workflow endpoints) since the app cannot build EVM calldata or settle the OCP quote locally.
+
+  @Put('swap/:id/unsigned-transaction')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get unsigned REALU -> ZCHF swap transaction (proceeds stay in the user wallet)',
+    description:
+      'Builds the REALU transferAndCall swap transaction WITHOUT the deposit sweep, so the ZCHF proceeds land in the connected wallet. Step 1 of the OCP pay flow; broadcast the signed transaction via `PUT /sell/:id/broadcast`.',
+  })
+  @ApiParam({ name: 'id', description: 'Transaction request ID' })
+  @ApiOkResponse({ type: RealUnitSwapUnsignedTransactionDto })
+  @ApiBadRequestResponse({ description: 'Invalid request or insufficient ETH for gas' })
+  async getSwapUnsignedTransaction(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+  ): Promise<RealUnitSwapUnsignedTransactionDto> {
+    return this.realunitService.createSwapUnsignedTransaction(jwt.user, +id);
+  }
+
+  @Put('pay/unsigned-transaction')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get unsigned ZCHF transfer transaction for an Open CryptoPay payment',
+    description:
+      'Resolves recipient and exact amount from the OCP payment-link quote (same source the lnurlp callback uses) and builds the unsigned ZCHF ERC-20 transfer transaction to the DFX deposit address. Step 2a of the OCP pay flow; submit the signed transaction via `PUT /pay/submit`.',
+  })
+  @ApiOkResponse({ type: RealUnitOcpPayUnsignedTransactionDto })
+  @ApiBadRequestResponse({ description: 'Invalid payment-link/quote reference or insufficient ETH for gas' })
+  async getOcpPayUnsignedTransaction(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitOcpPayDto,
+  ): Promise<RealUnitOcpPayUnsignedTransactionDto> {
+    return this.realunitService.createOcpPayUnsignedTransaction(jwt.address, dto.paymentLinkId, dto.quoteId);
+  }
+
+  @Put('pay/submit')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Submit a signed ZCHF transfer to settle an Open CryptoPay payment',
+    description:
+      'Reconstructs the signed transaction and submits it into the existing lnurlp settlement path, where DFX validates recipient, amount, and min-fee, broadcasts it, and settles the OCP quote. Step 2b of the OCP pay flow.',
+  })
+  @ApiOkResponse({ type: RealUnitOcpPayResultDto })
+  @ApiBadRequestResponse({ description: 'Invalid signed transaction or settlement failure' })
+  async submitOcpPay(@Body() dto: RealUnitOcpPaySubmitDto): Promise<RealUnitOcpPayResultDto> {
+    return this.realunitService.submitOcpPay(dto);
+  }
+
+  @Get('pay/:id/status')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get the status of an Open CryptoPay payment',
+    description: 'Returns the OCP payment status by reusing the lnurlp wait path. Step 3 of the OCP pay flow.',
+  })
+  @ApiParam({ name: 'id', description: 'Payment-link or payment-link-payment unique id of the OCP payment' })
+  @ApiOkResponse({ type: RealUnitOcpPayStatusDto })
+  async getOcpPayStatus(@Param('id') id: string): Promise<RealUnitOcpPayStatusDto> {
+    return this.realunitService.getOcpPayStatus(id);
   }
 
   // --- Registration Info Endpoint ---

@@ -45,6 +45,7 @@ import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycContext } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
+import { LnUrlForwardService } from 'src/subdomains/generic/forwarding/services/lnurl-forward.service';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
@@ -85,6 +86,12 @@ import {
   RealUnitUserDataDto,
   RealUnitUserType,
 } from './dto/realunit-registration.dto';
+import {
+  RealUnitOcpPayResultDto,
+  RealUnitOcpPayStatusDto,
+  RealUnitOcpPaySubmitDto,
+  RealUnitOcpPayUnsignedTransactionDto,
+} from './dto/realunit-pay.dto';
 import {
   RealUnitSellBroadcastDto,
   RealUnitSellConfirmDto,
@@ -155,6 +162,7 @@ export class RealUnitService {
     private readonly swissQrService: SwissQRService,
     private readonly feeService: FeeService,
     private readonly faucetRequestService: FaucetRequestService,
+    private readonly lnUrlForwardService: LnUrlForwardService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -1284,29 +1292,8 @@ export class RealUnitService {
     }
 
     // Swap tx: nonce N — REALU transferAndCall to brokerbot
-    const ERC677_INTERFACE = new ethers.utils.Interface([
-      'function transferAndCall(address to, uint256 value, bytes data) returns (bool)',
-    ]);
     const shares = Math.floor(request.amount);
-    const swapAmountWei = ethers.utils.parseUnits(shares.toString(), realuAsset.decimals ?? 18);
-    const swapData = ERC677_INTERFACE.encodeFunctionData('transferAndCall', [
-      this.getBrokerbotAddress(),
-      swapAmountWei,
-      '0x',
-    ]);
-
-    const swap = ethers.utils.serializeTransaction({
-      type: 2,
-      chainId: client.chainId,
-      nonce,
-      maxPriorityFeePerGas: gasPrice,
-      maxFeePerGas: gasPrice,
-      gasLimit: swapGasLimit,
-      to: realuAsset.chainId,
-      value: ethers.BigNumber.from(0),
-      data: swapData,
-      accessList: [],
-    });
+    const swap = this.buildSwapUnsignedTransaction(client.chainId, realuAsset, shares, nonce, gasPrice, swapGasLimit);
 
     // Deposit tx: nonce N+1 — ZCHF ERC20 transfer to deposit address
     // Query the brokerbot for the exact ZCHF amount at current price so deposit matches swap output
@@ -1340,23 +1327,7 @@ export class RealUnitService {
     const request = await this.transactionRequestService.getOrThrow(requestId, userId);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
 
-    const { unsignedTx, r, s, v } = dto;
-    const parsed = ethers.utils.parseTransaction(unsignedTx);
-    const signedHex = ethers.utils.serializeTransaction(
-      {
-        type: 2,
-        chainId: parsed.chainId,
-        nonce: parsed.nonce,
-        maxPriorityFeePerGas: parsed.maxPriorityFeePerGas ?? ethers.BigNumber.from(0),
-        maxFeePerGas: parsed.maxFeePerGas ?? ethers.BigNumber.from(0),
-        gasLimit: parsed.gasLimit,
-        to: parsed.to,
-        value: parsed.value,
-        data: parsed.data,
-        accessList: parsed.accessList ?? [],
-      },
-      { r, s, v },
-    );
+    const signedHex = this.reconstructSignedTransaction(dto);
 
     const client = this.getEvmClient();
     const result = await client.sendSignedTransaction(signedHex);
@@ -1371,10 +1342,204 @@ export class RealUnitService {
     return { txHash };
   }
 
+  // --- Shared EVM Transaction Helpers --- //
+
+  // Builds the unsigned REALU `transferAndCall` (ERC-677) swap tx that sends REALU shares to the brokerbot.
+  // The brokerbot pays out ZCHF to the sender wallet — shared by the sell flow (deposit follows) and the
+  // OCP swap-only flow (ZCHF stays in the user wallet, no deposit leg).
+  private buildSwapUnsignedTransaction(
+    chainId: number,
+    realuAsset: Asset,
+    shares: number,
+    nonce: number,
+    gasPrice: BigNumber,
+    gasLimit: BigNumber,
+  ): string {
+    const erc677Interface = new ethers.utils.Interface([
+      'function transferAndCall(address to, uint256 value, bytes data) returns (bool)',
+    ]);
+    const swapAmountWei = ethers.utils.parseUnits(shares.toString(), realuAsset.decimals ?? 18);
+    const swapData = erc677Interface.encodeFunctionData('transferAndCall', [
+      this.getBrokerbotAddress(),
+      swapAmountWei,
+      '0x',
+    ]);
+
+    return ethers.utils.serializeTransaction({
+      type: 2,
+      chainId,
+      nonce,
+      maxPriorityFeePerGas: gasPrice,
+      maxFeePerGas: gasPrice,
+      gasLimit,
+      to: realuAsset.chainId,
+      value: ethers.BigNumber.from(0),
+      data: swapData,
+      accessList: [],
+    });
+  }
+
+  // Reconstructs the signed EIP-1559 transaction hex from a previously built unsigned tx and the user signature.
+  // The unsigned hex is re-serialized with the signature so the network accepts it; shared by the sell broadcast
+  // and the OCP pay submission paths.
+  private reconstructSignedTransaction(dto: RealUnitSellBroadcastDto): string {
+    const { unsignedTx, r, s, v } = dto;
+    const parsed = ethers.utils.parseTransaction(unsignedTx);
+
+    return ethers.utils.serializeTransaction(
+      {
+        type: 2,
+        chainId: parsed.chainId,
+        nonce: parsed.nonce,
+        maxPriorityFeePerGas: parsed.maxPriorityFeePerGas ?? ethers.BigNumber.from(0),
+        maxFeePerGas: parsed.maxFeePerGas ?? ethers.BigNumber.from(0),
+        gasLimit: parsed.gasLimit,
+        to: parsed.to,
+        value: parsed.value,
+        data: parsed.data,
+        accessList: parsed.accessList ?? [],
+      },
+      { r, s, v },
+    );
+  }
+
   private getEvmClient(): EvmClient {
     return [Environment.DEV, Environment.LOC].includes(Config.environment)
       ? this.sepoliaService.getDefaultClient()
       : this.ethereumService.getDefaultClient();
+  }
+
+  // --- OCP Pay-Flow Methods --- //
+  // Phase 2 pay flow: (1) swap REALU -> ZCHF keeping the ZCHF in the user wallet, then
+  // (2) pay that ZCHF to an Open CryptoPay recipient via the public lnurlp payment-link flow.
+  // The client cannot build EVM calldata locally, so the backend builds the unsigned txs and
+  // submits the reconstructed signed hex into the existing lnurlp settlement path.
+
+  // Step 1 (swap-only): builds the REALU -> ZCHF swap tx WITHOUT the deposit sweep, so the ZCHF
+  // proceeds land in the user wallet. Reuses the sell unsigned-tx machinery via buildSwapUnsignedTransaction.
+  async createSwapUnsignedTransaction(userId: number, requestId: number): Promise<{ swap: string }> {
+    const request = await this.transactionRequestService.getOrThrow(requestId, userId);
+    if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+
+    const client = this.getEvmClient();
+    const realuAsset = await this.getRealuAsset();
+    if (!realuAsset.chainId) throw new BadRequestException('REALU asset has no contract address');
+
+    const [nonce, gasPrice] = await Promise.all([
+      client.getTransactionCount(request.user.address),
+      client.getRecommendedGasPrice(),
+    ]);
+
+    const swapGasLimit = ethers.BigNumber.from(350_000);
+    const ethBalance = await client.getNativeCoinBalanceForAddress(request.user.address);
+    const requiredEth = EvmUtil.fromWeiAmount(gasPrice.mul(swapGasLimit));
+    if (ethBalance < requiredEth) {
+      throw new BadRequestException(
+        `Insufficient ETH for gas: need ${requiredEth.toFixed(6)} ETH, have ${ethBalance.toFixed(6)} ETH`,
+      );
+    }
+
+    const shares = Math.floor(request.amount);
+    const swap = this.buildSwapUnsignedTransaction(client.chainId, realuAsset, shares, nonce, gasPrice, swapGasLimit);
+
+    return { swap };
+  }
+
+  // Step 2a: builds the unsigned ZCHF ERC-20 transfer tx for an OCP payment. Recipient and exact amount are
+  // resolved from the payment-link/quote service (same source the lnurlp callback uses) by activating the
+  // quote and parsing the returned EVM payment URI.
+  async createOcpPayUnsignedTransaction(
+    senderAddress: string,
+    paymentLinkId: string,
+    quoteId: string,
+  ): Promise<RealUnitOcpPayUnsignedTransactionDto> {
+    const zchfAsset = await this.getZchfAsset();
+    if (!zchfAsset.chainId) throw new BadRequestException('ZCHF asset has no contract address');
+
+    // Activate the quote via the same path as the lnurlp callback to obtain the DFX deposit recipient and amount
+    const activation = await this.lnUrlForwardService.lnurlpCallbackForward(paymentLinkId, {
+      method: this.tokenBlockchain,
+      asset: zchfAsset.name,
+      quote: quoteId,
+    });
+
+    if (!('uri' in activation) || !activation.uri) {
+      throw new BadRequestException('OCP quote did not return an EVM payment request');
+    }
+
+    const { recipient, amountWei } = this.parseEvmPaymentRequest(activation.uri);
+
+    const client = this.getEvmClient();
+    const [nonce, gasPrice] = await Promise.all([
+      client.getTransactionCount(senderAddress),
+      client.getRecommendedGasPrice(),
+    ]);
+
+    const transferGasLimit = ethers.BigNumber.from(100_000);
+    const ethBalance = await client.getNativeCoinBalanceForAddress(senderAddress);
+    const requiredEth = EvmUtil.fromWeiAmount(gasPrice.mul(transferGasLimit));
+    if (ethBalance < requiredEth) {
+      throw new BadRequestException(
+        `Insufficient ETH for gas: need ${requiredEth.toFixed(6)} ETH, have ${ethBalance.toFixed(6)} ETH`,
+      );
+    }
+
+    const transferData = EvmUtil.encodeErc20Transfer(recipient, amountWei);
+    const unsignedTx = ethers.utils.serializeTransaction({
+      type: 2,
+      chainId: client.chainId,
+      nonce,
+      maxPriorityFeePerGas: gasPrice,
+      maxFeePerGas: gasPrice,
+      gasLimit: transferGasLimit,
+      to: zchfAsset.chainId,
+      value: ethers.BigNumber.from(0),
+      data: transferData,
+      accessList: [],
+    });
+
+    return {
+      unsignedTx,
+      tokenAddress: zchfAsset.chainId,
+      recipient,
+      amountWei: amountWei.toString(),
+      chainId: zchfAsset.evmChainId,
+    };
+  }
+
+  // Step 2b: reconstructs the user-signed hex and submits it into the existing lnurlp tx settlement path so
+  // DFX validates (recipient / amount / min-fee / ERC-20 selector), broadcasts, and settles the OCP quote.
+  async submitOcpPay(dto: RealUnitOcpPaySubmitDto): Promise<RealUnitOcpPayResultDto> {
+    const zchfAsset = await this.getZchfAsset();
+
+    const signedHex = this.reconstructSignedTransaction(dto);
+
+    const result = await this.lnUrlForwardService.txHexForward(dto.paymentLinkId, {
+      method: this.tokenBlockchain,
+      asset: zchfAsset.name,
+      quote: dto.quoteId,
+      hex: signedHex,
+    });
+
+    return { txId: result.txId };
+  }
+
+  // Step 3: exposes the OCP payment status by reusing the lnurlp wait path.
+  async getOcpPayStatus(paymentLinkId: string): Promise<RealUnitOcpPayStatusDto> {
+    const { status } = await this.lnUrlForwardService.waitForPayment(paymentLinkId);
+    return { status };
+  }
+
+  // Parses an ERC-20 EVM payment request URI of the form
+  // `ethereum:<tokenContract>@<chainId>/transfer?address=<recipient>&uint256=<amount>` into recipient + amount.
+  private parseEvmPaymentRequest(uri: string): { recipient: string; amountWei: BigNumber } {
+    const query = uri.split('?')[1];
+    const params = new URLSearchParams(query);
+    const recipient = params.get('address');
+    const amount = params.get('uint256');
+    if (!recipient || !amount) throw new BadRequestException('Invalid EVM payment request URI');
+
+    return { recipient, amountWei: BigNumber.from(amount) };
   }
 
   // --- Admin Methods ---

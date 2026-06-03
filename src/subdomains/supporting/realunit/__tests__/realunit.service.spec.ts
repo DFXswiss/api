@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ethers } from 'ethers';
 import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
 import { BrokerbotCurrency } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
@@ -24,6 +25,8 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { PaymentLinkPaymentStatus } from 'src/subdomains/core/payment-link/enums';
+import { LnUrlForwardService } from 'src/subdomains/generic/forwarding/services/lnurl-forward.service';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
@@ -42,7 +45,7 @@ jest.mock('src/config/config', () => ({
   GetConfig: jest.fn(() => ({
     blockchain: {
       realunit: {
-        brokerbotAddress: '0xBrokerbotAddress',
+        brokerbotAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
         graphUrl: 'https://mock-ponder.example.com',
         api: { url: 'https://mock-api.example.com', key: 'mock-key' },
       },
@@ -102,6 +105,15 @@ describe('RealUnitService', () => {
   let sellService: jest.Mocked<SellService>;
   let userService: jest.Mocked<UserService>;
   let kycService: jest.Mocked<KycService>;
+  let lnUrlForwardService: jest.Mocked<LnUrlForwardService>;
+
+  const evmClient = {
+    chainId: 11155111,
+    getTransactionCount: jest.fn(),
+    getRecommendedGasPrice: jest.fn(),
+    getNativeCoinBalanceForAddress: jest.fn(),
+    sendSignedTransaction: jest.fn(),
+  };
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -184,7 +196,15 @@ describe('RealUnitService', () => {
         { provide: FeeService, useValue: {} },
         { provide: FaucetRequestService, useValue: {} },
         { provide: EthereumService, useValue: {} },
-        { provide: SepoliaService, useValue: {} },
+        { provide: SepoliaService, useValue: { getDefaultClient: jest.fn().mockReturnValue(evmClient) } },
+        {
+          provide: LnUrlForwardService,
+          useValue: {
+            lnurlpCallbackForward: jest.fn(),
+            txHexForward: jest.fn(),
+            waitForPayment: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -196,6 +216,7 @@ describe('RealUnitService', () => {
     sellService = module.get(SellService);
     userService = module.get(UserService);
     kycService = module.get(KycService);
+    lnUrlForwardService = module.get(LnUrlForwardService);
   });
 
   afterEach(() => {
@@ -206,7 +227,7 @@ describe('RealUnitService', () => {
     it('should call assetService.getAssetByQuery for REALU and ZCHF', async () => {
       assetService.getAssetByQuery.mockResolvedValueOnce(realuAsset).mockResolvedValueOnce(zchfAsset);
       blockchainService.getBrokerbotInfo.mockResolvedValue({
-        brokerbotAddress: '0xBrokerbotAddress',
+        brokerbotAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
         tokenAddress: realuAsset.chainId,
         baseCurrencyAddress: zchfAsset.chainId,
         pricePerShare: 100,
@@ -238,7 +259,7 @@ describe('RealUnitService', () => {
       await service.getBrokerbotInfo();
 
       expect(blockchainService.getBrokerbotInfo).toHaveBeenCalledWith(
-        '0xBrokerbotAddress',
+        '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
         '0xRealuChainId',
         '0xZchfChainId',
         undefined,
@@ -252,7 +273,7 @@ describe('RealUnitService', () => {
       await service.getBrokerbotInfo(BrokerbotCurrency.EUR);
 
       expect(blockchainService.getBrokerbotInfo).toHaveBeenCalledWith(
-        '0xBrokerbotAddress',
+        '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
         '0xRealuChainId',
         '0xZchfChainId',
         BrokerbotCurrency.EUR,
@@ -262,7 +283,7 @@ describe('RealUnitService', () => {
     it('should return the result from blockchainService', async () => {
       assetService.getAssetByQuery.mockResolvedValueOnce(realuAsset).mockResolvedValueOnce(zchfAsset);
       const expected = {
-        brokerbotAddress: '0xBrokerbotAddress',
+        brokerbotAddress: '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
         tokenAddress: '0xRealuChainId',
         baseCurrencyAddress: '0xZchfChainId',
         pricePerShare: 100,
@@ -328,12 +349,15 @@ describe('RealUnitService', () => {
       });
 
       expect(result.txHash).toBe(mockTxHash);
-      expect(blockchainService.getBrokerbotSellPrice).toHaveBeenCalledWith('0xBrokerbotAddress', 10);
+      expect(blockchainService.getBrokerbotSellPrice).toHaveBeenCalledWith(
+        '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+        10,
+      );
       expect(eip7702DelegationService.executeBrokerBotSellForRealUnit).toHaveBeenCalledWith(
         userAddress,
         realuAsset,
         '0xZchfChainId',
-        '0xBrokerbotAddress',
+        '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
         depositAddress,
         10,
         BigInt('995000000000000000000'),
@@ -387,6 +411,173 @@ describe('RealUnitService', () => {
       assetService.getAssetByQuery.mockResolvedValue(realuAsset);
 
       await expect(service.confirmSell(42, 1, {})).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  // Valid EVM addresses (checksummed) for the serialization / encoding paths
+  const userAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
+  const realuContract = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
+  const zchfContract = '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512';
+  const dfxDepositAddress = '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0';
+
+  const realuTxAsset = createCustomAsset({
+    id: 1,
+    name: 'REALU',
+    blockchain: Blockchain.SEPOLIA,
+    type: AssetType.TOKEN,
+    chainId: realuContract,
+    decimals: 0,
+  });
+
+  const zchfTxAsset = createCustomAsset({
+    id: 2,
+    name: 'ZCHF',
+    blockchain: Blockchain.SEPOLIA,
+    type: AssetType.TOKEN,
+    chainId: zchfContract,
+    decimals: 18,
+  });
+
+  describe('createSwapUnsignedTransaction', () => {
+    const mockRequest = { id: 1, isValid: true, amount: 10, routeId: 5, user: { address: userAddress } };
+
+    beforeEach(() => {
+      evmClient.getTransactionCount.mockResolvedValue(7);
+      evmClient.getRecommendedGasPrice.mockResolvedValue(ethers.BigNumber.from(1_000_000_000));
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(1);
+    });
+
+    it('should build the swap tx without a deposit leg', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValue(realuTxAsset);
+
+      const result = await service.createSwapUnsignedTransaction(42, 1);
+
+      expect(Object.keys(result)).toEqual(['swap']);
+      const parsed = ethers.utils.parseTransaction(result.swap);
+      expect(parsed.to?.toLowerCase()).toBe(realuTxAsset.chainId.toLowerCase());
+      expect(parsed.nonce).toBe(7);
+      // brokerbot is not queried for a deposit amount in the swap-only flow
+      expect(blockchainService.getBrokerbotSellPrice).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException if request is not valid', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue({ ...mockRequest, isValid: false } as any);
+
+      await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should throw BadRequestException if ETH balance is insufficient for gas', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValue(realuTxAsset);
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(0);
+
+      await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('createOcpPayUnsignedTransaction', () => {
+    const amountWei = '5000000000000000000';
+
+    beforeEach(() => {
+      evmClient.getTransactionCount.mockResolvedValue(3);
+      evmClient.getRecommendedGasPrice.mockResolvedValue(ethers.BigNumber.from(1_000_000_000));
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(1);
+    });
+
+    it('should activate the quote, parse the EVM uri and build the ZCHF transfer tx', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+
+      const result = await service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz');
+
+      expect(lnUrlForwardService.lnurlpCallbackForward).toHaveBeenCalledWith('pl_abc', {
+        method: Blockchain.SEPOLIA,
+        asset: 'ZCHF',
+        quote: 'quote_xyz',
+      });
+      expect(result.recipient).toBe(dfxDepositAddress);
+      expect(result.amountWei).toBe(amountWei);
+      expect(result.tokenAddress).toBe(zchfTxAsset.chainId);
+
+      const parsed = ethers.utils.parseTransaction(result.unsignedTx);
+      expect(parsed.to?.toLowerCase()).toBe(zchfTxAsset.chainId.toLowerCase());
+      expect(parsed.nonce).toBe(3);
+    });
+
+    it('should throw BadRequestException if the quote returns no EVM payment request', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({ pr: 'lnbc...' } as any);
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if the EVM uri is missing recipient or amount', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=${dfxDepositAddress}`,
+        hint: '',
+      });
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+  });
+
+  describe('submitOcpPay', () => {
+    it('should reconstruct the signed hex and forward it into the lnurlp tx path', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.txHexForward.mockResolvedValue({ txId: '0xTxId' });
+
+      const unsignedTx = ethers.utils.serializeTransaction({
+        type: 2,
+        chainId: 11155111,
+        nonce: 1,
+        maxPriorityFeePerGas: ethers.BigNumber.from(1),
+        maxFeePerGas: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(100_000),
+        to: zchfTxAsset.chainId,
+        value: ethers.BigNumber.from(0),
+        data: '0x',
+        accessList: [],
+      });
+
+      const result = await service.submitOcpPay({
+        paymentLinkId: 'pl_abc',
+        quoteId: 'quote_xyz',
+        unsignedTx,
+        r: '0x' + '1'.repeat(64),
+        s: '0x' + '2'.repeat(64),
+        v: 27,
+      });
+
+      expect(result.txId).toBe('0xTxId');
+      expect(lnUrlForwardService.txHexForward).toHaveBeenCalledWith(
+        'pl_abc',
+        expect.objectContaining({ method: Blockchain.SEPOLIA, asset: 'ZCHF', quote: 'quote_xyz' }),
+      );
+      expect(lnUrlForwardService.txHexForward.mock.calls[0][1].hex).toMatch(/^0x/);
+    });
+  });
+
+  describe('getOcpPayStatus', () => {
+    it('should map the lnurlp wait status', async () => {
+      lnUrlForwardService.waitForPayment.mockResolvedValue({ status: PaymentLinkPaymentStatus.COMPLETED });
+
+      const result = await service.getOcpPayStatus('pl_abc');
+
+      expect(result).toEqual({ status: PaymentLinkPaymentStatus.COMPLETED });
+      expect(lnUrlForwardService.waitForPayment).toHaveBeenCalledWith('pl_abc');
     });
   });
 
