@@ -1063,7 +1063,7 @@ export class Configuration {
         : '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d',
       // Dedicated wallet-to-wallet (W2W) transfer gas-funding wallet. Separate from the Sell/OTC
       // EIP-7702 relayer (per-chain `…WalletPrivateKey`): DFX pays gas for user-initiated REALU
-      // W2W transfers from this wallet only. Operator provisions it (generate key, store in Vault,
+      // W2W transfers from this wallet only. The operator provisions it (generate key, store in Vault,
       // fund with ETH) and sets the three env vars below.
       w2wGasWalletPrivateKey: process.env.REALUNIT_W2W_GAS_WALLET_PRIVATE_KEY?.split('<br>').join('\n'),
       w2wGasWalletAddress: process.env.REALUNIT_W2W_GAS_WALLET_ADDRESS,

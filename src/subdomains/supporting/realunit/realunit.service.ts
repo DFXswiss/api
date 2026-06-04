@@ -1517,7 +1517,7 @@ export class RealUnitService {
 
     // 1. Registration required (mirror getSellPaymentInfo)
     if (!this.hasRegistrationForWallet(userData, user.address)) {
-      throw new RegistrationRequiredException(undefined, KycContext.REALUNIT_SELL);
+      throw new RegistrationRequiredException(undefined, KycContext.REALUNIT_TRANSFER);
     }
 
     // 2. KYC Level check - Level 30 minimum
@@ -1526,7 +1526,7 @@ export class RealUnitService {
         KycLevel.LEVEL_30,
         userData.kycLevel,
         'KYC Level 30 required for RealUnit transfer',
-        KycContext.REALUNIT_SELL,
+        KycContext.REALUNIT_TRANSFER,
       );
     }
 
@@ -1599,10 +1599,9 @@ export class RealUnitService {
     requestId: number,
     dto: RealUnitTransferConfirmDto,
   ): Promise<{ txHash: string }> {
-    // 1. Load stored transfer request with ownership check
+    // 1. Load stored transfer request with ownership check (user is eager-loaded by the entity)
     const transferRequest = await this.transferRequestRepo.findOne({
       where: { id: requestId },
-      relations: { user: { userData: true } },
     });
     if (!transferRequest || transferRequest.user?.id !== userId) {
       throw new NotFoundException('Transfer request not found');
@@ -1637,15 +1636,6 @@ export class RealUnitService {
     await this.transferRequestRepo.save(transferRequest.complete(txHash));
 
     return { txHash };
-  }
-
-  // Returns the configured ETH balance of the dedicated W2W gas wallet (read-only — no key needed).
-  // Used by the monitoring observer; returns undefined if the wallet address is not configured.
-  async getW2wGasWalletBalance(): Promise<number | undefined> {
-    const { w2wGasWalletAddress } = Config.blockchain.realunit;
-    if (!w2wGasWalletAddress) return undefined;
-
-    return this.getEvmClient().getNativeCoinBalanceForAddress(w2wGasWalletAddress);
   }
 
   private getW2wGasWalletPrivateKey(): `0x${string}` {

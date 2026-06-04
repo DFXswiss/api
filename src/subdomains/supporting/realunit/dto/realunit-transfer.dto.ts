@@ -28,6 +28,17 @@ export class RealUnitTransferConfirmDto extends Eip7702ConfirmDto {}
 
 // --- EIP-7702 Data DTO ---
 
+// EIP-712 caveat entry (matches the DelegationManager `Caveat` struct: enforcer + terms). The
+// RealUnit blanket delegation carries no caveats, but the shape is typed precisely so no `any`
+// leaks into the signed payload the app receives.
+export class Eip712CaveatDto {
+  @ApiProperty({ description: 'Caveat enforcer contract address' })
+  enforcer: string;
+
+  @ApiProperty({ description: 'Caveat terms (ABI-encoded bytes)' })
+  terms: string;
+}
+
 export class RealUnitTransferEip7702DataDto {
   @ApiProperty({ description: 'Relayer address that will execute the transaction (W2W gas wallet)' })
   relayerAddress: string;
@@ -60,7 +71,7 @@ export class RealUnitTransferEip7702DataDto {
     delegate: string;
     delegator: string;
     authority: string;
-    caveats: any[];
+    caveats: Eip712CaveatDto[];
     salt: number;
   };
 

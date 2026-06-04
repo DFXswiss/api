@@ -28,8 +28,8 @@ import { AssetPricesService } from '../../pricing/services/asset-prices.service'
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
 import { RealUnitTransferRequestStatus } from '../entities/realunit-transfer-request.entity';
-import { RealUnitService } from '../realunit.service';
 import { RealUnitDevService } from '../realunit-dev.service';
+import { RealUnitService } from '../realunit.service';
 import { RealUnitTransferRequestRepository } from '../repositories/realunit-transfer-request.repository';
 
 jest.mock('src/config/config', () => ({
