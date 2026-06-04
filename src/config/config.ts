@@ -1260,6 +1260,8 @@ export class Configuration {
       withdrawKeys: splitWithdrawKeys(process.env.MEXC_WITHDRAW_KEYS),
       ...this.exchange,
       timeout: 30_000,
+      // max recvWindow (60s) to tolerate MEXC round-trip latency spikes that otherwise reject signed requests with error 700003
+      options: { recvWindow: 60000 },
     };
   }
 
