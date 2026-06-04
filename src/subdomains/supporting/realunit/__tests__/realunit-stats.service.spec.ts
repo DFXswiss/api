@@ -10,8 +10,8 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { TransactionRequestType } from '../../payment/entities/transaction-request.entity';
-import { TransactionService } from '../../payment/services/transaction.service';
+import { TransactionRequestType } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import {
   RealUnitGrowthStats,
   RealUnitKycFunnelStep,

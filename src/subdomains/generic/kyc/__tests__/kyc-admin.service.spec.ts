@@ -1,7 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { UserDataService } from '../../user/models/user-data/user-data.service';
-import { WebhookService } from '../../user/services/webhook/webhook.service';
+import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { KycStepName } from '../enums/kyc-step-name.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
 import { KycStepRepository } from '../repositories/kyc-step.repository';
