@@ -173,8 +173,7 @@ export class MexcService extends ExchangeService {
 
   private async signedRequest<T>(method: Method, path: string, params: Record<string, string>): Promise<T> {
     params.timestamp = Date.now().toString();
-    // max recvWindow (60s) to tolerate MEXC round-trip latency spikes that otherwise reject the request with error 700003
-    params.recvWindow = '60000';
+    params.recvWindow = `${Config.mexcRecvWindow}`;
 
     const searchParams = new URLSearchParams(params);
 
