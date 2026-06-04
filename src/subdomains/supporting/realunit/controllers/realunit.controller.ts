@@ -6,6 +6,7 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiExcludeEndpoint,
+  ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -60,6 +61,11 @@ import {
   RealUnitSellDto,
   RealUnitSellPaymentInfoDto,
 } from '../dto/realunit-sell.dto';
+import {
+  RealUnitTransferConfirmDto,
+  RealUnitTransferDto,
+  RealUnitTransferPaymentInfoDto,
+} from '../dto/realunit-transfer.dto';
 import {
   AccountHistoryDto,
   AccountHistoryQueryDto,
@@ -602,6 +608,48 @@ export class RealUnitController {
     @Body() dto: RealUnitSellBroadcastDto,
   ): Promise<{ txHash: string }> {
     return this.realunitService.broadcastSellTransaction(jwt.user, +id, dto);
+  }
+
+  // --- W2W Transfer Endpoints --- //
+
+  @Put('transfer')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Prepare a gasless RealUnit wallet-to-wallet transfer',
+    description:
+      'Persists the transfer intent and returns the EIP-7702 delegation data the app must sign for a gasless REALU transfer. DFX pays gas from a dedicated W2W gas wallet. Requires KYC Level 30 and RealUnit registration.',
+  })
+  @ApiOkResponse({ type: RealUnitTransferPaymentInfoDto })
+  @ApiBadRequestResponse({
+    description: 'KYC Level 30 required, registration missing, or invalid recipient/amount',
+  })
+  async prepareTransfer(
+    @GetJwt() jwt: JwtPayload,
+    @Body() dto: RealUnitTransferDto,
+  ): Promise<RealUnitTransferPaymentInfoDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
+    return this.realunitService.prepareTransfer(user, dto);
+  }
+
+  @Put('transfer/:id/confirm')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Confirm a RealUnit wallet-to-wallet transfer',
+    description:
+      'Relays the user-signed EIP-7702 delegation for the stored transfer request. DFX pays gas from the dedicated W2W gas wallet. Returns the transaction hash.',
+  })
+  @ApiParam({ name: 'id', description: 'Transfer request ID' })
+  @ApiOkResponse({ description: 'Transfer confirmed', schema: { properties: { txHash: { type: 'string' } } } })
+  @ApiBadRequestResponse({ description: 'Invalid delegation or authorization' })
+  @ApiNotFoundResponse({ description: 'Transfer request not found' })
+  async confirmTransfer(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Body() dto: RealUnitTransferConfirmDto,
+  ): Promise<{ txHash: string }> {
+    return this.realunitService.confirmTransfer(jwt.user, +id, dto);
   }
 
   // --- Registration Info Endpoint ---

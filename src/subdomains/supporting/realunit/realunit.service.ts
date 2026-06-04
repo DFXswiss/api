@@ -92,6 +92,13 @@ import {
   RealUnitSellPaymentInfoDto,
 } from './dto/realunit-sell.dto';
 import {
+  RealUnitTransferConfirmDto,
+  RealUnitTransferDto,
+  RealUnitTransferPaymentInfoDto,
+} from './dto/realunit-transfer.dto';
+import { RealUnitTransferRequestStatus } from './entities/realunit-transfer-request.entity';
+import { RealUnitTransferRequestRepository } from './repositories/realunit-transfer-request.repository';
+import {
   AccountHistoryDto,
   AccountSummaryDto,
   HistoricalPriceDto,
@@ -155,6 +162,7 @@ export class RealUnitService {
     private readonly swissQrService: SwissQRService,
     private readonly feeService: FeeService,
     private readonly faucetRequestService: FaucetRequestService,
+    private readonly transferRequestRepo: RealUnitTransferRequestRepository,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -1497,5 +1505,172 @@ export class RealUnitService {
     await this.transactionRequestService.complete(request.id);
 
     return { txHash };
+  }
+
+  // --- W2W TRANSFER --- //
+  // User-initiated RealUnit wallet-to-wallet transfer. DFX pays gas via the gasless EIP-7702 relay,
+  // but from a DEDICATED W2W gas-funding wallet (Config.blockchain.realunit.w2wGasWallet*) — never
+  // the Sell/OTC relayer. See issue DFXswiss/api #684 (umbrella #666).
+
+  async prepareTransfer(user: User, dto: RealUnitTransferDto): Promise<RealUnitTransferPaymentInfoDto> {
+    const userData = user.userData;
+
+    // 1. Registration required (mirror getSellPaymentInfo)
+    if (!this.hasRegistrationForWallet(userData, user.address)) {
+      throw new RegistrationRequiredException(undefined, KycContext.REALUNIT_TRANSFER);
+    }
+
+    // 2. KYC Level check - Level 30 minimum
+    if (userData.kycLevel < KycLevel.LEVEL_30) {
+      throw new KycLevelRequiredException(
+        KycLevel.LEVEL_30,
+        userData.kycLevel,
+        'KYC Level 30 required for RealUnit transfer',
+        KycContext.REALUNIT_TRANSFER,
+      );
+    }
+
+    // The W2W transfer is a pure on-chain REALU->REALU self-custody movement and is therefore
+    // limit-exempt by design (consistent with #3819: trading limits are enforced at the fiat
+    // boundary). Gate only on registration + KYC30; do NOT add a misleading limit check.
+
+    // 3. Validate recipient + amount
+    const [realuAsset, zchfAsset] = await Promise.all([this.getRealuAsset(), this.getZchfAsset()]);
+    if (!realuAsset) throw new NotFoundException('REALU asset not found');
+
+    if (!ethers.utils.isAddress(dto.toAddress)) {
+      throw new BadRequestException('Invalid recipient address');
+    }
+    const toAddress = ethers.utils.getAddress(dto.toAddress);
+    const sender = ethers.utils.getAddress(user.address);
+
+    if (Util.equalsIgnoreCase(toAddress, sender)) {
+      throw new BadRequestException('Recipient must differ from sender');
+    }
+    const forbiddenAddresses = [realuAsset.chainId, zchfAsset?.chainId].filter((a) => a);
+    if (forbiddenAddresses.some((a) => Util.equalsIgnoreCase(a, toAddress))) {
+      throw new BadRequestException('Recipient must not be a token contract address');
+    }
+    if (!Number.isInteger(dto.amount) || dto.amount < 1) {
+      throw new BadRequestException('Amount must be a whole number of shares (>= 1)');
+    }
+
+    // 4. Preflight: dedicated W2W gas wallet must be configured and hold enough ETH for the relay
+    await this.assertW2wGasWalletFunded();
+
+    // 5. Prepare EIP-7702 delegation data the app must sign. The delegation's `delegate` MUST be the
+    // dedicated W2W gas wallet (the redeemer at confirm), NOT the Sell/OTC relayer — the
+    // DelegationManager enforces `msg.sender == delegate` in redeemDelegations, otherwise it reverts
+    // InvalidDelegate(). Derive the delegate from the same key confirmTransfer relays with so they
+    // always match.
+    const w2wGasWalletAddress = this.getW2wGasWalletAddress();
+    const delegationData = await this.eip7702DelegationService.prepareDelegationDataForRealUnit(
+      sender,
+      realuAsset.blockchain,
+      w2wGasWalletAddress,
+    );
+
+    // 6. Persist the transfer intent server-side (the delegation is blanket — recipient/amount are
+    // NOT bound by the signature, so they MUST be stored here and reused verbatim at confirm)
+    const transferRequest = await this.transferRequestRepo.save(
+      this.transferRequestRepo.create({
+        uid: Util.createUid(Config.prefixes.realUnitTransferUidPrefix),
+        user,
+        toAddress,
+        amount: dto.amount,
+        status: RealUnitTransferRequestStatus.CREATED,
+      }),
+    );
+
+    const amountWei = EvmUtil.toWeiAmount(dto.amount, realuAsset.decimals);
+
+    return {
+      id: transferRequest.id,
+      uid: transferRequest.uid,
+      toAddress,
+      amount: dto.amount,
+      tokenAddress: realuAsset.chainId,
+      chainId: realuAsset.evmChainId,
+      eip7702: {
+        ...delegationData,
+        tokenAddress: realuAsset.chainId,
+        amountWei: amountWei.toString(),
+        recipient: toAddress,
+      },
+    };
+  }
+
+  async confirmTransfer(
+    userId: number,
+    requestId: number,
+    dto: RealUnitTransferConfirmDto,
+  ): Promise<{ txHash: string }> {
+    // 1. Load stored transfer request with ownership check (user is eager-loaded by the entity)
+    const transferRequest = await this.transferRequestRepo.findOne({
+      where: { id: requestId },
+    });
+    if (!transferRequest || transferRequest.user?.id !== userId) {
+      throw new NotFoundException('Transfer request not found');
+    }
+    if (transferRequest.isComplete) throw new ConflictException('Transfer request is already confirmed');
+
+    const realuAsset = await this.getRealuAsset();
+    if (!realuAsset) throw new NotFoundException('REALU asset not found');
+
+    // 2. Defense-in-depth: delegator must match the request owner's address (contract also verifies)
+    if (!Util.equalsIgnoreCase(dto.delegation.delegator, transferRequest.user.address)) {
+      throw new BadRequestException('Delegation delegator does not match user address');
+    }
+
+    // 3. Dedicated W2W gas wallet pays gas — never the Sell/OTC relayer
+    const relayerPrivateKey = this.getW2wGasWalletPrivateKey();
+
+    // 4. Relay the STORED recipient + amount (never values from untrusted client input)
+    const txHash = await this.eip7702DelegationService.transferTokenWithUserDelegation(
+      transferRequest.user.address,
+      realuAsset,
+      transferRequest.toAddress,
+      transferRequest.amount,
+      dto.delegation,
+      dto.authorization,
+      relayerPrivateKey,
+    );
+
+    this.logger.info(`RealUnit W2W transfer confirmed via EIP-7702: ${txHash}`);
+
+    // 5. Mark request as complete
+    await this.transferRequestRepo.save(transferRequest.complete(txHash));
+
+    return { txHash };
+  }
+
+  private getW2wGasWalletPrivateKey(): `0x${string}` {
+    const { w2wGasWalletPrivateKey } = Config.blockchain.realunit;
+    if (!w2wGasWalletPrivateKey) {
+      throw new ServiceUnavailableException('W2W gas funding temporarily unavailable');
+    }
+    return (
+      w2wGasWalletPrivateKey.startsWith('0x') ? w2wGasWalletPrivateKey : `0x${w2wGasWalletPrivateKey}`
+    ) as `0x${string}`;
+  }
+
+  // Address that confirmTransfer actually relays redeemDelegations with (msg.sender). Derived from the
+  // SAME private key so the prepared delegation's `delegate` is guaranteed to match the redeemer and
+  // the DelegationManager's `msg.sender == delegate` check passes (otherwise: InvalidDelegate revert).
+  private getW2wGasWalletAddress(): string {
+    return new ethers.Wallet(this.getW2wGasWalletPrivateKey()).address;
+  }
+
+  private async assertW2wGasWalletFunded(): Promise<void> {
+    const { w2wGasWalletPrivateKey, w2wGasWalletAddress, w2wGasLowBalanceThreshold } = Config.blockchain.realunit;
+    if (!w2wGasWalletPrivateKey || !w2wGasWalletAddress) {
+      throw new ServiceUnavailableException('W2W gas funding temporarily unavailable');
+    }
+
+    const balance = await this.getEvmClient().getNativeCoinBalanceForAddress(w2wGasWalletAddress);
+    if (balance < w2wGasLowBalanceThreshold) {
+      // Clean message for the client; the balance observer raises the operator alert.
+      throw new ServiceUnavailableException('W2W gas funding temporarily unavailable');
+    }
   }
 }

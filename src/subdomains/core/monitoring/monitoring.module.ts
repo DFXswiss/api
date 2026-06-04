@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankIntegrationModule } from 'src/integration/bank/bank.module';
 import { BitcoinModule } from 'src/integration/blockchain/bitcoin/bitcoin.module';
+import { EthereumModule } from 'src/integration/blockchain/ethereum/ethereum.module';
+import { SepoliaModule } from 'src/integration/blockchain/sepolia/sepolia.module';
 import { IntegrationModule } from 'src/integration/integration.module';
 import { LetterModule } from 'src/integration/letter/letter.module';
 import { LightningModule } from 'src/integration/lightning/lightning.module';
@@ -25,6 +27,7 @@ import { LiquidityObserver } from './observers/liquidity.observer';
 import { NodeBalanceObserver } from './observers/node-balance.observer';
 import { NodeHealthObserver } from './observers/node-health.observer';
 import { PaymentObserver } from './observers/payment.observer';
+import { RealUnitW2wGasObserver } from './observers/realunit-w2w-gas.observer';
 import { UserObserver } from './observers/user.observer';
 import { SystemStateSnapshot } from './system-state-snapshot.entity';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
@@ -43,6 +46,8 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     LightningModule,
     FiatPayInModule,
     PricingModule,
+    EthereumModule,
+    SepoliaModule,
   ],
   providers: [
     SystemStateSnapshotRepository,
@@ -59,6 +64,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     AmlObserver,
     ExchangeObserver,
     LiquidityObserver,
+    RealUnitW2wGasObserver,
   ],
   controllers: [MonitoringController, HealthController],
   exports: [MonitoringService],

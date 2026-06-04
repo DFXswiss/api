@@ -183,10 +183,17 @@ export class Eip7702DelegationService {
   /**
    * Prepare delegation data for RealUnit (bypasses global disable)
    * RealUnit app supports eth_sign, so EIP-7702 works unlike MetaMask
+   *
+   * `delegateAddressOverride` (optional) sets the delegation's `delegate` to a caller-supplied
+   * address instead of the per-chain Sell/OTC relayer. The MetaMask DelegationManager enforces
+   * `msg.sender === delegation.delegate` in `redeemDelegations`, so the delegate MUST equal the
+   * address that relays (pays gas) at confirm time. The RealUnit W2W transfer relays from the
+   * dedicated W2W gas wallet, so it passes that wallet's address here to keep delegate == redeemer.
    */
   async prepareDelegationDataForRealUnit(
     userAddress: string,
     blockchain: Blockchain,
+    delegateAddressOverride?: string,
   ): Promise<{
     relayerAddress: string;
     delegationManagerAddress: string;
@@ -199,7 +206,7 @@ export class Eip7702DelegationService {
     if (!this.isDelegationSupportedForRealUnit(blockchain)) {
       throw new Error(`EIP-7702 delegation not supported for RealUnit on ${blockchain}`);
     }
-    return this._prepareDelegationDataInternal(userAddress, blockchain);
+    return this._prepareDelegationDataInternal(userAddress, blockchain, delegateAddressOverride);
   }
 
   /**
@@ -208,6 +215,7 @@ export class Eip7702DelegationService {
   private async _prepareDelegationDataInternal(
     userAddress: string,
     blockchain: Blockchain,
+    delegateAddressOverride?: string,
   ): Promise<{
     relayerAddress: string;
     delegationManagerAddress: string;
@@ -228,8 +236,11 @@ export class Eip7702DelegationService {
 
     const userNonce = Number(await publicClient.getTransactionCount({ address: userAddress as Address }));
 
+    // The delegate must equal the address that relays redeemDelegations (msg.sender). Default is the
+    // per-chain Sell/OTC relayer (which also redeems for sell/OTC); the W2W transfer overrides it with
+    // the dedicated W2W gas wallet address so the contract's `msg.sender == delegate` check passes.
     const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
-    const relayerAccount = privateKeyToAccount(relayerPrivateKey);
+    const relayerAddress = (delegateAddressOverride ?? privateKeyToAccount(relayerPrivateKey).address) as Address;
     const salt = BigInt(Date.now());
 
     const domain = getDelegationEip712Domain(chainConfig.chain.id);
@@ -237,7 +248,7 @@ export class Eip7702DelegationService {
 
     // Delegation message
     const message = {
-      delegate: relayerAccount.address,
+      delegate: relayerAddress,
       delegator: userAddress,
       authority: ROOT_AUTHORITY,
       caveats: [],
@@ -245,7 +256,7 @@ export class Eip7702DelegationService {
     };
 
     return {
-      relayerAddress: relayerAccount.address,
+      relayerAddress,
       delegationManagerAddress: DELEGATION_MANAGER_ADDRESS,
       delegatorAddress: DELEGATOR_ADDRESS,
       userNonce,
@@ -258,6 +269,10 @@ export class Eip7702DelegationService {
   /**
    * Execute token transfer using frontend-signed EIP-7702 delegation
    * Used for sell transactions where user has 0 native token
+   *
+   * `relayerPrivateKeyOverride` (optional) pays gas from a caller-supplied wallet instead of the
+   * per-chain Sell/OTC relayer. Defaults to `getRelayerPrivateKey(blockchain)`, so existing callers
+   * are unchanged. Used by the RealUnit W2W transfer to pay gas from the dedicated W2W gas wallet.
    */
   async transferTokenWithUserDelegation(
     userAddress: string,
@@ -272,8 +287,9 @@ export class Eip7702DelegationService {
       signature: string;
     },
     authorization: Eip7702Authorization,
+    relayerPrivateKeyOverride?: Hex,
   ): Promise<string> {
-    if (!this.isDelegationSupported(token.blockchain)) {
+    if (!this.isDelegationSupported(token.blockchain) && !this.isDelegationSupportedForRealUnit(token.blockchain)) {
       throw new Error(`EIP-7702 delegation not supported for ${token.blockchain}`);
     }
     return this._transferTokenWithUserDelegationInternal(
@@ -283,6 +299,7 @@ export class Eip7702DelegationService {
       amount,
       signedDelegation,
       authorization,
+      relayerPrivateKeyOverride,
     );
   }
 
@@ -534,6 +551,7 @@ export class Eip7702DelegationService {
       signature: string;
     },
     authorization: Eip7702Authorization,
+    relayerPrivateKeyOverride?: Hex,
   ): Promise<string> {
     const blockchain = token.blockchain;
 
@@ -571,8 +589,8 @@ export class Eip7702DelegationService {
     // Verify EIP-7702 authorization signature
     await this.verifyAuthorizationSignature(authorization, userAddress);
 
-    // Get relayer account
-    const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
+    // Get relayer account (default: per-chain Sell/OTC relayer; override: dedicated gas wallet)
+    const relayerPrivateKey = relayerPrivateKeyOverride ?? this.getRelayerPrivateKey(blockchain);
     const relayerAccount = privateKeyToAccount(relayerPrivateKey);
 
     // Create clients

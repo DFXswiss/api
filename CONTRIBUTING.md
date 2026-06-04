@@ -958,6 +958,8 @@ The RealUnit purchase and sale flows historically lived under `/v1/realunit/brok
 | `PUT /v1/realunit/sell/:id/unsigned-transactions` | Reads the on-chain sell price and builds the EIP-7702 batch the user has to sign | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` |
 | `PUT /v1/realunit/sell/:id/confirm` | Verifies the user-signed batch against the live on-chain sell price | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` |
 | `PUT /v1/realunit/sell/:id/broadcast` | Submits the user-signed EIP-1559 transaction to the network | No — broadcast only, no `readContract` |
+| `PUT /v1/realunit/transfer` | Persists a wallet-to-wallet (W2W) transfer intent and returns the EIP-7702 delegation data to sign. Limit-exempt (on-chain REALU→REALU self-custody movement). | No — prepares the gasless transfer |
+| `PUT /v1/realunit/transfer/:id/confirm` | Relays the user-signed EIP-7702 delegation for the stored transfer request; DFX pays gas from the dedicated W2W gas wallet (`REALUNIT_W2W_GAS_WALLET_*`), never the Sell/OTC relayer | No `readContract` — relays the user-authorized ERC20 transfer |
 
 Operational consequences:
 
