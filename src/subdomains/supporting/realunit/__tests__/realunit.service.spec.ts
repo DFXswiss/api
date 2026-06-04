@@ -32,6 +32,12 @@ import { RealUnitDevService } from '../realunit-dev.service';
 import { RealUnitService } from '../realunit.service';
 import { RealUnitTransferRequestRepository } from '../repositories/realunit-transfer-request.repository';
 
+// Mutable so individual tests can exercise the W2W gas-wallet config branches (key unset / no 0x prefix /
+// address unset). Reset in beforeEach to the funded defaults. jest.mock factories may only close over
+// variables prefixed with `mock`.
+let mockW2wGasWalletPrivateKey: string | undefined = '0xW2wGasKey';
+let mockW2wGasWalletAddress: string | undefined = '0xW2wGasWalletAddress';
+
 jest.mock('src/config/config', () => ({
   get Config() {
     return {
@@ -40,8 +46,8 @@ jest.mock('src/config/config', () => ({
       blockchain: {
         realunit: {
           brokerbotAddress: '0xBrokerbotAddress',
-          w2wGasWalletPrivateKey: '0xW2wGasKey',
-          w2wGasWalletAddress: '0xW2wGasWalletAddress',
+          w2wGasWalletPrivateKey: mockW2wGasWalletPrivateKey,
+          w2wGasWalletAddress: mockW2wGasWalletAddress,
           w2wGasLowBalanceThreshold: 0.05,
         },
       },
@@ -482,6 +488,12 @@ describe('RealUnitService', () => {
       );
     }
 
+    beforeEach(() => {
+      // reset mutable W2W gas-wallet config to the funded defaults
+      mockW2wGasWalletPrivateKey = '0xW2wGasKey';
+      mockW2wGasWalletAddress = '0xW2wGasWalletAddress';
+    });
+
     describe('prepareTransfer', () => {
       it('returns delegation data and persists the request with correct to/amount', async () => {
         mockTransferAssets();
@@ -572,6 +584,40 @@ describe('RealUnitService', () => {
         );
         expect(transferRequestRepo.save).not.toHaveBeenCalled();
       });
+
+      it('throws NotFound when the REALU asset is not found', async () => {
+        assetService.getAssetByQuery.mockImplementation(async (q: any) =>
+          q.name === 'REALU' ? undefined : transferZchfAsset,
+        );
+        const user = buildRegisteredUser(30);
+
+        await expect(service.prepareTransfer(user, { toAddress: recipientAddress, amount: 1 })).rejects.toThrow(
+          NotFoundException,
+        );
+        expect(transferRequestRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('throws ServiceUnavailable when the W2W gas wallet private key is not configured', async () => {
+        mockTransferAssets();
+        mockW2wGasWalletPrivateKey = undefined;
+        const user = buildRegisteredUser(30);
+
+        await expect(service.prepareTransfer(user, { toAddress: recipientAddress, amount: 1 })).rejects.toThrow(
+          ServiceUnavailableException,
+        );
+        expect(transferRequestRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('throws ServiceUnavailable when the W2W gas wallet address is not configured', async () => {
+        mockTransferAssets();
+        mockW2wGasWalletAddress = undefined;
+        const user = buildRegisteredUser(30);
+
+        await expect(service.prepareTransfer(user, { toAddress: recipientAddress, amount: 1 })).rejects.toThrow(
+          ServiceUnavailableException,
+        );
+        expect(transferRequestRepo.save).not.toHaveBeenCalled();
+      });
     });
 
     describe('confirmTransfer', () => {
@@ -651,6 +697,42 @@ describe('RealUnitService', () => {
 
         await expect(service.confirmTransfer(42, 99, wrongDto)).rejects.toThrow(BadRequestException);
         expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
+      });
+
+      it('throws NotFound when the REALU asset is not found', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(buildStoredRequest());
+        assetService.getAssetByQuery.mockResolvedValue(undefined as any);
+
+        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(NotFoundException);
+        expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
+      });
+
+      it('throws ServiceUnavailable when the W2W gas wallet private key is not configured', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(buildStoredRequest());
+        assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
+        mockW2wGasWalletPrivateKey = undefined;
+
+        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(ServiceUnavailableException);
+        expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
+      });
+
+      it('prefixes a bare (non-0x) W2W gas wallet private key before relaying', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(buildStoredRequest());
+        assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
+        mockW2wGasWalletPrivateKey = 'W2wGasKeyNoPrefix'; // no 0x prefix -> exercises the `0x${...}` branch
+        eip7702DelegationService.transferTokenWithUserDelegation.mockResolvedValue(w2wTxHash);
+
+        await service.confirmTransfer(42, 99, confirmDto);
+
+        expect(eip7702DelegationService.transferTokenWithUserDelegation).toHaveBeenCalledWith(
+          senderAddress,
+          transferRealuAsset,
+          recipientAddress,
+          5,
+          confirmDto.delegation,
+          confirmDto.authorization,
+          '0xW2wGasKeyNoPrefix', // 0x-normalized key
+        );
       });
     });
   });
