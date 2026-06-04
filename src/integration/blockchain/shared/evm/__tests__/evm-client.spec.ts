@@ -285,3 +285,33 @@ describe('EvmClient - broadcast boundary', () => {
     });
   });
 });
+
+
+describe('EvmClient - getTransactionCount block tag', () => {
+  // Call the real method body with a stubbed provider so we can assert the block-tag
+  // forwarding without constructing a live EvmClient (same isolation pattern as the
+  // broadcast-boundary suite above).
+  const proto = EvmClient.prototype as any;
+
+  it('defaults to the latest (mined) nonce when no block tag is given', async () => {
+    const getTransactionCount = jest.fn().mockResolvedValue(5);
+    const client = Object.create(EvmClient.prototype);
+    client.provider = { getTransactionCount };
+
+    const result = await proto.getTransactionCount.call(client, '0xabc');
+
+    expect(result).toBe(5);
+    expect(getTransactionCount).toHaveBeenCalledWith('0xabc', 'latest');
+  });
+
+  it('forwards the pending block tag to count still-pending mempool txs', async () => {
+    const getTransactionCount = jest.fn().mockResolvedValue(7);
+    const client = Object.create(EvmClient.prototype);
+    client.provider = { getTransactionCount };
+
+    const result = await proto.getTransactionCount.call(client, '0xabc', 'pending');
+
+    expect(result).toBe(7);
+    expect(getTransactionCount).toHaveBeenCalledWith('0xabc', 'pending');
+  });
+});
