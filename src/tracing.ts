@@ -1,8 +1,8 @@
-import { SpanStatusCode } from '@opentelemetry/api';
+import { SpanKind, SpanStatusCode } from '@opentelemetry/api';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPTraceExporter } from '@opentelemetry/exporter-trace-otlp-http';
 import { NodeSDK } from '@opentelemetry/sdk-node';
-import { ServerResponse } from 'http';
+import { BatchSpanProcessor, ReadableSpan, SpanProcessor } from '@opentelemetry/sdk-trace-base';
 
 // OpenTelemetry tracing for dfx-api.
 //
@@ -17,12 +17,48 @@ import { ServerResponse } from 'http';
 // effect of registering the global SDK.
 
 /**
- * HTTP 4xx (client error) check. dfx-api marks 4xx server spans as successful
- * so they are not counted as failures — the OpenTelemetry equivalent of the
- * old App Insights telemetry processor (only 5xx are real server errors).
+ * HTTP 4xx (client error) check.
  */
 export function isClientError(statusCode?: number): boolean {
   return statusCode != null && statusCode >= 400 && statusCode < 500;
+}
+
+function httpStatusCode(span: ReadableSpan): number | undefined {
+  // Stable semconv first, then the legacy attribute.
+  const value = span.attributes['http.response.status_code'] ?? span.attributes['http.status_code'];
+  return value == null ? undefined : Number(value);
+}
+
+/**
+ * Marks 4xx client errors as non-failures, replicating the old App Insights
+ * telemetry processor (only 5xx are real server errors). OTel's HTTP server
+ * instrumentation already leaves 4xx spans unset, but a request that logs via
+ * DfxLogger.error would otherwise flip its own server span to ERROR — this
+ * processor runs on span end (after instrumentation) and resets such 4xx
+ * server spans back to UNSET, so the 5xx error-rate dashboards stay accurate.
+ */
+export class ClientErrorSpanProcessor implements SpanProcessor {
+  onStart(): void {
+    // no-op
+  }
+
+  onEnd(span: ReadableSpan): void {
+    if (
+      span.kind === SpanKind.SERVER &&
+      span.status.code === SpanStatusCode.ERROR &&
+      isClientError(httpStatusCode(span))
+    ) {
+      (span.status as { code: SpanStatusCode; message?: string }).code = SpanStatusCode.UNSET;
+    }
+  }
+
+  forceFlush(): Promise<void> {
+    return Promise.resolve();
+  }
+
+  shutdown(): Promise<void> {
+    return Promise.resolve();
+  }
 }
 
 let sdk: NodeSDK | undefined;
@@ -34,23 +70,14 @@ export function startTracing(): NodeSDK | undefined {
 
   sdk = new NodeSDK({
     serviceName: 'dfx-api',
-    // Reads OTEL_EXPORTER_OTLP_ENDPOINT from the environment and posts spans
-    // to <endpoint>/v1/traces.
-    traceExporter: new OTLPTraceExporter(),
+    // The 4xx-not-a-failure processor runs before the exporting batch
+    // processor so corrected statuses are what gets exported. The exporter
+    // reads OTEL_EXPORTER_OTLP_ENDPOINT from the environment.
+    spanProcessors: [new ClientErrorSpanProcessor(), new BatchSpanProcessor(new OTLPTraceExporter())],
     instrumentations: [
       getNodeAutoInstrumentations({
         // Filesystem spans are pure noise for an API service.
         '@opentelemetry/instrumentation-fs': { enabled: false },
-        '@opentelemetry/instrumentation-http': {
-          // Mark incoming 4xx responses as non-failures (App Insights parity).
-          // Only server responses are touched; outbound client 4xx keep their
-          // default status so dependency failures stay visible.
-          responseHook: (span, response) => {
-            if (response instanceof ServerResponse && isClientError(response.statusCode)) {
-              span.setStatus({ code: SpanStatusCode.OK });
-            }
-          },
-        },
       }),
     ],
   });

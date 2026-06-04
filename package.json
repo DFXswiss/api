@@ -62,6 +62,7 @@
     "@opentelemetry/auto-instrumentations-node": "^0.76.0",
     "@opentelemetry/exporter-trace-otlp-http": "^0.218.0",
     "@opentelemetry/sdk-node": "^0.218.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.1",
     "@railgun-community/engine": "^9.4.0",
     "@scure/bip32": "^1.6.2",
     "@scure/bip39": "^1.5.4",
