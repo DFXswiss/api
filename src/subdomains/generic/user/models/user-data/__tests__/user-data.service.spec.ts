@@ -87,4 +87,37 @@ describe('UserDataService', () => {
       expect(savedArg.id).toBe(1);
     });
   });
+
+  describe('getNewUserDataCount', () => {
+    function mockQueryBuilder(count: number): { andWhere: jest.Mock; getCount: jest.Mock } {
+      const query = {
+        andWhere: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(count),
+      };
+      userDataRepo.createQueryBuilder.mockReturnValue(query as never);
+      return query;
+    }
+
+    it('returns the count without any date filter', async () => {
+      const query = mockQueryBuilder(42);
+
+      const result = await service.getNewUserDataCount();
+
+      expect(result).toBe(42);
+      expect(query.andWhere).not.toHaveBeenCalled();
+      expect(query.getCount).toHaveBeenCalledTimes(1);
+    });
+
+    it('applies from and to date filters when provided', async () => {
+      const query = mockQueryBuilder(7);
+      const from = new Date('2024-01-01');
+      const to = new Date('2024-02-01');
+
+      const result = await service.getNewUserDataCount(from, to);
+
+      expect(result).toBe(7);
+      expect(query.andWhere).toHaveBeenCalledWith('userData.created >= :from', { from });
+      expect(query.andWhere).toHaveBeenCalledWith('userData.created <= :to', { to });
+    });
+  });
 });

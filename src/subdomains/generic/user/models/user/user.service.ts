@@ -92,6 +92,13 @@ export class UserService {
     return this.userRepo.findOne({ where: { address }, relations });
   }
 
+  async getNewUserCount(from?: Date, to?: Date): Promise<number> {
+    const query = this.userRepo.createQueryBuilder('user');
+    if (from) query.andWhere('user.created >= :from', { from });
+    if (to) query.andWhere('user.created <= :to', { to });
+    return query.getCount();
+  }
+
   async getUserByKey(key: string, value: any, onlyDefaultRelation = false): Promise<User> {
     const query = this.userRepo
       .createQueryBuilder('user')

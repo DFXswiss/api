@@ -82,4 +82,37 @@ describe('UserService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+
+  describe('getNewUserCount', () => {
+    function mockQueryBuilder(count: number): { andWhere: jest.Mock; getCount: jest.Mock } {
+      const query = {
+        andWhere: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(count),
+      };
+      (userRepo.createQueryBuilder as jest.Mock).mockReturnValue(query);
+      return query;
+    }
+
+    it('returns the count without any date filter', async () => {
+      const query = mockQueryBuilder(100);
+
+      const result = await service.getNewUserCount();
+
+      expect(result).toBe(100);
+      expect(query.andWhere).not.toHaveBeenCalled();
+      expect(query.getCount).toHaveBeenCalledTimes(1);
+    });
+
+    it('applies from and to date filters when provided', async () => {
+      const query = mockQueryBuilder(12);
+      const from = new Date('2024-01-01');
+      const to = new Date('2024-02-01');
+
+      const result = await service.getNewUserCount(from, to);
+
+      expect(result).toBe(12);
+      expect(query.andWhere).toHaveBeenCalledWith('user.created >= :from', { from });
+      expect(query.andWhere).toHaveBeenCalledWith('user.created <= :to', { to });
+    });
+  });
 });

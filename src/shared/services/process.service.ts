@@ -23,6 +23,7 @@ export enum Process {
   MONITORING = 'Monitoring',
   MONITOR_CONNECTION_POOL = 'MonitorConnectionPool',
   UPDATE_STATISTIC = 'UpdateStatistic',
+  UPDATE_REALUNIT_STATS = 'UpdateRealunitStats',
   KYC = 'Kyc',
   KYC_IDENT_REVIEW = 'KycIdentReview',
   KYC_NATIONALITY_REVIEW = 'KycNationalityReview',

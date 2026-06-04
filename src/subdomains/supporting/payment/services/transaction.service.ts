@@ -322,6 +322,42 @@ export class TransactionService {
     });
   }
 
+  async getAssetTradingStats(
+    assetId: number,
+    from?: Date,
+    to?: Date,
+  ): Promise<{ type: TransactionRequestType; volume: number; count: number }[]> {
+    const query = this.repo
+      .createQueryBuilder('transaction')
+      .select('request.type', 'type')
+      .addSelect('SUM(transaction.amountInChf)', 'volume')
+      .addSelect('COUNT(transaction.id)', 'count')
+      .innerJoin('transaction.request', 'request')
+      .where('transaction.type IS NOT NULL')
+      .andWhere('transaction.amountInChf IS NOT NULL')
+      .andWhere(
+        new Brackets((qb) =>
+          qb
+            .where('(request.type = :buy AND request.targetId = :assetId)', {
+              buy: TransactionRequestType.BUY,
+              assetId,
+            })
+            .orWhere('(request.type = :sell AND request.sourceId = :assetId)', {
+              sell: TransactionRequestType.SELL,
+              assetId,
+            }),
+        ),
+      )
+      .groupBy('request.type');
+
+    if (from) query.andWhere('transaction.created >= :from', { from });
+    if (to) query.andWhere('transaction.created <= :to', { to });
+
+    return query
+      .getRawMany<{ type: TransactionRequestType; volume: string; count: string }>()
+      .then((rows) => rows.map((r) => ({ type: r.type, volume: Number(r.volume) || 0, count: Number(r.count) || 0 })));
+  }
+
   async getTransactionByKey(key: string, value: any): Promise<Transaction> {
     return this.repo
       .createQueryBuilder('transaction')
