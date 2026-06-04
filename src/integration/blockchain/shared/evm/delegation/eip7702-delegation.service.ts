@@ -258,6 +258,10 @@ export class Eip7702DelegationService {
   /**
    * Execute token transfer using frontend-signed EIP-7702 delegation
    * Used for sell transactions where user has 0 native token
+   *
+   * `relayerPrivateKeyOverride` (optional) pays gas from a caller-supplied wallet instead of the
+   * per-chain Sell/OTC relayer. Defaults to `getRelayerPrivateKey(blockchain)`, so existing callers
+   * are unchanged. Used by the RealUnit W2W transfer to pay gas from the dedicated W2W gas wallet.
    */
   async transferTokenWithUserDelegation(
     userAddress: string,
@@ -272,8 +276,9 @@ export class Eip7702DelegationService {
       signature: string;
     },
     authorization: Eip7702Authorization,
+    relayerPrivateKeyOverride?: Hex,
   ): Promise<string> {
-    if (!this.isDelegationSupported(token.blockchain)) {
+    if (!this.isDelegationSupported(token.blockchain) && !this.isDelegationSupportedForRealUnit(token.blockchain)) {
       throw new Error(`EIP-7702 delegation not supported for ${token.blockchain}`);
     }
     return this._transferTokenWithUserDelegationInternal(
@@ -283,6 +288,7 @@ export class Eip7702DelegationService {
       amount,
       signedDelegation,
       authorization,
+      relayerPrivateKeyOverride,
     );
   }
 
@@ -534,6 +540,7 @@ export class Eip7702DelegationService {
       signature: string;
     },
     authorization: Eip7702Authorization,
+    relayerPrivateKeyOverride?: Hex,
   ): Promise<string> {
     const blockchain = token.blockchain;
 
@@ -571,8 +578,8 @@ export class Eip7702DelegationService {
     // Verify EIP-7702 authorization signature
     await this.verifyAuthorizationSignature(authorization, userAddress);
 
-    // Get relayer account
-    const relayerPrivateKey = this.getRelayerPrivateKey(blockchain);
+    // Get relayer account (default: per-chain Sell/OTC relayer; override: dedicated gas wallet)
+    const relayerPrivateKey = relayerPrivateKeyOverride ?? this.getRelayerPrivateKey(blockchain);
     const relayerAccount = privateKeyToAccount(relayerPrivateKey);
 
     // Create clients

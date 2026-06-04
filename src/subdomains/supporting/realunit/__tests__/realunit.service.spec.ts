@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
 import { BrokerbotCurrency } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
@@ -27,12 +27,25 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
-import { RealUnitDevService } from '../realunit-dev.service';
+import { RealUnitTransferRequestStatus } from '../entities/realunit-transfer-request.entity';
 import { RealUnitService } from '../realunit.service';
+import { RealUnitDevService } from '../realunit-dev.service';
+import { RealUnitTransferRequestRepository } from '../repositories/realunit-transfer-request.repository';
 
 jest.mock('src/config/config', () => ({
   get Config() {
-    return { environment: 'loc' };
+    return {
+      environment: 'loc',
+      prefixes: { realUnitTransferUidPrefix: 'RT' },
+      blockchain: {
+        realunit: {
+          brokerbotAddress: '0xBrokerbotAddress',
+          w2wGasWalletPrivateKey: '0xW2wGasKey',
+          w2wGasWalletAddress: '0xW2wGasWalletAddress',
+          w2wGasLowBalanceThreshold: 0.05,
+        },
+      },
+    };
   },
   Environment: {
     LOC: 'loc',
@@ -102,6 +115,8 @@ describe('RealUnitService', () => {
   let sellService: jest.Mocked<SellService>;
   let userService: jest.Mocked<UserService>;
   let kycService: jest.Mocked<KycService>;
+  let transferRequestRepo: jest.Mocked<RealUnitTransferRequestRepository>;
+  let sepoliaClient: { getNativeCoinBalanceForAddress: jest.Mock };
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -122,6 +137,8 @@ describe('RealUnitService', () => {
   });
 
   beforeEach(async () => {
+    sepoliaClient = { getNativeCoinBalanceForAddress: jest.fn() };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RealUnitService,
@@ -168,6 +185,8 @@ describe('RealUnitService', () => {
           provide: Eip7702DelegationService,
           useValue: {
             executeBrokerBotSellForRealUnit: jest.fn(),
+            prepareDelegationDataForRealUnit: jest.fn(),
+            transferTokenWithUserDelegation: jest.fn(),
           },
         },
         {
@@ -184,7 +203,20 @@ describe('RealUnitService', () => {
         { provide: FeeService, useValue: {} },
         { provide: FaucetRequestService, useValue: {} },
         { provide: EthereumService, useValue: {} },
-        { provide: SepoliaService, useValue: {} },
+        {
+          provide: SepoliaService,
+          useValue: {
+            getDefaultClient: jest.fn().mockReturnValue(sepoliaClient),
+          },
+        },
+        {
+          provide: RealUnitTransferRequestRepository,
+          useValue: {
+            create: jest.fn((e) => e),
+            save: jest.fn((e) => Promise.resolve({ id: 99, ...e })),
+            findOne: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -196,6 +228,7 @@ describe('RealUnitService', () => {
     sellService = module.get(SellService);
     userService = module.get(UserService);
     kycService = module.get(KycService);
+    transferRequestRepo = module.get(RealUnitTransferRequestRepository);
   });
 
   afterEach(() => {
@@ -387,6 +420,238 @@ describe('RealUnitService', () => {
       assetService.getAssetByQuery.mockResolvedValue(realuAsset);
 
       await expect(service.confirmSell(42, 1, {})).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('W2W transfer', () => {
+    const senderAddress = '0x1111111111111111111111111111111111111111';
+    const recipientAddress = '0x2222222222222222222222222222222222222222';
+    const realuContract = '0x3333333333333333333333333333333333333333';
+    const zchfContract = '0x4444444444444444444444444444444444444444';
+    const w2wTxHash = '0x' + 'b'.repeat(64);
+
+    const transferRealuAsset = createCustomAsset({
+      id: 1,
+      name: 'REALU',
+      blockchain: Blockchain.SEPOLIA,
+      type: AssetType.TOKEN,
+      chainId: realuContract,
+      decimals: 0,
+    });
+
+    const transferZchfAsset = createCustomAsset({
+      id: 2,
+      name: 'ZCHF',
+      blockchain: Blockchain.SEPOLIA,
+      type: AssetType.TOKEN,
+      chainId: zchfContract,
+      decimals: 18,
+    });
+
+    const delegationData = {
+      relayerAddress: '0xRelayer',
+      delegationManagerAddress: '0xManager',
+      delegatorAddress: '0xDelegator',
+      userNonce: 0,
+      domain: { name: 'DelegationManager', version: '1', chainId: 11155111, verifyingContract: '0xManager' },
+      types: { Delegation: [], Caveat: [] },
+      message: { delegate: '0xRelayer', delegator: senderAddress, authority: '0xRoot', caveats: [], salt: 1 },
+    };
+
+    function buildRegisteredUser(kycLevel: number): any {
+      const step = {
+        getResult: () => ({ walletAddress: senderAddress }),
+        isFailed: false,
+        isCanceled: false,
+        isCompleted: true,
+        result: 'non-empty',
+      };
+      return {
+        id: 42,
+        address: senderAddress,
+        userData: {
+          kycLevel,
+          getStepsWith: jest.fn().mockReturnValue([step]),
+        },
+      };
+    }
+
+    function mockTransferAssets(): void {
+      assetService.getAssetByQuery.mockImplementation(async (q: any) =>
+        q.name === 'REALU' ? transferRealuAsset : transferZchfAsset,
+      );
+    }
+
+    describe('prepareTransfer', () => {
+      it('returns delegation data and persists the request with correct to/amount', async () => {
+        mockTransferAssets();
+        sepoliaClient.getNativeCoinBalanceForAddress.mockResolvedValue(1); // funded
+        eip7702DelegationService.prepareDelegationDataForRealUnit.mockResolvedValue(delegationData as any);
+
+        const user = buildRegisteredUser(30);
+        const result = await service.prepareTransfer(user, { toAddress: recipientAddress, amount: 5 });
+
+        expect(eip7702DelegationService.prepareDelegationDataForRealUnit).toHaveBeenCalledWith(
+          senderAddress,
+          Blockchain.SEPOLIA,
+        );
+        expect(transferRequestRepo.save).toHaveBeenCalledWith(
+          expect.objectContaining({
+            toAddress: recipientAddress,
+            amount: 5,
+            status: RealUnitTransferRequestStatus.CREATED,
+          }),
+        );
+        expect(result.toAddress).toBe(recipientAddress);
+        expect(result.amount).toBe(5);
+        expect(result.eip7702.recipient).toBe(recipientAddress);
+        expect(result.eip7702.amountWei).toBe('5');
+      });
+
+      it('throws when registration is missing', async () => {
+        const user: any = {
+          id: 42,
+          address: senderAddress,
+          userData: { kycLevel: 30, getStepsWith: jest.fn().mockReturnValue([]) },
+        };
+
+        await expect(service.prepareTransfer(user, { toAddress: recipientAddress, amount: 1 })).rejects.toBeDefined();
+        expect(transferRequestRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('throws when KYC level is below 30', async () => {
+        const user = buildRegisteredUser(20);
+
+        await expect(service.prepareTransfer(user, { toAddress: recipientAddress, amount: 1 })).rejects.toBeDefined();
+        expect(transferRequestRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('rejects an invalid recipient address', async () => {
+        mockTransferAssets();
+        const user = buildRegisteredUser(30);
+
+        await expect(service.prepareTransfer(user, { toAddress: 'not-an-address', amount: 1 })).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('rejects sender == recipient', async () => {
+        mockTransferAssets();
+        const user = buildRegisteredUser(30);
+
+        await expect(service.prepareTransfer(user, { toAddress: senderAddress, amount: 1 })).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('rejects the REALU token contract as recipient', async () => {
+        mockTransferAssets();
+        const user = buildRegisteredUser(30);
+
+        await expect(service.prepareTransfer(user, { toAddress: realuContract, amount: 1 })).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('rejects a non-integer amount', async () => {
+        mockTransferAssets();
+        const user = buildRegisteredUser(30);
+
+        await expect(service.prepareTransfer(user, { toAddress: recipientAddress, amount: 1.5 })).rejects.toThrow(
+          BadRequestException,
+        );
+      });
+
+      it('throws ServiceUnavailable when the W2W gas wallet balance is below threshold', async () => {
+        mockTransferAssets();
+        sepoliaClient.getNativeCoinBalanceForAddress.mockResolvedValue(0.001); // below 0.05 threshold
+        const user = buildRegisteredUser(30);
+
+        await expect(service.prepareTransfer(user, { toAddress: recipientAddress, amount: 1 })).rejects.toThrow(
+          ServiceUnavailableException,
+        );
+        expect(transferRequestRepo.save).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('confirmTransfer', () => {
+      const confirmDto: any = {
+        delegation: {
+          delegator: senderAddress,
+          delegate: '0xRelayer',
+          authority: '0xRoot',
+          salt: '1',
+          signature: '0xSig',
+        },
+        authorization: { chainId: 11155111, address: '0xDelegator', nonce: 0, r: '0xR', s: '0xS', yParity: 0 },
+      };
+
+      function buildStoredRequest(overrides: any = {}): any {
+        return {
+          id: 99,
+          uid: 'RTabc',
+          toAddress: recipientAddress,
+          amount: 5,
+          status: RealUnitTransferRequestStatus.CREATED,
+          isComplete: false,
+          user: { id: 42, address: senderAddress, userData: {} },
+          complete: jest.fn(function (this: any, txHash: string) {
+            this.status = RealUnitTransferRequestStatus.COMPLETED;
+            this.txHash = txHash;
+            return this;
+          }),
+          ...overrides,
+        };
+      }
+
+      it('relays the stored recipient/amount via the dedicated W2W key (NOT getRelayerPrivateKey)', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(buildStoredRequest());
+        assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
+        eip7702DelegationService.transferTokenWithUserDelegation.mockResolvedValue(w2wTxHash);
+
+        const result = await service.confirmTransfer(42, 99, confirmDto);
+
+        expect(result.txHash).toBe(w2wTxHash);
+        expect(eip7702DelegationService.transferTokenWithUserDelegation).toHaveBeenCalledWith(
+          senderAddress,
+          transferRealuAsset,
+          recipientAddress, // STORED recipient, not from client
+          5, // STORED amount, not from client
+          confirmDto.delegation,
+          confirmDto.authorization,
+          '0xW2wGasKey', // dedicated W2W relayer key override
+        );
+      });
+
+      it('throws NotFound when the request belongs to another user', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(buildStoredRequest({ user: { id: 7, address: senderAddress } }));
+
+        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(NotFoundException);
+        expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
+      });
+
+      it('throws NotFound when the request does not exist', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(null as any);
+
+        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(NotFoundException);
+      });
+
+      it('throws Conflict when the request is already completed', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(buildStoredRequest({ isComplete: true }));
+        assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
+
+        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(ConflictException);
+      });
+
+      it('throws BadRequest when the delegator does not match the request owner', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(buildStoredRequest());
+        assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
+
+        const wrongDto = { ...confirmDto, delegation: { ...confirmDto.delegation, delegator: '0xWrong' } };
+
+        await expect(service.confirmTransfer(42, 99, wrongDto)).rejects.toThrow(BadRequestException);
+        expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
+      });
     });
   });
 

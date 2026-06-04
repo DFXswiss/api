@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { EthereumModule } from 'src/integration/blockchain/ethereum/ethereum.module';
 import { RealUnitBlockchainModule } from 'src/integration/blockchain/realunit/realunit-blockchain.module';
 import { SepoliaModule } from 'src/integration/blockchain/sepolia/sepolia.module';
@@ -16,11 +17,14 @@ import { PaymentModule } from '../payment/payment.module';
 import { TransactionModule } from '../payment/transaction.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { RealUnitController } from './controllers/realunit.controller';
+import { RealUnitTransferRequest } from './entities/realunit-transfer-request.entity';
 import { RealUnitDevService } from './realunit-dev.service';
 import { RealUnitService } from './realunit.service';
+import { RealUnitTransferRequestRepository } from './repositories/realunit-transfer-request.repository';
 
 @Module({
   imports: [
+    TypeOrmModule.forFeature([RealUnitTransferRequest]),
     SharedModule,
     PricingModule,
     BalanceModule,
@@ -39,7 +43,7 @@ import { RealUnitService } from './realunit.service';
     FaucetRequestModule,
   ],
   controllers: [RealUnitController],
-  providers: [RealUnitService, RealUnitDevService],
+  providers: [RealUnitService, RealUnitDevService, RealUnitTransferRequestRepository],
   exports: [RealUnitService],
 })
 export class RealUnitModule {}

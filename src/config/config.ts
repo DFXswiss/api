@@ -94,6 +94,7 @@ export class Configuration {
     paymentLinkUidPrefix: 'pl',
     paymentLinkPaymentUidPrefix: 'plp',
     paymentQuoteUidPrefix: 'plq',
+    realUnitTransferUidPrefix: 'RT',
   };
 
   moderators = {
@@ -1060,6 +1061,13 @@ export class Configuration {
       brokerbotAddress: [Environment.DEV, Environment.LOC].includes(this.environment)
         ? '0x39c33c2fd5b07b8e890fd2115d4adff7235fc9d2'
         : '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d',
+      // Dedicated wallet-to-wallet (W2W) transfer gas-funding wallet. Separate from the Sell/OTC
+      // EIP-7702 relayer (per-chain `…WalletPrivateKey`): DFX pays gas for user-initiated REALU
+      // W2W transfers from this wallet only. Operator provisions it (generate key, store in Vault,
+      // fund with ETH) and sets the three env vars below.
+      w2wGasWalletPrivateKey: process.env.REALUNIT_W2W_GAS_WALLET_PRIVATE_KEY?.split('<br>').join('\n'),
+      w2wGasWalletAddress: process.env.REALUNIT_W2W_GAS_WALLET_ADDRESS,
+      w2wGasLowBalanceThreshold: +(process.env.REALUNIT_W2W_GAS_LOW_BALANCE_THRESHOLD ?? 0.05), // ETH
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
         iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',
