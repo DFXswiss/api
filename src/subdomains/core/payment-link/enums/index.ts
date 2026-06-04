@@ -96,9 +96,12 @@ export enum PaymentMerchantStatus {
 }
 
 // EVM blockchains the payment-link engine accepts for signed-hex payments (PaymentRequestMapper +
-// PaymentQuoteService.executeHexPayment). Mainnet-only — testnets such as Sepolia are intentionally absent.
+// PaymentQuoteService.executeHexPayment). Includes the Sepolia testnet so Open CryptoPay is testable on
+// non-PRD (DEV/LOC); on PRD Sepolia is filtered out of PaymentLinkBlockchains (via TestBlockchains), so no
+// PRD payment-link can offer it and these EVM cases stay unreachable there.
 export const PaymentLinkEvmHexBlockchains = [
   Blockchain.ETHEREUM,
+  Blockchain.SEPOLIA,
   Blockchain.ARBITRUM,
   Blockchain.OPTIMISM,
   Blockchain.BASE,

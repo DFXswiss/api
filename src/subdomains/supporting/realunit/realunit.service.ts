@@ -1593,11 +1593,10 @@ export class RealUnitService {
     const zchfAsset = await this.getZchfAsset();
     if (!zchfAsset.chainId) throw new BadRequestException('ZCHF asset has no contract address');
 
-    // Fail fast and clean before touching the payment-link engine: on DEV/LOC the resolved method is
-    // SEPOLIA, which the payment-link engine (PaymentRequestMapper / executeHexPayment) does not support —
-    // it would throw a deep, opaque `Invalid method Sepolia`. The OCP submit step is therefore exercisable
-    // end-to-end on mainnet only; the swap-only step is fully DEV-testable. Mirrors the platform's existing
-    // mainnet-only payment-link scope.
+    // Guard against payment methods the payment-link engine cannot settle before touching it. The resolved
+    // method is SEPOLIA on DEV/LOC and ETHEREUM on PRD; both are supported EVM methods, so this passes for
+    // the RealUnit flow and OCP is testable end-to-end on Sepolia (non-PRD). The guard still fails fast with
+    // a clear, typed error for any genuinely-unsupported method.
     this.assertPaymentLinkSupportsMethod();
 
     // Activate the quote via the same path as the lnurlp callback to obtain the DFX deposit recipient and amount
@@ -1662,7 +1661,7 @@ export class RealUnitService {
   async submitOcpPay(dto: RealUnitOcpPaySubmitDto): Promise<RealUnitOcpPayResultDto> {
     const zchfAsset = await this.getZchfAsset();
 
-    // Fail fast on unsupported methods (e.g. SEPOLIA on DEV/LOC) — see createOcpPayUnsignedTransaction.
+    // Guard against payment methods the payment-link engine cannot settle — see createOcpPayUnsignedTransaction.
     this.assertPaymentLinkSupportsMethod();
 
     const signedHex = this.reconstructSignedTransaction(dto);
@@ -1686,13 +1685,14 @@ export class RealUnitService {
     return { status };
   }
 
-  // Guards the OCP pay endpoints against payment methods the payment-link engine cannot settle. On DEV/LOC
-  // the resolved method is SEPOLIA, which PaymentRequestMapper / executeHexPayment reject — without this guard
-  // a deep, opaque `Invalid method Sepolia` would bubble up. Fails fast with a clear, typed error instead.
+  // Guards the OCP pay endpoints against payment methods the payment-link engine cannot settle. The resolved
+  // method (SEPOLIA on DEV/LOC, ETHEREUM on PRD) is a supported EVM method, so this passes for the RealUnit
+  // flow. It still fails fast with a clear, typed error for any genuinely-unsupported method instead of
+  // letting a deep, opaque `Invalid method` bubble up from PaymentRequestMapper / executeHexPayment.
   private assertPaymentLinkSupportsMethod(): void {
     if (!PaymentLinkEvmHexBlockchains.includes(this.tokenBlockchain)) {
       throw new BadRequestException(
-        `OCP pay is not available for ${this.tokenBlockchain}: the payment-link engine supports mainnet EVM methods only`,
+        `OCP pay is not available for ${this.tokenBlockchain}: the payment-link engine supports EVM methods only`,
       );
     }
   }

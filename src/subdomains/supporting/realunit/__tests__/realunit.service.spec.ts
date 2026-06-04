@@ -718,9 +718,9 @@ describe('RealUnitService', () => {
     });
   });
 
-  // The OCP submit/pay endpoints fail fast on testnet (Sepolia) because the payment-link engine supports
-  // mainnet EVM methods only, so the engine-touching specs run under PRD (→ Ethereum). A dedicated block
-  // below asserts the fail-fast behaviour on the LOC/Sepolia branch.
+  // The engine-touching OCP specs run under PRD (→ Ethereum) to exercise the mainnet branch. A dedicated
+  // block below asserts that on the LOC/Sepolia branch the method guard now PASSES (Sepolia is a supported
+  // payment-link EVM method on non-PRD), so the OCP pay flow is testable end-to-end on the testnet.
   describe('createOcpPayUnsignedTransaction', () => {
     const amountWei = '5000000000000000000';
 
@@ -922,32 +922,69 @@ describe('RealUnitService', () => {
     });
   });
 
-  // On LOC/DEV the token blockchain resolves to Sepolia, which the payment-link engine does not support.
-  // Both OCP pay endpoints must fail fast with a typed BadRequestException without touching the engine.
-  describe('OCP pay fail-fast on unsupported method (Sepolia)', () => {
-    it('createOcpPayUnsignedTransaction throws BadRequestException and never activates the quote', async () => {
-      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+  // On LOC/DEV the token blockchain resolves to Sepolia. Sepolia is a supported payment-link EVM method on
+  // non-PRD, so the method guard passes and both OCP pay endpoints proceed into the payment-link engine
+  // (OCP is testable end-to-end on the testnet).
+  describe('OCP pay supported on non-PRD testnet (Sepolia)', () => {
+    const amountWei = '5000000000000000000';
 
-      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
-        BadRequestException,
-      );
-      expect(lnUrlForwardService.lnurlpCallbackForward).not.toHaveBeenCalled();
+    beforeEach(() => {
+      evmClient.getTransactionCount.mockResolvedValue(3);
+      evmClient.getRecommendedGasPrice.mockResolvedValue(ethers.BigNumber.from(1_000_000_000));
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(1);
     });
 
-    it('submitOcpPay throws BadRequestException and never forwards the hex', async () => {
+    it('createOcpPayUnsignedTransaction passes the method guard and activates the Sepolia quote', async () => {
       assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.SEPOLIA,
+        uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
 
-      await expect(
-        service.submitOcpPay({
-          paymentLinkId: 'pl_abc',
-          quoteId: 'quote_xyz',
-          unsignedTx: '0x',
-          r: '0x' + '1'.repeat(64),
-          s: '0x' + '2'.repeat(64),
-          v: 27,
-        }),
-      ).rejects.toThrow(BadRequestException);
-      expect(lnUrlForwardService.txHexForward).not.toHaveBeenCalled();
+      const result = await service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz');
+
+      expect(lnUrlForwardService.lnurlpCallbackForward).toHaveBeenCalledWith('pl_abc', {
+        method: Blockchain.SEPOLIA,
+        asset: 'ZCHF',
+        quote: 'quote_xyz',
+      });
+      expect(result.recipient).toBe(dfxDepositAddress);
+      expect(result.amountWei).toBe(amountWei);
+    });
+
+    it('submitOcpPay passes the method guard and forwards the hex with the Sepolia method', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.txHexForward.mockResolvedValue({ txId: '0xTxId' });
+
+      const unsignedTx = ethers.utils.serializeTransaction({
+        type: 2,
+        chainId: 11155111,
+        nonce: 1,
+        maxPriorityFeePerGas: ethers.BigNumber.from(1),
+        maxFeePerGas: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(100_000),
+        to: zchfTxAsset.chainId,
+        value: ethers.BigNumber.from(0),
+        data: '0x',
+        accessList: [],
+      });
+
+      const result = await service.submitOcpPay({
+        paymentLinkId: 'pl_abc',
+        quoteId: 'quote_xyz',
+        unsignedTx,
+        r: '0x' + '1'.repeat(64),
+        s: '0x' + '2'.repeat(64),
+        v: 27,
+      });
+
+      expect(result.txId).toBe('0xTxId');
+      expect(lnUrlForwardService.txHexForward).toHaveBeenCalledWith(
+        'pl_abc',
+        expect.objectContaining({ method: Blockchain.SEPOLIA, asset: 'ZCHF', quote: 'quote_xyz' }),
+      );
     });
   });
 
