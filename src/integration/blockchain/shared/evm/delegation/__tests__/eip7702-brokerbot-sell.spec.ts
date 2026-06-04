@@ -243,6 +243,41 @@ describe('Eip7702DelegationService - BrokerBot Sell', () => {
     });
   });
 
+  // The delegation's `delegate` is embedded in the EIP-712 message the user signs and is checked
+  // on-chain against msg.sender of redeemDelegations. For W2W the redeemer is the dedicated W2W gas
+  // wallet, so the prepared delegate MUST be that wallet's address — otherwise the on-chain call
+  // reverts InvalidDelegate(). The Sell/OTC flow keeps using the per-chain relayer address.
+  describe('prepareDelegationDataForRealUnit (W2W delegate override)', () => {
+    // privateKeyToAccount is mocked to return this address; it is the per-chain Sell/OTC relayer that
+    // the default (sell) flow must keep embedding as the delegate.
+    const sellRelayerAddress = '0x1234567890123456789012345678901234567890';
+    const w2wGasWalletAddress = '0xfeEDFACE00000000000000000000000000001234';
+
+    it('embeds the supplied delegate override (W2W gas wallet) as delegate and relayerAddress', async () => {
+      const result = await service.prepareDelegationDataForRealUnit(
+        validUserAddress,
+        Blockchain.SEPOLIA,
+        w2wGasWalletAddress,
+      );
+
+      // delegate (signed by the user) == relayerAddress (returned to the app) == W2W gas wallet (redeemer)
+      expect(result.message.delegate).toBe(w2wGasWalletAddress);
+      expect(result.relayerAddress).toBe(w2wGasWalletAddress);
+      expect(result.message.delegator).toBe(validUserAddress);
+      // and NOT the Sell/OTC relayer that would otherwise trigger the on-chain InvalidDelegate() revert
+      expect(result.message.delegate).not.toBe(sellRelayerAddress);
+    });
+
+    it('uses the per-chain Sell relayer address as delegate when no override is given (sell flow unchanged)', async () => {
+      const result = await service.prepareDelegationDataForRealUnit(validUserAddress, Blockchain.SEPOLIA);
+
+      // default (sell/OTC) path: delegate == the relayer derived from the per-chain Sell key
+      expect(result.message.delegate).toBe(sellRelayerAddress);
+      expect(result.relayerAddress).toBe(sellRelayerAddress);
+      expect(viemAccounts.privateKeyToAccount).toHaveBeenCalledWith('0x' + '8'.repeat(64));
+    });
+  });
+
   describe('executeBrokerBotSellForRealUnit', () => {
     describe('Input Validation', () => {
       it('should throw for unsupported blockchain (Ethereum in loc env)', async () => {
