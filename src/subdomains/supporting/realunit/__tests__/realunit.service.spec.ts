@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ConflictException, ForbiddenException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ethers } from 'ethers';
 import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
@@ -113,6 +113,7 @@ describe('RealUnitService', () => {
   let userService: jest.Mocked<UserService>;
   let kycService: jest.Mocked<KycService>;
   let lnUrlForwardService: jest.Mocked<LnUrlForwardService>;
+  let faucetRequestService: jest.Mocked<FaucetRequestService>;
 
   const evmClient = {
     chainId: 11155111,
@@ -231,6 +232,7 @@ describe('RealUnitService', () => {
     userService = module.get(UserService);
     kycService = module.get(KycService);
     lnUrlForwardService = module.get(LnUrlForwardService);
+    faucetRequestService = module.get(FaucetRequestService);
   });
 
   afterEach(() => {
@@ -488,6 +490,30 @@ describe('RealUnitService', () => {
 
       await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(BadRequestException);
     });
+
+    it('should throw BadRequestException if the REALU asset has no contract address', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValue(createCustomAsset({ name: 'REALU', chainId: undefined } as any));
+
+      await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(BadRequestException);
+    });
+
+    it('should default REALU decimals to 18 when the asset has no decimals set', async () => {
+      // decimals null/undefined exercises the `?? 18` fallback in buildSwapUnsignedTransaction
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      const noDecimalsAsset = createCustomAsset({ name: 'REALU', chainId: realuContract, decimals: undefined } as any);
+      assetService.getAssetByQuery.mockResolvedValue(noDecimalsAsset);
+
+      const result = await service.createSwapUnsignedTransaction(42, 1);
+
+      // request amount 10 -> 10 shares encoded with 18 decimals = 10e18
+      const parsed = ethers.utils.parseTransaction(result.swap);
+      const iface = new ethers.utils.Interface([
+        'function transferAndCall(address to, uint256 value, bytes data) returns (bool)',
+      ]);
+      const [, value] = iface.decodeFunctionData('transferAndCall', parsed.data);
+      expect(value.toString()).toBe(ethers.utils.parseUnits('10', 18).toString());
+    });
   });
 
   describe('getSwapPaymentInfo', () => {
@@ -584,6 +610,54 @@ describe('RealUnitService', () => {
       );
       expect(swapService.createSwapPaymentInfo).not.toHaveBeenCalled();
     });
+
+    it('should throw NotFoundException if the REALU asset is not found', async () => {
+      assetService.getAssetByQuery.mockReset();
+      assetService.getAssetByQuery.mockResolvedValueOnce(undefined as any).mockResolvedValueOnce(zchfTxAsset);
+
+      await expect(service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any)).rejects.toThrow(NotFoundException);
+      expect(swapService.createSwapPaymentInfo).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException if the ZCHF asset is not found', async () => {
+      assetService.getAssetByQuery.mockReset();
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(undefined as any);
+
+      await expect(service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any)).rejects.toThrow(NotFoundException);
+      expect(swapService.createSwapPaymentInfo).not.toHaveBeenCalled();
+    });
+
+    it('should keep the SwapService estimate (no brokerbot anchor) when shares floor to 0', async () => {
+      // amount < 1 floors to 0 shares: the brokerbot price is not queried and the estimate stays as-is
+      swapService.createSwapPaymentInfo.mockResolvedValue({ ...swapInfo, amount: 0.4, estimatedAmount: 0.38 } as any);
+
+      const result = await service.getSwapPaymentInfo(buildUser(), { amount: 0.4 } as any);
+
+      expect(blockchainService.getBrokerbotSellPrice).not.toHaveBeenCalled();
+      expect(result.estimatedAmount).toBe(0.38);
+      expect(transactionRequestService.updateEstimatedAmount).not.toHaveBeenCalled();
+    });
+
+    it('should fall back to the SwapService estimate when the brokerbot price query fails', async () => {
+      // the brokerbot lookup rejects -> .catch(() => null) -> estimate is not re-anchored
+      swapService.createSwapPaymentInfo.mockResolvedValue(swapInfo as any);
+      blockchainService.getBrokerbotSellPrice.mockRejectedValue(new Error('rpc down'));
+
+      const result = await service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any);
+
+      expect(result.estimatedAmount).toBe(950);
+      expect(transactionRequestService.updateEstimatedAmount).not.toHaveBeenCalled();
+    });
+
+    it('should keep the SwapService estimate when the request has no id (brokerbot anchor skipped)', async () => {
+      // swapPaymentInfo.id falsy -> the `brokerbotResult && swapPaymentInfo.id` guard is false
+      swapService.createSwapPaymentInfo.mockResolvedValue({ ...swapInfo, id: 0 } as any);
+
+      const result = await service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any);
+
+      expect(result.estimatedAmount).toBe(950);
+      expect(transactionRequestService.updateEstimatedAmount).not.toHaveBeenCalled();
+    });
   });
 
   describe('broadcastSwapTransaction', () => {
@@ -625,6 +699,22 @@ describe('RealUnitService', () => {
 
       await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(BadRequestException);
       expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when the broadcast returns an error', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      evmClient.sendSignedTransaction.mockResolvedValue({ error: { message: 'nonce too low' } });
+
+      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(BadRequestException);
+      expect(faucetRequestService.resetFaucet).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException when the broadcast returns no transaction hash', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      evmClient.sendSignedTransaction.mockResolvedValue({ response: {} });
+
+      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(BadRequestException);
+      expect(faucetRequestService.resetFaucet).not.toHaveBeenCalled();
     });
   });
 
@@ -746,6 +836,30 @@ describe('RealUnitService', () => {
         uri: `ethereum:${zchfTxAsset.chainId}@11155111/transfer?address=${dfxDepositAddress}`,
         hint: '',
       });
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should throw BadRequestException if the ZCHF asset has no contract address', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(createCustomAsset({ name: 'ZCHF', chainId: undefined } as any));
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(lnUrlForwardService.lnurlpCallbackForward).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException if ETH balance is insufficient for gas', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.ETHEREUM,
+        uri: `ethereum:${zchfTxAsset.chainId}@1/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(0);
 
       await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
         BadRequestException,
