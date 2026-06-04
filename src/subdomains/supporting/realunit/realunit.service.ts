@@ -1558,10 +1558,16 @@ export class RealUnitService {
     // 4. Preflight: dedicated W2W gas wallet must be configured and hold enough ETH for the relay
     await this.assertW2wGasWalletFunded();
 
-    // 5. Prepare EIP-7702 delegation data the app must sign
+    // 5. Prepare EIP-7702 delegation data the app must sign. The delegation's `delegate` MUST be the
+    // dedicated W2W gas wallet (the redeemer at confirm), NOT the Sell/OTC relayer — the
+    // DelegationManager enforces `msg.sender == delegate` in redeemDelegations, otherwise it reverts
+    // InvalidDelegate(). Derive the delegate from the same key confirmTransfer relays with so they
+    // always match.
+    const w2wGasWalletAddress = this.getW2wGasWalletAddress();
     const delegationData = await this.eip7702DelegationService.prepareDelegationDataForRealUnit(
       sender,
       realuAsset.blockchain,
+      w2wGasWalletAddress,
     );
 
     // 6. Persist the transfer intent server-side (the delegation is blanket — recipient/amount are
@@ -1646,6 +1652,13 @@ export class RealUnitService {
     return (
       w2wGasWalletPrivateKey.startsWith('0x') ? w2wGasWalletPrivateKey : `0x${w2wGasWalletPrivateKey}`
     ) as `0x${string}`;
+  }
+
+  // Address that confirmTransfer actually relays redeemDelegations with (msg.sender). Derived from the
+  // SAME private key so the prepared delegation's `delegate` is guaranteed to match the redeemer and
+  // the DelegationManager's `msg.sender == delegate` check passes (otherwise: InvalidDelegate revert).
+  private getW2wGasWalletAddress(): string {
+    return new ethers.Wallet(this.getW2wGasWalletPrivateKey()).address;
   }
 
   private async assertW2wGasWalletFunded(): Promise<void> {
