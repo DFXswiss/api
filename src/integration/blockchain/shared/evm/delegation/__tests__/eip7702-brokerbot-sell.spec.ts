@@ -118,6 +118,7 @@ jest.mock('../../evm.util', () => ({
 
 import { Test, TestingModule } from '@nestjs/testing';
 import * as viem from 'viem';
+import * as viemAccounts from 'viem/accounts';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -180,6 +181,65 @@ describe('Eip7702DelegationService - BrokerBot Sell', () => {
     it('should return false for unsupported blockchains', () => {
       expect(service.isDelegationSupportedForRealUnit(Blockchain.BITCOIN)).toBe(false);
       expect(service.isDelegationSupportedForRealUnit(Blockchain.ARBITRUM)).toBe(false);
+    });
+  });
+
+  describe('transferTokenWithUserDelegation (W2W relayer override)', () => {
+    const recipient = '0xAaBbCcDdEeFf00112233445566778899AaBbCcDd';
+    const w2wRelayerKey = ('0x' + 'a'.repeat(64)) as `0x${string}`;
+
+    it('throws when delegation is supported neither generally nor for RealUnit', async () => {
+      const bitcoinToken = createCustomAsset({
+        blockchain: Blockchain.BITCOIN,
+        type: AssetType.TOKEN,
+        chainId: '0x553C7f9C780316FC1D34b8e14ac2465Ab22a090B',
+        decimals: 0,
+        name: 'REALU',
+      });
+
+      await expect(
+        service.transferTokenWithUserDelegation(
+          validUserAddress,
+          bitcoinToken,
+          recipient,
+          5,
+          signedDelegation,
+          authorization,
+          w2wRelayerKey,
+        ),
+      ).rejects.toThrow('EIP-7702 delegation not supported for Bitcoin');
+    });
+
+    it('pays gas from the supplied W2W relayer key override (not the per-chain Sell relayer)', async () => {
+      const txHash = await service.transferTokenWithUserDelegation(
+        validUserAddress,
+        realuToken,
+        recipient,
+        5,
+        signedDelegation,
+        authorization,
+        w2wRelayerKey,
+      );
+
+      expect(txHash).toBe('0xbrokerbottxhash');
+      // override path: the relayer account is derived from the override key, NOT the sepolia Sell relayer key
+      expect(viemAccounts.privateKeyToAccount).toHaveBeenCalledWith(w2wRelayerKey);
+      expect(viemAccounts.privateKeyToAccount).not.toHaveBeenCalledWith('0x' + '8'.repeat(64));
+    });
+
+    it('falls back to the per-chain Sell relayer key when no override is given', async () => {
+      const txHash = await service.transferTokenWithUserDelegation(
+        validUserAddress,
+        realuToken,
+        recipient,
+        5,
+        signedDelegation,
+        authorization,
+      );
+
+      expect(txHash).toBe('0xbrokerbottxhash');
+      // default path: the relayer account is derived from the per-chain (sepolia) Sell relayer key
+      expect(viemAccounts.privateKeyToAccount).toHaveBeenCalledWith('0x' + '8'.repeat(64));
     });
   });
 

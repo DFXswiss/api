@@ -6,10 +6,17 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { MonitoringService } from '../../monitoring.service';
 import { RealUnitW2wGasObserver } from '../realunit-w2w-gas.observer';
 
+// Mutable so individual tests can exercise the address-unset branch and the mainnet (Ethereum) client
+// branch. jest.mock factories may only close over variables prefixed with `mock`.
+let mockEnvironment = 'loc';
+let mockW2wGasWalletAddress: string | undefined = '0xW2wGasWalletAddress';
+
 jest.mock('src/config/config', () => {
   const blockchain = {
     realunit: {
-      w2wGasWalletAddress: '0xW2wGasWalletAddress',
+      get w2wGasWalletAddress() {
+        return mockW2wGasWalletAddress;
+      },
       w2wGasLowBalanceThreshold: 0.05,
     },
     ethereum: { ethChainId: 1 },
@@ -25,7 +32,7 @@ jest.mock('src/config/config', () => {
   };
   return {
     get Config() {
-      return { environment: 'loc', blockchain };
+      return { environment: mockEnvironment, blockchain };
     },
     Environment: { LOC: 'loc', DEV: 'dev', PRD: 'prd' },
     GetConfig: jest.fn(() => ({
@@ -59,16 +66,20 @@ jest.mock('src/shared/services/dfx-logger', () => ({
 describe('RealUnitW2wGasObserver', () => {
   let observer: RealUnitW2wGasObserver;
   let sepoliaClient: { getNativeCoinBalanceForAddress: jest.Mock };
+  let ethereumClient: { getNativeCoinBalanceForAddress: jest.Mock };
   let notificationService: jest.Mocked<NotificationService>;
 
   beforeEach(async () => {
+    mockEnvironment = 'loc';
+    mockW2wGasWalletAddress = '0xW2wGasWalletAddress';
     sepoliaClient = { getNativeCoinBalanceForAddress: jest.fn() };
+    ethereumClient = { getNativeCoinBalanceForAddress: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RealUnitW2wGasObserver,
         { provide: MonitoringService, useValue: { register: jest.fn() } },
-        { provide: EthereumService, useValue: { getDefaultClient: jest.fn() } },
+        { provide: EthereumService, useValue: { getDefaultClient: jest.fn().mockReturnValue(ethereumClient) } },
         { provide: SepoliaService, useValue: { getDefaultClient: jest.fn().mockReturnValue(sepoliaClient) } },
         { provide: NotificationService, useValue: { sendMail: jest.fn() } },
       ],
@@ -98,5 +109,28 @@ describe('RealUnitW2wGasObserver', () => {
 
     expect(data.lowBalance).toBe(false);
     expect(notificationService.sendMail).not.toHaveBeenCalled();
+  });
+
+  it('reports no low balance and skips the balance lookup when the gas wallet address is unset', async () => {
+    mockW2wGasWalletAddress = undefined;
+
+    const data = await observer.fetch();
+
+    expect(data.address).toBeUndefined();
+    expect(data.balance).toBeUndefined();
+    expect(data.lowBalance).toBe(false);
+    expect(sepoliaClient.getNativeCoinBalanceForAddress).not.toHaveBeenCalled();
+    expect(notificationService.sendMail).not.toHaveBeenCalled();
+  });
+
+  it('uses the Ethereum client on mainnet (PRD) environment', async () => {
+    mockEnvironment = 'prd';
+    ethereumClient.getNativeCoinBalanceForAddress.mockResolvedValue(1);
+
+    const data = await observer.fetch();
+
+    expect(ethereumClient.getNativeCoinBalanceForAddress).toHaveBeenCalledWith('0xW2wGasWalletAddress');
+    expect(sepoliaClient.getNativeCoinBalanceForAddress).not.toHaveBeenCalled();
+    expect(data.lowBalance).toBe(false);
   });
 });
