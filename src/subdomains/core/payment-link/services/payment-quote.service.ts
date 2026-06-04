@@ -382,6 +382,7 @@ export class PaymentQuoteService {
     try {
       switch (transferInfo.method) {
         case Blockchain.ETHEREUM:
+        case Blockchain.SEPOLIA:
         case Blockchain.ARBITRUM:
         case Blockchain.OPTIMISM:
         case Blockchain.BASE:
