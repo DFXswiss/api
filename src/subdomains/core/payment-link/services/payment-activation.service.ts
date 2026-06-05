@@ -178,6 +178,7 @@ export class PaymentActivationService {
       case Blockchain.MONERO:
       case Blockchain.ZANO:
       case Blockchain.ETHEREUM:
+      case Blockchain.SEPOLIA:
       case Blockchain.ARBITRUM:
       case Blockchain.OPTIMISM:
       case Blockchain.BASE:

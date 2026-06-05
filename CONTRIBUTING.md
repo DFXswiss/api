@@ -958,6 +958,9 @@ The RealUnit purchase and sale flows historically lived under `/v1/realunit/brok
 | `PUT /v1/realunit/sell/:id/unsigned-transactions` | Reads the on-chain sell price and builds the EIP-7702 batch the user has to sign | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` |
 | `PUT /v1/realunit/sell/:id/confirm` | Verifies the user-signed batch against the live on-chain sell price | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` |
 | `PUT /v1/realunit/sell/:id/broadcast` | Submits the user-signed EIP-1559 transaction to the network | No — broadcast only, no `readContract` |
+| `PUT /v1/realunit/swap` | IBAN-free REALU → ZCHF swap quote — creates a `TransactionRequestType.SWAP` request (proceeds stay in the user wallet, no fiat Sell route/payout). Gated by RealUnit registration + KYC Level 30 (who may use the feature). **Limit-exempt by design**: KYC trading limits apply at the fiat boundary (buy/sell), but this is a crypto → crypto, self-custody, on-chain swap, so the non-fiat RealUnit carve-out in `TransactionHelper.getLimits` means `QuoteError.LIMIT_EXCEEDED` never fires for this pair. Anchors the ZCHF estimate against the live on-chain sell price | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` |
+| `PUT /v1/realunit/swap/:id/unsigned-transaction` | Builds the REALU `transferAndCall` swap tx WITHOUT the deposit sweep (ZCHF lands in the user wallet) | No — builds calldata only |
+| `PUT /v1/realunit/swap/:id/broadcast` | Submits the user-signed swap EIP-1559 transaction to the network | No — broadcast only, no `readContract` |
 
 Operational consequences:
 
