@@ -15,6 +15,7 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { UserDataRepository } from '../../user-data/user-data.repository';
 import { UserDataService } from '../../user-data/user-data.service';
 import { WalletService } from '../../wallet/wallet.service';
+import { User } from '../user.entity';
 import { UserRepository } from '../user.repository';
 import { UserService } from '../user.service';
 
@@ -81,5 +82,21 @@ describe('UserService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('should match the address case-insensitively in getUserByAddressIgnoreCase', async () => {
+    const expected = Object.assign(new User(), { id: 1, address: '0xAbCdEf' });
+    const queryBuilder = {
+      select: jest.fn().mockReturnThis(),
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(expected),
+    };
+    jest.spyOn(userRepo, 'createQueryBuilder').mockReturnValue(queryBuilder as any);
+
+    const result = await service.getUserByAddressIgnoreCase('0xabcdef');
+
+    expect(queryBuilder.where).toHaveBeenCalledWith('LOWER(user.address) = LOWER(:address)', { address: '0xabcdef' });
+    expect(result).toBe(expected);
   });
 });

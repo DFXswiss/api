@@ -92,6 +92,16 @@ export class UserService {
     return this.userRepo.findOne({ where: { address }, relations });
   }
 
+  // case-insensitive variant for the compliance search only: admins may paste a non-checksummed (lower-case) EVM address, while addresses are stored EIP-55 checksummed
+  async getUserByAddressIgnoreCase(address: string): Promise<User> {
+    return this.userRepo
+      .createQueryBuilder('user')
+      .select('user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .where('LOWER(user.address) = LOWER(:address)', { address })
+      .getOne();
+  }
+
   async getUserByKey(key: string, value: any, onlyDefaultRelation = false): Promise<User> {
     const query = this.userRepo
       .createQueryBuilder('user')

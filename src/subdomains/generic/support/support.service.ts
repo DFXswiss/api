@@ -1074,7 +1074,7 @@ export class SupportService {
       };
 
     if (Config.formats.address.test(key)) {
-      const user = await this.userService.getUserByKey('address', key, true);
+      const user = await this.userService.getUserByAddressIgnoreCase(key);
       if (user) return { type: ComplianceSearchType.USER_ADDRESS, userData: user.userData };
 
       return Promise.all([
