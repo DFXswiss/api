@@ -90,6 +90,18 @@ export class SellService {
     return this.sellRepo.findOne(merge(defaultOptions, options));
   }
 
+  // case-insensitive deposit-address variant for the compliance search only: admins may paste a non-checksummed (lower-case) EVM address, while addresses are stored EIP-55 checksummed
+  async getSellByDepositAddressIgnoreCase(address: string): Promise<Sell> {
+    return this.sellRepo
+      .createQueryBuilder('sell')
+      .select('sell')
+      .leftJoinAndSelect('sell.deposit', 'deposit')
+      .leftJoinAndSelect('sell.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .where('LOWER(deposit.address) = LOWER(:address)', { address })
+      .getOne();
+  }
+
   async getSellByKey(key: string, value: any, onlyDefaultRelation = false): Promise<Sell> {
     const query = this.sellRepo
       .createQueryBuilder('sell')
