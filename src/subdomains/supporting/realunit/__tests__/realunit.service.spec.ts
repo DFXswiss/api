@@ -27,7 +27,9 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
+import { PriceInvalidException } from '../../pricing/domain/exceptions/price-invalid.exception';
 import { RealUnitDevService } from '../realunit-dev.service';
+import { PriceSourceUnavailableException } from '../exceptions/price-source-unavailable.exception';
 import { RealUnitService } from '../realunit.service';
 
 jest.mock('src/config/config', () => ({
@@ -608,6 +610,35 @@ describe('RealUnitService', () => {
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.userData!.lang).toBe('EN');
+    });
+  });
+
+  describe('withPriceSourceGuard (Aktionariat price source)', () => {
+    it('rethrows as PriceSourceUnavailableException (503) when a PriceInvalidException is thrown', async () => {
+      let caught: unknown;
+      try {
+        await (service as any).withPriceSourceGuard(() =>
+          Promise.reject(new PriceInvalidException('No valid price found for REALU -> CHF')),
+        );
+      } catch (e) {
+        caught = e;
+      }
+
+      expect(caught).toBeInstanceOf(PriceSourceUnavailableException);
+      expect((caught as PriceSourceUnavailableException).getStatus()).toBe(503);
+      expect((caught as PriceSourceUnavailableException).getResponse()).toMatchObject({
+        code: 'PRICE_SOURCE_UNAVAILABLE',
+      });
+    });
+
+    it('rethrows the original error for non-price failures', async () => {
+      const original = new Error('some unrelated failure');
+
+      await expect((service as any).withPriceSourceGuard(() => Promise.reject(original))).rejects.toBe(original);
+    });
+
+    it('returns the result unchanged on success', async () => {
+      await expect((service as any).withPriceSourceGuard(() => Promise.resolve('ok'))).resolves.toBe('ok');
     });
   });
 });

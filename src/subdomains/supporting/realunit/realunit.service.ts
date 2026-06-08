@@ -102,7 +102,9 @@ import {
   TimeFrame,
   TokenInfoDto,
 } from './dto/realunit.dto';
+import { PriceInvalidException } from '../pricing/domain/exceptions/price-invalid.exception';
 import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
+import { PriceSourceUnavailableException } from './exceptions/price-source-unavailable.exception';
 import { RealUnitDevService } from './realunit-dev.service';
 import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
@@ -408,6 +410,18 @@ export class RealUnitService {
 
   // --- Buy Payment Info Methods ---
 
+  // Runs a quote computation that depends on the RealUnit price. If it fails and
+  // the pricing service throws a PriceInvalidException (external source Aktionariat down),
+  // surface that explicitly as 503 instead of leaking a generic 500.
+  private async withPriceSourceGuard<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (e) {
+      if (e instanceof PriceInvalidException) throw new PriceSourceUnavailableException();
+      throw e;
+    }
+  }
+
   async getPaymentInfo(user: User, dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
     const userData = user.userData;
     const currencyName = dto.currency ?? 'CHF';
@@ -434,14 +448,16 @@ export class RealUnitService {
     const buy = await this.buyService.createBuy(user, user.address, { asset: realuAsset }, true);
 
     // 4. Call BuyService to get payment info (handles fees, rates, IBAN creation, QR codes, etc.)
-    const buyPaymentInfo = await this.buyService.toPaymentInfoDto(user.id, buy, {
-      amount: dto.amount,
-      targetAmount: undefined,
-      currency,
-      asset: realuAsset,
-      paymentMethod: FiatPaymentMethod.BANK,
-      exactPrice: false,
-    });
+    const buyPaymentInfo = await this.withPriceSourceGuard(() =>
+      this.buyService.toPaymentInfoDto(user.id, buy, {
+        amount: dto.amount,
+        targetAmount: undefined,
+        currency,
+        asset: realuAsset,
+        paymentMethod: FiatPaymentMethod.BANK,
+        exactPrice: false,
+      }),
+    );
 
     // 5. Override recipient info with RealUnit company address
     const { bank: realunitBank, address: realunitAddress } = GetConfig().blockchain.realunit;
@@ -1150,18 +1166,20 @@ export class RealUnitService {
     );
 
     // 6. Call SellService to get payment info (handles fees, rates, transaction request creation, etc.)
-    const sellPaymentInfo = await this.sellService.toPaymentInfoDto(
-      user.id,
-      sell,
-      {
-        iban: dto.iban,
-        asset: realuAsset,
-        currency,
-        amount: dto.amount,
-        targetAmount: dto.targetAmount,
-        exactPrice: false,
-      },
-      false, // includeTx
+    const sellPaymentInfo = await this.withPriceSourceGuard(() =>
+      this.sellService.toPaymentInfoDto(
+        user.id,
+        sell,
+        {
+          iban: dto.iban,
+          asset: realuAsset,
+          currency,
+          amount: dto.amount,
+          targetAmount: dto.targetAmount,
+          exactPrice: false,
+        },
+        false, // includeTx
+      ),
     );
 
     // 7. Check if limit exceeded
