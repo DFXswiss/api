@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const mssql = require('mssql');
+const { Client } = require('pg');
 
 // ============================================================================
 // SAFETY CHECKS - Prevent accidental seeding of production databases
@@ -22,12 +22,12 @@ const dbHost = process.env.SQL_HOST || 'localhost';
 const allowedHostPatterns = [
   'localhost',
   '127.0.0.1',
-  /^sql-dfx-api-loc/i,           // Azure loc database
+  /^sql-dfx-api-loc/i, // Azure loc database
   /loc.*\.database\.windows\.net/i, // Any Azure loc database
 ];
 
-const isHostAllowed = allowedHostPatterns.some(pattern =>
-  pattern instanceof RegExp ? pattern.test(dbHost) : dbHost === pattern
+const isHostAllowed = allowedHostPatterns.some((pattern) =>
+  pattern instanceof RegExp ? pattern.test(dbHost) : dbHost === pattern,
 );
 
 if (!isHostAllowed) {
@@ -44,18 +44,18 @@ console.log(`✓ Safety checks passed (env=${currentEnv || 'unset'}, host=${dbHo
 const config = {
   user: process.env.SQL_USERNAME || 'sa',
   password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
-  server: process.env.SQL_HOST || 'localhost',
-  port: parseInt(process.env.SQL_PORT) || 1433,
+  host: process.env.SQL_HOST || 'localhost',
+  port: parseInt(process.env.SQL_PORT) || 5432,
   database: process.env.SQL_DB || 'dfx',
-  options: {
-    encrypt: process.env.SQL_ENCRYPT === 'true',
-    trustServerCertificate: true
-  }
+  // Local-only script (host is restricted above); default to no SSL, opt in via SQL_SSL=true.
+  ssl: process.env.SQL_SSL === 'true' ? { rejectUnauthorized: false } : false,
 };
+
+const quoteIdent = (name) => `"${name}"`;
 
 function parseCSV(filePath) {
   const content = fs.readFileSync(filePath, 'utf8');
-  const lines = content.split('\n').filter(l => l.trim());
+  const lines = content.split('\n').filter((l) => l.trim());
   if (lines.length === 0) return [];
 
   const parseRow = (line) => {
@@ -77,7 +77,7 @@ function parseCSV(filePath) {
     return result;
   };
 
-  const headers = parseRow(lines[0]).filter(h => h);
+  const headers = parseRow(lines[0]).filter((h) => h);
   const data = [];
 
   for (let i = 1; i < lines.length; i++) {
@@ -95,28 +95,28 @@ function parseCSV(filePath) {
   return data;
 }
 
-async function seedTable(pool, tableName, data, columns) {
+async function seedTable(client, tableName, data, columns) {
   // Check if table has data
-  const countResult = await pool.request().query(`SELECT COUNT(*) as count FROM ${tableName}`);
-  if (countResult.recordset[0].count > 0) {
-    console.log(`  ${tableName}: already has ${countResult.recordset[0].count} rows, skipping`);
+  const countResult = await client.query(`SELECT COUNT(*) AS count FROM ${quoteIdent(tableName)}`);
+  if (Number(countResult.rows[0].count) > 0) {
+    console.log(`  ${tableName}: already has ${countResult.rows[0].count} rows, skipping`);
     return;
   }
 
   console.log(`  ${tableName}: inserting ${data.length} rows...`);
 
   for (const row of data) {
-    const cols = columns.filter(c => row[c] !== null && row[c] !== undefined);
-    const vals = cols.map(c => {
+    const cols = columns.filter((c) => row[c] !== null && row[c] !== undefined);
+    const vals = cols.map((c) => {
       const v = row[c];
-      if (typeof v === 'boolean') return v ? 1 : 0;
+      if (typeof v === 'boolean') return v ? 'true' : 'false';
       if (typeof v === 'string') return `'${v.replace(/'/g, "''")}'`;
       return v;
     });
 
-    const sql = `SET IDENTITY_INSERT ${tableName} ON; INSERT INTO ${tableName} (${cols.join(',')}) VALUES (${vals.join(',')}); SET IDENTITY_INSERT ${tableName} OFF;`;
+    const sql = `INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES (${vals.join(', ')})`;
     try {
-      await pool.request().query(sql);
+      await client.query(sql);
     } catch (e) {
       // Ignore duplicate key errors silently
       if (!e.message.includes('duplicate key')) {
@@ -124,17 +124,24 @@ async function seedTable(pool, tableName, data, columns) {
       }
     }
   }
+
+  // Rows are inserted with explicit ids, so advance the identity sequence past
+  // the highest seeded id to avoid collisions on subsequent auto-generated inserts.
+  await client.query(
+    `SELECT setval(pg_get_serial_sequence($1, 'id'), (SELECT COALESCE(MAX(id), 1) FROM ${quoteIdent(tableName)}))`,
+    [tableName],
+  );
 }
 
-async function waitForTables(pool, maxRetries = 30) {
+async function waitForTables(client, maxRetries = 30) {
   for (let i = 0; i < maxRetries; i++) {
     try {
-      await pool.request().query('SELECT TOP 1 * FROM language');
+      await client.query('SELECT 1 FROM language LIMIT 1');
       return true;
     } catch (e) {
       if (i < maxRetries - 1) {
         console.log(`  Waiting for tables... (${i + 1}/${maxRetries})`);
-        await new Promise(r => setTimeout(r, 2000));
+        await new Promise((r) => setTimeout(r, 2000));
       }
     }
   }
@@ -145,9 +152,10 @@ async function main() {
   const seedDir = __dirname;
 
   console.log('Connecting to database...');
-  let pool;
+  let client;
   try {
-    pool = await mssql.connect(config);
+    client = new Client(config);
+    await client.connect();
   } catch (e) {
     console.log('Could not connect to database:', e.message);
     console.log('Skipping seed (database may not be ready yet)');
@@ -155,10 +163,10 @@ async function main() {
   }
 
   console.log('Waiting for tables to be created...');
-  const tablesReady = await waitForTables(pool);
+  const tablesReady = await waitForTables(client);
   if (!tablesReady) {
     console.log('Tables not ready after timeout. Run "npm run seed" after API starts.');
-    await pool.close();
+    await client.end();
     process.exit(0);
   }
 
@@ -166,88 +174,186 @@ async function main() {
 
   // Wallet (must be first - other tables depend on it)
   const walletData = parseCSV(path.join(seedDir, 'wallet.csv'));
-  await seedTable(pool, 'wallet', walletData, ['id', 'address', 'name', 'isKycClient', 'displayName', 'autoTradeApproval', 'usesDummyAddresses', 'displayFraudWarning']);
+  await seedTable(client, 'wallet', walletData, [
+    'id',
+    'address',
+    'name',
+    'isKycClient',
+    'displayName',
+    'autoTradeApproval',
+    'usesDummyAddresses',
+    'displayFraudWarning',
+  ]);
 
   // Language
   const langData = parseCSV(path.join(seedDir, 'language.csv'));
-  await seedTable(pool, 'language', langData, ['id', 'symbol', 'name', 'foreignName', 'enable']);
+  await seedTable(client, 'language', langData, ['id', 'symbol', 'name', 'foreignName', 'enable']);
 
   // PriceRule (must be before Fiat and Asset due to FK constraints)
   const priceRuleData = parseCSV(path.join(seedDir, 'price_rule.csv'));
-  await seedTable(pool, 'price_rule', priceRuleData, ['id', 'priceSource', 'priceAsset', 'priceReference', 'check1Source', 'check1Asset', 'check1Reference', 'check1Limit', 'check2Source', 'check2Asset', 'check2Reference', 'check2Limit', 'currentPrice', 'priceValiditySeconds', 'assetDisplayName', 'referenceDisplayName']);
+  await seedTable(client, 'price_rule', priceRuleData, [
+    'id',
+    'priceSource',
+    'priceAsset',
+    'priceReference',
+    'check1Source',
+    'check1Asset',
+    'check1Reference',
+    'check1Limit',
+    'check2Source',
+    'check2Asset',
+    'check2Reference',
+    'check2Limit',
+    'currentPrice',
+    'priceValiditySeconds',
+    'assetDisplayName',
+    'referenceDisplayName',
+  ]);
 
   // Fiat
   const fiatData = parseCSV(path.join(seedDir, 'fiat.csv'));
-  await seedTable(pool, 'fiat', fiatData, ['id', 'name', 'buyable', 'sellable', 'cardBuyable', 'cardSellable', 'instantBuyable', 'instantSellable', 'approxPriceChf', 'priceRuleId']);
+  await seedTable(client, 'fiat', fiatData, [
+    'id',
+    'name',
+    'buyable',
+    'sellable',
+    'cardBuyable',
+    'cardSellable',
+    'instantBuyable',
+    'instantSellable',
+    'approxPriceChf',
+    'priceRuleId',
+  ]);
 
   // Country
   const countryData = parseCSV(path.join(seedDir, 'country.csv'));
-  await seedTable(pool, 'country', countryData, ['id', 'symbol', 'name', 'symbol3', 'dfxEnable', 'dfxOrganizationEnable', 'lockEnable', 'ipEnable', 'yapealEnable', 'fatfEnable', 'nationalityEnable', 'nationalityStepEnable', 'bankTransactionVerificationEnable', 'bankEnable', 'cryptoEnable', 'checkoutEnable']);
+  await seedTable(client, 'country', countryData, [
+    'id',
+    'symbol',
+    'name',
+    'symbol3',
+    'dfxEnable',
+    'dfxOrganizationEnable',
+    'lockEnable',
+    'ipEnable',
+    'yapealEnable',
+    'fatfEnable',
+    'nationalityEnable',
+    'nationalityStepEnable',
+    'bankTransactionVerificationEnable',
+    'bankEnable',
+    'cryptoEnable',
+    'checkoutEnable',
+  ]);
 
   // Asset - drop unique index that conflicts with NULL dexName values
   try {
-    await pool.request().query('DROP INDEX IF EXISTS IDX_83f52471fd746482b83b20f51b ON asset');
-  } catch (e) { /* Index may not exist */ }
+    await client.query('DROP INDEX IF EXISTS "IDX_83f52471fd746482b83b20f51b"');
+  } catch (e) {
+    /* Index may not exist */
+  }
   const assetData = parseCSV(path.join(seedDir, 'asset.csv'));
-  await seedTable(pool, 'asset', assetData, [
-    'id', 'name', 'type', 'buyable', 'sellable', 'chainId', 'sellCommand', 'dexName',
-    'category', 'blockchain', 'uniqueName', 'description', 'comingSoon', 'sortOrder',
-    'approxPriceUsd', 'ikna', 'priceRuleId', 'approxPriceChf', 'cardBuyable', 'cardSellable',
-    'instantBuyable', 'instantSellable', 'financialType', 'decimals', 'paymentEnabled',
-    'amlRuleFrom', 'amlRuleTo', 'approxPriceEur', 'refundEnabled'
+  await seedTable(client, 'asset', assetData, [
+    'id',
+    'name',
+    'type',
+    'buyable',
+    'sellable',
+    'chainId',
+    'sellCommand',
+    'dexName',
+    'category',
+    'blockchain',
+    'uniqueName',
+    'description',
+    'comingSoon',
+    'sortOrder',
+    'approxPriceUsd',
+    'ikna',
+    'priceRuleId',
+    'approxPriceChf',
+    'cardBuyable',
+    'cardSellable',
+    'instantBuyable',
+    'instantSellable',
+    'financialType',
+    'decimals',
+    'paymentEnabled',
+    'amlRuleFrom',
+    'amlRuleTo',
+    'approxPriceEur',
+    'refundEnabled',
   ]);
 
   // IpLog (required for auth to work - needs at least one entry with old created date)
   const oldDate = new Date();
   oldDate.setFullYear(oldDate.getFullYear() - 1);
 
-  const ipLogCount = await pool.request().query('SELECT COUNT(*) as count FROM ip_log');
-  if (ipLogCount.recordset[0].count === 0) {
+  const ipLogCount = await client.query('SELECT COUNT(*) AS count FROM ip_log');
+  if (Number(ipLogCount.rows[0].count) === 0) {
     console.log('  ip_log: inserting 1 rows...');
-    await pool.request()
-      .input('address', mssql.NVarChar, '0x0000000000000000000000000000000000000000')
-      .input('ip', mssql.NVarChar, '127.0.0.1')
-      .input('country', mssql.NVarChar, 'CH')
-      .input('url', mssql.NVarChar, '/v1/auth')
-      .input('result', mssql.Bit, 1)
-      .input('created', mssql.DateTime2, oldDate)
-      .input('updated', mssql.DateTime2, oldDate)
-      .query('INSERT INTO ip_log (address, ip, country, url, result, created, updated) VALUES (@address, @ip, @country, @url, @result, @created, @updated)');
+    await client.query(
+      `INSERT INTO ip_log (address, ip, country, url, result, created, updated)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      ['0x0000000000000000000000000000000000000000', '127.0.0.1', 'CH', '/v1/auth', true, oldDate, oldDate],
+    );
   } else {
-    console.log(`  ip_log: already has ${ipLogCount.recordset[0].count} rows, fixing oldest entry date...`);
+    console.log(`  ip_log: already has ${ipLogCount.rows[0].count} rows, fixing oldest entry date...`);
     // Ensure at least one entry has an old date (required for IpLogService.updateUserIpLogs)
-    await pool.request()
-      .input('oldDate', mssql.DateTime2, oldDate)
-      .query('UPDATE ip_log SET created = @oldDate, updated = @oldDate WHERE id = (SELECT MIN(id) FROM ip_log)');
+    await client.query('UPDATE ip_log SET created = $1, updated = $1 WHERE id = (SELECT MIN(id) FROM ip_log)', [
+      oldDate,
+    ]);
   }
 
   // Fee (required for transaction fees)
   const feeData = parseCSV(path.join(seedDir, 'fee.csv'));
-  await seedTable(pool, 'fee', feeData, ['id', 'label', 'type', 'rate', 'accountType', 'active', 'fixed', 'payoutRefBonus', 'blockchainFactor', 'paymentMethodsIn', 'paymentMethodsOut']);
+  await seedTable(client, 'fee', feeData, [
+    'id',
+    'label',
+    'type',
+    'rate',
+    'accountType',
+    'active',
+    'fixed',
+    'payoutRefBonus',
+    'blockchainFactor',
+    'paymentMethodsIn',
+    'paymentMethodsOut',
+  ]);
 
   // Bank (required for payment processing)
   const bankData = parseCSV(path.join(seedDir, 'bank.csv'));
-  await seedTable(pool, 'bank', bankData, ['id', 'name', 'iban', 'bic', 'currency', 'receive', 'send', 'sctInst', 'amlEnabled']);
+  await seedTable(client, 'bank', bankData, [
+    'id',
+    'name',
+    'iban',
+    'bic',
+    'currency',
+    'receive',
+    'send',
+    'sctInst',
+    'amlEnabled',
+  ]);
 
   // Fix fiat priceRuleId links (always run to ensure consistency)
   console.log('  Fixing fiat price rule links...');
   const fiatRuleMapping = { CHF: 2, EUR: 39, USD: 1, AED: 45 };
   for (const [fiatName, ruleId] of Object.entries(fiatRuleMapping)) {
-    await pool.request()
-      .input('ruleId', mssql.Int, ruleId)
-      .input('name', mssql.NVarChar, fiatName)
-      .query('UPDATE fiat SET priceRuleId = @ruleId WHERE name = @name AND (priceRuleId IS NULL OR priceRuleId != @ruleId)');
+    await client.query(
+      'UPDATE fiat SET "priceRuleId" = $1 WHERE name = $2 AND ("priceRuleId" IS NULL OR "priceRuleId" != $1)',
+      [ruleId, fiatName],
+    );
   }
 
   // Note: Deposit addresses are NOT seeded here.
   // They must be created via the API (/deposit endpoint) to ensure Alchemy webhook registration.
   // Run 'npm run setup' after API starts to create deposits properly.
 
-  await pool.close();
+  await client.end();
   console.log('Seed complete!');
 }
 
-main().catch(e => {
+main().catch((e) => {
   console.error('Seed failed:', e.message);
   process.exit(1);
 });

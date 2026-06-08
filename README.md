@@ -222,9 +222,10 @@ npm run start:local    # Restart API manually
 
 The `npm run setup` command is an all-in-one script that:
 
-1. **Generates All Wallet Seeds**: Creates 19 secure random seeds/keys and saves them to `.env`:
-   - 10 mnemonic seeds (ADMIN, EVM_DEPOSIT, EVM_CUSTODY, SOLANA, TRON, CARDANO, PAYMENT_*)
-   - 9 EVM private keys (shared across all EVM chains)
+1. **Generates All Wallet Seeds**: Creates secure random seeds/keys and saves them to `.env`:
+   - Mnemonic seeds (ADMIN, EVM_DEPOSIT, EVM_CUSTODY, SOLANA, TRON, CARDANO, ICP, SPARK, BOLTZ, PAYMENT_*)
+   - EVM private keys (shared across all EVM chains)
+   - Service-specific keys (Ark hex, KuCoin Pay PKCS#8, payment-webhook PEM)
 2. **Starts API**: Launches the API in the background (logs to `api.log`, PID saved to `.api.pid`)
 3. **Registers Admin User**: Uses the API auth endpoint to create and authenticate the admin
 4. **Sets Admin Role**: Grants admin privileges in the database
@@ -256,10 +257,9 @@ Seed data is stored in `migration/seed/` and can be customized as needed.
 
 ```bash
 docker compose up -d          # Start database
-docker compose logs db-init   # Check if database was created
 docker compose down           # Stop database
 docker compose down -v        # Stop and delete data
-docker logs dfx-mssql         # View database logs
+docker logs dfx-postgres      # View database logs
 ```
 
 ### Environment Configuration
@@ -269,7 +269,7 @@ The `.env.local.example` template contains minimal config for local development:
 - `ENVIRONMENT=loc` - Enables mock mode for external services
 - `DISABLED_PROCESSES=*` - Disables all background jobs
 - `SQL_SYNCHRONIZE=true` - Auto-creates database tables from entities
-- `SQL_ENCRYPT=false` - Trusts Docker's self-signed SSL certificate
+- `SQL_SSL=false` - Disables SSL for the local Postgres connection
 
 **Note:** The template does not contain wallet seeds. All seeds are generated securely by `npm run setup` and written to your local `.env` file.
 
@@ -283,7 +283,7 @@ When `ENVIRONMENT=loc`, external services are automatically mocked to simplify l
 - **Mail service**: Mail sending is logged but not actually sent
 
 **❌ What's NOT mocked:**
-- **Database**: Requires running MSSQL instance (via Docker)
+- **Database**: Requires running PostgreSQL instance (via Docker)
 - **Blockchain services**: Still initialize with credentials from `.env`
 - **Localhost calls**: Requests to localhost/127.0.0.1 are never mocked
 
