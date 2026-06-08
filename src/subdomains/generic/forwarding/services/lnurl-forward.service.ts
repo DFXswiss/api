@@ -23,8 +23,15 @@ import { PaymentDto } from '../dto/payment.dto';
 
 @Injectable()
 export class LnUrlForwardService {
-  private readonly PAYMENT_LINK_PREFIX = `${Config.prefixes.paymentLinkUidPrefix}_`;
-  private readonly PAYMENT_LINK_PAYMENT_PREFIX = `${Config.prefixes.paymentLinkPaymentUidPrefix}_`;
+  // Getters, not fields: Config is undefined until ConfigService is constructed, so reading it
+  // in a field initializer can crash bootstrap depending on provider-instantiation order.
+  private get PAYMENT_LINK_PREFIX(): string {
+    return `${Config.prefixes.paymentLinkUidPrefix}_`;
+  }
+
+  private get PAYMENT_LINK_PAYMENT_PREFIX(): string {
+    return `${Config.prefixes.paymentLinkPaymentUidPrefix}_`;
+  }
 
   private readonly client: LightningClient;
 
