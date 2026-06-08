@@ -24,6 +24,7 @@ import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.enti
 import { BankService } from '../../bank/bank/bank.service';
 import { PayInService } from '../../payin/services/payin.service';
 import { PayoutService } from '../../payout/services/payout.service';
+import { FinanceLog } from '../dto/log.dto';
 import { LogJobService } from '../log-job.service';
 import { LogService } from '../log.service';
 
@@ -531,5 +532,44 @@ describe('LogJobService', () => {
     ];
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
+  });
+
+  // --- isReconciledSnapshot --- //
+
+  const lastFinanceLog = (totalBalanceChf: number, changesTotal?: number): FinanceLog => ({
+    assets: {},
+    tradings: {},
+    balancesByFinancialType: {},
+    balancesTotal: { plusBalanceChf: 0, minusBalanceChf: 0, totalBalanceChf },
+    changesTotal,
+  });
+
+  it('should accept a total change explained by the operating result, even beyond the limit', () => {
+    // total +8000 explained by operating result +8000 (10000 -> 18000) => unexplained 0
+    expect(service.isReconciledSnapshot(108000, 18000, lastFinanceLog(100000, 10000), new Date())).toBe(true);
+  });
+
+  it('should accept small FX/rounding noise within the limit', () => {
+    // total +1000, operating result unchanged => unexplained 1000 <= 5000
+    expect(service.isReconciledSnapshot(101000, 10000, lastFinanceLog(100000, 10000), new Date())).toBe(true);
+  });
+
+  it('should reject an unreconciled jump beyond the limit, without a time-based escape', () => {
+    // total -20000 with operating result +100 => unexplained ~20100, stays invalid even for an old last log
+    expect(service.isReconciledSnapshot(80000, 10100, lastFinanceLog(100000, 10000), Util.hoursBefore(2))).toBe(false);
+  });
+
+  it('should fall back to the legacy time escape only when reconciliation data is missing', () => {
+    // no changesTotal on last log: large jump accepted after 15 min, rejected while recent
+    expect(service.isReconciledSnapshot(80000, 10100, lastFinanceLog(100000), Util.hoursBefore(2))).toBe(true);
+    expect(service.isReconciledSnapshot(80000, 10100, lastFinanceLog(100000), new Date())).toBe(false);
+  });
+
+  it('should handle the month-to-date reset of the operating result without false invalids', () => {
+    // new month: changesTotal reset to ~0 while the last valid snapshot carried +16000; balances carry over (Δtotal ~0)
+    // => no reconcilable delta, legacy path accepts the near-unchanged total
+    expect(service.isReconciledSnapshot(100050, 50, lastFinanceLog(100000, 16000), new Date())).toBe(true);
+    // a genuine glitch at the same reset boundary (large Δtotal, recent) is still rejected
+    expect(service.isReconciledSnapshot(80000, 50, lastFinanceLog(100000, 16000), new Date())).toBe(false);
   });
 });

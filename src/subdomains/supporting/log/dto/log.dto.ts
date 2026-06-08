@@ -14,6 +14,10 @@ export interface FinanceLog {
   tradings: TradingLog;
   balancesByFinancialType: BalancesByFinancialType;
   balancesTotal: BalancesTotal;
+  // Month-to-date operating result (= ChangeLog.total) captured at log time. Used to reconcile the
+  // total-balance delta between snapshots: a valid snapshot's total only moves by operating result + FX.
+  // Optional because snapshots written before this field existed do not carry it.
+  changesTotal?: number;
 }
 
 /**

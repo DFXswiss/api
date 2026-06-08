@@ -125,7 +125,7 @@ export class LogJobService {
       await this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
 
       const lastLog = await this.logService.maxEntity('LogService', 'FinancialDataLog', LogSeverity.INFO, true);
-      const lastTotalBalance = (JSON.parse(lastLog.message) as FinanceLog).balancesTotal.totalBalanceChf;
+      const lastFinanceLog = JSON.parse(lastLog.message) as FinanceLog;
 
       await this.logService.create({
         system: 'LogService',
@@ -140,10 +140,9 @@ export class LogJobService {
             minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
             totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
           },
+          changesTotal: this.getJsonValue(changeLog.total, AmountType.FIAT, true),
         }),
-        valid:
-          Math.abs(totalBalanceChf - lastTotalBalance) <= Config.financeLogTotalBalanceChangeLimit ||
-          Util.minutesDiff(lastLog.created) > 15,
+        valid: this.isReconciledSnapshot(totalBalanceChf, changeLog.total, lastFinanceLog, lastLog.created),
         category: null,
       });
 
@@ -162,6 +161,39 @@ export class LogJobService {
   }
 
   // --- LOG METHODS --- //
+
+  /**
+   * A snapshot is valid only if its total-balance change reconciles with the operating result.
+   *
+   * `totalBalanceChf` moves only by operating result (changeLog) + FX. `changeLog.total` is month-to-date, so the
+   * expected delta since the last valid snapshot is its change; FX and rounding are absorbed by
+   * `financeLogTotalBalanceChangeLimit`. A read glitch (an asset misread as 0 or an implausibly large value) breaks
+   * this reconciliation and is flagged invalid, so it does not pollute the valid-filtered series.
+   *
+   * Falls back to the legacy time-based escape when reconciliation data is unavailable: either the last snapshot
+   * predates `changesTotal`, or `changeLog.total` has reset (it is month-to-date and drops to ~0 at month start, so a
+   * value below the last snapshot's yields no meaningful delta). Once a same-month delta is available, an unreconciled
+   * jump is never silently accepted after 15 minutes.
+   */
+  public isReconciledSnapshot(
+    totalBalanceChf: number,
+    changesTotal: number,
+    lastFinanceLog: FinanceLog,
+    lastLogCreated: Date,
+  ): boolean {
+    const lastTotalBalance = lastFinanceLog.balancesTotal.totalBalanceChf;
+    const canReconcile = lastFinanceLog.changesTotal != null && changesTotal >= lastFinanceLog.changesTotal;
+    const expectedChange = canReconcile ? changesTotal - lastFinanceLog.changesTotal : undefined;
+    const unexplainedChange =
+      expectedChange != null
+        ? Math.abs(totalBalanceChf - lastTotalBalance - expectedChange)
+        : Math.abs(totalBalanceChf - lastTotalBalance);
+
+    return (
+      unexplainedChange <= Config.financeLogTotalBalanceChangeLimit ||
+      (expectedChange == null && Util.minutesDiff(lastLogCreated) > 15)
+    );
+  }
 
   private getBalancesByFinancialType(assets: Asset[], assetLog: AssetLog): BalancesByFinancialType {
     const financialTypeMap = Util.groupBy<Asset, string>(
