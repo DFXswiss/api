@@ -240,7 +240,6 @@ export enum RealUnitRegistrationState {
   ALREADY_REGISTERED = 'AlreadyRegistered',
   ADD_WALLET = 'AddWallet',
   NEW_REGISTRATION = 'NewRegistration',
-  KYC_REQUIRED = 'KycRequired',
 }
 
 export class RealUnitRegistrationInfoDto {
@@ -254,7 +253,7 @@ export class RealUnitRegistrationInfoDto {
   @ApiProperty({
     enum: RealUnitRegistrationState,
     description:
-      'Action the client should take for this wallet. `AlreadyRegistered`: no UX needed. `AddWallet`: render a one-tap Add-Wallet flow that submits to POST /register/wallet using the prior signed payload (`userData` is set). `NewRegistration`: render the full registration form pre-filled with `userData`. `KycRequired`: user must complete DFX KYC first (`userData` not set; edge case).',
+      'Action the client should take for this wallet. `AlreadyRegistered`: no UX needed. `AddWallet`: render a one-tap Add-Wallet flow that submits to POST /register/wallet using the prior signed payload (`userData` is set). `NewRegistration`: render the full registration form — pre-filled with `userData` when present, otherwise empty for the client to collect every field manually.',
   })
   state: RealUnitRegistrationState;
 

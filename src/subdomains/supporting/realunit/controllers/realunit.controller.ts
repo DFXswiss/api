@@ -612,7 +612,7 @@ export class RealUnitController {
   @ApiOperation({
     summary: 'Get RealUnit registration info for the connected wallet',
     description:
-      'Returns the action the client should take to RealUnit-register the connected wallet (`state`), the registration data to pre-fill or display (`userData`), and a legacy `isRegistered` flag. Drives the registration UX: client routes on `state` (AlreadyRegistered / AddWallet / NewRegistration / KycRequired) without inferring it locally.',
+      'Returns the action the client should take to RealUnit-register the connected wallet (`state`), the registration data to pre-fill or display (`userData`), and a legacy `isRegistered` flag. Drives the registration UX: client routes on `state` (AlreadyRegistered / AddWallet / NewRegistration) without inferring it locally.',
   })
   @ApiOkResponse({ type: RealUnitRegistrationInfoDto })
   async getRegistrationInfo(@GetJwt() jwt: JwtPayload): Promise<RealUnitRegistrationInfoDto> {

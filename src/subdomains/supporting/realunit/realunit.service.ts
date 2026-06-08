@@ -670,11 +670,10 @@ export class RealUnitService {
   getRegistrationInfo(userData: UserData, walletAddress: string): RealUnitRegistrationInfoDto {
     const { step, isForCurrentWallet } = this.findRegistrationStep(userData, walletAddress);
 
-    // Dispatch to one of four states so the client can route to the right UX without inferring
+    // Dispatch to one of three states so the client can route to the right UX without inferring
     // it locally. Order matters: a registration step for the current wallet (ALREADY_REGISTERED)
     // wins over any other signal; a step for a different wallet drives the one-tap Add-Wallet
-    // flow (ADD_WALLET); otherwise we pre-fill the full form from existing KYC data when
-    // available (NEW_REGISTRATION), falling back to KYC_REQUIRED when no usable data exists.
+    // flow (ADD_WALLET); otherwise this wallet still needs a fresh registration (NEW_REGISTRATION).
     if (step) {
       const stepUserData = this.toUserDataDto(step);
       const state = isForCurrentWallet
@@ -687,21 +686,16 @@ export class RealUnitService {
       };
     }
 
-    // No step exists. Pre-fill from DFX KYC data (firstname/surname guarded by
-    // toUserDataDtoFromUserData) and fall through to KYC_REQUIRED when that returns undefined.
-    const prefill = this.toUserDataDtoFromUserData(userData);
-    if (prefill) {
-      return {
-        isRegistered: false,
-        state: RealUnitRegistrationState.NEW_REGISTRATION,
-        userData: prefill,
-      };
-    }
-
+    // No step exists: this wallet needs a fresh RealUnit registration. Pre-fill the form from
+    // existing DFX KYC data when we have verified personal data (firstname/surname present);
+    // otherwise return NEW_REGISTRATION without `userData` so the client renders an empty form and
+    // collects every field manually. `completeRegistration` accepts and persists manually-entered
+    // data for first-time users — email registration (KYC Level 10) is the only prerequisite — so
+    // this branch must not dead-end onboarding by withholding the registration step.
     return {
       isRegistered: false,
-      state: RealUnitRegistrationState.KYC_REQUIRED,
-      userData: undefined,
+      state: RealUnitRegistrationState.NEW_REGISTRATION,
+      userData: this.toUserDataDtoFromUserData(userData),
     };
   }
 
