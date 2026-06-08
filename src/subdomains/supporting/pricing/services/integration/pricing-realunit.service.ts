@@ -52,9 +52,10 @@ export class PricingRealUnitService extends PricingProvider implements OnModuleI
     if (livePrice != null) return this.toPrice(from, to, livePrice);
 
     // The live price source (Aktionariat) is unavailable: fall back to the last
-    // persisted RealUnit price so quotes keep working during an outage. The price
-    // is flagged invalid so strict consumers (exact quotes, the snapshot job) keep
-    // rejecting the stale value while estimates can still use it.
+    // persisted RealUnit price so estimates (non-exact quotes) keep working during
+    // an outage. The price is flagged invalid, so it is not stored as a fresh price
+    // by the rule update and strict consumers (VALID_ONLY, e.g. the price snapshot
+    // job) still skip it instead of recording the stale value as current.
     const fallback = await this.getLastKnownPrice(isEurPair);
     if (fallback == null) throw new Error(`No price available for ${from} -> ${to}`);
 

@@ -275,6 +275,7 @@ export class PricingService implements OnModuleInit {
     const target = rule.reference?.name ?? price.target;
 
     if (
+      price.isValid &&
       (await this.isPriceValid(source, target, price.price, rule.check1, check1Price)) &&
       (await this.isPriceValid(source, target, price.price, rule.check2, check2Price))
     ) {
