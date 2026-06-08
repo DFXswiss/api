@@ -30,9 +30,11 @@ export class FaucetRequestService {
     private readonly userService: UserService,
   ) {}
   private readonly logger = new DfxLogger(FaucetRequestService);
-  private readonly faucetBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
-    ? Blockchain.SEPOLIA
-    : Blockchain.ETHEREUM;
+  // Getter, not a field: Config is undefined until ConfigService is constructed, so reading it
+  // in a field initializer can crash bootstrap depending on provider-instantiation order.
+  private get faucetBlockchain(): Blockchain {
+    return [Environment.DEV, Environment.LOC].includes(Config.environment) ? Blockchain.SEPOLIA : Blockchain.ETHEREUM;
+  }
 
   @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.CRYPTO_PAYOUT })
   async checkFaucetRequests(): Promise<void> {
