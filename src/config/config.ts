@@ -1253,6 +1253,9 @@ export class Configuration {
     };
   }
 
+  // max recvWindow (60s) to tolerate MEXC round-trip latency spikes that otherwise reject signed requests with error 700003
+  mexcRecvWindow = 60000;
+
   get mexc(): ConstructorArgs {
     return {
       apiKey: process.env.MEXC_KEY,
@@ -1260,6 +1263,7 @@ export class Configuration {
       withdrawKeys: splitWithdrawKeys(process.env.MEXC_WITHDRAW_KEYS),
       ...this.exchange,
       timeout: 30_000,
+      options: { recvWindow: this.mexcRecvWindow },
     };
   }
 

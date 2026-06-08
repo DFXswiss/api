@@ -161,7 +161,19 @@ export class MexcService extends ExchangeService {
   private readonly baseUrl = 'https://api.mexc.com/api/v3';
 
   private async request<T>(method: Method, path: string, params: Record<string, string>): Promise<T> {
+    // retry once with a fresh timestamp if a latency spike pushed the request outside the recvWindow (error 700003)
+    return Util.retry(
+      () => this.signedRequest<T>(method, path, { ...params }),
+      2,
+      0,
+      undefined,
+      (e) => e.message?.includes('700003'),
+    );
+  }
+
+  private async signedRequest<T>(method: Method, path: string, params: Record<string, string>): Promise<T> {
     params.timestamp = Date.now().toString();
+    params.recvWindow = `${Config.mexcRecvWindow}`;
 
     const searchParams = new URLSearchParams(params);
 

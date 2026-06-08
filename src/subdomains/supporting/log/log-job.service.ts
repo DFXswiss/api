@@ -112,7 +112,8 @@ export class LogJobService {
       // changes
       const changeLog = await this.getChangeLog();
 
-      // total balances
+      // total balances — customer flow is balance-neutral, so totalBalanceChf moves only on
+      // operating profit, FX, or an error/realised loss (see BalancesTotal). Hence the guardrails below.
       const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
       const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
 
