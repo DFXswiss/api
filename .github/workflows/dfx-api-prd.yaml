@@ -1,8 +1,8 @@
 name: DFX API PRD CI/CD
 
 on:
-  push:
-    branches: [main]
+  # Auto-deploy re-enabled for DEV (dfxdev prerequisites are in place).
+  # PRD trigger stays disabled until the PRD cutover is complete.
   workflow_dispatch:
 
 env:
