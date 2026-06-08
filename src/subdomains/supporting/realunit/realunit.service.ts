@@ -102,6 +102,7 @@ import {
   TimeFrame,
   TokenInfoDto,
 } from './dto/realunit.dto';
+import { PriceInvalidException } from '../pricing/domain/exceptions/price-invalid.exception';
 import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
 import { PriceSourceUnavailableException } from './exceptions/price-source-unavailable.exception';
 import { RealUnitDevService } from './realunit-dev.service';
@@ -410,14 +411,13 @@ export class RealUnitService {
   // --- Buy Payment Info Methods ---
 
   // Runs a quote computation that depends on the RealUnit price. If it fails and
-  // the live price is currently unavailable (external source Aktionariat down),
+  // the pricing service throws a PriceInvalidException (external source Aktionariat down),
   // surface that explicitly as 503 instead of leaking a generic 500.
   private async withPriceSourceGuard<T>(fn: () => Promise<T>): Promise<T> {
     try {
       return await fn();
     } catch (e) {
-      const price = await this.getRealUnitPrice().catch(() => null);
-      if (price?.chf == null) throw new PriceSourceUnavailableException();
+      if (e instanceof PriceInvalidException) throw new PriceSourceUnavailableException();
       throw e;
     }
   }

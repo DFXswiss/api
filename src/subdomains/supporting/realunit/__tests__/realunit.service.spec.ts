@@ -27,6 +27,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
+import { PriceInvalidException } from '../../pricing/domain/exceptions/price-invalid.exception';
 import { RealUnitDevService } from '../realunit-dev.service';
 import { PriceSourceUnavailableException } from '../exceptions/price-source-unavailable.exception';
 import { RealUnitService } from '../realunit.service';
@@ -613,12 +614,10 @@ describe('RealUnitService', () => {
   });
 
   describe('withPriceSourceGuard (Aktionariat price source)', () => {
-    it('rethrows as PriceSourceUnavailableException (503) when the live price is unavailable', async () => {
-      jest.spyOn(service, 'getRealUnitPrice').mockResolvedValue({ timestamp: new Date(), chf: null } as any);
-
+    it('rethrows as PriceSourceUnavailableException (503) when a PriceInvalidException is thrown', async () => {
       let caught: unknown;
       try {
-        await (service as any).withPriceSourceGuard(() => Promise.reject(new Error('pricing failed')));
+        await (service as any).withPriceSourceGuard(() => Promise.reject(new PriceInvalidException('No valid price found for REALU -> CHF')));
       } catch (e) {
         caught = e;
       }
@@ -630,8 +629,7 @@ describe('RealUnitService', () => {
       });
     });
 
-    it('rethrows the original error when the live price is available', async () => {
-      jest.spyOn(service, 'getRealUnitPrice').mockResolvedValue({ timestamp: new Date(), chf: 1.42 } as any);
+    it('rethrows the original error for non-price failures', async () => {
       const original = new Error('some unrelated failure');
 
       await expect((service as any).withPriceSourceGuard(() => Promise.reject(original))).rejects.toBe(original);
