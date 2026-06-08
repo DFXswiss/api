@@ -78,16 +78,16 @@ echo ""
 echo "🗄️  Starting database..."
 docker compose up -d
 
-# Wait for database initialization
-echo "⏳ Waiting for database initialization..."
+# Wait for database to be ready
+echo "⏳ Waiting for database to be ready..."
 for i in {1..30}; do
-  if docker compose logs db-init 2>&1 | grep -q "Database 'dfx' ready"; then
+  if docker compose exec -T db pg_isready -U sa -d dfx &> /dev/null; then
     echo "✅ Database ready"
     break
   fi
   if [ $i -eq 30 ]; then
-    echo "❌ Database failed to initialize within 60 seconds"
-    echo "Run 'docker-compose logs' to see what went wrong"
+    echo "❌ Database failed to become ready within 60 seconds"
+    echo "Run 'docker compose logs' to see what went wrong"
     exit 1
   fi
   sleep 2

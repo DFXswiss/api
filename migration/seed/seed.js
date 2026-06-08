@@ -96,37 +96,38 @@ function parseCSV(filePath) {
 }
 
 async function seedTable(client, tableName, data, columns) {
-  // Check if table has data
+  // Insert rows only when the table is empty (keeps re-runs idempotent)
   const countResult = await client.query(`SELECT COUNT(*) AS count FROM ${quoteIdent(tableName)}`);
   if (Number(countResult.rows[0].count) > 0) {
-    console.log(`  ${tableName}: already has ${countResult.rows[0].count} rows, skipping`);
-    return;
-  }
+    console.log(`  ${tableName}: already has ${countResult.rows[0].count} rows, skipping insert`);
+  } else {
+    console.log(`  ${tableName}: inserting ${data.length} rows...`);
 
-  console.log(`  ${tableName}: inserting ${data.length} rows...`);
+    for (const row of data) {
+      const cols = columns.filter((c) => row[c] !== null && row[c] !== undefined);
+      const vals = cols.map((c) => {
+        const v = row[c];
+        if (typeof v === 'boolean') return v ? 'true' : 'false';
+        if (typeof v === 'string') return `'${v.replace(/'/g, "''")}'`;
+        return v;
+      });
 
-  for (const row of data) {
-    const cols = columns.filter((c) => row[c] !== null && row[c] !== undefined);
-    const vals = cols.map((c) => {
-      const v = row[c];
-      if (typeof v === 'boolean') return v ? 'true' : 'false';
-      if (typeof v === 'string') return `'${v.replace(/'/g, "''")}'`;
-      return v;
-    });
-
-    const sql = `INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES (${vals.join(', ')})`;
-    try {
-      await client.query(sql);
-    } catch (e) {
-      // Ignore duplicate key errors silently
-      if (!e.message.includes('duplicate key')) {
-        console.log(`    Error row ${row.id}: ${e.message.substring(0, 60)}`);
+      const sql = `INSERT INTO ${quoteIdent(tableName)} (${cols.map(quoteIdent).join(', ')}) VALUES (${vals.join(', ')})`;
+      try {
+        await client.query(sql);
+      } catch (e) {
+        // Ignore duplicate key errors silently
+        if (!e.message.includes('duplicate key')) {
+          console.log(`    Error row ${row.id}: ${e.message.substring(0, 60)}`);
+        }
       }
     }
   }
 
-  // Rows are inserted with explicit ids, so advance the identity sequence past
-  // the highest seeded id to avoid collisions on subsequent auto-generated inserts.
+  // Always advance the identity sequence past the highest id. Rows are inserted with
+  // explicit ids, which do not bump the sequence, so a later auto-generated insert
+  // would otherwise collide. Running this unconditionally keeps the sequence correct
+  // even if an earlier run inserted rows but exited before reaching this point.
   await client.query(
     `SELECT setval(pg_get_serial_sequence($1, 'id'), (SELECT COALESCE(MAX(id), 1) FROM ${quoteIdent(tableName)}))`,
     [tableName],
