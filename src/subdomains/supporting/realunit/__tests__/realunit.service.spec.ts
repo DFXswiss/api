@@ -617,7 +617,9 @@ describe('RealUnitService', () => {
     it('rethrows as PriceSourceUnavailableException (503) when a PriceInvalidException is thrown', async () => {
       let caught: unknown;
       try {
-        await (service as any).withPriceSourceGuard(() => Promise.reject(new PriceInvalidException('No valid price found for REALU -> CHF')));
+        await (service as any).withPriceSourceGuard(() =>
+          Promise.reject(new PriceInvalidException('No valid price found for REALU -> CHF')),
+        );
       } catch (e) {
         caught = e;
       }
