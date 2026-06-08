@@ -1,11 +1,11 @@
 name: DFX API DEV CI/CD
 
 on:
-  # Auto-deploy is disabled until the DFX server migration cutover.
-  # The API still runs on Azure (see api-dev.yaml). Server-side prerequisites
-  # (deploy.sh dfx-api case, authorized_keys, compose) are not yet in place,
-  # so every develop push failed at the SSH deploy step. Re-add the push
-  # trigger when the migration goes live.
+  push:
+    branches: [develop]
+    paths-ignore:
+      - '**.md'
+      - 'infrastructure/**'
   workflow_dispatch:
 
 env:
@@ -39,6 +39,7 @@ jobs:
           push: true
           tags: ${{ env.DOCKER_TAGS }}
           platforms: linux/arm64
+          build-args: GIT_COMMIT=${{ github.sha }}
 
       - name: Install cloudflared
         run: |
