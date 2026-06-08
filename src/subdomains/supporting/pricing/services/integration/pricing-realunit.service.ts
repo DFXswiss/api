@@ -24,9 +24,11 @@ export class PricingRealUnitService extends PricingProvider implements OnModuleI
     PricingRealUnitService.EUR,
   ];
 
-  private readonly tokenBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
-    ? Blockchain.SEPOLIA
-    : Blockchain.ETHEREUM;
+  // Lazily evaluated: reading Config during field initialization crashes module bootstrap,
+  // because Config is still undefined at construction time due to a circular import.
+  private get tokenBlockchain(): Blockchain {
+    return [Environment.DEV, Environment.LOC].includes(Config.environment) ? Blockchain.SEPOLIA : Blockchain.ETHEREUM;
+  }
 
   private realunitService: RealUnitBlockchainService;
   private assetService: AssetService;
