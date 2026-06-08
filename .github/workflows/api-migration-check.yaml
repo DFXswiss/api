@@ -7,6 +7,8 @@ on:
       - develop
     paths:
       - 'migration/**'
+      # The seed script and its data are actively maintained, not immutable schema migrations.
+      - '!migration/seed/**'
 
 permissions:
   contents: read
@@ -24,7 +26,8 @@ jobs:
       - name: Block changes to existing migrations
         run: |
           git fetch origin ${{ github.base_ref }} --depth=100
-          CHANGED=$(git diff --name-status origin/${{ github.base_ref }}...HEAD -- migration/ \
+          # Protect immutable schema migrations only; the seed script/data may change freely.
+          CHANGED=$(git diff --name-status origin/${{ github.base_ref }}...HEAD -- migration/ ':(exclude)migration/seed/' \
                     | awk '$1 ~ /^[MDR]/ {print}')
           if [ -n "$CHANGED" ]; then
             echo "::error::Existing migrations must not be modified, renamed or deleted."
