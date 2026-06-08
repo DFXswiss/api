@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Wallet } from 'ethers';
+import { verifyTypedData } from 'ethers/lib/utils';
 import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
 import { BrokerbotCurrency } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
@@ -651,7 +652,7 @@ describe('RealUnitService', () => {
     });
   });
 
-  describe('forwardRegistration (Aktionariat signed-variant payload)', () => {
+  describe('forwardRegistration (transliterates Aktionariat payload to ASCII)', () => {
     // Hardhat test accounts — synthetic keys, never real user wallets.
     const softwareWallet = new Wallet('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
     // Stands in for a BitBox the user adds later (hardware can only sign ASCII).
@@ -693,7 +694,7 @@ describe('RealUnitService', () => {
       walletAddress,
     });
 
-    // BitBox-safe ASCII transliteration of the same fields.
+    // BitBox-safe ASCII transliteration of the same fields — what the wallet signs.
     const asciiFields = (walletAddress: string) => ({
       ...utf8Fields(walletAddress),
       name: 'Erika Mueller',
@@ -716,6 +717,29 @@ describe('RealUnitService', () => {
 
     const forwardedPayload = (): any => ((service as any).http.post as jest.Mock).mock.calls[0][1];
 
+    // What Aktionariat does: recover the signer from the forwarded payload and compare to walletAddress.
+    const recoverFromForwarded = (p: any): string =>
+      verifyTypedData(
+        domain,
+        types,
+        {
+          email: p.email,
+          name: p.name,
+          type: p.type,
+          phoneNumber: p.phoneNumber,
+          birthday: p.birthday,
+          nationality: p.nationality,
+          addressStreet: p.addressStreet,
+          addressPostalCode: p.addressPostalCode,
+          addressCity: p.addressCity,
+          addressCountry: p.addressCountry,
+          swissTaxResidence: p.swissTaxResidence,
+          registrationDate: p.registrationDate,
+          walletAddress: p.walletAddress,
+        },
+        p.signature,
+      );
+
     beforeEach(() => {
       mockEnvironment = 'prd';
     });
@@ -724,34 +748,23 @@ describe('RealUnitService', () => {
       mockEnvironment = 'loc';
     });
 
-    it('forwards the raw UTF-8 fields when the wallet signed UTF-8 (legacy software wallet)', async () => {
+    it('transliterates umlaut name/address so the forwarded payload matches the ASCII signature', async () => {
       const wallet = softwareWallet.address;
-      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
-      const dto = buildDto(utf8Fields(wallet), signature);
-
-      const ok = await (service as any).forwardRegistration(fakeKycStep(), dto);
-
-      expect(ok).toBe(true);
-      expect(forwardedPayload().name).toBe('Erika Müller');
-      expect(forwardedPayload().addressCity).toBe('Zürich');
-      expect(forwardedPayload().walletAddress).toBe(wallet);
-    });
-
-    it('forwards the BitBox-safe ASCII fields when the wallet signed ASCII (current app), even though the dto stores UTF-8', async () => {
-      const wallet = softwareWallet.address;
+      // App signs the ASCII form; the dto still stores the UTF-8 originals.
       const signature = await softwareWallet._signTypedData(domain, types, asciiFields(wallet));
-      // dto carries the UTF-8 originals as stored; only the signature is over ASCII.
       const dto = buildDto(utf8Fields(wallet), signature);
 
       const ok = await (service as any).forwardRegistration(fakeKycStep(), dto);
 
       expect(ok).toBe(true);
-      expect(forwardedPayload().name).toBe('Erika Mueller');
-      expect(forwardedPayload().addressCity).toBe('Zuerich');
-      expect(forwardedPayload().walletAddress).toBe(wallet);
+      const payload = forwardedPayload();
+      expect(payload.name).toBe('Erika Mueller');
+      expect(payload.addressCity).toBe('Zuerich');
+      // Aktionariat re-verifies the signature against the payload it receives.
+      expect(recoverFromForwarded(payload).toLowerCase()).toBe(wallet.toLowerCase());
     });
 
-    it('supports the software→hardware switch: a BitBox-signed (ASCII-only) wallet forwards ASCII that matches the signature', async () => {
+    it('supports the software→hardware switch: a BitBox-signed (ASCII-only) wallet verifies against the forwarded payload', async () => {
       const wallet = hardwareWallet.address;
       const signature = await hardwareWallet._signTypedData(domain, types, asciiFields(wallet));
       const dto = buildDto(utf8Fields(wallet), signature);
@@ -762,15 +775,21 @@ describe('RealUnitService', () => {
       const [url, payload] = ((service as any).http.post as jest.Mock).mock.calls[0];
       expect(url).toContain('/registerUser');
       expect(payload.name).toBe('Erika Mueller');
-      expect(payload.walletAddress).toBe(wallet);
+      expect(recoverFromForwarded(payload).toLowerCase()).toBe(wallet.toLowerCase());
     });
 
-    it('resolveSignedRegistrationMessage returns undefined when a valid signature does not belong to the claimed wallet', async () => {
-      // Valid signature from the software wallet, but the dto claims a different wallet address.
-      const signature = await softwareWallet._signTypedData(domain, types, asciiFields(softwareWallet.address));
-      const dto = buildDto(utf8Fields(hardwareWallet.address), signature);
+    it('leaves already-ASCII fields unchanged', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, asciiFields(wallet));
+      const dto = buildDto(asciiFields(wallet), signature);
 
-      expect((service as any).resolveSignedRegistrationMessage(dto)).toBeUndefined();
+      const ok = await (service as any).forwardRegistration(fakeKycStep(), dto);
+
+      expect(ok).toBe(true);
+      const payload = forwardedPayload();
+      expect(payload.name).toBe('Erika Mueller');
+      expect(payload.addressCity).toBe('Zuerich');
+      expect(recoverFromForwarded(payload).toLowerCase()).toBe(wallet.toLowerCase());
     });
   });
 });
