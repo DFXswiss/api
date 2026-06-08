@@ -23,6 +23,13 @@
 #   - DEBUG_API_URL defaults to PRODUCTION. Use read-only SELECT statements only;
 #     never run writes or DDL through this tool.
 #
+# Writing custom SQL (PostgreSQL backend):
+#   Table names are snake_case (e.g. user_data, log, asset). Column names are camelCase and
+#   case-sensitive, so wrap them in double quotes ("errorMessage", "ruleId") -- unquoted
+#   identifiers are folded to lowercase by Postgres and fail with "column does not exist".
+#   System schemas (information_schema, pg_catalog) are blocked server-side; derive table and
+#   column names from the TypeORM entities, not from the catalog.
+#
 # Financial balance semantics (read before interpreting --balance / --anomalies / --stats):
 #   These query the FinancialDataLog, which records the whole book valued in CHF. In the
 #   balancesTotal object: totalBalanceChf = plusBalanceChf - minusBalanceChf, where plus =
