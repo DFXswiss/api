@@ -652,7 +652,7 @@ describe('RealUnitService', () => {
     });
   });
 
-  describe('forwardRegistration (transliterates Aktionariat payload to ASCII)', () => {
+  describe('forwardRegistration (forwards the signed representation to Aktionariat)', () => {
     // Hardhat test accounts — synthetic keys, never real user wallets.
     const softwareWallet = new Wallet('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
     // Stands in for a BitBox the user adds later (hardware can only sign ASCII).
@@ -748,10 +748,28 @@ describe('RealUnitService', () => {
       mockEnvironment = 'loc';
     });
 
-    it('transliterates umlaut name/address so the forwarded payload matches the ASCII signature', async () => {
+    // REGRESSION GUARD: a legacy software wallet that signed the raw UTF-8 fields
+    // (still accepted by verifyRealUnitRegistrationSignature) must keep working —
+    // the forward must stay UTF-8, not be transliterated, or Aktionariat rejects it.
+    it('forwards the raw UTF-8 fields unchanged when the wallet signed UTF-8 (legacy app)', async () => {
       const wallet = softwareWallet.address;
-      // App signs the ASCII form; the dto still stores the UTF-8 originals.
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+
+      const ok = await (service as any).forwardRegistration(fakeKycStep(), dto);
+
+      expect(ok).toBe(true);
+      const payload = forwardedPayload();
+      expect(payload.name).toBe('Erika Müller');
+      expect(payload.addressCity).toBe('Zürich');
+      // Aktionariat re-verifies the signature against the payload it receives.
+      expect(recoverFromForwarded(payload).toLowerCase()).toBe(wallet.toLowerCase());
+    });
+
+    it('forwards the BitBox-safe ASCII fields when the wallet signed ASCII (current app), even though the dto stores UTF-8', async () => {
+      const wallet = softwareWallet.address;
       const signature = await softwareWallet._signTypedData(domain, types, asciiFields(wallet));
+      // dto carries the UTF-8 originals as stored; only the signature is over ASCII.
       const dto = buildDto(utf8Fields(wallet), signature);
 
       const ok = await (service as any).forwardRegistration(fakeKycStep(), dto);
@@ -760,7 +778,6 @@ describe('RealUnitService', () => {
       const payload = forwardedPayload();
       expect(payload.name).toBe('Erika Mueller');
       expect(payload.addressCity).toBe('Zuerich');
-      // Aktionariat re-verifies the signature against the payload it receives.
       expect(recoverFromForwarded(payload).toLowerCase()).toBe(wallet.toLowerCase());
     });
 
@@ -778,18 +795,12 @@ describe('RealUnitService', () => {
       expect(recoverFromForwarded(payload).toLowerCase()).toBe(wallet.toLowerCase());
     });
 
-    it('leaves already-ASCII fields unchanged', async () => {
-      const wallet = softwareWallet.address;
-      const signature = await softwareWallet._signTypedData(domain, types, asciiFields(wallet));
-      const dto = buildDto(asciiFields(wallet), signature);
+    it('resolveSignedRegistrationMessage returns undefined when a valid signature does not belong to the claimed wallet', async () => {
+      // Valid signature from the software wallet, but the dto claims a different wallet address.
+      const signature = await softwareWallet._signTypedData(domain, types, asciiFields(softwareWallet.address));
+      const dto = buildDto(utf8Fields(hardwareWallet.address), signature);
 
-      const ok = await (service as any).forwardRegistration(fakeKycStep(), dto);
-
-      expect(ok).toBe(true);
-      const payload = forwardedPayload();
-      expect(payload.name).toBe('Erika Mueller');
-      expect(payload.addressCity).toBe('Zuerich');
-      expect(recoverFromForwarded(payload).toLowerCase()).toBe(wallet.toLowerCase());
+      expect((service as any).resolveSignedRegistrationMessage(dto)).toBeUndefined();
     });
   });
 });
