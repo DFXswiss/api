@@ -35,7 +35,8 @@ export interface FinanceLog {
  * A sudden step (especially negative) is therefore suspicious rather than customer
  * activity. Two guardrails act on this signal in LogJobService: the entry is flagged
  * `valid: false` when the jump vs. the previous entry exceeds
- * `Config.financeLogTotalBalanceChangeLimit`, and safety mode is triggered when
+ * `Config.financeLogTotalBalanceChangeLimit` and that entry is under 15 minutes old (a
+ * larger logging gap suppresses the flag), and safety mode is triggered when
  * `totalBalanceChf` drops below the `minTotalBalanceChf` setting.
  */
 export interface BalancesTotal {

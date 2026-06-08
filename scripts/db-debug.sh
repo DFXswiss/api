@@ -42,9 +42,10 @@
 #        independently while orders are open -- the normal intraday noise)
 #     3. an error or a realised loss (a discrete, persisting step)
 #   A sudden step (especially negative) is therefore suspicious rather than customer activity.
-#   The `valid` column is false when a jump exceeds Config.financeLogTotalBalanceChangeLimit
-#   (exactly what --anomalies lists). Full reference: the BalancesTotal type in
-#   src/subdomains/supporting/log/dto/log.dto.ts and LogJobService.
+#   The `valid` column is false when the jump vs. the previous entry exceeds
+#   Config.financeLogTotalBalanceChangeLimit and that entry is under 15 minutes old (a larger
+#   gap suppresses the flag); --anomalies lists these valid=false rows. Full reference: the
+#   BalancesTotal type in src/subdomains/supporting/log/dto/log.dto.ts and LogJobService.
 
 set -e
 
