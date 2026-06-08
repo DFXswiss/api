@@ -119,6 +119,45 @@ function matchesSignedField(kycValue: string | undefined, signedValue: string | 
   return toBitboxAscii(kycValue) === signedValue;
 }
 
+const REGISTRATION_EIP712_DOMAIN = { name: 'RealUnitUser', version: '1' };
+
+const REGISTRATION_EIP712_TYPES = {
+  RealUnitUser: [
+    { name: 'email', type: 'string' },
+    { name: 'name', type: 'string' },
+    { name: 'type', type: 'string' },
+    { name: 'phoneNumber', type: 'string' },
+    { name: 'birthday', type: 'string' },
+    { name: 'nationality', type: 'string' },
+    { name: 'addressStreet', type: 'string' },
+    { name: 'addressPostalCode', type: 'string' },
+    { name: 'addressCity', type: 'string' },
+    { name: 'addressCountry', type: 'string' },
+    { name: 'swissTaxResidence', type: 'bool' },
+    { name: 'registrationDate', type: 'string' },
+    { name: 'walletAddress', type: 'address' },
+  ],
+};
+
+// The EIP-712 fields a registration signature is computed over, in the exact
+// representation that was signed (raw UTF-8 or BitBox-safe ASCII).
+type SignedRegistrationMessage = Pick<
+  AktionariatRegistrationDto,
+  | 'email'
+  | 'name'
+  | 'type'
+  | 'phoneNumber'
+  | 'birthday'
+  | 'nationality'
+  | 'addressStreet'
+  | 'addressPostalCode'
+  | 'addressCity'
+  | 'addressCountry'
+  | 'swissTaxResidence'
+  | 'registrationDate'
+  | 'walletAddress'
+>;
+
 @Injectable()
 export class RealUnitService {
   private readonly logger = new DfxLogger(RealUnitService);
@@ -828,65 +867,49 @@ export class RealUnitService {
   }
 
   private verifyRealUnitRegistrationSignature(data: RealUnitRegistrationDto): boolean {
-    const domain = {
-      name: 'RealUnitUser',
-      version: '1',
-    };
+    return this.resolveSignedRegistrationMessage(data) != null;
+  }
 
-    const types = {
-      RealUnitUser: [
-        { name: 'email', type: 'string' },
-        { name: 'name', type: 'string' },
-        { name: 'type', type: 'string' },
-        { name: 'phoneNumber', type: 'string' },
-        { name: 'birthday', type: 'string' },
-        { name: 'nationality', type: 'string' },
-        { name: 'addressStreet', type: 'string' },
-        { name: 'addressPostalCode', type: 'string' },
-        { name: 'addressCity', type: 'string' },
-        { name: 'addressCountry', type: 'string' },
-        { name: 'swissTaxResidence', type: 'bool' },
-        { name: 'registrationDate', type: 'string' },
-        { name: 'walletAddress', type: 'address' },
-      ],
-    };
+  // Builds the EIP-712 message in either the raw or the BitBox-safe ASCII
+  // representation. Only the free-text fields carry diacritics, so only those
+  // are transliterated — mirrors realunit-app's signing path (Krüger → Krueger).
+  private buildRegistrationMessage(data: RealUnitRegistrationDto, transliterate: boolean): SignedRegistrationMessage {
+    const ascii = (value: string): string => (transliterate ? toBitboxAscii(value) : value);
 
-    const message = {
-      email: data.email,
-      name: data.name,
+    return {
+      email: ascii(data.email),
+      name: ascii(data.name),
       type: data.type,
-      phoneNumber: data.phoneNumber,
-      birthday: data.birthday,
+      phoneNumber: ascii(data.phoneNumber),
+      birthday: ascii(data.birthday),
       nationality: data.nationality,
-      addressStreet: data.addressStreet,
-      addressPostalCode: data.addressPostalCode,
-      addressCity: data.addressCity,
+      addressStreet: ascii(data.addressStreet),
+      addressPostalCode: ascii(data.addressPostalCode),
+      addressCity: ascii(data.addressCity),
       addressCountry: data.addressCountry,
       swissTaxResidence: data.swissTaxResidence,
       registrationDate: data.registrationDate,
       walletAddress: data.walletAddress,
     };
+  }
 
-    const signatureToUse = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
-    const recoveredAddress = verifyTypedData(domain, types, message, signatureToUse);
-    if (Util.equalsIgnoreCase(recoveredAddress, data.walletAddress)) return true;
+  // Returns the EIP-712 fields exactly as the wallet signed them — raw UTF-8
+  // (legacy software wallets, kept working by #3709) or BitBox-safe ASCII
+  // (current app / any BitBox, whose firmware rejects non-ASCII bytes). Returns
+  // undefined if the signature matches neither. Aktionariat re-verifies the
+  // signature against the payload we POST in forwardRegistration, so the
+  // forwarded bytes must be exactly these — forwarding any other variant fails
+  // as "Invalid signature".
+  private resolveSignedRegistrationMessage(data: RealUnitRegistrationDto): SignedRegistrationMessage | undefined {
+    const signature = data.signature.startsWith('0x') ? data.signature : `0x${data.signature}`;
 
-    // Backwards-compat: app v0.0.3+ signs BitBox-safe ASCII. If the stored
-    // accountData still holds UTF-8 from a pre-transliteration registration,
-    // retry verify with the same fields transliterated so re-login (add new
-    // wallet) keeps working for those users.
-    const asciiMessage = {
-      ...message,
-      email: toBitboxAscii(message.email),
-      name: toBitboxAscii(message.name),
-      phoneNumber: toBitboxAscii(message.phoneNumber),
-      birthday: toBitboxAscii(message.birthday),
-      addressStreet: toBitboxAscii(message.addressStreet),
-      addressPostalCode: toBitboxAscii(message.addressPostalCode),
-      addressCity: toBitboxAscii(message.addressCity),
-    };
-    const asciiRecovered = verifyTypedData(domain, types, asciiMessage, signatureToUse);
-    return Util.equalsIgnoreCase(asciiRecovered, data.walletAddress);
+    for (const transliterate of [false, true]) {
+      const message = this.buildRegistrationMessage(data, transliterate);
+      const recovered = verifyTypedData(REGISTRATION_EIP712_DOMAIN, REGISTRATION_EIP712_TYPES, message, signature);
+      if (Util.equalsIgnoreCase(recovered, data.walletAddress)) return message;
+    }
+
+    return undefined;
   }
 
   async forwardRegistrationToAktionariat(kycStepId: number): Promise<void> {
@@ -1081,21 +1104,14 @@ export class RealUnitService {
     const { api } = Config.blockchain.realunit;
 
     try {
-      // forward only Aktionariat fields (exclude kycData to avoid signature verification issues)
+      // forward only Aktionariat fields (exclude kycData to avoid signature verification issues).
+      // Aktionariat re-verifies the EIP-712 signature against this payload, so send back the exact
+      // representation that was signed — raw UTF-8 (legacy software wallets) or BitBox-safe ASCII
+      // (current app / BitBox). Forwarding the wrong variant fails as "Invalid signature". The
+      // UTF-8 originals stay on user_data for PDF/mail.
+      const signedMessage = this.resolveSignedRegistrationMessage(dto) ?? this.buildRegistrationMessage(dto, false);
       const payload: AktionariatRegistrationDto = {
-        email: dto.email,
-        name: dto.name,
-        type: dto.type,
-        phoneNumber: dto.phoneNumber,
-        birthday: dto.birthday,
-        nationality: dto.nationality,
-        addressStreet: dto.addressStreet,
-        addressPostalCode: dto.addressPostalCode,
-        addressCity: dto.addressCity,
-        addressCountry: dto.addressCountry,
-        swissTaxResidence: dto.swissTaxResidence,
-        registrationDate: dto.registrationDate,
-        walletAddress: dto.walletAddress,
+        ...signedMessage,
         signature: dto.signature,
         lang: dto.lang,
         countryAndTINs: dto.countryAndTINs,
