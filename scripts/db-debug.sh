@@ -18,6 +18,26 @@
 # Requirements:
 #   - curl
 #   - jq (optional, for pretty output)
+#
+# Safety:
+#   - DEBUG_API_URL defaults to PRODUCTION. Use read-only SELECT statements only;
+#     never run writes or DDL through this tool.
+#
+# Financial balance semantics (read before interpreting --balance / --anomalies / --stats):
+#   These query the FinancialDataLog, which records the whole book valued in CHF. In the
+#   balancesTotal object: totalBalanceChf = plusBalanceChf - minusBalanceChf, where plus =
+#   assets DFX holds and minus = liabilities owed to customers, each valued at its current
+#   priceChf. Customer flow is balance-neutral: a deposit raises plus AND minus equally, and
+#   completing the order lowers both again, leaving only the fee. So totalBalanceChf is
+#   effectively the operating equity of the flow business and moves ONLY due to:
+#     1. operating profit / fees (gradual, positive, realised on order completion)
+#     2. FX (plus and minus are different asset baskets, so their CHF marks drift
+#        independently while orders are open -- the normal intraday noise)
+#     3. an error or a realised loss (a discrete, persisting step)
+#   A sudden step (especially negative) is therefore suspicious rather than customer activity.
+#   The `valid` column is false when a jump exceeds Config.financeLogTotalBalanceChangeLimit
+#   (exactly what --anomalies lists). Full reference: the BalancesTotal type in
+#   src/subdomains/supporting/log/dto/log.dto.ts and LogJobService.
 
 set -e
 
