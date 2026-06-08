@@ -90,6 +90,32 @@ describe('RealUnitBlockchainService', () => {
     jest.clearAllMocks();
   });
 
+  describe('getRealUnitPrice', () => {
+    it('should return the CHF price from Aktionariat', async () => {
+      httpService.post.mockResolvedValue({ priceInCHF: 1.42, priceInEUR: 1.55, availableShares: 500 });
+
+      await expect(service.getRealUnitPriceChf()).resolves.toBe(1.42);
+    });
+
+    it('should return the EUR price from Aktionariat', async () => {
+      httpService.post.mockResolvedValue({ priceInCHF: 1.42, priceInEUR: 1.55, availableShares: 500 });
+
+      await expect(service.getRealUnitPriceEur()).resolves.toBe(1.55);
+    });
+
+    it('should throw a clear error when Aktionariat returns an empty body', async () => {
+      httpService.post.mockResolvedValue(undefined as any);
+
+      await expect(service.getRealUnitPriceChf()).rejects.toThrow('Aktionariat getPrice returned an invalid response');
+    });
+
+    it('should throw a clear error when Aktionariat returns a body without prices', async () => {
+      httpService.post.mockResolvedValue({ availableShares: 500 } as any);
+
+      await expect(service.getRealUnitPriceEur()).rejects.toThrow('Aktionariat getPrice returned an invalid response');
+    });
+  });
+
   describe('getBrokerbotSellPrice', () => {
     it('should query BrokerBot contract and return exact amount', async () => {
       // BrokerBot returns 1000 ZCHF (in Wei) for 10 shares
