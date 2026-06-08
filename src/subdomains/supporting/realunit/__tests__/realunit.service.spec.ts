@@ -577,7 +577,7 @@ describe('RealUnitService', () => {
       expect(status.userData!.kycData.lastName).toBe('Mustermann');
     });
 
-    it('returns state=KYC_REQUIRED when no step exists and no KYC data is present', () => {
+    it('returns state=NEW_REGISTRATION with no userData when no step exists and no KYC data is present (first-time user gets an empty form)', () => {
       const userData = {
         firstname: null,
         surname: null,
@@ -586,7 +586,7 @@ describe('RealUnitService', () => {
 
       const status = service.getRegistrationInfo(userData, walletAddress);
 
-      expect(status.state).toBe(RealUnitRegistrationState.KYC_REQUIRED);
+      expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.isRegistered).toBe(false);
       expect(status.userData).toBeUndefined();
     });
