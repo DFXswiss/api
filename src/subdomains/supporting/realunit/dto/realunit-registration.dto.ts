@@ -240,6 +240,10 @@ export enum RealUnitRegistrationState {
   ALREADY_REGISTERED = 'AlreadyRegistered',
   ADD_WALLET = 'AddWallet',
   NEW_REGISTRATION = 'NewRegistration',
+  // Reserved, defensive value: `getRegistrationInfo` no longer emits this. First-time users with no
+  // pre-fillable KYC data get NEW_REGISTRATION (empty form) instead — withholding the registration
+  // step here used to dead-end onboarding. Kept in the contract so clients retain explicit handling
+  // should a future "KYC blocked" condition be surfaced.
   KYC_REQUIRED = 'KycRequired',
 }
 
@@ -254,7 +258,7 @@ export class RealUnitRegistrationInfoDto {
   @ApiProperty({
     enum: RealUnitRegistrationState,
     description:
-      'Action the client should take for this wallet. `AlreadyRegistered`: no UX needed. `AddWallet`: render a one-tap Add-Wallet flow that submits to POST /register/wallet using the prior signed payload (`userData` is set). `NewRegistration`: render the full registration form pre-filled with `userData`. `KycRequired`: user must complete DFX KYC first (`userData` not set; edge case).',
+      'Action the client should take for this wallet. `AlreadyRegistered`: no UX needed. `AddWallet`: render a one-tap Add-Wallet flow that submits to POST /register/wallet using the prior signed payload (`userData` is set). `NewRegistration`: render the full registration form — pre-filled with `userData` when present, otherwise empty for the client to collect every field manually. `KycRequired`: reserved defensive value, not currently emitted by this endpoint.',
   })
   state: RealUnitRegistrationState;
 
