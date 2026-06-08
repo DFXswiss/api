@@ -1,5 +1,6 @@
 import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Wallet } from 'ethers';
 import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
 import { BrokerbotCurrency } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
@@ -32,9 +33,16 @@ import { RealUnitDevService } from '../realunit-dev.service';
 import { PriceSourceUnavailableException } from '../exceptions/price-source-unavailable.exception';
 import { RealUnitService } from '../realunit.service';
 
+let mockEnvironment = 'loc';
+
 jest.mock('src/config/config', () => ({
   get Config() {
-    return { environment: 'loc' };
+    return {
+      environment: mockEnvironment,
+      blockchain: {
+        realunit: { api: { url: 'https://mock-api.example.com', key: 'mock-key' } },
+      },
+    };
   },
   Environment: {
     LOC: 'loc',
@@ -153,11 +161,12 @@ describe('RealUnitService', () => {
           provide: KycService,
           useValue: {
             createCustomKycStep: jest.fn(),
+            saveKycStepUpdate: jest.fn(),
           },
         },
         { provide: CountryService, useValue: {} },
         { provide: LanguageService, useValue: {} },
-        { provide: HttpService, useValue: {} },
+        { provide: HttpService, useValue: { post: jest.fn() } },
         { provide: FiatService, useValue: {} },
         { provide: BuyService, useValue: {} },
         {
@@ -639,6 +648,129 @@ describe('RealUnitService', () => {
 
     it('returns the result unchanged on success', async () => {
       await expect((service as any).withPriceSourceGuard(() => Promise.resolve('ok'))).resolves.toBe('ok');
+    });
+  });
+
+  describe('forwardRegistration (Aktionariat signed-variant payload)', () => {
+    // Hardhat test accounts — synthetic keys, never real user wallets.
+    const softwareWallet = new Wallet('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
+    // Stands in for a BitBox the user adds later (hardware can only sign ASCII).
+    const hardwareWallet = new Wallet('0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a');
+
+    const domain = { name: 'RealUnitUser', version: '1' };
+    const types = {
+      RealUnitUser: [
+        { name: 'email', type: 'string' },
+        { name: 'name', type: 'string' },
+        { name: 'type', type: 'string' },
+        { name: 'phoneNumber', type: 'string' },
+        { name: 'birthday', type: 'string' },
+        { name: 'nationality', type: 'string' },
+        { name: 'addressStreet', type: 'string' },
+        { name: 'addressPostalCode', type: 'string' },
+        { name: 'addressCity', type: 'string' },
+        { name: 'addressCountry', type: 'string' },
+        { name: 'swissTaxResidence', type: 'bool' },
+        { name: 'registrationDate', type: 'string' },
+        { name: 'walletAddress', type: 'address' },
+      ],
+    };
+
+    // UTF-8 originals as persisted on the KYC step / user_data.
+    const utf8Fields = (walletAddress: string) => ({
+      email: 'erika.example@example.com',
+      name: 'Erika Müller',
+      type: 'HUMAN',
+      phoneNumber: '+41790000000',
+      birthday: '1990-01-01',
+      nationality: 'CH',
+      addressStreet: 'Bahnhofstrasse 1',
+      addressPostalCode: '8001',
+      addressCity: 'Zürich',
+      addressCountry: 'CH',
+      swissTaxResidence: true,
+      registrationDate: '2026-06-08',
+      walletAddress,
+    });
+
+    // BitBox-safe ASCII transliteration of the same fields.
+    const asciiFields = (walletAddress: string) => ({
+      ...utf8Fields(walletAddress),
+      name: 'Erika Mueller',
+      addressCity: 'Zuerich',
+    });
+
+    const buildDto = (fields: Record<string, unknown>, signature: string): any => ({
+      ...fields,
+      signature,
+      lang: 'DE',
+      kycData: {},
+    });
+
+    const fakeKycStep = (): any => ({
+      id: 1,
+      userData: { kycLevel: 999 },
+      complete: jest.fn().mockReturnValue([1, {}]),
+      manualReview: jest.fn().mockReturnValue([1, {}]),
+    });
+
+    const forwardedPayload = (): any => ((service as any).http.post as jest.Mock).mock.calls[0][1];
+
+    beforeEach(() => {
+      mockEnvironment = 'prd';
+    });
+
+    afterEach(() => {
+      mockEnvironment = 'loc';
+    });
+
+    it('forwards the raw UTF-8 fields when the wallet signed UTF-8 (legacy software wallet)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+
+      const ok = await (service as any).forwardRegistration(fakeKycStep(), dto);
+
+      expect(ok).toBe(true);
+      expect(forwardedPayload().name).toBe('Erika Müller');
+      expect(forwardedPayload().addressCity).toBe('Zürich');
+      expect(forwardedPayload().walletAddress).toBe(wallet);
+    });
+
+    it('forwards the BitBox-safe ASCII fields when the wallet signed ASCII (current app), even though the dto stores UTF-8', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, asciiFields(wallet));
+      // dto carries the UTF-8 originals as stored; only the signature is over ASCII.
+      const dto = buildDto(utf8Fields(wallet), signature);
+
+      const ok = await (service as any).forwardRegistration(fakeKycStep(), dto);
+
+      expect(ok).toBe(true);
+      expect(forwardedPayload().name).toBe('Erika Mueller');
+      expect(forwardedPayload().addressCity).toBe('Zuerich');
+      expect(forwardedPayload().walletAddress).toBe(wallet);
+    });
+
+    it('supports the software→hardware switch: a BitBox-signed (ASCII-only) wallet forwards ASCII that matches the signature', async () => {
+      const wallet = hardwareWallet.address;
+      const signature = await hardwareWallet._signTypedData(domain, types, asciiFields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+
+      const ok = await (service as any).forwardRegistration(fakeKycStep(), dto);
+
+      expect(ok).toBe(true);
+      const [url, payload] = ((service as any).http.post as jest.Mock).mock.calls[0];
+      expect(url).toContain('/registerUser');
+      expect(payload.name).toBe('Erika Mueller');
+      expect(payload.walletAddress).toBe(wallet);
+    });
+
+    it('resolveSignedRegistrationMessage returns undefined when a valid signature does not belong to the claimed wallet', async () => {
+      // Valid signature from the software wallet, but the dto claims a different wallet address.
+      const signature = await softwareWallet._signTypedData(domain, types, asciiFields(softwareWallet.address));
+      const dto = buildDto(utf8Fields(hardwareWallet.address), signature);
+
+      expect((service as any).resolveSignedRegistrationMessage(dto)).toBeUndefined();
     });
   });
 });
