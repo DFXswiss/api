@@ -36,6 +36,7 @@ jobs:
           push: true
           tags: ${{ env.DOCKER_TAGS }}
           platforms: linux/arm64
+          build-args: GIT_COMMIT=${{ github.sha }}
 
       - name: Install cloudflared
         run: |

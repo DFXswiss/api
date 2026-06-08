@@ -21,6 +21,10 @@ RUN npm run build
 # the already-compiled native modules without needing python3 + g++.
 RUN npm prune --omit=dev
 
+# Write git commit SHA into dist/ so /version endpoint can read it.
+ARG GIT_COMMIT=unknown
+RUN echo "$GIT_COMMIT" > dist/version.txt
+
 
 FROM node:20-alpine
 
@@ -31,7 +35,12 @@ COPY --from=builder /home/node/package.json /home/node/package-lock.json ./
 COPY --from=builder /home/node/node_modules ./node_modules
 COPY --from=builder /home/node/dist ./dist
 COPY --from=builder /home/node/migration ./migration
+# Runtime assets referenced by source path (not dist/) in the app config:
+#   - i18n translations: config.ts → join(process.cwd(), 'src/shared/i18n/')
+#   - notification templates: *.hbs files
+COPY --from=builder /home/node/src/shared/i18n ./src/shared/i18n
+COPY --from=builder /home/node/src/subdomains/supporting/notification/templates ./src/subdomains/supporting/notification/templates
 
 EXPOSE 3000
 
-CMD ["node", "dist/main.js"]
+CMD ["npm", "run", "start:prod"]
