@@ -66,7 +66,7 @@ export enum MailContextType {
 }
 
 export const MailContextTypeMapper: {
-  [key in MailContext]: MailContextType;
+  [key in MailContext]: MailContextType | null;
 } = {
   [MailContext.BUY_CRYPTO]: MailContextType.BUY_CRYPTO,
   [MailContext.BUY_CRYPTO_PENDING]: MailContextType.BUY_CRYPTO,
@@ -83,14 +83,14 @@ export const MailContextTypeMapper: {
   [MailContext.BUY_FIAT_RETURN]: MailContextType.BUY_FIAT,
   [MailContext.CRYPTO_INPUT_RETURN]: MailContextType.BUY_FIAT,
   [MailContext.BLACK_SQUAD]: MailContextType.INFO,
-  [MailContext.CHANGED_MAIL]: MailContextType.INFO,
-  [MailContext.ADDED_ADDRESS]: MailContextType.INFO,
-  [MailContext.ACCOUNT_MERGE_REQUEST]: MailContextType.INFO,
+  [MailContext.CHANGED_MAIL]: null,
+  [MailContext.ADDED_ADDRESS]: null,
+  [MailContext.ACCOUNT_MERGE_REQUEST]: null,
   [MailContext.LIMIT_REQUEST]: MailContextType.INFO,
   [MailContext.CUSTOM]: MailContextType.INFO,
   [MailContext.SUPPORT_MESSAGE]: MailContextType.INFO,
   [MailContext.UNASSIGNED_TX]: MailContextType.INFO,
-  [MailContext.ACCOUNT_DEACTIVATION]: MailContextType.INFO,
+  [MailContext.ACCOUNT_DEACTIVATION]: null,
   [MailContext.RECOMMENDATION_CONFIRMATION]: MailContextType.INFO,
   [MailContext.RECOMMENDATION_MAIL]: MailContextType.INFO,
   [MailContext.LOGIN]: MailContextType.AUTH,
