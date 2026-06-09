@@ -259,6 +259,12 @@ export class AuthService {
     const ipCountry = this.geoLocationService.getCountry(userIp);
     const language = await this.languageService.getLanguageByCountry(ipCountry);
 
+    // wallet the login originated from - determines mail branding (e.g. DFX vs. RealUnit);
+    // always resolve to a concrete wallet so branding follows the login source and never falls back to account history
+    const loginWallet =
+      (dto.wallet && (await this.walletService.getByIdOrName(undefined, dto.wallet))) ||
+      (await this.walletService.getDefault());
+
     const userData =
       (await this.userDataService
         .getUsersByMail(dto.mail)
@@ -268,9 +274,7 @@ export class AuthService {
         mail: dto.mail,
         language: dto.language ?? language,
         status: UserDataStatus.KYC_ONLY,
-        wallet: dto.wallet
-          ? await this.walletService.getByIdOrName(undefined, dto.wallet)
-          : await this.walletService.getDefault(),
+        wallet: loginWallet,
       }));
 
     if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, userData);
@@ -301,6 +305,7 @@ export class AuthService {
       context: MailContext.LOGIN,
       input: {
         userData,
+        wallet: loginWallet,
         title: `${MailTranslationKey.LOGIN}.title`,
         salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
         texts: [
