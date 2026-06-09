@@ -347,10 +347,12 @@ export class BuyCryptoService implements OnModuleInit {
             mailSendDate: null,
             amlReason: update.amlReason,
             comment: update.comment,
-            ...(update.amlCheck === CheckStatus.PASS && {
-              priceDefinitionAllowedDate:
-                update.priceDefinitionAllowedDate ?? entity.priceDefinitionAllowedDate ?? new Date(),
-            }),
+            ...(update.amlCheck === CheckStatus.PASS
+              ? {
+                  priceDefinitionAllowedDate:
+                    update.priceDefinitionAllowedDate ?? entity.priceDefinitionAllowedDate ?? new Date(),
+                }
+              : undefined),
           }
         : undefined),
       isComplete: dto.isComplete,

@@ -212,10 +212,12 @@ export class BuyFiatService implements OnModuleInit {
             amlCheck: update.amlCheck,
             mailSendDate: null,
             amlReason: update.amlReason,
-            ...(update.amlCheck === CheckStatus.PASS && {
-              priceDefinitionAllowedDate:
-                update.priceDefinitionAllowedDate ?? entity.priceDefinitionAllowedDate ?? new Date(),
-            }),
+            ...(update.amlCheck === CheckStatus.PASS
+              ? {
+                  priceDefinitionAllowedDate:
+                    update.priceDefinitionAllowedDate ?? entity.priceDefinitionAllowedDate ?? new Date(),
+                }
+              : undefined),
           }
         : undefined),
       isComplete: dto.isComplete,
