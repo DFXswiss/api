@@ -2,6 +2,7 @@ import { HandlebarsAdapter } from '@nestjs-modules/mailer/dist/adapters/handleba
 import { Injectable, Optional } from '@nestjs/common';
 import { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { ConstructorArgs } from 'ccxt';
+import { readFileSync } from 'fs';
 import JSZip from 'jszip';
 import { I18nOptions } from 'nestjs-i18n';
 import { join } from 'path';
@@ -924,7 +925,7 @@ export class Configuration {
         apiUrl: process.env.LIGHTNING_LND_API_URL,
         adminMacaroon: process.env.LIGHTNING_LND_ADMIN_MACAROON,
       },
-      certificate: process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n'),
+      certificate: readCert(),
     },
     boltz: {
       apiUrl: process.env.BOLTZ_API_URL,
@@ -1282,6 +1283,19 @@ export class Configuration {
     process.env.DISABLED_PROCESSES === '*'
       ? Object.values(Process)
       : ((process.env.DISABLED_PROCESSES?.split(',') ?? []) as Process[]);
+}
+
+function readCert(): string | undefined {
+  const path = process.env.LIGHTNING_API_CERTIFICATE_PATH;
+  if (path) {
+    try {
+      return readFileSync(path, 'utf8');
+    } catch {
+      // fall back to env var below
+    }
+  }
+
+  return process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n');
 }
 
 function splitWithdrawKeys(value?: string): Map<string, string> {
