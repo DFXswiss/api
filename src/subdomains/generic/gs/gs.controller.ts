@@ -9,6 +9,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { DebugQueryDto } from './dto/debug-query.dto';
+import { DebugUserQueryDto, DebugUserResult } from './dto/debug-user-query.dto';
 import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
@@ -62,5 +63,13 @@ export class GsController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
   async executeLogQuery(@GetJwt() jwt: JwtPayload, @Body() dto: LogQueryDto): Promise<LogQueryResult> {
     return this.gsService.executeLogQuery(dto, jwt.address ?? `account:${jwt.account}`);
+  }
+
+  @Post('debug/user')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
+  async resolveDebugUser(@GetJwt() jwt: JwtPayload, @Body() dto: DebugUserQueryDto): Promise<DebugUserResult[]> {
+    return this.gsService.resolveDebugUser(dto.mail, jwt.address ?? `account:${jwt.account}`);
   }
 }

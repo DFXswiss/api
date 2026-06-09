@@ -26,19 +26,24 @@ import { LimitRequestService } from 'src/subdomains/supporting/support-issue/ser
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { AccountType } from '../../user/models/user-data/account-type.enum';
+import { KycLevel, KycType, UserDataStatus } from '../../user/models/user-data/user-data.enum';
 
 describe('GsService', () => {
   let service: GsService;
   let dataSource: DataSource;
   let appInsightsQueryService: AppInsightsQueryService;
+  let userDataService: UserDataService;
 
   beforeEach(() => {
     dataSource = createMock<DataSource>();
     appInsightsQueryService = createMock<AppInsightsQueryService>();
+    userDataService = createMock<UserDataService>();
 
     service = new GsService(
       appInsightsQueryService,
-      createMock<UserDataService>(),
+      userDataService,
       createMock<UserService>(),
       createMock<BuyService>(),
       createMock<SellService>(),
@@ -218,6 +223,62 @@ describe('GsService', () => {
       expect(kql).toContain(`[GsService] ${LogQueryAuditPrefix}`);
 
       verboseSpy.mockRestore();
+    });
+  });
+
+  describe('resolveDebugUser', () => {
+    it('returns only non-PII fields for matching accounts', async () => {
+      jest.spyOn(userDataService, 'getUsersByMail').mockResolvedValue([
+        {
+          id: 123,
+          accountType: AccountType.PERSONAL,
+          kycLevel: KycLevel.LEVEL_20,
+          kycType: KycType.DFX,
+          status: UserDataStatus.NA,
+          created: new Date('2026-01-01T00:00:00.000Z'),
+          wallet: { name: 'TestWallet' },
+        } as UserData,
+      ]);
+
+      const result = await service.resolveDebugUser('user@example.com', 'test-user');
+
+      expect(result).toEqual([
+        {
+          userDataId: 123,
+          accountType: AccountType.PERSONAL,
+          kycLevel: KycLevel.LEVEL_20,
+          kycType: KycType.DFX,
+          status: UserDataStatus.NA,
+          wallet: 'TestWallet',
+          created: new Date('2026-01-01T00:00:00.000Z'),
+        },
+      ]);
+    });
+
+    it('includes every status (onlyValidUser=false) and tolerates a missing wallet or accountType', async () => {
+      const spy = jest.spyOn(userDataService, 'getUsersByMail').mockResolvedValue([
+        {
+          id: 456,
+          kycLevel: KycLevel.LEVEL_0,
+          kycType: KycType.DFX,
+          status: UserDataStatus.MERGED,
+          created: new Date('2026-02-02T00:00:00.000Z'),
+        } as UserData,
+      ]);
+
+      const result = await service.resolveDebugUser('merged@example.com', 'test-user');
+
+      expect(spy).toHaveBeenCalledWith('merged@example.com', false);
+      expect(result[0].wallet).toBeNull();
+      expect(result[0].accountType).toBeNull();
+    });
+
+    it('returns an empty list when no account matches', async () => {
+      jest.spyOn(userDataService, 'getUsersByMail').mockResolvedValue([]);
+
+      const result = await service.resolveDebugUser('missing@example.com', 'test-user');
+
+      expect(result).toEqual([]);
     });
   });
 });

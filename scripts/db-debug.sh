@@ -67,6 +67,7 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "                                Show complete referral chain for user"
   echo "  -T, --referral-tree <userDataId>"
   echo "                                Show complete referral tree (all branches)"
+  echo "  -u, --user <email>            Resolve an email address to userDataId(s)"
   echo ""
   echo "Examples:"
   echo "  ./scripts/db-debug.sh --anomalies 50"
@@ -76,6 +77,7 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  ./scripts/db-debug.sh --asset-history MaerkiBaumann/CHF 10"
   echo "  ./scripts/db-debug.sh --referral-chain 370625"
   echo "  ./scripts/db-debug.sh --referral-tree 370625"
+  echo "  ./scripts/db-debug.sh --user user@example.com"
   echo "  ./scripts/db-debug.sh \"SELECT * FROM asset LIMIT 10\""
   exit 0
 fi
@@ -109,6 +111,8 @@ ASSET_LIMIT="10"
 REFERRAL_CHAIN_MODE=""
 REFERRAL_TREE_MODE=""
 TARGET_USER_ID=""
+USER_LOOKUP_MODE=""
+LOOKUP_MAIL=""
 
 case "${1:-}" in
   -a|--anomalies)
@@ -152,6 +156,15 @@ case "${1:-}" in
     fi
     REFERRAL_TREE_MODE="1"
     TARGET_USER_ID="$2"
+    ;;
+  -u|--user)
+    if [ -z "${2:-}" ]; then
+      echo "Error: --user requires an email address"
+      echo "Usage: ./scripts/db-debug.sh --user <email>"
+      exit 1
+    fi
+    USER_LOOKUP_MODE="1"
+    LOOKUP_MAIL="$2"
     ;;
   *)
     SQL="${1:-SELECT id, name, blockchain FROM asset ORDER BY id DESC LIMIT 5}"
@@ -197,6 +210,26 @@ fi
 ROLE=$(echo "$TOKEN" | cut -d'.' -f2 | base64 -d 2>/dev/null | jq -r '.role' 2>/dev/null || echo "unknown")
 echo "Authenticated with role: $ROLE"
 echo ""
+
+# --- User lookup mode (email -> userDataId) ---
+if [ -n "$USER_LOOKUP_MODE" ]; then
+  echo "=== Resolving userDataId for: $LOOKUP_MAIL ==="
+  echo ""
+
+  PAYLOAD=$(jq -n --arg mail "$LOOKUP_MAIL" '{"mail": $mail}')
+  RESULT=$(curl -s -X POST "$API_URL/gs/debug/user" \
+    -H "Authorization: Bearer $TOKEN" \
+    -H "Content-Type: application/json" \
+    -d "$PAYLOAD")
+
+  if command -v jq &> /dev/null; then
+    echo "$RESULT" | jq .
+  else
+    echo "$RESULT"
+  fi
+
+  exit 0
+fi
 
 # --- Referral chain mode ---
 if [ -n "$REFERRAL_CHAIN_MODE" ]; then

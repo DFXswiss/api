@@ -29,6 +29,7 @@ import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
+import { DebugUserResult } from './dto/debug-user-query.dto';
 import {
   DebugBlockedCols,
   DebugBlockedSchemas,
@@ -190,6 +191,25 @@ export class GsService {
       swap: await this.swapService.getAllUserSwaps(userIds),
       virtualIbans: await this.virtualIbanService.getVirtualIbansForAccount(userData.id),
     };
+  }
+
+  // Sanctioned reverse lookup for the DEBUG tooling: the /gs/debug SQL endpoint blocks the
+  // user_data.mail column (PII), so an email cannot be resolved to a userDataId via SQL. This
+  // returns only non-PII identifiers, never the mail or any other personal data.
+  async resolveDebugUser(mail: string, userIdentifier: string): Promise<DebugUserResult[]> {
+    this.logger.verbose(`Debug user lookup by ${userIdentifier}`);
+
+    const userDataList = await this.userDataService.getUsersByMail(mail, false);
+
+    return userDataList.map((userData) => ({
+      userDataId: userData.id,
+      accountType: userData.accountType ?? null,
+      kycLevel: userData.kycLevel,
+      kycType: userData.kycType,
+      status: userData.status,
+      wallet: userData.wallet?.name ?? null,
+      created: userData.created,
+    }));
   }
 
   async executeDebugQuery(sql: string, userIdentifier: string): Promise<Record<string, unknown>[]> {
