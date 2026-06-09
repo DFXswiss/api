@@ -10,6 +10,7 @@ import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.ser
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { ComplianceSearchType } from 'src/subdomains/generic/support/dto/user-data-support.dto';
 import { BankTxRepeatService } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -24,7 +25,6 @@ import { DataSource } from 'typeorm';
 import { LimitRequestService } from '../../supporting/support-issue/services/limit-request.service';
 import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
-import { ComplianceSearchType } from '../support/dto/user-data-support.dto';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
@@ -201,7 +201,8 @@ export class GsService {
     this.logger.verbose(`Debug user lookup by ${userIdentifier}`);
 
     // Same resolution the compliance search uses for a mail; returns only userDataIds, no PII.
-    const userDataList = await this.userDataService.getUsersByMail(mail, false);
+    // No relations needed — only the id is read.
+    const userDataList = await this.userDataService.getUsersByMail(mail, false, {});
     const userDataIds = Util.toUniqueList(userDataList, 'id')
       .map((userData) => userData.id)
       .sort((a, b) => a - b);

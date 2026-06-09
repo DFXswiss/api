@@ -26,8 +26,8 @@ import { LimitRequestService } from 'src/subdomains/supporting/support-issue/ser
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
-import { UserData } from '../../user/models/user-data/user-data.entity';
-import { ComplianceSearchType } from '../../support/dto/user-data-support.dto';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { ComplianceSearchType } from 'src/subdomains/generic/support/dto/user-data-support.dto';
 
 describe('GsService', () => {
   let service: GsService;
@@ -249,7 +249,7 @@ describe('GsService', () => {
 
       await service.resolveDebugUser('merged@example.com', 'test-user');
 
-      expect(spy).toHaveBeenCalledWith('merged@example.com', false);
+      expect(spy).toHaveBeenCalledWith('merged@example.com', false, {});
     });
 
     it('returns an empty id list when no account matches', async () => {
