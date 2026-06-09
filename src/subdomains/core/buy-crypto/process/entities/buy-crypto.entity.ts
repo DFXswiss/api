@@ -38,6 +38,7 @@ import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entit
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { AmlSource } from '../../../aml/enums/aml-source.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
@@ -148,6 +149,9 @@ export class BuyCrypto extends IEntity {
 
   @Column({ length: 256, nullable: true })
   amlResponsible?: string;
+
+  @Column({ length: 256, nullable: true })
+  amlSource?: AmlSource;
 
   // Check
   @Column({ length: 256, nullable: true })

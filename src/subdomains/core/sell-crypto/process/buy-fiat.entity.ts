@@ -28,6 +28,7 @@ import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm'
 import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
+import { AmlSource } from '../../aml/enums/aml-source.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { AmlHelperService } from '../../aml/services/aml-helper.service';
 import { PaymentLinkPayment } from '../../payment-link/entities/payment-link-payment.entity';
@@ -113,6 +114,9 @@ export class BuyFiat extends IEntity {
 
   @Column({ length: 256, nullable: true })
   amlResponsible?: string;
+
+  @Column({ length: 256, nullable: true })
+  amlSource?: AmlSource;
 
   // Fee
   @Column({ length: 256, nullable: true })

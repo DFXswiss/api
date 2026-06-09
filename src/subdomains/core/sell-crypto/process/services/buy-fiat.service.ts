@@ -1,5 +1,7 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -32,6 +34,7 @@ import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-outpu
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { canManualPass } from '../../../aml/enums/aml-error.enum';
 import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
+import { AmlSource } from '../../../aml/enums/aml-source.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../../history/dto/history.dto';
@@ -152,7 +155,7 @@ export class BuyFiatService implements OnModuleInit {
     return entity;
   }
 
-  async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
+  async update(id: number, dto: UpdateBuyFiatDto, jwt?: JwtPayload): Promise<BuyFiat> {
     let entity = await this.buyFiatRepo.findOne({
       where: { id },
       relations: {
@@ -203,6 +206,8 @@ export class BuyFiatService implements OnModuleInit {
         approved: dto.bankDataActive,
       });
 
+    const isGsActor = jwt != null && Config.amlGsAccountId != null && jwt.account === Config.amlGsAccountId;
+
     const forceUpdate: Partial<BuyFiat> = {
       ...((BuyFiatEditableAmlCheck.includes(entity.amlCheck) ||
         (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
@@ -216,6 +221,13 @@ export class BuyFiatService implements OnModuleInit {
               ? {
                   priceDefinitionAllowedDate:
                     update.priceDefinitionAllowedDate ?? entity.priceDefinitionAllowedDate ?? new Date(),
+                }
+              : undefined),
+            ...(jwt && update.amlCheck
+              ? {
+                  amlSource: isGsActor ? AmlSource.GSHEET : AmlSource.COMPLIANCE,
+                  amlResponsible:
+                    update.amlResponsible ?? (isGsActor ? 'GSheet' : (jwt.address ?? `account:${jwt.account}`)),
                 }
               : undefined),
           }
@@ -453,7 +465,7 @@ export class BuyFiatService implements OnModuleInit {
     }
   }
 
-  async manualPassAmlCheck(id: number, dto: ManualAmlCheckDto): Promise<BuyFiat> {
+  async manualPassAmlCheck(id: number, dto: ManualAmlCheckDto, jwt?: JwtPayload): Promise<BuyFiat> {
     const entity = await this.buyFiatRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('BuyFiat not found');
     if (entity.isComplete || entity.chargebackAllowedDateUser)
@@ -463,12 +475,16 @@ export class BuyFiatService implements OnModuleInit {
     if (dto.amlCheck === CheckStatus.PASS && !canManualPass(entity.comment))
       throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
 
-    return this.update(id, {
-      amlCheck: dto.amlCheck,
-      amlResponsible: dto.responsible,
-      amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
-      priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
-    } as UpdateBuyFiatDto);
+    return this.update(
+      id,
+      {
+        amlCheck: dto.amlCheck,
+        amlResponsible: dto.responsible,
+        amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
+        priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
+      } as UpdateBuyFiatDto,
+      jwt,
+    );
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {
