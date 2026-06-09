@@ -63,6 +63,7 @@ export interface MailKeyData {
   userDataId: number;
   loginUrl: string;
   redirectUri?: string;
+  walletName?: string;
 }
 
 @Injectable()
@@ -297,6 +298,7 @@ export class AuthService {
       userDataId: userData.id,
       loginUrl: url,
       redirectUri: dto.redirectUri,
+      walletName: loginWallet?.name,
     });
 
     // send notification
@@ -337,7 +339,14 @@ export class AuthService {
       const account = await this.userDataService.getUserData(entry.userDataId, { users: true, wallet: true });
       if (account.status === UserDataStatus.MERGED) throw new UnauthorizedException('User data is merged');
 
-      const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail, undefined, account);
+      const ipLog = await this.ipLogService.create(
+        ip,
+        entry.loginUrl,
+        entry.mail,
+        undefined,
+        entry.walletName,
+        account,
+      );
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
 
       const token = this.generateAccountToken(account, ip);
