@@ -259,10 +259,11 @@ export class AuthService {
     const ipCountry = this.geoLocationService.getCountry(userIp);
     const language = await this.languageService.getLanguageByCountry(ipCountry);
 
-    // wallet the login originated from - determines mail branding (e.g. DFX vs. RealUnit)
-    const loginWallet = dto.wallet
-      ? await this.walletService.getByIdOrName(undefined, dto.wallet)
-      : await this.walletService.getDefault();
+    // wallet the login originated from - determines mail branding (e.g. DFX vs. RealUnit);
+    // always resolve to a concrete wallet so branding follows the login source and never falls back to account history
+    const loginWallet =
+      (dto.wallet && (await this.walletService.getByIdOrName(undefined, dto.wallet))) ||
+      (await this.walletService.getDefault());
 
     const userData =
       (await this.userDataService
