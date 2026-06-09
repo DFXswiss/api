@@ -227,6 +227,8 @@ describe('GsService', () => {
 
   describe('resolveDebugUser', () => {
     it('returns deduplicated, sorted userDataIds with the Mail search type and no PII', async () => {
+      // The resolved records intentionally carry PII (firstname/surname) to prove the DEBUG
+      // response strips it: only userDataIds may ever be returned, never personal data.
       jest
         .spyOn(userDataService, 'getUsersByMail')
         .mockResolvedValue([
@@ -238,6 +240,8 @@ describe('GsService', () => {
       const result = await service.resolveDebugUser('user@example.com', 'test-user');
 
       expect(result).toEqual({ type: ComplianceSearchType.MAIL, userDataIds: [101, 102] });
+      expect(JSON.stringify(result)).not.toContain('firstname');
+      expect(JSON.stringify(result)).not.toContain('Doe');
     });
 
     it('resolves the mail with onlyValidUser=false (same resolution as the compliance search)', async () => {
