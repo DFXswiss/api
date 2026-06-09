@@ -708,7 +708,14 @@ export class RealUnitService {
 
   // --- Wallet Methods ---
 
-  getRegistrationInfo(userData: UserData, walletAddress: string): RealUnitRegistrationInfoDto {
+  async getRegistrationInfo(userData: UserData, walletAddress: string): Promise<RealUnitRegistrationInfoDto> {
+    // While an account merge for this user is still propagating, the merged-in KYC steps and personal
+    // data are not yet re-parented, so the branches below would misreport NEW_REGISTRATION with an
+    // empty `userData`. Signal MERGE_PROCESSING instead so the client renders a waiting state and polls
+    // until propagation completes — mirrors the KYC path (KycService #toDto via hasProcessingMerge).
+    if (await this.accountMergeService.hasProcessingMerge(userData.id))
+      return { isRegistered: false, state: RealUnitRegistrationState.MERGE_PROCESSING };
+
     const { step, isForCurrentWallet } = this.findRegistrationStep(userData, walletAddress);
 
     // Dispatch to one of three states so the client can route to the right UX without inferring

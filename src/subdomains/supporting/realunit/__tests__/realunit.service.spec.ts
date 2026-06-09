@@ -113,6 +113,7 @@ describe('RealUnitService', () => {
   let sellService: jest.Mocked<SellService>;
   let userService: jest.Mocked<UserService>;
   let kycService: jest.Mocked<KycService>;
+  let accountMergeService: jest.Mocked<AccountMergeService>;
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -190,7 +191,7 @@ describe('RealUnitService', () => {
           },
         },
         { provide: TransactionService, useValue: {} },
-        { provide: AccountMergeService, useValue: {} },
+        { provide: AccountMergeService, useValue: { hasProcessingMerge: jest.fn().mockResolvedValue(false) } },
         { provide: RealUnitDevService, useValue: {} },
         { provide: SwissQRService, useValue: {} },
         { provide: FeeService, useValue: {} },
@@ -208,6 +209,7 @@ describe('RealUnitService', () => {
     sellService = module.get(SellService);
     userService = module.get(UserService);
     kycService = module.get(KycService);
+    accountMergeService = module.get(AccountMergeService);
   });
 
   afterEach(() => {
@@ -537,11 +539,25 @@ describe('RealUnitService', () => {
       };
     }
 
-    it('returns state=ALREADY_REGISTERED when a non-failed step for the current wallet exists', () => {
+    it('returns state=MERGE_PROCESSING with no userData while an account merge for the user is still propagating', async () => {
+      accountMergeService.hasProcessingMerge.mockResolvedValue(true);
       const userData = buildVerifiedUserData();
       userData.getStepsWith.mockReturnValue([buildStepForWallet(walletAddress)]);
 
-      const status = service.getRegistrationInfo(userData, walletAddress);
+      const status = await service.getRegistrationInfo(userData, walletAddress);
+
+      expect(status.state).toBe(RealUnitRegistrationState.MERGE_PROCESSING);
+      expect(status.isRegistered).toBe(false);
+      expect(status.userData).toBeUndefined();
+      // the merge guard short-circuits before any registration-step inspection
+      expect(userData.getStepsWith).not.toHaveBeenCalled();
+    });
+
+    it('returns state=ALREADY_REGISTERED when a non-failed step for the current wallet exists', async () => {
+      const userData = buildVerifiedUserData();
+      userData.getStepsWith.mockReturnValue([buildStepForWallet(walletAddress)]);
+
+      const status = await service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.ALREADY_REGISTERED);
       expect(status.isRegistered).toBe(true);
@@ -550,11 +566,11 @@ describe('RealUnitService', () => {
       expect(status.userData!.name).toBe('Signed Name');
     });
 
-    it('returns state=ADD_WALLET when a step exists for a different wallet but not the current one', () => {
+    it('returns state=ADD_WALLET when a step exists for a different wallet but not the current one', async () => {
       const userData = buildVerifiedUserData();
       userData.getStepsWith.mockReturnValue([buildStepForWallet(otherWalletAddress, { isCompleted: true })]);
 
-      const status = service.getRegistrationInfo(userData, walletAddress);
+      const status = await service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.ADD_WALLET);
       expect(status.isRegistered).toBe(false);
@@ -564,10 +580,10 @@ describe('RealUnitService', () => {
       expect(status.userData!.name).toBe('Signed Name');
     });
 
-    it('returns state=NEW_REGISTRATION when no step exists but userData has firstname/surname', () => {
+    it('returns state=NEW_REGISTRATION when no step exists but userData has firstname/surname', async () => {
       const userData = buildVerifiedUserData();
 
-      const status = service.getRegistrationInfo(userData, walletAddress);
+      const status = await service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.isRegistered).toBe(false);
@@ -587,36 +603,36 @@ describe('RealUnitService', () => {
       expect(status.userData!.kycData.lastName).toBe('Mustermann');
     });
 
-    it('returns state=NEW_REGISTRATION with no userData when no step exists and no KYC data is present (first-time user gets an empty form)', () => {
+    it('returns state=NEW_REGISTRATION with no userData when no step exists and no KYC data is present (first-time user gets an empty form)', async () => {
       const userData = {
         firstname: null,
         surname: null,
         getStepsWith: jest.fn().mockReturnValue([]),
       } as any;
 
-      const status = service.getRegistrationInfo(userData, walletAddress);
+      const status = await service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.isRegistered).toBe(false);
       expect(status.userData).toBeUndefined();
     });
 
-    it('defaults swissTaxResidence to false in NEW_REGISTRATION when the residence country is not CH', () => {
+    it('defaults swissTaxResidence to false in NEW_REGISTRATION when the residence country is not CH', async () => {
       const userData = buildVerifiedUserData();
       userData.country = { id: 2, symbol: 'DE' };
 
-      const status = service.getRegistrationInfo(userData, walletAddress);
+      const status = await service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.userData!.swissTaxResidence).toBe(false);
       expect(status.userData!.addressCountry).toBe('DE');
     });
 
-    it('falls back to EN in NEW_REGISTRATION when the user language is not one of the RealUnit-supported codes', () => {
+    it('falls back to EN in NEW_REGISTRATION when the user language is not one of the RealUnit-supported codes', async () => {
       const userData = buildVerifiedUserData();
       userData.language = { symbol: 'ES' };
 
-      const status = service.getRegistrationInfo(userData, walletAddress);
+      const status = await service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.userData!.lang).toBe('EN');

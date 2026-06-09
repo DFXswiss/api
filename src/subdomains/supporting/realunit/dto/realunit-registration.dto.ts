@@ -240,6 +240,7 @@ export enum RealUnitRegistrationState {
   ALREADY_REGISTERED = 'AlreadyRegistered',
   ADD_WALLET = 'AddWallet',
   NEW_REGISTRATION = 'NewRegistration',
+  MERGE_PROCESSING = 'MergeProcessing',
 }
 
 export class RealUnitRegistrationInfoDto {
@@ -253,7 +254,7 @@ export class RealUnitRegistrationInfoDto {
   @ApiProperty({
     enum: RealUnitRegistrationState,
     description:
-      'Action the client should take for this wallet. `AlreadyRegistered`: no UX needed. `AddWallet`: render a one-tap Add-Wallet flow that submits to POST /register/wallet using the prior signed payload (`userData` is set). `NewRegistration`: render the full registration form — pre-filled with `userData` when present, otherwise empty for the client to collect every field manually.',
+      'Action the client should take for this wallet. `AlreadyRegistered`: no UX needed. `AddWallet`: render a one-tap Add-Wallet flow that submits to POST /register/wallet using the prior signed payload (`userData` is set). `NewRegistration`: render the full registration form — pre-filled with `userData` when present, otherwise empty for the client to collect every field manually. `MergeProcessing`: an account merge for this user is still propagating — render a waiting state and poll; do not treat the absent `userData` as a failure.',
   })
   state: RealUnitRegistrationState;
 
