@@ -46,6 +46,7 @@ import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum
 import { KycContext } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
+import { PartnerConsentService } from 'src/subdomains/generic/partner-consent/partner-consent.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -71,6 +72,7 @@ import {
   TokenInfoClientResponse,
 } from './dto/client.dto';
 import { RealUnitQuoteDto, RealUnitTransactionDto } from './dto/realunit-admin.dto';
+import { RealUnitDisclaimerStatusDto } from './dto/realunit-disclaimer.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
   AktionariatRegistrationDto,
@@ -103,6 +105,7 @@ import {
   TokenInfoDto,
 } from './dto/realunit.dto';
 import { PriceInvalidException } from '../pricing/domain/exceptions/price-invalid.exception';
+import { RealUnitDisclaimerTopic } from './enums/realunit-disclaimer-topic.enum';
 import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
 import { PriceSourceUnavailableException } from './exceptions/price-source-unavailable.exception';
 import { RealUnitDevService } from './realunit-dev.service';
@@ -198,6 +201,7 @@ export class RealUnitService {
     private readonly swissQrService: SwissQRService,
     private readonly feeService: FeeService,
     private readonly faucetRequestService: FaucetRequestService,
+    private readonly partnerConsentService: PartnerConsentService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -738,6 +742,32 @@ export class RealUnitService {
       state: RealUnitRegistrationState.NEW_REGISTRATION,
       userData: this.toUserDataDtoFromUserData(userData),
     };
+  }
+
+  // --- DISCLAIMER CONSENT --- //
+
+  async getDisclaimerStatus(userData: UserData): Promise<RealUnitDisclaimerStatusDto> {
+    const partner = userData.wallet;
+    if (!partner) throw new NotFoundException('Partner not found for user');
+
+    const required = new Map<string, number>(Object.entries(this.disclaimerVersions));
+    const missing = await this.partnerConsentService.getMissingTopics(userData, partner, required);
+
+    // Return in canonical wizard order (enum declaration order), not query order.
+    return { requiredSteps: Object.values(RealUnitDisclaimerTopic).filter((topic) => missing.includes(topic)) };
+  }
+
+  async confirmDisclaimer(userData: UserData, steps: RealUnitDisclaimerTopic[]): Promise<void> {
+    const partner = userData.wallet;
+    if (!partner) throw new NotFoundException('Partner not found for user');
+
+    const versions = this.disclaimerVersions;
+    const entries = steps.map((topic) => ({ topic, version: versions[topic] }));
+    await this.partnerConsentService.confirm(userData, partner, entries);
+  }
+
+  private get disclaimerVersions(): Record<RealUnitDisclaimerTopic, number> {
+    return GetConfig().blockchain.realunit.disclaimer.versions;
   }
 
   async completeRegistrationForWalletAddress(

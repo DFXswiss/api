@@ -8,6 +8,7 @@ import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.modul
 import { FaucetRequestModule } from 'src/subdomains/core/faucet-request/faucet-request.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { KycModule } from 'src/subdomains/generic/kyc/kyc.module';
+import { PartnerConsentModule } from 'src/subdomains/generic/partner-consent/partner-consent.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { BalanceModule } from '../balance/balance.module';
 import { BankTxModule } from '../bank-tx/bank-tx.module';
@@ -29,6 +30,7 @@ import { RealUnitService } from './realunit.service';
     SepoliaModule,
     UserModule,
     KycModule,
+    PartnerConsentModule,
     BankModule,
     BankTxModule,
     PaymentModule,

@@ -21,6 +21,7 @@ import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-d
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
+import { RealUnitDisclaimerTopic } from 'src/subdomains/supporting/realunit/enums/realunit-disclaimer-topic.enum';
 import { LoggerOptions } from 'typeorm';
 import { EVM_CHAINS } from './chains.config';
 
@@ -1073,6 +1074,19 @@ export class Configuration {
         zip: process.env.REALUNIT_ADDRESS_ZIP ?? '6340',
         city: process.env.REALUNIT_ADDRESS_CITY ?? 'Baar',
         country: process.env.REALUNIT_ADDRESS_COUNTRY ?? 'Switzerland',
+      },
+      // Current required version per legal-disclaimer step. Bump a value when the
+      // corresponding content (i18n text or linked documents in the app) changes
+      // — the user is then re-prompted for that step only. Keep in sync with the
+      // app deployment that ships the new content.
+      disclaimer: {
+        versions: {
+          [RealUnitDisclaimerTopic.DISCLAIMER_PART_1]: 1,
+          [RealUnitDisclaimerTopic.DISCLAIMER_PART_2]: 1,
+          [RealUnitDisclaimerTopic.REALUNIT_DOCUMENTS]: 1,
+          [RealUnitDisclaimerTopic.AKTIONARIAT_DOCUMENTS]: 1,
+          [RealUnitDisclaimerTopic.DFX_DOCUMENTS]: 1,
+        } as Record<RealUnitDisclaimerTopic, number>,
       },
     },
     ebel2x: {

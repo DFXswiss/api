@@ -39,6 +39,7 @@ import { BalancePdfService } from '../../balance/services/balance-pdf.service';
 import { SwissQRService } from '../../payment/services/swiss-qr.service';
 import { PriceCurrency, PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAdminQueryDto, RealUnitQuoteDto, RealUnitTransactionDto } from '../dto/realunit-admin.dto';
+import { ConfirmDisclaimerDto, RealUnitDisclaimerStatusDto } from '../dto/realunit-disclaimer.dto';
 import {
   RealUnitBalancePdfDto,
   RealUnitMultiReceiptPdfDto,
@@ -620,6 +621,36 @@ export class RealUnitController {
       userData: { kycSteps: true, country: true, nationality: true, organizationCountry: true, language: true },
     });
     return this.realunitService.getRegistrationInfo(user.userData, jwt.address);
+  }
+
+  // --- Disclaimer Consent Endpoints ---
+
+  @Get('disclaimer')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get pending RealUnit legal-disclaimer steps',
+    description:
+      'Returns the legal-disclaimer steps whose current version the user has not accepted yet, in wizard order (`requiredSteps`). The client renders exactly these and skips the disclaimer when the list is empty. The backend is the single source of truth for which steps/versions are required.',
+  })
+  @ApiOkResponse({ type: RealUnitDisclaimerStatusDto })
+  async getDisclaimerStatus(@GetJwt() jwt: JwtPayload): Promise<RealUnitDisclaimerStatusDto> {
+    const user = await this.userService.getUser(jwt.user, { userData: { wallet: true } });
+    return this.realunitService.getDisclaimerStatus(user.userData);
+  }
+
+  @Put('disclaimer')
+  @ApiBearerAuth()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Confirm RealUnit legal-disclaimer steps',
+    description:
+      'Records the user accepting the given disclaimer steps. The server stamps each with the current required version (append-only audit trail); the client does not send versions.',
+  })
+  @ApiOkResponse({ description: 'Disclaimer steps confirmed' })
+  async confirmDisclaimer(@GetJwt() jwt: JwtPayload, @Body() dto: ConfirmDisclaimerDto): Promise<void> {
+    const user = await this.userService.getUser(jwt.user, { userData: { wallet: true } });
+    return this.realunitService.confirmDisclaimer(user.userData, dto.steps);
   }
 
   @Get('wallet/status')
