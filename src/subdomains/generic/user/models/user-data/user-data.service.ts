@@ -47,7 +47,7 @@ import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.se
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { Equal, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { Equal, FindOptionsRelations, In, IsNull, MoreThan, Not, Raw } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -196,7 +196,7 @@ export class UserDataService {
   ): Promise<UserData[]> {
     return this.userDataRepo.find({
       where: {
-        mail,
+        mail: Raw((alias) => `LOWER(${alias}) = :mail`, { mail: mail?.toLowerCase() }),
         status: onlyValidUser
           ? In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED])
           : undefined,
