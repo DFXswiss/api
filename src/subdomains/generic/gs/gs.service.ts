@@ -24,6 +24,7 @@ import { DataSource } from 'typeorm';
 import { LimitRequestService } from '../../supporting/support-issue/services/limit-request.service';
 import { KycDocumentService } from '../kyc/services/integration/kyc-document.service';
 import { KycAdminService } from '../kyc/services/kyc-admin.service';
+import { ComplianceSearchType } from '../support/dto/user-data-support.dto';
 import { BankDataService } from '../user/models/bank-data/bank-data.service';
 import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
@@ -196,20 +197,16 @@ export class GsService {
   // Sanctioned reverse lookup for the DEBUG tooling: the /gs/debug SQL endpoint blocks the
   // user_data.mail column (PII), so an email cannot be resolved to a userDataId via SQL. This
   // returns only non-PII identifiers, never the mail or any other personal data.
-  async resolveDebugUser(mail: string, userIdentifier: string): Promise<DebugUserResult[]> {
+  async resolveDebugUser(mail: string, userIdentifier: string): Promise<DebugUserResult> {
     this.logger.verbose(`Debug user lookup by ${userIdentifier}`);
 
+    // Same resolution the compliance search uses for a mail; returns only userDataIds, no PII.
     const userDataList = await this.userDataService.getUsersByMail(mail, false);
+    const userDataIds = Util.toUniqueList(userDataList, 'id')
+      .map((userData) => userData.id)
+      .sort((a, b) => a - b);
 
-    return userDataList.map((userData) => ({
-      userDataId: userData.id,
-      accountType: userData.accountType ?? null,
-      kycLevel: userData.kycLevel,
-      kycType: userData.kycType,
-      status: userData.status,
-      wallet: userData.wallet?.name ?? null,
-      created: userData.created,
-    }));
+    return { type: ComplianceSearchType.MAIL, userDataIds };
   }
 
   async executeDebugQuery(sql: string, userIdentifier: string): Promise<Record<string, unknown>[]> {

@@ -69,7 +69,7 @@ export class GsController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
-  async resolveDebugUser(@GetJwt() jwt: JwtPayload, @Body() dto: DebugUserQueryDto): Promise<DebugUserResult[]> {
+  async resolveDebugUser(@GetJwt() jwt: JwtPayload, @Body() dto: DebugUserQueryDto): Promise<DebugUserResult> {
     return this.gsService.resolveDebugUser(dto.mail, jwt.address ?? `account:${jwt.account}`);
   }
 }

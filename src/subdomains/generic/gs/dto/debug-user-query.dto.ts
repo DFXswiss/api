@@ -1,6 +1,5 @@
 import { IsNotEmpty, IsString, MaxLength } from 'class-validator';
-import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { KycLevel, KycType, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { ComplianceSearchType } from 'src/subdomains/generic/support/dto/user-data-support.dto';
 
 export class DebugUserQueryDto {
   @IsNotEmpty()
@@ -9,14 +8,8 @@ export class DebugUserQueryDto {
   mail: string;
 }
 
-// Only non-PII fields: enough to identify and disambiguate accounts (a mail can map to
-// several user_data rows through test aliases or merges) without exposing personal data.
+// Mirrors the compliance search result shape, but exposes only non-PII userDataIds.
 export interface DebugUserResult {
-  userDataId: number;
-  accountType: AccountType | null;
-  kycLevel: KycLevel;
-  kycType: KycType;
-  status: UserDataStatus;
-  wallet: string | null;
-  created: Date;
+  type: ComplianceSearchType;
+  userDataIds: number[];
 }
