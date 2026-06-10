@@ -5,6 +5,7 @@ import { LetterService } from 'src/integration/letter/letter.service';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DepositService } from 'src/subdomains/supporting/address-pool/deposit/deposit.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { AdminService } from './admin.service';
@@ -18,6 +19,7 @@ export class AdminController {
     private readonly adminService: AdminService,
     private readonly notificationService: NotificationService,
     private readonly letterService: LetterService,
+    private readonly depositService: DepositService,
   ) {}
 
   @Post('mail')
@@ -45,5 +47,13 @@ export class AdminController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async payout(@Body() request: PayoutRequestDto): Promise<void> {
     return this.adminService.payout(request);
+  }
+
+  @Post('lightning/rotate-webhook-secrets')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async rotateLightningWebhookSecrets(): Promise<void> {
+    return this.depositService.updateLightningDepositWebhook();
   }
 }

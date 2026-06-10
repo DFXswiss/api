@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { mock } from 'jest-mock-extended';
 import { HttpService } from 'src/shared/services/http.service';
@@ -133,5 +134,28 @@ describe('LnurlForward', () => {
 
       expect(result).toEqual({ status: 'OK' });
     });
+  });
+
+  describe('Path traversal prevention', () => {
+    it.each(['api%2fv1%2flinks', 'api%252fv1%252flinks', '../foo', 'foo/bar', '..%2fwallet'])(
+      'rejects malicious lnurlp id: %s',
+      async (id) => {
+        await expect(lnurlpForward.lnUrlPForward(id, undefined)).rejects.toThrow(BadRequestException);
+      },
+    );
+
+    it.each(['api%2fv1%2flinks', '../foo', 'foo/bar'])(
+      'rejects malicious lnurlp callback id: %s',
+      async (id) => {
+        await expect(lnurlpForward.lnUrlPCallbackForward(id, {})).rejects.toThrow(BadRequestException);
+      },
+    );
+
+    it.each(['api%2fv1%2flinks', '../foo', 'foo/bar'])(
+      'rejects malicious lnurlw id: %s',
+      async (id) => {
+        await expect(lnurlwForward.lnUrlWForward(id)).rejects.toThrow(BadRequestException);
+      },
+    );
   });
 });
