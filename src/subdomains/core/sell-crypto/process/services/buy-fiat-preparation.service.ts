@@ -13,6 +13,7 @@ import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payme
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -208,7 +209,7 @@ export class BuyFiatPreparationService {
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
           undefined,
-          TransactionHelper.getDefaultBankByPaymentMethod(FiatPaymentMethod.BANK),
+          IbanBankName.YAPEAL,
           entity.user,
         );
 
