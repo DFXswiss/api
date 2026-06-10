@@ -37,6 +37,7 @@ import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/se
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { BankTxReturn } from '../../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { CryptoInput, PayInConfirmationType } from '../../payin/entities/crypto-input.entity';
 import { PriceCurrency, PriceValidity, PricingService } from '../../pricing/services/pricing.service';
@@ -77,6 +78,7 @@ export class TransactionHelper implements OnModuleInit {
     private readonly buyService: BuyService,
     private readonly assetService: AssetService,
     private readonly countryService: CountryService,
+    private readonly bankService: BankService,
   ) {}
 
   onModuleInit() {
@@ -269,8 +271,8 @@ export class TransactionHelper implements OnModuleInit {
     const chfPrice = await this.pricingService.getPrice(txAsset, PriceCurrency.CHF, PriceValidity.ANY);
     const txAmountChf = chfPrice.convert(txAmount);
 
-    const bankIn = TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodIn);
-    const bankOut = TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodOut);
+    const bankIn = await this.getDefaultBank(paymentMethodIn, from.name);
+    const bankOut = await this.getDefaultBank(paymentMethodOut, isFiat(to) ? to.name : undefined);
 
     const wallet = walletName ? await this.walletService.getByIdOrName(undefined, walletName) : undefined;
 
@@ -853,15 +855,18 @@ export class TransactionHelper implements OnModuleInit {
 
   static getDefaultBankByPaymentMethod(paymentMethod: PaymentMethod): CardBankName | IbanBankName {
     switch (paymentMethod) {
-      case FiatPaymentMethod.BANK:
-        return IbanBankName.OLKY;
       case FiatPaymentMethod.CARD:
         return CardBankName.CHECKOUT;
-      case FiatPaymentMethod.INSTANT:
-        return IbanBankName.OLKY;
       default:
         return undefined;
     }
+  }
+
+  async getDefaultBank(paymentMethod: PaymentMethod, currency: string): Promise<IbanBankName> {
+    if (![FiatPaymentMethod.BANK, FiatPaymentMethod.INSTANT].includes(paymentMethod as FiatPaymentMethod))
+      return undefined;
+    const bank = await this.bankService.getBank({ amount: 0, currency, paymentMethod: paymentMethod as FiatPaymentMethod });
+    return bank?.name as IbanBankName;
   }
 
   private async getSourceSpecs(from: Active, { fee, volume }: TxSpec, priceValidity: PriceValidity): Promise<TxSpec> {

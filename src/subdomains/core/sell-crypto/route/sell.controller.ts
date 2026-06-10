@@ -246,7 +246,7 @@ export class SellController {
       CryptoPaymentMethod.CRYPTO,
       FiatPaymentMethod.BANK,
       undefined,
-      TransactionHelper.getDefaultBankByPaymentMethod(FiatPaymentMethod.BANK),
+      await this.transactionHelper.getDefaultBank(FiatPaymentMethod.BANK, sell.fiat.name),
       await this.assetService.getNativeAsset(defaultBlockchain),
       sell.fiat,
     );

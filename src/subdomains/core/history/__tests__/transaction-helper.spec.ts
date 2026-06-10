@@ -14,6 +14,7 @@ import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-d
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { createDefaultCheckoutTx } from 'src/subdomains/supporting/fiat-payin/__mocks__/checkout-tx.entity.mock';
 import { createDefaultCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import {
@@ -46,6 +47,7 @@ describe('TransactionHelper', () => {
   let buyService: BuyService;
   let assetService: AssetService;
   let countryService: CountryService;
+  let bankService: BankService;
 
   beforeEach(async () => {
     specRepo = createMock<TransactionSpecificationRepository>();
@@ -60,6 +62,7 @@ describe('TransactionHelper', () => {
     buyService = createMock<BuyService>();
     assetService = createMock<AssetService>();
     countryService = createMock<CountryService>();
+    bankService = createMock<BankService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -77,6 +80,7 @@ describe('TransactionHelper', () => {
         { provide: BuyService, useValue: buyService },
         { provide: AssetService, useValue: assetService },
         { provide: CountryService, useValue: countryService },
+        { provide: BankService, useValue: bankService },
         TestUtil.provideConfig(),
       ],
     }).compile();
