@@ -453,7 +453,11 @@ export class BuyFiatPreparationService {
       try {
         await this.fiatOutputService.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [buyFiat] }, buyFiat.id);
       } catch (e) {
-        this.logger.error(`Error during buy-fiat ${buyFiat.id} fiat output creation:`, e);
+        if (this.isIncompleteCreditorData(e)) {
+          this.logger.warn(`Skipped buy-fiat ${buyFiat.id} fiat output creation (incomplete creditor data):`, e);
+        } else {
+          this.logger.error(`Error during buy-fiat ${buyFiat.id} fiat output creation:`, e);
+        }
       }
     }
 
@@ -492,9 +496,21 @@ export class BuyFiatPreparationService {
           buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
         );
       } catch (e) {
-        this.logger.error(`Error during buy-fiat ${buyFiats[0].id} batched fiat output creation:`, e);
+        if (this.isIncompleteCreditorData(e)) {
+          this.logger.warn(
+            `Skipped buy-fiat ${buyFiats[0].id} batched fiat output creation (incomplete creditor data):`,
+            e,
+          );
+        } else {
+          this.logger.error(`Error during buy-fiat ${buyFiats[0].id} batched fiat output creation:`, e);
+        }
       }
     }
+  }
+
+  // Incomplete creditor data is a handled skip (retried next cycle), not a failure.
+  private isIncompleteCreditorData(e: unknown): boolean {
+    return e instanceof Error && e.message.includes('Missing required creditor fields');
   }
 
   async chargebackTx(): Promise<void> {
