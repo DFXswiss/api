@@ -10,10 +10,18 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
-import { createDefaultUserData } from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
+import {
+  createCustomUserData,
+  createDefaultUserData,
+} from 'src/subdomains/generic/user/models/user-data/__mocks__/user-data.entity.mock';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
+import { olkyEUR, yapealEUR } from 'src/subdomains/supporting/bank/bank/__mocks__/bank.entity.mock';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { createCustomVirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/__mocks__/virtual-iban.entity.mock';
+import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { createDefaultCheckoutTx } from 'src/subdomains/supporting/fiat-payin/__mocks__/checkout-tx.entity.mock';
 import { createDefaultCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import {
@@ -21,6 +29,7 @@ import {
   createCustomChargebackFeeInfo,
 } from 'src/subdomains/supporting/payment/__mocks__/fee.dto.mock';
 import { createCustomTransaction } from 'src/subdomains/supporting/payment/__mocks__/transaction.entity.mock';
+import { FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { TransactionSpecificationRepository } from 'src/subdomains/supporting/payment/repositories/transaction-specification.repository';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -46,6 +55,8 @@ describe('TransactionHelper', () => {
   let buyService: BuyService;
   let assetService: AssetService;
   let countryService: CountryService;
+  let bankService: BankService;
+  let virtualIbanService: VirtualIbanService;
 
   beforeEach(async () => {
     specRepo = createMock<TransactionSpecificationRepository>();
@@ -60,6 +71,8 @@ describe('TransactionHelper', () => {
     buyService = createMock<BuyService>();
     assetService = createMock<AssetService>();
     countryService = createMock<CountryService>();
+    bankService = createMock<BankService>();
+    virtualIbanService = createMock<VirtualIbanService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -77,6 +90,8 @@ describe('TransactionHelper', () => {
         { provide: BuyService, useValue: buyService },
         { provide: AssetService, useValue: assetService },
         { provide: CountryService, useValue: countryService },
+        { provide: BankService, useValue: bankService },
+        { provide: VirtualIbanService, useValue: virtualIbanService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -235,6 +250,52 @@ describe('TransactionHelper', () => {
       fee: { network: 0.01, bank: 0 },
       refundAmount: 0.09,
       refundTarget: undefined,
+    });
+  });
+  describe('getBankIn', () => {
+    const eur = createCustomFiat({ name: 'EUR' });
+
+    it('should return the deposit bank for bank transfers', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(olkyEUR);
+
+      await expect(
+        txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, createCustomUserData({ kycLevel: KycLevel.LEVEL_30 })),
+      ).resolves.toBe(IbanBankName.OLKY);
+    });
+
+    it('should return the vIBAN bank for users with an active vIBAN', async () => {
+      jest
+        .spyOn(virtualIbanService, 'getActiveForUserAndCurrency')
+        .mockResolvedValue(createCustomVirtualIban({ bank: yapealEUR }));
+
+      await expect(
+        txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, createCustomUserData({ kycLevel: KycLevel.LEVEL_50 })),
+      ).resolves.toBe(IbanBankName.YAPEAL);
+    });
+
+    it('should return the vIBAN bank for vIBAN-eligible users', async () => {
+      jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+
+      await expect(
+        txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, createCustomUserData({ kycLevel: KycLevel.LEVEL_50 })),
+      ).resolves.toBe(IbanBankName.YAPEAL);
+    });
+
+    it('should return the instant bank for instant transfers', async () => {
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(olkyEUR);
+
+      await expect(txHelper['getBankIn'](eur, FiatPaymentMethod.INSTANT, undefined)).resolves.toBe(IbanBankName.OLKY);
+    });
+
+    it('should return the default bank for card payments', async () => {
+      await expect(txHelper['getBankIn'](eur, FiatPaymentMethod.CARD, undefined)).resolves.toBe(CardBankName.CHECKOUT);
+    });
+
+    it('should fall back to the default bank if no deposit bank is found', async () => {
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(undefined);
+
+      await expect(txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, undefined)).resolves.toBe(IbanBankName.YAPEAL);
     });
   });
 });
