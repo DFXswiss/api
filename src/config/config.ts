@@ -1287,15 +1287,11 @@ export class Configuration {
 
 function readCert(): string | undefined {
   const path = process.env.LIGHTNING_API_CERTIFICATE_PATH;
-  if (path) {
-    try {
-      return readFileSync(path, 'utf8');
-    } catch {
-      // fall back to env var below
-    }
-  }
+  if (!path) return undefined;
 
-  return process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n');
+  // Path is set: read the live LND cert from disk and let a missing/unreadable file throw,
+  // so a broken mount surfaces immediately instead of being masked by a stale fallback.
+  return readFileSync(path, 'utf8');
 }
 
 function splitWithdrawKeys(value?: string): Map<string, string> {
