@@ -37,6 +37,10 @@ interface SwissQRBillTableData {
   description: any;
   fiatAmount: number;
   date: Date;
+  unitPrice?: number;
+  txHash?: string;
+  walletAddress?: string;
+  buyerName?: string;
 }
 
 @Injectable()
@@ -128,9 +132,11 @@ export class SwissQRService {
     currency: 'CHF' | 'EUR',
     isIncoming: boolean,
     brand: PdfBrand = PdfBrand.REALUNIT,
+    languageOverride?: string,
+    walletAddress?: string,
   ): Promise<string> {
     const debtor = this.getDebtor(userData);
-    const language = this.getLanguage(userData);
+    const language = languageOverride ?? this.getLanguage(userData);
     const tokenAmount = Number(historyEvent.transfer.value);
     const fiatAmount = Util.roundReadable(tokenAmount * fiatPrice, AmountType.FIAT);
 
@@ -146,6 +152,10 @@ export class SwissQRService {
       },
       fiatAmount,
       date: historyEvent.timestamp,
+      unitPrice: fiatPrice,
+      txHash: historyEvent.txHash,
+      walletAddress,
+      buyerName: userData.completeName,
     };
 
     const billData: QrBillData = {
@@ -177,11 +187,13 @@ export class SwissQRService {
     asset: Asset,
     currency: 'CHF' | 'EUR',
     brand: PdfBrand = PdfBrand.REALUNIT,
+    languageOverride?: string,
+    walletAddress?: string,
   ): Promise<string> {
     if (receipts.length === 0) throw new Error('At least one transaction is required');
 
     const debtor = this.getDebtor(userData);
-    const language = this.getLanguage(userData);
+    const language = languageOverride ?? this.getLanguage(userData);
 
     const tableDataWithType: { data: SwissQRBillTableData; type: TransactionType }[] = [];
 
@@ -201,6 +213,8 @@ export class SwissQRService {
         },
         fiatAmount,
         date: historyEvent.timestamp,
+        unitPrice: fiatPrice,
+        txHash: historyEvent.txHash,
       };
 
       const transactionType = isIncoming ? TransactionType.BUY : TransactionType.SELL;
@@ -213,7 +227,15 @@ export class SwissQRService {
       currency,
     };
 
-    return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand, true);
+    return this.generateMultiPdfInvoice(
+      tableDataWithType,
+      language,
+      billData,
+      brand,
+      true,
+      walletAddress,
+      userData.completeName,
+    );
   }
 
   private shortenTxHash(txHash: string): string {
@@ -232,37 +254,82 @@ export class SwissQRService {
     skipTermsAndConditions = false,
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
+    const isRealUnit = brand === PdfBrand.REALUNIT;
+    const lang = typeof language === 'string' ? language.toLowerCase() : language;
 
     PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
     this.drawSenderAddress(pdf, brand);
     this.drawDebtorAddress(pdf, billData.debtor, debtorName);
     this.drawTitle(pdf, tableData.title);
 
-    // Date
+    // Date (+ time for RealUnit)
+    const d = tableData.date;
+    const creditorCity = billData.creditor?.city || 'Zug';
+    const dateStr = `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
+    const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+
     pdf.fontSize(11);
     pdf.font('Helvetica');
-    pdf.text(`Zug ${tableData.date.getDate()}.${tableData.date.getMonth() + 1}.${tableData.date.getFullYear()}`, {
+    pdf.text(isRealUnit ? `${creditorCity}, ${dateStr} ${timeStr}` : `Zug ${dateStr}`, {
       align: 'right',
       width: mm2pt(170),
     });
 
-    // Table
+    // Description key: use RealUnit-specific key when applicable
+    const descriptionKey = isRealUnit
+      ? `invoice.realunit_receipt.${transactionType.toLowerCase()}_description`
+      : `invoice.table.position_row.${transactionType.toLowerCase()}_description`;
+
+    // Table columns vary: RealUnit adds a unit price column
+    const hasUnitPrice = isRealUnit && tableData.unitPrice != null;
+    const headerColumns: PDFColumn[] = [
+      {
+        text: this.translate('invoice.table.headers.quantity', lang) + (bankInfo ? ' *' : ''),
+        width: hasUnitPrice ? mm2pt(25) : mm2pt(40),
+      },
+      {
+        text: this.translate('invoice.table.headers.description', lang),
+      },
+    ];
+    if (hasUnitPrice) {
+      headerColumns.push({
+        text: this.translate('invoice.realunit_receipt.unit_price_label', lang),
+        width: mm2pt(30),
+      });
+    }
+    headerColumns.push({
+      text: this.translate('invoice.table.headers.total', lang),
+      width: mm2pt(30),
+    });
+
+    const dataColumns: PDFColumn[] = [
+      {
+        text: `${tableData.quantity}`,
+        width: hasUnitPrice ? mm2pt(25) : mm2pt(40),
+      },
+      {
+        text: this.translate(descriptionKey, lang, tableData.description),
+      },
+    ];
+    if (hasUnitPrice) {
+      dataColumns.push({
+        text: `${billData.currency} ${tableData.unitPrice.toFixed(2)}`,
+        width: mm2pt(30),
+      });
+    }
+    dataColumns.push({
+      text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
+      width: mm2pt(30),
+    });
+
+    const emptyCol = (w: number): PDFColumn => ({ text: '', width: mm2pt(w) });
+    const qtyEmptyWidth = hasUnitPrice ? 25 : 40;
+
+    // Table rows
     const rows: PDFRow[] = [
       {
         backgroundColor: '#4A4D51',
-        columns: [
-          {
-            text: this.translate('invoice.table.headers.quantity', language) + (bankInfo ? ' *' : ''),
-            width: mm2pt(40),
-          },
-          {
-            text: this.translate('invoice.table.headers.description', language),
-          },
-          {
-            text: this.translate('invoice.table.headers.total', language),
-            width: mm2pt(30),
-          },
-        ],
+        columns: headerColumns,
         fontName: 'Helvetica-Bold',
         height: 20,
         padding: 5,
@@ -270,91 +337,17 @@ export class SwissQRService {
         verticalAlign: 'center',
       },
       {
-        columns: [
-          {
-            text: `${tableData.quantity}`,
-            width: mm2pt(40),
-          },
-          {
-            text: this.translate(
-              `invoice.table.position_row.${transactionType.toLowerCase()}_description`,
-              language,
-              tableData.description,
-            ),
-          },
-          {
-            text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
-            width: mm2pt(30),
-          },
-        ],
+        columns: dataColumns,
         padding: 5,
       },
       {
         columns: [
-          {
-            text: '',
-            width: mm2pt(40),
-          },
+          emptyCol(qtyEmptyWidth),
           {
             fontName: 'Helvetica-Bold',
-            text: this.translate('invoice.table.total_row.total_label', language),
+            text: this.translate('invoice.table.total_row.total_label', lang),
           },
-          {
-            fontName: 'Helvetica-Bold',
-            text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
-            width: mm2pt(30),
-          },
-        ],
-        height: 40,
-        padding: 5,
-      },
-      {
-        columns: [
-          {
-            text: '',
-            width: mm2pt(40),
-          },
-          {
-            text: this.translate('invoice.table.vat_row.vat_label', language),
-          },
-          {
-            text: '0%',
-            width: mm2pt(30),
-          },
-        ],
-        padding: 5,
-      },
-      {
-        columns: [
-          {
-            text: '',
-            width: mm2pt(40),
-          },
-          {
-            text: this.translate('invoice.table.vat_row.vat_amount_label', language),
-          },
-          {
-            text: `${billData.currency} 0.00`,
-            width: mm2pt(30),
-          },
-        ],
-        padding: 5,
-      },
-      {
-        columns: [
-          {
-            text: '',
-            width: mm2pt(40),
-          },
-          {
-            fontName: 'Helvetica-Bold',
-            text: this.translate(
-              transactionType === TransactionType.REFERRAL
-                ? 'invoice.table.credit_total_row.credit_total_label'
-                : 'invoice.table.invoice_total_row.invoice_total_label',
-              language,
-            ),
-          },
+          ...(hasUnitPrice ? [emptyCol(30)] : []),
           {
             fontName: 'Helvetica-Bold',
             text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
@@ -366,11 +359,70 @@ export class SwissQRService {
       },
     ];
 
+    // Fees row for RealUnit
+    if (isRealUnit) {
+      rows.push({
+        columns: [
+          emptyCol(qtyEmptyWidth),
+          { text: this.translate('invoice.realunit_receipt.fees_label', lang) },
+          ...(hasUnitPrice ? [emptyCol(30)] : []),
+          { text: this.translate('invoice.realunit_receipt.fees_free', lang), width: mm2pt(30) },
+        ],
+        padding: 5,
+      });
+    }
+
+    // VAT rows
+    rows.push(
+      {
+        columns: [
+          emptyCol(qtyEmptyWidth),
+          { text: this.translate('invoice.table.vat_row.vat_label', lang) },
+          ...(hasUnitPrice ? [emptyCol(30)] : []),
+          { text: '0%', width: mm2pt(30) },
+        ],
+        padding: 5,
+      },
+      {
+        columns: [
+          emptyCol(qtyEmptyWidth),
+          { text: this.translate('invoice.table.vat_row.vat_amount_label', lang) },
+          ...(hasUnitPrice ? [emptyCol(30)] : []),
+          { text: `${billData.currency} 0.00`, width: mm2pt(30) },
+        ],
+        padding: 5,
+      },
+    );
+
+    // Total row
+    const totalLabel = isRealUnit
+      ? this.translate('invoice.realunit_receipt.receipt_total_label', lang)
+      : this.translate(
+          transactionType === TransactionType.REFERRAL
+            ? 'invoice.table.credit_total_row.credit_total_label'
+            : 'invoice.table.invoice_total_row.invoice_total_label',
+          lang,
+        );
+    rows.push({
+      columns: [
+        emptyCol(qtyEmptyWidth),
+        { fontName: 'Helvetica-Bold', text: totalLabel },
+        ...(hasUnitPrice ? [emptyCol(30)] : []),
+        {
+          fontName: 'Helvetica-Bold',
+          text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`,
+          width: mm2pt(30),
+        },
+      ],
+      height: 40,
+      padding: 5,
+    });
+
     if (bankInfo) {
       rows.push({
         columns: [
           {
-            text: this.translate('invoice.info', language),
+            text: this.translate('invoice.info', lang),
             textOptions: { oblique: true, lineGap: 2 },
             fontSize: 10,
             width: mm2pt(170),
@@ -380,11 +432,16 @@ export class SwissQRService {
     }
 
     if (!skipTermsAndConditions) {
-      rows.push({ columns: [this.getTermsAndConditions(language)] });
+      rows.push({ columns: [this.getTermsAndConditions(lang)] });
     }
 
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
+
+    // RealUnit details section (buyer, wallet, txHash, payment method)
+    if (isRealUnit && (tableData.txHash || tableData.walletAddress || tableData.buyerName)) {
+      this.drawReceiptDetails(pdf, tableData, lang);
+    }
 
     // QR-Bill (Swiss/LI IBAN) or GiroCode (other IBANs)
     const isDomesticTransfer = bankInfo && Config.isDomesticIban(bankInfo.iban);
@@ -440,19 +497,68 @@ export class SwissQRService {
     return promise;
   }
 
+  private drawReceiptDetails(pdf: typeof PDFDocument.prototype, tableData: SwissQRBillTableData, lang: string): void {
+    const startY = pdf.y + 15;
+    const labelX = mm2pt(20);
+
+    pdf.font('Helvetica-Bold').fontSize(11);
+    pdf.text(this.translate('invoice.realunit_receipt.details_title', lang), labelX, startY);
+
+    const details: { label: string; value: string }[] = [];
+
+    if (tableData.buyerName) {
+      details.push({
+        label: this.translate('invoice.realunit_receipt.buyer_label', lang),
+        value: tableData.buyerName,
+      });
+    }
+
+    if (tableData.walletAddress) {
+      details.push({
+        label: this.translate('invoice.realunit_receipt.wallet_label', lang),
+        value: tableData.walletAddress,
+      });
+    }
+
+    if (tableData.txHash) {
+      details.push({
+        label: this.translate('invoice.realunit_receipt.tx_hash_label', lang),
+        value: tableData.txHash,
+      });
+    }
+
+    details.push({
+      label: this.translate('invoice.realunit_receipt.payment_method_label', lang),
+      value: this.translate('invoice.realunit_receipt.payment_method_blockchain', lang),
+    });
+
+    pdf.fontSize(10);
+    let currentY = startY + 18;
+    for (const { label, value } of details) {
+      pdf.font('Helvetica-Bold').text(`${label}:`, labelX, currentY, { continued: true });
+      pdf.font('Helvetica').text(`  ${value}`, { width: mm2pt(150) });
+      currentY = pdf.y + 4;
+    }
+  }
+
   private generateMultiPdfInvoice(
     tableDataWithType: { data: SwissQRBillTableData; type: TransactionType }[],
     language: string,
     billData: QrBillData,
     brand: PdfBrand = PdfBrand.DFX,
     skipTermsAndConditions = false,
+    walletAddress?: string,
+    buyerName?: string,
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
+    const isRealUnit = brand === PdfBrand.REALUNIT;
+    const lang = typeof language === 'string' ? language.toLowerCase() : language;
+    const hasUnitPrice = isRealUnit && tableDataWithType.some((t) => t.data.unitPrice != null);
 
     PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
     this.drawSenderAddress(pdf, brand);
     this.drawDebtorAddress(pdf, billData.debtor);
-    this.drawTitle(pdf, this.translate('invoice.multi_receipt_title', language));
+    this.drawTitle(pdf, this.translate('invoice.multi_receipt_title', lang));
 
     const buyTransactions = tableDataWithType.filter((t) => t.type === TransactionType.BUY);
     const sellTransactions = tableDataWithType.filter((t) => t.type === TransactionType.SELL);
@@ -460,130 +566,119 @@ export class SwissQRService {
     const sellTotal = sellTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
 
     const rows: PDFRow[] = [];
+    const qtyWidth = hasUnitPrice ? 20 : 30;
+    const emptyCol = (w: number): PDFColumn => ({ text: '', width: mm2pt(w) });
 
-    if (buyTransactions.length > 0) {
-      rows.push({
-        columns: [
-          {
-            text: this.translate('invoice.section.buy', language),
-            fontName: 'Helvetica-Bold',
-            fontSize: 12,
-          },
-        ],
-        height: 30,
-        padding: [15, 5, 5, 5],
-      });
+    const buildSectionHeader = (sectionKey: string): PDFRow => ({
+      columns: [
+        {
+          text: this.translate(`invoice.section.${sectionKey}`, lang),
+          fontName: 'Helvetica-Bold',
+          fontSize: 12,
+        },
+      ],
+      height: 30,
+      padding: [15, 5, 5, 5],
+    });
 
-      rows.push({
+    const buildTableHeader = (): PDFRow => {
+      const cols: PDFColumn[] = [
+        { text: this.translate('invoice.table.headers.quantity', lang), width: mm2pt(qtyWidth) },
+        { text: this.translate('invoice.table.headers.description', lang) },
+      ];
+      if (hasUnitPrice) {
+        cols.push({ text: this.translate('invoice.realunit_receipt.unit_price_label', lang), width: mm2pt(25) });
+      }
+      cols.push(
+        { text: this.translate('invoice.table.headers.date', lang), width: mm2pt(25) },
+        { text: this.translate('invoice.table.headers.total', lang), width: mm2pt(30) },
+      );
+      return {
         backgroundColor: '#4A4D51',
-        columns: [
-          { text: this.translate('invoice.table.headers.quantity', language), width: mm2pt(30) },
-          { text: this.translate('invoice.table.headers.description', language) },
-          { text: this.translate('invoice.table.headers.date', language), width: mm2pt(25) },
-          { text: this.translate('invoice.table.headers.total', language), width: mm2pt(30) },
-        ],
+        columns: cols,
         fontName: 'Helvetica-Bold',
         height: 20,
         padding: 5,
         textColor: '#fff',
         verticalAlign: 'center',
-      });
+      };
+    };
 
-      for (const { data: tableData } of buyTransactions) {
-        const txDate = tableData.date;
-        const formattedDate = `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()}`;
-        rows.push({
-          columns: [
-            { text: `${tableData.quantity}`, width: mm2pt(30) },
-            { text: this.translate('invoice.table.position_row.buy_description', language, tableData.description) },
-            { text: formattedDate, width: mm2pt(25) },
-            { text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`, width: mm2pt(30) },
-          ],
-          padding: 5,
+    const buildDataRow = (tableData: SwissQRBillTableData, txType: TransactionType): PDFRow => {
+      const txDate = tableData.date;
+      const formattedDate = isRealUnit
+        ? `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()} ${String(txDate.getHours()).padStart(2, '0')}:${String(txDate.getMinutes()).padStart(2, '0')}`
+        : `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()}`;
+
+      const descKey = isRealUnit
+        ? `invoice.realunit_receipt.${txType.toLowerCase()}_description`
+        : `invoice.table.position_row.${txType.toLowerCase()}_description`;
+
+      const cols: PDFColumn[] = [
+        { text: `${tableData.quantity}`, width: mm2pt(qtyWidth) },
+        { text: this.translate(descKey, lang, tableData.description) },
+      ];
+      if (hasUnitPrice) {
+        cols.push({
+          text: tableData.unitPrice != null ? `${billData.currency} ${tableData.unitPrice.toFixed(2)}` : '',
+          width: mm2pt(25),
         });
       }
+      cols.push(
+        { text: formattedDate, width: mm2pt(25) },
+        { text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`, width: mm2pt(30) },
+      );
+      return { columns: cols, padding: 5 };
+    };
 
-      rows.push({
-        columns: [
-          { text: '', width: mm2pt(30) },
-          {
-            text: this.translate('invoice.table.total_row.total_label', language),
-            fontName: 'Helvetica-Bold',
-          },
-          { text: '', width: mm2pt(25) },
-          { text: `${billData.currency} ${buyTotal.toFixed(2)}`, width: mm2pt(30), fontName: 'Helvetica-Bold' },
-        ],
-        height: 25,
-        padding: 5,
+    const buildSubtotalRow = (total: number): PDFRow => {
+      const cols: PDFColumn[] = [
+        emptyCol(qtyWidth),
+        { text: this.translate('invoice.table.total_row.total_label', lang), fontName: 'Helvetica-Bold' },
+      ];
+      if (hasUnitPrice) cols.push(emptyCol(25));
+      cols.push(emptyCol(25), {
+        text: `${billData.currency} ${total.toFixed(2)}`,
+        width: mm2pt(30),
+        fontName: 'Helvetica-Bold',
       });
+      return { columns: cols, height: 25, padding: 5 };
+    };
+
+    if (buyTransactions.length > 0) {
+      rows.push(buildSectionHeader('buy'));
+      rows.push(buildTableHeader());
+      for (const { data, type } of buyTransactions) rows.push(buildDataRow(data, type));
+      rows.push(buildSubtotalRow(buyTotal));
     }
 
     if (sellTransactions.length > 0) {
-      rows.push({
-        columns: [
-          {
-            text: this.translate('invoice.section.sell', language),
-            fontName: 'Helvetica-Bold',
-            fontSize: 12,
-          },
-        ],
-        height: 30,
-        padding: [15, 5, 5, 5],
-      });
-
-      rows.push({
-        backgroundColor: '#4A4D51',
-        columns: [
-          { text: this.translate('invoice.table.headers.quantity', language), width: mm2pt(30) },
-          { text: this.translate('invoice.table.headers.description', language) },
-          { text: this.translate('invoice.table.headers.date', language), width: mm2pt(25) },
-          { text: this.translate('invoice.table.headers.total', language), width: mm2pt(30) },
-        ],
-        fontName: 'Helvetica-Bold',
-        height: 20,
-        padding: 5,
-        textColor: '#fff',
-        verticalAlign: 'center',
-      });
-
-      for (const { data: tableData } of sellTransactions) {
-        const txDate = tableData.date;
-        const formattedDate = `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()}`;
-        rows.push({
-          columns: [
-            { text: `${tableData.quantity}`, width: mm2pt(30) },
-            {
-              text: this.translate('invoice.table.position_row.sell_description', language, tableData.description),
-            },
-            { text: formattedDate, width: mm2pt(25) },
-            { text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`, width: mm2pt(30) },
-          ],
-          padding: 5,
-        });
-      }
-
-      // Sell subtotal
-      rows.push({
-        columns: [
-          { text: '', width: mm2pt(30) },
-          {
-            text: this.translate('invoice.table.total_row.total_label', language),
-            fontName: 'Helvetica-Bold',
-          },
-          { text: '', width: mm2pt(25) },
-          { text: `${billData.currency} ${sellTotal.toFixed(2)}`, width: mm2pt(30), fontName: 'Helvetica-Bold' },
-        ],
-        height: 25,
-        padding: 5,
-      });
+      rows.push(buildSectionHeader('sell'));
+      rows.push(buildTableHeader());
+      for (const { data, type } of sellTransactions) rows.push(buildDataRow(data, type));
+      rows.push(buildSubtotalRow(sellTotal));
     }
 
     if (!skipTermsAndConditions) {
-      rows.push({ columns: [this.getTermsAndConditions(language)] });
+      rows.push({ columns: [this.getTermsAndConditions(lang)] });
     }
 
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
+
+    // RealUnit details section
+    if (isRealUnit && (walletAddress || buyerName)) {
+      const detailsData: SwissQRBillTableData = {
+        title: '',
+        quantity: 0,
+        description: {},
+        fiatAmount: 0,
+        date: new Date(),
+        walletAddress,
+        buyerName,
+      };
+      this.drawReceiptDetails(pdf, detailsData, lang);
+    }
 
     pdf.end();
 

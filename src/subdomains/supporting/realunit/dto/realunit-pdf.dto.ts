@@ -54,6 +54,11 @@ export class RealUnitSingleReceiptPdfDto {
   @IsOptional()
   @IsEnum(ReceiptCurrency)
   currency?: ReceiptCurrency = ReceiptCurrency.CHF;
+
+  @ApiPropertyOptional({ description: 'Language for the receipt', enum: PdfLanguage })
+  @IsOptional()
+  @IsEnum(PdfLanguage)
+  language?: PdfLanguage;
 }
 
 export class RealUnitMultiReceiptPdfDto {
@@ -71,4 +76,9 @@ export class RealUnitMultiReceiptPdfDto {
   @IsOptional()
   @IsEnum(ReceiptCurrency)
   currency?: ReceiptCurrency = ReceiptCurrency.CHF;
+
+  @ApiPropertyOptional({ description: 'Language for the receipt', enum: PdfLanguage })
+  @IsOptional()
+  @IsEnum(PdfLanguage)
+  language?: PdfLanguage;
 }

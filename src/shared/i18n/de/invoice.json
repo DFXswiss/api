@@ -40,5 +40,19 @@
   "payment_info_iban": "IBAN",
   "payment_info_bic": "BIC",
   "payment_info_recipient": "Empfänger",
-  "payment_info_reference": "Verwendungszweck"
+  "payment_info_reference": "Verwendungszweck",
+  "realunit_receipt": {
+    "buy_description": "RealUnit Namenaktie (Aktientoken REALU), ISIN CH1137233305 — Registerwertrecht via Ethereum-Blockchain",
+    "sell_description": "RealUnit Namenaktie (Aktientoken REALU), ISIN CH1137233305 — Registerwertrecht via Ethereum-Blockchain",
+    "unit_price_label": "Kurs pro Aktie",
+    "fees_label": "Spesen",
+    "fees_free": "spesenfrei",
+    "details_title": "Transaktionsdetails",
+    "buyer_label": "Käufer / Inhaber",
+    "wallet_label": "Wallet-Adresse",
+    "tx_hash_label": "Transaktions-Hash",
+    "payment_method_label": "Zahlungsart",
+    "payment_method_blockchain": "Blockchain-Transfer",
+    "receipt_total_label": "Total"
+  }
 }
