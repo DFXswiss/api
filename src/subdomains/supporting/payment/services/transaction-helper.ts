@@ -854,7 +854,7 @@ export class TransactionHelper implements OnModuleInit {
   static getDefaultBankByPaymentMethod(paymentMethod: PaymentMethod): CardBankName | IbanBankName {
     switch (paymentMethod) {
       case FiatPaymentMethod.BANK:
-        return IbanBankName.YAPEAL;
+        return IbanBankName.OLKY;
       case FiatPaymentMethod.CARD:
         return CardBankName.CHECKOUT;
       case FiatPaymentMethod.INSTANT:
