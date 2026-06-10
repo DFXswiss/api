@@ -384,7 +384,7 @@ export class BuyService {
     // user-level vIBAN
     let virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(selector.userData, selector.currency);
 
-    // EUR/CHF: create vIBAN for KYC 50+
+    // CHF: create vIBAN for KYC 50+
     if (!virtualIban && VirtualIbanService.isUserEligible(selector.currency, selector.userData)) {
       virtualIban = await this.virtualIbanService.createForUser(selector.userData, selector.currency).catch(() => null);
     }

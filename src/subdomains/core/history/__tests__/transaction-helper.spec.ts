@@ -274,12 +274,13 @@ describe('TransactionHelper', () => {
       ).resolves.toBe(IbanBankName.YAPEAL);
     });
 
-    it('should return the vIBAN bank for vIBAN-eligible users', async () => {
+    it('should return the deposit bank for users without an active vIBAN', async () => {
       jest.spyOn(virtualIbanService, 'getActiveForUserAndCurrency').mockResolvedValue(null);
+      jest.spyOn(bankService, 'getBank').mockResolvedValue(olkyEUR);
 
       await expect(
         txHelper['getBankIn'](eur, FiatPaymentMethod.BANK, createCustomUserData({ kycLevel: KycLevel.LEVEL_50 })),
-      ).resolves.toBe(IbanBankName.YAPEAL);
+      ).resolves.toBe(IbanBankName.OLKY);
     });
 
     it('should return the instant bank for instant transfers', async () => {

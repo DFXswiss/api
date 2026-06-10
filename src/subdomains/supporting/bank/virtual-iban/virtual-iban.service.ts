@@ -12,7 +12,7 @@ import { VirtualIbanRepository } from './virtual-iban.repository';
 @Injectable()
 export class VirtualIbanService {
   static readonly bankName = IbanBankName.YAPEAL;
-  static readonly currencies = ['EUR', 'CHF'];
+  static readonly currencies = ['CHF'];
 
   static isUserEligible(currencyName: string, userData: UserData): boolean {
     return VirtualIbanService.currencies.includes(currencyName) && userData.kycLevel >= KycLevel.LEVEL_50;

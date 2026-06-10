@@ -869,7 +869,6 @@ export class TransactionHelper implements OnModuleInit {
     if (userData) {
       const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(userData, from.name);
       if (virtualIban?.bank.receive) return virtualIban.bank.name;
-      if (VirtualIbanService.isUserEligible(from.name, userData)) return VirtualIbanService.bankName;
     }
 
     const bank = await this.bankService.getBank({
