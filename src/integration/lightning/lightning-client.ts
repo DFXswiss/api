@@ -220,6 +220,8 @@ export class LightningClient implements CoinOnly {
   }
 
   async getLnurlpLink(linkId: string): Promise<LnurlpLinkDto> {
+    this.validateLinkId(linkId);
+
     return this.http.get<LnurlpLinkDto>(
       `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links/${linkId}`,
       this.httpLnBitsConfig(),
@@ -250,7 +252,7 @@ export class LightningClient implements CoinOnly {
   }
 
   async updateLnurlpLink(linkId: string, data: LnurlpLinkUpdateDto): Promise<LnurlpLinkDto> {
-    if (!linkId) throw new Error('LinkId is undefined');
+    this.validateLinkId(linkId);
 
     return this.http.put<LnurlpLinkDto>(
       `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links/${linkId}`,

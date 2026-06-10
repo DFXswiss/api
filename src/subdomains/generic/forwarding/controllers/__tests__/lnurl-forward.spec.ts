@@ -144,18 +144,12 @@ describe('LnurlForward', () => {
       },
     );
 
-    it.each(['api%2fv1%2flinks', '../foo', 'foo/bar'])(
-      'rejects malicious lnurlp callback id: %s',
-      async (id) => {
-        await expect(lnurlpForward.lnUrlPCallbackForward(id, {})).rejects.toThrow(BadRequestException);
-      },
-    );
+    it.each(['api%2fv1%2flinks', '../foo', 'foo/bar'])('rejects malicious lnurlp callback id: %s', async (id) => {
+      await expect(lnurlpForward.lnUrlPCallbackForward(id, {})).rejects.toThrow(BadRequestException);
+    });
 
-    it.each(['api%2fv1%2flinks', '../foo', 'foo/bar'])(
-      'rejects malicious lnurlw id: %s',
-      async (id) => {
-        await expect(lnurlwForward.lnUrlWForward(id)).rejects.toThrow(BadRequestException);
-      },
-    );
+    it.each(['api%2fv1%2flinks', '../foo', 'foo/bar'])('rejects malicious lnurlw id: %s', async (id) => {
+      await expect(lnurlwForward.lnUrlWForward(id)).rejects.toThrow(BadRequestException);
+    });
   });
 });
