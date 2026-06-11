@@ -557,8 +557,9 @@ export class BuyFiat extends IEntity {
   pendingOutputAmount(asset: Asset): number {
     const payoutBankName = this.fiatOutput?.bank?.name ?? IbanBankName.YAPEAL;
 
-    if (payoutBankName === IbanBankName.YAPEAL && this.fiatOutput?.isTransmittedDate) return 0;
-
+    // the output stays a liability until the entity completes (outgoing bankTx booked): the bank
+    // balance only drops when the bank books the debit, which can be days after transmission
+    // (weekend/cut-off batches) - and a transmitted payment may still fail
     return this.outputAmount && asset.dexName === this.sell.fiat.name && asset.bank?.name === payoutBankName
       ? this.outputAmount
       : 0;
