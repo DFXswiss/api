@@ -152,7 +152,7 @@ export class AuthService {
     const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature).catch(() => undefined);
     if (
       !custodyProvider &&
-      !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, undefined, dto.blockchain))
+      !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, undefined, dto.blockchain, true))
     ) {
       throw new BadRequestException('Invalid signature');
     }
@@ -475,14 +475,18 @@ export class AuthService {
     key?: string,
     dbSignature?: string,
     blockchain?: Blockchain,
+    isSignUp = false,
   ): Promise<boolean> {
     const { defaultMessage, fallbackMessage } = this.getSignMessages(address);
 
     const blockchains = CryptoService.getBlockchainsBasedOn(address);
 
     if (blockchains.includes(Blockchain.LIGHTNING) && (isCustodial || /^[a-z0-9]{140,146}$/.test(signature))) {
-      // custodial Lightning wallet, only comparison check
-      return !dbSignature || signature === dbSignature;
+      // custodial Lightning wallet: no cryptographic check is possible, so the signature acts as a
+      // shared secret. On sign-up nothing is stored yet, so the first signature establishes it; on
+      // sign-in it must match a NON-EMPTY stored signature. An empty stored signature must never
+      // authenticate — otherwise any signature passes for an account whose credential was never set.
+      return isSignUp || (!!dbSignature && signature === dbSignature);
     }
 
     if (blockchains.includes(Blockchain.DEFICHAIN)) {
