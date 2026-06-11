@@ -62,8 +62,8 @@ export class ExchangeAdapter implements LiquidityBalanceIntegration {
   async getForExchange(exchange: string, assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
     const exchangeService = this.exchangeRegistry.getExchange(exchange);
 
-    // not configured (no API credentials) -> skip gracefully, warn once. Scrypt has no isConfigured and is treated as configured.
-    if ('isConfigured' in exchangeService && !exchangeService.isConfigured) {
+    // not configured (no API credentials) -> skip gracefully, warn once
+    if (!exchangeService.isConfigured) {
       if (!this.unconfiguredWarned.has(exchange)) {
         this.unconfiguredWarned.add(exchange);
         this.logger.warn(`Exchange ${exchange} has no credentials configured — skipping liquidity balance`);
