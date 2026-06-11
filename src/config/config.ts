@@ -1287,11 +1287,14 @@ export class Configuration {
 
 function readCert(): string | undefined {
   const path = process.env.LIGHTNING_API_CERTIFICATE_PATH;
-  if (!path) return undefined;
+  if (path) {
+    // Path is set: read the live LND cert from disk and let a missing/unreadable file throw,
+    // so a broken mount surfaces immediately instead of being masked by a stale fallback.
+    return readFileSync(path, 'utf8');
+  }
 
-  // Path is set: read the live LND cert from disk and let a missing/unreadable file throw,
-  // so a broken mount surfaces immediately instead of being masked by a stale fallback.
-  return readFileSync(path, 'utf8');
+  // Fallback for environments without a cert file mount (e.g. Azure App Service).
+  return process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n');
 }
 
 function splitWithdrawKeys(value?: string): Map<string, string> {
