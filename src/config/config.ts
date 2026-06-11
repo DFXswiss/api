@@ -1287,7 +1287,9 @@ export class Configuration {
 
 function readCert(): string | undefined {
   const path = process.env.LIGHTNING_API_CERTIFICATE_PATH;
-  if (!path) return undefined;
+
+  // No path (e.g. prod hosted without the LND volume): use the certificate env var.
+  if (!path) return process.env.LIGHTNING_API_CERTIFICATE?.split('<br>').join('\n');
 
   // Path is set: read the live LND cert from disk and let a missing/unreadable file throw,
   // so a broken mount surfaces immediately instead of being masked by a stale fallback.
