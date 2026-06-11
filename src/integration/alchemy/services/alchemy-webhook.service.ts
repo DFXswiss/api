@@ -70,7 +70,6 @@ export class AlchemyWebhookService implements OnModuleInit {
     const signingKey = this.webhookCache.get(webhookId);
     if (!signingKey) {
       this.logger.warn(`Webhook Id ${webhookId} has no signing key`);
-      this.logger.warn(`Webhook cache: ${JSON.stringify(this.webhookCache)}`);
       return false;
     }
 
