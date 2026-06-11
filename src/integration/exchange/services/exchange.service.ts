@@ -68,6 +68,11 @@ export abstract class ExchangeService extends PricingProvider implements OnModul
     return this.exchange.name;
   }
 
+  // true only when both ccxt credentials are present; used to skip exchanges with no API keys (e.g. XT on dev)
+  get isConfigured(): boolean {
+    return !!this.config?.apiKey && !!this.config?.secret;
+  }
+
   async getRawBalances(): Promise<Balances> {
     return this.callApi((e) => e.fetchBalance());
   }

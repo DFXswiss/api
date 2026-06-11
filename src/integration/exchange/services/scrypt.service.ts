@@ -41,6 +41,11 @@ export class ScryptService extends PricingProvider {
 
   readonly name: string = 'Scrypt';
 
+  get isConfigured(): boolean {
+    const { apiKey, apiSecret } = GetConfig().scrypt;
+    return !!apiKey && !!apiSecret;
+  }
+
   constructor() {
     super();
 
