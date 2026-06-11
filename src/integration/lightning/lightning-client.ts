@@ -27,10 +27,12 @@ import { CoinOnly } from 'src/integration/blockchain/shared/util/blockchain-clie
 import { LightningHelper } from './lightning-helper';
 
 export class LightningClient implements CoinOnly {
-  private readonly lndAgent: Agent;
+  // LND and LNbits both serve the self-signed LND certificate (reached via
+  // private IP on PRD), so requests must be verified against this CA, not the system CAs
+  private readonly tlsAgent: Agent;
 
   constructor(private readonly http: HttpService) {
-    this.lndAgent = new Agent({ ca: Config.blockchain.lightning.certificate });
+    this.tlsAgent = new Agent({ ca: Config.blockchain.lightning.certificate });
   }
 
   // --- LND --- //
@@ -363,13 +365,14 @@ export class LightningClient implements CoinOnly {
 
   private httpLnBitsConfig(params?: any): HttpRequestConfig {
     return {
+      httpsAgent: this.tlsAgent,
       params: { 'api-key': Config.blockchain.lightning.lnbits.apiKey, ...params },
     };
   }
 
   private httpLndConfig(): HttpRequestConfig {
     return {
-      httpsAgent: this.lndAgent,
+      httpsAgent: this.tlsAgent,
       headers: { 'Grpc-Metadata-macaroon': Config.blockchain.lightning.lnd.adminMacaroon },
     };
   }
