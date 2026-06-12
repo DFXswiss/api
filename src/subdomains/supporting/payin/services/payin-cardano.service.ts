@@ -12,6 +12,10 @@ export class PayInCardanoService {
     return this.cardanoService.getWalletAddress();
   }
 
+  get isConfigured(): boolean {
+    return this.cardanoService.isConfigured;
+  }
+
   async getNativeCoinBalanceForAddress(address: string): Promise<number> {
     return this.cardanoService.getNativeCoinBalanceForAddress(address);
   }

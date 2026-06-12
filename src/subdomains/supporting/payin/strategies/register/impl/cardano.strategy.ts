@@ -22,6 +22,8 @@ export class CardanoStrategy extends RegisterStrategy {
 
   private readonly cardanoPaymentDepositAddress: string;
 
+  private unconfiguredWarned = false;
+
   constructor(
     private readonly payInCardanoService: PayInCardanoService,
     private readonly transactionRequestService: TransactionRequestService,
@@ -41,6 +43,16 @@ export class CardanoStrategy extends RegisterStrategy {
   //*** JOBS ***//
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async checkPayInEntries(): Promise<void> {
+    // not configured (no Tatum API key) -> skip, warn once
+    if (!this.payInCardanoService.isConfigured) {
+      if (!this.unconfiguredWarned) {
+        this.unconfiguredWarned = true;
+        this.logger.warn('Cardano has no Tatum API key configured — skipping pay-in check');
+      }
+
+      return;
+    }
+
     const activeDepositAddresses = await this.transactionRequestService.getActiveDepositAddresses(
       Util.hoursBefore(1),
       this.blockchain,
