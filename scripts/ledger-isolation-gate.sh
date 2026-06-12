@@ -25,13 +25,35 @@ set -u
 TARGET_DIR="${1:-src/subdomains/core/accounting}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# the 4-block forbidden pattern (§4.10); \b word-boundary anchors keep the method tokens injection-name-independent
+# the 7-block forbidden pattern (§4.10); \b word-boundary anchors keep the method tokens injection-name-independent
 PATTERN='pricingService|PricingService|getPrice\(|getPriceAt|priceProvider|CoinGecko|HttpService'
 PATTERN+='|\brefreshBalances\(|\brefreshBankBalance|\bhasPendingOrders|integration\.getBalances|integration\.hasPendingOrders|BankAdapter|balanceIntegrationFactory|LiquidityBalanceIntegrationFactory'
 PATTERN+='|\blogService\.(create|update)\(|\bsettingService\.(setObj|updateProcess|addIpToBlacklist|deleteIpFromBlacklist)\('
 PATTERN+='|\.complete\(|checkOrderCompletion|syncExchanges|doPayout|checkPayoutCompletionData|triggerWebhook|calculateSpreadFee'
 PATTERN+='|balanceRepo\.(update|save|insert|delete|remove)\(|\b(?!ledger)\w*Repo(sitory)?\.(update|save|insert|delete|remove)\('
-PATTERN+='|\bmanager\.(save|insert|update|delete|remove|upsert|softDelete|softRemove|recover)\(|\bmanager\.query\('
+# Block 6 (EntityManager + raw-SQL write paths — robustness gap §10.2): `\w*[Mm]anager.<write>(` catches the
+# idiomatic injected EntityManager regardless of binding identifier — manager.save, entityManager.save,
+# dataSource.manager.save (the bare `\bmanager.` missed `entityManager.` — there is no word boundary inside the
+# identifier). `dataSource.query(` AND `queryRunner.query(` join `\w*[Mm]anager.query(` so a raw UPDATE/INSERT SQL
+# write via ANY of the three escape hatches is flagged (`queryRunner` is the idiomatic TypeORM write path —
+# `dataSource.createQueryRunner().query(...)`, exactly the migration pattern — and carries no `manager`/`dataSource`
+# token, so it was previously unflagged). The allowlisted ledger-own `manager.save(LedgerTx,…) // ledger-allowlist`
+# is cleared by the post-filter.
+PATTERN+='|\b\w*[Mm]anager\.(save|insert|update|delete|remove|upsert|softDelete|softRemove|recover|query)\(|\bdataSource\.query\(|\bqueryRunner\.query\('
+# Block 5 (getRepository-write + source-Service-write — robustness gap §10.2): a write via dataSource.getRepository(X)
+# (e.g. getRepository(BankTx).save(...)) escapes Block 4a (the token before `.save` is `getRepository(...)`, not a
+# `*Repo`/`*Repository` identifier); a write via an injected source-domain service method with a generic write name
+# (e.g. bankTxService.update(...), assetService.updateAsset(...)) is not named in Blocks 2/3. Both are flagged here.
+# Sanctioned service calls (settingService.set, notificationService.sendMail, logService.get*, *Service.find*/get*/
+# bookTx/preload/…) do NOT match — their method names are not save/insert/update/delete/remove/upsert*. The legit
+# ledger READ `getRepository(LedgerTx).createQueryBuilder()` (booking-service nextSeq) is NOT matched (no write verb).
+PATTERN+='|getRepository\([^)]*\)\.(save|insert|update|delete|remove|upsert|softDelete|softRemove|recover)\(|\b\w+Service\.(save|insert|update|delete|remove|upsert)\w*\('
+# Block 7 (QueryBuilder write path — robustness gap §10.2): a write via the QueryBuilder DSL
+# `xRepo.createQueryBuilder().update(BankTx).set(...).execute()` or `dataSource.createQueryBuilder().insert().into(BankTx)`
+# escapes Block 4a/5 (the verb is .update/.insert ON the builder, not directly after `Repo.`/`getRepository(...)`). Only
+# the WRITE verbs are flagged — a read QB chain (.select/.where/.getRawOne, e.g. the ledger nextSeq / reconciliation
+# queries) is NOT matched.
+PATTERN+='|\.createQueryBuilder\([^)]*\)\.(update|insert|delete|softDelete)\('
 
 # excludes test/mock files: the gate scans production source only (tests reference mocked services intentionally)
 EXCLUDES=(--include='*.ts' --exclude='*.spec.ts' --exclude-dir='__tests__' --exclude-dir='__mocks__')

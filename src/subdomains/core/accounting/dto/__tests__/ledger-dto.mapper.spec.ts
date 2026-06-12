@@ -162,21 +162,23 @@ describe('LedgerDtoMapper', () => {
 
   describe('mapSuspenseLeg', () => {
     it('maps a suspense leg with its account currency and age', () => {
+      // generic untracked-bank-EUR SUSPENSE account with small, non-calibrated amounts — the mapper test only checks
+      // field passthrough, so it must NOT commit the sensitive named-bank↔~600k volume correlation (Minor R12-1).
       const account = createCustomLedgerAccount({
         id: 3,
-        name: 'SUSPENSE/untracked-bank-Raiffeisen-EUR',
+        name: 'SUSPENSE/untracked-bank-EUR',
         type: AccountType.SUSPENSE,
         currency: 'EUR',
       });
-      const entry = leg({ id: 2, amount: 600000, amountChf: 580000, account });
+      const entry = leg({ id: 2, amount: 5000, amountChf: 4800, account });
       const row: SuspenseLegRow = { leg: entry, bookingDate: entry.tx.bookingDate, age: 12 };
 
       const dto = LedgerDtoMapper.mapSuspenseLeg(row);
 
       expect(dto.legId).toBe(2);
       expect(dto.currency).toBe('EUR');
-      expect(dto.amountNative).toBe(600000);
-      expect(dto.amountChf).toBe(580000);
+      expect(dto.amountNative).toBe(5000);
+      expect(dto.amountChf).toBe(4800);
       expect(dto.age).toBe(12);
       expect(dto.bookingDate).toBe('2026-06-07T00:00:00.000Z');
     });

@@ -202,4 +202,25 @@ describe('LedgerMarkToMarketService', () => {
     expect(markService.preload).not.toHaveBeenCalled();
     expect(bookingService.bookTx).not.toHaveBeenCalled();
   });
+
+  // §4.2-Note B-19 / Point 4: a CHF-denominated LIABILITY bucket (assetId=NULL) carries no native FX exposure → it is
+  // CHF-stable and MUST NOT be revalued (a balance with no asset cannot be re-marked; there is no wandering drift to
+  // correct). Even if such an account were returned as a candidate, revalue() must early-return at assetId==null.
+  it('never revalues a CHF-denominated LIABILITY (assetId=NULL) — no phantom drift on a CHF-stable balance', async () => {
+    const chfLiability = createCustomLedgerAccount({
+      id: 9001,
+      name: 'LIABILITY/unattributed',
+      type: AccountType.LIABILITY,
+      assetId: null,
+    } as any);
+    legStub = { candidateIds: [9001], balance: { native: '950', chf: '900' }, alreadyBookedCount: 0 };
+    jest.spyOn(ledgerAccountRepository, 'findBy').mockResolvedValue([chfLiability]);
+    jest
+      .spyOn(markService, 'preload')
+      .mockResolvedValue(new LedgerMarkCache(new Map([[5, [{ created: new Date('2026-06-01'), priceChf: 1.0 }]]])));
+
+    await service.run();
+
+    expect(bookingService.bookTx).not.toHaveBeenCalled(); // assetId=NULL → no re-mark, no phantom revaluation
+  });
 });

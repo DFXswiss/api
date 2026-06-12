@@ -15,12 +15,16 @@ import {
 } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { MoreThan, Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity';
+import { LedgerLeg } from '../../entities/ledger-leg.entity';
+import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
 import { getLedgerWatermark, setLedgerWatermark } from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'payout_order';
+const CUTOVER_SOURCE = 'cutover';
+const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
 const CHF = 'CHF';
 const AMOUNT_NULL_GUARD = 1e-12;
 
@@ -30,6 +34,13 @@ const LIABILITY_BUCKET: Partial<Record<PayoutOrderContext, string>> = {
   [PayoutOrderContext.BUY_CRYPTO_RETURN]: 'buyCrypto-owed',
   [PayoutOrderContext.BUY_FIAT_RETURN]: 'buyFiat-owed',
   [PayoutOrderContext.MANUAL]: 'manual-debt',
+};
+
+// cutover per-row owed-opening marker product prefix per context (§6.1; snake_case, matches the cutover marker)
+const CUTOVER_OWED_MARKER: Partial<Record<PayoutOrderContext, string>> = {
+  [PayoutOrderContext.BUY_CRYPTO]: 'buy_crypto-owed',
+  [PayoutOrderContext.BUY_CRYPTO_RETURN]: 'buy_crypto-owed',
+  [PayoutOrderContext.BUY_FIAT_RETURN]: 'buy_fiat-owed',
 };
 
 /**
@@ -59,6 +70,8 @@ export class PayoutOrderConsumer {
     // documented). correlationId == product.id (buy-crypto-out.service.ts:142 / buy-fiat.service.ts:283).
     @InjectRepository(BuyCrypto) private readonly buyCryptoRepo: Repository<BuyCrypto>,
     @InjectRepository(BuyFiat) private readonly buyFiatRepo: Repository<BuyFiat>,
+    // read-only — the cutover per-row owed-opening lookup (§4.5 Major R6-1), analog to the bank-tx consumer
+    @InjectRepository(LedgerTx) private readonly ledgerTxRepo: Repository<LedgerTx>,
   ) {}
 
   async process(): Promise<void> {
@@ -168,11 +181,14 @@ export class PayoutOrderConsumer {
   }
 
   /**
-   * §4.5 BuyCrypto/BuyCryptoReturn/BuyFiatReturn/Manual Dr leg: LIABILITY/{bucket}. The Dr CHF is the owed
-   * COMPLETION value (amountInChf − totalFeeAmountChf of the linked product, the value §4.6/§4.7 seq1 credited to
-   * owed) so `owed` closes cent-exact to 0; the wallet Cr leg is the settlement mark × amount, and the
-   * completion↔settlement drift is taken by the fx-revaluation plug (Blocker R2-2). If the completion CHF cannot
-   * be resolved (non-numeric correlationId / Manual / not found), fall back to the settlement mark (defensive).
+   * §4.5 BuyCrypto/BuyCryptoReturn/BuyFiatReturn/Manual Dr leg: LIABILITY/{bucket}. The Dr CHF is, in order:
+   * (1) the cutover OPENING CHF for a cutover-straddling owed-row (§6.1 per-row marker `<logId>:{buy_crypto|buy_fiat}
+   * -owed:<correlationId>`, = outputAmount × mark@snapshot, Major R6-1) — for a row opened pre-cutover there is no
+   * completion CHF from this run; (2) else the owed COMPLETION value (amountInChf − totalFeeAmountChf of the linked
+   * product, the value §4.6/§4.7 seq1 credited to owed). Either way `owed` closes cent-exact to 0; the wallet Cr leg
+   * is the settlement mark × amount, and the opening/completion↔settlement drift is taken by the fx-revaluation plug
+   * (Blocker R2-2). If neither resolves (non-numeric correlationId / Manual / not found), fall back to the settlement
+   * mark (defensive).
    */
   private async liabilityCounter(
     order: PayoutOrder,
@@ -185,7 +201,11 @@ export class PayoutOrderConsumer {
       return undefined;
     }
 
-    const completionChf = await this.owedCompletionChf(order); // the persisted owed value (§4.5 "CHF aus Completion")
+    // §4.5 Major R6-1: a cutover-straddling owed-row was opened by the cutover (§6.1 per-row marker) at the opening
+    // CHF (outputAmount × mark@snapshot), NOT the completion CHF — debit that exact opening anchor so owed closes to 0.
+    // For a regular post-cutover row no opening exists → fall back to the §4.6/§4.7 seq1 completion CHF.
+    const openingChf = await this.cutoverOwedOpeningChf(order);
+    const completionChf = openingChf ?? (await this.owedCompletionChf(order)); // persisted owed value (§4.5)
     const mark = marks.getMarkAt(order.asset.id, bookingDate);
     const settlementChf = mark != null ? Util.round(mark * order.amount, 2) : undefined;
 
@@ -225,6 +245,31 @@ export class PayoutOrderConsumer {
   private completionChf(amountInChf?: number, totalFeeAmountChf?: number): number | undefined {
     if (amountInChf == null) return undefined;
     return Util.round(amountInChf - (totalFeeAmountChf ?? 0), 2);
+  }
+
+  // §4.5 Major R6-1 — looks up the cutover per-row owed-opening leg CHF (marker `<cutoverLogId>:{buy_crypto-owed|
+  // buy_fiat-owed}:<correlationId>`); the prefix is the snapshot logId persisted in ledgerCutoverLogId. Returns the
+  // opening anchor (= −leg.amountChf) so the owed-Dr matches the cutover opening exactly, or undefined for a regular
+  // post-cutover row / a context without an owed opening (Manual/RefPayout). Mirrors bank-tx.consumer.ts.
+  private async cutoverOwedOpeningChf(order: PayoutOrder): Promise<number | undefined> {
+    const marker = CUTOVER_OWED_MARKER[order.context];
+    if (!marker) return undefined; // Manual / unmapped context → no per-row owed opening
+
+    const id = +order.correlationId;
+    if (!Number.isInteger(id)) return undefined; // non-numeric correlationId → no per-row opening to match
+
+    const cutoverLogId = await this.settingService.get(CUTOVER_LOG_ID_KEY);
+    if (cutoverLogId == null) return undefined;
+
+    const accountName = `LIABILITY/${LIABILITY_BUCKET[order.context]}`;
+    const opening = await this.ledgerTxRepo.findOne({
+      where: { sourceType: CUTOVER_SOURCE, sourceId: `${cutoverLogId}:${marker}:${id}` },
+      relations: { legs: { account: true } },
+    });
+    const leg = opening?.legs?.find((l: LedgerLeg) => l.account?.name === accountName);
+    if (leg?.amountChf == null) return undefined;
+
+    return Util.round(-leg.amountChf, 2); // the opening Cr leg is −openingChf → owed-Dr debits +openingChf
   }
 
   /**

@@ -68,10 +68,17 @@ describe('BuyCryptoConsumer', () => {
         return Promise.resolve(acc);
       });
 
-    // gate lookup: countBy returns 1 when the gate is open (seq0 crypto_input / cutover marker exists)
+    // gate lookup: countBy returns 1 when the gate is open (seq0 crypto_input / cutover marker exists). For the
+    // G-b cutover path the consumer also resolves the snapshot logId prefix from ledgerCutoverLogId (Blocker R4-2):
+    // a gate-open run models a completed cutover (logId set) so the `${logId}:buy_crypto:${id}` marker is resolvable.
     jest.spyOn(ledgerTxRepo, 'countBy').mockImplementation(() => Promise.resolve(gateOpen ? 1 : 0));
 
     jest.spyOn(settingService, 'getObj').mockResolvedValue(undefined);
+    jest
+      .spyOn(settingService, 'get')
+      .mockImplementation((key: string) =>
+        Promise.resolve(key === 'ledgerCutoverLogId' && gateOpen ? '1557344' : undefined),
+      );
     jest.spyOn(settingService, 'set').mockResolvedValue();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -90,7 +97,12 @@ describe('BuyCryptoConsumer', () => {
   });
 
   const cents = (legs: LedgerLegInput[]) => legs.reduce((s, l) => s + Math.round((l.amountChf ?? 0) * 100), 0);
-  const mockBatch = (rows: BuyCrypto[]) => jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue(rows);
+  // forward id-scan returns the rows; the §4.12 content-change scan (where has `updated`, not `id`) returns [] —
+  // its late-settling/cutover-straddling coverage is asserted in the integration spec (no double-book here)
+  const mockBatch = (rows: BuyCrypto[]) =>
+    jest
+      .spyOn(buyCryptoRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [] : rows));
   const seq = (n: number) => booked.find((b) => b.seq === n);
   const leg = (tx: LedgerTxInput, name: string) => tx.legs.find((l) => l.account.name === name);
 

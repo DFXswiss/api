@@ -73,6 +73,7 @@ describe('Ledger evidence-week integration (§10.2)', () => {
   function settingService(): SettingService {
     const s = createMock<SettingService>();
     jest.spyOn(s, 'getObj').mockResolvedValue(undefined); // fresh watermark (cutover-only default already past)
+    jest.spyOn(s, 'get').mockResolvedValue(undefined); // no ledgerCutoverLogId by default (real default = unset)
     jest.spyOn(s, 'set').mockResolvedValue();
     return s;
   }
@@ -102,6 +103,7 @@ describe('Ledger evidence-week integration (§10.2)', () => {
     return Object.assign(new BankTx(), {
       id: 1,
       created: new Date('2026-06-01T00:00:00Z'),
+      updated: new Date('2026-06-01T00:00:00Z'), // IEntity always sets updated; the §4.12 content-change scan reads it
       bookingDate: new Date('2026-06-01T00:00:00Z'),
       creditDebitIndicator: BankTxIndicator.CREDIT,
       currency: 'EUR',
@@ -156,6 +158,7 @@ describe('Ledger evidence-week integration (§10.2)', () => {
       markService,
       bankTxRepo,
       bankRepo,
+      ledger.ledgerTxRepository(),
     );
   }
 
@@ -467,5 +470,240 @@ describe('Ledger evidence-week integration (§10.2)', () => {
     // native balances are deliberately NOT 0 for value-boundary txs — they are the custody balances (§7 feed)
     expect(ledger.nativeBalance('Maerki/CHF')).not.toBe(0);
     expect(ledger.nativeBalance('Scrypt/USDT')).not.toBe(0);
+  });
+
+  // --- 9. CUTOVER-STRADDLING CROSS-CONSUMER HANDOFF (Blocker R4-2 + §6.3 late-settling, §4.12) --- //
+
+  const CUTOVER_LOG_ID = '1557344';
+  const PRE_CUTOVER = new Date('2026-05-15T00:00:00Z'); // crypto_input settled BEFORE the cutover snapshot
+  const POST_CUTOVER = new Date('2026-06-04T00:00:00Z'); // buy_fiat outputAmount set AFTER the cutover
+
+  // a SettingService whose ledgerCutoverLogId is set (so the G-b marker `${logId}:buy_fiat:${id}` resolves) and
+  // whose watermark models a completed cutover: lastProcessedId already PAST the straddling row id (late-settling →
+  // the forward id-scan skips it) and lastReversalScan = the cutover snapshot date (the content-change scan picks it
+  // up via updated > lastReversalScan)
+  function straddlingSettingService(lastProcessedId: number, lastReversalScan: Date): SettingService {
+    const s = createMock<SettingService>();
+    jest
+      .spyOn(s, 'get')
+      .mockImplementation((key: string) =>
+        Promise.resolve(key === 'ledgerCutoverLogId' ? (CUTOVER_LOG_ID as any) : undefined),
+      );
+    jest
+      .spyOn(s, 'getObj')
+      .mockResolvedValue({ lastProcessedId, lastReversalScan: lastReversalScan.toISOString() } as any);
+    jest.spyOn(s, 'set').mockResolvedValue();
+    return s;
+  }
+
+  // books the cutover per-row received opening (synthetic seq0 marker, §6.1): Cr LIABILITY/buyFiat-received / Dr
+  // EQUITY/opening-balance for an open pre-cutover buy_fiat — exactly what LedgerCutoverService.openBuyFiatReceived does
+  async function openCutoverReceived(buyFiatId: number, amountChf: number): Promise<void> {
+    const received = await ledger.accountService.findOrCreate(
+      'LIABILITY/buyFiat-received',
+      AccountType.LIABILITY,
+      'CHF',
+    );
+    const equity = await ledger.accountService.findOrCreate('EQUITY/opening-balance', AccountType.EQUITY, 'CHF');
+    await ledger.bookingService.bookTx({
+      sourceType: 'cutover',
+      sourceId: `${CUTOVER_LOG_ID}:buy_fiat:${buyFiatId}`,
+      seq: 0,
+      bookingDate: PRE_CUTOVER,
+      valueDate: PRE_CUTOVER,
+      legs: [
+        { account: received, amount: -amountChf, priceChf: 1, amountChf: -amountChf },
+        { account: equity, amount: amountChf, priceChf: 1, amountChf },
+      ],
+    });
+  }
+
+  it('Cutover-straddling buy_fiat: G-b opens seq1 (received NOT via G-a), received + owed close to 0 (Blocker R4-2)', async () => {
+    // the financing crypto_input settled PRE-cutover → it has NO seq0 ledger_tx (G-a impossible). The cutover opening
+    // eröffnet buyFiat-received per-row with the synthetic marker; the buy_fiat consumer must resolve G-b from
+    // ledgerCutoverLogId (the exact `:buy_fiat:${id}` suffix-only match would never hit, Blocker R4-2).
+    await openCutoverReceived(70, 15000);
+    expect(ledger.chfBalance('LIABILITY/buyFiat-received')).toBe(-15000); // opened by the cutover, NOT a seq0 ledger_tx
+
+    const bf = buyFiat({
+      id: 70,
+      updated: POST_CUTOVER, // settlement set post-cutover → only the content-change scan re-selects it
+      amountInChf: 15000,
+      totalFeeAmountChf: 148.5,
+      outputAmount: 14851.5,
+      outputReferenceAmount: 14851.5,
+      outputAsset: { name: 'CHF' } as any,
+      cryptoInput: { id: 700, updated: PRE_CUTOVER } as any, // pre-cutover settled → no G-a seq0 exists
+      fiatOutput: {
+        isTransmittedDate: FRI,
+        currency: 'CHF',
+        bank: { asset: { id: CHF_BANK } },
+        bankTx: { bookingDate: SUN },
+      } as any,
+    });
+
+    // watermark: forward id-scan already past id 70 (lastProcessedId 100) AND lastReversalScan = cutover snapshot →
+    // the row is reached ONLY by the §6.3 content-change scan (updated > lastReversalScan), NOT the forward id-scan
+    const setting = straddlingSettingService(100, new Date('2026-06-01T00:00:00Z'));
+    const repo = createMock<Repository<BuyFiat>>();
+    jest.spyOn(repo, 'find').mockImplementation(({ where }: any) => {
+      // forward scan (where.id present) returns [] (row id <= lastProcessedId); content-change scan (where.updated)
+      // returns the straddling row (updated > lastReversalScan)
+      if (where?.updated != null) return Promise.resolve([bf]);
+      return Promise.resolve([]);
+    });
+    const consumer = new BuyFiatConsumer(
+      setting,
+      ledger.bookingService,
+      ledger.accountService,
+      markService,
+      repo,
+      ledger.ledgerTxRepository(),
+    );
+
+    await consumer.process();
+
+    // (a) G-b opened seq1 → received debited +15000 against the cutover-opened −15000 → closes to 0
+    const s1 = ledger.txs.find((t) => t.sourceType === 'buy_fiat' && t.sourceId === '70' && t.seq === 1);
+    expect(s1).toBeDefined();
+    expect(ledger.chfBalance('LIABILITY/buyFiat-received')).toBe(0);
+    // (b) owed opened by seq1 reclassification (−14851.50), transmitted+booked → closes to 0
+    expect(ledger.chfBalance('LIABILITY/buyFiat-owed')).toBe(0);
+    // (c) the value held in TRANSIT until the Sunday booking, then nets
+    expect(ledger.chfBalance('TRANSIT/payout/CHF')).toBe(0);
+    expect(ledger.chfBalance('Maerki/CHF')).toBe(-14851.5);
+    expect(ledger.everyTxBalances()).toBe(true);
+  });
+
+  it('Cutover-straddling buy_fiat WITHOUT the cutover marker: seq1 stays blocked, received stuck at −amountInChf (regression guard)', async () => {
+    // no openCutoverReceived call → no G-b marker, no G-a seq0 (crypto_input pre-cutover) → the gate stays closed
+    const bf = buyFiat({
+      id: 71,
+      updated: POST_CUTOVER,
+      amountInChf: 15000,
+      totalFeeAmountChf: 148.5,
+      outputAmount: 14851.5,
+      outputReferenceAmount: 14851.5,
+      outputAsset: { name: 'CHF' } as any,
+      cryptoInput: { id: 710, updated: PRE_CUTOVER } as any,
+      fiatOutput: { isTransmittedDate: FRI, currency: 'CHF', bank: { asset: { id: CHF_BANK } } } as any,
+    });
+    const setting = straddlingSettingService(100, new Date('2026-06-01T00:00:00Z'));
+    const repo = createMock<Repository<BuyFiat>>();
+    jest
+      .spyOn(repo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [bf] : []));
+    const consumer = new BuyFiatConsumer(
+      setting,
+      ledger.bookingService,
+      ledger.accountService,
+      markService,
+      repo,
+      ledger.ledgerTxRepository(),
+    );
+
+    await consumer.process();
+
+    // gate closed → no seq1 → received was never opened (no marker) and owed never created
+    expect(ledger.txs.find((t) => t.sourceType === 'buy_fiat' && t.sourceId === '71' && t.seq === 1)).toBeUndefined();
+  });
+
+  // --- 8. REVERSAL seq-MONOTONIE (§4.12, Major R1-2): bank_tx GSHEET → BUY_CRYPTO via changed type --- //
+
+  describe('Reversal/re-book on a content change (§4.12, §10.1 GSHEET→BUY_CRYPTO)', () => {
+    // a stateful BankTx consumer: a real watermark in a local var (forward id-scan does NOT re-book a row it already
+    // processed) + a find that honours the two query shapes (forward where.id vs content-change where.updated). The
+    // reversal cycle is driven by the REAL booking service over the shared in-memory ledger (no mocked reverseTx).
+    function statefulBankTxConsumer(getRow: () => BankTx): BankTxConsumer {
+      let wm = { lastProcessedId: 0, lastReversalScan: new Date('2026-06-01T00:00:00Z') };
+      const s = createMock<SettingService>();
+      jest.spyOn(s, 'getObj').mockImplementation(() =>
+        Promise.resolve({
+          lastProcessedId: wm.lastProcessedId,
+          lastReversalScan: wm.lastReversalScan.toISOString(),
+        } as any),
+      );
+      jest.spyOn(s, 'set').mockImplementation((_k: string, v: string) => {
+        const p = JSON.parse(v);
+        wm = { lastProcessedId: p.lastProcessedId, lastReversalScan: new Date(p.lastReversalScan) };
+        return Promise.resolve();
+      });
+      jest.spyOn(s, 'get').mockResolvedValue(undefined);
+
+      const bankTxRepo = createMock<Repository<BankTx>>();
+      jest.spyOn(bankTxRepo, 'find').mockImplementation(({ where }: any) => {
+        const row = getRow();
+        // forward id-scan: only rows with id > lastProcessedId; content-change scan: rows with updated > lastReversalScan
+        if (where?.updated != null) return Promise.resolve(row.updated > wm.lastReversalScan ? [row] : []);
+        return Promise.resolve(row.id > wm.lastProcessedId ? [row] : []);
+      });
+      const bankRepo = createMock<Repository<Bank>>();
+      jest.spyOn(bankRepo, 'findOne').mockResolvedValue(null); // untracked → CHF SUSPENSE/unattributed path
+
+      return new BankTxConsumer(
+        s,
+        ledger.bookingService,
+        ledger.accountService,
+        markService,
+        bankTxRepo,
+        bankRepo,
+        ledger.ledgerTxRepository(),
+      );
+    }
+
+    it('keeps seq0, books a reversal (seq1, reversalOf=seq0, inverted) + a re-book (seq2, BUY_CRYPTO); seq strictly monotonic, no UNIQUE conflict', async () => {
+      // seq0 = the original GSHEET CREDIT booking: Dr ASSET/bank (CHF) / Cr LIABILITY/unattributed
+      const row = bankTx({
+        id: 900,
+        type: BankTxType.GSHEET,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        currency: 'CHF',
+        amount: 1000,
+        accountIban: undefined, // untracked → CHF, bank ASSET resolves via SUSPENSE/untracked path
+        created: new Date('2026-06-02T00:00:00Z'),
+        updated: new Date('2026-06-02T00:00:00Z'),
+      });
+
+      const consumer = statefulBankTxConsumer(() => row);
+      await consumer.process(); // forward → seq0 GSHEET
+
+      const seq0 = ledger.txs.find((t) => t.sourceType === 'bank_tx' && t.sourceId === '900' && t.seq === 0);
+      expect(seq0).toBeDefined();
+      expect(seq0.reversalOfId).toBeUndefined();
+      expect(ledger.chfBalance('LIABILITY/unattributed')).toBe(-1000); // GSHEET credit held as unattributed
+
+      // RE-CLASSIFY: GSHEET → BUY_CRYPTO via a later updated timestamp (the §4.12 musterbeispiel trigger)
+      row.type = BankTxType.BUY_CRYPTO;
+      (row as any).buyCrypto = { amountInChf: 1000 };
+      row.updated = new Date('2026-06-03T00:00:00Z'); // updated > lastReversalScan → content-change scan re-selects it
+
+      await consumer.process(); // content-change scan → reversal (seq1) + re-book (seq2)
+
+      const all = ledger.txs
+        .filter((t) => t.sourceType === 'bank_tx' && t.sourceId === '900')
+        .sort((a, b) => a.seq - b.seq);
+      expect(all.map((t) => t.seq)).toEqual([0, 1, 2]); // seq strictly monotonic over the cycle
+
+      // (a) original seq0 stays untouched (append-only, §4.12 Z.802)
+      expect(all[0].seq).toBe(0);
+      expect(all[0].reversalOfId).toBeUndefined();
+
+      // (b) seq1 is the reversal of seq0 (reversalOfId points at the ORIGINAL, §4.12 Z.811) with inverted legs
+      expect(all[1].seq).toBe(1);
+      expect(all[1].reversalOfId).toBe(seq0.id);
+
+      // (c) seq2 is the re-book (reversalOf NULL — a new valid booking), now BUY_CRYPTO → Cr buyCrypto-received
+      expect(all[2].seq).toBe(2);
+      expect(all[2].reversalOfId).toBeUndefined();
+
+      // net effect: the unattributed liability is fully reversed back to 0, the buyCrypto-received now holds the value
+      expect(ledger.chfBalance('LIABILITY/unattributed')).toBe(0);
+      expect(ledger.chfBalance('LIABILITY/buyCrypto-received')).toBe(-1000);
+      expect(ledger.everyTxBalances()).toBe(true);
+
+      // (d) idempotent: a third run with NO further change books nothing more (no UNIQUE conflict, no extra reversal)
+      await consumer.process();
+      expect(ledger.txs.filter((t) => t.sourceType === 'bank_tx' && t.sourceId === '900')).toHaveLength(3);
+    });
   });
 });

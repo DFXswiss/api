@@ -59,18 +59,46 @@ describe('Ledger DB-write isolation after a consumer/alarm run (§10.2)', () => 
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(markMap));
   });
 
-  // a source-table repository whose ALL write methods are spied on (must never be called by the consumer)
-  function readOnlyRepo<T>(rows: T[]): { repo: Repository<T>; writeSpies: jest.SpyInstance[] } {
+  // a row-count + MAX(updated) snapshot of a business table (§10.2 name-independent backstop): every write — whether
+  // via the injected repo, a renamed injection, dataSource.getRepository(X), or an injected source service — lands in
+  // the SAME backing store, so snapshotting the store row-count + MAX(updated) before/after a run catches it without
+  // depending on the write-method NAME (unlike a per-method spy on one specific injected mock instance).
+  interface TableSnapshot {
+    rowCount: number;
+    maxUpdated: number; // ms epoch, 0 when empty
+  }
+  function snapshotTable<T extends { updated?: Date }>(rows: T[]): TableSnapshot {
+    return {
+      rowCount: rows.length,
+      maxUpdated: rows.reduce((max, r) => Math.max(max, r.updated?.getTime() ?? 0), 0),
+    };
+  }
+
+  // a source-table repository backed by a mutable `rows` store. ALL write methods are spied on AND mutate the store
+  // (so a row-count/MAX(updated) snapshot reflects any write); `find` honours the consumer's where/relations enough
+  // for a read-only observer. The store is what the §10.2 snapshot compares before/after the run.
+  function readOnlyRepo<T extends { id?: number; updated?: Date }>(
+    rows: T[],
+  ): { repo: Repository<T>; store: T[]; writeSpies: jest.SpyInstance[] } {
+    const store = [...rows];
     const repo = createMock<Repository<T>>();
-    jest.spyOn(repo, 'find').mockResolvedValue(rows as any);
-    const writeSpies = WRITE_METHODS.map((m) => jest.spyOn(repo as any, m));
-    return { repo, writeSpies };
+    jest.spyOn(repo, 'find').mockResolvedValue(store as any);
+    // the spies still assert "no write method ever called"; they ALSO mutate the store so the snapshot would move if a
+    // write slipped through a renamed path (defence in depth — name-independent snapshot + name-bound spy)
+    const writeSpies = WRITE_METHODS.map((m) =>
+      jest.spyOn(repo as any, m).mockImplementation((..._args: unknown[]) => {
+        store.push({ id: (store.length + 1) as any, updated: new Date() } as T); // any write moves the snapshot
+        return Promise.resolve(undefined as any);
+      }),
+    );
+    return { repo, store, writeSpies };
   }
 
   function settingService(): { service: SettingService; setKeys: string[] } {
     const service = createMock<SettingService>();
     const setKeys: string[] = [];
     jest.spyOn(service, 'getObj').mockResolvedValue(undefined);
+    jest.spyOn(service, 'get').mockResolvedValue(undefined); // real SettingService.get → string|undefined (analog evidence-week:76)
     jest.spyOn(service, 'set').mockImplementation((key: string) => {
       setKeys.push(key);
       return Promise.resolve();
@@ -109,6 +137,9 @@ describe('Ledger DB-write isolation after a consumer/alarm run (§10.2)', () => 
     const ciSetting = settingService();
     const bfSetting = settingService();
 
+    // §10.2 name-independent backstop: row-count + MAX(updated) snapshot of every source table BEFORE the run
+    const before = { crypto_input: snapshotTable(ciSrc.store), buy_fiat: snapshotTable(bfSrc.store) };
+
     await new CryptoInputConsumer(
       ciSetting.service,
       ledger.bookingService,
@@ -128,12 +159,17 @@ describe('Ledger DB-write isolation after a consumer/alarm run (§10.2)', () => 
     // the run actually booked something (otherwise the isolation assertion is vacuous)
     expect(ledger.txs.length).toBeGreaterThan(0);
 
-    // NO write method of the crypto_input / buy_fiat source repos was ever called (strict read-only observer)
+    // (1) name-independent: the source-table snapshots (row-count + MAX(updated)) are unchanged — catches a write via
+    // ANY path (renamed injection, getRepository(X).save, an injected source service) because they all mutate the store
+    expect(snapshotTable(ciSrc.store)).toEqual(before.crypto_input);
+    expect(snapshotTable(bfSrc.store)).toEqual(before.buy_fiat);
+
+    // (2) name-bound: NO write method of the crypto_input / buy_fiat source repos was ever called (read-only observer)
     for (const spy of [...ciSrc.writeSpies, ...bfSrc.writeSpies]) {
       expect(spy).not.toHaveBeenCalled();
     }
 
-    // the ONLY non-ledger_* writes are the two ledger watermark settings (sanctioned R2-Ausnahme-a)
+    // (3) the ONLY non-ledger_* writes are the two ledger watermark settings (sanctioned R2-Ausnahme-a)
     for (const key of [...ciSetting.setKeys, ...bfSetting.setKeys]) {
       expect(key).toMatch(/^ledgerWatermark\.|^ledgerCutoverLogId$/);
     }

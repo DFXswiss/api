@@ -15,6 +15,7 @@ import { FinanceLog } from 'src/subdomains/supporting/log/dto/log.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { MoreThan } from 'typeorm';
 import { AccountType, LedgerAccount } from '../entities/ledger-account.entity';
 import { LedgerAccountRepository } from '../repositories/ledger-account.repository';
 import { LedgerLegRepository } from '../repositories/ledger-leg.repository';
@@ -107,30 +108,44 @@ export class LedgerReconciliationService {
   private async reconcileAssets(feed: LiquidityBalance[], now: Date): Promise<void> {
     const feedByAssetId = new Map(feed.filter((b) => b.asset?.id != null).map((b) => [b.asset.id, b]));
 
-    const assetAccounts = await this.ledgerAccountRepository.find({
-      where: { type: AccountType.ASSET, active: true },
-      take: Config.ledger.backfillBatchSize,
-    });
-
     const unverified: string[] = [];
-    for (const account of assetAccounts) {
-      if (account.assetId == null) continue;
 
-      const balance = feedByAssetId.get(account.assetId);
-      const classification = this.classifyFeed(balance, account, now);
+    // §7.0 (Minor R13-2): paginate the ASSET-account universe in backfillBatchSize windows by id-watermark — the
+    // feed (loaded once in reconcile()) stays in-memory for ALL batches. "batch-limited" means a batched ITERATION
+    // over EVERY account, NOT a truncation to the first batchSize accounts (which would silently never reconcile
+    // accounts 101+ once the asset universe grows past the batch size — a monitoring blind spot, MAJOR).
+    const batchSize = Config.ledger.backfillBatchSize;
+    let lastId = 0;
+    for (;;) {
+      const assetAccounts = await this.ledgerAccountRepository.find({
+        where: { type: AccountType.ASSET, active: true, id: MoreThan(lastId) },
+        order: { id: 'ASC' },
+        take: batchSize,
+      });
+      if (!assetAccounts.length) break;
 
-      // placeholder (amount=1.0): skip reconciliation, log warning, no diff alarm (§7.1)
-      if (classification.status === FeedStatus.PLACEHOLDER) {
-        this.logger.verbose(`Skipping reconciliation for ${account.name}: placeholder feed (amount=1.0)`);
-        continue;
+      for (const account of assetAccounts) {
+        if (account.assetId == null) continue;
+
+        const balance = feedByAssetId.get(account.assetId);
+        const classification = this.classifyFeed(balance, account, now);
+
+        // placeholder (amount=1.0): skip reconciliation, log warning, no diff alarm (§7.1)
+        if (classification.status === FeedStatus.PLACEHOLDER) {
+          this.logger.verbose(`Skipping reconciliation for ${account.name}: placeholder feed (amount=1.0)`);
+          continue;
+        }
+
+        if (classification.status !== FeedStatus.FRESH) {
+          unverified.push(`${account.name} (${classification.status}, ${classification.custodyClass})`);
+          continue; // unverified → no per-asset diff alarm, aggregated below (§7.2/§7.3)
+        }
+
+        await this.reconcileFreshAsset(account, balance, now);
       }
 
-      if (classification.status !== FeedStatus.FRESH) {
-        unverified.push(`${account.name} (${classification.status}, ${classification.custodyClass})`);
-        continue; // unverified → no per-asset diff alarm, aggregated below (§7.2/§7.3)
-      }
-
-      await this.reconcileFreshAsset(account, balance, now);
+      lastId = assetAccounts[assetAccounts.length - 1].id;
+      if (assetAccounts.length < batchSize) break; // last (partial) page → exhausted
     }
 
     // §7.3: one aggregated "Unverified Accounts" alarm per day (no per-asset spam)

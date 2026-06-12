@@ -12,6 +12,8 @@ import {
   PayoutOrderStatus,
 } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { Repository } from 'typeorm';
+import { LedgerLeg } from '../../../entities/ledger-leg.entity';
+import { LedgerTx } from '../../../entities/ledger-tx.entity';
 import { AccountType, LedgerAccount } from '../../../entities/ledger-account.entity';
 import { createCustomLedgerAccount } from '../../../entities/__mocks__/ledger-account.entity.mock';
 import { LedgerAccountService } from '../../ledger-account.service';
@@ -49,6 +51,7 @@ describe('PayoutOrderConsumer', () => {
   let refRewardRepo: Repository<RefReward>;
   let buyCryptoRepo: Repository<BuyCrypto>;
   let buyFiatRepo: Repository<BuyFiat>;
+  let ledgerTxRepo: Repository<LedgerTx>;
 
   let booked: LedgerTxInput[];
   let accounts: Map<string, LedgerAccount>;
@@ -79,6 +82,11 @@ describe('PayoutOrderConsumer', () => {
     refRewardRepo = createMock<Repository<RefReward>>();
     buyCryptoRepo = createMock<Repository<BuyCrypto>>();
     buyFiatRepo = createMock<Repository<BuyFiat>>();
+    ledgerTxRepo = createMock<Repository<LedgerTx>>();
+
+    // by default no cutover opening exists → the owed-Dr falls back to the completion CHF (§4.5)
+    jest.spyOn(ledgerTxRepo, 'findOne').mockResolvedValue(null);
+    jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
 
     jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
       booked.push(input);
@@ -116,6 +124,7 @@ describe('PayoutOrderConsumer', () => {
         { provide: getRepositoryToken(RefReward), useValue: refRewardRepo },
         { provide: getRepositoryToken(BuyCrypto), useValue: buyCryptoRepo },
         { provide: getRepositoryToken(BuyFiat), useValue: buyFiatRepo },
+        { provide: getRepositoryToken(LedgerTx), useValue: ledgerTxRepo },
       ],
     }).compile();
 
@@ -163,6 +172,42 @@ describe('PayoutOrderConsumer', () => {
     expect(cents(tx.legs)).toBe(0); // fx plug closes 49400 − 50000 + 3 − 3 = −600 sum → +600 residual
     const plug = leg(tx, 'INCOME/fx-revaluation');
     expect(plug.amountChf).toBe(600); // residual = −(sum) = +600 ≥ 0 → INCOME/fx-revaluation
+  });
+
+  // §4.5 Major R6-1: a cutover-straddling owed-row debits the cutover OPENING CHF anchor (NOT the completion CHF),
+  // so owed closes cent-exact to 0 and the opening↔settlement mark drift lands in the fx plug.
+  it('books a cutover-straddling BuyCryptoReturn against the cutover opening CHF, not the completion CHF', async () => {
+    // opening = 48000 (outputAmount × mark@snapshot); completion (if it were used) = 49400 → distinct on purpose
+    const cutoverLogId = '1557344';
+    jest.spyOn(settingService, 'get').mockResolvedValue(cutoverLogId);
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 49500, totalFeeAmountChf: 100 } as any);
+    jest.spyOn(ledgerTxRepo, 'findOne').mockImplementation(({ where }: any) => {
+      if (where?.sourceId === `${cutoverLogId}:buy_crypto-owed:790`) {
+        const owedAccount = account('LIABILITY/buyCrypto-owed', AccountType.LIABILITY, 'CHF');
+        const openingLeg = Object.assign(new LedgerLeg(), { account: owedAccount, amountChf: -48000 });
+        return Promise.resolve(Object.assign(new LedgerTx(), { legs: [openingLeg] }));
+      }
+      return Promise.resolve(null);
+    });
+    mockBatch([
+      payoutOrder({
+        id: 20,
+        context: PayoutOrderContext.BUY_CRYPTO_RETURN,
+        correlationId: '790',
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = booked[0];
+    const owed = leg(tx, 'LIABILITY/buyCrypto-owed');
+    expect(owed.amountChf).toBe(48000); // the cutover opening CHF anchor (NOT the 49400 completion CHF)
+    expect(leg(tx, 'Bitcoin/BTC').amountChf).toBe(-50000); // settlement mark × 1 BTC
+    expect(cents(tx.legs)).toBe(0); // owed 48000 − 50000 = −2000 → +2000 fx plug closes the opening↔settlement drift
+    expect(leg(tx, 'INCOME/fx-revaluation').amountChf).toBe(2000);
   });
 
   // §4.5 NaN-guard: only one fee field filled → additive ?? 0, not feeAmountChf getter (Major R2-5)

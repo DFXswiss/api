@@ -9,12 +9,13 @@ import { MoreThan, Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity';
 import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountService } from '../ledger-account.service';
-import { LedgerBookingService, LedgerLegInput } from '../ledger-booking.service';
-import { getLedgerWatermark, setLedgerWatermark } from './ledger-watermark.helper';
+import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
+import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'buy_crypto';
 const CRYPTO_INPUT_SOURCE = 'crypto_input';
 const CUTOVER_SOURCE = 'cutover';
+const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
 const CHF = 'CHF';
 
 /**
@@ -43,6 +44,31 @@ export class BuyCryptoConsumer {
       lastReversalScan: new Date(0),
     };
 
+    await this.processForward(watermark);
+
+    // content-change scan (§4.12 / §6.3): catches late-settling cutover-straddling rows (id <= watermark, completion
+    // set post-cutover) the forward id-scan skips — runs ALSO when the forward batch is empty. The booker is
+    // idempotent (per-seq alreadyBooked), so a row in both scans is booked once. Re-read the watermark in case the
+    // forward batch advanced lastProcessedId above.
+    const afterForward = (await getLedgerWatermark(this.settingService, SOURCE_TYPE)) ?? watermark;
+    await runContentChangeScan(
+      this.settingService,
+      SOURCE_TYPE,
+      afterForward,
+      this.buyCryptoRepo,
+      { checkoutTx: true, cryptoInput: { paymentLinkPayment: true } },
+      async (bc: BuyCrypto) => {
+        // §4.12: a Card-input amount/fee change (amountInChf) reverses + re-books the seq0 Card-input tx; then the
+        // idempotent forward book() appends any newly-settled seqs (seq1 completion). Non-Card inputs have no seq0
+        // here (booked by the CryptoInput/BankTx single booker) → buildSeq0Input returns undefined → no-op reversal.
+        const seq0 = await this.buildCardInputSeq0(bc);
+        if (seq0) await this.bookingService.reverseAndRebookIfChanged(seq0);
+        await this.book(bc);
+      },
+    );
+  }
+
+  private async processForward(watermark: { lastProcessedId: number; lastReversalScan: Date }): Promise<void> {
     const batch = await this.buyCryptoRepo.find({
       where: { id: MoreThan(watermark.lastProcessedId) },
       relations: { checkoutTx: true, cryptoInput: { paymentLinkPayment: true } },
@@ -86,21 +112,29 @@ export class BuyCryptoConsumer {
   // §4.6 seq0 — Card input only: Dr ASSET/Checkout{ccy} / Cr LIABILITY/buyCrypto-received (= amountInChf).
   // Bank input → BankTx consumer; crypto input → CryptoInput consumer (§4.1 single booker).
   private async bookCardInput(bc: BuyCrypto): Promise<void> {
-    if (!bc.checkoutTx) return; // not a Card input → seq0 not this consumer's job
-    if (bc.amountInChf == null) return;
     if (await this.alreadyBooked(bc.id, 0)) return;
+
+    const input = await this.buildCardInputSeq0(bc);
+    if (input) await this.bookingService.bookTx(input);
+  }
+
+  // builds the seq0 Card-input LedgerTxInput, or undefined for a non-Card input / missing amountInChf (the bank /
+  // crypto inputs are booked by their own single booker, §4.1)
+  private async buildCardInputSeq0(bc: BuyCrypto): Promise<LedgerTxInput | undefined> {
+    if (!bc.checkoutTx) return undefined; // not a Card input → seq0 not this consumer's job
+    if (bc.amountInChf == null) return undefined;
 
     const checkout = await this.checkoutAccount(bc.checkoutTx.currency);
     const received = await this.liability('buyCrypto-received');
 
-    await this.bookingService.bookTx({
+    return {
       sourceType: SOURCE_TYPE,
       sourceId: `${bc.id}`,
       seq: 0,
       bookingDate: bc.created,
       valueDate: bc.created,
       legs: [this.chfLeg(checkout, bc.amountInChf), this.chfLeg(received, -bc.amountInChf)],
-    });
+    };
   }
 
   /**
@@ -154,17 +188,20 @@ export class BuyCryptoConsumer {
       if (ga > 0) return true; // G-a
     }
 
-    // G-b: cutover opening on buyCrypto-received for this buy_crypto.id (synthetic seq0 marker, §6.1)
-    const gb = await this.ledgerTxRepo.countBy({
-      sourceType: CUTOVER_SOURCE,
-      sourceId: `${this.cutoverReceivedSourceId(bc.id)}`,
-    });
+    // G-b: cutover opening on buyCrypto-received for this buy_crypto.id (synthetic seq0 marker, §6.1). The cutover
+    // writes `${snapshotLogId}:buy_crypto:${id}`, so the prefix must be resolved from ledgerCutoverLogId — an exact
+    // `:buy_crypto:${id}` match would NEVER hit (the snapshot logId prefix is missing → G-b dead, Blocker R4-2).
+    const cutoverSourceId = await this.cutoverReceivedSourceId(bc.id);
+    if (cutoverSourceId == null) return false; // cutover not run yet → no opening to match
+    const gb = await this.ledgerTxRepo.countBy({ sourceType: CUTOVER_SOURCE, sourceId: cutoverSourceId });
     return gb > 0;
   }
 
-  // the cutover per-row received marker sourceId suffix (§6.1 / §4.7 G-b); the prefix is the snapshot logId
-  private cutoverReceivedSourceId(buyCryptoId: number): string {
-    return `:buy_crypto:${buyCryptoId}`;
+  // the full cutover per-row received marker sourceId (§6.1 / §4.7 G-b): `${snapshotLogId}:buy_crypto:${id}`.
+  // The prefix is the snapshot logId, persisted in ledgerCutoverLogId by the cutover (§6.3 step 5).
+  private async cutoverReceivedSourceId(buyCryptoId: number): Promise<string | undefined> {
+    const cutoverLogId = await this.settingService.get(CUTOVER_LOG_ID_KEY);
+    return cutoverLogId != null ? `${cutoverLogId}:buy_crypto:${buyCryptoId}` : undefined;
   }
 
   // --- HELPERS --- //

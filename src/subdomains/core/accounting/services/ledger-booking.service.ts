@@ -98,6 +98,110 @@ export class LedgerBookingService {
     });
   }
 
+  /**
+   * §4.12 reversal/re-book cycle for a content-change on a booked source row. Loads the currently ACTIVE
+   * (not-yet-reversed) booking tx for `(sourceType, sourceId)`; if the freshly-computed `legs` differ from its legs
+   * beyond the §4.12 float tolerances (amount 1e-8, amountChf 0.005, priceChf 1e-6 — no reversal merely for a mark
+   * drift), it runs the verbatim cycle: (1) Reversal-Tx (seq=nextSeq, reversalOf=active, inverted legs); (2)
+   * Re-Book-Tx (seq=nextSeq+1, reversalOf=NULL, the corrected legs). The original/active tx stays append-only
+   * untouched (§4.12 Z.802/809). A UNIQUE conflict rolls back the one correction tx and surfaces to the caller's
+   * try/catch → the content-change watermark is NOT advanced → self-healing retry next run (§4.12 Minor R12-2).
+   * Returns true when a correction was booked, false when nothing changed (idempotent re-scan).
+   */
+  async reverseAndRebookIfChanged(input: LedgerTxInput): Promise<boolean> {
+    const active = await this.activeTx(input.sourceType, input.sourceId, input.seq);
+    if (!active) return false; // nothing booked yet at this seq → forward booker handles it (no reversal)
+
+    const fresh = input.legs.map((leg) => this.prepareLeg(leg));
+    await this.appendRoundingLeg(fresh);
+    if (!this.legsDiffer(active.legs, fresh)) return false; // unchanged within §4.12 tolerances → no-op
+
+    // (1) reversal-tx (reversalOf = the active original, inverted legs)
+    await this.reverseTx(active);
+
+    // (2) re-book-tx (reversalOf = NULL — a new valid booking) with the corrected legs, next free seq
+    const reSeq = await this.nextSeq(input.sourceType, input.sourceId);
+    await this.bookTx({ ...input, seq: reSeq, reversalOf: undefined });
+
+    return true;
+  }
+
+  /**
+   * §4.12 flat reversal: if `(sourceType, sourceId)` has an active booking (forward seq = `originalSeq`) but the
+   * source row is no longer bookable (e.g. its type changed to a skipped type), reverse the active tx and do NOT
+   * re-book — the corrected state is "nothing booked". Returns true when a reversal was booked, false otherwise.
+   */
+  async reverseActiveIfBooked(sourceType: string, sourceId: string, originalSeq: number): Promise<boolean> {
+    const active = await this.activeTx(sourceType, sourceId, originalSeq);
+    if (!active) return false;
+
+    await this.reverseTx(active);
+    return true;
+  }
+
+  /**
+   * The currently active (correction-effective) booking tx that descends from the ORIGINAL forward booking at
+   * `originalSeq` (the seq the row was first booked at — e.g. bank_tx seq0, buy_fiat reclassification seq1). Follows
+   * the §4.12 reversal chain SPECIFIC to that original (NOT just the highest live seq — a multi-seq source row, e.g.
+   * buy_fiat seq1/2/3, has several independent originals and reversing the wrong one would corrupt an unrelated leg).
+   *
+   * Walk: start at the original (seq=originalSeq, reversalOf NULL). If it is reversed (some reversal's reversalOf
+   * points at it), its corrected re-book is the booking (reversalOf NULL) with the SMALLEST seq strictly above the
+   * reversal's seq (§4.12 Z.809 order: reversal at seq=N, re-book at seq=N+1); advance to it and repeat. When the
+   * current booking is NOT reversed it is the live correction → return it. A flat reversal (reversed, no re-book)
+   * returns undefined (= nothing booked now).
+   */
+  private async activeTx(sourceType: string, sourceId: string, originalSeq: number): Promise<LedgerTx | undefined> {
+    const all = await this.dataSource.getRepository(LedgerTx).find({
+      where: { sourceType, sourceId },
+      relations: { legs: { account: true } },
+      order: { seq: 'ASC' },
+    });
+    if (!all.length) return undefined;
+
+    let current = all.find((tx) => tx.seq === originalSeq && tx.reversalOf == null);
+    if (!current) return undefined; // no original forward booking at this seq → nothing to correct (§4.12)
+
+    for (;;) {
+      const reversal = all.find((tx) => tx.reversalOfId === current!.id);
+      if (!reversal) return current; // current booking is live (not reversed) → the active correction
+
+      // the corrected re-book = first real booking (reversalOf NULL) with seq strictly above the reversal's seq
+      const rebook = all
+        .filter((tx) => tx.reversalOf == null && tx.seq > reversal.seq)
+        .sort((a, b) => a.seq - b.seq)[0];
+      if (!rebook) return undefined; // flat reversal (no re-book) → nothing booked now
+      current = rebook;
+    }
+  }
+
+  // §4.12 content-change comparison: legs differ iff the fresh leg multiset cannot be matched 1:1 against the
+  // existing one with EVERY field within its float tolerance (amount 1e-8, amountChf 0.005, priceChf 1e-6 — no
+  // reversal merely for a sub-tolerance mark drift). Greedy multiset match (legs may repeat the same account, e.g.
+  // the buyFiat seq1 reclassification has two `received` legs) — pairwise tolerances, NOT bucketed (boundary-safe).
+  private legsDiffer(existing: LedgerLeg[], fresh: LedgerLeg[]): boolean {
+    if (existing.length !== fresh.length) return true;
+
+    const within = (a: number | undefined | null, b: number | undefined | null, tol: number): boolean => {
+      if (a == null && b == null) return true;
+      if (a == null || b == null) return false;
+      return Math.abs(a - b) <= tol;
+    };
+    const matches = (e: LedgerLeg, f: LedgerLeg): boolean =>
+      (e.account?.id ?? e.account?.name) === (f.account?.id ?? f.account?.name) &&
+      within(e.amount, f.amount, 1e-8) &&
+      within(e.amountChf, f.amountChf, 0.005) &&
+      within(e.priceChf, f.priceChf, 1e-6);
+
+    const unmatched = [...existing];
+    for (const f of fresh) {
+      const i = unmatched.findIndex((e) => matches(e, f));
+      if (i < 0) return true; // a fresh leg has no tolerance-equal partner → content changed
+      unmatched.splice(i, 1);
+    }
+    return false;
+  }
+
   // monotonic, collision-free seq allocation in the (sourceType, sourceId) namespace (§4.12)
   async nextSeq(sourceType: string, sourceId: string): Promise<number> {
     const { max } = await this.dataSource

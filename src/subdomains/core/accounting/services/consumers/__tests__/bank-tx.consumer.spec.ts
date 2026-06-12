@@ -6,6 +6,7 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { Repository } from 'typeorm';
+import { LedgerTx } from '../../../entities/ledger-tx.entity';
 import { AccountType, LedgerAccount } from '../../../entities/ledger-account.entity';
 import { createCustomLedgerAccount } from '../../../entities/__mocks__/ledger-account.entity.mock';
 import { LedgerAccountService } from '../../ledger-account.service';
@@ -19,6 +20,7 @@ function bankTx(values: Partial<BankTx>): BankTx {
   return Object.assign(new BankTx(), {
     id: 1,
     created: new Date('2026-06-01T00:00:00Z'),
+    updated: new Date('2026-06-02T00:00:00Z'), // IEntity always sets updated; the §4.12 content-change scan reads it
     bookingDate: new Date('2026-06-02T00:00:00Z'),
     creditDebitIndicator: BankTxIndicator.CREDIT,
     accountIban: 'CHF-IBAN',
@@ -39,6 +41,7 @@ describe('BankTxConsumer', () => {
   let settingService: SettingService;
   let bankTxRepo: Repository<BankTx>;
   let bankRepo: Repository<Bank>;
+  let ledgerTxRepo: Repository<LedgerTx>;
 
   let booked: LedgerTxInput[];
   let createdAccounts: Map<string, LedgerAccount>;
@@ -56,6 +59,11 @@ describe('BankTxConsumer', () => {
     settingService = createMock<SettingService>();
     bankTxRepo = createMock<Repository<BankTx>>();
     bankRepo = createMock<Repository<Bank>>();
+    ledgerTxRepo = createMock<Repository<LedgerTx>>();
+
+    // by default no cutover opening exists → BUY_CRYPTO_RETURN owed-Dr falls back to the completion CHF
+    jest.spyOn(ledgerTxRepo, 'findOne').mockResolvedValue(null);
+    jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
 
     jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
       booked.push(input);
@@ -95,6 +103,7 @@ describe('BankTxConsumer', () => {
         { provide: SettingService, useValue: settingService },
         { provide: getRepositoryToken(BankTx), useValue: bankTxRepo },
         { provide: getRepositoryToken(Bank), useValue: bankRepo },
+        { provide: getRepositoryToken(LedgerTx), useValue: ledgerTxRepo },
       ],
     }).compile();
 
@@ -102,7 +111,11 @@ describe('BankTxConsumer', () => {
   });
 
   function mockBatch(rows: BankTx[], bank?: Partial<Bank>): void {
-    jest.spyOn(bankTxRepo, 'find').mockResolvedValue(rows);
+    // forward id-scan (where.id) returns the rows; the §4.12 content-change scan (where.updated MoreThan) returns []
+    // so the unit tests assert only the forward booking — the reversal path is covered by its own scan tests below
+    jest
+      .spyOn(bankTxRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [] : rows));
     jest.spyOn(bankRepo, 'findOne').mockImplementation((opts: any) => {
       const iban = opts?.where?.iban;
       if (iban === 'EUR-IBAN')
@@ -184,6 +197,56 @@ describe('BankTxConsumer', () => {
     expect(legs[0].account.name).toBe('SUSPENSE/untracked-bank-Raiffeisen-EUR');
     expect(legs[0].needsMark).toBe(true);
     expect(legs[1].account.name).toBe('LIABILITY/buyCrypto-received');
+    expect(cents(legs)).toBe(0);
+  });
+
+  it('books BUY_CRYPTO_RETURN on an EUR bank: owed-Dr = completion CHF, fx-plug absorbs the mark drift (§4.2a/R2-2)', async () => {
+    // owed was opened at completion CHF = amountInChf − totalFeeAmountChf = 9480 − 30 = 9450; the EUR-return
+    // settlement mark gives bank-Cr = 0.95 × 10000 = −9500 → owed must NOT be set to +9500 (that would null the
+    // plug). owed-Dr +9450, bank-Cr −9500 → fx-plug +50 → INCOME/fx-revaluation, owed closes to 0.
+    const buyCrypto = { id: 77, amountInChf: 9480, totalFeeAmountChf: 30 } as any;
+    mockBatch([
+      bankTx({
+        type: BankTxType.BUY_CRYPTO_RETURN,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 10000,
+        buyCrypto,
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    const owed = legs.find((l) => l.account.name === 'LIABILITY/buyCrypto-owed');
+    expect(owed.amountChf).toBe(9450); // completion CHF (amountInChf − totalFeeAmountChf), NOT −(bank-mark)
+    const bank = legs.find((l) => l.account === eurBankAccount);
+    expect(bank.amountChf).toBe(-9500); // EUR-mark × amount (mark-consistent)
+    const plug = legs.find((l) => l.account.name?.includes('fx-revaluation'));
+    expect(plug).toBeDefined(); // the 50-CHF drift IS plugged (would be 0 with the old −(bank) owed value)
+    expect(plug.account.name).toBe('INCOME/fx-revaluation');
+    expect(plug.amountChf).toBe(50);
+    expect(cents(legs)).toBe(0);
+  });
+
+  it('books BUY_CRYPTO_RETURN on a CHF bank as a 2-leg tx (drift 0, no plug)', async () => {
+    // CHF account: amount == amountInChf, completion CHF = 1000 − 0 = 1000, bank-Cr = −1000 → plug 0 → 2-leg
+    const buyCrypto = { id: 78, amountInChf: 1000, totalFeeAmountChf: 0 } as any;
+    mockBatch([
+      bankTx({
+        type: BankTxType.BUY_CRYPTO_RETURN,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'CHF-IBAN',
+        amount: 1000,
+        buyCrypto,
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    expect(legs).toHaveLength(2);
+    const owed = legs.find((l) => l.account.name === 'LIABILITY/buyCrypto-owed');
+    expect(owed.amountChf).toBe(1000);
+    expect(legs.find((l) => l.account === chfBankAccount).amountChf).toBe(-1000);
     expect(cents(legs)).toBe(0);
   });
 

@@ -8,9 +8,9 @@ import { CryptoInput, CryptoInputSettledStatus } from 'src/subdomains/supporting
 import { In, MoreThan, Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity';
 import { LedgerAccountService } from '../ledger-account.service';
-import { LedgerBookingService, LedgerLegInput } from '../ledger-booking.service';
+import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
-import { getLedgerWatermark, setLedgerWatermark } from './ledger-watermark.helper';
+import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'crypto_input';
 const CHF = 'CHF';
@@ -42,6 +42,28 @@ export class CryptoInputConsumer {
       lastReversalScan: new Date(0),
     };
 
+    await this.processForward(watermark);
+
+    // content-change scan (§4.12): an amount change (or buyFiat/buyCrypto re-link) on an already-booked crypto_input
+    // recomputes the seq0 input leg and, if it differs beyond the §4.12 tolerances, reverses the active tx + re-books
+    // the corrected legs. Runs ALSO when the forward batch is empty. Re-read the watermark in case the forward batch
+    // advanced lastProcessedId above.
+    const afterForward = (await getLedgerWatermark(this.settingService, SOURCE_TYPE)) ?? watermark;
+    await runContentChangeScan(
+      this.settingService,
+      SOURCE_TYPE,
+      afterForward,
+      this.cryptoInputRepo,
+      { buyFiat: true, buyCrypto: true },
+      async (ci: CryptoInput) => {
+        const marks = await this.markService.preload(ci.updated, ci.updated);
+        const input = await this.buildSeq0Input(ci, ci.updated, marks);
+        if (input) await this.bookingService.reverseAndRebookIfChanged(input);
+      },
+    );
+  }
+
+  private async processForward(watermark: { lastProcessedId: number; lastReversalScan: Date }): Promise<void> {
     // settled-status filter (§4.4 — NOT isConfirmed, Major R2-3); txType=PAYMENT is included via status
     const batch = await this.cryptoInputRepo.find({
       where: { id: MoreThan(watermark.lastProcessedId), status: In(CryptoInputSettledStatus) },
@@ -81,6 +103,16 @@ export class CryptoInputConsumer {
   private async bookInput(ci: CryptoInput, bookingDate: Date, marks: LedgerMarkCache): Promise<void> {
     if (await this.alreadyBooked(ci.id, 0)) return; // idempotent: don't re-open after a re-run
 
+    const input = await this.buildSeq0Input(ci, bookingDate, marks);
+    if (input) await this.bookingService.bookTx(input);
+  }
+
+  // builds the seq0 input LedgerTxInput (§4.4/§4.4a) or undefined when the row is not bookable (no anchor)
+  private async buildSeq0Input(
+    ci: CryptoInput,
+    bookingDate: Date,
+    marks: LedgerMarkCache,
+  ): Promise<LedgerTxInput | undefined> {
     const wallet = await this.walletAsset(ci);
     const mark = wallet.assetId != null ? marks.getMarkAt(wallet.assetId, bookingDate) : undefined;
     const assetChf = mark != null ? Util.round(mark * ci.amount, 2) : undefined;
@@ -96,7 +128,7 @@ export class CryptoInputConsumer {
     if (ci.isPayment) {
       // paymentLink: 2-leg, mark-based (no per-input amountInChf anchor — @ManyToOne, Minor R10-4)
       const paymentLink = await this.liability('paymentLink');
-      await this.bookingService.bookTx({
+      return {
         sourceType: SOURCE_TYPE,
         sourceId: `${ci.id}`,
         seq: 0,
@@ -112,15 +144,14 @@ export class CryptoInputConsumer {
             needsMark: assetChf == null,
           },
         ],
-      });
-      return;
+      };
     }
 
     // buyFiat / buyCrypto-swap: 3-leg, amountInChf-anchored received-Cr leg + fx-revaluation plug (§4.4a)
     const product = this.productAnchor(ci);
     if (!product) {
       this.logger.error(`crypto_input ${ci.id} has neither buyFiat/buyCrypto nor isPayment — skip seq0`);
-      return;
+      return undefined;
     }
 
     const received = await this.liability(`${product.bucket}-received`);
@@ -130,14 +161,7 @@ export class CryptoInputConsumer {
     ];
     this.appendFxPlug(legs, await this.fxAccounts());
 
-    await this.bookingService.bookTx({
-      sourceType: SOURCE_TYPE,
-      sourceId: `${ci.id}`,
-      seq: 0,
-      bookingDate,
-      valueDate: bookingDate,
-      legs,
-    });
+    return { sourceType: SOURCE_TYPE, sourceId: `${ci.id}`, seq: 0, bookingDate, valueDate: bookingDate, legs };
   }
 
   // seq1 — standalone forward fee (§4.4): Dr EXPENSE/network-fee / Cr ASSET/{asset.uniqueName}.

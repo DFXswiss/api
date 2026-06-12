@@ -271,13 +271,16 @@ describe('LedgerQueryService', () => {
 
   describe('getSuspense', () => {
     it('sums chf and maps each suspense leg with its age', async () => {
+      // generic untracked-bank-EUR SUSPENSE account: the test only exercises sum/age mapping. The fixture amounts are
+      // deliberately small, non-calibrated values — NOT the real ~600k untracked-sweep volume — so no sensitive
+      // bank↔volume correlation is committed to the public repo (Minor R12-1; that calibration lives in analysis-docs).
       const account = createCustomLedgerAccount({
         id: 3,
-        name: 'SUSPENSE/untracked-bank-Raiffeisen-EUR',
+        name: 'SUSPENSE/untracked-bank-EUR',
         type: AccountType.SUSPENSE,
         currency: 'EUR',
       });
-      const legA = makeLeg({ id: 1, amount: 600000, amountChf: 580000, account }, account, {
+      const legA = makeLeg({ id: 1, amount: 5000, amountChf: 4800, account }, account, {
         bookingDate: new Date('2026-06-01T00:00:00.000Z'),
       });
       const legB = makeLeg({ id: 2, amount: 1000, amountChf: 950, account }, account, {
@@ -287,7 +290,7 @@ describe('LedgerQueryService', () => {
 
       const res = await service.getSuspense();
 
-      expect(res.totalChf).toBe(580950);
+      expect(res.totalChf).toBe(5750);
       expect(res.legs).toHaveLength(2);
       expect(res.legs[0].currency).toBe('EUR');
       expect(res.legs[0].age).toBeGreaterThan(0);
