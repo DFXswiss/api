@@ -53,7 +53,7 @@ export class JuiceClient {
             id
             position
             owner
-            jusd
+            stablecoinAddress
             collateral
             price
             collateralSymbol
