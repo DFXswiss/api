@@ -62,6 +62,10 @@ export class CardanoClient extends BlockchainClient {
     return this.wallet.address;
   }
 
+  get isConfigured(): boolean {
+    return !!Config.blockchain.cardano.cardanoTatumApiKey;
+  }
+
   async getBlockHeight(): Promise<number> {
     const info = await this.getNetworkInfo();
     return info.tip;
