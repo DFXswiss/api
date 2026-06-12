@@ -7,6 +7,9 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
 import { DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
+import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
+import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Log } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
@@ -65,6 +68,9 @@ describe('LedgerCutoverService', () => {
   let cryptoInputRepo: Repository<CryptoInput>;
   let exchangeTxRepo: Repository<ExchangeTx>;
   let payoutOrderRepo: Repository<PayoutOrder>;
+  let liquidityManagementOrderRepo: Repository<LiquidityManagementOrder>;
+  let tradingOrderRepo: Repository<TradingOrder>;
+  let liquidityOrderRepo: Repository<LiquidityOrder>;
 
   let booked: LedgerTxInput[];
   let nextSeqByKey: Map<string, number>;
@@ -96,6 +102,9 @@ describe('LedgerCutoverService', () => {
     cryptoInputRepo = createMock<Repository<CryptoInput>>();
     exchangeTxRepo = createMock<Repository<ExchangeTx>>();
     payoutOrderRepo = createMock<Repository<PayoutOrder>>();
+    liquidityManagementOrderRepo = createMock<Repository<LiquidityManagementOrder>>();
+    tradingOrderRepo = createMock<Repository<TradingOrder>>();
+    liquidityOrderRepo = createMock<Repository<LiquidityOrder>>();
 
     jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
       booked.push(input);
@@ -117,13 +126,24 @@ describe('LedgerCutoverService', () => {
     jest.spyOn(settingService, 'getObj').mockResolvedValue([] as any);
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map()));
 
-    // watermark MAX(id) query builder stub
+    // watermark MAX(id) query builder stub (chainable where/andWhere for the per-consumer settled filters)
     const maxQb: any = {
       select: () => maxQb,
       where: () => maxQb,
+      andWhere: () => maxQb,
       getRawOne: () => Promise.resolve({ max: 0 }),
     };
-    for (const repo of [bankTxRepo, cryptoInputRepo, exchangeTxRepo, payoutOrderRepo, buyCryptoRepo, buyFiatRepo]) {
+    for (const repo of [
+      bankTxRepo,
+      cryptoInputRepo,
+      exchangeTxRepo,
+      payoutOrderRepo,
+      buyCryptoRepo,
+      buyFiatRepo,
+      liquidityManagementOrderRepo,
+      tradingOrderRepo,
+      liquidityOrderRepo,
+    ]) {
       jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(maxQb);
     }
 
@@ -142,6 +162,9 @@ describe('LedgerCutoverService', () => {
         { provide: getRepositoryToken(CryptoInput), useValue: cryptoInputRepo },
         { provide: getRepositoryToken(ExchangeTx), useValue: exchangeTxRepo },
         { provide: getRepositoryToken(PayoutOrder), useValue: payoutOrderRepo },
+        { provide: getRepositoryToken(LiquidityManagementOrder), useValue: liquidityManagementOrderRepo },
+        { provide: getRepositoryToken(TradingOrder), useValue: tradingOrderRepo },
+        { provide: getRepositoryToken(LiquidityOrder), useValue: liquidityOrderRepo },
       ],
     }).compile();
 
@@ -330,6 +353,11 @@ describe('LedgerCutoverService', () => {
       expect(keys).toContain('ledgerWatermark.buy_crypto');
       expect(keys).toContain('ledgerWatermark.exchange_tx');
       expect(keys).toContain('ledgerWatermark.payout_order');
+      // §6.3 Z.910-917 / Blocker R3-1: the three on-chain/LM/trading sources MUST be initialised too — a missing
+      // watermark would default to lastProcessedId:0 → full-history backfill + ASSET double-count vs openAssets
+      expect(keys).toContain('ledgerWatermark.liquidity_management_order');
+      expect(keys).toContain('ledgerWatermark.trading_order');
+      expect(keys).toContain('ledgerWatermark.liquidity_order');
 
       // flag is set LAST — the atomic "ledger ready" marker (§6.3 step 5)
       expect(keys[keys.length - 1]).toBe('ledgerCutoverLogId');
@@ -345,6 +373,55 @@ describe('LedgerCutoverService', () => {
 
       const bankWm = setSpy.mock.calls.find((c) => c[0] === 'ledgerWatermark.bank_tx');
       expect(JSON.parse(bankWm[1]).lastReversalScan).toBe('2026-06-07T22:00:00.000Z');
+    });
+
+    // §6.3 Z.917 / Blocker R3-1: the per-consumer settled-filter MUST be applied to the watermark MAX(id) query,
+    // otherwise a high-id pre-cutover NON-settled row sets the watermark too high (payout_order: skips a later
+    // Complete-transition → phantom liability) / too low (exchange_tx: re-books a row the ASSET-opening already
+    // covers → double-count). This asserts the filter predicate, not just the key existence.
+    it('applies the settled-status filter so a non-settled high-id row does NOT set the watermark', async () => {
+      jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+
+      // a query builder that records the andWhere status-filter and returns MAX(id) only over rows matching it:
+      // row {id:200, status:notSettled} (high id) + row {id:50, status:settled} → filtered MAX = 50.
+      const filteredQb = (settledValue: string) => {
+        const rows = [
+          { id: 200, status: 'notSettled' },
+          { id: 50, status: settledValue },
+        ];
+        let statusPredicate: ((s: string) => boolean) | undefined;
+        const qb: any = {
+          select: () => qb,
+          where: () => qb,
+          andWhere: (clause: string, params: Record<string, unknown>) => {
+            // capture the status predicate from the consumer-specific filter (= :poStatus / = :etStatus)
+            const match = /e\.status\s*=\s*:(\w+)/.exec(clause);
+            if (match) {
+              const expected = params[match[1]];
+              statusPredicate = (s: string) => s === expected;
+            }
+            return qb;
+          },
+          getRawOne: () => {
+            const matching = rows.filter((r) => (statusPredicate ? statusPredicate(r.status) : true));
+            const max = matching.length ? Math.max(...matching.map((r) => r.id)) : null;
+            return Promise.resolve({ max });
+          },
+        };
+        return qb;
+      };
+
+      jest.spyOn(payoutOrderRepo, 'createQueryBuilder').mockReturnValue(filteredQb('Complete') as any);
+      jest.spyOn(exchangeTxRepo, 'createQueryBuilder').mockReturnValue(filteredQb('ok') as any);
+
+      await service.run();
+
+      const payoutWm = setSpy.mock.calls.find((c) => c[0] === 'ledgerWatermark.payout_order');
+      const exchangeWm = setSpy.mock.calls.find((c) => c[0] === 'ledgerWatermark.exchange_tx');
+      expect(JSON.parse(payoutWm[1]).lastProcessedId).toBe(50); // NOT 200 → filter applied
+      expect(JSON.parse(exchangeWm[1]).lastProcessedId).toBe(50); // NOT 200 → filter applied
     });
   });
 });

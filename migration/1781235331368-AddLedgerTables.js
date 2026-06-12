@@ -26,7 +26,7 @@ module.exports = class AddLedgerTables1781235331368 {
     await queryRunner.query(`CREATE INDEX "IDX_6793efdea5c47073f6b5d2af34" ON "ledger_account" ("assetId") `);
 
     await queryRunner.query(
-      `CREATE TABLE "ledger_tx" ("id" SERIAL NOT NULL, "updated" TIMESTAMP NOT NULL DEFAULT now(), "created" TIMESTAMP NOT NULL DEFAULT now(), "bookingDate" TIMESTAMP NOT NULL, "valueDate" TIMESTAMP NOT NULL, "description" character varying(512), "sourceType" character varying(64) NOT NULL, "sourceId" character varying(64) NOT NULL, "seq" integer NOT NULL DEFAULT 0, "amountChfSum" integer NOT NULL DEFAULT 0, "reversalOfId" integer, CONSTRAINT "UQ_86a66bea626f9a32e1d26a7b136" UNIQUE ("sourceType", "sourceId", "seq"), CONSTRAINT "CHK_dcc2c4dd65621661cdd1f0b370" CHECK ("amountChfSum" = 0), CONSTRAINT "PK_2a5f197e0dbaa656731fee263d8" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "ledger_tx" ("id" SERIAL NOT NULL, "updated" TIMESTAMP NOT NULL DEFAULT now(), "created" TIMESTAMP NOT NULL DEFAULT now(), "bookingDate" TIMESTAMP NOT NULL, "valueDate" TIMESTAMP NOT NULL, "description" character varying(512), "sourceType" character varying(64) NOT NULL, "sourceId" character varying(64) NOT NULL, "seq" integer NOT NULL DEFAULT 0, "amountChfSum" integer NOT NULL DEFAULT 0, "reversalOfId" integer, CONSTRAINT "UQ_86a66bea626f9a32e1d26a7b136" UNIQUE ("sourceType", "sourceId", "seq"), CONSTRAINT "CHK_357a2fc90abae910ef69d3822e" CHECK ("amountChfSum" = 0), CONSTRAINT "PK_2a5f197e0dbaa656731fee263d8" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(`CREATE INDEX "IDX_e27c60c70525be037830f579b4" ON "ledger_tx" ("bookingDate") `);
     await queryRunner.query(`CREATE INDEX "IDX_42c53a01650aaa5e88bb9a3470" ON "ledger_tx" ("reversalOfId") `);

@@ -231,4 +231,118 @@ describe('LedgerBookingService', () => {
     expect(reversal.amountChfSum).toBe(0);
     expect(savedLegs.map((l) => l.amountChfCents)).toEqual([-5000000, 5000000]); // inverted
   });
+
+  describe('reverseAndRebookIfChanged (§4.12 content-change cycle)', () => {
+    // an in-memory ledger_tx store the service reads via getRepository(LedgerTx).find / .createQueryBuilder(nextSeq)
+    // and writes via dataSource.transaction (manager.create/save). Lets the full reversal cycle run for real.
+    let txStore: LedgerTx[];
+    let nextId: number;
+
+    beforeEach(() => {
+      txStore = [];
+      nextId = 1;
+
+      // capture booked tx into the store so activeTx/nextSeq see the running state
+      jest.spyOn(dataSource, 'transaction').mockImplementation((arg: any) => {
+        const manager = createMock<EntityManager>();
+        jest.spyOn(manager, 'create').mockImplementation((entity: any, plain: any) => {
+          const build = (p: any) =>
+            entity === LedgerTx
+              ? Object.assign(new LedgerTx(), p, p?.reversalOf?.id != null ? { reversalOfId: p.reversalOf.id } : {})
+              : Object.assign(new LedgerLeg(), p);
+          return (Array.isArray(plain) ? plain.map(build) : build(plain)) as any;
+        });
+        jest.spyOn(manager, 'save').mockImplementation((entity: any, value: any) => {
+          if (entity === LedgerTx) {
+            const tx = value as LedgerTx;
+            tx.id = nextId++;
+            txStore.push(tx);
+            return Promise.resolve(tx) as any;
+          }
+          // attach legs to their tx (so a later find returns them)
+          const legs = value as LedgerLeg[];
+          for (const leg of legs) (leg.tx.legs ??= []).push(leg);
+          savedLegs = legs;
+          return Promise.resolve(legs) as any;
+        });
+        return (arg as (m: EntityManager) => unknown)(manager) as any;
+      });
+
+      jest.spyOn(dataSource, 'getRepository').mockReturnValue({
+        find: ({ where }: any) =>
+          Promise.resolve(
+            txStore
+              .filter((tx) => tx.sourceType === where.sourceType && tx.sourceId === where.sourceId)
+              .sort((a, b) => a.seq - b.seq),
+          ),
+        createQueryBuilder: () => {
+          let st: string, sid: string;
+          const qb: any = {};
+          qb.select = () => qb;
+          qb.where = (_e: string, p: any) => ((st = p.sourceType), qb);
+          qb.andWhere = (_e: string, p: any) => ((sid = p.sourceId), qb);
+          qb.getRawOne = () => {
+            const seqs = txStore.filter((t) => t.sourceType === st && t.sourceId === sid).map((t) => t.seq);
+            return Promise.resolve({ max: seqs.length ? Math.max(...seqs) : null });
+          };
+          return qb;
+        },
+      } as any);
+    });
+
+    const seq0Input = (amountChf: number) => ({
+      sourceType: 'bank_tx',
+      sourceId: '900',
+      seq: 0,
+      bookingDate: new Date('2026-06-01'),
+      legs: [
+        { account: walletAsset, amount: 1, priceChf: amountChf, amountChf },
+        { account: liability, amount: -amountChf, priceChf: 1, amountChf: -amountChf },
+      ],
+    });
+
+    it('books a reversal + re-book when a leg amount changed beyond tolerance; seq strictly monotonic', async () => {
+      await service.bookTx(seq0Input(50000)); // seq0
+
+      const changed = await service.reverseAndRebookIfChanged(seq0Input(60000)); // amountChf changed
+      expect(changed).toBe(true);
+
+      const all = txStore.filter((t) => t.sourceId === '900').sort((a, b) => a.seq - b.seq);
+      expect(all.map((t) => t.seq)).toEqual([0, 1, 2]); // monotone over the cycle
+      expect(all[1].reversalOfId).toBe(all[0].id); // seq1 reverses the ORIGINAL seq0
+      expect(all[2].reversalOfId).toBeUndefined(); // seq2 re-book is a new valid booking
+    });
+
+    it('is a no-op when nothing changed (idempotent re-scan) and when a sub-tolerance mark drift occurs', async () => {
+      await service.bookTx(seq0Input(50000)); // seq0
+
+      expect(await service.reverseAndRebookIfChanged(seq0Input(50000))).toBe(false); // identical → no-op
+      // a priceChf drift below 1e-6 and amountChf below 0.005 must NOT trigger a reversal (§4.12 tolerances)
+      const subTol = {
+        ...seq0Input(50000),
+        legs: [
+          { account: walletAsset, amount: 1 + 5e-9, priceChf: 50000 + 5e-7, amountChf: 50000 + 0.002 },
+          { account: liability, amount: -50000, priceChf: 1, amountChf: -50000 },
+        ],
+      };
+      expect(await service.reverseAndRebookIfChanged(subTol)).toBe(false);
+      expect(txStore.filter((t) => t.sourceId === '900')).toHaveLength(1); // still only seq0
+    });
+
+    it('returns false when no original booking exists at the seq (forward booker owns it)', async () => {
+      expect(await service.reverseAndRebookIfChanged(seq0Input(50000))).toBe(false);
+      expect(txStore).toHaveLength(0);
+    });
+
+    it('reverseActiveIfBooked reverses flat when the row is no longer bookable', async () => {
+      await service.bookTx(seq0Input(50000)); // seq0
+
+      const reversed = await service.reverseActiveIfBooked('bank_tx', '900', 0);
+      expect(reversed).toBe(true);
+
+      const all = txStore.filter((t) => t.sourceId === '900').sort((a, b) => a.seq - b.seq);
+      expect(all.map((t) => t.seq)).toEqual([0, 1]);
+      expect(all[1].reversalOfId).toBe(all[0].id); // flat reversal, no re-book
+    });
+  });
 });

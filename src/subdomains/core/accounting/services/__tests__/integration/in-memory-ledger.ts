@@ -167,8 +167,11 @@ export class InMemoryLedger {
     jest.spyOn(dataSource, 'transaction').mockImplementation((arg: any) => {
       const manager = createMock<EntityManager>();
       jest.spyOn(manager, 'create').mockImplementation((entity: any, plain: any) => {
-        const build = (p: any) =>
-          entity === LedgerTx ? Object.assign(new LedgerTx(), p) : Object.assign(new LedgerLeg(), p);
+        const build = (p: any) => {
+          if (entity !== LedgerTx) return Object.assign(new LedgerLeg(), p);
+          // mirror the @RelationId(reversalOf) TypeORM populates on load → activeTx (§4.12) reads reversalOfId
+          return Object.assign(new LedgerTx(), p, p?.reversalOf?.id != null ? { reversalOfId: p.reversalOf.id } : {});
+        };
         return (Array.isArray(plain) ? plain.map(build) : build(plain)) as any;
       });
       jest.spyOn(manager, 'save').mockImplementation((entity: any, value: any) => {
@@ -190,6 +193,15 @@ export class InMemoryLedger {
 
     jest.spyOn(dataSource, 'getRepository').mockReturnValue({
       createQueryBuilder: () => this.nextSeqQueryBuilder(),
+      // backs LedgerBookingService.activeTx (§4.12 reversal chain): find all tx of a (sourceType, sourceId) with
+      // their legs (+ each leg's account) attached, ordered by seq ASC
+      find: ({ where }: any) =>
+        Promise.resolve(
+          this.txs
+            .filter((tx) => tx.sourceType === where.sourceType && tx.sourceId === where.sourceId)
+            .sort((a, b) => a.seq - b.seq)
+            .map((tx) => Object.assign(new LedgerTx(), tx, { legs: this.legsForTx(tx.id) })),
+        ),
     } as any);
 
     return dataSource;

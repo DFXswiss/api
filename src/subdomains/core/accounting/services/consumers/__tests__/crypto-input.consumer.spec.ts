@@ -104,7 +104,11 @@ describe('CryptoInputConsumer', () => {
   });
 
   const cents = (legs: LedgerLegInput[]) => legs.reduce((s, l) => s + Math.round((l.amountChf ?? 0) * 100), 0);
-  const mockBatch = (rows: CryptoInput[]) => jest.spyOn(cryptoInputRepo, 'find').mockResolvedValue(rows);
+  // forward id-scan (where.id) returns the rows; the §4.12 content-change scan (where.updated MoreThan) returns []
+  const mockBatch = (rows: CryptoInput[]) =>
+    jest
+      .spyOn(cryptoInputRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [] : rows));
 
   it('is defined', () => {
     expect(consumer).toBeDefined();

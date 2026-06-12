@@ -48,6 +48,8 @@ describe('BuyFiatConsumer', () => {
   let nextSeqValue: number;
   let gateCount: number; // countBy result (received/cutover gate)
   let seq0PaymentLinkChf: number | undefined; // the seq0 paymentLink opening leg amountChf (negative)
+  let cutoverOwedOpeningChf: number | undefined; // the cutover buyFiat-owed opening leg amountChf (negative)
+  let cutoverLogId: string | undefined; // ledgerCutoverLogId setting (enables the owed-opening lookup)
 
   const chfBank = account('Bank/CHF', AccountType.ASSET, 'CHF', CHF_BANK_ASSET_ID);
   const eurBank = account('Bank/EUR', AccountType.ASSET, 'EUR', EUR_BANK_ASSET_ID);
@@ -59,6 +61,8 @@ describe('BuyFiatConsumer', () => {
     nextSeqValue = 0;
     gateCount = 1;
     seq0PaymentLinkChf = undefined;
+    cutoverOwedOpeningChf = undefined;
+    cutoverLogId = undefined;
     accounts = new Map([
       ['Bank/CHF', chfBank],
       ['Bank/EUR', eurBank],
@@ -91,7 +95,15 @@ describe('BuyFiatConsumer', () => {
       });
 
     jest.spyOn(ledgerTxRepo, 'countBy').mockImplementation(() => Promise.resolve(gateCount));
-    jest.spyOn(ledgerTxRepo, 'findOne').mockImplementation(() => {
+    jest.spyOn(ledgerTxRepo, 'findOne').mockImplementation(({ where }: any) => {
+      // cutover buyFiat-owed opening lookup (§4.7a/§6.1): sourceType='cutover', sourceId='<logId>:buy_fiat-owed:<id>'
+      if (where?.sourceType === 'cutover') {
+        if (cutoverOwedOpeningChf == null) return Promise.resolve(undefined);
+        const owedAccount = account('LIABILITY/buyFiat-owed', AccountType.LIABILITY, 'CHF');
+        const owedLeg = Object.assign(new LedgerLeg(), { account: owedAccount, amountChf: cutoverOwedOpeningChf });
+        return Promise.resolve(Object.assign(new LedgerTx(), { legs: [owedLeg] }));
+      }
+      // seq0 paymentLink opening lookup (§4.7b): sourceType='crypto_input'
       if (seq0PaymentLinkChf == null) return Promise.resolve(undefined);
       const plAccount = account('LIABILITY/paymentLink', AccountType.LIABILITY, 'CHF');
       const leg = Object.assign(new LedgerLeg(), { account: plAccount, amountChf: seq0PaymentLinkChf });
@@ -100,6 +112,7 @@ describe('BuyFiatConsumer', () => {
 
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(markMap));
     jest.spyOn(settingService, 'getObj').mockResolvedValue(undefined);
+    jest.spyOn(settingService, 'get').mockImplementation(() => Promise.resolve(cutoverLogId));
     jest.spyOn(settingService, 'set').mockResolvedValue();
 
     const module: TestingModule = await Test.createTestingModule({
@@ -119,7 +132,12 @@ describe('BuyFiatConsumer', () => {
   });
 
   const cents = (legs: LedgerLegInput[]) => legs.reduce((s, l) => s + Math.round((l.amountChf ?? 0) * 100), 0);
-  const mockBatch = (rows: BuyFiat[]) => jest.spyOn(buyFiatRepo, 'find').mockResolvedValue(rows);
+  // forward id-scan returns the rows; the §4.12 content-change scan (where has `updated`, not `id`) returns [] —
+  // its late-settling/cutover-straddling coverage is asserted in the integration spec (no double-book here)
+  const mockBatch = (rows: BuyFiat[]) =>
+    jest
+      .spyOn(buyFiatRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [] : rows));
   const seq = (n: number) => booked.find((b) => b.seq === n);
   const leg = (tx: LedgerTxInput, name: string) => tx.legs.find((l) => l.account.name === name);
   const sumOn = (name: string) =>
@@ -209,6 +227,50 @@ describe('BuyFiatConsumer', () => {
     expect(leg(s3, 'Bank/EUR').amountChf).toBe(-9975);
     expect(leg(s3, 'EXPENSE/fx-revaluation').amountChf).toBe(-25); // residual = −(10000 − 9975) = −25 < 0 → EXPENSE
     expect(cents(s3.legs)).toBe(0);
+  });
+
+  // §4.7a/§6.1 owed-straddling (Blocker R6-1): a pre-cutover open buy_fiat (owed opened by the cutover at the
+  // opening CHF) settles post-cutover via seq2/seq3 only — seq1 is skipped (would never open the received gate) and
+  // owed closes cent-exact to 0 with the opening-CHF anchor; the Opening↔Settlement mark drift lands in the FX leg.
+  it('settles an owed-straddling buy_fiat end-to-end: skip seq1, owed closes to 0 via the opening anchor', async () => {
+    cutoverLogId = '1557344';
+    cutoverOwedOpeningChf = -9500; // cutover opened buyFiat-owed at outputAmount(10000 EUR) × mark@snapshot(0.95)
+    gateCount = 0; // the received seq0 gate would NEVER open (the financing crypto_input settled pre-cutover)
+    mockBatch([
+      buyFiat({
+        id: 6,
+        amountInChf: 10000,
+        totalFeeAmountChf: 50,
+        outputAmount: 10000, // EUR
+        outputReferenceAmount: 10000,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'EUR',
+          bank: { asset: { id: EUR_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    // seq1 is NOT booked (owed-straddling: reclassification ran pre-cutover, anchored in the cutover opening)
+    expect(seq(1)).toBeUndefined();
+
+    // seq2 transmit: owed-Dr = opening anchor (+9500), NOT the completion CHF (10000 − 50 = 9950)
+    const s2 = seq(2);
+    expect(leg(s2, 'LIABILITY/buyFiat-owed').amountChf).toBe(9500);
+    expect(leg(s2, 'TRANSIT/payout/EUR').amountChf).toBe(-9500);
+
+    // seq3 booked: TRANSIT +9500; bank Cr = 10000 EUR × 0.95 = −9500 → drift 0 here, closes flat
+    const s3 = seq(3);
+    expect(leg(s3, 'TRANSIT/payout/EUR').amountChf).toBe(9500);
+    expect(leg(s3, 'Bank/EUR').amountChf).toBe(-9500);
+
+    // owed: opened −9500 (cutover, external), debited +9500 (seq2) → closes cent-exact to 0
+    expect(sumOn('LIABILITY/buyFiat-owed')).toBe(9500); // this consumer's debit; the −9500 opening was external
+    expect(sumOn('TRANSIT/payout/EUR')).toBe(0);
+    for (const tx of booked) expect(cents(tx.legs)).toBe(0);
   });
 
   // §4.7 G-a/G-b gate: seq1 skipped while received not opened; watermark not advanced past the row

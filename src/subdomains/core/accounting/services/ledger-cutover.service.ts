@@ -9,13 +9,22 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { ExchangeTx } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
+import { LiquidityManagementOrderStatus } from 'src/subdomains/core/liquidity-management/enums';
+import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
+import { TradingOrderStatus } from 'src/subdomains/core/trading/enums';
+import {
+  LiquidityOrder,
+  LiquidityOrderContext,
+  LiquidityOrderType,
+} from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { FinanceLog, ManualLogPosition } from 'src/subdomains/supporting/log/dto/log.dto';
 import { Log } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
-import { PayoutOrder } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
-import { IsNull, LessThanOrEqual, Repository } from 'typeorm';
+import { CryptoInput, CryptoInputSettledStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayoutOrder, PayoutOrderStatus } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
+import { Between, IsNull, Repository, SelectQueryBuilder } from 'typeorm';
 import { AccountType, LedgerAccount } from '../entities/ledger-account.entity';
 import { LedgerBookingService, LedgerLegInput } from './ledger-booking.service';
 import { LedgerBootstrapService } from './ledger-bootstrap.service';
@@ -45,6 +54,10 @@ export class LedgerCutoverService {
     @InjectRepository(CryptoInput) private readonly cryptoInputRepo: Repository<CryptoInput>,
     @InjectRepository(ExchangeTx) private readonly exchangeTxRepo: Repository<ExchangeTx>,
     @InjectRepository(PayoutOrder) private readonly payoutOrderRepo: Repository<PayoutOrder>,
+    @InjectRepository(LiquidityManagementOrder)
+    private readonly liquidityManagementOrderRepo: Repository<LiquidityManagementOrder>,
+    @InjectRepository(TradingOrder) private readonly tradingOrderRepo: Repository<TradingOrder>,
+    @InjectRepository(LiquidityOrder) private readonly liquidityOrderRepo: Repository<LiquidityOrder>,
   ) {}
 
   /**
@@ -191,12 +204,12 @@ export class LedgerCutoverService {
   // buyFiat-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R3-6); per-row seq0-marker (R4-2)
   private async openBuyFiatReceived(snapshot: Log, date: Date, lookback: Date, equity: LedgerAccount): Promise<void> {
     const rows = await this.buyFiatRepo.find({
-      where: { isComplete: false, outputAmount: IsNull(), created: LessThanOrEqual(date) },
+      where: { isComplete: false, outputAmount: IsNull(), created: Between(lookback, date) },
     });
     const liability = await this.liability('buyFiat-received');
 
     for (const row of rows) {
-      if (row.created.getTime() < lookback.getTime() || row.amountInChf == null) continue;
+      if (row.amountInChf == null) continue;
       await this.bookReceivedOwedOpening(
         snapshot,
         date,
@@ -218,13 +231,13 @@ export class LedgerCutoverService {
     equity: LedgerAccount,
   ): Promise<void> {
     const rows = await this.buyFiatRepo.find({
-      where: { isComplete: false, created: LessThanOrEqual(date) },
+      where: { isComplete: false, created: Between(lookback, date) },
       relations: { outputAsset: true },
     });
     const liability = await this.liability('buyFiat-owed');
 
     for (const row of rows) {
-      if (row.outputAmount == null || row.created.getTime() < lookback.getTime()) continue;
+      if (row.outputAmount == null) continue;
 
       // outputAsset is a Fiat; CHF-output → mark 1, foreign-currency output → fiat-mark ≤ snapshot
       const fiatMark = row.outputAsset?.name === CHF ? 1 : this.fiatMark(row.outputAsset?.id, date, marks);
@@ -246,12 +259,12 @@ export class LedgerCutoverService {
   // buyCrypto-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R2-7); per-row seq0-marker (R4-2)
   private async openBuyCryptoReceived(snapshot: Log, date: Date, lookback: Date, equity: LedgerAccount): Promise<void> {
     const rows = await this.buyCryptoRepo.find({
-      where: { isComplete: false, outputAmount: IsNull(), created: LessThanOrEqual(date) },
+      where: { isComplete: false, outputAmount: IsNull(), created: Between(lookback, date) },
     });
     const liability = await this.liability('buyCrypto-received');
 
     for (const row of rows) {
-      if (row.created.getTime() < lookback.getTime() || row.amountInChf == null) continue;
+      if (row.amountInChf == null) continue;
       await this.bookReceivedOwedOpening(
         snapshot,
         date,
@@ -273,13 +286,13 @@ export class LedgerCutoverService {
     equity: LedgerAccount,
   ): Promise<void> {
     const rows = await this.buyCryptoRepo.find({
-      where: { isComplete: false, created: LessThanOrEqual(date) },
+      where: { isComplete: false, created: Between(lookback, date) },
       relations: { outputAsset: true },
     });
     const liability = await this.liability('buyCrypto-owed');
 
     for (const row of rows) {
-      if (row.outputAmount == null || row.created.getTime() < lookback.getTime()) continue;
+      if (row.outputAmount == null) continue;
 
       const mark = row.outputAsset?.id != null ? marks.getMarkAt(row.outputAsset.id, date) : undefined;
       const amountChf = mark != null ? Util.round(row.outputAmount * mark, 2) : undefined;
@@ -344,14 +357,76 @@ export class LedgerCutoverService {
 
   // sets each ledgerWatermark.<source> to MAX(id) of pre-cutover settled rows + lastReversalScan = snapshotDate,
   // so the forward consumers never re-book a row whose settlement the opening already covers (no double-count).
+  // ALL nine consumer sources MUST be initialised here (§6.3 Z.910-917, Blocker R3-1) — a missing watermark would
+  // default the consumer to lastProcessedId:0 → WHERE id>0 full-history backfill (Hard Constraint #4 + ASSET
+  // double-count vs the openAssets openings, §6.1). The settled-filter per source is exactly the §4.x consumer
+  // filter (§6.3 Z.917).
   private async initWatermarks(snapshotDate: Date): Promise<void> {
     const sources: { source: string; maxId: () => Promise<number> }[] = [
       { source: 'bank_tx', maxId: () => this.maxSettledId(this.bankTxRepo, 'bookingDate', snapshotDate) },
-      { source: 'crypto_input', maxId: () => this.maxSettledId(this.cryptoInputRepo, 'updated', snapshotDate) },
-      { source: 'payout_order', maxId: () => this.maxSettledId(this.payoutOrderRepo, 'updated', snapshotDate) },
-      { source: 'exchange_tx', maxId: () => this.maxSettledId(this.exchangeTxRepo, 'created', snapshotDate) },
+      // §4.4 — crypto_input: status ∈ CryptoInputSettledStatus + updated <= snapshot (§6.3 Z.917)
+      {
+        source: 'crypto_input',
+        maxId: () =>
+          this.maxSettledId(this.cryptoInputRepo, 'updated', snapshotDate, (qb) =>
+            qb.andWhere('e.status IN (:...ciStatus)', { ciStatus: CryptoInputSettledStatus }),
+          ),
+      },
+      // §4.5 — payout_order: status='Complete' + updated <= snapshot (§6.3 Z.917)
+      {
+        source: 'payout_order',
+        maxId: () =>
+          this.maxSettledId(this.payoutOrderRepo, 'updated', snapshotDate, (qb) =>
+            qb.andWhere('e.status = :poStatus', { poStatus: PayoutOrderStatus.COMPLETE }),
+          ),
+      },
+      // §4.3 — exchange_tx: status='ok' + (externalCreated ?? created) <= snapshot (§6.3 Z.917)
+      {
+        source: 'exchange_tx',
+        maxId: () =>
+          this.maxSettledId(this.exchangeTxRepo, 'externalCreated', snapshotDate, (qb) =>
+            qb.andWhere('e.status = :etStatus', { etStatus: 'ok' }),
+          ),
+      },
       { source: 'buy_crypto', maxId: () => this.maxSettledId(this.buyCryptoRepo, 'updated', snapshotDate) },
       { source: 'buy_fiat', maxId: () => this.maxSettledId(this.buyFiatRepo, 'updated', snapshotDate) },
+      // §4.8 — liquidity_management_order: status='Complete' + updated <= snapshot
+      {
+        source: 'liquidity_management_order',
+        maxId: () =>
+          this.maxSettledId(this.liquidityManagementOrderRepo, 'updated', snapshotDate, (qb) =>
+            qb.andWhere('e.status = :lmStatus', { lmStatus: LiquidityManagementOrderStatus.COMPLETE }),
+          ),
+      },
+      // §4.9 — trading_order: status='Complete' AND txId IS NOT NULL + updated <= snapshot
+      {
+        source: 'trading_order',
+        maxId: () =>
+          this.maxSettledId(this.tradingOrderRepo, 'updated', snapshotDate, (qb) =>
+            qb
+              .andWhere('e.status = :toStatus', { toStatus: TradingOrderStatus.COMPLETE })
+              .andWhere('e.txId IS NOT NULL'),
+          ),
+      },
+      // §4.8a — liquidity_order: txId IS NOT NULL AND context IN (...) AND type IN ('Purchase','Sell') + updated <= snapshot
+      {
+        source: 'liquidity_order',
+        maxId: () =>
+          this.maxSettledId(this.liquidityOrderRepo, 'updated', snapshotDate, (qb) =>
+            qb
+              .andWhere('e.txId IS NOT NULL')
+              .andWhere('e.context IN (:...loContexts)', {
+                loContexts: [
+                  LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
+                  LiquidityOrderContext.BUY_CRYPTO,
+                  LiquidityOrderContext.TRADING,
+                ],
+              })
+              .andWhere('e.type IN (:...loTypes)', {
+                loTypes: [LiquidityOrderType.PURCHASE, LiquidityOrderType.SELL],
+              }),
+          ),
+      },
     ];
 
     for (const { source, maxId } of sources) {
@@ -359,14 +434,23 @@ export class LedgerCutoverService {
     }
   }
 
-  // MAX(id) of rows whose settlement date ≤ snapshot (the consumer-specific settled filter, §4.x simplified to the
-  // settlement-date cutoff — the forward id-watermark only needs the highest pre-cutover-settled id, §6.3 Effekt)
-  private async maxSettledId<T>(repo: Repository<T>, dateColumn: string, snapshotDate: Date): Promise<number> {
-    const { max } = (await repo
+  // MAX(id) of rows whose settlement date ≤ snapshot AND that match the per-consumer settled filter (§4.x / §6.3
+  // Z.917). The optional `filter` appends the consumer-specific settled-status predicates (e.g. status='Complete',
+  // txId IS NOT NULL) so the watermark = "highest pre-cutover row whose settlement the opening already covers".
+  private async maxSettledId<T>(
+    repo: Repository<T>,
+    dateColumn: string,
+    snapshotDate: Date,
+    filter?: (qb: SelectQueryBuilder<T>) => SelectQueryBuilder<T>,
+  ): Promise<number> {
+    let qb = repo
       .createQueryBuilder('e')
       .select('MAX(e.id)', 'max')
-      .where(`COALESCE(e.${dateColumn}, e.created) <= :date`, { date: snapshotDate })
-      .getRawOne<{ max: number | null }>()) ?? { max: null };
+      .where(`COALESCE(e.${dateColumn}, e.created) <= :date`, { date: snapshotDate });
+
+    if (filter) qb = filter(qb); // appends the per-consumer settled-status predicates via .andWhere (all ANDed)
+
+    const { max } = (await qb.getRawOne<{ max: number | null }>()) ?? { max: null };
 
     return max ?? 0;
   }

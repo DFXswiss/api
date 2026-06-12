@@ -9,8 +9,11 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
+import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
+import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { Log } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
@@ -246,7 +249,12 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
       const emptyRepo = () => {
         const repo = createMock<Repository<unknown>>();
         jest.spyOn(repo, 'find').mockResolvedValue([]);
-        const maxQb: any = { select: () => maxQb, where: () => maxQb, getRawOne: () => Promise.resolve({ max: 0 }) };
+        const maxQb: any = {
+          select: () => maxQb,
+          where: () => maxQb,
+          andWhere: () => maxQb,
+          getRawOne: () => Promise.resolve({ max: 0 }),
+        };
         jest.spyOn(repo, 'createQueryBuilder').mockReturnValue(maxQb);
         return repo;
       };
@@ -266,6 +274,9 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
           { provide: getRepositoryToken(CryptoInput), useValue: emptyRepo() },
           { provide: getRepositoryToken(ExchangeTx), useValue: emptyRepo() },
           { provide: getRepositoryToken(PayoutOrder), useValue: emptyRepo() },
+          { provide: getRepositoryToken(LiquidityManagementOrder), useValue: emptyRepo() },
+          { provide: getRepositoryToken(TradingOrder), useValue: emptyRepo() },
+          { provide: getRepositoryToken(LiquidityOrder), useValue: emptyRepo() },
         ],
       }).compile();
 

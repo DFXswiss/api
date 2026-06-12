@@ -244,6 +244,43 @@ describe('LedgerReconciliationService', () => {
       expect(reconMails[0].correlationId).toContain('ledger-unverified-');
     });
 
+    it('paginates the ASSET-account universe in batches — accounts beyond the first batch ARE reconciled (Minor R13-2, MAJOR)', async () => {
+      const now = new Date();
+
+      // simulate a universe larger than backfillBatchSize by paginating: a full first page (= batchSize accounts)
+      // then a short final page containing the account that the OLD truncating code would never have reconciled.
+      // The id-watermark loop must request the second page and reconcile it.
+      const { Config } = await import('src/config/config');
+      const size = Config.ledger.backfillBatchSize;
+
+      const firstPage = Array.from({ length: size }, (_, i) =>
+        assetAccount(1000 + i, { blockchain: Blockchain.ETHEREUM }),
+      );
+      const beyondBatch = assetAccount(9999, { blockchain: Blockchain.ETHEREUM });
+
+      jest.spyOn(ledgerAccountRepository, 'find').mockImplementation((options: any) => {
+        const lastId = options?.where?.id?._value ?? options?.where?.id?.value ?? 0;
+        if (lastId === 0) return Promise.resolve(firstPage); // page 1 (full → loop continues)
+        return Promise.resolve([beyondBatch]); // page 2 (short → loop ends)
+      });
+
+      // a fresh feed for the beyond-batch account that is OUT of balance → must produce a diff alarm if reconciled
+      jest
+        .spyOn(liquidityManagementBalanceService, 'getBalances')
+        .mockResolvedValue([balance(9999, 100, Util.hoursBefore(1, now))]);
+      legStub.native = '150'; // journal 150 vs feed 100 → diff 50 > tolerance
+
+      await service.run();
+
+      // the OLD code (single find, take: batchSize) would never have loaded account 9999 → no alarm; the paginated
+      // loop reconciles it → a per-account diff alarm proves the second page was visited.
+      const reconMail = mails.find(
+        (m) => m.context === MailContext.LEDGER_RECONCILIATION && m.correlationId?.includes('ledger-recon-'),
+      );
+      expect(reconMail).toBeDefined();
+      expect(ledgerAccountRepository.find).toHaveBeenCalledTimes(2); // two pages requested
+    });
+
     it('does NOT alarm on a placeholder feed (§7.1)', async () => {
       const now = new Date();
       jest

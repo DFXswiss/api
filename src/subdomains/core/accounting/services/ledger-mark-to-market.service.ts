@@ -30,7 +30,8 @@ interface AccountBalance {
  * needsMark leg is never mutated). Native is unchanged (amount=0 on the FX leg) — only the CHF basis moves; Σ CHF = 0.
  *
  * Runs off-peak at 04:00; the reconciliation job (§7) runs 1h later (05:00) so it compares against tagesaktuell
- * revalued accounts (Minor R13-8). Batch-limited by Config.ledger.backfillBatchSize (no full-scan, §5.3 Minor R1-2).
+ * revalued accounts (Minor R13-8). Paginated over the whole open-account universe in Config.ledger.backfillBatchSize
+ * windows by id-watermark (no full-scan AND no truncation, analog reconciliation §7.0, §5.3 Minor R1-2).
  */
 @Injectable()
 export class LedgerMarkToMarketService {
@@ -59,41 +60,74 @@ export class LedgerMarkToMarketService {
 
   private async markToMarket(): Promise<void> {
     const now = new Date();
-    const accounts = await this.selectCandidates();
-    if (!accounts.length) return;
+
+    // §5.3 (Major, analog reconciliation §7.0): paginate the open ASSET/LIABILITY candidate universe by id-watermark
+    // — NOT a single truncated `.limit(batchSize)` (which would silently never re-mark accounts beyond the first
+    // batchSize once the asset universe grows past it → permanently stale CHF valuation + skewed equity parity §7.6).
+    const batchSize = Config.ledger.backfillBatchSize;
+    const firstPage = await this.selectCandidates(0, batchSize);
+    if (!firstPage.ids.length) return; // no open candidates → no-op (skip the mark preload + fx setup)
 
     const marks = await this.markService.preload(Util.daysBefore(2, now), now);
     const dayIndex = this.dayIndex(now);
     const fx = await this.fxAccounts();
 
-    for (const account of accounts) {
-      try {
-        await this.revalue(account, marks, now, dayIndex, fx);
-      } catch (e) {
-        this.logger.error(`Failed to mark-to-market ledger account ${account.id}`, e);
-        // failure-isolation: one account failing must not abort the others (each tx is atomic)
+    let page = firstPage;
+    for (;;) {
+      for (const account of page.accounts) {
+        try {
+          await this.revalue(account, marks, now, dayIndex, fx);
+        } catch (e) {
+          this.logger.error(`Failed to mark-to-market ledger account ${account.id}`, e);
+          // failure-isolation: one account failing must not abort the others (each tx is atomic)
+        }
       }
+
+      if (page.ids.length < batchSize) break; // last (partial) page → exhausted
+      page = await this.selectCandidates(page.maxId, batchSize); // next page by candidate-id watermark
+      if (!page.ids.length) break;
     }
   }
 
-  // §5.3 step 1: open ASSET/LIABILITY accounts (balance ≠ 0) PLUS accounts holding needsMark=true legs, batch-limited
-  private async selectCandidates(): Promise<LedgerAccount[]> {
-    const openAccountIds = await this.ledgerLegRepository
+  /**
+   * §5.3 step 1: open ASSET/LIABILITY accounts (balance ≠ 0) PLUS accounts holding needsMark=true legs, one
+   * id-watermark page (accountId > lastId, ASC, limit batchSize) — the caller loops until exhausted (§7.0).
+   *
+   * The `assetId IS NOT NULL` filter is deliberate and load-bearing: ONLY asset-backed accounts carry a native
+   * (non-CHF) exposure that can drift against CHF and thus needs re-marking against the FinancialDataLog mark. The
+   * CHF-denominated LIABILITY buckets `LIABILITY/bankTx-return`/`-repeat`/`unattributed` (§3.4: `currency=CHF`,
+   * `assetId=NULL`) are opened by the BankTx consumer at `EUR-Mark × amount` (a fixed CHF value) and carry NO native
+   * FX exposure on the ledger account — their CHF balance is constant and cannot drift, so there is nothing for a
+   * re-mark to correct. The §4.2-Note phrase "the EUR↔CHF drift … is corrected once by the mark-to-market job
+   * (FX-Muster 1)" is therefore a no-op for these CHF-stable liabilities: any value mismatch surfaces only at the
+   * chargeback/settlement leg as a residual (plugged there via withFxPlug, §4.2-Note B-15), never as a wandering
+   * open-balance drift. Including them here (assetId=NULL) would re-mark against a missing asset → no mark → no-op
+   * anyway; the filter keeps the candidate set bounded to the accounts a re-mark can actually move.
+   */
+  private async selectCandidates(
+    lastId: number,
+    batchSize: number,
+  ): Promise<{ ids: number[]; maxId: number; accounts: LedgerAccount[] }> {
+    const ids = await this.ledgerLegRepository
       .createQueryBuilder('leg')
       .innerJoin('leg.account', 'account')
       .select('leg.accountId', 'accountId')
       .where('account.type IN (:...types)', { types: [AccountType.ASSET, AccountType.LIABILITY] })
-      .andWhere('account.assetId IS NOT NULL') // only asset-backed accounts can be marked (need an asset to look up)
+      .andWhere('account.assetId IS NOT NULL') // only asset-backed accounts carry a native exposure that can drift
+      .andWhere('leg.accountId > :lastId', { lastId }) // id-watermark: paginate the whole candidate universe (§7.0)
       .groupBy('leg.accountId')
       .having('ABS(SUM(leg.amount)) > :tol OR BOOL_OR(leg.needsMark) = true', { tol: 1e-8 })
       .orderBy('leg.accountId', 'ASC')
-      .limit(Config.ledger.backfillBatchSize)
+      .limit(batchSize)
       .getRawMany<{ accountId: number }>()
       .then((rows) => rows.map((r) => r.accountId));
 
-    if (!openAccountIds.length) return [];
+    if (!ids.length) return { ids, maxId: lastId, accounts: [] };
 
-    return this.ledgerAccountRepository.findBy({ id: In(openAccountIds) });
+    // findBy returns no guaranteed order; sort by id ASC so the caller's id-watermark advances monotonically
+    const accounts = (await this.ledgerAccountRepository.findBy({ id: In(ids) })).sort((a, b) => a.id - b.id);
+
+    return { ids, maxId: Math.max(...ids), accounts };
   }
 
   // one revaluation-tx per open account per day: ASSET/LIABILITY leg (amount=0, amountChf=diff) / fx-revaluation

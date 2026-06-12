@@ -9,12 +9,17 @@ import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { LessThan, MoreThan, Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity';
+import { LedgerLeg } from '../../entities/ledger-leg.entity';
+import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountService } from '../ledger-account.service';
-import { LedgerBookingService, LedgerLegInput } from '../ledger-booking.service';
+import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
-import { getLedgerWatermark, setLedgerWatermark } from './ledger-watermark.helper';
+import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'bank_tx';
+const CUTOVER_SOURCE = 'cutover';
+const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
+const BUY_CRYPTO_OWED = 'LIABILITY/buyCrypto-owed';
 const CHF = 'CHF';
 
 // bank-side exchange route segment per type (§3.3 {ex}); SCB route is created lazily (§3.3 "neue Routen lazy")
@@ -49,6 +54,7 @@ export class BankTxConsumer {
     private readonly markService: LedgerMarkService,
     @InjectRepository(BankTx) private readonly bankTxRepo: Repository<BankTx>,
     @InjectRepository(Bank) private readonly bankRepo: Repository<Bank>,
+    @InjectRepository(LedgerTx) private readonly ledgerTxRepo: Repository<LedgerTx>,
   ) {}
 
   async process(): Promise<void> {
@@ -57,6 +63,30 @@ export class BankTxConsumer {
       lastReversalScan: new Date(0),
     };
 
+    await this.processForward(watermark);
+
+    // content-change scan (§4.12): re-classification of an already-booked bank_tx (the §4.12 musterbeispiel
+    // GSHEET→BUY_CRYPTO via updateInternal; also amount / creditDebitIndicator changes, §4.2 reversal triggers, and
+    // a reset()→PENDING) recomputes the seq0 legs and, if they differ beyond the §4.12 tolerances, reverses the
+    // active tx + re-books the corrected legs. Runs ALSO when the forward batch is empty. Re-read the watermark in
+    // case the forward batch advanced lastProcessedId above.
+    const afterForward = (await getLedgerWatermark(this.settingService, SOURCE_TYPE)) ?? watermark;
+    await runContentChangeScan(
+      this.settingService,
+      SOURCE_TYPE,
+      afterForward,
+      this.bankTxRepo,
+      { buyCrypto: true },
+      async (tx: BankTx) => {
+        await this.reconcileBooking(
+          tx,
+          await this.markService.preload(tx.bookingDate ?? tx.created, tx.bookingDate ?? tx.created),
+        );
+      },
+    );
+  }
+
+  private async processForward(watermark: { lastProcessedId: number; lastReversalScan: Date }): Promise<void> {
     // DBIT only after 5 min (analog assignTransactions); settlement = bookingDate ?? created (§4.2)
     const batch = await this.bankTxRepo.find({
       where: { id: MoreThan(watermark.lastProcessedId), created: LessThan(Util.minutesBefore(5)) },
@@ -87,22 +117,37 @@ export class BankTxConsumer {
   }
 
   private async book(tx: BankTx, marks: LedgerMarkCache): Promise<void> {
+    const input = await this.buildSeq0Input(tx, marks);
+    if (!input) return; // skipped type (BUY_FIAT / TEST_FIAT_FIAT)
+
+    await this.bookingService.bookTx(input);
+  }
+
+  // §4.12 — recompute the seq0 legs for an already-booked row; reverse + re-book only if a trigger field changed
+  // (type/amount/creditDebitIndicator, §4.2). The booking service compares against the active tx within the §4.12
+  // float tolerances and no-ops when nothing changed (idempotent re-scan). A row that is no longer bookable (type
+  // became BUY_FIAT/TEST_FIAT_FIAT) is reversed flat (its active legs inverted, no re-book).
+  private async reconcileBooking(tx: BankTx, marks: LedgerMarkCache): Promise<void> {
+    const input = await this.buildSeq0Input(tx, marks);
+    if (!input) {
+      await this.bookingService.reverseActiveIfBooked(SOURCE_TYPE, `${tx.id}`, 0); // type became skip → flat reversal
+      return;
+    }
+
+    await this.bookingService.reverseAndRebookIfChanged(input);
+  }
+
+  // builds the seq0 LedgerTxInput for a bank_tx, or undefined for a skipped type (BUY_FIAT / TEST_FIAT_FIAT)
+  private async buildSeq0Input(tx: BankTx, marks: LedgerMarkCache): Promise<LedgerTxInput | undefined> {
     const bookingDate = tx.bookingDate ?? tx.created;
     const valueDate = tx.valueDate ?? bookingDate;
     const ctx = await this.bankContext(tx);
     const isCredit = tx.creditDebitIndicator === BankTxIndicator.CREDIT;
 
     const legs = await this.buildLegs(tx, ctx, bookingDate, marks, isCredit);
-    if (!legs) return; // skipped type (BUY_FIAT / TEST_FIAT_FIAT)
+    if (!legs) return undefined; // skipped type (BUY_FIAT / TEST_FIAT_FIAT)
 
-    await this.bookingService.bookTx({
-      sourceType: SOURCE_TYPE,
-      sourceId: `${tx.id}`,
-      seq: 0,
-      bookingDate,
-      valueDate,
-      legs,
-    });
+    return { sourceType: SOURCE_TYPE, sourceId: `${tx.id}`, seq: 0, bookingDate, valueDate, legs };
   }
 
   private async buildLegs(
@@ -193,7 +238,11 @@ export class BankTxConsumer {
     return this.withFxPlug([bank, received]);
   }
 
-  // §4.2a — BUY_CRYPTO_RETURN DBIT: Dr LIABILITY/buyCrypto-owed / Cr ASSET/bank + fx-plug
+  // §4.2a — BUY_CRYPTO_RETURN DBIT: Dr LIABILITY/buyCrypto-owed (completion/opening CHF) / Cr ASSET/bank (EUR-mark ×
+  // amount) + fx-plug. The owed-Dr MUST carry the SAME CHF the owed was OPENED with (§4.6 seq1 completion
+  // `amountInChf − totalFeeAmountChf`, or the cutover opening for a straddling row) — NOT the bank-mark return value
+  // (that would make withFxPlug always net to 0 → no plug → the Completion↔Return mark drift stays phantom on owed,
+  // owed never closes; Major R2-2-symmetry).
   private async buyCryptoReturnLegs(
     tx: BankTx,
     ctx: BankContext,
@@ -201,10 +250,40 @@ export class BankTxConsumer {
     marks: LedgerMarkCache,
   ): Promise<LedgerLegInput[]> {
     const bank = this.bankAssetLeg(ctx, -tx.amount, bookingDate, marks, await this.bankAccount(ctx));
-    // owed-Dr CHF = completion/opening value; the mark-consistent return value is the deterministic reference
-    const owed = this.namedLeg(await this.liability('buyCrypto-owed'), -(bank.amountChf ?? 0));
+    const owedChf = await this.buyCryptoOwedChf(tx);
+    const owed = this.namedLeg(await this.liability('buyCrypto-owed'), owedChf);
 
+    // owed-Dr (completion/opening CHF) + bank-Cr (EUR-mark) → withFxPlug routes the mark/valuation drift to
+    // EXPENSE/INCOME fx-revaluation, owed closes cent-exact to 0 (§4.2a). CHF account → drift 0 → 2-leg, no plug.
     return this.withFxPlug([owed, bank]);
+  }
+
+  // the CHF the buyCrypto-owed was opened with: §4.6 completion (amountInChf − totalFeeAmountChf), or — for a
+  // cutover-straddling buy_crypto whose owed was opened by the cutover (§6.1 per-row marker) — the opening CHF.
+  private async buyCryptoOwedChf(tx: BankTx): Promise<number> {
+    const openingChf = await this.cutoverOwedOpeningChf(tx.buyCrypto?.id);
+    if (openingChf != null) return openingChf; // cutover-straddling: debit the exact opening CHF anchor
+
+    const amountInChf = tx.buyCrypto?.amountInChf;
+    if (amountInChf == null) throw new Error(`bank_tx ${tx.id} BUY_CRYPTO_RETURN without buyCrypto.amountInChf`);
+    return Util.round(amountInChf - (tx.buyCrypto?.totalFeeAmountChf ?? 0), 2); // completion CHF (additive null-strategy)
+  }
+
+  // looks up the cutover per-row owed-opening leg CHF (§6.1 marker `${snapshotLogId}:buy_crypto-owed:${id}`); the
+  // prefix is the snapshot logId persisted in ledgerCutoverLogId. Returns undefined for a regular post-cutover row.
+  private async cutoverOwedOpeningChf(buyCryptoId: number | undefined): Promise<number | undefined> {
+    if (buyCryptoId == null) return undefined;
+    const cutoverLogId = await this.settingService.get(CUTOVER_LOG_ID_KEY);
+    if (cutoverLogId == null) return undefined;
+
+    const opening = await this.ledgerTxRepo.findOne({
+      where: { sourceType: CUTOVER_SOURCE, sourceId: `${cutoverLogId}:buy_crypto-owed:${buyCryptoId}` },
+      relations: { legs: { account: true } },
+    });
+    const leg = opening?.legs?.find((l: LedgerLeg) => l.account?.name === BUY_CRYPTO_OWED);
+    if (leg?.amountChf == null) return undefined;
+
+    return Util.round(-leg.amountChf, 2); // the opening Cr leg is −openingChf → owed-Dr debits +openingChf
   }
 
   // §4.2 KRAKEN/SCRYPT/SCB: Dr/Cr ASSET/bank ↔ TRANSIT/bank↔{ex}/{ccy}
@@ -284,7 +363,13 @@ export class BankTxConsumer {
     return [expense, bank];
   }
 
-  // §4.2 BANK_TX_RETURN/BANK_TX_REPEAT CRDT: Dr ASSET/bank / Cr LIABILITY/{bucket} (both mark, 2-leg)
+  // §4.2 BANK_TX_RETURN/BANK_TX_REPEAT/unattributed CRDT: Dr ASSET/bank (EUR-mark) / Cr LIABILITY/{bucket}, 2-leg.
+  // The bank-EUR ASSET leg is EUR-mark-valued (mark-consistent with the §7 feed); the CHF-denominated LIABILITY
+  // (§3.4 currency=CHF, assetId=NULL) carries the SAME CHF (EUR-Mark × amount) → both legs share one CHF source, the
+  // tx closes 2-leg with no FX plug. The liability balance is a FIXED CHF value and does NOT drift while open (it has
+  // no native FX exposure on the ledger account) — the §4.2-Note "mark-to-market corrects the EUR↔CHF drift" is a
+  // no-op for this CHF-stable balance (the mark-to-market job only re-marks asset-backed accounts, §5.3); any
+  // EUR-mark mismatch surfaces only at the chargeback/settlement leg as a residual (plugged there, §4.2-Note B-15).
   private async liabilityCreditLegs(
     tx: BankTx,
     ctx: BankContext,
