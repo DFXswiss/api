@@ -17,7 +17,7 @@ function tx(custom: Partial<LedgerTx>): LedgerTx {
     bookingDate: new Date('2026-06-07T00:00:00.000Z'),
     valueDate: new Date('2026-06-08T00:00:00.000Z'),
     sourceType: 'buy_fiat',
-    sourceId: '68310',
+    sourceId: '99001',
     seq: 1,
     ...custom,
   });
@@ -95,7 +95,7 @@ describe('LedgerDtoMapper', () => {
       expect(dto.bookingDate).toBe('2026-06-07T00:00:00.000Z');
       expect(dto.valueDate).toBe('2026-06-08T00:00:00.000Z');
       expect(dto.sourceType).toBe('buy_fiat');
-      expect(dto.sourceId).toBe('68310');
+      expect(dto.sourceId).toBe('99001');
       expect(dto.seq).toBe(1);
       expect(dto.counterAccountId).toBe(9);
       expect(dto.counterAccountName).toBe('LIABILITY/buyFiat-received');

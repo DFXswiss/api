@@ -15,13 +15,30 @@ const path = require('path');
 
 const TARGET_DIR = process.argv[2] || 'src/subdomains/core/accounting';
 
-// the 7-block forbidden pattern (§4.10) — kept char-for-char equivalent to the shell PATTERN
-const PATTERN = new RegExp(
+// §4.10 / §10.3 Minor R4-1: the forbidden pattern is split into two classes so the `// ledger-allowlist` post-filter
+// is SCOPED, not blanket. ALLOWLISTABLE = the DB-write blocks (EntityManager / repo / getRepository / queryRunner /
+// QueryBuilder-DSL write paths) — the ONLY constructs a ledger-own write (`manager.save(LedgerTx,…)`) legitimately
+// needs to clear. NON-ALLOWLISTABLE = pricing/HTTP (block 1), external feed-read (block 2), logService/settingService
+// operative side-effects (block 3) and lifecycle/strategy calls (block 4): a `// ledger-allowlist` comment must NEVER
+// silence one of these — there is no sanctioned reason for the ledger module to price, hit a feed, mutate the
+// FinancialDataLog/setting tables or drive a source lifecycle, so allowing the marker to clear them would re-open the
+// exact isolation hole the gate exists to close. Both classes are kept char-for-char equivalent to the shell gate.
+const NON_ALLOWLISTABLE_PATTERN = new RegExp(
   [
+    // Block 1 (pricing / HTTP read)
     'pricingService|PricingService|getPrice\\(|getPriceAt|priceProvider|CoinGecko|HttpService',
+    // Block 2 (external feed-read / balance integration)
     '\\brefreshBalances\\(|\\brefreshBankBalance|\\bhasPendingOrders|integration\\.getBalances|integration\\.hasPendingOrders|BankAdapter|balanceIntegrationFactory|LiquidityBalanceIntegrationFactory',
+    // Block 3 (FinancialDataLog / setting operative side-effects — a service write, not a sanctioned ledger DB write)
     '\\blogService\\.(create|update)\\(|\\bsettingService\\.(setObj|updateProcess|addIpToBlacklist|deleteIpFromBlacklist)\\(',
+    // Block 4 (source lifecycle / strategy calls)
     '\\.complete\\(|checkOrderCompletion|syncExchanges|doPayout|checkPayoutCompletionData|triggerWebhook|calculateSpreadFee',
+  ].join('|'),
+);
+
+const ALLOWLISTABLE_WRITE_PATTERN = new RegExp(
+  [
+    // Block 4a/4b (non-ledger repository write)
     'balanceRepo\\.(update|save|insert|delete|remove|increment|decrement)\\(|\\b(?!ledger)\\w*Repo(sitory)?\\.(update|save|insert|delete|remove|increment|decrement)\\(',
     // Block 6 (EntityManager + raw-SQL write paths, Major design-accounting): `\w*[Mm]anager.<write>(` catches the
     // idiomatic injected EntityManager regardless of the binding identifier — `manager.save`, `entityManager.save`,
@@ -89,7 +106,13 @@ if (stat?.isDirectory()) {
 for (const file of files) {
   const lines = fs.readFileSync(file, 'utf8').split('\n');
   lines.forEach((line, i) => {
-    if (PATTERN.test(line) && !line.includes(ALLOWLIST_MARKER)) {
+    // A non-allowlistable construct (pricing/feed-read/log/setting/lifecycle) ALWAYS flags, marker or not. An
+    // allowlistable DB-write only flags when it does NOT carry the `// ledger-allowlist` marker — so the post-filter
+    // is scoped to the write blocks and can never silently clear a pricing/feed/lifecycle line (§10.3 Minor R4-1).
+    const flagged =
+      NON_ALLOWLISTABLE_PATTERN.test(line) ||
+      (ALLOWLISTABLE_WRITE_PATTERN.test(line) && !line.includes(ALLOWLIST_MARKER));
+    if (flagged) {
       matches.push(`${file}:${i + 1}:${line.trim()}`);
     }
   });
