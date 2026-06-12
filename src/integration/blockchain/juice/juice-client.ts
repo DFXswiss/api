@@ -102,7 +102,7 @@ export class JuiceClient {
 
     const document = gql`
       {
-        jUICE(id: "${address}") {
+        poolShare(id: "${address}") {
           id
           profits
           loss
@@ -111,7 +111,7 @@ export class JuiceClient {
       }
     `;
 
-    return request<{ jUICE: JuiceEquityGraphDto }>(graphUrl, document).then((r) => r.jUICE);
+    return request<{ poolShare: JuiceEquityGraphDto }>(graphUrl, document).then((r) => r.poolShare);
   }
 
   getWalletAddress(): string {
