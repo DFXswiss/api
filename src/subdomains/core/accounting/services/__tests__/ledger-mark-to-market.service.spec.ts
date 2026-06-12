@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { CronExpression } from '@nestjs/schedule';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
 import { DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
@@ -16,7 +17,8 @@ import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
 import { LedgerMarkToMarketService } from '../ledger-mark-to-market.service';
 
 interface LegQueryStub {
-  candidateIds?: number[]; // selectCandidates getRawMany
+  candidateIds?: number[]; // selectCandidates getRawMany — single page (returned regardless of the lastId watermark)
+  candidatePages?: Record<number, number[]>; // selectCandidates getRawMany — paged by lastId watermark (overrides candidateIds)
   balance?: { native: string; chf: string }; // accountBalance getRawOne
   alreadyBookedCount?: number; // alreadyBooked getCount
 }
@@ -47,20 +49,29 @@ describe('LedgerMarkToMarketService', () => {
     });
   }
 
-  // a chainable query-builder stub that resolves its terminal method from legStub by query shape
+  // a chainable query-builder stub that resolves its terminal method from legStub by query shape. selectCandidates'
+  // `.andWhere('leg.accountId > :lastId', { lastId })` is captured per builder instance so getRawMany can serve a
+  // different page per id-watermark (candidatePages) — the basis for the multi-page pagination test.
   function legQb(): any {
     const qb: any = {};
+    let lastId = 0; // the id-watermark this builder was filtered on (selectCandidates page)
     const chain = () => qb;
     qb.innerJoin = chain;
     qb.select = chain;
     qb.addSelect = chain;
     qb.where = chain;
-    qb.andWhere = chain;
+    qb.andWhere = (_clause: string, params?: { lastId?: number }) => {
+      if (params && typeof params.lastId === 'number') lastId = params.lastId;
+      return qb;
+    };
     qb.groupBy = chain;
     qb.having = chain;
     qb.orderBy = chain;
     qb.limit = chain;
-    qb.getRawMany = () => Promise.resolve((legStub.candidateIds ?? []).map((id) => ({ accountId: id })));
+    qb.getRawMany = () => {
+      const ids = legStub.candidatePages ? (legStub.candidatePages[lastId] ?? []) : (legStub.candidateIds ?? []);
+      return Promise.resolve(ids.map((id) => ({ accountId: id })));
+    };
     qb.getRawOne = () => Promise.resolve(legStub.balance ?? { native: '0', chf: '0' });
     qb.getCount = () => Promise.resolve(legStub.alreadyBookedCount ?? 0);
     return qb;
@@ -222,5 +233,55 @@ describe('LedgerMarkToMarketService', () => {
     await service.run();
 
     expect(bookingService.bookTx).not.toHaveBeenCalled(); // assetId=NULL → no re-mark, no phantom revaluation
+  });
+
+  // §5.3 (Major, analog reconciliation §7.0): the candidate universe is paginated by id-watermark, NOT truncated at
+  // a single `.limit(batchSize)`. This drives selectCandidates over two pages: page 1 (lastId 0) fills a whole
+  // batchSize window → the loop must fetch page 2 (lastId = page-1 maxId); page 2 is smaller → exhausted. Accounts on
+  // BOTH pages must be revalued (a single-page truncation would silently never re-mark page 2 → permanently stale CHF).
+  it('paginates the candidate universe and revalues accounts beyond the first batchSize page', async () => {
+    const batchSize = Config.ledger.backfillBatchSize; // 100 (test default)
+
+    // page 1 fills the whole window (ids 101..100+batchSize), page 2 (lastId = page-1 maxId) is a single trailing id
+    const page1Ids = Array.from({ length: batchSize }, (_, i) => 101 + i);
+    const page1MaxId = page1Ids[page1Ids.length - 1];
+    const page2Ids = [page1MaxId + 1];
+
+    legStub = {
+      candidatePages: { 0: page1Ids, [page1MaxId]: page2Ids },
+      balance: { native: '100', chf: '90' }, // newChf = 100 (mark 1.0 × 100), oldChf = 90 → diff +10 → books
+      alreadyBookedCount: 0,
+    };
+
+    // every candidate shares assetId 5 (one mark in the cache) but a distinct account id → distinct revaluation-tx
+    const accountById = new Map<number, LedgerAccount>(
+      [...page1Ids, ...page2Ids].map((id) => [
+        id,
+        createCustomLedgerAccount({ id, name: `Asset/${id}`, type: AccountType.ASSET, assetId: 5 }),
+      ]),
+    );
+    const selectCandidates = jest.spyOn(service as any, 'selectCandidates');
+    jest
+      .spyOn(ledgerAccountRepository, 'findBy')
+      .mockImplementation((where: any) =>
+        Promise.resolve((where.id.value as number[]).map((id) => accountById.get(id))),
+      );
+    jest
+      .spyOn(markService, 'preload')
+      .mockResolvedValue(new LedgerMarkCache(new Map([[5, [{ created: new Date('2026-06-01'), priceChf: 1.0 }]]])));
+
+    await service.run();
+
+    // selectCandidates is called twice: page 1 (full window) → loop fetches page 2 (smaller → exhausted)
+    expect(selectCandidates).toHaveBeenCalledTimes(2);
+    expect(selectCandidates).toHaveBeenNthCalledWith(1, 0, batchSize);
+    expect(selectCandidates).toHaveBeenNthCalledWith(2, page1MaxId, batchSize);
+
+    // every account on BOTH pages is revalued (one tx per account) — none beyond the first page is silently dropped
+    expect(booked).toHaveLength(page1Ids.length + page2Ids.length);
+    const bookedSourceIds = booked.map((tx) => tx.sourceId);
+    expect(bookedSourceIds).toContain(`${page1Ids[0]}`); // first id of page 1
+    expect(bookedSourceIds).toContain(`${page1MaxId}`); // last id of page 1 (the watermark)
+    expect(bookedSourceIds).toContain(`${page2Ids[0]}`); // the page-2 account beyond the first batchSize window
   });
 });

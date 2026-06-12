@@ -101,6 +101,25 @@ describe('Ledger isolation gate (§4.10 / §10.1 self-test)', () => {
       name: 'getRepository(X).decrement atomic write path',
       code: 'await dataSource.getRepository(BankTx).decrement({ id: 1 }, "amount", 100);',
     },
+    // SCOPED post-filter (§10.3 Minor R4-1): the `// ledger-allowlist` marker is honoured ONLY for the DB-write
+    // blocks. A non-allowlistable construct (pricing/feed-read/log-setting/lifecycle) MUST still flag even WITH the
+    // marker — a comment can never re-open the isolation hole the gate exists to close.
+    {
+      name: 'pricing read getPrice( WITH a ledger-allowlist marker still flags (scoped post-filter)',
+      code: 'const p = getPrice(asset, CHF, ANY); // ledger-allowlist',
+    },
+    {
+      name: 'feed read refreshBalances( WITH a ledger-allowlist marker still flags',
+      code: 'await this.liqBalance.refreshBalances(rules); // ledger-allowlist',
+    },
+    {
+      name: 'lifecycle call doPayout WITH a ledger-allowlist marker still flags',
+      code: 'await this.payoutService.doPayout(o); // ledger-allowlist',
+    },
+    {
+      name: 'logService.create write WITH a ledger-allowlist marker still flags',
+      code: 'await logService.create(dto); // ledger-allowlist',
+    },
   ];
 
   it.each(violations)('flags a known violation: $name', ({ code }) => {
@@ -177,6 +196,24 @@ describe('Ledger isolation gate (§4.10 / §10.1 self-test)', () => {
     expect(result.exitCode).toBe(1); // the non-allowlisted manager.save remains
     expect(result.output).toContain('manager.save(BankTx, e)');
     expect(result.output).not.toContain('ledger-allowlist'); // the allowlisted line is filtered out of the matches
+  });
+
+  // --- POST-FILTER IS SCOPED TO THE WRITE BLOCKS (§10.3 Minor R4-1) --- //
+  // The marker clears an allowlisted DB-write but must NOT clear a pricing/feed/lifecycle read in the same file:
+  // the post-filter applies to the write blocks only, never to the non-allowlistable blocks.
+
+  it('clears an allowlisted write but STILL flags a marked pricing read in the same file (scoped post-filter)', () => {
+    const code = [
+      'export function f() {',
+      '  await manager.save(LedgerTx, tx); // ledger-allowlist',
+      '  const p = getPrice(asset, CHF, ANY); // ledger-allowlist',
+      '}',
+      '',
+    ].join('\n');
+    const result = gateOnFixture('scoped.ts', code);
+    expect(result.exitCode).toBe(1); // the marked pricing read is NOT cleared by the post-filter
+    expect(result.output).toContain('getPrice(asset, CHF, ANY)');
+    expect(result.output).not.toContain('manager.save(LedgerTx'); // the allowlisted write IS cleared
   });
 
   // --- SOURCE-REPO NAMING CONVENTION (§4.10 Block 4a / Minor R3-9, Major isolation gap) --- //
