@@ -20,7 +20,10 @@ interface ExchangeData {
 export class ExchangeObserver extends MetricObserver<ExchangeData[]> {
   protected readonly logger = new DfxLogger(ExchangeObserver);
 
-  constructor(monitoringService: MonitoringService, private readonly repos: RepositoryFactory) {
+  constructor(
+    monitoringService: MonitoringService,
+    private readonly repos: RepositoryFactory,
+  ) {
     super(monitoringService, 'exchange', 'volume');
   }
 
