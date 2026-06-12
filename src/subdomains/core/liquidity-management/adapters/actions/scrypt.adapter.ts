@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
+import { randomUUID } from 'crypto';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScryptOrderInfo, ScryptOrderSide, ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
-import { isTransientWsError } from 'src/integration/exchange/services/scrypt-websocket-connection';
+import { isTransientWsError, isWsTimeoutError } from 'src/integration/exchange/services/scrypt-websocket-connection';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -108,6 +109,11 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   }
 
   private async sell(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    // re-execution guard must run before the price and balance checks: an already placed
+    // sell order locks the balance, which would fail the balance check before the guard
+    const existingTradeId = await this.findExistingTrade(order);
+    if (existingTradeId) return existingTradeId;
+
     const { tradeAsset, maxPriceDeviation } = this.parseTradeParams(order.action.paramMap);
 
     // Structural guard: Scrypt BTC/EUR (and other Scrypt BTC pairs) have materially worse spreads
@@ -138,6 +144,10 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   }
 
   private async buy(order: LiquidityManagementOrder): Promise<CorrelationId> {
+    // re-execution guard: the trade may already have been placed (e.g. crash or transient error after send)
+    const existingTradeId = await this.findExistingTrade(order);
+    if (existingTradeId) return existingTradeId;
+
     const { tradeAsset, maxPriceDeviation } = this.parseTradeParams(order.action.paramMap);
 
     const targetAssetEntity = order.pipeline.rule.targetAsset;
@@ -172,15 +182,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     order.inputAsset = tradeAsset;
     order.outputAsset = targetAssetEntity.dexName;
 
-    try {
-      return await this.scryptService.sell(tradeAsset, targetAssetEntity.dexName, amount);
-    } catch (e) {
-      if (this.isBalanceTooLowError(e)) {
-        throw new OrderNotProcessableException(e.message);
-      }
-
-      throw e;
-    }
+    return this.placeTrade(order, (clOrdId) =>
+      this.scryptService.sell(tradeAsset, targetAssetEntity.dexName, amount, clOrdId),
+    );
   }
 
   // --- COMPLETION CHECKS --- //
@@ -223,7 +227,9 @@ export class ScryptAdapter extends LiquidityActionAdapter {
 
   private async checkTradeCompletion(order: LiquidityManagementOrder, from: string, to: string): Promise<boolean> {
     try {
-      const isComplete = await this.scryptService.checkTrade(order.correlationId, from, to, order.created);
+      // use order.updated as the "lost order" anchor: it reflects the placement time
+      // (updated on the placeTrade save), while order.created may be much older
+      const isComplete = await this.scryptService.checkTrade(order.correlationId, from, to, order.updated);
 
       if (isComplete) {
         order.outputAmount = await this.aggregateTradeOutput(order);
@@ -237,8 +243,8 @@ export class ScryptAdapter extends LiquidityActionAdapter {
         return false;
       }
 
-      if (isTransientWsError(e)) {
-        this.logger.warn(`Transient WS error checking order ${order.id}, will retry next tick: ${e.message}`);
+      if (this.isRecoverableWsError(e)) {
+        this.logger.warn(`Recoverable WS error checking order ${order.id}, will retry next tick: ${e.message}`);
         return false;
       }
 
@@ -345,18 +351,69 @@ export class ScryptAdapter extends LiquidityActionAdapter {
     fromAsset: string,
     toAsset: string,
   ): Promise<CorrelationId> {
+    // re-execution guard already ran in sell()
     order.inputAmount = amount;
     order.inputAsset = fromAsset;
     order.outputAsset = toAsset;
 
+    return this.placeTrade(order, (clOrdId) => this.scryptService.sell(fromAsset, toAsset, amount, clOrdId));
+  }
+
+  private async findExistingTrade(order: LiquidityManagementOrder): Promise<CorrelationId | undefined> {
+    if (!order.correlationId) return undefined;
+
     try {
-      return await this.scryptService.sell(fromAsset, toAsset, amount);
+      const existingOrder = await this.scryptService.getOrderStatus(order.correlationId);
+      return existingOrder ? order.correlationId : undefined;
+    } catch (e) {
+      if (this.isRecoverableWsError(e)) {
+        // a live order with this ClOrdID may exist, so do not place a new one — the completion check will verify
+        this.logger.warn(`Recoverable error checking for existing trade of order ${order.id}: ${e.message}`);
+        return order.correlationId;
+      }
+
+      throw e;
+    }
+  }
+
+  private async placeTrade(
+    order: LiquidityManagementOrder,
+    place: (clOrdId: string) => Promise<CorrelationId>,
+  ): Promise<CorrelationId> {
+    // persist the ClOrdID before sending, so the trade can be verified even if the connection drops mid-request
+    const clOrdId = randomUUID();
+    if (order.correlationId) {
+      order.updateCorrelationId(clOrdId);
+    } else {
+      order.correlationId = clOrdId;
+    }
+    await this.orderRepo.save(order);
+
+    try {
+      return await place(clOrdId);
     } catch (e) {
       if (this.isBalanceTooLowError(e)) {
         throw new OrderNotProcessableException(e.message);
       }
+
+      if (this.isRecoverableWsError(e)) {
+        // the order may still have been executed at Scrypt, the completion check will verify via the persisted ClOrdID
+        this.logger.warn(
+          `Recoverable error placing trade for order ${order.id}, completion check will verify: ${e.message}`,
+        );
+        return clOrdId;
+      }
+
       throw e;
     }
+  }
+
+  // timeouts are recoverable here (not in TRANSIENT_WS_ERROR_MARKERS): the order state at Scrypt
+  // is unknown after a timed-out request, so placement and completion checks must retry instead of
+  // failing the order, but a global marker would also change the automatic re-send behavior of
+  // fetch/fetchAll
+  private isRecoverableWsError(e: Error): boolean {
+    return isTransientWsError(e) || isWsTimeoutError(e);
   }
 
   private isBalanceTooLowError(e: Error): boolean {
