@@ -53,6 +53,9 @@ export enum MailContext {
   EMAIL_VERIFICATION = 'EmailVerification',
   RECOMMENDATION_MAIL = 'RecommendationMail',
   RECOMMENDATION_CONFIRMATION = 'RecommendationConfirmation',
+  LEDGER_RECONCILIATION = 'LedgerReconciliation',
+  LEDGER_SUSPENSE = 'LedgerSuspense',
+  LEDGER_TRANSIT_OVERDUE = 'LedgerTransitOverdue',
 }
 
 export enum MailContextType {
@@ -110,4 +113,7 @@ export const MailContextTypeMapper: {
   [MailContext.PAYOUT]: null,
   [MailContext.PRICING]: null,
   [MailContext.LIQUIDITY_MANAGEMENT]: null,
+  [MailContext.LEDGER_RECONCILIATION]: null,
+  [MailContext.LEDGER_SUSPENSE]: null,
+  [MailContext.LEDGER_TRANSIT_OVERDUE]: null,
 };

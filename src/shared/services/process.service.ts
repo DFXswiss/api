@@ -91,6 +91,19 @@ export enum Process {
   TRADE_APPROVAL_DATE = 'TradeApprovalDate',
   SUPPORT_BOT = 'SupportBot',
   GUARANTEED_PRICE = 'GuaranteedPrice',
+  // ledger booking consumers + jobs (§11.1; one own flag per @DfxCron method = kill-switch, Hard Constraint #5)
+  LEDGER_BOOKING_BANK_TX = 'LedgerBookingBankTx',
+  LEDGER_BOOKING_EXCHANGE_TX = 'LedgerBookingExchangeTx',
+  LEDGER_BOOKING_CRYPTO_INPUT = 'LedgerBookingCryptoInput',
+  LEDGER_BOOKING_PAYOUT = 'LedgerBookingPayout',
+  LEDGER_BOOKING_BUY_CRYPTO = 'LedgerBookingBuyCrypto',
+  LEDGER_BOOKING_BUY_FIAT = 'LedgerBookingBuyFiat',
+  LEDGER_BOOKING_LIQ_MGMT = 'LedgerBookingLiqMgmt',
+  LEDGER_BOOKING_TRADING_ORDER = 'LedgerBookingTradingOrder',
+  LEDGER_BOOKING_LIQUIDITY_ORDER = 'LedgerBookingLiquidityOrder',
+  LEDGER_RECONCILIATION = 'LedgerReconciliation',
+  LEDGER_MARK_TO_MARKET = 'LedgerMarkToMarket',
+  LEDGER_CUTOVER = 'LedgerCutover',
 }
 
 const safetyProcesses: Process[] = [

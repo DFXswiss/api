@@ -113,6 +113,16 @@ export class Configuration {
     usePipelinePriceForAllAssets: process.env.USE_PIPELINE_PRICE_FOR_ALL_ASSETS === 'true',
   };
 
+  ledger = {
+    reconciliationToleranceChf: +(process.env.LEDGER_RECONCILIATION_TOLERANCE_CHF ?? 1),
+    transitAlarmThresholdDays: +(process.env.LEDGER_TRANSIT_ALARM_THRESHOLD_DAYS ?? 3),
+    backfillBatchSize: +(process.env.LEDGER_BACKFILL_BATCH_SIZE ?? 100),
+    roundingToleranceCents: +(process.env.LEDGER_ROUNDING_TOLERANCE_CENTS ?? 2),
+    markPreloadDailySampleThresholdDays: +(process.env.LEDGER_MARK_PRELOAD_DAILY_SAMPLE_THRESHOLD_DAYS ?? 2), // §5.2 bounded preload
+    markPreloadMaxRows: +(process.env.LEDGER_MARK_PRELOAD_MAX_ROWS ?? 5000), // §5.2 hard row-cap backstop
+    unroutedDepositAlarmDays: +(process.env.LEDGER_UNROUTED_DEPOSIT_ALARM_DAYS ?? 3), // §7.5 age-alarm
+  };
+
   defaultVolumeDecimal = 2;
   defaultPercentageDecimal = 2;
 
