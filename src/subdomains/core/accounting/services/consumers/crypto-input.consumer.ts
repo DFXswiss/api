@@ -192,8 +192,13 @@ export class CryptoInputConsumer {
   // --- HELPERS --- //
 
   // appends an EXPENSE/INCOME fx-revaluation plug for the seq0 valuation residual amountInChf − mark×amount (§4.4a);
-  // sub-cent → the booking-service ROUNDING leg closes it
+  // sub-cent → the booking-service ROUNDING leg closes it.
+  // No silent plug while a leg still needsMark (§5.1 Stufe 3): an unmarked leg carries amountChf=undefined (counted
+  // as 0), so plugging would book its full value as a phantom fx-revaluation — leave it for the mark-to-market job to
+  // revalue, consistent with exchange-tx.consumer.ts.
   private appendFxPlug(legs: LedgerLegInput[], fx: { income: LedgerAccount; expense: LedgerAccount }): void {
+    if (legs.some((l) => l.needsMark)) return;
+
     const sumCents = legs.reduce((s, l) => s + Math.round(Util.round(l.amountChf ?? 0, 2) * 100), 0);
     if (Math.abs(sumCents) <= Config.ledger.roundingToleranceCents) return;
 
@@ -208,8 +213,12 @@ export class CryptoInputConsumer {
     return undefined;
   }
 
+  // §4.12 (R3): per-seq gate via the ACTIVE booking AT this seq — NOT `nextSeq > seq`. crypto_input is multi-seq
+  // (seq0 input, seq1 forward-fee) and reverses seq0 in its content-change scan; the reversal/re-book live in the
+  // reserved correction range (≥1_000_000, §4.12), so a `nextSeq > 1` gate would wrongly report the forward-fee seq1
+  // as booked after a seq0 reversal and strand it. hasActiveTxAt walks the reversal chain of the original at this seq.
   private async alreadyBooked(id: number, seq: number): Promise<boolean> {
-    return (await this.bookingService.nextSeq(SOURCE_TYPE, `${id}`)) > seq;
+    return this.bookingService.hasActiveTxAt(SOURCE_TYPE, `${id}`, seq);
   }
 
   private async walletAsset(ci: CryptoInput): Promise<LedgerAccount> {

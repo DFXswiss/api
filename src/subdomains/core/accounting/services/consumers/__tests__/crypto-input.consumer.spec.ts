@@ -41,6 +41,7 @@ describe('CryptoInputConsumer', () => {
   let booked: LedgerTxInput[];
   let accounts: Map<string, LedgerAccount>;
   let nextSeqValue: number;
+  let activeKeys: Set<string>; // `${sourceId}:${seq}` with an active booking — backs hasActiveTxAt (per-seq, R3)
 
   const zchfWallet = account('Ethereum/ZCHF', AccountType.ASSET, 'ZCHF', ZCHF_ASSET_ID);
   const btcWallet = account('Bitcoin/BTC', AccountType.ASSET, 'BTC', BTC_ASSET_ID);
@@ -54,6 +55,7 @@ describe('CryptoInputConsumer', () => {
   beforeEach(async () => {
     booked = [];
     nextSeqValue = 0;
+    activeKeys = new Set<string>();
     accounts = new Map([
       ['Ethereum/ZCHF', zchfWallet],
       ['Bitcoin/BTC', btcWallet],
@@ -67,9 +69,14 @@ describe('CryptoInputConsumer', () => {
 
     jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
       booked.push(input);
+      activeKeys.add(`${input.sourceId}:${input.seq}`); // a freshly booked (sourceId,seq) is now active
       return Promise.resolve({} as any);
     });
     jest.spyOn(bookingService, 'nextSeq').mockImplementation(() => Promise.resolve(nextSeqValue));
+    // alreadyBooked → hasActiveTxAt: true iff a booking exists AT this (sourceId, seq) (NOT nextSeq>seq, R3)
+    jest
+      .spyOn(bookingService, 'hasActiveTxAt')
+      .mockImplementation((_st: string, sid: string, s: number) => Promise.resolve(activeKeys.has(`${sid}:${s}`)));
 
     jest
       .spyOn(accountService, 'findByAssetId')
@@ -196,8 +203,8 @@ describe('CryptoInputConsumer', () => {
     expect(cents(seq0.legs)).toBe(0);
   });
 
-  // §10.2 fixture (B)(d) — no mark: ASSET leg needsMark, plug stays open, no silent priceChf=0
-  it('flags the ASSET leg needsMark when no mark exists (no silent priceChf=0)', async () => {
+  // §10.2 fixture (B)(d) / §5.1 Stufe 3 — no mark: ASSET leg needsMark, NO silent fx-revaluation plug
+  it('flags the ASSET leg needsMark when no mark exists and books NO silent plug (§5.1 Stufe 3)', async () => {
     mockBatch([
       cryptoInput({
         id: 5,
@@ -215,7 +222,11 @@ describe('CryptoInputConsumer', () => {
     const assetLeg = seq0.legs.find((l) => l.account.name === 'Unknown/XYZ');
     expect(assetLeg.needsMark).toBe(true);
     expect(assetLeg.amountChf).toBeUndefined();
-    expect(cents(seq0.legs)).toBe(0); // received −50000 + plug +50000 balances; mark-to-market revalues later
+    // NO fx-revaluation plug while the asset leg needsMark (the old bug plugged the FULL +50000 received value as a
+    // phantom fx-revaluation, vacuously balancing cents to 0). Per §5.1 Stufe 3 the tx stays unbalanced-by-mark and
+    // the mark-to-market job revalues the asset leg later — exactly the systemic needsMark-guard fix.
+    expect(seq0.legs.find((l) => l.account.name?.includes('fx-revaluation'))).toBeUndefined();
+    expect(seq0.legs).toHaveLength(2); // asset (needsMark) + received anchor only, no plug leg
   });
 
   it('books the forward fee (seq1) only when outTxId + forwardFeeAmountChf are set', async () => {
@@ -256,8 +267,8 @@ describe('CryptoInputConsumer', () => {
     expect(booked.some((b) => b.seq === 1)).toBe(false);
   });
 
-  it('is idempotent: skips seq0 when already booked (re-run, nextSeq > 0)', async () => {
-    nextSeqValue = 1; // seq0 already exists
+  it('is idempotent: skips seq0 when an active booking already exists at seq0 (re-run)', async () => {
+    activeKeys.add('8:0'); // seq0 of crypto_input 8 already active
     mockBatch([
       cryptoInput({
         id: 8,

@@ -30,6 +30,14 @@ export interface LedgerTxInput {
 const NATIVE_BALANCE_TOLERANCE = 1e-8;
 const ROUNDING_ACCOUNT_NAME = 'ROUNDING';
 
+// §4.12 "eigener seq-Namespace" (D15 C.b line 72): reversal/re-book tx live in the SAME (sourceType, sourceId) but in
+// a seq RANGE reserved ABOVE every forward fixed seq (the highest forward seq is buy_fiat seq3). Without this, a
+// reversal of an EARLY forward seq before the LATER forward seqs are booked (e.g. buy_fiat seq1 content-change before
+// transmit/booked) would take MAX(seq)+1 = the index of a not-yet-booked forward seq → the later forward booking then
+// hits a UNIQUE collision (Major R3, multi-seq sources). Anchoring corrections at this base keeps them monotonic and
+// collision-free with the forward seqs while staying in the same namespace.
+const CORRECTION_SEQ_BASE = 1_000_000;
+
 @Injectable()
 export class LedgerBookingService {
   private readonly logger = new DfxLogger(LedgerBookingService);
@@ -78,7 +86,7 @@ export class LedgerBookingService {
    * seq in the (sourceType, sourceId) namespace; the original stays untouched.
    */
   async reverseTx(original: LedgerTx): Promise<LedgerTx> {
-    const nextSeq = await this.nextSeq(original.sourceType, original.sourceId);
+    const nextSeq = await this.nextCorrectionSeq(original.sourceType, original.sourceId);
 
     return this.bookTx({
       sourceType: original.sourceType,
@@ -119,8 +127,9 @@ export class LedgerBookingService {
     // (1) reversal-tx (reversalOf = the active original, inverted legs)
     await this.reverseTx(active);
 
-    // (2) re-book-tx (reversalOf = NULL — a new valid booking) with the corrected legs, next free seq
-    const reSeq = await this.nextSeq(input.sourceType, input.sourceId);
+    // (2) re-book-tx (reversalOf = NULL — a new valid booking) with the corrected legs, next free CORRECTION seq
+    // (above the forward range, so it never collides with a not-yet-booked forward seq of a multi-seq source, R3)
+    const reSeq = await this.nextCorrectionSeq(input.sourceType, input.sourceId);
     await this.bookTx({ ...input, seq: reSeq, reversalOf: undefined });
 
     return true;
@@ -137,6 +146,17 @@ export class LedgerBookingService {
 
     await this.reverseTx(active);
     return true;
+  }
+
+  /**
+   * True iff `(sourceType, sourceId)` has an ACTIVE (not-yet-reversed-without-rebook) booking whose forward original
+   * sits at `originalSeq`. The multi-seq consumers (buy_fiat seq1/2/3, buy_crypto seq0/1) MUST gate per-seq on THIS,
+   * not on `nextSeq(...) > seq`: after a §4.12 content-change reversal of an earlier seq (reversal seq=N, re-book
+   * seq=N+1), `MAX(seq)` jumps past the later seqs' indices so `nextSeq > laterSeq` reads true even though those later
+   * seqs were never booked → they would be skipped forever and their liabilities never close (Class-1 break, R3).
+   */
+  async hasActiveTxAt(sourceType: string, sourceId: string, originalSeq: number): Promise<boolean> {
+    return (await this.activeTx(sourceType, sourceId, originalSeq)) != null;
   }
 
   /**
@@ -213,6 +233,12 @@ export class LedgerBookingService {
       .getRawOne<{ max: number | null }>();
 
     return (max ?? -1) + 1;
+  }
+
+  // monotonic, collision-free seq for a reversal/re-book tx — ALWAYS in the reserved correction range (§4.12 "eigener
+  // seq-Namespace"), so it never lands on a forward fixed seq (0–3) of a multi-seq source that is not yet booked (R3).
+  async nextCorrectionSeq(sourceType: string, sourceId: string): Promise<number> {
+    return Math.max(await this.nextSeq(sourceType, sourceId), CORRECTION_SEQ_BASE);
   }
 
   private prepareLeg(leg: LedgerLegInput): LedgerLeg {

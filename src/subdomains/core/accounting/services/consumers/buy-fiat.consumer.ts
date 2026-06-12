@@ -326,8 +326,13 @@ export class BuyFiatConsumer {
     };
   }
 
-  // §4.7a — appends the FX-P&L leg = −(Σ CHF) for the EUR/output drift; CHF output → drift 0 → no leg
+  // §4.7a — appends the FX-P&L leg = −(Σ CHF) for the EUR/output drift; CHF output → drift 0 → no leg.
+  // No silent plug while a leg still needsMark (§5.1 Stufe 3): an unmarked leg carries amountChf=undefined (counted
+  // as 0), so plugging would book its full value as a phantom fx-revaluation — leave it for the mark-to-market job to
+  // revalue, consistent with exchange-tx.consumer.ts.
   private async appendFxResidual(legs: LedgerLegInput[]): Promise<void> {
+    if (legs.some((l) => l.needsMark)) return;
+
     const sumCents = legs.reduce((s, l) => s + Math.round(Util.round(l.amountChf ?? 0, 2) * 100), 0);
     if (Math.abs(sumCents) <= Config.ledger.roundingToleranceCents) return; // sub-cent → ROUNDING
 
@@ -434,8 +439,12 @@ export class BuyFiatConsumer {
     return { account, amount: amountChf, priceChf: 1, amountChf };
   }
 
+  // §4.12 (R3): a seq is "already booked" iff an ACTIVE (not reversed-without-rebook) tx exists AT this seq — NOT
+  // `nextSeq > seq`. After a content-change reversal of seq1 (reversal seq=N, re-book seq=N+1) MAX(seq) jumps past
+  // 2/3, so `nextSeq > 2/3` would wrongly report transmit/booked as booked and they would never run → buyFiat-owed
+  // never closes. hasActiveTxAt walks the reversal chain of the ORIGINAL at this exact seq.
   private async alreadyBooked(id: number, seq: number): Promise<boolean> {
-    return (await this.bookingService.nextSeq(SOURCE_TYPE, `${id}`)) > seq;
+    return this.bookingService.hasActiveTxAt(SOURCE_TYPE, `${id}`, seq);
   }
 
   private async assetAccount(assetId: number): Promise<LedgerAccount> {

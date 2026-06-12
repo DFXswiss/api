@@ -22,7 +22,7 @@ const PATTERN = new RegExp(
     '\\brefreshBalances\\(|\\brefreshBankBalance|\\bhasPendingOrders|integration\\.getBalances|integration\\.hasPendingOrders|BankAdapter|balanceIntegrationFactory|LiquidityBalanceIntegrationFactory',
     '\\blogService\\.(create|update)\\(|\\bsettingService\\.(setObj|updateProcess|addIpToBlacklist|deleteIpFromBlacklist)\\(',
     '\\.complete\\(|checkOrderCompletion|syncExchanges|doPayout|checkPayoutCompletionData|triggerWebhook|calculateSpreadFee',
-    'balanceRepo\\.(update|save|insert|delete|remove)\\(|\\b(?!ledger)\\w*Repo(sitory)?\\.(update|save|insert|delete|remove)\\(',
+    'balanceRepo\\.(update|save|insert|delete|remove|increment|decrement)\\(|\\b(?!ledger)\\w*Repo(sitory)?\\.(update|save|insert|delete|remove|increment|decrement)\\(',
     // Block 6 (EntityManager + raw-SQL write paths, Major design-accounting): `\w*[Mm]anager.<write>(` catches the
     // idiomatic injected EntityManager regardless of the binding identifier — `manager.save`, `entityManager.save`,
     // `dataSource.manager.save` (the bare `\bmanager.` missed `entityManager.` because there is no word boundary
@@ -31,12 +31,12 @@ const PATTERN = new RegExp(
     // TypeORM write path — `dataSource.createQueryRunner().query(...)`, exactly the migration pattern — and carries
     // no `manager`/`dataSource` token, so it was previously unflagged). The allowlisted ledger-own
     // `manager.save(LedgerTx,…) // ledger-allowlist` is cleared by the post-filter.
-    '\\b\\w*[Mm]anager\\.(save|insert|update|delete|remove|upsert|softDelete|softRemove|recover|query)\\(|\\bdataSource\\.query\\(|\\bqueryRunner\\.query\\(',
+    '\\b\\w*[Mm]anager\\.(save|insert|update|delete|remove|upsert|softDelete|softRemove|recover|increment|decrement|query)\\(|\\bdataSource\\.query\\(|\\bqueryRunner\\.query\\(',
     // Block 5 (§10.2 robustness gap): getRepository(X).<write>(…) escapes Block 4a (token before `.save` is
     // getRepository(...), not a *Repo identifier); a source-service write with a generic name (bankTxService.update,
     // assetService.updateAsset) is not named in Blocks 2/3. The legit ledger READ getRepository(LedgerTx).
     // createQueryBuilder() is not matched (no write verb); sanctioned service calls (set/sendMail/get*/find*/…) too.
-    'getRepository\\([^)]*\\)\\.(save|insert|update|delete|remove|upsert|softDelete|softRemove|recover)\\(|\\b\\w+Service\\.(save|insert|update|delete|remove|upsert)\\w*\\(',
+    'getRepository\\([^)]*\\)\\.(save|insert|update|delete|remove|upsert|softDelete|softRemove|recover|increment|decrement)\\(|\\b\\w+Service\\.(save|insert|update|delete|remove|upsert)\\w*\\(',
     // Block 7 (QueryBuilder write path, Major design-accounting): a write via the QueryBuilder DSL
     // `xRepo.createQueryBuilder().update(BankTx).set(...).execute()` or
     // `dataSource.createQueryBuilder().insert().into(BankTx).execute()` escapes Block 4a/5 (the verb is .update/.insert

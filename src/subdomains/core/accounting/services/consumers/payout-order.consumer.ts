@@ -341,8 +341,13 @@ export class PayoutOrderConsumer {
 
   // --- HELPERS --- //
 
-  // appends an EXPENSE/INCOME fx-revaluation plug for the CHF residual > tolerance (§4.5); sub-cent → ROUNDING
+  // appends an EXPENSE/INCOME fx-revaluation plug for the CHF residual > tolerance (§4.5); sub-cent → ROUNDING.
+  // No silent plug while a leg still needsMark (§5.1 Stufe 3): an unmarked leg carries amountChf=undefined (counted
+  // as 0), so plugging would book its full value as a phantom fx-revaluation — leave the tx for the mark-to-market job
+  // to revalue, consistent with exchange-tx.consumer.ts (mark-to-market then closes the residual).
   private async withFxPlug(legs: LedgerLegInput[]): Promise<LedgerLegInput[]> {
+    if (legs.some((l) => l.needsMark)) return legs;
+
     const sumCents = legs.reduce((s, l) => s + Math.round(Util.round(l.amountChf ?? 0, 2) * 100), 0);
     if (Math.abs(sumCents) <= Config.ledger.roundingToleranceCents) return legs;
 

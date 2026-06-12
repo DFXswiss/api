@@ -11,6 +11,8 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
 import { LogModule } from 'src/subdomains/supporting/log/log.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
@@ -60,6 +62,8 @@ import { LedgerReconciliationService } from './services/ledger-reconciliation.se
       RefReward,
       Asset,
       Bank, // accountIban→bank.asset lookup for the BankTx consumer (§4.2/§1.6)
+      BankTxReturn,
+      BankTxRepeat, // chargeback → original BANK_TX_RETURN/REPEAT opening-CHF anchor (§4.2 B-15, read-only)
     ]),
     SharedModule, // AssetService (CoA §3.2), DataSource
     LogModule, // LogService.getFinancialLogs (mark preload §5.2)

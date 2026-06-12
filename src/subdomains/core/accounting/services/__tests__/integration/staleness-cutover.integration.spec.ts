@@ -14,7 +14,10 @@ import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
 import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { Log } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
@@ -176,6 +179,7 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
 
     let booked: LedgerTxInput[];
     let cutoverFlag: string | undefined;
+    let snapshotPin: string | undefined;
     const seqByKey = new Map<string, number>();
 
     const equity = createCustomLedgerAccount({ id: 99, name: 'EQUITY/opening-balance', type: AccountType.EQUITY });
@@ -197,6 +201,7 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
     beforeEach(async () => {
       booked = [];
       cutoverFlag = undefined;
+      snapshotPin = undefined;
       seqByKey.clear();
 
       settingService = createMock<SettingService>();
@@ -206,19 +211,24 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
       accountService = createMock<LedgerAccountService>();
       markService = createMock<LedgerMarkService>();
 
-      // the Setting flag is the primary idempotency guard: set on success, read on the next run
-      jest
-        .spyOn(settingService, 'get')
-        .mockImplementation((key: string) =>
-          Promise.resolve(key === 'ledgerCutoverLogId' ? (cutoverFlag as any) : '0'),
-        );
+      // the Setting flag is the primary idempotency guard: set on success, read on the next run. The snapshot pin
+      // (ledgerCutoverSnapshotLogId) starts unset and is pinned at the first cutover step (Major design-accounting R3-1).
+      jest.spyOn(settingService, 'get').mockImplementation((key: string) => {
+        if (key === 'ledgerCutoverLogId') return Promise.resolve(cutoverFlag as any);
+        if (key === 'ledgerCutoverSnapshotLogId') return Promise.resolve(snapshotPin as any);
+        return Promise.resolve('0');
+      });
       jest.spyOn(settingService, 'set').mockImplementation((key: string, value: string) => {
         if (key === 'ledgerCutoverLogId') cutoverFlag = value;
+        if (key === 'ledgerCutoverSnapshotLogId') snapshotPin = value;
         return Promise.resolve();
       });
       jest.spyOn(settingService, 'getObj').mockResolvedValue([] as any);
 
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog()]);
+      jest
+        .spyOn(logService, 'getLog')
+        .mockImplementation((id: number) => Promise.resolve(id === 1557344 ? snapshotLog() : (undefined as any)));
 
       // the second guard: UNIQUE-collision-equivalent — a re-booked (sourceType,sourceId,seq) is skipped
       jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
@@ -271,6 +281,9 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
           { provide: getRepositoryToken(BuyFiat), useValue: emptyRepo() },
           { provide: getRepositoryToken(BuyCrypto), useValue: emptyRepo() },
           { provide: getRepositoryToken(BankTx), useValue: emptyRepo() },
+          { provide: getRepositoryToken(Bank), useValue: emptyRepo() },
+          { provide: getRepositoryToken(BankTxReturn), useValue: emptyRepo() },
+          { provide: getRepositoryToken(BankTxRepeat), useValue: emptyRepo() },
           { provide: getRepositoryToken(CryptoInput), useValue: emptyRepo() },
           { provide: getRepositoryToken(ExchangeTx), useValue: emptyRepo() },
           { provide: getRepositoryToken(PayoutOrder), useValue: emptyRepo() },
@@ -310,6 +323,45 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
       await service.run();
 
       expect(booked).toHaveLength(firstRunBookings); // openings skipped via alreadyBooked (nextSeq > seq)
+    });
+
+    it('re-run after a partial crash reuses the PINNED snapshot despite snapshot-window drift (no double-count, R3-1)', async () => {
+      // Run A crashes in step (4) initWatermarks AFTER all openings committed but BEFORE the flag is set — the
+      // failure-isolated run() swallows it, the flag stays unset, the openings + the snapshot pin remain committed.
+      let crashWatermarks = true;
+      jest.spyOn(settingService, 'set').mockImplementation((key: string, value: string) => {
+        if (key === 'ledgerCutoverLogId') cutoverFlag = value;
+        if (key === 'ledgerCutoverSnapshotLogId') snapshotPin = value;
+        // a watermark write is step (4) — crash there once, simulating the partial-cutover scenario
+        if (crashWatermarks && key.startsWith('ledgerWatermark.')) throw new Error('simulated crash in initWatermarks');
+        return Promise.resolve();
+      });
+
+      await service.run();
+      expect(cutoverFlag).toBeUndefined(); // crash before step (5) → flag never set
+      expect(snapshotPin).toBe('1557344'); // pin survived (set in step (2) before any opening)
+      const firstRunBookings = booked.length;
+      expect(firstRunBookings).toBeGreaterThan(0); // at least the ASSET opening committed before the crash
+
+      // Run B: the snapshot WINDOW has drifted — getFinancialLogs now returns a NEWER log (id 9999999, the drift the
+      // reviewer flagged). Without the pin, maxObj(valid,'created') would pick 9999999 → different opening sourceIds →
+      // alreadyBooked finds no collision → ALL openings re-booked (Equity ~2×). With the pin, Run B reuses 1557344.
+      crashWatermarks = false;
+      const driftedLog = Object.assign(new Log(), {
+        id: 9999999,
+        created: new Date('2026-06-09T22:00:00Z'), // newer than the pinned 1557344 (2026-06-07)
+        valid: true,
+        message: snapshotLog().message,
+      });
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([driftedLog]);
+
+      await service.run();
+
+      expect(snapshotPin).toBe('1557344'); // pin unchanged — the drifted 9999999 was NOT chosen
+      expect(cutoverFlag).toBe('1557344'); // Run B completes on the pinned snapshot
+      expect(booked).toHaveLength(firstRunBookings); // openings booked exactly once (no double-count via the drift)
+      // every booked opening carries the pinned logId in its sourceId — none carry the drifted 9999999
+      expect(booked.every((b) => !b.sourceId.startsWith('9999999'))).toBe(true);
     });
   });
 });

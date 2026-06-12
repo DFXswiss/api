@@ -46,6 +46,7 @@ describe('BuyFiatConsumer', () => {
   let booked: LedgerTxInput[];
   let accounts: Map<string, LedgerAccount>;
   let nextSeqValue: number;
+  let activeKeys: Set<string>; // `${sourceId}:${seq}` with an active booking — backs hasActiveTxAt (per-seq, R3)
   let gateCount: number; // countBy result (received/cutover gate)
   let seq0PaymentLinkChf: number | undefined; // the seq0 paymentLink opening leg amountChf (negative)
   let cutoverOwedOpeningChf: number | undefined; // the cutover buyFiat-owed opening leg amountChf (negative)
@@ -59,6 +60,7 @@ describe('BuyFiatConsumer', () => {
   beforeEach(async () => {
     booked = [];
     nextSeqValue = 0;
+    activeKeys = new Set<string>();
     gateCount = 1;
     seq0PaymentLinkChf = undefined;
     cutoverOwedOpeningChf = undefined;
@@ -77,9 +79,14 @@ describe('BuyFiatConsumer', () => {
 
     jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
       booked.push(input);
+      activeKeys.add(`${input.sourceId}:${input.seq}`); // a freshly booked (sourceId,seq) is now active
       return Promise.resolve({} as any);
     });
     jest.spyOn(bookingService, 'nextSeq').mockImplementation(() => Promise.resolve(nextSeqValue));
+    // alreadyBooked → hasActiveTxAt: true iff a booking exists AT this (sourceId, seq) (NOT nextSeq>seq, R3)
+    jest
+      .spyOn(bookingService, 'hasActiveTxAt')
+      .mockImplementation((_st: string, sid: string, s: number) => Promise.resolve(activeKeys.has(`${sid}:${s}`)));
 
     jest
       .spyOn(accountService, 'findByAssetId')
@@ -384,8 +391,8 @@ describe('BuyFiatConsumer', () => {
     expect(sumOn('TRANSIT/payout/CHF')).toBe(0);
   });
 
-  it('is idempotent: skips a fully booked row (re-run, nextSeq > 3)', async () => {
-    nextSeqValue = 4;
+  it('is idempotent: skips a fully booked row (re-run, active at seq1/2/3)', async () => {
+    activeKeys.add('6:1').add('6:2').add('6:3'); // all forward seqs of buy_fiat 6 already active
     mockBatch([
       buyFiat({
         id: 6,
@@ -403,6 +410,44 @@ describe('BuyFiatConsumer', () => {
     ]);
     await consumer.process();
     expect(booked).toHaveLength(0);
+  });
+
+  // R3 — content-change reversal of seq1 BEFORE transmit/booked must NOT strand seq2/seq3: reversal/re-book live in
+  // the correction range (≥1_000_000), so seq2/seq3 are still free and book; owed + TRANSIT close cent-exact to 0.
+  it('books seq2/seq3 even after a seq1 content-change reversal (no stranded later seqs, R3)', async () => {
+    // model the post-reversal state: seq1 reversed+rebooked into the correction range (active at seq1), seq2/seq3 NOT
+    // yet booked. nextSeq has jumped past 3 — the exact trap the old `nextSeq>seq` gate mis-read as "2/3 booked".
+    activeKeys.add('8:1');
+    nextSeqValue = 1_000_002;
+    mockBatch([
+      buyFiat({
+        id: 8,
+        amountInChf: 15000,
+        totalFeeAmountChf: 148.5,
+        outputAmount: 14851.5,
+        outputReferenceAmount: 14851.5,
+        outputAsset: { name: 'CHF' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'CHF',
+          bank: { asset: { id: CHF_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN },
+        } as any,
+      }),
+    ]);
+
+    await consumer.process();
+
+    expect(seq(1)).toBeUndefined(); // seq1 is active → NOT re-booked at the literal seq1
+    const s2 = seq(2);
+    const s3 = seq(3);
+    expect(s2).toBeDefined(); // transmit booked despite nextSeq being far above 2
+    expect(s3).toBeDefined(); // booked booked despite nextSeq being far above 3
+    expect(leg(s2, 'LIABILITY/buyFiat-owed').amountChf).toBe(14851.5);
+    expect(leg(s3, 'Bank/CHF').amountChf).toBe(-14851.5);
+    // owed: debited +14851.50 (seq2) — the −14851.50 came from the (reversed-then-rebooked) seq1; TRANSIT nets to 0
+    expect(sumOn('TRANSIT/payout/CHF')).toBe(0);
+    for (const tx of booked) expect(cents(tx.legs)).toBe(0);
   });
 
   it('advances the watermark after a successful batch', async () => {

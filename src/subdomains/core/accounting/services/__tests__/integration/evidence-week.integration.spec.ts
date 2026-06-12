@@ -5,6 +5,8 @@ import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/ex
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Repository } from 'typeorm';
@@ -116,6 +118,7 @@ describe('Ledger evidence-week integration (§10.2)', () => {
       id: 1,
       created: SETTLED,
       externalCreated: SETTLED,
+      updated: SETTLED, // IEntity always sets updated; the §4.3 content-change scan reads it (combined cursor)
       exchange: ExchangeName.SCRYPT,
       status: 'ok',
       ...values,
@@ -144,13 +147,29 @@ describe('Ledger evidence-week integration (§10.2)', () => {
   }
 
   // wires a BankTx consumer against the shared ledger; the Bank repo resolves the iban→asset lookup
+  // empty chargeback-link repos: no BANK_TX_RETURN/REPEAT opening row → the chargeback opening-CHF lookup falls back to
+  // the close value (the evidence-week fixtures do not exercise the return/repeat chargeback opening anchor)
+  function chargebackRepos(): [Repository<BankTxReturn>, Repository<BankTxRepeat>] {
+    const ret = createMock<Repository<BankTxReturn>>();
+    jest.spyOn(ret, 'findOne').mockResolvedValue(null);
+    const rep = createMock<Repository<BankTxRepeat>>();
+    jest.spyOn(rep, 'findOne').mockResolvedValue(null);
+    return [ret, rep];
+  }
+
   function bankTxConsumer(rows: BankTx[], banks: Bank[] = []): BankTxConsumer {
     const bankTxRepo = createMock<Repository<BankTx>>();
     jest.spyOn(bankTxRepo, 'find').mockResolvedValue(rows);
     const bankRepo = createMock<Repository<Bank>>();
-    jest
-      .spyOn(bankRepo, 'findOne')
-      .mockImplementation(({ where }: any) => Promise.resolve(banks.find((b) => b.iban === where.iban) ?? null));
+    // a representative tracked EUR bank (Olkypay/EUR = EUR_BANK) so the §4.2a untracked-bank path resolves the EUR mark
+    const eurMarkBank = Object.assign(new Bank(), { name: 'Olkypay', currency: 'EUR', asset: { id: EUR_BANK } });
+    jest.spyOn(bankRepo, 'findOne').mockImplementation(({ where }: any) => {
+      if (where?.iban != null) return Promise.resolve(banks.find((b) => b.iban === where.iban) ?? null);
+      // §4.2a currencyMarkAssetId: an untracked EUR bank borrows the EUR mark from a tracked EUR bank asset
+      if (where?.currency === 'EUR') return Promise.resolve(eurMarkBank);
+      return Promise.resolve(null);
+    });
+    const [returnRepo, repeatRepo] = chargebackRepos();
     return new BankTxConsumer(
       settingService(),
       ledger.bookingService,
@@ -159,6 +178,8 @@ describe('Ledger evidence-week integration (§10.2)', () => {
       bankTxRepo,
       bankRepo,
       ledger.ledgerTxRepository(),
+      returnRepo,
+      repeatRepo,
     );
   }
 
@@ -167,6 +188,9 @@ describe('Ledger evidence-week integration (§10.2)', () => {
     const exchangeTxRepo = createMock<Repository<ExchangeTx>>();
     jest.spyOn(exchangeTxRepo, 'find').mockImplementation(({ where, select }: any) => {
       if (select) return Promise.resolve([]); // fill-index existing-trades lookup (select-only query)
+      // the §4.3 content-change scan (where.updated is a combined-cursor Raw) returns [] here — these integration tests
+      // assert only the forward booking; the ok→failed reversal path is covered by the exchange-tx unit scan tests
+      if (where?.updated != null) return Promise.resolve([]);
       // honour the consumer's settled filter (status='ok' eliminates Class 2) — pending rows are not returned
       return Promise.resolve(rows.filter((r) => where?.status == null || r.status === where.status));
     });
@@ -337,11 +361,12 @@ describe('Ledger evidence-week integration (§10.2)', () => {
 
   // --- 5. CLASS-4 SWEEP → SUSPENSE (generic untracked-bank rule, no bank-name hardcode) --- //
 
-  it('Class-4: an untracked-bank credit lands in SUSPENSE, the exchange sweep pushes it back down', async () => {
+  it('Class-4: an untracked-bank credit lands in SUSPENSE (EUR-mark-valued, no full-value phantom), then is swept', async () => {
     // generic untracked-bank rule (no Bank row matches the iban) → SUSPENSE/untracked-bank-{name}-{ccy} (§4.2/§1.6).
-    // The credit's value lands in SUSPENSE as the native EUR custody amount (the SUSPENSE account has no asset row,
-    // so the consumer cannot mark-value it — the CHF side flows to fx-revaluation; the unambiguous Class-4 evidence
-    // is the NATIVE SUSPENSE balance + the fully-counted received liability). The exchange deposit then sweeps it.
+    // §4.2a SUSPENSE variant (Blocker fix): the SUSPENSE leg is EUR-mark-valued via a representative same-currency
+    // tracked-bank asset (0.95 × 1000 = 950 CHF) — NOT a needsMark hole. received = amountInChf (948 here, a deliberate
+    // Mark↔Pricing drift), so the §4.2a plug is the SMALL −2 valuation residual, NOT a full-value +948 phantom in
+    // INCOME/fx-revaluation (the bug this test now guards). The exchange deposit then sweeps the native SUSPENSE.
     const credit = bankTx({
       id: 1,
       type: BankTxType.BUY_CRYPTO,
@@ -350,14 +375,19 @@ describe('Ledger evidence-week integration (§10.2)', () => {
       amount: 1000,
       bankName: 'Raiffeisen',
       accountIban: 'SYNTH-UNTRACKED-IBAN',
-      buyCrypto: { amountInChf: 950 } as any,
+      buyCrypto: { amountInChf: 948 } as any, // deliberate 2-CHF drift vs EUR-mark × amount (950)
     });
     await bankTxConsumer([credit]).process();
 
     const suspenseName = 'SUSPENSE/untracked-bank-Raiffeisen-EUR';
     expect(ledger.hasAccount(suspenseName)).toBe(true);
     expect(ledger.nativeBalance(suspenseName)).toBe(1000); // Dr SUSPENSE native EUR (value entered, awaiting sweep)
-    expect(ledger.chfBalance('LIABILITY/buyCrypto-received')).toBe(-950); // Cr received fully counted (Class-4 fix)
+    expect(ledger.chfBalance(suspenseName)).toBe(950); // EUR-mark × amount, mark-consistent (NOT a needsMark hole)
+    expect(ledger.chfBalance('LIABILITY/buyCrypto-received')).toBe(-948); // Cr received fully counted (Class-4 fix)
+    // the §4.2a plug is the SMALL valuation residual (−2 → Dr EXPENSE/fx-revaluation), NOT a full-value +948 phantom
+    // (the old bug treated the unmarked SUSPENSE leg as 0 and plugged the FULL received value into INCOME)
+    expect(ledger.chfBalance('EXPENSE/fx-revaluation')).toBe(-2); // |residual| = 2, far below the full value
+    expect(ledger.chfBalance('INCOME/fx-revaluation')).toBe(0); // no full-value phantom on the INCOME side either
 
     // the Scrypt-EUR deposit sweep matches the open SUSPENSE post by amount/date → drives SUSPENSE native back to 0
     const sweep = exchangeTx({
@@ -639,6 +669,7 @@ describe('Ledger evidence-week integration (§10.2)', () => {
       });
       const bankRepo = createMock<Repository<Bank>>();
       jest.spyOn(bankRepo, 'findOne').mockResolvedValue(null); // untracked → CHF SUSPENSE/unattributed path
+      const [returnRepo, repeatRepo] = chargebackRepos();
 
       return new BankTxConsumer(
         s,
@@ -648,10 +679,12 @@ describe('Ledger evidence-week integration (§10.2)', () => {
         bankTxRepo,
         bankRepo,
         ledger.ledgerTxRepository(),
+        returnRepo,
+        repeatRepo,
       );
     }
 
-    it('keeps seq0, books a reversal (seq1, reversalOf=seq0, inverted) + a re-book (seq2, BUY_CRYPTO); seq strictly monotonic, no UNIQUE conflict', async () => {
+    it('keeps seq0, books a reversal + re-book (BUY_CRYPTO) in the correction range; seq strictly monotonic, no UNIQUE conflict', async () => {
       // seq0 = the original GSHEET CREDIT booking: Dr ASSET/bank (CHF) / Cr LIABILITY/unattributed
       const row = bankTx({
         id: 900,
@@ -682,18 +715,20 @@ describe('Ledger evidence-week integration (§10.2)', () => {
       const all = ledger.txs
         .filter((t) => t.sourceType === 'bank_tx' && t.sourceId === '900')
         .sort((a, b) => a.seq - b.seq);
-      expect(all.map((t) => t.seq)).toEqual([0, 1, 2]); // seq strictly monotonic over the cycle
+      // §4.12 "eigener seq-Namespace": the forward seq0 stays, reversal + re-book live in the reserved correction
+      // range (≥ 1_000_000) so they never collide with a not-yet-booked forward seq (R3); still strictly monotonic.
+      expect(all.map((t) => t.seq)).toEqual([0, 1_000_000, 1_000_001]);
 
       // (a) original seq0 stays untouched (append-only, §4.12 Z.802)
       expect(all[0].seq).toBe(0);
       expect(all[0].reversalOfId).toBeUndefined();
 
-      // (b) seq1 is the reversal of seq0 (reversalOfId points at the ORIGINAL, §4.12 Z.811) with inverted legs
-      expect(all[1].seq).toBe(1);
+      // (b) the reversal of seq0 (reversalOfId points at the ORIGINAL, §4.12 Z.811) with inverted legs
+      expect(all[1].seq).toBe(1_000_000);
       expect(all[1].reversalOfId).toBe(seq0.id);
 
-      // (c) seq2 is the re-book (reversalOf NULL — a new valid booking), now BUY_CRYPTO → Cr buyCrypto-received
-      expect(all[2].seq).toBe(2);
+      // (c) the re-book (reversalOf NULL — a new valid booking), now BUY_CRYPTO → Cr buyCrypto-received
+      expect(all[2].seq).toBe(1_000_001);
       expect(all[2].reversalOfId).toBeUndefined();
 
       // net effect: the unattributed liability is fully reversed back to 0, the buyCrypto-received now holds the value

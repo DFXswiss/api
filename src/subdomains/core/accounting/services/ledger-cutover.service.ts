@@ -21,10 +21,14 @@ import {
 import { FinanceLog, ManualLogPosition } from 'src/subdomains/supporting/log/dto/log.dto';
 import { Log } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { CryptoInput, CryptoInputSettledStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayoutOrder, PayoutOrderStatus } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
-import { Between, IsNull, Repository, SelectQueryBuilder } from 'typeorm';
+import { Between, In, IsNull, Repository, SelectQueryBuilder } from 'typeorm';
 import { AccountType, LedgerAccount } from '../entities/ledger-account.entity';
 import { LedgerBookingService, LedgerLegInput } from './ledger-booking.service';
 import { LedgerBootstrapService } from './ledger-bootstrap.service';
@@ -32,10 +36,17 @@ import { LedgerAccountService } from './ledger-account.service';
 import { LedgerMarkCache, LedgerMarkService } from './ledger-mark.service';
 
 const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
+// pinned at the very first cutover step (before any opening is booked); makes the snapshot stable across a re-run
+// after a partial crash so every per-row opening sourceId (`<logId>:buy_fiat:<id>`, …) stays identical and the
+// alreadyBooked UNIQUE backstop catches the collision → no double-counted openings (Major design-accounting, R3-1).
+const CUTOVER_SNAPSHOT_LOG_ID_KEY = 'ledgerCutoverSnapshotLogId';
 const WATERMARK_KEY_PREFIX = 'ledgerWatermark.';
 const SOURCE_TYPE = 'cutover';
 const CHF = 'CHF';
 const OPEN_ROW_LOOKBACK_DAYS = 90; // only targeted liabilities from rows created > cutover − 90d (§6.1)
+// §6.1: unattributed bank_tx credits the LogJob carries as a liability and the forward consumer routes to
+// LIABILITY/unattributed (bank-tx.consumer.ts GSHEET/PENDING CRDT). NULL-type credits fall in here too (default-unmapped).
+const UNATTRIBUTED_TYPES = [BankTxType.GSHEET, BankTxType.PENDING, BankTxType.UNKNOWN];
 
 @Injectable()
 export class LedgerCutoverService {
@@ -51,6 +62,11 @@ export class LedgerCutoverService {
     @InjectRepository(BuyFiat) private readonly buyFiatRepo: Repository<BuyFiat>,
     @InjectRepository(BuyCrypto) private readonly buyCryptoRepo: Repository<BuyCrypto>,
     @InjectRepository(BankTx) private readonly bankTxRepo: Repository<BankTx>,
+    @InjectRepository(Bank) private readonly bankRepo: Repository<Bank>,
+    // read-only: open the targeted BANK_TX_RETURN/REPEAT liabilities (chargebackBankTx IS NULL) per §6.1 (Major
+    // design-accounting) — the cutover anchor a post-cutover chargeback (§4.2 BANK_TX_*_CHARGEBACK) clears against
+    @InjectRepository(BankTxReturn) private readonly bankTxReturnRepo: Repository<BankTxReturn>,
+    @InjectRepository(BankTxRepeat) private readonly bankTxRepeatRepo: Repository<BankTxRepeat>,
     @InjectRepository(CryptoInput) private readonly cryptoInputRepo: Repository<CryptoInput>,
     @InjectRepository(ExchangeTx) private readonly exchangeTxRepo: Repository<ExchangeTx>,
     @InjectRepository(PayoutOrder) private readonly payoutOrderRepo: Repository<PayoutOrder>,
@@ -84,8 +100,9 @@ export class LedgerCutoverService {
     // (1) CoA bootstrap (idempotent, findOrCreate per account)
     await this.bootstrapService.bootstrap();
 
-    // (2) snapshot logId = newest valid FinancialDataLog ≤ Stichtag (now)
-    const snapshot = await this.selectSnapshot();
+    // (2) snapshot logId = newest valid FinancialDataLog ≤ Stichtag (now), PINNED on first run so a crash-then-retry
+    // reuses the exact same logId (stable opening sourceIds → idempotent re-run, Major design-accounting R3-1)
+    const snapshot = await this.pinnedSnapshot();
     if (!snapshot) throw new Error('No valid FinancialDataLog snapshot available for cutover');
 
     const finance = this.parseFinance(snapshot.message);
@@ -109,6 +126,35 @@ export class LedgerCutoverService {
   }
 
   // --- SNAPSHOT --- //
+
+  // §6.3 + Major design-accounting (R3-1): the snapshot logId is PINNED at the first cutover step and reused on every
+  // re-run. WHY: the per-row openings commit each in their own dataSource.transaction (§6.2), NOT in one atomic
+  // cutover tx; if the cutover crashes after some openings but before the ledgerCutoverLogId flag is set, the flag
+  // stays unset and the cron retries. Without a pin, the retry re-selects `maxObj(valid,'created')` over a window that
+  // has drifted (now moved on, ~2284 new FinancialDataLogs/day) → a DIFFERENT logId → DIFFERENT opening sourceIds
+  // (`<logId>:buy_fiat:<id>`) → alreadyBooked finds no collision → ALL openings are booked AGAIN (Equity ~2×,
+  // Acceptance #3 broken). Pinning the logId once keeps the snapshot stable so the re-run hits the UNIQUE/alreadyBooked
+  // backstop on every already-booked opening and re-books nothing.
+  private async pinnedSnapshot(): Promise<Log | undefined> {
+    const pinned = await this.settingService.get(CUTOVER_SNAPSHOT_LOG_ID_KEY);
+    if (pinned != null) {
+      // a previous (partial) run already chose the snapshot — reuse the exact logId so all sourceIds stay stable
+      const log = await this.logService.getLog(+pinned);
+      if (!log) throw new Error(`pinned cutover snapshot FinancialDataLog #${pinned} no longer exists`);
+      return log;
+    }
+
+    const snapshot = await this.selectSnapshot();
+    if (!snapshot) return undefined;
+
+    // pin BEFORE booking any opening (set-only-if-unset: re-read guards a concurrent pin, the chosen logId wins and
+    // the runner that read it first proceeds; the openings' UNIQUE backstop keeps a parallel run idempotent anyway).
+    if ((await this.settingService.get(CUTOVER_SNAPSHOT_LOG_ID_KEY)) == null) {
+      await this.settingService.set(CUTOVER_SNAPSHOT_LOG_ID_KEY, `${snapshot.id}`);
+    }
+    const repinned = await this.settingService.get(CUTOVER_SNAPSHOT_LOG_ID_KEY);
+    return repinned != null && +repinned !== snapshot.id ? this.logService.getLog(+repinned) : snapshot;
+  }
 
   // §6.3: newest valid=true FinancialDataLog ≤ Stichtag. Bounded read (last 2 days) then pick latest ≤ now.
   private async selectSnapshot(): Promise<Log | undefined> {
@@ -199,6 +245,12 @@ export class LedgerCutoverService {
     await this.openBuyFiatOwed(snapshot, snapshotDate, lookback, marks, equity);
     await this.openBuyCryptoReceived(snapshot, snapshotDate, lookback, equity);
     await this.openBuyCryptoOwed(snapshot, snapshotDate, lookback, marks, equity);
+    // §6.1 (Major design-accounting): the BANK_TX_RETURN/REPEAT + unattributed liabilities. A pre-cutover open
+    // return/repeat whose chargeback settles post-cutover (§4.2 BANK_TX_*_CHARGEBACK) finds its opening-CHF anchor
+    // here; without it the chargeback's −Σ(other legs) fallback leaves the liability phantom-negative (never on 0).
+    await this.openBankTxReturn(snapshot, snapshotDate, lookback, marks, equity);
+    await this.openBankTxRepeat(snapshot, snapshotDate, lookback, marks, equity);
+    await this.openUnattributed(snapshot, snapshotDate, lookback, marks, equity);
   }
 
   // buyFiat-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R3-6); per-row seq0-marker (R4-2)
@@ -308,6 +360,139 @@ export class LedgerCutoverService {
         mark == null, // feedless outputAsset → needsMark, mark-to-market values it later (§5.1 Stufe 3)
       );
     }
+  }
+
+  // --- BANK_TX_RETURN / BANK_TX_REPEAT / UNATTRIBUTED OPENINGS (§6.1, Major design-accounting) --- //
+
+  // §6.1: open BANK_TX_RETURN liabilities (`chargebackBankTx IS NULL` → still open) per source-row, CHF-valued =
+  // pendingInputAmount(bankAsset) × mark(bankAsset ≤ snapshot) so it matches the forward consumer's `EUR-mark × amount`
+  // credit (bank-tx.consumer.ts liabilityCreditLegs) and the post-cutover chargeback's opening-CHF anchor (§4.2 B-15).
+  // Per-row sourceId marker `<logId>:bank_tx-return:<bankTxId>` lets the chargeback consumer find this opening leg
+  // (analog the owed marker) → bankTx-return closes cent-exact to 0 instead of staying phantom-negative.
+  private async openBankTxReturn(
+    snapshot: Log,
+    date: Date,
+    lookback: Date,
+    marks: LedgerMarkCache,
+    equity: LedgerAccount,
+  ): Promise<void> {
+    const rows = await this.bankTxReturnRepo.find({
+      where: { chargebackBankTx: IsNull(), created: Between(lookback, date) },
+      relations: { bankTx: true },
+    });
+    const liability = await this.liability('bankTx-return');
+
+    for (const row of rows) {
+      await this.openOpenLiabilityRow(snapshot, date, marks, equity, liability, 'bank_tx-return', row.bankTx);
+    }
+  }
+
+  // §6.1: same as openBankTxReturn for BANK_TX_REPEAT (`chargebackBankTx IS NULL`), marker `<logId>:bank_tx-repeat:<id>`
+  private async openBankTxRepeat(
+    snapshot: Log,
+    date: Date,
+    lookback: Date,
+    marks: LedgerMarkCache,
+    equity: LedgerAccount,
+  ): Promise<void> {
+    const rows = await this.bankTxRepeatRepo.find({
+      where: { chargebackBankTx: IsNull(), created: Between(lookback, date) },
+      relations: { bankTx: true },
+    });
+    const liability = await this.liability('bankTx-repeat');
+
+    for (const row of rows) {
+      await this.openOpenLiabilityRow(snapshot, date, marks, equity, liability, 'bank_tx-repeat', row.bankTx);
+    }
+  }
+
+  // one per-row return/repeat opening: Cr LIABILITY/{bucket} / Dr EQUITY at CHF = amount × bankMark (≤ snapshot).
+  // CHF bank → mark 1; non-CHF (EUR) → EUR-mark; feedless/no-bank-match → needsMark (mark-to-market values later).
+  private async openOpenLiabilityRow(
+    snapshot: Log,
+    date: Date,
+    marks: LedgerMarkCache,
+    equity: LedgerAccount,
+    liability: LedgerAccount,
+    marker: string,
+    bankTx: BankTx | undefined,
+  ): Promise<void> {
+    if (bankTx?.amount == null) return; // no underlying bank_tx amount → nothing to anchor
+
+    const { mark } = await this.bankMark(bankTx, date, marks);
+    const amountChf = mark != null ? Util.round(bankTx.amount * mark, 2) : undefined;
+
+    await this.bookReceivedOwedOpening(
+      snapshot,
+      date,
+      `${snapshot.id}:${marker}:${bankTx.id}`,
+      `Opening ${marker} from open bank_tx #${bankTx.id}`,
+      liability,
+      amountChf,
+      equity,
+      mark == null,
+    );
+  }
+
+  // §6.1: aggregated LIABILITY/unattributed opening from still-open unattributed bank_tx credits (type NULL/Pending/
+  // Unknown/GSheet, CRDT). CHF-valued = Σ(amount × bankMark) so it matches the forward consumer's `EUR-mark × amount`
+  // credit (bank-tx.consumer.ts liabilityCreditLegs 'unattributed'). Aggregated (no per-row marker): there is no
+  // chargeback-clearing path that resolves a single unattributed row — the balance is carried like the LogJob does.
+  private async openUnattributed(
+    snapshot: Log,
+    date: Date,
+    lookback: Date,
+    marks: LedgerMarkCache,
+    equity: LedgerAccount,
+  ): Promise<void> {
+    // §6.1: type NULL/Pending/Unknown/GSheet credits → the unattributed bucket (two where-branches for the NULL type)
+    const credit = { creditDebitIndicator: BankTxIndicator.CREDIT, created: Between(lookback, date) };
+    const rows = [
+      ...(await this.bankTxRepo.find({ where: { ...credit, type: In(UNATTRIBUTED_TYPES) } })),
+      ...(await this.bankTxRepo.find({ where: { ...credit, type: IsNull() } })),
+    ];
+
+    let amountChf = 0;
+    let needsMark = false;
+    for (const row of rows) {
+      if (row.amount == null) continue;
+      const { mark } = await this.bankMark(row, date, marks);
+      if (mark == null) {
+        needsMark = true; // a feedless/unmatched credit cannot be valued now → mark-to-market values the rest later
+        continue;
+      }
+      amountChf += Util.round(row.amount * mark, 2);
+    }
+
+    if (Math.abs(amountChf) <= 1e-8 && !needsMark) return; // no open unattributed credits → no opening
+
+    const liability = await this.liability('unattributed');
+    await this.bookReceivedOwedOpening(
+      snapshot,
+      date,
+      `${snapshot.id}:unattributed`,
+      `Opening unattributed from open bank_tx credits as of FinancialDataLog #${snapshot.id}`,
+      liability,
+      Util.round(amountChf, 2),
+      equity,
+      needsMark,
+    );
+  }
+
+  // the bank's currency asset + its CHF mark (≤ snapshot) for a bank_tx (via accountIban → Bank.asset, §4.2/§1.6).
+  // CHF bank → mark 1; EUR bank → EUR-mark from the cache; no bank match / feedless → mark undefined (caller needsMark).
+  private async bankMark(
+    bankTx: BankTx,
+    date: Date,
+    marks: LedgerMarkCache,
+  ): Promise<{ asset?: Asset; mark: number | undefined }> {
+    const bank = bankTx.accountIban
+      ? await this.bankRepo.findOne({ where: { iban: bankTx.accountIban }, relations: { asset: true } })
+      : null;
+
+    if (bank?.currency === CHF || bankTx.currency === CHF) return { asset: bank?.asset, mark: 1 };
+    const asset = bank?.asset;
+    return { asset, mark: asset?.id != null ? marks.getMarkAt(asset.id, date) : undefined };
   }
 
   // --- MANUAL OPENING (§6.1 D15 C.f) --- //

@@ -23,7 +23,18 @@ import { LedgerMarkCache, LedgerMarkService } from '../../ledger-mark.service';
 import { LedgerReconciliationService } from '../../ledger-reconciliation.service';
 import { InMemoryLedger } from './in-memory-ledger';
 
-const WRITE_METHODS = ['save', 'update', 'insert', 'delete', 'remove', 'upsert', 'softDelete', 'softRemove'] as const;
+const WRITE_METHODS = [
+  'save',
+  'update',
+  'insert',
+  'delete',
+  'remove',
+  'upsert',
+  'softDelete',
+  'softRemove',
+  'increment',
+  'decrement',
+] as const;
 const ZCHF_WALLET = 200;
 const CHF_BANK = 401;
 const SETTLED = new Date('2026-06-04T00:00:00Z');
