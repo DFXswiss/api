@@ -210,8 +210,12 @@ export class BuyCryptoConsumer {
     return { account, amount: amountChf, priceChf: 1, amountChf };
   }
 
+  // §4.12 (R3): a seq is "already booked" iff an ACTIVE (not reversed-without-rebook) tx exists AT this seq — NOT
+  // `nextSeq > seq`. After a content-change reversal of seq0 (reversal seq=N, re-book seq=N+1) MAX(seq) jumps past 1,
+  // so `nextSeq > 1` would wrongly report the completion as booked and it would never run → buyCrypto-received never
+  // reclassifies to owed. hasActiveTxAt walks the reversal chain of the ORIGINAL at this exact seq.
   private async alreadyBooked(id: number, seq: number): Promise<boolean> {
-    return (await this.bookingService.nextSeq(SOURCE_TYPE, `${id}`)) > seq;
+    return this.bookingService.hasActiveTxAt(SOURCE_TYPE, `${id}`, seq);
   }
 
   private async checkoutAccount(currency: string): Promise<LedgerAccount> {

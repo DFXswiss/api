@@ -37,11 +37,13 @@ describe('BuyCryptoConsumer', () => {
   let booked: LedgerTxInput[];
   let accounts: Map<string, LedgerAccount>;
   let nextSeqValue: number;
+  let activeKeys: Set<string>; // `${sourceId}:${seq}` with an active booking — backs hasActiveTxAt (per-seq, R3)
   let gateOpen: boolean; // simulates a seq0 crypto_input ledger_tx existing
 
   beforeEach(async () => {
     booked = [];
     nextSeqValue = 0;
+    activeKeys = new Set<string>();
     gateOpen = true;
     accounts = new Map([['Checkout/EUR', account('Checkout/EUR', AccountType.ASSET, 'EUR')]]);
 
@@ -53,9 +55,14 @@ describe('BuyCryptoConsumer', () => {
 
     jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
       booked.push(input);
+      activeKeys.add(`${input.sourceId}:${input.seq}`); // a freshly booked (sourceId,seq) is now active
       return Promise.resolve({} as any);
     });
     jest.spyOn(bookingService, 'nextSeq').mockImplementation(() => Promise.resolve(nextSeqValue));
+    // alreadyBooked → hasActiveTxAt: true iff a booking exists AT this (sourceId, seq) (NOT nextSeq>seq, R3)
+    jest
+      .spyOn(bookingService, 'hasActiveTxAt')
+      .mockImplementation((_st: string, sid: string, s: number) => Promise.resolve(activeKeys.has(`${sid}:${s}`)));
 
     jest.spyOn(accountService, 'findByName').mockImplementation((name: string) => Promise.resolve(accounts.get(name)));
     jest
@@ -183,11 +190,32 @@ describe('BuyCryptoConsumer', () => {
     expect(booked).toHaveLength(0);
   });
 
-  it('is idempotent: skips seq1 when already booked (re-run, nextSeq > 1)', async () => {
-    nextSeqValue = 2;
+  it('is idempotent: skips seq1 when an active booking already exists at seq1 (re-run)', async () => {
+    activeKeys.add('8:0').add('8:1'); // seq0 + completion seq1 of buy_crypto 8 already booked
     mockBatch([buyCrypto({ id: 8, amountInChf: 1000, totalFeeAmountChf: 10, isComplete: true })]);
     await consumer.process();
     expect(seq(1)).toBeUndefined();
+  });
+
+  // R3 — content-change reversal of seq0 BEFORE the completion is booked must NOT strand seq1: the reversal/re-book
+  // live in the correction range (≥1_000_000), seq1 is still free, and the completion books + closes received to 0.
+  it('books the completion (seq1) even after a seq0 content-change reversal (no stranded later seq, R3)', async () => {
+    // model the post-reversal ledger state: seq0 reversed+rebooked into the correction range; seq1 NOT yet booked.
+    // hasActiveTxAt(seq0)=true (a live re-book exists), hasActiveTxAt(seq1)=false (never booked) — the exact state the
+    // old `nextSeq>seq` gate mis-read as "seq1 booked" because MAX(seq) had jumped into the correction range.
+    activeKeys.add('10:0');
+    nextSeqValue = 1_000_002; // MAX(seq) jumped past 1 after the reversal/re-book — the trap the old gate fell into
+    mockBatch([buyCrypto({ id: 10, amountInChf: 1000, totalFeeAmountChf: 10, isComplete: true })]);
+
+    await consumer.process();
+
+    const tx = seq(1);
+    expect(tx).toBeDefined(); // completion booked despite MAX(seq) being far above 1
+    const receivedSum = tx.legs
+      .filter((l) => l.account.name === 'LIABILITY/buyCrypto-received')
+      .reduce((s, l) => s + (l.amountChf ?? 0), 0);
+    expect(receivedSum).toBe(1000); // +10 fee + 990 reclass → closes the −1000 received to 0
+    expect(cents(tx.legs)).toBe(0);
   });
 
   it('advances the watermark after a successful batch', async () => {

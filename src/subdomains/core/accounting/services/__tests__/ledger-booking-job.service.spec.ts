@@ -148,13 +148,24 @@ describe('LedgerBookingJobService', () => {
 
   describe('watermark helpers (§11.3, set via settingService.set as JSON)', () => {
     it('reads a watermark via getObj and parses lastReversalScan to a Date', async () => {
-      jest
-        .spyOn(settingService, 'getObj')
-        .mockResolvedValue({ lastProcessedId: 42, lastReversalScan: '2026-06-01T00:00:00.000Z' } as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue({
+        lastProcessedId: 42,
+        lastReversalScan: '2026-06-01T00:00:00.000Z',
+        lastReversalScanId: 9,
+      } as any);
       const wm = await getLedgerWatermark(settingService, 'bank_tx');
       expect(wm.lastProcessedId).toBe(42);
       expect(wm.lastReversalScan).toBeInstanceOf(Date);
       expect(wm.lastReversalScan.toISOString()).toBe('2026-06-01T00:00:00.000Z');
+      expect(wm.lastReversalScanId).toBe(9); // combined (updated, id) cursor id-tiebreak (§4.12)
+    });
+
+    it('defaults lastReversalScanId to 0 for a legacy watermark without the field', async () => {
+      jest
+        .spyOn(settingService, 'getObj')
+        .mockResolvedValue({ lastProcessedId: 42, lastReversalScan: '2026-06-01T00:00:00.000Z' } as any);
+      const wm = await getLedgerWatermark(settingService, 'bank_tx');
+      expect(wm.lastReversalScanId).toBe(0); // backward-compatible read of a pre-cursor watermark
     });
 
     it('returns undefined when no watermark exists yet', async () => {
@@ -167,10 +178,23 @@ describe('LedgerBookingJobService', () => {
       await setLedgerWatermark(settingService, 'crypto_input', {
         lastProcessedId: 7,
         lastReversalScan: new Date('2026-06-02T00:00:00.000Z'),
+        lastReversalScanId: 3,
       });
       expect(setSpy).toHaveBeenCalledWith(
         'ledgerWatermark.crypto_input',
-        JSON.stringify({ lastProcessedId: 7, lastReversalScan: '2026-06-02T00:00:00.000Z' }),
+        JSON.stringify({ lastProcessedId: 7, lastReversalScan: '2026-06-02T00:00:00.000Z', lastReversalScanId: 3 }),
+      );
+    });
+
+    it('serializes lastReversalScanId as 0 when omitted (combined-cursor default)', async () => {
+      const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+      await setLedgerWatermark(settingService, 'crypto_input', {
+        lastProcessedId: 7,
+        lastReversalScan: new Date('2026-06-02T00:00:00.000Z'),
+      });
+      expect(setSpy).toHaveBeenCalledWith(
+        'ledgerWatermark.crypto_input',
+        JSON.stringify({ lastProcessedId: 7, lastReversalScan: '2026-06-02T00:00:00.000Z', lastReversalScanId: 0 }),
       );
     });
   });

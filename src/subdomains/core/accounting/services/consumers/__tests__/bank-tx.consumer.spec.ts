@@ -5,6 +5,8 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { Repository } from 'typeorm';
 import { LedgerTx } from '../../../entities/ledger-tx.entity';
 import { AccountType, LedgerAccount } from '../../../entities/ledger-account.entity';
@@ -42,6 +44,8 @@ describe('BankTxConsumer', () => {
   let bankTxRepo: Repository<BankTx>;
   let bankRepo: Repository<Bank>;
   let ledgerTxRepo: Repository<LedgerTx>;
+  let bankTxReturnRepo: Repository<BankTxReturn>;
+  let bankTxRepeatRepo: Repository<BankTxRepeat>;
 
   let booked: LedgerTxInput[];
   let createdAccounts: Map<string, LedgerAccount>;
@@ -60,10 +64,15 @@ describe('BankTxConsumer', () => {
     bankTxRepo = createMock<Repository<BankTx>>();
     bankRepo = createMock<Repository<Bank>>();
     ledgerTxRepo = createMock<Repository<LedgerTx>>();
+    bankTxReturnRepo = createMock<Repository<BankTxReturn>>();
+    bankTxRepeatRepo = createMock<Repository<BankTxRepeat>>();
 
     // by default no cutover opening exists → BUY_CRYPTO_RETURN owed-Dr falls back to the completion CHF
     jest.spyOn(ledgerTxRepo, 'findOne').mockResolvedValue(null);
     jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
+    // by default a chargeback resolves to no opening row → opening-CHF lookup falls back to the close value
+    jest.spyOn(bankTxReturnRepo, 'findOne').mockResolvedValue(null);
+    jest.spyOn(bankTxRepeatRepo, 'findOne').mockResolvedValue(null);
 
     jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
       booked.push(input);
@@ -104,6 +113,8 @@ describe('BankTxConsumer', () => {
         { provide: getRepositoryToken(BankTx), useValue: bankTxRepo },
         { provide: getRepositoryToken(Bank), useValue: bankRepo },
         { provide: getRepositoryToken(LedgerTx), useValue: ledgerTxRepo },
+        { provide: getRepositoryToken(BankTxReturn), useValue: bankTxReturnRepo },
+        { provide: getRepositoryToken(BankTxRepeat), useValue: bankTxRepeatRepo },
       ],
     }).compile();
 
@@ -130,6 +141,12 @@ describe('BankTxConsumer', () => {
         return Promise.resolve(
           Object.assign(new Bank(), { name: 'Yapeal', currency: 'CHF', asset: { id: 100 }, ...bank }),
         );
+
+      // §4.2a representative same-currency tracked-bank lookup (currencyMarkAssetId): an untracked EUR bank borrows
+      // the EUR mark from a tracked EUR bank asset (here Olkypay/EUR = 269). No iban → this is the currency lookup.
+      if (iban == null && opts?.where?.currency === 'EUR')
+        return Promise.resolve(Object.assign(new Bank(), { name: 'Olkypay', currency: 'EUR', asset: eurAsset }));
+
       return Promise.resolve(null);
     });
   }
@@ -187,17 +204,51 @@ describe('BankTxConsumer', () => {
     expect(cents(legs)).toBe(0);
   });
 
-  it('books BUY_CRYPTO on an untracked Raiffeisen bank against SUSPENSE/untracked-bank-Raiffeisen-EUR', async () => {
+  it('books BUY_CRYPTO on an untracked Raiffeisen bank as a 3-leg fx-plug against SUSPENSE (§4.2a SUSPENSE variant)', async () => {
+    // §4.2a Raiffeisen-untracked: the SUSPENSE leg is EUR-mark-valued via the representative same-currency tracked-bank
+    // asset (0.95 × 10000 = 9500), received = amountInChf (9480), plug = the −20 valuation residual — NOT a full-value
+    // phantom. The SUSPENSE leg carries assetId=null but a real CHF (the mark comes from a tracked EUR bank, not the
+    // SUSPENSE account itself); the plug is the small Mark↔Pricing drift, identical to the tracked-EUR-bank §4.2a case.
     const buyCrypto = { amountInChf: 9480 } as any;
     mockBatch([bankTx({ type: BankTxType.BUY_CRYPTO, accountIban: 'UNTRACKED-IBAN', amount: 10000, buyCrypto })]);
     await consumer.process();
 
     const legs = booked[0].legs;
-    // untracked → no EUR mark via asset → SUSPENSE leg needsMark; the received anchor remains; plug absorbs
-    expect(legs[0].account.name).toBe('SUSPENSE/untracked-bank-Raiffeisen-EUR');
-    expect(legs[0].needsMark).toBe(true);
-    expect(legs[1].account.name).toBe('LIABILITY/buyCrypto-received');
+    expect(legs).toHaveLength(3);
+    const suspense = legs.find((l) => l.account.name === 'SUSPENSE/untracked-bank-Raiffeisen-EUR');
+    expect(suspense).toBeDefined();
+    expect(suspense.amount).toBe(10000); // native EUR (awaits the §4.3b sweep)
+    expect(suspense.amountChf).toBe(9500); // EUR-mark × amount, mark-consistent — NOT a needsMark hole
+    expect(suspense.needsMark).toBe(false);
+    const received = legs.find((l) => l.account.name === 'LIABILITY/buyCrypto-received');
+    expect(received.amountChf).toBe(-9480); // base anchor (fully counted, Class-4 fix)
+    const plug = legs.find((l) => l.account.name?.includes('fx-revaluation'));
+    expect(plug.account.name).toBe('EXPENSE/fx-revaluation');
+    expect(plug.amountChf).toBe(-20); // small valuation residual (Mark↔Pricing), NOT the full +9480 phantom
     expect(cents(legs)).toBe(0);
+  });
+
+  it('books BUY_CRYPTO on an untracked bank with NO same-currency tracked mark as a needsMark leg, no silent plug', async () => {
+    // when no tracked bank of the currency exists, currencyMarkAssetId returns undefined → the SUSPENSE leg stays
+    // needsMark and withFxPlug books NO plug (§5.1 Stufe 3: no silent plug without a mark; mark-to-market revalues)
+    const buyCrypto = { amountInChf: 9480 } as any;
+    mockBatch(
+      [bankTx({ type: BankTxType.BUY_CRYPTO, accountIban: 'UNTRACKED-IBAN', amount: 10000, buyCrypto })],
+      undefined,
+    );
+    // override: no tracked EUR bank → the currency lookup returns null
+    jest.spyOn(bankRepo, 'findOne').mockImplementation((opts: any) => {
+      const iban = opts?.where?.iban;
+      if (iban === 'UNTRACKED-IBAN')
+        return Promise.resolve(Object.assign(new Bank(), { name: 'Raiffeisen', currency: 'EUR', asset: null }));
+      return Promise.resolve(null); // currency lookup finds no tracked EUR bank
+    });
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    const suspense = legs.find((l) => l.account.name === 'SUSPENSE/untracked-bank-Raiffeisen-EUR');
+    expect(suspense.needsMark).toBe(true); // no mark resolvable
+    expect(legs.find((l) => l.account.name?.includes('fx-revaluation'))).toBeUndefined(); // NO silent plug
   });
 
   it('books BUY_CRYPTO_RETURN on an EUR bank: owed-Dr = completion CHF, fx-plug absorbs the mark drift (§4.2a/R2-2)', async () => {
@@ -408,6 +459,135 @@ describe('BankTxConsumer', () => {
     const legs = booked[0].legs;
     expect(legs.some((l) => l.account.name === 'LIABILITY/bankTx-return')).toBe(true);
     expect(legs.some((l) => l.account.name === 'EXPENSE/bank-fee' && l.amountChf === 5)).toBe(true);
+    expect(cents(legs)).toBe(0);
+  });
+
+  // §4.2 B-15 (Major design-accounting): the chargeback debits the liability with the CHF it was OPENED with (the
+  // BANK_TX_RETURN credit's CHF), NOT the chargeback-time bank-mark close value. On an EUR account where the mark
+  // drifted between opening and chargeback, the drift must land in fx-revaluation, NOT stay a phantom on bankTx-return.
+  it('BANK_TX_RETURN_CHARGEBACK on EUR uses the OPENING CHF anchor + routes the mark drift to fx-revaluation', async () => {
+    // the original BANK_TX_RETURN opening bank_tx #50 opened LIABILITY/bankTx-return at EUR-mark@open: 100 EUR × 0.92 =
+    // 92 CHF. The chargeback at EUR-mark@chargeback 0.95 would value the bank leg at −95 CHF.
+    jest
+      .spyOn(bankTxReturnRepo, 'findOne')
+      .mockResolvedValue(Object.assign(new BankTxReturn(), { bankTx: { id: 50 } }) as any);
+    const openingLeg = { account: { name: 'LIABILITY/bankTx-return' }, amountChf: -92 } as any;
+    jest
+      .spyOn(ledgerTxRepo, 'findOne')
+      .mockImplementation(({ where }: any) =>
+        where?.sourceType === 'bank_tx' && where?.sourceId === '50'
+          ? Promise.resolve(Object.assign(new LedgerTx(), { legs: [openingLeg] }) as any)
+          : Promise.resolve(null),
+      );
+
+    mockBatch([
+      bankTx({
+        id: 51,
+        type: BankTxType.BANK_TX_RETURN_CHARGEBACK,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100, // EUR
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    const liability = legs.find((l) => l.account.name === 'LIABILITY/bankTx-return');
+    const bank = legs.find((l) => l.account.name === 'Olkypay/EUR');
+    expect(liability.amountChf).toBe(92); // OPENING CHF (Dr), NOT the −(bank) close value 95
+    expect(bank.amountChf).toBe(-95); // EUR-mark@chargeback × amount = 100 × 0.95 (mark-consistent for §7)
+    // the +92 − 95 = −3 drift must NOT vanish: it closes via an fx-revaluation plug, liability stays at the anchor
+    expect(legs.some((l) => l.account.name.endsWith('/fx-revaluation'))).toBe(true);
+    expect(cents(legs)).toBe(0);
+  });
+
+  // §4.2 (Major design-accounting): symmetric for BANK_TX_REPEAT_CHARGEBACK — opening CHF anchor + fx-plug so
+  // bankTx-repeat closes cent-exact even when the EUR mark drifted between the BANK_TX_REPEAT credit and the chargeback.
+  it('BANK_TX_REPEAT_CHARGEBACK on EUR uses the OPENING CHF anchor + routes the mark drift to fx-revaluation', async () => {
+    jest
+      .spyOn(bankTxRepeatRepo, 'findOne')
+      .mockResolvedValue(Object.assign(new BankTxRepeat(), { bankTx: { id: 60 } }) as any);
+    const openingLeg = { account: { name: 'LIABILITY/bankTx-repeat' }, amountChf: -92 } as any;
+    jest
+      .spyOn(ledgerTxRepo, 'findOne')
+      .mockImplementation(({ where }: any) =>
+        where?.sourceType === 'bank_tx' && where?.sourceId === '60'
+          ? Promise.resolve(Object.assign(new LedgerTx(), { legs: [openingLeg] }) as any)
+          : Promise.resolve(null),
+      );
+
+    mockBatch([
+      bankTx({
+        id: 61,
+        type: BankTxType.BANK_TX_REPEAT_CHARGEBACK,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100, // EUR
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    expect(legs.find((l) => l.account.name === 'LIABILITY/bankTx-repeat').amountChf).toBe(92); // opening anchor
+    expect(legs.find((l) => l.account.name === 'Olkypay/EUR').amountChf).toBe(-95); // EUR-mark × amount
+    expect(legs.some((l) => l.account.name.endsWith('/fx-revaluation'))).toBe(true);
+    expect(cents(legs)).toBe(0);
+  });
+
+  // no opening at all found (untracked chain / opening older than the 90d cutover lookback, no bank_tx seq0 AND no
+  // cutover marker) → fall back to the close value, 2-leg, no plug (the prior behaviour stays intact, tx self-balances)
+  it('BANK_TX_REPEAT_CHARGEBACK with no opening row falls back to the close value (2-leg, no plug)', async () => {
+    // default mocks: bankTxRepeatRepo.findOne → null (no opening row) + settingService.get → undefined (no cutover)
+    mockBatch([
+      bankTx({
+        type: BankTxType.BANK_TX_REPEAT_CHARGEBACK,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'CHF-IBAN',
+        amount: 100,
+      }),
+    ]);
+    await consumer.process();
+    const legs = booked[0].legs;
+    expect(legs.find((l) => l.account.name === 'LIABILITY/bankTx-repeat').amountChf).toBe(100); // close value
+    expect(legs.some((l) => l.account.name.endsWith('/fx-revaluation'))).toBe(false); // no drift → no plug
+    expect(cents(legs)).toBe(0);
+  });
+
+  // §6.1 + §4.2 (Major design-accounting): a cutover-straddling BANK_TX_RETURN (opened pre-cutover by the cutover, NOT
+  // a bank_tx seq0 tx) whose chargeback settles post-cutover MUST anchor on the CUTOVER opening-CHF so the
+  // LIABILITY/bankTx-return closes cent-exact to 0 — NOT the −Σ(bank+fee) fallback, which would leave it phantom-negative.
+  it('BANK_TX_RETURN_CHARGEBACK on a cutover-straddling row anchors on the CUTOVER opening CHF (liability closes to 0)', async () => {
+    // chargeback resolves to opening bank_tx #50; there is NO bank_tx seq0 opening (settled pre-cutover, below the
+    // watermark) — only the cutover per-row opening `1557344:bank_tx-return:50` (Cr −92 CHF). EUR-mark@chargeback 0.95.
+    jest
+      .spyOn(bankTxReturnRepo, 'findOne')
+      .mockResolvedValue(Object.assign(new BankTxReturn(), { bankTx: { id: 50 } }) as any);
+    jest.spyOn(settingService, 'get').mockResolvedValue('1557344'); // cutover happened, logId 1557344
+    const cutoverLeg = { account: { name: 'LIABILITY/bankTx-return' }, amountChf: -92 } as any;
+    jest
+      .spyOn(ledgerTxRepo, 'findOne')
+      .mockImplementation(({ where }: any) =>
+        where?.sourceType === 'cutover' && where?.sourceId === '1557344:bank_tx-return:50'
+          ? Promise.resolve(Object.assign(new LedgerTx(), { legs: [cutoverLeg] }) as any)
+          : Promise.resolve(null),
+      );
+
+    mockBatch([
+      bankTx({
+        id: 51,
+        type: BankTxType.BANK_TX_RETURN_CHARGEBACK,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100, // EUR
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    expect(legs.find((l) => l.account.name === 'LIABILITY/bankTx-return').amountChf).toBe(92); // CUTOVER opening anchor
+    expect(legs.find((l) => l.account.name === 'Olkypay/EUR').amountChf).toBe(-95); // EUR-mark@chargeback × amount
+    // +92 − 95 = −3 drift closes via an fx-revaluation plug; the liability stays exactly on the opening anchor → 0
+    expect(legs.some((l) => l.account.name.endsWith('/fx-revaluation'))).toBe(true);
     expect(cents(legs)).toBe(0);
   });
 

@@ -20,6 +20,7 @@ function exchangeTx(values: Partial<ExchangeTx>): ExchangeTx {
     id: 1,
     created: new Date('2026-06-01T00:00:00Z'),
     externalCreated: new Date('2026-06-01T00:00:00Z'),
+    updated: new Date('2026-06-02T00:00:00Z'), // IEntity always sets updated; the §4.3 content-change scan reads it
     exchange: ExchangeName.SCRYPT,
     status: 'ok',
     ...values,
@@ -112,9 +113,25 @@ describe('ExchangeTxConsumer', () => {
 
   function mockBatch(rows: ExchangeTx[]): void {
     jest.spyOn(exchangeTxRepo, 'find').mockImplementation((opts: any) => {
+      // the §4.3 content-change scan (where.updated is a combined-cursor Raw) returns [] → the forward path is asserted
+      // in isolation; the ok→failed reversal path has its own dedicated tests (mockContentChange below)
+      if (opts?.where?.updated != null) return Promise.resolve([]);
       // the fill-index preload re-queries with type=Trade — return the same trade rows for ranking
       if (opts?.where?.order != null) return Promise.resolve(rows.filter((r) => r.type === ExchangeTxType.TRADE));
       return Promise.resolve(rows);
+    });
+  }
+
+  // wires the forward scan empty and the §4.3 content-change scan to return the given changed rows (status-agnostic)
+  function mockContentChange(forward: ExchangeTx[], changed: ExchangeTx[]): void {
+    jest.spyOn(exchangeTxRepo, 'find').mockImplementation((opts: any) => {
+      if (opts?.where?.updated != null) return Promise.resolve(changed); // the content-change scan rows
+      // fill-index preload (status='ok', order in …) ranks among the still-ok trades + the merged batch rows
+      if (opts?.where?.order != null)
+        return Promise.resolve(
+          [...forward, ...changed].filter((r) => r.type === ExchangeTxType.TRADE && r.status === 'ok'),
+        );
+      return Promise.resolve(forward.filter((r) => opts?.where?.status == null || r.status === opts.where.status));
     });
   }
 
@@ -336,5 +353,60 @@ describe('ExchangeTxConsumer', () => {
     await consumer.process();
     const written = JSON.parse(setSpy.mock.calls[0][1]);
     expect(written.lastProcessedId).toBe(7);
+  });
+
+  // --- §4.3 REVERSAL TRIGGER (status ok→failed/canceled + content change) --- //
+
+  it('flat-reverses a Deposit whose status flipped ok→failed (content-change scan, §4.3)', async () => {
+    const reverseSpy = jest.spyOn(bookingService, 'reverseActiveIfBooked').mockResolvedValue(true);
+    const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(false);
+    // forward batch empty; the row now has status='failed' and is selected only by the status-agnostic content scan
+    const failed = exchangeTx({ id: 5, type: ExchangeTxType.DEPOSIT, currency: 'EUR', amount: 100, status: 'failed' });
+    mockContentChange([], [failed]);
+    await consumer.process();
+
+    // ok→failed → flat reversal at the row's booked identifiers (exchange_tx, id, seq 0), NOT a re-book
+    expect(reverseSpy).toHaveBeenCalledWith('exchange_tx', '5', 0);
+    expect(rebookSpy).not.toHaveBeenCalled();
+  });
+
+  it('flat-reverses a Trade whose status flipped ok→canceled at its order/fill-index seq (§4.3)', async () => {
+    const reverseSpy = jest.spyOn(bookingService, 'reverseActiveIfBooked').mockResolvedValue(true);
+    const canceled = exchangeTx({
+      id: 12,
+      type: ExchangeTxType.TRADE,
+      symbol: 'USDT/CHF',
+      side: 'buy',
+      order: 'O-7',
+      amount: 100,
+      amountChf: 90,
+      cost: 90,
+      status: 'canceled',
+    });
+    mockContentChange([], [canceled]);
+    await consumer.process();
+
+    // trade reversal targets sourceType=ExchangeTrade, sourceId=order, seq=fill-index (0 for the only fill of O-7)
+    expect(reverseSpy).toHaveBeenCalledWith('ExchangeTrade', 'O-7', 0);
+  });
+
+  it('reverses + re-books an ok Deposit whose amount changed (content-change, §4.12)', async () => {
+    const reverseSpy = jest.spyOn(bookingService, 'reverseActiveIfBooked').mockResolvedValue(true);
+    const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
+    const changedRow = exchangeTx({
+      id: 6,
+      type: ExchangeTxType.DEPOSIT,
+      currency: 'EUR',
+      amount: 200,
+      amountChf: 190,
+      txId: '0x',
+    });
+    mockContentChange([], [changedRow]);
+    await consumer.process();
+
+    // status still 'ok' → recompute legs + reverse-and-rebook-if-changed (NOT a flat reversal)
+    expect(rebookSpy).toHaveBeenCalledTimes(1);
+    expect(rebookSpy.mock.calls[0][0].sourceId).toBe('6');
+    expect(reverseSpy).not.toHaveBeenCalled();
   });
 });

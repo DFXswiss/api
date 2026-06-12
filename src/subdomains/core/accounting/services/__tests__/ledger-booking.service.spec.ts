@@ -226,7 +226,7 @@ describe('LedgerBookingService', () => {
 
     const reversal = await service.reverseTx(original);
 
-    expect(reversal.seq).toBe(2); // MAX(seq)=1 → next 2 (§4.12 monotone)
+    expect(reversal.seq).toBe(1_000_000); // reversal lives in the reserved correction range (§4.12 eigener Namespace)
     expect(reversal.reversalOf).toBe(original);
     expect(reversal.amountChfSum).toBe(0);
     expect(savedLegs.map((l) => l.amountChfCents)).toEqual([-5000000, 5000000]); // inverted
@@ -308,9 +308,11 @@ describe('LedgerBookingService', () => {
       expect(changed).toBe(true);
 
       const all = txStore.filter((t) => t.sourceId === '900').sort((a, b) => a.seq - b.seq);
-      expect(all.map((t) => t.seq)).toEqual([0, 1, 2]); // monotone over the cycle
-      expect(all[1].reversalOfId).toBe(all[0].id); // seq1 reverses the ORIGINAL seq0
-      expect(all[2].reversalOfId).toBeUndefined(); // seq2 re-book is a new valid booking
+      // §4.12 "eigener seq-Namespace": the forward seq0 stays, reversal + re-book live in the reserved correction
+      // range (≥ 1_000_000) so they never collide with a not-yet-booked forward seq of a multi-seq source (R3).
+      expect(all.map((t) => t.seq)).toEqual([0, 1_000_000, 1_000_001]); // strictly monotone over the cycle
+      expect(all[1].reversalOfId).toBe(all[0].id); // the reversal reverses the ORIGINAL seq0
+      expect(all[2].reversalOfId).toBeUndefined(); // the re-book is a new valid booking
     });
 
     it('is a no-op when nothing changed (idempotent re-scan) and when a sub-tolerance mark drift occurs', async () => {
@@ -341,7 +343,7 @@ describe('LedgerBookingService', () => {
       expect(reversed).toBe(true);
 
       const all = txStore.filter((t) => t.sourceId === '900').sort((a, b) => a.seq - b.seq);
-      expect(all.map((t) => t.seq)).toEqual([0, 1]);
+      expect(all.map((t) => t.seq)).toEqual([0, 1_000_000]); // forward seq0 + reversal in the correction range
       expect(all[1].reversalOfId).toBe(all[0].id); // flat reversal, no re-book
     });
   });

@@ -13,7 +13,10 @@ import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { Log } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
-import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
+import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
+import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayoutOrder } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { Repository } from 'typeorm';
@@ -65,6 +68,9 @@ describe('LedgerCutoverService', () => {
   let buyFiatRepo: Repository<BuyFiat>;
   let buyCryptoRepo: Repository<BuyCrypto>;
   let bankTxRepo: Repository<BankTx>;
+  let bankRepo: Repository<Bank>;
+  let bankTxReturnRepo: Repository<BankTxReturn>;
+  let bankTxRepeatRepo: Repository<BankTxRepeat>;
   let cryptoInputRepo: Repository<CryptoInput>;
   let exchangeTxRepo: Repository<ExchangeTx>;
   let payoutOrderRepo: Repository<PayoutOrder>;
@@ -99,6 +105,9 @@ describe('LedgerCutoverService', () => {
     buyFiatRepo = createMock<Repository<BuyFiat>>();
     buyCryptoRepo = createMock<Repository<BuyCrypto>>();
     bankTxRepo = createMock<Repository<BankTx>>();
+    bankRepo = createMock<Repository<Bank>>();
+    bankTxReturnRepo = createMock<Repository<BankTxReturn>>();
+    bankTxRepeatRepo = createMock<Repository<BankTxRepeat>>();
     cryptoInputRepo = createMock<Repository<CryptoInput>>();
     exchangeTxRepo = createMock<Repository<ExchangeTx>>();
     payoutOrderRepo = createMock<Repository<PayoutOrder>>();
@@ -123,6 +132,10 @@ describe('LedgerCutoverService', () => {
     // default: no open rows / no manual debt / empty mark cache
     jest.spyOn(buyFiatRepo, 'find').mockResolvedValue([]);
     jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([]);
+    jest.spyOn(bankTxRepo, 'find').mockResolvedValue([]);
+    jest.spyOn(bankTxReturnRepo, 'find').mockResolvedValue([]);
+    jest.spyOn(bankTxRepeatRepo, 'find').mockResolvedValue([]);
+    jest.spyOn(bankRepo, 'findOne').mockResolvedValue(null);
     jest.spyOn(settingService, 'getObj').mockResolvedValue([] as any);
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map()));
 
@@ -159,6 +172,9 @@ describe('LedgerCutoverService', () => {
         { provide: getRepositoryToken(BuyFiat), useValue: buyFiatRepo },
         { provide: getRepositoryToken(BuyCrypto), useValue: buyCryptoRepo },
         { provide: getRepositoryToken(BankTx), useValue: bankTxRepo },
+        { provide: getRepositoryToken(Bank), useValue: bankRepo },
+        { provide: getRepositoryToken(BankTxReturn), useValue: bankTxReturnRepo },
+        { provide: getRepositoryToken(BankTxRepeat), useValue: bankTxRepeatRepo },
         { provide: getRepositoryToken(CryptoInput), useValue: cryptoInputRepo },
         { provide: getRepositoryToken(ExchangeTx), useValue: exchangeTxRepo },
         { provide: getRepositoryToken(PayoutOrder), useValue: payoutOrderRepo },
@@ -335,6 +351,85 @@ describe('LedgerCutoverService', () => {
       expect(owedTx).toBeDefined();
       const liabilityLeg = owedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
       expect(liabilityLeg.needsMark).toBe(true); // no mark for asset 999 → mark-to-market values later
+    });
+
+    // §6.1 (Major design-accounting): an open BANK_TX_RETURN (chargebackBankTx IS NULL) is opened per-row, CHF-valued
+    // = amount × bankMark, with the marker the post-cutover chargeback consumer resolves → bankTx-return closes to 0.
+    it('opens bankTx-return per row CHF = amount × EUR-mark with the synthetic marker (Major design-accounting)', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest
+        .spyOn(markService, 'preload')
+        .mockResolvedValue(
+          new LedgerMarkCache(new Map([[269, [{ created: new Date('2026-06-01'), priceChf: 0.95 }]]])),
+        );
+      jest
+        .spyOn(bankRepo, 'findOne')
+        .mockResolvedValue(Object.assign(new Bank(), { name: 'Olkypay', currency: 'EUR', asset: { id: 269 } }) as any);
+      jest.spyOn(bankTxReturnRepo, 'find').mockResolvedValue([
+        Object.assign(new BankTxReturn(), {
+          bankTx: Object.assign(new BankTx(), { id: 70, amount: 100, accountIban: 'EUR-IBAN', currency: 'EUR' }),
+        }),
+      ] as any);
+
+      await service.run();
+
+      const returnTx = booked.find((b) => b.sourceId === '1557344:bank_tx-return:70');
+      expect(returnTx).toBeDefined();
+      expect(returnTx.seq).toBe(0);
+      const liabilityLeg = returnTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
+      expect(liabilityLeg.account.name).toBe('LIABILITY/bankTx-return');
+      expect(liabilityLeg.amountChf).toBe(-95); // 100 EUR × 0.95, NOT the raw 100 (CHF-denominated §3.4)
+    });
+
+    // §6.1: an open BANK_TX_REPEAT (chargebackBankTx IS NULL) on a CHF bank → mark 1, marker bank_tx-repeat
+    it('opens bankTx-repeat per row at mark 1 for a CHF bank', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest
+        .spyOn(bankRepo, 'findOne')
+        .mockResolvedValue(Object.assign(new Bank(), { name: 'Yapeal', currency: 'CHF', asset: { id: 100 } }) as any);
+      jest.spyOn(bankTxRepeatRepo, 'find').mockResolvedValue([
+        Object.assign(new BankTxRepeat(), {
+          bankTx: Object.assign(new BankTx(), { id: 80, amount: 250, accountIban: 'CHF-IBAN', currency: 'CHF' }),
+        }),
+      ] as any);
+
+      await service.run();
+
+      const repeatTx = booked.find((b) => b.sourceId === '1557344:bank_tx-repeat:80');
+      expect(repeatTx).toBeDefined();
+      const liabilityLeg = repeatTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
+      expect(liabilityLeg.account.name).toBe('LIABILITY/bankTx-repeat');
+      expect(liabilityLeg.amountChf).toBe(-250); // CHF bank → mark 1
+    });
+
+    // §6.1: open unattributed credits (GSheet/Pending/Unknown/NULL CRDT) are opened AGGREGATED, CHF = Σ(amount × mark)
+    it('opens an aggregated LIABILITY/unattributed from open bank_tx credits (Major design-accounting)', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest
+        .spyOn(markService, 'preload')
+        .mockResolvedValue(
+          new LedgerMarkCache(new Map([[269, [{ created: new Date('2026-06-01'), priceChf: 0.95 }]]])),
+        );
+      jest
+        .spyOn(bankRepo, 'findOne')
+        .mockResolvedValue(Object.assign(new Bank(), { name: 'Olkypay', currency: 'EUR', asset: { id: 269 } }) as any);
+      // first find() = typed credits (GSheet/Pending/Unknown), second find() = NULL-type credits
+      jest
+        .spyOn(bankTxRepo, 'find')
+        .mockResolvedValueOnce([
+          Object.assign(new BankTx(), { id: 90, amount: 1000, accountIban: 'EUR-IBAN', currency: 'EUR' }),
+        ] as any)
+        .mockResolvedValueOnce([
+          Object.assign(new BankTx(), { id: 91, amount: 2000, accountIban: 'EUR-IBAN', currency: 'EUR' }),
+        ] as any);
+
+      await service.run();
+
+      const unattributedTx = booked.find((b) => b.sourceId === '1557344:unattributed');
+      expect(unattributedTx).toBeDefined();
+      const liabilityLeg = unattributedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
+      expect(liabilityLeg.account.name).toBe('LIABILITY/unattributed');
+      expect(liabilityLeg.amountChf).toBe(-2850); // (1000 + 2000) × 0.95, aggregated, CHF-denominated
     });
   });
 

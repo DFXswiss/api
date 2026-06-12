@@ -92,6 +92,15 @@ describe('Ledger isolation gate (§4.10 / §10.1 self-test)', () => {
       name: 'QueryBuilder write dataSource.createQueryBuilder().insert().into(BankTx)',
       code: 'await dataSource.createQueryBuilder().insert().into(BankTx).execute();',
     },
+    // atomic in-place writes — increment/decrement emit a real `UPDATE col = col ± x` on a business table and so
+    // must flag on the repository, EntityManager and getRepository paths (Major isolation gap)
+    { name: 'repo.increment atomic write path', code: 'await bankTxRepo.increment({ id: 1 }, "amount", 100);' },
+    { name: 'repo.decrement atomic write path', code: 'await bankTxRepo.decrement({ id: 1 }, "amount", 100);' },
+    { name: 'manager.increment atomic write path', code: 'await manager.increment(BankTx, { id: 1 }, "amount", 100);' },
+    {
+      name: 'getRepository(X).decrement atomic write path',
+      code: 'await dataSource.getRepository(BankTx).decrement({ id: 1 }, "amount", 100);',
+    },
   ];
 
   it.each(violations)('flags a known violation: $name', ({ code }) => {

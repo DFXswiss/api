@@ -12,11 +12,13 @@ import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity
 import { LedgerLeg } from '../../entities/ledger-leg.entity';
 import { LedgerLegRepository } from '../../repositories/ledger-leg.repository';
 import { LedgerAccountService } from '../ledger-account.service';
-import { LedgerBookingService, LedgerLegInput } from '../ledger-booking.service';
+import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
-import { getLedgerWatermark, setLedgerWatermark } from './ledger-watermark.helper';
+import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
 
 const OK_STATUS = 'ok';
+const SOURCE_TYPE = 'exchange_tx';
+const TRADE_SOURCE_TYPE = 'ExchangeTrade';
 const RAIFFEISEN_SUSPENSE = 'SUSPENSE/untracked-bank-Raiffeisen-EUR';
 const SWEEP_MATCH_DAYS = 5; // ≤5d amount/date window (§4.3b, reuse findSenderReceiverPair logic, D13 A.4)
 
@@ -42,12 +44,31 @@ export class ExchangeTxConsumer {
   ) {}
 
   async process(): Promise<void> {
-    const source = 'exchange_tx';
-    const watermark = (await getLedgerWatermark(this.settingService, source)) ?? {
+    const watermark = (await getLedgerWatermark(this.settingService, SOURCE_TYPE)) ?? {
       lastProcessedId: 0,
       lastReversalScan: new Date(0),
     };
 
+    await this.processForward(watermark);
+
+    // content-change scan (§4.3 reversal-trigger): the forward scan filters status='ok', so a row that was booked as
+    // 'ok' and LATER flips to failed/canceled is never re-selected forward (Class-2 elimination would break — the
+    // invalid booking stays). This scan selects by `updated > lastReversalScan` (status-agnostic) and, per row:
+    //  - status != 'ok' → flat-reverse the active booking (the trade/deposit became invalid → "nothing booked");
+    //  - status == 'ok' with an amount/fee/route change → reverse + re-book the corrected legs (§4.12).
+    // Runs ALSO when the forward batch is empty. Re-read the watermark in case the forward batch advanced it.
+    const afterForward = (await getLedgerWatermark(this.settingService, SOURCE_TYPE)) ?? watermark;
+    await runContentChangeScan(
+      this.settingService,
+      SOURCE_TYPE,
+      afterForward,
+      this.exchangeTxRepo,
+      {},
+      async (tx: ExchangeTx) => this.reconcileBooking(tx),
+    );
+  }
+
+  private async processForward(watermark: { lastProcessedId: number; lastReversalScan: Date }): Promise<void> {
     const batch = await this.exchangeTxRepo.find({
       where: { id: MoreThan(watermark.lastProcessedId), status: OK_STATUS },
       order: { id: 'ASC' },
@@ -62,7 +83,8 @@ export class ExchangeTxConsumer {
     let lastProcessedId = watermark.lastProcessedId;
     for (const tx of batch) {
       try {
-        await this.book(tx, marks, fillIndexMap);
+        const spec = await this.buildSpec(tx, marks, fillIndexMap);
+        if (spec) await this.bookingService.bookTx(spec);
         lastProcessedId = tx.id;
       } catch (e) {
         this.logger.error(`Failed to book exchange_tx ${tx.id}`, e);
@@ -71,27 +93,52 @@ export class ExchangeTxConsumer {
     }
 
     if (lastProcessedId > watermark.lastProcessedId) {
-      await setLedgerWatermark(this.settingService, source, { ...watermark, lastProcessedId });
+      await setLedgerWatermark(this.settingService, SOURCE_TYPE, { ...watermark, lastProcessedId });
     }
   }
 
-  private async book(tx: ExchangeTx, marks: LedgerMarkCache, fillIndexMap: Map<number, number>): Promise<void> {
+  // §4.3 content-change reconcile: a row whose status flipped away from 'ok' is flat-reversed (the booking became
+  // invalid); an 'ok' row whose amount/fee/route changed is reversed + re-booked with the corrected legs (§4.12).
+  private async reconcileBooking(tx: ExchangeTx): Promise<void> {
+    const marks = await this.markService.preload(tx.externalCreated ?? tx.created, tx.externalCreated ?? tx.created);
+    const fillIndexMap = await this.buildFillIndexMap([tx]);
+    const spec = await this.buildSpec(tx, marks, fillIndexMap);
+    if (!spec) return; // unbookable type → nothing to correct
+
+    if (tx.status !== OK_STATUS) {
+      // ok→failed/canceled: the previously-booked tx must be removed (flat reversal, no re-book) — the row's
+      // identifiers are recomputed verbatim from buildSpec so the reversal targets exactly the original booking.
+      await this.bookingService.reverseActiveIfBooked(spec.sourceType, spec.sourceId, spec.seq);
+      return;
+    }
+
+    await this.bookingService.reverseAndRebookIfChanged(spec);
+  }
+
+  // builds the LedgerTxInput spec for an exchange_tx (or undefined for an unhandled type) — shared by the forward
+  // booker and the content-change reconcile so reversal targets the exact (sourceType, sourceId, seq) it was booked at.
+  private async buildSpec(
+    tx: ExchangeTx,
+    marks: LedgerMarkCache,
+    fillIndexMap: Map<number, number>,
+  ): Promise<LedgerTxInput | undefined> {
     const bookingDate = tx.externalCreated ?? tx.created;
 
     switch (tx.type) {
       case ExchangeTxType.DEPOSIT:
-        return this.bookDeposit(tx, bookingDate, marks);
+        return this.depositSpec(tx, bookingDate, marks);
       case ExchangeTxType.WITHDRAWAL:
-        return this.bookWithdrawal(tx, bookingDate, marks);
+        return this.withdrawalSpec(tx, bookingDate, marks);
       case ExchangeTxType.TRADE:
-        return this.bookTrade(tx, bookingDate, marks, fillIndexMap);
+        return this.tradeSpec(tx, bookingDate, marks, fillIndexMap);
       default:
         this.logger.error(`Unhandled exchange_tx type ${tx.type} on exchange_tx ${tx.id}`);
+        return undefined;
     }
   }
 
   // §4.3/§4.3a — Deposit: Dr ASSET/{exchange}/{ccy} / Cr {routeCounterAccount}
-  private async bookDeposit(tx: ExchangeTx, bookingDate: Date, marks: LedgerMarkCache): Promise<void> {
+  private async depositSpec(tx: ExchangeTx, bookingDate: Date, marks: LedgerMarkCache): Promise<LedgerTxInput> {
     const asset = await this.exchangeAsset(tx);
     const chf = this.depositChf(tx, asset, bookingDate, marks);
     const counter = await this.routeCounterAccount(tx, bookingDate);
@@ -111,11 +158,11 @@ export class ExchangeTxConsumer {
       needsMark: chf.needsMark,
     };
 
-    await this.bookSingle(tx, bookingDate, [assetLeg, counterLeg]);
+    return this.singleSpec(tx, bookingDate, [assetLeg, counterLeg]);
   }
 
   // §4.3/§4.3a — Withdrawal: Dr {routeCounterAccount} / Cr ASSET/{exchange}/{ccy} (mirror)
-  private async bookWithdrawal(tx: ExchangeTx, bookingDate: Date, marks: LedgerMarkCache): Promise<void> {
+  private async withdrawalSpec(tx: ExchangeTx, bookingDate: Date, marks: LedgerMarkCache): Promise<LedgerTxInput> {
     const asset = await this.exchangeAsset(tx);
     const chf = this.depositChf(tx, asset, bookingDate, marks);
     const counter = await this.routeCounterAccount(tx, bookingDate);
@@ -135,16 +182,16 @@ export class ExchangeTxConsumer {
       needsMark: chf.needsMark,
     };
 
-    await this.bookSingle(tx, bookingDate, [counterLeg, assetLeg]);
+    return this.singleSpec(tx, bookingDate, [counterLeg, assetLeg]);
   }
 
   // §4.3 — Trade: Dr ASSET/{exchange}/{base} / Cr ASSET/{exchange}/{quote} + spread + (ccxt) fee leg
-  private async bookTrade(
+  private async tradeSpec(
     tx: ExchangeTx,
     bookingDate: Date,
     marks: LedgerMarkCache,
     fillIndexMap: Map<number, number>,
-  ): Promise<void> {
+  ): Promise<LedgerTxInput> {
     const parsed = this.parseSymbol(tx);
     if (!parsed) {
       // unattributable trade → SUSPENSE rest + alarm (§4.3, not silently dropped)
@@ -155,11 +202,10 @@ export class ExchangeTxConsumer {
       );
       this.logger.error(`exchange_tx ${tx.id} trade has no resolvable symbol/side → SUSPENSE`);
       const chf = tx.amountChf ?? 0;
-      await this.bookSingle(tx, bookingDate, [
+      return this.singleSpec(tx, bookingDate, [
         { account: suspense, amount: chf, priceChf: 1, amountChf: chf },
         { account: suspense, amount: -chf, priceChf: 1, amountChf: -chf },
       ]);
-      return;
     }
 
     const { base, quote, isBuy } = parsed;
@@ -220,16 +266,16 @@ export class ExchangeTxConsumer {
     const seq = fillIndexMap.get(tx.id) ?? 0;
     const order = tx.order;
     const sourceId = order ? `${order}` : `${tx.id}`;
-    const sourceType = order ? 'ExchangeTrade' : 'exchange_tx';
+    const sourceType = order ? TRADE_SOURCE_TYPE : SOURCE_TYPE;
 
-    await this.bookingService.bookTx({
+    return {
       sourceType,
       sourceId,
       seq: order ? seq : 0,
       bookingDate,
       valueDate: bookingDate,
       legs,
-    });
+    };
   }
 
   // --- ROUTE DISAMBIGUATION (§4.3a/§4.3b) --- //
@@ -326,8 +372,18 @@ export class ExchangeTxConsumer {
       select: { id: true, exchange: true, order: true },
     });
 
+    // merge the batch rows so a TRADE being reconciled keeps its booking-time rank even after it flipped away from
+    // 'ok' (the OK-filtered query no longer returns it). Ranking is by id and order-preserving, so reinserting the row
+    // at its id reproduces exactly the rank it had when it was booked → the reversal targets the right seq (§4.3).
+    const merged = new Map<number, { id: number; exchange: string; order?: string }>();
+    for (const e of existing) merged.set(e.id, e);
+    for (const tx of batch) {
+      if (tx.type === ExchangeTxType.TRADE && tx.order)
+        merged.set(tx.id, { id: tx.id, exchange: tx.exchange, order: tx.order });
+    }
+
     const byKey = Util.groupByAccessor<{ id: number; exchange: string; order?: string }, string>(
-      existing,
+      [...merged.values()],
       (e) => `${e.exchange}|${e.order}`,
     );
     for (const rows of byKey.values()) {
@@ -340,15 +396,15 @@ export class ExchangeTxConsumer {
 
   // --- HELPERS --- //
 
-  private async bookSingle(tx: ExchangeTx, bookingDate: Date, legs: LedgerLegInput[]): Promise<void> {
-    await this.bookingService.bookTx({
-      sourceType: 'exchange_tx',
+  private singleSpec(tx: ExchangeTx, bookingDate: Date, legs: LedgerLegInput[]): LedgerTxInput {
+    return {
+      sourceType: SOURCE_TYPE,
       sourceId: `${tx.id}`,
       seq: 0,
       bookingDate,
       valueDate: bookingDate,
       legs,
-    });
+    };
   }
 
   // §4.3 amountChf null fallback (Minor R9-4): persisted amountChf (Stufe 1) ?? mark × amount (Stufe 2) ?? needsMark
