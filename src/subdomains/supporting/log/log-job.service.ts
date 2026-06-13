@@ -1103,8 +1103,19 @@ export class LogJobService {
     const raw = tx instanceof BankTx ? tx.remittanceInfo?.trim() : tx.txId?.trim();
     if (!raw) return undefined;
 
-    const match = raw.match(/\d+$/);
-    return match?.[0] ?? raw;
+    // Automated references start with a letter and carry the payout id as a trailing
+    // >= 4 digit run (sender "DFX Payout 81398", receiver "DEPOSIT-81398"/"E2E-81398").
+    // Manual references start with a digit (date-style, e.g. "21.05.2026", "12.06.2026.A")
+    // and must NOT be parsed as a payout id: their trailing run is a year and would
+    // collide across unrelated transfers, silently hiding in-transit money.
+    if (/^[a-z]/i.test(raw)) {
+      const payoutId = raw.match(/(\d{4,})$/);
+      if (payoutId) return payoutId[1];
+    }
+
+    // Manual transfers (and any letter-prefixed reference without a trailing payout id)
+    // pair on the normalized full reference, which is identical on both sides.
+    return raw.toLowerCase().replace(/\s+/g, ' ');
   }
 
   public filterSenderPendingList(
