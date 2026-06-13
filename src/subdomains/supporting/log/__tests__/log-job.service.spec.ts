@@ -466,7 +466,7 @@ describe('LogJobService', () => {
     });
   });
 
-  // --- getUnmatchedSenders (reference-based matching via numeric ID) ---
+  // --- getUnmatchedSenders (reference-based matching via payout ID or free-text reference) ---
 
   it('should match sender and receiver by numeric reference ID', () => {
     const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: 'DFX Payout 80100' })];
@@ -529,6 +529,68 @@ describe('LogJobService', () => {
     const receiverTx = [
       createCustomBankTx({ id: 1, created: Util.hoursBefore(20), remittanceInfo: 'DFX Payout 50050' }),
     ];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
+  });
+
+  it('should match manual transfers by identical free-text reference ending in a letter', () => {
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: '12.06.2026.A' })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: '12.06.2026.A' })];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
+  });
+
+  it('should not match different manual free-text references against each other', () => {
+    const senderTx = [
+      createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: '12.06.2026.A', amount: 50000 }),
+    ];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: '12.06.2026.B' })];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual(senderTx);
+  });
+
+  it('should not match an ambiguous single-digit suffix against a payout ID receiver', () => {
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: '12.06.2026, 1' })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-80001' })];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual(senderTx);
+  });
+
+  it('should match manual transfers with identical reference containing a single-digit suffix', () => {
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: '12.06.2026, 1' })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: '12.06.2026, 1' })];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
+  });
+
+  it('should NOT match date references sharing the same trailing year across unrelated transfers', () => {
+    // Critical: with the old /(\d{4,})$/ logic both collapse to "2026" and the in-transit
+    // sender would be falsely treated as arrived, silently hiding the money.
+    const senderTx = [
+      createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: '21.05.2026', amount: 570000 }),
+    ];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: '08.06.2026' })];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual(senderTx);
+  });
+
+  it('should match date references when identical on both sides', () => {
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: '21.05.2026' })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: '21.05.2026' })];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
+  });
+
+  it('should match automated payout id across DEPOSIT receiver format', () => {
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: 'DFX Payout 80100' })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-80100' })];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
+  });
+
+  it('should match automated payout id across E2E receiver format', () => {
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: 'DFX Payout 80100' })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'E2E-80100' })];
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
   });
