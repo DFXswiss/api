@@ -473,7 +473,9 @@ export class LedgerCutoverService {
       `${snapshot.id}:unattributed`,
       `Opening unattributed from open bank_tx credits as of FinancialDataLog #${snapshot.id}`,
       liability,
-      Util.round(amountChf, 2),
+      // a feedless/unmatched credit leaves the aggregate unvaluable → carry amountChf=undefined (needsMark) so the
+      // mark-to-market job values the whole bucket later (§5.1 Stufe 3); never a partial/-0 phantom CHF on the leg.
+      needsMark ? undefined : Util.round(amountChf, 2),
       equity,
       needsMark,
     );

@@ -8,7 +8,7 @@ import {
   LiquidityOrderContext,
   LiquidityOrderType,
 } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
-import { In, Not, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../../entities/ledger-account.entity';
 import { createCustomLedgerAccount } from '../../../entities/__mocks__/ledger-account.entity.mock';
 import { LedgerAccountService } from '../../ledger-account.service';
@@ -231,8 +231,10 @@ describe('LiquidityOrderDexConsumer', () => {
 
     expect(findSpy).toHaveBeenCalledTimes(1);
     const where = findSpy.mock.calls[0][0].where as Record<string, unknown>;
-    // txId IS NOT NULL (Not(IsNull())) — excludes Reservation rows without an on-chain settlement
-    expect(where.txId).toEqual(Not(expect.anything()));
+    // txId IS NOT NULL — must match the source filter EXACTLY: Not(IsNull()), a FindOperator wrapping an IsNull
+    // operator. The old `Not(expect.anything())` was a tautology that would also pass for Not(MoreThan(0)) etc. — it
+    // never actually pinned the IS-NOT-NULL semantics. Not(IsNull()) deep-equals the source-built operator.
+    expect(where.txId).toEqual(Not(IsNull()));
     // type IN (Purchase, Sell) — Reservation excluded (the Trading-context arb swap lives on trading_order.txId)
     expect(where.type).toEqual(In([LiquidityOrderType.PURCHASE, LiquidityOrderType.SELL]));
     // context IN (LiquidityManagement, BuyCrypto, Trading) — Return/Manual/RefPayout excluded (payout_order owns those)
@@ -253,5 +255,109 @@ describe('LiquidityOrderDexConsumer', () => {
     mockBatch([]);
     await consumer.process();
     expect(booked).toHaveLength(0);
+  });
+
+  // §4.8a spread plug sign: a residual ≥ 0 books INCOME/spread-DfxDex (the opposite branch of the EXPENSE case above).
+  // target mark 1.05 < swap mark such that Σ(legs) < 0 → residual = −Σ > 0 → INCOME. Use swap mark < target so the
+  // swap Cr (negative) is smaller in magnitude than the target Dr → sum positive → residual negative... so to force a
+  // POSITIVE residual we need Σ legs < 0: target Dr (+) smaller than swap Cr magnitude. swapAmount 1050 × 0.95 = 997.5;
+  // target 900 × 1.05 = 945 → Σ = 945 − 997.5 = −52.5 → residual +52.5 → INCOME/spread-DfxDex.
+  it('books a positive spread residual to INCOME/spread-DfxDex (opposite sign branch)', async () => {
+    mockBatch([liquidityOrder({ id: 19, targetAmount: 900 })]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Ethereum/EURC').amountChf).toBe(945); // 900 × 1.05
+    expect(leg(tx, 'Ethereum/USDC').amountChf).toBe(-997.5); // 1050 × 0.95
+    expect(leg(tx, 'INCOME/spread-DfxDex').amountChf).toBe(52.5); // residual = −(945 − 997.5) = +52.5 ≥ 0 → INCOME
+    expect(leg(tx, 'EXPENSE/spread-DfxDex')).toBeUndefined();
+    expect(cents(tx.legs)).toBe(0);
+  });
+
+  // §4-header failure-isolation: a booking error stops the batch and leaves the watermark unchanged (retry next run)
+  it('stops the batch and leaves the watermark on a booking error (failure-isolation)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(bookingService, 'bookTx').mockRejectedValue(new Error('db down'));
+    mockBatch([liquidityOrder({ id: 20 })]);
+
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled(); // throw → break before advancing → watermark stays
+  });
+
+  // §4.8a Major R7-1 case 3 with NO mark for the third (gas) fee asset → the network-fee CHF leg is needsMark and the
+  // fee Cr ASSET leg carries amountChf undefined (lines 155/176-177 undefined sides + 217 feeChf ?? 0). Because a leg
+  // needsMark, appendSpreadPlug books no plug.
+  it('flags the gas-fee legs needsMark when the fee asset has no mark (lines 155/176-177/217)', async () => {
+    jest.spyOn(markService, 'preload').mockResolvedValue(
+      new LedgerMarkCache(
+        new Map([
+          [EURC_ASSET_ID, [{ created: new Date('2026-01-01'), priceChf: 1.05 }]],
+          [USDC_ASSET_ID, [{ created: new Date('2026-01-01'), priceChf: 0.95 }]],
+          // ETH (fee asset) deliberately absent → no fee mark
+        ]),
+      ),
+    );
+    mockBatch([
+      liquidityOrder({ id: 21, feeAsset: { id: ETH_ASSET_ID, uniqueName: 'Ethereum/ETH' }, feeAmount: 0.01 }),
+    ]);
+    await consumer.process();
+
+    const tx = booked[0];
+    const networkFee = leg(tx, 'EXPENSE/network-fee');
+    const ethLeg = leg(tx, 'Ethereum/ETH');
+    expect(networkFee.needsMark).toBe(true); // feeChf undefined → needsMark
+    expect(networkFee.amountChf).toBeUndefined();
+    expect(networkFee.amount).toBe(0); // networkFeeLeg `feeChf ?? 0` → 0
+    expect(ethLeg.needsMark).toBe(true);
+    expect(ethLeg.amountChf).toBeUndefined();
+    expect(leg(tx, 'EXPENSE/spread-DfxDex')).toBeUndefined(); // a needsMark leg → no spread plug
+    expect(leg(tx, 'INCOME/spread-DfxDex')).toBeUndefined();
+  });
+
+  // §4.8a Major R7-1 case 1 (feeAsset == swapAsset) with NO fee mark → addToLeg `needsMark` true side (lines 163/223):
+  // the swap leg's native grows by the fee but its CHF stays unmovable and the leg becomes needsMark.
+  it('folds a no-mark swap-asset fee and marks the combined leg needsMark (lines 163/223)', async () => {
+    jest.spyOn(markService, 'preload').mockResolvedValue(
+      new LedgerMarkCache(new Map([[EURC_ASSET_ID, [{ created: new Date('2026-01-01'), priceChf: 1.05 }]]])), // USDC absent
+    );
+    mockBatch([liquidityOrder({ id: 22, feeAsset: { id: USDC_ASSET_ID, uniqueName: 'Ethereum/USDC' }, feeAmount: 5 })]);
+    await consumer.process();
+
+    const tx = booked[0];
+    const swapLegs = tx.legs.filter((l) => l.account.name === 'Ethereum/USDC');
+    expect(swapLegs).toHaveLength(1);
+    expect(swapLegs[0].amount).toBe(-1055); // −1050 − 5 folded native
+    expect(swapLegs[0].needsMark).toBe(true); // no swap mark → combined leg needsMark
+    expect(leg(tx, 'EXPENSE/network-fee').needsMark).toBe(true);
+  });
+
+  // §4.8a appendSpreadPlug sub-cent branch (lines 187-188): a swap whose two mark legs net to 0 (within tolerance) →
+  // NO spread plug appended. EURC 1000 × 1.05 = 1050; USDC swapAmount chosen so 0.95 × amount = 1050 → amount ≈ 1105.26
+  // is not clean; instead use equal marks via a swap where target CHF == swap CHF exactly.
+  it('appends no spread plug when the two mark legs net to zero (sub-cent, lines 187-188)', async () => {
+    // target 1000 × 1.05 = 1050; swap 1105.263158 × 0.95 = 1050.00 → Σ ≈ 0 (within the 2-cent tolerance)
+    mockBatch([liquidityOrder({ id: 23, swapAmount: 1105.263158 })]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'Ethereum/EURC').amountChf).toBe(1050);
+    expect(leg(tx, 'Ethereum/USDC').amountChf).toBe(-1050); // round(1105.263158 × 0.95, 2) = 1050.00
+    expect(leg(tx, 'EXPENSE/spread-DfxDex')).toBeUndefined(); // residual 0 → sub-cent → no plug
+    expect(leg(tx, 'INCOME/spread-DfxDex')).toBeUndefined();
+    expect(cents(tx.legs)).toBe(0);
+  });
+
+  // §4.8a assetAccount throw (line 234): an asset with no CoA ledger account → throws → failure-isolation.
+  it('stops the batch and leaves the watermark when an asset has no ledger account (line 234)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(accountService, 'findByAssetId').mockResolvedValue(undefined);
+    mockBatch([liquidityOrder({ id: 24 })]);
+
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled();
   });
 });

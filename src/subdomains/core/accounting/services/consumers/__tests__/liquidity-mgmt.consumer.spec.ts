@@ -161,6 +161,45 @@ describe('LiquidityMgmtConsumer', () => {
     expect(leg(booked[0], 'TRANSIT/bridge/ZCHF')).toBeDefined();
   });
 
+  // §4.8 currencyOf (line 182 name fallback): a target asset with dexName null → the TRANSIT/bridge currency uses
+  // asset.name. Build the order inline so dexName is genuinely null (the factory's `?? 'ZCHF'` would mask it).
+  it('uses the target asset NAME for the bridge currency when dexName is null (currencyOf fallback)', async () => {
+    const order = Object.assign(new LiquidityManagementOrder(), {
+      id: 12,
+      updated: new Date('2026-06-07T00:00:00Z'),
+      status: LiquidityManagementOrderStatus.COMPLETE,
+      outputAmount: 1000,
+      action: { system: LiquidityManagementSystem.ARBITRUM_L2_BRIDGE, command: 'deposit' },
+      pipeline: { rule: { targetAsset: { id: ZCHF_ASSET_ID, name: 'ZCHF', dexName: null } } },
+    }) as LiquidityManagementOrder;
+    mockBatch([order]);
+
+    await consumer.process();
+
+    expect(leg(booked[0], 'TRANSIT/bridge/ZCHF')).toBeDefined(); // currency = asset.name (dexName null fallback)
+  });
+
+  // §4.8 assetAccount throw (line 187): a bridge whose target asset has no CoA ledger account → throws →
+  // failure-isolation (watermark unchanged).
+  it('stops the batch when the bridge target asset has no ledger account (CoA bootstrap, line 187)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(accountService, 'findByAssetId').mockResolvedValue(undefined);
+    mockBatch([
+      lmOrder({
+        id: 13,
+        system: LiquidityManagementSystem.ARBITRUM_L2_BRIDGE,
+        command: 'deposit',
+        outputAmount: 1000,
+        targetAssetId: ZCHF_ASSET_ID,
+      }),
+    ]);
+
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled();
+  });
+
   // §4.8 Zweig 1 DEDUP: exchange-routed → SKIP (exchange_tx authoritative). The same transfer must NOT be booked
   // by the LM consumer — the exchange_tx consumer owns it (no double booking across the matrix).
   it.each([

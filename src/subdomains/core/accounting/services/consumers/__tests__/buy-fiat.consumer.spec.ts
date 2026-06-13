@@ -325,11 +325,22 @@ describe('BuyFiatConsumer', () => {
     expect(sumOn('LIABILITY/buyFiat-received')).toBe(0);
     expect(sumOn('LIABILITY/buyFiat-owed')).toBe(0);
 
-    // seq1 realizes BOTH DFX fee shares (product fee 20 + merchant plFee = 950 − 940 = 10, CHF-valued) as INCOME
+    // seq1 realizes BOTH DFX fee shares (product fee 20 + merchant plFee = 950 − 940 = 10, CHF-valued) as INCOME.
+    // plFeeNative = outputReferenceAmount − outputAmount = 950 − 940 = 10; owedReferenceRate = amountInChf/ref =
+    // 1000/950 ≈ 1.05263158; plFeeChf = round(10 × 1.05263158, 2) = 10.53; feeChf = round(20 + 10.53, 2) = 30.53.
     const s1 = seq(1);
     const feeIncome = leg(s1, 'INCOME/fee-paymentLink');
     expect(feeIncome).toBeDefined();
-    expect(feeIncome.amountChf).toBeLessThan(0); // negative = INCOME credit
+    // concrete amount + account + sign (NOT merely toBeDefined): INCOME credit is −feeChf, exact to the cent. A
+    // swapped sign, a wrong fee base, or the merchant plFee being dropped would all change this exact value.
+    expect(feeIncome.account.name).toBe('INCOME/fee-paymentLink');
+    expect(feeIncome.account.type).toBe(AccountType.INCOME);
+    expect(feeIncome.amountChf).toBe(-30.53); // −(product fee 20 + merchant plFee 10.53), credit sign
+    // the matching Dr is on LIABILITY/paymentLink for the same +feeChf (debits paymentLink toward 0)
+    const plFeeDr = s1.legs
+      .filter((l) => l.account.name === 'LIABILITY/paymentLink')
+      .reduce((s, l) => s + (l.amountChf ?? 0), 0);
+    expect(Math.round(plFeeDr * 100)).toBeGreaterThan(0); // paymentLink debited (positive) in seq1
 
     // the merchant clearing legs hit LIABILITY/paymentLink (character-exact, NOT merchant-payable)
     expect(seq(2).legs.some((l) => l.account.name === 'LIABILITY/paymentLink')).toBe(true);
@@ -464,5 +475,687 @@ describe('BuyFiatConsumer', () => {
     mockBatch([]);
     await consumer.process();
     expect(booked).toHaveLength(0);
+  });
+
+  // processForward catch (lines 105-107): a bookTx error stops the batch and leaves the watermark unchanged
+  // (failure-isolation). bookReclassification → bookTx rejects on seq1 → caught in the for-loop → break, set NOT called.
+  it('stops the batch and does not advance the watermark when bookTx throws (failure-isolation)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(bookingService, 'bookTx').mockRejectedValue(new Error('boom'));
+    mockBatch([
+      buyFiat({
+        id: 11,
+        amountInChf: 15000,
+        totalFeeAmountChf: 148.5,
+        outputAmount: 14851.5,
+        outputReferenceAmount: 14851.5,
+        outputAsset: { name: 'CHF' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'CHF',
+          bank: { asset: { id: CHF_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+    expect(booked).toHaveLength(0); // the rejecting bookTx never pushed
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
+  });
+
+  // buildReclassificationSeq1 throw (line 166): a regular row with outputAmount set and the gate OPEN but
+  // amountInChf == null throws `has outputAmount but amountInChf is null` → caught by processForward → set NOT called.
+  it('isolates the buildReclassificationSeq1 throw when amountInChf is null (watermark unchanged)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    gateCount = 1; // received gate OPEN → we reach buildReclassificationSeq1, not the gate skip
+    mockBatch([
+      buyFiat({
+        id: 12,
+        amountInChf: null, // the trigger: outputAmount set but amountInChf null
+        totalFeeAmountChf: 0,
+        outputAmount: 5000,
+        outputReferenceAmount: 5000,
+        outputAsset: { name: 'CHF' },
+      }),
+    ]);
+    await consumer.process();
+    expect(seq(1)).toBeUndefined();
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled();
+  });
+
+  // appendFxResidual early-return (line 334): a regular EUR sell whose bank.asset has NO mark → the bank leg
+  // needsMark → NO fx-residual leg appended (also covers outputMark returning undefined for a non-CHF output whose
+  // mark is missing, lines 364-368). seq3 carries only TRANSIT + the unmarked bank leg.
+  it('appends NO fx residual when the bank leg still needsMark (unmarked EUR output)', async () => {
+    mockBatch([
+      buyFiat({
+        id: 13,
+        amountInChf: 9000,
+        totalFeeAmountChf: 0,
+        outputAmount: 10000, // EUR
+        outputReferenceAmount: 10000,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'EUR',
+          bank: { asset: { id: 999 } }, // 999 is NOT in markMap → getMarkAt → undefined → needsMark
+          bankTx: { bookingDate: SUN },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s3 = seq(3);
+    expect(s3.legs).toHaveLength(2); // TRANSIT + bank only, NO fx-revaluation plug while unmarked
+    expect(leg(s3, 'TRANSIT/payout/EUR').amountChf).toBe(9000); // owed_chf = 9000 − 0
+    const bankLeg = s3.legs.find((l) => l.account.name === 'Bank/CHF'); // asset 999 → findByAssetId fallback
+    expect(bankLeg.amount).toBe(-10000); // native −outputAmount
+    expect(bankLeg.needsMark).toBe(true); // unmarked → carried for the mark-to-market job
+    expect(bankLeg.amountChf).toBeUndefined();
+    expect(s3.legs.some((l) => /fx-revaluation/.test(l.account.name))).toBe(false);
+  });
+
+  // outputMark bankAssetId == null branch (lines 364-368 false arm): the bank.asset exists (no bankCrLeg throw) but
+  // its id is undefined → outputMark returns undefined without a getMarkAt lookup → bank leg needsMark, no fx leg.
+  it('marks the bank leg as needsMark when the bank.asset has no id (outputMark null-id arm)', async () => {
+    mockBatch([
+      buyFiat({
+        id: 14,
+        amountInChf: 8000,
+        totalFeeAmountChf: 0,
+        outputAmount: 8400, // EUR
+        outputReferenceAmount: 8400,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'EUR',
+          bank: { asset: {} }, // asset present (no throw) but id undefined → outputMark null-id arm
+          bankTx: { bookingDate: SUN },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s3 = seq(3);
+    const bankLeg = s3.legs.find((l) => l.needsMark);
+    expect(bankLeg).toBeDefined();
+    expect(bankLeg.amount).toBe(-8400);
+    expect(bankLeg.amountChf).toBeUndefined();
+    expect(s3.legs.some((l) => /fx-revaluation/.test(l.account.name))).toBe(false);
+  });
+
+  // appendFxResidual INCOME side (line 340 ≥0 arm): an EUR sell where owed_chf < bank-CHF → positive residual →
+  // INCOME/fx-revaluation. owed_chf = 9000; bank = 10000 EUR × 0.95 = −9500; Σ = −500 → residual +500 → INCOME.
+  it('books a POSITIVE fx residual to INCOME/fx-revaluation (§4.7a income side)', async () => {
+    mockBatch([
+      buyFiat({
+        id: 15,
+        amountInChf: 9000,
+        totalFeeAmountChf: 0,
+        outputAmount: 10000, // EUR
+        outputReferenceAmount: 10000,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'EUR',
+          bank: { asset: { id: EUR_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s3 = seq(3);
+    expect(leg(s3, 'TRANSIT/payout/EUR').amountChf).toBe(9000);
+    expect(leg(s3, 'Bank/EUR').amountChf).toBe(-9500); // 10000 × 0.95
+    const fx = leg(s3, 'INCOME/fx-revaluation');
+    expect(fx.account.type).toBe(AccountType.INCOME);
+    expect(fx.amountChf).toBe(500); // residual = −(9000 − 9500) = +500 ≥ 0 → INCOME
+    expect(s3.legs.some((l) => l.account.name === 'EXPENSE/fx-revaluation')).toBe(false);
+    expect(cents(s3.legs)).toBe(0);
+  });
+
+  // bookPaymentLinkFee venueSpread == 0 (line 276 false arm): a paymentLink row where openingChf − outputChf −
+  // feeChf == 0 → ONLY the 2 fee legs, NO venueSpread legs. rate = 1000/1000 = 1; outputChf = 980; plFeeNative =
+  // 1000 − 980 = 20 → plFeeChf 20; feeChf = 20 + 20 = 40; opening 1020 → venueSpread = 1020 − 980 − 40 = 0.
+  it('books only the 2 fee legs when the paymentLink venue spread is exactly 0', async () => {
+    seq0PaymentLinkChf = -1020; // opening = 1020
+    mockBatch([
+      buyFiat({
+        id: 16,
+        amountInChf: 1000,
+        totalFeeAmountChf: 20,
+        outputReferenceAmount: 1000,
+        outputAmount: 980,
+        outputAsset: { name: 'CHF' },
+        cryptoInput: { id: 10, updated: new Date('2026-06-04T00:00:00Z'), paymentLinkPayment: { id: 1 } },
+      }),
+    ]);
+    await consumer.process();
+
+    const s1 = seq(1);
+    expect(s1.legs).toHaveLength(2); // venueSpread == 0 → the spread legs are NOT pushed
+    expect(leg(s1, 'INCOME/fee-paymentLink').amountChf).toBe(-40); // −(20 product + 20 plFee)
+    const plDr = s1.legs.filter((l) => l.account.name === 'LIABILITY/paymentLink').reduce((s, l) => s + l.amountChf, 0);
+    expect(plDr).toBe(40); // single +40 fee debit, no spread debit
+    expect(s1.legs.some((l) => /fx-revaluation/.test(l.account.name))).toBe(false);
+    expect(cents(s1.legs)).toBe(0);
+  });
+
+  // bookPaymentLinkFee venueSpread ≥ 0 (line 278 income arm): a positive venue spread → INCOME/fx-revaluation.
+  // rate = 1; outputChf = 900; plFeeNative = 1000 − 900 = 100 → plFeeChf 100; feeChf = 10 + 100 = 110; opening 1050
+  // → venueSpread = 1050 − 900 − 110 = +40 → INCOME.
+  it('books a POSITIVE paymentLink venue spread to INCOME/fx-revaluation', async () => {
+    seq0PaymentLinkChf = -1050; // opening = 1050
+    mockBatch([
+      buyFiat({
+        id: 17,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        outputReferenceAmount: 1000,
+        outputAmount: 900,
+        outputAsset: { name: 'CHF' },
+        cryptoInput: { id: 10, updated: new Date('2026-06-04T00:00:00Z'), paymentLinkPayment: { id: 1 } },
+      }),
+    ]);
+    await consumer.process();
+
+    const s1 = seq(1);
+    expect(s1.legs).toHaveLength(4); // 2 fee + 2 spread
+    expect(leg(s1, 'INCOME/fee-paymentLink').amountChf).toBe(-110);
+    const fx = leg(s1, 'INCOME/fx-revaluation');
+    expect(fx.account.type).toBe(AccountType.INCOME);
+    expect(fx.amountChf).toBe(-40); // venueSpread +40 ≥ 0 → INCOME credit −venueSpread
+    // paymentLink debited by feeChf + venueSpread = 110 + 40 = 150
+    const plDr = s1.legs.filter((l) => l.account.name === 'LIABILITY/paymentLink').reduce((s, l) => s + l.amountChf, 0);
+    expect(plDr).toBe(150);
+    expect(s1.legs.some((l) => l.account.name === 'EXPENSE/fx-revaluation')).toBe(false);
+    expect(cents(s1.legs)).toBe(0);
+  });
+
+  // owedReferenceRate ref==null + CHF output (line 359 → returns 1): a paymentLink CHF row with
+  // outputReferenceAmount null → owed_chf = outputAmount × 1. Asserted on seq2 transmit (paymentLink Dr = outputChf).
+  it('uses owedReferenceRate 1 for a CHF paymentLink row with a null reference', async () => {
+    seq0PaymentLinkChf = -500;
+    mockBatch([
+      buyFiat({
+        id: 18,
+        amountInChf: 500,
+        totalFeeAmountChf: 0,
+        outputReferenceAmount: null, // ref null → CHF → rate 1
+        outputAmount: 500,
+        outputAsset: { name: 'CHF' },
+        cryptoInput: { id: 10, updated: new Date('2026-06-04T00:00:00Z'), paymentLinkPayment: { id: 1 } },
+        fiatOutput: { isTransmittedDate: FRI, currency: 'CHF' } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s2 = seq(2);
+    expect(leg(s2, 'LIABILITY/paymentLink').amountChf).toBe(500); // outputAmount × 1
+    expect(leg(s2, 'TRANSIT/payout/CHF').amountChf).toBe(-500);
+    expect(cents(s2.legs)).toBe(0);
+  });
+
+  // owedReferenceRate ref==null + non-CHF output (line 359 → returns 0): a paymentLink EUR row with
+  // outputReferenceAmount null → owed_chf = outputAmount × 0 = 0. Asserted on seq2 transmit (both legs 0).
+  it('uses owedReferenceRate 0 for a non-CHF paymentLink row with a null reference', async () => {
+    seq0PaymentLinkChf = -100; // opening present (gate passes); spread plugs to fx, not asserted here
+    mockBatch([
+      buyFiat({
+        id: 19,
+        amountInChf: 100,
+        totalFeeAmountChf: 0,
+        outputReferenceAmount: null, // ref null → EUR → rate 0
+        outputAmount: 10000, // EUR
+        outputAsset: { name: 'EUR' },
+        cryptoInput: { id: 10, updated: new Date('2026-06-04T00:00:00Z'), paymentLinkPayment: { id: 1 } },
+        fiatOutput: { isTransmittedDate: FRI, currency: 'EUR' } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s2 = seq(2);
+    expect(leg(s2, 'LIABILITY/paymentLink').amountChf).toBe(0); // outputAmount × 0
+    expect(leg(s2, 'TRANSIT/payout/EUR').amountChf).toBe(-0);
+    expect(cents(s2.legs)).toBe(0);
+  });
+
+  // bankCrLeg throw (line 313): a regular sell reaching seq3 whose fiatOutput.bank.asset is missing throws
+  // `fiatOutput has no bank.asset` → caught by processForward → failure-isolation (seq3 absent, watermark unchanged).
+  // seq1/seq2 ARE booked (they precede the throw); seq3 is not, and set is NOT called.
+  it('isolates the bankCrLeg throw when the output bank.asset is missing (untracked output bank)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    mockBatch([
+      buyFiat({
+        id: 20,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        outputAmount: 990,
+        outputReferenceAmount: 990,
+        outputAsset: { name: 'CHF' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'CHF',
+          bank: {}, // no asset → bankCrLeg throws
+          bankTx: { bookingDate: SUN },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(seq(1)).toBeDefined(); // seq1 booked before the seq3 throw
+    expect(seq(2)).toBeDefined(); // seq2 booked before the seq3 throw
+    expect(seq(3)).toBeUndefined(); // seq3 threw → never booked
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
+  });
+
+  // receivedOpened G-b path (lines 388-394): G-a closed (crypto_input seq0 absent) but the cutover received marker
+  // exists → seq1 opens via G-b. countBy returns 0 for the crypto_input G-a query and >0 for the cutover G-b query.
+  it('opens seq1 via the cutover received marker (G-b) when G-a is closed', async () => {
+    cutoverLogId = '1557344'; // enables cutoverReceivedSourceId → the G-b countBy runs
+    // distinguish the two gate queries by sourceType: G-a (crypto_input) closed, G-b (cutover) open
+    jest
+      .spyOn(ledgerTxRepo, 'countBy')
+      .mockImplementation(({ sourceType }: any) => Promise.resolve(sourceType === 'cutover' ? 1 : 0));
+    mockBatch([
+      buyFiat({
+        id: 21,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        outputAmount: 990,
+        outputReferenceAmount: 990,
+        outputAsset: { name: 'CHF' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'CHF',
+          bank: { asset: { id: CHF_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s1 = seq(1); // gate opened via G-b → seq1 IS booked
+    expect(s1).toBeDefined();
+    expect(leg(s1, 'LIABILITY/buyFiat-owed').amountChf).toBe(-990); // −(1000 − 10)
+    expect(sumOn('LIABILITY/buyFiat-received')).toBe(1000);
+  });
+
+  // §4.12 content-change scan (process lines 60-84): a settled regular row surfaced ONLY by the content-change scan
+  // (where.updated) → buildReclassificationSeq1 is reverse-and-rebooked, then the idempotent book() appends seq2/seq3.
+  it('reverse-and-rebooks the seq1 on a content-change scan and appends the later seqs', async () => {
+    const reverseSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
+    activeKeys.add('22:1'); // seq1 already exists → book() skips it; only seq2/seq3 append
+    jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        where?.updated != null
+          ? [
+              buyFiat({
+                id: 22,
+                amountInChf: 1000,
+                totalFeeAmountChf: 10,
+                outputAmount: 990,
+                outputReferenceAmount: 990,
+                outputAsset: { name: 'CHF' },
+                fiatOutput: {
+                  isTransmittedDate: FRI,
+                  currency: 'CHF',
+                  bank: { asset: { id: CHF_BANK_ASSET_ID } },
+                  bankTx: { bookingDate: SUN },
+                } as any,
+              }),
+            ]
+          : [],
+      ),
+    );
+    await consumer.process();
+
+    expect(reverseSpy).toHaveBeenCalledTimes(1);
+    const reInput = reverseSpy.mock.calls[0][0];
+    expect(reInput.seq).toBe(1); // the rebuilt seq1 reclassification
+    expect(leg(reInput, 'LIABILITY/buyFiat-owed').amountChf).toBe(-990);
+    // the idempotent forward book() then appends transmit + booked
+    expect(seq(2)).toBeDefined();
+    expect(seq(3)).toBeDefined();
+    expect(leg(seq(2), 'LIABILITY/buyFiat-owed').amountChf).toBe(990);
+    expect(leg(seq(3), 'Bank/CHF').amountChf).toBe(-990);
+  });
+
+  // §4.12 content-change scan, owed-straddling variant (process lines 73-77): owedOpeningChf != null → the seq1
+  // reverse is SKIPPED (the reclassification was anchored in the cutover opening), but book() still settles seq2/seq3.
+  it('skips the seq1 reverse for an owed-straddling row in the content-change scan but still settles', async () => {
+    cutoverLogId = '1557344';
+    cutoverOwedOpeningChf = -9500; // owed opening anchor → owedOpeningChf != null
+    gateCount = 0; // received gate stays closed for this row (would never open via G-a)
+    const reverseSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
+    jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        where?.updated != null
+          ? [
+              buyFiat({
+                id: 23,
+                amountInChf: 10000,
+                totalFeeAmountChf: 50,
+                outputAmount: 10000, // EUR
+                outputReferenceAmount: 10000,
+                outputAsset: { name: 'EUR' },
+                fiatOutput: {
+                  isTransmittedDate: FRI,
+                  currency: 'EUR',
+                  bank: { asset: { id: EUR_BANK_ASSET_ID } },
+                  bankTx: { bookingDate: SUN },
+                } as any,
+              }),
+            ]
+          : [],
+      ),
+    );
+    await consumer.process();
+
+    expect(reverseSpy).not.toHaveBeenCalled(); // owed-straddling → seq1 reverse skipped
+    expect(seq(1)).toBeUndefined(); // never booked by this consumer (anchored in the opening)
+    // seq2/seq3 settle against the +9500 opening anchor; bank 10000 EUR × 0.95 = −9500 → drift 0
+    expect(leg(seq(2), 'LIABILITY/buyFiat-owed').amountChf).toBe(9500);
+    expect(leg(seq(3), 'Bank/EUR').amountChf).toBe(-9500);
+    expect(sumOn('TRANSIT/payout/EUR')).toBe(0);
+  });
+
+  // §4.12 content-change scan gate-block (line 81): book() returns false (received gate closed) → the scan throws,
+  // which runContentChangeScan catches → the cursor is NOT advanced (set not called) and process() resolves cleanly.
+  it('throws on a gate-blocked content-change row so the cursor is not advanced (R6-1)', async () => {
+    gateCount = 0; // received gate closed → bookRegular returns false (book gate-blocked)
+    cutoverLogId = undefined; // no G-b → receivedOpened false
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
+    jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        where?.updated != null
+          ? [
+              buyFiat({
+                id: 24,
+                amountInChf: 1000,
+                totalFeeAmountChf: 10,
+                outputAmount: 990, // outputAmount set → seq1 attempted, but the gate is closed
+                outputReferenceAmount: 990,
+                outputAsset: { name: 'CHF' },
+              }),
+            ]
+          : [],
+      ),
+    );
+    // runContentChangeScan swallows the line-81 throw → process resolves, but the watermark cursor stays put
+    await expect(consumer.process()).resolves.toBeUndefined();
+    expect(seq(1)).toBeUndefined(); // gate-blocked → nothing booked
+    expect(setSpy).not.toHaveBeenCalled(); // cursor NOT advanced past the late-settling row
+  });
+
+  // buildReclassificationSeq1 paymentLink guard (L165): the content-change scan calls buildReclassificationSeq1 for a
+  // PAYMENTLINK row → `if (bf.cryptoInput?.paymentLinkPayment) return undefined` → no seq1 reverse (paymentLink owns
+  // its own venue-spread seq1). book() still runs the §4.7b path → INCOME/fee-paymentLink booked, owed/received absent.
+  it('returns undefined from buildReclassificationSeq1 for a paymentLink content-change row (no seq1 reverse, L165)', async () => {
+    seq0PaymentLinkChf = -1000; // opening present so the §4.7b seq1 books
+    const reverseSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
+    jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        where?.updated != null
+          ? [
+              buyFiat({
+                id: 25,
+                amountInChf: 1000,
+                totalFeeAmountChf: 20,
+                outputReferenceAmount: 950,
+                outputAmount: 940,
+                outputAsset: { name: 'CHF' },
+                cryptoInput: { id: 10, updated: new Date('2026-06-04T00:00:00Z'), paymentLinkPayment: { id: 1 } },
+                fiatOutput: {
+                  isTransmittedDate: FRI,
+                  currency: 'CHF',
+                  bank: { asset: { id: CHF_BANK_ASSET_ID } },
+                  bankTx: { bookingDate: SUN },
+                } as any,
+              }),
+            ]
+          : [],
+      ),
+    );
+    await consumer.process();
+
+    expect(reverseSpy).not.toHaveBeenCalled(); // paymentLink → buildReclassificationSeq1 undefined → no seq1 reverse
+    // book() still ran the §4.7b path: the seq1 fee income exists, and NO regular received/owed legs were booked
+    expect(leg(seq(1), 'INCOME/fee-paymentLink')).toBeDefined();
+    expect(sumOn('LIABILITY/buyFiat-received')).toBe(0);
+    expect(sumOn('LIABILITY/buyFiat-owed')).toBe(0);
+  });
+
+  // buildReclassificationSeq1 fee null-fallback (L168): a regular sell with totalFeeAmountChf == null → fee 0 →
+  // reclassChf = amountInChf − 0 = amountInChf; owed credited −amountInChf, fee-income credit is exactly −0.
+  it('treats a null totalFeeAmountChf as fee 0 in the seq1 reclassification (L168)', async () => {
+    mockBatch([
+      buyFiat({
+        id: 26,
+        amountInChf: 1000,
+        totalFeeAmountChf: null, // fee null → ?? 0
+        outputAmount: 1000,
+        outputReferenceAmount: 1000,
+        outputAsset: { name: 'CHF' },
+        fiatOutput: { isTransmittedDate: FRI, currency: 'CHF' } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s1 = seq(1);
+    expect(s1.legs).toHaveLength(4);
+    expect(leg(s1, 'INCOME/fee-buyFiat').amountChf).toBe(-0); // −fee = −0 (fee 0 from ?? 0)
+    expect(leg(s1, 'LIABILITY/buyFiat-owed').amountChf).toBe(-1000); // −(amountInChf − 0)
+    expect(sumOn('LIABILITY/buyFiat-received')).toBe(1000); // +fee(0) + reclass(1000)
+    expect(cents(s1.legs)).toBe(0);
+  });
+
+  // bookSettlement bookingDate null-fallback (L211): seq3 bankTx with bookingDate == null but created set →
+  // bookingDate = bankTx.created. The seq3 tx is dated at created, NOT undefined.
+  it('falls back to bankTx.created for the seq3 booking date when bookingDate is null (L211)', async () => {
+    const CREATED = new Date('2026-06-08T00:00:00Z');
+    mockBatch([
+      buyFiat({
+        id: 27,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        outputAmount: 990,
+        outputReferenceAmount: 990,
+        outputAsset: { name: 'CHF' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'CHF',
+          bank: { asset: { id: CHF_BANK_ASSET_ID } },
+          bankTx: { bookingDate: null, created: CREATED }, // bookingDate null → ?? created
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s3 = seq(3);
+    expect(s3.bookingDate).toEqual(CREATED); // null bookingDate → fell back to bankTx.created
+    expect(leg(s3, 'Bank/CHF').amountChf).toBe(-990);
+  });
+
+  // bookPaymentLinkFee fee null-fallback (L259): a paymentLink row with totalFeeAmountChf == null → totalFee 0 →
+  // feeChf = 0 + plFeeChf. rate = 1000/950 ≈ 1.05263158; plFeeNative = 950 − 940 = 10; plFeeChf = 10.53; feeChf = 10.53.
+  it('treats a null totalFeeAmountChf as 0 in the paymentLink seq1 fee (L259)', async () => {
+    seq0PaymentLinkChf = -1000;
+    mockBatch([
+      buyFiat({
+        id: 28,
+        amountInChf: 1000,
+        totalFeeAmountChf: null, // fee null → ?? 0
+        outputReferenceAmount: 950,
+        outputAmount: 940,
+        outputAsset: { name: 'CHF' },
+        cryptoInput: { id: 10, updated: new Date('2026-06-04T00:00:00Z'), paymentLinkPayment: { id: 1 } },
+      }),
+    ]);
+    await consumer.process();
+
+    const s1 = seq(1);
+    expect(leg(s1, 'INCOME/fee-paymentLink').amountChf).toBe(-10.53); // −(0 product + 10.53 plFee)
+    expect(cents(s1.legs)).toBe(0);
+  });
+
+  // bankCrLeg outputAmount null-fallback (L316) + owedChf regular null-fallbacks (L352 x2): a regular sell reaching
+  // seq2/seq3 with outputAmount == null (→ seq1 skipped by the outputAmount gate) AND amountInChf == null AND
+  // totalFeeAmountChf == null → owedChf = (0) − (0) = 0; bankCrLeg outputAmount = 0 → native −0, CHF −0 (CHF mark 1).
+  it('defaults null outputAmount/amountInChf/totalFeeAmountChf to 0 in seq2/seq3 (L316, L352)', async () => {
+    mockBatch([
+      buyFiat({
+        id: 29,
+        amountInChf: null, // → owedChf amountInChf ?? 0 (L352)
+        totalFeeAmountChf: null, // → owedChf totalFeeAmountChf ?? 0 (L352)
+        outputAmount: null, // → seq1 skipped + bankCrLeg outputAmount ?? 0 (L316)
+        outputReferenceAmount: 0,
+        outputAsset: { name: 'CHF' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'CHF',
+          bank: { asset: { id: CHF_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(seq(1)).toBeUndefined(); // outputAmount null → seq1 gate skips it
+    const s2 = seq(2);
+    expect(leg(s2, 'LIABILITY/buyFiat-owed').amountChf).toBe(0); // (0) − (0)
+    expect(leg(s2, 'TRANSIT/payout/CHF').amountChf).toBe(-0);
+    const s3 = seq(3);
+    expect(leg(s3, 'TRANSIT/payout/CHF').amountChf).toBe(0);
+    const bankLeg = leg(s3, 'Bank/CHF');
+    expect(bankLeg.amount).toBe(-0); // −(outputAmount ?? 0) = −0
+    expect(bankLeg.amountChf).toBe(-0); // −(mark 1 × 0) = −0
+    expect(bankLeg.needsMark).toBe(false); // CHF mark present → marked
+  });
+
+  // owedChf paymentLink outputAmount null-fallback (L351): a paymentLink row reaching seq2 with outputAmount == null
+  // → owedChf = (0) × rate = 0. seq1 is skipped (outputAmount gate); seq2 transmits paymentLink 0 / TRANSIT −0.
+  it('defaults a null outputAmount to 0 in the paymentLink owedChf (L351)', async () => {
+    seq0PaymentLinkChf = -100; // opening present (irrelevant: seq1 skipped by the outputAmount gate)
+    mockBatch([
+      buyFiat({
+        id: 30,
+        amountInChf: 100,
+        totalFeeAmountChf: 0,
+        outputReferenceAmount: 100,
+        outputAmount: null, // → owedChf (outputAmount ?? 0) × rate = 0
+        outputAsset: { name: 'CHF' },
+        cryptoInput: { id: 10, updated: new Date('2026-06-04T00:00:00Z'), paymentLinkPayment: { id: 1 } },
+        fiatOutput: { isTransmittedDate: FRI, currency: 'CHF' } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(seq(1)).toBeUndefined(); // outputAmount null → §4.7b seq1 gate skips it
+    const s2 = seq(2);
+    expect(leg(s2, 'LIABILITY/paymentLink').amountChf).toBe(0); // (outputAmount ?? 0) × rate = 0
+    expect(leg(s2, 'TRANSIT/payout/CHF').amountChf).toBe(-0);
+    expect(cents(s2.legs)).toBe(0);
+  });
+
+  // outputCurrency fallback chain (L371): outputAsset undefined → uses fiatOutput.currency. EUR fiatOutput with no
+  // outputAsset → the seq2 transit account is TRANSIT/payout/EUR (proves fiatOutput.currency, not the CHF default).
+  it('uses fiatOutput.currency for outputCurrency when outputAsset is undefined (L371 second arm)', async () => {
+    mockBatch([
+      buyFiat({
+        id: 31,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        outputAmount: 990,
+        outputReferenceAmount: 990,
+        outputAsset: undefined, // → fall through to fiatOutput.currency
+        fiatOutput: { isTransmittedDate: FRI, currency: 'EUR' } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s2 = seq(2);
+    expect(leg(s2, 'TRANSIT/payout/EUR')).toBeDefined(); // outputCurrency = fiatOutput.currency = 'EUR'
+    expect(leg(s2, 'TRANSIT/payout/EUR').amountChf).toBe(-990); // −owedChf (1000 − 10)
+    expect(leg(s2, 'LIABILITY/buyFiat-owed').amountChf).toBe(990);
+  });
+
+  // outputCurrency fallback chain (L371): outputAsset undefined AND fiatOutput.currency undefined → final CHF default.
+  // The seq2 transit account is TRANSIT/payout/CHF (proves the CHF tail of `?? bf.fiatOutput?.currency ?? CHF`).
+  it('defaults outputCurrency to CHF when both outputAsset and fiatOutput.currency are undefined (L371 CHF tail)', async () => {
+    mockBatch([
+      buyFiat({
+        id: 32,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        outputAmount: 990,
+        outputReferenceAmount: 990,
+        outputAsset: undefined, // → fiatOutput.currency
+        fiatOutput: { isTransmittedDate: FRI } as any, // currency undefined → CHF
+      }),
+    ]);
+    await consumer.process();
+
+    const s2 = seq(2);
+    expect(leg(s2, 'TRANSIT/payout/CHF')).toBeDefined(); // both undefined → CHF
+    expect(leg(s2, 'TRANSIT/payout/CHF').amountChf).toBe(-990);
+    expect(leg(s2, 'LIABILITY/buyFiat-owed').amountChf).toBe(990);
+  });
+
+  // paymentLinkOpeningChf null-cryptoInput guard (L424): a paymentLink row whose cryptoInput.id is null → the opening
+  // gate returns undefined at the FIRST guard (no findOne lookup) → seq1 gate-blocked, book() returns false, nothing
+  // booked. Distinct from the missing-seq0 test (id 5), which DOES reach findOne (cryptoInput.id set).
+  it('gate-blocks the paymentLink seq1 when cryptoInput.id is null (L424 guard, no findOne lookup)', async () => {
+    seq0PaymentLinkChf = -1000; // would satisfy the gate IF findOne were reached — but the null-id guard returns first
+    const findOneSpy = jest.spyOn(ledgerTxRepo, 'findOne');
+    mockBatch([
+      buyFiat({
+        id: 33,
+        amountInChf: 1000,
+        totalFeeAmountChf: 20,
+        outputReferenceAmount: 950,
+        outputAmount: 940,
+        outputAsset: { name: 'CHF' },
+        cryptoInput: { id: undefined, updated: new Date('2026-06-04T00:00:00Z'), paymentLinkPayment: { id: 1 } },
+      }),
+    ]);
+    await consumer.process();
+
+    expect(seq(1)).toBeUndefined(); // null cryptoInput.id → opening undefined → seq1 gate-blocked
+    expect(findOneSpy).not.toHaveBeenCalled(); // the L424 guard short-circuits BEFORE the seq0 findOne lookup
+  });
+
+  // assetAccount not-found throw (L452): a regular sell reaching seq3 whose bank.asset.id resolves but
+  // findByAssetId returns undefined → `throw ... CoA bootstrap missing`. Caught by processForward → seq3 absent,
+  // watermark unchanged. seq1/seq2 (which precede the throw) ARE booked. Distinct from the bank.asset-missing throw
+  // (id 20, L313): here the asset IS present, only the ledger account lookup fails.
+  it('throws from assetAccount when findByAssetId returns undefined for a present bank asset (L452)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(accountService, 'findByAssetId').mockResolvedValue(null); // CoA bootstrap missing for the bank asset
+    mockBatch([
+      buyFiat({
+        id: 34,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        outputAmount: 990,
+        outputReferenceAmount: 990,
+        outputAsset: { name: 'CHF' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'CHF',
+          bank: { asset: { id: 777 } }, // asset present (no L313 throw) but findByAssetId → null → L452 throw
+          bankTx: { bookingDate: SUN },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(seq(1)).toBeDefined(); // booked before the seq3 assetAccount throw
+    expect(seq(2)).toBeDefined();
+    expect(seq(3)).toBeUndefined(); // assetAccount threw → seq3 never booked
+    expect(setSpy).not.toHaveBeenCalled(); // failure-isolation: watermark NOT advanced
   });
 });

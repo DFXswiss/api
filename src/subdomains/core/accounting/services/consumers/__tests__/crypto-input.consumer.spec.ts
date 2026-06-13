@@ -301,4 +301,217 @@ describe('CryptoInputConsumer', () => {
     await consumer.process();
     expect(booked).toHaveLength(0);
   });
+
+  // --- ERROR / SKIP BRANCHES --- //
+
+  // §4.4 skip: a crypto_input that is neither buyFiat/buyCrypto nor isPayment has no anchor → buildSeq0Input returns
+  // undefined → no seq0 tx (the watermark still advances; it is a skip, not a failure)
+  it('skips seq0 for a crypto_input with no buyFiat/buyCrypto anchor and not isPayment', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    mockBatch([
+      cryptoInput({ id: 20, amount: 1, asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' } }), // no anchor
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // no anchor → no seq0 tx at all
+    expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(20); // skip → watermark advances
+  });
+
+  // §4.4 walletAsset throw: a crypto_input with no asset throws → failure-isolation: watermark NOT advanced
+  it('stops the batch and leaves the watermark when a crypto_input has no asset (failure-isolation)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    mockBatch([cryptoInput({ id: 21, amount: 1, asset: null, buyFiat: { amountInChf: 100 } as any })]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled(); // throw → break before advancing
+  });
+
+  // §4.4 forward-fee idempotency: seq1 already active → bookForwardFee no-ops (only seq0 books)
+  it('does NOT re-book the forward fee (seq1) when it is already active (re-run)', async () => {
+    activeKeys.add('22:1'); // seq1 already booked
+    mockBatch([
+      cryptoInput({
+        id: 22,
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        buyFiat: { amountInChf: 50000 } as any,
+        outTxId: '0xforward',
+        forwardFeeAmount: 0.0001,
+        forwardFeeAmountChf: 5,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked.some((b) => b.seq === 1)).toBe(false); // seq1 already active → skipped
+    expect(booked.some((b) => b.seq === 0)).toBe(true); // seq0 still booked (not yet active)
+  });
+
+  // --- §4.12 CONTENT-CHANGE SCAN --- //
+
+  // the content-change scan recomputes the seq0 input and calls reverseAndRebookIfChanged for a row past the cursor
+  it('runs the §4.12 content-change scan: recomputes seq0 and calls reverseAndRebookIfChanged', async () => {
+    const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
+    const changed = cryptoInput({
+      id: 30,
+      amount: 1,
+      asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+      buyFiat: { amountInChf: 50000 } as any,
+    });
+    // forward id-scan empty; the content-change scan (where.updated) returns the changed row
+    jest
+      .spyOn(cryptoInputRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [changed] : []));
+
+    await consumer.process();
+
+    expect(rebookSpy).toHaveBeenCalledTimes(1);
+    expect(rebookSpy.mock.calls[0][0].sourceId).toBe('30'); // recomputed seq0 input for the changed row
+  });
+
+  // a content-change row with no anchor → buildSeq0Input undefined → reverseAndRebookIfChanged NOT called (no-op)
+  it('content-change scan no-ops a row that has no bookable seq0 input', async () => {
+    const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(false);
+    const changed = cryptoInput({ id: 31, amount: 1, asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' } }); // no anchor
+    jest
+      .spyOn(cryptoInputRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [changed] : []));
+
+    await consumer.process();
+
+    expect(rebookSpy).not.toHaveBeenCalled(); // no seq0 input → nothing to reverse/rebook
+  });
+
+  // --- ADDITIONAL BRANCH COVERAGE --- //
+
+  // line 117 UNDEFINED side: the resolved wallet LedgerAccount has assetId == null → the `wallet.assetId != null`
+  // ternary takes the `: undefined` branch (NOT getMarkAt) → mark undefined → assetChf undefined → asset leg
+  // needsMark. With a buyFiat anchor the needsMark asset leg short-circuits appendFxPlug → NO fx plug leg.
+  // (Distinct from the id-5 test, which resolves a wallet WITH assetId 999 → takes the getMarkAt side.)
+  it('takes the undefined-mark branch when the wallet account has a null assetId (no fx plug)', async () => {
+    mockBatch([
+      cryptoInput({
+        id: 40,
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        buyFiat: { amountInChf: 50000 } as any,
+      }),
+    ]);
+    // wallet resolved WITHOUT an assetId → wallet.assetId == null → `: undefined` side of the line-117 ternary
+    jest.spyOn(accountService, 'findByAssetId').mockResolvedValue(account('Bitcoin/BTC', AccountType.ASSET, 'BTC')); // no assetId
+
+    await consumer.process();
+
+    const seq0 = booked.find((b) => b.seq === 0);
+    const assetLeg = seq0.legs.find((l) => l.account.name === 'Bitcoin/BTC');
+    expect(assetLeg.needsMark).toBe(true);
+    expect(assetLeg.amountChf).toBeUndefined();
+    expect(assetLeg.priceChf).toBeNull(); // mark ?? null
+    // a needsMark leg short-circuits appendFxPlug (§5.1 Stufe 3) → received anchor only, NO plug leg
+    expect(seq0.legs.find((l) => l.account.name?.includes('fx-revaluation'))).toBeUndefined();
+    expect(seq0.legs).toHaveLength(2);
+  });
+
+  // lines 141-144 (isPayment, assetChf == null): a PAYMENT crypto_input whose asset has NO mark → mark undefined →
+  // assetChf undefined → BOTH legs needsMark; the paymentLink leg amountChf undefined (the `: undefined` side).
+  it('books a 2-leg isPayment tx with both legs needsMark when the asset has no mark', async () => {
+    mockBatch([
+      cryptoInput({
+        id: 41,
+        amount: 1,
+        txType: PayInType.PAYMENT,
+        asset: { id: 999, uniqueName: 'Unknown/XYZ' }, // no mark in markMap
+      }),
+    ]);
+    // wallet carries assetId 999 → line-117 takes getMarkAt(999) which is undefined (not in markMap)
+    jest
+      .spyOn(accountService, 'findByAssetId')
+      .mockResolvedValue(account('Unknown/XYZ', AccountType.ASSET, 'XYZ', 999));
+
+    await consumer.process();
+
+    const seq0 = booked.find((b) => b.seq === 0);
+    expect(seq0.legs).toHaveLength(2);
+    const assetLeg = seq0.legs.find((l) => l.account.name === 'Unknown/XYZ');
+    const paymentLink = seq0.legs.find((l) => l.account.name === 'LIABILITY/paymentLink');
+    expect(assetLeg.needsMark).toBe(true);
+    expect(assetLeg.amountChf).toBeUndefined();
+    expect(paymentLink.needsMark).toBe(true);
+    expect(paymentLink.amountChf).toBeUndefined(); // assetChf == null → `: undefined`
+    expect(paymentLink.amount).toBe(-0); // -(assetChf ?? 0) → -0 (the negation of the 0 fallback)
+  });
+
+  // lines 176-187 forward-fee: forwardFeeAmount (feeNative) null while forwardFeeAmountChf set → mark falls to null
+  // (the `feeChf != null && feeNative` guard is false) and the wallet native amount uses the `-(feeNative ?? feeChf)`
+  // fallback = −feeChf.
+  it('books the forward fee with a null priceChf and the feeChf native fallback when forwardFeeAmount is null', async () => {
+    mockBatch([
+      cryptoInput({
+        id: 42,
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        buyFiat: { amountInChf: 50000 } as any,
+        outTxId: '0xforward',
+        forwardFeeAmount: null, // feeNative null → mark null, native fallback to feeChf
+        forwardFeeAmountChf: 5,
+      }),
+    ]);
+    await consumer.process();
+
+    const seq1 = booked.find((b) => b.seq === 1);
+    expect(seq1).toBeDefined();
+    const networkFee = seq1.legs.find((l) => l.account.name === 'EXPENSE/network-fee');
+    const wallet = seq1.legs.find((l) => l.account.name === 'Bitcoin/BTC');
+    expect(networkFee.amountChf).toBe(5);
+    expect(wallet.amount).toBe(-5); // -(feeNative ?? feeChf) = -5 (the ?? fallback)
+    expect(wallet.amountChf).toBe(-5);
+    expect(wallet.priceChf).toBeNull(); // feeNative falsy → mark null
+    expect(cents(seq1.legs)).toBe(0);
+  });
+
+  // lines 202/206 appendFxPlug POSITIVE residual: amountInChf > mark×amount → residual ≥ 0 → INCOME/fx-revaluation.
+  // BTC mark 50300, amount 1, buyFiat.amountInChf 50600 → asset +50300, received −50600, sum −300 → residual +300.
+  it('books an INCOME/fx-revaluation plug when the valuation residual is positive', async () => {
+    mockBatch([
+      cryptoInput({
+        id: 43,
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        buyFiat: { amountInChf: 50600 } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const seq0 = booked.find((b) => b.seq === 0);
+    expect(seq0.legs).toHaveLength(3);
+    const assetLeg = seq0.legs.find((l) => l.account.name === 'Bitcoin/BTC');
+    const received = seq0.legs.find((l) => l.account.name === 'LIABILITY/buyFiat-received');
+    const plug = seq0.legs.find((l) => l.account.name?.includes('fx-revaluation'));
+    expect(assetLeg.amountChf).toBe(50300);
+    expect(received.amountChf).toBe(-50600);
+    expect(plug.account.name).toBe('INCOME/fx-revaluation'); // residual +300 ≥ 0 → income side
+    expect(plug.amountChf).toBe(300);
+    expect(cents(seq0.legs)).toBe(0);
+  });
+
+  // line 227 walletAsset throw: an asset object IS present but findByAssetId returns undefined → throws (CoA bootstrap
+  // missing) → failure-isolation: watermark NOT advanced, nothing booked. (Distinct from the id-21 'no asset' test,
+  // which throws earlier at line 225.)
+  it('stops the batch and leaves the watermark when the ledger account for the asset is missing (CoA bootstrap)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    mockBatch([
+      cryptoInput({
+        id: 44,
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        buyFiat: { amountInChf: 50000 } as any,
+      }),
+    ]);
+    jest.spyOn(accountService, 'findByAssetId').mockResolvedValue(undefined); // account not found → throw at line 227
+
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled(); // throw → break before advancing the watermark
+  });
 });
