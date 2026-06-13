@@ -175,15 +175,37 @@ describe('LedgerBootstrapService', () => {
     expect(created.find((c) => c.name === 'TRANSIT/wallet↔Binance/USDT')?.currency).toBe('USDT');
   });
 
-  it('is idempotent — findOrCreate per account (re-run no-op via UNIQUE(name))', async () => {
+  it('is idempotent — a SECOND bootstrap() creates no new account (findOrCreate resolves existing by name)', async () => {
     jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([]);
     jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
 
-    await service.bootstrap();
-    const firstRunCount = (ledgerAccountService.findOrCreate as jest.Mock).mock.calls.length;
+    // model the real findOrCreate semantics: lookup-by-name, create-if-missing, re-run no-op (UNIQUE(name)). A name
+    // already in the store returns the EXISTING account and is NOT pushed again → `created` only grows on first sight.
+    const store = new Map<string, ReturnType<typeof createCustomLedgerAccount>>();
+    (ledgerAccountService.findOrCreate as jest.Mock).mockImplementation(
+      async (name: string, type: AccountType, currency: string, assetId?: number, active?: boolean) => {
+        const existing = store.get(name);
+        if (existing) return existing; // re-run no-op (the second bootstrap must hit only this branch)
+        created.push({ name, type, currency, assetId, active });
+        const acc = createCustomLedgerAccount({ name, type, currency });
+        store.set(name, acc);
+        return acc;
+      },
+    );
 
-    // findOrCreate guarantees no duplicate names; a re-run resolves existing accounts
-    expect(firstRunCount).toBeGreaterThan(0);
-    expect(new Set(created.map((c) => c.name)).size).toBe(created.length); // no duplicate names
+    // FIRST run: populates the CoA
+    await service.bootstrap();
+    const firstRunCalls = (ledgerAccountService.findOrCreate as jest.Mock).mock.calls.length;
+    const firstRunCreated = created.length;
+    expect(firstRunCreated).toBeGreaterThan(0);
+    expect(new Set(created.map((c) => c.name)).size).toBe(created.length); // first run: no duplicate names
+
+    // SECOND run: actually call bootstrap() AGAIN — every account already exists → store hit → NO new creation.
+    await service.bootstrap();
+    const secondRunCalls = (ledgerAccountService.findOrCreate as jest.Mock).mock.calls.length - firstRunCalls;
+
+    expect(secondRunCalls).toBe(firstRunCalls); // the re-run probes the SAME number of accounts (full deterministic CoA)
+    expect(created.length).toBe(firstRunCreated); // …but adds ZERO new accounts → findOrCreate idempotency proven
+    expect(new Set(created.map((c) => c.name)).size).toBe(created.length); // still no duplicate name was created
   });
 });

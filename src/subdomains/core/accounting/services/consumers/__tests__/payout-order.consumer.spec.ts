@@ -359,6 +359,35 @@ describe('PayoutOrderConsumer', () => {
     expect(wallet.amountChf).toBeUndefined();
   });
 
+  // §4.5 assetAccount throw (line 372): a distinct fee asset with no CoA ledger account → throws → failure-isolation
+  // (watermark unchanged). The wallet (BTC) resolves fine; the ETH fee asset returns undefined → throw.
+  it('stops the batch when a distinct fee asset has no ledger account (CoA bootstrap, line 372)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
+    jest.spyOn(accountService, 'findByAssetId').mockImplementation((assetId: number) => {
+      if (assetId === ETH_ASSET_ID) return Promise.resolve(undefined); // fee asset not in the CoA → throw
+      return Promise.resolve(btcWallet);
+    });
+    mockBatch([
+      payoutOrder({
+        id: 37,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '950',
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        payoutFeeAsset: { id: ETH_ASSET_ID, uniqueName: 'Ethereum/ETH' }, // distinct fee asset → its own leg → throws
+        payoutFeeAmount: 0.001,
+        payoutFeeAmountChf: 2,
+        preparationFeeAmountChf: 0,
+      }),
+    ]);
+
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled();
+  });
+
   it('is idempotent: skips an already-booked payout (re-run, nextSeq > 0)', async () => {
     nextSeqValue = 1;
     jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
@@ -389,5 +418,408 @@ describe('PayoutOrderConsumer', () => {
     mockBatch([]);
     await consumer.process();
     expect(booked).toHaveLength(0);
+  });
+
+  // --- ERROR / SKIP / FALLBACK BRANCHES --- //
+
+  // §4.5 book guard: amount≈0 → skip (avoids NaN priceChf), watermark still advances past it (not an error)
+  it('skips a payout with amount≈0 and still advances the watermark past it', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    mockBatch([payoutOrder({ id: 30, context: PayoutOrderContext.BUY_CRYPTO, correlationId: '800', amount: 0 })]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // amount≈0 → no tx
+    expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(30); // skip is not a failure → watermark advances
+  });
+
+  // §4.5 book guard: a payout_order with no asset throws → failure-isolation: watermark NOT advanced, retry next run
+  it('stops the batch on a payout with no asset (failure-isolation, watermark unchanged)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    mockBatch([payoutOrder({ id: 31, context: PayoutOrderContext.BUY_CRYPTO, correlationId: '801', asset: null })]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled(); // throw → break before advancing → watermark stays
+  });
+
+  // §4.5 failure-isolation: first row books, second throws (no asset) → watermark advances ONLY to the first
+  it('advances the watermark to the last successful row and stops on the failing one', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
+    mockBatch([
+      payoutOrder({
+        id: 40,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '810',
+        amount: 1,
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+      payoutOrder({ id: 41, context: PayoutOrderContext.BUY_CRYPTO, correlationId: '811', asset: null }), // throws
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(1); // only row 40 booked
+    expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(40); // NOT 41
+  });
+
+  // §4.5 RefPayout with no resolvable ref_reward.amountInChf → counter undefined → skip (no tx), watermark advances
+  it('skips a RefPayout whose ref_reward has no amountInChf (counter undefined)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(refRewardRepo, 'findOneBy').mockResolvedValue(null); // no ref_reward found
+    mockBatch([payoutOrder({ id: 32, context: PayoutOrderContext.REF_PAYOUT, correlationId: '802', amount: 10 })]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(32); // skip (not error) → advance
+  });
+
+  // §4.5 liabilityCounter defensive guard: an unmapped context value (bad DB data, not one of the 5 enum members and
+  // not RefPayout) has no LIABILITY_BUCKET entry → liabilityCounter logs + returns undefined → the row is skipped.
+  it('skips a payout with an unmapped context (defensive bucket guard)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    mockBatch([
+      payoutOrder({ id: 33, context: 'UnknownContext' as PayoutOrderContext, correlationId: '803', amount: 1 }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(33); // defensive skip → watermark still advances
+  });
+
+  // §4.5 owedCompletionChf: a non-integer correlationId (e.g. a network-start-fee marker) → mark fallback, NOT a
+  // product lookup. The owed-Dr falls back to the settlement mark × amount.
+  it('falls back to the settlement mark when the correlationId is non-integer (no product lookup)', async () => {
+    const findSpy = jest.spyOn(buyCryptoRepo, 'findOneBy');
+    mockBatch([
+      payoutOrder({
+        id: 34,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: 'network-start-fee', // non-integer → owedCompletionChf returns undefined → mark fallback
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const owed = leg(booked[0], 'LIABILITY/buyCrypto-owed');
+    expect(findSpy).not.toHaveBeenCalled(); // non-integer correlationId never queries the product repo
+    expect(owed.amountChf).toBe(50000); // settlement mark × 1 BTC (the completion fallback)
+    expect(cents(booked[0].legs)).toBe(0);
+  });
+
+  // §4.5 BUY_FIAT_RETURN owed completion via the buyFiat repo (not buyCrypto), LIABILITY/buyFiat-owed bucket
+  it('books a BuyFiatReturn against LIABILITY/buyFiat-owed using the buyFiat completion CHF', async () => {
+    jest.spyOn(buyFiatRepo, 'findOneBy').mockResolvedValue({ amountInChf: 5000, totalFeeAmountChf: 50 } as any); // 4950
+    mockBatch([
+      payoutOrder({
+        id: 35,
+        context: PayoutOrderContext.BUY_FIAT_RETURN,
+        correlationId: '900',
+        amount: 0.1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const owed = leg(booked[0], 'LIABILITY/buyFiat-owed');
+    expect(owed.amountChf).toBe(4950); // buyFiat amountInChf − totalFeeAmountChf
+    expect(leg(booked[0], 'Bitcoin/BTC').amountChf).toBe(-5000); // settlement mark 50000 × 0.1
+    expect(cents(booked[0].legs)).toBe(0);
+  });
+
+  // §4.5 withFxPlug needsMark short-circuit: when the wallet leg needsMark (no mark) the plug is NOT booked even
+  // though the CHF cents don't balance — the mark-to-market job revalues it later (§5.1 Stufe 3, no silent plug).
+  it('books NO fx-revaluation plug while the wallet leg needsMark (no silent plug, §5.1 Stufe 3)', async () => {
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
+    jest
+      .spyOn(accountService, 'findByAssetId')
+      .mockResolvedValue(account('Unknown/XYZ', AccountType.ASSET, 'XYZ', 999)); // no mark → needsMark
+    mockBatch([
+      payoutOrder({
+        id: 36,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '901',
+        amount: 1,
+        asset: { id: 999, uniqueName: 'Unknown/XYZ' },
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    // owed-Dr 50000 (completion) + wallet needsMark (amountChf undefined) → cents don't net, but NO plug is appended
+    expect(leg(booked[0], 'INCOME/fx-revaluation')).toBeUndefined();
+    expect(leg(booked[0], 'EXPENSE/fx-revaluation')).toBeUndefined();
+    expect(leg(booked[0], 'Unknown/XYZ').needsMark).toBe(true);
+  });
+
+  // §4.5 liabilityCounter (lines 220/223): a liability row where BOTH the completion CHF (non-integer correlationId →
+  // no product lookup) AND the settlement CHF (no mark for the payout asset) are undefined → liabilityChf undefined →
+  // the owed leg amount falls to 0, amountChf undefined, needsMark true. mainChf undefined → wallet also needsMark →
+  // withFxPlug short-circuits, no plug.
+  it('books an owed leg with amount 0 / needsMark when both completion and settlement CHF are undefined', async () => {
+    const findSpy = jest.spyOn(buyCryptoRepo, 'findOneBy');
+    jest
+      .spyOn(accountService, 'findByAssetId')
+      .mockResolvedValue(account('Unknown/XYZ', AccountType.ASSET, 'XYZ', 999)); // no mark → settlementChf undefined
+    mockBatch([
+      payoutOrder({
+        id: 50,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: 'no-product', // non-integer → no product completion AND no cutover opening match
+        amount: 1,
+        asset: { id: 999, uniqueName: 'Unknown/XYZ' }, // no mark
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const owed = leg(booked[0], 'LIABILITY/buyCrypto-owed');
+    expect(findSpy).not.toHaveBeenCalled(); // non-integer correlationId → never queries the product repo
+    expect(owed.amount).toBe(0); // liabilityChf undefined → amount falls to 0 (line 220)
+    expect(owed.amountChf).toBeUndefined(); // line 222: amountChf = liabilityChf (undefined)
+    expect(owed.needsMark).toBe(true); // line 223: needsMark = liabilityChf == null
+    const wallet = leg(booked[0], 'Unknown/XYZ');
+    expect(wallet.needsMark).toBe(true); // mainChf undefined → wallet leg needsMark too
+    expect(wallet.amountChf).toBeUndefined();
+    expect(leg(booked[0], 'INCOME/fx-revaluation')).toBeUndefined(); // a leg needsMark → no silent plug
+    expect(leg(booked[0], 'EXPENSE/fx-revaluation')).toBeUndefined();
+  });
+
+  // §4.5 completionChf (line 246): a product whose amountInChf is null → completion undefined → mark fallback.
+  it('falls back to the settlement mark when the product amountInChf is null (completion undefined)', async () => {
+    const findSpy = jest
+      .spyOn(buyCryptoRepo, 'findOneBy')
+      .mockResolvedValue({ amountInChf: null, totalFeeAmountChf: 5 } as any); // amountInChf null → completion undefined
+    mockBatch([
+      payoutOrder({
+        id: 51,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '850', // integer → product IS looked up
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const owed = leg(booked[0], 'LIABILITY/buyCrypto-owed');
+    expect(findSpy).toHaveBeenCalled(); // integer correlationId → the product repo IS queried
+    expect(owed.amountChf).toBe(50000); // completion undefined → settlement mark × 1 BTC fallback
+    expect(leg(booked[0], 'Bitcoin/BTC').amountChf).toBe(-50000);
+    expect(cents(booked[0].legs)).toBe(0);
+  });
+
+  // §4.5 completionChf (line 247): totalFeeAmountChf null → (totalFeeAmountChf ?? 0) takes the 0 side → completion =
+  // amountInChf − 0.
+  it('computes the completion CHF as amountInChf − 0 when totalFeeAmountChf is null', async () => {
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 49000, totalFeeAmountChf: null } as any);
+    mockBatch([
+      payoutOrder({
+        id: 52,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '851',
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const owed = leg(booked[0], 'LIABILITY/buyCrypto-owed');
+    expect(owed.amountChf).toBe(49000); // amountInChf − (null ?? 0)
+    expect(leg(booked[0], 'Bitcoin/BTC').amountChf).toBe(-50000); // settlement mark
+    expect(leg(booked[0], 'INCOME/fx-revaluation').amountChf).toBe(1000); // 49000 − 50000 = −1000 → +1000 INCOME plug
+    expect(cents(booked[0].legs)).toBe(0);
+  });
+
+  // §4.5 cutoverOwedOpeningChf (line 256): MANUAL context has a LIABILITY_BUCKET (manual-debt) but NO CUTOVER_OWED_MARKER
+  // entry → cutoverOwedOpeningChf returns undefined immediately; MANUAL also has no product completion (non-integer
+  // correlationId) → the owed-Dr falls back to the settlement mark, booked against LIABILITY/manual-debt.
+  it('books a MANUAL payout against LIABILITY/manual-debt at the settlement mark (no cutover owed marker)', async () => {
+    const findSpy = jest.spyOn(buyCryptoRepo, 'findOneBy');
+    jest.spyOn(settingService, 'get').mockResolvedValue('1234567'); // a cutover logId exists, but MANUAL has no marker
+    mockBatch([
+      payoutOrder({
+        id: 53,
+        context: PayoutOrderContext.MANUAL,
+        correlationId: 'manual-ref', // non-integer → no product completion either
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const owed = leg(booked[0], 'LIABILITY/manual-debt');
+    expect(owed).toBeDefined(); // booked against the MANUAL bucket
+    expect(findSpy).not.toHaveBeenCalled(); // non-integer correlationId → no product lookup
+    expect(owed.amountChf).toBe(50000); // settlement mark × 1 BTC (no cutover opening, no completion)
+    expect(leg(booked[0], 'Bitcoin/BTC').amountChf).toBe(-50000);
+    expect(cents(booked[0].legs)).toBe(0);
+  });
+
+  // §4.5 cutoverOwedOpeningChf (line 270): a cutover opening tx IS found but its owed leg amountChf is null →
+  // cutoverOwedOpeningChf returns undefined → the owed-Dr falls back to the §4.6/§4.7 completion CHF (not the opening).
+  it('falls back to the completion CHF when the matched cutover opening leg amountChf is null', async () => {
+    const cutoverLogId = '999000';
+    jest.spyOn(settingService, 'get').mockResolvedValue(cutoverLogId);
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 49000, totalFeeAmountChf: 0 } as any); // 49000
+    jest.spyOn(ledgerTxRepo, 'findOne').mockImplementation(({ where }: any) => {
+      if (where?.sourceId === `${cutoverLogId}:buy_crypto-owed:790`) {
+        const owedAccount = account('LIABILITY/buyCrypto-owed', AccountType.LIABILITY, 'CHF');
+        const openingLeg = Object.assign(new LedgerLeg(), { account: owedAccount, amountChf: null }); // null amountChf
+        return Promise.resolve(Object.assign(new LedgerTx(), { legs: [openingLeg] }));
+      }
+      return Promise.resolve(null);
+    });
+    mockBatch([
+      payoutOrder({
+        id: 54,
+        context: PayoutOrderContext.BUY_CRYPTO_RETURN,
+        correlationId: '790',
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const owed = leg(booked[0], 'LIABILITY/buyCrypto-owed');
+    expect(owed.amountChf).toBe(49000); // opening leg amountChf null → undefined → completion CHF fallback
+    expect(leg(booked[0], 'Bitcoin/BTC').amountChf).toBe(-50000); // settlement mark
+    expect(leg(booked[0], 'INCOME/fx-revaluation').amountChf).toBe(1000); // 49000 − 50000 = −1000 → +1000 plug
+    expect(cents(booked[0].legs)).toBe(0);
+  });
+
+  // §4.5 appendDistinctFeeLegs (lines 299-306): a DISTINCT fee asset (≠ payout asset) with NO mark → its native Cr
+  // leg carries amountChf undefined + needsMark true + priceChf null; because a leg needsMark, withFxPlug books no plug.
+  it('flags a distinct fee-asset leg needsMark when that fee asset has no mark (no plug booked)', async () => {
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
+    jest.spyOn(accountService, 'findByAssetId').mockImplementation((assetId: number) => {
+      if (assetId === 888) return Promise.resolve(account('NoMark/NOM', AccountType.ASSET, 'NOM', 888));
+      return Promise.resolve(btcWallet);
+    });
+    mockBatch([
+      payoutOrder({
+        id: 55,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '860',
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' }, // payout asset has a mark
+        payoutFeeAsset: { id: 888, uniqueName: 'NoMark/NOM' }, // distinct fee asset, NO mark
+        payoutFeeAmount: 0.003,
+        payoutFeeAmountChf: 5, // networkFeeChf 5 > 0 → fee legs are appended
+        preparationFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = booked[0];
+    const feeLeg = leg(tx, 'NoMark/NOM');
+    expect(feeLeg.amount).toBe(-0.003); // native fee against the fee asset
+    expect(feeLeg.amountChf).toBeUndefined(); // no mark → chf undefined (line 304)
+    expect(feeLeg.needsMark).toBe(true); // line 305: needsMark = chf == null
+    expect(feeLeg.priceChf).toBeNull(); // line 303: priceChf = mark ?? null
+    expect(leg(tx, 'EXPENSE/network-fee').amountChf).toBe(5); // CHF fee leg still booked
+    expect(leg(tx, 'INCOME/fx-revaluation')).toBeUndefined(); // a leg needsMark → no plug
+    expect(leg(tx, 'EXPENSE/fx-revaluation')).toBeUndefined();
+  });
+
+  // §4.5 payoutAssetFeeNative (line 318): a preparationFee in the payout asset itself folds into the wallet Cr leg
+  // (native + mark-based CHF), distinct from the payoutFee fold (line 319) covered above.
+  it('folds a payout-asset PREPARATION fee into the wallet Cr leg (preparationFeeAsset == payoutAsset)', async () => {
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 49000, totalFeeAmountChf: 0 } as any);
+    mockBatch([
+      payoutOrder({
+        id: 56,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '861',
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        preparationFeeAsset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' }, // prep fee == payout asset → folds in
+        preparationFeeAmount: 0.0002,
+        preparationFeeAmountChf: 10,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = booked[0];
+    const btcLegs = tx.legs.filter((l) => l.account.name === 'Bitcoin/BTC');
+    expect(btcLegs).toHaveLength(1); // prep fee folded into the single wallet leg, no separate fee-asset leg
+    expect(btcLegs[0].amount).toBe(-1.0002); // amount + prep fee folded native (line 318)
+    expect(btcLegs[0].amountChf).toBe(-50010); // settlement 50000 + folded fee 50000 × 0.0002 = 10
+    expect(leg(tx, 'EXPENSE/network-fee').amountChf).toBe(10); // prep fee CHF still booked as the network-fee expense
+    expect(leg(tx, 'INCOME/fx-revaluation').amountChf).toBe(1000); // 49000 − 50010 + 10 = −1000 → +1000 plug
+    expect(cents(tx.legs)).toBe(0);
+  });
+
+  // §4.5 payoutAssetFeeNative (line 325): the payout asset has NO mark → the folded payout-asset fee CHF takes the 0
+  // side (mark != null ? ... : 0) and the fold flags needsMark; mainChf undefined → wallet leg needsMark → no plug.
+  it('takes chf=0 for a folded payout-asset fee when the payout asset has no mark (needsMark)', async () => {
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 49000, totalFeeAmountChf: 0 } as any);
+    jest
+      .spyOn(accountService, 'findByAssetId')
+      .mockResolvedValue(account('Unknown/XYZ', AccountType.ASSET, 'XYZ', 999)); // no mark
+    mockBatch([
+      payoutOrder({
+        id: 57,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '862',
+        amount: 1,
+        asset: { id: 999, uniqueName: 'Unknown/XYZ' }, // no mark
+        preparationFeeAsset: { id: 999, uniqueName: 'Unknown/XYZ' }, // fee in the (unmarked) payout asset → folds in
+        preparationFeeAmount: 0.0002,
+        preparationFeeAmountChf: 0, // networkFeeChf 0 → no separate fee leg
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = booked[0];
+    const walletLegs = tx.legs.filter((l) => l.account.name === 'Unknown/XYZ');
+    expect(walletLegs).toHaveLength(1); // fee folded into the single wallet leg
+    expect(walletLegs[0].amount).toBe(-1.0002); // amount + folded fee native
+    expect(walletLegs[0].amountChf).toBeUndefined(); // no mark → mainChf undefined → wallet chf undefined
+    expect(walletLegs[0].needsMark).toBe(true); // fee.needsMark (no mark) → wallet needsMark
+    expect(leg(tx, 'INCOME/fx-revaluation')).toBeUndefined(); // a leg needsMark → no plug
+    expect(leg(tx, 'EXPENSE/fx-revaluation')).toBeUndefined();
+  });
+
+  // §4.5 withFxPlug (lines 351/355): a constellation with Σ legs > 0 → residual < 0 → EXPENSE/fx-revaluation (the
+  // negative residual side, complementing the INCOME side hit by the BuyCrypto payout test). completion > settlement.
+  it('books an EXPENSE/fx-revaluation plug when the residual is negative (completion > settlement)', async () => {
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 51000, totalFeeAmountChf: 0 } as any); // 51000
+    mockBatch([
+      payoutOrder({
+        id: 58,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '863',
+        amount: 1,
+        asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = booked[0];
+    expect(leg(tx, 'LIABILITY/buyCrypto-owed').amountChf).toBe(51000); // completion CHF
+    expect(leg(tx, 'Bitcoin/BTC').amountChf).toBe(-50000); // settlement mark
+    const plug = leg(tx, 'EXPENSE/fx-revaluation');
+    expect(plug.amountChf).toBe(-1000); // Σ = 51000 − 50000 = +1000 → residual −1000 → EXPENSE/fx-revaluation
+    expect(leg(tx, 'INCOME/fx-revaluation')).toBeUndefined();
+    expect(cents(tx.legs)).toBe(0);
   });
 });

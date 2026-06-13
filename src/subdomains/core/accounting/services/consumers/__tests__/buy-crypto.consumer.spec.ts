@@ -149,6 +149,23 @@ describe('BuyCryptoConsumer', () => {
     expect(cents(tx.legs)).toBe(0);
   });
 
+  // §5.1 additive null-strategy (line 149): a completion with totalFeeAmountChf null → fee 0, reclass = amountInChf.
+  // The fee leg is +0 and owed closes at the full amountInChf (no fee carved out).
+  it('treats a null totalFeeAmountChf as fee 0 in the completion (additive null-strategy)', async () => {
+    mockBatch([buyCrypto({ id: 33, amountInChf: 15000, totalFeeAmountChf: null, isComplete: true })]);
+    await consumer.process();
+
+    const tx = seq(1);
+    expect(tx).toBeDefined();
+    expect(leg(tx, 'INCOME/fee-buyCrypto').amountChf).toBe(-0); // fee 0 → INCOME credit −0
+    expect(leg(tx, 'LIABILITY/buyCrypto-owed').amountChf).toBe(-15000); // owed = −(amountInChf − 0)
+    const receivedSum = tx.legs
+      .filter((l) => l.account.name === 'LIABILITY/buyCrypto-received')
+      .reduce((s, l) => s + (l.amountChf ?? 0), 0);
+    expect(receivedSum).toBe(15000); // closes the −15000 received to 0
+    expect(cents(tx.legs)).toBe(0);
+  });
+
   // §4.6 paymentLink: the fee leg is INCOME/fee-paymentLink instead of fee-buyCrypto
   it('books the completion fee as INCOME/fee-paymentLink when paymentLinkPayment is present', async () => {
     mockBatch([
@@ -230,5 +247,116 @@ describe('BuyCryptoConsumer', () => {
     mockBatch([]);
     await consumer.process();
     expect(booked).toHaveLength(0);
+  });
+
+  // --- ERROR / GATE BRANCHES --- //
+
+  // §4.6 failure-isolation: a Card input whose Checkout account is missing throws in bookCardInput → break, watermark
+  // not advanced (retry next run)
+  it('stops the batch and leaves the watermark when the Checkout account is missing (failure-isolation)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    accounts.delete('Checkout/EUR'); // findByName('Checkout/EUR') → undefined → throw in checkoutAccount
+    mockBatch([buyCrypto({ id: 20, amountInChf: 1000, checkoutTx: { currency: 'EUR' } as any })]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled(); // throw → break before advancing
+  });
+
+  // §4.7 G-a gate: a non-Card buy_crypto whose crypto_input seq0 ledger_tx exists (countBy>0) opens the completion
+  it('books the completion via the G-a gate (crypto_input seq0 ledger_tx exists)', async () => {
+    // non-Card (no checkoutTx) but the crypto_input seq0 ledger_tx exists → receivedOpened true via G-a (countBy>0)
+    mockBatch([
+      buyCrypto({
+        id: 21,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        isComplete: true,
+        cryptoInput: { id: 555 } as any, // G-a: countBy(crypto_input, 555, seq0) > 0 (gateOpen=true default)
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = seq(1);
+    expect(tx).toBeDefined(); // G-a opened received → completion books
+    const receivedSum = tx.legs
+      .filter((l) => l.account.name === 'LIABILITY/buyCrypto-received')
+      .reduce((s, l) => s + (l.amountChf ?? 0), 0);
+    expect(receivedSum).toBe(1000); // closes received to 0
+  });
+
+  // §4.7 receivedOpened: cutover not run (ledgerCutoverLogId unset) AND no G-a → gate closed → completion skipped
+  it('skips the completion when the cutover has not run and no G-a opening exists', async () => {
+    gateOpen = false; // countBy → 0 AND ledgerCutoverLogId → undefined
+    mockBatch([
+      buyCrypto({
+        id: 22,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        isComplete: true,
+        cryptoInput: { id: 556 } as any, // G-a countBy → 0; cutoverReceivedSourceId → undefined (no logId)
+      }),
+    ]);
+    await consumer.process();
+
+    expect(seq(1)).toBeUndefined(); // gate closed → no completion
+  });
+
+  // §4.6 bookCompletion guard: an isComplete row with null amountInChf throws → failure-isolation
+  it('throws (failure-isolation) on a complete buy_crypto with null amountInChf', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    // Card input so seq0 is skipped (amountInChf null → buildCardInputSeq0 returns undefined, no seq0), but isComplete
+    // → book() reaches bookCompletion which throws on the null amountInChf.
+    mockBatch([buyCrypto({ id: 23, amountInChf: null, isComplete: true, checkoutTx: { currency: 'EUR' } as any })]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // seq0 skipped (no amountInChf), completion throws
+    expect(setSpy).not.toHaveBeenCalled(); // throw → watermark not advanced
+  });
+
+  // --- §4.12 / §6.3 CONTENT-CHANGE SCAN --- //
+
+  // the content-change scan reverses+rebooks a Card-input seq0 and then books any newly-settled completion
+  it('runs the content-change scan: reverses+rebooks the Card seq0 then books the completion', async () => {
+    const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
+    const changed = buyCrypto({
+      id: 30,
+      amountInChf: 1000,
+      totalFeeAmountChf: 10,
+      isComplete: true,
+      checkoutTx: { currency: 'EUR' } as any, // Card input → buildCardInputSeq0 resolves → reverseAndRebookIfChanged
+    });
+    // forward id-scan empty; content-change scan (where.updated) returns the changed Card row
+    jest
+      .spyOn(buyCryptoRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [changed] : []));
+
+    await consumer.process();
+
+    expect(rebookSpy).toHaveBeenCalledTimes(1); // the Card seq0 reverse-and-rebook ran
+    expect(rebookSpy.mock.calls[0][0].sourceId).toBe('30');
+    // and the idempotent forward book() then appended the completion seq1
+    expect(booked.some((b) => b.seq === 1 && b.sourceId === '30')).toBe(true);
+  });
+
+  // a content-change row that is a NON-Card input has no seq0 here → buildCardInputSeq0 undefined → no reversal,
+  // but the idempotent book() still appends the completion
+  it('content-change scan: a non-Card row triggers no seq0 reversal but still books its completion', async () => {
+    const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(false);
+    const changed = buyCrypto({
+      id: 31,
+      amountInChf: 1000,
+      totalFeeAmountChf: 10,
+      isComplete: true,
+      cryptoInput: { id: 557 } as any, // non-Card → no seq0 here, G-a gate open (gateOpen default)
+    });
+    jest
+      .spyOn(buyCryptoRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [changed] : []));
+
+    await consumer.process();
+
+    expect(rebookSpy).not.toHaveBeenCalled(); // non-Card → no seq0 reverse
+    expect(booked.some((b) => b.seq === 1 && b.sourceId === '31')).toBe(true); // completion still booked
   });
 });

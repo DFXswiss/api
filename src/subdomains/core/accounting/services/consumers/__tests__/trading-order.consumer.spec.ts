@@ -195,6 +195,30 @@ describe('TradingOrderConsumer', () => {
     expect(leg(booked[0], 'ROUNDING')).toBeUndefined();
   });
 
+  // §4.9 appendArbitragePlug sub-cent branch (line 127): when Σ legs nets to within the rounding tolerance, NO
+  // spread-arbitrage plug is appended (the booking-service ROUNDING leg closes the sub-cent rest). Construct a swap
+  // where out CHF == in CHF + fees exactly so the residual is 0.
+  it('appends NO spread-arbitrage plug when the mark residual is sub-cent', async () => {
+    // out 900 × 1.05 = 945; in 1050 × 0.9 = 945 → Σ asset = 0; no fees/profit → residual 0 → sub-cent → no plug.
+    mockBatch([
+      tradingOrder({
+        id: 19,
+        amountOut: 900,
+        amountIn: 1050,
+        txFeeAmountChf: null,
+        swapFeeAmountChf: null,
+        profitChf: null,
+      }),
+    ]);
+    await consumer.process();
+    const tx = booked[0];
+    expect(leg(tx, 'Ethereum/TOKEN').amountChf).toBe(945); // 900 × 1.05
+    expect(leg(tx, 'Ethereum/USDT').amountChf).toBe(-945); // 1050 × 0.9
+    expect(leg(tx, 'EXPENSE/spread-arbitrage')).toBeUndefined(); // residual 0 → sub-cent → no plug
+    expect(leg(tx, 'INCOME/spread-arbitrage')).toBeUndefined();
+    expect(cents(tx.legs)).toBe(0);
+  });
+
   // §4.9 missing mark → ASSET leg needsMark, plug stays open (no silent plug without a mark)
   it('flags the ASSET leg needsMark and skips the plug when a mark is missing', async () => {
     jest.spyOn(markService, 'preload').mockResolvedValue(
@@ -207,6 +231,19 @@ describe('TradingOrderConsumer', () => {
     expect(leg(tx, 'Ethereum/TOKEN').amountChf).toBeUndefined();
     expect(leg(tx, 'EXPENSE/spread-arbitrage')).toBeUndefined(); // no silent plug without a mark
     expect(leg(tx, 'INCOME/spread-arbitrage')).toBeUndefined();
+  });
+
+  // §4.9 assetAccount throw (line 163): an asset with no CoA ledger account → throws → failure-isolation (watermark
+  // unchanged, nothing booked).
+  it('stops the batch and leaves the watermark when an asset has no ledger account (CoA bootstrap missing)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(accountService, 'findByAssetId').mockResolvedValue(undefined); // no CoA account for any asset
+    mockBatch([tradingOrder({ id: 20 })]);
+
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled(); // throw → break before advancing
   });
 
   // §4.9 invalid swap: amountIn/amountOut null → skip (not booked)
@@ -237,5 +274,24 @@ describe('TradingOrderConsumer', () => {
     mockBatch([]);
     await consumer.process();
     expect(booked).toHaveLength(0);
+  });
+
+  // §4-header failure-isolation (catch in the batch loop): a booking error stops the batch, logs, and leaves the
+  // watermark unchanged so the row is retried next run. The first row books; the second throws → watermark = first id.
+  it('stops the batch on a booking error and advances the watermark only to the last success (failure-isolation)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errSpy = jest.spyOn(consumer['logger'], 'error');
+    jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
+      if (input.sourceId === '41') return Promise.reject(new Error('db down'));
+      booked.push(input);
+      return Promise.resolve({} as any);
+    });
+    mockBatch([tradingOrder({ id: 40 }), tradingOrder({ id: 41 })]);
+
+    await consumer.process();
+
+    expect(booked.map((b) => b.sourceId)).toEqual(['40']); // only the first booked
+    expect(errSpy).toHaveBeenCalledWith('Failed to book trading_order 41', expect.any(Error));
+    expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(40); // NOT 41 → retry next run
   });
 });
