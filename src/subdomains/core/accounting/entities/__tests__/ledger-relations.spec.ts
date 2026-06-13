@@ -1,3 +1,4 @@
+import { Type } from '@nestjs/common';
 import { getMetadataArgsStorage } from 'typeorm';
 import { RelationMetadataArgs } from 'typeorm/metadata-args/RelationMetadataArgs';
 import { RelationIdMetadataArgs } from 'typeorm/metadata-args/RelationIdMetadataArgs';
@@ -14,13 +15,13 @@ import { LedgerTx } from '../ledger-tx.entity';
 // pointed at the wrong relation would make these red.
 const storage = getMetadataArgsStorage();
 
-function relation(target: Function, propertyName: string): RelationMetadataArgs {
+function relation(target: Type<unknown>, propertyName: string): RelationMetadataArgs {
   const found = storage.relations.find((r) => r.target === target && r.propertyName === propertyName);
   if (!found) throw new Error(`relation ${target.name}.${propertyName} not found`);
   return found;
 }
 
-function relationId(target: Function, propertyName: string): RelationIdMetadataArgs {
+function relationId(target: Type<unknown>, propertyName: string): RelationIdMetadataArgs {
   const found = storage.relationIds.find((r) => r.target === target && r.propertyName === propertyName);
   if (!found) throw new Error(`relationId ${target.name}.${propertyName} not found`);
   return found;
