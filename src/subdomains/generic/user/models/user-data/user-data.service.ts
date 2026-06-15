@@ -296,6 +296,7 @@ export class UserDataService {
   async createUserData(dto: CreateUserDataDto): Promise<UserData> {
     const entity = this.userDataRepo.create({
       ...dto,
+      mail: dto.mail?.toLowerCase(),
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
       kycHash: randomUUID().toUpperCase(),
@@ -510,6 +511,8 @@ export class UserDataService {
   }
 
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
+    if (dto.mail) dto.mail = dto.mail.toLowerCase();
+
     await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
     if (dto.kycLevel && dto.kycLevel < userData.kycLevel) dto.kycLevel = userData.kycLevel;
@@ -773,6 +776,7 @@ export class UserDataService {
   }
 
   private async doUpdateUserMail(userData: UserData, mail: string): Promise<UserData> {
+    mail = mail?.toLowerCase();
     await this.userDataRepo.update(userData.id, { mail });
     Object.assign(userData, { mail });
 
