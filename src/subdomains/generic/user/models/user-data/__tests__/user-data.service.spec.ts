@@ -1,5 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ConflictException } from '@nestjs/common';
+import { FindOperator } from 'typeorm';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -63,6 +65,44 @@ describe('UserDataService', () => {
     }).compile();
 
     service = module.get(UserDataService);
+  });
+
+  describe('getUsersByMail', () => {
+    it('matches case-insensitively via LOWER(mail) and passes a lowercased parameter', async () => {
+      userDataRepo.find.mockResolvedValue([]);
+
+      await service.getUsersByMail('Samuel.Kullmann@Startmail.com');
+
+      const where = userDataRepo.find.mock.calls[0][0].where as { mail: FindOperator<string> };
+      expect(where.mail).toBeInstanceOf(FindOperator);
+      expect(where.mail.type).toBe('raw');
+      // `getSql` is a getter returning the SQL generator; invoke it with the column alias
+      expect(where.mail.getSql?.('"UserData"."mail"')).toBe('LOWER("UserData"."mail") = :mail');
+      expect(where.mail.objectLiteralParameters).toEqual({ mail: 'samuel.kullmann@startmail.com' });
+    });
+
+    it('omits the status filter when onlyValidUser is false', async () => {
+      userDataRepo.find.mockResolvedValue([]);
+
+      await service.getUsersByMail('a@b.com', false);
+
+      const where = userDataRepo.find.mock.calls[0][0].where as { status?: unknown };
+      expect(where.status).toBeUndefined();
+    });
+  });
+
+  describe('checkMail', () => {
+    it('throws a conflict when another account already uses the same mail (case-insensitive)', async () => {
+      const userData = Object.assign(new UserData(), { id: 1, kycType: 'DFX' });
+      const conflictUser = Object.assign(new UserData(), { id: 2, kycType: 'DFX' });
+
+      // getUsersByMail() resolves to the case-variant conflicting account
+      userDataRepo.find.mockResolvedValue([conflictUser]);
+
+      await expect(service.checkMail(userData, 'samuel.kullmann@startmail.com')).rejects.toBeInstanceOf(
+        ConflictException,
+      );
+    });
   });
 
   describe('updateUserData', () => {

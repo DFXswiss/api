@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { Agent } from 'https';
 import { Config } from 'src/config/config';
@@ -26,10 +27,12 @@ import { CoinOnly } from 'src/integration/blockchain/shared/util/blockchain-clie
 import { LightningHelper } from './lightning-helper';
 
 export class LightningClient implements CoinOnly {
-  private readonly lndAgent: Agent;
+  // LND and LNbits both serve the self-signed LND certificate (reached via
+  // private IP on PRD), so requests must be verified against this CA, not the system CAs
+  private readonly tlsAgent: Agent;
 
   constructor(private readonly http: HttpService) {
-    this.lndAgent = new Agent({ ca: Config.blockchain.lightning.certificate });
+    this.tlsAgent = new Agent({ ca: Config.blockchain.lightning.certificate });
   }
 
   // --- LND --- //
@@ -197,11 +200,15 @@ export class LightningClient implements CoinOnly {
 
   // --- LNURLp REWRITE --- //
   async getLnurlpPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
+    this.validateLinkId(linkId);
+
     const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlpUrl}/${linkId}`;
     return this.http.get(lnBitsUrl, this.httpLnBitsConfig());
   }
 
   async getLnurlpInvoice(linkId: string, params: any): Promise<LnurlpInvoiceDto> {
+    this.validateLinkId(linkId);
+
     const lnBitsCallbackUrl = `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/lnurl/cb/${linkId}`;
     return this.http.get<LnurlpInvoiceDto>(lnBitsCallbackUrl, this.httpLnBitsConfig(params));
   }
@@ -215,6 +222,8 @@ export class LightningClient implements CoinOnly {
   }
 
   async getLnurlpLink(linkId: string): Promise<LnurlpLinkDto> {
+    this.validateLinkId(linkId);
+
     return this.http.get<LnurlpLinkDto>(
       `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links/${linkId}`,
       this.httpLnBitsConfig(),
@@ -245,7 +254,7 @@ export class LightningClient implements CoinOnly {
   }
 
   async updateLnurlpLink(linkId: string, data: LnurlpLinkUpdateDto): Promise<LnurlpLinkDto> {
-    if (!linkId) throw new Error('LinkId is undefined');
+    this.validateLinkId(linkId);
 
     return this.http.put<LnurlpLinkDto>(
       `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links/${linkId}`,
@@ -289,6 +298,8 @@ export class LightningClient implements CoinOnly {
   }
 
   async getLnurlwLink(linkId: string): Promise<LnurlwLinkDto> {
+    this.validateLinkId(linkId);
+
     return this.http.get<LnurlwLinkDto>(
       `${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/links/${linkId}`,
       this.httpLnBitsConfig(),
@@ -328,11 +339,16 @@ export class LightningClient implements CoinOnly {
   // --- LNURLd --- //
 
   async getLnurlDevice(id: string, params: any): Promise<LnurlWithdrawRequestDto> {
+    this.validateLinkId(id);
+
     const url = `${this.getDeviceUrl()}/${id}`;
     return this.http.get(url, this.httpLnBitsConfig(params));
   }
 
   async getLnurlDeviceCallback(id: string, variable: string, params: any): Promise<LnurlwInvoiceDto> {
+    this.validateLinkId(id);
+    this.validateLinkId(variable);
+
     const url = `${this.getDeviceUrl()}/cb/${id}/${variable}`;
     return this.http.get(url, this.httpLnBitsConfig(params));
   }
@@ -343,15 +359,20 @@ export class LightningClient implements CoinOnly {
   }
 
   // --- HELPER METHODS --- //
+  private validateLinkId(linkId: string): void {
+    if (!/^[\w-]+$/.test(linkId)) throw new BadRequestException('Invalid link id');
+  }
+
   private httpLnBitsConfig(params?: any): HttpRequestConfig {
     return {
+      httpsAgent: this.tlsAgent,
       params: { 'api-key': Config.blockchain.lightning.lnbits.apiKey, ...params },
     };
   }
 
   private httpLndConfig(): HttpRequestConfig {
     return {
-      httpsAgent: this.lndAgent,
+      httpsAgent: this.tlsAgent,
       headers: { 'Grpc-Metadata-macaroon': Config.blockchain.lightning.lnd.adminMacaroon },
     };
   }

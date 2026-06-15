@@ -37,7 +37,9 @@ import { FeeService, UserFeeRequest } from 'src/subdomains/supporting/payment/se
 import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { BankTxReturn } from '../../bank-tx/bank-tx-return/bank-tx-return.entity';
 import { BankTx } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankService } from '../../bank/bank/bank.service';
 import { CardBankName, IbanBankName } from '../../bank/bank/dto/bank.dto';
+import { VirtualIbanService } from '../../bank/virtual-iban/virtual-iban.service';
 import { CryptoInput, PayInConfirmationType } from '../../payin/entities/crypto-input.entity';
 import { PriceCurrency, PriceValidity, PricingService } from '../../pricing/services/pricing.service';
 import { FeeAmountsDto, FeeInfo, FeeSpec, InternalFeeDto, toFeeDto } from '../dto/fee.dto';
@@ -77,6 +79,8 @@ export class TransactionHelper implements OnModuleInit {
     private readonly buyService: BuyService,
     private readonly assetService: AssetService,
     private readonly countryService: CountryService,
+    private readonly bankService: BankService,
+    private readonly virtualIbanService: VirtualIbanService,
   ) {}
 
   onModuleInit() {
@@ -269,7 +273,7 @@ export class TransactionHelper implements OnModuleInit {
     const chfPrice = await this.pricingService.getPrice(txAsset, PriceCurrency.CHF, PriceValidity.ANY);
     const txAmountChf = chfPrice.convert(txAmount);
 
-    const bankIn = TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodIn);
+    const bankIn = await this.getBankIn(from, paymentMethodIn, user?.userData);
     const bankOut = TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodOut);
 
     const wallet = walletName ? await this.walletService.getByIdOrName(undefined, walletName) : undefined;
@@ -850,6 +854,31 @@ export class TransactionHelper implements OnModuleInit {
   }
 
   // --- HELPER METHODS --- //
+
+  private async getBankIn(
+    from: Active,
+    paymentMethodIn: PaymentMethod,
+    userData?: UserData,
+  ): Promise<CardBankName | IbanBankName | undefined> {
+    const isBankTransfer =
+      isFiat(from) &&
+      [FiatPaymentMethod.BANK, FiatPaymentMethod.INSTANT].includes(paymentMethodIn as FiatPaymentMethod);
+    if (!isBankTransfer) return TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodIn);
+
+    // vIBAN deposits are received at the vIBAN bank
+    if (userData) {
+      const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(userData, from.name);
+      if (virtualIban?.bank.receive) return virtualIban.bank.name;
+    }
+
+    const bank = await this.bankService.getBank({
+      currency: from.name,
+      paymentMethod: paymentMethodIn as FiatPaymentMethod,
+      userData,
+    });
+
+    return bank?.name ?? TransactionHelper.getDefaultBankByPaymentMethod(paymentMethodIn);
+  }
 
   static getDefaultBankByPaymentMethod(paymentMethod: PaymentMethod): CardBankName | IbanBankName {
     switch (paymentMethod) {
