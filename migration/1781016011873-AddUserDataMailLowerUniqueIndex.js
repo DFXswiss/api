@@ -3,8 +3,11 @@
 //
 // GATING: this migration MUST NOT be merged/deployed until all existing case-insensitive
 // duplicate mails have been resolved (merged or nulled). Otherwise `CREATE UNIQUE INDEX` fails.
-// Pre-check (must return zero rows):
-//   SELECT LOWER(mail), array_agg(id), count(*) FROM user_data WHERE mail IS NOT NULL
+// Pre-check (must return zero rows) — the status filter MUST match the index predicate below,
+// otherwise merged slaves (which retain their mail) are reported as false collisions and the gate
+// can never open:
+//   SELECT LOWER(mail), array_agg(id), count(*) FROM user_data
+//   WHERE mail IS NOT NULL AND status IN ('Active', 'NA', 'KycOnly', 'Deactivated')
 //   GROUP BY LOWER(mail) HAVING count(*) > 1;
 //
 // PREDICATE: the partial index intentionally mirrors the dedup set used by
