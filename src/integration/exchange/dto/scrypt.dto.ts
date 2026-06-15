@@ -1,13 +1,12 @@
 // --- TRANSACTION TYPES --- //
-
 export enum ScryptTransactionType {
   WITHDRAWAL = 'Withdrawal',
   DEPOSIT = 'Deposit',
 }
 
 export enum ScryptTransactionStatus {
-  COMPLETED = 'Completed',
-  FAILED = 'Failed',
+  PENDING_APPROVAL = 'PendingApproval',
+  APPROVED = 'Approved',
   REJECTED = 'Rejected',
 }
 
@@ -29,12 +28,10 @@ export interface ScryptBalanceTransaction {
   TransactionType: ScryptTransactionType;
   Status: ScryptTransactionStatus;
   Quantity: string;
-  Fee?: string;
-  TxHash?: string;
-  RejectReason?: string;
-  RejectText?: string;
-  Timestamp?: string;
-  TransactTime?: string;
+  Timestamp: string;
+  LastUpdateTime: string;
+  Revision: number;
+  MarketAccount: string;
 }
 
 export interface ScryptWithdrawResponse {
@@ -52,7 +49,6 @@ export interface ScryptWithdrawStatus {
 }
 
 // --- TRADE TYPES --- //
-
 export enum ScryptTradeSide {
   BUY = 'Buy',
   SELL = 'Sell',
@@ -88,7 +84,6 @@ export interface ScryptTrade {
 }
 
 // --- ORDER TYPES --- //
-
 export enum ScryptOrderStatus {
   NEW = 'New',
   PARTIALLY_FILLED = 'PartiallyFilled',
@@ -98,6 +93,7 @@ export enum ScryptOrderStatus {
   REJECTED = 'Rejected',
   PENDING_NEW = 'PendingNew',
   PENDING_REPLACE = 'PendingReplace',
+  REPLACED = 'Replaced',
 }
 
 export enum ScryptOrderSide {
@@ -114,6 +110,22 @@ export enum ScryptTimeInForce {
   FILL_AND_KILL = 'FillAndKill',
   FILL_OR_KILL = 'FillOrKill',
   GOOD_TILL_CANCEL = 'GoodTillCancel',
+  DAY = 'Day',
+  IMMEDIATE_OR_CANCEL = 'ImmediateOrCancel',
+  GOOD_TILL_DATE = 'GoodTillDate',
+}
+
+export enum ScryptExecType {
+  NEW = 'New',
+  CANCELED = 'Canceled',
+  REJECTED = 'Rejected',
+  TRADE = 'Trade',
+  EXPIRED = 'Expired',
+  PENDING_CANCEL = 'PendingCancel',
+  PENDING_NEW = 'PendingNew',
+  PENDING_REPLACE = 'PendingReplace',
+  CANCEL_REJECTED = 'CancelRejected',
+  REPLACE_REJECTED = 'ReplaceRejected',
 }
 
 export interface ScryptExecutionReport {
@@ -123,7 +135,7 @@ export interface ScryptExecutionReport {
   Symbol: string;
   Side: string;
   OrdStatus: ScryptOrderStatus;
-  ExecType?: string;
+  ExecType?: ScryptExecType;
   OrderQty: string;
   CumQty: string;
   LeavesQty: string;
@@ -155,7 +167,6 @@ export interface ScryptOrderInfo {
 }
 
 // --- MARKET DATA TYPES --- //
-
 export interface ScryptPriceLevel {
   Price: string;
   Size: string;
@@ -175,7 +186,6 @@ export interface ScryptOrderBook {
 }
 
 // --- SECURITY TYPES --- //
-
 export interface ScryptSecurity {
   Symbol: string;
   BaseCurrency: string;
@@ -184,4 +194,5 @@ export interface ScryptSecurity {
   MaximumSize?: string;
   MinPriceIncrement?: string;
   MinSizeIncrement?: string;
+  UpdateAction?: 'Update' | 'Remove';
 }
