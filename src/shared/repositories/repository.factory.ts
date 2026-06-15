@@ -15,6 +15,7 @@ import { DepositRepository } from 'src/subdomains/supporting/address-pool/deposi
 import { DepositRouteRepository } from 'src/subdomains/supporting/address-pool/route/deposit-route.repository';
 import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/repositories/bank-tx.repository';
 import { LiquidityOrderRepository } from 'src/subdomains/supporting/dex/repositories/liquidity-order.repository';
+import { FiatOutputRepository } from 'src/subdomains/supporting/fiat-output/fiat-output.repository';
 import { CheckoutTxRepository } from 'src/subdomains/supporting/fiat-payin/repositories/checkout-tx.repository';
 import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { TransactionSpecificationRepository } from 'src/subdomains/supporting/payment/repositories/transaction-specification.repository';
@@ -43,6 +44,7 @@ export class RepositoryFactory {
   public readonly lmOrder: LiquidityManagementOrderRepository;
   public readonly lmRule: LiquidityManagementRuleRepository;
   public readonly custodyOrder: CustodyOrderRepository;
+  public readonly fiatOutput: FiatOutputRepository;
 
   constructor(manager: EntityManager) {
     this.user = new UserRepository(manager);
@@ -65,5 +67,6 @@ export class RepositoryFactory {
     this.lmOrder = new LiquidityManagementOrderRepository(manager);
     this.lmRule = new LiquidityManagementRuleRepository(manager);
     this.custodyOrder = new CustodyOrderRepository(manager);
+    this.fiatOutput = new FiatOutputRepository(manager);
   }
 }

@@ -4,7 +4,7 @@ export interface JuicePositionGraphDto extends FrankencoinBasedCollateralDto {
   id: string;
   position: string;
   owner: string;
-  jusd: string;
+  stablecoinAddress: string;
   price: string;
   limitForClones: string;
   availableForClones: string;

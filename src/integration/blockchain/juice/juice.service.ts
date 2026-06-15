@@ -119,7 +119,7 @@ export class JuiceService extends FrankencoinBasedService implements OnModuleIni
         positionsResult.push({
           address: {
             position: position.position,
-            jusd: position.jusd,
+            jusd: position.stablecoinAddress,
             collateral: position.collateral,
             owner: position.owner,
           },
