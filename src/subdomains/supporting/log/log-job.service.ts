@@ -1104,7 +1104,7 @@ export class LogJobService {
     if (!raw) return undefined;
 
     const match = raw.match(/\d+$/);
-    return match?.[0];
+    return match?.[0] ?? raw;
   }
 
   public filterSenderPendingList(
