@@ -537,7 +537,6 @@ describe('LogJobService', () => {
     const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: '12.06.2026.A' })];
     const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: '12.06.2026.A' })];
 
-
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
   });
 
