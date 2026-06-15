@@ -532,4 +532,18 @@ describe('LogJobService', () => {
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
   });
+
+  it('should match sender and receiver by full raw string when no numeric suffix present', () => {
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: '12.06.2026.B' })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: '12.06.2026.B' })];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
+  });
+
+  it('should not match sender and receiver when full raw strings differ and no numeric suffix', () => {
+    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: '12.06.2026.A' })];
+    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: '12.06.2026.B' })];
+
+    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual(senderTx);
+  });
 });
