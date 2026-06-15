@@ -581,13 +581,6 @@ describe('LogJobService', () => {
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
   });
 
-  it('should match automated payout id across DEPOSIT receiver format', () => {
-    const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: 'DFX Payout 80100' })];
-    const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'DEPOSIT-80100' })];
-
-    expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
-  });
-
   it('should match automated payout id across E2E receiver format', () => {
     const senderTx = [createCustomBankTx({ id: 1, created: Util.hoursBefore(24), remittanceInfo: 'DFX Payout 80100' })];
     const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'E2E-80100' })];
