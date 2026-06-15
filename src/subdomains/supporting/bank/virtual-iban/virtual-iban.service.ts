@@ -3,6 +3,7 @@ import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { BankService } from '../bank/bank.service';
 import { IbanBankName } from '../bank/dto/bank.dto';
 import { VirtualIban, VirtualIbanStatus } from './virtual-iban.entity';
@@ -10,6 +11,13 @@ import { VirtualIbanRepository } from './virtual-iban.repository';
 
 @Injectable()
 export class VirtualIbanService {
+  static readonly bankName = IbanBankName.YAPEAL;
+  static readonly currencies = ['CHF'];
+
+  static isUserEligible(currencyName: string, userData: UserData): boolean {
+    return VirtualIbanService.currencies.includes(currencyName) && userData.kycLevel >= KycLevel.LEVEL_50;
+  }
+
   constructor(
     private readonly virtualIbanRepo: VirtualIbanRepository,
     private readonly bankService: BankService,
@@ -44,7 +52,7 @@ export class VirtualIbanService {
     const currency = await this.fiatService.getFiatByName(currencyName);
     if (!currency) throw new BadRequestException('Currency not found');
 
-    const bank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, currencyName);
+    const bank = await this.bankService.getBankInternal(VirtualIbanService.bankName, currencyName);
     if (!bank?.receive) throw new BadRequestException('No bank available for this currency');
 
     const { iban, bban, accountUid } = await this.reserveVibanFromYapeal(bank.iban);

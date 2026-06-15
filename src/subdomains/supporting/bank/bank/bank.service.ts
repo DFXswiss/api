@@ -8,7 +8,7 @@ import { BankRepository } from './bank.repository';
 import { IbanBankName } from './dto/bank.dto';
 
 export interface BankSelectorInput {
-  amount: number;
+  amount?: number;
   currency: string;
   paymentMethod: FiatPaymentMethod;
   userData?: UserData;
