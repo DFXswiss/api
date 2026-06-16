@@ -95,6 +95,7 @@ import {
   RecommendationEntry,
   RecommendationGraph,
   RecommendationGraphEdge,
+  RecommendationGraphEdgeKind,
   RecommendationGraphNode,
   RecommendationUserInfo,
   RefRewardSupportInfo,
@@ -528,6 +529,7 @@ export class SupportService {
         ref: user.ref,
         usedRef: user.usedRef,
         refUserName,
+        refUserDataId: refUser?.userData?.id,
         role: user.role,
         status: user.status,
         walletName: user.wallet?.name,
@@ -684,18 +686,21 @@ export class SupportService {
     const MAX_NODES = 500;
     const visitedUsers = new Set<number>();
     const visitedRecs = new Map<number, Recommendation>();
+    // classic ref-code relationships (user.usedRef -> user.ref), keyed by directed userData pair to dedup
+    const refEdges = new Map<string, { referrerId: number; referredId: number; refCode: string }>();
     const queue: number[] = [userDataId];
 
-    // BFS: traverse all connected recommendations in both directions (capped)
+    // BFS: traverse all connected recommendations AND classic ref-code relationships in both directions (capped)
     while (queue.length > 0 && visitedUsers.size < MAX_NODES) {
       const currentId = queue.shift();
       if (visitedUsers.has(currentId)) continue;
       visitedUsers.add(currentId);
 
-      // Find all recommendations where this user is recommender OR recommended
-      const [asRecommender, asRecommended] = await Promise.all([
+      // Find all recommendations where this user is recommender OR recommended, and the user's ref codes
+      const [asRecommender, asRecommended, users] = await Promise.all([
         this.recommendationService.getAllRecommendationsByRecommenderId(currentId),
         this.recommendationService.getRecommendationsByRecommendedId(currentId),
+        this.userService.getAllUserDataUsers(currentId),
       ]);
 
       for (const rec of [...asRecommender, ...asRecommended]) {
@@ -704,6 +709,28 @@ export class SupportService {
 
         if (rec.recommender?.id && !visitedUsers.has(rec.recommender.id)) queue.push(rec.recommender.id);
         if (rec.recommended?.id && !visitedUsers.has(rec.recommended.id)) queue.push(rec.recommended.id);
+      }
+
+      // classic ref-code: upward (who referred this user) and downward (whom this user referred)
+      const usedRefs = users.map((u) => u.usedRef).filter((r) => r && r !== Config.defaultRef);
+      const ownRefs = users.map((u) => u.ref).filter((r): r is string => !!r);
+      const [referrerUsers, referredUsers] = await Promise.all([
+        this.userService.getRefUsersByRefs(usedRefs),
+        this.userService.getUsersByUsedRefs(ownRefs),
+      ]);
+
+      for (const referrer of referrerUsers) {
+        const referrerId = referrer.userData?.id;
+        if (!referrerId || referrerId === currentId) continue;
+        refEdges.set(`${referrerId}-${currentId}`, { referrerId, referredId: currentId, refCode: referrer.ref });
+        if (!visitedUsers.has(referrerId)) queue.push(referrerId);
+      }
+
+      for (const referred of referredUsers) {
+        const referredId = referred.userData?.id;
+        if (!referredId || referredId === currentId) continue;
+        refEdges.set(`${currentId}-${referredId}`, { referrerId: currentId, referredId, refCode: referred.usedRef });
+        if (!visitedUsers.has(referredId)) queue.push(referredId);
       }
     }
 
@@ -720,18 +747,39 @@ export class SupportService {
       tradeApprovalDate: ud.tradeApprovalDate,
     }));
 
-    const edges: RecommendationGraphEdge[] = [...visitedRecs.values()]
-      .filter((r) => r.recommender?.id && r.recommended?.id)
-      .map((r) => ({
-        id: r.id,
-        recommenderId: r.recommender.id,
-        recommendedId: r.recommended.id,
-        method: r.method,
-        type: r.type,
-        isConfirmed: r.isConfirmed,
-        confirmationDate: r.confirmationDate,
-        created: r.created,
-      }));
+    const recommendationEdges = [...visitedRecs.values()].filter((r) => r.recommender?.id && r.recommended?.id);
+    const recommendationPairs = new Set(recommendationEdges.map((r) => `${r.recommender.id}-${r.recommended.id}`));
+
+    const edges: RecommendationGraphEdge[] = recommendationEdges.map((r) => ({
+      id: r.id,
+      kind: RecommendationGraphEdgeKind.RECOMMENDATION,
+      recommenderId: r.recommender.id,
+      recommendedId: r.recommended.id,
+      method: r.method,
+      type: r.type,
+      isConfirmed: r.isConfirmed,
+      confirmationDate: r.confirmationDate,
+      created: r.created,
+    }));
+
+    // add ref-code edges, skipping pairs already represented by a recommendation (confirmed recommendations also set usedRef)
+    let refEdgeId = 0;
+    for (const refEdge of refEdges.values()) {
+      const pairKey = `${refEdge.referrerId}-${refEdge.referredId}`;
+      if (
+        recommendationPairs.has(pairKey) ||
+        !visitedUsers.has(refEdge.referrerId) ||
+        !visitedUsers.has(refEdge.referredId)
+      )
+        continue;
+      edges.push({
+        id: --refEdgeId,
+        kind: RecommendationGraphEdgeKind.USED_REF,
+        recommenderId: refEdge.referrerId,
+        recommendedId: refEdge.referredId,
+        refCode: refEdge.refCode,
+      });
+    }
 
     return { nodes, edges, rootId: userDataId };
   }

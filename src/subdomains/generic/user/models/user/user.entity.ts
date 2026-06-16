@@ -45,6 +45,7 @@ export class User extends IEntity {
   @ManyToOne(() => CustodyProvider)
   custodyProvider: CustodyProvider;
 
+  @Index('IDX_user_used_ref')
   @Column({ length: 256, default: '000-000' })
   usedRef: string;
 

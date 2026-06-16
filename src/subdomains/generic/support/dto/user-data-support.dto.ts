@@ -138,6 +138,7 @@ export class UserSupportInfo {
   ref?: string;
   usedRef?: string;
   refUserName?: string;
+  refUserDataId?: number;
   role: string;
   status: string;
   walletName?: string;
@@ -363,15 +364,22 @@ export class RecommendationGraphNode {
   tradeApprovalDate?: Date;
 }
 
+export enum RecommendationGraphEdgeKind {
+  RECOMMENDATION = 'Recommendation',
+  USED_REF = 'UsedRef',
+}
+
 export class RecommendationGraphEdge {
   id: number;
+  kind: RecommendationGraphEdgeKind;
   recommenderId: number;
   recommendedId: number;
-  method: string;
-  type: string;
+  method?: string;
+  type?: string;
   isConfirmed?: boolean;
   confirmationDate?: Date;
-  created: Date;
+  refCode?: string;
+  created?: Date;
 }
 
 export class RecommendationGraph {
