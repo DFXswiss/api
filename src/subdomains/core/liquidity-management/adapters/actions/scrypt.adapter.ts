@@ -1,6 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { ScryptOrderInfo, ScryptOrderSide, ScryptTransactionStatus } from 'src/integration/exchange/dto/scrypt.dto';
+import {
+  ScryptOrderInfo,
+  ScryptOrderSide,
+  ScryptTransactionStatus,
+  ScryptWithdrawStatus,
+} from 'src/integration/exchange/dto/scrypt.dto';
 import { TradeChangedException } from 'src/integration/exchange/exceptions/trade-changed.exception';
 import { isTransientWsError } from 'src/integration/exchange/services/scrypt-websocket-connection';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
@@ -188,7 +193,20 @@ export class ScryptAdapter extends LiquidityActionAdapter {
   private async checkWithdrawCompletion(order: LiquidityManagementOrder): Promise<boolean> {
     const { correlationId } = order;
 
-    const withdrawal = await this.scryptService.getWithdrawalStatus(correlationId);
+    let withdrawal: ScryptWithdrawStatus | null;
+    try {
+      withdrawal = await this.scryptService.getWithdrawalStatus(correlationId);
+    } catch (e) {
+      // The status lookup now re-fetches from the Scrypt API on a cache miss, which can hit a
+      // transient WS error. Treat that like "not done yet" and retry next tick instead of failing.
+      if (isTransientWsError(e)) {
+        this.logger.warn(`Transient WS error checking withdrawal ${correlationId}, will retry next tick: ${e.message}`);
+        return false;
+      }
+
+      throw e;
+    }
+
     if (!withdrawal?.txHash) {
       this.logger.verbose(`No withdrawal id for id ${correlationId} at ${this.scryptService.name} found`);
       return false;
