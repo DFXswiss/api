@@ -346,7 +346,7 @@ export class LightningClient implements CoinOnly {
   private httpLnBitsConfig(params?: any): HttpRequestConfig {
     return {
       httpsAgent: this.tlsAgent,
-      headers: { 'X-Forwarded-Proto': 'https' },
+      headers: { 'X-Forwarded-Proto': 'https', Host: new URL(Config.url()).hostname },
       params: { 'api-key': Config.blockchain.lightning.lnbits.apiKey, ...params },
     };
   }
