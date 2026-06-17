@@ -242,7 +242,8 @@ export class ScryptService extends PricingProvider {
     const filters: Record<string, unknown> = {};
     if (since) filters.StartDate = since.toISOString();
 
-    return this.connection.fetch<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION, filters);
+    // fetchAll: the settled record may be on a later page, a single page would miss it
+    return this.connection.fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION, filters);
   }
 
   async getTrades(since?: Date): Promise<ScryptTrade[]> {
