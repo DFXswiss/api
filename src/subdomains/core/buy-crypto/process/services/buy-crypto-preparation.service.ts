@@ -527,7 +527,10 @@ export class BuyCryptoPreparationService {
       relations: {
         transaction: { user: { wallet: true }, userData: true },
         chargebackOutput: { bankTx: true },
-        cryptoInput: true, // read by triggerWebhook; load explicitly so correctness does not rely on the filter
+        // cryptoInput and bankTx are read by triggerWebhook (tx type / sourceAccount);
+        // load explicitly for a complete payload instead of relying on the filter
+        cryptoInput: true,
+        bankTx: true,
       },
     });
 
