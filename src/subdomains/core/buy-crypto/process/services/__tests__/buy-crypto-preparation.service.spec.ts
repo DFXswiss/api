@@ -118,5 +118,34 @@ describe('BuyCryptoPreparationService', () => {
       expect(buyCryptoRepo.update).not.toHaveBeenCalled();
       expect(buyCryptoWebhookService.triggerWebhook).not.toHaveBeenCalled();
     });
+
+    it('should continue completing remaining orders even if a webhook fails for one of them', async () => {
+      const entity1 = createCustomBuyCrypto({
+        id: 1,
+        amlCheck: CheckStatus.FAIL,
+        isComplete: false,
+        chargebackOutput: { isComplete: true, bankTx: { id: 42 } } as any,
+      });
+
+      const entity2 = createCustomBuyCrypto({
+        id: 2,
+        amlCheck: CheckStatus.FAIL,
+        isComplete: false,
+        chargebackOutput: { isComplete: true, bankTx: { id: 43 } } as any,
+      });
+
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([entity1, entity2]);
+      jest
+        .spyOn(buyCryptoWebhookService, 'triggerWebhook')
+        .mockRejectedValueOnce(new Error('webhook down'))
+        .mockResolvedValue(undefined);
+
+      await service.chargebackFillUp();
+
+      expect(buyCryptoRepo.update).toHaveBeenCalledTimes(2);
+      expect(buyCryptoRepo.update).toHaveBeenCalledWith(entity1.id, expect.objectContaining({ isComplete: true }));
+      expect(buyCryptoRepo.update).toHaveBeenCalledWith(entity2.id, expect.objectContaining({ isComplete: true }));
+      expect(buyCryptoWebhookService.triggerWebhook).toHaveBeenCalledTimes(2);
+    });
   });
 });
