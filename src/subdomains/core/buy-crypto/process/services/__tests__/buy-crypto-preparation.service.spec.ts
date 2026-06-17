@@ -4,8 +4,8 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
-import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -114,6 +114,10 @@ describe('BuyCryptoPreparationService', () => {
       expect(where.amlCheck).toEqual(CheckStatus.FAIL);
       expect(where.isComplete).toEqual(false);
       expect(where.chargebackBankTx).toEqual(IsNull());
+
+      // the fix reads entity.chargebackOutput.bankTx, so that relation must be loaded
+      const relations = findSpy.mock.calls[0][0].relations as any;
+      expect(relations.chargebackOutput.bankTx).toBe(true);
 
       expect(buyCryptoRepo.update).not.toHaveBeenCalled();
       expect(buyCryptoWebhookService.triggerWebhook).not.toHaveBeenCalled();
