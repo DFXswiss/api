@@ -747,7 +747,14 @@ export class SupportService {
       tradeApprovalDate: ud.tradeApprovalDate,
     }));
 
-    const recommendationEdges = [...visitedRecs.values()].filter((r) => r.recommender?.id && r.recommended?.id);
+    // only keep edges whose both endpoints are part of the (capped) node set, so no edge dangles to an unloaded node
+    const recommendationEdges = [...visitedRecs.values()].filter(
+      (r) =>
+        r.recommender?.id &&
+        r.recommended?.id &&
+        visitedUsers.has(r.recommender.id) &&
+        visitedUsers.has(r.recommended.id),
+    );
     const recommendationPairs = new Set(recommendationEdges.map((r) => `${r.recommender.id}-${r.recommended.id}`));
 
     const edges: RecommendationGraphEdge[] = recommendationEdges.map((r) => ({
