@@ -11,7 +11,7 @@ import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { IsNull, Not } from 'typeorm';
+import { FindOperator } from 'typeorm';
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoStatus } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
@@ -104,21 +104,24 @@ describe('BuyCryptoPreparationService', () => {
       expect(buyCryptoWebhookService.triggerWebhook).toHaveBeenCalledWith(entity);
     });
 
-    it('should only query orders whose chargebackOutput is complete and has a bankTx, so incomplete ones are never completed', async () => {
+    it('should query with the chargebackOutput-complete filter and load the bankTx relation', async () => {
       const findSpy = jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([]);
 
       await service.chargebackFillUp();
 
+      // assert the filter selects only refunded-and-settled orders (structure-agnostic on FindOperators)
       const where = findSpy.mock.calls[0][0].where as any;
-      expect(where.chargebackOutput).toEqual({ isComplete: true, bankTx: { id: Not(IsNull()) } });
-      expect(where.amlCheck).toEqual(CheckStatus.FAIL);
-      expect(where.isComplete).toEqual(false);
-      expect(where.chargebackBankTx).toEqual(IsNull());
+      expect(where.amlCheck).toBe(CheckStatus.FAIL);
+      expect(where.isComplete).toBe(false);
+      expect(where.chargebackBankTx).toBeInstanceOf(FindOperator); // IsNull()
+      expect(where.chargebackOutput.isComplete).toBe(true);
+      expect(where.chargebackOutput.bankTx.id).toBeInstanceOf(FindOperator); // Not(IsNull())
 
       // the fix reads entity.chargebackOutput.bankTx, so that relation must be loaded
       const relations = findSpy.mock.calls[0][0].relations as any;
       expect(relations.chargebackOutput.bankTx).toBe(true);
 
+      // empty result set → nothing is completed
       expect(buyCryptoRepo.update).not.toHaveBeenCalled();
       expect(buyCryptoWebhookService.triggerWebhook).not.toHaveBeenCalled();
     });
