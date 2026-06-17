@@ -14,10 +14,13 @@ describe('ArkadeService', () => {
   // Deterministic test server key
   const serverKey = Buffer.alloc(32, 0xaa);
 
-  // Build offchainAddr from DefaultVtxo script
+  // Build offchainAddr from DefaultVtxo script.
+  // Use the SDK's default exit timelock (144 blocks) so the address matches what the
+  // service computes on the undefined-timelock path (where the SDK falls back to this default).
   const vtxoScript = new DefaultVtxo.Script({
     pubKey: xOnlyKey,
     serverPubKey: serverKey,
+    csvTimelock: { value: 144n, type: 'blocks' },
   });
   const offchainAddr = new ArkAddress(serverKey, vtxoScript.tweakedPublicKey, 'ark').encode();
 
