@@ -11,7 +11,6 @@ import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { FindOperator } from 'typeorm';
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoStatus } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
@@ -87,6 +86,7 @@ describe('BuyCryptoPreparationService', () => {
         id: 1,
         amlCheck: CheckStatus.FAIL,
         isComplete: false,
+        outputAmount: null, // real stuck chargeback: AML-failed, no crypto paid out
         chargebackOutput: { isComplete: true, bankTx: chargebackBankTx } as any,
       });
 
@@ -109,13 +109,13 @@ describe('BuyCryptoPreparationService', () => {
 
       await service.chargebackFillUp();
 
-      // assert the filter selects only refunded-and-settled orders (structure-agnostic on FindOperators)
+      // assert the filter selects only refunded-and-settled orders, incl. operator direction
       const where = findSpy.mock.calls[0][0].where as any;
       expect(where.amlCheck).toBe(CheckStatus.FAIL);
       expect(where.isComplete).toBe(false);
-      expect(where.chargebackBankTx).toBeInstanceOf(FindOperator); // IsNull()
+      expect(where.chargebackBankTx.type).toBe('isNull'); // IsNull(): not yet linked
       expect(where.chargebackOutput.isComplete).toBe(true);
-      expect(where.chargebackOutput.bankTx.id).toBeInstanceOf(FindOperator); // Not(IsNull())
+      expect(where.chargebackOutput.bankTx.id.type).toBe('not'); // Not(IsNull()): refund already settled
 
       // the fix reads entity.chargebackOutput.bankTx, so that relation must be loaded
       const relations = findSpy.mock.calls[0][0].relations as any;
@@ -131,6 +131,7 @@ describe('BuyCryptoPreparationService', () => {
         id: 1,
         amlCheck: CheckStatus.FAIL,
         isComplete: false,
+        outputAmount: null,
         chargebackOutput: { isComplete: true, bankTx: { id: 42 } } as any,
       });
 
@@ -138,6 +139,7 @@ describe('BuyCryptoPreparationService', () => {
         id: 2,
         amlCheck: CheckStatus.FAIL,
         isComplete: false,
+        outputAmount: null,
         chargebackOutput: { isComplete: true, bankTx: { id: 43 } } as any,
       });
 
