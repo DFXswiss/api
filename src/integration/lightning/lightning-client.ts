@@ -31,7 +31,13 @@ export class LightningClient implements CoinOnly {
   private readonly tlsAgent: Agent;
 
   constructor(private readonly http: HttpService) {
-    this.tlsAgent = new Agent({ ca: Config.blockchain.lightning.certificate });
+    // The LNBits Host header carries the public hostname (for LNURL URL building),
+    // which must not drive TLS verification: the node is reached by private IP and
+    // pinned via the CA below, so verify the chain — not the cert SAN.
+    this.tlsAgent = new Agent({
+      ca: Config.blockchain.lightning.certificate,
+      checkServerIdentity: () => undefined,
+    });
   }
 
   // --- LND --- //
