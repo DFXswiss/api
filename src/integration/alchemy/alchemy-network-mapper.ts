@@ -44,17 +44,19 @@ export class AlchemyNetworkMapper {
   static get availableNetworks(): Blockchain[] {
     const networks = [
       Blockchain.ETHEREUM,
-      Blockchain.SEPOLIA,
       Blockchain.ARBITRUM,
       Blockchain.OPTIMISM,
       Blockchain.POLYGON,
       Blockchain.BASE,
-      Blockchain.GNOSIS,
     ];
 
     if (Config.environment === Environment.PRD) {
       networks.push(Blockchain.BINANCE_SMART_CHAIN);
+    } else {
+      networks.push(Blockchain.SEPOLIA);
     }
+
+    networks.push(Blockchain.GNOSIS);
 
     return networks;
   }
