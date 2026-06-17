@@ -14,6 +14,12 @@
 // chargebackBankTx is taken from the order's chargebackOutput.bankTx — the same
 // deterministic source the code fix uses.
 //
+// Unlike the runtime chargebackFillUp() path, this backfill intentionally does NOT
+// fire a completion webhook for these orders. They are historical, already-refunded
+// transactions; emitting a COMPLETE webhook now would be misleading to integrators
+// (the settlement happened days ago). Webhook delivery for these specific orders, if
+// ever wanted, can be triggered manually.
+//
 // down() is intentionally a no-op: the completion reflects the real settled state
 // (the refund left the account), so reverting it would re-introduce the accounting
 // error. The COUNT pre-check makes up() a no-op on dev/staging where no rows match.
