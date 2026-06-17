@@ -3,15 +3,19 @@
 // Background: AQUA (JAN3) now registers the custom URI scheme "aqua:" (alongside bitcoin:,
 // lightning:, liquidnetwork:). Its deep link handler treats "aqua:" as a wrapper scheme that
 // strips the "aqua:" prefix and recursively re-parses the remainder, so it expects
-// "aqua:<inner-scheme>:<payload>" (e.g. "aqua:lightning:<lnurl>").
+// "aqua:<inner-scheme>:<payload>" (e.g. "aqua:lightning:<lnurl>"). Verified against
+// AquaWallet/aqua-wallet on 2026-06-17 (android/app/src/main/AndroidManifest.xml scheme
+// registration + lib/data/provider/app_links/deep_link_provider.dart, containsChildScheme).
 //
 // The wallet_app row had deepLink = NULL, which broke the payment frontend
 // (@dfx.swiss/services-react): for public payments wallets without a deepLink are filtered out
 // (AQUA was hidden), and otherwise the Lightning link builder produced a broken
 // "null" + "lightning:" + <lnurl> string. The frontend builds Lightning links generically as
 // "<deepLink>lightning:<lnurl>", so setting deepLink = 'aqua:' yields "aqua:lightning:<lnurl>",
-// exactly the format AQUA expects. No frontend change is required; hasActionDeepLink is computed
-// client-side and stays NULL like all other wallets.
+// exactly the format AQUA expects. No frontend change is required: the API serves
+// hasActionDeepLink verbatim from this column, but the frontend derives the in-app-pay
+// capability client-side from supportedMethods (Lightning), so AQUA's hasActionDeepLink stays
+// NULL like all other wallets.
 
 /**
  * @typedef {import('typeorm').MigrationInterface} MigrationInterface
