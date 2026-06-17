@@ -1,5 +1,5 @@
-import { Controller, Get, Param, Query, Redirect, Req, Res, VERSION_NEUTRAL, Version } from '@nestjs/common';
-import { ApiExcludeEndpoint } from '@nestjs/swagger';
+import { Controller, Get, Header, Param, Query, Redirect, Req, Res, VERSION_NEUTRAL, Version } from '@nestjs/common';
+import { ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Request, Response } from 'express';
 import { UserAgent } from 'express-useragent';
 import { readFileSync } from 'fs';
@@ -7,6 +7,7 @@ import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { Config } from './config/config';
 import { AdDto, AdSettings, AdvertisementDto } from './shared/dto/advertisement.dto';
 import { AnnouncementDto } from './shared/dto/announcement.dto';
+import { ConfigDto, ValidationFormatDto } from './shared/dto/config.dto';
 import { FlagDto } from './shared/dto/flag.dto';
 import { SettingService } from './shared/models/setting/setting.service';
 import { Util } from './shared/utils/util';
@@ -67,6 +68,22 @@ export class AppController {
   @Version(VERSION_NEUTRAL)
   getVersion(): { commit: string; startedAt: Date } {
     return { commit: this.getCommit(), startedAt: this.startedAt };
+  }
+
+  @Get('config')
+  @ApiTags('Config')
+  @ApiOkResponse({ type: ConfigDto })
+  @Header('Cache-Control', 'public, max-age=3600')
+  getConfig(): ConfigDto {
+    return {
+      formats: {
+        swissPaymentText: this.toValidationFormat(Config.formats.swissPaymentText),
+      },
+    };
+  }
+
+  private toValidationFormat(regex: RegExp): ValidationFormatDto {
+    return { pattern: regex.source, flags: regex.flags };
   }
 
   private getCommit(): string {
