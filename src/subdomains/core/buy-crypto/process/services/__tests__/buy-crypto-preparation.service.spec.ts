@@ -86,7 +86,7 @@ describe('BuyCryptoPreparationService', () => {
         id: 1,
         amlCheck: CheckStatus.FAIL,
         isComplete: false,
-        outputAmount: null, // real stuck chargeback: AML-failed, no crypto paid out
+        outputAmount: null, // mirrors production shape of a refunded chargeback (no crypto output)
         chargebackOutput: { isComplete: true, bankTx: chargebackBankTx } as any,
       });
 
@@ -115,7 +115,8 @@ describe('BuyCryptoPreparationService', () => {
       expect(where.isComplete).toBe(false);
       expect(where.chargebackBankTx.type).toBe('isNull'); // IsNull(): not yet linked
       expect(where.chargebackOutput.isComplete).toBe(true);
-      expect(where.chargebackOutput.bankTx.id.type).toBe('not'); // Not(IsNull()): refund already settled
+      expect(where.chargebackOutput.bankTx.id.type).toBe('not'); // Not(...): outer operator
+      expect(where.chargebackOutput.bankTx.id.child.type).toBe('isNull'); // Not(IsNull()): refund already settled
 
       // the fix reads entity.chargebackOutput.bankTx, so that relation must be loaded
       const relations = findSpy.mock.calls[0][0].relations as any;
