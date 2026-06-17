@@ -527,6 +527,7 @@ export class BuyCryptoPreparationService {
       relations: {
         transaction: { user: { wallet: true }, userData: true },
         chargebackOutput: { bankTx: true },
+        cryptoInput: true, // read by triggerWebhook; load explicitly so correctness does not rely on the filter
       },
     });
 
