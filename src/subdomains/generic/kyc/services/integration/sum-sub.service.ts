@@ -231,6 +231,8 @@ export class SumsubService {
         'X-App-Access-Ts': ts,
       },
       tryCount: 3,
+      // document/media retrieval can exceed the global 60s HTTP default
+      timeout: 180_000,
     });
   }
 

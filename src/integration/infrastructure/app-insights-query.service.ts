@@ -30,6 +30,8 @@ export class AppInsightsQueryService {
       url: `${this.baseUrl}/apps/${appId}/query`,
       method: 'POST',
       data: body,
+      // KQL queries over large ranges can exceed the global 60s HTTP default
+      timeout: 180_000,
       headers: {
         'x-api-key': apiKey,
         'Content-Type': 'application/json',

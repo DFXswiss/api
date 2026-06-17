@@ -9,6 +9,8 @@ import { LiquidityManagementRule } from '../entities/liquidity-management-rule.e
 import { LiquidityBalanceIntegrationFactory } from '../factories/liquidity-balance-integration.factory';
 import { LiquidityBalanceRepository } from '../repositories/liquidity-balance.repository';
 
+const BALANCE_FETCH_TIMEOUT = 120_000;
+
 export interface BankBalanceUpdate {
   bank: Bank;
   balance: number;
@@ -43,7 +45,10 @@ export class LiquidityManagementBalanceService implements OnModuleInit {
     const startDate = new Date();
 
     const balanceRequests = integrations.map(({ integration, rules }) =>
-      integration.getBalances(rules.map((r) => Object.assign(r.target, { context: r.context }))).catch((e) => {
+      Util.timeout(
+        integration.getBalances(rules.map((r) => Object.assign(r.target, { context: r.context }))),
+        BALANCE_FETCH_TIMEOUT,
+      ).catch((e) => {
         this.logger.warn(`Error getting liquidity management balances for rules ${rules.map((r) => r.id)}:`, e);
         throw e;
       }),
