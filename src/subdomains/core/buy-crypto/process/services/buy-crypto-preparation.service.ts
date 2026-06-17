@@ -13,8 +13,6 @@ import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
-import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
-import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { CardBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
@@ -53,7 +51,6 @@ export class BuyCryptoPreparationService {
     private readonly bankService: BankService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
-    private readonly bankTxService: BankTxService,
     private readonly virtualIbanService: VirtualIbanService,
     private readonly transactionService: TransactionService,
   ) {}
@@ -524,22 +521,19 @@ export class BuyCryptoPreparationService {
       where: {
         chargebackBankTx: IsNull(),
         amlCheck: CheckStatus.FAIL,
-        bankTx: { id: Not(IsNull()) },
         isComplete: false,
-        chargebackRemittanceInfo: Not(IsNull()),
-        chargebackOutput: { id: Not(IsNull()) },
+        chargebackOutput: { isComplete: true, bankTx: { id: Not(IsNull()) } },
       },
-      relations: { transaction: { user: { wallet: true }, userData: true }, cryptoInput: true },
+      relations: {
+        transaction: { user: { wallet: true }, userData: true },
+        chargebackOutput: { bankTx: true },
+      },
     });
 
     for (const entity of entities) {
       try {
-        const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.chargebackRemittanceInfo);
-        if (!bankTx) continue;
-
-        await this.bankTxService.updateInternal(bankTx, { type: BankTxType.BUY_CRYPTO_RETURN });
         await this.buyCryptoRepo.update(entity.id, {
-          chargebackBankTx: bankTx,
+          chargebackBankTx: entity.chargebackOutput.bankTx,
           isComplete: true,
           status: BuyCryptoStatus.COMPLETE,
         });
