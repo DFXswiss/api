@@ -50,7 +50,12 @@ export class MockStorageService extends StorageService {
   async copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<void> {
     for (const blob of await this.listBlobs(sourcePrefix)) {
       const content = await this.getBlob(blob.name);
-      await this.uploadBlob(blob.name.replace(sourcePrefix, targetPrefix), content.data, content.contentType, blob.metadata);
+      await this.uploadBlob(
+        blob.name.replace(sourcePrefix, targetPrefix),
+        content.data,
+        content.contentType,
+        blob.metadata,
+      );
     }
   }
 

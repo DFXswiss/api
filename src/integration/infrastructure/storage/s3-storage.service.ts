@@ -10,11 +10,17 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Blob, BlobContent, StorageService } from './storage.service';
 
 /**
- * S3-compatible storage implementation (MinIO).
+ * S3-protocol storage implementation. Talks to the configured S3-compatible
+ * endpoint (on-prem MinIO today; any S3 store via `Config.s3.endpoint`) — this is
+ * a protocol client, not the AWS cloud; no AWS account, no data leaves to AWS.
  *
  * Replaces AzureStorageService. The blob URL shape is kept identical
  * (`<publicUrl><container>/<encoded name>`) so that `blobName()` stays
  * reversible and any URL persisted in the DB remains consistent after migration.
+ *
+ * WORM / Object-Lock is enforced server-side via the bucket's default retention
+ * (Compliance mode, provisioned at setup) — not in application code, so every PUT
+ * is locked regardless of the client.
  */
 export class S3StorageService extends StorageService {
   private readonly logger = new DfxLogger(S3StorageService);
@@ -80,7 +86,6 @@ export class S3StorageService extends StorageService {
         Body: data,
         ContentType: type,
         Metadata: metadata,
-        ...this.objectLock(), // WORM for compliance buckets
       }),
     );
 
@@ -96,7 +101,6 @@ export class S3StorageService extends StorageService {
           Bucket: this.container,
           Key: blob.name.replace(sourcePrefix, targetPrefix),
           CopySource: `${this.container}/${blob.name}`,
-          ...this.objectLock(),
         }),
       );
     }
@@ -110,18 +114,5 @@ export class S3StorageService extends StorageService {
   blobName(url: string): string {
     const filePath = url.split(`${this.container}/`)[1];
     return filePath.split('/').map(decodeURIComponent).join('/');
-  }
-
-  /**
-   * Compliance buckets get a defined retention (extendable, never shortenable).
-   * NOTE: EP2 settlement containers are created dynamically per merchant — if those
-   * must be WORM too, match by pattern/prefix here instead of an exact bucket list.
-   */
-  private objectLock(): { ObjectLockMode?: 'COMPLIANCE'; ObjectLockRetainUntilDate?: Date } {
-    if (!Config.s3.complianceBuckets.includes(this.container)) return {};
-
-    const retainUntil = new Date();
-    retainUntil.setDate(retainUntil.getDate() + Config.s3.retentionDays);
-    return { ObjectLockMode: 'COMPLIANCE', ObjectLockRetainUntilDate: retainUntil };
   }
 }
