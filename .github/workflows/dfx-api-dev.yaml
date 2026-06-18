@@ -14,6 +14,12 @@ env:
 permissions:
   contents: read
 
+# Serialize DEV deploys: a running build+deploy is never interrupted, and a
+# newer develop-merge waits instead of racing the SSH deploy hook / :beta pull.
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
 jobs:
   build-and-deploy:
     name: Build and deploy to DEV
