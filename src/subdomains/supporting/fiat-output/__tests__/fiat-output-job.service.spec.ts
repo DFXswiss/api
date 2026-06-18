@@ -1,8 +1,13 @@
+// Stub the heavy `opentimestamps` library (pulled in transitively via ArchiveService) so its
+// eager network/`request` deps never load at jest runtime; ArchiveService is mocked in this spec.
+jest.mock('opentimestamps', () => ({}));
+
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
+import { ArchiveService } from 'src/integration/infrastructure/storage/anchoring/archive.service';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -88,6 +93,7 @@ describe('FiatOutputJobService', () => {
         { provide: OlkypayService, useValue: olkypayService },
         { provide: VirtualIbanService, useValue: virtualIbanService },
         { provide: ScryptService, useValue: scryptService },
+        { provide: ArchiveService, useValue: createMock<ArchiveService>() },
 
         TestUtil.provideConfig(),
       ],
