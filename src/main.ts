@@ -1,3 +1,4 @@
+import './polyfills'; // must stay first: registers global EventSource before any SDK loads
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { WsAdapter } from '@nestjs/platform-ws';
