@@ -216,10 +216,15 @@ describe('ArkadeClient', () => {
   // --- CONTRACT WATCHER DISPOSAL --- //
 
   describe('contract watcher disposal', () => {
+    beforeEach(async () => {
+      // The outer beforeEach created an eagerly-initializing client that shares the
+      // Wallet.create spy. Drain its pending init here so it cannot race the spy these
+      // tests re-point at their own dedicated wallet (would otherwise double the counts).
+      await client.isHealthy();
+    });
+
     it('should dispose the unused contract watcher after wallet creation', async () => {
       const disposeMock = jest.fn();
-      // Dedicated wallet/client: the global beforeEach client shares the mockWallet
-      // reference and inits eagerly, so mutating mockWallet here would race the counts.
       const dedicatedWallet = {
         getAddress: jest.fn().mockResolvedValue('ark1testwalletaddress'),
         getContractManager: jest.fn().mockResolvedValue({ dispose: disposeMock }),
