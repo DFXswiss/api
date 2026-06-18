@@ -29,7 +29,6 @@
     "@arbitrum/sdk": "^3.7.3",
     "@arkade-os/sdk": "^0.4.36",
     "@aws-sdk/client-s3": "^3.1071.0",
-    "@azure/storage-blob": "^12.29.1",
     "@blockfrost/blockfrost-js": "^6.1.0",
     "@buildonspark/spark-sdk": "^0.6.7",
     "@cardano-foundation/cardano-verify-datasignature": "^1.0.11",

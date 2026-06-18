@@ -1,16 +1,32 @@
-import { Config } from 'src/config/config';
+import * as fs from 'fs';
+import * as path from 'path';
 import { Blob, BlobContent, StorageService } from './storage.service';
 
-/**
- * In-memory storage for local development (LOC), ported from the previous
- * AzureStorageService mock mode. The dummy-file fallback for KYC demo files
- * (scripts/kyc/dummy-files) can be carried over here unchanged if still needed.
- */
+// In-memory storage for local development (LOC).
 const mockStorage = new Map<string, { data: Buffer; type: string; metadata?: Record<string, string> }>();
 
+// Dummy KYC files for local development (used when a blob was not uploaded this process lifetime).
+const DUMMY_FILES_DIR = path.join(process.cwd(), 'scripts', 'kyc', 'dummy-files');
+const DUMMY_FILE_MAP: Record<string, { file: string; type: string }> = {
+  'id_front.png': { file: 'id_front.png', type: 'image/png' },
+  'id_back.png': { file: 'id_back.png', type: 'image/png' },
+  'selfie.jpg': { file: 'selfie.jpg', type: 'image/jpeg' },
+  'passport.png': { file: 'passport.png', type: 'image/png' },
+  'residence_permit.png': { file: 'residence_permit.png', type: 'image/png' },
+  'proof_of_address.pdf': { file: 'proof_of_address.pdf', type: 'application/pdf' },
+  'bank_statement.pdf': { file: 'bank_statement.pdf', type: 'application/pdf' },
+  'source_of_funds.pdf': { file: 'source_of_funds.pdf', type: 'application/pdf' },
+  'commercial_register.pdf': { file: 'commercial_register.pdf', type: 'application/pdf' },
+  'additional_document.pdf': { file: 'additional_document.pdf', type: 'application/pdf' },
+};
+
+function loadDummyFile(filename: string): Buffer {
+  return fs.readFileSync(path.join(DUMMY_FILES_DIR, filename));
+}
+
 export class MockStorageService extends StorageService {
-  constructor(private readonly container: string) {
-    super();
+  constructor(container: string) {
+    super(container);
   }
 
   async listBlobs(prefix?: string): Promise<Blob[]> {
@@ -33,12 +49,36 @@ export class MockStorageService extends StorageService {
 
   async getBlob(name: string): Promise<BlobContent> {
     const stored = mockStorage.get(`${this.container}/${name}`);
+    if (stored)
+      return {
+        data: stored.data,
+        contentType: stored.type,
+        created: new Date(),
+        updated: new Date(),
+        metadata: stored.metadata ?? {},
+      };
+
+    // Fallback to a dummy file (parity with the previous mock) so LOC document reads return bytes.
+    const fileName = name.split('/').pop() ?? name;
+    const mapping = DUMMY_FILE_MAP[fileName];
+    if (mapping)
+      return {
+        data: loadDummyFile(mapping.file),
+        contentType: mapping.type,
+        created: new Date(),
+        updated: new Date(),
+        metadata: {},
+      };
+
+    const ext = name.split('.').pop()?.toLowerCase();
+    const isPdf = ext === 'pdf';
+    const isJpg = ext === 'jpg' || ext === 'jpeg';
     return {
-      data: stored?.data,
-      contentType: stored?.type,
+      data: loadDummyFile(isPdf ? 'proof_of_address.pdf' : isJpg ? 'selfie.jpg' : 'id_front.png'),
+      contentType: isPdf ? 'application/pdf' : isJpg ? 'image/jpeg' : 'image/png',
       created: new Date(),
       updated: new Date(),
-      metadata: stored?.metadata ?? {},
+      metadata: {},
     };
   }
 
@@ -57,15 +97,5 @@ export class MockStorageService extends StorageService {
         blob.metadata,
       );
     }
-  }
-
-  blobUrl(name: string): string {
-    const urlEncodedName = name.split('/').map(encodeURIComponent).join('/');
-    return `${Config.s3.publicUrl}${this.container}/${urlEncodedName}`;
-  }
-
-  blobName(url: string): string {
-    const filePath = url.split(`${this.container}/`)[1];
-    return filePath.split('/').map(decodeURIComponent).join('/');
   }
 }

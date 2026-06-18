@@ -7,30 +7,31 @@ import {
   S3Client,
 } from '@aws-sdk/client-s3';
 import { Config } from 'src/config/config';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Blob, BlobContent, StorageService } from './storage.service';
+import { Blob, BlobContent, BlobMetaData, StorageService } from './storage.service';
 
 /**
  * S3-protocol storage implementation. Talks to the configured S3-compatible
- * endpoint (on-prem MinIO today; any S3 store via `Config.s3.endpoint`) — this is
- * a protocol client, not the AWS cloud; no AWS account, no data leaves to AWS.
+ * endpoint (on-prem MinIO today; any S3 store via `Config.s3.endpoint`) — this is a
+ * protocol client, not the AWS cloud: no AWS account, no data leaves to AWS.
  *
- * Replaces AzureStorageService. The blob URL shape is kept identical
- * (`<publicUrl><container>/<encoded name>`) so that `blobName()` stays
- * reversible and any URL persisted in the DB remains consistent after migration.
+ * Replaces AzureStorageService. The blob URL shape is kept identical so `blobName()`
+ * stays reversible and URLs persisted in the DB remain consistent after migration.
  *
- * WORM / Object-Lock is enforced server-side via the bucket's default retention
- * (Compliance mode, provisioned at setup) — not in application code, so every PUT
- * is locked regardless of the client.
+ * WORM / Object-Lock is expected to be enforced server-side via the bucket's default
+ * retention (Compliance mode), provisioned externally at bucket setup — see the infra
+ * RFC. It is intentionally not applied per request here.
  */
 export class S3StorageService extends StorageService {
-  private readonly logger = new DfxLogger(S3StorageService);
   private readonly client: S3Client;
 
-  constructor(private readonly container: string) {
-    super();
+  constructor(container: string) {
+    super(container);
 
-    const { endpoint, region, accessKey, secretKey } = Config.s3;
+    const { endpoint, region, accessKey, secretKey, publicUrl } = Config.s3;
+    if (!endpoint || !region || !accessKey || !secretKey || !publicUrl)
+      throw new Error('Incomplete S3 config: endpoint, region, accessKey, secretKey and publicUrl are required');
+    if (!publicUrl.endsWith('/')) throw new Error('S3 publicUrl must end with a trailing slash');
+
     this.client = new S3Client({
       endpoint,
       region,
@@ -53,32 +54,20 @@ export class S3StorageService extends StorageService {
       token = res.IsTruncated ? res.NextContinuationToken : undefined;
     } while (token);
 
-    // S3 listing carries no content-type / user metadata (unlike Azure's listing),
-    // so fetch per object. File counts per prefix are modest (per-user KYC/support).
+    // S3 listings carry no content-type / user metadata (unlike the Azure listing this
+    // replaces), so fetch per object. Per-prefix counts are modest (per-user KYC/support).
     return Promise.all(keys.map((key) => this.head(key)));
   }
 
   async getBlob(name: string): Promise<BlobContent> {
     const res = await this.client.send(new GetObjectCommand({ Bucket: this.container, Key: name }));
 
-    return {
-      data: Buffer.from(await res.Body.transformToByteArray()),
-      contentType: res.ContentType,
-      created: res.LastModified,
-      updated: res.LastModified,
-      metadata: res.Metadata ?? {},
-    };
+    return { data: Buffer.from(await res.Body.transformToByteArray()), ...this.toMetaData(res) };
   }
 
   async uploadBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string> {
     await this.client.send(
-      new PutObjectCommand({
-        Bucket: this.container,
-        Key: name,
-        Body: data,
-        ContentType: type,
-        Metadata: metadata,
-      }),
+      new PutObjectCommand({ Bucket: this.container, Key: name, Body: data, ContentType: type, Metadata: metadata }),
     );
 
     return this.blobUrl(name);
@@ -92,28 +81,26 @@ export class S3StorageService extends StorageService {
         new CopyObjectCommand({
           Bucket: this.container,
           Key: blob.name.replace(sourcePrefix, targetPrefix),
-          CopySource: `${this.container}/${blob.name}`,
+          CopySource: `${this.container}/${this.encodeKey(blob.name)}`, // key must be URL-encoded
         }),
       );
     }
   }
 
-  blobUrl(name: string): string {
-    const urlEncodedName = name.split('/').map(encodeURIComponent).join('/');
-    return `${Config.s3.publicUrl}${this.container}/${urlEncodedName}`;
-  }
-
-  blobName(url: string): string {
-    const filePath = url.split(`${this.container}/`)[1];
-    return filePath.split('/').map(decodeURIComponent).join('/');
-  }
-
   private async head(name: string): Promise<Blob> {
     const res = await this.client.send(new HeadObjectCommand({ Bucket: this.container, Key: name }));
+    return { name, url: this.blobUrl(name), ...this.toMetaData(res) };
+  }
 
+  // NOTE: S3 has no creation timestamp (created == updated == LastModified) and lowercases
+  // user-metadata keys. contentType/timestamps are always present for objects we write
+  // (ContentType is always set on upload).
+  private toMetaData(res: {
+    ContentType?: string;
+    LastModified?: Date;
+    Metadata?: Record<string, string>;
+  }): BlobMetaData {
     return {
-      name,
-      url: this.blobUrl(name),
       contentType: res.ContentType,
       created: res.LastModified,
       updated: res.LastModified,
