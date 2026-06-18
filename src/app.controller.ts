@@ -9,6 +9,7 @@ import { AdDto, AdSettings, AdvertisementDto } from './shared/dto/advertisement.
 import { AnnouncementDto } from './shared/dto/announcement.dto';
 import { FlagDto } from './shared/dto/flag.dto';
 import { SettingService } from './shared/models/setting/setting.service';
+import { DfxLogger } from './shared/services/dfx-logger';
 import { Util } from './shared/utils/util';
 import { RefService } from './subdomains/core/referral/process/ref.service';
 
@@ -28,6 +29,7 @@ enum Manufacturer {
 
 @Controller('')
 export class AppController {
+  private readonly logger = new DfxLogger(AppController);
   private readonly startedAt = new Date();
   private readonly homepageUrl = 'https://dfx.swiss/';
   private readonly appleStoreUrl = 'https://apps.apple.com/app';
@@ -72,7 +74,10 @@ export class AppController {
   private getCommit(): string {
     try {
       return readFileSync('dist/version.txt', 'utf8').trim();
-    } catch {
+    } catch (e) {
+      // The file is written at build time (Dockerfile: GIT_COMMIT -> dist/version.txt);
+      // a missing file means a broken build/deploy, so surface it instead of masking.
+      this.logger.error('Failed to read dist/version.txt, reporting commit as "unknown":', e);
       return 'unknown';
     }
   }
