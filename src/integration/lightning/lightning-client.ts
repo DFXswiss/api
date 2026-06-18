@@ -36,9 +36,9 @@ export class LightningClient implements CoinOnly {
     // Node's separate hostname/SAN check is brittle: the cert's SAN only matches
     // the node's internal service hostname, so any other access path fails with
     // ERR_TLS_CERT_ALTNAME_INVALID. This already bit us when the public Host
-    // header (added for LNURL URL building) poisoned the TLS SNI (#3899), and is
-    // the same SAN gap that keeps LNBits on plain HTTP. rejectUnauthorized stays
-    // on, so the chain is still verified — we skip only the redundant hostname match.
+    // header (added for LNURL URL building) poisoned the TLS SNI (#3899).
+    // rejectUnauthorized stays on, so the chain is still verified — we skip only
+    // the redundant hostname match.
     this.tlsAgent = new Agent({
       ca: Config.blockchain.lightning.certificate,
       checkServerIdentity: () => undefined,
