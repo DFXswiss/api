@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Blob } from 'src/integration/infrastructure/azure-storage.service';
+import { Blob } from 'src/integration/infrastructure/storage/storage.service';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycWebhookData } from '../../user/services/webhook/dto/kyc-webhook.dto';
 import { KycStep } from '../entities/kyc-step.entity';

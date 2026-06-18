@@ -1,4 +1,4 @@
-import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { BlobContent } from 'src/integration/infrastructure/storage/storage.service';
 import { KycFile } from '../../entities/kyc-file.entity';
 import { KycFileDataDto } from '../kyc-file.dto';
 

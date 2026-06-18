@@ -1,5 +1,6 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
-import { AzureStorageService, Blob, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { createStorageService } from 'src/integration/infrastructure/storage/storage.factory';
+import { Blob, BlobContent, StorageService } from 'src/integration/infrastructure/storage/storage.service';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 
 export interface SupportFile extends Blob {
@@ -10,10 +11,10 @@ export interface SupportFile extends Blob {
 
 @Injectable()
 export class SupportDocumentService {
-  private readonly storageService: AzureStorageService;
+  private readonly storageService: StorageService;
 
   constructor() {
-    this.storageService = new AzureStorageService('support');
+    this.storageService = createStorageService('support');
   }
 
   async listFilesByPrefix(prefix: string): Promise<SupportFile[]> {
