@@ -1177,6 +1177,18 @@ export class Configuration {
     },
   };
 
+  // S3-compatible object storage (MinIO) — replacement for Azure Blob.
+  // secrets -> .env; per-env endpoint/url -> compose; invariant settings -> code constants.
+  s3 = {
+    endpoint: process.env.S3_ENDPOINT,
+    region: process.env.S3_REGION,
+    accessKey: process.env.S3_ACCESS_KEY,
+    secretKey: process.env.S3_SECRET_KEY,
+    publicUrl: process.env.S3_PUBLIC_URL,
+    complianceBuckets: ['kyc'], // WORM/Object-Lock buckets (extend for EP2 if required)
+    retentionDays: 4015, // ~11 years (10y minimum + buffer); extendable, never shortenable
+  };
+
   alby = {
     clientId: process.env.ALBY_CLIENT_ID,
     clientSecret: process.env.ALBY_CLIENT_SECRET,

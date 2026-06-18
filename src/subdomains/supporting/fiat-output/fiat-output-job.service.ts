@@ -7,7 +7,7 @@ import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
-import { AzureStorageService } from 'src/integration/infrastructure/azure-storage.service';
+import { createStorageService } from 'src/integration/infrastructure/storage/storage.factory';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { Country } from 'src/shared/models/country/country.entity';
@@ -111,7 +111,7 @@ export class FiatOutputJobService {
         const routeId = buyFiat.paymentLinkPayment.link.linkConfigObj?.payoutRouteId ?? buyFiat.sell.id;
         const fileName = `settlement_${Util.isoDateTime(entity.created)}_${routeId}.ep2`;
 
-        await new AzureStorageService(container).uploadBlob(fileName, Buffer.from(report), 'text/xml');
+        await createStorageService(container).uploadBlob(fileName, Buffer.from(report), 'text/xml');
 
         await this.fiatOutputRepo.update(entity.id, { reportCreated: true });
       } catch (e) {

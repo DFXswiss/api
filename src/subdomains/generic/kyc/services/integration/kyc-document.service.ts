@@ -1,5 +1,6 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
-import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { createStorageService } from 'src/integration/infrastructure/storage/storage.factory';
+import { BlobContent, StorageService } from 'src/integration/infrastructure/storage/storage.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FileSubType, FileType, KycFileBlob } from '../../dto/kyc-file.dto';
@@ -11,10 +12,10 @@ import { KycFileService } from '../kyc-file.service';
 
 @Injectable()
 export class KycDocumentService {
-  private readonly storageService: AzureStorageService;
+  private readonly storageService: StorageService;
 
   constructor(private readonly kycFileService: KycFileService) {
-    this.storageService = new AzureStorageService('kyc');
+    this.storageService = createStorageService('kyc');
   }
 
   async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFileBlob[]> {

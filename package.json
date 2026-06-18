@@ -28,6 +28,7 @@
   "dependencies": {
     "@arbitrum/sdk": "^3.7.3",
     "@arkade-os/sdk": "^0.4.36",
+    "@aws-sdk/client-s3": "^3.1071.0",
     "@azure/storage-blob": "^12.29.1",
     "@blockfrost/blockfrost-js": "^6.1.0",
     "@buildonspark/spark-sdk": "^0.6.7",
@@ -106,7 +107,6 @@
     "lnurl": "^0.27.0",
     "lodash": "^4.17.21",
     "morgan": "^1.10.1",
-    "pg": "^8.13.3",
     "nestjs-i18n": "^10.5.1",
     "node-2fa": "^2.0.3",
     "node-pty": "^1.1.0",
@@ -115,6 +115,7 @@
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.1",
     "pdfkit": "^0.15.2",
+    "pg": "^8.13.3",
     "qrcode": "^1.5.4",
     "reflect-metadata": "^0.1.14",
     "rimraf": "^4.4.1",
