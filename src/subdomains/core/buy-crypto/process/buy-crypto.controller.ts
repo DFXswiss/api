@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -55,8 +57,12 @@ export class BuyCryptoController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async update(@Param('id') id: string, @Body() dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
-    return this.buyCryptoService.update(+id, dto);
+  async update(
+    @Param('id') id: string,
+    @Body() dto: UpdateBuyCryptoDto,
+    @GetJwt() jwt: JwtPayload,
+  ): Promise<BuyCrypto> {
+    return this.buyCryptoService.update(+id, dto, jwt);
   }
 
   @Delete(':id/amlCheck')
@@ -71,7 +77,11 @@ export class BuyCryptoController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async manualPassAmlCheck(@Param('id') id: string, @Body() dto: ManualAmlCheckDto): Promise<BuyCrypto> {
-    return this.buyCryptoService.manualPassAmlCheck(+id, dto);
+  async manualPassAmlCheck(
+    @Param('id') id: string,
+    @Body() dto: ManualAmlCheckDto,
+    @GetJwt() jwt: JwtPayload,
+  ): Promise<BuyCrypto> {
+    return this.buyCryptoService.manualPassAmlCheck(+id, dto, jwt);
   }
 }

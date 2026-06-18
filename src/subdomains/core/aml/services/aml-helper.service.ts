@@ -28,6 +28,7 @@ import { BuyCrypto } from '../../buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from '../../sell-crypto/process/buy-fiat.entity';
 import { AmlError, AmlErrorResult, AmlErrorType, DelayResultError } from '../enums/aml-error.enum';
 import { AmlReason, KycAmlReasons, RecheckAmlReasons } from '../enums/aml-reason.enum';
+import { AmlSource } from '../enums/aml-source.enum';
 import { AmlRule, SpecialIpCountries } from '../enums/aml-rule.enum';
 import { CheckStatus } from '../enums/check-status.enum';
 
@@ -603,6 +604,7 @@ export class AmlHelperService {
     amlReason?: AmlReason;
     comment?: string;
     amlResponsible?: string;
+    amlSource?: AmlSource;
     priceDefinitionAllowedDate?: Date;
   } {
     const amlErrors = this.getAmlErrors(
@@ -634,6 +636,7 @@ export class AmlHelperService {
         amlCheck: CheckStatus.PASS,
         amlReason: AmlReason.NA,
         amlResponsible: 'API',
+        amlSource: AmlSource.AUTOMATIC,
         priceDefinitionAllowedDate: new Date(),
       };
 
@@ -641,7 +644,8 @@ export class AmlHelperService {
 
     // Expired pending amlChecks
     if (entity.amlCheck === CheckStatus.PENDING) {
-      if (Util.daysDiff(entity.created) > 14) return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API' };
+      if (Util.daysDiff(entity.created) > 14)
+        return { amlCheck: CheckStatus.FAIL, amlResponsible: 'API', amlSource: AmlSource.AUTOMATIC };
       if (
         !RecheckAmlReasons.includes(entity.amlReason) ||
         comment === entity.comment ||
@@ -668,6 +672,7 @@ export class AmlHelperService {
             amlReason: crucialErrorResult.amlReason,
             comment,
             amlResponsible: 'API',
+            amlSource: AmlSource.AUTOMATIC,
           }
         : { bankData, comment };
     }
@@ -690,6 +695,7 @@ export class AmlHelperService {
         amlReason: amlResults[0].amlReason,
         comment,
         amlResponsible: 'API',
+        amlSource: AmlSource.AUTOMATIC,
       };
 
     // GSheet

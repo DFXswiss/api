@@ -8,6 +8,7 @@ import {
   OnModuleInit,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
@@ -59,6 +60,7 @@ import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeor
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
 import { canManualPass } from '../../../aml/enums/aml-error.enum';
 import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
+import { AmlSource } from '../../../aml/enums/aml-source.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
@@ -250,7 +252,7 @@ export class BuyCryptoService implements OnModuleInit {
     );
   }
 
-  async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
+  async update(id: number, dto: UpdateBuyCryptoDto, jwt?: JwtPayload): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne({
       where: { id },
       relations: {
@@ -337,6 +339,8 @@ export class BuyCryptoService implements OnModuleInit {
 
     update.amlReason = update.amlCheck === CheckStatus.PASS ? AmlReason.NA : update.amlReason;
 
+    const isGsActor = jwt != null && Config.amlGsAccountId != null && jwt.account === Config.amlGsAccountId;
+
     const forceUpdate: Partial<BuyCrypto> = {
       ...((BuyCryptoEditableAmlCheck.includes(entity.amlCheck) ||
         (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
@@ -351,6 +355,13 @@ export class BuyCryptoService implements OnModuleInit {
               ? {
                   priceDefinitionAllowedDate:
                     update.priceDefinitionAllowedDate ?? entity.priceDefinitionAllowedDate ?? new Date(),
+                }
+              : undefined),
+            ...(jwt && update.amlCheck
+              ? {
+                  amlSource: isGsActor ? AmlSource.GSHEET : AmlSource.COMPLIANCE,
+                  amlResponsible:
+                    update.amlResponsible ?? (isGsActor ? 'GSheet' : (jwt.address ?? `account:${jwt.account}`)),
                 }
               : undefined),
           }
@@ -722,7 +733,7 @@ export class BuyCryptoService implements OnModuleInit {
     if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
   }
 
-  async manualPassAmlCheck(id: number, dto: ManualAmlCheckDto): Promise<BuyCrypto> {
+  async manualPassAmlCheck(id: number, dto: ManualAmlCheckDto, jwt?: JwtPayload): Promise<BuyCrypto> {
     const entity = await this.buyCryptoRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('BuyCrypto not found');
     if (entity.isComplete || entity.chargebackAllowedDateUser)
@@ -732,12 +743,16 @@ export class BuyCryptoService implements OnModuleInit {
     if (dto.amlCheck === CheckStatus.PASS && !canManualPass(entity.comment))
       throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
 
-    return this.update(id, {
-      amlCheck: dto.amlCheck,
-      amlResponsible: dto.responsible,
-      amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
-      priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
-    } as UpdateBuyCryptoDto);
+    return this.update(
+      id,
+      {
+        amlCheck: dto.amlCheck,
+        amlResponsible: dto.responsible,
+        amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
+        priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
+      } as UpdateBuyCryptoDto,
+      jwt,
+    );
   }
 
   async getUserVolume(

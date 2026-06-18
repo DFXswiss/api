@@ -15,6 +15,8 @@ import { GsService } from './gs.service';
 
 @Controller('gs')
 export class GsController {
+  private static readonly loggedDbCallers = new Set<string>();
+
   private readonly logger = new DfxLogger(GsController);
 
   constructor(private readonly gsService: GsService) {}
@@ -24,6 +26,12 @@ export class GsController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getDbData(@GetJwt() jwt: JwtPayload, @Body() query: DbQueryDto): Promise<DbReturnData> {
+    const caller = jwt.address ?? `account:${jwt.account}`;
+    if (!GsController.loggedDbCallers.has(caller)) {
+      GsController.loggedDbCallers.add(caller);
+      this.logger.info(`gs/db first access by ${caller} (role ${jwt.role}, account ${jwt.account})`);
+    }
+
     try {
       return await this.gsService.getDbData(query, jwt.role);
     } catch (e) {

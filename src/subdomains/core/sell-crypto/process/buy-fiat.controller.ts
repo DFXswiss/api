@@ -1,6 +1,8 @@
 import { Body, Controller, Delete, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -51,8 +53,8 @@ export class BuyFiatController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async update(@Param('id') id: string, @Body() dto: UpdateBuyFiatDto): Promise<BuyFiat> {
-    return this.buyFiatService.update(+id, dto);
+  async update(@Param('id') id: string, @Body() dto: UpdateBuyFiatDto, @GetJwt() jwt: JwtPayload): Promise<BuyFiat> {
+    return this.buyFiatService.update(+id, dto, jwt);
   }
 
   @Delete(':id/amlCheck')
@@ -67,7 +69,11 @@ export class BuyFiatController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async manualPassAmlCheck(@Param('id') id: string, @Body() dto: ManualAmlCheckDto): Promise<BuyFiat> {
-    return this.buyFiatService.manualPassAmlCheck(+id, dto);
+  async manualPassAmlCheck(
+    @Param('id') id: string,
+    @Body() dto: ManualAmlCheckDto,
+    @GetJwt() jwt: JwtPayload,
+  ): Promise<BuyFiat> {
+    return this.buyFiatService.manualPassAmlCheck(+id, dto, jwt);
   }
 }
