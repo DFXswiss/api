@@ -1,7 +1,17 @@
+import { Test } from '@nestjs/testing';
+import { TestUtil } from 'src/shared/utils/test.util';
 import { MockStorageService } from '../mock-storage.service';
 
 describe('StorageService', () => {
-  const service = new MockStorageService('kyc');
+  let service: MockStorageService;
+
+  beforeAll(async () => {
+    await Test.createTestingModule({
+      providers: [TestUtil.provideConfig({ s3: { publicUrl: 'https://files.example.com/' } })],
+    }).compile();
+
+    service = new MockStorageService('kyc');
+  });
 
   describe('blobUrl / blobName round-trip', () => {
     // This reversibility is the load-bearing migration invariant: URLs produced by
@@ -18,8 +28,8 @@ describe('StorageService', () => {
       expect(service.blobName(service.blobUrl(key))).toBe(key);
     });
 
-    it('url-encodes each path segment but preserves separators', () => {
-      expect(service.blobUrl('a b/c#d')).toContain('kyc/a%20b/c%23d');
+    it('builds the public URL from the configured base with encoded segments', () => {
+      expect(service.blobUrl('a b/c#d')).toBe('https://files.example.com/kyc/a%20b/c%23d');
     });
 
     it('rejects a URL that does not belong to the container', () => {

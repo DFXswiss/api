@@ -18,8 +18,8 @@ import { Blob, BlobContent, BlobMetaData, StorageService } from './storage.servi
  * stays reversible and URLs persisted in the DB remain consistent after migration.
  *
  * WORM / Object-Lock is expected to be enforced server-side via the bucket's default
- * retention (Compliance mode), provisioned externally at bucket setup — see the infra
- * RFC. It is intentionally not applied per request here.
+ * retention (Compliance mode), provisioned externally at bucket setup. It is
+ * intentionally not applied per request here.
  */
 export class S3StorageService extends StorageService {
   private readonly client: S3Client;
