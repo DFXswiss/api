@@ -1,8 +1,17 @@
 name: DFX API PRD CI/CD
 
 on:
-  # Auto-deploy re-enabled for DEV (dfxdev prerequisites are in place).
-  # PRD trigger stays disabled until the PRD cutover is complete.
+  # Auto-deploy on main-branch merges. Builds the linux/arm64 image, pushes
+  # dfxswiss/dfx-api:latest to Docker Hub, then SSHs to dfxprd (via the
+  # Cloudflare Access tunnel) and runs the deploy hook. Paths-ignore mirrors
+  # dfx-api-dev.yaml so docs/infrastructure-only changes don't trigger a
+  # full build+deploy.
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'infrastructure/**'
+  # Manual escape hatch (e.g. rebuild :latest without a code change).
   workflow_dispatch:
 
 env:
