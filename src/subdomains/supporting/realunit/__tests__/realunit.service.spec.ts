@@ -56,6 +56,14 @@ jest.mock('src/config/config', () => ({
         brokerbotAddress: '0xBrokerbotAddress',
         graphUrl: 'https://mock-ponder.example.com',
         api: { url: 'https://mock-api.example.com', key: 'mock-key' },
+        bank: {
+          iban: 'CH00 0000 0000 0000 0000 0',
+          ibanEur: 'DE00 0000 0000 0000 0000 00',
+          bic: 'REALCHZZ',
+          recipient: 'RealUnit AG',
+          name: 'RealUnit Bank',
+        },
+        address: { street: 'Bahnhofstrasse', number: '1', zip: '8001', city: 'Zurich', country: 'Switzerland' },
       },
       ethereum: { ethChainId: 1 },
       sepolia: { sepoliaChainId: 11155111 },
@@ -101,6 +109,7 @@ jest.mock('src/shared/utils/util', () => ({
     createUid: jest.fn().mockReturnValue('MOCK-UID'),
     equalsIgnoreCase: (a?: string, b?: string) => a?.toLowerCase() === b?.toLowerCase(),
     isoDate: (date: Date) => date.toISOString().split('T')[0],
+    daysDiff: jest.fn().mockReturnValue(0),
   },
 }));
 
@@ -113,6 +122,8 @@ describe('RealUnitService', () => {
   let sellService: jest.Mocked<SellService>;
   let userService: jest.Mocked<UserService>;
   let kycService: jest.Mocked<KycService>;
+  let fiatService: jest.Mocked<FiatService>;
+  let swissQrService: jest.Mocked<SwissQRService>;
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -168,7 +179,7 @@ describe('RealUnitService', () => {
         { provide: CountryService, useValue: {} },
         { provide: LanguageService, useValue: {} },
         { provide: HttpService, useValue: { post: jest.fn() } },
-        { provide: FiatService, useValue: {} },
+        { provide: FiatService, useValue: { getFiat: jest.fn() } },
         { provide: BuyService, useValue: {} },
         {
           provide: SellService,
@@ -187,12 +198,13 @@ describe('RealUnitService', () => {
           useValue: {
             getOrThrow: jest.fn(),
             complete: jest.fn(),
+            confirmTransactionRequest: jest.fn(),
           },
         },
         { provide: TransactionService, useValue: {} },
         { provide: AccountMergeService, useValue: {} },
         { provide: RealUnitDevService, useValue: {} },
-        { provide: SwissQRService, useValue: {} },
+        { provide: SwissQRService, useValue: { createQrCode: jest.fn() } },
         { provide: FeeService, useValue: {} },
         { provide: FaucetRequestService, useValue: {} },
         { provide: EthereumService, useValue: {} },
@@ -208,6 +220,8 @@ describe('RealUnitService', () => {
     sellService = module.get(SellService);
     userService = module.get(UserService);
     kycService = module.get(KycService);
+    fiatService = module.get(FiatService);
+    swissQrService = module.get(SwissQRService);
   });
 
   afterEach(() => {
@@ -288,6 +302,39 @@ describe('RealUnitService', () => {
       const result = await service.getBrokerbotInfo();
 
       expect(result).toEqual(expected);
+    });
+  });
+
+  describe('confirmBuy', () => {
+    const mockRequest = {
+      id: 7,
+      isValid: true,
+      status: 'Created',
+      created: new Date(),
+      sourceId: 1,
+      amount: 100,
+      estimatedAmount: 10,
+      user: { address: '0xUser', userData: {} },
+    };
+
+    it('returns the Aktionariat reference as the purpose of payment and a QR encoding it', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      fiatService.getFiat.mockResolvedValue({ name: 'CHF' } as any);
+      swissQrService.createQrCode.mockReturnValue('MOCK-QR');
+
+      const result = await service.confirmBuy(1, 7);
+
+      // The purpose of payment must equal the confirmed reference (not the
+      // quote-time bankUsage), and the QR must encode that same reference.
+      expect(result.remittanceInfo).toBe(result.reference);
+      expect(result.paymentRequest).toBe('MOCK-QR');
+      expect(swissQrService.createQrCode).toHaveBeenCalledWith(
+        100,
+        'CHF',
+        result.reference,
+        expect.anything(),
+        expect.anything(),
+      );
     });
   });
 
