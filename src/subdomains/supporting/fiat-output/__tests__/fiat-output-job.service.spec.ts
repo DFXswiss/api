@@ -506,6 +506,17 @@ describe('FiatOutputJobService', () => {
       // the recorded hash is the sha256 of the uploaded report buffer
       const expectedHash = sha256(Buffer.from('<ep2/>')).toString('hex');
       expect(archiveService.recordHash).toHaveBeenCalledWith('ep2-merchant-bucket', fileName, expectedHash);
+
+      // Load-bearing ordering: uploadBlob (WORM PUT) < update(reportCreated=true) < recordHash.
+      // reportCreated MUST be persisted before the best-effort recordHash, otherwise a recordHash
+      // failure would leave reportCreated=false and the next run would re-PUT the same fileName
+      // into the immutable WORM bucket and deadlock. Asserting the call order makes the test break
+      // if someone reorders recordHash ahead of the reportCreated update.
+      const uploadOrder = ep2UploadBlobMock.mock.invocationCallOrder[0];
+      const updateOrder = (fiatOutputRepo.update as jest.Mock).mock.invocationCallOrder[0];
+      const recordHashOrder = (archiveService.recordHash as jest.Mock).mock.invocationCallOrder[0];
+      expect(uploadOrder).toBeLessThan(updateOrder);
+      expect(updateOrder).toBeLessThan(recordHashOrder);
     });
 
     it('does NOT prevent reportCreated when hash recording fails (best-effort, runs after the flag)', async () => {
@@ -528,6 +539,22 @@ describe('FiatOutputJobService', () => {
 
       expect(fiatOutputRepo.update).not.toHaveBeenCalled();
       expect(archiveService.recordHash).not.toHaveBeenCalled();
+    });
+
+    it('falls back to the sell route id for the file name when no payoutRouteId is configured', async () => {
+      // linkConfigObj has no payoutRouteId => the `routeId ?? buyFiat.sell.id` fallback kicks in
+      // and the file name must carry the sell id (555) instead of a payout route id.
+      const entity = reportableEntity();
+      entity.buyFiats[0].paymentLinkPayment.link.linkConfigObj = {};
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([entity]);
+
+      await service['generateReports']();
+
+      const fileName = ep2UploadBlobMock.mock.calls[0][0];
+      expect(fileName).toMatch(/^settlement_.*_555\.ep2$/);
+
+      const expectedHash = sha256(Buffer.from('<ep2/>')).toString('hex');
+      expect(archiveService.recordHash).toHaveBeenCalledWith('ep2-merchant-bucket', fileName, expectedHash);
     });
   });
 });

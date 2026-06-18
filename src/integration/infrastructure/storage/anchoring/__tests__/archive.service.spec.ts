@@ -61,11 +61,23 @@ function fakeStore() {
     },
     findOneBy: async (where: Partial<ArchiveFile>) =>
       files.find((f) => f.bucket === where.bucket && f.name === where.name) ?? undefined,
-    // supports lookup by id or by (bucket, name); `relations` is implicit since the in-memory
-    // files already carry their `batch` reference once anchored.
-    findOne: async ({ where }: any) =>
-      files.find((f) => (where.id != null ? f.id === where.id : f.bucket === where.bucket && f.name === where.name)) ??
-      undefined,
+    // supports lookup by id or by (bucket, name). Faithful to TypeORM: the `batch` relation is
+    // ONLY hydrated when the caller explicitly asks for it via `relations: ['batch']`. Without
+    // that, `batch` is left undefined on the returned row, so a caller that drops the relation
+    // would see `existing.batch === undefined` here too (and the anchored-hash guard would fail
+    // its test) instead of silently passing on the in-memory reference.
+    findOne: async ({ where, relations }: any) => {
+      const match = files.find((f) =>
+        where.id != null ? f.id === where.id : f.bucket === where.bucket && f.name === where.name,
+      );
+      if (!match) return undefined;
+
+      const wantsBatch = Array.isArray(relations) ? relations.includes('batch') : !!relations?.batch;
+      // Return a shallow copy so we can withhold `batch` without mutating the stored entity.
+      const result = Object.assign(new ArchiveFile(), match);
+      if (!wantsBatch) result.batch = undefined;
+      return result;
+    },
     find: async ({ where, order }: any) => {
       let result = [...files];
 
@@ -220,6 +232,23 @@ describe('ArchiveService', () => {
 
       expect(batchRepo.batches[0].status).toBe('confirmed');
       expect(batchRepo.batches[0].bitcoinHeight).toBe(840000);
+    });
+
+    it('loads the batch relation when recording and verifying (guards the anchored-hash check)', async () => {
+      // The anchored-hash guard in recordHash and the anchored-branch in verifyDocument both
+      // depend on `existing.batch`/`file.batch` being populated, which only happens when the
+      // query explicitly requests `relations: ['batch']`. Assert the option is actually passed,
+      // so dropping it in production (which would let an anchored leaf be silently overwritten)
+      // breaks this test rather than passing unnoticed.
+      const findOneSpy = jest.spyOn(fileRepo, 'findOne');
+
+      await service.recordHash('archive', 'doc-a.pdf', sha256(docs[0].data).toString('hex'));
+      await service.verifyDocument('archive', 'doc-a.pdf', docs[0].data);
+
+      expect(findOneSpy).toHaveBeenCalled();
+      for (const call of findOneSpy.mock.calls) {
+        expect(call[0]).toMatchObject({ relations: ['batch'] });
+      }
     });
 
     it('refuses to overwrite an anchored hash with a differing hash (avoids bogus tampering)', async () => {
