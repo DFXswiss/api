@@ -31,6 +31,7 @@ enum Manufacturer {
 export class AppController {
   private readonly logger = new DfxLogger(AppController);
   private readonly startedAt = new Date();
+  private commit?: string;
   private readonly homepageUrl = 'https://dfx.swiss/';
   private readonly appleStoreUrl = 'https://apps.apple.com/app';
   private readonly googleStoreUrl = 'https://play.app.goo.gl/?link=https://play.google.com/store/apps/details';
@@ -71,15 +72,20 @@ export class AppController {
     return { commit: this.getCommit(), startedAt: this.startedAt };
   }
 
+  // version.txt is written once at build time (Dockerfile: GIT_COMMIT) and is
+  // immutable at runtime, so read it once and cache. A missing file means a
+  // broken build/deploy — log it once here instead of silently masking it.
   private getCommit(): string {
-    try {
-      return readFileSync('dist/version.txt', 'utf8').trim();
-    } catch (e) {
-      // The file is written at build time (Dockerfile: GIT_COMMIT -> dist/version.txt);
-      // a missing file means a broken build/deploy, so surface it instead of masking.
-      this.logger.error('Failed to read dist/version.txt, reporting commit as "unknown":', e);
-      return 'unknown';
+    if (this.commit === undefined) {
+      try {
+        this.commit = readFileSync('dist/version.txt', 'utf8').trim();
+      } catch (e) {
+        this.logger.error('Failed to read dist/version.txt, reporting commit as "unknown":', e);
+        this.commit = 'unknown';
+      }
     }
+
+    return this.commit;
   }
 
   @Get('app/announcements')
