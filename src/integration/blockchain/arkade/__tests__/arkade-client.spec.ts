@@ -213,6 +213,38 @@ describe('ArkadeClient', () => {
     });
   });
 
+  // --- CONTRACT WATCHER DISPOSAL --- //
+
+  describe('contract watcher disposal', () => {
+    it('should dispose the unused contract watcher after wallet creation', async () => {
+      const disposeMock = jest.fn();
+      // Dedicated wallet/client: the global beforeEach client shares the mockWallet
+      // reference and inits eagerly, so mutating mockWallet here would race the counts.
+      const dedicatedWallet = {
+        getAddress: jest.fn().mockResolvedValue('ark1testwalletaddress'),
+        getContractManager: jest.fn().mockResolvedValue({ dispose: disposeMock }),
+      };
+      jest.spyOn(Wallet, 'create').mockResolvedValue(dedicatedWallet as any);
+      client = new ArkadeClient();
+
+      await client.isHealthy(); // forces wallet initialization
+
+      expect(dedicatedWallet.getContractManager).toHaveBeenCalledTimes(1);
+      expect(disposeMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not fail wallet creation when contract watcher disposal throws', async () => {
+      const dedicatedWallet = {
+        getAddress: jest.fn().mockResolvedValue('ark1testwalletaddress'),
+        getContractManager: jest.fn().mockRejectedValue(new Error('watcher disposal failed')),
+      };
+      jest.spyOn(Wallet, 'create').mockResolvedValue(dedicatedWallet as any);
+      client = new ArkadeClient();
+
+      await expect(client.isHealthy()).resolves.toBe(true);
+    });
+  });
+
   // --- NOT IMPLEMENTED METHODS --- //
 
   describe('not implemented methods', () => {
