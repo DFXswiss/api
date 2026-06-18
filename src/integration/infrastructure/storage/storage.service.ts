@@ -11,12 +11,10 @@
  */
 
 export interface BlobMetaData {
-  // optional: a bucket listing does not return content-type / user metadata,
-  // only a HeadObject/GetObject does
-  contentType?: string;
-  created?: Date;
-  updated?: Date;
-  metadata?: Record<string, string>;
+  contentType: string;
+  created: Date;
+  updated: Date;
+  metadata: Record<string, string>;
 }
 
 export interface Blob extends BlobMetaData {

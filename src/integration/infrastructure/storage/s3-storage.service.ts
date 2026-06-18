@@ -1,6 +1,7 @@
 import {
   CopyObjectCommand,
   GetObjectCommand,
+  HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
   S3Client,
@@ -31,7 +32,7 @@ export class S3StorageService extends StorageService {
 
     const { endpoint, region, accessKey, secretKey } = Config.s3;
     this.client = new S3Client({
-      endpoint, // MinIO endpoint (per-env, via compose)
+      endpoint,
       region,
       forcePathStyle: true, // MinIO requires path-style addressing
       credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
@@ -39,7 +40,7 @@ export class S3StorageService extends StorageService {
   }
 
   async listBlobs(prefix?: string): Promise<Blob[]> {
-    const blobs: Blob[] = [];
+    const keys: string[] = [];
 
     let token: string | undefined;
     do {
@@ -47,23 +48,14 @@ export class S3StorageService extends StorageService {
         new ListObjectsV2Command({ Bucket: this.container, Prefix: prefix, ContinuationToken: token, MaxKeys: 1000 }),
       );
 
-      for (const o of res.Contents ?? []) {
-        // ListObjectsV2 returns no content-type/user-metadata; HeadObject per key only if a
-        // consumer actually needs them (today's callers use name + url).
-        blobs.push({
-          name: o.Key,
-          url: this.blobUrl(o.Key),
-          contentType: undefined,
-          created: o.LastModified,
-          updated: o.LastModified,
-          metadata: {},
-        });
-      }
+      for (const o of res.Contents ?? []) if (o.Key) keys.push(o.Key);
 
       token = res.IsTruncated ? res.NextContinuationToken : undefined;
     } while (token);
 
-    return blobs;
+    // S3 listing carries no content-type / user metadata (unlike Azure's listing),
+    // so fetch per object. File counts per prefix are modest (per-user KYC/support).
+    return Promise.all(keys.map((key) => this.head(key)));
   }
 
   async getBlob(name: string): Promise<BlobContent> {
@@ -74,7 +66,7 @@ export class S3StorageService extends StorageService {
       contentType: res.ContentType,
       created: res.LastModified,
       updated: res.LastModified,
-      metadata: res.Metadata,
+      metadata: res.Metadata ?? {},
     };
   }
 
@@ -114,5 +106,18 @@ export class S3StorageService extends StorageService {
   blobName(url: string): string {
     const filePath = url.split(`${this.container}/`)[1];
     return filePath.split('/').map(decodeURIComponent).join('/');
+  }
+
+  private async head(name: string): Promise<Blob> {
+    const res = await this.client.send(new HeadObjectCommand({ Bucket: this.container, Key: name }));
+
+    return {
+      name,
+      url: this.blobUrl(name),
+      contentType: res.ContentType,
+      created: res.LastModified,
+      updated: res.LastModified,
+      metadata: res.Metadata ?? {},
+    };
   }
 }
