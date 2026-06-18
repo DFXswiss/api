@@ -3,7 +3,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IsNull } from 'typeorm';
 import { ArchiveBatch, ArchiveBatchStatus } from './archive-batch.entity';
 import { ArchiveBatchRepository } from './archive-batch.repository';
-import { ArchiveFile } from './archive-file.entity';
 import { ArchiveFileRepository } from './archive-file.repository';
 import { buildMerkleRoot, merkleInclusionProof, sha256, verifyMerkleProof } from './merkle';
 import { OpenTimestampsService } from './opentimestamps.service';

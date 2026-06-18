@@ -1,5 +1,4 @@
 import { Injectable } from '@nestjs/common';
-// eslint-disable-next-line @typescript-eslint/no-var-requires
 import * as OpenTimestamps from 'opentimestamps';
 
 /** Result of verifying a detached `.ots` proof against its digest. */
