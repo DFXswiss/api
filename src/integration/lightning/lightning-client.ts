@@ -26,17 +26,15 @@ import { CoinOnly } from 'src/integration/blockchain/shared/util/blockchain-clie
 import { LightningHelper } from './lightning-helper';
 
 export class LightningClient implements CoinOnly {
-  // LND and LNbits both serve the self-signed LND certificate (reached via
-  // private IP on PRD), so requests must be verified against this CA, not the system CAs
+  // LND serves a self-signed certificate, so the tlsAgent pins that CA and the
+  // chain is verified against it instead of the system CAs.
   private readonly tlsAgent: Agent;
 
   constructor(private readonly http: HttpService) {
-    // The LNBits Host header carries the public hostname (for LNURL URL building),
-    // which must not drive TLS verification: the node is reached by private IP and
-    // pinned via the CA below, so verify the chain — not the cert SAN.
+    // LND is reached at a hostname covered by the certificate SAN, so default
+    // server-identity verification passes — we only need to pin the self-signed CA.
     this.tlsAgent = new Agent({
       ca: Config.blockchain.lightning.certificate,
-      checkServerIdentity: () => undefined,
     });
   }
 
