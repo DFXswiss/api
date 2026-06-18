@@ -3,6 +3,7 @@ import { BaseRepository } from 'src/shared/repositories/base.repository';
 import { Util } from 'src/shared/utils/util';
 import { EntityManager, FindOptionsWhere, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
 import { LogCleanupSetting } from './dto/create-log.dto';
+import { SetFinancialLogValidityDto } from './dto/set-financial-log-validity.dto';
 import { Log, LogSeverity } from './log.entity';
 
 @Injectable()
@@ -136,5 +137,26 @@ export class LogRepository extends BaseRepository<Log> {
     }
 
     return this.find({ where, order: { created: 'ASC' } });
+  }
+
+  // Bulk-sets the valid flag on FinancialDataLog entries matched by created range and/or
+  // totalBalanceChf bounds (min exclusive lower, max exclusive upper). Returns affected rows.
+  async setFinancialLogValidity(dto: SetFinancialLogValidityDto): Promise<number> {
+    const balanceChf = `(CAST(message AS jsonb) -> 'balancesTotal' ->> 'totalBalanceChf')::numeric`;
+
+    const query = this.createQueryBuilder()
+      .update(Log)
+      .set({ valid: dto.valid })
+      .where('system = :system', { system: 'LogService' })
+      .andWhere('subsystem = :subsystem', { subsystem: 'FinancialDataLog' })
+      .andWhere('severity = :severity', { severity: LogSeverity.INFO });
+
+    if (dto.from) query.andWhere('created >= :from', { from: dto.from });
+    if (dto.to) query.andWhere('created <= :to', { to: dto.to });
+    if (dto.min != null) query.andWhere(`${balanceChf} > :min`, { min: dto.min });
+    if (dto.max != null) query.andWhere(`${balanceChf} < :max`, { max: dto.max });
+
+    const { affected } = await query.execute();
+    return affected as number;
   }
 }
