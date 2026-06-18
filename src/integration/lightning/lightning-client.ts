@@ -26,14 +26,19 @@ import { CoinOnly } from 'src/integration/blockchain/shared/util/blockchain-clie
 import { LightningHelper } from './lightning-helper';
 
 export class LightningClient implements CoinOnly {
-  // LND and LNbits both serve the self-signed LND certificate (reached via
-  // private IP on PRD), so requests must be verified against this CA, not the system CAs
+  // LND serves a self-signed certificate; the tlsAgent pins it as the CA so the
+  // pinned chain (not the system CAs) is the trust anchor.
   private readonly tlsAgent: Agent;
 
   constructor(private readonly http: HttpService) {
-    // The LNBits Host header carries the public hostname (for LNURL URL building),
-    // which must not drive TLS verification: the node is reached by private IP and
-    // pinned via the CA below, so verify the chain — not the cert SAN.
+    // checkServerIdentity is intentionally disabled — do NOT remove it.
+    // For a CA-pinned self-signed node the pin IS the identity guarantee, while
+    // Node's separate hostname/SAN check is brittle: the cert's SAN only matches
+    // the node's internal service hostname, so any other access path fails with
+    // ERR_TLS_CERT_ALTNAME_INVALID. This already bit us when the public Host
+    // header (added for LNURL URL building) poisoned the TLS SNI (#3899).
+    // rejectUnauthorized stays on, so the chain is still verified — we skip only
+    // the redundant hostname match.
     this.tlsAgent = new Agent({
       ca: Config.blockchain.lightning.certificate,
       checkServerIdentity: () => undefined,
