@@ -613,24 +613,35 @@ export class RealUnitService {
       throw new ServiceUnavailableException(`Aktionariat API error: ${message}`);
     }
 
+    // The Aktionariat reference is the authoritative purpose of payment — guard
+    // against an empty/missing one BEFORE committing the confirmation, so a bad
+    // response fails cleanly while the request is still re-confirmable.
+    const reference = aktionariatResponse.reference;
+    if (!reference) throw new ServiceUnavailableException('Aktionariat returned no payment reference');
+
     // Status + Response speichern
     await this.transactionRequestService.confirmTransactionRequest(request, JSON.stringify(aktionariatResponse));
 
-    // The confirmed Aktionariat reference is the authoritative purpose of payment
-    // the customer must put on the bank transfer, so the QR code must encode it
-    // too. The quote-time bankUsage is not the matching key for RealUnit buys —
-    // the payment instruction can only be finalised here, after confirm.
-    const reference = aktionariatResponse.reference;
-    const { bank: realunitBank, address: realunitAddress } = GetConfig().blockchain.realunit;
-    const iban = fiat.name === 'EUR' ? realunitBank.ibanEur : realunitBank.iban;
-    const paymentRequest = this.generatePaymentRequest(
-      fiat.name,
-      request.amount,
-      reference,
-      { ...realunitBank, iban },
-      realunitAddress,
-      request.user.userData,
-    );
+    // The confirmed reference is what the customer must put on the bank transfer,
+    // so the QR code must encode it too (the quote-time bankUsage is not the
+    // matching key). The QR build runs after the irreversible commit, so it is
+    // best-effort: a QR failure must never fail an already-confirmed order —
+    // remittanceInfo (the safety-critical field) is always returned.
+    let paymentRequest: string | undefined;
+    try {
+      const { bank: realunitBank, address: realunitAddress } = GetConfig().blockchain.realunit;
+      const iban = fiat.name === 'EUR' ? realunitBank.ibanEur : realunitBank.iban;
+      paymentRequest = this.generatePaymentRequest(
+        fiat.name,
+        request.amount,
+        reference,
+        { ...realunitBank, iban },
+        realunitAddress,
+        request.user.userData,
+      );
+    } catch (e) {
+      this.logger.error(`RealUnit confirmBuy QR build failed for request ${requestId} (reference ${reference}): ${e}`);
+    }
 
     return { reference, remittanceInfo: reference, paymentRequest };
   }

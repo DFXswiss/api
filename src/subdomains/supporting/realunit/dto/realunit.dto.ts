@@ -364,6 +364,8 @@ export class RealUnitBuyConfirmDto {
   })
   remittanceInfo: string;
 
-  @ApiPropertyOptional({ description: 'QR code for payment (Swiss QR-bill or GiroCode), encoding the confirmed reference' })
+  @ApiPropertyOptional({
+    description: 'QR code for payment (Swiss QR-bill or GiroCode), encoding the confirmed reference',
+  })
   paymentRequest?: string;
 }

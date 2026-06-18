@@ -336,6 +336,22 @@ describe('RealUnitService', () => {
         expect.anything(),
       );
     });
+
+    it('still returns remittanceInfo when the QR build fails (order already confirmed)', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      fiatService.getFiat.mockResolvedValue({ name: 'CHF' } as any);
+      // QR build runs after the irreversible confirm commit — a failure here must
+      // not fail the already-confirmed order.
+      swissQrService.createQrCode.mockImplementation(() => {
+        throw new Error('QR build failed');
+      });
+
+      const result = await service.confirmBuy(1, 7);
+
+      expect(transactionRequestService.confirmTransactionRequest).toHaveBeenCalled();
+      expect(result.remittanceInfo).toBe(result.reference);
+      expect(result.paymentRequest).toBeUndefined();
+    });
   });
 
   describe('confirmSell', () => {
