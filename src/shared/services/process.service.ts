@@ -91,6 +91,8 @@ export enum Process {
   TRADE_APPROVAL_DATE = 'TradeApprovalDate',
   SUPPORT_BOT = 'SupportBot',
   GUARANTEED_PRICE = 'GuaranteedPrice',
+  ARCHIVE_ANCHOR = 'ArchiveAnchor',
+  ARCHIVE_UPGRADE = 'ArchiveUpgrade',
 }
 
 const safetyProcesses: Process[] = [

@@ -2,6 +2,7 @@ import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BankIntegrationModule } from 'src/integration/bank/bank.module';
 import { ExchangeModule } from 'src/integration/exchange/exchange.module';
+import { ArchiveModule } from 'src/integration/infrastructure/storage/anchoring/archive.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { LiquidityManagementModule } from 'src/subdomains/core/liquidity-management/liquidity-management.module';
@@ -27,6 +28,7 @@ import { FiatOutputJobService } from './fiat-output-job.service';
     ExchangeModule,
     forwardRef(() => LiquidityManagementModule),
     LogModule,
+    ArchiveModule,
   ],
 
   controllers: [FiatOutputController],

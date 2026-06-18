@@ -7,6 +7,8 @@ import { Pain001Payment } from 'src/integration/bank/services/iso20022.service';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
+import { ArchiveService } from 'src/integration/infrastructure/storage/anchoring/archive.service';
+import { sha256 } from 'src/integration/infrastructure/storage/anchoring/merkle';
 import { createStorageService } from 'src/integration/infrastructure/storage/storage.factory';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -54,6 +56,7 @@ export class FiatOutputJobService {
     private readonly olkypayService: OlkypayService,
     private readonly virtualIbanService: VirtualIbanService,
     private readonly scryptService: ScryptService,
+    private readonly archiveService: ArchiveService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.FIAT_OUTPUT, timeout: 1800 })
@@ -110,10 +113,24 @@ export class FiatOutputJobService {
         const container = buyFiat.userData.paymentLinksConfigObj.ep2ReportContainer;
         const routeId = buyFiat.paymentLinkPayment.link.linkConfigObj?.payoutRouteId ?? buyFiat.sell.id;
         const fileName = `settlement_${Util.isoDateTime(entity.created)}_${routeId}.ep2`;
+        const reportBuffer = Buffer.from(report);
 
-        await createStorageService(container).uploadBlob(fileName, Buffer.from(report), 'text/xml');
+        await createStorageService(container).uploadBlob(fileName, reportBuffer, 'text/xml');
 
+        // Mark the report as created as soon as the WORM upload succeeded, BEFORE the best-effort
+        // anchoring below. A recordHash failure must not leave reportCreated=false, otherwise the
+        // next run would re-PUT the same fileName into the immutable WORM bucket and block forever.
         await this.fiatOutputRepo.update(entity.id, { reportCreated: true });
+
+        // GeBüV anchoring (Stage 3): record the content hash of the just-uploaded EP2 settlement
+        // report (a retention-relevant compliance bucket) for later Merkle-batching and anchoring.
+        // Best-effort side-booking: the upload already succeeded, so a failure here is logged
+        // (never silently swallowed) but does not roll back the upload or the reportCreated flag.
+        try {
+          await this.archiveService.recordHash(container, fileName, sha256(reportBuffer).toString('hex'));
+        } catch (e) {
+          this.logger.error(`GeBüV anchoring failed to record hash for ${container}/${fileName}:`, e);
+        }
       } catch (e) {
         this.logger.error(`Failed to generate EP2 report for fiat output ${entity.id}:`, e);
       }
