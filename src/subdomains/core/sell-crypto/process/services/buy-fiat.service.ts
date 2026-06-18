@@ -208,7 +208,17 @@ export class BuyFiatService implements OnModuleInit {
         (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
       !entity.isComplete &&
       (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
-        ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason }
+        ? {
+            amlCheck: update.amlCheck,
+            mailSendDate: null,
+            amlReason: update.amlReason,
+            ...(update.amlCheck === CheckStatus.PASS
+              ? {
+                  priceDefinitionAllowedDate:
+                    update.priceDefinitionAllowedDate ?? entity.priceDefinitionAllowedDate ?? new Date(),
+                }
+              : undefined),
+          }
         : undefined),
       isComplete: dto.isComplete,
       comment: update.comment,

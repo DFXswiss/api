@@ -342,7 +342,18 @@ export class BuyCryptoService implements OnModuleInit {
         (entity.amlCheck === CheckStatus.FAIL && dto.amlCheck === CheckStatus.GSHEET)) &&
       !entity.isComplete &&
       (update?.amlCheck !== entity.amlCheck || update.amlReason !== entity.amlReason)
-        ? { amlCheck: update.amlCheck, mailSendDate: null, amlReason: update.amlReason, comment: update.comment }
+        ? {
+            amlCheck: update.amlCheck,
+            mailSendDate: null,
+            amlReason: update.amlReason,
+            comment: update.comment,
+            ...(update.amlCheck === CheckStatus.PASS
+              ? {
+                  priceDefinitionAllowedDate:
+                    update.priceDefinitionAllowedDate ?? entity.priceDefinitionAllowedDate ?? new Date(),
+                }
+              : undefined),
+          }
         : undefined),
       isComplete: dto.isComplete,
     };

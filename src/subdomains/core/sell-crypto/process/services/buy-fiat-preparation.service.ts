@@ -450,7 +450,11 @@ export class BuyFiatPreparationService {
     );
 
     for (const buyFiat of immediateOutputs) {
-      await this.fiatOutputService.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [buyFiat] }, buyFiat.id);
+      try {
+        await this.fiatOutputService.createInternal(FiatOutputType.BUY_FIAT, { buyFiats: [buyFiat] }, buyFiat.id);
+      } catch (e) {
+        this.logger.error(`Error during buy-fiat ${buyFiat.id} fiat output creation:`, e);
+      }
     }
 
     // batched payouts (business days only)
@@ -480,12 +484,16 @@ export class BuyFiatPreparationService {
     );
 
     for (const buyFiats of sellGroups.values()) {
-      await this.fiatOutputService.createInternal(
-        FiatOutputType.BUY_FIAT,
-        { buyFiats },
-        buyFiats[0].id,
-        buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
-      );
+      try {
+        await this.fiatOutputService.createInternal(
+          FiatOutputType.BUY_FIAT,
+          { buyFiats },
+          buyFiats[0].id,
+          buyFiats[0].userData.paymentLinksConfigObj.ep2ReportContainer != null,
+        );
+      } catch (e) {
+        this.logger.error(`Error during buy-fiat ${buyFiats[0].id} batched fiat output creation:`, e);
+      }
     }
   }
 

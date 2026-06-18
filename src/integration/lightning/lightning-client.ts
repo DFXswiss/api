@@ -26,7 +26,24 @@ import { CoinOnly } from 'src/integration/blockchain/shared/util/blockchain-clie
 import { LightningHelper } from './lightning-helper';
 
 export class LightningClient implements CoinOnly {
-  constructor(private readonly http: HttpService) {}
+  // LND serves a self-signed certificate; the tlsAgent pins it as the CA so the
+  // pinned chain (not the system CAs) is the trust anchor.
+  private readonly tlsAgent: Agent;
+
+  constructor(private readonly http: HttpService) {
+    // checkServerIdentity is intentionally disabled — do NOT remove it.
+    // For a CA-pinned self-signed node the pin IS the identity guarantee, while
+    // Node's separate hostname/SAN check is brittle: the cert's SAN only matches
+    // the node's internal service hostname, so any other access path fails with
+    // ERR_TLS_CERT_ALTNAME_INVALID. This already bit us when the public Host
+    // header (added for LNURL URL building) poisoned the TLS SNI (#3899).
+    // rejectUnauthorized stays on, so the chain is still verified — we skip only
+    // the redundant hostname match.
+    this.tlsAgent = new Agent({
+      ca: Config.blockchain.lightning.certificate,
+      checkServerIdentity: () => undefined,
+    });
+  }
 
   // --- LND --- //
 
@@ -241,8 +258,6 @@ export class LightningClient implements CoinOnly {
   }
 
   async updateLnurlpLink(linkId: string, data: LnurlpLinkUpdateDto): Promise<LnurlpLinkDto> {
-    if (!linkId) throw new Error('LinkId is undefined');
-
     return this.http.put<LnurlpLinkDto>(
       `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/links/${linkId}`,
       data,
@@ -341,19 +356,15 @@ export class LightningClient implements CoinOnly {
   // --- HELPER METHODS --- //
   private httpLnBitsConfig(params?: any): HttpRequestConfig {
     return {
-      httpsAgent: new Agent({
-        ca: Config.blockchain.lightning.certificate,
-      }),
+      httpsAgent: this.tlsAgent,
+      headers: { 'X-Forwarded-Proto': 'https', Host: new URL(Config.url()).hostname },
       params: { 'api-key': Config.blockchain.lightning.lnbits.apiKey, ...params },
     };
   }
 
   private httpLndConfig(): HttpRequestConfig {
     return {
-      httpsAgent: new Agent({
-        ca: Config.blockchain.lightning.certificate,
-      }),
-
+      httpsAgent: this.tlsAgent,
       headers: { 'Grpc-Metadata-macaroon': Config.blockchain.lightning.lnd.adminMacaroon },
     };
   }

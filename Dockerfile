@@ -21,6 +21,10 @@ RUN npm run build
 # the already-compiled native modules without needing python3 + g++.
 RUN npm prune --omit=dev
 
+# Write git commit SHA into dist/ so /version endpoint can read it.
+ARG GIT_COMMIT=unknown
+RUN echo "$GIT_COMMIT" > dist/version.txt
+
 
 FROM node:20-alpine
 

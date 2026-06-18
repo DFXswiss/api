@@ -27,6 +27,10 @@ export class CardanoService extends BlockchainService {
     return this.client.walletAddress;
   }
 
+  get isConfigured(): boolean {
+    return this.client.isConfigured;
+  }
+
   verifySignature(message: string, address: string, signature: string, key?: string): boolean {
     try {
       return verifyCardanoSignature(signature, key, message, address);

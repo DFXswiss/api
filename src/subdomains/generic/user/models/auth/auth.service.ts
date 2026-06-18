@@ -259,19 +259,32 @@ export class AuthService {
     const ipCountry = this.geoLocationService.getCountry(userIp);
     const language = await this.languageService.getLanguageByCountry(ipCountry);
 
-    const userData =
-      (await this.userDataService
+    // wallet the login originated from - determines mail branding (e.g. DFX vs. RealUnit);
+    // always resolve to a concrete wallet so branding follows the login source and never falls back to account history
+    const loginWallet =
+      (dto.wallet && (await this.walletService.getByIdOrName(undefined, dto.wallet))) ||
+      (await this.walletService.getDefault());
+
+    const findByMail = () =>
+      this.userDataService
         .getUsersByMail(dto.mail)
-        .then((u) => Util.sort(u, 'id', 'DESC') && Util.maxObj(u, 'kycLevel'))) ??
-      (await this.userDataService.createUserData({
-        kycType: KycType.DFX,
-        mail: dto.mail,
-        language: dto.language ?? language,
-        status: UserDataStatus.KYC_ONLY,
-        wallet: dto.wallet
-          ? await this.walletService.getByIdOrName(undefined, dto.wallet)
-          : await this.walletService.getDefault(),
-      }));
+        .then((u) => Util.sort(u, 'id', 'DESC') && Util.maxObj(u, 'kycLevel'));
+
+    const userData =
+      (await findByMail()) ??
+      (await this.userDataService
+        .createUserData({
+          kycType: KycType.DFX,
+          mail: dto.mail,
+          language: dto.language ?? language,
+          status: UserDataStatus.KYC_ONLY,
+          wallet: loginWallet,
+        })
+        // a concurrent mail login may have created the account first (unique mail index); re-resolve
+        .catch((e) => {
+          if (e.message?.includes('duplicate key')) return findByMail();
+          throw e;
+        }));
 
     if (dto.recommendationCode) await this.confirmRecommendationCode(dto.recommendationCode, userData);
 
@@ -301,6 +314,7 @@ export class AuthService {
       context: MailContext.LOGIN,
       input: {
         userData,
+        wallet: loginWallet,
         title: `${MailTranslationKey.LOGIN}.title`,
         salutation: { key: `${MailTranslationKey.LOGIN}.salutation` },
         texts: [

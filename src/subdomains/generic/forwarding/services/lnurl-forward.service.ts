@@ -23,8 +23,15 @@ import { PaymentDto } from '../dto/payment.dto';
 
 @Injectable()
 export class LnUrlForwardService {
-  private readonly PAYMENT_LINK_PREFIX = `${Config.prefixes.paymentLinkUidPrefix}_`;
-  private readonly PAYMENT_LINK_PAYMENT_PREFIX = `${Config.prefixes.paymentLinkPaymentUidPrefix}_`;
+  // Getters, not fields: Config is undefined until ConfigService is constructed, so reading it
+  // in a field initializer can crash bootstrap depending on provider-instantiation order.
+  private get PAYMENT_LINK_PREFIX(): string {
+    return `${Config.prefixes.paymentLinkUidPrefix}_`;
+  }
+
+  private get PAYMENT_LINK_PAYMENT_PREFIX(): string {
+    return `${Config.prefixes.paymentLinkPaymentUidPrefix}_`;
+  }
 
   private readonly client: LightningClient;
 
@@ -42,6 +49,8 @@ export class LnUrlForwardService {
     id: string,
     params: any,
   ): Promise<LnurlPayRequestDto | PaymentLinkPayRequestDto | LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
+    this.validateLinkId(id);
+
     if (id.startsWith(this.PAYMENT_LINK_PREFIX) || id.startsWith(this.PAYMENT_LINK_PAYMENT_PREFIX)) {
       const payRequest = await this.paymentLinkService.createPayRequest(
         id,
@@ -71,6 +80,8 @@ export class LnUrlForwardService {
 
   // callback
   async lnurlpCallbackForward(id: string, params: any): Promise<LnurlpInvoiceDto | PaymentLinkEvmPaymentDto> {
+    this.validateLinkId(id);
+
     if (id.startsWith(this.PAYMENT_LINK_PREFIX) || id.startsWith(this.PAYMENT_LINK_PAYMENT_PREFIX)) {
       const transferInfo = this.getPaymentTransferInfo(params);
       return this.paymentLinkPaymentService.createActivationRequest(id, transferInfo);
@@ -131,6 +142,8 @@ export class LnUrlForwardService {
 
   // --- LNURLw --- //
   async lnurlwForward(id: string): Promise<LnurlWithdrawRequestDto> {
+    this.validateLinkId(id);
+
     const withdrawRequest = await this.client.getLnurlwWithdrawRequest(id);
 
     withdrawRequest.callback = LightningHelper.createLnurlwCallbackUrl(id);
@@ -139,11 +152,15 @@ export class LnUrlForwardService {
   }
 
   async lnurlwCallbackForward(id: string, params: any): Promise<LnurlwInvoiceDto> {
+    this.validateLinkId(id);
+
     return this.client.sendLnurlwInvoice(id, params);
   }
 
   // --- LNURLd --- //
   async lnurldForward(deviceId: string, params: any): Promise<LnurlWithdrawRequestDto> {
+    this.validateLinkId(deviceId);
+
     const withdrawRequest = await this.client.getLnurlDevice(deviceId, params);
 
     const [paymentId, variable] = withdrawRequest.callback.split('/').slice(-2);
@@ -153,6 +170,9 @@ export class LnUrlForwardService {
   }
 
   async lnurldCallbackForward(id: string, variable: string, params: any): Promise<LnurlwInvoiceDto> {
+    this.validateLinkId(id);
+    this.validateLinkId(variable);
+
     return this.client.getLnurlDeviceCallback(id, variable, params);
   }
 
@@ -164,5 +184,10 @@ export class LnUrlForwardService {
     } = await this.paymentLinkService.createPayment(dto, paymentLink.route.user.id, paymentLink.id);
 
     return this.paymentLinkService.createPayRequest(pendingPayment.uniqueId);
+  }
+
+  // --- HELPERS --- //
+  private validateLinkId(id: string): void {
+    if (!/^[\w-]+$/.test(id)) throw new BadRequestException('Invalid link id');
   }
 }

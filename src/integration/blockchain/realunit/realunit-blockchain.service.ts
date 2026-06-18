@@ -48,7 +48,7 @@ export class RealUnitBlockchainService {
   constructor(private readonly http: HttpService) {}
 
   private async fetchPrice(): Promise<AktionariatPriceResponse> {
-    return this.priceCache.get(
+    const response = await this.priceCache.get(
       'price',
       async () => {
         const { url, key } = GetConfig().blockchain.realunit.api;
@@ -59,6 +59,11 @@ export class RealUnitBlockchainService {
       undefined,
       true,
     );
+
+    if (response?.priceInCHF == null || response.priceInEUR == null)
+      throw new Error('Aktionariat getPrice returned an invalid response (missing price)');
+
+    return response;
   }
 
   async getRealUnitPriceChf(): Promise<number> {

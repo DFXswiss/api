@@ -39,6 +39,30 @@ describe('ExchangeService', () => {
     expect(service).toBeDefined();
   });
 
+  it('should not be configured without credentials', () => {
+    expect(service.isConfigured).toBe(false);
+  });
+
+  it('should not be configured with only an apiKey', () => {
+    service = new ExchangeTestModule.TestExchangeService(
+      ExchangeTestModule.TestExchange,
+      { apiKey: 'key' },
+      new QueueHandler(undefined, undefined),
+    );
+
+    expect(service.isConfigured).toBe(false);
+  });
+
+  it('should be configured with apiKey and secret', () => {
+    service = new ExchangeTestModule.TestExchangeService(
+      ExchangeTestModule.TestExchange,
+      { apiKey: 'key', secret: 'secret' },
+      new QueueHandler(undefined, undefined),
+    );
+
+    expect(service.isConfigured).toBe(true);
+  });
+
   it('should return BTC/EUR and buy', async () => {
     Setup.Markets();
 

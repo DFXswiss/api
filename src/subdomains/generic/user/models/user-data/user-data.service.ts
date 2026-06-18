@@ -47,7 +47,7 @@ import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.se
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { Equal, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { Equal, FindOptionsRelations, In, IsNull, MoreThan, Not, Raw } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -196,7 +196,7 @@ export class UserDataService {
   ): Promise<UserData[]> {
     return this.userDataRepo.find({
       where: {
-        mail,
+        mail: Raw((alias) => `LOWER(${alias}) = :mail`, { mail: mail?.toLowerCase() }),
         status: onlyValidUser
           ? In([UserDataStatus.ACTIVE, UserDataStatus.NA, UserDataStatus.KYC_ONLY, UserDataStatus.DEACTIVATED])
           : undefined,
@@ -296,6 +296,7 @@ export class UserDataService {
   async createUserData(dto: CreateUserDataDto): Promise<UserData> {
     const entity = this.userDataRepo.create({
       ...dto,
+      mail: dto.mail?.toLowerCase(),
       language: dto.language ?? (await this.languageService.getLanguageBySymbol(Config.defaults.language)),
       currency: dto.currency ?? (await this.fiatService.getFiatByName(Config.defaults.currency)),
       kycHash: randomUUID().toUpperCase(),
@@ -510,6 +511,8 @@ export class UserDataService {
   }
 
   async updateUserDataInternal(userData: UserData, dto: Partial<UserData>): Promise<UserData> {
+    if (dto.mail) dto.mail = dto.mail.toLowerCase();
+
     await this.loadRelationsAndVerify({ id: userData.id, ...dto }, dto);
 
     if (dto.kycLevel && dto.kycLevel < userData.kycLevel) dto.kycLevel = userData.kycLevel;
@@ -773,6 +776,7 @@ export class UserDataService {
   }
 
   private async doUpdateUserMail(userData: UserData, mail: string): Promise<UserData> {
+    mail = mail?.toLowerCase();
     await this.userDataRepo.update(userData.id, { mail });
     Object.assign(userData, { mail });
 

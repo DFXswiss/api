@@ -1,37 +1,21 @@
 services:
   db:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    container_name: dfx-mssql
+    image: postgres:16
+    container_name: dfx-postgres
     environment:
-      - ACCEPT_EULA=Y
-      - MSSQL_SA_PASSWORD=LocalDev2026@SQL
-      - MSSQL_PID=Developer
+      - POSTGRES_USER=sa
+      - POSTGRES_PASSWORD=LocalDev2026@SQL
+      - POSTGRES_DB=dfx
     ports:
-      - "1433:1433"
+      - "5432:5432"
     volumes:
-      - mssql_data:/var/opt/mssql
+      - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: /opt/mssql-tools18/bin/sqlcmd -S localhost -U sa -P "LocalDev2026@SQL" -C -Q "SELECT 1" || exit 1
+      test: ["CMD-SHELL", "pg_isready -U sa -d dfx"]
       interval: 10s
       timeout: 3s
       retries: 10
       start_period: 10s
 
-  db-init:
-    image: mcr.microsoft.com/mssql/server:2022-latest
-    depends_on:
-      db:
-        condition: service_healthy
-    entrypoint: ["/bin/bash", "-c"]
-    command:
-      - |
-        /opt/mssql-tools18/bin/sqlcmd -S db -U sa -P "LocalDev2026@SQL" -C -Q "
-          IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'dfx')
-          BEGIN
-            CREATE DATABASE dfx
-          END
-        "
-        echo "Database 'dfx' ready"
-
 volumes:
-  mssql_data:
+  postgres_data:

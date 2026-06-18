@@ -112,7 +112,8 @@ export class LogJobService {
       // changes
       const changeLog = await this.getChangeLog();
 
-      // total balances
+      // total balances — customer flow is balance-neutral, so totalBalanceChf moves only on
+      // operating profit, FX, or an error/realised loss (see BalancesTotal). Hence the guardrails below.
       const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
       const minusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'minusBalanceChf');
 
@@ -1102,8 +1103,19 @@ export class LogJobService {
     const raw = tx instanceof BankTx ? tx.remittanceInfo?.trim() : tx.txId?.trim();
     if (!raw) return undefined;
 
-    const match = raw.match(/\d+$/);
-    return match?.[0];
+    // Automated references start with a letter and carry the payout id as a trailing
+    // >= 4 digit run (sender "DFX Payout 81398", receiver "DEPOSIT-81398"/"E2E-81398").
+    // Manual references start with a digit (date-style, e.g. "21.05.2026", "12.06.2026.A")
+    // and must NOT be parsed as a payout id: their trailing run is a year and would
+    // collide across unrelated transfers, silently hiding in-transit money.
+    if (/^[a-z]/i.test(raw)) {
+      const payoutId = raw.match(/(\d{4,})$/);
+      if (payoutId) return payoutId[1];
+    }
+
+    // Manual transfers (and any letter-prefixed reference without a trailing payout id)
+    // pair on the normalized full reference, which is identical on both sides.
+    return raw.toLowerCase().replace(/\s+/g, ' ');
   }
 
   public filterSenderPendingList(

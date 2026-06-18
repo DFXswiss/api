@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
-import { Config } from 'src/config/config';
+import { Config, Environment } from 'src/config/config';
 import { AlchemyNetworkMapper } from 'src/integration/alchemy/alchemy-network-mapper';
 import { AlchemyWebhookService } from 'src/integration/alchemy/services/alchemy-webhook.service';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
@@ -132,20 +132,27 @@ export class DepositService implements OnModuleInit {
     }
   }
 
+  // EVM chains an EVM deposit address can receive on. Superset of AlchemyNetworkMapper.availableNetworks
+  // because Citrea shares the EVM derivation but is polled by PayInCitreaService instead of Alchemy.
+  private getApplicableEvmChains(): Blockchain[] {
+    const chains = [...AlchemyNetworkMapper.availableNetworks];
+    if (Config.environment === Environment.PRD) chains.push(Blockchain.CITREA);
+    return chains;
+  }
+
   private async createEvmDeposits(blockchain: Blockchain, count: number): Promise<void> {
     const addresses: string[] = await this.getDepositsByBlockchain(blockchain).then((d) => d.map((d) => d.address));
 
     const nextDepositIndex = await this.getNextDepositIndex(EvmBlockchains);
 
-    const applicableChains = AlchemyNetworkMapper.availableNetworks.includes(blockchain)
-      ? AlchemyNetworkMapper.availableNetworks
-      : [blockchain];
+    const applicableChains = this.getApplicableEvmChains();
+    const depositChains = applicableChains.includes(blockchain) ? applicableChains : [blockchain];
 
     for (let i = 0; i < count; i++) {
       const accountIndex = nextDepositIndex + i;
 
       const wallet = EvmUtil.createWallet(Config.blockchain.evm.walletAccount(accountIndex));
-      const deposit = Deposit.create(wallet.address, applicableChains, accountIndex);
+      const deposit = Deposit.create(wallet.address, depositChains, accountIndex);
       await this.depositRepo.save(deposit);
 
       addresses.push(deposit.address);
@@ -153,7 +160,9 @@ export class DepositService implements OnModuleInit {
 
     addresses.push(this.createPaymentAddress());
 
-    for (const chain of applicableChains) {
+    // Register webhooks only for Alchemy-supported chains; non-Alchemy chains in depositChains
+    // (e.g. Citrea) are picked up by their own pay-in services without a webhook.
+    for (const chain of depositChains.filter((c) => AlchemyNetworkMapper.availableNetworks.includes(c))) {
       await this.alchemyWebhookService.createAddressWebhook({ blockchain: chain, addresses: addresses });
     }
   }

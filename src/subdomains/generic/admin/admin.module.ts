@@ -4,6 +4,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
+import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
 import { BankModule } from 'src/subdomains/supporting/bank/bank.module';
 import { DexModule } from 'src/subdomains/supporting/dex/dex.module';
 import { NotificationModule } from 'src/subdomains/supporting/notification/notification.module';
@@ -26,6 +27,7 @@ import { AdminService } from './admin.service';
     PayInModule,
     DexModule,
     PayoutModule,
+    AddressPoolModule,
   ],
   controllers: [AdminController],
   providers: [AdminService],

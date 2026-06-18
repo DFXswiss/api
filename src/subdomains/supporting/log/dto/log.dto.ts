@@ -16,6 +16,29 @@ export interface FinanceLog {
   balancesTotal: BalancesTotal;
 }
 
+/**
+ * Aggregate CHF valuation of the whole book at log time, written by LogJobService.
+ *
+ * `totalBalanceChf = plusBalanceChf - minusBalanceChf`, where plus/minus are each
+ * asset's positive/negative balance valued at its current `priceChf`. Plus = assets
+ * DFX holds, minus = liabilities owed to customers.
+ *
+ * Invariant: customer flow is balance-neutral. A deposit raises plus AND minus by the
+ * same amount; completing the order lowers both again, leaving only the fee in plus.
+ * So `totalBalanceChf` never moves because a customer deposits or withdraws — it is
+ * effectively the operating equity of the flow business and only moves due to:
+ *   1. operating profit / fees — gradual, positive, realised on order completion
+ *   2. FX — plus and minus are different asset baskets, so their CHF marks drift
+ *      independently while orders are open (the normal intraday noise)
+ *   3. an error or a realised loss — a discrete, persisting step
+ *
+ * A sudden step (especially negative) is therefore suspicious rather than customer
+ * activity. Two guardrails act on this signal in LogJobService: the entry is flagged
+ * `valid: false` when the jump vs. the previous entry exceeds
+ * `Config.financeLogTotalBalanceChangeLimit` and that entry is under 15 minutes old (a
+ * larger logging gap suppresses the flag), and safety mode is triggered when
+ * `totalBalanceChf` drops below the `minTotalBalanceChf` setting.
+ */
 export interface BalancesTotal {
   plusBalanceChf: number;
   minusBalanceChf: number;

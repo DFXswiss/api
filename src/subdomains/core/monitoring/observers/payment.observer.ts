@@ -25,6 +25,7 @@ interface PaymentData {
   bankTxGsType: number;
   refRewardManualCheck: number;
   stuckPayments: number;
+  stuckFiatOutputs: number;
   pendingCustodyOrders: number;
 }
 
@@ -107,6 +108,11 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
           ]),
         ),
         created: LessThan(Util.hoursBefore(3)),
+      }),
+      stuckFiatOutputs: await this.repos.fiatOutput.countBy({
+        isReadyDate: LessThan(Util.hoursBefore(1)),
+        isTransmittedDate: IsNull(),
+        isComplete: false,
       }),
       pendingCustodyOrders: await this.repos.custodyOrder.countBy({
         status: CustodyOrderStatus.CONFIRMED,

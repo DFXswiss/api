@@ -4,7 +4,7 @@
  * DFX API Local Development Setup
  *
  * This script handles the complete local setup:
- * 1. Generates all wallet seeds (19 seeds/keys)
+ * 1. Generates all wallet seeds/keys
  * 2. Starts API in background
  * 3. Registers admin user via /auth endpoint
  * 4. Sets admin role in database
@@ -16,9 +16,10 @@
 
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { spawn } = require('child_process');
 const { ethers } = require('ethers');
-const mssql = require('mssql');
+const { Client } = require('pg');
 
 // ============================================================================
 // SAFETY CHECKS - Prevent accidental execution against production
@@ -35,15 +36,10 @@ if (!allowedEnvironments.includes(currentEnv)) {
 }
 
 const dbHost = process.env.SQL_HOST || 'localhost';
-const allowedHostPatterns = [
-  'localhost',
-  '127.0.0.1',
-  /^sql-dfx-api-loc/i,
-  /loc.*\.database\.windows\.net/i,
-];
+const allowedHostPatterns = ['localhost', '127.0.0.1', /^sql-dfx-api-loc/i, /loc.*\.database\.windows\.net/i];
 
-const isHostAllowed = allowedHostPatterns.some(pattern =>
-  pattern instanceof RegExp ? pattern.test(dbHost) : dbHost === pattern
+const isHostAllowed = allowedHostPatterns.some((pattern) =>
+  pattern instanceof RegExp ? pattern.test(dbHost) : dbHost === pattern,
 );
 
 if (!isHostAllowed) {
@@ -88,7 +84,6 @@ function logError(message) {
 function logInfo(message) {
   log(`  ${message}`, colors.yellow);
 }
-
 
 function generateMnemonic() {
   const wallet = ethers.Wallet.createRandom();
@@ -143,11 +138,23 @@ async function waitForApi(maxRetries = 60, delayMs = 2000) {
 
     if (i < maxRetries - 1) {
       process.stdout.write(`\r  Waiting for API... (${i + 1}/${maxRetries})`);
-      await new Promise(r => setTimeout(r, delayMs));
+      await new Promise((r) => setTimeout(r, delayMs));
     }
   }
   console.log('');
   return false;
+}
+
+function dbConfig() {
+  return {
+    user: process.env.SQL_USERNAME || 'sa',
+    password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
+    host: process.env.SQL_HOST || 'localhost',
+    port: parseInt(process.env.SQL_PORT) || 5432,
+    database: process.env.SQL_DB || 'dfx',
+    // Local-only script (host is restricted above); default to no SSL, opt in via SQL_SSL=true.
+    ssl: process.env.SQL_SSL === 'true' ? { rejectUnauthorized: false } : false,
+  };
 }
 
 /**
@@ -156,24 +163,13 @@ async function waitForApi(maxRetries = 60, delayMs = 2000) {
  * to register a user before tables exist.
  */
 async function waitForDatabaseReady(maxRetries = 60, delayMs = 2000) {
-  const config = {
-    user: process.env.SQL_USERNAME || 'sa',
-    password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
-    server: process.env.SQL_HOST || 'localhost',
-    port: parseInt(process.env.SQL_PORT) || 1433,
-    database: process.env.SQL_DB || 'dfx',
-    options: {
-      encrypt: process.env.SQL_ENCRYPT === 'true',
-      trustServerCertificate: true,
-    },
-  };
-
   // Critical tables that must exist for auth to work
   const requiredTables = ['user', 'user_data', 'wallet', 'ip_log', 'language', 'country', 'fiat', 'asset'];
 
-  let pool;
+  let client;
   try {
-    pool = await mssql.connect(config);
+    client = new Client(dbConfig());
+    await client.connect();
   } catch (e) {
     logError(`Could not connect to database: ${e.message}`);
     return false;
@@ -182,43 +178,49 @@ async function waitForDatabaseReady(maxRetries = 60, delayMs = 2000) {
   for (let i = 0; i < maxRetries; i++) {
     try {
       // Check if all required tables exist
-      const tableCheck = await pool.request().query(`
-        SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES
-        WHERE TABLE_TYPE = 'BASE TABLE'
-        AND TABLE_NAME IN (${requiredTables.map(t => `'${t}'`).join(',')})
-      `);
+      const tableCheck = await client.query(
+        `SELECT table_name FROM information_schema.tables
+         WHERE table_schema = 'public' AND table_type = 'BASE TABLE' AND table_name = ANY($1)`,
+        [requiredTables],
+      );
 
-      const existingTables = tableCheck.recordset.map(r => r.TABLE_NAME);
-      const missingTables = requiredTables.filter(t => !existingTables.includes(t));
+      const existingTables = tableCheck.rows.map((r) => r.table_name);
+      const missingTables = requiredTables.filter((t) => !existingTables.includes(t));
 
       if (missingTables.length === 0) {
         // All tables exist, now check if seed data is present
-        const seedCheck = await pool.request().query(`
-          SELECT
-            (SELECT COUNT(*) FROM wallet) as wallets,
-            (SELECT COUNT(*) FROM language) as languages,
-            (SELECT COUNT(*) FROM ip_log) as ipLogs
-        `);
+        const seedCheck = await client.query(
+          `SELECT
+             (SELECT COUNT(*) FROM wallet) AS wallets,
+             (SELECT COUNT(*) FROM language) AS languages,
+             (SELECT COUNT(*) FROM ip_log) AS ip_logs`,
+        );
 
-        const { wallets, languages, ipLogs } = seedCheck.recordset[0];
+        const wallets = Number(seedCheck.rows[0].wallets);
+        const languages = Number(seedCheck.rows[0].languages);
+        const ipLogs = Number(seedCheck.rows[0].ip_logs);
 
         if (wallets > 0 && languages > 0 && ipLogs > 0) {
-          await pool.close();
+          await client.end();
           return true;
         }
 
-        process.stdout.write(`\r  Waiting for seed data... (${i + 1}/${maxRetries}) [wallet:${wallets}, language:${languages}, ip_log:${ipLogs}]`);
+        process.stdout.write(
+          `\r  Waiting for seed data... (${i + 1}/${maxRetries}) [wallet:${wallets}, language:${languages}, ip_log:${ipLogs}]`,
+        );
       } else {
-        process.stdout.write(`\r  Waiting for tables... (${i + 1}/${maxRetries}) [missing: ${missingTables.slice(0, 3).join(', ')}${missingTables.length > 3 ? '...' : ''}]`);
+        process.stdout.write(
+          `\r  Waiting for tables... (${i + 1}/${maxRetries}) [missing: ${missingTables.slice(0, 3).join(', ')}${missingTables.length > 3 ? '...' : ''}]`,
+        );
       }
     } catch (e) {
       process.stdout.write(`\r  Waiting for database... (${i + 1}/${maxRetries})`);
     }
 
-    await new Promise(r => setTimeout(r, delayMs));
+    await new Promise((r) => setTimeout(r, delayMs));
   }
 
-  await pool.close();
+  await client.end();
   console.log('');
   return false;
 }
@@ -267,51 +269,23 @@ async function registerUser(address, signature) {
 }
 
 async function setAdminRole(address) {
-  const config = {
-    user: process.env.SQL_USERNAME || 'sa',
-    password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
-    server: process.env.SQL_HOST || 'localhost',
-    port: parseInt(process.env.SQL_PORT) || 1433,
-    database: process.env.SQL_DB || 'dfx',
-    options: {
-      encrypt: process.env.SQL_ENCRYPT === 'true',
-      trustServerCertificate: true,
-    },
-  };
+  const client = new Client(dbConfig());
+  await client.connect();
 
-  const pool = await mssql.connect(config);
+  try {
+    // Set role to Admin
+    await client.query('UPDATE "user" SET role = $1 WHERE address = $2', ['Admin', address]);
 
-  // Set role to Admin
-  await pool.request()
-    .input('address', mssql.NVarChar, address)
-    .input('role', mssql.NVarChar, 'Admin')
-    .query('UPDATE [user] SET role = @role WHERE address = @address');
+    // Verify
+    const result = await client.query('SELECT id, address, role FROM "user" WHERE address = $1', [address]);
 
-  // Verify
-  const result = await pool.request()
-    .input('address', mssql.NVarChar, address)
-    .query('SELECT id, address, role FROM [user] WHERE address = @address');
-
-  await pool.close();
-
-  return result.recordset[0];
+    return result.rows[0];
+  } finally {
+    await client.end();
+  }
 }
 
 async function seedDepositAddresses(adminSeed, count) {
-  const config = {
-    user: process.env.SQL_USERNAME || 'sa',
-    password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
-    server: process.env.SQL_HOST || 'localhost',
-    port: parseInt(process.env.SQL_PORT) || 1433,
-    database: process.env.SQL_DB || 'dfx',
-    options: {
-      encrypt: process.env.SQL_ENCRYPT === 'true',
-      trustServerCertificate: true,
-    },
-  };
-
-  const pool = await mssql.connect(config);
-
   // Generate deposit addresses from EVM_DEPOSIT_SEED
   const evmDepositSeed = readEnvValue('EVM_DEPOSIT_SEED');
   if (!evmDepositSeed) {
@@ -320,37 +294,48 @@ async function seedDepositAddresses(adminSeed, count) {
 
   // EVM blockchains that share deposit addresses (semicolon-separated)
   const evmBlockchains = [
-    'Ethereum', 'Sepolia', 'BinanceSmartChain', 'Arbitrum',
-    'Optimism', 'Polygon', 'Base', 'Gnosis', 'Haqq', 'CitreaTestnet'
+    'Ethereum',
+    'Sepolia',
+    'BinanceSmartChain',
+    'Arbitrum',
+    'Optimism',
+    'Polygon',
+    'Base',
+    'Gnosis',
+    'Haqq',
+    'CitreaTestnet',
   ];
   const blockchainsStr = evmBlockchains.join(';');
 
+  const client = new Client(dbConfig());
+  await client.connect();
+
   let insertedCount = 0;
 
-  for (let i = 0; i < count; i++) {
-    const hdPath = `m/44'/60'/0'/0/${i}`;
-    const wallet = ethers.Wallet.fromMnemonic(evmDepositSeed, hdPath);
-    const address = wallet.address;
+  try {
+    for (let i = 0; i < count; i++) {
+      const hdPath = `m/44'/60'/0'/0/${i}`;
+      const wallet = ethers.Wallet.fromMnemonic(evmDepositSeed, hdPath);
+      const address = wallet.address;
 
-    try {
-      const result = await pool.request()
-        .input('address', mssql.NVarChar, address)
-        .input('blockchains', mssql.NVarChar, blockchainsStr)
-        .input('accountIndex', mssql.Int, i)
-        .query(`
-          IF NOT EXISTS (SELECT 1 FROM deposit WHERE address = @address)
-          INSERT INTO deposit (address, blockchains, accountIndex, created, updated)
-          VALUES (@address, @blockchains, @accountIndex, GETDATE(), GETDATE())
-        `);
-      if (result.rowsAffected[0] > 0) {
-        insertedCount++;
+      try {
+        const result = await client.query(
+          `INSERT INTO deposit (address, blockchains, "accountIndex", created, updated)
+           SELECT $1::text, $2::text, $3::int, NOW(), NOW()
+           WHERE NOT EXISTS (SELECT 1 FROM deposit WHERE address = $1)`,
+          [address, blockchainsStr, i],
+        );
+        if (result.rowCount > 0) {
+          insertedCount++;
+        }
+      } catch (e) {
+        // Ignore duplicates
       }
-    } catch (e) {
-      // Ignore duplicates
     }
+  } finally {
+    await client.end();
   }
 
-  await pool.close();
   return insertedCount;
 }
 
@@ -369,10 +354,14 @@ async function main() {
     'SOLANA_WALLET_SEED',
     'TRON_WALLET_SEED',
     'CARDANO_WALLET_SEED',
+    'ICP_WALLET_SEED',
+    'SPARK_WALLET_SEED',
+    'BOLTZ_SEED',
     'PAYMENT_EVM_SEED',
     'PAYMENT_SOLANA_SEED',
     'PAYMENT_TRON_SEED',
     'PAYMENT_CARDANO_SEED',
+    'PAYMENT_ICP_SEED',
   ];
 
   const privateKeysToGenerate = [
@@ -384,6 +373,7 @@ async function main() {
     'ARBITRUM_WALLET_PRIVATE_KEY',
     'POLYGON_WALLET_PRIVATE_KEY',
     'GNOSIS_WALLET_PRIVATE_KEY',
+    'CITREA_WALLET_PRIVATE_KEY',
     'CITREA_TESTNET_WALLET_PRIVATE_KEY',
   ];
 
@@ -420,6 +410,7 @@ async function main() {
     'ARBITRUM_WALLET_ADDRESS',
     'POLYGON_WALLET_ADDRESS',
     'GNOSIS_WALLET_ADDRESS',
+    'CITREA_WALLET_ADDRESS',
     'CITREA_TESTNET_WALLET_ADDRESS',
   ];
 
@@ -428,6 +419,31 @@ async function main() {
       updateEnvFile({ [addressName]: sharedEvmAddress });
       generatedCount++;
     }
+  }
+
+  // Service keys with non-EVM formats (each blockchain/integration service parses
+  // its key at startup, so a missing or wrongly-formatted value crashes the boot).
+
+  // Ark identity key: raw hex private key, consumed via SingleKey.fromHex().
+  if (!readEnvValue('ARK_PRIVATE_KEY')) {
+    updateEnvFile({ ARK_PRIVATE_KEY: crypto.randomBytes(32).toString('hex') });
+    generatedCount++;
+  }
+
+  // KuCoin Pay signing key: PKCS#8 key as base64-encoded DER, consumed via crypto.createPrivateKey().
+  if (!readEnvValue('DFX_KUCOINPAY_PRIVATE_KEY')) {
+    const { privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
+    const der = privateKey.export({ type: 'pkcs8', format: 'der' });
+    updateEnvFile({ DFX_KUCOINPAY_PRIVATE_KEY: der.toString('base64') });
+    generatedCount++;
+  }
+
+  // Payment webhook signing key: PKCS#8 PEM, with newlines encoded as <br> to fit on one .env line.
+  if (!readEnvValue('PAYMENT_WEBHOOK_PRIVATE_KEY')) {
+    const { privateKey } = crypto.generateKeyPairSync('ec', { namedCurve: 'P-256' });
+    const pem = privateKey.export({ type: 'pkcs8', format: 'pem' }).trim();
+    updateEnvFile({ PAYMENT_WEBHOOK_PRIVATE_KEY: pem.split('\n').join('<br>') });
+    generatedCount++;
   }
 
   if (generatedCount > 0) {
@@ -501,12 +517,11 @@ async function main() {
 
       registrationSuccess = true;
       break;
-
     } catch (error) {
       if (attempt < maxRegistrationRetries) {
         logInfo(`Attempt ${attempt}/${maxRegistrationRetries} failed: ${error.message.substring(0, 50)}...`);
         logInfo('Retrying in 3 seconds...');
-        await new Promise(r => setTimeout(r, 3000));
+        await new Promise((r) => setTimeout(r, 3000));
       } else {
         logError(`Failed to register admin after ${maxRegistrationRetries} attempts: ${error.message}`);
         process.exit(1);
