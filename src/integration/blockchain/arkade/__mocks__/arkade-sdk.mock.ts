@@ -26,6 +26,10 @@ export class Wallet {
   async finalizePendingTxs(): Promise<{ finalized: string[]; pending: string[] }> {
     return { finalized: [], pending: [] };
   }
+
+  async getContractManager(): Promise<{ dispose: () => void }> {
+    return { dispose: () => undefined };
+  }
 }
 
 export class SingleKey {

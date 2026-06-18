@@ -108,6 +108,14 @@ export class ArkadeClient extends BlockchainClient {
       },
     });
 
+    // Stop the unused background ContractWatcher (broken on Node 20, floods logs).
+    try {
+      const contractManager = await wallet.getContractManager();
+      contractManager.dispose();
+    } catch (e) {
+      this.logger.info(`Could not dispose Arkade contract watcher: ${e?.message ?? e}`);
+    }
+
     return wallet;
   }
 

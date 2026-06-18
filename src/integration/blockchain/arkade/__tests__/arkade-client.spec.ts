@@ -31,6 +31,7 @@ describe('ArkadeClient', () => {
     sendBitcoin: jest.Mock;
     getVtxos: jest.Mock;
     finalizePendingTxs: jest.Mock;
+    getContractManager: jest.Mock;
   };
 
   beforeEach(() => {
@@ -40,6 +41,7 @@ describe('ArkadeClient', () => {
       sendBitcoin: jest.fn().mockResolvedValue('tx-abc123'),
       getVtxos: jest.fn().mockResolvedValue([]),
       finalizePendingTxs: jest.fn().mockResolvedValue({ finalized: [], pending: [] }),
+      getContractManager: jest.fn().mockResolvedValue({ dispose: jest.fn() }),
     };
 
     // Override the wallet creation to return our mock
