@@ -117,11 +117,20 @@ export class FiatOutputJobService {
 
         await createStorageService(container).uploadBlob(fileName, reportBuffer, 'text/xml');
 
+        // Mark the report as created as soon as the WORM upload succeeded, BEFORE the best-effort
+        // anchoring below. A recordHash failure must not leave reportCreated=false, otherwise the
+        // next run would re-PUT the same fileName into the immutable WORM bucket and block forever.
+        await this.fiatOutputRepo.update(entity.id, { reportCreated: true });
+
         // GeBüV anchoring (Stage 3): record the content hash of the just-uploaded EP2 settlement
         // report (a retention-relevant compliance bucket) for later Merkle-batching and anchoring.
-        await this.archiveService.recordHash(container, fileName, sha256(reportBuffer).toString('hex'));
-
-        await this.fiatOutputRepo.update(entity.id, { reportCreated: true });
+        // Best-effort side-booking: the upload already succeeded, so a failure here is logged
+        // (never silently swallowed) but does not roll back the upload or the reportCreated flag.
+        try {
+          await this.archiveService.recordHash(container, fileName, sha256(reportBuffer).toString('hex'));
+        } catch (e) {
+          this.logger.error(`GeBüV anchoring failed to record hash for ${container}/${fileName}:`, e);
+        }
       } catch (e) {
         this.logger.error(`Failed to generate EP2 report for fiat output ${entity.id}:`, e);
       }

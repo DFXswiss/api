@@ -61,7 +61,11 @@ function fakeStore() {
     },
     findOneBy: async (where: Partial<ArchiveFile>) =>
       files.find((f) => f.bucket === where.bucket && f.name === where.name) ?? undefined,
-    findOne: async ({ where }: any) => files.find((f) => f.id === where.id) ?? undefined,
+    // supports lookup by id or by (bucket, name); `relations` is implicit since the in-memory
+    // files already carry their `batch` reference once anchored.
+    findOne: async ({ where }: any) =>
+      files.find((f) => (where.id != null ? f.id === where.id : f.bucket === where.bucket && f.name === where.name)) ??
+      undefined,
     find: async ({ where, order }: any) => {
       let result = [...files];
 
@@ -103,7 +107,7 @@ describe('ArchiveService', () => {
     // Deterministic, network-free fakes: the .ots bytes just wrap the root; pending forever.
     (ots.stamp as jest.Mock).mockImplementation(async (digest: Buffer) => Buffer.concat([Buffer.from('OTS'), digest]));
     (ots.upgrade as jest.Mock).mockImplementation(async (bytes: Buffer) => bytes);
-    (ots.verify as jest.Mock).mockResolvedValue({ pending: true });
+    (ots.verify as jest.Mock).mockResolvedValue({ confirmed: false, pending: true });
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -210,12 +214,70 @@ describe('ArchiveService', () => {
     it('confirms a batch once OpenTimestamps reports a Bitcoin attestation', async () => {
       await service.anchorPending();
 
-      (ots.verify as jest.Mock).mockResolvedValue({ pending: false, bitcoin: { height: 840000 } });
+      (ots.verify as jest.Mock).mockResolvedValue({ confirmed: true, pending: false, bitcoin: { height: 840000 } });
 
       await service.upgradeBatches();
 
       expect(batchRepo.batches[0].status).toBe('confirmed');
       expect(batchRepo.batches[0].bitcoinHeight).toBe(840000);
+    });
+
+    it('refuses to overwrite an anchored hash with a differing hash (avoids bogus tampering)', async () => {
+      await service.anchorPending();
+
+      const anchored = fileRepo.files.find((f: ArchiveFile) => f.name === 'doc-a.pdf');
+      const originalHash = anchored.sha256;
+
+      await expect(
+        service.recordHash('archive', 'doc-a.pdf', sha256(Buffer.from('re-uploaded A')).toString('hex')),
+      ).rejects.toThrow(/Refusing to overwrite anchored hash/);
+
+      // the anchored leaf hash is untouched
+      expect(anchored.sha256).toBe(originalHash);
+    });
+
+    it('is a no-op when recording the same hash on an already-anchored file', async () => {
+      await service.anchorPending();
+
+      const anchored = fileRepo.files.find((f: ArchiveFile) => f.name === 'doc-a.pdf');
+      const originalHash = anchored.sha256;
+
+      await expect(service.recordHash('archive', 'doc-a.pdf', originalHash)).resolves.toBeUndefined();
+
+      expect(anchored.sha256).toBe(originalHash);
+      expect(fileRepo.files).toHaveLength(3);
+    });
+
+    it('persists upgraded proof bytes even while verify still reports pending', async () => {
+      await service.anchorPending();
+
+      const batch = batchRepo.batches[0];
+      const originalProof = batch.otsProof;
+
+      // upgrade yields changed bytes, but the attestation is not yet on-chain
+      (ots.upgrade as jest.Mock).mockResolvedValueOnce(Buffer.from('UPGRADED-BUT-PENDING'));
+      (ots.verify as jest.Mock).mockResolvedValueOnce({ confirmed: false, pending: true });
+
+      await service.upgradeBatches();
+
+      expect(batch.otsProof).toBe(Buffer.from('UPGRADED-BUT-PENDING').toString('base64'));
+      expect(batch.otsProof).not.toBe(originalProof);
+      // still not confirmed
+      expect(batch.status).toBe('pendingBtc');
+      expect(batch.bitcoinHeight).toBeUndefined();
+    });
+
+    it('does not save a batch when upgrade is unchanged and still pending', async () => {
+      await service.anchorPending();
+
+      const batch = batchRepo.batches[0];
+      const saveSpy = jest.spyOn(batchRepo, 'save');
+
+      // upgrade returns the same bytes, verify still pending => nothing to persist
+      await service.upgradeBatches();
+
+      expect(saveSpy).not.toHaveBeenCalled();
+      expect(batch.status).toBe('pendingBtc');
     });
   });
 });

@@ -46,13 +46,32 @@ export class ArchiveService {
 
   /**
    * Idempotently record the SHA-256 of an archived object identified by `(bucket, name)`.
-   * An existing record is updated in place (its hash refreshed, kept unanchored); a new one
-   * is created unanchored (`batch` null). Anchoring happens later via {@link anchorPending}.
+   *
+   * Only UNANCHORED records may be updated in place (their hash refreshed, kept unanchored);
+   * a new record is created unanchored (`batch` null). Anchoring happens later via
+   * {@link anchorPending}.
+   *
+   * Once a record has been assigned to a Merkle batch its leaf hash is immutable: it is part
+   * of a (possibly already Bitcoin-anchored) proof. Because KYC blob names are deterministic,
+   * a re-upload to the same `(bucket, name)` would otherwise silently overwrite the anchored
+   * leaf hash and make {@link verifyDocument} report bogus tampering. Therefore, for an
+   * already-anchored record: an identical hash is a no-op, and a differing hash is a hard
+   * error (the existing anchored hash is never overwritten).
    */
   async recordHash(bucket: string, name: string, sha256Hex: string): Promise<void> {
-    const existing = await this.archiveFileRepo.findOneBy({ bucket, name });
+    const existing = await this.archiveFileRepo.findOne({ where: { bucket, name }, relations: ['batch'] });
 
     if (existing) {
+      if (existing.batch != null) {
+        if (existing.sha256 === sha256Hex) return;
+
+        const message =
+          `Refusing to overwrite anchored hash for ${bucket}/${name} (file ${existing.id}, batch ` +
+          `${existing.batch.id}): stored ${existing.sha256} differs from new ${sha256Hex}`;
+        this.logger.error(message);
+        throw new Error(message);
+      }
+
       await this.archiveFileRepo.update(existing.id, { sha256: sha256Hex });
       return;
     }
@@ -99,9 +118,12 @@ export class ArchiveService {
   }
 
   /**
-   * Try to upgrade every pending batch's OpenTimestamps proof to a Bitcoin attestation.
-   * On success the batch gets its `bitcoinHeight`, `status` confirmed, and the upgraded
-   * proof bytes (base64) persisted.
+   * Try to upgrade every pending batch's OpenTimestamps proof towards a Bitcoin attestation.
+   *
+   * The upgraded `.ots` bytes are persisted whenever the proof changed at all (e.g. it now
+   * carries additional calendar commitments but `verify` still reports pending) so that
+   * progress is never thrown away. `bitcoinHeight`/`status = confirmed` are set additionally
+   * only once `verify` reports a Bitcoin attestation.
    */
   async upgradeBatches(): Promise<void> {
     const batches = await this.archiveBatchRepo.findBy({ status: ArchiveBatchStatus.PENDING_BTC });
@@ -110,17 +132,28 @@ export class ArchiveService {
       if (!batch.otsProof) continue;
 
       const rootBuffer = Buffer.from(batch.merkleRoot, 'hex');
-      const upgraded = await this.ots.upgrade(Buffer.from(batch.otsProof, 'base64'));
+      const originalProof = batch.otsProof;
+      const upgraded = await this.ots.upgrade(Buffer.from(originalProof, 'base64'));
+      const upgradedProof = upgraded.toString('base64');
       const result = await this.ots.verify(rootBuffer, upgraded);
 
-      if (result.bitcoin) {
+      const proofChanged = upgradedProof !== originalProof;
+      if (!proofChanged && !result.confirmed) continue;
+
+      // Always persist progress when the proof bytes changed; confirm only on a real attestation.
+      if (proofChanged) batch.otsProof = upgradedProof;
+
+      if (result.confirmed) {
         batch.bitcoinHeight = result.bitcoin.height;
         batch.status = ArchiveBatchStatus.CONFIRMED;
-        batch.otsProof = upgraded.toString('base64');
+      }
 
-        await this.archiveBatchRepo.save(batch);
+      await this.archiveBatchRepo.save(batch);
 
+      if (result.confirmed) {
         this.logger.info(`Confirmed batch ${batch.id} at Bitcoin height ${batch.bitcoinHeight}`);
+      } else {
+        this.logger.info(`Upgraded pending OpenTimestamps proof for batch ${batch.id}`);
       }
     }
   }
@@ -131,14 +164,13 @@ export class ArchiveService {
    * the batch's Merkle root, and check the OpenTimestamps attestation status.
    */
   async verifyDocument(bucket: string, name: string, data: Buffer): Promise<ArchiveVerification> {
-    const file = await this.archiveFileRepo.findOneBy({ bucket, name });
+    const file = await this.archiveFileRepo.findOne({ where: { bucket, name }, relations: ['batch'] });
     if (!file) return { found: false };
 
     const computedHex = sha256(data).toString('hex');
     const hashMatches = file.sha256 === computedHex;
 
-    const batch =
-      file.batch ?? (await this.archiveFileRepo.findOne({ where: { id: file.id }, relations: ['batch'] }))?.batch;
+    const batch = file.batch;
     if (!batch) return { found: true, hashMatches, anchored: false };
 
     const batchFiles = await this.archiveFileRepo.find({

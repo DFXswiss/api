@@ -6,7 +6,13 @@ import * as OpenTimestamps from 'opentimestamps';
 export interface OtsVerifyResult {
   /** Present once the timestamp is anchored in a Bitcoin block. */
   bitcoin?: { height: number };
-  /** true while the timestamp is still only attested by the calendars (not yet on-chain). */
+  /** true once a Bitcoin attestation was found and verified (i.e. `bitcoin` is set). */
+  confirmed: boolean;
+  /**
+   * true while the timestamp is NOT yet confirmed on-chain. This conflates "calendar-only,
+   * not yet anchored" and "verify could not confirm anything"; use `confirmed` to assert a
+   * positive Bitcoin attestation.
+   */
   pending: boolean;
 }
 
@@ -73,9 +79,10 @@ export class OpenTimestampsService {
     // The library returns an object keyed by chain (e.g. { bitcoin: { height, timestamp } });
     // an empty/undefined result means the proof is not yet anchored.
     const bitcoin = result && result.bitcoin;
-    if (bitcoin && typeof bitcoin.height === 'number') return { bitcoin: { height: bitcoin.height }, pending: false };
+    if (bitcoin && typeof bitcoin.height === 'number')
+      return { bitcoin: { height: bitcoin.height }, confirmed: true, pending: false };
 
-    return { pending: true };
+    return { confirmed: false, pending: true };
   }
 
   /** Build a DetachedTimestampFile that commits directly to an already-computed SHA-256 digest. */

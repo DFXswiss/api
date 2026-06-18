@@ -3,6 +3,7 @@ import { ArchiveService } from 'src/integration/infrastructure/storage/anchoring
 import { sha256 } from 'src/integration/infrastructure/storage/anchoring/merkle';
 import { createStorageService } from 'src/integration/infrastructure/storage/storage.factory';
 import { BlobContent, StorageService } from 'src/integration/infrastructure/storage/storage.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FileSubType, FileType, KycFileBlob } from '../../dto/kyc-file.dto';
@@ -15,6 +16,8 @@ import { KycFileService } from '../kyc-file.service';
 @Injectable()
 export class KycDocumentService {
   private static readonly bucket = 'kyc';
+
+  private readonly logger = new DfxLogger(KycDocumentService);
 
   private readonly storageService: StorageService;
 
@@ -109,7 +112,14 @@ export class KycDocumentService {
 
     // GeBüV anchoring (Stage 3): record the content hash of the just-uploaded KYC document
     // (a retention-relevant compliance bucket) so it can later be Merkle-batched and anchored.
-    await this.archiveService.recordHash(KycDocumentService.bucket, blobName, sha256(data).toString('hex'));
+    // This is a best-effort side-booking: the upload above has already succeeded and must not
+    // be rolled back if hash recording fails, so failures are logged (never silently swallowed)
+    // but not rethrown.
+    try {
+      await this.archiveService.recordHash(KycDocumentService.bucket, blobName, sha256(data).toString('hex'));
+    } catch (e) {
+      this.logger.error(`GeBüV anchoring failed to record hash for ${KycDocumentService.bucket}/${blobName}:`, e);
+    }
 
     return { file, url };
   }
