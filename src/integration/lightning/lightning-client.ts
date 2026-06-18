@@ -36,7 +36,6 @@ export class LightningClient implements CoinOnly {
     // pinned via the CA below, so verify the chain — not the cert SAN.
     this.tlsAgent = new Agent({
       ca: Config.blockchain.lightning.certificate,
-      checkServerIdentity: () => undefined,
     });
   }
 
@@ -352,7 +351,7 @@ export class LightningClient implements CoinOnly {
   private httpLnBitsConfig(params?: any): HttpRequestConfig {
     return {
       httpsAgent: this.tlsAgent,
-      headers: { 'X-Forwarded-Proto': 'https', Host: new URL(Config.url()).hostname },
+      headers: { 'X-Forwarded-Proto': 'https' },
       params: { 'api-key': Config.blockchain.lightning.lnbits.apiKey, ...params },
     };
   }
