@@ -1,4 +1,4 @@
-import { MockStorageService } from './mock-storage.service';
+import { MockStorageService } from '../mock-storage.service';
 
 describe('StorageService', () => {
   const service = new MockStorageService('kyc');
@@ -20,6 +20,10 @@ describe('StorageService', () => {
 
     it('url-encodes each path segment but preserves separators', () => {
       expect(service.blobUrl('a b/c#d')).toContain('kyc/a%20b/c%23d');
+    });
+
+    it('rejects a URL that does not belong to the container', () => {
+      expect(() => service.blobName('https://example.com/other/file.png')).toThrow();
     });
   });
 });

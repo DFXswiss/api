@@ -41,6 +41,7 @@ export abstract class StorageService {
 
   blobName(url: string): string {
     const filePath = url.split(`${this.container}/`)[1];
+    if (filePath == null) throw new Error(`URL does not belong to container ${this.container}: ${url}`);
     return filePath.split('/').map(decodeURIComponent).join('/');
   }
 

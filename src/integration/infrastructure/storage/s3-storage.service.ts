@@ -41,26 +41,15 @@ export class S3StorageService extends StorageService {
   }
 
   async listBlobs(prefix?: string): Promise<Blob[]> {
-    const keys: string[] = [];
-
-    let token: string | undefined;
-    do {
-      const res = await this.client.send(
-        new ListObjectsV2Command({ Bucket: this.container, Prefix: prefix, ContinuationToken: token, MaxKeys: 1000 }),
-      );
-
-      for (const o of res.Contents ?? []) if (o.Key) keys.push(o.Key);
-
-      token = res.IsTruncated ? res.NextContinuationToken : undefined;
-    } while (token);
-
     // S3 listings carry no content-type / user metadata (unlike the Azure listing this
     // replaces), so fetch per object. Per-prefix counts are modest (per-user KYC/support).
+    const keys = await this.listKeys(prefix);
     return Promise.all(keys.map((key) => this.head(key)));
   }
 
   async getBlob(name: string): Promise<BlobContent> {
     const res = await this.client.send(new GetObjectCommand({ Bucket: this.container, Key: name }));
+    if (!res.Body) throw new Error(`Empty body for blob ${this.container}/${name}`);
 
     return { data: Buffer.from(await res.Body.transformToByteArray()), ...this.toMetaData(res) };
   }
@@ -74,17 +63,35 @@ export class S3StorageService extends StorageService {
   }
 
   async copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<void> {
-    const blobs = await this.listBlobs(sourcePrefix);
+    // copy needs only the keys, not metadata — avoid the per-object HeadObject fan-out.
+    const keys = await this.listKeys(sourcePrefix);
 
-    for (const blob of blobs) {
+    for (const key of keys) {
       await this.client.send(
         new CopyObjectCommand({
           Bucket: this.container,
-          Key: blob.name.replace(sourcePrefix, targetPrefix),
-          CopySource: `${this.container}/${this.encodeKey(blob.name)}`, // key must be URL-encoded
+          Key: key.replace(sourcePrefix, targetPrefix),
+          CopySource: `${this.container}/${this.encodeKey(key)}`, // key must be URL-encoded
         }),
       );
     }
+  }
+
+  private async listKeys(prefix?: string): Promise<string[]> {
+    const keys: string[] = [];
+
+    let token: string | undefined;
+    do {
+      const res = await this.client.send(
+        new ListObjectsV2Command({ Bucket: this.container, Prefix: prefix, ContinuationToken: token, MaxKeys: 1000 }),
+      );
+
+      for (const o of res.Contents ?? []) if (o.Key) keys.push(o.Key);
+
+      token = res.IsTruncated ? res.NextContinuationToken : undefined;
+    } while (token);
+
+    return keys;
   }
 
   private async head(name: string): Promise<Blob> {
