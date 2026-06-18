@@ -139,8 +139,10 @@ export class LogRepository extends BaseRepository<Log> {
     return this.find({ where, order: { created: 'ASC' } });
   }
 
-  // Bulk-sets the valid flag on FinancialDataLog entries matched by created range and/or
-  // totalBalanceChf bounds (min exclusive lower, max exclusive upper). Returns affected rows.
+  // Bulk-sets the valid flag on FinancialDataLog entries matched by an optional created range
+  // ([from inclusive, to exclusive) — same half-open window as the daily migrations) and/or
+  // totalBalanceChf bounds (min exclusive lower, max exclusive upper). Only rows whose current
+  // valid differs are touched, so affected reflects actually-changed rows and re-runs are no-ops.
   async setFinancialLogValidity(dto: SetFinancialLogValidityDto): Promise<number> {
     const balanceChf = `(CAST(message AS jsonb) -> 'balancesTotal' ->> 'totalBalanceChf')::numeric`;
 
@@ -149,10 +151,11 @@ export class LogRepository extends BaseRepository<Log> {
       .set({ valid: dto.valid })
       .where('system = :system', { system: 'LogService' })
       .andWhere('subsystem = :subsystem', { subsystem: 'FinancialDataLog' })
-      .andWhere('severity = :severity', { severity: LogSeverity.INFO });
+      .andWhere('severity = :severity', { severity: LogSeverity.INFO })
+      .andWhere('valid IS DISTINCT FROM :targetValid', { targetValid: dto.valid });
 
     if (dto.from) query.andWhere('created >= :from', { from: dto.from });
-    if (dto.to) query.andWhere('created <= :to', { to: dto.to });
+    if (dto.to) query.andWhere('created < :to', { to: dto.to });
     if (dto.min != null) query.andWhere(`${balanceChf} > :min`, { min: dto.min });
     if (dto.max != null) query.andWhere(`${balanceChf} < :max`, { max: dto.max });
 
