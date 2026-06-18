@@ -2,12 +2,22 @@
 // eager network/`request` deps never load at jest runtime; ArchiveService is mocked in this spec.
 jest.mock('opentimestamps', () => ({}));
 
+// generateReports resolves a per-merchant EP2 container at runtime via createStorageService();
+// mock the factory so uploadBlob is a spy and no real storage backend is touched.
+const ep2UploadBlobMock = jest.fn();
+jest.mock('src/integration/infrastructure/storage/storage.factory', () => ({
+  createStorageService: jest.fn(() => ({
+    uploadBlob: (...args: any[]) => ep2UploadBlobMock(...args),
+  })),
+}));
+
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
 import { ArchiveService } from 'src/integration/infrastructure/storage/anchoring/archive.service';
+import { sha256 } from 'src/integration/infrastructure/storage/anchoring/merkle';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -54,8 +64,10 @@ describe('FiatOutputJobService', () => {
   let olkypayService: OlkypayService;
   let virtualIbanService: VirtualIbanService;
   let scryptService: ScryptService;
+  let archiveService: ArchiveService;
 
   beforeEach(async () => {
+    ep2UploadBlobMock.mockReset();
     fiatOutputRepo = createMock<FiatOutputRepository>();
     bankTxService = createMock<BankTxService>();
     ep2ReportService = createMock<Ep2ReportService>();
@@ -69,6 +81,7 @@ describe('FiatOutputJobService', () => {
     olkypayService = createMock<OlkypayService>();
     virtualIbanService = createMock<VirtualIbanService>();
     scryptService = createMock<ScryptService>();
+    archiveService = createMock<ArchiveService>();
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
 
     // Default mock: no virtual IBANs
@@ -93,7 +106,7 @@ describe('FiatOutputJobService', () => {
         { provide: OlkypayService, useValue: olkypayService },
         { provide: VirtualIbanService, useValue: virtualIbanService },
         { provide: ScryptService, useValue: scryptService },
-        { provide: ArchiveService, useValue: createMock<ArchiveService>() },
+        { provide: ArchiveService, useValue: archiveService },
 
         TestUtil.provideConfig(),
       ],
@@ -452,6 +465,69 @@ describe('FiatOutputJobService', () => {
       await service['searchOutgoingBankTx']();
 
       expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('generateReports - GeBüV hash recording', () => {
+    // A FiatOutput whose buyFiat resolves the container, route id and userData the method needs.
+    // The getter chain (paymentLinkPayment.link.linkConfigObj, paymentLinksConfigObj) is stubbed
+    // directly on plain objects so we don't have to assemble the full entity graph.
+    function reportableEntity() {
+      const buyFiat: any = {
+        sell: { id: 555 },
+        userData: { paymentLinksConfigObj: { ep2ReportContainer: 'ep2-merchant-bucket' } },
+        paymentLinkPayment: { link: { linkConfigObj: { payoutRouteId: 777 } } },
+      };
+
+      return {
+        id: 1,
+        created: new Date('2024-03-01T10:00:00Z'),
+        buyFiats: [buyFiat],
+      } as any;
+    }
+
+    beforeEach(() => {
+      ep2UploadBlobMock.mockResolvedValue(undefined);
+      (ep2ReportService.generateReport as jest.Mock).mockReturnValue('<ep2/>');
+    });
+
+    it('uploads the report, then sets reportCreated and records the report hash', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([reportableEntity()]);
+
+      await service['generateReports']();
+
+      const fileName = ep2UploadBlobMock.mock.calls[0][0];
+      expect(ep2UploadBlobMock).toHaveBeenCalledTimes(1);
+      expect(fileName).toMatch(/^settlement_.*_777\.ep2$/);
+
+      // reportCreated is flipped before the best-effort anchoring runs
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(1, { reportCreated: true });
+
+      // the recorded hash is the sha256 of the uploaded report buffer
+      const expectedHash = sha256(Buffer.from('<ep2/>')).toString('hex');
+      expect(archiveService.recordHash).toHaveBeenCalledWith('ep2-merchant-bucket', fileName, expectedHash);
+    });
+
+    it('does NOT prevent reportCreated when hash recording fails (best-effort, runs after the flag)', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([reportableEntity()]);
+      (archiveService.recordHash as jest.Mock).mockRejectedValue(new Error('archive db down'));
+
+      await service['generateReports']();
+
+      // upload + reportCreated still happened despite the recordHash failure
+      expect(ep2UploadBlobMock).toHaveBeenCalledTimes(1);
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(1, { reportCreated: true });
+      expect(archiveService.recordHash).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not set reportCreated when the upload itself fails', async () => {
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([reportableEntity()]);
+      ep2UploadBlobMock.mockRejectedValue(new Error('WORM bucket unreachable'));
+
+      await service['generateReports']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+      expect(archiveService.recordHash).not.toHaveBeenCalled();
     });
   });
 });

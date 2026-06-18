@@ -279,5 +279,38 @@ describe('ArchiveService', () => {
       expect(saveSpy).not.toHaveBeenCalled();
       expect(batch.status).toBe('pendingBtc');
     });
+
+    it('skips a pending batch that carries no OTS proof (never touches the library)', async () => {
+      await service.anchorPending();
+
+      // simulate a malformed/empty proof on the only pending batch
+      const batch = batchRepo.batches[0];
+      batch.otsProof = null;
+
+      const saveSpy = jest.spyOn(batchRepo, 'save');
+
+      await service.upgradeBatches();
+
+      expect(saveSpy).not.toHaveBeenCalled();
+      expect(ots.upgrade).not.toHaveBeenCalled();
+      expect(ots.verify).not.toHaveBeenCalled();
+      expect(batch.status).toBe('pendingBtc');
+    });
+
+    it('reports the Bitcoin height when verifying a document whose batch is confirmed on-chain', async () => {
+      await service.anchorPending();
+
+      // the proof now carries a Bitcoin attestation
+      (ots.verify as jest.Mock).mockResolvedValue({ confirmed: true, pending: false, bitcoin: { height: 850000 } });
+
+      const result = await service.verifyDocument('archive', 'doc-b.pdf', docs[1].data);
+
+      expect(result.found).toBe(true);
+      expect(result.hashMatches).toBe(true);
+      expect(result.anchored).toBe(true);
+      expect(result.proofValid).toBe(true);
+      expect(result.pending).toBe(false);
+      expect(result.bitcoinHeight).toBe(850000);
+    });
   });
 });
