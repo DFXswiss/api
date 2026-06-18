@@ -20,6 +20,12 @@ env:
 permissions:
   contents: read
 
+# Serialize PRD deploys: a running build+deploy is never interrupted, and a
+# newer main-merge waits instead of racing the SSH deploy hook / :latest pull.
+concurrency:
+  group: deploy-prd
+  cancel-in-progress: false
+
 jobs:
   build-and-deploy:
     name: Build and deploy to PRD
