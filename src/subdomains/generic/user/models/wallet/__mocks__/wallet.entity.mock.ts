@@ -5,12 +5,13 @@ export function createDefaultWallet(): Wallet {
 }
 
 export function createCustomWallet(customValues: Partial<Wallet>): Wallet {
-  const { address } = customValues;
+  const { address, name } = customValues;
   const keys = Object.keys(customValues);
 
   const entity = new Wallet();
 
   entity.address = keys.includes('address') ? address : 'x0ZZZYYY';
+  if (keys.includes('name')) entity.name = name;
 
   return entity;
 }

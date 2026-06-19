@@ -9,14 +9,16 @@ import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { isRealUnitClient } from 'src/shared/utils/request-client';
 import { Util } from 'src/shared/utils/util';
+import { REALUNIT_WALLET_NAME } from 'src/subdomains/supporting/notification/realunit-mail-rules';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { PhoneCallStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionRequestType } from '../../payment/entities/transaction-request.entity';
 import { TransactionSourceType } from '../../payment/entities/transaction.entity';
@@ -59,7 +61,7 @@ export class SupportIssueService {
     private readonly supportLogService: SupportLogService,
     private readonly bankDataService: BankDataService,
     private readonly settingService: SettingService,
-    private readonly userService: UserService,
+    private readonly walletService: WalletService,
   ) {}
 
   async getSupportIssueClerks(): Promise<string[]> {
@@ -103,27 +105,29 @@ export class SupportIssueService {
     return { count: +(raw?.count ?? 0), latestAt: raw?.latestAt ?? undefined };
   }
 
-  async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
+  async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto, client?: string): Promise<SupportIssueDto> {
     if (!dto?.transaction?.orderUid) throw new BadRequestException('JWT Token or quoteUid missing');
     const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
       dto.transaction.orderUid,
-      { user: { userData: true, wallet: true } },
+      { user: { userData: true } },
     );
     if (!transactionRequest) throw new NotFoundException('TransactionRequest not found');
 
-    return this.createIssueInternal(transactionRequest.userData, dto, transactionRequest.user.wallet);
+    return this.createIssueInternal(transactionRequest.userData, dto, await this.resolveSourceWallet(client));
   }
 
-  async createIssue(userDataId: number, dto: CreateSupportIssueDto, sourceUserId?: number): Promise<SupportIssueDto> {
+  async createIssue(userDataId: number, dto: CreateSupportIssueDto, client?: string): Promise<SupportIssueDto> {
     const userData = await this.userDataService.getUserData(userDataId, { wallet: true });
     if (!userData) throw new NotFoundException('UserData not found');
 
-    // wallet the issue is opened from (determines mail branding); resolved from the originating login user
-    const sourceWallet = sourceUserId
-      ? await this.userService.getUser(sourceUserId, { wallet: true }).then((u) => u?.wallet)
-      : undefined;
+    return this.createIssueInternal(userData, dto, await this.resolveSourceWallet(client));
+  }
 
-    return this.createIssueInternal(userData, dto, sourceWallet);
+  // App the ticket is opened from, derived from the trusted per-request X-Client header (not the user's
+  // persisted wallet). Only the RealUnit app is branded explicitly; every other client defaults to DFX
+  // (returns undefined here -> DFX branding at mail time).
+  private async resolveSourceWallet(client?: string): Promise<Wallet | undefined> {
+    return isRealUnitClient(client) ? this.walletService.getByIdOrName(undefined, REALUNIT_WALLET_NAME) : undefined;
   }
 
   async createIssueInternal(

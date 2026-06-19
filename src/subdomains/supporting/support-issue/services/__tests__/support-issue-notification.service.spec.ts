@@ -7,6 +7,7 @@ import { createCustomUserData } from 'src/subdomains/generic/user/models/user-da
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { createCustomWallet } from 'src/subdomains/generic/user/models/wallet/__mocks__/wallet.entity.mock';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { MailRequest } from '../../../notification/interfaces';
 import { NotificationService } from '../../../notification/services/notification.service';
 import { SupportIssue } from '../../entities/support-issue.entity';
@@ -17,20 +18,24 @@ describe('SupportIssueNotificationService', () => {
   let service: SupportIssueNotificationService;
 
   let notificationService: NotificationService;
+  let walletService: WalletService;
 
   const dfxWallet = createCustomWallet({ name: 'DFX' });
   const realUnitWallet = createCustomWallet({ name: 'RealUnit' });
 
   beforeEach(async () => {
     notificationService = createMock<NotificationService>();
+    walletService = createMock<WalletService>();
 
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
+    jest.spyOn(walletService, 'getDefault').mockResolvedValue(dfxWallet);
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
       providers: [
         SupportIssueNotificationService,
         { provide: NotificationService, useValue: notificationService },
+        { provide: WalletService, useValue: walletService },
         TestUtil.provideConfig(),
       ],
     }).compile();
@@ -55,24 +60,18 @@ describe('SupportIssueNotificationService', () => {
     expect(service).toBeDefined();
   });
 
-  it('brands the mail by the exact wallet the issue was opened from (RealUnit)', async () => {
+  it('brands the mail RealUnit when the ticket was opened from the RealUnit app', async () => {
     const input = await sentMailInput(realUnitWallet);
-    expect('wallet' in input && input.wallet).toBe(realUnitWallet);
+
+    expect('wallet' in input && (input.wallet as Wallet)?.name).toBe('RealUnit');
+    expect(walletService.getDefault).not.toHaveBeenCalled();
   });
 
-  it('brands the mail by the exact wallet the issue was opened from (DFX)', async () => {
-    const input = await sentMailInput(dfxWallet);
-    expect('wallet' in input && input.wallet).toBe(dfxWallet);
-  });
+  it('defaults to the DFX wallet when the ticket has no RealUnit source', async () => {
+    const input = await sentMailInput(undefined);
 
-  it('fails closed (no mail) when the issue has no source wallet - never guesses a brand', async () => {
-    const sendMail = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
-
-    await service.newSupportMessage(
-      createSupportMessage(createCustomUserData({ id: 7, mail: 'user@test.com' }), undefined),
-    );
-
-    expect(sendMail).not.toHaveBeenCalled();
+    expect('wallet' in input && (input.wallet as Wallet)?.name).toBe('DFX');
+    expect(walletService.getDefault).toHaveBeenCalled();
   });
 
   it('does not send a mail when the user has no mail address', async () => {

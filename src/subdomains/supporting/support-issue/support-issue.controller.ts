@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBadRequestResponse, ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
@@ -8,6 +8,7 @@ import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { CLIENT_HEADER } from 'src/shared/utils/request-client';
 import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
 import { GetSupportIssueFilter, GetSupportIssueListFilter } from './dto/get-support-issue.dto';
@@ -39,6 +40,7 @@ export class SupportIssueController {
   async createIssue(
     @GetJwt() jwt: JwtPayload | undefined,
     @Body() dto: CreateSupportIssueDto,
+    @Headers(CLIENT_HEADER) client?: string,
   ): Promise<SupportIssueDto> {
     const input: CreateSupportIssueDto = {
       ...dto,
@@ -49,8 +51,8 @@ export class SupportIssueController {
           : Department.SUPPORT,
     };
     return jwt?.account
-      ? this.supportIssueService.createIssue(jwt.account, input, jwt.user)
-      : this.supportIssueService.createTransactionRequestIssue(input);
+      ? this.supportIssueService.createIssue(jwt.account, input, client)
+      : this.supportIssueService.createTransactionRequestIssue(input, client);
   }
 
   @Post('support')

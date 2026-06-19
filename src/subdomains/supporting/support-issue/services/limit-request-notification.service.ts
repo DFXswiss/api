@@ -42,8 +42,9 @@ export class LimitRequestNotificationService {
 
     for (const entity of entities) {
       try {
-        // RealUnit: limit-request approval is handled by phone, not by email
-        if (entity.userData.wallet?.name === REALUNIT_WALLET_NAME) {
+        // RealUnit: limit-request approval is handled by phone, not by email. Brand by the app the
+        // ticket was opened from (issue source, eager-loaded), not the user's persisted origin wallet.
+        if (entity.supportIssue.wallet?.name === REALUNIT_WALLET_NAME) {
           await this.limitRequestRepo.update(...entity.skipMail());
           continue;
         }
