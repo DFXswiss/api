@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AccountingModule } from './accounting/accounting.module';
 import { BuyCryptoModule } from './buy-crypto/buy-crypto.module';
 import { CustodyModule } from './custody/custody.module';
 import { FaucetRequestModule } from './faucet-request/faucet-request.module';
@@ -15,6 +16,7 @@ import { TransactionUtilModule } from './transaction/transaction-util.module';
 
 @Module({
   imports: [
+    AccountingModule,
     BuyCryptoModule,
     HistoryModule,
     MonitoringModule,

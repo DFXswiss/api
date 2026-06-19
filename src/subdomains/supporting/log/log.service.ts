@@ -39,6 +39,10 @@ export class LogService {
     return this.logRepo.save({ ...log, ...dto });
   }
 
+  async getLog(id: number): Promise<Log | undefined> {
+    return this.logRepo.findOneBy({ id });
+  }
+
   async maxEntity(system: string, subsystem: string, severity: LogSeverity, valid?: boolean): Promise<Log | undefined> {
     return this.logRepo.findOne({ where: { system, subsystem, severity, valid }, order: { id: 'DESC' } });
   }
