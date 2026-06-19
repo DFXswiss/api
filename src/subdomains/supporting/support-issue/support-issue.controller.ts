@@ -15,6 +15,7 @@ import {
   SupportIssueDto,
   SupportIssueInternalDataDto,
   SupportIssueListDto,
+  SupportIssueStatisticsDto,
   SupportMessageDto,
 } from './dto/support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
@@ -22,12 +23,16 @@ import { SupportIssue } from './entities/support-issue.entity';
 import { CustomerAuthor } from './entities/support-message.entity';
 import { Department } from './enums/department.enum';
 import { SupportIssueInternalState, SupportIssueType } from './enums/support-issue.enum';
+import { SupportEscalationService, TelegramChat } from './services/support-escalation.service';
 import { SupportIssueService } from './services/support-issue.service';
 
 @ApiTags('Support')
 @Controller('support/issue')
 export class SupportIssueController {
-  constructor(private readonly supportIssueService: SupportIssueService) {}
+  constructor(
+    private readonly supportIssueService: SupportIssueService,
+    private readonly supportEscalationService: SupportEscalationService,
+  ) {}
 
   @Post()
   @ApiBearerAuth()
@@ -95,6 +100,41 @@ export class SupportIssueController {
     return this.supportIssueService.getSupportIssueCounts(jwt.role);
   }
 
+  @Get('statistics')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportIssueStatistics(
+    @GetJwt() jwt: JwtPayload,
+    @Query('days') days?: string,
+  ): Promise<SupportIssueStatisticsDto> {
+    return this.supportIssueService.getSupportIssueStatistics(jwt.role, days ? +days : undefined);
+  }
+
+  @Get('escalation/telegram-chats')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getEscalationChats(): Promise<TelegramChat[]> {
+    return this.supportEscalationService.getGroupChats();
+  }
+
+  @Post('escalation/telegram-bind')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async bindEscalationChat(): Promise<TelegramChat | undefined> {
+    return this.supportEscalationService.bindGroupChat();
+  }
+
+  @Post('escalation/telegram-test')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async testEscalationChat(): Promise<{ sent: boolean }> {
+    return { sent: await this.supportEscalationService.sendTestMessage() };
+  }
+
   @Get('activity')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -112,6 +152,14 @@ export class SupportIssueController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportIssueClerks(): Promise<string[]> {
     return this.supportIssueService.getSupportIssueClerks();
+  }
+
+  @Get('clerk')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getMyClerk(@GetJwt() jwt: JwtPayload): Promise<{ clerk: string | null }> {
+    return { clerk: (await this.supportIssueService.getSupportClerkForAccount(jwt.account)) ?? null };
   }
 
   @Get(':id')

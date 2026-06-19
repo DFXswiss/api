@@ -1,6 +1,7 @@
 import { Type } from '@nestjs/common';
 import { CustomSignUpFeesDto } from './dto/custom-sign-up-fees.dto';
 import { ManualLogPositionDto } from './dto/manual-log-position.dto';
+import { SupportClerkDto } from './dto/support-clerk.dto';
 
 export type PrimitiveSchema = 'string' | 'number' | 'boolean' | 'string[]';
 
@@ -32,6 +33,7 @@ export const SettingSchemaRegistry: Record<string, SettingSchema> = {
 
   // Support
   supportClerks: 'string[]',
+  supportClerkAccounts: { type: 'array', items: SupportClerkDto }, // maps support accounts to clerk names
 
   // Compliance
   complianceClerks: 'string[]',

@@ -8,6 +8,7 @@ import {
 import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { SupportClerkDto } from 'src/shared/models/setting/dto/support-clerk.dto';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
@@ -28,6 +29,7 @@ import {
   SupportIssueDto,
   SupportIssueInternalDataDto,
   SupportIssueListDto,
+  SupportIssueStatisticsDto,
   SupportMessageDto,
 } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
@@ -64,6 +66,13 @@ export class SupportIssueService {
     return clerks.length > 0 ? clerks : ['Support'];
   }
 
+  // Resolves the clerk name assigned to a support account via the `supportClerkAccounts`
+  // setting ([{ account, name }]). Returns undefined if the account is unmapped.
+  async getSupportClerkForAccount(account: number): Promise<string | undefined> {
+    const clerks = await this.settingService.getObj<SupportClerkDto[]>('supportClerkAccounts', []);
+    return clerks.find((c) => c.account === account)?.name;
+  }
+
   async getSupportIssueCounts(role: UserRole): Promise<Record<SupportIssueInternalState, number>> {
     const qb = this.supportIssueRepo
       .createQueryBuilder('issue')
@@ -98,6 +107,111 @@ export class SupportIssueService {
 
     const raw = await qb.getRawOne<{ count: string | number; latestAt: Date | null }>();
     return { count: +(raw?.count ?? 0), latestAt: raw?.latestAt ?? undefined };
+  }
+
+  async getSupportIssueStatistics(role: UserRole, periodDays = 365): Promise<SupportIssueStatisticsDto> {
+    const department = RoleDepartmentMap[role];
+    const days = Math.min(Math.max(Math.round(periodDays), 1), 366);
+    const granularity: 'day' | 'month' = days <= 31 ? 'day' : 'month';
+
+    const now = new Date();
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    // total tickets and message count within the period
+    const totalQb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .select('COUNT(*)', 'count')
+      .where('issue.created >= :from', { from });
+    if (department) totalQb.andWhere('issue.department = :department', { department });
+    const total = +((await totalQb.getRawOne<{ count: string }>())?.count ?? 0);
+
+    const msgQb = this.messageRepo
+      .createQueryBuilder('m')
+      .innerJoin('m.issue', 'issue')
+      .select('COUNT(*)', 'count')
+      .where('issue.created >= :from', { from });
+    if (department) msgQb.andWhere('issue.department = :department', { department });
+    const messages = +((await msgQb.getRawOne<{ count: string }>())?.count ?? 0);
+
+    // trend buckets (daily for short periods, monthly otherwise)
+    const trend: { key: string; count: number }[] = [];
+    if (granularity === 'day') {
+      const trendQb = this.supportIssueRepo
+        .createQueryBuilder('issue')
+        .select('CAST(issue.created AS DATE)', 'd')
+        .addSelect('COUNT(*)', 'count')
+        .where('issue.created >= :from', { from })
+        .groupBy('CAST(issue.created AS DATE)');
+      if (department) trendQb.andWhere('issue.department = :department', { department });
+      const rows = await trendQb.getRawMany<{ d: Date | string; count: string }>();
+      const map = new Map(rows.map((r) => [new Date(r.d).toISOString().slice(0, 10), +r.count]));
+      for (let i = days - 1; i >= 0; i--) {
+        const d = new Date(now);
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() - i);
+        const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+        trend.push({ key, count: map.get(key) ?? 0 });
+      }
+    } else {
+      const trendQb = this.supportIssueRepo
+        .createQueryBuilder('issue')
+        .select('YEAR(issue.created)', 'y')
+        .addSelect('MONTH(issue.created)', 'm')
+        .addSelect('COUNT(*)', 'count')
+        .where('issue.created >= :from', { from })
+        .groupBy('YEAR(issue.created)')
+        .addGroupBy('MONTH(issue.created)');
+      if (department) trendQb.andWhere('issue.department = :department', { department });
+      const rows = await trendQb.getRawMany<{ y: number; m: number; count: string }>();
+      const map = new Map(rows.map((r) => [`${r.y}-${pad(r.m)}`, +r.count]));
+      const months = Math.max(1, Math.round(days / 30));
+      for (let i = months - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+        trend.push({ key, count: map.get(key) ?? 0 });
+      }
+    }
+
+    // average resolution time per type for tickets completed within the period (the last-update
+    // timestamp is the completion proxy). Computed in JS so the raw SQL stays free of bare
+    // date-part identifiers (see query-builder-alias.spec.ts).
+    const resolvedQb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .select('issue.type', 'type')
+      .addSelect('issue.created', 'created')
+      .addSelect('issue.updated', 'updated')
+      .where('issue.state = :completed', { completed: SupportIssueInternalState.COMPLETED })
+      .andWhere('issue.updated >= :from', { from });
+    if (department) resolvedQb.andWhere('issue.department = :department', { department });
+    const resolvedRows = await resolvedQb.getRawMany<{ type: string; created: Date; updated: Date }>();
+
+    const resolutionStats = new Map<string, { sum: number; count: number }>();
+    for (const r of resolvedRows) {
+      const hours = (new Date(r.updated).getTime() - new Date(r.created).getTime()) / (60 * 60 * 1000);
+      const e = resolutionStats.get(r.type) ?? { sum: 0, count: 0 };
+      e.sum += hours;
+      e.count += 1;
+      resolutionStats.set(r.type, e);
+    }
+    const resolutionByType = Array.from(resolutionStats.entries())
+      .map(([key, v]) => ({ key, avgHours: v.sum / v.count, count: v.count }))
+      .sort((a, b) => b.count - a.count);
+    const avgResolutionHours =
+      resolvedRows.length > 0
+        ? resolutionByType.reduce((sum, r) => sum + r.avgHours * r.count, 0) / resolvedRows.length
+        : 0;
+
+    return {
+      periodDays: days,
+      total,
+      avgMessages: total > 0 ? messages / total : 0,
+      perDay: total / days,
+      granularity,
+      trend,
+      avgResolutionHours,
+      resolutionByType,
+    };
   }
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
