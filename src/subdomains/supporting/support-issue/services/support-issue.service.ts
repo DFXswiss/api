@@ -225,6 +225,29 @@ export class SupportIssueService {
     return issue;
   }
 
+  async closeIssue(id: string, userDataId?: number): Promise<SupportIssueDto> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: this.getIssueSearch(id, userDataId),
+      relations: { transaction: true, limitRequest: true },
+    });
+    if (!issue) throw new NotFoundException('Support issue not found');
+
+    // idempotent: leave already-closed issues untouched (a new customer message reopens them via createMessageInternal)
+    if (![SupportIssueInternalState.COMPLETED, SupportIssueInternalState.CANCELED].includes(issue.state)) {
+      await this.supportLogService.createSupportLog(issue.userData, {
+        type: SupportLogType.SUPPORT,
+        state: SupportIssueInternalState.COMPLETED,
+        comment: 'Closed by customer',
+        supportIssue: issue,
+        supportIssueType: issue.type,
+      });
+
+      await this.supportIssueRepo.update(...issue.setState(SupportIssueInternalState.COMPLETED));
+    }
+
+    return SupportIssueDtoMapper.mapSupportIssue(issue);
+  }
+
   async updateIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     const entity = await this.supportIssueRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Support issue not found');
