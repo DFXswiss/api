@@ -1,4 +1,4 @@
-import { forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { UpdateResult } from 'src/shared/models/entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FindOptionsRelations } from 'typeorm';
@@ -133,6 +133,18 @@ export class KycAdminService {
     } catch (e) {
       this.logger.error(`Failed to trigger video ident internal for userData ${userData.id}:`, e);
     }
+  }
+
+  async openPaymentAgreement(userDataId: number): Promise<void> {
+    const userData = await this.userDataService.getUserData(userDataId, { kycSteps: true });
+    if (!userData) throw new NotFoundException('UserData not found');
+
+    if (userData.hasCompletedStep(KycStepName.PAYMENT_AGREEMENT))
+      throw new ConflictException('Payment agreement is already completed');
+
+    await this.kycService.getOrCreateStepInternal(KycStepName.PAYMENT_AGREEMENT, userData);
+
+    await this.kycNotificationService.kycPaymentAgreementInvite(userData);
   }
 
   async triggerWebhook(dto: KycWebhookTriggerDto): Promise<void> {

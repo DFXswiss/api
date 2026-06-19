@@ -339,6 +339,11 @@
       "salutation": "Vervollständige deine Verifizierung",
       "message": "Uns ist aufgefallen, dass deine Verifizierung noch nicht vollständig abgeschlossen wurde."
     },
+    "payment_agreement": {
+      "title": "Forderungsabtretungsvertrag (Zession)",
+      "salutation": "Bestätige deine Abtretungsvereinbarung",
+      "message": "Du wurdest für die Nutzung von DFX Payment-Links vorgemerkt. Um diese verwenden zu können, musst du im KYC die Forderungsabtretungsvereinbarung (Zession) bestätigen. Bitte öffne dazu den Verifizierungsprozess und schliesse den Schritt ab."
+    },
     "payment_data": {
       "title": "Forderungsabtretungsvertrag (Zession)",
       "salutation": "Forderungsabtretungsvertrag (Zession)",

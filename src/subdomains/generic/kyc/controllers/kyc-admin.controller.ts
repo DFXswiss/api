@@ -10,6 +10,7 @@ import { IpBlacklistDto } from 'src/shared/models/setting/dto/ip-blacklist.dto';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { CreateKycLogDto, UpdateKycLogDto } from '../dto/input/create-kyc-log.dto';
+import { OpenPaymentAgreementDto } from '../dto/input/open-payment-agreement.dto';
 import { UpdateKycStepDto } from '../dto/input/update-kyc-step.dto';
 import { UpdateNameCheckLogDto } from '../dto/input/update-name-check-log.dto';
 import { KycWebhookTriggerDto } from '../dto/kyc-webhook-trigger.dto';
@@ -46,6 +47,14 @@ export class KycAdminController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async updateKycStep(@Param('id') id: string, @Body() dto: UpdateKycStepDto): Promise<void> {
     await this.kycAdminService.updateKycStep(+id, dto);
+  }
+
+  @Post('payment-agreement')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async openPaymentAgreement(@Body() dto: OpenPaymentAgreementDto): Promise<void> {
+    return this.kycAdminService.openPaymentAgreement(dto.userDataId);
   }
 
   @Put('blacklist/ip')

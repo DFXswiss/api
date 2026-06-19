@@ -339,6 +339,11 @@
       "salutation": "Completa la tua verifica",
       "message": "Abbiamo notato che non hai completato la tua verifica."
     },
+    "payment_agreement": {
+      "title": "Contratto di cessione del credito (cessione)",
+      "salutation": "Conferma il tuo accordo di cessione",
+      "message": "Sei stato preregistrato per l'utilizzo dei link di pagamento DFX. Per poterli utilizzare, devi confermare il contratto di cessione del credito (cessione) nel tuo KYC. Apri il processo di verifica e completa questo passaggio."
+    },
     "payment_data": {
       "title": "Accordo di assegnazione",
       "salutation": "Accordo di assegnazione",

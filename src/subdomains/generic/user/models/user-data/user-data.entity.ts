@@ -567,6 +567,10 @@ export class UserData extends IEntity {
     return `${this.kycUrl}&step=ident/video`;
   }
 
+  get paymentAgreementUrl(): string {
+    return `${this.kycUrl}&step=paymentagreement`;
+  }
+
   get dilisenseUrl(): string | undefined {
     return this.verifiedName ? `https://dilisense.com/en/search/${encodeURIComponent(this.verifiedName)}` : undefined;
   }
