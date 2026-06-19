@@ -1,6 +1,7 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { TransactionRequest } from '../../payment/entities/transaction-request.entity';
@@ -50,6 +51,11 @@ export class SupportIssue extends IEntity {
   @Index()
   @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;
+
+  // wallet the issue was opened from (e.g. DFX vs. RealUnit app) - drives mail branding; null for legacy/support-created issues
+  @Index()
+  @ManyToOne(() => Wallet, { nullable: true, eager: true })
+  wallet?: Wallet;
 
   @OneToOne(() => LimitRequest, { nullable: true })
   @JoinColumn()

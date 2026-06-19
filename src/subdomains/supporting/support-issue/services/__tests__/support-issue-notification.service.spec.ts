@@ -7,6 +7,7 @@ import { createCustomUserData } from 'src/subdomains/generic/user/models/user-da
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { createCustomWallet } from 'src/subdomains/generic/user/models/wallet/__mocks__/wallet.entity.mock';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { MailRequest } from '../../../notification/interfaces';
 import { NotificationService } from '../../../notification/services/notification.service';
@@ -46,15 +47,15 @@ describe('SupportIssueNotificationService', () => {
     service = module.get<SupportIssueNotificationService>(SupportIssueNotificationService);
   });
 
-  // entity.userData reads from issue.userData (no wallet relation loaded, as on the auto-responder job path)
-  function createSupportMessage(userData: UserData): SupportMessage {
-    const issue = Object.assign(new SupportIssue(), { uid: 'I-1', userData });
+  function createSupportMessage(userData: UserData, issueWallet?: Wallet): SupportMessage {
+    const issue = Object.assign(new SupportIssue(), { uid: 'I-1', userData, wallet: issueWallet });
     return Object.assign(new SupportMessage(), { id: 1, author: 'Support', issue });
   }
 
-  async function sentMailInput(): Promise<MailRequest['input']> {
+  async function sentMailInput(issueWallet?: Wallet): Promise<MailRequest['input']> {
     const sendMail = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
-    await service.newSupportMessage(createSupportMessage(createCustomUserData({ id: 7, mail: 'user@test.com' })));
+    const userData = createCustomUserData({ id: 7, mail: 'user@test.com' });
+    await service.newSupportMessage(createSupportMessage(userData, issueWallet));
     expect(sendMail).toHaveBeenCalledTimes(1);
     return sendMail.mock.calls[0][0].input;
   }
@@ -63,22 +64,33 @@ describe('SupportIssueNotificationService', () => {
     expect(service).toBeDefined();
   });
 
-  it('brands the mail by the user origin wallet, regardless of whether the caller loaded the relation', async () => {
+  it('brands the mail by the wallet the issue was opened from, ignoring the account origin', async () => {
+    // issue opened from RealUnit, but the account originates from DFX -> ticket source wins
+    jest.spyOn(userDataService, 'getUserData').mockResolvedValue(createCustomUserData({ id: 7, wallet: dfxWallet }));
+
+    const input = await sentMailInput(realUnitWallet);
+
+    expect('wallet' in input && input.wallet).toBe(realUnitWallet);
+    expect(userDataService.getUserData).not.toHaveBeenCalled();
+    expect(walletService.getDefault).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the account origin wallet when the issue has no source (legacy/support-created)', async () => {
     jest
       .spyOn(userDataService, 'getUserData')
       .mockResolvedValue(createCustomUserData({ id: 7, wallet: realUnitWallet }));
 
-    const input = await sentMailInput();
+    const input = await sentMailInput(undefined);
 
     expect(userDataService.getUserData).toHaveBeenCalledWith(7, { wallet: true }, true);
     expect('wallet' in input && input.wallet).toBe(realUnitWallet);
     expect(walletService.getDefault).not.toHaveBeenCalled();
   });
 
-  it('falls back to the default (DFX) wallet when the user has no origin wallet', async () => {
+  it('falls back to the default (DFX) wallet when neither issue source nor account origin is set', async () => {
     jest.spyOn(userDataService, 'getUserData').mockResolvedValue(createCustomUserData({ id: 7, wallet: undefined }));
 
-    const input = await sentMailInput();
+    const input = await sentMailInput(undefined);
 
     expect('wallet' in input && input.wallet).toBe(dfxWallet);
   });

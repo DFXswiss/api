@@ -21,12 +21,15 @@ export class SupportIssueNotificationService {
   async newSupportMessage(entity: SupportMessage): Promise<void> {
     try {
       if (entity.userData.mail && !DisabledProcess(Process.SUPPORT_MESSAGE_MAIL)) {
-        // wallet the user originated from - determines mail branding (e.g. DFX vs. RealUnit);
-        // resolve it explicitly so branding follows the user's source and never falls back to the
-        // account-history override (which would brand any RealUnit-linked account as RealUnit, even
-        // for DFX support answers). Reload via the user (cached) because not every caller eager-loads
-        // the wallet relation (e.g. the auto-responder job); fall back to the default (DFX) wallet.
+        // determines mail branding (e.g. DFX vs. RealUnit). Resolve it explicitly so it never falls
+        // back to resolveMailWallet's account-history override (which brands any RealUnit-linked
+        // account as RealUnit, even for DFX support answers). Priority:
+        //   1. the wallet the issue was opened from (the app/source - eager-loaded on the issue)
+        //   2. the user's origin wallet (legacy/support-created issues without a source); reloaded via
+        //      the user (cached) because not every caller eager-loads the relation (e.g. the bot job)
+        //   3. the default (DFX) wallet
         const wallet =
+          entity.issue.wallet ??
           (await this.userDataService.getUserData(entity.userData.id, { wallet: true }, true))?.wallet ??
           (await this.walletService.getDefault());
 

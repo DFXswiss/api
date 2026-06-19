@@ -15,6 +15,8 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { PhoneCallStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionRequestType } from '../../payment/entities/transaction-request.entity';
 import { TransactionSourceType } from '../../payment/entities/transaction.entity';
@@ -57,6 +59,7 @@ export class SupportIssueService {
     private readonly supportLogService: SupportLogService,
     private readonly bankDataService: BankDataService,
     private readonly settingService: SettingService,
+    private readonly userService: UserService,
   ) {}
 
   async getSupportIssueClerks(): Promise<string[]> {
@@ -104,25 +107,34 @@ export class SupportIssueService {
     if (!dto?.transaction?.orderUid) throw new BadRequestException('JWT Token or quoteUid missing');
     const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
       dto.transaction.orderUid,
-      { user: { userData: true } },
+      { user: { userData: true, wallet: true } },
     );
     if (!transactionRequest) throw new NotFoundException('TransactionRequest not found');
 
-    return this.createIssueInternal(transactionRequest.userData, dto);
+    return this.createIssueInternal(transactionRequest.userData, dto, transactionRequest.user.wallet);
   }
 
-  async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
+  async createIssue(userDataId: number, dto: CreateSupportIssueDto, sourceUserId?: number): Promise<SupportIssueDto> {
     const userData = await this.userDataService.getUserData(userDataId, { wallet: true });
     if (!userData) throw new NotFoundException('UserData not found');
 
-    return this.createIssueInternal(userData, dto);
+    // wallet the issue is opened from (determines mail branding); resolved from the originating login user
+    const sourceWallet = sourceUserId
+      ? await this.userService.getUser(sourceUserId, { wallet: true }).then((u) => u?.wallet)
+      : undefined;
+
+    return this.createIssueInternal(userData, dto, sourceWallet);
   }
 
-  async createIssueInternal(userData: UserData, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
+  async createIssueInternal(
+    userData: UserData,
+    dto: CreateSupportIssueDto,
+    sourceWallet?: Wallet,
+  ): Promise<SupportIssueDto> {
     // mail is required
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
-    const newIssue = this.supportIssueRepo.create({ userData, ...dto });
+    const newIssue = this.supportIssueRepo.create({ userData, wallet: sourceWallet, ...dto });
 
     const existingWhere: FindOptionsWhere<SupportIssue> = {
       userData: { id: userData.id },

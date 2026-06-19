@@ -49,7 +49,7 @@ export class SupportIssueController {
           : Department.SUPPORT,
     };
     return jwt?.account
-      ? this.supportIssueService.createIssue(jwt.account, input)
+      ? this.supportIssueService.createIssue(jwt.account, input, jwt.user)
       : this.supportIssueService.createTransactionRequestIssue(input);
   }
 
