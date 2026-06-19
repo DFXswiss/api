@@ -1,9 +1,22 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { StringToArray } from 'src/shared/utils/dto-transforms';
 import { Department } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueType } from '../enums/support-issue.enum';
+
+export enum SupportIssueListOrderBy {
+  CREATED = 'created',
+  UPDATED = 'updated',
+  CLERK = 'clerk',
+  DEPARTMENT = 'department',
+  STATE = 'state',
+}
+
+export enum ListOrderDirection {
+  ASC = 'ASC',
+  DESC = 'DESC',
+}
 
 export class GetSupportIssueFilter {
   @ApiPropertyOptional()
@@ -33,6 +46,31 @@ export class GetSupportIssueListFilter {
   @IsOptional()
   @IsEnum(SupportIssueType)
   type?: SupportIssueType;
+
+  @ApiPropertyOptional({ description: 'Filter by handling clerk (exact match)' })
+  @IsOptional()
+  @IsString()
+  clerk?: string;
+
+  @ApiPropertyOptional({ description: 'Filter issues created on or after this date (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  createdFrom?: string;
+
+  @ApiPropertyOptional({ description: 'Filter issues created on or before this date (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  createdTo?: string;
+
+  @ApiPropertyOptional({ enum: SupportIssueListOrderBy, description: 'Sort field (default: created)' })
+  @IsOptional()
+  @IsEnum(SupportIssueListOrderBy)
+  orderBy?: SupportIssueListOrderBy;
+
+  @ApiPropertyOptional({ enum: ListOrderDirection, description: 'Sort direction (default: DESC)' })
+  @IsOptional()
+  @IsEnum(ListOrderDirection)
+  orderDir?: ListOrderDirection;
 
   @ApiPropertyOptional()
   @IsOptional()

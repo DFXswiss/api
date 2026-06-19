@@ -291,6 +291,7 @@ export const SupportIssueStateMapper: {
 } = {
   [SupportIssueInternalState.CREATED]: SupportIssueState.PENDING,
   [SupportIssueInternalState.PENDING]: SupportIssueState.PENDING,
+  [SupportIssueInternalState.IN_CLARIFICATION]: SupportIssueState.IN_CLARIFICATION,
   [SupportIssueInternalState.COMPLETED]: SupportIssueState.COMPLETED,
   [SupportIssueInternalState.CANCELED]: SupportIssueState.CANCELED,
   [SupportIssueInternalState.ON_HOLD]: SupportIssueState.PENDING,

@@ -22,7 +22,12 @@ import { TransactionRequestService } from '../../payment/services/transaction-re
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
-import { GetSupportIssueFilter, GetSupportIssueListFilter } from '../dto/get-support-issue.dto';
+import {
+  GetSupportIssueFilter,
+  GetSupportIssueListFilter,
+  ListOrderDirection,
+  SupportIssueListOrderBy,
+} from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
 import {
   SupportIssueDto,
@@ -289,6 +294,9 @@ export class SupportIssueService {
     if (where.department) qb.andWhere('issue.department = :department', { department: where.department });
     if (filter.states?.length) qb.andWhere('issue.state IN (:...states)', { states: filter.states });
     if (where.type) qb.andWhere('issue.type = :type', { type: where.type });
+    if (filter.clerk) qb.andWhere('issue.clerk = :clerk', { clerk: filter.clerk });
+    if (filter.createdFrom) qb.andWhere('issue.created >= :createdFrom', { createdFrom: new Date(filter.createdFrom) });
+    if (filter.createdTo) qb.andWhere('issue.created <= :createdTo', { createdTo: new Date(filter.createdTo) });
 
     const termCount = Math.min(terms.length, 10);
     for (let i = 0; i < termCount; i++) {
@@ -299,7 +307,11 @@ export class SupportIssueService {
       );
     }
 
-    qb.orderBy('issue.created', 'DESC');
+    // whitelisted sort column + direction (tie-break on id for stable pagination)
+    const orderBy = filter.orderBy ?? SupportIssueListOrderBy.CREATED;
+    const orderDir = filter.orderDir ?? ListOrderDirection.DESC;
+    qb.orderBy(`issue.${orderBy}`, orderDir);
+    if (orderBy !== SupportIssueListOrderBy.CREATED) qb.addOrderBy('issue.id', orderDir);
 
     if (filter.take != null) {
       qb.take(filter.take);
