@@ -1,6 +1,9 @@
 // Must be imported first: starts the OpenTelemetry SDK before any instrumented
-// library is loaded (see src/tracing.ts).
+// library is loaded (see src/tracing.ts). The polyfills import (which pulls in
+// the `eventsource` package and ultimately Node's `http`) follows so its
+// internal HTTP usage is auto-instrumented.
 import './tracing';
+import './polyfills'; // registers global EventSource for @arkade-os/sdk; see src/polyfills.ts
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { WsAdapter } from '@nestjs/platform-ws';

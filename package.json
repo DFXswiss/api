@@ -96,6 +96,7 @@
     "cors": "^2.8.5",
     "ebics-client": "^5.0.0",
     "ethers": "^5.8.0",
+    "eventsource": "^4.1.0",
     "express-useragent": "^1.0.15",
     "fast-xml-parser": "^5.3.7",
     "geoip-lite2": "^2.2.7",
