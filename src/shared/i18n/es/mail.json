@@ -339,6 +339,11 @@
       "salutation": "Completa tu verificación",
       "message": "Nos hemos dado cuenta de que no has completado la verificación."
     },
+    "payment_agreement": {
+      "title": "Contrato de cesión de créditos (cesión)",
+      "salutation": "Confirma tu acuerdo de cesión",
+      "message": "Has sido preinscrito para el uso de los enlaces de pago de DFX. Para poder utilizarlos, debes confirmar el contrato de cesión de créditos (cesión) en tu KYC. Por favor, abre el proceso de verificación y completa este paso."
+    },
     "payment_data": {
       "title": "Acuerdo de cesión",
       "salutation": "Acuerdo de cesión",

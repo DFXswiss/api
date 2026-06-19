@@ -89,6 +89,38 @@ export class KycNotificationService {
     }
   }
 
+  async kycPaymentAgreementInvite(userData: UserData): Promise<void> {
+    if (userData.mail) {
+      await this.notificationService.sendMail({
+        type: MailType.USER_V2,
+        context: MailContext.KYC_PAYMENT_AGREEMENT,
+        input: {
+          userData,
+          title: `${MailTranslationKey.KYC_PAYMENT_AGREEMENT}.title`,
+          salutation: { key: `${MailTranslationKey.KYC_PAYMENT_AGREEMENT}.salutation` },
+          texts: [
+            { key: MailKey.SPACE, params: { value: '1' } },
+            { key: `${MailTranslationKey.KYC_PAYMENT_AGREEMENT}.message` },
+            { key: MailKey.SPACE, params: { value: '2' } },
+            {
+              key: `${MailTranslationKey.GENERAL}.button`,
+              params: { url: userData.paymentAgreementUrl, button: 'true' },
+            },
+            {
+              key: `${MailTranslationKey.KYC}.next_step`,
+              params: { url: userData.paymentAgreementUrl, urlText: userData.paymentAgreementUrl },
+            },
+            { key: MailKey.DFX_TEAM_CLOSING },
+          ],
+        },
+      });
+    } else {
+      this.logger.warn(
+        `Failed to send KYC payment agreement invite mail for user data ${userData.id}: user has no email`,
+      );
+    }
+  }
+
   async kycStepFailed(userData: UserData, stepName: string, reason: string): Promise<void> {
     try {
       if ((userData.mail, !DisabledProcess(Process.KYC_MAIL))) {

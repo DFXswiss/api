@@ -339,6 +339,11 @@
       "salutation": "Complete your verification",
       "message": "We have noticed that you have not completed your verification."
     },
+    "payment_agreement": {
+      "title": "Claim assignment agreement (assignment)",
+      "salutation": "Confirm your assignment agreement",
+      "message": "You have been pre-registered for the use of DFX payment links. In order to use them, you need to confirm the claim assignment agreement (assignment) in your KYC. Please open the verification process and complete this step."
+    },
     "payment_data": {
       "title": "Assignment agreement",
       "salutation": "Assignment agreement",

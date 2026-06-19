@@ -339,6 +339,11 @@
       "salutation": "Terminez votre vérification",
       "message": "Nous avons remarqué que vous n'avez pas terminé votre vérification."
     },
+    "payment_agreement": {
+      "title": "Contrat de cession de créances (cession)",
+      "salutation": "Confirmez votre convention de cession",
+      "message": "Vous avez été préinscrit pour l'utilisation des liens de paiement DFX. Pour pouvoir les utiliser, vous devez confirmer le contrat de cession de créances (cession) dans votre KYC. Veuillez ouvrir le processus de vérification et terminer cette étape."
+    },
     "payment_data": {
       "title": "Accord de cession",
       "salutation": "Accord de cession",
