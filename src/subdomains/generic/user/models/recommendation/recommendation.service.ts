@@ -347,6 +347,30 @@ export class RecommendationService {
     });
   }
 
+  async countByRecommenderIds(ids: number[]): Promise<{ id: number; count: number }[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.recommendationRepo
+      .createQueryBuilder('recommendation')
+      .select('recommendation.recommenderId', 'id')
+      .addSelect('COUNT(*)', 'count')
+      .where('recommendation.recommenderId IN (:...ids)', { ids })
+      .groupBy('recommendation.recommenderId')
+      .getRawMany<{ id: string; count: string }>();
+    return rows.map((r) => ({ id: +r.id, count: +r.count }));
+  }
+
+  async countByRecommendedIds(ids: number[]): Promise<{ id: number; count: number }[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.recommendationRepo
+      .createQueryBuilder('recommendation')
+      .select('recommendation.recommendedId', 'id')
+      .addSelect('COUNT(*)', 'count')
+      .where('recommendation.recommendedId IN (:...ids)', { ids })
+      .groupBy('recommendation.recommendedId')
+      .getRawMany<{ id: string; count: string }>();
+    return rows.map((r) => ({ id: +r.id, count: +r.count }));
+  }
+
   // --- NOTIFICATIONS --- //
   private async sendInvitationMail(entity: Recommendation): Promise<void> {
     try {

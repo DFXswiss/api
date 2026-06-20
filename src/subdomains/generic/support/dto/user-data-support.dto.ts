@@ -362,6 +362,8 @@ export class RecommendationGraphNode {
   kycStatus?: string;
   kycLevel?: number;
   tradeApprovalDate?: Date;
+  // set by the neighbors endpoint: the node has further neighbors not contained in the current fragment
+  expandable?: boolean;
 }
 
 export enum RecommendationGraphEdgeKind {
@@ -386,6 +388,8 @@ export class RecommendationGraph {
   nodes: RecommendationGraphNode[];
   edges: RecommendationGraphEdge[];
   rootId: number;
+  // set by the paginated neighbors endpoint: more direct neighbors of the root exist beyond this page
+  hasMore?: boolean;
 }
 
 export class SupportMessageSupportInfo {

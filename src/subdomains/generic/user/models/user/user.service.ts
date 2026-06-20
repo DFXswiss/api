@@ -186,6 +186,38 @@ export class UserService {
     return this.userRepo.find({ where: { usedRef: In(usedRefs) }, relations: { userData: true } });
   }
 
+  // count of distinct userDatas that used a ref code owned by each given userData (classic ref-code children)
+  async countRefChildrenByUserDataIds(ids: number[]): Promise<{ id: number; count: number }[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.userRepo
+      .createQueryBuilder('owner')
+      .innerJoin(User, 'child', 'child.usedRef = owner.ref AND child.usedRef != :default', {
+        default: Config.defaultRef,
+      })
+      .select('owner.userDataId', 'id')
+      .addSelect('COUNT(DISTINCT child.userDataId)', 'count')
+      .where('owner.userDataId IN (:...ids)', { ids })
+      .andWhere('owner.ref IS NOT NULL')
+      .groupBy('owner.userDataId')
+      .getRawMany<{ id: string; count: string }>();
+    return rows.map((r) => ({ id: +r.id, count: +r.count }));
+  }
+
+  // count of distinct userDatas whose ref code each given userData used (classic ref-code referrers)
+  async countRefReferrersByUserDataIds(ids: number[]): Promise<{ id: number; count: number }[]> {
+    if (ids.length === 0) return [];
+    const rows = await this.userRepo
+      .createQueryBuilder('owner')
+      .innerJoin(User, 'referrer', 'referrer.ref = owner.usedRef')
+      .select('owner.userDataId', 'id')
+      .addSelect('COUNT(DISTINCT referrer.userDataId)', 'count')
+      .where('owner.userDataId IN (:...ids)', { ids })
+      .andWhere('owner.usedRef != :default', { default: Config.defaultRef })
+      .groupBy('owner.userDataId')
+      .getRawMany<{ id: string; count: string }>();
+    return rows.map((r) => ({ id: +r.id, count: +r.count }));
+  }
+
   async getNexCustodyIndex(): Promise<number> {
     const currentIndex = await this.userRepo.maximum('custodyAddressIndex');
     return (currentIndex ?? -1) + 1;
