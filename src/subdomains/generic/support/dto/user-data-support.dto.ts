@@ -4,6 +4,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { RecallReason } from 'src/subdomains/supporting/recall/recall-reason.enum';
 import { KycFile } from '../../kyc/entities/kyc-file.entity';
+import { RecommendationMethod, RecommendationType } from '../../user/models/recommendation/recommendation.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { SupportNoteDto } from './support-note.dto';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
@@ -376,8 +377,8 @@ export class RecommendationGraphEdge {
   kind: RecommendationGraphEdgeKind;
   recommenderId: number;
   recommendedId: number;
-  method?: string;
-  type?: string;
+  method?: RecommendationMethod;
+  type?: RecommendationType;
   isConfirmed?: boolean;
   confirmationDate?: Date;
   refCode?: string;

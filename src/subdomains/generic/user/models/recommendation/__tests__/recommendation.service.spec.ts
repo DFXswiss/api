@@ -15,7 +15,6 @@ describe('RecommendationService', () => {
     jest.mocked(builder.addSelect).mockReturnThis();
     jest.mocked(builder.where).mockReturnThis();
     jest.mocked(builder.andWhere).mockReturnThis();
-    jest.mocked(builder.innerJoin).mockReturnThis();
     jest.mocked(builder.groupBy).mockReturnThis();
     jest.mocked(builder.getRawMany).mockResolvedValue(rows);
     return builder;
@@ -59,6 +58,19 @@ describe('RecommendationService', () => {
       expect(typeof result[0].count).toBe('number');
       expect(recommendationRepo.createQueryBuilder).toHaveBeenCalledWith('recommendation');
       expect(builder.getRawMany).toHaveBeenCalled();
+      // no excludeIds -> NOT IN clause omitted
+      expect(builder.andWhere).not.toHaveBeenCalledWith(expect.stringContaining('NOT IN'), expect.anything());
+    });
+
+    it('adds the NOT IN exclude clause when excludeIds are given', async () => {
+      const builder = mockQueryBuilder([{ id: '1', count: '2' }]);
+      jest.mocked(recommendationRepo.createQueryBuilder).mockReturnValue(builder);
+
+      await service.countByRecommenderIds([1, 2], [3, 4]);
+
+      expect(builder.andWhere).toHaveBeenCalledWith('recommendation.recommendedId NOT IN (:...excludeIds)', {
+        excludeIds: [3, 4],
+      });
     });
   });
 
@@ -81,6 +93,18 @@ describe('RecommendationService', () => {
       expect(typeof result[0].count).toBe('number');
       expect(recommendationRepo.createQueryBuilder).toHaveBeenCalledWith('recommendation');
       expect(builder.getRawMany).toHaveBeenCalled();
+      expect(builder.andWhere).not.toHaveBeenCalledWith(expect.stringContaining('NOT IN'), expect.anything());
+    });
+
+    it('adds the NOT IN exclude clause when excludeIds are given', async () => {
+      const builder = mockQueryBuilder([{ id: '5', count: '1' }]);
+      jest.mocked(recommendationRepo.createQueryBuilder).mockReturnValue(builder);
+
+      await service.countByRecommendedIds([5], [6, 7]);
+
+      expect(builder.andWhere).toHaveBeenCalledWith('recommendation.recommenderId NOT IN (:...excludeIds)', {
+        excludeIds: [6, 7],
+      });
     });
   });
 });

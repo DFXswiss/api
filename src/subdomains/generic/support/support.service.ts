@@ -121,6 +121,13 @@ interface UserDataComplianceSearchTypePair {
   userData: UserData;
 }
 
+// a classic ref-code relationship (user.usedRef -> user.ref), keyed by directed userData pair
+interface RefEdge {
+  referrerId: number;
+  referredId: number;
+  refCode: string;
+}
+
 const CallQueueItemsLimit = 200;
 
 const PendingReviewBankDataName = 'BankData';
@@ -687,7 +694,7 @@ export class SupportService {
     const visitedUsers = new Set<number>();
     const visitedRecs = new Map<number, Recommendation>();
     // classic ref-code relationships (user.usedRef -> user.ref), keyed by directed userData pair to dedup
-    const refEdges = new Map<string, { referrerId: number; referredId: number; refCode: string }>();
+    const refEdges = new Map<string, RefEdge>();
     const queue: number[] = [userDataId];
 
     // BFS: traverse all connected recommendations AND classic ref-code relationships in both directions (capped)
@@ -732,7 +739,7 @@ export class SupportService {
     const visitedUsers = new Set<number>([centerId, ...pageIds]);
     const visitedRecs = new Map<number, Recommendation>();
     for (const rec of hop.recs) visitedRecs.set(rec.id, rec);
-    const refEdges = new Map<string, { referrerId: number; referredId: number; refCode: string }>();
+    const refEdges = new Map<string, RefEdge>();
     for (const refEdge of hop.refEdges) refEdges.set(`${refEdge.referrerId}-${refEdge.referredId}`, refEdge);
 
     const graph = await this.buildGraphPayload(centerId, visitedUsers, visitedRecs, refEdges);
@@ -745,7 +752,7 @@ export class SupportService {
   private async collectHop(centerId: number): Promise<{
     neighborIds: number[];
     recs: Recommendation[];
-    refEdges: { referrerId: number; referredId: number; refCode: string }[];
+    refEdges: RefEdge[];
   }> {
     const [asRecommender, asRecommended, users] = await Promise.all([
       this.recommendationService.getAllRecommendationsByRecommenderId(centerId),
@@ -767,7 +774,7 @@ export class SupportService {
       this.userService.getUsersByUsedRefs(ownRefs),
     ]);
 
-    const refEdges: { referrerId: number; referredId: number; refCode: string }[] = [];
+    const refEdges: RefEdge[] = [];
     for (const referrer of referrerUsers) {
       const referrerId = referrer.userData?.id;
       if (!referrerId || referrerId === centerId) continue;
@@ -789,7 +796,7 @@ export class SupportService {
     rootId: number,
     visitedUsers: Set<number>,
     visitedRecs: Map<number, Recommendation>,
-    refEdges: Map<string, { referrerId: number; referredId: number; refCode: string }>,
+    refEdges: Map<string, RefEdge>,
   ): Promise<RecommendationGraph> {
     const userDatas = await this.userDataService.getUserDataByIds([...visitedUsers]);
 
@@ -846,30 +853,27 @@ export class SupportService {
     return { nodes, edges, rootId };
   }
 
-  // flag each neighbor that has further neighbors beyond this fragment, via cheap batched degree counts (no per-node N+1)
+  // flag each neighbor that has at least one neighbor NOT already shown in this fragment, via cheap batched
+  // counts (no per-node N+1). Counterparts already in the fragment (all graph node ids) are excluded, so a
+  // pair that is both a recommendation and a ref-code is not double-counted into a false-positive expandable.
   private async setNodeExpandability(graph: RecommendationGraph, centerId: number): Promise<void> {
     const neighborIds = graph.nodes.map((n) => n.id).filter((id) => id !== centerId);
     if (!neighborIds.length) return;
 
+    const excludeIds = graph.nodes.map((n) => n.id); // everything already shown in this fragment
+
     const [asRecommender, asRecommended, refChildren, refReferrers] = await Promise.all([
-      this.recommendationService.countByRecommenderIds(neighborIds),
-      this.recommendationService.countByRecommendedIds(neighborIds),
-      this.userService.countRefChildrenByUserDataIds(neighborIds),
-      this.userService.countRefReferrersByUserDataIds(neighborIds),
+      this.recommendationService.countByRecommenderIds(neighborIds, excludeIds),
+      this.recommendationService.countByRecommendedIds(neighborIds, excludeIds),
+      this.userService.countRefChildrenByUserDataIds(neighborIds, excludeIds),
+      this.userService.countRefReferrersByUserDataIds(neighborIds, excludeIds),
     ]);
 
-    const degree = new Map<number, number>();
+    const externalDegree = new Map<number, number>();
     for (const counts of [asRecommender, asRecommended, refChildren, refReferrers])
-      for (const { id, count } of counts) degree.set(id, (degree.get(id) ?? 0) + count);
+      for (const { id, count } of counts) externalDegree.set(id, (externalDegree.get(id) ?? 0) + count);
 
-    const shownDegree = new Map<number, number>();
-    for (const edge of graph.edges) {
-      shownDegree.set(edge.recommenderId, (shownDegree.get(edge.recommenderId) ?? 0) + 1);
-      shownDegree.set(edge.recommendedId, (shownDegree.get(edge.recommendedId) ?? 0) + 1);
-    }
-
-    for (const node of graph.nodes)
-      node.expandable = node.id !== centerId && (degree.get(node.id) ?? 0) > (shownDegree.get(node.id) ?? 0);
+    for (const node of graph.nodes) node.expandable = node.id !== centerId && (externalDegree.get(node.id) ?? 0) > 0;
   }
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {

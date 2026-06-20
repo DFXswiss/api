@@ -122,6 +122,19 @@ describe('UserService', () => {
       expect(typeof result[0].count).toBe('number');
       expect(userRepo.createQueryBuilder).toHaveBeenCalledWith('owner');
       expect(builder.getRawMany).toHaveBeenCalled();
+      // no excludeIds -> NOT IN clause omitted
+      expect(builder.andWhere).not.toHaveBeenCalledWith(expect.stringContaining('NOT IN'), expect.anything());
+    });
+
+    it('adds the NOT IN exclude clause when excludeIds are given', async () => {
+      const builder = mockQueryBuilder([{ id: '1', count: '2' }]);
+      jest.mocked(userRepo.createQueryBuilder).mockReturnValue(builder);
+
+      await service.countRefChildrenByUserDataIds([1, 2], [3, 4]);
+
+      expect(builder.andWhere).toHaveBeenCalledWith('child.userDataId NOT IN (:...excludeIds)', {
+        excludeIds: [3, 4],
+      });
     });
   });
 
@@ -144,6 +157,18 @@ describe('UserService', () => {
       expect(typeof result[0].count).toBe('number');
       expect(userRepo.createQueryBuilder).toHaveBeenCalledWith('owner');
       expect(builder.getRawMany).toHaveBeenCalled();
+      expect(builder.andWhere).not.toHaveBeenCalledWith(expect.stringContaining('NOT IN'), expect.anything());
+    });
+
+    it('adds the NOT IN exclude clause when excludeIds are given', async () => {
+      const builder = mockQueryBuilder([{ id: '9', count: '1' }]);
+      jest.mocked(userRepo.createQueryBuilder).mockReturnValue(builder);
+
+      await service.countRefReferrersByUserDataIds([9], [6, 7]);
+
+      expect(builder.andWhere).toHaveBeenCalledWith('referrer.userDataId NOT IN (:...excludeIds)', {
+        excludeIds: [6, 7],
+      });
     });
   });
 });

@@ -271,11 +271,11 @@ describe('SupportService', () => {
       expect(countSpy).not.toHaveBeenCalled(); // no neighbors -> degree counting skipped
     });
 
-    it('marks a neighbor expandable=true when its real degree exceeds the shown degree, false otherwise', async () => {
+    it('marks a neighbor expandable=true when it has external neighbors, false otherwise', async () => {
       const centerId = 100;
-      const richChildId = 201; // has further hidden neighbors
-      const leafChildId = 202; // fully shown (degree == shown)
-      const noCountChildId = 203; // missing from all count mocks -> degree falls back to 0
+      const richChildId = 201; // has further hidden (external) neighbors
+      const leafChildId = 202; // only linked to nodes already shown -> external degree 0
+      const noCountChildId = 203; // missing from all count mocks -> external degree falls back to 0
 
       jest
         .spyOn(recommendationService, 'getAllRecommendationsByRecommenderId')
@@ -291,14 +291,11 @@ describe('SupportService', () => {
 
       mockUserDatasForRequestedIds();
 
-      // richChild total degree 5 as recommender + 1 as recommended (shown only 1) -> expandable
-      // leafChild degree 1 (== shown) -> not expandable
-      // noCountChild absent from every count list -> degree falls back to 0 (?? 0) -> not expandable
+      // counts are EXTERNAL (counterparts not in the shown fragment, via excludeIds):
+      // richChild has 5 external recommended + 1 external recommender -> expandable
+      // leafChild / noCountChild have zero external counterparts -> not expandable
       jest.spyOn(recommendationService, 'countByRecommenderIds').mockResolvedValue([{ id: richChildId, count: 5 }]);
-      jest.spyOn(recommendationService, 'countByRecommendedIds').mockResolvedValue([
-        { id: richChildId, count: 1 },
-        { id: leafChildId, count: 1 },
-      ]);
+      jest.spyOn(recommendationService, 'countByRecommendedIds').mockResolvedValue([{ id: richChildId, count: 1 }]);
       jest.spyOn(userService, 'countRefChildrenByUserDataIds').mockResolvedValue([]);
       jest.spyOn(userService, 'countRefReferrersByUserDataIds').mockResolvedValue([]);
 
@@ -310,12 +307,16 @@ describe('SupportService', () => {
       const centerNode = graph.nodes.find((n) => n.id === centerId);
 
       expect(richNode.expandable).toBe(true);
-      expect(leafNode.expandable).toBe(false);
-      expect(noCountNode.expandable).toBe(false); // degree.get(...) ?? 0 = 0
+      expect(leafNode.expandable).toBe(false); // external degree 0
+      expect(noCountNode.expandable).toBe(false); // externalDegree.get(...) ?? 0 = 0
       expect(centerNode.expandable).toBe(false); // center is never expandable
+
+      // the shown fragment node ids are passed as excludeIds to every count helper
+      const expectedExcludeIds = graph.nodes.map((n) => n.id);
+      expect(recommendationService.countByRecommenderIds).toHaveBeenCalledWith(expect.anything(), expectedExcludeIds);
     });
 
-    it('treats a node with degree but no shown edge as expandable (shownDegree falls back to 0)', async () => {
+    it('marks a node expandable when it has external neighbors beyond the fragment', async () => {
       const centerId = 100;
       const childId = 201; // connected to center via a recommendation (shown edge)
       const orphanId = 777; // present as a node but has no edge in the fragment
@@ -335,7 +336,7 @@ describe('SupportService', () => {
           Promise.resolve([...ids.map((id) => createUserData(id)), createUserData(orphanId)]),
         );
 
-      // orphan has real degree 3 but zero shown edges -> 3 > 0 -> expandable
+      // orphan has 3 external neighbors -> 3 > 0 -> expandable
       jest.spyOn(recommendationService, 'countByRecommenderIds').mockResolvedValue([{ id: orphanId, count: 3 }]);
       jest.spyOn(recommendationService, 'countByRecommendedIds').mockResolvedValue([]);
       jest.spyOn(userService, 'countRefChildrenByUserDataIds').mockResolvedValue([]);
@@ -344,7 +345,34 @@ describe('SupportService', () => {
       const graph = await service.getRecommendationGraphNeighbors(centerId, 0, 25);
 
       const orphanNode = graph.nodes.find((n) => n.id === orphanId);
-      expect(orphanNode.expandable).toBe(true); // shownDegree.get(orphan) ?? 0 = 0
+      expect(orphanNode.expandable).toBe(true);
+    });
+
+    it('keeps a leaf non-expandable when its only link (both a recommendation AND a ref-code to center) has no external counterpart', async () => {
+      const centerId = 100;
+      const childId = 201; // leaf: linked to center via BOTH a confirmed recommendation and a ref-code, nothing else
+
+      // recommendation edge center -> child
+      jest
+        .spyOn(recommendationService, 'getAllRecommendationsByRecommenderId')
+        .mockResolvedValue([createRecommendation(1000, centerId, childId)]);
+      jest.spyOn(recommendationService, 'getRecommendationsByRecommendedId').mockResolvedValue([]);
+      // same directed pair also expressed via ref-code: center's own ref used by child
+      jest.spyOn(userService, 'getAllUserDataUsers').mockResolvedValue([createRefUser(1, 'CEN-TER', undefined)]);
+      jest.spyOn(userService, 'getRefUsersByRefs').mockResolvedValue([]);
+      jest.spyOn(userService, 'getUsersByUsedRefs').mockResolvedValue([createRefUser(2, 'CHI-LD', 'CEN-TER', childId)]);
+
+      mockUserDatasForRequestedIds();
+
+      // with excludeIds containing both center and child, the child has NO external counterpart in any of the
+      // four count helpers (the old code summed the recommendation count + the ref-code count and compared to
+      // the shown degree, double-counting the single pair -> false-positive expandable on this leaf)
+      mockNoExtraDegree();
+
+      const graph = await service.getRecommendationGraphNeighbors(centerId, 0, 25);
+
+      const childNode = graph.nodes.find((n) => n.id === childId);
+      expect(childNode.expandable).toBe(false);
     });
 
     it('emits negative synthetic ids for pure ref-code (UsedRef) edges', async () => {

@@ -64,5 +64,15 @@ describe('SupportController', () => {
       expect(spy).toHaveBeenCalledWith(42, undefined, undefined);
       expect(result).toBe(graph);
     });
+
+    it('honors skip=0 and take=0 instead of treating them as omitted', async () => {
+      const graph: RecommendationGraph = { nodes: [], edges: [], rootId: 42 };
+      const spy = jest.spyOn(supportService, 'getRecommendationGraphNeighbors').mockResolvedValue(graph);
+
+      const result = await controller.getRecommendationGraphNeighbors('42', '0', '0');
+
+      expect(spy).toHaveBeenCalledWith(42, 0, 0);
+      expect(result).toBe(graph);
+    });
   });
 });

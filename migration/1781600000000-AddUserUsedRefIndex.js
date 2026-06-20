@@ -8,19 +8,19 @@
  * @implements {MigrationInterface}
  */
 module.exports = class AddUserUsedRefIndex1781600000000 {
-    name = 'AddUserUsedRefIndex1781600000000'
+  name = 'AddUserUsedRefIndex1781600000000';
 
-    /**
-     * @param {QueryRunner} queryRunner
-     */
-    async up(queryRunner) {
-        await queryRunner.query(`CREATE INDEX "IDX_user_used_ref" ON "user" ("usedRef") `);
-    }
+  /**
+   * @param {QueryRunner} queryRunner
+   */
+  async up(queryRunner) {
+    await queryRunner.query(`CREATE INDEX "IDX_6b0462af56e2ba6802a9a2d062" ON "user" ("usedRef") `);
+  }
 
-    /**
-     * @param {QueryRunner} queryRunner
-     */
-    async down(queryRunner) {
-        await queryRunner.query(`DROP INDEX "public"."IDX_user_used_ref"`);
-    }
-}
+  /**
+   * @param {QueryRunner} queryRunner
+   */
+  async down(queryRunner) {
+    await queryRunner.query(`DROP INDEX "public"."IDX_6b0462af56e2ba6802a9a2d062"`);
+  }
+};

@@ -113,7 +113,11 @@ export class SupportController {
     @Query('skip') skip?: string,
     @Query('take') take?: string,
   ): Promise<RecommendationGraph> {
-    return this.supportService.getRecommendationGraphNeighbors(+id, skip ? +skip : undefined, take ? +take : undefined);
+    return this.supportService.getRecommendationGraphNeighbors(
+      +id,
+      skip != null ? +skip : undefined,
+      take != null ? +take : undefined,
+    );
   }
 
   @Get('pending-transactions')

@@ -347,27 +347,31 @@ export class RecommendationService {
     });
   }
 
-  async countByRecommenderIds(ids: number[]): Promise<{ id: number; count: number }[]> {
+  // count of distinct recommended counterparts per recommender, excluding counterparts already shown (excludeIds)
+  async countByRecommenderIds(ids: number[], excludeIds: number[] = []): Promise<{ id: number; count: number }[]> {
     if (ids.length === 0) return [];
-    const rows = await this.recommendationRepo
+    const query = this.recommendationRepo
       .createQueryBuilder('recommendation')
       .select('recommendation.recommenderId', 'id')
-      .addSelect('COUNT(*)', 'count')
+      .addSelect('COUNT(DISTINCT recommendation.recommendedId)', 'count')
       .where('recommendation.recommenderId IN (:...ids)', { ids })
-      .groupBy('recommendation.recommenderId')
-      .getRawMany<{ id: string; count: string }>();
+      .andWhere('recommendation.recommendedId IS NOT NULL');
+    if (excludeIds.length > 0) query.andWhere('recommendation.recommendedId NOT IN (:...excludeIds)', { excludeIds });
+    const rows = await query.groupBy('recommendation.recommenderId').getRawMany<{ id: string; count: string }>();
     return rows.map((r) => ({ id: +r.id, count: +r.count }));
   }
 
-  async countByRecommendedIds(ids: number[]): Promise<{ id: number; count: number }[]> {
+  // count of distinct recommender counterparts per recommended, excluding counterparts already shown (excludeIds)
+  async countByRecommendedIds(ids: number[], excludeIds: number[] = []): Promise<{ id: number; count: number }[]> {
     if (ids.length === 0) return [];
-    const rows = await this.recommendationRepo
+    const query = this.recommendationRepo
       .createQueryBuilder('recommendation')
       .select('recommendation.recommendedId', 'id')
-      .addSelect('COUNT(*)', 'count')
+      .addSelect('COUNT(DISTINCT recommendation.recommenderId)', 'count')
       .where('recommendation.recommendedId IN (:...ids)', { ids })
-      .groupBy('recommendation.recommendedId')
-      .getRawMany<{ id: string; count: string }>();
+      .andWhere('recommendation.recommenderId IS NOT NULL');
+    if (excludeIds.length > 0) query.andWhere('recommendation.recommenderId NOT IN (:...excludeIds)', { excludeIds });
+    const rows = await query.groupBy('recommendation.recommendedId').getRawMany<{ id: string; count: string }>();
     return rows.map((r) => ({ id: +r.id, count: +r.count }));
   }
 
