@@ -1,5 +1,5 @@
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Min } from 'class-validator';
+import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
 export class RecommendationGraphNeighborsQuery {
   @IsOptional()
@@ -12,5 +12,6 @@ export class RecommendationGraphNeighborsQuery {
   @Type(() => Number)
   @IsInt()
   @Min(1)
+  @Max(500)
   take?: number;
 }

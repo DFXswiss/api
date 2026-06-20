@@ -13,7 +13,7 @@ import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.s
 import { TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
-import { SelectQueryBuilder } from 'typeorm';
+import { In, SelectQueryBuilder } from 'typeorm';
 import { UserDataRepository } from '../../user-data/user-data.repository';
 import { UserDataService } from '../../user-data/user-data.service';
 import { WalletService } from '../../wallet/wallet.service';
@@ -187,6 +187,28 @@ describe('UserService', () => {
 
       expect(builder.andWhere).toHaveBeenCalledWith('referrer.userDataId NOT IN (:...excludeIds)', {
         excludeIds: [6, 7],
+      });
+    });
+  });
+
+  describe('getUsersByUsedRefs', () => {
+    it('should return an empty array and not query when no custom refs remain after filtering', async () => {
+      const result = await service.getUsersByUsedRefs([Config.defaultRef, '', undefined as unknown as string]);
+
+      expect(result).toEqual([]);
+      expect(userRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('should strip defaultRef/empty refs and query the remaining custom refs', async () => {
+      const users = [{ id: 1 } as User, { id: 2 } as User];
+      jest.mocked(userRepo.find).mockResolvedValue(users);
+
+      const result = await service.getUsersByUsedRefs([Config.defaultRef, '', 'aaa-111', 'bbb-222']);
+
+      expect(result).toBe(users);
+      expect(userRepo.find).toHaveBeenCalledWith({
+        where: { usedRef: In(['aaa-111', 'bbb-222']) },
+        relations: { userData: true },
       });
     });
   });

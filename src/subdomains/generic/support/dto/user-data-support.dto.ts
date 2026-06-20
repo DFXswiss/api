@@ -373,8 +373,9 @@ export enum RecommendationGraphEdgeKind {
 }
 
 export class RecommendationGraphEdge {
-  // RECOMMENDATION edges carry the real recommendation id; USED_REF edges have no backing row, so their id is a
-  // synthetic negative counter (decremented per ref edge) to keep ids unique without colliding with real ones
+  // RECOMMENDATION edges carry the real (positive) recommendation row id; USED_REF edges have no backing row, so
+  // their id is a synthetic negative value deterministically derived from the directed (referrer -> referred) pair --
+  // stable across lazy-expand fragments and non-colliding with real positive ids
   id: number;
   kind: RecommendationGraphEdgeKind;
   recommenderId: number;
