@@ -201,7 +201,8 @@ export class UserService {
       .select('owner.userDataId', 'id')
       .addSelect('COUNT(DISTINCT child.userDataId)', 'count')
       .where('owner.userDataId IN (:...ids)', { ids })
-      .andWhere('owner.ref IS NOT NULL');
+      .andWhere('owner.ref IS NOT NULL')
+      .andWhere('child.userDataId != owner.userDataId');
     if (excludeIds.length > 0) query.andWhere('child.userDataId NOT IN (:...excludeIds)', { excludeIds });
     const rows = await query.groupBy('owner.userDataId').getRawMany<{ id: string; count: string }>();
     return rows.map((r) => ({ id: +r.id, count: +r.count }));
@@ -220,7 +221,8 @@ export class UserService {
       .select('owner.userDataId', 'id')
       .addSelect('COUNT(DISTINCT referrer.userDataId)', 'count')
       .where('owner.userDataId IN (:...ids)', { ids })
-      .andWhere('owner.usedRef != :default', { default: Config.defaultRef });
+      .andWhere('owner.usedRef != :default', { default: Config.defaultRef })
+      .andWhere('referrer.userDataId != owner.userDataId');
     if (excludeIds.length > 0) query.andWhere('referrer.userDataId NOT IN (:...excludeIds)', { excludeIds });
     const rows = await query.groupBy('owner.userDataId').getRawMany<{ id: string; count: string }>();
     return rows.map((r) => ({ id: +r.id, count: +r.count }));

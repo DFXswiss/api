@@ -32,18 +32,6 @@ describe('SupportController', () => {
     expect(controller).toBeDefined();
   });
 
-  describe('getRecommendationGraph', () => {
-    it('delegates to supportService.getRecommendationGraph with the numeric id', async () => {
-      const graph: RecommendationGraph = { nodes: [], edges: [], rootId: 42 };
-      const spy = jest.spyOn(supportService, 'getRecommendationGraph').mockResolvedValue(graph);
-
-      const result = await controller.getRecommendationGraph('42');
-
-      expect(spy).toHaveBeenCalledWith(42);
-      expect(result).toBe(graph);
-    });
-  });
-
   describe('getRecommendationGraphNeighbors', () => {
     it('delegates to supportService.getRecommendationGraphNeighbors with parsed id, skip and take', async () => {
       const graph: RecommendationGraph = { nodes: [], edges: [], rootId: 42, hasMore: true };
@@ -72,6 +60,16 @@ describe('SupportController', () => {
       const result = await controller.getRecommendationGraphNeighbors('42', '0', '0');
 
       expect(spy).toHaveBeenCalledWith(42, 0, 0);
+      expect(result).toBe(graph);
+    });
+
+    it('passes undefined for non-numeric skip and take instead of NaN', async () => {
+      const graph: RecommendationGraph = { nodes: [], edges: [], rootId: 42 };
+      const spy = jest.spyOn(supportService, 'getRecommendationGraphNeighbors').mockResolvedValue(graph);
+
+      const result = await controller.getRecommendationGraphNeighbors('42', 'abc', 'xyz');
+
+      expect(spy).toHaveBeenCalledWith(42, undefined, undefined);
       expect(result).toBe(graph);
     });
   });

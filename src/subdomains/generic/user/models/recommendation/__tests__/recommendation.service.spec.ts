@@ -58,6 +58,10 @@ describe('RecommendationService', () => {
       expect(typeof result[0].count).toBe('number');
       expect(recommendationRepo.createQueryBuilder).toHaveBeenCalledWith('recommendation');
       expect(builder.getRawMany).toHaveBeenCalled();
+      // base where + the not-null and self-pair guards
+      expect(builder.where).toHaveBeenCalledWith('recommendation.recommenderId IN (:...ids)', { ids: [1, 2] });
+      expect(builder.andWhere).toHaveBeenCalledWith('recommendation.recommendedId IS NOT NULL');
+      expect(builder.andWhere).toHaveBeenCalledWith('recommendation.recommendedId != recommendation.recommenderId');
       // no excludeIds -> NOT IN clause omitted
       expect(builder.andWhere).not.toHaveBeenCalledWith(expect.stringContaining('NOT IN'), expect.anything());
     });
@@ -93,6 +97,10 @@ describe('RecommendationService', () => {
       expect(typeof result[0].count).toBe('number');
       expect(recommendationRepo.createQueryBuilder).toHaveBeenCalledWith('recommendation');
       expect(builder.getRawMany).toHaveBeenCalled();
+      // mirrored base where + the not-null and self-pair guards
+      expect(builder.where).toHaveBeenCalledWith('recommendation.recommendedId IN (:...ids)', { ids: [5] });
+      expect(builder.andWhere).toHaveBeenCalledWith('recommendation.recommenderId IS NOT NULL');
+      expect(builder.andWhere).toHaveBeenCalledWith('recommendation.recommenderId != recommendation.recommendedId');
       expect(builder.andWhere).not.toHaveBeenCalledWith(expect.stringContaining('NOT IN'), expect.anything());
     });
 

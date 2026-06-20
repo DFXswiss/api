@@ -96,14 +96,6 @@ export class SupportController {
     return this.supportService.getTransactionList(query);
   }
 
-  @Get('recommendation-graph/:id')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async getRecommendationGraph(@Param('id') id: string): Promise<RecommendationGraph> {
-    return this.supportService.getRecommendationGraph(+id);
-  }
-
   @Get('recommendation-graph/:id/neighbors')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -113,11 +105,8 @@ export class SupportController {
     @Query('skip') skip?: string,
     @Query('take') take?: string,
   ): Promise<RecommendationGraph> {
-    return this.supportService.getRecommendationGraphNeighbors(
-      +id,
-      skip != null ? +skip : undefined,
-      take != null ? +take : undefined,
-    );
+    const toNum = (v?: string): number | undefined => (v != null && Number.isFinite(+v) ? +v : undefined);
+    return this.supportService.getRecommendationGraphNeighbors(+id, toNum(skip), toNum(take));
   }
 
   @Get('pending-transactions')

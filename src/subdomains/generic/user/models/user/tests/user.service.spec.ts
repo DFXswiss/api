@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Config } from 'src/config/config';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -122,6 +123,17 @@ describe('UserService', () => {
       expect(typeof result[0].count).toBe('number');
       expect(userRepo.createQueryBuilder).toHaveBeenCalledWith('owner');
       expect(builder.getRawMany).toHaveBeenCalled();
+      // joins ref-children on the owner's ref, dropping defaultRef, via the :default param
+      expect(builder.innerJoin).toHaveBeenCalledWith(
+        User,
+        'child',
+        'child.usedRef = owner.ref AND child.usedRef != :default',
+        { default: Config.defaultRef },
+      );
+      expect(builder.where).toHaveBeenCalledWith('owner.userDataId IN (:...ids)', { ids: [1, 2] });
+      expect(builder.andWhere).toHaveBeenCalledWith('owner.ref IS NOT NULL');
+      // self-pair guard: a child that is the owner itself must not inflate the count
+      expect(builder.andWhere).toHaveBeenCalledWith('child.userDataId != owner.userDataId');
       // no excludeIds -> NOT IN clause omitted
       expect(builder.andWhere).not.toHaveBeenCalledWith(expect.stringContaining('NOT IN'), expect.anything());
     });
@@ -157,6 +169,13 @@ describe('UserService', () => {
       expect(typeof result[0].count).toBe('number');
       expect(userRepo.createQueryBuilder).toHaveBeenCalledWith('owner');
       expect(builder.getRawMany).toHaveBeenCalled();
+      // joins ref-referrers on the owner's usedRef
+      expect(builder.innerJoin).toHaveBeenCalledWith(User, 'referrer', 'referrer.ref = owner.usedRef');
+      expect(builder.where).toHaveBeenCalledWith('owner.userDataId IN (:...ids)', { ids: [9] });
+      // owner.usedRef must not be the defaultRef, via the :default param
+      expect(builder.andWhere).toHaveBeenCalledWith('owner.usedRef != :default', { default: Config.defaultRef });
+      // self-pair guard: a referrer that is the owner itself must not inflate the count
+      expect(builder.andWhere).toHaveBeenCalledWith('referrer.userDataId != owner.userDataId');
       expect(builder.andWhere).not.toHaveBeenCalledWith(expect.stringContaining('NOT IN'), expect.anything());
     });
 

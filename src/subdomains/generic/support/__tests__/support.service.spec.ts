@@ -137,11 +137,9 @@ describe('SupportService', () => {
 
       const neighborIds = graph.nodes.map((n) => n.id).filter((id) => id !== centerId);
       expect(graph.nodes.map((n) => n.id)).toContain(centerId);
-      // both upward referrers present and ordered ahead of any downward child
-      expect(neighborIds).toContain(referrerRefId);
-      expect(neighborIds).toContain(referrerRecId);
-      expect(neighborIds.slice(0, 2).sort((a, b) => a - b)).toEqual([referrerRefId, referrerRecId]);
-      expect(neighborIds).toHaveLength(3); // 2 upward + 1 child
+      // exact ordered first-page slice: upward referrers (sorted asc) ahead of the first (sorted) downward child
+      // upward {referrerRecId=9, referrerRefId=4} -> sorted [4, 9], then first child 201 -> [4, 9, 201]
+      expect(neighborIds).toEqual([referrerRefId, referrerRecId, childIds[0]]);
       expect(graph.hasMore).toBe(true);
       expect(graph.rootId).toBe(centerId);
     });
@@ -428,91 +426,6 @@ describe('SupportService', () => {
       const neighborIds = graph.nodes.map((n) => n.id).filter((id) => id !== centerId);
       expect(neighborIds).toEqual([cycleId]);
       expect(graph.hasMore).toBe(false);
-    });
-  });
-
-  describe('getRecommendationGraph (BFS)', () => {
-    it('traverses multiple hops + ref-code links and dedups a diamond where a node is reachable twice', async () => {
-      // diamond: root -> a, root -> b, a -> sink, b -> sink (sink enqueued twice, must be visited once)
-      const rootId = 1;
-      const aId = 2;
-      const bId = 3;
-      const sinkId = 4;
-      const refChildId = 5; // reached via classic ref-code from the root
-
-      const recsByRecommender = new Map<number, Recommendation[]>([
-        [rootId, [createRecommendation(10, rootId, aId), createRecommendation(11, rootId, bId)]],
-        [aId, [createRecommendation(12, aId, sinkId)]],
-        [bId, [createRecommendation(13, bId, sinkId)]],
-      ]);
-      const recsByRecommended = new Map<number, Recommendation[]>([
-        [aId, [createRecommendation(10, rootId, aId)]],
-        [bId, [createRecommendation(11, rootId, bId)]],
-        [sinkId, [createRecommendation(12, aId, sinkId), createRecommendation(13, bId, sinkId)]],
-      ]);
-
-      jest
-        .spyOn(recommendationService, 'getAllRecommendationsByRecommenderId')
-        .mockImplementation((id: number) => Promise.resolve(recsByRecommender.get(id) ?? []));
-      jest
-        .spyOn(recommendationService, 'getRecommendationsByRecommendedId')
-        .mockImplementation((id: number) => Promise.resolve(recsByRecommended.get(id) ?? []));
-
-      // only the root has a ref-code child (downward via classic ref-code)
-      jest
-        .spyOn(userService, 'getAllUserDataUsers')
-        .mockImplementation((id: number) =>
-          Promise.resolve(id === rootId ? [createRefUser(900, 'ROO-T', undefined)] : []),
-        );
-      jest.spyOn(userService, 'getRefUsersByRefs').mockResolvedValue([]);
-      jest
-        .spyOn(userService, 'getUsersByUsedRefs')
-        .mockImplementation((refs: string[]) =>
-          Promise.resolve(refs.includes('ROO-T') ? [createRefUser(901, 'CHI-LD', 'ROO-T', refChildId)] : []),
-        );
-
-      mockUserDatasForRequestedIds();
-
-      const graph = await service.getRecommendationGraph(rootId);
-
-      // every reachable node visited exactly once (sink deduped despite two inbound paths)
-      expect(graph.nodes.map((n) => n.id).sort((a, b) => a - b)).toEqual([rootId, aId, bId, sinkId, refChildId]);
-      // four recommendation edges (deduped by rec id) + one ref-code edge
-      const recEdges = graph.edges.filter((e) => e.kind === RecommendationGraphEdgeKind.RECOMMENDATION);
-      expect(recEdges.map((e) => e.id).sort((a, b) => a - b)).toEqual([10, 11, 12, 13]);
-      const refEdges = graph.edges.filter((e) => e.kind === RecommendationGraphEdgeKind.USED_REF);
-      expect(refEdges).toHaveLength(1);
-      expect(refEdges[0].recommenderId).toBe(rootId);
-      expect(refEdges[0].recommendedId).toBe(refChildId);
-      expect(graph.rootId).toBe(rootId);
-      expect(graph.hasMore).toBeUndefined(); // full graph has no pagination flag
-    });
-
-    it('keeps an edge only when both endpoints are within the visited set (BFS hop cap behaviour)', async () => {
-      const rootId = 1;
-      const childId = 2;
-
-      // root <-> child recommendation is present from both perspectives (same rec id 10)
-      const recsByRecommender = new Map<number, Recommendation[]>([
-        [rootId, [createRecommendation(10, rootId, childId)]],
-        [childId, [createRecommendation(10, rootId, childId)]],
-      ]);
-
-      jest
-        .spyOn(recommendationService, 'getAllRecommendationsByRecommenderId')
-        .mockImplementation((id: number) => Promise.resolve(recsByRecommender.get(id) ?? []));
-      jest.spyOn(recommendationService, 'getRecommendationsByRecommendedId').mockResolvedValue([]);
-      jest.spyOn(userService, 'getAllUserDataUsers').mockResolvedValue([]);
-      jest.spyOn(userService, 'getRefUsersByRefs').mockResolvedValue([]);
-      jest.spyOn(userService, 'getUsersByUsedRefs').mockResolvedValue([]);
-
-      mockUserDatasForRequestedIds();
-
-      const graph = await service.getRecommendationGraph(rootId);
-
-      // both endpoints reached -> edge kept
-      expect(graph.nodes.map((n) => n.id).sort((a, b) => a - b)).toEqual([rootId, childId]);
-      expect(graph.edges.filter((e) => e.kind === RecommendationGraphEdgeKind.RECOMMENDATION)).toHaveLength(1);
     });
   });
 

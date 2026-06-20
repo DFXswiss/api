@@ -355,7 +355,8 @@ export class RecommendationService {
       .select('recommendation.recommenderId', 'id')
       .addSelect('COUNT(DISTINCT recommendation.recommendedId)', 'count')
       .where('recommendation.recommenderId IN (:...ids)', { ids })
-      .andWhere('recommendation.recommendedId IS NOT NULL');
+      .andWhere('recommendation.recommendedId IS NOT NULL')
+      .andWhere('recommendation.recommendedId != recommendation.recommenderId');
     if (excludeIds.length > 0) query.andWhere('recommendation.recommendedId NOT IN (:...excludeIds)', { excludeIds });
     const rows = await query.groupBy('recommendation.recommenderId').getRawMany<{ id: string; count: string }>();
     return rows.map((r) => ({ id: +r.id, count: +r.count }));
@@ -369,7 +370,8 @@ export class RecommendationService {
       .select('recommendation.recommendedId', 'id')
       .addSelect('COUNT(DISTINCT recommendation.recommenderId)', 'count')
       .where('recommendation.recommendedId IN (:...ids)', { ids })
-      .andWhere('recommendation.recommenderId IS NOT NULL');
+      .andWhere('recommendation.recommenderId IS NOT NULL')
+      .andWhere('recommendation.recommenderId != recommendation.recommendedId');
     if (excludeIds.length > 0) query.andWhere('recommendation.recommenderId NOT IN (:...excludeIds)', { excludeIds });
     const rows = await query.groupBy('recommendation.recommendedId').getRawMany<{ id: string; count: string }>();
     return rows.map((r) => ({ id: +r.id, count: +r.count }));

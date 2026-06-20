@@ -128,6 +128,9 @@ interface RefEdge {
   refCode: string;
 }
 
+// default neighbor page size for progressive recommendation-graph expansion (hub accounts can have many neighbors)
+const RECOMMENDATION_GRAPH_PAGE_SIZE = 25;
+
 const CallQueueItemsLimit = 200;
 
 const PendingReviewBankDataName = 'BankData';
@@ -689,31 +692,12 @@ export class SupportService {
     };
   }
 
-  async getRecommendationGraph(userDataId: number): Promise<RecommendationGraph> {
-    const MAX_NODES = 500;
-    const visitedUsers = new Set<number>();
-    const visitedRecs = new Map<number, Recommendation>();
-    // classic ref-code relationships (user.usedRef -> user.ref), keyed by directed userData pair to dedup
-    const refEdges = new Map<string, RefEdge>();
-    const queue: number[] = [userDataId];
-
-    // BFS: traverse all connected recommendations AND classic ref-code relationships in both directions (capped)
-    while (queue.length > 0 && visitedUsers.size < MAX_NODES) {
-      const currentId = queue.shift();
-      if (visitedUsers.has(currentId)) continue;
-      visitedUsers.add(currentId);
-
-      const hop = await this.collectHop(currentId);
-      for (const rec of hop.recs) if (!visitedRecs.has(rec.id)) visitedRecs.set(rec.id, rec);
-      for (const refEdge of hop.refEdges) refEdges.set(`${refEdge.referrerId}-${refEdge.referredId}`, refEdge);
-      for (const id of hop.neighborIds) if (!visitedUsers.has(id)) queue.push(id);
-    }
-
-    return this.buildGraphPayload(userDataId, visitedUsers, visitedRecs, refEdges);
-  }
-
   // direct (1-hop) neighbors of a userData for lazy/progressive graph expansion; paginated for hub accounts
-  async getRecommendationGraphNeighbors(centerId: number, skip = 0, take = 25): Promise<RecommendationGraph> {
+  async getRecommendationGraphNeighbors(
+    centerId: number,
+    skip = 0,
+    take = RECOMMENDATION_GRAPH_PAGE_SIZE,
+  ): Promise<RecommendationGraph> {
     const hop = await this.collectHop(centerId);
 
     // split into upward (who referred/recommended the center) and downward (the center's children)
@@ -767,6 +751,8 @@ export class SupportService {
       if (rec.recommended?.id && rec.recommended.id !== centerId) neighborIds.add(rec.recommended.id);
     }
 
+    // usedRefs are this user's incoming ref codes, pre-filtered against defaultRef here because getRefUsersByRefs
+    // does not filter it itself; ownRefs are this user's own ref codes (used to find who signed up under them)
     const usedRefs = users.map((u) => u.usedRef).filter((r) => r && r !== Config.defaultRef);
     const ownRefs = users.map((u) => u.ref).filter((r): r is string => !!r);
     const [referrerUsers, referredUsers] = await Promise.all([
@@ -854,8 +840,9 @@ export class SupportService {
   }
 
   // flag each neighbor that has at least one neighbor NOT already shown in this fragment, via cheap batched
-  // counts (no per-node N+1). Counterparts already in the fragment (all graph node ids) are excluded, so a
-  // pair that is both a recommendation and a ref-code is not double-counted into a false-positive expandable.
+  // counts (no per-node N+1). Counterparts already in the fragment (all graph node ids) are excluded so an
+  // in-fragment counterpart of a pair that is both a recommendation and a ref-code is not double-counted into
+  // a false-positive expandable. A single external node still counted by two helpers is harmless for the >0 check.
   private async setNodeExpandability(graph: RecommendationGraph, centerId: number): Promise<void> {
     const neighborIds = graph.nodes.map((n) => n.id).filter((id) => id !== centerId);
     if (!neighborIds.length) return;
