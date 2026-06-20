@@ -709,8 +709,23 @@ export class SupportService {
   async getRecommendationGraphNeighbors(centerId: number, skip = 0, take = 25): Promise<RecommendationGraph> {
     const hop = await this.collectHop(centerId);
 
-    // deterministic neighbor order so pagination ('load more') is stable
-    const orderedNeighborIds = [...new Set(hop.neighborIds)].sort((a, b) => a - b);
+    // split into upward (who referred/recommended the center) and downward (the center's children)
+    const upward = new Set<number>();
+    const downward = new Set<number>();
+    for (const rec of hop.recs) {
+      if (rec.recommended?.id === centerId && rec.recommender?.id && rec.recommender.id !== centerId)
+        upward.add(rec.recommender.id);
+      if (rec.recommender?.id === centerId && rec.recommended?.id && rec.recommended.id !== centerId)
+        downward.add(rec.recommended.id);
+    }
+    for (const refEdge of hop.refEdges) {
+      if (refEdge.referredId === centerId) upward.add(refEdge.referrerId);
+      if (refEdge.referrerId === centerId) downward.add(refEdge.referredId);
+    }
+    for (const id of upward) downward.delete(id); // a node that is both (cycle) is treated as upward
+
+    // referrers first (few, important) then children — so the upward path is always on the first page
+    const orderedNeighborIds = [...[...upward].sort((a, b) => a - b), ...[...downward].sort((a, b) => a - b)];
     const pageIds = orderedNeighborIds.slice(skip, skip + take);
     const hasMore = skip + take < orderedNeighborIds.length;
 
