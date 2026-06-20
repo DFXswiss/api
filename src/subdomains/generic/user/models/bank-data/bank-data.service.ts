@@ -375,7 +375,7 @@ export class BankDataService {
         .createQueryBuilder()
         .update('bank_data')
         .set({ active: false, default: false })
-        .where('bank_data.userDataId = :userDataId', { userDataId })
+        .where('bank_data."userDataId" = :userDataId', { userDataId })
         .andWhere('bank_data.id != :id', { id: entity.id })
         .andWhere('bank_data.iban = :iban', { iban: entity.iban })
         .execute();

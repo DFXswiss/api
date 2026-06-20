@@ -294,7 +294,7 @@ export class SupportIssueService {
     for (let i = 0; i < termCount; i++) {
       const param = `term${i}`;
       qb.andWhere(
-        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR userData.firstname LIKE :${param} OR userData.surname LIKE :${param} OR userData.organizationName LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m.issueId = issue.id AND m.message LIKE :${param}))`,
+        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR "userData".firstname LIKE :${param} OR "userData".surname LIKE :${param} OR "userData"."organizationName" LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m."issueId" = issue.id AND m.message LIKE :${param}))`,
         { [param]: `%${terms[i]}%` },
       );
     }
@@ -327,14 +327,14 @@ export class SupportIssueService {
       (chunk): Promise<{ issueId: string; count: string; lastDate: Date | null; lastAuthor: string | null }[]> =>
         this.messageRepo
           .createQueryBuilder('m')
-          .select('m.issueId', 'issueId')
+          .select('m."issueId"', 'issueId')
           .addSelect('COUNT(*)', 'count')
           .addSelect(
             (sub) =>
               sub
                 .select('m2.created')
                 .from(SupportMessage, 'm2')
-                .where('m2.issueId = m.issueId')
+                .where('m2."issueId" = m."issueId"')
                 .orderBy('m2.id', 'DESC')
                 .limit(1),
             'lastDate',
@@ -344,13 +344,13 @@ export class SupportIssueService {
               sub
                 .select('m2.author')
                 .from(SupportMessage, 'm2')
-                .where('m2.issueId = m.issueId')
+                .where('m2."issueId" = m."issueId"')
                 .orderBy('m2.id', 'DESC')
                 .limit(1),
             'lastAuthor',
           )
-          .where('m.issueId IN (:...ids)', { ids: chunk })
-          .groupBy('m.issueId')
+          .where('m."issueId" IN (:...ids)', { ids: chunk })
+          .groupBy('m."issueId"')
           .getRawMany(),
       1000,
     );

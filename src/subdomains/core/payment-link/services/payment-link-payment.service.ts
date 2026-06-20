@@ -153,12 +153,12 @@ export class PaymentLinkPaymentService {
       .innerJoin(
         (qb) =>
           qb
-            .select('plp2.linkId', 'linkId')
+            .select('plp2."linkId"', 'linkId')
             .addSelect('MAX(plp2.id)', 'maxId')
             .from(PaymentLinkPayment, 'plp2')
-            .groupBy('plp2.linkId'),
+            .groupBy('plp2."linkId"'),
         'latest',
-        'latest.linkId = plp.linkId AND latest.maxId = plp.id',
+        'latest."linkId" = plp."linkId" AND latest."maxId" = plp.id',
       )
       .innerJoinAndSelect('plp.currency', 'currency')
       .innerJoinAndSelect('plp.link', 'link')
