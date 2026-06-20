@@ -33,43 +33,34 @@ describe('SupportController', () => {
   });
 
   describe('getRecommendationGraphNeighbors', () => {
-    it('delegates to supportService.getRecommendationGraphNeighbors with parsed id, skip and take', async () => {
+    it('delegates to supportService.getRecommendationGraphNeighbors with parsed id and the query skip/take', async () => {
       const graph: RecommendationGraph = { nodes: [], edges: [], rootId: 42, hasMore: true };
       const spy = jest.spyOn(supportService, 'getRecommendationGraphNeighbors').mockResolvedValue(graph);
 
-      const result = await controller.getRecommendationGraphNeighbors('42', '10', '5');
+      // skip/take are already validated and number-transformed by the query DTO (RecommendationGraphNeighborsQuery)
+      const result = await controller.getRecommendationGraphNeighbors('42', { skip: 10, take: 5 });
 
       expect(spy).toHaveBeenCalledWith(42, 10, 5);
       expect(result).toBe(graph);
     });
 
-    it('passes undefined for skip and take when the query params are omitted', async () => {
+    it('passes undefined for skip and take when the query params are omitted (service defaults apply)', async () => {
       const graph: RecommendationGraph = { nodes: [], edges: [], rootId: 42 };
       const spy = jest.spyOn(supportService, 'getRecommendationGraphNeighbors').mockResolvedValue(graph);
 
-      const result = await controller.getRecommendationGraphNeighbors('42');
+      const result = await controller.getRecommendationGraphNeighbors('42', {});
 
       expect(spy).toHaveBeenCalledWith(42, undefined, undefined);
       expect(result).toBe(graph);
     });
 
-    it('honors skip=0 and take=0 instead of treating them as omitted', async () => {
+    it('honors skip=0 instead of treating it as omitted', async () => {
       const graph: RecommendationGraph = { nodes: [], edges: [], rootId: 42 };
       const spy = jest.spyOn(supportService, 'getRecommendationGraphNeighbors').mockResolvedValue(graph);
 
-      const result = await controller.getRecommendationGraphNeighbors('42', '0', '0');
+      const result = await controller.getRecommendationGraphNeighbors('42', { skip: 0, take: 5 });
 
-      expect(spy).toHaveBeenCalledWith(42, 0, 0);
-      expect(result).toBe(graph);
-    });
-
-    it('passes undefined for non-numeric skip and take instead of NaN', async () => {
-      const graph: RecommendationGraph = { nodes: [], edges: [], rootId: 42 };
-      const spy = jest.spyOn(supportService, 'getRecommendationGraphNeighbors').mockResolvedValue(graph);
-
-      const result = await controller.getRecommendationGraphNeighbors('42', 'abc', 'xyz');
-
-      expect(spy).toHaveBeenCalledWith(42, undefined, undefined);
+      expect(spy).toHaveBeenCalledWith(42, 0, 5);
       expect(result).toBe(graph);
     });
   });

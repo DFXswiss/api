@@ -734,7 +734,6 @@ export class SupportService {
 
   // single-hop neighborhood of a userData: its recommendations (both directions) and classic ref-code links (up + down)
   private async collectHop(centerId: number): Promise<{
-    neighborIds: number[];
     recs: Recommendation[];
     refEdges: RefEdge[];
   }> {
@@ -745,11 +744,6 @@ export class SupportService {
     ]);
 
     const recs = [...asRecommender, ...asRecommended];
-    const neighborIds = new Set<number>();
-    for (const rec of recs) {
-      if (rec.recommender?.id && rec.recommender.id !== centerId) neighborIds.add(rec.recommender.id);
-      if (rec.recommended?.id && rec.recommended.id !== centerId) neighborIds.add(rec.recommended.id);
-    }
 
     // usedRefs are this user's incoming ref codes, pre-filtered against defaultRef here because getRefUsersByRefs
     // does not filter it itself; ownRefs are this user's own ref codes (used to find who signed up under them)
@@ -765,16 +759,14 @@ export class SupportService {
       const referrerId = referrer.userData?.id;
       if (!referrerId || referrerId === centerId) continue;
       refEdges.push({ referrerId, referredId: centerId, refCode: referrer.ref });
-      neighborIds.add(referrerId);
     }
     for (const referred of referredUsers) {
       const referredId = referred.userData?.id;
       if (!referredId || referredId === centerId) continue;
       refEdges.push({ referrerId: centerId, referredId, refCode: referred.usedRef });
-      neighborIds.add(referredId);
     }
 
-    return { neighborIds: [...neighborIds], recs, refEdges };
+    return { recs, refEdges };
   }
 
   // build nodes + deduplicated edges for a set of visited userDatas (recommendation wins over ref-code on the same pair)
@@ -800,6 +792,7 @@ export class SupportService {
       (r) =>
         r.recommender?.id &&
         r.recommended?.id &&
+        r.recommender.id !== r.recommended.id &&
         visitedUsers.has(r.recommender.id) &&
         visitedUsers.has(r.recommended.id),
     );

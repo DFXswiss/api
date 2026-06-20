@@ -344,6 +344,7 @@ export class RecommendationService {
     return this.recommendationRepo.find({
       where: { recommended: { id: recommendedId } },
       relations: { recommended: true, recommender: true },
+      order: { id: 'DESC' },
     });
   }
 

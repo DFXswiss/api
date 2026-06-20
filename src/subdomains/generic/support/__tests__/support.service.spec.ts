@@ -191,7 +191,7 @@ describe('SupportService', () => {
       expect(edgesForPair[0].kind).toBe(RecommendationGraphEdgeKind.RECOMMENDATION);
     });
 
-    it('excludes a self-loop from neighbor traversal (no self neighbor node, no self ref-code edge)', async () => {
+    it('excludes a self-loop from neighbor traversal (no self neighbor node, no self-loop edge of any kind)', async () => {
       const centerId = 100;
 
       // a self recommendation contributes no neighbor; a self ref-code contributes neither neighbor nor edge
@@ -215,12 +215,9 @@ describe('SupportService', () => {
 
       // no neighbor was added: only the center remains as a node
       expect(graph.nodes.map((n) => n.id)).toEqual([centerId]);
-      // self ref-code edge is dropped; only the self recommendation edge survives (both endpoints == center)
-      expect(graph.edges.filter((e) => e.kind === RecommendationGraphEdgeKind.USED_REF)).toHaveLength(0);
-      const selfRecEdges = graph.edges.filter((e) => e.kind === RecommendationGraphEdgeKind.RECOMMENDATION);
-      expect(selfRecEdges).toHaveLength(1);
-      expect(selfRecEdges[0].recommenderId).toBe(centerId);
-      expect(selfRecEdges[0].recommendedId).toBe(centerId);
+      // self ref-code edge is dropped by collectHop; the self recommendation edge is dropped by buildGraphPayload
+      // (recommender.id === recommended.id) -> no self-loop edge of any kind is emitted
+      expect(graph.edges).toHaveLength(0);
     });
 
     it('excludes ref-code links using the default ref (000-000)', async () => {
@@ -344,6 +341,33 @@ describe('SupportService', () => {
 
       const orphanNode = graph.nodes.find((n) => n.id === orphanId);
       expect(orphanNode.expandable).toBe(true);
+    });
+
+    it('marks a node expandable via the ref-code degree branch alone (recommendation counts empty)', async () => {
+      const centerId = 100;
+      const childId = 201; // linked to center via a recommendation, but its only external degree is ref-code based
+
+      jest
+        .spyOn(recommendationService, 'getAllRecommendationsByRecommenderId')
+        .mockResolvedValue([createRecommendation(1000, centerId, childId)]);
+      jest.spyOn(recommendationService, 'getRecommendationsByRecommendedId').mockResolvedValue([]);
+      jest.spyOn(userService, 'getAllUserDataUsers').mockResolvedValue([]);
+      jest.spyOn(userService, 'getRefUsersByRefs').mockResolvedValue([]);
+      jest.spyOn(userService, 'getUsersByUsedRefs').mockResolvedValue([]);
+
+      mockUserDatasForRequestedIds();
+
+      // both recommendation count helpers return [], only a ref-code helper reports external degree -> the
+      // summation must still flag the node expandable (covers the ref-degree branch in isolation)
+      jest.spyOn(recommendationService, 'countByRecommenderIds').mockResolvedValue([]);
+      jest.spyOn(recommendationService, 'countByRecommendedIds').mockResolvedValue([]);
+      jest.spyOn(userService, 'countRefChildrenByUserDataIds').mockResolvedValue([{ id: childId, count: 2 }]);
+      jest.spyOn(userService, 'countRefReferrersByUserDataIds').mockResolvedValue([]);
+
+      const graph = await service.getRecommendationGraphNeighbors(centerId, 0, 25);
+
+      const childNode = graph.nodes.find((n) => n.id === childId);
+      expect(childNode.expandable).toBe(true);
     });
 
     it('keeps a leaf non-expandable when its only link (both a recommendation AND a ref-code to center) has no external counterpart', async () => {

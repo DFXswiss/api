@@ -373,6 +373,8 @@ export enum RecommendationGraphEdgeKind {
 }
 
 export class RecommendationGraphEdge {
+  // RECOMMENDATION edges carry the real recommendation id; USED_REF edges have no backing row, so their id is a
+  // synthetic negative counter (decremented per ref edge) to keep ids unique without colliding with real ones
   id: number;
   kind: RecommendationGraphEdgeKind;
   recommenderId: number;
