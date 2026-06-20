@@ -732,6 +732,11 @@ export class SupportService {
     return { ...graph, hasMore };
   }
 
+  // a real, user-specific ref code (non-empty and not the system default ref)
+  private isCustomRef(ref?: string): boolean {
+    return !!ref && ref !== Config.defaultRef;
+  }
+
   // single-hop neighborhood of a userData: its recommendations (both directions) and classic ref-code links (up + down)
   private async collectHop(centerId: number): Promise<{
     recs: Recommendation[];
@@ -747,7 +752,7 @@ export class SupportService {
 
     // usedRefs are this user's incoming ref codes, pre-filtered against defaultRef here because getRefUsersByRefs
     // does not filter it itself; ownRefs are this user's own ref codes (used to find who signed up under them)
-    const usedRefs = users.map((u) => u.usedRef).filter((r) => r && r !== Config.defaultRef);
+    const usedRefs = users.map((u) => u.usedRef).filter((r) => this.isCustomRef(r));
     const ownRefs = users.map((u) => u.ref).filter((r): r is string => !!r);
     const [referrerUsers, referredUsers] = await Promise.all([
       this.userService.getRefUsersByRefs(usedRefs),
@@ -767,6 +772,17 @@ export class SupportService {
     }
 
     return { recs, refEdges };
+  }
+
+  // Synthetic, deterministic negative id for USED_REF edges (which have no DB row id of their own).
+  // Negative so it never collides with real recommendation row ids (positive). Deterministic per
+  // directed (referrer -> referred) pair so the same ref edge keeps the same id across lazy-expand
+  // fragments. The consumer keys edges by directed pair, but a stable id avoids any id-based dedupe hazard.
+  private buildRefEdgeId(referrerId: number, referredId: number): number {
+    const key = `${referrerId}-${referredId}`;
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+    return -(Math.abs(hash) + 1);
   }
 
   // build nodes + deduplicated edges for a set of visited userDatas (recommendation wins over ref-code on the same pair)
@@ -811,7 +827,6 @@ export class SupportService {
     }));
 
     // add ref-code edges, skipping pairs already represented by a recommendation (confirmed recommendations also set usedRef)
-    let refEdgeId = 0;
     for (const refEdge of refEdges.values()) {
       const pairKey = `${refEdge.referrerId}-${refEdge.referredId}`;
       if (
@@ -821,7 +836,7 @@ export class SupportService {
       )
         continue;
       edges.push({
-        id: --refEdgeId,
+        id: this.buildRefEdgeId(refEdge.referrerId, refEdge.referredId),
         kind: RecommendationGraphEdgeKind.USED_REF,
         recommenderId: refEdge.referrerId,
         recommendedId: refEdge.referredId,

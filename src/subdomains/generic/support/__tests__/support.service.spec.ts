@@ -301,10 +301,10 @@ describe('SupportService', () => {
       const noCountNode = graph.nodes.find((n) => n.id === noCountChildId);
       const centerNode = graph.nodes.find((n) => n.id === centerId);
 
-      expect(richNode.expandable).toBe(true);
-      expect(leafNode.expandable).toBe(false); // external degree 0
-      expect(noCountNode.expandable).toBe(false); // externalDegree.get(...) ?? 0 = 0
-      expect(centerNode.expandable).toBe(false); // center is never expandable
+      expect(richNode!.expandable).toBe(true);
+      expect(leafNode!.expandable).toBe(false); // external degree 0
+      expect(noCountNode!.expandable).toBe(false); // externalDegree.get(...) ?? 0 = 0
+      expect(centerNode!.expandable).toBe(false); // center is never expandable
 
       // the shown fragment node ids are passed as excludeIds to every count helper
       const expectedExcludeIds = graph.nodes.map((n) => n.id);
@@ -340,7 +340,7 @@ describe('SupportService', () => {
       const graph = await service.getRecommendationGraphNeighbors(centerId, 0, 25);
 
       const orphanNode = graph.nodes.find((n) => n.id === orphanId);
-      expect(orphanNode.expandable).toBe(true);
+      expect(orphanNode!.expandable).toBe(true);
     });
 
     it('marks a node expandable via the ref-code degree branch alone (recommendation counts empty)', async () => {
@@ -367,7 +367,7 @@ describe('SupportService', () => {
       const graph = await service.getRecommendationGraphNeighbors(centerId, 0, 25);
 
       const childNode = graph.nodes.find((n) => n.id === childId);
-      expect(childNode.expandable).toBe(true);
+      expect(childNode!.expandable).toBe(true);
     });
 
     it('keeps a leaf non-expandable when its only link (both a recommendation AND a ref-code to center) has no external counterpart', async () => {
@@ -394,7 +394,7 @@ describe('SupportService', () => {
       const graph = await service.getRecommendationGraphNeighbors(centerId, 0, 25);
 
       const childNode = graph.nodes.find((n) => n.id === childId);
-      expect(childNode.expandable).toBe(false);
+      expect(childNode!.expandable).toBe(false);
     });
 
     it('emits negative synthetic ids for pure ref-code (UsedRef) edges', async () => {
@@ -424,6 +424,58 @@ describe('SupportService', () => {
       // distinct synthetic ids per ref edge
       const ids = refEdges.map((e) => e.id);
       expect(new Set(ids).size).toBe(ids.length);
+    });
+
+    it('keeps USED_REF edge ids negative and stable per directed pair across separate invocations', async () => {
+      const centerId = 100;
+      const referrerId = 5;
+      const referredId = 201;
+
+      // build the identical single-hop neighborhood twice (as a lazy-expand would re-surface the same edges)
+      const setupMocks = () => {
+        jest.spyOn(recommendationService, 'getAllRecommendationsByRecommenderId').mockResolvedValue([]);
+        jest.spyOn(recommendationService, 'getRecommendationsByRecommendedId').mockResolvedValue([]);
+        jest.spyOn(userService, 'getAllUserDataUsers').mockResolvedValue([createRefUser(1, 'CEN-TER', 'REF-RER')]);
+        jest
+          .spyOn(userService, 'getRefUsersByRefs')
+          .mockResolvedValue([createRefUser(2, 'REF-RER', undefined, referrerId)]);
+        jest
+          .spyOn(userService, 'getUsersByUsedRefs')
+          .mockResolvedValue([createRefUser(3, 'CHI-LD', 'CEN-TER', referredId)]);
+        mockUserDatasForRequestedIds();
+        mockNoExtraDegree();
+      };
+
+      // map each directed (referrer -> referred) pair to its synthetic edge id
+      const refEdgeMap = (graph: Awaited<ReturnType<typeof service.getRecommendationGraphNeighbors>>) =>
+        new Map(
+          graph.edges
+            .filter((e) => e.kind === RecommendationGraphEdgeKind.USED_REF)
+            .map((e) => [`${e.recommenderId}-${e.recommendedId}`, e.id] as const),
+        );
+
+      setupMocks();
+      const first = refEdgeMap(await service.getRecommendationGraphNeighbors(centerId, 0, 25));
+      setupMocks();
+      const second = refEdgeMap(await service.getRecommendationGraphNeighbors(centerId, 0, 25));
+
+      // two distinct ref edges (upward referrer -> center, downward center -> child)
+      expect(first.size).toBe(2);
+
+      // every synthetic id is negative (never collides with positive recommendation row ids)
+      for (const id of first.values()) expect(id).toBeLessThan(0);
+
+      // the same directed pair yields an identical id across the two separate invocations (fragment-independent)
+      expect(second).toEqual(first);
+      const upKey = `${referrerId}-${centerId}`;
+      const downKey = `${centerId}-${referredId}`;
+      expect(first.get(upKey)).toBeDefined();
+      expect(first.get(downKey)).toBeDefined();
+      expect(second.get(upKey)).toBe(first.get(upKey));
+      expect(second.get(downKey)).toBe(first.get(downKey));
+
+      // distinct directed pairs are not required to collide
+      expect(first.get(upKey)).not.toBe(first.get(downKey));
     });
 
     it('treats a node that is both upward and downward (cycle) as upward only', async () => {

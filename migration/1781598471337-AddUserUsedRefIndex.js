@@ -7,8 +7,8 @@
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class AddUserUsedRefIndex1781600000000 {
-  name = 'AddUserUsedRefIndex1781600000000';
+module.exports = class AddUserUsedRefIndex1781598471337 {
+  name = 'AddUserUsedRefIndex1781598471337';
 
   /**
    * @param {QueryRunner} queryRunner
