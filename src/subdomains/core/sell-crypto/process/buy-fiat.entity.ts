@@ -11,7 +11,6 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
-import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -551,15 +550,23 @@ export class BuyFiat extends IEntity {
   }
 
   pendingInputAmount(asset: Asset): number {
-    return !this.outputAmount && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
+    // Keep the liability on the crypto-input side until the payout bank is known (fiatOutput exists).
+    // A sell whose output is already priced but not yet routed to a payout bank is still owed to the
+    // customer and must be counted exactly once on a real asset, without guessing a bank.
+    return (!this.outputAmount || !this.fiatOutput) && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
   }
 
   pendingOutputAmount(asset: Asset): number {
-    const payoutBankName = this.fiatOutput?.bank?.name ?? IbanBankName.YAPEAL;
+    // The liability is settlement-anchored: it stays counted until the buy_fiat leaves the pending set
+    // (isComplete=true, set only when outputDate + the settling bank_tx exist). Do NOT drop it at
+    // isTransmittedDate — the matching bank-cash reduction only lands at settlement, so an early drop
+    // overstates equity for the whole transmit->settle gap (up to days over weekends).
+    const payoutBankName = this.fiatOutput?.bank?.name;
 
-    if (payoutBankName === IbanBankName.YAPEAL && this.fiatOutput?.isTransmittedDate) return 0;
-
-    return this.outputAmount && asset.dexName === this.sell.fiat.name && asset.bank?.name === payoutBankName
+    return this.outputAmount &&
+      payoutBankName &&
+      asset.dexName === this.sell.fiat.name &&
+      asset.bank?.name === payoutBankName
       ? this.outputAmount
       : 0;
   }
