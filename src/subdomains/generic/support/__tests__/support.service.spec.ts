@@ -189,6 +189,9 @@ describe('SupportService', () => {
       const edgesForPair = graph.edges.filter((e) => e.recommenderId === centerId && e.recommendedId === childId);
       expect(edgesForPair).toHaveLength(1);
       expect(edgesForPair[0].kind).toBe(RecommendationGraphEdgeKind.RECOMMENDATION);
+      // the actual ref code used (the child's usedRef) is carried onto the recommendation edge that
+      // supersedes the standalone ref-code edge, so the graph can label it with the code that was used
+      expect(edgesForPair[0].refCode).toBe('CEN-TER');
     });
 
     it('excludes a self-loop from neighbor traversal (no self neighbor node, no self-loop edge of any kind)', async () => {

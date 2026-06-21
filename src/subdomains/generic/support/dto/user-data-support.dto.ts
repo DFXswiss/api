@@ -384,6 +384,8 @@ export class RecommendationGraphEdge {
   type?: RecommendationType;
   isConfirmed?: boolean;
   confirmationDate?: Date;
+  // the ref code used: the code itself on USED_REF edges, and — when a ref-code recommendation coincides
+  // with the recommended user's usedRef — also on the RECOMMENDATION edge that supersedes that ref edge
   refCode?: string;
   created?: Date;
 }

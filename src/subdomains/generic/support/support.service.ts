@@ -813,6 +813,12 @@ export class SupportService {
         visitedUsers.has(r.recommended.id),
     );
     const recommendationPairs = new Set(recommendationEdges.map((r) => `${r.recommender.id}-${r.recommended.id}`));
+    // a confirmed ref-code recommendation coincides with the recommended user's usedRef; surface that
+    // actual ref code on the recommendation edge (its standalone USED_REF edge for the same pair is
+    // skipped below) so the graph can label the edge with the code that was used, not just the method
+    const refCodeByPair = new Map(
+      [...refEdges.values()].map((re) => [`${re.referrerId}-${re.referredId}`, re.refCode]),
+    );
 
     const edges: RecommendationGraphEdge[] = recommendationEdges.map((r) => ({
       id: r.id,
@@ -824,6 +830,7 @@ export class SupportService {
       isConfirmed: r.isConfirmed,
       confirmationDate: r.confirmationDate,
       created: r.created,
+      refCode: refCodeByPair.get(`${r.recommender.id}-${r.recommended.id}`),
     }));
 
     // add ref-code edges, skipping pairs already represented by a recommendation (confirmed recommendations also set usedRef)
