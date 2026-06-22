@@ -406,9 +406,18 @@ export class GsService {
         sorting,
       );
 
+      // expose host-stable, proxied URLs instead of raw storage URLs (decouples clients from the storage backend)
+      if (docs.length) {
+        const proxyUrls = await this.kycDocumentService.getUserFileProxyUrlMap(userDataId);
+        for (const doc of docs) {
+          doc.url = proxyUrls.get(doc.path) ?? doc.url;
+        }
+      }
+
       for (const selectPath of selectPaths) {
         const docPath = this.toDocPath(selectPath, userDataId);
-        userData[selectPath] = docPath === commonPathPrefix ? docs : docs.filter((doc) => doc.url.includes(docPath));
+        // filter on the storage path (host-independent), not on the now-proxied URL
+        userData[selectPath] = docPath === commonPathPrefix ? docs : docs.filter((doc) => doc.path?.includes(docPath));
       }
     }
   }

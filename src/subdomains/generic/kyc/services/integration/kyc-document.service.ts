@@ -25,6 +25,14 @@ export class KycDocumentService {
     ];
   }
 
+  // Maps the storage path of a user's KYC files to their host-stable, proxied URL
+  // (`<services>/file/<uid>?show`, served by GET /kyc/file/:id). This decouples clients
+  // from the concrete storage backend, so a storage migration stays transparent to them.
+  async getUserFileProxyUrlMap(userDataId: number): Promise<Map<string, string>> {
+    const files = await this.kycFileService.getUserDataKycFiles(userDataId);
+    return new Map(files.map((file) => [this.toFileId(FileCategory.USER, userDataId, file.type, file.name), file.url]));
+  }
+
   async listUserFiles(userDataId: number): Promise<KycFileBlob[]> {
     return this.listFilesByPrefix(`user/${userDataId}/`);
   }
