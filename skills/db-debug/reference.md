@@ -11,6 +11,8 @@ entities in this repository, not from the catalog (system schemas are blocked se
   (`information_schema`, `pg_catalog`), no dangerous functions, no FOR XML/JSON, and blocked
   columns. Read-only is enforced server-side — stay SELECT-only regardless.
 - The default target is production (`DEBUG_API_URL` in the local `.env`).
+- Results are capped at 10000 rows: a query without `LIMIT` is auto-limited, and `LIMIT > 10000` is
+  rejected. Page with an explicit `LIMIT` / `OFFSET` for larger scans.
 
 ## SQL conventions (PostgreSQL)
 - Table names: snake_case (`user_data`, `log`, `asset`, `liquidity_balance`, `recommendation`).
