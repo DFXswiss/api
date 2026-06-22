@@ -11,7 +11,7 @@ SELECT-only SQL to the `/gs/debug` endpoint. The server enforces read-only acces
 AST validation (a single SELECT only — no UNION/INTO, no system schemas, no dangerous functions).
 
 By default this targets **production** — the local `.env` sets `DEBUG_API_URL` (defaults to
-`https://api.dfx.swiss/v1`); point it at another environment by overriding that variable.
+`https://api.dfx.swiss/v1`); point it at another environment by setting `DEBUG_API_URL` in `.env`.
 
 ## How to run
 
