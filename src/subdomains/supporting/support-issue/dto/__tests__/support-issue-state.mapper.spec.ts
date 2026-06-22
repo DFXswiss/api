@@ -1,4 +1,7 @@
-import { SupportIssueInternalState, SupportIssueState } from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
+import {
+  SupportIssueInternalState,
+  SupportIssueState,
+} from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
 import { SupportIssueStateMapper } from 'src/subdomains/supporting/support-issue/dto/support-issue.dto';
 
 describe('SupportIssueStateMapper', () => {
@@ -11,7 +14,9 @@ describe('SupportIssueStateMapper', () => {
   });
 
   it('exposes IN_CLARIFICATION to the customer', () => {
-    expect(SupportIssueStateMapper[SupportIssueInternalState.IN_CLARIFICATION]).toBe(SupportIssueState.IN_CLARIFICATION);
+    expect(SupportIssueStateMapper[SupportIssueInternalState.IN_CLARIFICATION]).toBe(
+      SupportIssueState.IN_CLARIFICATION,
+    );
   });
 
   it('exposes IN_PROGRESS to the customer', () => {
