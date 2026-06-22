@@ -1,5 +1,6 @@
 import { NodeNotReadyError } from 'src/integration/blockchain/bitcoin/node/rpc';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { NODE_WARMUP_ESCALATE_MS, PollingStrategy } from '../polling.strategy';
 
 class TestPollingStrategy extends PollingStrategy {
@@ -18,8 +19,12 @@ describe('PollingStrategy', () => {
 
   beforeEach(() => {
     strategy = new TestPollingStrategy();
-    warn = jest.spyOn((strategy as any).logger, 'warn').mockImplementation();
-    error = jest.spyOn((strategy as any).logger, 'error').mockImplementation();
+    warn = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation();
+    error = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('processes new pay-ins when the block height advances', async () => {
@@ -35,6 +40,20 @@ describe('PollingStrategy', () => {
 
     await expect(strategy.checkPayInEntries()).resolves.toBeUndefined();
     expect(strategy.processNewPayInEntries).not.toHaveBeenCalled();
+  });
+
+  it('skips the cycle without throwing when the node warms up mid-cycle (processNewPayInEntries)', async () => {
+    strategy.getBlockHeight.mockResolvedValue(100);
+    strategy.processNewPayInEntries.mockRejectedValueOnce(
+      new NodeNotReadyError('getblockchaininfo', 'Verifying blocks...'),
+    );
+
+    await expect(strategy.checkPayInEntries()).resolves.toBeUndefined();
+    expect(warn).toHaveBeenCalledTimes(1);
+
+    // blockHeight did not advance, so the next ready cycle reprocesses the same height
+    await strategy.checkPayInEntries();
+    expect(strategy.processNewPayInEntries).toHaveBeenCalledTimes(2);
   });
 
   it('logs the warmup warning only once across consecutive warming cycles', async () => {

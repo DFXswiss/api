@@ -18,25 +18,27 @@ export abstract class PollingStrategy extends RegisterStrategy {
   protected abstract processNewPayInEntries(): Promise<void>;
 
   async checkPayInEntries(): Promise<void> {
-    let currentBlockHeight: number;
     try {
-      currentBlockHeight = await this.getBlockHeight();
+      const currentBlockHeight = await this.getBlockHeight();
+
+      this.warmupSince = undefined;
+      this.warmupEscalated = false;
+
+      if (this.blockHeight < currentBlockHeight) {
+        await this.processNewPayInEntries();
+        this.blockHeight = currentBlockHeight;
+      }
     } catch (e) {
       // Node restarting/warming up (e.g. after a deploy): transient. The cron runs
       // every second, so without this a ~1 min warmup emits dozens of spurious errors.
+      // Either RPC (getBlockHeight or processNewPayInEntries) can hit warmup if the
+      // node restarts mid-cycle; blockHeight only advances on success, so a skipped
+      // cycle is reprocessed without duplication.
       if (e instanceof NodeNotReadyError) {
         this.handleNodeWarmup();
         return;
       }
       throw e;
-    }
-
-    this.warmupSince = undefined;
-    this.warmupEscalated = false;
-
-    if (this.blockHeight < currentBlockHeight) {
-      await this.processNewPayInEntries();
-      this.blockHeight = currentBlockHeight;
     }
   }
 
