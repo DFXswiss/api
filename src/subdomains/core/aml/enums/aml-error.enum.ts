@@ -96,6 +96,13 @@ export const ManualPassWhitelistErrors: AmlError[] = [
   AmlError.REFERRAL_NO_TRADE_HISTORY,
 ];
 
+export const ManualPassBlacklistErrors: AmlError[] = [
+  AmlError.BANK_DATA_NOT_ACTIVE,
+  AmlError.BANK_DATA_MANUAL_REVIEW,
+  AmlError.BANK_DATA_MISSING,
+  AmlError.BANK_DATA_USER_MISMATCH,
+];
+
 export function canManualPass(comment: string | null | undefined): boolean {
   const errors = (comment ?? '')
     .split(';')
