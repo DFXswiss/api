@@ -11,6 +11,10 @@ module.exports = class AddWalletToSupportIssue1781862303000 {
     name = 'AddWalletToSupportIssue1781862303000'
 
     /**
+     * Adds the source wallet (app the ticket was opened from) to support_issue.
+     * walletId is nullable by design: only RealUnit-app tickets (trusted X-Client header) get a positive
+     * wallet; NULL means "DFX default brand". No NOT NULL / backfill - X-Client is RealUnit-only today, so
+     * there is no positive DFX signal across the ecosystem to backfill against, and NULL=DFX is intentional.
      * @param {QueryRunner} queryRunner
      */
     async up(queryRunner) {

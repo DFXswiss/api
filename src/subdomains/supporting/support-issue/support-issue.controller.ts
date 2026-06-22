@@ -68,6 +68,8 @@ export class SupportIssueController {
       ...dto,
       department: jwt.role === UserRole.COMPLIANCE ? Department.COMPLIANCE : Department.SUPPORT,
     };
+    // Support-created tickets carry no app client header and are deliberately DFX-attributed (no client
+    // arg -> source resolves to undefined -> DFX default brand): they originate from the DFX support tool.
     return this.supportIssueService.createIssue(+userDataId, input);
   }
 

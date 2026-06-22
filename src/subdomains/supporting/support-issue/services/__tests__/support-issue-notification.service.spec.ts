@@ -74,6 +74,23 @@ describe('SupportIssueNotificationService', () => {
     expect(walletService.getDefault).toHaveBeenCalled();
   });
 
+  it('logs the DFX default so the unattributed path is observable, not silent', async () => {
+    const verbose = jest.spyOn(service['logger'], 'verbose');
+
+    await sentMailInput(undefined);
+
+    expect(verbose).toHaveBeenCalledWith(expect.stringContaining('no attributed source'));
+  });
+
+  it('warns when a RealUnit ticket is branded but REALUNIT_MAIL_USER is unset (would render DFX default)', async () => {
+    const warn = jest.spyOn(service['logger'], 'warn');
+
+    // test config has no REALUNIT_MAIL_USER -> Config.mail.wallet.RealUnit is absent
+    await sentMailInput(realUnitWallet);
+
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('REALUNIT_MAIL_USER is unset'));
+  });
+
   it('does not send a mail when the user has no mail address', async () => {
     const sendMail = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
 

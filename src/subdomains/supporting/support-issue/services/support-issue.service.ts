@@ -228,6 +228,15 @@ export class SupportIssueService {
     }
 
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
+
+    // Upgrade a not-yet-attributed (legacy or DFX-defaulted) issue when a follow-up message arrives with a
+    // positive source (e.g. the RealUnit app). Never clobber an existing source - a later headerless message
+    // must not downgrade a known RealUnit ticket to DFX.
+    if (existingIssue && !existingIssue.wallet && sourceWallet) {
+      existingIssue.wallet = sourceWallet;
+      await this.supportIssueRepo.update(existingIssue.id, { wallet: sourceWallet });
+    }
+
     const supportMessage = await this.createMessageInternal(entity, dto);
 
     const issue = SupportIssueDtoMapper.mapSupportIssue(entity);
