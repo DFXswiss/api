@@ -14,6 +14,10 @@ describe('SupportIssueStateMapper', () => {
     expect(SupportIssueStateMapper[SupportIssueInternalState.IN_CLARIFICATION]).toBe(SupportIssueState.IN_CLARIFICATION);
   });
 
+  it('exposes IN_PROGRESS to the customer', () => {
+    expect(SupportIssueStateMapper[SupportIssueInternalState.IN_PROGRESS]).toBe(SupportIssueState.IN_PROGRESS);
+  });
+
   it('hides internal-only states (CREATED, ON_HOLD) behind PENDING', () => {
     expect(SupportIssueStateMapper[SupportIssueInternalState.CREATED]).toBe(SupportIssueState.PENDING);
     expect(SupportIssueStateMapper[SupportIssueInternalState.PENDING]).toBe(SupportIssueState.PENDING);
