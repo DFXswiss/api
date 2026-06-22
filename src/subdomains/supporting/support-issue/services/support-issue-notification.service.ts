@@ -31,7 +31,9 @@ export class SupportIssueNotificationService {
       let wallet = entity.issue.wallet;
       if (!wallet) {
         wallet = await this.walletService.getDefault();
-        this.logger.verbose(`Support message mail for issue ${entity.issue.id}: no attributed source, branding DFX default`);
+        this.logger.verbose(
+          `Support message mail for issue ${entity.issue.id}: no attributed source, branding DFX default`,
+        );
       } else if (wallet.name === REALUNIT_WALLET_NAME && !Config.mail.wallet[REALUNIT_WALLET_NAME]) {
         // RealUnit was positively attributed, but its mail config is absent (REALUNIT_MAIL_USER unset): the
         // factory would silently render the DFX default template. Surface the misconfiguration loudly.
