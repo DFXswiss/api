@@ -521,6 +521,10 @@ export class SupportIssueService {
     return SupportIssueDtoMapper.mapSupportMessage(entity);
   }
 
+  // The issue (and related quote) UID is treated as a capability token: knowing it grants access without
+  // an account, which is required for anonymous transaction-request issues. Access by numeric id is instead
+  // scoped to the owning userData. Consumers (get/message/file/close) are therefore as sensitive as the UID —
+  // keep it secret. Read more before widening this surface.
   private getIssueSearch(id: string, userDataId?: number): FindOptionsWhere<SupportIssue> {
     if (id.startsWith(Config.prefixes.issueUidPrefix)) return { uid: id };
     if (id.startsWith(Config.prefixes.quoteUidPrefix)) return { transactionRequest: { uid: id } };
