@@ -1,6 +1,5 @@
 import { Request } from 'express';
 import { isIP } from 'net';
-import { Config, Environment } from 'src/config/config';
 
 const PRIVATE_IP_RANGES = [
   /^10\./,
@@ -28,23 +27,16 @@ function normalizeIp(ip: string): string {
  * Extract the verified client IP from the request.
  *
  * Priority:
- * 1. X-Azure-SocketIP — only on DEV where Azure Front Door sets this header
- * 2. CF-Connecting-IP — set by Cloudflare, trusted when origin is locked to CF IPs
- * 3. Rightmost non-private IP from X-Forwarded-For (reverse proxy appends real client IP)
- * 4. req.socket.remoteAddress
+ * 1. CF-Connecting-IP — set by Cloudflare Tunnel, the only path to the origin
+ * 2. Rightmost non-private IP from X-Forwarded-For (reverse proxy appends real client IP)
+ * 3. req.socket.remoteAddress
  */
 export function getVerifiedIp(req: Request): string {
-  // 1. Azure Front Door (only on DEV where Front Door is in the path)
-  if (Config.environment === Environment.DEV) {
-    const azureSocketIp = getHeader(req, 'x-azure-socketip');
-    if (azureSocketIp && isIP(azureSocketIp)) return azureSocketIp;
-  }
-
-  // 2. Cloudflare
+  // 1. Cloudflare Tunnel (only entry point to the origin)
   const cfConnectingIp = getHeader(req, 'cf-connecting-ip');
   if (cfConnectingIp && isIP(cfConnectingIp)) return cfConnectingIp;
 
-  // 3. Rightmost non-private IP from X-Forwarded-For
+  // 2. Rightmost non-private IP from X-Forwarded-For
   const xff = getHeader(req, 'x-forwarded-for');
   if (xff) {
     const ips = xff.split(',').map((s) => normalizeIp(s.trim()));
@@ -53,7 +45,7 @@ export function getVerifiedIp(req: Request): string {
     }
   }
 
-  // 4. Socket remote address
+  // 3. Socket remote address
   return normalizeIp(req.socket?.remoteAddress ?? 'unknown');
 }
 
