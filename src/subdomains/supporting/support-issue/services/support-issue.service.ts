@@ -235,7 +235,7 @@ export class SupportIssueService {
     // idempotent: leave already-closed issues untouched (a new customer message reopens them via createMessageInternal)
     if (![SupportIssueInternalState.COMPLETED, SupportIssueInternalState.CANCELED].includes(issue.state)) {
       await this.supportLogService.createSupportLog(issue.userData, {
-        type: SupportLogType.SUPPORT,
+        type: SupportLogType.CUSTOMER,
         state: SupportIssueInternalState.COMPLETED,
         comment: 'Closed by customer',
         supportIssue: issue,
@@ -244,6 +244,9 @@ export class SupportIssueService {
 
       await this.supportIssueRepo.update(...issue.setState(SupportIssueInternalState.COMPLETED));
     }
+
+    // load messages so the response matches GET /:id instead of claiming an empty thread
+    issue.messages = await this.messageRepo.findBy({ issue: { id: issue.id } });
 
     return SupportIssueDtoMapper.mapSupportIssue(issue);
   }
@@ -319,7 +322,12 @@ export class SupportIssueService {
     if (where.type) qb.andWhere('issue.type = :type', { type: where.type });
     if (filter.clerk) qb.andWhere('issue.clerk = :clerk', { clerk: filter.clerk });
     if (filter.createdFrom) qb.andWhere('issue.created >= :createdFrom', { createdFrom: new Date(filter.createdFrom) });
-    if (filter.createdTo) qb.andWhere('issue.created <= :createdTo', { createdTo: new Date(filter.createdTo) });
+    if (filter.createdTo) {
+      const createdTo = new Date(filter.createdTo);
+      // a date-only bound (no time component) means "on or before that day" → include the whole day
+      if (!filter.createdTo.includes('T')) createdTo.setUTCHours(23, 59, 59, 999);
+      qb.andWhere('issue.created <= :createdTo', { createdTo });
+    }
 
     const termCount = Math.min(terms.length, 10);
     for (let i = 0; i < termCount; i++) {
