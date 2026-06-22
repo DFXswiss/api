@@ -17,6 +17,12 @@ describe('request-client', () => {
       expect(isRealUnitClient('')).toBe(false);
       expect(isRealUnitClient(undefined)).toBe(false);
     });
+
+    it('is anchored - substrings of the client id do not match', () => {
+      expect(isRealUnitClient('realunit-app-proxy')).toBe(false);
+      expect(isRealUnitClient('x-realunit-app')).toBe(false);
+      expect(isRealUnitClient(' realunit-app ')).toBe(true); // trimmed
+    });
   });
 
   describe('getClient', () => {
