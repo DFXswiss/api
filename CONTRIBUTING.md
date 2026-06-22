@@ -1171,3 +1171,24 @@ single DTO with two fields (PR #3772, 91 LOC, ~50% reduction).
 | Parameter threading through 4+ layers      | Context/strategy object resolved once             |
 | Method-forwarding without added logic      | Call the sub-service directly                     |
 | Disabling ESLint rules without reason      | Fix the code instead                              |
+
+---
+
+## Agent skills
+
+Shared agent skills live under `skills/<name>/` and are version-controlled so the whole team gets
+them on pull. They follow the open [Agent Skills](https://agentskills.io) `SKILL.md` standard (a
+`SKILL.md` plus optional reference files), so they are not tied to a single tool.
+
+- **Enable:** point your agent at the `skills/` directory — most agents discover skills from a
+  skills folder, so symlink or copy `skills/<name>/` into your agent's skills directory, or set the
+  path in your agent's config. Per-developer agent config stays local (`.claude/` and `CLAUDE.md`
+  are git-ignored).
+- **Keep them portable:** limit `SKILL.md` frontmatter to the portable core (`name`,
+  `description`), reference scripts by repository-relative path (e.g. `scripts/foo.sh`), and avoid
+  tool-specific syntax in the body.
+
+Current skills:
+
+- `skills/db-debug/` — read-only database debugging via `scripts/db-debug.sh` (the `/gs/debug`
+  endpoint); SELECT-only.
