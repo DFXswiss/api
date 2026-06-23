@@ -12,6 +12,7 @@
  */
 
 import { HttpService } from 'src/shared/services/http.service';
+import { NodeNotReadyError, RPC_IN_WARMUP } from './node-not-ready.error';
 import {
   AddressType,
   Balances,
@@ -81,6 +82,8 @@ export class BitcoinRpcClient {
       const rpcError = axiosError.response?.data?.error;
 
       if (rpcError) {
+        if (rpcError.code === RPC_IN_WARMUP) throw new NodeNotReadyError(method, rpcError.message);
+
         const error = new Error(`Bitcoin RPC ${method} failed: ${rpcError.message}`) as Error & { code: number };
         error.code = rpcError.code;
         throw error;
@@ -97,6 +100,8 @@ export class BitcoinRpcClient {
     }
 
     if (response.error) {
+      if (response.error.code === RPC_IN_WARMUP) throw new NodeNotReadyError(method, response.error.message);
+
       const error = new Error(`Bitcoin RPC ${method} failed: ${response.error.message}`) as Error & { code: number };
       error.code = response.error.code;
       throw error;
