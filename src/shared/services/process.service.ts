@@ -130,9 +130,11 @@ export class ProcessService implements OnModuleInit {
 
   constructor(private readonly settingService: SettingService) {}
 
-  onModuleInit() {
+  async onModuleInit(): Promise<void> {
     void this.resyncDisabledProcesses();
-    void this.resyncDeniedJwtAddresses();
+    // await so the JWT denylist is primed before HTTP starts — `IsJwtAddressDenied` defaults to
+    // false on an empty Set (fail-open), unlike DisabledProcess which is fail-closed by sentinel
+    await this.resyncDeniedJwtAddresses();
   }
 
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
