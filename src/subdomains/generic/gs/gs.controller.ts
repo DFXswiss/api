@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, ForbiddenException, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -7,6 +7,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { DebugQueryDto } from './dto/debug-query.dto';
 import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
@@ -24,6 +25,8 @@ export class GsController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getDbData(@GetJwt() jwt: JwtPayload, @Body() query: DbQueryDto): Promise<DbReturnData> {
+    if (DisabledProcess(Process.GS_DB)) throw new ForbiddenException('Endpoint disabled');
+
     try {
       return await this.gsService.getDbData(query, jwt.role);
     } catch (e) {
@@ -37,6 +40,8 @@ export class GsController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async getExtendedData(@GetJwt() jwt: JwtPayload, @Body() query: DbQueryBaseDto): Promise<DbReturnData> {
+    if (DisabledProcess(Process.GS_DB)) throw new ForbiddenException('Endpoint disabled');
+
     return this.gsService.getExtendedDbData(query, jwt.role);
   }
 
@@ -53,6 +58,8 @@ export class GsController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
   async executeDebugQuery(@GetJwt() jwt: JwtPayload, @Body() dto: DebugQueryDto): Promise<Record<string, unknown>[]> {
+    if (DisabledProcess(Process.GS_DEBUG)) throw new ForbiddenException('Endpoint disabled');
+
     return this.gsService.executeDebugQuery(dto.sql, jwt.address ?? `account:${jwt.account}`);
   }
 
@@ -61,6 +68,8 @@ export class GsController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
   async executeLogQuery(@GetJwt() jwt: JwtPayload, @Body() dto: LogQueryDto): Promise<LogQueryResult> {
+    if (DisabledProcess(Process.GS_DEBUG)) throw new ForbiddenException('Endpoint disabled');
+
     return this.gsService.executeLogQuery(dto, jwt.address ?? `account:${jwt.account}`);
   }
 }
