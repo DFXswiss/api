@@ -51,13 +51,14 @@ scripts/db-debug.sh 'SELECT lb.id, lb."assetId", a.name, a.blockchain, lb.amount
 Three companion scripts share the same `.env` auth and the same `log` / FinancialDataLog source, for
 investigating total-balance steps (see the `valid` / suspicious-step heuristic in `reference.md`). A
 `<log_id>` is the `log.id` of a FinancialDataLog entry — find candidates with `--balance` or
-`--anomalies` above. All three are read-only (they only SELECT from `log` via `/gs/debug`).
+`--anomalies` above. All three are read-only — they only issue SELECT queries via `/gs/debug` (no
+writes); `sum-asset-balances.sh` also reads the `asset` table to resolve IDs.
 
 | Command | Purpose |
 | --- | --- |
 | `scripts/compare-balance-logs.sh <log_id_1> <log_id_2>` | diff two snapshots: plus / minus / total deltas plus the top asset changes ranked by CHF impact |
 | `scripts/inspect-asset-balance.sh <log_id> <asset_id>` | full plus / minus breakdown for one asset in a log entry (incl. the liquidity sub-structure) |
-| `scripts/sum-asset-balances.sh <log_id> <financial_type>` | sum `plusBalance.total` across assets of one `financialType` |
+| `scripts/sum-asset-balances.sh <log_id> <financial_type>` | sum plus / minus / net CHF across assets of one `financialType` (per-asset `plusBalance.total` shown in the breakdown) |
 
 ## Writing SQL
 
