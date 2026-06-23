@@ -1,5 +1,6 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
 import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FileSubType, FileType, KycFileBlob } from '../../dto/kyc-file.dto';
@@ -30,7 +31,14 @@ export class KycDocumentService {
   // from the concrete storage backend, so a storage migration stays transparent to them.
   async getUserFileProxyUrlMap(userDataId: number): Promise<Map<string, string>> {
     const files = await this.kycFileService.getUserDataKycFiles(userDataId);
-    return new Map(files.map((file) => [this.toFileId(FileCategory.USER, userDataId, file.type, file.name), file.url]));
+    // Re-uploads of the same type+name share a storage path, so multiple KycFile rows can map to the same key.
+    // Sort by id ascending so the newest row deterministically wins (new Map keeps the last entry per duplicate key).
+    return new Map(
+      Util.sort(files, 'id', 'ASC').map((file) => [
+        this.toFileId(FileCategory.USER, userDataId, file.type, file.name),
+        file.url,
+      ]),
+    );
   }
 
   async listUserFiles(userDataId: number): Promise<KycFileBlob[]> {

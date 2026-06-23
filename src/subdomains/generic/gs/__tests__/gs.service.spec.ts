@@ -54,9 +54,13 @@ function storageBlob(name: string, created: Date): Blob {
   };
 }
 
-function buildGsService(kycDocumentService: KycDocumentService, dataSource: DataSource): GsService {
+function buildGsService(
+  kycDocumentService: KycDocumentService,
+  dataSource: DataSource,
+  appInsightsQueryService: AppInsightsQueryService = createMock<AppInsightsQueryService>(),
+): GsService {
   return new GsService(
-    createMock<AppInsightsQueryService>(),
+    appInsightsQueryService,
     createMock<UserDataService>(),
     createMock<UserService>(),
     createMock<BuyService>(),
@@ -92,30 +96,8 @@ describe('GsService', () => {
     appInsightsQueryService = createMock<AppInsightsQueryService>();
     kycDocumentService = createMock<KycDocumentService>();
 
-    service = new GsService(
-      appInsightsQueryService,
-      createMock<UserDataService>(),
-      createMock<UserService>(),
-      createMock<BuyService>(),
-      createMock<SellService>(),
-      createMock<BuyCryptoService>(),
-      createMock<PayInService>(),
-      createMock<BuyFiatService>(),
-      createMock<RefRewardService>(),
-      createMock<BankTxRepeatService>(),
-      createMock<BankTxService>(),
-      createMock<FiatOutputService>(),
-      dataSource,
-      kycDocumentService,
-      createMock<TransactionService>(),
-      createMock<KycAdminService>(),
-      createMock<BankDataService>(),
-      createMock<NotificationService>(),
-      createMock<LimitRequestService>(),
-      createMock<SupportIssueService>(),
-      createMock<SwapService>(),
-      createMock<VirtualIbanService>(),
-    );
+    // Reuse the same constructor helper as the round-trip test, passing in the mocks the tests reference.
+    service = buildGsService(kycDocumentService, dataSource, appInsightsQueryService);
   });
 
   describe('executeDebugQuery - Security Validation', () => {
