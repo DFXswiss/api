@@ -26,6 +26,60 @@ import { LimitRequestService } from 'src/subdomains/supporting/support-issue/ser
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { KycFileService } from '../../kyc/services/kyc-file.service';
+import { KycFile } from '../../kyc/entities/kyc-file.entity';
+import { FileType, KycFileBlob } from '../../kyc/dto/kyc-file.dto';
+import { UserData } from '../../user/models/user-data/user-data.entity';
+import { AccountType } from '../../user/models/user-data/account-type.enum';
+import { Blob } from 'src/integration/infrastructure/azure-storage.service';
+import { ConfigService } from 'src/config/config';
+
+// Shape of a document as it travels through setUserDataDocs (a KycFileBlob with the relevant fields set).
+type KycFileDoc = Pick<KycFileBlob, 'path' | 'url' | 'name'> & { created: Date };
+
+// Typed bridge for partial test blobs: setUserDataDocs only reads path/url/name/created off each entry.
+function asKycFileBlobs(docs: KycFileDoc[]): KycFileBlob[] {
+  return docs as unknown as KycFileBlob[];
+}
+
+// A storage blob as returned by AzureStorageService.listBlobs (fed into the real listFilesByPrefix).
+function storageBlob(name: string, created: Date): Blob {
+  return {
+    name,
+    url: `https://storage-backend.example/kyc/${name}`,
+    contentType: 'application/pdf',
+    created,
+    updated: created,
+    metadata: {},
+  };
+}
+
+function buildGsService(kycDocumentService: KycDocumentService, dataSource: DataSource): GsService {
+  return new GsService(
+    createMock<AppInsightsQueryService>(),
+    createMock<UserDataService>(),
+    createMock<UserService>(),
+    createMock<BuyService>(),
+    createMock<SellService>(),
+    createMock<BuyCryptoService>(),
+    createMock<PayInService>(),
+    createMock<BuyFiatService>(),
+    createMock<RefRewardService>(),
+    createMock<BankTxRepeatService>(),
+    createMock<BankTxService>(),
+    createMock<FiatOutputService>(),
+    dataSource,
+    kycDocumentService,
+    createMock<TransactionService>(),
+    createMock<KycAdminService>(),
+    createMock<BankDataService>(),
+    createMock<NotificationService>(),
+    createMock<LimitRequestService>(),
+    createMock<SupportIssueService>(),
+    createMock<SwapService>(),
+    createMock<VirtualIbanService>(),
+  );
+}
 
 describe('GsService', () => {
   let service: GsService;
@@ -202,28 +256,38 @@ describe('GsService', () => {
 
   describe('setUserDataDocs - host-stable proxied document URLs', () => {
     const rawUrl = (path: string) => `https://storage-backend.example/kyc/${path}`;
-    const blob = (path: string, created: Date) => ({
+
+    // Mirrors KycDocumentService.listFilesByPrefix, which maps storage blobs to KycFileBlob with `path: b.name`.
+    const blob = (path: string, created: Date): KycFileDoc => ({
       path,
       url: rawUrl(path),
       created,
       name: path.split('/').pop(),
     });
 
+    const personalUser = (id: number): Partial<UserData>[] => [{ id, accountType: AccountType.PERSONAL }];
+
+    function selectDocs(userData: Partial<UserData>[], selectPath: string): KycFileDoc[] {
+      return userData[0][selectPath] as KycFileDoc[];
+    }
+
     it('replaces raw storage URLs with proxied URLs, keeping the raw URL for unmapped (legacy) files', async () => {
       jest
         .spyOn(kycDocumentService, 'listFilesByPrefix')
-        .mockResolvedValue([
-          blob('user/1/Identification/fileA.pdf', new Date('2024-01-01')),
-          blob('user/1/Identification/legacy.pdf', new Date('2024-01-02')),
-        ] as never);
+        .mockResolvedValue(
+          asKycFileBlobs([
+            blob('user/1/Identification/fileA.pdf', new Date('2024-01-01')),
+            blob('user/1/Identification/legacy.pdf', new Date('2024-01-02')),
+          ]),
+        );
       jest
         .spyOn(kycDocumentService, 'getUserFileProxyUrlMap')
         .mockResolvedValue(new Map([['user/1/Identification/fileA.pdf', 'https://app.example/file/Fabc?show']]));
 
-      const userData: any[] = [{ id: 1, accountType: 'Personal' }];
-      await service['setUserDataDocs'](userData, ['documents-user.{userData}.Identification'], 'ASC');
+      const userData = personalUser(1);
+      await service['setUserDataDocs'](userData as UserData[], ['documents-user.{userData}.Identification'], 'ASC');
 
-      const docs = userData[0]['documents-user.{userData}.Identification'];
+      const docs = selectDocs(userData, 'documents-user.{userData}.Identification');
       expect(docs.find((d) => d.path === 'user/1/Identification/fileA.pdf').url).toBe(
         'https://app.example/file/Fabc?show',
       );
@@ -236,10 +300,12 @@ describe('GsService', () => {
     it('filters by storage path, not by the proxied URL', async () => {
       jest
         .spyOn(kycDocumentService, 'listFilesByPrefix')
-        .mockResolvedValue([
-          blob('user/1/Identification/ident.pdf', new Date('2024-01-01')),
-          blob('user/1/UserInformation/info.pdf', new Date('2024-01-02')),
-        ] as never);
+        .mockResolvedValue(
+          asKycFileBlobs([
+            blob('user/1/Identification/ident.pdf', new Date('2024-01-01')),
+            blob('user/1/UserInformation/info.pdf', new Date('2024-01-02')),
+          ]),
+        );
       jest.spyOn(kycDocumentService, 'getUserFileProxyUrlMap').mockResolvedValue(
         new Map([
           ['user/1/Identification/ident.pdf', 'https://app.example/file/Fident?show'],
@@ -247,21 +313,72 @@ describe('GsService', () => {
         ]),
       );
 
-      const userData: any[] = [{ id: 1, accountType: 'Personal' }];
+      const userData = personalUser(1);
       await service['setUserDataDocs'](
-        userData,
+        userData as UserData[],
         ['documents-user.{userData}.Identification', 'documents-user.{userData}.UserInformation'],
         'ASC',
       );
 
-      const identDocs = userData[0]['documents-user.{userData}.Identification'];
-      const infoDocs = userData[0]['documents-user.{userData}.UserInformation'];
+      const identDocs = selectDocs(userData, 'documents-user.{userData}.Identification');
+      const infoDocs = selectDocs(userData, 'documents-user.{userData}.UserInformation');
 
       // path-based filtering still partitions the documents correctly despite proxied URLs
       expect(identDocs.map((d) => d.path)).toEqual(['user/1/Identification/ident.pdf']);
       expect(infoDocs.map((d) => d.path)).toEqual(['user/1/UserInformation/info.pdf']);
       expect(identDocs[0].url).toBe('https://app.example/file/Fident?show');
       expect(infoDocs[0].url).toBe('https://app.example/file/Finfo?show');
+    });
+
+    // Exercises the actual round-trip without mocking getUserFileProxyUrlMap: a real KycDocumentService
+    // builds the proxy map from a KycFile (key = toFileId(USER, id, type, name)) and lists blobs whose
+    // `b.name` becomes `doc.path`. Only when both sides agree on `user/<id>/<type>/<name>` does the match
+    // (and thus the proxied URL) happen. A spider-prefixed blob has no matching key and stays raw.
+    it('matches a listed blob to its KycFile via the storage path and proxies it, while spider/legacy files stay raw', async () => {
+      // KycFile.url reads Config.frontend.services, so the Config singleton must be initialized.
+      new ConfigService();
+
+      const kycFileService = createMock<KycFileService>();
+      const realKycDocumentService = new KycDocumentService(kycFileService);
+
+      // KycFile whose proxy-map key resolves to `user/1/Identification/passport.pdf`
+      const kycFile = Object.assign(new KycFile(), {
+        type: FileType.IDENTIFICATION,
+        name: 'passport.pdf',
+        uid: 'Fpassport',
+      });
+      jest.spyOn(kycFileService, 'getUserDataKycFiles').mockResolvedValue([kycFile]);
+
+      // Storage listing: the user blob's name matches the proxy-map key exactly, the spider blob does not.
+      const userBlob = storageBlob('user/1/Identification/passport.pdf', new Date('2024-01-01'));
+      const spiderBlob = storageBlob('spider/1/Identification/old-passport.pdf', new Date('2024-01-02'));
+      jest
+        .spyOn(realKycDocumentService['storageService'], 'listBlobs')
+        .mockImplementation(async (prefix?: string) =>
+          prefix?.startsWith('user/') ? [userBlob] : prefix?.startsWith('spider/') ? [spiderBlob] : [],
+        );
+
+      const realService = buildGsService(realKycDocumentService, createMock<DataSource>());
+
+      const userData = personalUser(1);
+      // Two disjoint select paths force an empty common prefix, so getAllUserDocuments (user + spider) runs.
+      await realService['setUserDataDocs'](
+        userData as UserData[],
+        ['documents-user.{userData}.Identification', 'documents-spider.{userData}.Identification'],
+        'ASC',
+      );
+
+      const userDocs = selectDocs(userData, 'documents-user.{userData}.Identification');
+      const spiderDocs = selectDocs(userData, 'documents-spider.{userData}.Identification');
+
+      // round-trip: list path `user/1/Identification/passport.pdf` matched the proxy-map key -> proxied URL
+      expect(userDocs.map((d) => d.path)).toEqual(['user/1/Identification/passport.pdf']);
+      expect(userDocs[0].url).toBe(kycFile.url);
+      expect(userDocs[0].url).toContain('/file/Fpassport?show');
+
+      // spider/legacy file has no matching KycFile key -> falls back to the raw storage URL
+      expect(spiderDocs.map((d) => d.path)).toEqual(['spider/1/Identification/old-passport.pdf']);
+      expect(spiderDocs[0].url).toBe(rawUrl('spider/1/Identification/old-passport.pdf'));
     });
   });
 
