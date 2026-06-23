@@ -166,6 +166,9 @@ export class GsService {
       kycSteps: await this.kycAdminService.getKycSteps(userData.id, { userData: true }),
       bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
       notification: await this.notificationService.getMails(userData.id),
+      // NOTE: this admin/support path intentionally keeps the raw storage URL. The host-stable
+      // proxied-URL substitution is applied only to the client-facing `/gs/db` output (see
+      // `setUserDataDocs`); unifying both paths into a shared helper is a follow-up.
       documents: await this.kycDocumentService.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
