@@ -104,6 +104,10 @@ export class SettingService {
     return this.getObjCached<string[]>('ipBlacklist', []);
   }
 
+  async getDeniedJwtAddresses(): Promise<string[]> {
+    return this.getObj<string[]>('jwtAddressDenylist', []);
+  }
+
   async getCustomBalanceSettings(): Promise<{ addresses: string[]; assets: string[] }> {
     const [addresses, assets] = await Promise.all([
       this.getObjCached<string[]>('customBalanceAddresses', []),
