@@ -32,6 +32,9 @@ entities in this repository, not from the catalog (system schemas are blocked se
   `Config.financeLogTotalBalanceChangeLimit` and that entry is under 15 minutes old (a larger gap
   suppresses the flag). `--anomalies` lists these rows.
 - Reference: `BalancesTotal` in `src/subdomains/supporting/log/dto/log.dto.ts` and `LogJobService`.
+- The companion scripts (`compare-balance-logs.sh`, `inspect-asset-balance.sh`, `sum-asset-balances.sh`)
+  read these same `message` snapshots by `log.id`: diff two entries, inspect one asset's plus/minus
+  structure, or sum `plusBalance.total` by `financialType`. See SKILL.md → "Balance forensics".
 
 ## liquidity_balance (snapshot, one row per asset, updated in place)
 Entity: `src/subdomains/core/liquidity-management/entities/liquidity-balance.entity.ts`
