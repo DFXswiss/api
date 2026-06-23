@@ -409,17 +409,17 @@ export class GsService {
         sorting,
       );
 
-      // expose host-stable, proxied URLs instead of raw storage URLs (decouples clients from the storage backend)
-      if (docs.length) {
-        const proxyUrls = await this.kycDocumentService.getUserFileProxyUrlMap(userDataId);
-        for (const doc of docs) {
-          doc.url = proxyUrls.get(doc.path) ?? doc.url;
-        }
+      // Replace the raw storage URL with a host-stable URL that pins the host to the services domain
+      // but keeps the full storage path intact. This decouples clients from the storage backend (a
+      // backend migration no longer changes the URL) while preserving the storage path as a substring,
+      // which downstream consumers rely on to extract the file name from the URL.
+      for (const doc of docs) {
+        if (doc.path) doc.url = this.kycDocumentService.toHostStableUrl(doc.path);
       }
 
       for (const selectPath of selectPaths) {
         const docPath = this.toDocPath(selectPath, userDataId);
-        // filter on the storage path (host-independent), not on the now-proxied URL
+        // filter on the storage path (host-independent), not on the now host-stable URL
         userData[selectPath] = docPath === commonPathPrefix ? docs : docs.filter((doc) => doc.path?.includes(docPath));
       }
     }

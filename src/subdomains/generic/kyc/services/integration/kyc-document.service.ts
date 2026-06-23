@@ -1,6 +1,6 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
-import { Util } from 'src/shared/utils/util';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FileSubType, FileType, KycFileBlob } from '../../dto/kyc-file.dto';
@@ -10,12 +10,14 @@ import { ContentType } from '../../enums/content-type.enum';
 import { FileCategory } from '../../enums/file-category.enum';
 import { KycFileService } from '../kyc-file.service';
 
+const KYC_CONTAINER = 'kyc';
+
 @Injectable()
 export class KycDocumentService {
   private readonly storageService: AzureStorageService;
 
   constructor(private readonly kycFileService: KycFileService) {
-    this.storageService = new AzureStorageService('kyc');
+    this.storageService = new AzureStorageService(KYC_CONTAINER);
   }
 
   async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFileBlob[]> {
@@ -26,19 +28,14 @@ export class KycDocumentService {
     ];
   }
 
-  // Maps the storage path of a user's KYC files to their host-stable, proxied URL
-  // (`<services>/file/<uid>?show`, served by GET /kyc/file/:id). This decouples clients
-  // from the concrete storage backend, so a storage migration stays transparent to them.
-  async getUserFileProxyUrlMap(userDataId: number): Promise<Map<string, string>> {
-    const files = await this.kycFileService.getUserDataKycFiles(userDataId);
-    // Re-uploads of the same type+name share a storage path, so multiple KycFile rows can map to the same key.
-    // Sort by id ascending so the newest row deterministically wins (new Map keeps the last entry per duplicate key).
-    return new Map(
-      Util.sort(files, 'id', 'ASC').map((file) => [
-        this.toFileId(FileCategory.USER, userDataId, file.type, file.name),
-        file.url,
-      ]),
-    );
+  // Builds a host-stable URL for a storage path by pinning the host to the services domain
+  // (`Config.frontend.services`) while keeping the full storage path (`<container>/<blobName>`)
+  // intact. The raw blob URL is `<storage-backend-host>/<container>/<blobName>`; we swap only the
+  // host, so a storage-backend migration stays transparent to clients. Crucially the storage path
+  // (`user|spider/<id>/<type>/<name>`) remains an unaltered substring of the URL, which downstream
+  // consumers rely on to extract the file name (e.g. `url.split('<scope>/<id>/<type>')[1]`).
+  toHostStableUrl(path: string): string {
+    return `${Config.frontend.services}/${KYC_CONTAINER}/${path}`;
   }
 
   async listUserFiles(userDataId: number): Promise<KycFileBlob[]> {

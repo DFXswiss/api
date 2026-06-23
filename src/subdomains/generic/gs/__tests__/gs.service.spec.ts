@@ -27,8 +27,7 @@ import { SupportIssueService } from 'src/subdomains/supporting/support-issue/ser
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { KycFileService } from '../../kyc/services/kyc-file.service';
-import { KycFile } from '../../kyc/entities/kyc-file.entity';
-import { FileType, KycFileBlob } from '../../kyc/dto/kyc-file.dto';
+import { KycFileBlob } from '../../kyc/dto/kyc-file.dto';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { Blob } from 'src/integration/infrastructure/azure-storage.service';
@@ -236,8 +235,26 @@ describe('GsService', () => {
     });
   });
 
-  describe('setUserDataDocs - host-stable proxied document URLs', () => {
+  describe('setUserDataDocs - host-stable, path-preserving document URLs', () => {
+    // Pin the services host so the host-stability assertions are deterministic and independent of env.
+    const SERVICES_HOST = 'https://app.example';
     const rawUrl = (path: string) => `https://storage-backend.example/kyc/${path}`;
+    // The host-stable URL keeps the storage backend out and preserves the full storage path verbatim.
+    const hostStableUrl = (path: string) => `${SERVICES_HOST}/kyc/${path}`;
+
+    const previousServicesUrl = process.env.SERVICES_URL;
+
+    beforeEach(() => {
+      process.env.SERVICES_URL = SERVICES_HOST;
+      new ConfigService();
+    });
+
+    afterEach(() => {
+      // restore the env + Config singleton so the pinned host does not leak into other test blocks
+      if (previousServicesUrl === undefined) delete process.env.SERVICES_URL;
+      else process.env.SERVICES_URL = previousServicesUrl;
+      new ConfigService();
+    });
 
     // Mirrors KycDocumentService.listFilesByPrefix, which maps storage blobs to KycFileBlob with `path: b.name`.
     const blob = (path: string, created: Date): KycFileDoc => ({
@@ -253,33 +270,49 @@ describe('GsService', () => {
       return userData[0][selectPath] as KycFileDoc[];
     }
 
-    it('replaces raw storage URLs with proxied URLs, keeping the raw URL for unmapped (legacy) files', async () => {
+    it('replaces the storage backend host while keeping the full storage path in the URL', async () => {
       jest
         .spyOn(kycDocumentService, 'listFilesByPrefix')
         .mockResolvedValue(
           asKycFileBlobs([
-            blob('user/1/Identification/fileA.pdf', new Date('2024-01-01')),
-            blob('user/1/Identification/legacy.pdf', new Date('2024-01-02')),
+            blob('user/40102/UserNotes/note.pdf', new Date('2024-01-01')),
+            blob('user/40102/UserNotes/second.pdf', new Date('2024-01-02')),
           ]),
         );
-      jest
-        .spyOn(kycDocumentService, 'getUserFileProxyUrlMap')
-        .mockResolvedValue(new Map([['user/1/Identification/fileA.pdf', 'https://app.example/file/Fabc?show']]));
+      jest.spyOn(kycDocumentService, 'toHostStableUrl').mockImplementation((path) => hostStableUrl(path));
 
-      const userData = personalUser(1);
-      await service['setUserDataDocs'](userData as UserData[], ['documents-user.{userData}.Identification'], 'ASC');
+      const userData = personalUser(40102);
+      await service['setUserDataDocs'](userData as UserData[], ['documents-user.{userData}.UserNotes'], 'ASC');
 
-      const docs = selectDocs(userData, 'documents-user.{userData}.Identification');
-      expect(docs.find((d) => d.path === 'user/1/Identification/fileA.pdf').url).toBe(
-        'https://app.example/file/Fabc?show',
-      );
-      // unmapped file (no KYC-file entity / uid) falls back to the raw storage URL
-      expect(docs.find((d) => d.path === 'user/1/Identification/legacy.pdf').url).toBe(
-        rawUrl('user/1/Identification/legacy.pdf'),
-      );
+      const docs = selectDocs(userData, 'documents-user.{userData}.UserNotes');
+
+      for (const doc of docs) {
+        // host-stable: no storage backend host, host pinned to the services domain
+        expect(doc.url.startsWith(`${SERVICES_HOST}/`)).toBe(true);
+        expect(doc.url).not.toContain('storage-backend.example');
+        // path-preserving: the storage path is an unaltered substring of the URL
+        expect(doc.url).toContain(doc.path);
+      }
     });
 
-    it('filters by storage path, not by the proxied URL', async () => {
+    // Hard, non-negotiable consumer invariant: downstream sheets extract the file name via
+    // `url.split('<scope>/<id>/<type>')[1]`. The host-stable URL MUST keep that working.
+    it('keeps the consumer name-parsing invariant url.split("<scope>/<id>/<type>")[1] intact', async () => {
+      jest
+        .spyOn(kycDocumentService, 'listFilesByPrefix')
+        .mockResolvedValue(asKycFileBlobs([blob('user/40102/UserNotes/contract.pdf', new Date('2024-01-01'))]));
+      jest.spyOn(kycDocumentService, 'toHostStableUrl').mockImplementation((path) => hostStableUrl(path));
+
+      const userData = personalUser(40102);
+      await service['setUserDataDocs'](userData as UserData[], ['documents-user.{userData}.UserNotes'], 'ASC');
+
+      const doc = selectDocs(userData, 'documents-user.{userData}.UserNotes')[0];
+
+      // exactly the split the consuming sheets perform: docPath = "<scope>/<id>/<type>"
+      expect(doc.url.split('user/40102/UserNotes')[1]).toBe('/contract.pdf');
+    });
+
+    it('filters by storage path, not by the host-stable URL', async () => {
       jest
         .spyOn(kycDocumentService, 'listFilesByPrefix')
         .mockResolvedValue(
@@ -288,12 +321,7 @@ describe('GsService', () => {
             blob('user/1/UserInformation/info.pdf', new Date('2024-01-02')),
           ]),
         );
-      jest.spyOn(kycDocumentService, 'getUserFileProxyUrlMap').mockResolvedValue(
-        new Map([
-          ['user/1/Identification/ident.pdf', 'https://app.example/file/Fident?show'],
-          ['user/1/UserInformation/info.pdf', 'https://app.example/file/Finfo?show'],
-        ]),
-      );
+      jest.spyOn(kycDocumentService, 'toHostStableUrl').mockImplementation((path) => hostStableUrl(path));
 
       const userData = personalUser(1);
       await service['setUserDataDocs'](
@@ -305,33 +333,20 @@ describe('GsService', () => {
       const identDocs = selectDocs(userData, 'documents-user.{userData}.Identification');
       const infoDocs = selectDocs(userData, 'documents-user.{userData}.UserInformation');
 
-      // path-based filtering still partitions the documents correctly despite proxied URLs
+      // path-based filtering still partitions the documents correctly despite rewritten URLs
       expect(identDocs.map((d) => d.path)).toEqual(['user/1/Identification/ident.pdf']);
       expect(infoDocs.map((d) => d.path)).toEqual(['user/1/UserInformation/info.pdf']);
-      expect(identDocs[0].url).toBe('https://app.example/file/Fident?show');
-      expect(infoDocs[0].url).toBe('https://app.example/file/Finfo?show');
+      expect(identDocs[0].url).toBe(hostStableUrl('user/1/Identification/ident.pdf'));
+      expect(infoDocs[0].url).toBe(hostStableUrl('user/1/UserInformation/info.pdf'));
     });
 
-    // Exercises the actual round-trip without mocking getUserFileProxyUrlMap: a real KycDocumentService
-    // builds the proxy map from a KycFile (key = toFileId(USER, id, type, name)) and lists blobs whose
-    // `b.name` becomes `doc.path`. Only when both sides agree on `user/<id>/<type>/<name>` does the match
-    // (and thus the proxied URL) happen. A spider-prefixed blob has no matching key and stays raw.
-    it('matches a listed blob to its KycFile via the storage path and proxies it, while spider/legacy files stay raw', async () => {
-      // KycFile.url reads Config.frontend.services, so the Config singleton must be initialized.
-      new ConfigService();
-
+    // Exercises the actual round-trip without mocking toHostStableUrl: a real KycDocumentService lists
+    // storage blobs (whose `b.name` becomes `doc.path`) and rewrites their URL to the host-stable form.
+    // Asserts both the host-stability and the path-preserving consumer invariant on the real output.
+    it('produces a host-stable, path-preserving URL through the real KycDocumentService (round-trip)', async () => {
       const kycFileService = createMock<KycFileService>();
       const realKycDocumentService = new KycDocumentService(kycFileService);
 
-      // KycFile whose proxy-map key resolves to `user/1/Identification/passport.pdf`
-      const kycFile = Object.assign(new KycFile(), {
-        type: FileType.IDENTIFICATION,
-        name: 'passport.pdf',
-        uid: 'Fpassport',
-      });
-      jest.spyOn(kycFileService, 'getUserDataKycFiles').mockResolvedValue([kycFile]);
-
-      // Storage listing: the user blob's name matches the proxy-map key exactly, the spider blob does not.
       const userBlob = storageBlob('user/1/Identification/passport.pdf', new Date('2024-01-01'));
       const spiderBlob = storageBlob('spider/1/Identification/old-passport.pdf', new Date('2024-01-02'));
       jest
@@ -353,14 +368,16 @@ describe('GsService', () => {
       const userDocs = selectDocs(userData, 'documents-user.{userData}.Identification');
       const spiderDocs = selectDocs(userData, 'documents-spider.{userData}.Identification');
 
-      // round-trip: list path `user/1/Identification/passport.pdf` matched the proxy-map key -> proxied URL
+      // user blob: host-stable URL with the storage path preserved verbatim
       expect(userDocs.map((d) => d.path)).toEqual(['user/1/Identification/passport.pdf']);
-      expect(userDocs[0].url).toBe(kycFile.url);
-      expect(userDocs[0].url).toContain('/file/Fpassport?show');
+      expect(userDocs[0].url).toBe(hostStableUrl('user/1/Identification/passport.pdf'));
+      expect(userDocs[0].url).not.toContain('storage-backend.example');
+      expect(userDocs[0].url.split('user/1/Identification')[1]).toBe('/passport.pdf');
 
-      // spider/legacy file has no matching KycFile key -> falls back to the raw storage URL
+      // spider blob is rewritten the same way (no storage backend host, path preserved)
       expect(spiderDocs.map((d) => d.path)).toEqual(['spider/1/Identification/old-passport.pdf']);
-      expect(spiderDocs[0].url).toBe(rawUrl('spider/1/Identification/old-passport.pdf'));
+      expect(spiderDocs[0].url).toBe(hostStableUrl('spider/1/Identification/old-passport.pdf'));
+      expect(spiderDocs[0].url.split('spider/1/Identification')[1]).toBe('/old-passport.pdf');
     });
   });
 
