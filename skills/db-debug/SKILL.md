@@ -1,6 +1,6 @@
 ---
 name: db-debug
-description: Read-only debugging of the production database via the scripts/db-debug.sh CLI (the /gs/debug endpoint). Use to inspect financial anomalies, total-balance history (FinancialDataLog), liquidity balances, an asset's balance history, referral chains or trees, or to run an ad-hoc read-only SQL SELECT against the Postgres database. SELECT-only — never writes.
+description: Read-only debugging of the production database via the scripts/db-debug.sh CLI (the /gs/debug endpoint). Use to inspect financial anomalies, total-balance history (FinancialDataLog), liquidity balances, an asset's balance history, referral chains or trees, compare two balance-log snapshots, inspect one asset's balance structure, or run an ad-hoc read-only SQL SELECT against the Postgres database. SELECT-only — never writes.
 ---
 
 # Database debug (read-only)
@@ -45,6 +45,19 @@ in place; `updated` is the last refresh). Current snapshot:
 ```
 scripts/db-debug.sh 'SELECT lb.id, lb."assetId", a.name, a.blockchain, lb.amount, lb."availableAmount", lb."isDfxOwned", lb.updated FROM liquidity_balance lb LEFT JOIN asset a ON a.id = lb."assetId" ORDER BY lb.updated DESC'
 ```
+
+## Balance forensics (companion scripts)
+
+Three companion scripts share the same `.env` auth and the same `log` / FinancialDataLog source, for
+investigating total-balance steps (see the `valid` / suspicious-step heuristic in `reference.md`). A
+`<log_id>` is the `log.id` of a FinancialDataLog entry — find candidates with `--balance` or
+`--anomalies` above. All three are read-only (they only SELECT from `log` via `/gs/debug`).
+
+| Command | Purpose |
+| --- | --- |
+| `scripts/compare-balance-logs.sh <log_id_1> <log_id_2>` | diff two snapshots: plus / minus / total deltas plus the top asset changes ranked by CHF impact |
+| `scripts/inspect-asset-balance.sh <log_id> <asset_id>` | full plus / minus breakdown for one asset in a log entry (incl. the liquidity sub-structure) |
+| `scripts/sum-asset-balances.sh <log_id> <financial_type>` | sum `plusBalance.total` across assets of one `financialType` |
 
 ## Writing SQL
 
