@@ -139,6 +139,11 @@ describe('GsService', () => {
         ['SELECT CAST(ud AS text) FROM user_data ud', 'row CAST to text'],
         ['SELECT * FROM (SELECT to_jsonb(ud.*) AS j FROM user_data ud) sub', 'subquery wrapping'],
         ['WITH x AS (SELECT to_jsonb(ud.*) AS j FROM user_data ud) SELECT * FROM x', 'CTE wrapping'],
+        ['SELECT to_jsonb(t.*) FROM (SELECT * FROM user_data) t', 'outer to_jsonb on subquery-aliased * of blocked table'],
+        ['SELECT to_jsonb((SELECT user_data FROM user_data))', 'bare ref inside scalar subquery'],
+        ['SELECT * FROM user_data, LATERAL to_jsonb(user_data) j', 'bare ref via LATERAL FROM-clause function'],
+        ['WITH a AS (SELECT * FROM user_data), b AS (SELECT to_jsonb(a.*) AS j FROM a) SELECT * FROM b', 'chained CTE forwarding base-table row shape'],
+        ['SELECT t.* FROM user_data t', 'qualified wildcard via alias on blocked table (regression: ensure no crash on identifier shape)'],
       ])('should block whole-row reference: %s (%s)', async (sql) => {
         await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
         await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(/Whole-row reference/);
@@ -148,6 +153,14 @@ describe('GsService', () => {
         // `asset` has no entries in DebugBlockedCols → row references are harmless.
         jest.spyOn(dataSource, 'query').mockResolvedValue([{ to_jsonb: { id: 1 } }]);
         const result = await service.executeDebugQuery('SELECT to_jsonb(a.*) FROM asset a LIMIT 1', 'test-user');
+        expect(result).toBeDefined();
+      });
+
+      it('should allow unqualified `SELECT *` on a table with blocked columns (post-exec masker handles it)', async () => {
+        // `SELECT *` returns one top-level key per column, so the existing post-execution
+        // masker can redact blocked fields individually. Don't over-reject this common case.
+        jest.spyOn(dataSource, 'query').mockResolvedValue([{ id: 1, mail: 'a@b' }]);
+        const result = await service.executeDebugQuery('SELECT * FROM user_data LIMIT 1', 'test-user');
         expect(result).toBeDefined();
       });
     });

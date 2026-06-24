@@ -685,67 +685,94 @@ export class GsService {
   // Whole-row reference check. A row reference returns every column of a table as a single
   // tuple/JSON value, which slips past the per-column blocklist and the post-execution masker.
   // Reject the query if any SELECT expression dereferences a row from a table that has any
-  // blocked columns, anywhere in the statement tree (CTEs, FROM-subqueries included).
-  private checkForBlockedRowReferences(stmt: any): void {
+  // blocked columns, anywhere in the statement tree (CTEs, FROM-subqueries, LATERAL).
+  //
+  // `inheritedCteSources` maps CTE name → underlying base table for CTEs whose body is a
+  // pure row-forwarder like `WITH a AS (SELECT * FROM user_data)`. Without this, a chain like
+  // `WITH a AS (...), b AS (SELECT to_jsonb(a.*) FROM a) SELECT * FROM b` would bypass the
+  // check because `a` is not a base-table name and `tableHasBlockedColumns('a')` is false.
+  private checkForBlockedRowReferences(stmt: any, inheritedCteSources: Map<string, string> = new Map()): void {
     if (!stmt || stmt.type !== 'select') return;
 
-    // Recurse into WITH clauses (CTEs) first — their inner SELECTs follow the same rules.
+    // Walk CTEs in declared order so later CTEs see earlier CTEs' row-source propagation.
+    const cteSources = new Map(inheritedCteSources);
     if (Array.isArray(stmt.with)) {
       for (const cte of stmt.with) {
-        if (cte.stmt?.ast) this.checkForBlockedRowReferences(cte.stmt.ast);
-        else if (cte.stmt) this.checkForBlockedRowReferences(cte.stmt);
+        const inner = cte.stmt?.ast ?? cte.stmt;
+        this.checkForBlockedRowReferences(inner, cteSources);
+
+        // If this CTE forwards a row of a base table, record it so later CTEs and the outer
+        // SELECT can recognize references to the CTE name as references to the base table.
+        const cteName = typeof cte.name === 'string' ? cte.name : cte.name?.value;
+        if (cteName) {
+          const forwarded = this.resolveSubqueryRowSource(inner, cteSources);
+          if (forwarded) cteSources.set(cteName.toLowerCase(), forwarded);
+        }
       }
     }
 
     // Recurse into FROM-clause subqueries (derived tables).
     if (Array.isArray(stmt.from)) {
       for (const item of stmt.from) {
-        if (item.expr?.ast) this.checkForBlockedRowReferences(item.expr.ast);
+        if (item.expr?.ast) this.checkForBlockedRowReferences(item.expr.ast, cteSources);
       }
     }
 
     // Build the set of identifiers (alias OR base table name) that, when used as a column
-    // reference, mean "this whole row." A bare `SELECT ud FROM user_data ud` makes `ud`
-    // resolve to the row; `SELECT user_data FROM user_data` makes the table name resolve too.
+    // reference, mean "this whole row." Base tables, base-table aliases, subquery aliases of
+    // pure row-forwarders, and CTE names that propagate a base-table row source all count.
     const rowIdentifiers = new Map<string, string>(); // identifier (lowercase) -> base table name
     if (Array.isArray(stmt.from)) {
       for (const item of stmt.from) {
         if (item.table) {
-          rowIdentifiers.set(item.table.toLowerCase(), item.table);
-          if (item.as) rowIdentifiers.set(item.as.toLowerCase(), item.table);
+          const resolved = cteSources.get(item.table.toLowerCase()) ?? item.table;
+          rowIdentifiers.set(item.table.toLowerCase(), resolved);
+          if (item.as) rowIdentifiers.set(item.as.toLowerCase(), resolved);
+        } else if (item.as && item.expr?.ast) {
+          const inherited = this.resolveSubqueryRowSource(item.expr.ast, cteSources);
+          if (inherited) rowIdentifiers.set(item.as.toLowerCase(), inherited);
         }
       }
     }
 
-    // Walk SELECT expressions and any subexpressions for column refs that name a whole row.
+    // Walk SELECT expressions for whole-row references.
     if (Array.isArray(stmt.columns)) {
       for (const col of stmt.columns) {
         this.assertNoBlockedRowReference(col.expr, rowIdentifiers);
       }
     }
 
-    // Also walk WHERE / HAVING / ORDER BY for completeness — these can contain subqueries that
-    // themselves SELECT a row reference.
-    this.walkSubqueriesForRowRefs(stmt.where);
-    this.walkSubqueriesForRowRefs(stmt.having);
+    // Walk FROM-clause function/expression items (LATERAL, comma-joined SRFs etc.) — these
+    // can reference rows of FROM-listed tables without being in the SELECT clause.
+    if (Array.isArray(stmt.from)) {
+      for (const item of stmt.from) {
+        if (item.expr && !item.expr.ast) this.assertNoBlockedRowReference(item.expr, rowIdentifiers);
+      }
+    }
+
+    // Walk WHERE / HAVING / ORDER BY for subqueries (their inner SELECTs need the same check;
+    // boolean/scalar uses of row data inside these clauses don't reach the result, but they're
+    // still walked so any nested whole-row reference is flagged consistently).
+    this.walkSubqueriesForRowRefs(stmt.where, cteSources);
+    this.walkSubqueriesForRowRefs(stmt.having, cteSources);
     if (Array.isArray(stmt.orderby)) {
-      for (const o of stmt.orderby) this.walkSubqueriesForRowRefs(o.expr);
+      for (const o of stmt.orderby) this.walkSubqueriesForRowRefs(o.expr, cteSources);
     }
   }
 
-  private walkSubqueriesForRowRefs(node: any): void {
+  private walkSubqueriesForRowRefs(node: any, cteSources: Map<string, string>): void {
     if (!node || typeof node !== 'object') return;
-    if (node.ast) {
-      this.checkForBlockedRowReferences(node.ast);
+    if (node.ast?.type === 'select') {
+      this.checkForBlockedRowReferences(node.ast, cteSources);
       return;
     }
     if (Array.isArray(node)) {
-      for (const item of node) this.walkSubqueriesForRowRefs(item);
+      for (const item of node) this.walkSubqueriesForRowRefs(item, cteSources);
       return;
     }
     for (const key of Object.keys(node)) {
       const v = (node as any)[key];
-      if (v && typeof v === 'object') this.walkSubqueriesForRowRefs(v);
+      if (v && typeof v === 'object') this.walkSubqueriesForRowRefs(v, cteSources);
     }
   }
 
@@ -753,21 +780,28 @@ export class GsService {
     if (!node || typeof node !== 'object') return;
 
     if (node.type === 'column_ref') {
-      // Wildcard: `t.*` (table set) or unqualified `*` (use sole FROM table if any).
-      const colName = typeof node.column === 'string' ? node.column : node.column?.expr?.value;
+      // Both `table` and `column` come in two shapes from node-sql-parser: plain strings for
+      // unquoted identifiers, and `{ type, value }` objects for quoted identifiers (`"user"`).
+      const tableName = this.identifierName(node.table);
+      const colName = this.identifierName(node.column) ?? (node.column?.expr?.value as string | undefined);
 
-      if (colName === '*' || colName === '(.*)') {
-        const table = node.table ? node.table.toLowerCase() : null;
-        const resolved = table ? rowIdentifiers.get(table) : rowIdentifiers.size === 1 ? [...rowIdentifiers.values()][0] : null;
+      // Qualified wildcard: `t.*`. Post-execution masking can't reach fields once they're
+      // packed into a tuple/JSON value — reject pre-execution. (Unqualified `SELECT *` is
+      // *not* rejected here: each column arrives as its own top-level key, and the existing
+      // post-execution masker handles it correctly.)
+      if (tableName && (colName === '*' || colName === '(.*)')) {
+        const resolved = rowIdentifiers.get(tableName.toLowerCase());
         if (resolved && this.tableHasBlockedColumns(resolved)) {
           throw new BadRequestException(`Whole-row reference to '${resolved}' is not allowed`);
         }
         return;
       }
 
-      // Bare row reference: `to_json(ud)`, `SELECT ud FROM user_data ud`, `ud::text`.
-      // Parser emits column_ref with no table and the alias/table-name as the "column".
-      if (!node.table && colName && rowIdentifiers.has(colName.toLowerCase())) {
+      // Bare row reference: `to_json(ud)`, `SELECT ud FROM user_data ud`, `ud::text`,
+      // `SELECT user_data FROM user_data`. Parser emits column_ref with no table and the
+      // alias-or-table-name as the "column" — looks like a normal column reference but
+      // actually dereferences the whole row.
+      if (!tableName && colName && rowIdentifiers.has(colName.toLowerCase())) {
         const resolved = rowIdentifiers.get(colName.toLowerCase());
         if (resolved && this.tableHasBlockedColumns(resolved)) {
           throw new BadRequestException(`Whole-row reference to '${resolved}' is not allowed`);
@@ -776,16 +810,26 @@ export class GsService {
       return;
     }
 
-    // Recurse into nested expressions (function args, cast operands, arithmetic, etc.)
+    // Subquery in expression position (e.g. `to_jsonb((SELECT ...))`). The parser sometimes
+    // emits the subquery as `{ ast, tableList, columnList }` (sibling .ast) and sometimes as
+    // the SELECT AST directly. In either case the subquery has its own scope — re-enter the
+    // statement-level walker so it builds fresh `rowIdentifiers` and recurses correctly.
+    if (node.ast?.type === 'select') {
+      this.checkForBlockedRowReferences(node.ast);
+      return;
+    }
+    if (node.type === 'select') {
+      this.checkForBlockedRowReferences(node);
+      return;
+    }
+
+    // Recurse into nested expressions (function args, cast operands, arithmetic, etc.) using
+    // the current scope's `rowIdentifiers` (subqueries are intercepted above).
     for (const key of Object.keys(node)) {
       const v = (node as any)[key];
       if (v && typeof v === 'object') {
         if (Array.isArray(v)) {
           for (const item of v) this.assertNoBlockedRowReference(item, rowIdentifiers);
-        } else if (v.ast) {
-          // Subquery in expression position — let the subquery's own checks run via the
-          // statement-level recursion in checkForBlockedRowReferences (already handles WITH/FROM).
-          this.checkForBlockedRowReferences(v.ast);
         } else {
           this.assertNoBlockedRowReference(v, rowIdentifiers);
         }
@@ -795,6 +839,40 @@ export class GsService {
 
   private tableHasBlockedColumns(table: string): boolean {
     return (DebugBlockedCols[table]?.length ?? 0) > 0;
+  }
+
+  // node-sql-parser emits identifiers (table names, column names) either as plain strings
+  // (`"ud"`) or as `{ type: 'default', value: 'ud' }` objects for quoted identifiers. Normalize.
+  private identifierName(node: unknown): string | undefined {
+    if (typeof node === 'string') return node;
+    if (node && typeof node === 'object' && 'value' in node) {
+      const v = (node as { value: unknown }).value;
+      return typeof v === 'string' ? v : undefined;
+    }
+    return undefined;
+  }
+
+  // For `(SELECT * FROM T) t` or `(SELECT t2.* FROM T t2) sub`, the subquery yields a row of T.
+  // Outer-query references to the subquery alias (`sub.*`, `to_jsonb(sub)`, etc.) then leak the
+  // same data, so we record the alias as a row identifier for T. Only single-source SELECT-*
+  // shapes count; anything with JOINs / column lists / aggregations changes the row shape and
+  // is already handled by the per-column checks. CTE references are resolved through
+  // `cteSources` so chained CTEs (`WITH a AS (SELECT * FROM T), b AS (SELECT * FROM a) ...`)
+  // still recognize `b` as a forwarder of T.
+  private resolveSubqueryRowSource(ast: any, cteSources: Map<string, string> = new Map()): string | null {
+    if (!ast || ast.type !== 'select') return null;
+    if (!Array.isArray(ast.from) || ast.from.length !== 1) return null;
+    const fromItem = ast.from[0];
+    if (!fromItem.table) return null;
+    if (!Array.isArray(ast.columns) || ast.columns.length !== 1) return null;
+
+    const colExpr = ast.columns[0].expr;
+    if (colExpr?.type !== 'column_ref') return null;
+
+    const colName = this.identifierName(colExpr.column) ?? colExpr.column?.expr?.value;
+    if (colName !== '*' && colName !== '(.*)') return null;
+
+    return cteSources.get(fromItem.table.toLowerCase()) ?? fromItem.table;
   }
 
   private findBlockedColumnInQuery(sql: string, ast: any, tables: string[]): string | null {
