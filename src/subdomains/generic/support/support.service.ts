@@ -95,6 +95,7 @@ import {
   RecommendationEntry,
   RecommendationGraph,
   RecommendationGraphEdge,
+  RecommendationGraphEdgeKind,
   RecommendationGraphNode,
   RecommendationUserInfo,
   RefRewardSupportInfo,
@@ -119,6 +120,16 @@ interface UserDataComplianceSearchTypePair {
   type: ComplianceSearchType;
   userData: UserData;
 }
+
+// a classic ref-code relationship (user.usedRef -> user.ref), keyed by directed userData pair
+interface RefEdge {
+  referrerId: number;
+  referredId: number;
+  refCode: string;
+}
+
+// default neighbor page size for progressive recommendation-graph expansion (hub accounts can have many neighbors)
+const RECOMMENDATION_GRAPH_PAGE_SIZE = 25;
 
 const CallQueueItemsLimit = 200;
 
@@ -528,6 +539,7 @@ export class SupportService {
         ref: user.ref,
         usedRef: user.usedRef,
         refUserName,
+        refUserDataId: refUser?.userData?.id,
         role: user.role,
         status: user.status,
         walletName: user.wallet?.name,
@@ -680,36 +692,107 @@ export class SupportService {
     };
   }
 
-  async getRecommendationGraph(userDataId: number): Promise<RecommendationGraph> {
-    const MAX_NODES = 500;
-    const visitedUsers = new Set<number>();
+  // direct (1-hop) neighbors of a userData for lazy/progressive graph expansion; paginated for hub accounts
+  async getRecommendationGraphNeighbors(
+    centerId: number,
+    skip = 0,
+    take = RECOMMENDATION_GRAPH_PAGE_SIZE,
+  ): Promise<RecommendationGraph> {
+    const hop = await this.collectHop(centerId);
+
+    // split into upward (who referred/recommended the center) and downward (the center's children)
+    const upward = new Set<number>();
+    const downward = new Set<number>();
+    for (const rec of hop.recs) {
+      if (rec.recommended?.id === centerId && rec.recommender?.id && rec.recommender.id !== centerId)
+        upward.add(rec.recommender.id);
+      if (rec.recommender?.id === centerId && rec.recommended?.id && rec.recommended.id !== centerId)
+        downward.add(rec.recommended.id);
+    }
+    for (const refEdge of hop.refEdges) {
+      if (refEdge.referredId === centerId) upward.add(refEdge.referrerId);
+      if (refEdge.referrerId === centerId) downward.add(refEdge.referredId);
+    }
+    for (const id of upward) downward.delete(id); // a node that is both (cycle) is treated as upward
+
+    // referrers first (few, important) then children — so the upward path is always on the first page
+    const orderedNeighborIds = [...[...upward].sort((a, b) => a - b), ...[...downward].sort((a, b) => a - b)];
+    const pageIds = orderedNeighborIds.slice(skip, skip + take);
+    const hasMore = skip + take < orderedNeighborIds.length;
+
+    const visitedUsers = new Set<number>([centerId, ...pageIds]);
     const visitedRecs = new Map<number, Recommendation>();
-    const queue: number[] = [userDataId];
+    for (const rec of hop.recs) visitedRecs.set(rec.id, rec);
+    const refEdges = new Map<string, RefEdge>();
+    for (const refEdge of hop.refEdges) refEdges.set(`${refEdge.referrerId}-${refEdge.referredId}`, refEdge);
 
-    // BFS: traverse all connected recommendations in both directions (capped)
-    while (queue.length > 0 && visitedUsers.size < MAX_NODES) {
-      const currentId = queue.shift();
-      if (visitedUsers.has(currentId)) continue;
-      visitedUsers.add(currentId);
+    const graph = await this.buildGraphPayload(centerId, visitedUsers, visitedRecs, refEdges);
+    await this.setNodeExpandability(graph, centerId);
 
-      // Find all recommendations where this user is recommender OR recommended
-      const [asRecommender, asRecommended] = await Promise.all([
-        this.recommendationService.getAllRecommendationsByRecommenderId(currentId),
-        this.recommendationService.getRecommendationsByRecommendedId(currentId),
-      ]);
+    return { ...graph, hasMore };
+  }
 
-      for (const rec of [...asRecommender, ...asRecommended]) {
-        if (visitedRecs.has(rec.id)) continue;
-        visitedRecs.set(rec.id, rec);
+  // a real, user-specific ref code (non-empty and not the system default ref)
+  private isCustomRef(ref?: string): boolean {
+    return !!ref && ref !== Config.defaultRef;
+  }
 
-        if (rec.recommender?.id && !visitedUsers.has(rec.recommender.id)) queue.push(rec.recommender.id);
-        if (rec.recommended?.id && !visitedUsers.has(rec.recommended.id)) queue.push(rec.recommended.id);
-      }
+  // single-hop neighborhood of a userData: its recommendations (both directions) and classic ref-code links (up + down)
+  private async collectHop(centerId: number): Promise<{
+    recs: Recommendation[];
+    refEdges: RefEdge[];
+  }> {
+    const [asRecommender, asRecommended, users] = await Promise.all([
+      this.recommendationService.getAllRecommendationsByRecommenderId(centerId),
+      this.recommendationService.getRecommendationsByRecommendedId(centerId),
+      this.userService.getAllUserDataUsers(centerId),
+    ]);
+
+    const recs = [...asRecommender, ...asRecommended];
+
+    // usedRefs are this user's incoming ref codes, pre-filtered against defaultRef here because getRefUsersByRefs
+    // does not filter it itself; ownRefs are this user's own ref codes (used to find who signed up under them)
+    const usedRefs = users.map((u) => u.usedRef).filter((r) => this.isCustomRef(r));
+    const ownRefs = users.map((u) => u.ref).filter((r): r is string => !!r);
+    const [referrerUsers, referredUsers] = await Promise.all([
+      this.userService.getRefUsersByRefs(usedRefs),
+      this.userService.getUsersByUsedRefs(ownRefs),
+    ]);
+
+    const refEdges: RefEdge[] = [];
+    for (const referrer of referrerUsers) {
+      const referrerId = referrer.userData?.id;
+      if (!referrerId || referrerId === centerId) continue;
+      refEdges.push({ referrerId, referredId: centerId, refCode: referrer.ref });
+    }
+    for (const referred of referredUsers) {
+      const referredId = referred.userData?.id;
+      if (!referredId || referredId === centerId) continue;
+      refEdges.push({ referrerId: centerId, referredId, refCode: referred.usedRef });
     }
 
-    // Batch-load all user data
-    const allUserIds = [...visitedUsers];
-    const userDatas = await this.userDataService.getUserDataByIds(allUserIds);
+    return { recs, refEdges };
+  }
+
+  // Synthetic, deterministic negative id for USED_REF edges (which have no DB row id of their own).
+  // Negative so it never collides with real recommendation row ids (positive). Deterministic per
+  // directed (referrer -> referred) pair so the same ref edge keeps the same id across lazy-expand
+  // fragments. The consumer keys edges by directed pair, but a stable id avoids any id-based dedupe hazard.
+  private buildRefEdgeId(referrerId: number, referredId: number): number {
+    const key = `${referrerId}-${referredId}`;
+    let hash = 0;
+    for (let i = 0; i < key.length; i++) hash = (hash * 31 + key.charCodeAt(i)) | 0;
+    return -(Math.abs(hash) + 1);
+  }
+
+  // build nodes + deduplicated edges for a set of visited userDatas (recommendation wins over ref-code on the same pair)
+  private async buildGraphPayload(
+    rootId: number,
+    visitedUsers: Set<number>,
+    visitedRecs: Map<number, Recommendation>,
+    refEdges: Map<string, RefEdge>,
+  ): Promise<RecommendationGraph> {
+    const userDatas = await this.userDataService.getUserDataByIds([...visitedUsers]);
 
     const nodes: RecommendationGraphNode[] = userDatas.map((ud) => ({
       id: ud.id,
@@ -720,20 +803,79 @@ export class SupportService {
       tradeApprovalDate: ud.tradeApprovalDate,
     }));
 
-    const edges: RecommendationGraphEdge[] = [...visitedRecs.values()]
-      .filter((r) => r.recommender?.id && r.recommended?.id)
-      .map((r) => ({
-        id: r.id,
-        recommenderId: r.recommender.id,
-        recommendedId: r.recommended.id,
-        method: r.method,
-        type: r.type,
-        isConfirmed: r.isConfirmed,
-        confirmationDate: r.confirmationDate,
-        created: r.created,
-      }));
+    // only keep edges whose both endpoints are part of the node set, so no edge dangles to an unloaded node
+    const recommendationEdges = [...visitedRecs.values()].filter(
+      (r) =>
+        r.recommender?.id &&
+        r.recommended?.id &&
+        r.recommender.id !== r.recommended.id &&
+        visitedUsers.has(r.recommender.id) &&
+        visitedUsers.has(r.recommended.id),
+    );
+    const recommendationPairs = new Set(recommendationEdges.map((r) => `${r.recommender.id}-${r.recommended.id}`));
+    // a confirmed ref-code recommendation coincides with the recommended user's usedRef; surface that
+    // actual ref code on the recommendation edge (its standalone USED_REF edge for the same pair is
+    // skipped below) so the graph can label the edge with the code that was used, not just the method
+    const refCodeByPair = new Map(
+      [...refEdges.values()].map((re) => [`${re.referrerId}-${re.referredId}`, re.refCode]),
+    );
 
-    return { nodes, edges, rootId: userDataId };
+    const edges: RecommendationGraphEdge[] = recommendationEdges.map((r) => ({
+      id: r.id,
+      kind: RecommendationGraphEdgeKind.RECOMMENDATION,
+      recommenderId: r.recommender.id,
+      recommendedId: r.recommended.id,
+      method: r.method,
+      type: r.type,
+      isConfirmed: r.isConfirmed,
+      confirmationDate: r.confirmationDate,
+      created: r.created,
+      refCode: refCodeByPair.get(`${r.recommender.id}-${r.recommended.id}`),
+    }));
+
+    // add ref-code edges, skipping pairs already represented by a recommendation (confirmed recommendations also set usedRef)
+    for (const refEdge of refEdges.values()) {
+      const pairKey = `${refEdge.referrerId}-${refEdge.referredId}`;
+      if (
+        recommendationPairs.has(pairKey) ||
+        !visitedUsers.has(refEdge.referrerId) ||
+        !visitedUsers.has(refEdge.referredId)
+      )
+        continue;
+      edges.push({
+        id: this.buildRefEdgeId(refEdge.referrerId, refEdge.referredId),
+        kind: RecommendationGraphEdgeKind.USED_REF,
+        recommenderId: refEdge.referrerId,
+        recommendedId: refEdge.referredId,
+        refCode: refEdge.refCode,
+      });
+    }
+
+    return { nodes, edges, rootId };
+  }
+
+  // flag each neighbor that has at least one neighbor NOT already shown in this fragment, via cheap batched
+  // counts (no per-node N+1). Counterparts already in the fragment (all graph node ids) are excluded so an
+  // in-fragment counterpart of a pair that is both a recommendation and a ref-code is not double-counted into
+  // a false-positive expandable. A single external node still counted by two helpers is harmless for the >0 check.
+  private async setNodeExpandability(graph: RecommendationGraph, centerId: number): Promise<void> {
+    const neighborIds = graph.nodes.map((n) => n.id).filter((id) => id !== centerId);
+    if (!neighborIds.length) return;
+
+    const excludeIds = graph.nodes.map((n) => n.id); // everything already shown in this fragment
+
+    const [asRecommender, asRecommended, refChildren, refReferrers] = await Promise.all([
+      this.recommendationService.countByRecommenderIds(neighborIds, excludeIds),
+      this.recommendationService.countByRecommendedIds(neighborIds, excludeIds),
+      this.userService.countRefChildrenByUserDataIds(neighborIds, excludeIds),
+      this.userService.countRefReferrersByUserDataIds(neighborIds, excludeIds),
+    ]);
+
+    const externalDegree = new Map<number, number>();
+    for (const counts of [asRecommender, asRecommended, refChildren, refReferrers])
+      for (const { id, count } of counts) externalDegree.set(id, (externalDegree.get(id) ?? 0) + count);
+
+    for (const node of graph.nodes) node.expandable = node.id !== centerId && (externalDegree.get(node.id) ?? 0) > 0;
   }
 
   async searchUserDataByKey(query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {

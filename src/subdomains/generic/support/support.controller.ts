@@ -22,6 +22,7 @@ import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
 import { ChargebackRefundDto } from 'src/subdomains/core/history/dto/transaction-refund.dto';
 import { ReviewStatus } from '../kyc/enums/review-status.enum';
 import { GenerateOnboardingPdfDto } from './dto/onboarding-pdf.dto';
+import { RecommendationGraphNeighborsQuery } from './dto/recommendation-graph-neighbors-query.dto';
 import {
   CreateSupportIssueTemplateDto,
   SupportIssueTemplateDto,
@@ -96,12 +97,15 @@ export class SupportController {
     return this.supportService.getTransactionList(query);
   }
 
-  @Get('recommendation-graph/:id')
+  @Get('recommendation-graph/:id/neighbors')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
-  async getRecommendationGraph(@Param('id') id: string): Promise<RecommendationGraph> {
-    return this.supportService.getRecommendationGraph(+id);
+  async getRecommendationGraphNeighbors(
+    @Param('id') id: string,
+    @Query() query: RecommendationGraphNeighborsQuery,
+  ): Promise<RecommendationGraph> {
+    return this.supportService.getRecommendationGraphNeighbors(+id, query.skip, query.take);
   }
 
   @Get('pending-transactions')

@@ -180,6 +180,54 @@ export class UserService {
     return this.userRepo.find({ where: { ref: In(refs) }, relations: { userData: true } });
   }
 
+  async getUsersByUsedRefs(refs: string[]): Promise<User[]> {
+    const usedRefs = refs.filter((r) => r && r !== Config.defaultRef);
+    if (usedRefs.length === 0) return [];
+    return this.userRepo.find({ where: { usedRef: In(usedRefs) }, relations: { userData: true } });
+  }
+
+  // count of distinct userDatas that used a ref code owned by each given userData (classic ref-code children),
+  // excluding counterparts already shown (excludeIds)
+  async countRefChildrenByUserDataIds(
+    ids: number[],
+    excludeIds: number[] = [],
+  ): Promise<{ id: number; count: number }[]> {
+    if (ids.length === 0) return [];
+    const query = this.userRepo
+      .createQueryBuilder('owner')
+      .innerJoin(User, 'child', 'child.usedRef = owner.ref AND child.usedRef != :default', {
+        default: Config.defaultRef,
+      })
+      .select('owner.userDataId', 'id')
+      .addSelect('COUNT(DISTINCT child.userDataId)', 'count')
+      .where('owner.userDataId IN (:...ids)', { ids })
+      .andWhere('owner.ref IS NOT NULL')
+      .andWhere('child.userDataId != owner.userDataId');
+    if (excludeIds.length > 0) query.andWhere('child.userDataId NOT IN (:...excludeIds)', { excludeIds });
+    const rows = await query.groupBy('owner.userDataId').getRawMany<{ id: string; count: string }>();
+    return rows.map((r) => ({ id: +r.id, count: +r.count }));
+  }
+
+  // count of distinct userDatas whose ref code each given userData used (classic ref-code referrers),
+  // excluding counterparts already shown (excludeIds)
+  async countRefReferrersByUserDataIds(
+    ids: number[],
+    excludeIds: number[] = [],
+  ): Promise<{ id: number; count: number }[]> {
+    if (ids.length === 0) return [];
+    const query = this.userRepo
+      .createQueryBuilder('owner')
+      .innerJoin(User, 'referrer', 'referrer.ref = owner.usedRef')
+      .select('owner.userDataId', 'id')
+      .addSelect('COUNT(DISTINCT referrer.userDataId)', 'count')
+      .where('owner.userDataId IN (:...ids)', { ids })
+      .andWhere('owner.usedRef != :default', { default: Config.defaultRef })
+      .andWhere('referrer.userDataId != owner.userDataId');
+    if (excludeIds.length > 0) query.andWhere('referrer.userDataId NOT IN (:...excludeIds)', { excludeIds });
+    const rows = await query.groupBy('owner.userDataId').getRawMany<{ id: string; count: string }>();
+    return rows.map((r) => ({ id: +r.id, count: +r.count }));
+  }
+
   async getNexCustodyIndex(): Promise<number> {
     const currentIndex = await this.userRepo.maximum('custodyAddressIndex');
     return (currentIndex ?? -1) + 1;

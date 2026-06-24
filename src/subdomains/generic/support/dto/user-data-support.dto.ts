@@ -4,6 +4,7 @@ import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { RecallReason } from 'src/subdomains/supporting/recall/recall-reason.enum';
 import { KycFile } from '../../kyc/entities/kyc-file.entity';
+import { RecommendationMethod, RecommendationType } from '../../user/models/recommendation/recommendation.entity';
 import { AccountType } from '../../user/models/user-data/account-type.enum';
 import { SupportNoteDto } from './support-note.dto';
 import { KycIdentificationType } from '../../user/models/user-data/kyc-identification-type.enum';
@@ -138,6 +139,7 @@ export class UserSupportInfo {
   ref?: string;
   usedRef?: string;
   refUserName?: string;
+  refUserDataId?: number;
   role: string;
   status: string;
   walletName?: string;
@@ -361,23 +363,39 @@ export class RecommendationGraphNode {
   kycStatus?: string;
   kycLevel?: number;
   tradeApprovalDate?: Date;
+  // set by the neighbors endpoint: the node has further neighbors not contained in the current fragment
+  expandable?: boolean;
+}
+
+export enum RecommendationGraphEdgeKind {
+  RECOMMENDATION = 'Recommendation',
+  USED_REF = 'UsedRef',
 }
 
 export class RecommendationGraphEdge {
+  // RECOMMENDATION edges carry the real (positive) recommendation row id; USED_REF edges have no backing row, so
+  // their id is a synthetic negative value deterministically derived from the directed (referrer -> referred) pair --
+  // stable across lazy-expand fragments and non-colliding with real positive ids
   id: number;
+  kind: RecommendationGraphEdgeKind;
   recommenderId: number;
   recommendedId: number;
-  method: string;
-  type: string;
+  method?: RecommendationMethod;
+  type?: RecommendationType;
   isConfirmed?: boolean;
   confirmationDate?: Date;
-  created: Date;
+  // the ref code used: the code itself on USED_REF edges, and — when a ref-code recommendation coincides
+  // with the recommended user's usedRef — also on the RECOMMENDATION edge that supersedes that ref edge
+  refCode?: string;
+  created?: Date;
 }
 
 export class RecommendationGraph {
   nodes: RecommendationGraphNode[];
   edges: RecommendationGraphEdge[];
   rootId: number;
+  // set by the paginated neighbors endpoint: more direct neighbors of the root exist beyond this page
+  hasMore?: boolean;
 }
 
 export class SupportMessageSupportInfo {
