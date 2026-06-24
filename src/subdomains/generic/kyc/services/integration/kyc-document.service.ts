@@ -31,11 +31,14 @@ export class KycDocumentService {
   // Builds a host-stable URL for a storage path by pinning the host to the services domain
   // (`Config.frontend.services`) while keeping the full storage path (`<container>/<blobName>`)
   // intact. The raw blob URL is `<storage-backend-host>/<container>/<blobName>`; we swap only the
-  // host, so a storage-backend migration stays transparent to clients. Crucially the storage path
-  // (`user|spider/<id>/<type>/<name>`) remains an unaltered substring of the URL, which downstream
-  // consumers rely on to extract the file name (e.g. `url.split('<scope>/<id>/<type>')[1]`).
+  // host, so a storage-backend migration stays transparent to clients. Path segments are encoded
+  // exactly like the raw blob URL (`AzureStorageService.blobUrl`, per-segment `encodeURIComponent`,
+  // slashes preserved), so the URL is a true drop-in — identical apart from the host. The path
+  // (`<scope>/<id>/<type>`) stays an intact substring, which downstream consumers rely on to extract
+  // the file name (e.g. `url.split('<scope>/<id>/<type>')[1]`).
   toHostStableUrl(path: string): string {
-    return `${Config.frontend.services}/${KYC_CONTAINER}/${path}`;
+    const urlEncodedPath = path.split('/').map(encodeURIComponent).join('/');
+    return `${Config.frontend.services}/${KYC_CONTAINER}/${urlEncodedPath}`;
   }
 
   async listUserFiles(userDataId: number): Promise<KycFileBlob[]> {
