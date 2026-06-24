@@ -26,10 +26,10 @@ import { LimitRequestService } from 'src/subdomains/supporting/support-issue/ser
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
-import { KycFileService } from '../../kyc/services/kyc-file.service';
-import { KycFileBlob } from '../../kyc/dto/kyc-file.dto';
-import { UserData } from '../../user/models/user-data/user-data.entity';
-import { AccountType } from '../../user/models/user-data/account-type.enum';
+import { KycFileService } from 'src/subdomains/generic/kyc/services/kyc-file.service';
+import { KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { Blob } from 'src/integration/infrastructure/azure-storage.service';
 import { ConfigService } from 'src/config/config';
 
