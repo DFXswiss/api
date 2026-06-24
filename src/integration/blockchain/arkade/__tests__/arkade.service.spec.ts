@@ -60,6 +60,16 @@ describe('ArkadeService', () => {
   // --- OFFCHAIN ADDRESS SIGNATURE VERIFICATION --- //
 
   describe('verifySignature with offchainAddr', () => {
+    beforeEach(() => {
+      jest.spyOn(global, 'fetch').mockResolvedValue({
+        json: async () => ({ unilateralExitDelay: '605184' }),
+      } as Response);
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
     it('should verify a valid signature against an offchainAddr', async () => {
       const message = 'test message for offchain verification';
       const signature = signMessage(message);
