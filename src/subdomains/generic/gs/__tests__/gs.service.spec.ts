@@ -120,6 +120,38 @@ describe('GsService', () => {
       });
     });
 
+    describe('Whole-row references (bypass of per-column masking)', () => {
+      // Regression coverage for the to_jsonb/row-reference bypass:
+      // any expression that yields a whole row would pass per-column checks (because the
+      // parser reports a wildcard or a bare alias) and slip past the post-execution masker
+      // (which only walks top-level keys, not nested JSON / tuple-text). Reject pre-execution.
+      it.each([
+        ['SELECT to_jsonb(ud.*) FROM user_data ud', 'to_jsonb wildcard'],
+        ['SELECT to_jsonb(ud) FROM user_data ud', 'to_jsonb bare alias'],
+        ['SELECT to_json(ud) FROM user_data ud', 'to_json bare alias'],
+        ['SELECT row_to_json(ud.*) FROM user_data ud', 'row_to_json wildcard'],
+        ['SELECT row_to_json(ud) FROM user_data ud', 'row_to_json bare alias'],
+        ['SELECT jsonb_agg(ud) FROM user_data ud', 'jsonb_agg'],
+        ['SELECT array_to_json(array_agg(ud)) FROM user_data ud', 'array_to_json + array_agg'],
+        ['SELECT ud FROM user_data ud', 'bare row reference via alias'],
+        ['SELECT user_data FROM user_data', 'bare row reference via table name'],
+        ['SELECT ud::text FROM user_data ud', 'row cast to text'],
+        ['SELECT CAST(ud AS text) FROM user_data ud', 'row CAST to text'],
+        ['SELECT * FROM (SELECT to_jsonb(ud.*) AS j FROM user_data ud) sub', 'subquery wrapping'],
+        ['WITH x AS (SELECT to_jsonb(ud.*) AS j FROM user_data ud) SELECT * FROM x', 'CTE wrapping'],
+      ])('should block whole-row reference: %s (%s)', async (sql) => {
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(BadRequestException);
+        await expect(service.executeDebugQuery(sql, 'test-user')).rejects.toThrow(/Whole-row reference/);
+      });
+
+      it('should allow whole-row reference on a table with no blocked columns', async () => {
+        // `asset` has no entries in DebugBlockedCols → row references are harmless.
+        jest.spyOn(dataSource, 'query').mockResolvedValue([{ to_jsonb: { id: 1 } }]);
+        const result = await service.executeDebugQuery('SELECT to_jsonb(a.*) FROM asset a LIMIT 1', 'test-user');
+        expect(result).toBeDefined();
+      });
+    });
+
     describe('Blocked schemas', () => {
       it.each([
         ['SELECT * FROM pg_catalog.pg_roles', 'pg_catalog schema'],
