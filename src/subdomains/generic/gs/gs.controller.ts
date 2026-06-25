@@ -10,6 +10,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { DebugQueryDto } from './dto/debug-query.dto';
+import { DebugUserQueryDto, DebugUserResult } from './dto/debug-user-query.dto';
 import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
@@ -71,5 +72,13 @@ export class GsController {
     if (DisabledProcess(Process.GS_DEBUG)) throw new ForbiddenException('Endpoint disabled');
 
     return this.gsService.executeLogQuery(dto, jwt.address ?? `account:${jwt.account}`);
+  }
+
+  @Post('debug/user')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
+  async resolveDebugUser(@GetJwt() jwt: JwtPayload, @Body() dto: DebugUserQueryDto): Promise<DebugUserResult> {
+    return this.gsService.resolveDebugUser(dto.mail, jwt.address ?? `account:${jwt.account}`);
   }
 }

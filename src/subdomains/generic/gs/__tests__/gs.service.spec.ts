@@ -26,19 +26,23 @@ import { LimitRequestService } from 'src/subdomains/supporting/support-issue/ser
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { ComplianceSearchType } from 'src/subdomains/generic/support/dto/user-data-support.dto';
 
 describe('GsService', () => {
   let service: GsService;
   let dataSource: DataSource;
   let appInsightsQueryService: AppInsightsQueryService;
+  let userDataService: UserDataService;
 
   beforeEach(() => {
     dataSource = createMock<DataSource>();
     appInsightsQueryService = createMock<AppInsightsQueryService>();
+    userDataService = createMock<UserDataService>();
 
     service = new GsService(
       appInsightsQueryService,
-      createMock<UserDataService>(),
+      userDataService,
       createMock<UserService>(),
       createMock<BuyService>(),
       createMock<SellService>(),
@@ -218,6 +222,42 @@ describe('GsService', () => {
       expect(kql).toContain(`[GsService] ${LogQueryAuditPrefix}`);
 
       verboseSpy.mockRestore();
+    });
+  });
+
+  describe('resolveDebugUser', () => {
+    it('returns deduplicated, sorted userDataIds with the Mail search type and no PII', async () => {
+      // The resolved records intentionally carry PII (firstname/surname) to prove the DEBUG
+      // response strips it: only userDataIds may ever be returned, never personal data.
+      jest
+        .spyOn(userDataService, 'getUsersByMail')
+        .mockResolvedValue([
+          { id: 102, firstname: 'Jane', surname: 'Doe' } as UserData,
+          { id: 101, firstname: 'John', surname: 'Doe' } as UserData,
+          { id: 101 } as UserData,
+        ]);
+
+      const result = await service.resolveDebugUser('user@example.com', 'test-user');
+
+      expect(result).toEqual({ type: ComplianceSearchType.MAIL, userDataIds: [101, 102] });
+      expect(JSON.stringify(result)).not.toContain('firstname');
+      expect(JSON.stringify(result)).not.toContain('Doe');
+    });
+
+    it('resolves the mail with onlyValidUser=false (same resolution as the compliance search)', async () => {
+      const spy = jest.spyOn(userDataService, 'getUsersByMail').mockResolvedValue([{ id: 1 } as UserData]);
+
+      await service.resolveDebugUser('merged@example.com', 'test-user');
+
+      expect(spy).toHaveBeenCalledWith('merged@example.com', false, {});
+    });
+
+    it('returns an empty id list when no account matches', async () => {
+      jest.spyOn(userDataService, 'getUsersByMail').mockResolvedValue([]);
+
+      const result = await service.resolveDebugUser('missing@example.com', 'test-user');
+
+      expect(result).toEqual({ type: ComplianceSearchType.MAIL, userDataIds: [] });
     });
   });
 });

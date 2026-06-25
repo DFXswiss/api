@@ -10,6 +10,7 @@ import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.ser
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { ComplianceSearchType } from 'src/subdomains/generic/support/dto/user-data-support.dto';
 import { BankTxRepeatService } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
@@ -29,6 +30,7 @@ import { UserData } from '../user/models/user-data/user-data.entity';
 import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
+import { DebugUserResult } from './dto/debug-user-query.dto';
 import {
   DebugBlockedCols,
   DebugBlockedSchemas,
@@ -190,6 +192,22 @@ export class GsService {
       swap: await this.swapService.getAllUserSwaps(userIds),
       virtualIbans: await this.virtualIbanService.getVirtualIbansForAccount(userData.id),
     };
+  }
+
+  // Sanctioned reverse lookup for the DEBUG tooling: the /gs/debug SQL endpoint blocks the
+  // user_data.mail column (PII), so an email cannot be resolved to a userDataId via SQL. This
+  // returns only non-PII identifiers, never the mail or any other personal data.
+  async resolveDebugUser(mail: string, userIdentifier: string): Promise<DebugUserResult> {
+    this.logger.verbose(`Debug user lookup by ${userIdentifier}`);
+
+    // Same resolution the compliance search uses for a mail; returns only userDataIds, no PII.
+    // No relations needed — only the id is read.
+    const userDataList = await this.userDataService.getUsersByMail(mail, false, {});
+    const userDataIds = Util.toUniqueList(userDataList, 'id')
+      .map((userData) => userData.id)
+      .sort((a, b) => a - b);
+
+    return { type: ComplianceSearchType.MAIL, userDataIds };
   }
 
   async executeDebugQuery(sql: string, userIdentifier: string): Promise<Record<string, unknown>[]> {
