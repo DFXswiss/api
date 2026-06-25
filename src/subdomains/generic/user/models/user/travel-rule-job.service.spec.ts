@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FileSubType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
@@ -135,6 +136,43 @@ describe('TravelRuleJobService', () => {
     await service.generateTravelRulePdfs();
 
     expect(invalidateSpy).toHaveBeenCalledWith(99);
+  });
+
+  it('logs an error (claim leak) when the rollback update itself fails after an upload failure', async () => {
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+    jest.spyOn(userRepo, 'find').mockResolvedValue([createUser(7)]);
+    jest.spyOn(kycDocumentService, 'uploadUserFile').mockRejectedValue(new Error('storage down'));
+    // claim succeeds, but the rollback update (travelRulePdfDate → null) rejects → claim stays leaked
+    const rollbackError = new Error('db down');
+    jest
+      .spyOn(userRepo, 'update')
+      .mockResolvedValueOnce({ affected: 1 } as any) // CAS claim
+      .mockRejectedValueOnce(rollbackError); // rollback
+    jest.spyOn(kycFileService, 'getUserDataKycFiles').mockResolvedValue([]);
+
+    await service.generateTravelRulePdfs();
+
+    expect(errorSpy).toHaveBeenCalledWith('TravelRule PDF claim rollback failed for user 7', rollbackError);
+  });
+
+  it('logs an error when invalidating the matching orphan file fails', async () => {
+    const captured: string[] = [];
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+    jest.spyOn(userRepo, 'find').mockResolvedValue([createUser(7)]);
+    jest.spyOn(userRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+    jest.spyOn(kycDocumentService, 'uploadUserFile').mockImplementation(async (_ud, _t, name: string) => {
+      captured.push(name);
+      throw new Error('storage down');
+    });
+    jest
+      .spyOn(kycFileService, 'getUserDataKycFiles')
+      .mockImplementation(async () => [{ id: 99, name: captured[0] } as any]);
+    const invalidationError = new Error('invalidate failed');
+    jest.spyOn(kycFileService, 'invalidateKycFile').mockRejectedValue(invalidationError);
+
+    await service.generateTravelRulePdfs();
+
+    expect(errorSpy).toHaveBeenCalledWith('TravelRule PDF orphan invalidation failed for file 99', invalidationError);
   });
 
   it('builds a distinct originalName per user whose date segment equals YYYYMMDD', async () => {

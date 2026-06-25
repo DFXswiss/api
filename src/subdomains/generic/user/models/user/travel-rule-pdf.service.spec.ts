@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import PDFDocument from 'pdfkit';
 import { Config } from 'src/config/config';
+import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { TravelRulePdfService } from './travel-rule-pdf.service';
 
@@ -83,5 +84,18 @@ describe('TravelRulePdfService', () => {
     // statement, never on its own (which would mean the PDF no longer mirrors the signed message)
     expect(texts).not.toContain(address);
     expect(texts.some((t) => t.includes(address) && t !== statement + address)).toBe(false);
+  });
+
+  it('rejects the promise when PDF rendering throws', async () => {
+    const renderError = new Error('logo render failed');
+    const spy = jest.spyOn(PdfUtil, 'drawLogo').mockImplementation(() => {
+      throw renderError;
+    });
+
+    try {
+      await expect(service.generateAddressSignaturePdf('0xabc', 'sig')).rejects.toThrow(renderError);
+    } finally {
+      spy.mockRestore();
+    }
   });
 });
