@@ -21,7 +21,9 @@ export interface FinanceLog {
  *
  * `totalBalanceChf = plusBalanceChf - minusBalanceChf`, where plus/minus are each
  * asset's positive/negative balance valued at its current `priceChf`. Plus = assets
- * DFX holds, minus = liabilities owed to customers.
+ * DFX holds, minus = liabilities owed to customers — plus the accrued referral-credit
+ * liability (synthetic `RefCredit` financialType bucket): open ref credit is owed to
+ * referrers and paid from DFX funds, so it belongs in minus.
  *
  * Invariant: customer flow is balance-neutral. A deposit raises plus AND minus by the
  * same amount; completing the order lowers both again, leaving only the fee in plus.
@@ -31,6 +33,10 @@ export interface FinanceLog {
  *   2. FX — plus and minus are different asset baskets, so their CHF marks drift
  *      independently while orders are open (the normal intraday noise)
  *   3. an error or a realised loss — a discrete, persisting step
+ *
+ * The open referral-credit liability is carried in minus continuously, so a ref payout is
+ * balance-neutral (plus and minus drop together) instead of a phantom equity step; see
+ * REF_CREDIT_FINANCIAL_TYPE in LogJobService.
  *
  * A sudden step (especially negative) is therefore suspicious rather than customer
  * activity. Two guardrails act on this signal in LogJobService: the entry is flagged
