@@ -164,8 +164,8 @@ export class BuyController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, BuyActiveGuard())
   @ApiOkResponse({ type: PdfDto })
-  async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<PdfDto> {
-    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+  async generateInvoicePDF(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<PdfDto> {
+    const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
@@ -204,8 +204,8 @@ export class BuyController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard)
   @ApiOkResponse()
-  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
-    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<void> {
+    const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if ([TransactionRequestStatus.COMPLETED, TransactionRequestStatus.WAITING_FOR_PAYMENT].includes(request.status))
       throw new ConflictException('Transaction request is already confirmed');
