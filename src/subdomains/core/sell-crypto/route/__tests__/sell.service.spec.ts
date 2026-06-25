@@ -17,6 +17,7 @@ import { PayInService } from 'src/subdomains/supporting/payin/services/payin.ser
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyFiatService } from '../../process/services/buy-fiat.service';
+import { Sell } from '../sell.entity';
 import { SellRepository } from '../sell.repository';
 import { SellService } from '../sell.service';
 
@@ -87,6 +88,24 @@ describe('SellService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('should match the deposit address case-insensitively in getSellByDepositAddressIgnoreCase', async () => {
+    const expected = Object.assign(new Sell(), { id: 1 });
+    const queryBuilder = {
+      select: jest.fn().mockReturnThis(),
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(expected),
+    };
+    jest.spyOn(sellRepo, 'createQueryBuilder').mockReturnValue(queryBuilder as any);
+
+    const result = await service.getSellByDepositAddressIgnoreCase('0xabcdef');
+
+    expect(queryBuilder.where).toHaveBeenCalledWith('LOWER(deposit.address) = LOWER(:address)', {
+      address: '0xabcdef',
+    });
+    expect(result).toBe(expected);
   });
 
   describe('createDepositTx', () => {

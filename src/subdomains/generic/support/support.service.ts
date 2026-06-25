@@ -1074,12 +1074,12 @@ export class SupportService {
       };
 
     if (Config.formats.address.test(key)) {
-      const user = await this.userService.getUserByKey('address', key, true);
+      const user = await this.userService.getUserByAddressIgnoreCase(key);
       if (user) return { type: ComplianceSearchType.USER_ADDRESS, userData: user.userData };
 
       return Promise.all([
-        this.sellService.getSellByKey('deposit.address', key, true),
-        this.swapService.getSwapByKey('deposit.address', key, true),
+        this.sellService.getSellByDepositAddressIgnoreCase(key),
+        this.swapService.getSwapByDepositAddressIgnoreCase(key),
       ]).then((s) => {
         return { type: ComplianceSearchType.DEPOSIT_ADDRESS, userData: s.find((s) => s)?.userData };
       });

@@ -147,6 +147,18 @@ export class SwapService {
     return swap;
   }
 
+  // case-insensitive deposit-address variant for the compliance search only: admins may paste a non-checksummed (lower-case) EVM address, while addresses are stored EIP-55 checksummed
+  async getSwapByDepositAddressIgnoreCase(address: string): Promise<Swap> {
+    return this.swapRepo
+      .createQueryBuilder('swap')
+      .select('swap')
+      .leftJoinAndSelect('swap.deposit', 'deposit')
+      .leftJoinAndSelect('swap.user', 'user')
+      .leftJoinAndSelect('user.userData', 'userData')
+      .where('LOWER(deposit.address) = LOWER(:address)', { address })
+      .getOne();
+  }
+
   async getSwapByKey(key: string, value: any, onlyDefaultRelation = false): Promise<Swap> {
     const query = this.swapRepo
       .createQueryBuilder('swap')

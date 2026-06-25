@@ -17,6 +17,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { BuyCryptoWebhookService } from '../../../process/services/buy-crypto-webhook.service';
 import { BuyCryptoService } from '../../../process/services/buy-crypto.service';
+import { Swap } from '../swap.entity';
 import { SwapRepository } from '../swap.repository';
 import { SwapService } from '../swap.service';
 
@@ -87,6 +88,24 @@ describe('SwapService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  it('should match the deposit address case-insensitively in getSwapByDepositAddressIgnoreCase', async () => {
+    const expected = Object.assign(new Swap(), { id: 1 });
+    const queryBuilder = {
+      select: jest.fn().mockReturnThis(),
+      leftJoinAndSelect: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockResolvedValue(expected),
+    };
+    jest.spyOn(swapRepo, 'createQueryBuilder').mockReturnValue(queryBuilder as any);
+
+    const result = await service.getSwapByDepositAddressIgnoreCase('0xabcdef');
+
+    expect(queryBuilder.where).toHaveBeenCalledWith('LOWER(deposit.address) = LOWER(:address)', {
+      address: '0xabcdef',
+    });
+    expect(result).toBe(expected);
   });
 
   describe('createDepositTx', () => {
