@@ -44,6 +44,14 @@ process.on('uncaughtException', (error) => {
   process.exit(1);
 });
 
+process.on('unhandledRejection', (reason) => {
+  const logger = new DfxLogger('UnhandledRejection');
+  logger.error(
+    'Unhandled promise rejection (process kept alive):',
+    reason instanceof Error ? reason : new Error(String(reason)),
+  );
+});
+
 async function bootstrap() {
   // Observability is initialized in src/tracing.ts (imported above): the
   // OpenTelemetry SDK auto-instruments HTTP/DB/NestJS and exports traces via
