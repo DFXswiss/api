@@ -39,14 +39,16 @@ class RoleGuardClass implements CanActivate {
     [UserRole.CLIENT_COMPANY]: [UserRole.KYC_CLIENT_COMPANY],
   };
 
-  constructor(private readonly entryRole: UserRole) {}
+  constructor(private readonly entryRoles: UserRole[]) {}
 
   canActivate(context: ExecutionContext): boolean {
     const userRole = context.switchToHttp().getRequest().user?.role;
-    return this.entryRole === userRole || this.additionalRoles[this.entryRole]?.includes(userRole);
+    return this.entryRoles.some(
+      (entryRole) => entryRole === userRole || this.additionalRoles[entryRole]?.includes(userRole),
+    );
   }
 }
 
-export function RoleGuard(entryRole: UserRole): RoleGuardClass {
-  return new RoleGuardClass(entryRole);
+export function RoleGuard(...entryRoles: UserRole[]): RoleGuardClass {
+  return new RoleGuardClass(entryRoles);
 }
