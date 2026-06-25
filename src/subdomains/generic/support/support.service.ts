@@ -954,6 +954,7 @@ export class SupportService {
       inputAsset,
       ip: user?.ip,
       ipCountry: user?.ipCountry,
+      phoneCallTimes: ud.phoneCallTimes,
       date: tx.created,
     };
   }
