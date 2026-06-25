@@ -82,6 +82,7 @@ export class DashboardFinancialService {
           ref: {
             total: changes.minus?.ref?.total ?? 0,
             amount: changes.minus?.ref?.amount ?? 0,
+            accrued: changes.minus?.ref?.accrued ?? 0,
             fee: changes.minus?.ref?.fee ?? 0,
           },
           binance: {

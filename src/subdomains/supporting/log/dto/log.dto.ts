@@ -192,5 +192,6 @@ type ChangeBlockchainTxBalance = {
 type ChangeRefBalance = {
   total: number;
   amount?: number;
+  accrued?: number;
   fee?: number;
 };

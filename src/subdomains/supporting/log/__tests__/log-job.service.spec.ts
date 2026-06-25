@@ -23,6 +23,7 @@ import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services
 import { createCustomSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { TradingOrderService } from 'src/subdomains/core/trading/services/trading-order.service';
 import { TradingRuleService } from 'src/subdomains/core/trading/services/trading-rule.service';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankTxRepeatService } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return.service';
@@ -34,6 +35,7 @@ import { IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { createCustomFiatOutput } from '../../fiat-output/__mocks__/fiat-output.entity.mock';
 import { PayInService } from '../../payin/services/payin.service';
 import { PayoutService } from '../../payout/services/payout.service';
+import { PricingService } from '../../pricing/services/pricing.service';
 import { LogJobService } from '../log-job.service';
 import { LogService } from '../log.service';
 
@@ -60,6 +62,8 @@ describe('LogJobService', () => {
   let payoutService: PayoutService;
   let processService: ProcessService;
   let paymentBalanceService: PaymentBalanceService;
+  let userService: UserService;
+  let pricingService: PricingService;
 
   beforeEach(async () => {
     tradingRuleService = createMock<TradingRuleService>();
@@ -82,6 +86,8 @@ describe('LogJobService', () => {
     payoutService = createMock<PayoutService>();
     processService = createMock<ProcessService>();
     paymentBalanceService = createMock<PaymentBalanceService>();
+    userService = createMock<UserService>();
+    pricingService = createMock<PricingService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -107,6 +113,8 @@ describe('LogJobService', () => {
         { provide: PayoutService, useValue: payoutService },
         { provide: ProcessService, useValue: processService },
         { provide: PaymentBalanceService, useValue: paymentBalanceService },
+        { provide: UserService, useValue: userService },
+        { provide: PricingService, useValue: pricingService },
         TestUtil.provideConfig(),
       ],
     }).compile();
