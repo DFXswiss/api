@@ -106,7 +106,7 @@ import { PriceInvalidException } from '../pricing/domain/exceptions/price-invali
 import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
 import { PriceSourceUnavailableException } from './exceptions/price-source-unavailable.exception';
 import { RealUnitDevService } from './realunit-dev.service';
-import { getAccountHistoryQuery, getAccountSummaryQuery, getHoldersQuery, getTokenInfoQuery } from './utils/queries';
+import { accountHistoryQuery, accountSummaryQuery, holdersQuery, tokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
 
 // realunit-app v0.0.3+ transliterates EIP-712 string fields to BitBox-safe
@@ -203,8 +203,9 @@ export class RealUnitService {
   }
 
   async getAccount(address: string): Promise<AccountSummaryDto> {
-    const accountSummaryQuery = getAccountSummaryQuery(address);
-    const clientResponse = await request<AccountSummaryClientResponse>(this.ponderUrl, accountSummaryQuery);
+    const clientResponse = await request<AccountSummaryClientResponse>(this.ponderUrl, accountSummaryQuery, {
+      id: address.toLowerCase(),
+    });
     if (!clientResponse.account) throw new NotFoundException('Account not found');
 
     const historicalPrices = await this.getHistoricalPrice(TimeFrame.ALL);
@@ -213,14 +214,20 @@ export class RealUnitService {
   }
 
   async getHolders(first?: number, before?: string, after?: string): Promise<HoldersDto> {
-    const holdersQuery = getHoldersQuery(first, before, after);
-    const clientResponse = await request<HoldersClientResponse>(this.ponderUrl, holdersQuery);
+    const clientResponse = await request<HoldersClientResponse>(this.ponderUrl, holdersQuery, {
+      limit: first || 50,
+      before: before ?? null,
+      after: after ?? null,
+    });
     return RealUnitDtoMapper.toHoldersDto(clientResponse);
   }
 
   async getAccountHistory(address: string, first?: number, after?: string): Promise<AccountHistoryDto> {
-    const accountHistoryQuery = getAccountHistoryQuery(address, first, after);
-    const clientResponse = await request<AccountHistoryClientResponse>(this.ponderUrl, accountHistoryQuery);
+    const clientResponse = await request<AccountHistoryClientResponse>(this.ponderUrl, accountHistoryQuery, {
+      id: address.toLowerCase(),
+      limit: first || 50,
+      after: after ?? null,
+    });
     if (!clientResponse.account) throw new NotFoundException('Account not found');
 
     return RealUnitDtoMapper.toAccountHistoryDto(clientResponse);
@@ -340,7 +347,6 @@ export class RealUnitService {
   }
 
   async getRealUnitInfo(): Promise<TokenInfoDto> {
-    const tokenInfoQuery = getTokenInfoQuery();
     const clientResponse = await request<TokenInfoClientResponse>(this.ponderUrl, tokenInfoQuery);
     return RealUnitDtoMapper.toTokenInfoDto(clientResponse);
   }
