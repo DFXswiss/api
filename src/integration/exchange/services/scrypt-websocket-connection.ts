@@ -49,6 +49,15 @@ export function isTransientWsError(e: Error): boolean {
   return TRANSIENT_WS_ERROR_MARKERS.some((m) => e.message?.toLowerCase().includes(m.toLowerCase()));
 }
 
+// Matches the timeout errors thrown by requestWithId and requestAndWaitForUpdate below.
+// Kept separate from TRANSIENT_WS_ERROR_MARKERS: a timed-out request may still be processed
+// by Scrypt, so it must not trigger the automatic re-send in retryOnTransientWsError.
+export const WS_TIMEOUT_ERROR_MARKERS = ['Timeout waiting for', 'Request timeout after'];
+
+export function isWsTimeoutError(e: Error): boolean {
+  return WS_TIMEOUT_ERROR_MARKERS.some((m) => e.message?.toLowerCase().includes(m.toLowerCase()));
+}
+
 interface ScryptRequest {
   reqid?: number;
   type: ScryptRequestType | ScryptMessageType;
