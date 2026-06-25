@@ -5,6 +5,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseIntPipe,
   Post,
   Put,
   UseGuards,
@@ -249,24 +250,28 @@ export class BuyController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), BuyActiveGuard())
   @ApiExcludeEndpoint()
-  async updateBuyRoute(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateBuyDto): Promise<BuyDto> {
-    return this.buyService.updateBuy(jwt.user, +id, dto).then((b) => this.toDto(jwt.user, b));
+  async updateBuyRoute(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateBuyDto,
+  ): Promise<BuyDto> {
+    return this.buyService.updateBuy(jwt.user, id, dto).then((b) => this.toDto(jwt.user, b));
   }
 
   @Get(':id')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), BuyActiveGuard())
   @ApiOkResponse({ type: BuyDto })
-  async getBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyDto> {
-    return this.buyService.get(jwt.account, +id).then((l) => this.toDto(jwt.user, l));
+  async getBuy(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<BuyDto> {
+    return this.buyService.get(jwt.account, id).then((l) => this.toDto(jwt.user, l));
   }
 
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async getBuyRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<BuyHistoryDto[]> {
-    return this.buyCryptoService.getBuyHistory(jwt.user, +id);
+  async getBuyRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<BuyHistoryDto[]> {
+    return this.buyCryptoService.getBuyHistory(jwt.user, id);
   }
 
   // --- DTO --- //

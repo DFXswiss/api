@@ -6,6 +6,7 @@ import {
   Get,
   NotFoundException,
   Param,
+  ParseIntPipe,
   Post,
   Put,
   Query,
@@ -75,8 +76,8 @@ export class SellController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), SellActiveGuard())
   @ApiOkResponse({ type: SellDto })
-  async getSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellDto> {
-    return this.sellService.get(jwt.user, +id).then((l) => this.toDto(l));
+  async getSell(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<SellDto> {
+    return this.sellService.get(jwt.user, id).then((l) => this.toDto(l));
   }
 
   @Post()
@@ -215,16 +216,23 @@ export class SellController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), SellActiveGuard())
   @ApiExcludeEndpoint()
-  async updateSell(@GetJwt() jwt: JwtPayload, @Param('id') id: string, @Body() dto: UpdateSellDto): Promise<SellDto> {
-    return this.sellService.updateSell(jwt.user, +id, dto).then((s) => this.toDto(s));
+  async updateSell(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() dto: UpdateSellDto,
+  ): Promise<SellDto> {
+    return this.sellService.updateSell(jwt.user, id, dto).then((s) => this.toDto(s));
   }
 
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async getSellRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SellHistoryDto[]> {
-    return this.buyFiatService.getSellHistory(jwt.user, +id);
+  async getSellRouteHistory(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<SellHistoryDto[]> {
+    return this.buyFiatService.getSellHistory(jwt.user, id);
   }
 
   // --- DTO --- //

@@ -261,7 +261,7 @@ export class RefRewardService {
       .innerJoin('r.user', 'u')
       .select('u.userDataId', 'userDataId')
       .addSelect('COUNT(*)', 'count')
-      .addSelect('ROUND(SUM(r.amountInChf), 0)', 'totalChf')
+      .addSelect('ROUND(SUM(r.amountInChf)::numeric, 0)', 'totalChf')
       .where('r.status != :excluded', { excluded: RewardStatus.USER_SWITCH })
       .groupBy('u.userDataId')
       .orderBy('totalChf', 'DESC');
