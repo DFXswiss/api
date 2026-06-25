@@ -35,6 +35,7 @@ export enum OnboardingStatus {
 export class UserDataSupportInfo {
   id: number;
   kycStatus: KycStatus;
+  kycLevel?: number;
   accountType?: AccountType;
   mail?: string;
   name?: string;
