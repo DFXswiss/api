@@ -12,7 +12,7 @@
  * @implements {MigrationInterface}
  */
 module.exports = class AddUserOpenRefCreditIndex1782385841932 {
-    name = 'AddUserOpenRefCreditIndex1782385841932'
+    name = 'AddUserOpenRefCreditIndex1782385841932';
 
     /**
      * @param {QueryRunner} queryRunner
@@ -27,4 +27,4 @@ module.exports = class AddUserOpenRefCreditIndex1782385841932 {
     async down(queryRunner) {
         await queryRunner.query(`DROP INDEX "public"."IDX_user_open_ref_credit"`);
     }
-}
+};
