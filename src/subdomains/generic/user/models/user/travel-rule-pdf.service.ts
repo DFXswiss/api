@@ -19,14 +19,13 @@ export class TravelRulePdfService {
   private static readonly BORDER_COLOR = '#000000';
   private static readonly TEXT_COLOR = '#000000';
   private static readonly LINK_COLOR = '#0000FF';
-  private static readonly CHECK_COLOR = '#1A9641';
 
   /**
    * Renders the Travel-Rule address-ownership control PDF — a 1:1 replica of the source-of-truth
    * Google-Sheet `editPDF` template (sheet 1teiHIqfHPBCv04Y1NLeyz1jZaGk3A_1_du9OhtNadFs). Pure
    * rendering, no DB access.
    *
-   * Layout (top → bottom): green check (top-left) + DFX logo (top-right); two-line bold title
+   * Layout (top → bottom): DFX logo (top-right); two-line bold title
    * ("Travel Rule" / "Digitale Signatur Kontrolle"); a bordered metadata table (Id / Date / User
    * Data ID); a "Kontrolle" section header; a bordered control box (Address / Signatur Text /
    * Signatur / Kontrolle-link).
@@ -56,10 +55,8 @@ export class TravelRulePdfService {
           signedMessage,
         )}&signature=${encodeURIComponent(input.signature)}`;
 
-        // header: green check top-left, DFX logo top-right. The DFX logo path is ~541 units wide;
-        // at the SMALL scale (0.12) that is ~65pt, so translating to `width - MARGIN_X - 65` aligns
-        // its right edge with the right page margin.
-        this.drawCheck(pdf, MARGIN_X, 35);
+        // header: DFX logo top-right. The DFX logo path is ~541 units wide; at the SMALL scale (0.12)
+        // that is ~65pt, so translating to `width - MARGIN_X - 65` aligns its right edge with the margin.
         PdfUtil.drawLogo(pdf, PdfBrand.DFX, LogoSize.SMALL, width - MARGIN_X - 65);
 
         // title (two bold lines)
@@ -163,21 +160,5 @@ export class TravelRulePdfService {
     pdf.moveTo(valueX, yStart).lineTo(valueX, y).stroke();
 
     return y;
-  }
-
-  // Draws a simple green check mark (two strokes) — the sheet shows a small green ✓ top-left and the
-  // repo ships no check asset, so it is drawn directly.
-  private drawCheck(pdf: InstanceType<typeof PDFDocument>, x: number, y: number): void {
-    pdf.save();
-    pdf
-      .lineWidth(3)
-      .strokeColor(TravelRulePdfService.CHECK_COLOR)
-      .lineCap('round')
-      .lineJoin('round')
-      .moveTo(x, y + 9)
-      .lineTo(x + 6, y + 15)
-      .lineTo(x + 18, y)
-      .stroke();
-    pdf.restore();
   }
 }
