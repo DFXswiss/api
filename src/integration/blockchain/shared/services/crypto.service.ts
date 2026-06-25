@@ -333,11 +333,13 @@ export class CryptoService {
 
     if (this.verifyEoaSignature(message, address, signatureToUse)) return true;
 
-    // Fallback to ERC-1271 for smart contract wallets
+    // Fallback to ERC-6492 universal validator (covers ERC-1271 deployed + ERC-6492 counterfactual smart accounts)
     try {
       const client = this.blockchainRegistry.getEvmClient(blockchain);
-      if (await client.isContract(address)) {
-        return await client.verifyErc1271Signature(message, address, signatureToUse);
+      const isSmartAccountSig = EvmUtil.hasErc6492MagicSuffix(signatureToUse) || (await client.isContract(address));
+
+      if (isSmartAccountSig) {
+        return await client.verifyErc6492Signature(message, address, signatureToUse);
       }
     } catch {
       // ignore

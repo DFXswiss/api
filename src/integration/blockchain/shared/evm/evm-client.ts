@@ -14,6 +14,7 @@ import ERC1271_ABI from 'src/integration/blockchain/shared/evm/abi/erc1271.abi.j
 import ERC20_ABI from 'src/integration/blockchain/shared/evm/abi/erc20.abi.json';
 import SIGNATURE_TRANSFER_ABI from 'src/integration/blockchain/shared/evm/abi/signature-transfer.abi.json';
 import UNISWAP_V3_NFT_MANAGER_ABI from 'src/integration/blockchain/shared/evm/abi/uniswap-v3-nft-manager.abi.json';
+import { Address, createPublicClient, Hex, http } from 'viem';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
@@ -24,6 +25,7 @@ import { BlockchainTokenBalance } from '../dto/blockchain-token-balance.dto';
 import { EvmSignedTransactionResponse } from '../dto/signed-transaction-reponse.dto';
 import { BlockchainClient } from '../util/blockchain-client';
 import { WalletAccount } from './domain/wallet-account';
+import { getEvmChainConfig } from './evm-chain.config';
 import { EvmUtil } from './evm.util';
 import { EvmCoinHistoryEntry, EvmTokenHistoryEntry } from './interfaces';
 
@@ -416,6 +418,25 @@ export abstract class EvmClient extends BlockchainClient {
     const contract = new Contract(address, ERC1271_ABI, this.provider);
     const result = await contract.isValidSignature(hash, signature);
     return result === ERC1271_MAGIC_VALUE;
+  }
+
+  async verifyErc6492Signature(message: string, address: string, signature: string): Promise<boolean> {
+    const blockchain = EvmUtil.getBlockchain(this.chainId);
+    if (!blockchain) return false;
+
+    const chainConfig = getEvmChainConfig(blockchain);
+    if (!chainConfig) return false;
+
+    const publicClient = createPublicClient({
+      chain: chainConfig.chain,
+      transport: http(chainConfig.rpcUrl),
+    });
+
+    return publicClient.verifyMessage({
+      address: address as Address,
+      message,
+      signature: signature as Hex,
+    });
   }
 
   // got from https://gist.github.com/gluk64/fdea559472d957f1138ed93bcbc6f78a
