@@ -222,6 +222,22 @@ export class RefRewardService {
     return volume ?? 0;
   }
 
+  // total open referral credit (accrued but not yet paid out) owed to referrers who can still receive
+  // a payout, valued in EUR and CHF. This is a real liability discharged on payout, consumed by the
+  // financial log so totalBalanceChf reflects true equity.
+  async getOpenRefCreditLiability(): Promise<{ amountEur: number; amountChf: number }> {
+    const amountEur = await this.userService.getOpenRefCreditEur();
+    if (!amountEur) return { amountEur: 0, amountChf: 0 };
+
+    const eurChfPrice = await this.pricingService.getPrice(
+      PriceCurrency.EUR,
+      PriceCurrency.CHF,
+      PriceValidity.VALID_ONLY,
+    );
+
+    return { amountEur, amountChf: eurChfPrice.convert(amountEur, 8) };
+  }
+
   // --- HELPER METHODS --- //
   async updatePaidRefCredit(userIds: number[]): Promise<void> {
     userIds = userIds.filter((u, j) => userIds.indexOf(u) === j).filter((i) => i); // distinct, not null

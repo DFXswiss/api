@@ -118,6 +118,80 @@ describe('LogJobService', () => {
     expect(service).toBeDefined();
   });
 
+  describe('saveTradingLog (referral-credit liability)', () => {
+    // a positive base book so totalBalanceChf stays positive (getJsonValue suppresses negative totals)
+    const baseBuckets = () => ({
+      EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 },
+    });
+
+    function setupSaveTradingLog(
+      liability: { amountEur: number; amountChf: number },
+      buckets: Record<string, unknown> = baseBuckets(),
+    ) {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getBalancesByFinancialType').mockReturnValue(buckets);
+      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(100 as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue(liability);
+      jest
+        .spyOn(logService, 'maxEntity')
+        .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 0 } }) } as any);
+      return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    function getFinancialLog(createSpy: jest.SpyInstance) {
+      const call = createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog');
+      return JSON.parse(call[0].message);
+    }
+
+    it('accrues the open referral-credit liability into minus and reduces the total', async () => {
+      const createSpy = setupSaveTradingLog({ amountEur: 1000, amountChf: 920 });
+
+      await service.saveTradingLog();
+
+      const log = getFinancialLog(createSpy);
+      expect(log.balancesByFinancialType.RefCredit).toEqual({
+        plusBalance: 0,
+        plusBalanceChf: 0,
+        minusBalance: 1000,
+        minusBalanceChf: 920,
+      });
+      // base book: plus 5000 / minus 0 -> the liability raises minus and lowers total by exactly amountChf
+      expect(log.balancesTotal.plusBalanceChf).toBe(5000);
+      expect(log.balancesTotal.minusBalanceChf).toBe(920);
+      expect(log.balancesTotal.totalBalanceChf).toBe(4080);
+    });
+
+    it('writes no RefCredit bucket and leaves the total unchanged when nothing is owed', async () => {
+      const createSpy = setupSaveTradingLog({ amountEur: 0, amountChf: 0 });
+
+      await service.saveTradingLog();
+
+      const log = getFinancialLog(createSpy);
+      expect(log.balancesByFinancialType.RefCredit).toBeUndefined();
+      expect(log.balancesTotal.minusBalanceChf).toBe(0);
+      expect(log.balancesTotal.totalBalanceChf).toBe(5000);
+    });
+
+    it('sums the liability on top of an existing minus-bearing bucket', async () => {
+      // a base book that already carries a real liability, so the ref liability must add to it
+      const createSpy = setupSaveTradingLog(
+        { amountEur: 1000, amountChf: 920 },
+        { BTC: { plusBalance: 10, plusBalanceChf: 10000, minusBalance: 2, minusBalanceChf: 3000 } },
+      );
+
+      await service.saveTradingLog();
+
+      const log = getFinancialLog(createSpy);
+      // minus: existing 3000 + ref 920 = 3920; total: plus 10000 - 3920 = 6080
+      expect(log.balancesTotal.plusBalanceChf).toBe(10000);
+      expect(log.balancesTotal.minusBalanceChf).toBe(3920);
+      expect(log.balancesTotal.totalBalanceChf).toBe(6080);
+    });
+  });
+
   it('should filter same length sender & receiver', async () => {
     if (new Date().getHours() > 19) return;
 

@@ -171,6 +171,26 @@ export class UserService {
     return query.getMany();
   }
 
+  // open referral credit (accrued but not yet paid out) summed across all users who can still receive a
+  // payout, in EUR. Mirrors getOpenRefCreditUser but without the payout-frequency gate: monthly-frequency
+  // credit is still owed, so it belongs in the liability total. Single aggregate query (no entity loading);
+  // a partial index on the open-credit predicate keeps it cheap on the every-minute financial log.
+  async getOpenRefCreditEur(): Promise<number> {
+    const { liability } = await this.userRepo
+      .createQueryBuilder('user')
+      .leftJoin('user.userData', 'userData')
+      .select('SUM(user.partnerRefCredit + user.refCredit - user.paidRefCredit)', 'liability')
+      .where('user.partnerRefCredit + user.refCredit - user.paidRefCredit > 0')
+      .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DELETED] })
+      .andWhere('userData.status NOT IN (:...userDataStatus)', {
+        userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
+      })
+      .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED })
+      .getRawOne<{ liability: number }>();
+
+    return liability ?? 0;
+  }
+
   async getRefUser(ref: string): Promise<User> {
     return this.userRepo.findOne({ where: { ref }, relations: { userData: true } });
   }
