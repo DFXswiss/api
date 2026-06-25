@@ -18,8 +18,11 @@ describe('TravelRuleJobService', () => {
   let kycDocumentService: KycDocumentService;
   let kycFileService: KycFileService;
 
-  function createUser(id: number): any {
-    return { id, address: `addr-${id}`, signature: `sig-${id}`, userData: { id: id * 10 } };
+  // a valid EVM signature (0x + 130 hex) so the fail-closed format check passes by default
+  const validSignature = `0x${'a'.repeat(130)}`;
+
+  function createUser(id: number, signature: string = validSignature): any {
+    return { id, address: `addr-${id}`, signature, userData: { id: id * 10 } };
   }
 
   beforeEach(async () => {
@@ -155,5 +158,43 @@ describe('TravelRuleJobService', () => {
     }
     expect(names[0]).toContain('-0-7-');
     expect(names[1]).toContain('-0-8-');
+  });
+
+  it('skips a candidate whose signature is a UUID (no cryptographic ownership proof)', async () => {
+    jest.spyOn(userRepo, 'find').mockResolvedValue([createUser(7, '00000000-0000-4000-8000-000000000000')]);
+
+    await service.generateTravelRulePdfs();
+
+    // never claimed, never rendered, never uploaded — and travelRulePdfDate stays untouched
+    expect(userRepo.update).not.toHaveBeenCalled();
+    expect(travelRulePdfService.generateAddressSignaturePdf).not.toHaveBeenCalled();
+    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+  });
+
+  it('skips a candidate whose signature is an unrecognised artefact (e.g. "Link")', async () => {
+    jest.spyOn(userRepo, 'find').mockResolvedValue([createUser(7, 'Link')]);
+
+    await service.generateTravelRulePdfs();
+
+    expect(userRepo.update).not.toHaveBeenCalled();
+    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+  });
+
+  it('processes candidates across all allowlisted signature formats', async () => {
+    const evm = `0x${'a'.repeat(130)}`;
+    const evmLong = `0x${'b'.repeat(146)}`;
+    const bitcoin = `H${'A'.repeat(87)}=`; // base64-ish, 65-byte recoverable signature
+    const monero = '4'.repeat(95); // long base58 (no 0/O/I/l)
+    const cardano = '8458200a;a4010103272006215820deadbeef'; // CIP-30 COSE with ;<key> suffix
+
+    const users = [evm, evmLong, bitcoin, monero, cardano].map((sig, i) => createUser(i + 1, sig));
+    jest.spyOn(userRepo, 'find').mockResolvedValue(users);
+
+    await service.generateTravelRulePdfs();
+
+    // every allowlisted format is rendered and uploaded
+    expect(kycDocumentService.uploadUserFile).toHaveBeenCalledTimes(users.length);
+    // the Cardano signature is passed verbatim (incl. ;<key>) to the PDF renderer
+    expect(travelRulePdfService.generateAddressSignaturePdf).toHaveBeenCalledWith('addr-5', cardano);
   });
 });

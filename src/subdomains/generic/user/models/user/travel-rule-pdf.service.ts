@@ -10,8 +10,13 @@ export class TravelRulePdfService {
    *
    * Pure rendering, no DB access. The body intentionally mirrors the message the user actually
    * signed: `Config.auth.signMessageGeneral` (underscores replaced by spaces) directly followed by
-   * the address (`auth.service.ts:419` joins them without separator). The raw signature is rendered
+   * the address (`auth.service.ts:419` joins them without separator). The signature is rendered
    * below in monospace so long, line-wrapping signatures stay legible.
+   *
+   * The signature is rendered verbatim — including any `;<key>` suffix (`auth.service.ts:163`,
+   * 23/27298 Cardano CIP-30 COSE cases). The `;<key>` part is verification-relevant on those chains
+   * and the source-of-truth sheet template copies the value 1:1, so no splitting must happen here.
+   * The cron reads `user.signature` raw/unmasked via `userRepo.find` (not the masked /gs path).
    */
   async generateAddressSignaturePdf(address: string, signature: string): Promise<string> {
     return new Promise<string>((resolve, reject) => {
@@ -45,18 +50,14 @@ export class TravelRulePdfService {
 
         pdf.moveDown(0.5);
 
-        // strip the `;<key>` suffix (auth.service.ts:163) so the verifiable raw signature is rendered
+        // render the signature verbatim — never split the `;<key>` suffix (Cardano CIP-30 COSE)
         pdf.fontSize(9).font('Courier').fillColor('#333333');
-        pdf.text(this.rawSignature(signature), marginX, undefined, { width: contentWidth });
+        pdf.text(signature, marginX, undefined, { width: contentWidth });
 
         pdf.end();
       } catch (e) {
         reject(e);
       }
     });
-  }
-
-  private rawSignature(signature: string): string {
-    return signature.split(';')[0];
   }
 }

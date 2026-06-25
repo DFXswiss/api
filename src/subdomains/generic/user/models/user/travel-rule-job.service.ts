@@ -41,6 +41,15 @@ export class TravelRuleJobService {
     for (const user of candidates) {
       const now = new Date();
 
+      // Fail-closed signature validation BEFORE claiming: a candidate whose `signature` is not a
+      // recognised cryptographic address-ownership proof must never get a PDF (historically 9
+      // worthless masterKey-UUID pseudo-signatures were uploaded with status TRUE). On rejection we
+      // skip without setting travelRulePdfDate, so the candidate stays visible for inspection.
+      if (!this.isValidSignature(user.signature)) {
+        this.logger.warn(`TravelRule PDF skipped for user ${user.id}: unrecognised signature format`);
+        continue;
+      }
+
       // Claim-first CAS: LockClass is only process-wide, so atomically claim the candidate via an
       // `UPDATE ... WHERE travelRulePdfDate IS NULL` before doing any non-transactional upload work.
       // Only an affected row count of 1 means this replica won the claim and may proceed.
@@ -72,7 +81,13 @@ export class TravelRuleJobService {
       } catch (e) {
         // Release the claim so the candidate is retried, and flag any orphan kyc_file row (created
         // before the blob upload failed) as invalid so reporting does not see a row without blob.
-        await this.userRepo.update({ id: user.id }, { travelRulePdfDate: null }).catch(() => undefined);
+        // A failing rollback leaves a claim leak (date set, no valid file) — the observer's
+        // claimedWithoutFile metric surfaces it, but the error must not be swallowed silently.
+        await this.userRepo
+          .update({ id: user.id }, { travelRulePdfDate: null })
+          .catch((rollbackError) =>
+            this.logger.error(`TravelRule PDF claim rollback failed for user ${user.id}`, rollbackError),
+          );
         await this.invalidateOrphanFile(user.userData.id, originalName);
         this.logger.error(`TravelRule PDF failed for user ${user.id}`, e);
       }
@@ -80,6 +95,33 @@ export class TravelRuleJobService {
   }
 
   // *** HELPER METHODS *** //
+
+  // Fail-closed allowlist of known address-ownership signature formats. Deliberately conservative so
+  // it never rejects a valid signature; the exact allowlist scope is Compliance-sign-off-pending
+  // (open question Q1, DECISION_NEEDED). Empirical format distribution from the sheet `archiv!J`
+  // full scan (27.296 non-empty cells): Monero base58, EVM hex (0x + 130/146 hex), Bitcoin base64
+  // (`H…`, len ~88), Cardano CIP-30 COSE (hex prefix `8458`, optionally with a `;<key>` suffix).
+  // A UUID is excluded explicitly — it can never cryptographically prove address ownership.
+  private static readonly UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
+
+  private static readonly SIGNATURE_FORMATS: RegExp[] = [
+    /^0x[0-9a-fA-F]{130}$/, // EVM personal_sign (65-byte r/s/v)
+    /^0x[0-9a-fA-F]{146}$/, // EVM long variant observed in the archive (73 bytes)
+    /^8458[0-9a-fA-F]+$/, // Cardano CIP-8/CIP-30 COSE_Sign1 (CBOR), key part handled below
+    /^[H-K][0-9A-Za-z+/]{86,88}={0,2}$/, // Bitcoin message signature, base64 (65 bytes → ~88 chars)
+    /^[1-9A-HJ-NP-Za-km-z]{90,}$/, // Monero base58 (long, no 0/O/I/l)
+  ];
+
+  private isValidSignature(signature?: string): boolean {
+    if (!signature) return false;
+
+    // a `;<key>` suffix (Cardano CIP-30) is verification-relevant — validate only the signature part
+    const value = signature.split(';')[0];
+
+    if (TravelRuleJobService.UUID_REGEX.test(value)) return false;
+
+    return TravelRuleJobService.SIGNATURE_FORMATS.some((format) => format.test(value));
+  }
 
   // `${yyyymmdd}-AddressSignature-0-${userId}-${hhmmss}.pdf`; the leading `yyyymmdd` carries no
   // hyphen so the Travel-Rule download filter (config id 15) can sort on `split('-')[0]`.
@@ -92,6 +134,9 @@ export class TravelRuleJobService {
   private async invalidateOrphanFile(userDataId: number, name: string): Promise<void> {
     const files = await this.kycFileService.getUserDataKycFiles(userDataId);
     const orphan = files.find((f) => f.name === name);
-    if (orphan) await this.kycFileService.invalidateKycFile(orphan.id).catch(() => undefined);
+    if (orphan)
+      await this.kycFileService
+        .invalidateKycFile(orphan.id)
+        .catch((e) => this.logger.error(`TravelRule PDF orphan invalidation failed for file ${orphan.id}`, e));
   }
 }
