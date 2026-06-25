@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Wallet } from 'ethers';
 import { verifyTypedData } from 'ethers/lib/utils';
@@ -19,9 +19,12 @@ import { HttpService } from 'src/shared/services/http.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
+import { PartnerConsentService } from 'src/subdomains/generic/partner-consent/partner-consent.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { Wallet as PartnerWallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -29,6 +32,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
+import { RealUnitDisclaimerTopic } from '../enums/realunit-disclaimer-topic.enum';
 import { PriceInvalidException } from '../../pricing/domain/exceptions/price-invalid.exception';
 import { RealUnitDevService } from '../realunit-dev.service';
 import { PriceSourceUnavailableException } from '../exceptions/price-source-unavailable.exception';
@@ -56,6 +60,15 @@ jest.mock('src/config/config', () => ({
         brokerbotAddress: '0xBrokerbotAddress',
         graphUrl: 'https://mock-ponder.example.com',
         api: { url: 'https://mock-api.example.com', key: 'mock-key' },
+        disclaimer: {
+          versions: {
+            DisclaimerPart1: 1,
+            DisclaimerPart2: 1,
+            RealUnitDocuments: 1,
+            AktionariatDocuments: 1,
+            DfxDocuments: 1,
+          },
+        },
       },
       ethereum: { ethChainId: 1 },
       sepolia: { sepoliaChainId: 11155111 },
@@ -113,6 +126,7 @@ describe('RealUnitService', () => {
   let sellService: jest.Mocked<SellService>;
   let userService: jest.Mocked<UserService>;
   let kycService: jest.Mocked<KycService>;
+  let partnerConsentService: jest.Mocked<PartnerConsentService>;
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -197,6 +211,13 @@ describe('RealUnitService', () => {
         { provide: FaucetRequestService, useValue: {} },
         { provide: EthereumService, useValue: {} },
         { provide: SepoliaService, useValue: {} },
+        {
+          provide: PartnerConsentService,
+          useValue: {
+            getMissingTopics: jest.fn(),
+            confirm: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -208,6 +229,7 @@ describe('RealUnitService', () => {
     sellService = module.get(SellService);
     userService = module.get(UserService);
     kycService = module.get(KycService);
+    partnerConsentService = module.get(PartnerConsentService);
   });
 
   afterEach(() => {
@@ -801,6 +823,67 @@ describe('RealUnitService', () => {
       const dto = buildDto(utf8Fields(hardwareWallet.address), signature);
 
       expect((service as any).resolveSignedRegistrationMessage(dto)).toBeUndefined();
+    });
+  });
+
+  describe('getDisclaimerStatus', () => {
+    const partner = Object.assign(new PartnerWallet(), { id: 5 });
+    const userData = Object.assign(new UserData(), { id: 10, wallet: partner });
+
+    it('returns missing steps in canonical wizard order regardless of query order', async () => {
+      partnerConsentService.getMissingTopics.mockResolvedValue([
+        RealUnitDisclaimerTopic.DFX_DOCUMENTS,
+        RealUnitDisclaimerTopic.DISCLAIMER_PART_1,
+      ]);
+
+      const result = await service.getDisclaimerStatus(userData);
+
+      expect(result.requiredSteps).toEqual([
+        RealUnitDisclaimerTopic.DISCLAIMER_PART_1,
+        RealUnitDisclaimerTopic.DFX_DOCUMENTS,
+      ]);
+      expect(partnerConsentService.getMissingTopics).toHaveBeenCalledWith(userData, partner, expect.any(Map));
+    });
+
+    it('returns an empty list when nothing is missing', async () => {
+      partnerConsentService.getMissingTopics.mockResolvedValue([]);
+
+      const result = await service.getDisclaimerStatus(userData);
+
+      expect(result.requiredSteps).toEqual([]);
+    });
+
+    it('throws when the user has no partner', async () => {
+      const noPartner = Object.assign(new UserData(), { id: 11 });
+
+      await expect(service.getDisclaimerStatus(noPartner)).rejects.toThrow(NotFoundException);
+      expect(partnerConsentService.getMissingTopics).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('confirmDisclaimer', () => {
+    const partner = Object.assign(new PartnerWallet(), { id: 5 });
+    const userData = Object.assign(new UserData(), { id: 10, wallet: partner });
+
+    it('confirms the given steps stamped with the configured versions', async () => {
+      await service.confirmDisclaimer(userData, [
+        RealUnitDisclaimerTopic.DISCLAIMER_PART_1,
+        RealUnitDisclaimerTopic.DFX_DOCUMENTS,
+      ]);
+
+      expect(partnerConsentService.confirm).toHaveBeenCalledWith(userData, partner, [
+        { topic: RealUnitDisclaimerTopic.DISCLAIMER_PART_1, version: 1 },
+        { topic: RealUnitDisclaimerTopic.DFX_DOCUMENTS, version: 1 },
+      ]);
+    });
+
+    it('throws when the user has no partner', async () => {
+      const noPartner = Object.assign(new UserData(), { id: 11 });
+
+      await expect(service.confirmDisclaimer(noPartner, [RealUnitDisclaimerTopic.DISCLAIMER_PART_1])).rejects.toThrow(
+        NotFoundException,
+      );
+      expect(partnerConsentService.confirm).not.toHaveBeenCalled();
     });
   });
 });
