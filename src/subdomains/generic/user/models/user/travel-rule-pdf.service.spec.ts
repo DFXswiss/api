@@ -10,8 +10,8 @@ describe('TravelRulePdfService', () => {
 
   // synthetic test data only (public repo) — never real addresses/signatures/ids
   const input: TravelRulePdfInput = {
-    id: 411028,
-    userDataId: 367294,
+    id: 999001,
+    userDataId: 888001,
     address: '0xSyntheticAddress',
     signature: '0xSyntheticSignature',
     date: new Date('2026-06-25T21:06:48.000Z'),
@@ -88,8 +88,8 @@ describe('TravelRulePdfService', () => {
     expect(texts).toContain('User Data ID');
 
     // values
-    expect(texts).toContain('411028');
-    expect(texts).toContain('367294');
+    expect(texts).toContain('999001');
+    expect(texts).toContain('888001');
 
     // the date is rendered as a readable UTC date+time (with explicit UTC suffix), NOT a raw serial
     const date = texts.find((t) => t.startsWith('2026-06-25'));
