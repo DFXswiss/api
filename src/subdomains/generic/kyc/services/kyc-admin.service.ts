@@ -36,6 +36,30 @@ export class KycAdminService {
     return this.kycStepRepo.find({ where: { userData: { id: userDataId } }, relations });
   }
 
+  async getKycStepCounts(
+    names: KycStepName[],
+    from?: Date,
+    to?: Date,
+  ): Promise<{ name: KycStepName; status: ReviewStatus; count: number }[]> {
+    if (!names.length) return [];
+
+    const query = this.kycStepRepo
+      .createQueryBuilder('kycStep')
+      .select('kycStep.name', 'name')
+      .addSelect('kycStep.status', 'status')
+      .addSelect('COUNT(kycStep.id)', 'count')
+      .where('kycStep.name IN (:...names)', { names })
+      .groupBy('kycStep.name')
+      .addGroupBy('kycStep.status');
+
+    if (from) query.andWhere('kycStep.created >= :from', { from });
+    if (to) query.andWhere('kycStep.created <= :to', { to });
+
+    return query
+      .getRawMany<{ name: KycStepName; status: ReviewStatus; count: string }>()
+      .then((rows) => rows.map((r) => ({ name: r.name, status: r.status, count: Number(r.count) })));
+  }
+
   async updateKycStep(stepId: number, dto: UpdateKycStepDto): Promise<void> {
     const kycStep = await this.kycStepRepo.findOne({
       where: { id: stepId },

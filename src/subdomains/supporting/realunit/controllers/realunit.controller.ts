@@ -74,6 +74,8 @@ import {
   TimeFrame,
   TokenInfoDto,
 } from '../dto/realunit.dto';
+import { RealUnitStatsDto } from '../dto/realunit-stats.dto';
+import { RealUnitStatsService } from '../realunit-stats.service';
 import { RealUnitService } from '../realunit.service';
 
 @ApiTags('Realunit')
@@ -85,6 +87,7 @@ export class RealUnitController {
     private readonly userService: UserService,
     private readonly swissQrService: SwissQRService,
     private readonly pricingService: PricingService,
+    private readonly realUnitStatsService: RealUnitStatsService,
   ) {}
 
   @Get('account/:address')
@@ -733,6 +736,19 @@ export class RealUnitController {
   }
 
   // --- Admin Endpoints ---
+
+  @Get('admin/stats')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'Get RealUnit KPI statistics' })
+  @ApiOkResponse({
+    type: RealUnitStatsDto,
+    description: 'Aggregated RealUnit growth, KYC funnel, registration and trading KPIs',
+  })
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
+  async getStats(): Promise<RealUnitStatsDto> {
+    return this.realUnitStatsService.getStats();
+  }
 
   @Get('admin/quotes')
   @ApiBearerAuth()

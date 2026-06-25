@@ -121,6 +121,13 @@ export class UserDataService {
     return this.phoneCallCompletedSubject.asObservable();
   }
 
+  async getNewUserDataCount(from?: Date, to?: Date): Promise<number> {
+    const query = this.userDataRepo.createQueryBuilder('userData');
+    if (from) query.andWhere('userData.created >= :from', { from });
+    if (to) query.andWhere('userData.created <= :to', { to });
+    return query.getCount();
+  }
+
   async getUserDataByUser(userId: number): Promise<UserData> {
     return this.userDataRepo
       .createQueryBuilder('userData')
