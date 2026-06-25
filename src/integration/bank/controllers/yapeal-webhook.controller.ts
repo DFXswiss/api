@@ -23,9 +23,10 @@ export class YapealWebhookController {
 
   private validateApiKey(apiKey: string): void {
     const expectedKey = Config.bank.yapeal.webhookApiKey;
-    if (!expectedKey) return;
 
-    if (!apiKey || apiKey !== expectedKey) {
+    // fail closed: a missing expected key must reject every request, not wave them all through —
+    // this endpoint marks bank payments as received, so any unauthenticated path is forgeable
+    if (!expectedKey || !apiKey || apiKey !== expectedKey) {
       throw new ForbiddenException('Invalid API key');
     }
   }
