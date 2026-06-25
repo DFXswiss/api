@@ -30,6 +30,8 @@ export class DilisenseService {
           ? undefined
           : await this.http.get<DilisenseApiData>(url, {
               tryCount: 3,
+              // PDF report generation can exceed the global 60s HTTP default
+              timeout: 180_000,
               headers: {
                 Accept: 'application/json',
                 'x-api-key': Config.dilisense.key,
@@ -37,6 +39,8 @@ export class DilisenseService {
             }),
         pdfData: await this.http.get<string>(pdfUrl, {
           tryCount: 3,
+          // PDF report generation can exceed the global 60s HTTP default
+          timeout: 180_000,
           headers: {
             Accept: 'application/json',
             'x-api-key': Config.dilisense.key,

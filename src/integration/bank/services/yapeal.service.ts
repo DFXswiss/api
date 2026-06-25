@@ -189,6 +189,8 @@ export class YapealService {
         url: `${baseUrl}/${url}`,
         method,
         data,
+        // statement/CAMT retrievals over large ranges can exceed the global 60s HTTP default
+        timeout: 180_000,
         httpsAgent: new https.Agent({
           cert,
           key,

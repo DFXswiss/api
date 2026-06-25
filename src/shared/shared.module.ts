@@ -40,10 +40,12 @@ import { HttpService } from './services/http.service';
 import { PaymentInfoService } from './services/payment-info.service';
 import { ProcessService } from './services/process.service';
 
+const HTTP_REQUEST_TIMEOUT = 60_000;
+
 @Module({
   imports: [
     DiscoveryModule,
-    HttpModule,
+    HttpModule.register({ timeout: HTTP_REQUEST_TIMEOUT }),
     ConfigModule,
     GeoLocationModule,
     TypeOrmModule.forFeature([Asset, Fiat, Country, Language, Setting, IpLog]),
