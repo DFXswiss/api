@@ -20,9 +20,17 @@ describe('TravelRuleObserver', () => {
   // (which excludes 0/O/I/l) — i.e. a deterministically non-allowlisted candidate.
   const skippedSignature = `0${'a'.repeat(103)}`;
 
+  // captures every raw SQL fragment the claimedWithoutFile query builds via andWhere(), so a test can
+  // assert the generated SQL itself (not just the mocked result). The original full mock hid a
+  // runtime-fatal regression: `kf` is a raw table alias, so TypeORM does not auto-quote its camelCase
+  // identifiers and PostgreSQL folds them to lowercase ("column kf.userdataid does not exist"). The
+  // spec must therefore see the actual SQL and fail if the camelCase identifiers are not double-quoted.
+  let capturedClaimedSql: string[];
+
   // first createQueryBuilder() chain returns the raw candidates (getRawMany), the second returns the
   // claimedWithoutFile count (getRawOne); a single shared chainable stub captures both terminals
   function mockQueries(candidates: { signature: string; updated: Date }[], claimedWithoutFile: number): void {
+    capturedClaimedSql = [];
     const candidatesQb = {
       select: jest.fn().mockReturnThis(),
       addSelect: jest.fn().mockReturnThis(),
@@ -34,7 +42,10 @@ describe('TravelRuleObserver', () => {
     const claimedQb = {
       select: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockImplementation((sql: string) => {
+        capturedClaimedSql.push(sql);
+        return claimedQb;
+      }),
       getRawOne: jest.fn().mockResolvedValue({ claimedWithoutFile: `${claimedWithoutFile}` }),
     };
     jest
@@ -125,6 +136,26 @@ describe('TravelRuleObserver', () => {
     const data = await observer.fetch();
 
     expect(data.claimedWithoutFile).toBe(5);
+  });
+
+  // Regression guard: `kf` is a raw (non-TypeORM) alias in the claimedWithoutFile subquery, so its
+  // camelCase identifiers must be double-quoted by hand. Without the quotes PostgreSQL folds them to
+  // lowercase and the query throws "column kf.userdataid does not exist" every 10 minutes at runtime.
+  // The original spec fully mocked this away — this assertion inspects the actual generated SQL.
+  it('double-quotes the camelCase identifiers in the claimedWithoutFile subquery (raw kf alias)', async () => {
+    mockQueries([{ signature: validSignature, updated: new Date() }], 0);
+
+    await observer.fetch();
+
+    const notExistsSql = capturedClaimedSql.find((sql) => sql.includes('NOT EXISTS'));
+    expect(notExistsSql).toBeDefined();
+    // camelCase identifiers must be quoted verbatim, never left bare (which PostgreSQL lowercases)
+    expect(notExistsSql).toContain('kf."userDataId"');
+    expect(notExistsSql).toContain('kf."subType"');
+    expect(notExistsSql).toContain('"user"."userDataId"');
+    expect(notExistsSql).not.toMatch(/kf\.userDataId\b/);
+    expect(notExistsSql).not.toMatch(/kf\.subType\b/);
+    expect(notExistsSql).not.toMatch(/user\.userDataId\b/);
   });
 
   it('emits the fetched data to subscribers', async () => {

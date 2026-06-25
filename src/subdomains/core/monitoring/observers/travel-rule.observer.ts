@@ -87,11 +87,17 @@ export class TravelRuleObserver extends MetricObserver<TravelRuleData> {
       .select('COUNT(user.id)', 'claimedWithoutFile')
       .where('user.travelRulePdfDate IS NOT NULL')
       .andWhere(
-        // no valid AddressSignature kyc_file exists for this user's userData
+        // no valid AddressSignature kyc_file exists for this user's userData.
+        // `kf` is a raw table alias, NOT a TypeORM-registered alias, so TypeORM does not auto-quote
+        // its identifiers. PostgreSQL folds unquoted identifiers to lowercase, which turns the
+        // camelCase FK columns into non-existent `userdataid`/`subtype` columns ("column does not
+        // exist" at runtime). We therefore double-quote the camelCase identifiers manually so they
+        // survive verbatim. `valid` is lowercase and needs no quoting; the main `user` alias is the
+        // one TypeORM already double-quotes, so we reference it the same way.
         `NOT EXISTS (
           SELECT 1 FROM kyc_file kf
-          WHERE kf.userDataId = user.userDataId
-            AND kf.subType = :subType
+          WHERE kf."userDataId" = "user"."userDataId"
+            AND kf."subType" = :subType
             AND kf.valid = :valid
         )`,
         { subType: FileSubType.ADDRESS_SIGNATURE, valid: true },
