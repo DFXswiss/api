@@ -51,5 +51,6 @@ export class TestExchangeService extends ExchangeService {
     Checkout: undefined,
     Sumixx: undefined,
     Yapeal: undefined,
+    Raiffeisen: undefined,
   };
 }
