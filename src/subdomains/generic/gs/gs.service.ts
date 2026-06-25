@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Parser } from 'node-sql-parser';
 import { AppInsightsQueryService } from 'src/integration/infrastructure/app-insights-query.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -30,11 +29,23 @@ import { UserDataService } from '../user/models/user-data/user-data.service';
 import { UserService } from '../user/models/user/user.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import {
-  DebugBlockedCols,
-  DebugBlockedSchemas,
-  DebugDangerousFunctions,
+  DebugAggregate,
+  DebugIdentifierRegex,
+  DebugOrderByItem,
+  DebugQueryDto,
+  DebugQueryMaxInListSize,
+  DebugQueryMaxPredicates,
+  DebugQueryMaxWhereDepth,
+  DebugQueryResult,
+  DebugSelectItem,
+  DebugWhereNode,
+  DebugWhereOp,
+} from './dto/debug-query.dto';
+import {
+  DebugAllowedColumns,
   DebugLogQueryTemplates,
   DebugMaxResults,
+  DebugTableSpec,
   GsRestrictedColumns,
   GsRestrictedMarker,
   LogQueryAuditPrefix,
@@ -43,11 +54,20 @@ import {
 import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
+// Mutable state carried through the /gs/debug SQL emitters. Holds the bound parameter
+// array, the alias set (for ORDER/GROUP BY resolution), and a predicate counter for the
+// WHERE-tree depth/size caps. Constructed once per query in executeDebugQuery.
+interface DebugQueryEmitCtx {
+  table: string;
+  spec: DebugTableSpec;
+  params: (string | number | boolean)[];
+  aliases: Set<string>;
+  predicateCount: number;
+}
+
 @Injectable()
 export class GsService {
   private readonly logger = new DfxLogger(GsService);
-
-  private readonly sqlParser = new Parser();
 
   constructor(
     private readonly appInsightsQueryService: AppInsightsQueryService,
@@ -195,73 +215,279 @@ export class GsService {
     };
   }
 
-  async executeDebugQuery(sql: string, userIdentifier: string): Promise<Record<string, unknown>[]> {
-    // 1. Parse SQL to AST for robust validation
-    let ast;
+  // POST /gs/debug — structured allowlist-driven debug endpoint.
+  //
+  // No raw SQL is accepted. The DTO is class-validated at the controller boundary, so by the
+  // time we get here every field's type matches the schema (enum / regex / shape). We then
+  // translate the DTO into SQL fragments where every identifier is looked up against
+  // DebugAllowedColumns (or pulled from a small server-side enum), and every value is bound
+  // as a parameter. The emitted SQL string is fed to dataSource.query() with the parameter
+  // array.
+  //
+  // Properties that hold by construction (no parser, no AST walker, no defense-in-depth
+  // string scanning needed):
+  //   - No user-controlled string lands inside the SQL string. Identifiers are validated
+  //     against the allowlist; ops/aggregates/directions come from server-side enums; values
+  //     are bound via the $1..$N parameter array.
+  //   - No JOIN, subquery, UNION, CTE, INTO, window function, CASE, or arbitrary function
+  //     call can be expressed in the DTO. To add one, the schema AND the emitter both need
+  //     explicit code changes.
+  //   - LIMIT is a numeric DTO field, clamped at DebugMaxResults. No string substring scan.
+  async executeDebugQuery(dto: DebugQueryDto, userIdentifier: string): Promise<DebugQueryResult> {
+    const spec = DebugAllowedColumns[dto.table];
+    if (!spec) throw new BadRequestException(`Table '${dto.table}' is not allowed`);
+
+    const ctx: DebugQueryEmitCtx = {
+      table: dto.table,
+      spec,
+      params: [],
+      aliases: new Set<string>(),
+      predicateCount: 0,
+    };
+
+    // SELECT — emit fragments in the order they appear in the DTO. Aliases are collected so
+    // they can be referenced from ORDER BY (PG allows ORDER BY by output alias).
+    const selectFragments = dto.select.map((item) => this.emitDebugSelectItem(item, ctx));
+    const selectClause = selectFragments.join(', ');
+
+    // WHERE — recursive emitter capped at DebugQueryMaxWhereDepth and DebugQueryMaxPredicates.
+    const whereClause = dto.where ? ` WHERE ${this.emitDebugWhere(dto.where, ctx, 1)}` : '';
+
+    // GROUP BY — each item must resolve to either a table column or an existing select alias.
+    const groupByClause = dto.groupBy?.length
+      ? ` GROUP BY ${dto.groupBy.map((c) => this.emitDebugGroupOrderIdent(c, ctx)).join(', ')}`
+      : '';
+
+    // ORDER BY — same name resolution as GROUP BY; direction comes from a server-side enum.
+    const orderByClause = dto.orderBy?.length
+      ? ` ORDER BY ${dto.orderBy.map((o) => this.emitDebugOrderByItem(o, ctx)).join(', ')}`
+      : '';
+
+    // LIMIT / OFFSET — DTO already clamps; we clamp again as defense in depth.
+    const limit = Math.min(dto.limit, DebugMaxResults);
+    const offset = dto.offset ?? 0;
+    const limitClause = ` LIMIT ${limit}${offset > 0 ? ` OFFSET ${offset}` : ''}`;
+
+    const sql = `SELECT ${selectClause} FROM "${dto.table}"${whereClause}${groupByClause}${orderByClause}${limitClause}`;
+
+    this.logger.verbose(
+      `Debug-query by ${userIdentifier}: ${JSON.stringify(dto).substring(0, 500)}`,
+    );
+
     try {
-      ast = this.sqlParser.astify(sql, { database: 'PostgresQL' });
-    } catch {
-      throw new BadRequestException('Invalid SQL syntax');
-    }
-
-    // 2. Only single SELECT statements allowed (array means multiple statements)
-    const statements = Array.isArray(ast) ? ast : [ast];
-    if (statements.length !== 1) {
-      throw new BadRequestException('Only single statements allowed');
-    }
-
-    const stmt = statements[0];
-    if (stmt.type !== 'select') {
-      throw new BadRequestException('Only SELECT queries allowed');
-    }
-
-    // 3. No UNION/INTERSECT/EXCEPT queries (these have _next property)
-    if (stmt._next) {
-      throw new BadRequestException('UNION/INTERSECT/EXCEPT queries not allowed');
-    }
-
-    // 4. No SELECT INTO (creates tables - write operation!)
-    if (stmt.into?.type === 'into' || stmt.into?.expr) {
-      throw new BadRequestException('SELECT INTO not allowed');
-    }
-
-    // 5. No system tables/schemas (prevent access to sys.*, INFORMATION_SCHEMA.*, etc.)
-    this.checkForBlockedSchemas(stmt);
-
-    // 6. No dangerous functions anywhere in the query (external connections)
-    this.checkForDangerousFunctionsRecursive(stmt);
-
-    // 7. No FOR XML/JSON (data exfiltration) - check recursively including subqueries
-    this.checkForXmlJsonRecursive(stmt);
-
-    // 8. Check for blocked columns BEFORE execution (prevents alias bypass)
-    const tables = this.getTablesFromQuery(sql);
-    const blockedColumn = this.findBlockedColumnInQuery(sql, stmt, tables);
-    if (blockedColumn) {
-      throw new BadRequestException(`Access to column '${blockedColumn}' is not allowed`);
-    }
-
-    // 9. Validate LIMIT value if present
-    if (stmt.limit?.value?.[0]?.value > DebugMaxResults) {
-      throw new BadRequestException(`LIMIT value exceeds maximum of ${DebugMaxResults}`);
-    }
-
-    // 10. Log query for audit trail
-    this.logger.verbose(`Debug query by ${userIdentifier}: ${sql.substring(0, 500)}${sql.length > 500 ? '...' : ''}`);
-
-    // 11. Execute query with result limit
-    try {
-      const limitedSql = this.ensureResultLimit(sql);
-      const result = await this.dataSource.query(limitedSql);
-
-      // 12. Post-execution masking (defense in depth - also catches pre-execution failures)
-      this.maskDebugBlockedColumns(result, tables);
-
-      return result;
+      const rows: Record<string, unknown>[] = await this.dataSource.query(sql, ctx.params);
+      const keys = dto.select.map((item) => item.as ?? this.defaultDebugSelectAlias(item));
+      return { keys, rows: rows.map((r) => keys.map((k) => r[k])) };
     } catch (e) {
-      this.logger.info(`Debug query by ${userIdentifier} failed: ${e.message}`);
+      this.logger.info(`Debug-query by ${userIdentifier} failed: ${e.message}`);
       throw new BadRequestException('Query execution failed');
     }
+  }
+
+  // --- Emitters for /gs/debug ---
+
+  // Asserts a column name is in the table allowlist; throws otherwise. Used everywhere a
+  // user-supplied identifier could reach SQL.
+  private assertDebugColumnAllowed(column: string, spec: DebugTableSpec): void {
+    if (!spec.columns.includes(column)) {
+      throw new BadRequestException(`Column '${column}' is not allowed on this table`);
+    }
+  }
+
+  // Validates a jsonb path string: dot-separated, each segment matches the identifier regex,
+  // max 8 segments to bound the emitted expression. Returns the segment array.
+  private parseDebugJsonbPath(path: string): string[] {
+    const segments = path.split('.');
+    if (segments.length < 1 || segments.length > 8) {
+      throw new BadRequestException('jsonb path must have between 1 and 8 segments');
+    }
+    for (const s of segments) {
+      if (!DebugIdentifierRegex.test(s)) {
+        throw new BadRequestException(`jsonb path segment '${s}' is invalid`);
+      }
+    }
+    return segments;
+  }
+
+  // Default alias when the user didn't provide one. For plain columns we use the column name
+  // (Postgres' natural behavior); for aggregates we synthesize <fn>_<col>; for jsonb we use
+  // the path's last segment.
+  private defaultDebugSelectAlias(item: DebugSelectItem): string {
+    if (item.kind === 'aggregate') return `${item.aggregate}_${item.column}`;
+    if (item.kind === 'jsonb') {
+      const segments = item.jsonbPath!.split('.');
+      return segments[segments.length - 1];
+    }
+    return item.column;
+  }
+
+  // Emits one SELECT-list fragment. All identifiers are validated; the alias is registered
+  // so ORDER BY / GROUP BY can later reference it.
+  private emitDebugSelectItem(item: DebugSelectItem, ctx: DebugQueryEmitCtx): string {
+    this.assertDebugColumnAllowed(item.column, ctx.spec);
+
+    // Defense in depth: an explicit `as` is interpolated as `AS "${alias}"`. The DTO regex
+    // already enforces this shape — re-check here so a future change that bypasses the DTO
+    // (or a missing ValidationPipe) doesn't open an identifier-injection vector.
+    if (item.as !== undefined && !DebugIdentifierRegex.test(item.as)) {
+      throw new BadRequestException(`Alias '${item.as}' is not a valid identifier`);
+    }
+    const alias = item.as ?? this.defaultDebugSelectAlias(item);
+    ctx.aliases.add(alias);
+
+    const colSql = `"${ctx.table}"."${item.column}"`;
+
+    switch (item.kind) {
+      case 'column':
+        return `${colSql} AS "${alias}"`;
+
+      case 'aggregate': {
+        if (!item.aggregate) throw new BadRequestException('aggregate selector requires `aggregate`');
+        // Defense in depth: the aggregate name is interpolated into the SQL string. The DTO
+        // enforces enum membership; re-check here so a future bypass can't smuggle an
+        // arbitrary string through.
+        if (!Object.values(DebugAggregate).includes(item.aggregate)) {
+          throw new BadRequestException(`Aggregate '${item.aggregate}' is not allowed`);
+        }
+        return `${item.aggregate.toUpperCase()}(${colSql}) AS "${alias}"`;
+      }
+
+      case 'jsonb': {
+        if (!item.jsonbPath) throw new BadRequestException('jsonb selector requires `jsonbPath`');
+        if (!ctx.spec.jsonbColumns?.includes(item.column)) {
+          throw new BadRequestException(`Column '${item.column}' does not support jsonb path access`);
+        }
+        const segments = this.parseDebugJsonbPath(item.jsonbPath);
+        // Emit `(col)::jsonb -> 'a' -> 'b' ->> 'lastSegment'` — `->>` on the terminal step
+        // forces text output, which is what JSON.parse-friendly debugging wants.
+        let expr = `(${colSql})::jsonb`;
+        for (let i = 0; i < segments.length - 1; i++) expr += ` -> '${segments[i]}'`;
+        expr += ` ->> '${segments[segments.length - 1]}'`;
+        return `${expr} AS "${alias}"`;
+      }
+
+      default:
+        throw new BadRequestException(`select kind '${(item as { kind: string }).kind}' is not allowed`);
+    }
+  }
+
+  // Recursive WHERE emitter. Caps depth and predicate count to prevent JSON-tree DoS. Returns
+  // a parenthesized SQL fragment with parameter placeholders.
+  private emitDebugWhere(node: DebugWhereNode, ctx: DebugQueryEmitCtx, depth: number): string {
+    if (depth > DebugQueryMaxWhereDepth) {
+      throw new BadRequestException(`WHERE tree exceeds max depth of ${DebugQueryMaxWhereDepth}`);
+    }
+
+    switch (node.kind) {
+      case 'leaf':
+        return this.emitDebugWhereLeaf(node, ctx);
+
+      case 'and':
+      case 'or': {
+        if (!node.children?.length) {
+          throw new BadRequestException(`'${node.kind}' node requires at least one child`);
+        }
+        const parts = node.children.map((c) => this.emitDebugWhere(c, ctx, depth + 1));
+        return `(${parts.join(node.kind === 'and' ? ' AND ' : ' OR ')})`;
+      }
+
+      case 'not': {
+        if (!node.child) throw new BadRequestException("'not' node requires `child`");
+        return `(NOT ${this.emitDebugWhere(node.child, ctx, depth + 1)})`;
+      }
+
+      default:
+        throw new BadRequestException(`WHERE kind '${(node as { kind: string }).kind}' is not allowed`);
+    }
+  }
+
+  // Emits one leaf predicate. Validates column-in-allowlist and op-against-value-shape, then
+  // binds the value(s) as parameters.
+  private emitDebugWhereLeaf(node: DebugWhereNode, ctx: DebugQueryEmitCtx): string {
+    if (++ctx.predicateCount > DebugQueryMaxPredicates) {
+      throw new BadRequestException(`WHERE tree exceeds max predicates of ${DebugQueryMaxPredicates}`);
+    }
+    if (!node.column || !node.op) {
+      throw new BadRequestException('leaf WHERE node requires `column` and `op`');
+    }
+    // Defense in depth: `node.op` is interpolated into the SQL string (line ~441). The DTO
+    // enforces enum membership; re-check here so any bypass of class-validator can't smuggle
+    // arbitrary operator strings through.
+    if (!Object.values(DebugWhereOp).includes(node.op)) {
+      throw new BadRequestException(`Operator '${node.op}' is not allowed`);
+    }
+    this.assertDebugColumnAllowed(node.column, ctx.spec);
+
+    const colSql = `"${ctx.table}"."${node.column}"`;
+
+    switch (node.op) {
+      case DebugWhereOp.IS_NULL:
+      case DebugWhereOp.IS_NOT_NULL:
+        if (node.value !== undefined) {
+          throw new BadRequestException(`op '${node.op}' must not have a value`);
+        }
+        return `${colSql} ${node.op}`;
+
+      case DebugWhereOp.IN:
+      case DebugWhereOp.NOT_IN: {
+        if (!Array.isArray(node.value)) {
+          throw new BadRequestException(`op '${node.op}' requires array value`);
+        }
+        if (node.value.length === 0 || node.value.length > DebugQueryMaxInListSize) {
+          throw new BadRequestException(`IN list size must be 1..${DebugQueryMaxInListSize}`);
+        }
+        for (const v of node.value) this.assertDebugScalarValue(v);
+        const placeholders = node.value.map((v) => `$${this.bindDebugParam(v, ctx)}`).join(', ');
+        return `${colSql} ${node.op} (${placeholders})`;
+      }
+
+      default: {
+        // = != < <= > >= LIKE ILIKE — all single-scalar binary ops
+        if (node.value === undefined || Array.isArray(node.value)) {
+          throw new BadRequestException(`op '${node.op}' requires a single scalar value`);
+        }
+        this.assertDebugScalarValue(node.value);
+        return `${colSql} ${node.op} $${this.bindDebugParam(node.value, ctx)}`;
+      }
+    }
+  }
+
+  // Allowed leaf value types. Booleans/numbers/strings only — nothing fancy can sneak in via
+  // an object disguised as a value (which would otherwise reach the pg driver and might be
+  // serialized in unexpected ways).
+  private assertDebugScalarValue(v: unknown): asserts v is string | number | boolean {
+    if (typeof v !== 'string' && typeof v !== 'number' && typeof v !== 'boolean') {
+      throw new BadRequestException('WHERE values must be string, number, or boolean');
+    }
+    if (typeof v === 'string' && v.length > 1024) {
+      throw new BadRequestException('WHERE string value exceeds max length of 1024');
+    }
+  }
+
+  // Appends a value to the parameter list and returns the 1-based placeholder index.
+  private bindDebugParam(value: string | number | boolean, ctx: DebugQueryEmitCtx): number {
+    ctx.params.push(value);
+    return ctx.params.length;
+  }
+
+  // GROUP BY / ORDER BY identifier resolver. Accepts either a real column (validated against
+  // the table allowlist) OR a select-list alias (added to ctx.aliases earlier). Order matters:
+  // we check the column allowlist first so an alias can't shadow a disallowed real column —
+  // but in practice the regex already prevented quoted dot-pathing.
+  private emitDebugGroupOrderIdent(name: string, ctx: DebugQueryEmitCtx): string {
+    if (ctx.spec.columns.includes(name)) return `"${ctx.table}"."${name}"`;
+    if (ctx.aliases.has(name)) return `"${name}"`;
+    throw new BadRequestException(`'${name}' is neither an allowed column nor a select alias`);
+  }
+
+  private emitDebugOrderByItem(item: DebugOrderByItem, ctx: DebugQueryEmitCtx): string {
+    const ident = this.emitDebugGroupOrderIdent(item.column, ctx);
+    if (item.direction !== undefined && item.direction !== 'ASC' && item.direction !== 'DESC') {
+      // Defense in depth — `direction` is interpolated into SQL. The DTO restricts it to
+      // ASC/DESC via @IsIn; re-check here so the service alone catches an invalid value.
+      throw new BadRequestException(`Order direction '${item.direction}' is not allowed`);
+    }
+    return item.direction ? `${ident} ${item.direction}` : ident;
   }
 
   async executeLogQuery(dto: LogQueryDto, userIdentifier: string): Promise<LogQueryResult> {
@@ -615,477 +841,4 @@ export class GsService {
     }
   }
 
-  private maskDebugBlockedColumns(data: Record<string, unknown>[], tables: string[]): void {
-    if (!data?.length || !tables?.length) return;
-
-    // Collect all blocked columns from all tables in the query
-    const blockedColumns = new Set<string>();
-    for (const table of tables) {
-      const tableCols = DebugBlockedCols[table];
-      if (tableCols) {
-        for (const col of tableCols) {
-          blockedColumns.add(col.toLowerCase());
-        }
-      }
-    }
-
-    if (blockedColumns.size === 0) return;
-
-    for (const entry of data) {
-      for (const key of Object.keys(entry)) {
-        if (this.shouldMaskDebugColumn(key, blockedColumns)) {
-          entry[key] = entry[key] == null ? '[RESTRICTED:NULL]' : '[RESTRICTED:SET]';
-        }
-      }
-    }
-  }
-
-  private shouldMaskDebugColumn(columnName: string, blockedColumns: Set<string>): boolean {
-    const lower = columnName.toLowerCase();
-
-    // Check exact match or with table prefix (e.g., "name" or "bank_tx_name")
-    for (const blocked of blockedColumns) {
-      if (lower === blocked || lower.endsWith('_' + blocked)) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private getTablesFromQuery(sql: string): string[] {
-    const tableList = this.sqlParser.tableList(sql, { database: 'PostgresQL' });
-    // Format: 'select::null::table_name' → extract table_name
-    return tableList.map((t) => t.split('::')[2]).filter(Boolean);
-  }
-
-  private getAliasToTableMap(ast: any): Map<string, string> {
-    const map = new Map<string, string>();
-    if (!ast.from) return map;
-
-    for (const item of ast.from) {
-      if (item.table) {
-        map.set(item.as || item.table, item.table);
-      }
-    }
-    return map;
-  }
-
-  private isColumnBlockedInTable(columnName: string, table: string | null, allTables: string[]): boolean {
-    const lower = columnName.toLowerCase();
-
-    if (table) {
-      // Explicit table known → check if this column is blocked in this table
-      const blockedCols = DebugBlockedCols[table];
-      return blockedCols?.some((b) => b.toLowerCase() === lower) ?? false;
-    } else {
-      // No explicit table → if ANY of the query tables blocks this column, block it
-      return allTables.some((t) => {
-        const blockedCols = DebugBlockedCols[t];
-        return blockedCols?.some((b) => b.toLowerCase() === lower) ?? false;
-      });
-    }
-  }
-
-  private findBlockedColumnInQuery(sql: string, ast: any, tables: string[]): string | null {
-    try {
-      // columnList returns: ['select::table::column', 'select::null::column', ...]
-      const columns = this.sqlParser.columnList(sql, { database: 'PostgresQL' });
-      const aliasMap = this.getAliasToTableMap(ast);
-
-      for (const col of columns) {
-        const parts = col.split('::');
-        const tableOrAlias = parts[1]; // can be 'null'
-        const columnName = parts[2];
-
-        // Skip wildcard - handled post-execution
-        if (columnName === '*' || columnName === '(.*)') continue;
-
-        // Resolve table from alias
-        const resolvedTable =
-          tableOrAlias === 'null'
-            ? tables.length === 1
-              ? tables[0]
-              : null // Single table without alias → use that table
-            : aliasMap.get(tableOrAlias) || tableOrAlias;
-
-        // Check if column is blocked in this table
-        if (this.isColumnBlockedInTable(columnName, resolvedTable, tables)) {
-          return `${resolvedTable || 'unknown'}.${columnName}`;
-        }
-      }
-
-      return null;
-    } catch {
-      // If column extraction fails, let the query proceed (will be caught by result masking)
-      return null;
-    }
-  }
-
-  private checkForBlockedSchemas(stmt: any): void {
-    if (!stmt) return;
-
-    // Check FROM clause tables
-    if (stmt.from) {
-      for (const item of stmt.from) {
-        // Block linked server access (4-part names like [Server].[DB].[Schema].[Table])
-        if (item.server) {
-          throw new BadRequestException('Linked server access is not allowed');
-        }
-
-        // Check table schema (e.g., sys.sql_logins, INFORMATION_SCHEMA.TABLES)
-        const schema = item.db?.toLowerCase() || item.schema?.toLowerCase();
-        const table = item.table?.toLowerCase();
-
-        if (schema && DebugBlockedSchemas.includes(schema)) {
-          throw new BadRequestException(`Access to schema '${schema}' is not allowed`);
-        }
-
-        // Also check if table name starts with blocked schema (e.g., "sys.objects" without explicit schema)
-        if (table && DebugBlockedSchemas.some((s) => table.startsWith(s + '.'))) {
-          throw new BadRequestException(`Access to system tables is not allowed`);
-        }
-
-        // Recursively check subqueries in FROM (derived tables)
-        if (item.expr?.ast) {
-          this.checkForBlockedSchemas(item.expr.ast);
-        }
-
-        // Check JOIN ON conditions
-        this.checkSubqueriesForBlockedSchemas(item.on);
-      }
-    }
-
-    // Check SELECT columns for subqueries
-    if (stmt.columns) {
-      for (const col of stmt.columns) {
-        this.checkSubqueriesForBlockedSchemas(col.expr);
-      }
-    }
-
-    // Check WHERE clause subqueries
-    this.checkSubqueriesForBlockedSchemas(stmt.where);
-
-    // Check HAVING clause subqueries
-    this.checkSubqueriesForBlockedSchemas(stmt.having);
-
-    // Check ORDER BY clause subqueries
-    if (stmt.orderby) {
-      for (const item of stmt.orderby) {
-        this.checkSubqueriesForBlockedSchemas(item.expr);
-      }
-    }
-
-    // Check GROUP BY clause subqueries
-    if (stmt.groupby?.columns) {
-      for (const item of stmt.groupby.columns) {
-        this.checkSubqueriesForBlockedSchemas(item);
-      }
-    }
-
-    // Check CTEs (WITH clause)
-    if (stmt.with) {
-      for (const cte of stmt.with) {
-        const cteStmt = cte.stmt?.ast ?? cte.stmt;
-        if (cteStmt) {
-          this.checkForBlockedSchemas(cteStmt);
-        }
-      }
-    }
-  }
-
-  private checkSubqueriesForBlockedSchemas(node: any): void {
-    if (!node) return;
-
-    if (node.ast) {
-      this.checkForBlockedSchemas(node.ast);
-    }
-
-    if (node.left) this.checkSubqueriesForBlockedSchemas(node.left);
-    if (node.right) this.checkSubqueriesForBlockedSchemas(node.right);
-    if (node.expr) this.checkSubqueriesForBlockedSchemas(node.expr);
-
-    // Check CASE expression branches
-    if (node.result) this.checkSubqueriesForBlockedSchemas(node.result);
-    if (node.condition) this.checkSubqueriesForBlockedSchemas(node.condition);
-
-    // Check function arguments
-    if (node.args) {
-      const args = Array.isArray(node.args) ? node.args : node.args?.value || [];
-      for (const arg of Array.isArray(args) ? args : [args]) {
-        this.checkSubqueriesForBlockedSchemas(arg);
-      }
-    }
-    if (node.value && Array.isArray(node.value)) {
-      for (const val of node.value) {
-        this.checkSubqueriesForBlockedSchemas(val);
-      }
-    }
-
-    // Check WINDOW OVER clause
-    if (node.over?.as_window_specification?.window_specification) {
-      const winSpec = node.over.as_window_specification.window_specification;
-      if (winSpec.orderby) {
-        for (const item of winSpec.orderby) {
-          this.checkSubqueriesForBlockedSchemas(item.expr);
-        }
-      }
-      if (winSpec.partitionby) {
-        for (const item of winSpec.partitionby) {
-          this.checkSubqueriesForBlockedSchemas(item);
-        }
-      }
-    }
-  }
-
-  private checkForDangerousFunctionsRecursive(stmt: any): void {
-    if (!stmt) return;
-
-    // Check FROM clause for dangerous functions
-    this.checkFromForDangerousFunctions(stmt.from);
-
-    // Check SELECT columns for dangerous functions
-    this.checkExpressionsForDangerousFunctions(stmt.columns);
-
-    // Check WHERE clause for dangerous functions
-    this.checkNodeForDangerousFunctions(stmt.where);
-
-    // Check HAVING clause for dangerous functions
-    this.checkNodeForDangerousFunctions(stmt.having);
-
-    // Check ORDER BY clause for dangerous functions
-    if (stmt.orderby) {
-      for (const item of stmt.orderby) {
-        this.checkNodeForDangerousFunctions(item.expr);
-      }
-    }
-
-    // Check GROUP BY clause for dangerous functions
-    if (stmt.groupby?.columns) {
-      for (const item of stmt.groupby.columns) {
-        this.checkNodeForDangerousFunctions(item);
-      }
-    }
-
-    // Check CTEs (WITH clause)
-    if (stmt.with) {
-      for (const cte of stmt.with) {
-        if (cte.stmt?.ast) {
-          this.checkForDangerousFunctionsRecursive(cte.stmt.ast);
-        }
-      }
-    }
-  }
-
-  private checkFromForDangerousFunctions(from: any[]): void {
-    if (!from) return;
-
-    for (const item of from) {
-      // Check if FROM contains a function call
-      if (item.type === 'expr' && item.expr?.type === 'function') {
-        const funcName = this.extractFunctionName(item.expr);
-        if (funcName && DebugDangerousFunctions.includes(funcName)) {
-          throw new BadRequestException(`Function '${funcName.toUpperCase()}' not allowed`);
-        }
-      }
-
-      // Recursively check subqueries in FROM
-      if (item.expr?.ast) {
-        this.checkForDangerousFunctionsRecursive(item.expr.ast);
-      }
-
-      // Check JOIN ON conditions
-      this.checkNodeForDangerousFunctions(item.on);
-    }
-  }
-
-  private checkExpressionsForDangerousFunctions(columns: any[]): void {
-    if (!columns) return;
-
-    for (const col of columns) {
-      this.checkNodeForDangerousFunctions(col.expr);
-    }
-  }
-
-  private checkNodeForDangerousFunctions(node: any): void {
-    if (!node) return;
-
-    // Check if this node is a function call
-    if (node.type === 'function') {
-      const funcName = this.extractFunctionName(node);
-      if (funcName && DebugDangerousFunctions.includes(funcName)) {
-        throw new BadRequestException(`Function '${funcName.toUpperCase()}' not allowed`);
-      }
-    }
-
-    // Check subqueries
-    if (node.ast) {
-      this.checkForDangerousFunctionsRecursive(node.ast);
-    }
-
-    // Recursively check child nodes
-    if (node.left) this.checkNodeForDangerousFunctions(node.left);
-    if (node.right) this.checkNodeForDangerousFunctions(node.right);
-    if (node.expr) this.checkNodeForDangerousFunctions(node.expr);
-
-    // Check CASE expression branches
-    if (node.result) this.checkNodeForDangerousFunctions(node.result);
-    if (node.condition) this.checkNodeForDangerousFunctions(node.condition);
-
-    // Check function arguments
-    if (node.args) {
-      const args = Array.isArray(node.args) ? node.args : node.args?.value || [];
-      for (const arg of Array.isArray(args) ? args : [args]) {
-        this.checkNodeForDangerousFunctions(arg);
-      }
-    }
-    if (node.value && Array.isArray(node.value)) {
-      for (const val of node.value) {
-        this.checkNodeForDangerousFunctions(val);
-      }
-    }
-
-    // Check WINDOW OVER clause
-    if (node.over?.as_window_specification?.window_specification) {
-      const winSpec = node.over.as_window_specification.window_specification;
-      if (winSpec.orderby) {
-        for (const item of winSpec.orderby) {
-          this.checkNodeForDangerousFunctions(item.expr);
-        }
-      }
-      if (winSpec.partitionby) {
-        for (const item of winSpec.partitionby) {
-          this.checkNodeForDangerousFunctions(item);
-        }
-      }
-    }
-  }
-
-  private extractFunctionName(funcNode: any): string | null {
-    // Handle different AST structures for function names
-    if (funcNode.name?.name?.[0]?.value) {
-      return funcNode.name.name[0].value.toLowerCase();
-    }
-    if (typeof funcNode.name === 'string') {
-      return funcNode.name.toLowerCase();
-    }
-    return null;
-  }
-
-  private checkForXmlJsonRecursive(stmt: any): void {
-    if (!stmt) return;
-
-    // Check FOR clause on this statement
-    const forType = stmt.for?.type?.toLowerCase();
-    if (forType?.includes('xml') || forType?.includes('json')) {
-      throw new BadRequestException('FOR XML/JSON not allowed');
-    }
-
-    // Check subqueries in SELECT columns (including CASE expressions)
-    if (stmt.columns) {
-      for (const col of stmt.columns) {
-        this.checkNodeForXmlJson(col.expr);
-      }
-    }
-
-    // Check subqueries in FROM clause (derived tables, CROSS/OUTER APPLY, JOIN ON)
-    if (stmt.from) {
-      for (const item of stmt.from) {
-        if (item.expr?.ast) {
-          this.checkForXmlJsonRecursive(item.expr.ast);
-        }
-        // Check JOIN ON conditions
-        this.checkNodeForXmlJson(item.on);
-      }
-    }
-
-    // Check subqueries in WHERE clause
-    this.checkNodeForXmlJson(stmt.where);
-
-    // Check subqueries in HAVING clause
-    this.checkNodeForXmlJson(stmt.having);
-
-    // Check subqueries in ORDER BY clause
-    if (stmt.orderby) {
-      for (const item of stmt.orderby) {
-        this.checkNodeForXmlJson(item.expr);
-      }
-    }
-
-    // Check subqueries in GROUP BY clause
-    if (stmt.groupby?.columns) {
-      for (const item of stmt.groupby.columns) {
-        this.checkNodeForXmlJson(item);
-      }
-    }
-
-    // Check CTEs (WITH clause)
-    if (stmt.with) {
-      for (const cte of stmt.with) {
-        if (cte.stmt?.ast) {
-          this.checkForXmlJsonRecursive(cte.stmt.ast);
-        }
-      }
-    }
-  }
-
-  private checkNodeForXmlJson(node: any): void {
-    if (!node) return;
-
-    // Check if node contains a subquery
-    if (node.ast) {
-      this.checkForXmlJsonRecursive(node.ast);
-    }
-
-    // Recursively check child nodes
-    if (node.left) this.checkNodeForXmlJson(node.left);
-    if (node.right) this.checkNodeForXmlJson(node.right);
-    if (node.expr) this.checkNodeForXmlJson(node.expr);
-
-    // Check CASE expression branches
-    if (node.result) this.checkNodeForXmlJson(node.result);
-    if (node.condition) this.checkNodeForXmlJson(node.condition);
-
-    // Check function arguments and array values
-    if (node.args) {
-      const args = Array.isArray(node.args) ? node.args : node.args?.value || [];
-      for (const arg of Array.isArray(args) ? args : [args]) {
-        this.checkNodeForXmlJson(arg);
-      }
-    }
-    if (node.value && Array.isArray(node.value)) {
-      for (const val of node.value) {
-        this.checkNodeForXmlJson(val);
-      }
-    }
-
-    // Check WINDOW OVER clause (ROW_NUMBER, RANK, etc.)
-    if (node.over?.as_window_specification?.window_specification) {
-      const winSpec = node.over.as_window_specification.window_specification;
-      if (winSpec.orderby) {
-        for (const item of winSpec.orderby) {
-          this.checkNodeForXmlJson(item.expr);
-        }
-      }
-      if (winSpec.partitionby) {
-        for (const item of winSpec.partitionby) {
-          this.checkNodeForXmlJson(item);
-        }
-      }
-    }
-  }
-
-  private ensureResultLimit(sql: string): string {
-    const normalized = sql.trim().toLowerCase();
-
-    // Check if query already has a LIMIT clause
-    if (normalized.includes(' limit ')) {
-      return sql;
-    }
-
-    // Remove trailing semicolons using string operations to avoid CodeQL false positive
-    let trimmed = sql.trim();
-    while (trimmed.endsWith(';')) trimmed = trimmed.slice(0, -1);
-
-    return `${trimmed} LIMIT ${DebugMaxResults}`;
-  }
 }
