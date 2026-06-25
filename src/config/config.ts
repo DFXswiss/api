@@ -1088,6 +1088,7 @@ export class Configuration {
   };
 
   exchangeTxSyncLimit = +(process.env.EXCHANGE_TX_SYNC_LIMIT ?? 720); // minutes
+  exchangeTxSyncRecheckDays = +(process.env.EXCHANGE_TX_SYNC_RECHECK_DAYS ?? 7); // days
 
   dilisense = {
     jsonPath: process.env.DILISENSE_JSON_PATH,

@@ -189,17 +189,28 @@ export class ExchangeTxService {
   private async getSyncSinceDate(exchange: ExchangeName): Promise<Date> {
     const defaultSince = Util.minutesBefore(Config.exchangeTxSyncLimit);
 
-    const oldestPending = await this.exchangeTxRepo.findOne({
-      where: { exchange, status: 'pending' },
+    // Re-check window: include not-yet-final transactions so that a status change on the
+    // exchange (e.g. a slow deposit confirmed after our local stale-cleanup flipped it to
+    // 'failed') is still re-fetched and persisted on a later sync.
+    const recheckHorizon = Util.daysBefore(Config.exchangeTxSyncRecheckDays);
+
+    // Keyed on externalCreated (the exchange's own timestamp) to align with the downstream
+    // getAllTransactions(since) filter, which matches cached transactions by that exchange timestamp.
+    const oldestUnsettled = await this.exchangeTxRepo.findOne({
+      where: {
+        exchange,
+        status: In(['pending', 'failed']),
+        externalCreated: MoreThanOrEqual(recheckHorizon),
+      },
       order: { externalCreated: 'ASC' },
     });
 
-    if (!oldestPending?.externalCreated) return defaultSince;
+    if (!oldestUnsettled?.externalCreated) return defaultSince;
 
     // Add 1 hour buffer to account for timing differences
-    const pendingSince = Util.hoursBefore(1, oldestPending.externalCreated);
+    const unsettledSince = Util.hoursBefore(1, oldestUnsettled.externalCreated);
 
-    return pendingSince < defaultSince ? pendingSince : defaultSince;
+    return unsettledSince < defaultSince ? unsettledSince : defaultSince;
   }
 
   private async getTransactionsFor(sync: ExchangeSync, from?: Date): Promise<ExchangeTxDto[]> {
