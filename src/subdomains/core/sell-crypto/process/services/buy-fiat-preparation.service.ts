@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { isBankHoliday } from 'src/config/bank-holiday.config';
 import { Config } from 'src/config/config';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -165,7 +165,11 @@ export class BuyFiatPreparationService {
         if (entity.amlCheck === CheckStatus.PASS && amlCheckBefore === CheckStatus.PENDING)
           await this.buyFiatNotificationService.paymentProcessing(entity);
       } catch (e) {
-        this.logger.error(`Error during buy-fiat ${entity.id} AML check:`, e);
+        if (e instanceof ConflictException) {
+          this.logger.warn(`Error during buy-fiat ${entity.id} AML check:`, e);
+        } else {
+          this.logger.error(`Error during buy-fiat ${entity.id} AML check:`, e);
+        }
       }
     }
   }

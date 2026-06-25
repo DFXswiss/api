@@ -60,6 +60,7 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { isClientError } from 'src/tracing';
 import { transliterate } from 'transliteration';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
@@ -611,10 +612,12 @@ export class RealUnitService {
             price: Math.round(request.amount * 100),
           });
     } catch (error) {
+      const upstreamStatus = error?.response?.status;
       const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
-      this.logger.error(
+      this.logger.warn(
         `Failed to request payment instructions from Aktionariat for request ${requestId} (currency: ${fiat.name}, shares: ${Math.floor(request.estimatedAmount)}, price: ${Math.round(request.amount * 100)}): ${message}`,
       );
+      if (isClientError(upstreamStatus)) throw new BadRequestException(`Aktionariat API error: ${message}`);
       throw new ServiceUnavailableException(`Aktionariat API error: ${message}`);
     }
 

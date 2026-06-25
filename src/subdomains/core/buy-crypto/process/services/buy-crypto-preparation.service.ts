@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ConflictException, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -209,7 +209,11 @@ export class BuyCryptoPreparationService {
         if (entity.amlCheck === CheckStatus.FAIL)
           void this.siftService.buyCryptoTransaction(entity, TransactionStatus.FAILURE);
       } catch (e) {
-        this.logger.error(`Error during buy-crypto ${entity.id} AML check:`, e);
+        if (e instanceof ConflictException) {
+          this.logger.warn(`Error during buy-crypto ${entity.id} AML check:`, e);
+        } else {
+          this.logger.error(`Error during buy-crypto ${entity.id} AML check:`, e);
+        }
       }
     }
   }
