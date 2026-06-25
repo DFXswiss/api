@@ -176,7 +176,21 @@ export class ScryptService extends PricingProvider {
   }
 
   async getWithdrawalStatus(clReqId: string): Promise<ScryptWithdrawStatus | null> {
-    const transaction = this.balanceTransactions.get(clReqId);
+    let transaction = this.balanceTransactions.get(clReqId);
+
+    // Fallback: re-fetch from Scrypt API when the settlement update (with TxHash) was missed on the
+    // live WS subscription (e.g. dropped message / reconnect window). Matches on ClReqID, which the
+    // settled record carries (the happy-path withdraw resolution relies on the same key).
+    if (!transaction?.TxHash) {
+      const fetched = await this.fetchTransactions(Util.daysBefore(30));
+      const match = fetched.find(
+        (t) => t.ClReqID === clReqId && t.TransactionType === ScryptTransactionType.WITHDRAWAL,
+      );
+      if (match) {
+        this.balanceTransactions.set(clReqId, match);
+        transaction = match;
+      }
+    }
 
     if (!transaction || transaction.TransactionType !== ScryptTransactionType.WITHDRAWAL) return null;
 
@@ -222,6 +236,14 @@ export class ScryptService extends PricingProvider {
     if (since) filters.StartDate = since.toISOString();
 
     return this.connection.fetch<ScryptExecutionReport>(ScryptMessageType.EXECUTION_REPORT, filters);
+  }
+
+  private async fetchTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
+    const filters: Record<string, unknown> = {};
+    if (since) filters.StartDate = since.toISOString();
+
+    // fetchAll: the settled record may be on a later page, a single page would miss it
+    return this.connection.fetchAll<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION, filters);
   }
 
   async getTrades(since?: Date): Promise<ScryptTrade[]> {
