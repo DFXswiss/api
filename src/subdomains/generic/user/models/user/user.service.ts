@@ -30,7 +30,7 @@ import { CardBankName, IbanBankName } from 'src/subdomains/supporting/bank/bank/
 import { FeeInfo } from 'src/subdomains/supporting/payment/dto/fee.dto';
 import { PaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
-import { Between, FindOptionsRelations, In, Not } from 'typeorm';
+import { Between, FindOptionsRelations, In, Not, SelectQueryBuilder } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import {
   KycLevel,
@@ -151,24 +151,48 @@ export class UserService {
     }));
   }
 
-  async getOpenRefCreditUser(): Promise<User[]> {
-    const isFirstDayOfMonth = new Date().getDate() === 1;
-
-    const query = this.userRepo
-      .createQueryBuilder('user')
-      .leftJoinAndSelect('user.userData', 'userData')
-      .leftJoinAndSelect('user.refAsset', 'refAsset')
-      .where('user.partnerRefCredit + user.refCredit - user.paidRefCredit > 0')
+  // shared eligibility filter for open referral credit: open balance > 0 and a payable account. Used by
+  // both getOpenRefCreditUser (actual payout selection) and getOpenRefCreditEur (liability sum) so the two
+  // can never drift apart. Requires the 'userData' join on the passed query.
+  private filterOpenRefCredit<T>(query: SelectQueryBuilder<T>): SelectQueryBuilder<T> {
+    return query
+      .andWhere('user.partnerRefCredit + user.refCredit - user.paidRefCredit > 0')
       .andWhere('user.status NOT IN (:...userStatus)', { userStatus: [UserStatus.BLOCKED, UserStatus.DELETED] })
       .andWhere('userData.status NOT IN (:...userDataStatus)', {
         userDataStatus: [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED],
       })
       .andWhere('userData.kycLevel != :kycLevel', { kycLevel: KycLevel.REJECTED });
+  }
+
+  async getOpenRefCreditUser(): Promise<User[]> {
+    const isFirstDayOfMonth = new Date().getDate() === 1;
+
+    const query = this.filterOpenRefCredit(
+      this.userRepo
+        .createQueryBuilder('user')
+        .leftJoinAndSelect('user.userData', 'userData')
+        .leftJoinAndSelect('user.refAsset', 'refAsset'),
+    );
 
     if (!isFirstDayOfMonth)
       query.andWhere('user.refPayoutFrequency = :frequency', { frequency: RefPayoutFrequency.DAILY });
 
     return query.getMany();
+  }
+
+  // open referral credit (accrued but not yet paid out) summed across all payable users, in EUR. Uses the
+  // shared filterOpenRefCredit but without the payout-frequency gate: monthly-frequency credit is still
+  // owed, so it belongs in the liability total. Single aggregate query (no entity loading); a partial index
+  // on the open-credit predicate keeps it cheap on the every-minute financial log.
+  async getOpenRefCreditEur(): Promise<number> {
+    const { liability } = await this.filterOpenRefCredit(
+      this.userRepo
+        .createQueryBuilder('user')
+        .leftJoin('user.userData', 'userData')
+        .select('SUM(user.partnerRefCredit + user.refCredit - user.paidRefCredit)', 'liability'),
+    ).getRawOne<{ liability: number }>();
+
+    return liability ?? 0;
   }
 
   async getRefUser(ref: string): Promise<User> {
