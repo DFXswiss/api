@@ -27,6 +27,7 @@ export class PaymentRequestMapper {
       case Blockchain.TRON:
       case Blockchain.CARDANO:
       case Blockchain.INTERNET_COMPUTER:
+      case Blockchain.STARKNET:
         return this.toPaymentLinkPayment(paymentActivation.method, paymentActivation);
 
       case Blockchain.KUCOIN_PAY:

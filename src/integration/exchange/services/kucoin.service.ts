@@ -34,6 +34,7 @@ export class KucoinService extends ExchangeService {
     BinancePay: undefined,
     KucoinPay: undefined,
     Solana: undefined,
+    Starknet: undefined,
     Tron: undefined,
     InternetComputer: undefined,
     Citrea: undefined,

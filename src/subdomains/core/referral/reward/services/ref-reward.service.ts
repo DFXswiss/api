@@ -39,6 +39,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.POLYGON]: undefined,
   [Blockchain.BASE]: undefined,
   [Blockchain.SOLANA]: undefined,
+  [Blockchain.STARKNET]: undefined,
   [Blockchain.HAQQ]: undefined,
   [Blockchain.LIQUID]: undefined,
   [Blockchain.ARWEAVE]: undefined,

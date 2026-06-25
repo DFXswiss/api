@@ -20,6 +20,7 @@ import { MoneroService } from '../../monero/services/monero.service';
 import { SolanaService } from '../../solana/services/solana.service';
 import { SparkService } from '../../spark/spark.service';
 import { TronService } from '../../tron/services/tron.service';
+import { StarknetService } from '../../starknet/services/starknet.service';
 import { ZanoService } from '../../zano/services/zano.service';
 import { Blockchain } from '../enums/blockchain.enum';
 import { EvmUtil } from '../evm/evm.util';
@@ -47,6 +48,7 @@ export class CryptoService {
     private readonly internetComputerService: InternetComputerService,
     private readonly arweaveService: ArweaveService,
     private readonly railgunService: RailgunService,
+    private readonly starknetService: StarknetService,
     private readonly blockchainRegistry: BlockchainRegistryService,
   ) {}
 
@@ -106,6 +108,9 @@ export class CryptoService {
 
       case Blockchain.INTERNET_COMPUTER:
         return this.internetComputerService.getPaymentRequest(address, amount, asset);
+
+      case Blockchain.STARKNET:
+        return this.starknetService.getPaymentRequest(address, amount);
 
       default:
         return undefined;
@@ -176,6 +181,9 @@ export class CryptoService {
       case Blockchain.RAILGUN:
         return UserAddressType.RAILGUN;
 
+      case Blockchain.STARKNET:
+        return UserAddressType.STARKNET;
+
       default:
         return UserAddressType.OTHER;
     }
@@ -202,6 +210,7 @@ export class CryptoService {
     if (CryptoService.isCardanoAddress(address)) return [Blockchain.CARDANO];
     if (CryptoService.isInternetComputerAddress(address)) return [Blockchain.INTERNET_COMPUTER];
     if (CryptoService.isRailgunAddress(address)) return [Blockchain.RAILGUN];
+    if (CryptoService.isStarknetAddress(address)) return [Blockchain.STARKNET];
     if (CryptoService.isDefichainAddress(address)) return [Blockchain.DEFICHAIN];
     return [];
   }
@@ -279,6 +288,10 @@ export class CryptoService {
     return new RegExp(`^(${Config.tronAddressFormat})$`).test(address);
   }
 
+  public static isStarknetAddress(address: string): boolean {
+    return new RegExp(`^(${Config.starknetAddressFormat})$`).test(address);
+  }
+
   private static isDefichainAddress(address: string): boolean {
     return new RegExp(`^(${Config.defichainAddressFormat})$`).test(address);
   }
@@ -315,6 +328,7 @@ export class CryptoService {
       if (detectedBlockchain === Blockchain.INTERNET_COMPUTER)
         return await this.verifyInternetComputer(message, address, signature, key);
       if (detectedBlockchain === Blockchain.RAILGUN) return await this.verifyRailgun(message, address, signature);
+      if (detectedBlockchain === Blockchain.STARKNET) return await this.verifyStarknet(message, address, signature);
     } catch (e) {
       if (e instanceof SignatureException) throw new BadRequestException(e.message);
     }
@@ -444,5 +458,9 @@ export class CryptoService {
 
   private async verifyRailgun(message: string, address: string, signature: string): Promise<boolean> {
     return this.railgunService.verifySignature(message, address, signature);
+  }
+
+  private async verifyStarknet(message: string, address: string, signature: string): Promise<boolean> {
+    return this.starknetService.verifySignature(message, address, signature);
   }
 }

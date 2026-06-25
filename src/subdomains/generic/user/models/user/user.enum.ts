@@ -27,6 +27,7 @@ export enum UserAddressType {
   TRON = 'Tron',
   INTERNET_COMPUTER = 'InternetComputer',
   ZANO = 'Zano',
+  STARKNET = 'Starknet',
   OTHER = 'Other',
 }
 
