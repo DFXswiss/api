@@ -166,6 +166,9 @@ export class GsService {
       kycSteps: await this.kycAdminService.getKycSteps(userData.id, { userData: true }),
       bankData: await this.bankDataService.getAllBankDatasForUser(userData.id),
       notification: await this.notificationService.getMails(userData.id),
+      // NOTE: this admin/support path intentionally keeps the raw storage URL. The host-stable
+      // proxied-URL substitution is applied only to the client-facing `/gs/db` output (see
+      // `setUserDataDocs`); unifying both paths into a shared helper is a follow-up.
       documents: await this.kycDocumentService.getAllUserDocuments(userData.id, userData.accountType),
       buyCrypto: await this.buyCryptoService.getAllUserTransactions(userIds),
       buyFiat: await this.buyFiatService.getAllUserTransactions(userIds),
@@ -406,9 +409,18 @@ export class GsService {
         sorting,
       );
 
+      // Replace the raw storage URL with a host-stable URL that pins the host to the services domain
+      // but keeps the full storage path intact. This decouples clients from the storage backend (a
+      // backend migration no longer changes the URL) while preserving the storage path as a substring,
+      // which downstream consumers rely on to extract the file name from the URL.
+      for (const doc of docs) {
+        if (doc.path) doc.url = this.kycDocumentService.toHostStableUrl(doc.path);
+      }
+
       for (const selectPath of selectPaths) {
         const docPath = this.toDocPath(selectPath, userDataId);
-        userData[selectPath] = docPath === commonPathPrefix ? docs : docs.filter((doc) => doc.url.includes(docPath));
+        // filter on the storage path (host-independent), not on the now host-stable URL
+        userData[selectPath] = docPath === commonPathPrefix ? docs : docs.filter((doc) => doc.path?.includes(docPath));
       }
     }
   }

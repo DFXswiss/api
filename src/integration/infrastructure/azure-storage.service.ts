@@ -183,9 +183,16 @@ export class AzureStorageService {
     }
   }
 
+  // Per-segment path encoding for blob URLs: each path segment is `encodeURIComponent`-encoded while
+  // the `/` separators are preserved. Shared with consumers that build host-stable variants of a blob
+  // URL (e.g. `KycDocumentService.toHostStableUrl`) so the encoding stays byte-identical apart from the
+  // host.
+  static encodePath(path: string): string {
+    return path.split('/').map(encodeURIComponent).join('/');
+  }
+
   blobUrl(name: string): string {
-    const urlEncodedName = name.split('/').map(encodeURIComponent).join('/');
-    return `${Config.azure.storage.url}${this.container}/${urlEncodedName}`;
+    return `${Config.azure.storage.url}${this.container}/${AzureStorageService.encodePath(name)}`;
   }
 
   blobName(url: string): string {

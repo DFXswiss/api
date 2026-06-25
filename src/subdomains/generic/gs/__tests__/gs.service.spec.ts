@@ -26,40 +26,77 @@ import { LimitRequestService } from 'src/subdomains/supporting/support-issue/ser
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { KycFileService } from 'src/subdomains/generic/kyc/services/kyc-file.service';
+import { KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { Blob } from 'src/integration/infrastructure/azure-storage.service';
+import { ConfigService } from 'src/config/config';
+
+// Shape of a document as it travels through setUserDataDocs (a KycFileBlob with the relevant fields set).
+type KycFileDoc = Pick<KycFileBlob, 'path' | 'url' | 'name'> & { created: Date };
+
+// Typed bridge for partial test blobs: setUserDataDocs only reads path/url/name/created off each entry.
+function asKycFileBlobs(docs: KycFileDoc[]): KycFileBlob[] {
+  return docs as unknown as KycFileBlob[];
+}
+
+// A storage blob as returned by AzureStorageService.listBlobs (fed into the real listFilesByPrefix).
+function storageBlob(name: string, created: Date): Blob {
+  return {
+    name,
+    url: `https://storage-backend.example/kyc/${name}`,
+    contentType: 'application/pdf',
+    created,
+    updated: created,
+    metadata: {},
+  };
+}
+
+function buildGsService(
+  kycDocumentService: KycDocumentService,
+  dataSource: DataSource,
+  appInsightsQueryService: AppInsightsQueryService = createMock<AppInsightsQueryService>(),
+): GsService {
+  return new GsService(
+    appInsightsQueryService,
+    createMock<UserDataService>(),
+    createMock<UserService>(),
+    createMock<BuyService>(),
+    createMock<SellService>(),
+    createMock<BuyCryptoService>(),
+    createMock<PayInService>(),
+    createMock<BuyFiatService>(),
+    createMock<RefRewardService>(),
+    createMock<BankTxRepeatService>(),
+    createMock<BankTxService>(),
+    createMock<FiatOutputService>(),
+    dataSource,
+    kycDocumentService,
+    createMock<TransactionService>(),
+    createMock<KycAdminService>(),
+    createMock<BankDataService>(),
+    createMock<NotificationService>(),
+    createMock<LimitRequestService>(),
+    createMock<SupportIssueService>(),
+    createMock<SwapService>(),
+    createMock<VirtualIbanService>(),
+  );
+}
 
 describe('GsService', () => {
   let service: GsService;
   let dataSource: DataSource;
   let appInsightsQueryService: AppInsightsQueryService;
+  let kycDocumentService: KycDocumentService;
 
   beforeEach(() => {
     dataSource = createMock<DataSource>();
     appInsightsQueryService = createMock<AppInsightsQueryService>();
+    kycDocumentService = createMock<KycDocumentService>();
 
-    service = new GsService(
-      appInsightsQueryService,
-      createMock<UserDataService>(),
-      createMock<UserService>(),
-      createMock<BuyService>(),
-      createMock<SellService>(),
-      createMock<BuyCryptoService>(),
-      createMock<PayInService>(),
-      createMock<BuyFiatService>(),
-      createMock<RefRewardService>(),
-      createMock<BankTxRepeatService>(),
-      createMock<BankTxService>(),
-      createMock<FiatOutputService>(),
-      dataSource,
-      createMock<KycDocumentService>(),
-      createMock<TransactionService>(),
-      createMock<KycAdminService>(),
-      createMock<BankDataService>(),
-      createMock<NotificationService>(),
-      createMock<LimitRequestService>(),
-      createMock<SupportIssueService>(),
-      createMock<SwapService>(),
-      createMock<VirtualIbanService>(),
-    );
+    // Reuse the same constructor helper as the round-trip test, passing in the mocks the tests reference.
+    service = buildGsService(kycDocumentService, dataSource, appInsightsQueryService);
   });
 
   describe('executeDebugQuery - Security Validation', () => {
@@ -195,6 +232,152 @@ describe('GsService', () => {
 
         expect(result).toBeDefined();
       });
+    });
+  });
+
+  describe('setUserDataDocs - host-stable, path-preserving document URLs', () => {
+    // Pin the services host so the host-stability assertions are deterministic and independent of env.
+    const SERVICES_HOST = 'https://app.example';
+    const rawUrl = (path: string) => `https://storage-backend.example/kyc/${path}`;
+    // The host-stable URL keeps the storage backend out and preserves the full storage path verbatim.
+    const hostStableUrl = (path: string) => `${SERVICES_HOST}/kyc/${path}`;
+
+    const previousServicesUrl = process.env.SERVICES_URL;
+
+    beforeEach(() => {
+      process.env.SERVICES_URL = SERVICES_HOST;
+      new ConfigService();
+    });
+
+    afterEach(() => {
+      // restore the env + Config singleton so the pinned host does not leak into other test blocks
+      if (previousServicesUrl === undefined) delete process.env.SERVICES_URL;
+      else process.env.SERVICES_URL = previousServicesUrl;
+      new ConfigService();
+    });
+
+    // Mirrors KycDocumentService.listFilesByPrefix, which maps storage blobs to KycFileBlob with `path: b.name`.
+    const blob = (path: string, created: Date): KycFileDoc => ({
+      path,
+      url: rawUrl(path),
+      created,
+      name: path.split('/').pop(),
+    });
+
+    const personalUser = (id: number): Partial<UserData>[] => [{ id, accountType: AccountType.PERSONAL }];
+
+    function selectDocs(userData: Partial<UserData>[], selectPath: string): KycFileDoc[] {
+      return userData[0][selectPath] as KycFileDoc[];
+    }
+
+    it('replaces the storage backend host while keeping the full storage path in the URL', async () => {
+      jest
+        .spyOn(kycDocumentService, 'listFilesByPrefix')
+        .mockResolvedValue(
+          asKycFileBlobs([
+            blob('user/40102/UserNotes/note.pdf', new Date('2024-01-01')),
+            blob('user/40102/UserNotes/second.pdf', new Date('2024-01-02')),
+          ]),
+        );
+      jest.spyOn(kycDocumentService, 'toHostStableUrl').mockImplementation((path) => hostStableUrl(path));
+
+      const userData = personalUser(40102);
+      await service['setUserDataDocs'](userData as UserData[], ['documents-user.{userData}.UserNotes'], 'ASC');
+
+      const docs = selectDocs(userData, 'documents-user.{userData}.UserNotes');
+
+      for (const doc of docs) {
+        // host-stable: no storage backend host, host pinned to the services domain
+        expect(doc.url.startsWith(`${SERVICES_HOST}/`)).toBe(true);
+        expect(doc.url).not.toContain('storage-backend.example');
+        // path-preserving: the storage path is an unaltered substring of the URL
+        expect(doc.url).toContain(doc.path);
+      }
+    });
+
+    // Hard, non-negotiable consumer invariant: downstream sheets extract the file name via
+    // `url.split('<scope>/<id>/<type>')[1]`. The host-stable URL MUST keep that working.
+    it('keeps the consumer name-parsing invariant url.split("<scope>/<id>/<type>")[1] intact', async () => {
+      jest
+        .spyOn(kycDocumentService, 'listFilesByPrefix')
+        .mockResolvedValue(asKycFileBlobs([blob('user/40102/UserNotes/contract.pdf', new Date('2024-01-01'))]));
+      jest.spyOn(kycDocumentService, 'toHostStableUrl').mockImplementation((path) => hostStableUrl(path));
+
+      const userData = personalUser(40102);
+      await service['setUserDataDocs'](userData as UserData[], ['documents-user.{userData}.UserNotes'], 'ASC');
+
+      const doc = selectDocs(userData, 'documents-user.{userData}.UserNotes')[0];
+
+      // exactly the split the consuming sheets perform: docPath = "<scope>/<id>/<type>"
+      expect(doc.url.split('user/40102/UserNotes')[1]).toBe('/contract.pdf');
+    });
+
+    it('filters by storage path, not by the host-stable URL', async () => {
+      jest
+        .spyOn(kycDocumentService, 'listFilesByPrefix')
+        .mockResolvedValue(
+          asKycFileBlobs([
+            blob('user/1/Identification/ident.pdf', new Date('2024-01-01')),
+            blob('user/1/UserInformation/info.pdf', new Date('2024-01-02')),
+          ]),
+        );
+      jest.spyOn(kycDocumentService, 'toHostStableUrl').mockImplementation((path) => hostStableUrl(path));
+
+      const userData = personalUser(1);
+      await service['setUserDataDocs'](
+        userData as UserData[],
+        ['documents-user.{userData}.Identification', 'documents-user.{userData}.UserInformation'],
+        'ASC',
+      );
+
+      const identDocs = selectDocs(userData, 'documents-user.{userData}.Identification');
+      const infoDocs = selectDocs(userData, 'documents-user.{userData}.UserInformation');
+
+      // path-based filtering still partitions the documents correctly despite rewritten URLs
+      expect(identDocs.map((d) => d.path)).toEqual(['user/1/Identification/ident.pdf']);
+      expect(infoDocs.map((d) => d.path)).toEqual(['user/1/UserInformation/info.pdf']);
+      expect(identDocs[0].url).toBe(hostStableUrl('user/1/Identification/ident.pdf'));
+      expect(infoDocs[0].url).toBe(hostStableUrl('user/1/UserInformation/info.pdf'));
+    });
+
+    // Exercises the actual round-trip without mocking toHostStableUrl: a real KycDocumentService lists
+    // storage blobs (whose `b.name` becomes `doc.path`) and rewrites their URL to the host-stable form.
+    // Asserts both the host-stability and the path-preserving consumer invariant on the real output.
+    it('produces a host-stable, path-preserving URL through the real KycDocumentService (round-trip)', async () => {
+      const kycFileService = createMock<KycFileService>();
+      const realKycDocumentService = new KycDocumentService(kycFileService);
+
+      const userBlob = storageBlob('user/1/Identification/passport.pdf', new Date('2024-01-01'));
+      const spiderBlob = storageBlob('spider/1/Identification/old-passport.pdf', new Date('2024-01-02'));
+      jest
+        .spyOn(realKycDocumentService['storageService'], 'listBlobs')
+        .mockImplementation(async (prefix?: string) =>
+          prefix?.startsWith('user/') ? [userBlob] : prefix?.startsWith('spider/') ? [spiderBlob] : [],
+        );
+
+      const realService = buildGsService(realKycDocumentService, createMock<DataSource>());
+
+      const userData = personalUser(1);
+      // Two disjoint select paths force an empty common prefix, so getAllUserDocuments (user + spider) runs.
+      await realService['setUserDataDocs'](
+        userData as UserData[],
+        ['documents-user.{userData}.Identification', 'documents-spider.{userData}.Identification'],
+        'ASC',
+      );
+
+      const userDocs = selectDocs(userData, 'documents-user.{userData}.Identification');
+      const spiderDocs = selectDocs(userData, 'documents-spider.{userData}.Identification');
+
+      // user blob: host-stable URL with the storage path preserved verbatim
+      expect(userDocs.map((d) => d.path)).toEqual(['user/1/Identification/passport.pdf']);
+      expect(userDocs[0].url).toBe(hostStableUrl('user/1/Identification/passport.pdf'));
+      expect(userDocs[0].url).not.toContain('storage-backend.example');
+      expect(userDocs[0].url.split('user/1/Identification')[1]).toBe('/passport.pdf');
+
+      // spider blob is rewritten the same way (no storage backend host, path preserved)
+      expect(spiderDocs.map((d) => d.path)).toEqual(['spider/1/Identification/old-passport.pdf']);
+      expect(spiderDocs[0].url).toBe(hostStableUrl('spider/1/Identification/old-passport.pdf'));
+      expect(spiderDocs[0].url.split('spider/1/Identification')[1]).toBe('/old-passport.pdf');
     });
   });
 

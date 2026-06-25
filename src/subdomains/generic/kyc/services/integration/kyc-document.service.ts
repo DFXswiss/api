@@ -1,4 +1,5 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -9,12 +10,14 @@ import { ContentType } from '../../enums/content-type.enum';
 import { FileCategory } from '../../enums/file-category.enum';
 import { KycFileService } from '../kyc-file.service';
 
+const KYC_CONTAINER = 'kyc';
+
 @Injectable()
 export class KycDocumentService {
   private readonly storageService: AzureStorageService;
 
   constructor(private readonly kycFileService: KycFileService) {
-    this.storageService = new AzureStorageService('kyc');
+    this.storageService = new AzureStorageService(KYC_CONTAINER);
   }
 
   async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFileBlob[]> {
@@ -23,6 +26,18 @@ export class KycDocumentService {
       ...(await this.listSpiderFiles(userDataId, false)),
       ...(accountType !== AccountType.PERSONAL ? await this.listSpiderFiles(userDataId, true) : []),
     ];
+  }
+
+  // Builds a host-stable URL for a storage path by pinning the host to the services domain
+  // (`Config.frontend.services`) while keeping the full storage path (`<container>/<blobName>`)
+  // intact. The raw blob URL is `<storage-backend-host>/<container>/<blobName>`; we swap only the
+  // host, so a storage-backend migration stays transparent to clients. Path segments are encoded
+  // through the same shared helper as the raw blob URL (`AzureStorageService.encodePath`), so the
+  // URL is a true drop-in — byte-identical apart from the host by construction. The path
+  // (`<scope>/<id>/<type>`) stays an intact substring, which downstream consumers rely on to extract
+  // the file name (e.g. `url.split('<scope>/<id>/<type>')[1]`).
+  toHostStableUrl(path: string): string {
+    return `${Config.frontend.services}/${KYC_CONTAINER}/${AzureStorageService.encodePath(path)}`;
   }
 
   async listUserFiles(userDataId: number): Promise<KycFileBlob[]> {
