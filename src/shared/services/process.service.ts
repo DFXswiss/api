@@ -91,6 +91,7 @@ export enum Process {
   TRADE_APPROVAL_DATE = 'TradeApprovalDate',
   SUPPORT_BOT = 'SupportBot',
   GUARANTEED_PRICE = 'GuaranteedPrice',
+  TRAVEL_RULE_PDF = 'TravelRulePdf',
   GS_DEBUG = 'GsDebug',
   GS_DB = 'GsDb',
 }

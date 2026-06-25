@@ -25,6 +25,7 @@ import { LiquidityObserver } from './observers/liquidity.observer';
 import { NodeBalanceObserver } from './observers/node-balance.observer';
 import { NodeHealthObserver } from './observers/node-health.observer';
 import { PaymentObserver } from './observers/payment.observer';
+import { TravelRuleObserver } from './observers/travel-rule.observer';
 import { UserObserver } from './observers/user.observer';
 import { SystemStateSnapshot } from './system-state-snapshot.entity';
 import { SystemStateSnapshotRepository } from './system-state-snapshot.repository';
@@ -59,6 +60,7 @@ import { SystemStateSnapshotRepository } from './system-state-snapshot.repositor
     AmlObserver,
     ExchangeObserver,
     LiquidityObserver,
+    TravelRuleObserver,
   ],
   controllers: [MonitoringController, HealthController],
   exports: [MonitoringService],
