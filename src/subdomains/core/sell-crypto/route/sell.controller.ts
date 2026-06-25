@@ -176,8 +176,8 @@ export class SellController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SellActiveGuard())
   @ApiOkResponse({ type: UnsignedTxDto })
-  async depositTx(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<UnsignedTxDto> {
-    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+  async depositTx(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<UnsignedTxDto> {
+    const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
@@ -202,10 +202,10 @@ export class SellController {
   @ApiOkResponse({ type: TransactionDto })
   async confirmSell(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: ConfirmDto,
   ): Promise<TransactionDto> {
-    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+    const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
