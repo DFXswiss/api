@@ -86,7 +86,7 @@ export class TravelRulePdfService {
         this.drawBoxedTable(pdf, MARGIN_X, y, contentWidth, [
           { label: 'Address:', value: input.address },
           { label: 'Signatur Text:', value: signedMessage },
-          { label: 'Signatur:', value: input.signature, monospace: true },
+          { label: 'Signatur:', value: input.signature },
           { label: 'Kontrolle:', value: 'Link', link: verifyLink },
         ]);
 
@@ -106,7 +106,7 @@ export class TravelRulePdfService {
     x: number,
     yStart: number,
     width: number,
-    rows: { label: string; value: string; monospace?: boolean; link?: string }[],
+    rows: { label: string; value: string; link?: string }[],
   ): number {
     const { LABEL_WIDTH, BORDER_COLOR, TEXT_COLOR, LINK_COLOR } = TravelRulePdfService;
     const valueX = x + LABEL_WIDTH;
@@ -135,10 +135,7 @@ export class TravelRulePdfService {
           underline: true,
         });
       } else {
-        pdf
-          .fontSize(row.monospace ? 9 : 11)
-          .font(row.monospace ? 'Courier' : 'Helvetica')
-          .fillColor(TEXT_COLOR);
+        pdf.fontSize(11).font('Helvetica').fillColor(TEXT_COLOR);
         pdf.text(row.value, valueX + padding, innerY, { width: valueWidth - padding * 2 });
       }
       const valueBottom = pdf.y;
