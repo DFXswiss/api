@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import PDFDocument from 'pdfkit';
+import { Config } from 'src/config/config';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { TravelRulePdfService } from './travel-rule-pdf.service';
 
@@ -67,5 +68,20 @@ describe('TravelRulePdfService', () => {
     expect(texts).toContain(signature);
     // and nothing was rendered that is merely the part before the `;`
     expect(texts).not.toContain('8458200a');
+  });
+
+  it('renders the signed message statement and address as one contiguous string (Q M5)', async () => {
+    const address = '0xDEADBEEF';
+    const texts = await renderedTexts(address, 'sig');
+
+    // exactly mirrors the signed message: statement (underscores → spaces) directly followed by the
+    // address, joined without separator — exactly how auth.service builds the message that was signed
+    const statement = Config.auth.signMessageGeneral.replace(/_/g, ' ');
+    expect(texts).toContain(statement + address);
+
+    // the address is NOT rendered as a separate field — it only ever appears glued onto the
+    // statement, never on its own (which would mean the PDF no longer mirrors the signed message)
+    expect(texts).not.toContain(address);
+    expect(texts.some((t) => t.includes(address) && t !== statement + address)).toBe(false);
   });
 });
