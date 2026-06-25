@@ -370,6 +370,10 @@ export class UserData extends IEntity {
   @Column({ default: false })
   isTrustedReferrer: boolean;
 
+  // IP check
+  @Column({ default: false })
+  ipExempt: boolean;
+
   // References
   @Index()
   @ManyToOne(() => Wallet, { nullable: true })
