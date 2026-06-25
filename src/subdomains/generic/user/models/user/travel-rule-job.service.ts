@@ -65,7 +65,13 @@ export class TravelRuleJobService {
       const originalName = this.buildFileName(user.id, now);
 
       try {
-        const pdfBase64 = await this.travelRulePdfService.generateAddressSignaturePdf(user.address, user.signature);
+        const pdfBase64 = await this.travelRulePdfService.generatePdf({
+          id: user.id,
+          userDataId: user.userData.id,
+          address: user.address,
+          signature: user.signature,
+          date: now,
+        });
 
         const { file } = await this.kycDocumentService.uploadUserFile(
           user.userData,

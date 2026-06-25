@@ -3,10 +3,19 @@ import PDFDocument from 'pdfkit';
 import { Config } from 'src/config/config';
 import { PdfUtil } from 'src/shared/utils/pdf.util';
 import { TestUtil } from 'src/shared/utils/test.util';
-import { TravelRulePdfService } from './travel-rule-pdf.service';
+import { TravelRulePdfInput, TravelRulePdfService } from './travel-rule-pdf.service';
 
 describe('TravelRulePdfService', () => {
   let service: TravelRulePdfService;
+
+  // synthetic test data only (public repo) — never real addresses/signatures/ids
+  const input: TravelRulePdfInput = {
+    id: 411028,
+    userDataId: 367294,
+    address: '0xSyntheticAddress',
+    signature: '0xSyntheticSignature',
+    date: new Date('2026-06-25T21:06:48.000Z'),
+  };
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -20,31 +29,39 @@ describe('TravelRulePdfService', () => {
     expect(service).toBeDefined();
   });
 
-  // captures every string drawn via pdfkit's `text` so we can assert what is rendered, independent
-  // of the (flate-compressed) output stream
-  async function renderedTexts(address: string, signature: string): Promise<string[]> {
+  // Captures every string drawn via pdfkit's `text`, plus the per-call options (so the verification
+  // `link` annotation can be asserted), independent of the flate-compressed output stream.
+  async function render(
+    overrides: Partial<TravelRulePdfInput> = {},
+  ): Promise<{ texts: string[]; links: { value: string; uri: string }[] }> {
     const texts: string[] = [];
+    const links: { value: string; uri: string }[] = [];
+
     const originalText = PDFDocument.prototype.text;
     const spy = jest.spyOn(PDFDocument.prototype, 'text').mockImplementation(function (
       this: PDFKit.PDFDocument,
       value: string,
       ...rest: any[]
     ) {
-      if (typeof value === 'string') texts.push(value);
+      if (typeof value === 'string') {
+        texts.push(value);
+        const options = rest.find((arg) => arg && typeof arg === 'object');
+        if (options?.link) links.push({ value, uri: options.link });
+      }
       return originalText.call(this, value, ...rest);
     });
 
     try {
-      await service.generateAddressSignaturePdf(address, signature);
+      await service.generatePdf({ ...input, ...overrides });
     } finally {
       spy.mockRestore();
     }
 
-    return texts;
+    return { texts, links };
   }
 
   it('renders a valid base64-encoded PDF', async () => {
-    const base64 = await service.generateAddressSignaturePdf('0xabc', 'deadbeef');
+    const base64 = await service.generatePdf(input);
 
     expect(typeof base64).toBe('string');
     expect(base64.length).toBeGreaterThan(0);
@@ -56,14 +73,61 @@ describe('TravelRulePdfService', () => {
     expect(buffer.subarray(0, 4).toString('ascii')).toBe('%PDF');
   });
 
-  it('renders a plain signature verbatim', async () => {
-    const texts = await renderedTexts('0xabc', 'signatureOnly');
-    expect(texts).toContain('signatureOnly');
+  it('renders both bold title lines', async () => {
+    const { texts } = await render();
+
+    expect(texts).toContain('Travel Rule');
+    expect(texts).toContain('Digitale Signatur Kontrolle');
   });
 
-  it('renders the ;<key> suffix verbatim (Cardano CIP-30 COSE), never splitting it', async () => {
+  it('renders the metadata labels and their values (Id / Date / User Data ID)', async () => {
+    const { texts } = await render();
+
+    expect(texts).toContain('Id');
+    expect(texts).toContain('Date');
+    expect(texts).toContain('User Data ID');
+
+    // values
+    expect(texts).toContain('411028');
+    expect(texts).toContain('367294');
+
+    // the date is rendered as a readable UTC date+time (with explicit UTC suffix), NOT a raw serial
+    const date = texts.find((t) => t.startsWith('2026-06-25'));
+    expect(date).toBe('2026-06-25 21:06:48 UTC');
+    expect(texts).not.toContain('46198.87754');
+  });
+
+  it('renders the Kontrolle section header and control labels', async () => {
+    const { texts } = await render();
+
+    expect(texts).toContain('Kontrolle');
+    expect(texts).toContain('Address:');
+    expect(texts).toContain('Signatur Text:');
+    expect(texts).toContain('Signatur:');
+    expect(texts).toContain('Kontrolle:');
+  });
+
+  it('renders the address value', async () => {
+    const { texts } = await render();
+    expect(texts).toContain(input.address);
+  });
+
+  it('renders the signed message VERBATIM — signMessageGeneral + address, underscores kept (no replace)', async () => {
+    const { texts } = await render();
+
+    // exactly the message the user signed: the statement (WITH underscores, never replaced) directly
+    // followed by the address, joined without separator — mirroring auth.service / the sheet 1:1
+    const signedMessage = Config.auth.signMessageGeneral + input.address;
+    expect(texts).toContain(signedMessage);
+
+    // sanity: the statement really still contains underscores (guards against an accidental replace)
+    expect(signedMessage).toContain('_');
+    expect(texts.some((t) => t.includes('By signing this message'))).toBe(false);
+  });
+
+  it('renders the signature verbatim incl. the ;<key> suffix (Cardano CIP-30 COSE), never split', async () => {
     const signature = '8458200a;a4010103272006215820deadbeef';
-    const texts = await renderedTexts('addr1qxy', signature);
+    const { texts } = await render({ signature });
 
     // the full value including the part after the semicolon is rendered as a single, unsplit string
     expect(texts).toContain(signature);
@@ -71,19 +135,25 @@ describe('TravelRulePdfService', () => {
     expect(texts).not.toContain('8458200a');
   });
 
-  it('renders the signed message statement and address as one contiguous string (Q M5)', async () => {
-    const address = '0xDEADBEEF';
-    const texts = await renderedTexts(address, 'sig');
+  it('renders the Kontrolle link as a verifycryptomessage.com annotation with encoded message & signature', async () => {
+    const { texts, links } = await render();
 
-    // exactly mirrors the signed message: statement (underscores → spaces) directly followed by the
-    // address, joined without separator — exactly how auth.service builds the message that was signed
-    const statement = Config.auth.signMessageGeneral.replace(/_/g, ' ');
-    expect(texts).toContain(statement + address);
+    const signedMessage = Config.auth.signMessageGeneral + input.address;
+    const expectedUri =
+      `https://verifycryptomessage.com/?address=${input.address}` +
+      `&message=${encodeURIComponent(signedMessage)}` +
+      `&signature=${encodeURIComponent(input.signature)}`;
 
-    // the address is NOT rendered as a separate field — it only ever appears glued onto the
-    // statement, never on its own (which would mean the PDF no longer mirrors the signed message)
-    expect(texts).not.toContain(address);
-    expect(texts.some((t) => t.includes(address) && t !== statement + address)).toBe(false);
+    // the link is rendered with the display text "Link" (matching the sheet) ...
+    expect(texts).toContain('Link');
+    // ... and exactly one pdfkit link annotation pointing at the verification URL was emitted
+    expect(links).toHaveLength(1);
+    expect(links[0]).toEqual({ value: 'Link', uri: expectedUri });
+
+    // the underscores of the signed message survive url-encoding (encodeURIComponent leaves `_`),
+    // while the comma/colon are percent-encoded exactly like the sheet's ENCODEURL
+    expect(links[0].uri).toContain('Your_ID%3A_');
+    expect(links[0].uri).toContain('message%2C_you');
   });
 
   it('rejects the promise when PDF rendering throws', async () => {
@@ -93,7 +163,7 @@ describe('TravelRulePdfService', () => {
     });
 
     try {
-      await expect(service.generateAddressSignaturePdf('0xabc', 'sig')).rejects.toThrow(renderError);
+      await expect(service.generatePdf(input)).rejects.toThrow(renderError);
     } finally {
       spy.mockRestore();
     }

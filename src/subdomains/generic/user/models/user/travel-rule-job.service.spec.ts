@@ -44,7 +44,7 @@ describe('TravelRuleJobService', () => {
 
     service = module.get<TravelRuleJobService>(TravelRuleJobService);
 
-    jest.spyOn(travelRulePdfService, 'generateAddressSignaturePdf').mockResolvedValue('cGRm'); // "pdf"
+    jest.spyOn(travelRulePdfService, 'generatePdf').mockResolvedValue('cGRm'); // "pdf"
     jest.spyOn(kycDocumentService, 'uploadUserFile').mockResolvedValue({ file: { id: 1 } as any, url: 'url' });
     jest.spyOn(userRepo, 'update').mockResolvedValue({ affected: 1 } as any);
   });
@@ -94,7 +94,7 @@ describe('TravelRuleJobService', () => {
 
     await service.generateTravelRulePdfs();
 
-    expect(travelRulePdfService.generateAddressSignaturePdf).not.toHaveBeenCalled();
+    expect(travelRulePdfService.generatePdf).not.toHaveBeenCalled();
     expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
   });
 
@@ -205,7 +205,7 @@ describe('TravelRuleJobService', () => {
 
     // never claimed, never rendered, never uploaded — and travelRulePdfDate stays untouched
     expect(userRepo.update).not.toHaveBeenCalled();
-    expect(travelRulePdfService.generateAddressSignaturePdf).not.toHaveBeenCalled();
+    expect(travelRulePdfService.generatePdf).not.toHaveBeenCalled();
     expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
   });
 
@@ -232,7 +232,14 @@ describe('TravelRuleJobService', () => {
 
     // every allowlisted format is rendered and uploaded
     expect(kycDocumentService.uploadUserFile).toHaveBeenCalledTimes(users.length);
-    // the Cardano signature is passed verbatim (incl. ;<key>) to the PDF renderer
-    expect(travelRulePdfService.generateAddressSignaturePdf).toHaveBeenCalledWith('addr-5', cardano);
+    // the Cardano signature is passed verbatim (incl. ;<key>) to the PDF renderer, together with the
+    // candidate's id / userData.id / address and the generation timestamp
+    expect(travelRulePdfService.generatePdf).toHaveBeenCalledWith({
+      id: 5,
+      userDataId: 50,
+      address: 'addr-5',
+      signature: cardano,
+      date: expect.any(Date),
+    });
   });
 });

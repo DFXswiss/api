@@ -44,8 +44,11 @@ export class PdfUtil {
     pdf: InstanceType<typeof PDFDocument>,
     brand: PdfBrand = PdfBrand.DFX,
     size: LogoSize = LogoSize.SMALL,
+    xOverride?: number,
   ): void {
-    const { x, y, scale } = this.getLogoConfig(size);
+    const config = this.getLogoConfig(size);
+    const { y, scale } = config;
+    const x = xOverride ?? config.x;
 
     pdf.save();
     pdf.translate(x, y);
