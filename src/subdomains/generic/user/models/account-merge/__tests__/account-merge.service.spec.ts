@@ -1,4 +1,5 @@
 import { ConfigService } from 'src/config/config';
+import { Util } from 'src/shared/utils/util';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { UserData } from '../../user-data/user-data.entity';
@@ -13,6 +14,7 @@ describe('AccountMergeService', () => {
   let accountMergeRepo: jest.Mocked<Partial<AccountMergeRepository>>;
   let notificationService: jest.Mocked<Partial<NotificationService>>;
   let kycLogService: jest.Mocked<Partial<KycLogService>>;
+  let userDataService: jest.Mocked<Partial<UserDataService>>;
 
   const buildUserData = (id: number, mail?: string): UserData => {
     const userData = Object.assign(new UserData(), { id, mail, firstname: `user${id}` });
@@ -25,15 +27,16 @@ describe('AccountMergeService', () => {
   });
 
   beforeEach(() => {
-    accountMergeRepo = { findOneBy: jest.fn(), save: jest.fn() };
+    accountMergeRepo = { findOneBy: jest.fn(), save: jest.fn(), findOne: jest.fn(), update: jest.fn() };
     notificationService = { sendMail: jest.fn() };
     kycLogService = { createMergeLog: jest.fn() };
+    userDataService = { mergeUserData: jest.fn() };
 
     service = new AccountMergeService(
       accountMergeRepo as unknown as AccountMergeRepository,
       notificationService as unknown as NotificationService,
       kycLogService as unknown as KycLogService,
-      {} as unknown as UserDataService,
+      userDataService as unknown as UserDataService,
     );
   });
 
@@ -109,6 +112,32 @@ describe('AccountMergeService', () => {
       expect(notificationService.sendMail).toHaveBeenCalledTimes(1);
       const [mail] = notificationService.sendMail.mock.calls[0];
       expect((mail.input as { userData: UserData }).userData).toBe(slave);
+    });
+  });
+
+  describe('executeMerge', () => {
+    const buildRequest = (master: UserData, slave: UserData): AccountMerge =>
+      Object.assign(new AccountMerge(), {
+        id: 20,
+        code: 'code-20',
+        master,
+        slave,
+        isCompleted: false,
+        expiration: Util.daysAfter(30),
+      });
+
+    it('merges with notifyUser=true so the master is notified about the confirmed merge', async () => {
+      // master is the account with an ident document; the slave's mailbox confirmed the merge.
+      // Without notifyUser=true the master (the account being merged into) would never be told.
+      const master = buildUserData(1, 'master@test.com');
+      const slave = buildUserData(2, 'slave@test.com');
+      Object.assign(master, { identDocumentId: 'DOC-1' });
+      accountMergeRepo.findOne.mockResolvedValue(buildRequest(master, slave));
+
+      await service.executeMerge('code-20');
+
+      expect(userDataService.mergeUserData).toHaveBeenCalledTimes(1);
+      expect(userDataService.mergeUserData).toHaveBeenCalledWith(master.id, slave.id, slave.mail, true);
     });
   });
 });
