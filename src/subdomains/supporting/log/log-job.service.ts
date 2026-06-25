@@ -66,6 +66,11 @@ const SETTLEMENT_SLA_MS = SETTLEMENT_SLA_HOURS * 60 * 60 * 1000;
 // tolerance for comparing summed float balances (avoids false alarms on rounding)
 const BALANCE_TOLERANCE = 0.01;
 
+// synthetic balancesByFinancialType key under which the open referral-credit liability is booked.
+// Referral rewards are paid from DFX funds, so the accrued-but-unpaid credit is a real liability;
+// booking it keeps totalBalanceChf at true equity and makes ref payouts balance-neutral.
+const REF_CREDIT_FINANCIAL_TYPE = 'RefCredit';
+
 @Injectable()
 export class LogJobService {
   private readonly logger = new DfxLogger(LogJobService);
@@ -117,6 +122,12 @@ export class LogJobService {
 
       // balances grouped by financialType
       const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
+
+      // referral credit owed to referrers is a real liability, discharged on payout. Accrue the open
+      // balance here so totalBalanceChf reflects true equity and ref payouts stay balance-neutral
+      // (plus and minus drop together) instead of showing a phantom equity step (see BalancesTotal).
+      const refCreditLiability = await this.getRefCreditLiability();
+      if (refCreditLiability) balancesByFinancialType[REF_CREDIT_FINANCIAL_TYPE] = refCreditLiability;
 
       // changes
       const changeLog = await this.getChangeLog();
@@ -201,6 +212,21 @@ export class LogJobService {
 
       return acc;
     }, {});
+  }
+
+  // open referral-credit liability (EUR-denominated), booked as a synthetic financialType bucket so it
+  // flows into minusBalanceChf/totalBalanceChf and reconciles like any other liability. Returns
+  // undefined when nothing is owed, so no empty bucket is written.
+  private async getRefCreditLiability(): Promise<BalancesByFinancialType[string] | undefined> {
+    const { amountEur, amountChf } = await this.refRewardService.getOpenRefCreditLiability();
+    if (!(amountChf > 0)) return undefined;
+
+    return {
+      plusBalance: 0,
+      plusBalanceChf: 0,
+      minusBalance: Util.roundReadable(amountEur, AmountType.FIAT, 8),
+      minusBalanceChf: Util.roundReadable(amountChf, AmountType.FIAT, 8),
+    };
   }
 
   private async getTradingLog(): Promise<TradingLog> {
