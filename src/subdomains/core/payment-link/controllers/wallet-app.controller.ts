@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Query } from '@nestjs/common';
+import { Controller, Get, Param, ParseIntPipe, Query } from '@nestjs/common';
 import { ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -31,8 +31,8 @@ export class WalletAppController {
 
   @Get(':id')
   @ApiOkResponse({ type: WalletAppDto })
-  async getById(@Param('id') id: string): Promise<WalletAppDto> {
-    return this.walletAppService.getWalletAppById(+id).then((l) => this.toDto(l));
+  async getById(@Param('id', ParseIntPipe) id: number): Promise<WalletAppDto> {
+    return this.walletAppService.getWalletAppById(id).then((l) => this.toDto(l));
   }
 
   // --- DTO --- //

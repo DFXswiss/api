@@ -174,6 +174,7 @@ export class PaymentLinkController {
     @Body() dto: AssignPaymentLinkDto,
   ): Promise<PaymentLinkDto> {
     if (!linkId && !externalLinkId) throw new BadRequestException('id or externalId is required');
+    if (linkId && !Number.isInteger(+linkId)) throw new BadRequestException('linkId must be an integer');
 
     return this.paymentLinkService
       .assignPaymentLink(linkId && +linkId, externalLinkId, dto)
@@ -408,7 +409,12 @@ export class PaymentLinkController {
       throw new UnauthorizedException('Authentication required for POS mode');
     }
 
-    const idArray = ids?.split(',').map((id) => +id);
+    const idArray = ids?.split(',').map((id) => {
+      const linkId = Number(id);
+      if (!id.trim() || !Number.isInteger(linkId))
+        throw new BadRequestException('ids must be a comma-separated list of integers');
+      return linkId;
+    });
     const externalIdArray = externalIds?.split(',').map((id) => id.trim());
     const pdfBuffer = await this.paymentLinkStickerService.generateOcpStickersPdf(
       route,

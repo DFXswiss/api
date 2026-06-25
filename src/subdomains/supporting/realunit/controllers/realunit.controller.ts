@@ -6,6 +6,7 @@ import {
   Get,
   HttpStatus,
   Param,
+  ParseIntPipe,
   Post,
   Put,
   Query,
@@ -592,8 +593,8 @@ export class RealUnitController {
     description:
       'Fail-closed backstop for prerequisite failures raced between payment-info and confirm — e.g. a missing primary email is returned as `{ code: PrimaryEmailRequired }`. The pre-tap state is exposed via `PUT /v1/realunit/buy` (`isValid`/`error`).',
   })
-  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<RealUnitBuyConfirmDto> {
-    return this.realunitService.confirmBuy(jwt.user, +id);
+  async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<RealUnitBuyConfirmDto> {
+    return this.realunitService.confirmBuy(jwt.user, id);
   }
 
   // --- Sell Payment Info Endpoints ---
@@ -628,10 +629,10 @@ export class RealUnitController {
   @ApiBadRequestResponse({ description: 'Invalid transaction request or signatures' })
   async confirmSell(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: RealUnitSellConfirmDto,
   ): Promise<{ txHash: string }> {
-    return this.realunitService.confirmSell(jwt.user, +id, dto);
+    return this.realunitService.confirmSell(jwt.user, id, dto);
   }
 
   @Put('sell/:id/unsigned-transactions')
@@ -647,9 +648,9 @@ export class RealUnitController {
   @ApiBadRequestResponse({ description: 'Invalid request or insufficient ETH for gas' })
   async getSellUnsignedTransactions(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
   ): Promise<{ swap: string; deposit: string }> {
-    return this.realunitService.createSellUnsignedTransactions(jwt.user, +id);
+    return this.realunitService.createSellUnsignedTransactions(jwt.user, id);
   }
 
   @Put('sell/:id/broadcast')
@@ -664,10 +665,10 @@ export class RealUnitController {
   @ApiBadRequestResponse({ description: 'Invalid signed transaction or broadcast failure' })
   async broadcastSellTransaction(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: RealUnitSellBroadcastDto,
   ): Promise<{ txHash: string }> {
-    return this.realunitService.broadcastSellTransaction(jwt.user, +id, dto);
+    return this.realunitService.broadcastSellTransaction(jwt.user, id, dto);
   }
 
   // --- Registration Info Endpoint ---
