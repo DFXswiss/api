@@ -26,7 +26,7 @@ interface TravelRuleData {
   // stuck duration. `backlog` is the authoritative indicator; null when there is no backlog.
   oldestAgeHours: number | null;
   // users that claimed a PDF (travelRulePdfDate set) but have no valid AddressSignature kyc_file —
-  // i.e. the upload-rollback-failed case the migration guards against (claim leak / orphan blob)
+  // i.e. the upload-rollback-failed case the catch-rollback guards against (claim leak / orphan blob)
   claimedWithoutFile: number;
 }
 
@@ -52,7 +52,7 @@ export class TravelRuleObserver extends MetricObserver<TravelRuleData> {
 
   // *** HELPER METHODS *** //
 
-  // The whole migration exists because the sheet failed silently from 18.06. on. These metrics make
+  // This whole Sheet-to-API replacement exists because the sheet failed silently from 18.06. on. These metrics make
   // a stuck job visible: a growing `backlog` (the robust primary indicator) signals the PDF pipeline
   // is not draining anymore (job disabled, upload errors, claim leaks); claimedWithoutFile catches
   // the inverse failure where a candidate was claimed but the rollback after a failed upload did not

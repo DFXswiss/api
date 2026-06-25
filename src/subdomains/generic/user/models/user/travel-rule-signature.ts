@@ -1,7 +1,10 @@
 /**
  * Shared fail-closed allowlist of known address-ownership signature formats for the Travel-Rule PDF
- * pipeline. Deliberately conservative so it never rejects a valid signature; the exact allowlist
- * scope is Compliance-sign-off-pending (open question Q1, DECISION_NEEDED).
+ * pipeline. Deliberately conservative; the exact allowlist scope is Compliance-sign-off-pending
+ * (open question Q1, DECISION_NEEDED). It rarely rejects a VALID signature — one known out-of-scope
+ * case is the uncompressed-key recId-0 Bitcoin header byte 27 (base64 first char `G`, outside the
+ * `[H-K]` range below); such candidates are skipped but stay VISIBLE via the observer's
+ * `skippedUnrecognised` metric, never silently dropped. Widening to `[G-K]` is a Q1 decision.
  *
  * Empirical format distribution from the sheet `archiv!J` full scan (27.296 non-empty cells):
  * Monero base58, EVM hex (0x + 130/146 hex), Bitcoin base64 (`H…`, len ~88), Cardano CIP-30 COSE
@@ -22,7 +25,7 @@ export class TravelRuleSignature {
     /^0x[0-9a-fA-F]{130}$/, // EVM personal_sign (65-byte r/s/v)
     /^0x[0-9a-fA-F]{146}$/, // EVM long variant observed in the archive (73 bytes)
     /^8458[0-9a-fA-F]+$/, // Cardano CIP-8/CIP-30 COSE_Sign1 (CBOR), key part handled below
-    /^[H-K][0-9A-Za-z+/]{86,88}={0,2}$/, // Bitcoin message signature, base64 (65 bytes → ~88 chars)
+    /^[H-K][0-9A-Za-z+/]{86,88}={0,2}$/, // Bitcoin base64 (65 bytes → ~88 chars); [H-K]=compressed-key headers 31-42 (uncompressed 27-30 → leading 'G' out of scope, Q1)
     /^[1-9A-HJ-NP-Za-km-z]{90,}$/, // Monero base58 (long, no 0/O/I/l)
   ];
 
