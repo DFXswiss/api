@@ -410,7 +410,7 @@ export class PaymentLinkController {
     }
 
     const idArray = ids?.split(',').map((id) => {
-      const linkId = Number(id);
+      const linkId = +id;
       if (!id.trim() || !Number.isInteger(linkId))
         throw new BadRequestException('ids must be a comma-separated list of integers');
       return linkId;
