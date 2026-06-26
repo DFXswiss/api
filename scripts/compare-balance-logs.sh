@@ -42,15 +42,30 @@ if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
   exit 1
 fi
 
-# Get both log entries
-SQL="SELECT id, created, message FROM log WHERE id IN ($LOG_ID_1, $LOG_ID_2) ORDER BY id"
+# Get both log entries. The /gs/debug endpoint takes a structured query, not raw SQL —
+# payload describes table+select+where+limit and the service emits SQL with bound params.
+PAYLOAD=$(jq -n --argjson id1 "$LOG_ID_1" --argjson id2 "$LOG_ID_2" '{
+  table: "log",
+  select: [
+    {kind: "column", column: "id"},
+    {kind: "column", column: "created"},
+    {kind: "column", column: "message"}
+  ],
+  where: {kind: "leaf", column: "id", op: "IN", value: [$id1, $id2]},
+  orderBy: [{column: "id", direction: "ASC"}],
+  limit: 2
+}')
 RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"sql\":\"$SQL\"}")
+  -d "$PAYLOAD")
+
+# Response shape: {keys, rows}. Reshape back to an array of objects so the existing jq
+# filter below works unchanged.
+ROWS=$(echo "$RESULT" | jq '[.keys as $k | .rows[] | [$k, .] | transpose | map({(.[0]): .[1]}) | add]')
 
 # Parse with jq
-echo "$RESULT" | jq -r '
+echo "$ROWS" | jq -r '
   # Extract both entries
   .[0] as $entry1 |
   .[1] as $entry2 |

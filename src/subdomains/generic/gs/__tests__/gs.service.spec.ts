@@ -161,17 +161,163 @@ describe('GsService', () => {
         await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/Column .*not allowed/);
       });
 
+      // The full set of (table, column) pairs the previous blocklist (DebugBlockedCols) marked
+      // sensitive. The new allowlist must reject every one. A future migration that adds any
+      // of these to DebugAllowedColumns will fail CI here — that's intentional.
       it.each([
+        // user_data PII
         ['user_data', 'mail'],
-        ['user_data', 'firstname'],
         ['user_data', 'phone'],
-        ['user', 'signature'],
+        ['user_data', 'firstname'],
+        ['user_data', 'surname'],
+        ['user_data', 'verifiedName'],
+        ['user_data', 'street'],
+        ['user_data', 'houseNumber'],
+        ['user_data', 'location'],
+        ['user_data', 'zip'],
+        ['user_data', 'countryId'],
+        ['user_data', 'verifiedCountryId'],
+        ['user_data', 'nationalityId'],
+        ['user_data', 'birthday'],
+        ['user_data', 'tin'],
+        ['user_data', 'identDocumentId'],
+        ['user_data', 'identDocumentType'],
+        ['user_data', 'organizationName'],
+        ['user_data', 'organizationStreet'],
+        ['user_data', 'organizationLocation'],
+        ['user_data', 'organizationZip'],
+        ['user_data', 'organizationCountryId'],
+        ['user_data', 'organizationId'],
+        ['user_data', 'allBeneficialOwnersName'],
+        ['user_data', 'allBeneficialOwnersDomicile'],
+        ['user_data', 'accountOpenerAuthorization'],
+        ['user_data', 'complexOrgStructure'],
+        ['user_data', 'accountOpener'],
+        ['user_data', 'legalEntity'],
+        ['user_data', 'signatoryPower'],
+        ['user_data', 'kycHash'],
+        ['user_data', 'apiKeyCT'],
+        ['user_data', 'totpSecret'],
+        ['user_data', 'internalAmlNote'],
+        ['user_data', 'blackSquadRecipientMail'],
+        ['user_data', 'individualFees'],
+        ['user_data', 'paymentLinksConfig'],
+        ['user_data', 'paymentLinksName'],
+        ['user_data', 'comment'],
+        ['user_data', 'relatedUsers'],
+        // user PII / secrets
+        ['user', 'ip'],
+        ['user', 'ipCountry'],
         ['user', 'apiKeyCT'],
-        ['wallet', 'apiKey'],
+        ['user', 'apiFilterCT'],
+        ['user', 'signature'],
+        ['user', 'label'],
+        ['user', 'comment'],
+        // bank_tx PII
+        ['bank_tx', 'name'],
+        ['bank_tx', 'ultimateName'],
+        ['bank_tx', 'country'],
+        ['bank_tx', 'senderAccount'],
+        ['bank_tx', 'bic'],
+        ['bank_tx', 'addressLine1'],
+        ['bank_tx', 'addressLine2'],
+        ['bank_tx', 'txInfo'],
+        ['bank_tx', 'txRaw'],
+        ['bank_tx', 'virtualIban'],
+        // bank_data PII
         ['bank_data', 'iban'],
+        ['bank_data', 'name'],
+        ['bank_data', 'label'],
+        // fiat_output banking PII
+        ['fiat_output', 'iban'],
+        ['fiat_output', 'name'],
+        ['fiat_output', 'accountNumber'],
+        ['fiat_output', 'bic'],
+        ['fiat_output', 'aba'],
+        ['fiat_output', 'address'],
+        ['fiat_output', 'remittanceInfo'],
+        ['fiat_output', 'country'],
+        ['fiat_output', 'info'],
+        ['fiat_output', 'creditInstitution'],
+        // checkout_tx card data
+        ['checkout_tx', 'cardName'],
+        ['checkout_tx', 'ip'],
+        ['checkout_tx', 'cardBin'],
+        ['checkout_tx', 'cardLast4'],
+        ['checkout_tx', 'cardFingerPrint'],
+        ['checkout_tx', 'raw'],
+        // organization PII
+        ['organization', 'name'],
+        ['organization', 'street'],
+        ['organization', 'houseNumber'],
+        ['organization', 'location'],
+        ['organization', 'zip'],
+        ['organization', 'countryId'],
+        // kyc / virtual_iban
+        ['virtual_iban', 'label'],
+        ['kyc_step', 'result'],
+        ['kyc_file', 'name'],
+        ['kyc_file', 'uid'],
+        ['kyc_log', 'comment'],
+        ['kyc_log', 'ipAddress'],
+        ['kyc_log', 'result'],
+        ['kyc_log', 'pdfUrl'],
+        // transaction-class recipient mails
+        ['buy_crypto', 'recipientMail'],
+        ['buy_crypto', 'chargebackIban'],
+        ['buy_crypto', 'chargebackRemittanceInfo'],
+        ['buy_crypto', 'siftResponse'],
+        ['buy_fiat', 'recipientMail'],
+        ['buy_fiat', 'usedBank'],
+        ['transaction', 'recipientMail'],
+        ['transaction', 'uid'],
+        ['crypto_input', 'senderAddresses'],
+        ['ref_reward', 'recipientMail'],
+        ['bank_tx_return', 'recipientMail'],
+        ['bank_tx_return', 'chargebackIban'],
+        ['bank_tx_repeat', 'chargebackIban'],
+        ['limit_request', 'recipientMail'],
+        ['limit_request', 'fundOriginText'],
+        // wallet / payment_link secrets and free-form
+        ['wallet', 'apiKey'],
+        ['wallet', 'apiUrl'],
+        ['payment_link', 'comment'],
+        ['payment_link', 'label'],
+        ['payment_link_payment', 'note'],
+        ['payment_link_payment', 'deviceCommand'],
+        // ref / ip_log
+        ['ref', 'ip'],
         ['ip_log', 'ip'],
+        ['ip_log', 'country'],
+        ['ip_log', 'address'],
+        // buy / deposit_route
+        ['buy', 'iban'],
+        ['deposit_route', 'iban'],
+        // transaction_risk_assessment / support_*
+        ['transaction_risk_assessment', 'reason'],
+        ['transaction_risk_assessment', 'methods'],
+        ['transaction_risk_assessment', 'summary'],
+        ['transaction_risk_assessment', 'result'],
+        ['transaction_risk_assessment', 'pdf'],
+        ['support_issue', 'name'],
+        ['support_issue', 'information'],
+        ['support_issue', 'uid'],
+        ['support_message', 'message'],
+        ['support_message', 'fileUrl'],
+        // misc payload / data blobs
+        ['sift_error_log', 'requestPayload'],
+        ['webhook', 'data'],
+        ['notification', 'data'],
+        // recommendation PII
         ['recommendation', 'recommendedMail'],
-      ])('rejects PII column %s.%s', async (table, column) => {
+        ['recommendation', 'recommendedAlias'],
+        // trading_order operational text
+        ['trading_order', 'errorMessage'],
+        // liquidity_management_order operational text
+        ['liquidity_management_order', 'errorMessage'],
+        // fiat admin-config JSON
+        ['fiat', 'ibanCountryConfig'],
+      ])('rejects sensitive column %s.%s', async (table, column) => {
         const dto = { table, select: [{ kind: 'column' as const, column }], limit: 10 };
         await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
       });
@@ -1500,6 +1646,56 @@ describe('GsService', () => {
         expect(sql).toContain(`FROM "user_data"`);
         expect(sql).toContain(`"user_data"."id" = $1`);
         expect(params).toEqual([370625]);
+      });
+
+      it('default mode (no args): asset + [id, name, blockchain] + ORDER id DESC + LIMIT 5', async () => {
+        const q = spyQuery();
+        const dto: DebugQueryDto = {
+          table: 'asset',
+          select: [
+            { kind: 'column', column: 'id' },
+            { kind: 'column', column: 'name' },
+            { kind: 'column', column: 'blockchain' },
+          ],
+          orderBy: [{ column: 'id', direction: 'DESC' }],
+          limit: 5,
+        };
+        await service.executeDebugQuery(dto, 'tester');
+        const [sql, params] = q.mock.calls[0];
+        expect(sql).toContain(`FROM "asset"`);
+        expect(sql).toContain(`"asset"."id" AS "id"`);
+        expect(sql).toContain(`"asset"."name" AS "name"`);
+        expect(sql).toContain(`"asset"."blockchain" AS "blockchain"`);
+        expect(sql).toContain(`ORDER BY "asset"."id" DESC`);
+        expect(sql).toContain(`LIMIT 5`);
+        expect(params).toEqual([]);
+      });
+
+      it('asset resolver (--asset-history Blockchain/Name): asset + AND(blockchain, name)', async () => {
+        const q = spyQuery();
+        const dto: DebugQueryDto = {
+          table: 'asset',
+          select: [
+            { kind: 'column', column: 'id' },
+            { kind: 'column', column: 'name' },
+            { kind: 'column', column: 'blockchain' },
+          ],
+          where: {
+            kind: 'and',
+            children: [
+              { kind: 'leaf', column: 'blockchain', op: DebugWhereOp.EQ, value: 'Yapeal' },
+              { kind: 'leaf', column: 'name', op: DebugWhereOp.EQ, value: 'EUR' },
+            ],
+          },
+          limit: 1,
+        };
+        await service.executeDebugQuery(dto, 'tester');
+        const [sql, params] = q.mock.calls[0];
+        expect(sql).toContain(`FROM "asset"`);
+        expect(sql).toContain(`"asset"."blockchain" = $1`);
+        expect(sql).toContain(`"asset"."name" = $2`);
+        expect(sql).toContain(`LIMIT 1`);
+        expect(params).toEqual(['Yapeal', 'EUR']);
       });
 
       it('--referral-tree (children query): recommendation + [recommendedId] + leaf recommenderId + ORDER created', async () => {

@@ -250,8 +250,10 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'externalId', 'mode', 'publicStatus', 'routeId', 'status', 'uniqueId'],
   },
   payment_link_payment: {
-    // `note` removed — varchar(256) free-form merchant note.
-    columns: ['id', 'created', 'updated', 'amount', 'currencyId', 'deviceCommand', 'deviceId', 'externalId', 'expiryDate', 'isConfirmed', 'linkId', 'mode', 'status', 'txCount', 'uniqueId'],
+    // `note` and `deviceCommand` excluded — both are free-form merchant-supplied text and
+    // could carry receipt-flavoured PII (customer names, addresses) or arbitrary printer
+    // payloads.
+    columns: ['id', 'created', 'updated', 'amount', 'currencyId', 'deviceId', 'externalId', 'expiryDate', 'isConfirmed', 'linkId', 'mode', 'status', 'txCount', 'uniqueId'],
   },
   payment_merchant: {
     columns: ['id', 'created', 'updated', 'externalId', 'status', 'userId'],
@@ -300,6 +302,10 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'active', 'annualVolume', 'bankDataId', 'fiatId', 'monthlyVolume', 'type', 'volume'],
   },
   setting: {
+    // `key` is included so a debug investigation can locate a specific setting row by name.
+    // `value` is excluded — settings can hold credentials, exchange API config, etc.
+    // Listing key names alone discloses the config schema, but that schema is also visible
+    // in the codebase; values are the secret part and stay redacted.
     columns: ['id', 'created', 'updated', 'key'],
   },
   sift_error_log: {
