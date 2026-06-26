@@ -33,7 +33,7 @@ import {
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
-import { RoleDepartmentMap } from '../enums/department.enum';
+import { getVisibleDepartments } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
@@ -71,8 +71,8 @@ export class SupportIssueService {
       .addSelect('COUNT(*)', 'count')
       .groupBy('issue.state');
 
-    const departmentByRole = RoleDepartmentMap[role];
-    if (departmentByRole) qb.andWhere('issue.department = :department', { department: departmentByRole });
+    const departments = getVisibleDepartments(role);
+    if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
 
     const raw: { state: SupportIssueInternalState; count: string }[] = await qb.getRawMany();
 
@@ -86,7 +86,7 @@ export class SupportIssueService {
   }
 
   async getSupportIssueActivity(since: Date | undefined, role: UserRole): Promise<{ count: number; latestAt?: Date }> {
-    const departmentByRole = RoleDepartmentMap[role];
+    const departments = getVisibleDepartments(role);
 
     const qb = this.messageRepo
       .createQueryBuilder('m')
@@ -94,7 +94,7 @@ export class SupportIssueService {
       .select('COUNT(*)', 'count')
       .addSelect('MAX(m.created)', 'latestAt');
     if (since) qb.andWhere('m.created > :since', { since: since.toISOString() });
-    if (departmentByRole) qb.andWhere('i.department = :department', { department: departmentByRole });
+    if (departments) qb.andWhere('i.department IN (:...departments)', { departments });
 
     const raw = await qb.getRawOne<{ count: string | number; latestAt: Date | null }>();
     return { count: +(raw?.count ?? 0), latestAt: raw?.latestAt ?? undefined };
@@ -266,13 +266,12 @@ export class SupportIssueService {
   ): Promise<{ data: SupportIssueListDto[]; total: number }> {
     const where: FindOptionsWhere<SupportIssue> = {};
 
-    // department filtering based on role
-    const departmentByRole = RoleDepartmentMap[role];
-    if (departmentByRole) {
-      where.department = departmentByRole;
-    } else if (filter.department) {
-      where.department = filter.department;
-    }
+    // department filtering: the role defines the allowed departments, an explicit filter may narrow within them
+    const allowedDepartments = getVisibleDepartments(role);
+    const departments =
+      filter.department && (!allowedDepartments || allowedDepartments.includes(filter.department))
+        ? [filter.department]
+        : allowedDepartments;
 
     if (filter.type) where.type = filter.type;
 
@@ -286,7 +285,7 @@ export class SupportIssueService {
     const qb = this.supportIssueRepo.createQueryBuilder('issue');
     if (terms.length > 0) qb.leftJoin('issue.userData', 'userData');
 
-    if (where.department) qb.andWhere('issue.department = :department', { department: where.department });
+    if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
     if (filter.states?.length) qb.andWhere('issue.state IN (:...states)', { states: filter.states });
     if (where.type) qb.andWhere('issue.type = :type', { type: where.type });
 

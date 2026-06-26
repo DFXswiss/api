@@ -1,6 +1,10 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { Department, RoleDepartmentMap } from 'src/subdomains/supporting/support-issue/enums/department.enum';
+import {
+  Department,
+  getVisibleDepartments,
+  RoleDepartmentMap,
+} from 'src/subdomains/supporting/support-issue/enums/department.enum';
 import { FindOptionsWhere, In, IsNull, Like, Not } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
@@ -20,8 +24,7 @@ const SEARCH_LIMIT = 200;
 
 export function visibleDepartments(role: UserRole): Department[] {
   if (role === UserRole.ADMIN) return ADMIN_DEPARTMENTS;
-  const dept = RoleDepartmentMap[role];
-  return dept ? [dept] : [];
+  return getVisibleDepartments(role) ?? [];
 }
 
 @Injectable()
