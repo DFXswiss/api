@@ -349,7 +349,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   },
   support_note: {
     // No content / subject / authorMail.
-    columns: ['id', 'created', 'updated', 'authorId', 'department'],
+    columns: ['id', 'created', 'updated', 'authorId', 'department', 'userDataId'],
   },
   swap: {
     columns: ['id', 'created', 'updated', 'active', 'annualVolume', 'assetId', 'monthlyVolume', 'targetDepositId', 'type', 'volume'],

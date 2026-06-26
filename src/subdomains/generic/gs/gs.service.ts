@@ -242,6 +242,12 @@ export class GsService {
     }
     const spec = DebugAllowedColumns[dto.table];
 
+    // Audit log emitted FIRST — before any emit/validate step can throw — so a malformed or
+    // probing request (bad column, oversized IN list, etc.) is still recorded for forensics.
+    // WHERE leaf values may carry PII (LIKE patterns over mail / IBAN); redact them. Bound
+    // parameters already protect the SQL string; we shouldn't undo that via the verbose log.
+    this.logger.verbose(`Debug-query by ${userIdentifier}: ${this.serializeDebugQueryForAudit(dto)}`);
+
     const ctx: DebugQueryEmitCtx = {
       table: dto.table,
       spec,
@@ -276,12 +282,6 @@ export class GsService {
     const limitClause = ` LIMIT ${limit}${offset > 0 ? ` OFFSET ${offset}` : ''}`;
 
     const sql = `SELECT ${selectClause} FROM "${dto.table}"${whereClause}${groupByClause}${orderByClause}${limitClause}`;
-
-    // Audit log. WHERE leaf values are user-supplied and may carry PII (LIKE patterns over
-    // mail, IBAN, etc.), so we redact them before stringifying — the *shape* of the query is
-    // useful for forensics but the values were already protected by parameter binding; we
-    // shouldn't leak them to the verbose log just to undo that.
-    this.logger.verbose(`Debug-query by ${userIdentifier}: ${this.serializeDebugQueryForAudit(dto)}`);
 
     try {
       const rows: Record<string, unknown>[] = await this.dataSource.query(sql, ctx.params);

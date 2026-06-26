@@ -28,8 +28,14 @@ import {
 
 // Maximum nesting depth of a WHERE tree (and/or/not nesting). Validated in the service.
 export const DebugQueryMaxWhereDepth = 5;
-// Maximum total number of leaf predicates across the entire WHERE tree. Same place.
+// Maximum total number of leaf predicates across the entire WHERE tree. Counted in the
+// service walker; covers all-leaf trees.
 export const DebugQueryMaxPredicates = 50;
+// Maximum children of a single AND/OR node. Bounds the body parse + class-validator pass
+// before the depth/predicate walk runs, so an attacker can't burn CPU on a deeply-recursive
+// validation pass. Combined with `DebugQueryMaxWhereDepth = 5` this gives at most 10^5 leaves
+// in the worst case; the predicate-count cap above tightens that further to 50.
+export const DebugQueryMaxAndOrChildren = 10;
 // Maximum number of values inside an IN / NOT IN list.
 export const DebugQueryMaxInListSize = 100;
 
@@ -101,12 +107,12 @@ export class DebugWhereNode {
   @IsIn(['leaf', 'and', 'or', 'not'])
   kind: 'leaf' | 'and' | 'or' | 'not';
 
-  // Children for 'and' / 'or'. Recursive — but the service caps total depth at
-  // DebugQueryMaxWhereDepth and total leaf count at DebugQueryMaxPredicates so the tree
-  // can't be used to DoS via deeply-nested JSON.
+  // Children for 'and' / 'or'. Recursive — but the per-level cap (DebugQueryMaxAndOrChildren)
+  // bounds the validator pass before the service's depth and predicate caps run, so a
+  // pathologically wide-and-deep request can't burn CPU on class-validator alone.
   @IsOptional()
   @IsArray()
-  @ArrayMaxSize(DebugQueryMaxPredicates)
+  @ArrayMaxSize(DebugQueryMaxAndOrChildren)
   @ValidateNested({ each: true })
   @Type(() => DebugWhereNode)
   children?: DebugWhereNode[];

@@ -1786,6 +1786,26 @@ describe('GsService', () => {
         infoSpy.mockRestore();
       });
 
+      it('still writes the audit log even when emit throws (probing forensics)', async () => {
+        // The audit log is emitted BEFORE the emit/validate step so a malformed/probing
+        // request (bad column, unknown alias) is still recorded for post-incident forensics.
+        // A regression that pushed the audit log back below emit would let a DEBUG-role
+        // attacker probe column allowlists invisibly.
+        const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
+        const dto: DebugQueryDto = {
+          table: 'user_data',
+          select: [{ kind: 'column', column: 'mail' }],
+          limit: 10,
+        };
+        await expect(service.executeDebugQuery(dto, '0xprobe')).rejects.toThrow(/Column .*not allowed/);
+        const auditLine = verboseSpy.mock.calls
+          .map((c) => String(c[0]))
+          .find((l) => l.startsWith('Debug-query by 0xprobe:'));
+        expect(auditLine).toBeDefined();
+        expect(auditLine).toContain('"table":"user_data"');
+        verboseSpy.mockRestore();
+      });
+
       it('audit JSON payload contains the table name', async () => {
         const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
         spyQuery();
