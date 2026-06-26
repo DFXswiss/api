@@ -33,9 +33,10 @@ export const DebugQueryMaxWhereDepth = 5;
 export const DebugQueryMaxPredicates = 50;
 // Maximum children of a single AND/OR node. Bounds the body parse + class-validator pass
 // before the depth/predicate walk runs, so an attacker can't burn CPU on a deeply-recursive
-// validation pass. Combined with `DebugQueryMaxWhereDepth = 5` this gives at most 10^5 leaves
-// in the worst case; the predicate-count cap above tightens that further to 50.
-export const DebugQueryMaxAndOrChildren = 10;
+// validation pass. Combined with `DebugQueryMaxWhereDepth = 5` this gives at most 5^5 = 3125
+// internal nodes in the worst case; the predicate-count cap above further bounds the leaves
+// to 50. 5 children per AND/OR is comfortably more than realistic debug queries need.
+export const DebugQueryMaxAndOrChildren = 5;
 // Maximum number of values inside an IN / NOT IN list.
 export const DebugQueryMaxInListSize = 100;
 
