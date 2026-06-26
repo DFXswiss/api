@@ -11,6 +11,7 @@ import { Contract, ethers } from 'ethers';
 import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { EvmClient } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { DEuroDepsGraphDto, DEuroPositionGraphDto, DEuroSavingsInfoDto } from './dto/deuro.dto';
@@ -65,27 +66,31 @@ const depsQuery = gql`
 `;
 
 export class DEuroClient {
+  private readonly logger = new DfxLogger(DEuroClient);
+
   constructor(private readonly evmClient: EvmClient) {}
 
   async getPositionV2s(): Promise<DEuroPositionGraphDto[]> {
-    let gqlResult = await request<{ positionV2s: { items: [DEuroPositionGraphDto]; pageInfo: GraphQLPageInfo } }>(
-      Config.blockchain.deuro.graphUrl,
-      positionV2sQuery,
-      { after: null },
-    );
+    const positionV2s: DEuroPositionGraphDto[] = [];
+    const seen = new Set<string>();
+    let after: string | null = null;
+    const MAX_PAGES = 100;
 
-    const positionV2s: DEuroPositionGraphDto[] = gqlResult.positionV2s.items;
-
-    while (gqlResult.positionV2s.pageInfo.hasNextPage) {
-      gqlResult = await request<{ positionV2s: { items: [DEuroPositionGraphDto]; pageInfo: GraphQLPageInfo } }>(
-        Config.blockchain.deuro.graphUrl,
-        positionV2sQuery,
-        { after: gqlResult.positionV2s.pageInfo.endCursor },
-      );
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const gqlResult = await request<{
+        positionV2s: { items: [DEuroPositionGraphDto]; pageInfo: GraphQLPageInfo };
+      }>(Config.blockchain.deuro.graphUrl, positionV2sQuery, { after });
 
       positionV2s.push(...gqlResult.positionV2s.items);
+
+      const { hasNextPage, endCursor } = gqlResult.positionV2s.pageInfo;
+      if (!hasNextPage || !endCursor || seen.has(endCursor)) return positionV2s;
+
+      seen.add(endCursor);
+      after = endCursor;
     }
 
+    this.logger.warn(`getPositionV2s reached the ${MAX_PAGES}-page limit; result may be incomplete`);
     return positionV2s;
   }
 

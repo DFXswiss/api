@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBadRequestResponse, ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
@@ -152,9 +152,9 @@ export class SupportIssueController {
   async getFile(
     @GetJwt() jwt: JwtPayload | undefined,
     @Param('id') id: string,
-    @Param('messageId') messageId: string,
+    @Param('messageId', ParseIntPipe) messageId: number,
   ): Promise<BlobContent> {
-    return this.supportIssueService.getIssueFile(id, +messageId, jwt?.account);
+    return this.supportIssueService.getIssueFile(id, messageId, jwt?.account);
   }
 
   // --- SUPPORT --- //
