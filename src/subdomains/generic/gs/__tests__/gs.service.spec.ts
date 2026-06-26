@@ -875,7 +875,7 @@ describe('GsService', () => {
       });
 
       it('does NOT collide for default-aggregate-alias and plain-column-name (id + count_id)', async () => {
-        const q = spyQuery();
+        spyQuery();
         const dto: DebugQueryDto = {
           table: 'asset',
           select: [
