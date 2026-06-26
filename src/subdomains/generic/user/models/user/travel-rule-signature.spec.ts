@@ -58,7 +58,7 @@ describe('TravelRuleSignature', () => {
       expect(TravelRuleSignature.isValid('Link')).toBe(false);
     });
 
-    it('rejects a Lightning-style signature (lowercase hex, no 0x prefix)', () => {
+    it('rejects a lowercase-hex value without the 0x prefix (no allowlisted format matches)', () => {
       // leading `0` excludes the Monero base58 format (which forbids 0/O/I/l) and the missing `0x`
       // prefix excludes the EVM formats → a deterministically non-allowlisted lowercase-hex value
       expect(TravelRuleSignature.isValid(`0${'a'.repeat(143)}`)).toBe(false);

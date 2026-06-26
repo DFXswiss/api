@@ -16,7 +16,9 @@
  * SAME check so its `backlog`/`oldestAgeHours` metrics only count drainable work and a separate
  * `skippedUnrecognised` metric tracks the permanently-skipped (non-allowlist) candidates. Keeping a
  * single source of truth here is what prevents the observer from raising false-positive stuck alerts
- * on candidates the job will never process (e.g. Lightning/DeFiChain).
+ * on candidates the job cannot render (e.g. an EVM signature missing the `0x` prefix — note that
+ * Bitcoin AND DeFiChain signatures DO match the base64 format and ARE processed; the unrecognised
+ * set is dominated by format edge cases, not by specific chains).
  */
 export class TravelRuleSignature {
   private static readonly UUID_REGEX = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;

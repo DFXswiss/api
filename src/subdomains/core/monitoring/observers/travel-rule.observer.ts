@@ -16,7 +16,7 @@ interface TravelRuleData {
   // signature format the job actually renders (TravelRuleSignature.isValid). This is the job's open
   // backlog that can still drain — the primary, robust stuck indicator.
   backlog: number;
-  // candidates whose signature format the job never renders (e.g. Lightning/DeFiChain). They keep
+  // candidates whose signature format the job never renders (e.g. an EVM signature missing the 0x prefix). They keep
   // travelRulePdfDate IS NULL forever by design, so they MUST NOT inflate `backlog` and trigger a
   // false-positive stuck alert. Tracked separately, expected to be roughly constant.
   skippedUnrecognised: number;
