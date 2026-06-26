@@ -321,6 +321,22 @@ describe('TravelRuleJobService', () => {
     expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('malformed name'));
   });
 
+  it('fail-safe: an existing file name with an impossible date (rollover) is rejected, never stamped', async () => {
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+    jest.spyOn(userRepo, 'find').mockResolvedValue([createUser(7)]);
+    jest
+      .spyOn(kycFileService, 'getUserDataKycFiles')
+      .mockResolvedValue([addressSignatureFile(99, '20261332-AddressSignature-0-7-120000.pdf')]); // month 13, day 32
+
+    await service.generateTravelRulePdfs();
+
+    // the 8-digit prefix parses but is an impossible calendar date → undefined → fail-safe, no guess
+    expect(userRepo.update).not.toHaveBeenCalled();
+    expect(travelRulePdfService.generatePdf).not.toHaveBeenCalled();
+    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('malformed name'));
+  });
+
   it('an invalid (valid:false) existing PDF does not count as present → generates normally', async () => {
     jest.spyOn(userRepo, 'find').mockResolvedValue([createUser(7)]);
     jest
