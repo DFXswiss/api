@@ -1,4 +1,4 @@
-const mssql = require('mssql');
+const { Client } = require('pg');
 const crypto = require('crypto');
 
 // Safety check - only local
@@ -11,10 +11,11 @@ if (!['localhost', '127.0.0.1'].includes(dbHost)) {
 const config = {
   user: process.env.SQL_USERNAME || 'sa',
   password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
-  server: 'localhost',
-  port: parseInt(process.env.SQL_PORT) || 1433,
+  host: process.env.SQL_HOST || 'localhost',
+  port: parseInt(process.env.SQL_PORT) || 5432,
   database: process.env.SQL_DB || 'dfx',
-  options: { encrypt: false, trustServerCertificate: true },
+  // Local-only script (host is restricted above); default to no SSL, opt in via SQL_SSL=true.
+  ssl: process.env.SQL_SSL === 'true' ? { rejectUnauthorized: false } : false,
 };
 
 // Test addresses (not real wallets)
@@ -44,38 +45,39 @@ function bankUsage() {
 
 async function main() {
   console.log('Connecting to database...');
-  const pool = await mssql.connect(config);
+  const client = new Client(config);
+  await client.connect();
 
   console.log('Creating test data...\n');
 
   // Get existing IDs for foreign keys
-  const walletResult = await pool.request().query('SELECT TOP 1 id FROM wallet');
-  const walletId = walletResult.recordset[0]?.id || 1;
+  const walletResult = await client.query('SELECT id FROM wallet LIMIT 1');
+  const walletId = walletResult.rows[0]?.id || 1;
 
-  const langResult = await pool.request().query("SELECT id FROM language WHERE symbol = 'EN'");
-  const languageId = langResult.recordset[0]?.id || 1;
+  const langResult = await client.query("SELECT id FROM language WHERE symbol = 'EN'");
+  const languageId = langResult.rows[0]?.id || 1;
 
-  const chfResult = await pool.request().query("SELECT id FROM fiat WHERE name = 'CHF'");
-  const chfId = chfResult.recordset[0]?.id || 1;
+  const chfResult = await client.query("SELECT id FROM fiat WHERE name = 'CHF'");
+  const chfId = chfResult.rows[0]?.id || 1;
 
-  const eurResult = await pool.request().query("SELECT id FROM fiat WHERE name = 'EUR'");
-  const eurId = eurResult.recordset[0]?.id || 2;
+  const eurResult = await client.query("SELECT id FROM fiat WHERE name = 'EUR'");
+  const eurId = eurResult.rows[0]?.id || 2;
 
-  const countryResult = await pool.request().query("SELECT id FROM country WHERE symbol = 'CH'");
-  const countryId = countryResult.recordset[0]?.id || 1;
+  const countryResult = await client.query("SELECT id FROM country WHERE symbol = 'CH'");
+  const countryId = countryResult.rows[0]?.id || 1;
 
-  const deCountryResult = await pool.request().query("SELECT id FROM country WHERE symbol = 'DE'");
-  const deCountryId = deCountryResult.recordset[0]?.id || 2;
+  const deCountryResult = await client.query("SELECT id FROM country WHERE symbol = 'DE'");
+  const deCountryId = deCountryResult.rows[0]?.id || 2;
 
   // Get some assets
-  const btcResult = await pool.request().query("SELECT id FROM asset WHERE name = 'BTC' AND blockchain = 'Bitcoin'");
-  const btcId = btcResult.recordset[0]?.id;
+  const btcResult = await client.query("SELECT id FROM asset WHERE name = 'BTC' AND blockchain = 'Bitcoin'");
+  const btcId = btcResult.rows[0]?.id;
 
-  const ethResult = await pool.request().query("SELECT id FROM asset WHERE name = 'ETH' AND blockchain = 'Ethereum'");
-  const ethId = ethResult.recordset[0]?.id;
+  const ethResult = await client.query("SELECT id FROM asset WHERE name = 'ETH' AND blockchain = 'Ethereum'");
+  const ethId = ethResult.rows[0]?.id;
 
-  const usdtResult = await pool.request().query("SELECT id FROM asset WHERE name = 'USDT' AND blockchain = 'Ethereum'");
-  const usdtId = usdtResult.recordset[0]?.id;
+  const usdtResult = await client.query("SELECT id FROM asset WHERE name = 'USDT' AND blockchain = 'Ethereum'");
+  const usdtId = usdtResult.rows[0]?.id;
 
   console.log(`Using: walletId=${walletId}, langId=${languageId}, chfId=${chfId}, eurId=${eurId}`);
   console.log(`Assets: BTC=${btcId}, ETH=${ethId}, USDT=${usdtId}\n`);
@@ -157,49 +159,46 @@ async function main() {
 
   const userDataIds = [];
   for (const ud of userDataConfigs) {
-    const existing = await pool
-      .request()
-      .input('mail', mssql.NVarChar, ud.mail)
-      .query('SELECT id FROM user_data WHERE mail = @mail');
+    const existing = await client.query('SELECT id FROM user_data WHERE mail = $1', [ud.mail]);
 
-    if (existing.recordset.length > 0) {
-      userDataIds.push(existing.recordset[0].id);
-      console.log(`  UserData ${ud.mail} already exists (id=${existing.recordset[0].id})`);
+    if (existing.rows.length > 0) {
+      userDataIds.push(existing.rows[0].id);
+      console.log(`  UserData ${ud.mail} already exists (id=${existing.rows[0].id})`);
       continue;
     }
 
     const kycHash = uuid();
-    const result = await pool
-      .request()
-      .input('mail', mssql.NVarChar, ud.mail)
-      .input('firstname', mssql.NVarChar, ud.firstname)
-      .input('surname', mssql.NVarChar, ud.surname)
-      .input('street', mssql.NVarChar, ud.street || null)
-      .input('houseNumber', mssql.NVarChar, ud.houseNumber || null)
-      .input('zip', mssql.NVarChar, ud.zip || null)
-      .input('location', mssql.NVarChar, ud.location || null)
-      .input('kycHash', mssql.NVarChar, kycHash)
-      .input('kycLevel', mssql.Int, ud.kycLevel)
-      .input('kycStatus', mssql.NVarChar, ud.kycStatus)
-      .input('kycType', mssql.NVarChar, 'DFX')
-      .input('status', mssql.NVarChar, ud.status)
-      .input('riskStatus', mssql.NVarChar, 'NA')
-      .input('countryId', mssql.Int, ud.countryId || null)
-      .input('nationalityId', mssql.Int, ud.countryId || null)
-      .input('languageId', mssql.Int, languageId)
-      .input('currencyId', mssql.Int, chfId)
-      .input('walletId', mssql.Int, walletId)
-      .input('accountType', mssql.NVarChar, ud.accountType || null)
-      .input('birthday', mssql.Date, ud.birthday || null).query(`
-        INSERT INTO user_data (mail, firstname, surname, street, houseNumber, zip, location, kycHash, kycLevel, kycStatus, kycType, status, riskStatus,
-          countryId, nationalityId, languageId, currencyId, walletId, accountType, birthday, created, updated)
-        OUTPUT INSERTED.id
-        VALUES (@mail, @firstname, @surname, @street, @houseNumber, @zip, @location, @kycHash, @kycLevel, @kycStatus, @kycType, @status, @riskStatus,
-          @countryId, @nationalityId, @languageId, @currencyId, @walletId, @accountType, @birthday, GETUTCDATE(), GETUTCDATE())
-      `);
+    const result = await client.query(
+      `INSERT INTO user_data (mail, firstname, surname, street, "houseNumber", zip, location, "kycHash", "kycLevel", "kycStatus", "kycType", status, "riskStatus",
+          "countryId", "nationalityId", "languageId", "currencyId", "walletId", "accountType", birthday, created, updated)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, now() at time zone 'utc', now() at time zone 'utc')
+        RETURNING id`,
+      [
+        ud.mail,
+        ud.firstname,
+        ud.surname,
+        ud.street || null,
+        ud.houseNumber || null,
+        ud.zip || null,
+        ud.location || null,
+        kycHash,
+        ud.kycLevel,
+        ud.kycStatus,
+        'DFX',
+        ud.status,
+        'NA',
+        ud.countryId || null,
+        ud.countryId || null,
+        languageId,
+        chfId,
+        walletId,
+        ud.accountType || null,
+        ud.birthday || null,
+      ],
+    );
 
-    userDataIds.push(result.recordset[0].id);
-    console.log(`  Created UserData: ${ud.mail} (id=${result.recordset[0].id}, kycLevel=${ud.kycLevel})`);
+    userDataIds.push(result.rows[0].id);
+    console.log(`  Created UserData: ${ud.mail} (id=${result.rows[0].id}, kycLevel=${ud.kycLevel})`);
   }
 
   // ============================================================
@@ -217,37 +216,26 @@ async function main() {
 
   const userIds = [];
   for (const u of userConfigs) {
-    const existing = await pool
-      .request()
-      .input('address', mssql.NVarChar, u.address)
-      .query('SELECT id FROM [user] WHERE address = @address');
+    const existing = await client.query('SELECT id FROM "user" WHERE address = $1', [u.address]);
 
-    if (existing.recordset.length > 0) {
-      userIds.push(existing.recordset[0].id);
-      console.log(`  User ${u.address.substring(0, 20)}... already exists (id=${existing.recordset[0].id})`);
+    if (existing.rows.length > 0) {
+      userIds.push(existing.rows[0].id);
+      console.log(`  User ${u.address.substring(0, 20)}... already exists (id=${existing.rows[0].id})`);
       continue;
     }
 
-    const result = await pool
-      .request()
-      .input('address', mssql.NVarChar, u.address)
-      .input('addressType', mssql.NVarChar, u.addressType)
-      .input('role', mssql.NVarChar, u.role)
-      .input('status', mssql.NVarChar, 'Active')
-      .input('usedRef', mssql.NVarChar, '000-000')
-      .input('walletId', mssql.Int, walletId)
-      .input('userDataId', mssql.Int, userDataIds[u.userDataIdx])
-      .input('refFeePercent', mssql.Float, 0.25).query(`
-        INSERT INTO [user] (address, addressType, role, status, usedRef, walletId, userDataId, refFeePercent,
-          buyVolume, annualBuyVolume, monthlyBuyVolume, sellVolume, annualSellVolume, monthlySellVolume,
-          cryptoVolume, annualCryptoVolume, monthlyCryptoVolume, refVolume, refCredit, paidRefCredit, created, updated)
-        OUTPUT INSERTED.id
-        VALUES (@address, @addressType, @role, @status, @usedRef, @walletId, @userDataId, @refFeePercent,
-          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, GETUTCDATE(), GETUTCDATE())
-      `);
+    const result = await client.query(
+      `INSERT INTO "user" (address, "addressType", role, status, "usedRef", "walletId", "userDataId", "refFeePercent",
+          "buyVolume", "annualBuyVolume", "monthlyBuyVolume", "sellVolume", "annualSellVolume", "monthlySellVolume",
+          "cryptoVolume", "annualCryptoVolume", "monthlyCryptoVolume", "refVolume", "refCredit", "paidRefCredit", created, updated)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8,
+          0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, now() at time zone 'utc', now() at time zone 'utc')
+        RETURNING id`,
+      [u.address, u.addressType, u.role, 'Active', '000-000', walletId, userDataIds[u.userDataIdx], 0.25],
+    );
 
-    userIds.push(result.recordset[0].id);
-    console.log(`  Created User: ${u.address.substring(0, 20)}... (id=${result.recordset[0].id}, role=${u.role})`);
+    userIds.push(result.rows[0].id);
+    console.log(`  Created User: ${u.address.substring(0, 20)}... (id=${result.rows[0].id}, role=${u.role})`);
   }
 
   // ============================================================
@@ -257,12 +245,13 @@ async function main() {
 
   const routeIds = [];
   for (let i = 0; i < 4; i++) {
-    const result = await pool.request().input('label', mssql.NVarChar, `TestRoute${i + 2}`).query(`
-        INSERT INTO route (label, created, updated)
-        OUTPUT INSERTED.id
-        VALUES (@label, GETUTCDATE(), GETUTCDATE())
-      `);
-    routeIds.push(result.recordset[0].id);
+    const result = await client.query(
+      `INSERT INTO route (label, created, updated)
+        VALUES ($1, now() at time zone 'utc', now() at time zone 'utc')
+        RETURNING id`,
+      [`TestRoute${i + 2}`],
+    );
+    routeIds.push(result.rows[0].id);
   }
   console.log(`  Created ${routeIds.length} routes`);
 
@@ -283,27 +272,21 @@ async function main() {
     if (!b.assetId) continue;
 
     const usage = bankUsage();
-    const existing = await pool
-      .request()
-      .input('userId', mssql.Int, b.userId)
-      .input('assetId', mssql.Int, b.assetId)
-      .query('SELECT id FROM buy WHERE userId = @userId AND assetId = @assetId');
+    const existing = await client.query('SELECT id FROM buy WHERE "userId" = $1 AND "assetId" = $2', [
+      b.userId,
+      b.assetId,
+    ]);
 
-    if (existing.recordset.length > 0) {
+    if (existing.rows.length > 0) {
       console.log(`  Buy route for user ${b.userId}, asset ${b.assetId} already exists`);
       continue;
     }
 
-    await pool
-      .request()
-      .input('bankUsage', mssql.NVarChar, usage)
-      .input('userId', mssql.Int, b.userId)
-      .input('assetId', mssql.Int, b.assetId)
-      .input('routeId', mssql.Int, routeIds[i])
-      .input('active', mssql.Bit, true).query(`
-        INSERT INTO buy (bankUsage, userId, assetId, routeId, active, volume, annualVolume, monthlyVolume, created, updated)
-        VALUES (@bankUsage, @userId, @assetId, @routeId, @active, 0, 0, 0, GETUTCDATE(), GETUTCDATE())
-      `);
+    await client.query(
+      `INSERT INTO buy ("bankUsage", "userId", "assetId", "routeId", active, volume, "annualVolume", "monthlyVolume", created, updated)
+        VALUES ($1, $2, $3, $4, $5, 0, 0, 0, now() at time zone 'utc', now() at time zone 'utc')`,
+      [usage, b.userId, b.assetId, routeIds[i], true],
+    );
 
     console.log(`  Created Buy route: user=${b.userId}, asset=${b.assetId}, usage=${usage}`);
   }
@@ -322,29 +305,22 @@ async function main() {
   const bankDataIds = [];
   for (const bd of bankDataConfigs) {
     const cleanIban = bd.iban.replace(/\s/g, '');
-    const existing = await pool
-      .request()
-      .input('iban', mssql.NVarChar, cleanIban)
-      .query('SELECT id FROM bank_data WHERE iban = @iban');
+    const existing = await client.query('SELECT id FROM bank_data WHERE iban = $1', [cleanIban]);
 
-    if (existing.recordset.length > 0) {
-      bankDataIds.push(existing.recordset[0].id);
+    if (existing.rows.length > 0) {
+      bankDataIds.push(existing.rows[0].id);
       console.log(`  BankData ${cleanIban} already exists`);
       continue;
     }
 
-    const result = await pool
-      .request()
-      .input('iban', mssql.NVarChar, cleanIban)
-      .input('name', mssql.NVarChar, bd.name)
-      .input('userDataId', mssql.Int, bd.userDataId)
-      .input('approved', mssql.Bit, true).query(`
-        INSERT INTO bank_data (iban, name, userDataId, approved, created, updated)
-        OUTPUT INSERTED.id
-        VALUES (@iban, @name, @userDataId, @approved, GETUTCDATE(), GETUTCDATE())
-      `);
+    const result = await client.query(
+      `INSERT INTO bank_data (iban, name, "userDataId", approved, created, updated)
+        VALUES ($1, $2, $3, $4, now() at time zone 'utc', now() at time zone 'utc')
+        RETURNING id`,
+      [cleanIban, bd.name, bd.userDataId, true],
+    );
 
-    bankDataIds.push(result.recordset[0].id);
+    bankDataIds.push(result.rows[0].id);
     console.log(`  Created BankData: ${cleanIban}`);
   }
 
@@ -360,21 +336,18 @@ async function main() {
   ];
 
   for (const d of depositConfigs) {
-    const existing = await pool
-      .request()
-      .input('address', mssql.NVarChar, d.address)
-      .query('SELECT id FROM deposit WHERE address = @address');
+    const existing = await client.query('SELECT id FROM deposit WHERE address = $1', [d.address]);
 
-    if (existing.recordset.length > 0) {
+    if (existing.rows.length > 0) {
       console.log(`  Deposit ${d.address.substring(0, 25)}... already exists`);
       continue;
     }
 
-    await pool.request().input('address', mssql.NVarChar, d.address).input('blockchains', mssql.NVarChar, d.blockchains)
-      .query(`
-        INSERT INTO deposit (address, blockchains, created, updated)
-        VALUES (@address, @blockchains, GETUTCDATE(), GETUTCDATE())
-      `);
+    await client.query(
+      `INSERT INTO deposit (address, blockchains, created, updated)
+        VALUES ($1, $2, now() at time zone 'utc', now() at time zone 'utc')`,
+      [d.address, d.blockchains],
+    );
 
     console.log(`  Created Deposit: ${d.address.substring(0, 25)}...`);
   }
@@ -396,18 +369,11 @@ async function main() {
   for (const tx of txConfigs) {
     const uid = uuid();
 
-    await pool
-      .request()
-      .input('uid', mssql.NVarChar, uid)
-      .input('sourceType', mssql.NVarChar, tx.sourceType)
-      .input('userId', mssql.Int, tx.userId)
-      .input('userDataId', mssql.Int, tx.userDataId)
-      .input('amountInChf', mssql.Float, tx.amountInChf)
-      .input('amlCheck', mssql.NVarChar, tx.amlCheck)
-      .input('eventDate', mssql.DateTime2, new Date()).query(`
-        INSERT INTO [transaction] (uid, sourceType, userId, userDataId, amountInChf, amlCheck, eventDate, created, updated)
-        VALUES (@uid, @sourceType, @userId, @userDataId, @amountInChf, @amlCheck, @eventDate, GETUTCDATE(), GETUTCDATE())
-      `);
+    await client.query(
+      `INSERT INTO "transaction" (uid, "sourceType", "userId", "userDataId", "amountInChf", "amlCheck", "eventDate", created, updated)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, now() at time zone 'utc', now() at time zone 'utc')`,
+      [uid, tx.sourceType, tx.userId, tx.userDataId, tx.amountInChf, tx.amlCheck, new Date()],
+    );
 
     console.log(`  Created Transaction: ${tx.sourceType}, CHF ${tx.amountInChf}, user=${tx.userId}`);
   }
@@ -417,8 +383,8 @@ async function main() {
   // ============================================================
   console.log('\nCreating BankTx entries...');
 
-  const bankResult = await pool.request().query('SELECT TOP 1 id FROM bank WHERE receive = 1');
-  const bankId = bankResult.recordset[0]?.id;
+  const bankResult = await client.query('SELECT id FROM bank WHERE receive = true LIMIT 1');
+  const bankId = bankResult.rows[0]?.id;
 
   if (bankId) {
     const bankTxConfigs = [
@@ -428,18 +394,11 @@ async function main() {
     ];
 
     for (const btx of bankTxConfigs) {
-      await pool
-        .request()
-        .input('bankId', mssql.Int, bankId)
-        .input('accountIban', mssql.NVarChar, btx.accountIban)
-        .input('name', mssql.NVarChar, btx.name)
-        .input('amount', mssql.Float, btx.amount)
-        .input('currency', mssql.NVarChar, btx.currency)
-        .input('type', mssql.NVarChar, btx.type)
-        .input('creditDebitIndicator', mssql.NVarChar, 'CRDT').query(`
-          INSERT INTO bank_tx (bankId, accountIban, name, amount, currency, type, creditDebitIndicator, created, updated)
-          VALUES (@bankId, @accountIban, @name, @amount, @currency, @type, @creditDebitIndicator, GETUTCDATE(), GETUTCDATE())
-        `);
+      await client.query(
+        `INSERT INTO bank_tx ("accountServiceRef", "accountIban", name, amount, currency, type, "creditDebitIndicator", created, updated)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, now() at time zone 'utc', now() at time zone 'utc')`,
+        [uuid(), btx.accountIban, btx.name, btx.amount, btx.currency, btx.type, 'CRDT'],
+      );
 
       console.log(`  Created BankTx: ${btx.name}, ${btx.currency} ${btx.amount}`);
     }
@@ -479,19 +438,14 @@ async function main() {
 
   const kycStepIds = [];
   for (const step of kycStepConfigs) {
-    const result = await pool
-      .request()
-      .input('name', mssql.NVarChar, step.name)
-      .input('type', mssql.NVarChar, step.type || null)
-      .input('status', mssql.NVarChar, step.status)
-      .input('sequenceNumber', mssql.Int, step.sequenceNumber)
-      .input('userDataId', mssql.Int, userDataIds[step.userDataIdx]).query(`
-        INSERT INTO kyc_step (name, type, status, sequenceNumber, userDataId, created, updated)
-        OUTPUT INSERTED.id
-        VALUES (@name, @type, @status, @sequenceNumber, @userDataId, GETUTCDATE(), GETUTCDATE())
-      `);
+    const result = await client.query(
+      `INSERT INTO kyc_step (name, type, status, "sequenceNumber", "userDataId", created, updated)
+        VALUES ($1, $2, $3, $4, $5, now() at time zone 'utc', now() at time zone 'utc')
+        RETURNING id`,
+      [step.name, step.type || null, step.status, step.sequenceNumber, userDataIds[step.userDataIdx]],
+    );
 
-    kycStepIds.push(result.recordset[0].id);
+    kycStepIds.push(result.rows[0].id);
     console.log(`  Created KycStep: ${step.name} (${step.status}) for userDataId=${userDataIds[step.userDataIdx]}`);
   }
 
@@ -566,16 +520,11 @@ async function main() {
   ];
 
   for (const log of kycLogConfigs) {
-    await pool
-      .request()
-      .input('type', mssql.NVarChar, log.type)
-      .input('comment', mssql.NVarChar, log.comment)
-      .input('eventDate', mssql.DateTime2, log.eventDate)
-      .input('userDataId', mssql.Int, userDataIds[log.userDataIdx])
-      .input('kycStepId', mssql.Int, log.kycStepIdx != null ? kycStepIds[log.kycStepIdx] : null).query(`
-        INSERT INTO kyc_log (type, comment, eventDate, userDataId, kycStepId, created, updated)
-        VALUES (@type, @comment, @eventDate, @userDataId, @kycStepId, GETUTCDATE(), GETUTCDATE())
-      `);
+    await client.query(
+      `INSERT INTO kyc_log (type, comment, "eventDate", "userDataId", "kycStepId", created, updated)
+        VALUES ($1, $2, $3, $4, $5, now() at time zone 'utc', now() at time zone 'utc')`,
+      [log.type, log.comment, log.eventDate, userDataIds[log.userDataIdx], log.kycStepIdx != null ? kycStepIds[log.kycStepIdx] : null],
+    );
 
     console.log(
       `  Created KycLog: ${log.type} - "${log.comment.substring(0, 40)}..." for userDataId=${userDataIds[log.userDataIdx]}`,
@@ -592,21 +541,21 @@ async function main() {
   // Show counts
   const tables = [
     'user_data',
-    '[user]',
+    '"user"',
     'buy',
     'bank_data',
     'deposit',
-    '[transaction]',
+    '"transaction"',
     'bank_tx',
     'kyc_step',
     'kyc_log',
   ];
   for (const t of tables) {
-    const count = await pool.request().query(`SELECT COUNT(*) as c FROM ${t}`);
-    console.log(`  ${t.replace('[', '').replace(']', '')}: ${count.recordset[0].c} rows`);
+    const count = await client.query(`SELECT COUNT(*) as c FROM ${t}`);
+    console.log(`  ${t.replace(/["[\]]/g, '')}: ${count.rows[0].c} rows`);
   }
 
-  await pool.close();
+  await client.end();
 }
 
 main().catch((e) => {

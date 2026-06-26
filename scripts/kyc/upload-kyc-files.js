@@ -35,29 +35,31 @@ async function getAdminToken() {
 }
 
 async function getKycCodes() {
-  const mssql = require('mssql');
+  const { Client } = require('pg');
   const config = {
     user: process.env.SQL_USERNAME || 'sa',
     password: process.env.SQL_PASSWORD || 'LocalDev2026@SQL',
-    server: 'localhost',
-    port: parseInt(process.env.SQL_PORT) || 1433,
+    host: process.env.SQL_HOST || 'localhost',
+    port: parseInt(process.env.SQL_PORT) || 5432,
     database: process.env.SQL_DB || 'dfx',
-    options: { encrypt: false, trustServerCertificate: true }
+    // Local-only script; default to no SSL, opt in via SQL_SSL=true.
+    ssl: process.env.SQL_SSL === 'true' ? { rejectUnauthorized: false } : false,
   };
 
-  const pool = await mssql.connect(config);
+  const client = new Client(config);
+  await client.connect();
 
-  const result = await pool.request().query(`
-    SELECT ud.id, ud.kycHash, ud.mail, ud.kycLevel,
-           ks.id as stepId, ks.name as stepName
+  const result = await client.query(`
+    SELECT ud.id, ud."kycHash", ud.mail, ud."kycLevel",
+           ks.id as "stepId", ks.name as "stepName"
     FROM user_data ud
-    LEFT JOIN kyc_step ks ON ks.userDataId = ud.id AND ks.name = 'Ident'
-    WHERE ud.kycLevel >= 30
+    LEFT JOIN kyc_step ks ON ks."userDataId" = ud.id AND ks.name = 'Ident'
+    WHERE ud."kycLevel" >= 30
     ORDER BY ud.id
   `);
 
-  await pool.close();
-  return result.recordset;
+  await client.end();
+  return result.rows;
 }
 
 async function uploadFileViaAPI(token, kycCode, stepId, fileData, fileName, fileType) {
