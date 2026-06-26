@@ -47,6 +47,8 @@ describe('TravelRuleJobService', () => {
     jest.spyOn(travelRulePdfService, 'generatePdf').mockResolvedValue('cGRm'); // "pdf"
     jest.spyOn(kycDocumentService, 'uploadUserFile').mockResolvedValue({ file: { id: 1 } as any, url: 'url' });
     jest.spyOn(userRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+    // default: the idempotency lookup finds no existing file, so candidates are generated as before
+    jest.spyOn(kycFileService, 'getUserDataKycFiles').mockResolvedValue([]);
   });
 
   it('should be defined', () => {
@@ -241,5 +243,93 @@ describe('TravelRuleJobService', () => {
       signature: cardano,
       date: expect.any(Date),
     });
+  });
+
+  // *** IDEMPOTENCY: reuse an existing AddressSignature PDF instead of generating a duplicate *** //
+
+  function addressSignatureFile(id: number, name: string, overrides: Partial<any> = {}): any {
+    return { id, name, valid: true, subType: FileSubType.ADDRESS_SIGNATURE, ...overrides };
+  }
+
+  it('stamps the date from an existing valid PDF and skips generation entirely', async () => {
+    jest.spyOn(userRepo, 'find').mockResolvedValue([createUser(7)]);
+    jest
+      .spyOn(kycFileService, 'getUserDataKycFiles')
+      .mockResolvedValue([addressSignatureFile(99, '20260603-AddressSignature-0-7-120000.pdf')]);
+
+    await service.generateTravelRulePdfs();
+
+    // CAS stamp carries the IS-NULL guard and the date parsed from the file name (2026-06-03 UTC)
+    const stampCall = (userRepo.update as jest.Mock).mock.calls[0];
+    expect(stampCall[0]).toEqual({ id: 7, travelRulePdfDate: IsNull() });
+    expect(stampCall[1].travelRulePdfDate).toEqual(new Date(Date.UTC(2026, 5, 3)));
+    expect((stampCall[1].travelRulePdfDate as Date).toISOString()).toBe('2026-06-03T00:00:00.000Z');
+
+    // no regeneration, no upload — the existing PDF is reused as-is
+    expect(travelRulePdfService.generatePdf).not.toHaveBeenCalled();
+    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+  });
+
+  it('generates normally when no existing PDF is present', async () => {
+    jest.spyOn(userRepo, 'find').mockResolvedValue([createUser(7)]);
+    jest.spyOn(kycFileService, 'getUserDataKycFiles').mockResolvedValue([]);
+
+    await service.generateTravelRulePdfs();
+
+    // claim-first CAS with now, then generate + upload exactly like before the idempotency change
+    const claimCall = (userRepo.update as jest.Mock).mock.calls[0];
+    expect(claimCall[0]).toEqual({ id: 7, travelRulePdfDate: IsNull() });
+    expect(claimCall[1]).toEqual({ travelRulePdfDate: expect.any(Date) });
+    expect(travelRulePdfService.generatePdf).toHaveBeenCalledTimes(1);
+    expect(kycDocumentService.uploadUserFile).toHaveBeenCalledTimes(1);
+  });
+
+  it('multi-address guard: only this user.id matches, a sibling user PDF in the same userData does not', async () => {
+    // user 7 shares userData with user 70; only user 70's PDF exists → user 7 must generate, the
+    // trailing hyphen in the infix prevents `-0-7-` from matching the `-0-70-` file name
+    jest.spyOn(userRepo, 'find').mockResolvedValue([createUser(7)]);
+    jest
+      .spyOn(kycFileService, 'getUserDataKycFiles')
+      .mockResolvedValue([addressSignatureFile(99, '20260603-AddressSignature-0-70-120000.pdf')]);
+
+    await service.generateTravelRulePdfs();
+
+    expect(travelRulePdfService.generatePdf).toHaveBeenCalledTimes(1);
+    expect(kycDocumentService.uploadUserFile).toHaveBeenCalledTimes(1);
+    // no stamp from a foreign date — the only update is the claim with a fresh now date
+    const stampWithParsedDate = (userRepo.update as jest.Mock).mock.calls.find(
+      ([criteria, partial]) =>
+        criteria.travelRulePdfDate instanceof Object &&
+        (partial.travelRulePdfDate as Date)?.toISOString?.() === '2026-06-03T00:00:00.000Z',
+    );
+    expect(stampWithParsedDate).toBeUndefined();
+  });
+
+  it('fail-safe: a malformed existing file name is logged as error and never stamped or generated', async () => {
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+    jest.spyOn(userRepo, 'find').mockResolvedValue([createUser(7)]);
+    jest
+      .spyOn(kycFileService, 'getUserDataKycFiles')
+      .mockResolvedValue([addressSignatureFile(99, 'AddressSignature-0-7-120000.pdf')]); // no YYYYMMDD prefix
+
+    await service.generateTravelRulePdfs();
+
+    // never stamped (no guessed date), never generated, never uploaded
+    expect(userRepo.update).not.toHaveBeenCalled();
+    expect(travelRulePdfService.generatePdf).not.toHaveBeenCalled();
+    expect(kycDocumentService.uploadUserFile).not.toHaveBeenCalled();
+    expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('malformed name'));
+  });
+
+  it('an invalid (valid:false) existing PDF does not count as present → generates normally', async () => {
+    jest.spyOn(userRepo, 'find').mockResolvedValue([createUser(7)]);
+    jest
+      .spyOn(kycFileService, 'getUserDataKycFiles')
+      .mockResolvedValue([addressSignatureFile(99, '20260603-AddressSignature-0-7-120000.pdf', { valid: false })]);
+
+    await service.generateTravelRulePdfs();
+
+    expect(travelRulePdfService.generatePdf).toHaveBeenCalledTimes(1);
+    expect(kycDocumentService.uploadUserFile).toHaveBeenCalledTimes(1);
   });
 });

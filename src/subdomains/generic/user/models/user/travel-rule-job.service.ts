@@ -5,6 +5,7 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { FileSubType, FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
+import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycFileService } from 'src/subdomains/generic/kyc/services/kyc-file.service';
@@ -50,6 +51,31 @@ export class TravelRuleJobService {
       // those permanently-skipped candidates are counted as `skippedUnrecognised`, never as backlog.
       if (!TravelRuleSignature.isValid(user.signature)) {
         this.logger.warn(`TravelRule PDF skipped for user ${user.id}: unrecognised signature format`);
+        continue;
+      }
+
+      // Idempotency (replicates the sheet's verify-stamp stage): a large part of the backlog already
+      // owns a valid AddressSignature PDF from the old sheet pipeline and was only never stamped
+      // (the verify-stamp sheet died on 2026-06-18). For those we must NOT re-generate a duplicate
+      // with a wrong (now) date — we stamp travelRulePdfDate with the date encoded in the existing
+      // file name and skip generation entirely.
+      const existingFile = await this.findExistingAddressSignature(user.userData.id, user.id);
+      if (existingFile) {
+        const existingDate = this.parseFileNameDate(existingFile.name);
+        if (!existingDate) {
+          // Fail-safe: a malformed file name must never be guessed into a date. We skip without
+          // stamping (no fallback to now/created), leaving the candidate visible for inspection.
+          this.logger.error(
+            `TravelRule PDF skipped for user ${user.id}: existing AddressSignature file ${existingFile.id} has a malformed name "${existingFile.name}"`,
+          );
+          continue;
+        }
+
+        // CAS stamp: only set the date if it is still NULL, so a parallel replica cannot stamp twice.
+        await this.userRepo.update({ id: user.id, travelRulePdfDate: IsNull() }, { travelRulePdfDate: existingDate });
+        this.logger.info(
+          `TravelRule PDF reused for user ${user.id}: stamped existing file ${existingFile.id} (${existingFile.name}) with ${existingDate.toISOString()}, no regeneration`,
+        );
         continue;
       }
 
@@ -104,6 +130,32 @@ export class TravelRuleJobService {
   }
 
   // *** HELPER METHODS *** //
+
+  // Finds this user's existing valid AddressSignature PDF (from the old sheet pipeline), if any.
+  // The name filter requires the exact `AddressSignature-0-${user.id}-` infix (trailing hyphen is
+  // essential): with multi-address userData several users share the same userData.id, so without the
+  // trailing hyphen user 41 would also match user 410's file. Only this user's own PDF must count.
+  private async findExistingAddressSignature(userDataId: number, userId: number): Promise<KycFile | undefined> {
+    const files = await this.kycFileService.getUserDataKycFiles(userDataId);
+    const infix = `AddressSignature-0-${userId}-`;
+    return files.find((f) => f.valid && f.subType === FileSubType.ADDRESS_SIGNATURE && f.name.includes(infix));
+  }
+
+  // Parses the `YYYYMMDD` prefix of `buildFileName` into a UTC-midnight Date (matching the sheet's
+  // `DATE(Y,M,D)`). Returns undefined for any malformed name so the caller can fail safe instead of
+  // stamping a guessed date.
+  private parseFileNameDate(name: string): Date | undefined {
+    const match = /^(\d{4})(\d{2})(\d{2})-/.exec(name);
+    if (!match) return undefined;
+
+    const [yyyy, mm, dd] = [Number(match[1]), Number(match[2]), Number(match[3])];
+    const date = new Date(Date.UTC(yyyy, mm - 1, dd));
+
+    // Reject impossible dates (e.g. month 13, day 32) that JS would silently roll over.
+    if (date.getUTCFullYear() !== yyyy || date.getUTCMonth() !== mm - 1 || date.getUTCDate() !== dd) return undefined;
+
+    return date;
+  }
 
   // `${yyyymmdd}-AddressSignature-0-${userId}-${hhmmss}.pdf`; the leading `yyyymmdd` carries no
   // hyphen so the Travel-Rule download filter (config id 15) can sort on `split('-')[0]`.
