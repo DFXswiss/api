@@ -135,6 +135,20 @@ describe('GsService', () => {
         };
         await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/not allowed/);
       });
+
+      it.each(['__proto__', 'constructor', 'toString', 'hasOwnProperty'])(
+        'rejects prototype-chain key `%s` as a table name with a 400, not a 500',
+        async (name) => {
+          const dto = {
+            table: name,
+            select: [{ kind: 'column' as const, column: 'id' }],
+            limit: 10,
+          };
+          // `Object.hasOwn` lookup: otherwise `DebugAllowedColumns['__proto__']` would return
+          // `Object.prototype` and the next allowlist check would TypeError into a 500.
+          await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/not allowed/);
+        },
+      );
     });
 
     describe('column allowlist', () => {
@@ -251,6 +265,27 @@ describe('GsService', () => {
           limit: 10,
         };
         await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/segments/);
+      });
+
+      it('rejects `kind: jsonb` without `jsonbPath` as a 400, not a 500', async () => {
+        // Defense-in-depth: kind-specific required fields are validated BEFORE the default
+        // alias is derived from them. Otherwise `item.jsonbPath!.split('.')` would TypeError
+        // in `defaultDebugSelectAlias` and surface as 500.
+        const dto = {
+          table: 'log',
+          select: [{ kind: 'jsonb' as const, column: 'message' }],
+          limit: 10,
+        };
+        await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/jsonb selector requires/);
+      });
+
+      it('rejects `kind: aggregate` without `aggregate` as a 400, not a 500', async () => {
+        const dto = {
+          table: 'asset',
+          select: [{ kind: 'aggregate' as const, column: 'id' }],
+          limit: 10,
+        };
+        await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/aggregate selector requires/);
       });
     });
 
@@ -732,10 +767,10 @@ describe('GsService', () => {
         expect(q.mock.calls[0][0]).toContain('LIMIT 10000');
       });
 
-      it('emits LIMIT 0 when limit is cast past the DTO @Min(1) check (defense-in-depth gap)', async () => {
-        // DTO `@Min(1)` would normally reject limit=0, but the service does NOT re-check it —
-        // only `Math.min(dto.limit, DebugMaxResults)` clamps the upper bound. This pins the
-        // current behavior so any future floor-guard becomes a visible breaking change.
+      it('clamps `limit: 0` up to LIMIT 1 (defense-in-depth floor)', async () => {
+        // DTO `@Min(1)` normally rejects 0. The service ALSO floors via `Math.max(1, …)` so
+        // even if the DTO check is ever bypassed (no ValidationPipe, casted call), the
+        // emitted SQL never has a zero or negative limit.
         const q = spyQuery();
         const dto = {
           table: 'asset',
@@ -743,7 +778,7 @@ describe('GsService', () => {
           limit: 0,
         };
         await service.executeDebugQuery(dto, 'tester');
-        expect(q.mock.calls[0][0]).toContain('LIMIT 0');
+        expect(q.mock.calls[0][0]).toContain('LIMIT 1');
       });
 
       it('does not emit OFFSET clause when offset is 0', async () => {
@@ -1486,29 +1521,55 @@ describe('GsService', () => {
 
     // --- H. Audit log format details ---
     describe('audit log format', () => {
-      it('truncates very large DTO JSON in the audit line to 500 chars', async () => {
+      it('truncates very large audit payloads at 500 chars (post-redaction)', async () => {
         const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
         spyQuery();
-        // Build an IN list of long string values so the stringified DTO exceeds 500 chars and
-        // the service's `.substring(0, 500)` truncation is actually exercised.
-        const longValues = Array.from({ length: 50 }, (_, i) => 'value'.repeat(5) + i);
-        const dto: DebugQueryDto = {
-          table: 'asset',
-          select: [{ kind: 'column', column: 'id' }],
-          where: { kind: 'leaf', column: 'blockchain', op: DebugWhereOp.IN, value: longValues },
-          limit: 10,
-        };
-        // Sanity: the raw JSON is already > 500 chars, so the substring slice will trim it.
-        expect(JSON.stringify(dto).length).toBeGreaterThan(500);
+        // Build a large SELECT list (not large user values — those are redacted) so the
+        // serialized DTO exceeds 500 chars and the trailing "..." marker is appended.
+        const longSelect = Array.from(
+          { length: 200 },
+          () => ({ kind: 'column' as const, column: 'id' }),
+        );
+        const dto: DebugQueryDto = { table: 'asset', select: longSelect, limit: 10 };
 
         await service.executeDebugQuery(dto, '0xtester');
         const auditLine = verboseSpy.mock.calls
           .map((c) => String(c[0]))
           .find((l) => l.startsWith('Debug-query by 0xtester:'));
         expect(auditLine).toBeDefined();
-        // Prefix `Debug-query by 0xtester: ` is 25 chars; rest is JSON capped to 500.
+        // 25 chars of `Debug-query by 0xtester: ` + 500 char payload + 3 char `...` marker.
+        expect(auditLine!.endsWith('...')).toBe(true);
         const payloadLen = auditLine!.length - 'Debug-query by 0xtester: '.length;
-        expect(payloadLen).toBe(500);
+        expect(payloadLen).toBe(503);
+        verboseSpy.mockRestore();
+      });
+
+      it('redacts WHERE leaf values from the audit payload (PII protection)', async () => {
+        // WHERE leaf values are user-supplied and may carry PII. The audit log replaces them
+        // with `<scalar>` / `<array:N>` markers so verbose-channel App Insights traces don't
+        // undo the parameter-binding protection. Pin this behavior.
+        const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
+        spyQuery();
+        const dto: DebugQueryDto = {
+          table: 'log',
+          select: [{ kind: 'column', column: 'id' }],
+          where: {
+            kind: 'and',
+            children: [
+              { kind: 'leaf', column: 'subsystem', op: DebugWhereOp.EQ, value: 'super-secret-value' },
+              { kind: 'leaf', column: 'severity', op: DebugWhereOp.IN, value: ['a', 'b', 'c'] },
+            ],
+          },
+          limit: 10,
+        };
+        await service.executeDebugQuery(dto, '0xtester');
+        const auditLine = verboseSpy.mock.calls
+          .map((c) => String(c[0]))
+          .find((l) => l.startsWith('Debug-query by 0xtester:'));
+        expect(auditLine).toBeDefined();
+        expect(auditLine).not.toContain('super-secret-value');
+        expect(auditLine).toContain('"value":"<scalar>"');
+        expect(auditLine).toContain('"value":"<array:3>"');
         verboseSpy.mockRestore();
       });
 

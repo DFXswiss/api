@@ -74,7 +74,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'active', 'approved', 'default', 'manualApproved', 'preferredCurrencyId', 'status', 'type', 'userDataId'],
   },
   bank_tx: {
-    columns: ['id', 'created', 'updated', 'accountServiceRef', 'accountingAmountAfterFee', 'accountingAmountAfterFeeChf', 'accountingAmountBeforeFee', 'accountingAmountBeforeFeeChf', 'accountingFeeAmount', 'accountingFeePercent', 'amount', 'bankName', 'batchId', 'bookingDate', 'chargeAmount', 'chargeAmountChf', 'chargeCurrency', 'clearingSystemId', 'creditDebitIndicator', 'currency', 'domainCode', 'endToEndId', 'exchangeRate', 'exchangeSourceCurrency', 'exchangeTargetCurrency', 'familyCode', 'highRisk', 'instructedAmount', 'instructedCurrency', 'instructionId', 'memberId', 'subfamilyCode', 'txAmount', 'txCount', 'txCurrency', 'txId', 'type', 'valueDate'],
+    columns: ['id', 'created', 'updated', 'accountServiceRef', 'accountingAmountAfterFee', 'accountingAmountAfterFeeChf', 'accountingAmountBeforeFee', 'accountingAmountBeforeFeeChf', 'accountingFeeAmount', 'accountingFeePercent', 'amount', 'bankName', 'batchId', 'bookingDate', 'chargeAmount', 'chargeAmountChf', 'chargeCurrency', 'clearingSystemId', 'creditDebitIndicator', 'currency', 'domainCode', 'endToEndId', 'exchangeRate', 'exchangeSourceCurrency', 'exchangeTargetCurrency', 'familyCode', 'highRisk', 'instructedAmount', 'instructedCurrency', 'instructionId', 'memberId', 'subFamilyCode', 'txAmount', 'txCount', 'txCurrency', 'txId', 'type', 'valueDate'],
   },
   bank_tx_batch: {
     columns: ['id', 'created', 'updated'],
@@ -152,11 +152,15 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'bankId', 'walletId'],
   },
   fiat: {
-    columns: ['id', 'created', 'updated', 'amlRuleFrom', 'amlRuleTo', 'approxPriceChf', 'buyable', 'cardBuyable', 'cardSellable', 'ibanCountryConfig', 'instantBuyable', 'instantSellable', 'name', 'priceRuleId', 'refundEnabled', 'sellable'],
+    // `ibanCountryConfig` excluded — admin-set JSON config, not on safe-string list. Add
+    // back if a debug investigation needs it.
+    columns: ['id', 'created', 'updated', 'amlRuleFrom', 'amlRuleTo', 'approxPriceChf', 'buyable', 'cardBuyable', 'cardSellable', 'instantBuyable', 'instantSellable', 'name', 'priceRuleId', 'refundEnabled', 'sellable'],
   },
   fiat_output: {
-    // No iban / accountNumber / bic / aba / name / address / city / country.
-    columns: ['id', 'created', 'updated', 'amount', 'bankId', 'batchAmount', 'batchId', 'charge', 'creditInstitution', 'currency', 'endToEndId', 'info', 'instrId', 'isApprovedDate', 'isComplete', 'isConfirmedDate', 'isInstant', 'isReadyDate', 'isTransmittedDate', 'olkyOrderId', 'originEntityId', 'outputDate', 'pmtInfId', 'reportCreated', 'type', 'valutaDate', 'yapealMsgId'],
+    // No iban / accountNumber / bic / aba / name / address / city / country. Also
+    // excluded: `creditInstitution` (free-text bank name) and `info` (free-text operational
+    // notes) — neither is on the known-safe identifier list.
+    columns: ['id', 'created', 'updated', 'amount', 'bankId', 'batchAmount', 'batchId', 'charge', 'currency', 'endToEndId', 'instrId', 'isApprovedDate', 'isComplete', 'isConfirmedDate', 'isInstant', 'isReadyDate', 'isTransmittedDate', 'olkyOrderId', 'originEntityId', 'outputDate', 'pmtInfId', 'reportCreated', 'type', 'valutaDate', 'yapealMsgId'],
   },
   ip_log: {
     // No ip / country / address — IP-tracking PII.
@@ -193,7 +197,10 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'command', 'onFailId', 'onSuccessId', 'system', 'tag'],
   },
   liquidity_management_order: {
-    columns: ['id', 'created', 'updated', 'actionId', 'correlationId', 'eagerId', 'errorMessage', 'inputAmount', 'inputAsset', 'maxAmount', 'minAmount', 'outputAmount', 'outputAsset', 'previousCorrelationIds', 'previousOrderId', 'status'],
+    // `errorMessage` removed — `text` column stores exception strings that may include
+    // operational context. `eagerId` removed — was a misparse of `@ManyToOne({ eager: true })`;
+    // the real FK is `pipelineId`.
+    columns: ['id', 'created', 'updated', 'actionId', 'correlationId', 'inputAmount', 'inputAsset', 'maxAmount', 'minAmount', 'outputAmount', 'outputAsset', 'pipelineId', 'previousCorrelationIds', 'previousOrderId', 'status'],
   },
   liquidity_management_pipeline: {
     columns: ['id', 'created', 'updated', 'currentActionId', 'maxAmount', 'minAmount', 'ordersProcessed', 'previousActionId', 'status', 'type', 'uniqueId'],
@@ -243,6 +250,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'externalId', 'mode', 'publicStatus', 'routeId', 'status', 'uniqueId'],
   },
   payment_link_payment: {
+    // `note` removed — varchar(256) free-form merchant note.
     columns: ['id', 'created', 'updated', 'amount', 'currencyId', 'deviceCommand', 'deviceId', 'externalId', 'expiryDate', 'isConfirmed', 'linkId', 'mode', 'status', 'txCount', 'uniqueId'],
   },
   payment_merchant: {
@@ -347,7 +355,9 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'eventDate', 'type'],
   },
   trading_order: {
-    columns: ['id', 'created', 'updated', 'amountExpected', 'amountIn', 'amountOut', 'assetInId', 'assetOutId', 'errorMessage', 'price1', 'price2', 'price3', 'priceImpact', 'profitChf', 'status', 'swapFeeAmount', 'swapFeeAmountChf', 'tradingRuleId', 'txFeeAmount', 'txFeeAmountChf', 'txId'],
+    // `errorMessage` removed — unbounded text from exception messages can carry operational
+    // context. Status alone is enough for debug; reach for App Insights traces for details.
+    columns: ['id', 'created', 'updated', 'amountExpected', 'amountIn', 'amountOut', 'assetInId', 'assetOutId', 'price1', 'price2', 'price3', 'priceImpact', 'profitChf', 'status', 'swapFeeAmount', 'swapFeeAmountChf', 'tradingRuleId', 'txFeeAmount', 'txFeeAmountChf', 'txId'],
   },
   trading_rule: {
     columns: ['id', 'created', 'updated', 'leftAsset1', 'leftAsset2', 'leftAsset3', 'leftAssetId', 'lowerLimit', 'lowerTarget', 'poolFee', 'reactivationTime', 'rightAsset1', 'rightAsset2', 'rightAsset3', 'rightAssetId', 'source1', 'source2', 'source3', 'status', 'upperLimit', 'upperTarget'],
@@ -368,7 +378,9 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   },
   user: {
     // No ip / ipCountry / apiKeyCT / signature / label / comment — old blocklist.
-    columns: ['id', 'created', 'updated', 'address', 'addressType', 'annualBuyVolume', 'annualCryptoVolume', 'annualSellVolume', 'apiFilterCT', 'approved', 'buyVolume', 'custodyAccountId', 'custodyAddressIndex', 'custodyAddressType', 'custodyProviderId', 'deactivationDate', 'monthlyBuyVolume', 'monthlyCryptoVolume', 'monthlySellVolume', 'origin', 'paidRefCredit', 'partnerRefCredit', 'partnerRefVolume', 'primaryUserId', 'refAssetId', 'refCredit', 'refFeePercent', 'refPayoutFrequency', 'refVolume', 'role', 'sellVolume', 'status', 'travelRulePdfDate', 'usedRef', 'userDataId', 'walletId', 'walletType'],
+    // Also excluded: `apiFilterCT` — sibling of the blocked `apiKeyCT`, operational config
+    // tied to the partner-API integration.
+    columns: ['id', 'created', 'updated', 'address', 'addressType', 'annualBuyVolume', 'annualCryptoVolume', 'annualSellVolume', 'approved', 'buyVolume', 'custodyAccountId', 'custodyAddressIndex', 'custodyAddressType', 'custodyProviderId', 'deactivationDate', 'monthlyBuyVolume', 'monthlyCryptoVolume', 'monthlySellVolume', 'origin', 'paidRefCredit', 'partnerRefCredit', 'partnerRefVolume', 'primaryUserId', 'refAssetId', 'refCredit', 'refFeePercent', 'refPayoutFrequency', 'refVolume', 'role', 'sellVolume', 'status', 'travelRulePdfDate', 'usedRef', 'userDataId', 'walletId', 'walletType'],
   },
   user_data: {
     // No PII columns. countryId / nationalityId / organizationId / verifiedCountryId /

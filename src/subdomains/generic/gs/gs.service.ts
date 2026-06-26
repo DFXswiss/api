@@ -234,8 +234,13 @@ export class GsService {
   //     explicit code changes.
   //   - LIMIT is a numeric DTO field, clamped at DebugMaxResults. No string substring scan.
   async executeDebugQuery(dto: DebugQueryDto, userIdentifier: string): Promise<DebugQueryResult> {
+    // `Object.hasOwn` so prototype keys like `__proto__` / `constructor` / `toString` don't
+    // pass the `if (!spec)` guard (they'd otherwise return `Object.prototype` and crash later
+    // with a 500). Use the allowlist as a real lookup, not a `in`/index probe.
+    if (!Object.hasOwn(DebugAllowedColumns, dto.table)) {
+      throw new BadRequestException(`Table '${dto.table}' is not allowed`);
+    }
     const spec = DebugAllowedColumns[dto.table];
-    if (!spec) throw new BadRequestException(`Table '${dto.table}' is not allowed`);
 
     const ctx: DebugQueryEmitCtx = {
       table: dto.table,
@@ -263,16 +268,20 @@ export class GsService {
       ? ` ORDER BY ${dto.orderBy.map((o) => this.emitDebugOrderByItem(o, ctx)).join(', ')}`
       : '';
 
-    // LIMIT / OFFSET — DTO already clamps; we clamp again as defense in depth.
-    const limit = Math.min(dto.limit, DebugMaxResults);
-    const offset = dto.offset ?? 0;
+    // LIMIT / OFFSET — DTO enforces `@Min(1) @Max(10000)` on limit and `@Min(0) @Max(1_000_000)`
+    // on offset. We clamp both ends again here so the service alone never emits a negative or
+    // zero limit; matches the defense-in-depth re-checks on `aggregate`/`op`/`direction`.
+    const limit = Math.max(1, Math.min(dto.limit, DebugMaxResults));
+    const offset = Math.max(0, dto.offset ?? 0);
     const limitClause = ` LIMIT ${limit}${offset > 0 ? ` OFFSET ${offset}` : ''}`;
 
     const sql = `SELECT ${selectClause} FROM "${dto.table}"${whereClause}${groupByClause}${orderByClause}${limitClause}`;
 
-    this.logger.verbose(
-      `Debug-query by ${userIdentifier}: ${JSON.stringify(dto).substring(0, 500)}`,
-    );
+    // Audit log. WHERE leaf values are user-supplied and may carry PII (LIKE patterns over
+    // mail, IBAN, etc.), so we redact them before stringifying — the *shape* of the query is
+    // useful for forensics but the values were already protected by parameter binding; we
+    // shouldn't leak them to the verbose log just to undo that.
+    this.logger.verbose(`Debug-query by ${userIdentifier}: ${this.serializeDebugQueryForAudit(dto)}`);
 
     try {
       const rows: Record<string, unknown>[] = await this.dataSource.query(sql, ctx.params);
@@ -285,6 +294,20 @@ export class GsService {
   }
 
   // --- Emitters for /gs/debug ---
+
+  // Replaces every `value` field (WHERE leaf scalars or IN-list arrays) with a redaction
+  // marker for the audit log, then truncates. Preserves table/select/where structure so the
+  // log is still useful for forensics; drops the actual user-supplied scalars.
+  private serializeDebugQueryForAudit(dto: DebugQueryDto): string {
+    const redacted = JSON.stringify(dto, (key, val) => {
+      if (key === 'value') {
+        if (Array.isArray(val)) return `<array:${val.length}>`;
+        return '<scalar>';
+      }
+      return val;
+    });
+    return redacted.length > 500 ? `${redacted.substring(0, 500)}...` : redacted;
+  }
 
   // Asserts a column name is in the table allowlist; throws otherwise. Used everywhere a
   // user-supplied identifier could reach SQL.
@@ -323,6 +346,11 @@ export class GsService {
 
   // Emits one SELECT-list fragment. All identifiers are validated; the alias is registered
   // so ORDER BY / GROUP BY can later reference it.
+  //
+  // Order of operations matters: every kind-specific required field is validated BEFORE the
+  // default alias is derived, so `defaultDebugSelectAlias` always reads from already-checked
+  // inputs. Otherwise a malformed `{kind: 'jsonb'}` (no jsonbPath) would TypeError when
+  // synthesizing the alias and surface as 500 instead of a clean 400.
   private emitDebugSelectItem(item: DebugSelectItem, ctx: DebugQueryEmitCtx): string {
     this.assertDebugColumnAllowed(item.column, ctx.spec);
 
@@ -332,6 +360,24 @@ export class GsService {
     if (item.as !== undefined && !DebugIdentifierRegex.test(item.as)) {
       throw new BadRequestException(`Alias '${item.as}' is not a valid identifier`);
     }
+
+    // Kind-specific required-field checks. These run BEFORE alias derivation so a malformed
+    // DTO produces a clean 400 instead of a TypeError 500.
+    if (item.kind === 'aggregate') {
+      if (!item.aggregate) throw new BadRequestException('aggregate selector requires `aggregate`');
+      // Defense in depth: the aggregate name is interpolated into the SQL string. The DTO
+      // enforces enum membership; re-check here so a future bypass can't smuggle an
+      // arbitrary string through.
+      if (!Object.values(DebugAggregate).includes(item.aggregate)) {
+        throw new BadRequestException(`Aggregate '${item.aggregate}' is not allowed`);
+      }
+    } else if (item.kind === 'jsonb') {
+      if (!item.jsonbPath) throw new BadRequestException('jsonb selector requires `jsonbPath`');
+      if (!ctx.spec.jsonbColumns?.includes(item.column)) {
+        throw new BadRequestException(`Column '${item.column}' does not support jsonb path access`);
+      }
+    }
+
     const alias = item.as ?? this.defaultDebugSelectAlias(item);
     ctx.aliases.add(alias);
 
@@ -341,23 +387,11 @@ export class GsService {
       case 'column':
         return `${colSql} AS "${alias}"`;
 
-      case 'aggregate': {
-        if (!item.aggregate) throw new BadRequestException('aggregate selector requires `aggregate`');
-        // Defense in depth: the aggregate name is interpolated into the SQL string. The DTO
-        // enforces enum membership; re-check here so a future bypass can't smuggle an
-        // arbitrary string through.
-        if (!Object.values(DebugAggregate).includes(item.aggregate)) {
-          throw new BadRequestException(`Aggregate '${item.aggregate}' is not allowed`);
-        }
-        return `${item.aggregate.toUpperCase()}(${colSql}) AS "${alias}"`;
-      }
+      case 'aggregate':
+        return `${item.aggregate!.toUpperCase()}(${colSql}) AS "${alias}"`;
 
       case 'jsonb': {
-        if (!item.jsonbPath) throw new BadRequestException('jsonb selector requires `jsonbPath`');
-        if (!ctx.spec.jsonbColumns?.includes(item.column)) {
-          throw new BadRequestException(`Column '${item.column}' does not support jsonb path access`);
-        }
-        const segments = this.parseDebugJsonbPath(item.jsonbPath);
+        const segments = this.parseDebugJsonbPath(item.jsonbPath!);
         // Emit `(col)::jsonb -> 'a' -> 'b' ->> 'lastSegment'` — `->>` on the terminal step
         // forces text output, which is what JSON.parse-friendly debugging wants.
         let expr = `(${colSql})::jsonb`;
