@@ -47,6 +47,8 @@ import { UserDataRelationService } from './models/user-data-relation/user-data-r
 import { UserDataJobService } from './models/user-data/user-data-job.service';
 import { UserDataNotificationService } from './models/user-data/user-data-notification.service';
 import { UserData } from './models/user-data/user-data.entity';
+import { TravelRuleJobService } from './models/user/travel-rule-job.service';
+import { TravelRulePdfService } from './models/user/travel-rule-pdf.service';
 import { UserJobService } from './models/user/user-job.service';
 import { UserController, UserV2Controller } from './models/user/user.controller';
 import { User } from './models/user/user.entity';
@@ -125,6 +127,8 @@ import { WebhookService } from './services/webhook/webhook.service';
     OrganizationRepository,
     UserDataJobService,
     UserJobService,
+    TravelRulePdfService,
+    TravelRuleJobService,
     RecommendationRepository,
     RecommendationService,
   ],
