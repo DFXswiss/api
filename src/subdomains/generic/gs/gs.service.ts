@@ -45,6 +45,7 @@ import {
   DebugAllowedColumns,
   DebugLogQueryTemplates,
   DebugMaxResults,
+  DebugQueryAuditPrefix,
   DebugTableSpec,
   GsRestrictedColumns,
   GsRestrictedMarker,
@@ -246,7 +247,7 @@ export class GsService {
     // probing request (bad column, oversized IN list, etc.) is still recorded for forensics.
     // WHERE leaf values may carry PII (LIKE patterns over mail / IBAN); redact them. Bound
     // parameters already protect the SQL string; we shouldn't undo that via the verbose log.
-    this.logger.verbose(`Debug-query by ${userIdentifier}: ${this.serializeDebugQueryForAudit(dto)}`);
+    this.logger.verbose(`${DebugQueryAuditPrefix}${userIdentifier}: ${this.serializeDebugQueryForAudit(dto)}`);
 
     const ctx: DebugQueryEmitCtx = {
       table: dto.table,
@@ -288,7 +289,7 @@ export class GsService {
       const keys = dto.select.map((item) => item.as ?? this.defaultDebugSelectAlias(item));
       return { keys, rows: rows.map((r) => keys.map((k) => r[k])) };
     } catch (e) {
-      this.logger.info(`Debug-query by ${userIdentifier} failed: ${e.message}`);
+      this.logger.info(`${DebugQueryAuditPrefix}${userIdentifier} failed: ${e.message}`);
       throw new BadRequestException('Query execution failed');
     }
   }
@@ -874,5 +875,4 @@ export class GsService {
       }
     }
   }
-
 }

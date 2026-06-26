@@ -4,7 +4,7 @@ import { DataSource } from 'typeorm';
 import { AppInsightsQueryService } from 'src/integration/infrastructure/app-insights-query.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { GsService } from '../gs.service';
-import { DebugLogQueryTemplates, LogQueryAuditPrefix } from '../dto/gs.dto';
+import { DebugLogQueryTemplates, DebugQueryAuditPrefix, LogQueryAuditPrefix } from '../dto/gs.dto';
 import { LogQueryTemplate } from '../dto/log-query.dto';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UserService } from '../../user/models/user/user.service';
@@ -373,9 +373,7 @@ describe('GsService', () => {
         const q = spyQuery();
         const dto: DebugQueryDto = {
           table: 'log',
-          select: [
-            { kind: 'jsonb', column: 'message', jsonbPath: 'balancesTotal.totalBalanceChf', as: 'chf' },
-          ],
+          select: [{ kind: 'jsonb', column: 'message', jsonbPath: 'balancesTotal.totalBalanceChf', as: 'chf' }],
           limit: 10,
         };
         await service.executeDebugQuery(dto, 'tester');
@@ -1722,10 +1720,7 @@ describe('GsService', () => {
         spyQuery();
         // Build a large SELECT list (not large user values — those are redacted) so the
         // serialized DTO exceeds 500 chars and the trailing "..." marker is appended.
-        const longSelect = Array.from(
-          { length: 200 },
-          () => ({ kind: 'column' as const, column: 'id' }),
-        );
+        const longSelect = Array.from({ length: 200 }, () => ({ kind: 'column' as const, column: 'id' }));
         const dto: DebugQueryDto = { table: 'asset', select: longSelect, limit: 10 };
 
         await service.executeDebugQuery(dto, '0xtester');
@@ -2123,7 +2118,7 @@ describe('GsService', () => {
     });
   });
 
-  describe('LogQueryAuditPrefix sync', () => {
+  describe('Audit-prefix sync (cross-user history leak protection)', () => {
     it('ALL_TRACES template excludes the exact audit prefix that gs.service emits', async () => {
       const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
       jest.spyOn(appInsightsQueryService, 'query').mockResolvedValue({ tables: [{ columns: [], rows: [] }] } as never);
@@ -2141,6 +2136,38 @@ describe('GsService', () => {
       //    constant will update both sides at once.
       const kql = DebugLogQueryTemplates[LogQueryTemplate.ALL_TRACES].kql;
       expect(kql).toContain(`[GsService] ${LogQueryAuditPrefix}`);
+
+      verboseSpy.mockRestore();
+    });
+
+    it('executeDebugQuery emits the exact prefix that the trace templates filter', async () => {
+      // A DEBUG user could otherwise call /gs/debug/logs with
+      // `messageFilter: "Debug-query by 0xother"` and read another user's audit-line
+      // history. The trace-returning templates filter the prefix, but they only work if
+      // the emitter and the templates use the same string. This test pins both.
+      const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
+      jest.spyOn(dataSource, 'query').mockImplementation(async () => []);
+
+      await service.executeDebugQuery(
+        { table: 'asset', select: [{ kind: 'column', column: 'id' }], limit: 1 },
+        '0xtester',
+      );
+
+      const emitted = verboseSpy.mock.calls.map((args) => String(args[0])).join('\n');
+      expect(emitted).toContain(`${DebugQueryAuditPrefix}0xtester`);
+      expect(emitted.startsWith(DebugQueryAuditPrefix)).toBe(true);
+
+      // Every template that returns `traces` AND lets the caller influence what's returned
+      // must filter the debug-query audit prefix.
+      for (const template of [
+        LogQueryTemplate.ALL_TRACES,
+        LogQueryTemplate.TRACES_BY_MESSAGE,
+        LogQueryTemplate.TRACES_BY_OPERATION,
+      ]) {
+        const kql = DebugLogQueryTemplates[template].kql;
+        expect(kql).toContain(`[GsService] ${DebugQueryAuditPrefix}`);
+        expect(kql).toContain(`[GsService] ${LogQueryAuditPrefix}`);
+      }
 
       verboseSpy.mockRestore();
     });
