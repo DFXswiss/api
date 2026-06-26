@@ -481,7 +481,11 @@ export class SupportIssueService {
   private getIssueSearch(id: string, userDataId?: number): FindOptionsWhere<SupportIssue> {
     if (id.startsWith(Config.prefixes.issueUidPrefix)) return { uid: id };
     if (id.startsWith(Config.prefixes.quoteUidPrefix)) return { transactionRequest: { uid: id } };
-    if (userDataId) return { id: +id, userData: { id: userDataId } };
+    if (userDataId) {
+      const numId = +id;
+      if (!Number.isInteger(numId)) throw new BadRequestException('id must be an integer');
+      return { id: numId, userData: { id: userDataId } };
+    }
 
     throw new UnauthorizedException();
   }
