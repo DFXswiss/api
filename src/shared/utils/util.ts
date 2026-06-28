@@ -698,13 +698,17 @@ export class Util {
     return value != null ? Boolean(value || value === '') : value;
   }
 
-  static sanitize({ value }: TransformFnParams): string | undefined {
+  static sanitizeString(value: string | undefined): string | undefined {
     return value
       ? sanitizeHtml(value.trim(), { allowedTags: [], allowedAttributes: {}, disallowedTagsMode: 'escape' }).replace(
           /&amp;/g,
           '&',
         )
       : value;
+  }
+
+  static sanitize({ value }: TransformFnParams): string | undefined {
+    return Util.sanitizeString(value);
   }
 
   static toCsv(list: any[], separator = ',', toGermanLocalDateString = false): string {

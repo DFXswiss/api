@@ -1,9 +1,11 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsEnum, IsInt, IsNotEmpty, IsOptional, IsString, Matches, ValidateIf } from 'class-validator';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CryptoService } from 'src/integration/blockchain/shared/services/crypto.service';
 import { EvmBlockchains } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { Util } from 'src/shared/utils/util';
 import { Moderator } from '../../user-data/user-data.enum';
 import { WalletType } from '../../user/user.enum';
 
@@ -80,6 +82,7 @@ export class OptionalSignUpDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   wallet?: string;
 
   @ApiPropertyOptional({ deprecated: true, description: 'This field is deprecated, use "specialCode" instead.' })
@@ -123,6 +126,7 @@ export class SignUpDto extends SignInDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   wallet?: string;
 
   @ApiPropertyOptional()
