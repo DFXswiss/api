@@ -8,13 +8,18 @@ import {
 import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { isRealUnitClient } from 'src/shared/utils/request-client';
 import { Util } from 'src/shared/utils/util';
+import { REALUNIT_WALLET_NAME } from 'src/subdomains/supporting/notification/realunit-mail-rules';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { PhoneCallStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionRequestType } from '../../payment/entities/transaction-request.entity';
 import { TransactionSourceType } from '../../payment/entities/transaction.entity';
@@ -45,6 +50,8 @@ import { SupportLogService } from './support-log.service';
 
 @Injectable()
 export class SupportIssueService {
+  private readonly logger = new DfxLogger(SupportIssueService);
+
   constructor(
     private readonly supportIssueRepo: SupportIssueRepository,
     private readonly transactionService: TransactionService,
@@ -57,6 +64,7 @@ export class SupportIssueService {
     private readonly supportLogService: SupportLogService,
     private readonly bankDataService: BankDataService,
     private readonly settingService: SettingService,
+    private readonly walletService: WalletService,
   ) {}
 
   async getSupportIssueClerks(): Promise<string[]> {
@@ -100,7 +108,7 @@ export class SupportIssueService {
     return { count: +(raw?.count ?? 0), latestAt: raw?.latestAt ?? undefined };
   }
 
-  async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
+  async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto, client?: string): Promise<SupportIssueDto> {
     if (!dto?.transaction?.orderUid) throw new BadRequestException('JWT Token or quoteUid missing');
     const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
       dto.transaction.orderUid,
@@ -108,21 +116,56 @@ export class SupportIssueService {
     );
     if (!transactionRequest) throw new NotFoundException('TransactionRequest not found');
 
-    return this.createIssueInternal(transactionRequest.userData, dto);
+    return this.createIssueInternal(transactionRequest.userData, dto, await this.resolveSourceWallet(client));
   }
 
-  async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
+  // User-opened ticket: source app comes from the per-request X-Client header.
+  async createIssue(userDataId: number, dto: CreateSupportIssueDto, client?: string): Promise<SupportIssueDto> {
+    return this.createForUserData(userDataId, dto, await this.resolveSourceWallet(client));
+  }
+
+  // Support-tool-created ticket: always DFX-attributed (no app client). A dedicated method - rather than an
+  // omitted optional arg on createIssue - so the no-source invariant cannot be broken by a future caller
+  // forwarding a client header into the support path.
+  async createIssueBySupport(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
+    return this.createForUserData(userDataId, dto, undefined);
+  }
+
+  private async createForUserData(
+    userDataId: number,
+    dto: CreateSupportIssueDto,
+    sourceWallet: Wallet | undefined,
+  ): Promise<SupportIssueDto> {
     const userData = await this.userDataService.getUserData(userDataId, { wallet: true });
     if (!userData) throw new NotFoundException('UserData not found');
 
-    return this.createIssueInternal(userData, dto);
+    return this.createIssueInternal(userData, dto, sourceWallet);
   }
 
-  async createIssueInternal(userData: UserData, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
+  // App the ticket is opened from, derived from the per-request X-Client header (not the user's persisted
+  // wallet). Only the RealUnit app is branded explicitly; every other client defaults to DFX (returns
+  // undefined here -> DFX branding at mail time).
+  private async resolveSourceWallet(client?: string): Promise<Wallet | undefined> {
+    if (!isRealUnitClient(client)) return undefined;
+
+    const wallet = await this.walletService.getByIdOrName(undefined, REALUNIT_WALLET_NAME);
+    if (!wallet)
+      this.logger.warn(
+        `RealUnit ticket source requested but the '${REALUNIT_WALLET_NAME}' wallet is missing; ticket falls back to DFX branding`,
+      );
+
+    return wallet;
+  }
+
+  async createIssueInternal(
+    userData: UserData,
+    dto: CreateSupportIssueDto,
+    sourceWallet?: Wallet,
+  ): Promise<SupportIssueDto> {
     // mail is required
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
-    const newIssue = this.supportIssueRepo.create({ userData, ...dto });
+    const newIssue = this.supportIssueRepo.create({ userData, wallet: sourceWallet, ...dto });
 
     const existingWhere: FindOptionsWhere<SupportIssue> = {
       userData: { id: userData.id },
@@ -212,6 +255,15 @@ export class SupportIssueService {
     }
 
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
+
+    // Upgrade a not-yet-attributed (legacy or DFX-defaulted) issue when a follow-up message arrives with a
+    // positive source (e.g. the RealUnit app). Never clobber an existing source - a later headerless message
+    // must not downgrade a known RealUnit ticket to DFX.
+    if (existingIssue && !existingIssue.wallet && sourceWallet) {
+      existingIssue.wallet = sourceWallet;
+      await this.supportIssueRepo.update(existingIssue.id, { wallet: sourceWallet });
+    }
+
     const supportMessage = await this.createMessageInternal(entity, dto);
 
     const issue = SupportIssueDtoMapper.mapSupportIssue(entity);

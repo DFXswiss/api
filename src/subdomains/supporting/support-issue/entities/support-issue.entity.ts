@@ -1,6 +1,7 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { TransactionRequest } from '../../payment/entities/transaction-request.entity';
@@ -50,6 +51,14 @@ export class SupportIssue extends IEntity {
   @Index()
   @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;
+
+  // Wallet/app the issue was opened from, attributed from the trusted inbound X-Client header at creation
+  // (NOT the user's persisted wallet) - drives mail branding. Nullable by design: X-Client is a RealUnit-only
+  // signal today, so only RealUnit-app tickets get a positive wallet; the entire DFX ecosystem and legacy/
+  // support-created issues are null, which means "DFX default brand" (resolved at mail time, logged).
+  @Index()
+  @ManyToOne(() => Wallet, { nullable: true, eager: true })
+  wallet?: Wallet;
 
   @OneToOne(() => LimitRequest, { nullable: true })
   @JoinColumn()

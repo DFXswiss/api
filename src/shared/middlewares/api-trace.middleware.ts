@@ -1,11 +1,8 @@
 import { NextFunction, Request, RequestHandler, Response } from 'express';
 import { DfxLogger } from '../services/dfx-logger';
+import { getClient, isRealUnitRequest } from '../utils/request-client';
 
 const logger = new DfxLogger('RealUnitTrace');
-
-const CLIENT_HEADER = 'x-client';
-const REALUNIT_CLIENT = /realunit-app/i;
-const REALUNIT_PATH = /^\/v\d+\/realunit\//i;
 
 // Keys whose values are masked: auth header, JWT/access tokens, signatures, credentials.
 // Anchored so public fields like `tokenInfo` / `tokenAddress` are NOT redacted.
@@ -47,11 +44,9 @@ function format(value: unknown): string {
  */
 export function apiTraceMiddleware(): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
-    const client = req.headers[CLIENT_HEADER];
-    const clientStr = Array.isArray(client) ? client[0] : (client ?? '');
+    const clientStr = getClient(req);
 
-    const isRealUnit = REALUNIT_CLIENT.test(clientStr) || REALUNIT_PATH.test(req.originalUrl);
-    if (!isRealUnit) return next();
+    if (!isRealUnitRequest(req)) return next();
 
     const start = Date.now();
     let responseBody: unknown;
