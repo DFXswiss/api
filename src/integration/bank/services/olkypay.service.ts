@@ -36,6 +36,9 @@ export class OlkypayService {
   private readonly baseUrl = 'https://ws.olkypay.com';
   private readonly loginUrl = 'https://stp.olkypay.com/auth/realms/b2b/protocol/openid-connect/token';
 
+  // OLKYPAY rejects payer zip codes longer than this
+  private readonly maxZipLength = 8;
+
   private accessToken = 'access-token-will-be-updated';
   private cachedSupplierId: number;
 
@@ -98,6 +101,8 @@ export class OlkypayService {
   // --- RECIPIENT METHODS --- //
 
   async getOrCreateRecipient(data: OlkyRecipientData): Promise<OlkyRecipient> {
+    this.validateRecipientData(data);
+
     const account =
       (await this.olkyRecipientRepo.findOneBy({
         iban: data.iban,
@@ -111,6 +116,13 @@ export class OlkypayService {
     if (account.olkyPayerId && account.olkyBankAccountId) return account;
 
     return this.registerAtOlkypay(account);
+  }
+
+  private validateRecipientData(data: OlkyRecipientData): void {
+    if (data.zip && data.zip.length > this.maxZipLength)
+      throw new Error(
+        `Invalid OLKYPAY recipient zip code '${data.zip}' (max ${this.maxZipLength} characters): correct the recipient address`,
+      );
   }
 
   private async createRecipient(data: OlkyRecipientData): Promise<OlkyRecipient> {
