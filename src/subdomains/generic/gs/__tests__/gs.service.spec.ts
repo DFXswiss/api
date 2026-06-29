@@ -307,7 +307,38 @@ describe('GsService', () => {
         // misc payload / data blobs
         ['sift_error_log', 'requestPayload'],
         ['webhook', 'data'],
+        ['webhook', 'error'],
         ['notification', 'data'],
+        ['notification', 'error'],
+        ['bank_tx_return', 'info'],
+        ['bank_tx_repeat', 'info'],
+        // ip_log URL carries OAuth `?code=…` tokens (Alby redirect) — must stay out
+        ['ip_log', 'url'],
+        // crypto_input recipient PII
+        ['crypto_input', 'recipientMail'],
+        // payout / liquidity / transaction_request — unbounded text from external APIs
+        ['payout_order', 'lastError'],
+        // fee — commercially sensitive
+        ['fee', 'excludedUserDatas'],
+        // support clerk notes — free-form
+        ['support_log', 'message'],
+        ['support_log', 'comment'],
+        ['recall', 'comment'],
+        ['recall', 'reason'],
+        // custody / payment_merchant
+        ['custody_provider', 'mail'],
+        ['custody_provider', 'masterKey'],
+        ['payment_merchant', 'data'],
+        // MROS — regulatory content
+        ['mros', 'status'],
+        ['mros', 'reportCode'],
+        ['mros', 'submissionDate'],
+        ['mros', 'authorityReference'],
+        ['mros', 'caseManager'],
+        ['mros', 'reason'],
+        ['mros', 'action'],
+        ['mros', 'indicators'],
+        ['mros', 'personOverrides'],
         // recommendation PII
         ['recommendation', 'recommendedMail'],
         ['recommendation', 'recommendedAlias'],

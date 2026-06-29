@@ -102,16 +102,31 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'refEnabled',
       'refundEnabled',
       'sellable',
+      'sellCommand',
       'sortOrder',
       'type',
       'uniqueName',
     ],
   },
   asset_price: {
-    columns: ['id', 'created', 'updated', 'assetId'],
+    columns: ['id', 'created', 'updated', 'assetId', 'priceChf', 'priceEur', 'priceUsd'],
   },
   bank: {
-    columns: ['id', 'created', 'updated'],
+    // DFX's own bank-of-record entries (Maerki Baumann, Olkypay, …). The `iban` here is the
+    // company's bank account number used to receive customer transfers — not a customer IBAN.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'amlEnabled',
+      'bic',
+      'currency',
+      'iban',
+      'name',
+      'receive',
+      'sctInst',
+      'send',
+    ],
   },
   bank_account: {
     columns: ['id', 'created', 'updated'],
@@ -178,13 +193,47 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated'],
   },
   bank_tx_repeat: {
-    columns: ['id', 'created', 'updated', 'userId'],
+    // No `info` (free-form), no `chargebackIban` / `chargebackRemittanceInfo` (PII).
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'amountInChf',
+      'amountInEur',
+      'amountInUsd',
+      'chargebackAllowedBy',
+      'chargebackAllowedDate',
+      'chargebackAllowedDateUser',
+      'chargebackAmount',
+      'chargebackDate',
+      'userId',
+    ],
   },
   bank_tx_return: {
-    columns: ['id', 'created', 'updated', 'userDataId'],
+    // No `info` (free-form), no `chargebackIban` / `chargebackRemittanceInfo` /
+    // `chargebackCreditorData` / `recipientMail` (PII).
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'amountInChf',
+      'amountInEur',
+      'amountInUsd',
+      'chargebackAllowedBy',
+      'chargebackAllowedDate',
+      'chargebackAllowedDateUser',
+      'chargebackAmount',
+      'chargebackAsset',
+      'chargebackDate',
+      'chargebackReferenceAmount',
+      'inputAmount',
+      'inputAsset',
+      'mailSendDate',
+      'userDataId',
+    ],
   },
   blockchain_fee: {
-    columns: ['id', 'created', 'updated'],
+    columns: ['id', 'created', 'updated', 'amount'],
   },
   buy: {
     // No iban.
@@ -359,7 +408,27 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   checkout_tx: {
-    columns: ['id', 'created', 'updated'],
+    // No card content (cardName / cardBin / cardLast4 / cardFingerPrint / cardIssuer /
+    // cardIssuerCountry) and no ip. Payment flow + risk metadata is safe; `reference` and
+    // `description` are merchant-supplied short strings already visible to support staff.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'amount',
+      'approved',
+      'authStatusReason',
+      'currency',
+      'description',
+      'expiresOn',
+      'paymentId',
+      'reference',
+      'requestedOn',
+      'risk',
+      'riskScore',
+      'status',
+      'type',
+    ],
   },
   country: {
     columns: [
@@ -369,17 +438,18 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'amlRule',
       'bankEnable',
       'bankTransactionVerificationEnable',
-      'cardBuyable',
       'checkoutEnable',
       'cryptoEnable',
       'dfxEnable',
       'dfxOrganizationEnable',
       'enabledKycDocuments',
       'fatfEnable',
+      'foreignName',
       'ipEnable',
       'lockEnable',
       'manualReviewRequired',
       'manualReviewRequiredOrganization',
+      'name',
       'nationalityEnable',
       'nationalityStepEnable',
       'symbol',
@@ -388,13 +458,45 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   crypto_input: {
-    columns: ['id', 'created', 'updated', 'assetId', 'paymentLinkPaymentId', 'paymentQuoteId', 'routeId'],
+    // Pay-in pipeline state. On-chain identifiers (inTxId/outTxId/returnTxId/prepareTxId,
+    // addressAddress, blockHeight) are public chain data. `senderAddresses` (text, may be
+    // multiple) and `recipientMail` stay out — same redaction rule as elsewhere.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'action',
+      'addressAddress',
+      'addressBlockchain',
+      'amount',
+      'assetId',
+      'blockHeight',
+      'chargebackAmount',
+      'destinationAddressAddress',
+      'destinationAddressBlockchain',
+      'forwardFeeAmount',
+      'forwardFeeAmountChf',
+      'inTxId',
+      'isConfirmed',
+      'mailReturnSendDate',
+      'outTxId',
+      'paymentLinkPaymentId',
+      'paymentQuoteId',
+      'prepareTxId',
+      'purpose',
+      'returnTxId',
+      'routeId',
+      'status',
+      'txSequence',
+      'txType',
+    ],
   },
   crypto_staking: {
     columns: [
       'id',
       'created',
       'updated',
+      'inTxId',
       'inputAmount',
       'inputAmountInChf',
       'inputAmountInEur',
@@ -417,7 +519,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   custody_account: {
-    columns: ['id', 'created', 'updated', 'ownerId', 'requiredSignatures', 'status'],
+    columns: ['id', 'created', 'updated', 'description', 'ownerId', 'requiredSignatures', 'status', 'title'],
   },
   custody_account_access: {
     columns: ['id', 'created', 'updated', 'accessLevel', 'accountId', 'userDataId'],
@@ -460,13 +562,78 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'active', 'type', 'volume'],
   },
   exchange_tx: {
-    columns: ['id', 'created', 'updated'],
+    // Exchange-side trade/withdrawal records. All fields are operational metadata sent to /
+    // received from the exchange API (Kraken, Binance, …). `address` is on-chain.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'address',
+      'amount',
+      'amountChf',
+      'asset',
+      'cost',
+      'currency',
+      'exchange',
+      'externalCreated',
+      'externalId',
+      'externalUpdated',
+      'feeAmount',
+      'feeAmountChf',
+      'feeCurrency',
+      'leverage',
+      'margin',
+      'method',
+      'order',
+      'orderType',
+      'pair',
+      'price',
+      'side',
+      'status',
+      'symbol',
+      'tradeId',
+      'txId',
+      'type',
+      'vol',
+    ],
   },
   faucet_request: {
     columns: ['id', 'created', 'updated', 'amount', 'assetId', 'status', 'txId', 'userDataId', 'userId'],
   },
   fee: {
-    columns: ['id', 'created', 'updated', 'bankId', 'walletId'],
+    // Pricing-tier definitions. `excludedUserDatas` excluded — lists specific user IDs that
+    // get special treatment, which would let a debug user enumerate VIPs.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'accountType',
+      'active',
+      'annualUserTxVolumes',
+      'assets',
+      'bankId',
+      'blockchainFactor',
+      'excludedAssets',
+      'expiryDate',
+      'fiats',
+      'financialTypes',
+      'fixed',
+      'label',
+      'maxAnnualUserTxVolume',
+      'maxTxUsages',
+      'maxTxVolume',
+      'maxUsages',
+      'minTxVolume',
+      'paymentMethodsIn',
+      'paymentMethodsOut',
+      'payoutRefBonus',
+      'rate',
+      'specialCode',
+      'txUsages',
+      'type',
+      'usages',
+      'walletId',
+    ],
   },
   fiat: {
     // `ibanCountryConfig` excluded — admin-set JSON config, not on safe-string list. Add
@@ -522,7 +689,9 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   ip_log: {
-    // No ip / country / address — IP-tracking PII.
+    // No ip / country / address — IP-tracking PII. No `url` — captured value is `req.url`
+    // with its full query string, which embeds OAuth `?code=…` tokens (e.g.
+    // `/v1/auth/alby/redirect/{id}?code=…`) and other short-lived secrets.
     columns: ['id', 'created', 'updated', 'result', 'userDataId', 'userId', 'walletType'],
   },
   kyc_file: {
@@ -556,7 +725,20 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'enable', 'foreignName', 'name', 'symbol'],
   },
   limit_request: {
-    columns: ['id', 'created', 'updated'],
+    // Workflow / decision metadata only. No `fundOriginText` (free-form) and no `recipientMail`.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'acceptedLimit',
+      'clerk',
+      'decision',
+      'edited',
+      'fundOrigin',
+      'investmentDate',
+      'limit',
+      'mailSendDate',
+    ],
   },
   limit_request_log: {
     columns: ['id', 'created', 'updated', 'limitRequestId'],
@@ -565,7 +747,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'amount', 'assetId', 'availableAmount', 'isDfxOwned'],
   },
   liquidity_management_action: {
-    columns: ['id', 'created', 'updated', 'command', 'onFailId', 'onSuccessId', 'system', 'tag'],
+    columns: ['id', 'created', 'updated', 'command', 'onFailId', 'onSuccessId', 'params', 'system', 'tag'],
   },
   liquidity_management_order: {
     // `errorMessage` removed — `text` column stores exception strings that may include
@@ -624,7 +806,29 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   liquidity_order: {
-    columns: ['id', 'created', 'updated', 'feeAssetId', 'referenceAssetId', 'swapAssetId', 'targetAssetId'],
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'chain',
+      'context',
+      'correlationId',
+      'estimatedTargetAmount',
+      'feeAmount',
+      'feeAssetId',
+      'isComplete',
+      'isReady',
+      'purchasedAmount',
+      'referenceAmount',
+      'referenceAssetId',
+      'strategy',
+      'swapAmount',
+      'swapAssetId',
+      'targetAmount',
+      'targetAssetId',
+      'txId',
+      'type',
+    ],
   },
   log: {
     columns: ['id', 'created', 'updated', 'category', 'message', 'severity', 'subsystem', 'system', 'valid'],
@@ -646,8 +850,21 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'bankDataId', 'eventDate', 'riskEvaluationDate', 'riskStatus', 'type'],
   },
   notification: {
-    // No data (free-form JSON).
-    columns: ['id', 'created', 'updated', 'userDataId'],
+    // No data (free-form JSON payload that may contain PII).
+    // No error (may include internal stack traces / external API error bodies).
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'context',
+      'correlationId',
+      'debounce',
+      'isComplete',
+      'lastTryDate',
+      'suppressRecurring',
+      'type',
+      'userDataId',
+    ],
   },
   olky_recipient: {
     columns: ['id', 'created', 'updated'],
@@ -658,6 +875,8 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'accountOpenerId'],
   },
   payment_activation: {
+    // `paymentRequest` is the BOLT-11 invoice / on-chain transfer request — already public
+    // via the POS QR code. `paymentHash` is the hash of the Lightning preimage — public.
     columns: [
       'id',
       'created',
@@ -666,7 +885,9 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'assetId',
       'expiryDate',
       'method',
+      'paymentHash',
       'paymentId',
+      'paymentRequest',
       'quoteId',
       'standard',
       'status',
@@ -716,13 +937,56 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   payout_order: {
-    columns: ['id', 'created', 'updated', 'assetId', 'payoutFeeAssetId', 'preparationFeeAssetId'],
+    // `lastError` excluded — 2048-char text from external API failure modes.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'amount',
+      'assetId',
+      'chain',
+      'context',
+      'correlationId',
+      'destinationAddress',
+      'lastAttemptDate',
+      'payoutFeeAmount',
+      'payoutFeeAmountChf',
+      'payoutFeeAssetId',
+      'payoutTxId',
+      'preparationFeeAmount',
+      'preparationFeeAmountChf',
+      'preparationFeeAssetId',
+      'retryCount',
+      'status',
+      'transferTxId',
+    ],
   },
   price_rule: {
-    columns: ['id', 'created', 'updated', 'referenceId'],
+    // Pricing-source configuration. All operational identifiers/limits, no PII.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'assetDisplayName',
+      'check1Asset',
+      'check1Limit',
+      'check1Reference',
+      'check1Source',
+      'check2Asset',
+      'check2Limit',
+      'check2Reference',
+      'check2Source',
+      'currentPrice',
+      'priceAsset',
+      'priceReference',
+      'priceSource',
+      'referenceDisplayName',
+      'referenceId',
+    ],
   },
   recall: {
-    columns: ['id', 'created', 'updated', 'bankTxId', 'checkoutTxId', 'userId'],
+    // `comment` / `reason` excluded — free-form clerk notes.
+    columns: ['id', 'created', 'updated', 'bankTxId', 'checkoutTxId', 'fee', 'sequence', 'userId'],
   },
   recommendation: {
     // recommenderId / recommendedId are the FK linkage db-debug.sh's referral walk needs.
@@ -825,8 +1089,18 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'key'],
   },
   sift_error_log: {
-    // No requestPayload.
-    columns: ['id', 'created', 'updated', 'userId'],
+    // No `requestPayload` (full Sift request body — may contain card / KYC fields).
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'duration',
+      'errorMessage',
+      'eventType',
+      'httpStatusCode',
+      'isTimeout',
+      'userId',
+    ],
   },
   special_external_account: {
     columns: ['id', 'created', 'updated'],
@@ -888,8 +1162,21 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'eventDate', 'status', 'type'],
   },
   support_issue: {
-    // No name / information / uid.
-    columns: ['id', 'created', 'updated', 'transactionId', 'transactionRequestId', 'userDataId'],
+    // No `name` (customer-supplied title), no `information` (free-form), no `uid` (secret id).
+    // Workflow metadata is safe.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'clerk',
+      'department',
+      'reason',
+      'state',
+      'transactionId',
+      'transactionRequestId',
+      'type',
+      'userDataId',
+    ],
   },
   support_issue_log: {
     columns: ['id', 'created', 'updated', 'supportIssueId'],
@@ -899,11 +1186,13 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'authorId'],
   },
   support_log: {
-    columns: ['id', 'created', 'updated', 'userDataId'],
+    // `message` / `comment` excluded — free-form clerk notes.
+    columns: ['id', 'created', 'updated', 'clerk', 'eventDate', 'type', 'userDataId'],
   },
   support_message: {
-    // No message / fileUrl.
-    columns: ['id', 'created', 'updated', 'issueId'],
+    // No `message` / `fileUrl` (customer content). `author` ('Customer' / 'AutoResponder' /
+    // staff name) is needed to interpret message direction.
+    columns: ['id', 'created', 'updated', 'author', 'issueId'],
   },
   support_note: {
     // No content / subject / authorMail.
@@ -924,7 +1213,8 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   system_state_snapshot: {
-    columns: ['id', 'created', 'updated'],
+    // `data` is a JSON dump of subsystem metrics — internal observability values only.
+    columns: ['id', 'created', 'updated', 'data'],
   },
   tfa_log: {
     columns: ['id', 'created', 'updated', 'eventDate', 'type'],
@@ -1002,14 +1292,40 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   transaction_request: {
-    columns: ['id', 'created', 'updated', 'userId'],
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'amount',
+      'dfxFee',
+      'error',
+      'estimatedAmount',
+      'exchangeRate',
+      'externalTransactionId',
+      'isValid',
+      'networkFee',
+      'paymentLink',
+      'paymentRequest',
+      'rate',
+      'routeId',
+      'sourceId',
+      'sourcePaymentMethod',
+      'status',
+      'targetId',
+      'targetPaymentMethod',
+      'totalFee',
+      'type',
+      'uid',
+      'userId',
+    ],
   },
   transaction_risk_assessment: {
-    // No reason / methods / summary / result / pdf.
-    columns: ['id', 'created', 'updated', 'transactionId'],
+    // No `reason` / `methods` / `summary` / `result` / `pdf` — assessment body (free-form,
+    // may include PII / case details). Metadata fields are safe.
+    columns: ['id', 'created', 'updated', 'author', 'date', 'status', 'transactionId', 'type'],
   },
   transaction_specification: {
-    columns: ['id', 'created', 'updated'],
+    columns: ['id', 'created', 'updated', 'asset', 'direction', 'minConfirmations', 'minFee', 'minVolume', 'system'],
   },
   user: {
     // No ip / ipCountry / apiKeyCT / signature / label / comment — old blocklist.
@@ -1118,8 +1434,22 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'accountId', 'relatedAccountId', 'relation', 'signatory'],
   },
   virtual_iban: {
-    // No label.
-    columns: ['id', 'created', 'updated', 'bankId', 'buyId', 'currencyId', 'userDataId'],
+    // No `iban` / `bban` / `label` (PII / free-form). Lifecycle + external bank id are safe.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'activatedAt',
+      'active',
+      'bankId',
+      'buyId',
+      'currencyId',
+      'deactivatedAt',
+      'reservedUntil',
+      'status',
+      'userDataId',
+      'yapealAccountUid',
+    ],
   },
   wallet: {
     // No apiKey / apiUrl — old blocklist.
@@ -1161,7 +1491,9 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   webhook: {
-    // No data.
+    // No `data` (free-form merchant payload, may carry PII).
+    // No `error` (text column with the merchant endpoint's response body — may echo back the
+    // payload). `reason` is length-256 short status — safe.
     columns: [
       'id',
       'created',
@@ -1169,6 +1501,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'identifier',
       'isComplete',
       'lastTryDate',
+      'reason',
       'type',
       'userDataId',
       'userId',
