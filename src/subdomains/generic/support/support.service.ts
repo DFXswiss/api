@@ -1102,6 +1102,7 @@ export class SupportService {
     return {
       id: userData.id,
       kycStatus: userData.kycStatus,
+      kycLevel: userData.kycLevel,
       accountType: userData.accountType,
       mail: userData.mail,
       name,
