@@ -117,6 +117,30 @@ describe('ScorechainScreeningService', () => {
       expect(scorechain.scoringAnalysis).not.toHaveBeenCalled();
     });
 
+    it('uses a short cache TTL for mutable ADDRESS verdicts and the long TTL for immutable TRANSACTION verdicts', async () => {
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: {
+          id: 'x',
+          lowestScore: 80,
+          analysis: {
+            assigned: { hasResult: true, result: { score: 80 } },
+            incoming: { hasResult: true, result: { score: 80 } },
+          },
+        },
+        signatureValid: true,
+      });
+
+      await service.screenWithdrawalAddress(Blockchain.ETHEREUM, '0xabc');
+      const addressCutoff = repo.findOne.mock.calls[0][0].where.created.value as Date;
+
+      await service.screenDepositTransaction(Blockchain.ETHEREUM, 'txhash');
+      const transactionCutoff = repo.findOne.mock.calls[1][0].where.created.value as Date;
+
+      // The ADDRESS verdict expires sooner, so its lookup cutoff is more recent (later) than the
+      // TRANSACTION cutoff — a stale clean address verdict must not survive as long as an immutable tx.
+      expect(addressCutoff.getTime()).toBeGreaterThan(transactionCutoff.getTime());
+    });
+
     it('fails closed when the monthly quota is reached', async () => {
       process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT = '5';
       new ConfigService();
