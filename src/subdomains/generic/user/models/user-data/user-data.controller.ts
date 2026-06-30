@@ -17,6 +17,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nest
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
@@ -65,7 +66,7 @@ export class UserDataController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async updateUserData(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
@@ -148,7 +149,7 @@ export class UserDataController {
   @Post(':id/kycFile')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async uploadKycFile(@Param('id') id: string, @Body() dto: UploadFileDto): Promise<string> {
     const userData = await this.userDataService.getUserData(+id);
 
@@ -177,7 +178,7 @@ export class UserDataController {
   @ApiBearerAuth()
   @ApiOkResponse({ type: StreamableFile })
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async downloadUserData(@Body() data: DownloadUserDataDto, @Res({ passthrough: true }) res): Promise<StreamableFile> {
     const zipContent = await this.userDataService.downloadUserData(data.userDataIds, data.checkOnly);
     const prefix = data.checkOnly ? 'DFX_check' : 'DFX_export';

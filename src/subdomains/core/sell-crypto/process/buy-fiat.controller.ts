@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Param, Post, Put, Query, UseGuards } from '@n
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundInternalDto } from '../../history/dto/refund-internal.dto';
@@ -50,7 +51,7 @@ export class BuyFiatController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async update(@Param('id') id: string, @Body() dto: UpdateBuyFiatDto): Promise<BuyFiat> {
     return this.buyFiatService.update(+id, dto);
   }
@@ -58,7 +59,7 @@ export class BuyFiatController {
   @Delete(':id/amlCheck')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async resetAmlCheck(@Param('id') id: string): Promise<void> {
     return this.buyFiatService.resetAmlCheck(+id);
   }
@@ -66,7 +67,7 @@ export class BuyFiatController {
   @Put(':id/amlCheck')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async manualPassAmlCheck(@Param('id') id: string, @Body() dto: ManualAmlCheckDto): Promise<BuyFiat> {
     return this.buyFiatService.manualPassAmlCheck(+id, dto);
   }

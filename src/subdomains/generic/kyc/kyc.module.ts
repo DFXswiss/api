@@ -36,6 +36,7 @@ import { KycLogService } from './services/kyc-log.service';
 import { KycNotificationService } from './services/kyc-notification.service';
 import { KycService } from './services/kyc.service';
 import { NameCheckService } from './services/name-check.service';
+import { TfaGuard } from './guards/tfa.guard';
 import { TfaService } from './services/tfa.service';
 
 @Module({
@@ -65,6 +66,7 @@ import { TfaService } from './services/tfa.service';
     KycAdminService,
     KycLogService,
     TfaService,
+    TfaGuard,
     KycDocumentService,
     NameCheckService,
     NameCheckLogRepository,
@@ -84,6 +86,7 @@ import { TfaService } from './services/tfa.service';
     KycDocumentService,
     NameCheckService,
     TfaService,
+    TfaGuard,
     KycAdminService,
     KycLogService,
     KycNotificationService,

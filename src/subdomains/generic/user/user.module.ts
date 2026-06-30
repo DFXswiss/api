@@ -15,6 +15,7 @@ import { NotificationModule } from 'src/subdomains/supporting/notification/notif
 import { PaymentModule } from 'src/subdomains/supporting/payment/payment.module';
 import { TransactionModule } from 'src/subdomains/supporting/payment/transaction.module';
 import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
+import { TfaGuard } from '../kyc/guards/tfa.guard';
 import { KycModule } from '../kyc/kyc.module';
 import { AccountMerge } from './models/account-merge/account-merge.entity';
 import { AccountMergeRepository } from './models/account-merge/account-merge.repository';
@@ -139,6 +140,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     UserDataRelationService,
     AuthService,
     RecommendationService,
+    TfaGuard,
   ],
 })
 export class UserModule {}

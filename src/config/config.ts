@@ -263,6 +263,7 @@ export class Configuration {
       expiresIn: +(process.env.CHALLENGE_EXPIRES_IN ?? 10), // sec
     },
     mailLoginExpiresIn: +(process.env.MAIL_LOGIN_EXPIRES_IN ?? 10), // min
+    tfaStaffEnforced: process.env.TFA_STAFF_ENFORCED === 'true', // require a valid 2FA on staff endpoints
     signMessage:
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
     signMessageGeneral:

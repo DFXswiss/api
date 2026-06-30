@@ -6,6 +6,7 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
@@ -56,7 +57,7 @@ export class SupportIssueController {
   @Post('support')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async createIssueBySupport(
     @Query('userDataId') userDataId: string,
     @Body() dto: CreateSupportIssueSupportDto,
@@ -79,7 +80,7 @@ export class SupportIssueController {
   @Get('list')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getSupportIssueList(
     @GetJwt() jwt: JwtPayload,
     @Query() filter: GetSupportIssueListFilter,
@@ -90,7 +91,7 @@ export class SupportIssueController {
   @Get('counts')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getSupportIssueCounts(@GetJwt() jwt: JwtPayload): Promise<Record<SupportIssueInternalState, number>> {
     return this.supportIssueService.getSupportIssueCounts(jwt.role);
   }
@@ -98,7 +99,7 @@ export class SupportIssueController {
   @Get('activity')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getSupportIssueActivity(
     @GetJwt() jwt: JwtPayload,
     @Query('since') since?: string,
@@ -109,7 +110,7 @@ export class SupportIssueController {
   @Get('clerks')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getSupportIssueClerks(): Promise<string[]> {
     return this.supportIssueService.getSupportIssueClerks();
   }
@@ -128,7 +129,7 @@ export class SupportIssueController {
   @Get(':id/data')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getIssueData(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SupportIssueInternalDataDto> {
     return this.supportIssueService.getIssueData(+id, jwt.role);
   }
@@ -167,7 +168,7 @@ export class SupportIssueController {
   // --- SUPPORT --- //
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   @ApiExcludeEndpoint()
   async updateSupportIssue(@Param('id') id: string, @Body() dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     return this.supportIssueService.updateIssue(+id, dto);
