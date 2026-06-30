@@ -231,33 +231,41 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
   let service: SupportIssueService;
 
   let trendRows: { d: Date; count: string }[];
+  let resolvedRows: { type: SupportIssueType; created: Date; updated: Date }[];
   let totalCount: number;
+  let andWhereClauses: string[];
 
   const pad = (n: number): string => String(n).padStart(2, '0');
   const dayKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   // a Postgres DATE comes back from the pg driver as a JS Date at local midnight
   const localDate = (d: Date): Date => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 
-  // only the day-grouped trend query (the one calling groupBy) returns trendRows; every other getRawMany
-  // returns []; getRawOne returns the configured total/message count
+  // the day-grouped trend query (the one calling groupBy) returns trendRows, the ungrouped resolution query
+  // returns resolvedRows; getRawOne returns the configured count; andWhere clauses are recorded for scoping
   function statsQbMock(): Record<string, jest.Mock> {
     let grouped = false;
     const qb: Record<string, jest.Mock> = {};
-    for (const m of ['select', 'addSelect', 'innerJoin', 'where', 'andWhere', 'addGroupBy']) {
+    for (const m of ['select', 'addSelect', 'innerJoin', 'where', 'addGroupBy']) {
       qb[m] = jest.fn(() => qb);
     }
+    qb.andWhere = jest.fn((clause: string) => {
+      andWhereClauses.push(clause);
+      return qb;
+    });
     qb.groupBy = jest.fn(() => {
       grouped = true;
       return qb;
     });
     qb.getRawOne = jest.fn(() => Promise.resolve({ count: String(totalCount) }));
-    qb.getRawMany = jest.fn(() => Promise.resolve(grouped ? trendRows : []));
+    qb.getRawMany = jest.fn(() => Promise.resolve(grouped ? trendRows : resolvedRows));
     return qb;
   }
 
   beforeEach(() => {
     trendRows = [];
+    resolvedRows = [];
     totalCount = 0;
+    andWhereClauses = [];
     const supportIssueRepo = createMock<SupportIssueRepository>();
     const messageRepo = createMock<SupportMessageRepository>();
     (supportIssueRepo.createQueryBuilder as jest.Mock).mockImplementation(() => statsQbMock());
@@ -315,5 +323,47 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
     const dto = await service.getSupportIssueStatistics(UserRole.ADMIN, NaN);
     expect(dto.periodDays).toBe(365);
     expect(dto.granularity).toBe('month');
+  });
+
+  it('averages resolution time per type for tickets completed in the period', async () => {
+    resolvedRows = [
+      {
+        type: SupportIssueType.GENERIC_ISSUE,
+        created: new Date('2026-06-01T00:00:00Z'),
+        updated: new Date('2026-06-01T02:00:00Z'),
+      },
+      {
+        type: SupportIssueType.GENERIC_ISSUE,
+        created: new Date('2026-06-02T00:00:00Z'),
+        updated: new Date('2026-06-02T04:00:00Z'),
+      },
+      {
+        type: SupportIssueType.KYC_ISSUE,
+        created: new Date('2026-06-03T00:00:00Z'),
+        updated: new Date('2026-06-03T01:00:00Z'),
+      },
+    ];
+
+    const dto = await service.getSupportIssueStatistics(UserRole.ADMIN, 7);
+
+    const byType = Object.fromEntries(dto.resolutionByType.map((r) => [r.key, r]));
+    expect(byType[SupportIssueType.GENERIC_ISSUE]).toEqual({
+      key: SupportIssueType.GENERIC_ISSUE,
+      avgHours: 3,
+      count: 2,
+    });
+    expect(byType[SupportIssueType.KYC_ISSUE]).toEqual({ key: SupportIssueType.KYC_ISSUE, avgHours: 1, count: 1 });
+    // count-weighted overall mean = (2h + 4h + 1h) / 3 tickets
+    expect(dto.avgResolutionHours).toBeCloseTo(7 / 3);
+  });
+
+  it('scopes the statistics queries to the departments a non-admin role may view', async () => {
+    await service.getSupportIssueStatistics(UserRole.SUPPORT, 7);
+    expect(andWhereClauses.some((c) => c.includes('issue.department IN (:...departments)'))).toBe(true);
+  });
+
+  it('does not department-scope for an all-access role', async () => {
+    await service.getSupportIssueStatistics(UserRole.ADMIN, 7);
+    expect(andWhereClauses.some((c) => c.includes('issue.department'))).toBe(false);
   });
 });

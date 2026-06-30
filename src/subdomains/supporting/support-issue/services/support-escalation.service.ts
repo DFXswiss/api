@@ -135,7 +135,7 @@ export class SupportEscalationService {
     if (!issues.length) return;
 
     const lastMessages = await this.getLastMessages(issues.map((i) => i.id));
-    const notified = (await this.settingService.getObj<Record<string, string>>(NOTIFIED_KEY)) ?? {};
+    const notified = await this.settingService.getObj<Record<string, string>>(NOTIFIED_KEY, {});
     const next: Record<string, string> = {};
 
     for (const issue of issues) {
@@ -165,7 +165,7 @@ export class SupportEscalationService {
 
   // one-off alert per new open limit increase request
   private async notifyNewLimitRequests(chatId: string, issues: SupportIssue[]): Promise<void> {
-    const notified = (await this.settingService.getObj<number[]>(LIMIT_NOTIFIED_KEY)) ?? [];
+    const notified = await this.settingService.getObj<number[]>(LIMIT_NOTIFIED_KEY, []);
     const next: number[] = [];
     for (const issue of issues) {
       if (issue.type !== SupportIssueType.LIMIT_REQUEST) continue;

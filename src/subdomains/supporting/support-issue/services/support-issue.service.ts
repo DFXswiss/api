@@ -158,12 +158,15 @@ export class SupportIssueService {
     const trend: { key: string; count: number }[] = [];
     if (granularity === 'day') {
       const map = new Map(dayRows.map((r) => [dayKey(new Date(r.d)), +r.count]));
-      // cover every calendar day the [from, now] window touches, so the daily trend sums to total
-      for (let i = days; i >= 0; i--) {
-        const d = new Date(now);
-        d.setHours(0, 0, 0, 0);
-        d.setDate(d.getDate() - i);
+      // anchor the first bucket to `from`'s calendar day (not a fixed day count), so the daily trend covers
+      // every day a row can fall on regardless of DST/timezone and always sums to total
+      const lastDay = new Date(now);
+      lastDay.setHours(0, 0, 0, 0);
+      const d = new Date(from);
+      d.setHours(0, 0, 0, 0);
+      while (d.getTime() <= lastDay.getTime()) {
         trend.push({ key: dayKey(d), count: map.get(dayKey(d)) ?? 0 });
+        d.setDate(d.getDate() + 1);
       }
     } else {
       // roll the daily counts up into months
