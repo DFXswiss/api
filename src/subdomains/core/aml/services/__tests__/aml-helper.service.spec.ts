@@ -4,10 +4,9 @@ import { AmlError } from 'src/subdomains/core/aml/enums/aml-error.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { createCustomBuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { createDefaultBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
+import { createCustomBuyFiat, createDefaultBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 
 /**
@@ -38,7 +37,6 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
-import { createCustomBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycLevel, KycType } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 
