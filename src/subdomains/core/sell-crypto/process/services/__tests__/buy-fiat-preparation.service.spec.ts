@@ -74,26 +74,26 @@ describe('BuyFiatPreparationService', () => {
     expect(service).toBeDefined();
   });
 
-  describe('doAmlCheck — concurrent decision guard', () => {
-    function arrangeAmlCheck(entity: ReturnType<typeof createCustomBuyFiat>) {
-      entity.cryptoInput.isConfirmed = true;
-      jest.spyOn(buyFiatRepo, 'find').mockResolvedValue([entity]);
-      jest.spyOn(transactionHelper, 'getMinVolume').mockResolvedValue(0);
-      jest.spyOn(transactionHelper, 'getVolumeChfSince').mockResolvedValue(0);
-      jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: () => 100 } as any);
-      jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(undefined);
-      jest.spyOn(amlService, 'getAmlCheckInput').mockResolvedValue({
-        users: [{} as any],
-        refUser: undefined,
-        recommender: undefined,
-        bankData: undefined,
-        blacklist: [],
-        phoneCallList: [],
-      } as any);
-      // bypass the heavy getAmlResult/getAmlErrors internals; we only test the persistence guard
-      jest.spyOn(entity, 'amlCheckAndFillUp').mockReturnValue([entity.id, { amlCheck: CheckStatus.PASS }] as any);
-    }
+  function arrangeAmlCheck(entity: ReturnType<typeof createCustomBuyFiat>) {
+    entity.cryptoInput.isConfirmed = true;
+    jest.spyOn(buyFiatRepo, 'find').mockResolvedValue([entity]);
+    jest.spyOn(transactionHelper, 'getMinVolume').mockResolvedValue(0);
+    jest.spyOn(transactionHelper, 'getVolumeChfSince').mockResolvedValue(0);
+    jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: () => 100 } as any);
+    jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(undefined);
+    jest.spyOn(amlService, 'getAmlCheckInput').mockResolvedValue({
+      users: [{} as any],
+      refUser: undefined,
+      recommender: undefined,
+      bankData: undefined,
+      blacklist: [],
+      phoneCallList: [],
+    } as any);
+    // bypass the heavy getAmlResult/getAmlErrors internals; we only test the persistence guard
+    jest.spyOn(entity, 'amlCheckAndFillUp').mockReturnValue([entity.id, { amlCheck: CheckStatus.PASS }] as any);
+  }
 
+  describe('doAmlCheck — concurrent decision guard', () => {
     it('skips post-processing (no overwrite) when the conditional update affects 0 rows', async () => {
       const entity = createCustomBuyFiat({ id: 1, amlCheck: null });
       arrangeAmlCheck(entity);
@@ -117,6 +117,41 @@ describe('BuyFiatPreparationService', () => {
       await service.doAmlCheck();
 
       expect(amlService.postProcessing).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('doAmlCheck — post-processing retry guard', () => {
+    it('re-selects a PASS whose post-processing did not complete (retry branch)', async () => {
+      const findSpy = jest.spyOn(buyFiatRepo, 'find').mockResolvedValue([]);
+
+      await service.doAmlCheck();
+
+      const where = findSpy.mock.calls[0][0].where as any[];
+      expect(where).toEqual(
+        expect.arrayContaining([expect.objectContaining({ amlCheck: CheckStatus.PASS, amlPostProcessed: false })]),
+      );
+    });
+
+    it('marks amlPostProcessed=true once a PASS has been post-processed', async () => {
+      const entity = createCustomBuyFiat({ id: 1, amlCheck: CheckStatus.PASS, amlPostProcessed: false });
+      arrangeAmlCheck(entity);
+      jest.spyOn(buyFiatRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+
+      await service.doAmlCheck();
+
+      expect(amlService.postProcessing).toHaveBeenCalledTimes(1);
+      expect(buyFiatRepo.update).toHaveBeenCalledWith(1, { amlPostProcessed: true });
+    });
+
+    it('leaves amlPostProcessed unset when post-processing throws, so the next run retries', async () => {
+      const entity = createCustomBuyFiat({ id: 1, amlCheck: CheckStatus.PASS, amlPostProcessed: false });
+      arrangeAmlCheck(entity);
+      jest.spyOn(buyFiatRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+      jest.spyOn(amlService, 'postProcessing').mockRejectedValue(new Error('transient db failure'));
+
+      await service.doAmlCheck();
+
+      expect(buyFiatRepo.update).not.toHaveBeenCalledWith(1, { amlPostProcessed: true });
     });
   });
 });

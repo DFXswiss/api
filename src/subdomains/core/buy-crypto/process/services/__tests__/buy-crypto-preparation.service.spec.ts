@@ -85,6 +85,28 @@ describe('BuyCryptoPreparationService', () => {
     expect(service).toBeDefined();
   });
 
+  function arrangeAmlCheck(entity: ReturnType<typeof createCustomBuyCrypto>) {
+    jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([entity]);
+    jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue({} as any);
+    jest.spyOn(transactionHelper, 'getMinVolume').mockResolvedValue(0);
+    jest.spyOn(transactionHelper, 'getVolumeChfSince').mockResolvedValue(0);
+    jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: () => 100 } as any);
+    jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(undefined);
+    jest.spyOn(amlService, 'getAmlCheckInput').mockResolvedValue({
+      users: [{} as any],
+      refUser: undefined,
+      recommender: undefined,
+      bankData: undefined,
+      blacklist: [],
+      phoneCallList: [],
+      banks: [],
+      ipLogCountries: [],
+      multiAccountBankNames: [],
+    } as any);
+    // bypass the heavy getAmlResult/getAmlErrors internals; we only test the persistence guard
+    jest.spyOn(entity, 'amlCheckAndFillUp').mockReturnValue([entity.id, { amlCheck: CheckStatus.PASS }] as any);
+  }
+
   describe('screenScorechain (Scorechain AML gate)', () => {
     const call = (entity: any): Promise<boolean> => (service as any).screenScorechain(entity);
 
@@ -219,28 +241,6 @@ describe('BuyCryptoPreparationService', () => {
   });
 
   describe('doAmlCheck — concurrent decision guard', () => {
-    function arrangeAmlCheck(entity: ReturnType<typeof createCustomBuyCrypto>) {
-      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([entity]);
-      jest.spyOn(fiatService, 'getFiatByName').mockResolvedValue({} as any);
-      jest.spyOn(transactionHelper, 'getMinVolume').mockResolvedValue(0);
-      jest.spyOn(transactionHelper, 'getVolumeChfSince').mockResolvedValue(0);
-      jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: () => 100 } as any);
-      jest.spyOn(countryService, 'getCountryWithSymbol').mockResolvedValue(undefined);
-      jest.spyOn(amlService, 'getAmlCheckInput').mockResolvedValue({
-        users: [{} as any],
-        refUser: undefined,
-        recommender: undefined,
-        bankData: undefined,
-        blacklist: [],
-        phoneCallList: [],
-        banks: [],
-        ipLogCountries: [],
-        multiAccountBankNames: [],
-      } as any);
-      // bypass the heavy getAmlResult/getAmlErrors internals; we only test the persistence guard
-      jest.spyOn(entity, 'amlCheckAndFillUp').mockReturnValue([entity.id, { amlCheck: CheckStatus.PASS }] as any);
-    }
-
     it('skips post-processing (no overwrite) when the conditional update affects 0 rows', async () => {
       // first-run tx (amlCheck=null) that a reviewer concurrently changed → cron write must not win
       const entity = createCustomBuyCrypto({ id: 1, amlCheck: null, cryptoInput: undefined, bankTx: undefined });
@@ -265,6 +265,53 @@ describe('BuyCryptoPreparationService', () => {
       await service.doAmlCheck();
 
       expect(amlService.postProcessing).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('doAmlCheck — post-processing retry guard', () => {
+    it('re-selects a PASS whose post-processing did not complete (retry branch)', async () => {
+      const findSpy = jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([]);
+
+      await service.doAmlCheck();
+
+      const where = findSpy.mock.calls[0][0].where as any[];
+      expect(where).toEqual(
+        expect.arrayContaining([expect.objectContaining({ amlCheck: CheckStatus.PASS, amlPostProcessed: false })]),
+      );
+    });
+
+    it('marks amlPostProcessed=true once a PASS has been post-processed', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 1,
+        amlCheck: CheckStatus.PASS,
+        amlPostProcessed: false,
+        cryptoInput: undefined,
+        bankTx: undefined,
+      });
+      arrangeAmlCheck(entity);
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+
+      await service.doAmlCheck();
+
+      expect(amlService.postProcessing).toHaveBeenCalledTimes(1);
+      expect(buyCryptoRepo.update).toHaveBeenCalledWith(1, { amlPostProcessed: true });
+    });
+
+    it('leaves amlPostProcessed unset when post-processing throws, so the next run retries', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 1,
+        amlCheck: CheckStatus.PASS,
+        amlPostProcessed: false,
+        cryptoInput: undefined,
+        bankTx: undefined,
+      });
+      arrangeAmlCheck(entity);
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+      jest.spyOn(amlService, 'postProcessing').mockRejectedValue(new Error('transient db failure'));
+
+      await service.doAmlCheck();
+
+      expect(buyCryptoRepo.update).not.toHaveBeenCalledWith(1, { amlPostProcessed: true });
     });
   });
 });

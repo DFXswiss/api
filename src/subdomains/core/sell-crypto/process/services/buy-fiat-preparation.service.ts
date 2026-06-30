@@ -82,6 +82,9 @@ export class BuyFiatPreparationService {
           ...request,
         },
         { amlCheck: CheckStatus.PENDING, amlReason: Not(In(BlockAmlReasons)), ...request },
+        // Retry a PASS whose post-processing did not complete (transient failure) so its compliance
+        // side-effects are not silently lost; postProcessing is idempotent, so re-running is safe.
+        { amlCheck: CheckStatus.PASS, amlPostProcessed: false, ...request },
       ],
       relations: {
         cryptoInput: { asset: { balance: true, liquidityManagementRule: true } },
@@ -175,6 +178,14 @@ export class BuyFiatPreparationService {
         if (!affected) continue;
 
         await this.amlService.postProcessing(entity, last30dVolume);
+
+        // postProcessing's compliance side-effects completed → mark the verdict fully handled so the
+        // PASS-retry branch above stops re-selecting it. A throw above skips this, leaving the flag
+        // false so the next run retries.
+        if (entity.amlCheck === CheckStatus.PASS) {
+          await this.buyFiatRepo.update(id, { amlPostProcessed: true });
+          entity.amlPostProcessed = true;
+        }
 
         if (amlCheckBefore !== entity.amlCheck) await this.buyFiatService.triggerWebhook(entity);
 
