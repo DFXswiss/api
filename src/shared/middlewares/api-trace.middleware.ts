@@ -49,9 +49,10 @@ function redact(value: unknown, key?: string): unknown {
 
 function format(value: unknown): string {
   if (value === undefined || value === null) return '(empty)';
-  if (Buffer.isBuffer(value)) return `<binary ${value.length} bytes>`;
   let s: string;
   try {
+    // redact() handles Buffer + the array case (Array.isArray first), so the
+    // raw value is never length/type-inspected here.
     s = JSON.stringify(redact(value));
   } catch {
     return '(unserializable)';
