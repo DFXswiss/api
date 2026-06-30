@@ -1,3 +1,13 @@
+import { ConfigService } from 'src/config/config';
+import { Country } from 'src/shared/models/country/country.entity';
+import { AmlError } from 'src/subdomains/core/aml/enums/aml-error.enum';
+import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
+import { createCustomBuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { createDefaultBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
+import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+
 /**
  * Tests for isTrustedReferrer phone verification exemption
  *
@@ -424,5 +434,55 @@ describe('AmlHelperService - isTrustedReferrer Logic', () => {
         expect(result).toBe(shouldCheck);
       });
     }
+  });
+});
+
+describe('AmlHelperService.getAmlErrors - null-safety (fail-closed, no poison-entity crash)', () => {
+  beforeAll(() => {
+    new ConfigService(); // initialise the global Config singleton used inside getAmlErrors
+  });
+
+  function runErrors(entity: BuyCrypto | BuyFiat, bankData: BankData, ibanCountry?: Country): AmlError[] {
+    return AmlHelperService.getAmlErrors(
+      entity,
+      entity.cryptoInput?.asset ?? entity.outputAsset,
+      0, // minVolume
+      100, // amountInChf
+      0, // last7dCheckoutVolume
+      0, // last30dVolume
+      0, // last365dVolume
+      bankData,
+      [], // blacklist
+      [], // phoneCallList
+      [], // banks
+      ibanCountry,
+      undefined, // refUser
+      [], // ipLogCountries
+      undefined, // virtualIban
+      [], // multiAccountBankNames
+      undefined, // recommender
+    );
+  }
+
+  it('routes a sell with an unresolved IBAN country to manual review instead of crashing (#585)', () => {
+    const entity = createDefaultBuyFiat();
+
+    let errors: AmlError[];
+    expect(() => (errors = runErrors(entity, undefined, undefined))).not.toThrow();
+    expect(errors).toContain(AmlError.IBAN_CURRENCY_MISMATCH);
+  });
+
+  it('evaluates the checkout card-name check with null bankData without crashing (#585)', () => {
+    const entity = createCustomBuyCrypto({
+      id: 1,
+      cryptoInput: undefined,
+      bankTx: undefined,
+      checkoutTx: { cardName: 'JOHN DOE', cardFingerPrint: 'fp', cardIssuerCountry: 'DE' } as any,
+    });
+    entity.transaction.userData.verifiedName = 'JANE SMITH';
+
+    let errors: AmlError[];
+    expect(() => (errors = runErrors(entity, undefined, undefined))).not.toThrow();
+    expect(errors).toContain(AmlError.CARD_NAME_MISMATCH);
   });
 });

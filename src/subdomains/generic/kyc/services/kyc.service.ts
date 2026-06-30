@@ -1139,15 +1139,25 @@ export class KycService {
 
     if (user.hasRole(UserRole.COMPLIANCE)) throw new BadRequestException('KYC not allowed for compliance accounts');
 
-    let step =
+    const findStep = (u: UserData): KycStep | undefined =>
       sequence != null
-        ? user.getStepsWith(name, type, sequence)[0]
-        : user
+        ? u.getStepsWith(name, type, sequence)[0]
+        : u
             .getStepsWith(name, type)
             .find((s) => s.isInProgress || s.isInReview || (!KycStepCancelable.includes(name) && s.isCompleted));
+
+    let step = findStep(user);
     if (!step) {
-      step = await this.initiateStep(user, name, type, true);
-      user.kycSteps.push(step);
+      try {
+        step = await this.initiateStep(user, name, type, true);
+        user.kycSteps.push(step);
+      } catch (e) {
+        // lost a concurrent create race - reload and return the step the winner created
+        if (!e.message?.includes('duplicate key')) throw e;
+        user = await this.getUser(user.kycHash);
+        step = findStep(user);
+        if (!step) throw e;
+      }
     }
 
     return { user, step };

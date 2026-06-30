@@ -150,30 +150,29 @@ export class BuyFiatPreparationService {
 
         const ibanCountry = await this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
 
-        // check if amlCheck changed (e.g. reset or refund)
-        if (
-          entity.amlCheck === CheckStatus.PENDING &&
-          (await this.buyFiatRepo.existsBy({ id: entity.id, amlCheck: Not(CheckStatus.PENDING) }))
-        )
-          continue;
-
-        await this.buyFiatRepo.update(
-          ...(await entity.amlCheckAndFillUp(
-            inputReferenceCurrency,
-            minVolume,
-            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
-            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
-            last30dVolume,
-            last365dVolume,
-            bankData,
-            blacklist,
-            phoneCallList,
-            ibanCountry,
-            refUser,
-            recommender,
-            () => this.screenScorechain(entity),
-          )),
+        const [id, update] = await entity.amlCheckAndFillUp(
+          inputReferenceCurrency,
+          minVolume,
+          referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+          referenceChfPrice.convert(entity.inputReferenceAmount, 2),
+          last30dVolume,
+          last365dVolume,
+          bankData,
+          blacklist,
+          phoneCallList,
+          ibanCountry,
+          refUser,
+          recommender,
+          () => this.screenScorechain(entity),
         );
+
+        // Atomic guard: persist only if amlCheck is unchanged since it was read, so a concurrent manual
+        // reviewer / refund / reset (NULL or PENDING) is never silently overwritten by the cron.
+        const { affected } = await this.buyFiatRepo.update(
+          { id, amlCheck: amlCheckBefore == null ? IsNull() : amlCheckBefore },
+          update,
+        );
+        if (!affected) continue;
 
         await this.amlService.postProcessing(entity, last30dVolume);
 

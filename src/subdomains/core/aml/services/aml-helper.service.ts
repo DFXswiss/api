@@ -363,7 +363,7 @@ export class AmlHelperService {
         // checkout
         if (nationality && !nationality.checkoutEnable) errors.push(AmlError.TX_COUNTRY_NOT_ALLOWED);
         if (
-          !bankData.manualApproved &&
+          !bankData?.manualApproved &&
           entity.checkoutTx.cardName &&
           !Util.isSameName(entity.checkoutTx.cardName, entity.userData.verifiedName)
         )
@@ -422,7 +422,9 @@ export class AmlHelperService {
         )
       )
         errors.push(AmlError.IBAN_BLACKLISTED);
-      if (!entity.sell.fiat.isIbanCountryAllowed(ibanCountry.symbol)) errors.push(AmlError.IBAN_CURRENCY_MISMATCH);
+      // Fail-closed: an unknown/unresolved IBAN country must route to manual review, never silently pass.
+      if (!ibanCountry || !entity.sell.fiat.isIbanCountryAllowed(ibanCountry.symbol))
+        errors.push(AmlError.IBAN_CURRENCY_MISMATCH);
     }
 
     return errors;
