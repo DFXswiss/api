@@ -280,7 +280,7 @@ describe('BuyCryptoPreparationService', () => {
       );
     });
 
-    it('marks amlPostProcessed=true once a PASS has been post-processed', async () => {
+    it('retries post-processing for an unprocessed PASS WITHOUT recomputing the verdict, so a committed PASS is never reverted', async () => {
       const entity = createCustomBuyCrypto({
         id: 1,
         amlCheck: CheckStatus.PASS,
@@ -288,16 +288,22 @@ describe('BuyCryptoPreparationService', () => {
         cryptoInput: undefined,
         bankTx: undefined,
       });
-      arrangeAmlCheck(entity);
+      arrangeAmlCheck(entity); // amlCheckAndFillUp would recompute the verdict if it were called
       jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1 } as any);
 
       await service.doAmlCheck();
 
-      expect(amlService.postProcessing).toHaveBeenCalledTimes(1);
+      expect(entity.amlCheckAndFillUp).not.toHaveBeenCalled(); // no recompute → cannot revert a manual PASS
+      expect(amlService.postProcessing).toHaveBeenCalledTimes(1); // side-effects are retried
       expect(buyCryptoRepo.update).toHaveBeenCalledWith(1, { amlPostProcessed: true });
+      // the verdict-guarded update {id, amlCheck: PASS} must never be issued on the retry path
+      expect(buyCryptoRepo.update).not.toHaveBeenCalledWith(
+        expect.objectContaining({ amlCheck: CheckStatus.PASS }),
+        expect.anything(),
+      );
     });
 
-    it('leaves amlPostProcessed unset when post-processing throws, so the next run retries', async () => {
+    it('leaves amlPostProcessed unset when the retry post-processing throws, so the next run retries again', async () => {
       const entity = createCustomBuyCrypto({
         id: 1,
         amlCheck: CheckStatus.PASS,
@@ -312,6 +318,23 @@ describe('BuyCryptoPreparationService', () => {
       await service.doAmlCheck();
 
       expect(buyCryptoRepo.update).not.toHaveBeenCalledWith(1, { amlPostProcessed: true });
+    });
+
+    it('marks amlPostProcessed=true after a first-time PASS is post-processed (normal path)', async () => {
+      const entity = createCustomBuyCrypto({ id: 1, amlCheck: null, cryptoInput: undefined, bankTx: undefined });
+      arrangeAmlCheck(entity);
+      // mirror the real amlCheckAndFillUp, which applies the computed verdict onto the entity
+      jest.spyOn(entity, 'amlCheckAndFillUp').mockImplementation((async () => {
+        entity.amlCheck = CheckStatus.PASS;
+        return [entity.id, { amlCheck: CheckStatus.PASS }];
+      }) as any);
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+
+      await service.doAmlCheck();
+
+      expect(entity.amlCheckAndFillUp).toHaveBeenCalledTimes(1); // normal path computes the verdict
+      expect(amlService.postProcessing).toHaveBeenCalledTimes(1);
+      expect(buyCryptoRepo.update).toHaveBeenCalledWith(1, { amlPostProcessed: true });
     });
   });
 });
