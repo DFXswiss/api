@@ -31,8 +31,8 @@ export class BscCoinStrategy extends EvmStrategy {
     return this.bscService.sendNativeCoin(order.destinationAddress, order.amount, nonce);
   }
 
-  protected getCurrentGasForTransaction(): Promise<number> {
-    return this.bscService.getCurrentGasForCoinTransaction();
+  protected getCurrentGasForTransaction(_token: Asset, amount: number): Promise<number> {
+    return this.bscService.getCurrentGasForCoinTransaction(amount);
   }
 
   protected getFeeAsset(): Promise<Asset> {

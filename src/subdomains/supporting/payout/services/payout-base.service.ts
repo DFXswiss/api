@@ -13,11 +13,11 @@ export class PayoutBaseService extends PayoutEvmService {
     this.baseClient = baseService.getDefaultClient<BaseClient>();
   }
 
-  async getCurrentGasForCoinTransaction(): Promise<number> {
-    return this.baseClient.getCurrentGasCostForCoinTransaction();
+  async getCurrentGasForCoinTransaction(amount: number): Promise<number> {
+    return this.baseClient.getCurrentGasCostForCoinTransaction(amount);
   }
 
-  async getCurrentGasForTokenTransaction(token: Asset): Promise<number> {
-    return this.baseClient.getCurrentGasCostForTokenTransaction(token);
+  async getCurrentGasForTokenTransaction(token: Asset, amount: number): Promise<number> {
+    return this.baseClient.getCurrentGasCostForTokenTransaction(token, amount);
   }
 }
