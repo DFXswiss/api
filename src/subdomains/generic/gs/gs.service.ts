@@ -1,5 +1,4 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { AppInsightsQueryService } from 'src/integration/infrastructure/app-insights-query.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -43,16 +42,13 @@ import {
 } from './dto/debug-query.dto';
 import {
   DebugAllowedColumns,
-  DebugLogQueryTemplates,
   DebugMaxResults,
   DebugQueryAuditPrefix,
   DebugTableSpec,
   GsRestrictedColumns,
   GsRestrictedMarker,
-  LogQueryAuditPrefix,
   SupportTable,
 } from './dto/gs.dto';
-import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 
 // Mutable state carried through the /gs/debug SQL emitters. Holds the bound parameter
@@ -76,7 +72,6 @@ export class GsService {
   private readonly logger = new DfxLogger(GsService);
 
   constructor(
-    private readonly appInsightsQueryService: AppInsightsQueryService,
     private readonly userDataService: UserDataService,
     private readonly userService: UserService,
     private readonly buyService: BuyService,
@@ -559,60 +554,6 @@ export class GsService {
       throw new BadRequestException(`Order direction '${item.direction}' is not allowed`);
     }
     return item.direction ? `${ident} ${item.direction}` : ident;
-  }
-
-  async executeLogQuery(dto: LogQueryDto, userIdentifier: string): Promise<LogQueryResult> {
-    const template = DebugLogQueryTemplates[dto.template];
-    if (!template) {
-      throw new BadRequestException('Unknown template');
-    }
-
-    // Validate required params
-    for (const param of template.requiredParams) {
-      if (!dto[param]) {
-        throw new BadRequestException(`Parameter '${param}' is required for template '${dto.template}'`);
-      }
-    }
-
-    // Build KQL with safe parameter substitution
-    let kql = template.kql;
-    kql = kql.replace('{operationId}', dto.operationId ?? '');
-    kql = kql.replace('{messageFilter}', this.escapeKqlString(dto.messageFilter ?? ''));
-    kql = kql.replace(/{hours}/g, String(dto.hours ?? 1));
-    kql = kql.replace('{durationMs}', String(dto.durationMs ?? 1000));
-    kql = kql.replace('{eventName}', this.escapeKqlString(dto.eventName ?? ''));
-
-    // Add limit
-    kql += `\n| take ${template.defaultLimit}`;
-
-    // Log for audit
-    this.logger.verbose(
-      `${LogQueryAuditPrefix}${userIdentifier}: template=${dto.template}, params=${JSON.stringify(dto)}`,
-    );
-
-    // Execute
-    const timespan = `PT${dto.hours ?? 1}H`;
-
-    try {
-      const response = await this.appInsightsQueryService.query(kql, timespan);
-
-      if (!response.tables?.length) {
-        return { columns: [], rows: [] };
-      }
-
-      return {
-        columns: response.tables[0].columns,
-        rows: response.tables[0].rows,
-      };
-    } catch (e) {
-      this.logger.info(`${LogQueryAuditPrefix}${userIdentifier} failed: ${e.message}`);
-      throw new BadRequestException('Query execution failed');
-    }
-  }
-
-  private escapeKqlString(value: string): string {
-    // Escape quotes and backslashes for KQL string literals
-    return value.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   }
 
   // --- Helper Methods ---
