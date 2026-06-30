@@ -41,9 +41,12 @@ interface TelegramApiChat {
 
 interface TelegramUpdate {
   message?: { chat?: TelegramApiChat };
-  my_chat_member?: { chat?: TelegramApiChat };
+  my_chat_member?: { chat?: TelegramApiChat; new_chat_member?: { status?: string } };
   channel_post?: { chat?: TelegramApiChat };
 }
+
+// membership statuses that mean the bot is now an active member of the group (i.e. was just added)
+const JOINED_STATUSES = ['member', 'administrator', 'creator'];
 
 interface LastMessage {
   author?: string;
@@ -83,11 +86,25 @@ export class SupportEscalationService {
 
   // Reads recent updates and returns the group/supergroup chats the bot has seen.
   async getGroupChats(): Promise<TelegramChat[]> {
+    return this.collectGroupChats(false);
+  }
+
+  // Groups the bot was explicitly added to (membership flipped to a joined status). This is the
+  // unambiguous "invite the bot to THIS group" signal — unlike merely having seen a chat.
+  async getInvitedGroups(): Promise<TelegramChat[]> {
+    return this.collectGroupChats(true);
+  }
+
+  private async collectGroupChats(invitedOnly: boolean): Promise<TelegramChat[]> {
     if (!this.token) return [];
     const res = await this.http.get<{ result: TelegramUpdate[] }>(this.apiUrl('getUpdates'));
     const chats = new Map<number, string>();
     for (const update of res?.result ?? []) {
-      const chat = update.message?.chat ?? update.my_chat_member?.chat ?? update.channel_post?.chat;
+      const chat = invitedOnly
+        ? JOINED_STATUSES.includes(update.my_chat_member?.new_chat_member?.status ?? '')
+          ? update.my_chat_member?.chat
+          : undefined
+        : (update.message?.chat ?? update.my_chat_member?.chat ?? update.channel_post?.chat);
       if (chat && (chat.type === 'group' || chat.type === 'supergroup')) {
         chats.set(chat.id, chat.title ?? String(chat.id));
       }
@@ -95,11 +112,29 @@ export class SupportEscalationService {
     return Array.from(chats.entries()).map(([id, title]) => ({ id, title }));
   }
 
-  // Convenience: pick the most recently seen group and store it as the escalation target.
-  async bindGroupChat(): Promise<TelegramChat | undefined> {
-    const chats = await this.getGroupChats();
-    const target = chats[chats.length - 1];
-    if (target) await this.settingService.set(CHAT_ID_KEY, String(target.id));
+  // Binds the escalation target deliberately: with an explicit chatId (an operator picked it from
+  // getGroupChats) we bind exactly that group after confirming the bot can see it. Without one we
+  // only auto-bind when a single group has explicitly invited the bot — never an arbitrary chat,
+  // so escalation messages (which carry customer PII) can't leak into an unintended group.
+  async bindGroupChat(chatId?: number): Promise<TelegramChat | undefined> {
+    let target: TelegramChat | undefined;
+    if (chatId != null) {
+      target = (await this.getGroupChats()).find((c) => c.id === chatId);
+      if (!target) {
+        this.logger.warn(`Refusing to bind escalation chat ${chatId}: not among the bot's visible groups`);
+        return undefined;
+      }
+    } else {
+      const invited = await this.getInvitedGroups();
+      if (invited.length !== 1) {
+        this.logger.warn(
+          `Not auto-binding escalation chat: expected exactly one invited group, found ${invited.length}`,
+        );
+        return undefined;
+      }
+      target = invited[0];
+    }
+    await this.settingService.set(CHAT_ID_KEY, String(target.id));
     return target;
   }
 

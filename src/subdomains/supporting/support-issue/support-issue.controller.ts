@@ -8,6 +8,7 @@ import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { BindEscalationChatDto } from './dto/bind-escalation-chat.dto';
 import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
 import { GetSupportIssueFilter, GetSupportIssueListFilter } from './dto/get-support-issue.dto';
@@ -123,8 +124,8 @@ export class SupportIssueController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
-  async bindEscalationChat(): Promise<{ chat: TelegramChat | null }> {
-    return { chat: (await this.supportEscalationService.bindGroupChat()) ?? null };
+  async bindEscalationChat(@Body() dto: BindEscalationChatDto): Promise<{ chat: TelegramChat | null }> {
+    return { chat: (await this.supportEscalationService.bindGroupChat(dto.chatId)) ?? null };
   }
 
   @Post('escalation/telegram-test')
