@@ -1108,9 +1108,11 @@ export class Configuration {
   scorechain = {
     apiKey: process.env.SCORECHAIN_API_KEY,
     publicKey: process.env.SCORECHAIN_PUBLIC_KEY,
-    riskThreshold: Number(process.env.SCORECHAIN_RISK_THRESHOLD) || 70,
-    cacheMinutes: Number(process.env.SCORECHAIN_CACHE_MINUTES) || 60 * 24,
-    monthlyCheckLimit: Number(process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT) || undefined,
+    riskThreshold: +(process.env.SCORECHAIN_RISK_THRESHOLD ?? 70),
+    cacheMinutes: +(process.env.SCORECHAIN_CACHE_MINUTES ?? 60 * 24),
+    monthlyCheckLimit: process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT
+      ? +process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT
+      : undefined,
   };
 
   invoice = {
