@@ -205,6 +205,7 @@ npm run setup
 The API will be available at http://localhost:3000
 
 **API Management:**
+
 ```bash
 kill $(cat .api.pid)   # Stop API
 tail -f api.log        # View logs
@@ -213,12 +214,12 @@ npm run start:local    # Restart API manually
 
 ### NPM Scripts
 
-| Command | Description |
-|---------|-------------|
-| `npm run setup` | Full setup: generate seeds, start API, register admin, create deposits |
-| `npm run start:local` | Start API + seed database with test data |
-| `npm run start` | Start API only (no seeding) |
-| `npm run seed` | Seed database manually |
+| Command               | Description                                                            |
+| --------------------- | ---------------------------------------------------------------------- |
+| `npm run setup`       | Full setup: generate seeds, start API, register admin, create deposits |
+| `npm run start:local` | Start API + seed database with test data                               |
+| `npm run start`       | Start API only (no seeding)                                            |
+| `npm run seed`        | Seed database manually                                                 |
 
 ### Setup Script
 
@@ -241,15 +242,15 @@ The API keeps running in the background after setup completes.
 
 The `start:local` command automatically seeds the database with test data:
 
-| Table | Rows | Description |
-|-------|------|-------------|
-| language | 7 | EN, DE, FR, IT, PT, ES, SQ |
-| fiat | 24 | CHF, EUR, USD, etc. |
-| country | 250 | All countries |
-| asset | 227 | BTC, ETH, SOL, etc. |
-| bank | 10 | Test bank configurations |
-| fee | 27 | Fee configurations |
-| price_rule | 62 | Pricing rules |
+| Table      | Rows | Description                |
+| ---------- | ---- | -------------------------- |
+| language   | 7    | EN, DE, FR, IT, PT, ES, SQ |
+| fiat       | 24   | CHF, EUR, USD, etc.        |
+| country    | 250  | All countries              |
+| asset      | 227  | BTC, ETH, SOL, etc.        |
+| bank       | 10   | Test bank configurations   |
+| fee        | 27   | Fee configurations         |
+| price_rule | 62   | Pricing rules              |
 
 **Note:** Deposit addresses are seeded via `npm run setup` directly into the database (no Alchemy webhooks in local development).
 
@@ -280,11 +281,13 @@ The `.env.local.example` template contains minimal config for local development:
 When `ENVIRONMENT=loc`, external services are automatically mocked to simplify local development:
 
 **✅ What's mocked:**
+
 - **HTTP calls**: External API requests (Alchemy, Tatum, Sift, CoinGecko, SumSub, etc.) return predefined mock responses
 - **Azure Storage**: Uses in-memory storage instead of Azure Blob Storage
 - **Mail service**: Mail sending is logged but not actually sent
 
 **❌ What's NOT mocked:**
+
 - **Database**: Requires running PostgreSQL instance (via Docker)
 - **Blockchain services**: Still initialize with credentials from `.env`
 - **Localhost calls**: Requests to localhost/127.0.0.1 are never mocked
