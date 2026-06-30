@@ -162,4 +162,61 @@ describe('SupportEscalationService.checkEscalations', () => {
     expect(send).not.toHaveBeenCalled();
     expect(settingService.setObj).toHaveBeenCalledWith(NOTIFIED_KEY, {}); // nothing marked for this cycle
   });
+
+  it('does nothing when no escalation chat is bound (the cron never auto-binds)', async () => {
+    settingService.get.mockResolvedValue(undefined);
+    const send = jest.spyOn(service, 'sendMessage').mockResolvedValue();
+
+    await service.checkEscalations();
+
+    expect(supportIssueRepo.find).not.toHaveBeenCalled();
+    expect(send).not.toHaveBeenCalled();
+  });
+});
+
+// The Telegram client self-heals the binding: it rebinds on a supergroup migration and drops a dead binding.
+describe('SupportEscalationService.sendMessage', () => {
+  let service: SupportEscalationService;
+  let http: DeepMocked<HttpService>;
+  let settingService: DeepMocked<SettingService>;
+
+  const CHAT_ID_KEY = 'supportEscalationChatId';
+  const telegramError = (data: object): Error => Object.assign(new Error('Request failed'), { response: { data } });
+
+  beforeEach(() => {
+    (ConfigModule as Record<string, unknown>).Config = { support: { escalation: { telegramBotToken: 'test-token' } } };
+    http = createMock<HttpService>();
+    settingService = createMock<SettingService>();
+    service = new SupportEscalationService(
+      http,
+      settingService,
+      createMock<SupportIssueRepository>(),
+      createMock<SupportMessageRepository>(),
+    );
+  });
+
+  it('rebinds to the new chat id and resends when the group migrated to a supergroup', async () => {
+    (http.post as jest.Mock)
+      .mockRejectedValueOnce(
+        telegramError({
+          description: 'Bad Request: group chat was upgraded to a supergroup chat',
+          parameters: { migrate_to_chat_id: -100123 },
+        }),
+      )
+      .mockResolvedValueOnce(undefined);
+
+    await service.sendMessage('555', 'hi');
+
+    expect(settingService.set).toHaveBeenCalledWith(CHAT_ID_KEY, '-100123');
+    expect(http.post).toHaveBeenCalledTimes(2);
+    expect((http.post.mock.calls[1][1] as { chat_id: string }).chat_id).toBe('-100123');
+  });
+
+  it('clears the binding and rethrows when the bound chat is unreachable', async () => {
+    const err = telegramError({ description: 'Forbidden: bot was kicked from the group chat' });
+    (http.post as jest.Mock).mockRejectedValue(err);
+
+    await expect(service.sendMessage('555', 'hi')).rejects.toBe(err);
+    expect(settingService.set).toHaveBeenCalledWith(CHAT_ID_KEY, '');
+  });
 });

@@ -45,8 +45,23 @@ interface TelegramUpdate {
   channel_post?: { chat?: TelegramApiChat };
 }
 
+// the error body Telegram returns on a failed sendMessage — used to self-heal the binding
+interface TelegramErrorResponse {
+  description?: string;
+  parameters?: { migrate_to_chat_id?: number };
+}
+
 // membership statuses that mean the bot is now an active member of the group (i.e. was just added)
 const JOINED_STATUSES = ['member', 'administrator', 'creator'];
+
+// Telegram error descriptions that mean the bound chat is permanently unreachable (group gone / bot removed)
+const UNREACHABLE_CHAT_ERRORS = [
+  'chat not found',
+  'kicked',
+  'not a member',
+  'group chat was deleted',
+  'bot was blocked',
+];
 
 interface LastMessage {
   author?: string;
@@ -76,12 +91,41 @@ export class SupportEscalationService {
 
   async sendMessage(chatId: string, text: string): Promise<void> {
     if (!this.token) return;
-    await this.http.post(this.apiUrl('sendMessage'), {
+    try {
+      await this.post(chatId, text);
+    } catch (e) {
+      // a group upgraded to a supergroup gets a new chat id — rebind to it and resend
+      const migratedTo = this.telegramError(e)?.parameters?.migrate_to_chat_id;
+      if (migratedTo != null) {
+        await this.settingService.set(CHAT_ID_KEY, String(migratedTo));
+        await this.post(String(migratedTo), text);
+        return;
+      }
+      // the bound group is gone or the bot was removed — drop the binding so an operator rebinds deliberately
+      if (this.isChatUnreachable(e)) {
+        await this.settingService.set(CHAT_ID_KEY, '');
+        this.logger.warn(`Escalation chat ${chatId} is unreachable; cleared the binding (rebind via telegram-bind)`);
+      }
+      throw e;
+    }
+  }
+
+  private post(chatId: string, text: string): Promise<unknown> {
+    return this.http.post(this.apiUrl('sendMessage'), {
       chat_id: chatId,
       text,
       parse_mode: 'HTML',
       disable_web_page_preview: true,
     });
+  }
+
+  private telegramError(error: unknown): TelegramErrorResponse | undefined {
+    return (error as { response?: { data?: TelegramErrorResponse } })?.response?.data;
+  }
+
+  private isChatUnreachable(error: unknown): boolean {
+    const description = this.telegramError(error)?.description?.toLowerCase() ?? '';
+    return UNREACHABLE_CHAT_ERRORS.some((e) => description.includes(e));
   }
 
   // Reads recent updates and returns the group/supergroup chats the bot has seen.
@@ -155,13 +199,9 @@ export class SupportEscalationService {
   async checkEscalations(): Promise<void> {
     if (!this.token) return;
 
-    // auto-discover the target group from the "bot added to group" event, so it works
-    // by simply inviting the bot — no manual binding step required
-    let chatId = await this.getBoundChatId();
-    if (!chatId) {
-      const bound = await this.bindGroupChat();
-      chatId = bound && String(bound.id);
-    }
+    // only escalate to a chat an operator deliberately bound (POST escalation/telegram-bind); the cron
+    // never auto-binds, so customer-PII alerts can't be routed to an unintended group
+    const chatId = await this.getBoundChatId();
     if (!chatId) return;
 
     const threshold = new Date(Date.now() - Config.support.escalation.slaHours * 60 * 60 * 1000);
