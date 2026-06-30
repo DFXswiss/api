@@ -206,7 +206,7 @@ and short aliases:
 
 | Logical field | Aliases (priority order) | Required | Meaning |
 |---|---|---|---|
-| Route (payee) | `routeId` → `route` → `r` | **yes** | Numeric id (`routeId`/numeric `r`) or label (`route`/non-numeric `r`). |
+| Route (payee) | `route` / `routeId` / `r` | **yes** | Numeric id (`routeId`, or numeric `r`) or label (`route`, or non-numeric `r`). Pass only one; if both `route` and `routeId` are given, the label (`route`) is resolved first. |
 | Reference | `externalId` → `e` → `message` → `m` | **yes** | Your charge reference. |
 | Amount | `amount` → `a` | **yes** | In the route's currency. |
 | Currency | `currency` → `c` | no | Must equal the route's currency if given; otherwise it is taken from the route. |
@@ -262,7 +262,7 @@ endpoints below are public (no authentication) unless an **Auth** value says oth
 |---|---|---|---|
 | `GET /paymentLink/payment` | Create-or-return an invoice link and return its pay request | `route`/`routeId`/`r`, `message`/`externalId`/`e`/`m`, `amount`/`a` (+ optional `currency`,`expiryDate`,`note`,`label`,`standard`,`webhookUrl`) | `PaymentLinkPayRequest` ([§7.1](#71-the-pay-request-object)) |
 | `GET /plp` | Compact alias of the above (short params) | `r`,`a`,`m`,… | `PaymentLinkPayRequest` |
-| `GET /paymentLink/recipient` | Resolve a recipient and its currency | `id` = route id or label | `{ id, currency }` |
+| `GET /paymentLink/recipient` | Resolve a recipient and its currency | `id` = route id or label | `{ id, currency }` (`currency` is a fiat object, e.g. `{ "name": "CHF", … }`) |
 
 ### 6.2 LNURL-pay flow (public, wallet-facing)
 
@@ -277,8 +277,9 @@ endpoints below are public (no authentication) unless an **Auth** value says oth
 
 ### 6.3 Managed payment-link endpoints (authenticated)
 
-These require a merchant **JWT** (DFX login) or, where noted, a payment-link **access key**
-(`?key=…`).
+Most of these require a merchant **JWT** (DFX login) or, where noted, a payment-link
+**access key** (`?key=…`); the **Auth** column is authoritative per row (a few, such as
+`assign` and `locations`, are public).
 
 | Method & path | Auth | Purpose |
 |---|---|---|
@@ -309,10 +310,10 @@ Response (`PaymentLinkPayRequest`):
 ```json
 {
   "id": "pl_8sJ2Kd9fQ1",
-  "externalId": "INV-1001/4.5",
+  "externalId": "INV-1001/4.50CHF",
   "mode": "Multiple",
   "tag": "payRequest",
-  "callback": "https://api.dfx.swiss/v1/lnurlp/cb/plp_3Hf72Kd0Za",
+  "callback": "https://api.dfx.swiss/v1/lnurlp/cb/pl_8sJ2Kd9fQ1",
   "minSendable": 5742000,
   "maxSendable": 5742000,
   "metadata": "[[\"text/plain\", \"Coffeeshop - CHF 4.5\"]]",
@@ -330,14 +331,15 @@ Response (`PaymentLinkPayRequest`):
   "requestedAmount": { "asset": "CHF", "amount": 4.5 },
   "transferAmounts": [
     { "method": "Lightning", "minFee": 0,    "assets": [{ "asset": "BTC", "amount": "0.00005742" }], "available": true },
-    { "method": "Polygon",   "minFee": 0.01, "assets": [{ "asset": "ZCHF", "amount": "4.55" }, { "asset": "USDT", "amount": "5.07" }], "available": true },
+    { "method": "Polygon",   "minFee": 0.01, "assets": [{ "asset": "ZCHF", "amount": "4.50" }, { "asset": "USDT", "amount": "5.07" }], "available": true },
     { "method": "Bitcoin",   "minFee": 2,    "assets": [{ "asset": "BTC", "amount": "0.00005742" }], "available": true }
   ]
 }
 ```
 
 Notes:
-- `id` is the **link** id (`pl_…`); `quote.payment` is the **payment** id (`plp_…`).
+- `id` is the **link** id (`pl_…`); `quote.payment` is the **payment** id (`plp_…`). The
+  `callback` URL embeds the **link** id (same value as `id`).
 - `minSendable`/`maxSendable` are **millisatoshis** and equal (the amount is fixed).
 - `requestedAmount` carries the **fiat** amount; `transferAmounts` lists the payable
   crypto amounts per chain (asset amounts are decimal strings, `minFee` is a number).
@@ -385,7 +387,7 @@ A link offers one or more standards (default: `OpenCryptoPay`). The pay request'
 One entry per supported chain:
 
 ```json
-{ "method": "Polygon", "minFee": 0.01, "assets": [{ "asset": "ZCHF", "amount": "4.55" }], "available": true }
+{ "method": "Polygon", "minFee": 0.01, "assets": [{ "asset": "ZCHF", "amount": "4.50" }], "available": true }
 ```
 
 - `method` — chain name (`Lightning`, `Bitcoin`, `Ethereum`, `Polygon`, `Arbitrum`,
@@ -460,9 +462,11 @@ Set `webhookUrl` (or `w`) on a link — as a query param on the invoice URL, or 
 managed-link body/config. DFX then notifies you of payment state changes.
 
 - **Method:** HTTP `POST` to your URL.
-- **When:** on **every** payment state change for that link — the initial `Pending`
-  creation, and each terminal transition (`Completed`, `Cancelled`, `Expired`). Expect a
-  `Pending` event followed by a terminal event.
+- **When:** on the initial `Pending` creation and each terminal transition
+  (`Completed`, `Cancelled`, `Expired`). For a single invoice, expect a `Pending` event
+  followed by one terminal event. (On reusable `Multiple`-mode links a webhook also fires
+  for each transaction that reaches the completion threshold while the payment stays
+  `Pending`, i.e. on every `txCount` increment.)
 - **Body:** the full payment-link object (same shape as `GET /paymentLink`), with the
   changed payment in the `payment` field. The merchant-facing fields: `payment.status`,
   `payment.amount`, `payment.currency`, `payment.externalId`, `payment.id`, plus link
@@ -596,7 +600,8 @@ https://api.dfx.swiss/v1/paymentLink/payment?route=Coffeeshop&amount=4.50&messag
 https://api.dfx.swiss/v1/plp?r=Coffeeshop&a=4.50&m=INV-1001&d=2025-12-31T23:59:59.000Z
 ```
 
-Derived idempotency key `externalId = INV-1001/4.5` — re-scanning never creates duplicates.
+Derived idempotency key `externalId = INV-1001/4.50` (no `currency` in this URL, so none is
+appended) — re-scanning never creates duplicates.
 Add `&webhookUrl=https://coffeeshop.example/dfx-hook` to be notified on payment.
 
 ### 12.2 Notified, programmatic invoicing (no UI)
@@ -658,13 +663,13 @@ and act on `payment.status === 'Completed'`, deduping on `payment.id`.
 
 Module root: `src/subdomains/core/payment-link/`.
 
-- **Controllers:** `controllers/payment-link.controller.ts` (invoice `GET payment` :214, `/plp` :464, `recipient` :206, managed CRUD, wait :262, confirm :284); LNURL forwarding `src/subdomains/generic/forwarding/controllers/lnurlp-forward.controller.ts`; human scan target `…/forwarding/controllers/payment-forward.controller.ts` (`GET /pl`).
+- **Controllers:** `controllers/payment-link.controller.ts` (invoice `GET payment` :214, `/plp` :464, `recipient` :206, managed CRUD, wait :262, confirm :282); LNURL forwarding `src/subdomains/generic/forwarding/controllers/lnurlp-forward.controller.ts`; human scan target `…/forwarding/controllers/payment-forward.controller.ts` (`GET /pl`).
 - **Invoice creation:** `services/payment-link.service.ts` `createInvoice` :157 (label resolution, Lightning-only :162, idempotency :165-181), `createForRoute` :217, `createPayRequest` :255-300; alias normalisation in the controller :217-234 (derived `externalId` :234).
-- **Standards / transfer amounts:** `enums/index.ts` (`PaymentStandard` :57; statuses :9-27), `services/payment-quote.service.ts` `createTransferAmounts` :226, `entities/payment-quote.entity.ts` `transferAmountsForPayRequest` :105; defaults `config.ts:734-753`.
+- **Standards / transfer amounts:** `enums/index.ts` (`PaymentStandard` :57; statuses :9-27), `services/payment-quote.service.ts` `createTransferAmounts` :226, `entities/payment-quote.entity.ts` `transferAmountsForPayRequest` :105; defaults `entities/payment-link.config.ts:38-46` (and `config.ts:682,689-690,722` for timeouts/fee); standards catalog `config.ts:734-753`.
 - **Lifecycle / expiry:** `services/payment-link-payment.service.ts` (`createPayment`/timers :197-265, default expiry :230, `handleQuoteChange` :414-437, `processExpiredPayments` :55, `waitForPayment` :170, `doSave` :439); cron `services/payment-cron.service.ts`; `minCompletionStatus` comment `enums/index.ts:98-118`.
 - **Webhooks:** `services/payment-webhook.service.ts` (POST, `X-Payload-Signature`, retry 12×5 s); trigger gate `services/payment-link-payment.service.ts:442`; payload `dto/payment-link-dto.mapper.ts`.
 - **Routes / labels / config:** `src/subdomains/supporting/address-pool/route/deposit-route.service.ts` (`getByLabel` :36, `getPaymentRoute` :44, `getById` :23), `src/subdomains/core/route/route.entity.ts:11-13` (unique `label`), `route.service.ts` (admin label writer), `entities/payment-link.config.ts` (defaults), `entities/payment-link.entity.ts` (`configObj` precedence :74-94).
-- **Frontend (`services` repo):** routes `src/App.tsx` (`/invoice` :232, `/pl` :203, `/pl/pos` :195, `/routes` :187); invoice builder `src/screens/invoice.screen.tsx`; invoice detection + client LNURL `src/contexts/payment-link.context.tsx` (`isPaymentInvoiceRequest` :152, OCP encode :384, `simplifyPaymentLinkUrl` :409); LNURL helpers `src/util/lnurl.ts`, `src/util/open-crypto-pay.ts`.
+- **Frontend (`services` repo):** routes `src/App.tsx` (`/invoice` :233, `/pl` :204, `/pl/pos` :196, `/routes` :188); invoice builder `src/screens/invoice.screen.tsx`; invoice detection + client LNURL `src/contexts/payment-link.context.tsx` (`isPaymentInvoiceRequest` :152, OCP encode :384, `simplifyPaymentLinkUrl` :409); LNURL helpers `src/util/lnurl.ts`, `src/util/open-crypto-pay.ts`.
 
 > Note: the invoice endpoints (`GET /paymentLink/payment`, `/plp`, `recipient`) carry
 > `@ApiExcludeEndpoint()` and are therefore not in the public Swagger today, although they
