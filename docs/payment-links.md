@@ -672,6 +672,5 @@ Module root: `src/subdomains/core/payment-link/`.
 - **Frontend (`services` repo):** routes `src/App.tsx` (`/invoice` :233, `/pl` :204, `/pl/pos` :196, `/routes` :188); invoice builder `src/screens/invoice.screen.tsx`; invoice detection + client LNURL `src/contexts/payment-link.context.tsx` (`isPaymentInvoiceRequest` :152, OCP encode :384, `simplifyPaymentLinkUrl` :409); LNURL helpers `src/util/lnurl.ts`, `src/util/open-crypto-pay.ts`.
 
 > Note: the invoice endpoints (`GET /paymentLink/payment`, `/plp`, `recipient`) carry
-> `@ApiExcludeEndpoint()` and are therefore not in the public Swagger today, although they
-> are publicly reachable and are the basis of this integration. Consider whether to surface
-> them officially in Swagger to match this guide.
+> `@ApiExcludeEndpoint()`, so they are intentionally kept out of the public Swagger even
+> though they are publicly reachable; this guide documents them deliberately.
