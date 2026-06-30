@@ -4,10 +4,12 @@ import { AmlError } from 'src/subdomains/core/aml/enums/aml-error.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { createCustomBuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
-import { createDefaultBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
+import {
+  createCustomBuyFiat,
+  createDefaultBuyFiat,
+} from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 
 /**
@@ -31,6 +33,147 @@ import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/_
  * )
  *   errors.push(AmlError.PHONE_VERIFICATION_NEEDED);
  */
+
+import { Test } from '@nestjs/testing';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { TestUtil } from 'src/shared/utils/test.util';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { KycLevel, KycType } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+
+describe('AmlHelperService - Scorechain gate', () => {
+  afterEach(() => jest.restoreAllMocks());
+
+  // Minimal entity: getAmlErrors is stubbed, so only the fields getAmlResult itself reads matter.
+  const entity = { amlCheck: null, created: new Date(0) } as any;
+
+  const getAmlResult = (scorechainHighRisk: boolean) =>
+    AmlHelperService.getAmlResult(
+      entity,
+      null as any, // inputAsset
+      0, // minVolume
+      0, // amountInChf
+      0, // last7dCheckoutVolume
+      0, // last30dVolume
+      0, // last365dVolume
+      null as any, // bankData
+      [], // blacklist
+      [], // phoneCallList
+      undefined, // ibanCountry
+      undefined, // refUser
+      undefined, // recommender
+      undefined, // banks
+      undefined, // ipLogCountries
+      undefined, // virtualIban
+      undefined, // multiAccountBankNames
+      scorechainHighRisk,
+    );
+
+  it('forwards scorechainHighRisk to getAmlErrors as the last argument', () => {
+    const spy = jest.spyOn(AmlHelperService, 'getAmlErrors').mockReturnValue([]);
+
+    getAmlResult(true);
+
+    expect(spy.mock.calls[0].at(-1)).toBe(true);
+  });
+
+  it('resolves a SCORECHAIN_HIGH_RISK error to a PENDING manual-review check (after the 10-min grace)', () => {
+    jest.spyOn(AmlHelperService, 'getAmlErrors').mockReturnValue([AmlError.SCORECHAIN_HIGH_RISK]);
+
+    const result = getAmlResult(true);
+
+    expect(result.amlCheck).toBe(CheckStatus.PENDING);
+    expect(result.amlReason).toBe(AmlReason.MANUAL_CHECK);
+    expect(result.comment).toContain('ScorechainHighRisk');
+  });
+
+  describe('getAmlErrors Scorechain branch (real call)', () => {
+    beforeAll(async () => {
+      await Test.createTestingModule({ providers: [TestUtil.provideConfig()] }).compile();
+    });
+
+    // A BuyFiat entity that on its own produces no AML errors, so the only error is the Scorechain one.
+    // user/wallet/userData are getters over `transaction`, and userData is a plain object to bypass the
+    // UserData getters (which would otherwise need many backing fields).
+    const cleanEntity = () =>
+      createCustomBuyFiat({
+        inputAsset: 'BTC',
+        inputReferenceAmount: 1000,
+        inputAmount: 100,
+        transaction: {
+          user: {
+            wallet: { amlRuleList: [], exceptAmlRuleList: [] },
+            isBlocked: false,
+            isDeleted: false,
+          },
+          userData: {
+            nationality: null,
+            tradeApprovalDate: new Date(),
+            phoneCallCheckDate: new Date(),
+            isBlocked: false,
+            isRiskBlocked: false,
+            isSuspicious: false,
+            isDeactivated: false,
+            isPaymentStatusEnabled: true,
+            isPaymentKycStatusEnabled: true,
+            kycType: KycType.DFX,
+            verifiedName: 'Valid Test Name',
+            hasValidNameCheckDate: true,
+            kycLevel: KycLevel.LEVEL_50,
+            hasIpRisk: false,
+            accountType: AccountType.PERSONAL,
+            letterSentDate: new Date(),
+            depositLimit: 1e12,
+            hasBankTxVerification: true,
+            isRiskBuyFiatBlocked: false,
+            mail: 'test@test.com',
+            verifiedCountry: { fatfEnable: true },
+          },
+        } as any,
+        cryptoInput: {
+          asset: { liquidityCapacity: 1e12, paymentEnabled: true },
+          isConfirmed: true,
+        } as any,
+        sell: { fiat: { name: 'EUR', isIbanCountryAllowed: () => true }, iban: 'DE89370400440532013000' } as any,
+        outputAsset: { buyable: true, amlRuleTo: AmlRule.DEFAULT } as any,
+      });
+
+    const inputAsset = createCustomAsset({ name: 'BTC', amlRuleFrom: AmlRule.DEFAULT, sellable: true });
+    const ibanCountry = { symbol: 'DE', fatfEnable: true, amlRule: AmlRule.DEFAULT } as any;
+
+    const collect = (scorechainHighRisk: boolean): AmlError[] =>
+      AmlHelperService.getAmlErrors(
+        cleanEntity(),
+        inputAsset,
+        0, // minVolume
+        0, // amountInChf
+        0, // last7dCheckoutVolume
+        0, // last30dVolume
+        0, // last365dVolume
+        null as any, // bankData
+        [], // blacklist
+        [], // phoneCallList
+        [], // banks
+        ibanCountry,
+        undefined, // refUser
+        undefined, // ipLogCountries
+        undefined, // virtualIban
+        undefined, // multiAccountBankNames
+        undefined, // recommender
+        scorechainHighRisk,
+      );
+
+    it('adds SCORECHAIN_HIGH_RISK when the screening is high-risk', () => {
+      expect(collect(true)).toContain(AmlError.SCORECHAIN_HIGH_RISK);
+    });
+
+    it('adds no Scorechain error when the screening is clean', () => {
+      expect(collect(false)).not.toContain(AmlError.SCORECHAIN_HIGH_RISK);
+    });
+  });
+});
 
 describe('AmlHelperService - isTrustedReferrer Logic', () => {
   /**

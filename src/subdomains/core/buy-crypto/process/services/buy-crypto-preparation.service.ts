@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
+import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
@@ -53,7 +55,27 @@ export class BuyCryptoPreparationService {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly virtualIbanService: VirtualIbanService,
     private readonly transactionService: TransactionService,
+    private readonly scorechainScreeningService: ScorechainScreeningService,
   ) {}
+
+  // Scorechain on-chain screening for the AML gate. BuyCrypto withdrawal (fiat-funded) screens the
+  // crypto-out target address; a swap (crypto-in) screens the incoming deposit tx. Chains Scorechain
+  // does not cover yield no signal (the other AML mechanisms apply). isHighRisk is fail-closed
+  // (invalid signature / no coverage / unsupported → high risk); provider errors propagate so the
+  // tx is retried on the next run rather than passing unscreened.
+  private async screenScorechain(entity: BuyCrypto): Promise<boolean> {
+    const [blockchain, objectId, isDeposit] = entity.cryptoInput
+      ? [entity.cryptoInput.asset.blockchain, entity.cryptoInput.inTxId, true]
+      : [entity.outputAsset.blockchain, entity.targetAddress, false];
+
+    if (!objectId || !toScorechainBlockchain(blockchain)) return false;
+
+    const screening = isDeposit
+      ? await this.scorechainScreeningService.screenDepositTransaction(blockchain, objectId)
+      : await this.scorechainScreeningService.screenWithdrawalAddress(blockchain, objectId);
+
+    return this.scorechainScreeningService.isHighRisk(screening);
+  }
 
   async doAmlCheck(): Promise<void> {
     const request: FindOptionsWhere<BuyCrypto> = {
@@ -170,7 +192,7 @@ export class BuyCryptoPreparationService {
           ? await this.virtualIbanService.getByIban(entity.bankTx.virtualIban)
           : undefined;
 
-        const [id, update] = entity.amlCheckAndFillUp(
+        const [id, update] = await entity.amlCheckAndFillUp(
           inputCurrency,
           minVolume,
           referenceEurPrice.convert(entity.inputReferenceAmount, 2),
@@ -188,6 +210,7 @@ export class BuyCryptoPreparationService {
           ipLogCountries,
           virtualIban,
           multiAccountBankNames,
+          () => this.screenScorechain(entity),
         );
 
         // Atomic guard: persist only if amlCheck is unchanged since it was read, so a concurrent manual

@@ -654,7 +654,7 @@ export class BuyCrypto extends IEntity {
     return [this.id, update];
   }
 
-  amlCheckAndFillUp(
+  async amlCheckAndFillUp(
     inputAsset: Active,
     minVolume: number,
     amountInEur: number,
@@ -672,9 +672,10 @@ export class BuyCrypto extends IEntity {
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
-  ): UpdateResult<BuyCrypto> {
-    const update: Partial<BuyCrypto> = {
-      ...AmlHelperService.getAmlResult(
+    screenScorechain?: () => Promise<boolean>,
+  ): Promise<UpdateResult<BuyCrypto>> {
+    const computeAmlResult = (scorechainHighRisk: boolean) =>
+      AmlHelperService.getAmlResult(
         this,
         inputAsset,
         minVolume,
@@ -692,7 +693,16 @@ export class BuyCrypto extends IEntity {
         ipLogCountries,
         virtualIban,
         multiAccountBankNames,
-      ),
+        scorechainHighRisk,
+      );
+
+    let amlResult = computeAmlResult(false);
+    // Run the (billable) Scorechain screening only when the tx would otherwise PASS.
+    if (screenScorechain && amlResult.amlCheck === CheckStatus.PASS && (await screenScorechain()))
+      amlResult = computeAmlResult(true);
+
+    const update: Partial<BuyCrypto> = {
+      ...amlResult,
       amountInChf,
       amountInEur,
     };

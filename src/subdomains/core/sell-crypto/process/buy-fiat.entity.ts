@@ -448,7 +448,7 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  amlCheckAndFillUp(
+  async amlCheckAndFillUp(
     inputAsset: Active,
     minVolume: number,
     amountInEur: number,
@@ -461,9 +461,10 @@ export class BuyFiat extends IEntity {
     ibanCountry: Country,
     refUser?: User,
     recommender?: UserData,
-  ): UpdateResult<BuyFiat> {
-    const update: Partial<BuyFiat> = {
-      ...AmlHelperService.getAmlResult(
+    screenScorechain?: () => Promise<boolean>,
+  ): Promise<UpdateResult<BuyFiat>> {
+    const computeAmlResult = (scorechainHighRisk: boolean) =>
+      AmlHelperService.getAmlResult(
         this,
         inputAsset,
         minVolume,
@@ -477,7 +478,20 @@ export class BuyFiat extends IEntity {
         ibanCountry,
         refUser,
         recommender,
-      ),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        scorechainHighRisk,
+      );
+
+    let amlResult = computeAmlResult(false);
+    // Run the (billable) Scorechain screening only when the tx would otherwise PASS.
+    if (screenScorechain && amlResult.amlCheck === CheckStatus.PASS && (await screenScorechain()))
+      amlResult = computeAmlResult(true);
+
+    const update: Partial<BuyFiat> = {
+      ...amlResult,
       amountInChf,
       amountInEur,
     };

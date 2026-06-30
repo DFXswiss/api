@@ -1,6 +1,9 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
@@ -36,6 +39,7 @@ describe('BuyCryptoPreparationService', () => {
   let buyCryptoNotificationService: BuyCryptoNotificationService;
   let virtualIbanService: VirtualIbanService;
   let transactionService: TransactionService;
+  let scorechainScreeningService: ScorechainScreeningService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -51,6 +55,7 @@ describe('BuyCryptoPreparationService', () => {
     buyCryptoNotificationService = createMock<BuyCryptoNotificationService>();
     virtualIbanService = createMock<VirtualIbanService>();
     transactionService = createMock<TransactionService>();
+    scorechainScreeningService = createMock<ScorechainScreeningService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -69,6 +74,7 @@ describe('BuyCryptoPreparationService', () => {
         { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
         { provide: VirtualIbanService, useValue: virtualIbanService },
         { provide: TransactionService, useValue: transactionService },
+        { provide: ScorechainScreeningService, useValue: scorechainScreeningService },
       ],
     }).compile();
 
@@ -77,6 +83,58 @@ describe('BuyCryptoPreparationService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('screenScorechain (Scorechain AML gate)', () => {
+    const call = (entity: any): Promise<boolean> => (service as any).screenScorechain(entity);
+
+    it('screens the withdrawal target address for a fiat-funded buy on a supported chain', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: null,
+        outputAsset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
+      });
+      jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('0xabc');
+      jest.spyOn(scorechainScreeningService, 'screenWithdrawalAddress').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(true);
+      expect(scorechainScreeningService.screenWithdrawalAddress).toHaveBeenCalledWith(Blockchain.ETHEREUM, '0xabc');
+      expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    it('screens the deposit tx for a swap (crypto-in)', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(false);
+
+      await expect(call(entity)).resolves.toBe(false);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalledWith(Blockchain.BITCOIN, 'txhash');
+      expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
+    });
+
+    it('yields no signal (false) and skips the provider for an unsupported chain', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: null,
+        outputAsset: createCustomAsset({ blockchain: Blockchain.MONERO }),
+      });
+      jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('addr');
+
+      await expect(call(entity)).resolves.toBe(false);
+      expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
+    });
+
+    it('yields no signal when the screening target id is missing', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: null,
+        outputAsset: createCustomAsset({ blockchain: Blockchain.ETHEREUM }),
+      });
+      jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue(undefined);
+
+      await expect(call(entity)).resolves.toBe(false);
+      expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
+    });
   });
 
   describe('chargebackFillUp', () => {
