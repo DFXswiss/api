@@ -139,7 +139,8 @@ export class ScorechainScreeningService {
           signatureValid: true,
           // A TRANSACTION verdict is bound to an immutable tx hash, so a verified screening stays valid
           // forever — reuse it with NO time bound so a given tx is sent to the provider at most once.
-          // ADDRESS/WALLET risk is mutable, so those verdicts expire after a short TTL and re-screen.
+          // ADDRESS/WALLET risk is mutable, so those verdicts expire after addressCacheMinutes and
+          // re-screen.
           ...(params.objectType !== ScorechainObjectType.TRANSACTION && {
             created: MoreThanOrEqual(Util.minutesBefore(Config.scorechain.addressCacheMinutes)),
           }),
