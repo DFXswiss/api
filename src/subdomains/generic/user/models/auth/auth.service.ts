@@ -65,6 +65,12 @@ export interface MailKeyData {
   redirectUri?: string;
 }
 
+// Staff roles a magic-link (mail) login may elevate to, ordered by privilege (highest first) so an
+// account linked to multiple staff users resolves deterministically to the most privileged one.
+// Deliberately excludes ADMIN/SUPER_ADMIN: the strongest privileges stay bound to wallet-signature
+// login, since a magic link is a weaker authentication factor.
+const MailLoginStaffRoles = [UserRole.COMPLIANCE, UserRole.SUPPORT, UserRole.REALUNIT];
+
 @Injectable()
 export class AuthService {
   private readonly logger = new DfxLogger(AuthService);
@@ -343,13 +349,23 @@ export class AuthService {
       const entry = this.mailKeyList.get(code);
       if (!this.isMailKeyValid(entry)) throw new Error('Login link expired');
 
-      const account = await this.userDataService.getUserData(entry.userDataId, { users: true, wallet: true });
+      const account = await this.userDataService.getUserData(entry.userDataId, {
+        users: { wallet: true },
+        wallet: true,
+      });
       if (account.status === UserDataStatus.MERGED) throw new UnauthorizedException('User data is merged');
 
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail, undefined, account);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
 
-      const token = this.generateAccountToken(account, ip);
+      // Staff members (support/compliance/realunit) get a full user token carrying their real role, so a
+      // magic-link login reaches the staff dashboards instead of being stuck on a generic account token.
+      // Regular accounts (USER-role wallets only) keep the account token. A blocked/deactivated account is
+      // never elevated (mirrors changeUser), so a magic link can never grant active staff access to a
+      // disabled account — and no privilege is granted that the user does not already hold on their wallet.
+      const staffUser = account.isBlockedOrDeactivated ? undefined : this.getMailLoginStaffUser(account);
+      if (staffUser) staffUser.userData = account;
+      const token = staffUser ? this.generateUserToken(staffUser, ip) : this.generateAccountToken(account, ip);
 
       await this.checkIpBlacklistFor(account, ip);
 
@@ -521,6 +537,18 @@ export class AuthService {
 
   private hasChallenge(address: string): boolean {
     return this.challengeList.has(address);
+  }
+
+  // Resolves the staff user of an account for a mail login, or undefined for a regular account. Picks
+  // the highest-privileged, non-blocked user whose role is in the elevation whitelist (MailLoginStaffRoles).
+  // Requires a loaded wallet: generateUserToken reads user.blockchains, whose getter dereferences
+  // user.wallet — a wallet-less user would throw instead of cleanly falling back to the account token.
+  private getMailLoginStaffUser(account: UserData): User | undefined {
+    for (const role of MailLoginStaffRoles) {
+      const user = account.users?.find((u) => u.role === role && u.wallet && !u.isBlockedOrDeleted);
+      if (user) return user;
+    }
+    return undefined;
   }
 
   generateUserToken(user: User, ip: string): string {
