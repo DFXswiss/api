@@ -23,7 +23,12 @@ import { TransactionRequestService } from '../../payment/services/transaction-re
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
-import { GetSupportIssueFilter, GetSupportIssueListFilter } from '../dto/get-support-issue.dto';
+import {
+  GetSupportIssueFilter,
+  GetSupportIssueListFilter,
+  ListOrderDirection,
+  SupportIssueListOrderBy,
+} from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
 import {
   SupportIssueDto,
@@ -35,7 +40,7 @@ import {
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
-import { RoleDepartmentMap } from '../enums/department.enum';
+import { getVisibleDepartments } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
@@ -80,8 +85,8 @@ export class SupportIssueService {
       .addSelect('COUNT(*)', 'count')
       .groupBy('issue.state');
 
-    const departmentByRole = RoleDepartmentMap[role];
-    if (departmentByRole) qb.andWhere('issue.department = :department', { department: departmentByRole });
+    const departments = getVisibleDepartments(role);
+    if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
 
     const raw: { state: SupportIssueInternalState; count: string }[] = await qb.getRawMany();
 
@@ -95,7 +100,7 @@ export class SupportIssueService {
   }
 
   async getSupportIssueActivity(since: Date | undefined, role: UserRole): Promise<{ count: number; latestAt?: Date }> {
-    const departmentByRole = RoleDepartmentMap[role];
+    const departments = getVisibleDepartments(role);
 
     const qb = this.messageRepo
       .createQueryBuilder('m')
@@ -103,7 +108,7 @@ export class SupportIssueService {
       .select('COUNT(*)', 'count')
       .addSelect('MAX(m.created)', 'latestAt');
     if (since) qb.andWhere('m.created > :since', { since: since.toISOString() });
-    if (departmentByRole) qb.andWhere('i.department = :department', { department: departmentByRole });
+    if (departments) qb.andWhere('i.department IN (:...departments)', { departments });
 
     const raw = await qb.getRawOne<{ count: string | number; latestAt: Date | null }>();
     return { count: +(raw?.count ?? 0), latestAt: raw?.latestAt ?? undefined };
@@ -335,6 +340,33 @@ export class SupportIssueService {
     return issue;
   }
 
+  async closeIssue(id: string, userDataId?: number): Promise<SupportIssueDto> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: this.getIssueSearch(id, userDataId),
+      relations: { transaction: true, limitRequest: true },
+    });
+    if (!issue) throw new NotFoundException('Support issue not found');
+
+    // idempotent: leave already-closed issues untouched (a new customer message reopens them via createMessageInternal)
+    if (![SupportIssueInternalState.COMPLETED, SupportIssueInternalState.CANCELED].includes(issue.state)) {
+      // persist the state change first, so the audit log only ever reflects a committed transition
+      await this.supportIssueRepo.update(...issue.setState(SupportIssueInternalState.COMPLETED));
+
+      await this.supportLogService.createSupportLog(issue.userData, {
+        type: SupportLogType.CUSTOMER,
+        state: SupportIssueInternalState.COMPLETED,
+        comment: 'Closed by customer',
+        supportIssue: issue,
+        supportIssueType: issue.type,
+      });
+    }
+
+    // load messages so the response matches GET /:id instead of claiming an empty thread
+    issue.messages = await this.messageRepo.findBy({ issue: { id: issue.id } });
+
+    return SupportIssueDtoMapper.mapSupportIssue(issue);
+  }
+
   async updateIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     const entity = await this.supportIssueRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Support issue not found');
@@ -381,13 +413,12 @@ export class SupportIssueService {
   ): Promise<{ data: SupportIssueListDto[]; total: number }> {
     const where: FindOptionsWhere<SupportIssue> = {};
 
-    // department filtering based on role
-    const departmentByRole = RoleDepartmentMap[role];
-    if (departmentByRole) {
-      where.department = departmentByRole;
-    } else if (filter.department) {
-      where.department = filter.department;
-    }
+    // department filtering: the role defines the allowed departments, an explicit filter may narrow within them
+    const allowedDepartments = getVisibleDepartments(role);
+    const departments =
+      filter.department && (!allowedDepartments || allowedDepartments.includes(filter.department))
+        ? [filter.department]
+        : allowedDepartments;
 
     if (filter.type) where.type = filter.type;
 
@@ -401,20 +432,32 @@ export class SupportIssueService {
     const qb = this.supportIssueRepo.createQueryBuilder('issue');
     if (terms.length > 0) qb.leftJoin('issue.userData', 'userData');
 
-    if (where.department) qb.andWhere('issue.department = :department', { department: where.department });
+    if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
     if (filter.states?.length) qb.andWhere('issue.state IN (:...states)', { states: filter.states });
     if (where.type) qb.andWhere('issue.type = :type', { type: where.type });
+    if (filter.clerk) qb.andWhere('issue.clerk = :clerk', { clerk: filter.clerk });
+    if (filter.createdFrom) qb.andWhere('issue.created >= :createdFrom', { createdFrom: new Date(filter.createdFrom) });
+    if (filter.createdTo) {
+      const createdTo = new Date(filter.createdTo);
+      // a date-only bound (no time component) means "on or before that day" → include the whole day
+      if (!filter.createdTo.includes('T')) createdTo.setUTCHours(23, 59, 59, 999);
+      qb.andWhere('issue.created <= :createdTo', { createdTo });
+    }
 
     const termCount = Math.min(terms.length, 10);
     for (let i = 0; i < termCount; i++) {
       const param = `term${i}`;
       qb.andWhere(
-        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR userData.firstname LIKE :${param} OR userData.surname LIKE :${param} OR userData.organizationName LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m.issueId = issue.id AND m.message LIKE :${param}))`,
+        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR "userData".firstname LIKE :${param} OR "userData".surname LIKE :${param} OR "userData"."organizationName" LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m."issueId" = issue.id AND m.message LIKE :${param}))`,
         { [param]: `%${terms[i]}%` },
       );
     }
 
-    qb.orderBy('issue.created', 'DESC');
+    // whitelisted sort column + direction, with an id tie-break for stable pagination on equal sort keys
+    const orderBy = filter.orderBy ?? SupportIssueListOrderBy.CREATED;
+    const orderDir = filter.orderDir ?? ListOrderDirection.DESC;
+    qb.orderBy(`issue.${orderBy}`, orderDir);
+    qb.addOrderBy('issue.id', orderDir);
 
     if (filter.take != null) {
       qb.take(filter.take);
@@ -442,14 +485,14 @@ export class SupportIssueService {
       (chunk): Promise<{ issueId: string; count: string; lastDate: Date | null; lastAuthor: string | null }[]> =>
         this.messageRepo
           .createQueryBuilder('m')
-          .select('m.issueId', 'issueId')
+          .select('m."issueId"', 'issueId')
           .addSelect('COUNT(*)', 'count')
           .addSelect(
             (sub) =>
               sub
                 .select('m2.created')
                 .from(SupportMessage, 'm2')
-                .where('m2.issueId = m.issueId')
+                .where('m2."issueId" = m."issueId"')
                 .orderBy('m2.id', 'DESC')
                 .limit(1),
             'lastDate',
@@ -459,13 +502,13 @@ export class SupportIssueService {
               sub
                 .select('m2.author')
                 .from(SupportMessage, 'm2')
-                .where('m2.issueId = m.issueId')
+                .where('m2."issueId" = m."issueId"')
                 .orderBy('m2.id', 'DESC')
                 .limit(1),
             'lastAuthor',
           )
-          .where('m.issueId IN (:...ids)', { ids: chunk })
-          .groupBy('m.issueId')
+          .where('m."issueId" IN (:...ids)', { ids: chunk })
+          .groupBy('m."issueId"')
           .getRawMany(),
       1000,
     );
@@ -593,6 +636,10 @@ export class SupportIssueService {
     return SupportIssueDtoMapper.mapSupportMessage(entity);
   }
 
+  // The issue (and related quote) UID is treated as a capability token: knowing it grants access without
+  // an account, which is required for anonymous transaction-request issues. Access by numeric id is instead
+  // scoped to the owning userData. Consumers (get/message/file/close) are therefore as sensitive as the UID —
+  // keep it secret. Read more before widening this surface.
   private getIssueSearch(id: string, userDataId?: number): FindOptionsWhere<SupportIssue> {
     if (id.startsWith(Config.prefixes.issueUidPrefix)) return { uid: id };
     if (id.startsWith(Config.prefixes.quoteUidPrefix)) return { transactionRequest: { uid: id } };

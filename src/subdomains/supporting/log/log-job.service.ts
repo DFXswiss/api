@@ -57,6 +57,20 @@ import {
 import { LogSeverity } from './log.entity';
 import { LogService } from './log.service';
 
+// A transmitted payout normally settles within a few days (weekday seconds; up to ~111h over a
+// weekend+holiday). Beyond this it is an abnormal stuck payout surfaced for manual reconciliation;
+// equity stays correct meanwhile because the liability is still counted.
+const SETTLEMENT_SLA_HOURS = 144;
+const SETTLEMENT_SLA_MS = SETTLEMENT_SLA_HOURS * 60 * 60 * 1000;
+
+// tolerance for comparing summed float balances (avoids false alarms on rounding)
+const BALANCE_TOLERANCE = 0.01;
+
+// synthetic balancesByFinancialType key under which the open referral-credit liability is booked.
+// Referral rewards are paid from DFX funds, so the accrued-but-unpaid credit is a real liability;
+// booking it keeps totalBalanceChf at true equity and makes ref payouts balance-neutral.
+const REF_CREDIT_FINANCIAL_TYPE = 'RefCredit';
+
 @Injectable()
 export class LogJobService {
   private readonly logger = new DfxLogger(LogJobService);
@@ -108,6 +122,12 @@ export class LogJobService {
 
       // balances grouped by financialType
       const balancesByFinancialType = this.getBalancesByFinancialType(assets, assetLog);
+
+      // referral credit owed to referrers is a real liability, discharged on payout. Accrue the open
+      // balance here so totalBalanceChf reflects true equity and ref payouts stay balance-neutral
+      // (plus and minus drop together) instead of showing a phantom equity step (see BalancesTotal).
+      const refCreditLiability = await this.getRefCreditLiability();
+      if (refCreditLiability) balancesByFinancialType[REF_CREDIT_FINANCIAL_TYPE] = refCreditLiability;
 
       // changes
       const changeLog = await this.getChangeLog();
@@ -192,6 +212,21 @@ export class LogJobService {
 
       return acc;
     }, {});
+  }
+
+  // open referral-credit liability (EUR-denominated), booked as a synthetic financialType bucket so it
+  // flows into minusBalanceChf/totalBalanceChf and reconciles like any other liability. Returns
+  // undefined when nothing is owed, so no empty bucket is written.
+  private async getRefCreditLiability(): Promise<BalancesByFinancialType[string] | undefined> {
+    const { amountEur, amountChf } = await this.refRewardService.getOpenRefCreditLiability();
+    if (!(amountChf > 0)) return undefined;
+
+    return {
+      plusBalance: 0,
+      plusBalanceChf: 0,
+      minusBalance: Util.roundReadable(amountEur, AmountType.FIAT, 8),
+      minusBalanceChf: Util.roundReadable(amountChf, AmountType.FIAT, 8),
+    };
   }
 
   private async getTradingLog(): Promise<TradingLog> {
@@ -815,6 +850,48 @@ export class LogJobService {
       const manualDebtPosition = manualDebtPositions.find((p) => p.assetId === curr.id)?.value ?? 0;
 
       const { input: buyFiat, output: buyFiatPass } = this.getPendingAmounts([curr], pendingBuyFiat);
+
+      // fail-closed regression tripwire for the settlement-anchored sell liability (see BuyFiat.pendingOutputAmount).
+      // Runs only for bank assets, where transmitted-but-unsettled payouts must remain counted in buyFiatPass.
+      if (curr.bank != null) {
+        // independent re-computation of the liability that MUST be present for transmitted-but-unsettled payouts —
+        // deliberately NOT routed through pendingOutputAmount, so a re-introduced early drop cannot hide here too
+        const transmittedUnsettledTxs = pendingBuyFiat.filter(
+          (tx) =>
+            tx.outputAmount &&
+            tx.fiatOutput?.bank?.name === curr.bank?.name &&
+            curr.dexName === tx.sell?.fiat?.name &&
+            tx.fiatOutput?.isTransmittedDate &&
+            !tx.fiatOutput?.outputDate,
+        );
+        const transmittedUnsettled = transmittedUnsettledTxs.reduce((sum, tx) => sum + tx.outputAmount, 0);
+
+        // Deliberately escalates to error (vs this method's existing verbose anomalies): a missing liability
+        // silently overstates equity, so this must never fire in normal operation and signals a code regression.
+        // If the transmitted-unsettled liability is missing from buyFiatPass, a code change has re-introduced a
+        // premature (transmit-time) drop that silently overstates equity -> alarm loudly instead of emitting a wrong total.
+        if (transmittedUnsettled - buyFiatPass > BALANCE_TOLERANCE) {
+          this.logger.error(
+            `FinanceLog liability suppression on asset ${curr.id} (${curr.bank?.name}/${curr.dexName}): ` +
+              `transmitted-unsettled payouts ${transmittedUnsettled} exceed counted buyFiatPass ${buyFiatPass}`,
+          );
+        }
+
+        // settlement-SLA tripwire: a transmitted payout that never settles would keep a liability forever ->
+        // surface it for manual reconciliation rather than carrying a silent phantom. This is an ops-reconciliation
+        // signal (equity stays correct while a payout is stuck), so it warns rather than escalating to error.
+        const staleTransmitted = transmittedUnsettledTxs
+          .filter((tx) => Date.now() - tx.fiatOutput.isTransmittedDate.getTime() > SETTLEMENT_SLA_MS)
+          .reduce((sum, tx) => sum + tx.outputAmount, 0);
+
+        if (staleTransmitted > BALANCE_TOLERANCE) {
+          this.logger.warn(
+            `FinanceLog stale transmitted-unsettled payouts on asset ${curr.id} (${curr.bank?.name}/${curr.dexName}): ` +
+              `${staleTransmitted} past settlement SLA (${SETTLEMENT_SLA_HOURS}h)`,
+          );
+        }
+      }
+
       const { input: buyCrypto, output: buyCryptoPass } = this.getPendingAmounts([curr], filteredPendingBuyCrypto);
 
       const bankTxNull = this.getPendingAmounts(

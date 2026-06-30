@@ -205,6 +205,13 @@ export class SupportIssueController {
     return this.supportIssueService.getIssueFile(id, +messageId, jwt?.account);
   }
 
+  @Put(':id/close')
+  @ApiBearerAuth()
+  @UseGuards(OptionalJwtAuthGuard)
+  async closeIssue(@GetJwt() jwt: JwtPayload | undefined, @Param('id') id: string): Promise<SupportIssueDto> {
+    return this.supportIssueService.closeIssue(id, jwt?.account);
+  }
+
   // --- SUPPORT --- //
   @Put(':id')
   @ApiBearerAuth()

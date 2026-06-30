@@ -22,15 +22,56 @@ interface GraphQLPageInfo {
   endCursor: string;
 }
 
+const positionV2sQuery = gql`
+  query PositionV2s($after: String) {
+    positionV2s(after: $after) {
+      items {
+        id
+        position
+        owner
+        deuro
+        collateral
+        price
+        collateralSymbol
+        collateralBalance
+        collateralDecimals
+        limitForClones
+        availableForClones
+        principal
+        reserveContribution
+        expiration
+        closed
+        denied
+      }
+      pageInfo {
+        hasNextPage
+        hasPreviousPage
+        startCursor
+        endCursor
+      }
+    }
+  }
+`;
+
+const depsQuery = gql`
+  query Deps($id: String!) {
+    deps(id: $id) {
+      id
+      profits
+      loss
+      reserve
+    }
+  }
+`;
+
 export class DEuroClient {
   constructor(private readonly evmClient: EvmClient) {}
 
   async getPositionV2s(): Promise<DEuroPositionGraphDto[]> {
     let gqlResult = await request<{ positionV2s: { items: [DEuroPositionGraphDto]; pageInfo: GraphQLPageInfo } }>(
       Config.blockchain.deuro.graphUrl,
-      gql`
-        ${this.createGQLPositionV2s()}
-      `,
+      positionV2sQuery,
+      { after: null },
     );
 
     const positionV2s: DEuroPositionGraphDto[] = gqlResult.positionV2s.items;
@@ -38,48 +79,14 @@ export class DEuroClient {
     while (gqlResult.positionV2s.pageInfo.hasNextPage) {
       gqlResult = await request<{ positionV2s: { items: [DEuroPositionGraphDto]; pageInfo: GraphQLPageInfo } }>(
         Config.blockchain.deuro.graphUrl,
-        gql`
-          ${this.createGQLPositionV2s(gqlResult.positionV2s.pageInfo.endCursor)}
-        `,
+        positionV2sQuery,
+        { after: gqlResult.positionV2s.pageInfo.endCursor },
       );
 
       positionV2s.push(...gqlResult.positionV2s.items);
     }
 
     return positionV2s;
-  }
-
-  private createGQLPositionV2s(after?: string): string {
-    const gqlParams = after ? `(after: "${after}")` : '';
-
-    return `{
-        positionV2s${gqlParams} {
-          items {
-            id
-            position
-            owner
-            deuro
-            collateral
-            price
-            collateralSymbol
-            collateralBalance
-            collateralDecimals
-            limitForClones
-            availableForClones
-            principal
-            reserveContribution
-            expiration
-            closed
-            denied
-          }
-          pageInfo {
-            hasNextPage
-            hasPreviousPage
-            startCursor
-            endCursor
-          }
-        }
-      }`;
   }
 
   async getSavingsInfo(): Promise<DEuroSavingsInfoDto> {
@@ -91,18 +98,9 @@ export class DEuroClient {
   async getDEPS(): Promise<DEuroDepsGraphDto> {
     const address = ADDRESS[this.evmClient.chainId].decentralizedEURO;
 
-    const document = gql`
-      {
-        deps(id: "${address}") {
-          id
-          profits
-          loss
-          reserve
-        }
-      }
-    `;
-
-    return request<{ deps: DEuroDepsGraphDto }>(Config.blockchain.deuro.graphUrl, document).then((r) => r.deps);
+    return request<{ deps: DEuroDepsGraphDto }>(Config.blockchain.deuro.graphUrl, depsQuery, { id: address }).then(
+      (r) => r.deps,
+    );
   }
 
   getWalletAddress(): string {

@@ -89,7 +89,7 @@ export class DepositRouteService {
       .innerJoinAndSelect('depositRoute.user', 'user')
       .innerJoinAndSelect('user.userData', 'userData')
       .where(
-        `EXISTS (SELECT 1 FROM jsonb_array_elements_text((userData."paymentLinksConfig")::jsonb -> 'accessKeys') AS k WHERE k = :key)`,
+        `EXISTS (SELECT 1 FROM jsonb_array_elements_text(("userData"."paymentLinksConfig")::jsonb -> 'accessKeys') AS k WHERE k = :key)`,
         { key },
       )
       .andWhere('depositRoute.active = :active', { active: true })

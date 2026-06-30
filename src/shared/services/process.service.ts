@@ -91,6 +91,8 @@ export enum Process {
   TRADE_APPROVAL_DATE = 'TradeApprovalDate',
   SUPPORT_BOT = 'SupportBot',
   GUARANTEED_PRICE = 'GuaranteedPrice',
+  GS_DEBUG = 'GsDebug',
+  GS_DB = 'GsDb',
 }
 
 const safetyProcesses: Process[] = [
@@ -110,14 +112,29 @@ export function DisabledProcess(process: Process): boolean {
   return !DisabledProcesses || DisabledProcesses[process] === true;
 }
 
+// JWT address denylist. A leaked or compromised wallet address can be added to the
+// `jwtAddressDenylist` setting (lowercase, JSON string[]) and active JWTs for that address are
+// rejected within one refresh interval (~30s) — no JWT-secret rotation, no API redeploy. Setting
+// user.status = BLOCKED alone does NOT revoke active JWTs because UserActiveGuard reads status
+// from the JWT payload, not the DB. Lookup is sync (in-memory Set) to keep JwtStrategy.validate
+// off the DB hot path; refreshed by ProcessService alongside the disabled-process map.
+let DeniedJwtAddresses: Set<string> = new Set();
+
+export function IsJwtAddressDenied(address: string | undefined): boolean {
+  return !!address && DeniedJwtAddresses.has(address.toLowerCase());
+}
+
 @Injectable()
 export class ProcessService implements OnModuleInit {
   private safetyModeInactive = true;
 
   constructor(private readonly settingService: SettingService) {}
 
-  onModuleInit() {
+  async onModuleInit(): Promise<void> {
     void this.resyncDisabledProcesses();
+    // await so the JWT denylist is primed before HTTP starts — `IsJwtAddressDenied` defaults to
+    // false on an empty Set (fail-open), unlike DisabledProcess which is fail-closed by sentinel
+    await this.resyncDeniedJwtAddresses();
   }
 
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
@@ -128,6 +145,12 @@ export class ProcessService implements OnModuleInit {
       ...(this.safetyModeInactive ? [] : safetyProcesses),
     ];
     DisabledProcesses = this.listToMap(allDisabledProcesses);
+  }
+
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
+  async resyncDeniedJwtAddresses(): Promise<void> {
+    const list = await this.settingService.getDeniedJwtAddresses();
+    DeniedJwtAddresses = new Set(list.map((a) => a.toLowerCase()));
   }
 
   public async setSafetyModeActive(active: boolean): Promise<void> {

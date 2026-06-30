@@ -6,6 +6,7 @@ import {
   Get,
   NotFoundException,
   Param,
+  ParseIntPipe,
   Post,
   Put,
   Query,
@@ -75,8 +76,8 @@ export class SwapController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), SwapActiveGuard())
   @ApiOkResponse({ type: SwapDto })
-  async getSwap(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SwapDto> {
-    return this.swapService.get(jwt.user, +id).then((l) => this.toDto(jwt.user, l));
+  async getSwap(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<SwapDto> {
+    return this.swapService.get(jwt.user, id).then((l) => this.toDto(jwt.user, l));
   }
 
   @Post()
@@ -173,8 +174,8 @@ export class SwapController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard, SwapActiveGuard())
   @ApiOkResponse({ type: UnsignedTxDto })
-  async depositTx(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<UnsignedTxDto> {
-    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+  async depositTx(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<UnsignedTxDto> {
+    const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
@@ -190,10 +191,10 @@ export class SwapController {
   @ApiOkResponse({ type: TransactionDto })
   async confirmSwap(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: ConfirmDto,
   ): Promise<TransactionDto> {
-    const request = await this.transactionRequestService.getOrThrow(+id, jwt.user);
+    const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
 
@@ -206,18 +207,21 @@ export class SwapController {
   @ApiExcludeEndpoint()
   async updateSwapRoute(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() updateCryptoDto: UpdateSwapDto,
   ): Promise<SwapDto> {
-    return this.swapService.updateSwap(jwt.user, +id, updateCryptoDto).then((b) => this.toDto(jwt.user, b));
+    return this.swapService.updateSwap(jwt.user, id, updateCryptoDto).then((b) => this.toDto(jwt.user, b));
   }
 
   @Get(':id/history')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER))
   @ApiExcludeEndpoint()
-  async getSwapRouteHistory(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<HistoryDtoDeprecated[]> {
-    return this.buyCryptoService.getCryptoHistory(jwt.user, +id);
+  async getSwapRouteHistory(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id', ParseIntPipe) id: number,
+  ): Promise<HistoryDtoDeprecated[]> {
+    return this.buyCryptoService.getCryptoHistory(jwt.user, id);
   }
 
   // --- DTO --- //

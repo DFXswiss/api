@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Wallet } from 'ethers';
 import { verifyTypedData } from 'ethers/lib/utils';
+import { request } from 'graphql-request';
 import { EthereumService } from 'src/integration/blockchain/ethereum/ethereum.service';
 import { BrokerbotCurrency } from 'src/integration/blockchain/realunit/dto/realunit-broker.dto';
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
@@ -102,6 +103,12 @@ jest.mock('src/shared/utils/util', () => ({
     equalsIgnoreCase: (a?: string, b?: string) => a?.toLowerCase() === b?.toLowerCase(),
     isoDate: (date: Date) => date.toISOString().split('T')[0],
   },
+}));
+
+// keep the real `gql` tag (used by ./utils/queries), stub only the network `request`
+jest.mock('graphql-request', () => ({
+  ...jest.requireActual('graphql-request'),
+  request: jest.fn(),
 }));
 
 describe('RealUnitService', () => {
@@ -801,6 +808,57 @@ describe('RealUnitService', () => {
       const dto = buildDto(utf8Fields(hardwareWallet.address), signature);
 
       expect((service as any).resolveSignedRegistrationMessage(dto)).toBeUndefined();
+    });
+  });
+
+  describe('ponder queries (GraphQL injection protection)', () => {
+    const requestMock = request as jest.Mock;
+    const emptyHolders = {
+      totalSupplys: { items: [] },
+      accounts: {
+        items: [],
+        pageInfo: { endCursor: null, hasNextPage: false, hasPreviousPage: false, startCursor: null },
+        totalCount: 0,
+      },
+    };
+
+    // a real payload observed in prod against /v1/realunit/holders
+    const injection =
+      'zzz") { items { address } } __schema { queryType { name } } x: accounts(where: { balance_gt: "0" })';
+
+    it('passes the holders cursor as a GraphQL variable, never interpolated into the query', async () => {
+      requestMock.mockResolvedValue(emptyHolders);
+
+      await service.getHolders(2, undefined, injection);
+
+      expect(requestMock).toHaveBeenCalledTimes(1);
+      const [url, query, variables] = requestMock.mock.calls[0];
+      expect(url).toBe('https://mock-ponder.example.com');
+      expect(variables).toEqual({ limit: 2, before: null, after: injection });
+      // the query document is static and parameterized; the payload stays in variables only
+      expect(query).toContain('$after');
+      expect(query).not.toContain('__schema');
+      expect(query).not.toContain(injection);
+    });
+
+    it('sends the same static holders document regardless of the cursor value', async () => {
+      requestMock.mockResolvedValue(emptyHolders);
+
+      await service.getHolders(2, undefined, 'cursorA');
+      await service.getHolders(5, undefined, injection);
+
+      expect(requestMock.mock.calls[1][1]).toBe(requestMock.mock.calls[0][1]);
+    });
+
+    it('passes the account address as a variable, lower-cased', async () => {
+      requestMock.mockResolvedValue({ account: null });
+
+      await expect(service.getAccount('0xAbC')).rejects.toBeDefined();
+
+      const [, query, variables] = requestMock.mock.calls[0];
+      expect(variables).toEqual({ id: '0xabc' });
+      expect(query).toContain('$id');
+      expect(query).not.toContain('0xAbC');
     });
   });
 });
