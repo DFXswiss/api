@@ -356,6 +356,8 @@ Notes:
 - `requestedAmount` carries the **fiat** amount; `transferAmounts` lists the payable
   crypto amounts per chain (asset amounts are decimal strings, `minFee` is a number).
 - `currency` is not part of the success response (it's inside `requestedAmount.asset`).
+- `mode` here is the **link** mode (`Multiple` by default); the payment itself is `Single`
+  and still completes normally — see [§8.2](#82-when-does-a-payment-complete).
 
 ---
 
@@ -375,24 +377,24 @@ A link offers one or more standards (default: `OpenCryptoPay`). The pay request'
 
 `PaymentLinkPayRequest` (returned by the invoice and LNURL endpoints):
 
-| Field                         | Type    | Meaning                                                                   |
-| ----------------------------- | ------- | ------------------------------------------------------------------------- |
-| `id`                          | string  | Link uniqueId (`pl_…`).                                                   |
-| `externalId`                  | string? | The link's external id (derived `message/amount` if you didn't pass one). |
-| `tag`                         | string  | Always `"payRequest"` (LNURL discriminator).                              |
-| `callback`                    | string  | LNURL callback URL the wallet calls next.                                 |
-| `minSendable` / `maxSendable` | number  | Payable amount in **millisatoshi** (equal — fixed amount).                |
-| `metadata`                    | string  | LNURL metadata, `[["text/plain","<payee> - <ccy> <amount>"]]`.            |
-| `displayName`                 | string  | Payee display name.                                                       |
-| `standard`                    | enum    | Active standard.                                                          |
-| `possibleStandards`           | enum[]  | All standards the link supports.                                          |
-| `displayQr`                   | boolean | Whether the UI should render a QR.                                        |
-| `recipient`                   | object  | Payee details (name, address, phone, mail, website, …).                   |
-| `mode`                        | enum    | `Single` / `Multiple` / `Public`.                                         |
-| `route`                       | string? | Route label.                                                              |
-| `quote`                       | object  | `{ id, expiration, payment }` — the price quote this request is bound to. |
-| `requestedAmount`             | object  | `{ asset, amount }` in **fiat** (the requested invoice amount).           |
-| `transferAmounts`             | array   | Payable crypto amounts per chain — see below.                             |
+| Field                         | Type    | Meaning                                                                                                   |
+| ----------------------------- | ------- | --------------------------------------------------------------------------------------------------------- |
+| `id`                          | string  | Link uniqueId (`pl_…`).                                                                                   |
+| `externalId`                  | string? | The link's external id (derived `message/amount` if you didn't pass one).                                 |
+| `tag`                         | string  | Always `"payRequest"` (LNURL discriminator).                                                              |
+| `callback`                    | string  | LNURL callback URL the wallet calls next.                                                                 |
+| `minSendable` / `maxSendable` | number  | Payable amount in **millisatoshi** (equal — fixed amount).                                                |
+| `metadata`                    | string  | LNURL metadata, `[["text/plain","<payee> - <ccy> <amount>"]]`.                                            |
+| `displayName`                 | string  | Payee display name.                                                                                       |
+| `standard`                    | enum    | Active standard.                                                                                          |
+| `possibleStandards`           | enum[]  | All standards the link supports.                                                                          |
+| `displayQr`                   | boolean | Whether the UI should render a QR.                                                                        |
+| `recipient`                   | object  | Payee details (name, address, phone, mail, website, …).                                                   |
+| `mode`                        | enum    | Link mode: `Single` (one payment), `Multiple` (reusable), or `Public` (reusable, payer-initiated amount). |
+| `route`                       | string? | Route label.                                                                                              |
+| `quote`                       | object  | `{ id, expiration, payment }` — the price quote this request is bound to.                                 |
+| `requestedAmount`             | object  | `{ asset, amount }` in **fiat** (the requested invoice amount).                                           |
+| `transferAmounts`             | array   | Payable crypto amounts per chain — see below.                                                             |
 
 ### 7.2 `transferAmounts`
 
@@ -430,15 +432,23 @@ number of quotes that reached the completion threshold).
 ### 8.2 When does a payment complete?
 
 A merchant config field, **`minCompletionStatus`**, decides how far a transaction must get
-before the payment auto-completes (in `Single` mode):
+before the payment auto-completes:
 
 - **`TxMempool`** (default) — completes as soon as the paying transaction is seen
   (pre-confirmation). Fast; suited to on-premises point-of-sale.
 - **`TxBlockchain`** — requires on-chain inclusion (≥ 1 confirmation) before completing.
   Recommended for remote or higher-value payments.
 
-In `Multiple` mode the payment stays `Pending` and only `txCount` increases (tip-jar /
-reusable links).
+Auto-completion is driven by the **payment** mode (`Single` / `Multiple`), which is
+separate from the **link** mode reported in the pay request (`Single` / `Multiple` /
+`Public`):
+
+- A **`Single` payment** — which the invoice / `GET …/paymentLink/payment` flow always
+  creates — flips to `Completed` once a transaction reaches the threshold. This holds even
+  though the link's own `mode` typically reads `Multiple` (the default link mode you see in
+  the §6.4 example); the link mode does not prevent a single payment from completing.
+- A **`Multiple` payment** (reusable tip-jar links) stays `Pending` and only `txCount`
+  increases per qualifying transaction.
 
 ### 8.3 Expiry — two separate clocks
 
@@ -636,7 +646,7 @@ function invoiceQrUrl({ route, amount, invoiceId, validUntil }) {
 ```
 
 Then verify each incoming webhook's `X-Payload-Signature` ([§9.1](#91-verifying-the-signature))
-and act on `payment.status === 'Completed'`, deduping on `payment.id`.
+and act on `payment.status === 'Completed'`, deduping on `payment.id` + `payment.status`.
 
 ---
 
