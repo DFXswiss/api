@@ -344,25 +344,30 @@ and consistent — no untyped failures, no silent passes:
 - API key / webhook secret only from config/secret storage; never logged, never committed.
 - Commits **signed**; PR opened as **Draft**.
 
-## 12. Open questions (for reviewers)
+## 12. Resolved decisions
 
-1. **AML modelling:** reuse `AmlError.FORCE_MANUAL_CHECK` / `AmlReason.MANUAL_CHECK`, or add
-   a dedicated Scorechain `AmlError` + `AmlReason` (both mapped to `CheckStatus.PENDING` for
-   manual review)? Who owns the threshold config?
-2. **TMS depth:** the synchronous gate is `scoringAnalysis`. Do we **also** run the async
-   TMS workflow (`registerDeposit`/`registerWithdrawal` → scenarios/alerts) for the full
-   rules engine + audit trail, or start with `scoringAnalysis` alone? (`register*` is a
-   license-gated TMS feature — `NotIncludedInLicense`.)
-3. **Signature verification:** adopt the Scorechain JS SDK, or implement RSA-SHA256
-   verification with Node `crypto` (no new dependency)?
-4. **Quota policy at limit:** fail-closed (→ manual review) vs. fail-open + alert? Spec
-   recommends fail-closed.
-5. **ikna coexistence:** any short-term routing rule (which chains/flows go to which
-   provider), or run both fully in parallel and compare?
-6. **Exact call-sites** — the deposit gate on the sell-crypto / buy-crypto-swap pay-in path,
-   the withdrawal gate on the buy-crypto / payout path — confirm during review.
-7. **Alert delivery:** inbound webhook (`ScenarioAlertCallback`) vs. scheduled polling of
-   `/scenarios/alerts` — which is acceptable for our infra?
+1. **AML modelling:** dedicated `AmlError.SCORECHAIN_HIGH_RISK`, mapped in `aml-error.enum.ts`
+   to `{ type: CRUCIAL, amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK }`.
+   A dedicated error keeps Scorechain-triggered reviews distinguishable in logs/stats while
+   reusing the existing `AmlReason`. Thresholds are config-driven (`SCORECHAIN_RISK_THRESHOLD`).
+2. **TMS depth:** start with the **synchronous `scoringAnalysis` gate only**. The async TMS
+   workflow (`register*`) is a license-gated feature (`NotIncludedInLicense`) and is kept as
+   an opt-in extension; the client methods exist but are not wired into the gate.
+3. **Signature verification:** implemented manually via `Util.verifySign` (RSA-SHA256, PKCS8
+   PEM), no JS SDK. The signed input is the response body combined with `X-Server-Time`; both
+   concatenation orders are accepted. Fail-closed.
+4. **Quota policy at limit:** fail-closed — a reached `SCORECHAIN_MONTHLY_CHECK_LIMIT` throws
+   `ServiceUnavailableException`, routing the transaction to manual review.
+5. **ikna coexistence:** run both fully in parallel (no routing rule); Scorechain is additive.
+6. **Live pipeline injection (call-sites):** the screening seam is complete
+   (`screenDepositTransaction` / `screenWithdrawalAddress` / `isHighRisk` → push
+   `AmlError.SCORECHAIN_HIGH_RISK`). Injecting the async screening into the synchronous
+   `getAmlResult`/`getAmlErrors` pipeline of every buy/sell transaction is staged as a
+   separately integration-tested step (it changes core-flow behaviour for all flows and needs
+   a DB + Scorechain sandbox to validate end-to-end) — not wired blind in this PR.
+7. **Alert delivery:** inbound webhook (`ScenarioAlertCallback`), authenticated by the same
+   `X-Signature` proof of authenticity via `ScorechainWebhookGuard`; `/scenarios/checks`
+   polling remains available as a fallback.
 
 ## 13. Testing (covers the complete surface)
 

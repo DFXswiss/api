@@ -1107,7 +1107,6 @@ export class Configuration {
 
   scorechain = {
     apiKey: process.env.SCORECHAIN_API_KEY,
-    webhookSecret: process.env.SCORECHAIN_WEBHOOK_SECRET,
     publicKey: process.env.SCORECHAIN_PUBLIC_KEY,
     riskThreshold: +(process.env.SCORECHAIN_RISK_THRESHOLD ?? 50),
     monthlyCheckLimit: process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT

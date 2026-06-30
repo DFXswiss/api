@@ -1,9 +1,9 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { AxiosResponse } from 'axios';
-import * as crypto from 'crypto';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
+import { Util } from 'src/shared/utils/util';
 import {
   PendingTransactionResponse,
   RegisterDepositRequest,
@@ -98,19 +98,20 @@ export class ScorechainService {
     return { data, signatureValid };
   }
 
-  // Proof of authenticity: RSA-SHA256, signature in the X-Signature header, key from /publicKeys.
-  // NOTE: the exact canonical signing input (response body only vs. X-Server-Time + body) must be
-  // confirmed against the Scorechain SDK before this is relied upon in production (spec §12, Q3).
   private verifySignature(rawBody: string, headers: Record<string, unknown>): boolean {
-    const signature = headers?.['x-signature'] as string | undefined;
+    return this.isValidSignature(rawBody, headers?.['x-signature'] as string, headers?.['x-server-time'] as string);
+  }
+
+  // Proof of authenticity (also reused for the TMS webhook): RSA-SHA256 over the response body
+  // combined with X-Server-Time (unix), key from /publicKeys (PKCS8 PEM). The OpenAPI does not
+  // pin the concatenation order, so both compositions are accepted. Fail-closed.
+  isValidSignature(rawBody: string, signature?: string, serverTime?: string | number): boolean {
     const publicKey = Config.scorechain.publicKey;
     if (!signature || !publicKey || !rawBody) return false;
 
+    const candidates = [`${rawBody}${serverTime ?? ''}`, `${serverTime ?? ''}${rawBody}`];
     try {
-      const verifier = crypto.createVerify('RSA-SHA256');
-      verifier.update(rawBody);
-      verifier.end();
-      return verifier.verify(publicKey, signature, 'base64');
+      return candidates.some((data) => Util.verifySign(data, publicKey, signature, 'sha256', 'base64'));
     } catch (e) {
       this.logger.warn(`Scorechain signature verification error: ${e.message}`);
       return false;

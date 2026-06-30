@@ -1,13 +1,11 @@
-import { Body, Controller, ForbiddenException, Headers, Post } from '@nestjs/common';
+import { Body, Controller, Post, UseGuards } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
-import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { ScorechainAlert } from '../dto/scorechain.dto';
+import { ScorechainWebhookGuard } from '../guards/scorechain-webhook.guard';
 
-// Receives TMS scenario alerts pushed by Scorechain (ScenarioAlertCallback).
-// NOTE: the exact callback authentication scheme must be confirmed with the provider; a
-// shared secret header is assumed here. Routing the alert into the AML manual-review flow
-// is the open call-site decision (spec §12, Q6/Q7).
+// Receives TMS scenario alerts pushed by Scorechain (ScenarioAlertCallback). The request is
+// authenticated by ScorechainWebhookGuard via the X-Signature proof of authenticity.
 @ApiTags('scorechain')
 @Controller('scorechain')
 export class ScorechainWebhookController {
@@ -15,11 +13,9 @@ export class ScorechainWebhookController {
 
   @Post('webhook')
   @ApiExcludeEndpoint()
-  async handleAlert(@Headers('x-webhook-secret') secret: string, @Body() alert: ScorechainAlert): Promise<void> {
-    if (!Config.scorechain.webhookSecret || secret !== Config.scorechain.webhookSecret) {
-      throw new ForbiddenException('Invalid Scorechain webhook secret');
-    }
-
+  @UseGuards(ScorechainWebhookGuard)
+  async handleAlert(@Body() body: Buffer | ScorechainAlert): Promise<void> {
+    const alert: ScorechainAlert = Buffer.isBuffer(body) ? JSON.parse(body.toString()) : body;
     this.logger.info(`Scorechain TMS alert received: ${JSON.stringify(alert)}`);
     // TODO(spec §12 Q6/Q7): correlate `alert.identifier` to the originating tx and raise the
     // AML manual-review signal (AmlError → CheckStatus.PENDING).
