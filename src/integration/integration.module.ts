@@ -7,6 +7,7 @@ import { ExchangeModule } from './exchange/exchange.module';
 import { IknaModule } from './ikna/ikna.module';
 import { AppInsightsQueryService } from './infrastructure/app-insights-query.service';
 import { LetterModule } from './letter/letter.module';
+import { ScorechainModule } from './scorechain/scorechain.module';
 import { SiftModule } from './sift/sift.module';
 
 @Module({
@@ -19,6 +20,7 @@ import { SiftModule } from './sift/sift.module';
     IknaModule,
     CheckoutModule,
     SiftModule,
+    ScorechainModule,
   ],
   controllers: [],
   providers: [AppInsightsQueryService],
@@ -31,6 +33,7 @@ import { SiftModule } from './sift/sift.module';
     CheckoutModule,
     AppInsightsQueryService,
     SiftModule,
+    ScorechainModule,
   ],
 })
 export class IntegrationModule {}
