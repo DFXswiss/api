@@ -180,4 +180,15 @@ describe('BuyFiat entity', () => {
       expect(entity.amlCheck).toBe(CheckStatus.PASS);
     });
   });
+
+  describe('#resetAmlCheck()', () => {
+    it('clears amlPostProcessed so the reset verdict is re-processed once it is re-evaluated', () => {
+      const entity = createCustomBuyFiat({ amlPostProcessed: true });
+
+      const [, update] = entity.resetAmlCheck();
+
+      expect(update.amlPostProcessed).toBe(false);
+      expect(entity.amlPostProcessed).toBe(false);
+    });
+  });
 });

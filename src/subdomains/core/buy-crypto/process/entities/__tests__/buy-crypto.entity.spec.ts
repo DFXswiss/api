@@ -670,4 +670,15 @@ describe('BuyCrypto', () => {
       expect(AmlHelperService.getAmlResult).toHaveBeenCalledTimes(1);
     });
   });
+
+  describe('#resetAmlCheck()', () => {
+    it('clears amlPostProcessed so the reset verdict is re-processed once it is re-evaluated', () => {
+      const entity = createCustomBuyCrypto({ amlPostProcessed: true });
+
+      const [, update] = entity.resetAmlCheck();
+
+      expect(update.amlPostProcessed).toBe(false);
+      expect(entity.amlPostProcessed).toBe(false);
+    });
+  });
 });
