@@ -122,7 +122,7 @@ export class SupportEscalationService {
 
     // auto-discover the target group from the "bot added to group" event, so it works
     // by simply inviting the bot — no manual binding step required
-    let chatId = await this.settingService.get(CHAT_ID_KEY);
+    let chatId = await this.getBoundChatId();
     if (!chatId) {
       const bound = await this.bindGroupChat();
       chatId = bound && String(bound.id);
@@ -183,10 +183,12 @@ export class SupportEscalationService {
     await this.settingService.setObj(LIMIT_NOTIFIED_KEY, next);
   }
 
+  private ticketLink(issue: SupportIssue): string | undefined {
+    return Config.frontend.services ? `${Config.frontend.services}/support/dashboard/issue/${issue.id}` : undefined;
+  }
+
   private buildLimitRequestMessage(issue: SupportIssue): string {
-    const link = Config.frontend.services
-      ? `${Config.frontend.services}/support/dashboard/issue/${issue.id}`
-      : undefined;
+    const link = this.ticketLink(issue);
     const lines = [
       '📈 <b>Neuer Limit-Antrag</b>',
       `Kunde: ${this.escape(issue.name)}`,
@@ -199,9 +201,7 @@ export class SupportEscalationService {
   private buildMessage(issue: SupportIssue, waitingSince: Date): string {
     const hours = (Date.now() - waitingSince.getTime()) / (60 * 60 * 1000);
     const waited = hours < 24 ? `${Math.floor(hours)}h` : `${Math.floor(hours / 24)}d ${Math.floor(hours % 24)}h`;
-    const link = Config.frontend.services
-      ? `${Config.frontend.services}/support/dashboard/issue/${issue.id}`
-      : undefined;
+    const link = this.ticketLink(issue);
 
     const type = SupportIssueTypeLabelMap[issue.type] ?? issue.type;
     const reason = SupportIssueReasonLabelMap[issue.reason] ?? issue.reason;

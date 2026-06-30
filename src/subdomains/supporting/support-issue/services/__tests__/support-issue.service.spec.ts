@@ -319,6 +319,25 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
     expect(dto.trend.length).toBeGreaterThanOrEqual(12);
   });
 
+  it('rolls daily rows up into their month buckets and sums to total', async () => {
+    const now = new Date();
+    const thisMonth = new Date(now.getFullYear(), now.getMonth(), 15);
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 15);
+    trendRows = [
+      { d: thisMonth, count: '4' },
+      { d: lastMonth, count: '3' },
+    ];
+    totalCount = 7;
+
+    const dto = await service.getSupportIssueStatistics(UserRole.ADMIN, 365);
+
+    const monthKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+    const byKey = Object.fromEntries(dto.trend.map((b) => [b.key, b.count]));
+    expect(byKey[monthKey(thisMonth)]).toBe(4);
+    expect(byKey[monthKey(lastMonth)]).toBe(3);
+    expect(dto.trend.reduce((sum, b) => sum + b.count, 0)).toBe(dto.total);
+  });
+
   it('falls back to the default period for a non-numeric days value', async () => {
     const dto = await service.getSupportIssueStatistics(UserRole.ADMIN, NaN);
     expect(dto.periodDays).toBe(365);

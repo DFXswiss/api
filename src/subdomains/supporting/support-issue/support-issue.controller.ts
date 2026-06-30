@@ -159,7 +159,7 @@ export class SupportIssueController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportIssueClerk(@GetJwt() jwt: JwtPayload): Promise<{ clerk: string | null }> {
-    return { clerk: (await this.supportIssueService.getSupportClerkForAccount(jwt.account)) ?? null };
+    return { clerk: (await this.supportIssueService.getSupportIssueClerkForAccount(jwt.account)) ?? null };
   }
 
   @Get(':id')

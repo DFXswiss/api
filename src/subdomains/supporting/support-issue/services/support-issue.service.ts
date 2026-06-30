@@ -73,7 +73,7 @@ export class SupportIssueService {
 
   // Resolves the clerk name assigned to a support account via the `supportClerkAccounts`
   // setting ([{ account, name }]). Returns undefined if the account is unmapped.
-  async getSupportClerkForAccount(account: number): Promise<string | undefined> {
+  async getSupportIssueClerkForAccount(account: number): Promise<string | undefined> {
     const clerks = await this.settingService.getObj<SupportClerkAccountDto[]>('supportClerkAccounts', []);
     return clerks.find((c) => c.account === account)?.name;
   }

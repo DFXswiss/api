@@ -276,7 +276,7 @@ export class SupportIssueListDto {
   @ApiProperty({ type: Date })
   created: Date;
 
-  @ApiProperty({ type: Date, description: 'Last update timestamp' })
+  @ApiProperty({ type: Date })
   updated: Date;
 
   @ApiProperty()
