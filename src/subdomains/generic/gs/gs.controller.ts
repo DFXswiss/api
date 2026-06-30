@@ -12,8 +12,8 @@ import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { DebugQueryDto, DebugQueryResult } from './dto/debug-query.dto';
 import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
+import { DebugWhereTreeGuard } from './guards/debug-where-tree.guard';
 import { GsService } from './gs.service';
-import { DebugQueryTreeSizePipe } from './pipes/debug-query-tree-size.pipe';
 
 @Controller('gs')
 export class GsController {
@@ -57,18 +57,15 @@ export class GsController {
   // Structured debug endpoint. Takes a JSON description of the query (table, select, where,
   // group/order/limit) and emits SQL via QueryBuilder with parameter binding — no raw SQL is
   // accepted, parsed, or interpolated.
+  // `DebugWhereTreeGuard` runs before the pipes (guards → interceptors → pipes), so it bounds
+  // the raw WHERE tree before the global `ValidationPipe`'s recursive `plainToInstance` — and
+  // the audit serializer's `JSON.stringify` — can stack-overflow on a malicious
+  // `not → child → not → …` chain.
   @Post('debug')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
-  async executeDebugQuery(
-    @GetJwt() jwt: JwtPayload,
-    // `DebugQueryTreeSizePipe` runs on the raw body before the global `ValidationPipe`'s
-    // recursive `plainToInstance` — bounds the WHERE tree iteratively so a malicious
-    // `not → child → not → …` chain can't stack-overflow the validator or the audit
-    // serializer.
-    @Body(DebugQueryTreeSizePipe) dto: DebugQueryDto,
-  ): Promise<DebugQueryResult> {
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard(), DebugWhereTreeGuard)
+  async executeDebugQuery(@GetJwt() jwt: JwtPayload, @Body() dto: DebugQueryDto): Promise<DebugQueryResult> {
     if (DisabledProcess(Process.GS_DEBUG)) throw new ForbiddenException('Endpoint disabled');
 
     return this.gsService.executeDebugQuery(dto, jwt.address ?? `account:${jwt.account}`);

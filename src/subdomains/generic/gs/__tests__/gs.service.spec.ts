@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ExecutionContext } from '@nestjs/common';
 import { createMock } from '@golevelup/ts-jest';
 import { DataSource } from 'typeorm';
 import { AppInsightsQueryService } from 'src/integration/infrastructure/app-insights-query.service';
@@ -40,7 +40,7 @@ import { ConfigService } from 'src/config/config';
 import { DebugAggregate, DebugQueryDto, DebugWhereNode, DebugWhereOp } from '../dto/debug-query.dto';
 import { plainToInstance } from 'class-transformer';
 import { validate, ValidationError } from 'class-validator';
-import { DebugQueryTreeSizePipe } from '../pipes/debug-query-tree-size.pipe';
+import { DebugWhereTreeGuard } from '../guards/debug-where-tree.guard';
 
 // Shape of a document as it travels through setUserDataDocs (a KycFileBlob with the relevant fields set).
 type KycFileDoc = Pick<KycFileBlob, 'path' | 'url' | 'name'> & { created: Date };
@@ -2447,25 +2447,31 @@ describe('DebugQueryDto - ValidationPipe layer', () => {
     expect(constraintNames(errors)).toContain(expectedConstraint);
   });
 
-  it('rejects a linear NOT-chain via DebugQueryTreeSizePipe before validation can stack-overflow', () => {
+  // Mock just enough ExecutionContext for the guard to read `req.body`.
+  const guardCtx = (body: unknown): ExecutionContext =>
+    ({ switchToHttp: () => ({ getRequest: () => ({ body }) }) }) as unknown as ExecutionContext;
+
+  it('rejects a linear NOT-chain via DebugWhereTreeGuard before validation can stack-overflow', () => {
     // class-transformer's `plainToInstance` recurses through `@Type(() => DebugWhereNode)`,
     // so the global `ValidationPipe` itself stack-overflows on a deep chain (verified
-    // empirically). The controller-method-scoped `DebugQueryTreeSizePipe` runs FIRST, walks
-    // the raw body iteratively, and rejects oversized trees with a clean 400.
+    // empirically). `DebugWhereTreeGuard` runs FIRST (guards precede pipes), walks the raw
+    // body iteratively, and rejects oversized trees with a clean 400.
     let chain: unknown = { kind: 'leaf', column: 'id', op: '=', value: 1 };
     for (let i = 0; i < 10000; i++) chain = { kind: 'not', child: chain };
-    const pipe = new DebugQueryTreeSizePipe();
+    const guard = new DebugWhereTreeGuard();
     expect(() =>
-      pipe.transform({
-        table: 'asset',
-        select: [{ kind: 'column', column: 'id' }],
-        where: chain,
-        limit: 10,
-      }),
+      guard.canActivate(
+        guardCtx({
+          table: 'asset',
+          select: [{ kind: 'column', column: 'id' }],
+          where: chain,
+          limit: 10,
+        }),
+      ),
     ).toThrow(/WHERE tree exceeds caps/);
   });
 
-  it('rejects a wide-and-shallow tree via DebugQueryTreeSizePipe (node-count cap)', () => {
+  it('rejects a wide-and-shallow tree via DebugWhereTreeGuard (node-count cap)', () => {
     // Width 5 × depth 5 = 5^5 leaves is allowed by the per-level `@ArrayMaxSize(5)` cap,
     // but the total node-count cap kicks in earlier. Synthesize a tree that exceeds the
     // node cap regardless of depth.
@@ -2477,13 +2483,15 @@ describe('DebugQueryDto - ValidationPipe layer', () => {
     // safely over the 200-node cap.
     let tree: unknown = wide(5);
     for (let d = 0; d < 4; d++) tree = { kind: 'and', children: Array.from({ length: 5 }, () => tree) };
-    const pipe = new DebugQueryTreeSizePipe();
+    const guard = new DebugWhereTreeGuard();
     expect(() =>
-      pipe.transform({ table: 'asset', select: [{ kind: 'column', column: 'id' }], where: tree, limit: 10 }),
+      guard.canActivate(
+        guardCtx({ table: 'asset', select: [{ kind: 'column', column: 'id' }], where: tree, limit: 10 }),
+      ),
     ).toThrow(/WHERE tree exceeds caps/);
   });
 
-  it('lets a benign small tree pass DebugQueryTreeSizePipe unchanged', () => {
+  it('lets a benign small tree pass DebugWhereTreeGuard', () => {
     const body = {
       table: 'asset',
       select: [{ kind: 'column', column: 'id' }],
@@ -2496,8 +2504,15 @@ describe('DebugQueryDto - ValidationPipe layer', () => {
       },
       limit: 10,
     };
-    const pipe = new DebugQueryTreeSizePipe();
-    expect(pipe.transform(body)).toBe(body);
+    const guard = new DebugWhereTreeGuard();
+    expect(guard.canActivate(guardCtx(body))).toBe(true);
+  });
+
+  it('passes DebugWhereTreeGuard when the body has no WHERE tree', () => {
+    const guard = new DebugWhereTreeGuard();
+    expect(guard.canActivate(guardCtx({ table: 'asset', select: [{ kind: 'column', column: 'id' }], limit: 10 }))).toBe(
+      true,
+    );
   });
 
   it('rejects an AND tree with >5 children per node (DebugQueryMaxAndOrChildren)', async () => {

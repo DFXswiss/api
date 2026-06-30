@@ -28,14 +28,15 @@ import {
 // here. To add functionality (CASE, window funcs, OR-with-NOT-NULL, …) extend the schema
 // explicitly. There is no escape hatch.
 
-// Maximum nesting depth of a WHERE tree (and/or/not nesting). Enforced at the DTO layer
-// by `@MaxWhereTreeSize` (iterative walk, so the tree is rejected by ValidationPipe before
-// the audit log's JSON.stringify can stack-overflow on it) and re-enforced by the service
-// walker.
+// Maximum nesting depth of a WHERE tree (and/or/not nesting). Enforced primarily by
+// `DebugWhereTreeGuard` (an iterative walk that runs before the pipes, so the tree is rejected
+// before the ValidationPipe's recursive plainToInstance / the audit log's JSON.stringify can
+// stack-overflow on it), and re-enforced by the `@MaxWhereTreeSize` DTO validator and the
+// service walker as defense in depth.
 export const DebugQueryMaxWhereDepth = 5;
-// Maximum total number of nodes in the WHERE tree (internal AND/OR/NOT + leaves), enforced
-// at the DTO layer by `@MaxWhereTreeSize`. A linear NOT-chain has no children-width cap, so
-// this is the only thing that bounds it before the recursive walk fires.
+// Maximum total number of nodes in the WHERE tree (internal AND/OR/NOT + leaves). A linear
+// NOT-chain has no children-width cap, so this node-count cap is what bounds it; enforced by
+// `DebugWhereTreeGuard` before the recursive walk fires, and re-checked by `@MaxWhereTreeSize`.
 export const DebugQueryMaxWhereNodes = 200;
 // Maximum total number of leaf predicates across the entire WHERE tree. Counted in the
 // service walker; covers all-leaf trees.
@@ -231,11 +232,11 @@ export class DebugQueryDto {
 
   // WHERE tree. Optional. If absent, the SQL has no WHERE clause.
   //
-  // The `DebugQueryTreeSizePipe` on the controller method runs BEFORE the global
-  // `ValidationPipe`'s recursive `plainToInstance`, so a malicious `not → child → not → …`
-  // chain that would stack-overflow `@Type`'s recursion (and the audit log's
-  // `JSON.stringify`) is rejected with a clean 400. `@MaxWhereTreeSize` here is a
-  // belt-and-braces downstream check on the instantiated tree.
+  // The `DebugWhereTreeGuard` on the controller method runs BEFORE the pipes, so a malicious
+  // `not → child → not → …` chain that would stack-overflow the global `ValidationPipe`'s
+  // recursive `plainToInstance` (and the audit log's `JSON.stringify`) is rejected with a clean
+  // 400 before that recursion ever fires. `@MaxWhereTreeSize` here is a belt-and-braces
+  // downstream check on the instantiated tree.
   @IsOptional()
   @MaxWhereTreeSize()
   @IsObject()
