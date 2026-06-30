@@ -243,6 +243,32 @@ export class SwissQRService {
     return `${txHash.slice(0, 8)}...${txHash.slice(-8)}`;
   }
 
+  // Format an execution timestamp in the Swiss time zone (DST-safe) for RealUnit receipts
+  private formatChDateParts(date: Date): { day: number; month: number; year: number; hour: string; minute: string } {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Zurich',
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    }).formatToParts(date);
+    const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? '';
+    return {
+      day: Number(get('day')),
+      month: Number(get('month')),
+      year: Number(get('year')),
+      hour: get('hour'),
+      minute: get('minute'),
+    };
+  }
+
+  private formatChDateTime(date: Date): string {
+    const p = this.formatChDateParts(date);
+    return `${p.day}.${p.month}.${p.year} ${p.hour}:${p.minute}`;
+  }
+
   private async generatePdfInvoice(
     tableData: SwissQRBillTableData,
     language: string,
@@ -262,18 +288,22 @@ export class SwissQRService {
     this.drawDebtorAddress(pdf, billData.debtor, debtorName);
     this.drawTitle(pdf, tableData.title);
 
-    // Date (+ time for RealUnit)
+    // Date (+ time for RealUnit, formatted in Swiss time zone)
     const d = tableData.date;
-    const creditorCity = billData.creditor?.city || 'Zug';
-    const dateStr = `${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`;
-    const timeStr = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
-
     pdf.fontSize(11);
     pdf.font('Helvetica');
-    pdf.text(isRealUnit ? `${creditorCity}, ${dateStr} ${timeStr}` : `Zug ${dateStr}`, {
-      align: 'right',
-      width: mm2pt(170),
-    });
+    if (isRealUnit) {
+      const creditorCity = billData.creditor?.city ?? 'Baar';
+      pdf.text(`${creditorCity}, ${this.formatChDateTime(d)}`, {
+        align: 'right',
+        width: mm2pt(170),
+      });
+    } else {
+      pdf.text(`Zug ${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`, {
+        align: 'right',
+        width: mm2pt(170),
+      });
+    }
 
     // Description key: use RealUnit-specific key when applicable
     const descriptionKey = isRealUnit
@@ -498,11 +528,7 @@ export class SwissQRService {
   }
 
   private drawReceiptDetails(pdf: typeof PDFDocument.prototype, tableData: SwissQRBillTableData, lang: string): void {
-    const startY = pdf.y + 15;
     const labelX = mm2pt(20);
-
-    pdf.font('Helvetica-Bold').fontSize(11);
-    pdf.text(this.translate('invoice.realunit_receipt.details_title', lang), labelX, startY);
 
     const details: { label: string; value: string }[] = [];
 
@@ -532,11 +558,21 @@ export class SwissQRService {
       value: this.translate('invoice.realunit_receipt.payment_method_blockchain', lang),
     });
 
+    // Start a new page if title + all detail rows would not fit on the current page.
+    // Long values (wallet, tx hash) wrap to a second line, so reserve up to two lines per
+    // detail plus a safety margin — overestimate on purpose so nothing gets cut off.
+    const estimatedHeight = 15 + 22 + details.length * 26 + 10;
+    if (pdf.y + estimatedHeight > pdf.page.height - pdf.page.margins.bottom) pdf.addPage();
+
+    pdf.font('Helvetica-Bold').fontSize(11);
+    pdf.text(this.translate('invoice.realunit_receipt.details_title', lang), labelX, pdf.y + 15);
+
     pdf.fontSize(10);
-    let currentY = startY + 18;
+    let currentY = pdf.y + 8;
     for (const { label, value } of details) {
-      pdf.font('Helvetica-Bold').text(`${label}:`, labelX, currentY, { continued: true });
-      pdf.font('Helvetica').text(`  ${value}`, { width: mm2pt(150) });
+      // width must sit on the first (label) segment of the continued chain to wrap long values (wallet/tx hash)
+      pdf.font('Helvetica-Bold').text(`${label}:`, labelX, currentY, { continued: true, width: mm2pt(150) });
+      pdf.font('Helvetica').text(`  ${value}`);
       currentY = pdf.y + 4;
     }
   }
@@ -607,7 +643,7 @@ export class SwissQRService {
     const buildDataRow = (tableData: SwissQRBillTableData, txType: TransactionType): PDFRow => {
       const txDate = tableData.date;
       const formattedDate = isRealUnit
-        ? `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()} ${String(txDate.getHours()).padStart(2, '0')}:${String(txDate.getMinutes()).padStart(2, '0')}`
+        ? this.formatChDateTime(txDate)
         : `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()}`;
 
       const descKey = isRealUnit
@@ -645,19 +681,49 @@ export class SwissQRService {
       return { columns: cols, height: 25, padding: 5 };
     };
 
-    if (buyTransactions.length > 0) {
-      rows.push(buildSectionHeader('buy'));
-      rows.push(buildTableHeader());
-      for (const { data, type } of buyTransactions) rows.push(buildDataRow(data, type));
-      rows.push(buildSubtotalRow(buyTotal));
-    }
+    // Full on-chain tx hash per position (verifiable reference), rendered as a slim full-width row
+    const buildTxHashRow = (txHash: string): PDFRow => ({
+      columns: [
+        {
+          text: `${this.translate('invoice.realunit_receipt.tx_hash_label', lang)}: ${txHash}`,
+          fontSize: 8,
+          width: mm2pt(170),
+        },
+      ],
+      padding: [0, 5, 5, 5],
+    });
 
-    if (sellTransactions.length > 0) {
-      rows.push(buildSectionHeader('sell'));
+    const buildFeesRow = (): PDFRow => {
+      const cols: PDFColumn[] = [
+        emptyCol(qtyWidth),
+        { text: this.translate('invoice.realunit_receipt.fees_label', lang), fontName: 'Helvetica-Bold' },
+      ];
+      if (hasUnitPrice) cols.push(emptyCol(25));
+      cols.push(emptyCol(25), {
+        text: this.translate('invoice.realunit_receipt.fees_free', lang),
+        width: mm2pt(30),
+        fontName: 'Helvetica-Bold',
+      });
+      return { columns: cols, padding: 5 };
+    };
+
+    const pushSection = (
+      sectionKey: string,
+      txs: { data: SwissQRBillTableData; type: TransactionType }[],
+      total: number,
+    ): void => {
+      rows.push(buildSectionHeader(sectionKey));
       rows.push(buildTableHeader());
-      for (const { data, type } of sellTransactions) rows.push(buildDataRow(data, type));
-      rows.push(buildSubtotalRow(sellTotal));
-    }
+      for (const { data, type } of txs) {
+        rows.push(buildDataRow(data, type));
+        if (isRealUnit && data.txHash) rows.push(buildTxHashRow(data.txHash));
+      }
+      rows.push(buildSubtotalRow(total));
+      if (isRealUnit) rows.push(buildFeesRow());
+    };
+
+    if (buyTransactions.length > 0) pushSection('buy', buyTransactions, buyTotal);
+    if (sellTransactions.length > 0) pushSection('sell', sellTransactions, sellTotal);
 
     if (!skipTermsAndConditions) {
       rows.push({ columns: [this.getTermsAndConditions(lang)] });
