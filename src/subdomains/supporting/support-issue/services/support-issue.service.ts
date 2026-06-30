@@ -22,7 +22,12 @@ import { TransactionRequestService } from '../../payment/services/transaction-re
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
-import { GetSupportIssueFilter, GetSupportIssueListFilter } from '../dto/get-support-issue.dto';
+import {
+  GetSupportIssueFilter,
+  GetSupportIssueListFilter,
+  ListOrderDirection,
+  SupportIssueListOrderBy,
+} from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
 import {
   SupportIssueDto,
@@ -220,6 +225,33 @@ export class SupportIssueService {
     return issue;
   }
 
+  async closeIssue(id: string, userDataId?: number): Promise<SupportIssueDto> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: this.getIssueSearch(id, userDataId),
+      relations: { transaction: true, limitRequest: true },
+    });
+    if (!issue) throw new NotFoundException('Support issue not found');
+
+    // idempotent: leave already-closed issues untouched (a new customer message reopens them via createMessageInternal)
+    if (![SupportIssueInternalState.COMPLETED, SupportIssueInternalState.CANCELED].includes(issue.state)) {
+      // persist the state change first, so the audit log only ever reflects a committed transition
+      await this.supportIssueRepo.update(...issue.setState(SupportIssueInternalState.COMPLETED));
+
+      await this.supportLogService.createSupportLog(issue.userData, {
+        type: SupportLogType.CUSTOMER,
+        state: SupportIssueInternalState.COMPLETED,
+        comment: 'Closed by customer',
+        supportIssue: issue,
+        supportIssueType: issue.type,
+      });
+    }
+
+    // load messages so the response matches GET /:id instead of claiming an empty thread
+    issue.messages = await this.messageRepo.findBy({ issue: { id: issue.id } });
+
+    return SupportIssueDtoMapper.mapSupportIssue(issue);
+  }
+
   async updateIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     const entity = await this.supportIssueRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Support issue not found');
@@ -288,6 +320,14 @@ export class SupportIssueService {
     if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
     if (filter.states?.length) qb.andWhere('issue.state IN (:...states)', { states: filter.states });
     if (where.type) qb.andWhere('issue.type = :type', { type: where.type });
+    if (filter.clerk) qb.andWhere('issue.clerk = :clerk', { clerk: filter.clerk });
+    if (filter.createdFrom) qb.andWhere('issue.created >= :createdFrom', { createdFrom: new Date(filter.createdFrom) });
+    if (filter.createdTo) {
+      const createdTo = new Date(filter.createdTo);
+      // a date-only bound (no time component) means "on or before that day" → include the whole day
+      if (!filter.createdTo.includes('T')) createdTo.setUTCHours(23, 59, 59, 999);
+      qb.andWhere('issue.created <= :createdTo', { createdTo });
+    }
 
     const termCount = Math.min(terms.length, 10);
     for (let i = 0; i < termCount; i++) {
@@ -298,7 +338,11 @@ export class SupportIssueService {
       );
     }
 
-    qb.orderBy('issue.created', 'DESC');
+    // whitelisted sort column + direction, with an id tie-break for stable pagination on equal sort keys
+    const orderBy = filter.orderBy ?? SupportIssueListOrderBy.CREATED;
+    const orderDir = filter.orderDir ?? ListOrderDirection.DESC;
+    qb.orderBy(`issue.${orderBy}`, orderDir);
+    qb.addOrderBy('issue.id', orderDir);
 
     if (filter.take != null) {
       qb.take(filter.take);
@@ -477,6 +521,10 @@ export class SupportIssueService {
     return SupportIssueDtoMapper.mapSupportMessage(entity);
   }
 
+  // The issue (and related quote) UID is treated as a capability token: knowing it grants access without
+  // an account, which is required for anonymous transaction-request issues. Access by numeric id is instead
+  // scoped to the owning userData. Consumers (get/message/file/close) are therefore as sensitive as the UID —
+  // keep it secret. Read more before widening this surface.
   private getIssueSearch(id: string, userDataId?: number): FindOptionsWhere<SupportIssue> {
     if (id.startsWith(Config.prefixes.issueUidPrefix)) return { uid: id };
     if (id.startsWith(Config.prefixes.quoteUidPrefix)) return { transactionRequest: { uid: id } };
