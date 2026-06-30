@@ -377,6 +377,10 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
   },
+  // amlReason stays the generic MANUAL_CHECK on purpose: the customer-facing reason must NOT reveal
+  // that Scorechain flagged the tx (no tipping-off). The provider is recorded only in the internal
+  // `comment` (AmlError name "ScorechainHighRisk"), which is never exposed externally — see the
+  // `comment` field docs on BuyCrypto/BuyFiat.
   [AmlError.SCORECHAIN_HIGH_RISK]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
