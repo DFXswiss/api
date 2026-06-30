@@ -299,6 +299,14 @@ param siftApiKey string
 param siftAccountId string
 param siftAnalyst string
 
+@secure()
+param scorechainApiKey string
+@secure()
+param scorechainPublicKey string
+param scorechainRiskThreshold string
+param scorechainAddressCacheMinutes string
+param scorechainMonthlyCheckLimit string
+
 param delisenseJsonPath string
 @secure()
 param delisenseKey string
@@ -1332,6 +1340,26 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'SIFT_ANALYST'
           value: siftAnalyst
+        }
+        {
+          name: 'SCORECHAIN_API_KEY'
+          value: scorechainApiKey
+        }
+        {
+          name: 'SCORECHAIN_PUBLIC_KEY'
+          value: scorechainPublicKey
+        }
+        {
+          name: 'SCORECHAIN_RISK_THRESHOLD'
+          value: scorechainRiskThreshold
+        }
+        {
+          name: 'SCORECHAIN_ADDRESS_CACHE_MINUTES'
+          value: scorechainAddressCacheMinutes
+        }
+        {
+          name: 'SCORECHAIN_MONTHLY_CHECK_LIMIT'
+          value: scorechainMonthlyCheckLimit
         }
         {
           name: 'WEBSITE_RUN_FROM_PACKAGE'

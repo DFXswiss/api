@@ -545,6 +545,21 @@
     "siftApiKey": {
       "value": "xxx"
     },
+    "scorechainApiKey": {
+      "value": "xxx"
+    },
+    "scorechainPublicKey": {
+      "value": "xxx"
+    },
+    "scorechainRiskThreshold": {
+      "value": "70"
+    },
+    "scorechainAddressCacheMinutes": {
+      "value": "10080"
+    },
+    "scorechainMonthlyCheckLimit": {
+      "value": ""
+    },
     "delisenseJsonPath": {
       "value": "/home/Data/Dilisense/consolidated.json"
     },
