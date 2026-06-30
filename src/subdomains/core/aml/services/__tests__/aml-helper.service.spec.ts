@@ -557,16 +557,16 @@ describe('AmlHelperService.getAmlErrors - granted annual deposit limit holds bel
     new ConfigService(); // initialise the global Config singleton used inside getAmlErrors
   });
 
-  // last30dVolume = 0 keeps us below monthlyDefaultWoKyc, so the KYC-gating block is skipped and only
-  // the new below-threshold annual-limit check can fire.
-  function errorsFor(entity: BuyCrypto | BuyFiat, last365dVolume: number): AmlError[] {
+  // last30dVolume defaults to 0 (below monthlyDefaultWoKyc) so only the new below-threshold block can
+  // fire; pass a value to exercise the boundary against the original above-threshold block.
+  function errorsFor(entity: BuyCrypto | BuyFiat, last365dVolume: number, last30dVolume = 0): AmlError[] {
     return AmlHelperService.getAmlErrors(
       entity,
       entity.cryptoInput?.asset ?? entity.outputAsset,
       0, // minVolume
       100, // amountInChf
       0, // last7dCheckoutVolume
-      0, // last30dVolume (below the monthly KYC threshold)
+      last30dVolume,
       last365dVolume,
       undefined, // bankData
       [], // blacklist
@@ -597,5 +597,37 @@ describe('AmlHelperService.getAmlErrors - granted annual deposit limit holds bel
     const entity = createDefaultBuyFiat();
     entity.userData.depositLimit = null;
     expect(errorsFor(entity, 1000000)).not.toContain(AmlError.DEPOSIT_LIMIT_REACHED);
+  });
+
+  const depositLimitHits = (errors: AmlError[]): number =>
+    errors.filter((e) => e === AmlError.DEPOSIT_LIMIT_REACHED).length;
+
+  it('owns the boundary at exactly the monthly threshold (last30dVolume === 1000) and flags it once', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = 5000;
+    // the new block uses <= 1000 and the original block uses > 1000, so exactly one of them owns 1000:
+    // catches a <=→< regression (would leave a gap at 1000) and a dropped last30dVolume guard (double-push).
+    expect(depositLimitHits(errorsFor(entity, 6000, 1000))).toBe(1);
+  });
+
+  it('does not flag when annual volume is exactly at the granted limit (strict greater-than)', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = 5000;
+    // catches a >→>= regression that would flag a user who is exactly at, not over, their limit
+    expect(errorsFor(entity, 5000)).not.toContain(AmlError.DEPOSIT_LIMIT_REACHED);
+  });
+
+  it('treats a granted limit of 0 as a real limit and flags any annual volume (0 is not "none granted")', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = 0;
+    // catches the != null guard being rewritten to a falsy check, which would wrongly skip a 0 limit
+    expect(errorsFor(entity, 100)).toContain(AmlError.DEPOSIT_LIMIT_REACHED);
+  });
+
+  it('above the monthly threshold the original block still flags, without double-pushing with the new block', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = 5000;
+    // last30dVolume > 1000 → only the original above-threshold block applies; still exactly one hit
+    expect(depositLimitHits(errorsFor(entity, 6000, 2000))).toBe(1);
   });
 });
