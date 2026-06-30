@@ -31,12 +31,16 @@ function maskValue(s: string): string {
 }
 
 function redact(value: unknown, key?: string): unknown {
+  // Resolve the array case first: a tampered HTTP parameter (header / body) can
+  // be an array, so this runs before any typeof / length / string comparison
+  // (CodeQL js/type-confusion-through-parameter-tampering). The key is passed
+  // through so array elements under a sensitive key are still masked.
+  if (Array.isArray(value)) return value.map((entry) => redact(entry, key));
   if (key && REDACT_KEY.test(key) && value != null && value !== '') return REDACTED;
   if (Buffer.isBuffer(value)) return `<binary ${value.length} bytes>`;
   if (typeof value === 'string') {
     return value.length > MAX_STRING ? `<… ${value.length} chars …>` : maskValue(value);
   }
-  if (Array.isArray(value)) return value.map((entry) => redact(entry));
   if (value && typeof value === 'object') {
     return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, redact(v, k)]));
   }

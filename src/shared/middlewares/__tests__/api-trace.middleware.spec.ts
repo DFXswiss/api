@@ -116,6 +116,16 @@ describe('apiTraceMiddleware', () => {
     expect(line).not.toContain('x@example.com');
   });
 
+  it('masks arrays under a sensitive key (tampered array param)', () => {
+    const req = realunitReq({ mails: ['a@example.com', 'b@example.com'], tags: ['ok', 'fine'] });
+    (req.headers as any)['x-forwarded-for'] = ['192.0.2.1', '192.0.2.2'];
+    const { lines } = runTrace(req, 200, (res) => res.json({}));
+    const line = lines.join('\n');
+    expect(line).not.toContain('a@example.com');
+    expect(line).not.toContain('192.0.2.2');
+    expect(line).toContain('"tags":["ok","fine"]');
+  });
+
   it('truncates oversized strings and summarizes binary bodies', () => {
     const big = 'A'.repeat(600);
     const { lines } = runTrace(realunitReq({ note: big, img: Buffer.from('PNGDATA') }), 200, (res) => res.json({}));
