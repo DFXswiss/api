@@ -59,12 +59,17 @@ export class ScorechainService {
     }
   }
 
-  // Public key for proof-of-authenticity: Config override, else fetched from /publicKeys
-  // (returns [{ key }]) and cached. Fetched without signature verification (chicken/egg).
+  // Public key for proof-of-authenticity. A pinned key (SCORECHAIN_PUBLIC_KEY) is authoritative and
+  // should be set in production: without it we fall back to fetching /publicKeys over TLS without
+  // being able to verify the key itself (chicken/egg → trust-on-first-use), which a TLS-MITM could
+  // spoof. Warn so the unpinned mode is visible in the logs rather than silently trusted.
   async getPublicKey(): Promise<string | undefined> {
     if (Config.scorechain.publicKey) return Config.scorechain.publicKey;
     if (this.cachedPublicKey) return this.cachedPublicKey;
 
+    this.logger.warn(
+      'SCORECHAIN_PUBLIC_KEY is not pinned — using unverified /publicKeys (trust-on-first-use). Pin the key in production.',
+    );
     const res = await this.rawGet<ScorechainPublicKey[]>('/publicKeys');
     this.cachedPublicKey = res.data?.[0]?.key;
     return this.cachedPublicKey;
