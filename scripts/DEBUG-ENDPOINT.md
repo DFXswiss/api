@@ -8,7 +8,7 @@ The API provides two debug endpoints for authorized users with the `DEBUG` role:
 
 | Endpoint | Purpose |
 |----------|---------|
-| `POST /gs/debug` | Execute SQL queries against the database |
+| `POST /gs/debug` | Run structured read-only queries against the database (allowlist-driven JSON DTO; no raw SQL) |
 | `POST /gs/debug/logs` | Query Azure Application Insights logs |
 
 ## Prerequisites
@@ -27,7 +27,7 @@ Sign the DFX login message with your wallet to get a valid signature.
 
 No additional server-side configuration required. The endpoint uses the existing database connection.
 
-**Client-side configuration** (in `scripts/.env.db-debug`):
+**Client-side configuration** (in the repo-root `.env`; the migrated scripts read this file directly):
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -107,28 +107,30 @@ AZURE_CLIENT_SECRET=your-secret-value
 
 ## Local Setup
 
-### 1. Copy the sample environment file
+### 1. Add the debug credentials to the repo-root `.env`
+
+The migrated shell scripts (`db-debug.sh`, `compare-balance-logs.sh`,
+`inspect-asset-balance.sh`, `sum-asset-balances.sh`, `sync-prod-logs.js`) all
+read these variables from `<repo-root>/.env`. Append:
 
 ```bash
-cp scripts/.env.db-debug.sample scripts/.env.db-debug
-```
-
-### 2. Edit the configuration
-
-```bash
-# scripts/.env.db-debug
 DEBUG_ADDRESS=0xYourWalletAddress
 DEBUG_SIGNATURE=0xYourSignature
-DEBUG_API_URL=https://api.dfx.swiss/v1
+DEBUG_API_URL=https://api.dfx.swiss/v1   # optional; defaults to prod
 ```
 
-### 3. Test database access
+`DEBUG_SIGNATURE` is the signature of the DFX login message produced by signing
+with the wallet at `DEBUG_ADDRESS`.
+
+### 2. Test database access
 
 ```bash
-./scripts/db-debug.sh "SELECT TOP 5 id, name FROM asset"
+./scripts/db-debug.sh                # default mode: assets summary
+./scripts/db-debug.sh --balance 10   # last 10 FinancialDataLog totals
+./scripts/db-debug.sh --help         # all predefined modes
 ```
 
-### 4. Test log access
+### 3. Test log access
 
 ```bash
 ./scripts/log-debug.sh exceptions
@@ -139,15 +141,33 @@ DEBUG_API_URL=https://api.dfx.swiss/v1
 ### Database Queries
 
 ```bash
-# Default query (assets)
+# Default query (assets summary)
 ./scripts/db-debug.sh
 
-# Custom SQL query
-./scripts/db-debug.sh "SELECT TOP 10 id, status, created FROM buy_crypto ORDER BY id DESC"
+# FinancialDataLog anomalies (valid=false rows)
+./scripts/db-debug.sh --anomalies 50
 
-# Aggregation
-./scripts/db-debug.sh "SELECT status, COUNT(*) as count FROM buy_crypto GROUP BY status"
+# Recent balance history
+./scripts/db-debug.sh --balance 20
+
+# Log statistics by system/subsystem/severity
+./scripts/db-debug.sh --stats
+
+# Asset balance history (by id or Blockchain/Name)
+./scripts/db-debug.sh --asset-history 405 20
+./scripts/db-debug.sh --asset-history Yapeal/EUR 20
+
+# Referral chain / tree for a userDataId
+./scripts/db-debug.sh --referral-chain 370625
+./scripts/db-debug.sh --referral-tree  370625
 ```
+
+For ad-hoc queries the endpoint expects a JSON DTO (no raw SQL). See the
+`payload_*` builders in `scripts/db-debug.sh` for the request shape, and
+`src/subdomains/generic/gs/dto/debug-query.dto.ts` for the full schema. The
+per-table column allowlist lives in
+`src/subdomains/generic/gs/dto/gs.dto.ts` (`DebugAllowedColumns`); a column
+absent from a table's entry is unreachable from this endpoint.
 
 ### Log Queries
 
@@ -173,12 +193,24 @@ DEBUG_API_URL=https://api.dfx.swiss/v1
 
 ## Security Notes
 
-1. **Never commit** `.env.db-debug` to git (it's in `.gitignore`)
+1. **Never commit** `.env` to git (it's in `.gitignore`)
 2. The DEBUG role should only be granted to authorized personnel
-3. All queries are logged with user identifier for audit
-4. Sensitive columns are automatically masked with `[RESTRICTED]`
-5. Only SELECT queries are allowed (no INSERT, UPDATE, DELETE)
-6. System schemas are blocked (sys, information_schema, etc.)
+3. All queries are logged with user identifier for audit (`Debug-query by <addr>: …`).
+   WHERE leaf values are redacted in the audit log; structure (table / columns / ops) is preserved.
+4. The endpoint accepts a structured JSON DTO only — no raw SQL is parsed, walked, or interpolated.
+5. Identifiers (table, column, alias, aggregate, op, ORDER BY direction, jsonb path segment)
+   are validated against an allowlist before being interpolated into SQL; values are bound as
+   `$1..$N` parameters via TypeORM.
+6. Tables and columns reachable from this endpoint are enumerated in `DebugAllowedColumns`
+   (`src/subdomains/generic/gs/dto/gs.dto.ts`). Anything not listed there is unreachable;
+   PII / secrets / free-form text are deliberately excluded.
+
+### Kill switch / revocation
+
+* Flip `Process.GS_DEBUG` via `PUT /v1/setting/disabledProcesses` (ADMIN JWT). Disables both
+  `/gs/debug` and `/gs/debug/logs`; propagates in ~30s without restart.
+* Revoke a specific JWT by adding its `address` to the `jwtAddressDenylist` setting (lowercase
+  JSON array); refreshes in ~30s.
 
 ## Troubleshooting
 
@@ -190,9 +222,12 @@ DEBUG_API_URL=https://api.dfx.swiss/v1
 
 ### "Query execution failed" for database
 
-- Check SQL syntax (use MSSQL/T-SQL syntax)
-- Verify table and column names exist
-- Ensure you're not accessing blocked columns
+- Verify the table is listed in `DebugAllowedColumns`
+- Verify every referenced column appears in that table's `columns` array
+- jsonb path access (the `jsonb` select kind) is allowed only on columns listed in `jsonbColumns`
+  (currently only `log.message`)
+- If the JSON body is malformed at the DTO level (wrong `kind`, missing required field, value out
+  of range) NestJS' ValidationPipe rejects with a 400 before the service runs
 
 ### "Query execution failed" for logs
 
