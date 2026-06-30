@@ -571,6 +571,10 @@ export class Configuration {
       mailBanner: process.env.SUPPORT_MESSAGE_BANNER,
     },
     issueOnHoldExpiry: 14, //days
+    escalation: {
+      telegramBotToken: process.env.SUPPORT_TELEGRAM_BOT_TOKEN,
+      slaHours: 24, // customer waiting longer than this escalates
+    },
   };
 
   letter = {

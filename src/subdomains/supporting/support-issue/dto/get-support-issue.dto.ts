@@ -5,6 +5,8 @@ import { StringToArray } from 'src/shared/utils/dto-transforms';
 import { Department } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueType } from '../enums/support-issue.enum';
 
+// Values are the literal SupportIssue column names interpolated into TypeORM's orderBy,
+// hence lowercase rather than the usual PascalCase enum-value convention.
 export enum SupportIssueListOrderBy {
   CREATED = 'created',
   UPDATED = 'updated',

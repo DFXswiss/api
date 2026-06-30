@@ -72,6 +72,7 @@ export class SupportIssueDtoMapper {
       clerk: issue.clerk,
       department: issue.department,
       created: issue.created,
+      updated: issue.updated,
       messageCount: stats?.count ?? 0,
       lastMessageDate: stats?.lastDate,
       lastMessageAuthor: stats?.lastAuthor,
