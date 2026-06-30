@@ -40,7 +40,8 @@ import { ConfigService } from 'src/config/config';
 import { DebugAggregate, DebugQueryDto, DebugWhereNode, DebugWhereOp } from '../dto/debug-query.dto';
 import { plainToInstance } from 'class-transformer';
 import { validate, ValidationError } from 'class-validator';
-import { DebugQueryTreeSizePipe } from '../pipes/debug-query-tree-size.pipe';
+import { DebugQueryTreeSizeMiddleware } from '../middleware/debug-query-tree-size.middleware';
+import { Request, Response } from 'express';
 
 // Shape of a document as it travels through setUserDataDocs (a KycFileBlob with the relevant fields set).
 type KycFileDoc = Pick<KycFileBlob, 'path' | 'url' | 'name'> & { created: Date };
@@ -2447,25 +2448,27 @@ describe('DebugQueryDto - ValidationPipe layer', () => {
     expect(constraintNames(errors)).toContain(expectedConstraint);
   });
 
-  it('rejects a linear NOT-chain via DebugQueryTreeSizePipe before validation can stack-overflow', () => {
-    // class-transformer's `plainToInstance` recurses through `@Type(() => DebugWhereNode)`,
-    // so the global `ValidationPipe` itself stack-overflows on a deep chain (verified
-    // empirically). The controller-method-scoped `DebugQueryTreeSizePipe` runs FIRST, walks
-    // the raw body iteratively, and rejects oversized trees with a clean 400.
+  // The middleware unit tests below exercise the implementation directly. They DO NOT
+  // verify the wiring (that the middleware actually runs before ValidationPipe in NestJS'
+  // request pipeline) — that's covered by the `executeDebugQuery via NestJS pipeline`
+  // e2e-style describe further down, which uses `Test.createTestingModule` so the bug-
+  // shaped scenario is exercised through the same pipeline as production.
+  function invokeMiddleware(body: unknown): void {
+    const mw = new DebugQueryTreeSizeMiddleware();
+    const next = jest.fn();
+    mw.use({ body } as Request, {} as Response, next);
+    if (!next.mock.calls.length) throw new Error('middleware did not call next');
+  }
+
+  it('middleware rejects a linear NOT-chain (depth cap)', () => {
     let chain: unknown = { kind: 'leaf', column: 'id', op: '=', value: 1 };
     for (let i = 0; i < 10000; i++) chain = { kind: 'not', child: chain };
-    const pipe = new DebugQueryTreeSizePipe();
     expect(() =>
-      pipe.transform({
-        table: 'asset',
-        select: [{ kind: 'column', column: 'id' }],
-        where: chain,
-        limit: 10,
-      }),
+      invokeMiddleware({ table: 'asset', select: [{ kind: 'column', column: 'id' }], where: chain, limit: 10 }),
     ).toThrow(/WHERE tree exceeds caps/);
   });
 
-  it('rejects a wide-and-shallow tree via DebugQueryTreeSizePipe (node-count cap)', () => {
+  it('middleware rejects a wide-and-deep tree (node-count cap)', () => {
     // Width 5 × depth 5 = 5^5 leaves is allowed by the per-level `@ArrayMaxSize(5)` cap,
     // but the total node-count cap kicks in earlier. Synthesize a tree that exceeds the
     // node cap regardless of depth.
@@ -2477,27 +2480,33 @@ describe('DebugQueryDto - ValidationPipe layer', () => {
     // safely over the 200-node cap.
     let tree: unknown = wide(5);
     for (let d = 0; d < 4; d++) tree = { kind: 'and', children: Array.from({ length: 5 }, () => tree) };
-    const pipe = new DebugQueryTreeSizePipe();
     expect(() =>
-      pipe.transform({ table: 'asset', select: [{ kind: 'column', column: 'id' }], where: tree, limit: 10 }),
+      invokeMiddleware({ table: 'asset', select: [{ kind: 'column', column: 'id' }], where: tree, limit: 10 }),
     ).toThrow(/WHERE tree exceeds caps/);
   });
 
-  it('lets a benign small tree pass DebugQueryTreeSizePipe unchanged', () => {
-    const body = {
-      table: 'asset',
-      select: [{ kind: 'column', column: 'id' }],
-      where: {
-        kind: 'and',
-        children: [
-          { kind: 'leaf', column: 'id', op: '=', value: 1 },
-          { kind: 'leaf', column: 'id', op: '=', value: 2 },
-        ],
-      },
-      limit: 10,
-    };
-    const pipe = new DebugQueryTreeSizePipe();
-    expect(pipe.transform(body)).toBe(body);
+  it('middleware lets a benign small tree through (calls next)', () => {
+    const mw = new DebugQueryTreeSizeMiddleware();
+    const next = jest.fn();
+    mw.use(
+      {
+        body: {
+          table: 'asset',
+          select: [{ kind: 'column', column: 'id' }],
+          where: {
+            kind: 'and',
+            children: [
+              { kind: 'leaf', column: 'id', op: '=', value: 1 },
+              { kind: 'leaf', column: 'id', op: '=', value: 2 },
+            ],
+          },
+          limit: 10,
+        },
+      } as Request,
+      {} as Response,
+      next,
+    );
+    expect(next).toHaveBeenCalledTimes(1);
   });
 
   it('rejects an AND tree with >5 children per node (DebugQueryMaxAndOrChildren)', async () => {
