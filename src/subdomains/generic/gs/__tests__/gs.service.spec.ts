@@ -395,9 +395,28 @@ describe('GsService', () => {
         // SUPER_ADMIN on /gs/db). The structured endpoint has no masking; allowlisting
         // would bypass that role restriction.
         ['asset', 'ikna'],
+        // TaprootFreak review (HIGH follow-up): `mros` is FIU regulatory reports; row
+        // existence is legally confidential. Drop the WHOLE entry so the table guard
+        // rejects any query (this it.each row covers a future re-add of just `userDataId`
+        // because we also assert the table itself is rejected — see the test below).
+        ['mros', 'userDataId'],
       ])('rejects sensitive column %s.%s', async (table, column) => {
         const dto = { table, select: [{ kind: 'column' as const, column }], limit: 10 };
         await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
+      });
+
+      it('rejects the entire `mros` table (regulatory-reporting; row existence is confidential)', async () => {
+        // `mros` records FIU money-laundering reports. The fact that a row exists for a
+        // given user_data is itself confidential — a DEBUG caller who can query the table
+        // can probe report-subject membership and correlate it through other allowlisted
+        // tables. This table is intentionally absent from DebugAllowedColumns; the table
+        // guard returns "Table 'mros' is not allowed".
+        const dto = {
+          table: 'mros',
+          select: [{ kind: 'column' as const, column: 'id' }],
+          limit: 10,
+        };
+        await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/Table 'mros' is not allowed/);
       });
 
       it('allows multiple safe columns in a single SELECT', async () => {

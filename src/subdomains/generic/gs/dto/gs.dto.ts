@@ -850,9 +850,13 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'category', 'message', 'severity', 'subsystem', 'system', 'valid'],
     jsonbColumns: ['message'],
   },
-  mros: {
-    columns: ['id', 'created', 'updated', 'userDataId'],
-  },
+  // `mros` is deliberately NOT listed. Each row is a regulatory report filed with the FIU
+  // (Money laundering Reporting Office), and the SUBJECT of such a report is legally
+  // confidential. Even the bare `userDataId` FK is sensitive — it discloses
+  // report-subject membership and lets it be correlated through other allowlisted tables.
+  // This table should only be reachable by compliance, never by a DEBUG caller. The
+  // structured endpoint has no per-table masking, so the safe answer is to leave it
+  // unreachable — `executeDebugQuery`'s `Object.hasOwn` table guard rejects with a 400.
   notification: {
     // No data (free-form JSON payload that may contain PII).
     // No error (may include internal stack traces / external API error bodies).
