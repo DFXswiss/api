@@ -122,6 +122,21 @@ export class SupportIssueService {
     const days = Number.isFinite(periodDays) ? Math.min(Math.max(Math.round(periodDays), 1), 366) : 365;
     const granularity: 'day' | 'month' = days <= 31 ? 'day' : 'month';
 
+    // no department access: return an empty statistic without querying. An empty `departments` list would
+    // otherwise reach the queries below, where `if (departments)` is truthy and expands to a degenerate
+    // `IN ()` clause (the same fail-closed contract the counts / activity / list queries already follow).
+    if (departments?.length === 0)
+      return {
+        periodDays: days,
+        total: 0,
+        avgMessages: 0,
+        perDay: 0,
+        granularity,
+        trend: [],
+        avgResolutionHours: 0,
+        resolutionByType: [],
+      };
+
     const now = new Date();
     const pad = (n: number): string => String(n).padStart(2, '0');
     const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);

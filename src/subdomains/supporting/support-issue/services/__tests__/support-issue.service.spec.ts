@@ -277,6 +277,7 @@ describe('SupportIssueService.closeIssue', () => {
 
 describe('SupportIssueService.getSupportIssueStatistics', () => {
   let service: SupportIssueService;
+  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
 
   let trendRows: { d: Date; count: string }[];
   let resolvedRows: { type: SupportIssueType; created: Date; updated: Date }[];
@@ -314,7 +315,7 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
     resolvedRows = [];
     totalCount = 0;
     andWhereClauses = [];
-    const supportIssueRepo = createMock<SupportIssueRepository>();
+    supportIssueRepo = createMock<SupportIssueRepository>();
     const messageRepo = createMock<SupportMessageRepository>();
     (supportIssueRepo.createQueryBuilder as jest.Mock).mockImplementation(() => statsQbMock());
     (messageRepo.createQueryBuilder as jest.Mock).mockImplementation(() => statsQbMock());
@@ -438,5 +439,14 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
   it('does not department-scope for an all-access role', async () => {
     await service.getSupportIssueStatistics(UserRole.ADMIN, 7);
     expect(andWhereClauses.some((c) => c.includes('issue.department'))).toBe(false);
+  });
+
+  it('returns an empty, unqueried statistic for a role with no department access', async () => {
+    const dto = await service.getSupportIssueStatistics(UserRole.USER, 7);
+    expect(dto.total).toBe(0);
+    expect(dto.trend).toEqual([]);
+    expect(dto.resolutionByType).toEqual([]);
+    expect(dto.avgResolutionHours).toBe(0);
+    expect(supportIssueRepo.createQueryBuilder).not.toHaveBeenCalled();
   });
 });
