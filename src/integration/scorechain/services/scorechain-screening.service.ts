@@ -1,5 +1,5 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { MoreThanOrEqual } from 'typeorm';
+import { MoreThanOrEqual, Not } from 'typeorm';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -7,6 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import {
   ScorechainAnalysisType,
   ScorechainObjectType,
+  ScoringAnalysisResponse,
   severityFromScore,
   toScorechainBlockchain,
 } from '../dto/scorechain.dto';
@@ -23,6 +24,7 @@ interface ScreenParams {
 }
 
 export const ScorechainNotSupportedSeverity = 'NotSupported';
+export const ScorechainNoCoverageSeverity = 'NoCoverage';
 
 @Injectable()
 export class ScorechainScreeningService {
@@ -98,6 +100,16 @@ export class ScorechainScreeningService {
       analysisType: params.analysisType,
     });
 
+    // Scorechain returns lowestScore=100 (No risk) even when it holds NO data for the object
+    // (every analysis section reports hasResult=false). A score without any backing analysis is
+    // meaningless, so treat "no coverage" as unscreenable → high risk, never as a clean pass.
+    if (!this.hasCoverage(data)) {
+      this.logger.warn(
+        `Scorechain returned no coverage for ${params.objectType} ${params.objectId} on ${params.blockchain} — treated as high risk (not a pass)`,
+      );
+      return this.save(params, { signatureValid, severity: ScorechainNoCoverageSeverity, raw: data });
+    }
+
     return this.save(params, {
       signatureValid,
       riskScore: data?.lowestScore,
@@ -105,6 +117,12 @@ export class ScorechainScreeningService {
       riskIndicators: data?.analysis,
       raw: data,
     });
+  }
+
+  // Coverage = at least one analysis section actually produced a result. Without it the provider's
+  // lowestScore is a meaningless default (=100), so the gate must not trust it.
+  private hasCoverage(data?: ScoringAnalysisResponse): boolean {
+    return Object.values(data?.analysis ?? {}).some((analysis) => analysis?.hasResult === true);
   }
 
   private async getCached(params: ScreenParams): Promise<ScorechainScreening | undefined> {
@@ -115,6 +133,10 @@ export class ScorechainScreeningService {
           objectId: params.objectId,
           blockchain: params.blockchain,
           analysisType: params.analysisType,
+          // Never serve a record whose signature did not verify: a transient verification failure
+          // (clock skew / key rotation) would otherwise pin the object to high-risk for the whole
+          // cache window. Re-screen instead so the gate can self-heal once signatures verify again.
+          signatureValid: true,
           created: MoreThanOrEqual(Util.minutesBefore(Config.scorechain.cacheMinutes)),
         },
         order: { created: 'DESC' },
@@ -129,7 +151,12 @@ export class ScorechainScreeningService {
     if (!limit) return;
 
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    const used = await this.repo.countBy({ created: MoreThanOrEqual(monthStart) });
+    const used = await this.repo.countBy({
+      created: MoreThanOrEqual(monthStart),
+      // NotSupported rows are saved without any API call (unsupported chain) → not billable, so a
+      // flood of unsupported-chain screenings must not exhaust the paid monthly cap.
+      severity: Not(ScorechainNotSupportedSeverity),
+    });
     if (used >= limit) throw new ServiceUnavailableException('Scorechain monthly screening quota reached');
   }
 

@@ -53,7 +53,7 @@ describe('ScorechainScreeningService', () => {
   describe('screening', () => {
     it('scores a withdrawal address (objectType=ADDRESS, OUTGOING) and persists the result', async () => {
       scorechain.scoringAnalysis.mockResolvedValue({
-        data: { id: 'x', lowestScore: 85, analysis: {} },
+        data: { id: 'x', lowestScore: 85, analysis: { assigned: { hasResult: true, result: { score: 85 } } } },
         signatureValid: true,
       });
 
@@ -73,7 +73,7 @@ describe('ScorechainScreeningService', () => {
 
     it('flags a low-scoring (risky) deposit transaction for manual review', async () => {
       scorechain.scoringAnalysis.mockResolvedValue({
-        data: { id: 'x', lowestScore: 15, analysis: {} },
+        data: { id: 'x', lowestScore: 15, analysis: { incoming: { hasResult: true, result: { score: 15 } } } },
         signatureValid: true,
       });
 
@@ -81,6 +81,22 @@ describe('ScorechainScreeningService', () => {
 
       expect(result.riskScore).toBe(15);
       expect(service.isHighRisk(result)).toBe(true); // low score = risky
+    });
+
+    it('treats a no-coverage response (hasResult=false, default lowestScore=100) as high-risk, not a pass', async () => {
+      // Scorechain returns lowestScore=100 even when it has no data for the object; the gate must
+      // not read that as clean.
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: { id: 'x', lowestScore: 100, analysis: { assigned: { hasResult: false, result: null } } },
+        signatureValid: true,
+      });
+
+      const result = await service.screenWithdrawalAddress(Blockchain.ETHEREUM, '0xfresh');
+
+      expect(scorechain.scoringAnalysis).toHaveBeenCalled();
+      expect(result.riskScore).toBeUndefined();
+      expect(result.severity).toBe('NoCoverage');
+      expect(service.isHighRisk(result)).toBe(true);
     });
 
     it('skips an unsupported chain without calling the API and flags it high-risk', async () => {
@@ -109,6 +125,35 @@ describe('ScorechainScreeningService', () => {
       await expect(service.screenWithdrawalAddress(Blockchain.ETHEREUM, '0xabc')).rejects.toBeInstanceOf(
         ServiceUnavailableException,
       );
+
+      delete process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT;
+      new ConfigService();
+    });
+
+    it('only serves a cached record whose signature verified', async () => {
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: { id: 'x', lowestScore: 80, analysis: { assigned: { hasResult: true, result: { score: 80 } } } },
+        signatureValid: true,
+      });
+
+      await service.screenWithdrawalAddress(Blockchain.ETHEREUM, '0xabc');
+
+      expect(repo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({ where: expect.objectContaining({ signatureValid: true }) }),
+      );
+    });
+
+    it('excludes non-billable NotSupported rows from the monthly quota count', async () => {
+      process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT = '5';
+      new ConfigService();
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: { id: 'x', lowestScore: 80, analysis: { assigned: { hasResult: true, result: { score: 80 } } } },
+        signatureValid: true,
+      });
+
+      await service.screenWithdrawalAddress(Blockchain.ETHEREUM, '0xabc');
+
+      expect(repo.countBy).toHaveBeenCalledWith(expect.objectContaining({ severity: expect.anything() }));
 
       delete process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT;
       new ConfigService();
