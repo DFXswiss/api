@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
@@ -31,6 +32,7 @@ describe('BuyFiatPreparationService', () => {
   let fiatOutputService: FiatOutputService;
   let transactionService: TransactionService;
   let custodyOrderService: CustodyOrderService;
+  let scorechainScreeningService: ScorechainScreeningService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -44,6 +46,7 @@ describe('BuyFiatPreparationService', () => {
     fiatOutputService = createMock<FiatOutputService>();
     transactionService = createMock<TransactionService>();
     custodyOrderService = createMock<CustodyOrderService>();
+    scorechainScreeningService = createMock<ScorechainScreeningService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -60,6 +63,7 @@ describe('BuyFiatPreparationService', () => {
         { provide: FiatOutputService, useValue: fiatOutputService },
         { provide: TransactionService, useValue: transactionService },
         { provide: CustodyOrderService, useValue: custodyOrderService },
+        { provide: ScorechainScreeningService, useValue: scorechainScreeningService },
       ],
     }).compile();
 
