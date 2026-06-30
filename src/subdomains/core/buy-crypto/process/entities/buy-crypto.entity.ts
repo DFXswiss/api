@@ -296,6 +296,10 @@ export class BuyCrypto extends IEntity {
   @Column({ default: false })
   isComplete: boolean;
 
+  // INTERNAL ONLY — AML audit trail: the joined AmlError names (e.g. provider hits such as
+  // "ScorechainHighRisk"). MUST NOT be exposed to the customer or to partner webhooks; only
+  // Support/Compliance may read it. The customer-facing reason is the generic, mapped AmlReason
+  // (see TransactionReasonMapper in transaction.dto.ts) — never this field's content.
   @Column({ type: 'text', nullable: true })
   comment?: string;
 

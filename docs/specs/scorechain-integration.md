@@ -359,6 +359,13 @@ and consistent — no untyped failures, no silent passes:
    to `{ type: CRUCIAL, amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK }`.
    A dedicated error keeps Scorechain-triggered reviews distinguishable in logs/stats while
    reusing the existing `AmlReason`. Thresholds are config-driven (`SCORECHAIN_RISK_THRESHOLD`).
+   **No tipping-off (invariant):** the `amlReason` stays the generic `MANUAL_CHECK`; the
+   customer-facing reason maps to `null` (`TransactionReasonMapper` in `transaction.dto.ts`), so a
+   customer never learns Scorechain flagged the tx. The provider is recorded **only in the internal
+   `comment`** (the joined AmlError name `ScorechainHighRisk`). That `comment` is INTERNAL ONLY —
+   it must never be returned to customers or partner webhooks; only Support/Compliance read it
+   (e.g. the `RoleGuard(SUPPORT)`-gated support-issue data endpoint). Do not add a Scorechain-named
+   `AmlReason` and do not surface `comment` in any customer-facing DTO.
 2. **TMS depth:** start with the **synchronous `scoringAnalysis` gate only**. The async TMS
    workflow (`register*`) is a license-gated feature (`NotIncludedInLicense`) and is kept as
    an opt-in extension; the client methods exist but are not wired into the gate.
