@@ -4,15 +4,7 @@ import { proofOfAuthenticityVerifier } from 'scorechain-sdk';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
-import {
-  PendingTransactionResponse,
-  RegisterDepositRequest,
-  RegisterWithdrawalRequest,
-  ScorechainAlert,
-  ScorechainPublicKey,
-  ScoringAnalysisRequest,
-  ScoringAnalysisResponse,
-} from '../dto/scorechain.dto';
+import { ScorechainPublicKey, ScoringAnalysisRequest, ScoringAnalysisResponse } from '../dto/scorechain.dto';
 
 export interface SignedResponse<T> {
   data: T;
@@ -32,20 +24,6 @@ export class ScorechainService {
 
   async scoringAnalysis(request: ScoringAnalysisRequest): Promise<SignedResponse<ScoringAnalysisResponse>> {
     return this.post<ScoringAnalysisResponse>('/scoringAnalysis', request);
-  }
-
-  // --- TMS (asynchronous) --- //
-
-  async registerDeposit(request: RegisterDepositRequest): Promise<SignedResponse<PendingTransactionResponse>> {
-    return this.post<PendingTransactionResponse>('/registerDeposit', request);
-  }
-
-  async registerWithdrawal(request: RegisterWithdrawalRequest): Promise<SignedResponse<PendingTransactionResponse>> {
-    return this.post<PendingTransactionResponse>('/registerWithdrawal', request);
-  }
-
-  async getScenarioChecks(identifier: string): Promise<SignedResponse<ScorechainAlert[]>> {
-    return this.get<ScorechainAlert[]>('/scenarios/checks', { params: { identifier } });
   }
 
   // --- MISC --- //
@@ -95,10 +73,6 @@ export class ScorechainService {
   }
 
   // --- HELPERS --- //
-
-  private async get<T>(url: string, config?: HttpRequestConfig): Promise<SignedResponse<T>> {
-    return this.toSignedResponse<T>(await this.rawGet<T>(url, config));
-  }
 
   private async post<T>(url: string, body: unknown, config?: HttpRequestConfig): Promise<SignedResponse<T>> {
     return this.toSignedResponse<T>(await this.rawPost<T>(url, body, config));
