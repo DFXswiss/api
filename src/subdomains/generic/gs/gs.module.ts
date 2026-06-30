@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { IntegrationModule } from 'src/integration/integration.module';
 import { LetterModule } from 'src/integration/letter/letter.module';
@@ -20,6 +20,7 @@ import { GsEvmController } from './gs-evm.controller';
 import { GsEvmService } from './gs-evm.service';
 import { GsController } from './gs.controller';
 import { GsService } from './gs.service';
+import { DebugQueryTreeSizeMiddleware } from './middleware/debug-query-tree-size.middleware';
 
 @Module({
   imports: [
@@ -45,4 +46,11 @@ import { GsService } from './gs.service';
   providers: [GsService, GsEvmService],
   exports: [],
 })
-export class GsModule {}
+export class GsModule implements NestModule {
+  // Bind the WHERE-tree size cap as a middleware (not a pipe). NestJS runs middleware
+  // before guards/interceptors/pipes, so this fires before the global `ValidationPipe`'s
+  // recursive `plainToInstance` would stack-overflow on a pathological linear NOT-chain.
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(DebugQueryTreeSizeMiddleware).forRoutes({ path: 'gs/debug', method: RequestMethod.POST });
+  }
+}

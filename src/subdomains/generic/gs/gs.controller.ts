@@ -13,7 +13,6 @@ import { DebugQueryDto, DebugQueryResult } from './dto/debug-query.dto';
 import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
-import { DebugQueryTreeSizePipe } from './pipes/debug-query-tree-size.pipe';
 
 @Controller('gs')
 export class GsController {
@@ -61,15 +60,12 @@ export class GsController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
-  async executeDebugQuery(
-    @GetJwt() jwt: JwtPayload,
-    // `DebugQueryTreeSizePipe` runs on the raw body before the global `ValidationPipe`'s
-    // recursive `plainToInstance` — bounds the WHERE tree iteratively so a malicious
-    // `not → child → not → …` chain can't stack-overflow the validator or the audit
-    // serializer.
-    @Body(DebugQueryTreeSizePipe) dto: DebugQueryDto,
-  ): Promise<DebugQueryResult> {
+  async executeDebugQuery(@GetJwt() jwt: JwtPayload, @Body() dto: DebugQueryDto): Promise<DebugQueryResult> {
     if (DisabledProcess(Process.GS_DEBUG)) throw new ForbiddenException('Endpoint disabled');
+    // The WHERE-tree size cap is enforced by `DebugQueryTreeSizeMiddleware` (registered in
+    // `GsModule.configure`); it runs before the global `ValidationPipe`, so the body that
+    // reaches this handler is small enough to recurse safely through `plainToInstance`,
+    // `JSON.stringify` in the audit log, and the service walker.
 
     return this.gsService.executeDebugQuery(dto, jwt.address ?? `account:${jwt.account}`);
   }
