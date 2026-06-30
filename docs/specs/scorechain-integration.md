@@ -15,11 +15,16 @@
 
 ## 1. Motivation & Context
 
-DFX integrates the Scorechain AML/KYT API to strengthen automated blockchain
-transaction-monitoring and risk-scoring of crypto fund flows.
+DFX integrates the Scorechain blockchain-analytics API to strengthen monitoring and
+risk-scoring of crypto fund flows.
 
-Goal: automated, documented screening of incoming and outgoing crypto transactions, with
-the results feeding the existing AML decision flow and a persisted audit trail.
+Each call returns **Scorechain's own risk assessment of one specific object** — a score plus
+rationale (exposure breakdown, severity, scenario matches) for that exact transaction
+(incoming) or destination address (outgoing). This is **one provider's signal, not an
+authoritative AML or sanctions determination**. The results are used as an **additional
+advisory input** feeding the existing AML decision flow — alongside the independent `ikna`
+screening — with a human reviewer / the AML flow keeping the decision (see §8). Every
+screening is persisted for a documented audit trail.
 
 The integration is delivered as a **complete, end-to-end integration** (not a stub): scoring
 *and* deposit/withdrawal monitoring, plus alert handling and response-signature
@@ -149,7 +154,7 @@ src/integration/scorechain/
 ```
                       ┌─────────────────────────────────────────────┐
   Crypto deposit  ──► │ payin (src/subdomains/supporting/payin)      │
-  (buy-crypto in)     │   on confirmed pay-in → registerDeposit      │──► Scorechain TMS
+  (sell-crypto in)    │   on confirmed pay-in → registerDeposit      │──► Scorechain TMS
                       └─────────────────────────────────────────────┘
                                           │ alert (callback / poll)
                                           ▼
@@ -159,19 +164,22 @@ src/integration/scorechain/
                       └─────────────────────────────────────────────┘
                                           ▲
   Crypto withdrawal ─► registerWithdrawal │  (pre-validation before payout is released)
-  (sell-crypto out)   core/sell-crypto + supporting/payout
+  (buy-crypto out)    core/buy-crypto + supporting/payout
 ```
 
-- **Deposit screening**: when a crypto pay-in is confirmed (payin module), call
-  `registerDeposit` and/or `scoringAnalysis(objectType=TRANSACTION, analysisType=INCOMING)`.
-- **Withdrawal screening**: before a crypto payout is released (sell-crypto / payout),
-  call `registerWithdrawal` and/or `scoringAnalysis(objectType=ADDRESS,
-  analysisType=OUTGOING)` on the destination address.
+- **Deposit screening** — crypto **in** = `sell-crypto` (customer sells/swaps → `cryptoInput`,
+  fiat out), plus the buy-crypto *swap* route (also `cryptoInput`): when a crypto pay-in is
+  confirmed (payin detects the `CryptoInput`), call `registerDeposit` and/or
+  `scoringAnalysis(objectType=TRANSACTION, analysisType=INCOMING)` on the transaction.
+- **Withdrawal screening** — crypto **out** = `buy-crypto` (buy + swap → crypto `outputAsset`):
+  before a crypto payout is released (buy-crypto / payout), call `registerWithdrawal` and/or
+  `scoringAnalysis(objectType=ADDRESS, analysisType=OUTGOING)` on the destination address.
 - **AML coupling**: results map onto the AML flow. The existing `IknaService` is built but
   **not wired** into AML; this spec defines the wiring explicitly for Scorechain (see §8).
 
-> NOTE: exact call-sites (service + method) in payin / sell-crypto / payout are to be
-> pinned during review. Listed here as integration points, not final line references.
+> NOTE: exact call-sites (service + method) on the sell-crypto / buy-crypto / payout paths
+> are to be pinned during review (open question §12, Q6) — listed here as integration
+> points, not final line references.
 
 ## 5. Functional scope (full integration, single implementation PR)
 
@@ -257,8 +265,10 @@ path.
   `MANUAL_CHECK`, `HIGH_RISK_KYC_NEEDED`, `HIGH_RISK_BLOCKED` — so a dedicated
   Scorechain-specific reason may not be needed; final choice (reuse vs. new value/`AmlRule`)
   is an **open decision** for review (§12, Q1).
-- Sanction hits (if Scorechain flags a sanctioned counterparty) are treated as the existing
-  sanction path in `src/subdomains/core/aml/services/sanction.service.ts`.
+- Sanction hits (if Scorechain flags a sanctioned counterparty) are surfaced through the
+  existing sanction path in `src/subdomains/core/aml/services/sanction.service.ts` **for
+  review** — this remains Scorechain's labelling, an advisory signal, not a definitive
+  sanctions ruling (consistent with §1).
 - Thresholds are **config-driven**, not hard-coded, so compliance can tune without a deploy.
 
 ## 9. Quota, cost & resilience
@@ -326,8 +336,8 @@ and consistent — no untyped failures, no silent passes:
    recommends fail-closed.
 5. **ikna coexistence:** any short-term routing rule (which chains/flows go to which
    provider), or run both fully in parallel and compare?
-6. **Exact call-sites** in payin / sell-crypto / payout to host F3/F4 — confirm during
-   review.
+6. **Exact call-sites** — F3 (deposit) on the sell-crypto / buy-crypto-swap pay-in path,
+   F4 (withdrawal) on the buy-crypto / payout path — confirm during review.
 7. **Alert delivery:** inbound webhook (`ScenarioAlertCallback`) vs. scheduled polling of
    `/scenarios/alerts` — which is acceptable for our infra?
 
