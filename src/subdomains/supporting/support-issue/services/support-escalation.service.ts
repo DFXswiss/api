@@ -25,6 +25,19 @@ export interface TelegramChat {
   title: string;
 }
 
+// minimal shape of the Telegram getUpdates payload — only the fields the binding logic reads
+interface TelegramApiChat {
+  id: number;
+  type: string;
+  title?: string;
+}
+
+interface TelegramUpdate {
+  message?: { chat?: TelegramApiChat };
+  my_chat_member?: { chat?: TelegramApiChat };
+  channel_post?: { chat?: TelegramApiChat };
+}
+
 interface LastMessage {
   author?: string;
   date?: Date;
@@ -64,7 +77,7 @@ export class SupportEscalationService {
   // Reads recent updates and returns the group/supergroup chats the bot has seen.
   async getGroupChats(): Promise<TelegramChat[]> {
     if (!this.token) return [];
-    const res = await this.http.get<{ result: any[] }>(this.apiUrl('getUpdates'));
+    const res = await this.http.get<{ result: TelegramUpdate[] }>(this.apiUrl('getUpdates'));
     const chats = new Map<number, string>();
     for (const update of res?.result ?? []) {
       const chat = update.message?.chat ?? update.my_chat_member?.chat ?? update.channel_post?.chat;

@@ -111,7 +111,8 @@ export class SupportIssueService {
 
   async getSupportIssueStatistics(role: UserRole, periodDays = 365): Promise<SupportIssueStatisticsDto> {
     const department = RoleDepartmentMap[role];
-    const days = Math.min(Math.max(Math.round(periodDays), 1), 366);
+    // guard against a non-numeric ?days reaching the clamp as NaN (which would propagate to an Invalid Date)
+    const days = Number.isFinite(periodDays) ? Math.min(Math.max(Math.round(periodDays), 1), 366) : 365;
     const granularity: 'day' | 'month' = days <= 31 ? 'day' : 'month';
 
     const now = new Date();
