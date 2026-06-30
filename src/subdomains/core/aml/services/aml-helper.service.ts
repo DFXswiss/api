@@ -143,6 +143,18 @@ export class AmlHelperService {
       if (last365dVolume > entity.userData.depositLimit) errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
     }
 
+    // A granted annual deposit limit must hold regardless of monthly volume, so it cannot be evaded by
+    // structuring turnover below the monthly KYC threshold. Above the threshold this is already covered
+    // by the KYC-gating block above; here we add only the below-threshold case, and only for users who
+    // actually have a limit set (a null limit means none granted — not a zero limit, which would flag
+    // every user with any annual volume).
+    if (
+      last30dVolume <= Config.tradingLimits.monthlyDefaultWoKyc &&
+      entity.userData.depositLimit != null &&
+      last365dVolume > entity.userData.depositLimit
+    )
+      errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
+
     // AmlRule asset/fiat check
     errors.push(
       ...this.amlRuleCheck(

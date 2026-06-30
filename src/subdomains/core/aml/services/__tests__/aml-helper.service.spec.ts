@@ -551,3 +551,51 @@ describe('AmlHelperService.getAmlErrors - RULE_11 KYC waiver is IP-gated; wallet
     expect(occurrences).toBe(1);
   });
 });
+
+describe('AmlHelperService.getAmlErrors - granted annual deposit limit holds below the monthly KYC threshold', () => {
+  beforeAll(() => {
+    new ConfigService(); // initialise the global Config singleton used inside getAmlErrors
+  });
+
+  // last30dVolume = 0 keeps us below monthlyDefaultWoKyc, so the KYC-gating block is skipped and only
+  // the new below-threshold annual-limit check can fire.
+  function errorsFor(entity: BuyCrypto | BuyFiat, last365dVolume: number): AmlError[] {
+    return AmlHelperService.getAmlErrors(
+      entity,
+      entity.cryptoInput?.asset ?? entity.outputAsset,
+      0, // minVolume
+      100, // amountInChf
+      0, // last7dCheckoutVolume
+      0, // last30dVolume (below the monthly KYC threshold)
+      last365dVolume,
+      undefined, // bankData
+      [], // blacklist
+      [], // phoneCallList
+      [], // banks
+      undefined, // ibanCountry
+      undefined, // refUser
+      [], // ipLogCountries
+      undefined, // virtualIban
+      [], // multiAccountBankNames
+      undefined, // recommender
+    );
+  }
+
+  it('flags a granted annual limit that is exceeded even though monthly volume is below the threshold', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = 5000;
+    expect(errorsFor(entity, 6000)).toContain(AmlError.DEPOSIT_LIMIT_REACHED);
+  });
+
+  it('does not flag when the granted annual limit is not exceeded', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = 5000;
+    expect(errorsFor(entity, 4000)).not.toContain(AmlError.DEPOSIT_LIMIT_REACHED);
+  });
+
+  it('does not flag a user without a granted limit — null means none granted, not a zero limit', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = null;
+    expect(errorsFor(entity, 1000000)).not.toContain(AmlError.DEPOSIT_LIMIT_REACHED);
+  });
+});
