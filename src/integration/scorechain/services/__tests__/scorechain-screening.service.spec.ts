@@ -117,7 +117,7 @@ describe('ScorechainScreeningService', () => {
       expect(scorechain.scoringAnalysis).not.toHaveBeenCalled();
     });
 
-    it('uses a short cache TTL for mutable ADDRESS verdicts and the long TTL for immutable TRANSACTION verdicts', async () => {
+    it('reuses a TRANSACTION verdict with no time bound (screened at most once) but expires ADDRESS verdicts after a short TTL', async () => {
       scorechain.scoringAnalysis.mockResolvedValue({
         data: {
           id: 'x',
@@ -131,14 +131,16 @@ describe('ScorechainScreeningService', () => {
       });
 
       await service.screenWithdrawalAddress(Blockchain.ETHEREUM, '0xabc');
-      const addressCutoff = repo.findOne.mock.calls[0][0].where.created.value as Date;
+      const addressWhere = repo.findOne.mock.calls[0][0].where;
 
       await service.screenDepositTransaction(Blockchain.ETHEREUM, 'txhash');
-      const transactionCutoff = repo.findOne.mock.calls[1][0].where.created.value as Date;
+      const transactionWhere = repo.findOne.mock.calls[1][0].where;
 
-      // The ADDRESS verdict expires sooner, so its lookup cutoff is more recent (later) than the
-      // TRANSACTION cutoff — a stale clean address verdict must not survive as long as an immutable tx.
-      expect(addressCutoff.getTime()).toBeGreaterThan(transactionCutoff.getTime());
+      // ADDRESS: a created lower bound (short TTL) so a stale clean verdict cannot survive.
+      expect(addressWhere.created).toBeDefined();
+      // TRANSACTION: NO created bound → any prior verified record is reused regardless of age, so a
+      // given tx hash is never re-sent to the provider in regular operation.
+      expect(transactionWhere.created).toBeUndefined();
     });
 
     it('fails closed when the monthly quota is reached', async () => {

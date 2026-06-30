@@ -1113,10 +1113,9 @@ export class Configuration {
     apiKey: process.env.SCORECHAIN_API_KEY,
     publicKey: process.env.SCORECHAIN_PUBLIC_KEY,
     riskThreshold: +(process.env.SCORECHAIN_RISK_THRESHOLD ?? 70),
-    // A TRANSACTION verdict is keyed by an immutable tx hash and never changes, so it may be cached
-    // long. ADDRESS/WALLET risk is mutable — an address can be flagged after a clean screen — so a
-    // clean verdict must expire quickly to avoid serving a stale pass to a later withdrawal.
-    cacheMinutes: +(process.env.SCORECHAIN_CACHE_MINUTES ?? 60 * 24),
+    // ADDRESS/WALLET risk is mutable — an address can be flagged after a clean screen — so a clean
+    // verdict expires after this TTL and is re-screened. A TRANSACTION verdict is keyed by an
+    // immutable tx hash and is reused with no time bound, so a given tx is screened at most once.
     addressCacheMinutes: +(process.env.SCORECHAIN_ADDRESS_CACHE_MINUTES ?? 60),
     monthlyCheckLimit: process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT
       ? +process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT

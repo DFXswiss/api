@@ -126,14 +126,6 @@ export class ScorechainScreeningService {
   }
 
   private async getCached(params: ScreenParams): Promise<ScorechainScreening | undefined> {
-    // A TRANSACTION verdict is bound to an immutable tx hash, so it stays valid for the full window.
-    // ADDRESS/WALLET risk can change after a clean screen, so those verdicts expire quickly — never
-    // serve a stale clean address verdict to a later withdrawal gate.
-    const cacheMinutes =
-      params.objectType === ScorechainObjectType.TRANSACTION
-        ? Config.scorechain.cacheMinutes
-        : Config.scorechain.addressCacheMinutes;
-
     return (
       (await this.repo.findOne({
         where: {
@@ -145,7 +137,12 @@ export class ScorechainScreeningService {
           // (clock skew / key rotation) would otherwise pin the object to high-risk for the whole
           // cache window. Re-screen instead so the gate can self-heal once signatures verify again.
           signatureValid: true,
-          created: MoreThanOrEqual(Util.minutesBefore(cacheMinutes)),
+          // A TRANSACTION verdict is bound to an immutable tx hash, so a verified screening stays valid
+          // forever — reuse it with NO time bound so a given tx is sent to the provider at most once.
+          // ADDRESS/WALLET risk is mutable, so those verdicts expire after a short TTL and re-screen.
+          ...(params.objectType !== ScorechainObjectType.TRANSACTION && {
+            created: MoreThanOrEqual(Util.minutesBefore(Config.scorechain.addressCacheMinutes)),
+          }),
         },
         order: { created: 'DESC' },
       })) ?? undefined
