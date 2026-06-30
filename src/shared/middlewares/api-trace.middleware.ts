@@ -7,16 +7,28 @@ const CLIENT_HEADER = 'x-client';
 const REALUNIT_CLIENT = /realunit-app/i;
 const REALUNIT_PATH = /^\/v\d+\/realunit\//i;
 
-// Keys whose values are masked: auth header, JWT/access tokens, signatures, credentials.
-// Anchored so public fields like `tokenInfo` / `tokenAddress` are NOT redacted.
-const SECRET_KEY = /(^authorization$|token$|signature$|password|secret|mnemonic|privatekey)/i;
+// Object keys whose value is fully replaced with `***`: credentials, personal
+// data, and the client-IP / cookie headers. Deliberately broad — over-masking a
+// non-sensitive field is acceptable, leaking a personal one is not.
+const REDACT_KEY =
+  /(^authorization$|^cookie$|^set-cookie$|^forwarded$|token$|signature$|password|secret|mnemonic|privatekey|name$|firstname|surname|mail|phone|street|address|city|zip|postalcode|housenumber|country|nationality|birth|iban|tin|x-forwarded-for|x-real-ip|cf-connecting-ip|true-client-ip|x-client-ip)/i;
+
+// Value patterns masked wherever they appear, even under a key we didn't list.
+const WALLET_ADDRESS = /0x[0-9a-fA-F]{40}/g;
+const EMAIL = /[^\s"@]+@[^\s"@]+\.[^\s"@]+/g;
+const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
+
 const MAX_STRING = 512;
 const REDACTED = '***';
 
+function maskValue(s: string): string {
+  return s.replace(WALLET_ADDRESS, '0x…').replace(EMAIL, REDACTED).replace(IPV4, REDACTED);
+}
+
 function redact(value: unknown, key?: string): unknown {
-  if (key && SECRET_KEY.test(key) && value != null && value !== '') return REDACTED;
+  if (key && REDACT_KEY.test(key) && value != null && value !== '') return REDACTED;
   if (typeof value === 'string') {
-    return value.length > MAX_STRING ? `<… ${value.length} chars …>` : value;
+    return value.length > MAX_STRING ? `<… ${value.length} chars …>` : maskValue(value);
   }
   if (Array.isArray(value)) return value.map((entry) => redact(entry));
   if (value && typeof value === 'object') {
@@ -29,21 +41,24 @@ function format(value: unknown): string {
   if (value === undefined || value === null) return '(empty)';
   if (typeof value === 'object' && Object.keys(value as object).length === 0) return '(empty)';
   try {
-    return JSON.stringify(redact(value), null, 2);
+    return JSON.stringify(redact(value));
   } catch {
     return '(unserializable)';
   }
 }
 
 /**
- * Full request/response tracer for the RealUnit internal test phase.
- * Enabled on DEV and PRD — see the environment gate in `main.ts`.
+ * Request/response tracer for the RealUnit internal test phase (DEV + PRD — see
+ * the environment gate in `main.ts`). Emits one trace per call from the
+ * realunit-app (detected via the `X-Client: realunit-app` header or a
+ * `/v{n}/realunit/*` path): method, path, status, duration, client, request
+ * headers, request body and response body.
  *
- * Emits one log block per call originating from the realunit-app — detected
- * either via the `X-Client: realunit-app` header or a `/v{n}/realunit/*` path
- * (the latter also covers app builds shipped before the header existed).
- * Secrets are masked; KYC/PII bodies are kept intact by design — on PRD this
- * means real customer data is written to the container logs.
+ * Personal data is redacted — credentials, names, addresses, email, phone, IBAN
+ * etc. by key, and wallet addresses / emails / IPv4 by value (the client IP and
+ * cookies live in the headers). The whole trace is logged on a single INFO line
+ * (compact JSON, no `null, 2`) so the pipeline can't split it into fragments and
+ * mis-tag them as ERROR.
  */
 export function apiTraceMiddleware(): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
@@ -70,14 +85,11 @@ export function apiTraceMiddleware(): RequestHandler {
 
     res.on('finish', () => {
       const durationMs = Date.now() - start;
-      const block = [
-        `${req.method} ${req.originalUrl} → ${res.statusCode} (${durationMs}ms)  ` +
-          `client=${clientStr || '(none)'} ip=${req.realIp}`,
-        `  req.headers: ${format(req.headers)}`,
-        `  req.body:    ${format(req.body)}`,
-        `  res.body:    ${format(responseBody)}`,
-      ].join('\n');
-      logger.info(block);
+      const path = req.originalUrl.split('?')[0].replace(WALLET_ADDRESS, '0x…');
+      logger.info(
+        `${req.method} ${path} → ${res.statusCode} (${durationMs}ms)  client=${clientStr || '(none)'}  ` +
+          `req.headers=${format(req.headers)}  req.body=${format(req.body)}  res.body=${format(responseBody)}`,
+      );
     });
 
     next();
