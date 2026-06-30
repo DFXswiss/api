@@ -38,9 +38,10 @@ specification, then a single implementation PR (see §11).
   integration conventions (cf. `src/integration/ikna`).
 - G2. On-demand **risk scoring** of addresses, wallets and transactions via
   `/scoringAnalysis`.
-- G3. **Transaction monitoring (TMS)**: register crypto deposits (`/registerDeposit`) and
-  pre-validate crypto withdrawals (`/registerWithdrawal`), wired into the existing payin /
-  payout flows.
+- G3. **Screen crypto deposits and withdrawals**: a **synchronous** `scoringAnalysis` gate
+  before release, plus — optionally — the **asynchronous** TMS workflow
+  (`/registerDeposit` / `/registerWithdrawal` → scenarios/alerts), wired into the existing
+  payin / payout flows.
 - G4. **Alert handling**: receive TMS scenario alerts and surface them to AML.
 - G5. **Response-signature verification** (proof of authenticity) on every response.
 - G6. Persist screening results (entity + repository) for audit trail and to **cache**
@@ -108,9 +109,14 @@ BITCOINCASH, DOGECOIN, RIPPLE, … (full list via `GET /blockchains`). A mapping
 
 ### `registerWithdrawal` parameters
 - Required: `blockchain`, `withdrawAddress`, `amount`, `coinChainId` (token contract or
-  `MAIN`). Optional: `identifier` (UUID; auto-generated if omitted, usable with
-  `GET /scenarios/checks`). Pre-validates the withdrawal; does **not** trigger
-  `TX_PATTERN`/Structuring scenarios.
+  `MAIN`). Optional: `identifier` (UUID; auto-generated if omitted).
+- **Asynchronous, no synchronous verdict:** the 200 response (`PendingWithdrawal`) contains
+  only `blockchain` + `identifier`. It queues the withdrawal for TMS scenario evaluation;
+  the result arrives later via `GET /scenarios/checks` (`QUEUED → PROCESSED`) or the
+  `ScenarioAlertCallback` webhook. Does **not** trigger `TX_PATTERN`/Structuring scenarios.
+  Both `register*` endpoints are a license-gated TMS feature (`NotIncludedInLicense`).
+- For a **synchronous** go/no-go before releasing a payout, use `scoringAnalysis` on the
+  destination address instead (see §4.2 / §5).
 
 ## 4. Architecture
 
@@ -153,27 +159,33 @@ src/integration/scorechain/
 
 ```
                       ┌─────────────────────────────────────────────┐
-  Crypto deposit  ──► │ payin (src/subdomains/supporting/payin)      │
-  (sell-crypto in)    │   on confirmed pay-in → registerDeposit      │──► Scorechain TMS
+  Crypto deposit  ──► │ sell-crypto / buy-crypto-swap → payin        │
+  (crypto in)         │   pay-in: scoringAnalysis gate (+async TMS)  │──► Scorechain
                       └─────────────────────────────────────────────┘
-                                          │ alert (callback / poll)
+                                          │ score (sync) / alert (async)
                                           ▼
                       ┌─────────────────────────────────────────────┐
                       │ AML (src/subdomains/core/aml)                │
-                      │   risk score / alert → AmlReason / manual    │
+                      │   AmlError → CheckStatus.PENDING / manual    │
                       └─────────────────────────────────────────────┘
                                           ▲
-  Crypto withdrawal ─► registerWithdrawal │  (pre-validation before payout is released)
-  (buy-crypto out)    core/buy-crypto + supporting/payout
+  Crypto withdrawal ─► scoringAnalysis(ADDRESS) gate (sync) before payout
+  (crypto out)         buy-crypto + supporting/payout  [+ async registerWithdrawal]
 ```
 
 - **Deposit screening** — crypto **in** = `sell-crypto` (customer sells/swaps → `cryptoInput`,
-  fiat out), plus the buy-crypto *swap* route (also `cryptoInput`): when a crypto pay-in is
-  confirmed (payin detects the `CryptoInput`), call `registerDeposit` and/or
-  `scoringAnalysis(objectType=TRANSACTION, analysisType=INCOMING)` on the transaction.
+  fiat out), plus the buy-crypto *swap* route (also `cryptoInput`): on confirmed pay-in
+  (payin detects the `CryptoInput`), the **synchronous** verdict comes from
+  `scoringAnalysis(objectType=TRANSACTION, analysisType=INCOMING)`. `registerDeposit` is used
+  **additionally** to feed the async TMS workflow (scenario rules, alerts, audit) — it is not
+  a synchronous score.
 - **Withdrawal screening** — crypto **out** = `buy-crypto` (buy + swap → crypto `outputAsset`):
-  before a crypto payout is released (buy-crypto / payout), call `registerWithdrawal` and/or
-  `scoringAnalysis(objectType=ADDRESS, analysisType=OUTGOING)` on the destination address.
+  the **synchronous pre-payout gate** is `scoringAnalysis(objectType=ADDRESS)` on the
+  destination address (`analysisType=ASSIGNED` for a quick flag, or `OUTGOING` for recipient
+  exposure — same 1-check cost). `registerWithdrawal` only returns a tracking UUID and is
+  evaluated **asynchronously** (poll `GET /scenarios/checks` or the `ScenarioAlertCallback`
+  webhook), so it is used **additionally** for the full TMS workflow — never as the release
+  gate.
 - **AML coupling**: results map onto the AML flow. The existing `IknaService` is built but
   **not wired** into AML; this spec defines the wiring explicitly for Scorechain (see §8).
 
@@ -186,9 +198,9 @@ src/integration/scorechain/
 | # | Feature | Endpoint | Trigger |
 |---|---|---|---|
 | F1 | Address/wallet risk score (on demand, admin) | `/scoringAnalysis` | Admin endpoint / manual AML review |
-| F2 | Transaction risk score | `/scoringAnalysis` (`objectType=TRANSACTION`) | On pay-in confirmation |
-| F3 | Deposit monitoring | `/registerDeposit` | On confirmed crypto pay-in |
-| F4 | Withdrawal pre-validation | `/registerWithdrawal` | Before crypto payout release |
+| F2 | Deposit risk score (synchronous gate) | `/scoringAnalysis` (`objectType=TRANSACTION`, `INCOMING`) | On confirmed crypto pay-in |
+| F3 | Withdrawal risk score (synchronous pre-payout gate) | `/scoringAnalysis` (`objectType=ADDRESS`) | Before crypto payout release |
+| F4 | Async TMS workflow (additional) | `/registerDeposit`, `/registerWithdrawal` + `/scenarios/checks` | Feed scenario rules / alerts / audit |
 | F5 | Alert ingestion | `ScenarioAlertCallback` webhook + `/scenarios/{scenarioId}/alerts` | Scorechain pushes alert |
 | F6 | Response-signature verification | `/publicKeys` | Every response |
 | F7 | Screening persistence + cache | (internal) | Every screening |
@@ -257,13 +269,18 @@ how `IknaService` holds its own base URL and `Config.ikna` holds only the creden
 The integration is **advisory** — Scorechain informs, a human decides. No new auto-reject
 path.
 
-- **Mechanism (mirrors existing manual-check handling):** a screening result above a
-  configurable risk threshold (or any TMS alert) makes the AML evaluation push an
-  `AmlError`; `aml-error.enum.ts` maps that error to `{ amlCheck: CheckStatus.PENDING,
-  amlReason: … }`, so the transaction lands in **manual review** rather than being
-  auto-blocked. This is exactly how `AmlRule.RULE_15` already pushes
-  `AmlError.FORCE_MANUAL_CHECK` (→ `CheckStatus.PENDING` + `AmlReason.MANUAL_CHECK`) in
-  `aml-helper.service` — no new decision path is invented.
+- **Mechanism — the outcome layer, not the static `AmlRule` switch:** a screening result
+  above a configurable risk threshold (or a TMS alert) produces an `AmlError`;
+  `aml-error.enum.ts` maps it to `{ amlCheck: CheckStatus.PENDING, amlReason: … }`, so the
+  transaction lands in **manual review** rather than being auto-blocked. The existing
+  `AmlError.FORCE_MANUAL_CHECK` (→ `CheckStatus.PENDING` + `AmlReason.MANUAL_CHECK`) is the
+  analogous outcome.
+- This is deliberately **not** modelled as an `AmlRule`. `AmlRule` is a statically
+  configured rule set on master data (asset / IBAN-country / wallet / nationality),
+  evaluated in `amlRuleCheck()` over the transaction's own fields with **no external
+  input**. A Scorechain result is a dynamic, per-transaction external signal, so it wires
+  into the runtime **outcome layer** (`AmlError` → `AmlReason`/`CheckStatus`), not the rule
+  switch.
 - Reuse `AmlError.FORCE_MANUAL_CHECK` / `AmlReason.MANUAL_CHECK`, or add a dedicated
   Scorechain `AmlError` + `AmlReason` mapped to `CheckStatus.PENDING` — **open decision**
   for review (§12, Q1).
@@ -332,16 +349,18 @@ and consistent — no untyped failures, no silent passes:
 1. **AML modelling:** reuse `AmlError.FORCE_MANUAL_CHECK` / `AmlReason.MANUAL_CHECK`, or add
    a dedicated Scorechain `AmlError` + `AmlReason` (both mapped to `CheckStatus.PENDING` for
    manual review)? Who owns the threshold config?
-2. **Deposit screening method:** `registerDeposit` (TMS scenarios, async alert) **and/or**
-   synchronous `scoringAnalysis` on pay-in? Both, or TMS-only to save checks?
+2. **TMS depth:** the synchronous gate is `scoringAnalysis`. Do we **also** run the async
+   TMS workflow (`registerDeposit`/`registerWithdrawal` → scenarios/alerts) for the full
+   rules engine + audit trail, or start with `scoringAnalysis` alone? (`register*` is a
+   license-gated TMS feature — `NotIncludedInLicense`.)
 3. **Signature verification:** adopt the Scorechain JS SDK, or implement RSA-SHA256
    verification with Node `crypto` (no new dependency)?
 4. **Quota policy at limit:** fail-closed (→ manual review) vs. fail-open + alert? Spec
    recommends fail-closed.
 5. **ikna coexistence:** any short-term routing rule (which chains/flows go to which
    provider), or run both fully in parallel and compare?
-6. **Exact call-sites** — F3 (deposit) on the sell-crypto / buy-crypto-swap pay-in path,
-   F4 (withdrawal) on the buy-crypto / payout path — confirm during review.
+6. **Exact call-sites** — the deposit gate on the sell-crypto / buy-crypto-swap pay-in path,
+   the withdrawal gate on the buy-crypto / payout path — confirm during review.
 7. **Alert delivery:** inbound webhook (`ScenarioAlertCallback`) vs. scheduled polling of
    `/scenarios/alerts` — which is acceptable for our infra?
 
