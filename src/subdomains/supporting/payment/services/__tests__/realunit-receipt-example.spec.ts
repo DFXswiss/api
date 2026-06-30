@@ -78,7 +78,7 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     service = new SwissQRService({} as never, module.get(I18nService));
   });
 
-  it('renders a single-purchase receipt (DE)', async () => {
+  it('renders the transaction confirmation (DE)', async () => {
     const pdf = await service.createTxFromBlockchainReceipt(
       event('100', TX1, '2025-10-28T13:30:00Z'),
       buyer,
@@ -92,10 +92,10 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     );
 
     expectValidPdf(pdf);
-    writeExample('single-de.pdf', pdf);
+    writeExample('transaction-confirmation-de.pdf', pdf);
   });
 
-  it('renders a single-purchase receipt (EN)', async () => {
+  it('renders the transaction confirmation (EN)', async () => {
     const pdf = await service.createTxFromBlockchainReceipt(
       event('100', TX1, '2025-10-28T13:30:00Z'),
       buyer,
@@ -109,10 +109,10 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     );
 
     expectValidPdf(pdf);
-    writeExample('single-en.pdf', pdf);
+    writeExample('transaction-confirmation-en.pdf', pdf);
   });
 
-  it('renders a multi-transaction history receipt (DE)', async () => {
+  it('renders the transaction history (DE)', async () => {
     const pdf = await service.createTxFromBlockchainMultiReceipt(
       [
         { historyEvent: event('100', TX1, '2025-10-28T13:30:00Z'), fiatPrice: 1.29, isIncoming: true },
@@ -128,6 +128,6 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     );
 
     expectValidPdf(pdf);
-    writeExample('multi-de.pdf', pdf);
+    writeExample('transaction-history-de.pdf', pdf);
   });
 });
