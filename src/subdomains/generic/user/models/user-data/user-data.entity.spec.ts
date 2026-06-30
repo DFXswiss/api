@@ -53,6 +53,10 @@ describe('UserData', () => {
       expect(resolve([user(UserRole.SUPPORT, { id: 3, status: UserStatus.BLOCKED })])).toBeUndefined();
     });
 
+    it('skips a deleted staff user', () => {
+      expect(resolve([user(UserRole.SUPPORT, { id: 3, status: UserStatus.DELETED })])).toBeUndefined();
+    });
+
     it('skips a blocked staff user but elevates an active one', () => {
       const compliance = user(UserRole.COMPLIANCE, { id: 9 });
       const blockedSupport = user(UserRole.SUPPORT, { id: 3, status: UserStatus.BLOCKED });

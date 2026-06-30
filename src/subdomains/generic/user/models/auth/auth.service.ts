@@ -348,6 +348,7 @@ export class AuthService {
     try {
       const entry = this.mailKeyList.get(code);
       if (!this.isMailKeyValid(entry)) throw new Error('Login link expired');
+      this.mailKeyList.delete(code); // one-time use: consume the code immediately so the link cannot be replayed
 
       const account = await this.userDataService.getUserData(entry.userDataId, {
         users: { wallet: true },

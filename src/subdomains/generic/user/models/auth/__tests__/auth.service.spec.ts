@@ -201,5 +201,28 @@ describe('AuthService', () => {
       expect(result).toBe('https://services.test/error?msg=The%20country%20of%20IP%20address%20is%20not%20allowed');
       expect(jwtServiceMock.sign).not.toHaveBeenCalled();
     });
+
+    it('never elevates a terminated/rejected account (negative kycLevel counts as blocked)', async () => {
+      setKey();
+      userDataServiceMock.getUserData.mockResolvedValue(
+        account({ kycLevel: KycLevel.TERMINATED, users: [staffUser(UserRole.COMPLIANCE)] }),
+      );
+
+      const result = await service.completeSignInByMail(code, ip);
+
+      expect(result).toBe('https://services.test/account?session=signed-jwt');
+      expect(signPayload().role).toBe(UserRole.ACCOUNT);
+    });
+
+    it('consumes the code so the magic link cannot be replayed (one-time use)', async () => {
+      setKey();
+      userDataServiceMock.getUserData.mockResolvedValue(account({ users: [staffUser()] }));
+
+      const first = await service.completeSignInByMail(code, ip);
+      const second = await service.completeSignInByMail(code, ip);
+
+      expect(first).toBe('https://services.test/account?session=signed-jwt');
+      expect(second).toBe('https://services.test/error?msg=Login%20link%20expired');
+    });
   });
 });
