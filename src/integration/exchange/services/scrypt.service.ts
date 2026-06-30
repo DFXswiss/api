@@ -34,8 +34,8 @@ export class ScryptService extends PricingProvider {
   private readonly connection: ScryptWebSocketConnection;
 
   // Subscriptions
-  private readonly securities: AsyncSubscription<ScryptSecurity[]>;
-  private readonly balances: AsyncSubscription<Map<string, ScryptBalance>>;
+  private readonly securities!: AsyncSubscription<ScryptSecurity[]>;
+  private readonly balances!: AsyncSubscription<Map<string, ScryptBalance>>;
   private readonly executionReports: Map<string, ScryptExecutionReport> = new Map();
   private readonly balanceTransactions: Map<string, ScryptBalanceTransaction> = new Map();
 
@@ -51,6 +51,13 @@ export class ScryptService extends PricingProvider {
 
     const config = GetConfig().scrypt;
     this.connection = new ScryptWebSocketConnection(config.wsUrl, config.apiKey, config.apiSecret);
+
+    // Skip the eager websocket connect + cache warm-up where Scrypt is unconfigured
+    // (e.g. dev): the connection would otherwise reconnect-loop on ETIMEDOUT.
+    if (!this.isConfigured) {
+      this.logger.warn('Scrypt is not configured — skipping websocket subscriptions and cache warm-up');
+      return;
+    }
 
     // Securities subscription
     this.securities = new AsyncSubscription((cb) => {
