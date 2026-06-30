@@ -8,7 +8,7 @@ import {
 import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { SupportClerkDto } from 'src/shared/models/setting/dto/support-clerk.dto';
+import { SupportClerkAccountDto } from 'src/shared/models/setting/dto/support-clerk-account.dto';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
@@ -74,7 +74,7 @@ export class SupportIssueService {
   // Resolves the clerk name assigned to a support account via the `supportClerkAccounts`
   // setting ([{ account, name }]). Returns undefined if the account is unmapped.
   async getSupportClerkForAccount(account: number): Promise<string | undefined> {
-    const clerks = await this.settingService.getObj<SupportClerkDto[]>('supportClerkAccounts', []);
+    const clerks = await this.settingService.getObj<SupportClerkAccountDto[]>('supportClerkAccounts', []);
     return clerks.find((c) => c.account === account)?.name;
   }
 
@@ -161,17 +161,21 @@ export class SupportIssueService {
         trend.push({ key, count: map.get(key) ?? 0 });
       }
     } else {
+      // group by day in SQL (CAST avoids Postgres-incompatible date-part functions and keeps the raw query
+      // alias-clean, see query-builder-alias.spec.ts), then roll the daily counts up into months in JS
       const trendQb = this.supportIssueRepo
         .createQueryBuilder('issue')
-        .select('EXTRACT(YEAR FROM issue.created)', 'y')
-        .addSelect('EXTRACT(MONTH FROM issue.created)', 'm')
+        .select('CAST(issue.created AS DATE)', 'd')
         .addSelect('COUNT(*)', 'count')
         .where('issue.created >= :from', { from })
-        .groupBy('EXTRACT(YEAR FROM issue.created)')
-        .addGroupBy('EXTRACT(MONTH FROM issue.created)');
+        .groupBy('CAST(issue.created AS DATE)');
       if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
-      const rows = await trendQb.getRawMany<{ y: number; m: number; count: string }>();
-      const map = new Map(rows.map((r) => [`${r.y}-${pad(r.m)}`, +r.count]));
+      const rows = await trendQb.getRawMany<{ d: Date | string; count: string }>();
+      const map = new Map<string, number>();
+      for (const r of rows) {
+        const key = new Date(r.d).toISOString().slice(0, 7); // YYYY-MM
+        map.set(key, (map.get(key) ?? 0) + +r.count);
+      }
       // span every calendar month the [from, now] window touches, so the trend always sums to total
       const monthSpan = (now.getFullYear() - from.getFullYear()) * 12 + (now.getMonth() - from.getMonth());
       for (let i = monthSpan; i >= 0; i--) {

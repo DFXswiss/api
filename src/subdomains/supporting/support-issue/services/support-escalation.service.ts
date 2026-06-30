@@ -8,7 +8,7 @@ import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { In } from 'typeorm';
-import { SupportIssueReasonLabelDe, SupportIssueTypeLabelDe } from '../dto/support-issue-label';
+import { SupportIssueReasonLabelMap, SupportIssueTypeLabelMap } from '../dto/support-issue-label';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
 import { SupportIssueInternalState, SupportIssueType } from '../enums/support-issue.enum';
@@ -203,8 +203,8 @@ export class SupportEscalationService {
       ? `${Config.frontend.services}/support/dashboard/issue/${issue.id}`
       : undefined;
 
-    const type = SupportIssueTypeLabelDe[issue.type] ?? issue.type;
-    const reason = SupportIssueReasonLabelDe[issue.reason] ?? issue.reason;
+    const type = SupportIssueTypeLabelMap[issue.type] ?? issue.type;
+    const reason = SupportIssueReasonLabelMap[issue.reason] ?? issue.reason;
     const lines = [
       '🚨 <b>Ticket eskaliert</b>',
       `Kunde: ${this.escape(issue.name)}`,

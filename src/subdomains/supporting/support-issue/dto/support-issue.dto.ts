@@ -289,7 +289,7 @@ export class SupportIssueListDto {
   lastMessageAuthor?: string;
 }
 
-export class SupportIssueStatBucketDto {
+export class SupportIssueStatisticsBucketDto {
   @ApiProperty({ description: 'Bucket key: "YYYY-MM-DD" (daily) or "YYYY-MM" (monthly)' })
   key: string;
 
@@ -324,8 +324,11 @@ export class SupportIssueStatisticsDto {
   @ApiProperty({ enum: ['day', 'month'], description: 'Trend bucket granularity' })
   granularity: 'day' | 'month';
 
-  @ApiProperty({ type: [SupportIssueStatBucketDto], description: 'Trend buckets across the period, oldest first' })
-  trend: SupportIssueStatBucketDto[];
+  @ApiProperty({
+    type: [SupportIssueStatisticsBucketDto],
+    description: 'Trend buckets across the period, oldest first',
+  })
+  trend: SupportIssueStatisticsBucketDto[];
 
   @ApiProperty({ description: 'Average hours from creation to completion (tickets completed in the period)' })
   avgResolutionHours: number;

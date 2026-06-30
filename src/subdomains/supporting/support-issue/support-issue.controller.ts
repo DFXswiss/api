@@ -123,8 +123,8 @@ export class SupportIssueController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
-  async bindEscalationChat(): Promise<TelegramChat | undefined> {
-    return this.supportEscalationService.bindGroupChat();
+  async bindEscalationChat(): Promise<{ chat: TelegramChat | null }> {
+    return { chat: (await this.supportEscalationService.bindGroupChat()) ?? null };
   }
 
   @Post('escalation/telegram-test')
@@ -158,7 +158,7 @@ export class SupportIssueController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
-  async getMyClerk(@GetJwt() jwt: JwtPayload): Promise<{ clerk: string | null }> {
+  async getSupportIssueClerk(@GetJwt() jwt: JwtPayload): Promise<{ clerk: string | null }> {
     return { clerk: (await this.supportIssueService.getSupportClerkForAccount(jwt.account)) ?? null };
   }
 

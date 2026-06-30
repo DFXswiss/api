@@ -2,7 +2,7 @@ import { SupportIssueReason, SupportIssueType } from '../enums/support-issue.enu
 
 // German display labels for support issue types/reasons, mirroring the labels shown in the
 // services frontend. Used for human-facing German messages such as Telegram escalation alerts.
-export const SupportIssueTypeLabelDe: Record<SupportIssueType, string> = {
+export const SupportIssueTypeLabelMap: Record<SupportIssueType, string> = {
   [SupportIssueType.GENERIC_ISSUE]: 'Allgemeine Anfrage',
   [SupportIssueType.TRANSACTION_ISSUE]: 'Transaktionsbezogene Anfrage',
   [SupportIssueType.VERIFICATION_CALL]: 'Verifizierungsanruf',
@@ -13,7 +13,7 @@ export const SupportIssueTypeLabelDe: Record<SupportIssueType, string> = {
   [SupportIssueType.BUG_REPORT]: 'Fehlermeldung',
 };
 
-export const SupportIssueReasonLabelDe: Record<SupportIssueReason, string> = {
+export const SupportIssueReasonLabelMap: Record<SupportIssueReason, string> = {
   [SupportIssueReason.OTHER]: 'Andere',
   [SupportIssueReason.DATA_REQUEST]: 'Datenanfrage',
   [SupportIssueReason.FUNDS_NOT_RECEIVED]: 'Zahlung nicht erhalten',

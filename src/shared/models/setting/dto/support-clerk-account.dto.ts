@@ -1,6 +1,6 @@
 import { IsInt, IsNotEmpty, IsString, Min } from 'class-validator';
 
-export class SupportClerkDto {
+export class SupportClerkAccountDto {
   @IsInt()
   @Min(1)
   account: number;
