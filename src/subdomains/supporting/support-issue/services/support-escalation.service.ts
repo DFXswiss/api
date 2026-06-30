@@ -18,7 +18,14 @@ import { SupportMessageRepository } from '../repositories/support-message.reposi
 const CHAT_ID_KEY = 'supportEscalationChatId';
 const NOTIFIED_KEY = 'supportEscalationNotified';
 const LIMIT_NOTIFIED_KEY = 'supportLimitRequestNotified';
-const OPEN_STATES = [SupportIssueInternalState.CREATED, SupportIssueInternalState.PENDING];
+// non-terminal states where a customer can be waiting for a reply (OnHold is parked, so excluded);
+// the new InProgress/InClarification states must be included or actively-handled tickets silently stop escalating
+const OPEN_STATES = [
+  SupportIssueInternalState.CREATED,
+  SupportIssueInternalState.PENDING,
+  SupportIssueInternalState.IN_PROGRESS,
+  SupportIssueInternalState.IN_CLARIFICATION,
+];
 
 export interface TelegramChat {
   id: number;

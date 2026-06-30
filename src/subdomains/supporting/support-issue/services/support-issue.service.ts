@@ -115,7 +115,7 @@ export class SupportIssueService {
   }
 
   async getSupportIssueStatistics(role: UserRole, periodDays = 365): Promise<SupportIssueStatisticsDto> {
-    const department = RoleDepartmentMap[role];
+    const departments = getVisibleDepartments(role);
     // guard against a non-numeric ?days reaching the clamp as NaN (which would propagate to an Invalid Date)
     const days = Number.isFinite(periodDays) ? Math.min(Math.max(Math.round(periodDays), 1), 366) : 365;
     const granularity: 'day' | 'month' = days <= 31 ? 'day' : 'month';
@@ -129,7 +129,7 @@ export class SupportIssueService {
       .createQueryBuilder('issue')
       .select('COUNT(*)', 'count')
       .where('issue.created >= :from', { from });
-    if (department) totalQb.andWhere('issue.department = :department', { department });
+    if (departments) totalQb.andWhere('issue.department IN (:...departments)', { departments });
     const total = +((await totalQb.getRawOne<{ count: string }>())?.count ?? 0);
 
     const msgQb = this.messageRepo
@@ -137,7 +137,7 @@ export class SupportIssueService {
       .innerJoin('m.issue', 'issue')
       .select('COUNT(*)', 'count')
       .where('issue.created >= :from', { from });
-    if (department) msgQb.andWhere('issue.department = :department', { department });
+    if (departments) msgQb.andWhere('issue.department IN (:...departments)', { departments });
     const messages = +((await msgQb.getRawOne<{ count: string }>())?.count ?? 0);
 
     // trend buckets (daily for short periods, monthly otherwise)
@@ -149,7 +149,7 @@ export class SupportIssueService {
         .addSelect('COUNT(*)', 'count')
         .where('issue.created >= :from', { from })
         .groupBy('CAST(issue.created AS DATE)');
-      if (department) trendQb.andWhere('issue.department = :department', { department });
+      if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
       const rows = await trendQb.getRawMany<{ d: Date | string; count: string }>();
       const map = new Map(rows.map((r) => [new Date(r.d).toISOString().slice(0, 10), +r.count]));
       for (let i = days - 1; i >= 0; i--) {
@@ -168,11 +168,12 @@ export class SupportIssueService {
         .where('issue.created >= :from', { from })
         .groupBy('YEAR(issue.created)')
         .addGroupBy('MONTH(issue.created)');
-      if (department) trendQb.andWhere('issue.department = :department', { department });
+      if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
       const rows = await trendQb.getRawMany<{ y: number; m: number; count: string }>();
       const map = new Map(rows.map((r) => [`${r.y}-${pad(r.m)}`, +r.count]));
-      const months = Math.max(1, Math.round(days / 30));
-      for (let i = months - 1; i >= 0; i--) {
+      // span every calendar month the [from, now] window touches, so the trend always sums to total
+      const monthSpan = (now.getFullYear() - from.getFullYear()) * 12 + (now.getMonth() - from.getMonth());
+      for (let i = monthSpan; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
         const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
         trend.push({ key, count: map.get(key) ?? 0 });
@@ -189,7 +190,7 @@ export class SupportIssueService {
       .addSelect('issue.updated', 'updated')
       .where('issue.state = :completed', { completed: SupportIssueInternalState.COMPLETED })
       .andWhere('issue.updated >= :from', { from });
-    if (department) resolvedQb.andWhere('issue.department = :department', { department });
+    if (departments) resolvedQb.andWhere('issue.department IN (:...departments)', { departments });
     const resolvedRows = await resolvedQb.getRawMany<{ type: string; created: Date; updated: Date }>();
 
     const resolutionStats = new Map<string, { sum: number; count: number }>();
