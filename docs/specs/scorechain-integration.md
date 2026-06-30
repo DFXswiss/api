@@ -72,7 +72,7 @@ specification, then a single implementation PR (see §11).
 | Alert push | `ScenarioAlertCallback` (webhook) | Provider pushes alert on scenario match |
 | Signature keys | `GET /publicKeys` | Fetch keys to verify response signatures |
 | Reports & audit | `GET /reports`, `GET /reports/{reportId}/files/{fileName}` | Documented evidence |
-| Health / account | `GET /status`, `GET /me` | Health check, account/quota info |
+| Health / account | `GET /status`, `GET /me` | Health check; account info / API-key validation |
 
 ### Authentication
 - API key sent in the request header **`X-API-KEY`**. (`ApiKeyAuth` is only the OpenAPI
@@ -192,7 +192,7 @@ src/integration/scorechain/
 | F5 | Alert ingestion | `ScenarioAlertCallback` webhook + `/scenarios/{scenarioId}/alerts` | Scorechain pushes alert |
 | F6 | Response-signature verification | `/publicKeys` | Every response |
 | F7 | Screening persistence + cache | (internal) | Every screening |
-| F8 | Quota guard | `/me` / internal counter | Before each billable call |
+| F8 | Quota guard | internal counter | Before each billable call |
 | F9 | Health check | `/status` | Monitoring module |
 | F10 | Reports (audit evidence) | `/reports`, `/reports/{reportId}/files/{fileName}` | On demand (compliance) |
 
@@ -257,14 +257,16 @@ how `IknaService` holds its own base URL and `Config.ikna` holds only the creden
 The integration is **advisory** — Scorechain informs, a human decides. No new auto-reject
 path.
 
-- A screening result above a configurable risk threshold (or any TMS alert) creates an AML
-  signal that routes the transaction to **manual check** (consistent with existing
-  `AmlRule.RULE_15` "Force Manual Check") rather than auto-blocking.
-- Map Scorechain severity → an internal flag consumed by `aml.service` /
-  `aml-helper.service`. The `AmlReason` enum already carries fitting values to reuse —
-  `MANUAL_CHECK`, `HIGH_RISK_KYC_NEEDED`, `HIGH_RISK_BLOCKED` — so a dedicated
-  Scorechain-specific reason may not be needed; final choice (reuse vs. new value/`AmlRule`)
-  is an **open decision** for review (§12, Q1).
+- **Mechanism (mirrors existing manual-check handling):** a screening result above a
+  configurable risk threshold (or any TMS alert) makes the AML evaluation push an
+  `AmlError`; `aml-error.enum.ts` maps that error to `{ amlCheck: CheckStatus.PENDING,
+  amlReason: … }`, so the transaction lands in **manual review** rather than being
+  auto-blocked. This is exactly how `AmlRule.RULE_15` already pushes
+  `AmlError.FORCE_MANUAL_CHECK` (→ `CheckStatus.PENDING` + `AmlReason.MANUAL_CHECK`) in
+  `aml-helper.service` — no new decision path is invented.
+- Reuse `AmlError.FORCE_MANUAL_CHECK` / `AmlReason.MANUAL_CHECK`, or add a dedicated
+  Scorechain `AmlError` + `AmlReason` mapped to `CheckStatus.PENDING` — **open decision**
+  for review (§12, Q1).
 - Sanction hits (if Scorechain flags a sanctioned counterparty) are surfaced through the
   existing sanction path in `src/subdomains/core/aml/services/sanction.service.ts` **for
   review** — this remains Scorechain's labelling, an advisory signal, not a definitive
@@ -276,9 +278,10 @@ path.
 - The provider license includes a **finite monthly screening quota** (a single full
   screening can consume more than one billable check). Quota management and result caching
   are therefore first-class requirements, not optimizations.
-- **Quota guard** (G6/F8): a counter (DB or cache) tracks billable checks vs. the monthly
-  cap; near-limit behaviour is explicit (alert + degrade to cached/skip, never silently
-  drop screening).
+- **Quota guard** (G6/F8): the API exposes no remaining-quota field, so DFX tracks
+  consumption itself — a counter (DB or cache) tracks billable checks vs. the monthly cap;
+  near-limit behaviour is explicit (alert + degrade to cached/skip, never silently drop
+  screening).
 - **Caching** (§6) is the primary cost lever.
 - **Failure handling**: Scorechain unavailable must **not** silently pass a transaction.
   Mirror `IknaService` which throws `ServiceUnavailableException`; a failed screening →
@@ -326,8 +329,9 @@ and consistent — no untyped failures, no silent passes:
 
 ## 12. Open questions (for reviewers)
 
-1. **AML modelling:** reuse `AmlReason.MANUAL_CHECK` / `HIGH_RISK_*` vs. a new `AmlReason`
-   value vs. a new `AmlRule`? Who owns the threshold config?
+1. **AML modelling:** reuse `AmlError.FORCE_MANUAL_CHECK` / `AmlReason.MANUAL_CHECK`, or add
+   a dedicated Scorechain `AmlError` + `AmlReason` (both mapped to `CheckStatus.PENDING` for
+   manual review)? Who owns the threshold config?
 2. **Deposit screening method:** `registerDeposit` (TMS scenarios, async alert) **and/or**
    synchronous `scoringAnalysis` on pay-in? Both, or TMS-only to save checks?
 3. **Signature verification:** adopt the Scorechain JS SDK, or implement RSA-SHA256
