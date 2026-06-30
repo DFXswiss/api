@@ -34,16 +34,16 @@ or their developer) who wants to accept crypto via DFX.
 
 ## 1. Concepts & glossary
 
-| Term | Meaning |
-|---|---|
-| **Payment route** | A DFX **sell route on the Lightning blockchain**, owned by a merchant. Identified by a numeric `id` and an optional, globally-unique **label**. Only Lightning routes can receive payment-link payments. |
-| **Recipient / payee** | The owner of a payment route. Addressed in URLs by route `id` (numeric) or `label` (text). |
-| **Payment link** | A persistent object (uniqueId `pl_…`) bound to one route. Carries recipient details, config, and one or more payments. |
-| **Payment** | A single requested amount on a link (uniqueId `plp_…`): an amount, a currency, an `externalId`/reference, an expiry, a status. |
-| **Quote** | One concrete pay attempt for a payment (uniqueId `plq_…`): a chosen chain+asset, a price snapshot, its own short expiry. A payment can spawn many quotes. |
-| **Payment standard** | How the payer pays: `OpenCryptoPay` (default), `LightningBolt11`, or `PayToAddress`. |
-| **LNURL** | A bech32-encoded (`LNURL1…`) HTTPS URL a Lightning wallet resolves to fetch the pay request. |
-| **Access key** | A secret token that lets an unauthenticated point-of-sale terminal create/cancel payments without a login. Treat like a password. |
+| Term                  | Meaning                                                                                                                                                                                                  |
+| --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Payment route**     | A DFX **sell route on the Lightning blockchain**, owned by a merchant. Identified by a numeric `id` and an optional, globally-unique **label**. Only Lightning routes can receive payment-link payments. |
+| **Recipient / payee** | The owner of a payment route. Addressed in URLs by route `id` (numeric) or `label` (text).                                                                                                               |
+| **Payment link**      | A persistent object (uniqueId `pl_…`) bound to one route. Carries recipient details, config, and one or more payments.                                                                                   |
+| **Payment**           | A single requested amount on a link (uniqueId `plp_…`): an amount, a currency, an `externalId`/reference, an expiry, a status.                                                                           |
+| **Quote**             | One concrete pay attempt for a payment (uniqueId `plq_…`): a chosen chain+asset, a price snapshot, its own short expiry. A payment can spawn many quotes.                                                |
+| **Payment standard**  | How the payer pays: `OpenCryptoPay` (default), `LightningBolt11`, or `PayToAddress`.                                                                                                                     |
+| **LNURL**             | A bech32-encoded (`LNURL1…`) HTTPS URL a Lightning wallet resolves to fetch the pay request.                                                                                                             |
+| **Access key**        | A secret token that lets an unauthenticated point-of-sale terminal create/cancel payments without a login. Treat like a password.                                                                        |
 
 **uniqueId prefixes:** payment link `pl_…`, payment `plp_…`, quote `plq_…`.
 
@@ -73,11 +73,11 @@ DFX hosts a no-login UI for creating a single invoice link interactively:
 
 It has exactly three inputs:
 
-| Field | Meaning |
-|---|---|
-| **Recipient** | Your route **label** (a name, e.g. `Coffeeshop`) or numeric route **id**. |
-| **Invoice ID** | Your reference for this charge (becomes the `message`). |
-| **Amount** | The amount, in the recipient route's currency (shown as a prefix once the recipient resolves). |
+| Field          | Meaning                                                                                        |
+| -------------- | ---------------------------------------------------------------------------------------------- |
+| **Recipient**  | Your route **label** (a name, e.g. `Coffeeshop`) or numeric route **id**.                      |
+| **Invoice ID** | Your reference for this charge (becomes the `message`).                                        |
+| **Amount**     | The amount, in the recipient route's currency (shown as a prefix once the recipient resolves). |
 
 What it does:
 
@@ -102,9 +102,9 @@ For automated/bulk invoicing you don't need this UI at all — build the URL you
 ## 4. Integration example: offline "pay with crypto" QR on invoices
 
 **Scenario.** A company sends invoices on paper or as PDF and wants each invoice to
-carry a *"pay with crypto"* QR code. For data-protection reasons the QR is produced **on
+carry a _"pay with crypto"_ QR code. For data-protection reasons the QR is produced **on
 the company's own systems, without calling the DFX API**. The QR is just a URL; DFX is
-contacted only when the *customer* scans it. Scanning registers the invoice on the DFX
+contacted only when the _customer_ scans it. Scanning registers the invoice on the DFX
 server and lets the customer pay, alongside the company's classic payment options.
 
 This is fully supported, because the shareable URL is a plain string you assemble
@@ -125,12 +125,12 @@ yourself.
 https://app.dfx.swiss/pl?route=<RouteLabelOrId>&amount=<Amount>&message=<InvoiceId>&expiryDate=<ISO8601>
 ```
 
-| Part | Required | Notes |
-|---|---|---|
-| `route=<RouteLabelOrId>` | **yes** | Your route's **label** or numeric **id** — identifies the payee. (Numeric ⇒ treated as id, text ⇒ label.) |
-| `amount=<Amount>` | **yes** | In the route's currency. |
-| `message=<InvoiceId>` | **yes** | Your invoice id / reference. |
-| `expiryDate=<ISO8601>` | **strongly recommended for invoices** | Until when the invoice stays payable, e.g. `2025-12-31T23:59:59.000Z`. **Omit it and the invoice expires after ~60 seconds** (a point-of-sale default). |
+| Part                     | Required                              | Notes                                                                                                                                                   |
+| ------------------------ | ------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `route=<RouteLabelOrId>` | **yes**                               | Your route's **label** or numeric **id** — identifies the payee. (Numeric ⇒ treated as id, text ⇒ label.)                                               |
+| `amount=<Amount>`        | **yes**                               | In the route's currency.                                                                                                                                |
+| `message=<InvoiceId>`    | **yes**                               | Your invoice id / reference.                                                                                                                            |
+| `expiryDate=<ISO8601>`   | **strongly recommended for invoices** | Until when the invoice stays payable, e.g. `2025-12-31T23:59:59.000Z`. **Omit it and the invoice expires after ~60 seconds** (a point-of-sale default). |
 
 > **Common mistakes.** A naive `…?amount=xxx&id=xxx&validUntil=31.12.2025` will **not**
 > work: there is **no `id` parameter** (the payee is `route`, the reference is `message`);
@@ -141,10 +141,10 @@ https://app.dfx.swiss/pl?route=<RouteLabelOrId>&amount=<Amount>&message=<Invoice
 
 ```js
 const params = new URLSearchParams({
-  route:      'Coffeeshop',                 // your route label or id — fixed per company
-  amount:     '4.50',                       // per invoice
-  message:    'INV-1001',                   // your invoice id
-  expiryDate: '2025-12-31T23:59:59.000Z',   // until when it stays payable (ISO-8601)
+  route: 'Coffeeshop', // your route label or id — fixed per company
+  amount: '4.50', // per invoice
+  message: 'INV-1001', // your invoice id
+  expiryDate: '2025-12-31T23:59:59.000Z', // until when it stays payable (ISO-8601)
 });
 const url = `https://app.dfx.swiss/pl?${params}`;
 // → render `url` as a QR code with any offline library (qrcode, qrencode, ZXing, …)
@@ -186,7 +186,7 @@ what a phone camera handles best.
   Lightning/OpenCryptoPay) and refreshes on reload — independent of the invoice's
   `expiryDate`.
 - Keep `message` (invoice id) **unique per amount**: the idempotency key is
-  `message/amount`, so the same id with a different amount creates a *separate* link
+  `message/amount`, so the same id with a different amount creates a _separate_ link
   rather than overwriting one.
 - Only **Lightning** routes can be the payee.
 
@@ -204,17 +204,17 @@ The `/pl` page treats the request as an invoice when **all three** of route + re
 amount are present, then resolves it against the API. Each logical field has a long name
 and short aliases:
 
-| Logical field | Aliases (priority order) | Required | Meaning |
-|---|---|---|---|
-| Route (payee) | `route` / `routeId` / `r` | **yes** | Numeric id (`routeId`, or numeric `r`) or label (`route`, or non-numeric `r`). Pass only one; if both `route` and `routeId` are given, the label (`route`) is resolved first. |
-| Reference | `externalId` → `e` → `message` → `m` | **yes** | Your charge reference. |
-| Amount | `amount` → `a` | **yes** | In the route's currency. |
-| Currency | `currency` → `c` | no | Must equal the route's currency if given; otherwise it is taken from the route. |
-| Expiry | `expiryDate` → `d` | no | ISO-8601; defaults to ~60 s if omitted. |
-| Note | `note` → `n` | no | Free-text note shown to the payer. |
-| Label | `label` → `l` | no | Link label. |
-| Standard | `standard` → `s` | no | `OpenCryptoPay` (default) / `LightningBolt11` / `PayToAddress`. |
-| Webhook | `webhookUrl` → `w` | no | HTTPS URL for payment notifications ([§9](#9-webhooks)). |
+| Logical field | Aliases (priority order)             | Required | Meaning                                                                                                                                                                       |
+| ------------- | ------------------------------------ | -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Route (payee) | `route` / `routeId` / `r`            | **yes**  | Numeric id (`routeId`, or numeric `r`) or label (`route`, or non-numeric `r`). Pass only one; if both `route` and `routeId` are given, the label (`route`) is resolved first. |
+| Reference     | `externalId` → `e` → `message` → `m` | **yes**  | Your charge reference.                                                                                                                                                        |
+| Amount        | `amount` → `a`                       | **yes**  | In the route's currency.                                                                                                                                                      |
+| Currency      | `currency` → `c`                     | no       | Must equal the route's currency if given; otherwise it is taken from the route.                                                                                               |
+| Expiry        | `expiryDate` → `d`                   | no       | ISO-8601; defaults to ~60 s if omitted.                                                                                                                                       |
+| Note          | `note` → `n`                         | no       | Free-text note shown to the payer.                                                                                                                                            |
+| Label         | `label` → `l`                        | no       | Link label.                                                                                                                                                                   |
+| Standard      | `standard` → `s`                     | no       | `OpenCryptoPay` (default) / `LightningBolt11` / `PayToAddress`.                                                                                                               |
+| Webhook       | `webhookUrl` → `w`                   | no       | HTTPS URL for payment notifications ([§9](#9-webhooks)).                                                                                                                      |
 
 > There is **no `name` and no `id` parameter.** The payee is `route`/`routeId`; the
 > reference is `message`/`externalId`.
@@ -258,22 +258,22 @@ endpoints below are public (no authentication) unless an **Auth** value says oth
 
 ### 6.1 Invoice / pay-request endpoints (public)
 
-| Method & path | Purpose | Key params | Response |
-|---|---|---|---|
-| `GET /paymentLink/payment` | Create-or-return an invoice link and return its pay request | `route`/`routeId`/`r`, `message`/`externalId`/`e`/`m`, `amount`/`a` (+ optional `currency`,`expiryDate`,`note`,`label`,`standard`,`webhookUrl`) | `PaymentLinkPayRequest` ([§7.1](#71-the-pay-request-object)) |
-| `GET /plp` | Compact alias of the above (short params) | `r`,`a`,`m`,… | `PaymentLinkPayRequest` |
-| `GET /paymentLink/recipient` | Resolve a recipient and its currency | `id` = route id or label | `{ id, currency }` (`currency` is a fiat object, e.g. `{ "name": "CHF", … }`) |
+| Method & path                | Purpose                                                     | Key params                                                                                                                                      | Response                                                                      |
+| ---------------------------- | ----------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `GET /paymentLink/payment`   | Create-or-return an invoice link and return its pay request | `route`/`routeId`/`r`, `message`/`externalId`/`e`/`m`, `amount`/`a` (+ optional `currency`,`expiryDate`,`note`,`label`,`standard`,`webhookUrl`) | `PaymentLinkPayRequest` ([§7.1](#71-the-pay-request-object))                  |
+| `GET /plp`                   | Compact alias of the above (short params)                   | `r`,`a`,`m`,…                                                                                                                                   | `PaymentLinkPayRequest`                                                       |
+| `GET /paymentLink/recipient` | Resolve a recipient and its currency                        | `id` = route id or label                                                                                                                        | `{ id, currency }` (`currency` is a fiat object, e.g. `{ "name": "CHF", … }`) |
 
 ### 6.2 LNURL-pay flow (public, wallet-facing)
 
-| Method & path | Purpose |
-|---|---|
-| `GET /lnurlp/{id}` | LNURL-pay step 1 — returns the pay request. Optional `standard`, `timeout`. |
-| `GET /lnurlp/cb/{id}` | LNURL-pay step 2 (callback) — returns the actual invoice/URI. Params: `quote` (required), and per standard `amount` (msat, Bolt11) or `method`+`asset` (PayToAddress), plus optional `tx`/`hex`/`sender`. |
-| `GET /lnurlp/tx/{id}` | Submit a signed tx `hex` or broadcast `txId` (on-chain methods). Returns `{ txId }`. |
-| `GET /lnurlp/wait/{id}` | Long-poll until the payment reaches a terminal state. Returns `{ status }`. |
-| `DELETE /lnurlp/cancel/{id}` | Cancel a pending payment (only if the link is `cancellable`). |
-| `GET /pl?lightning=LNURL1…` | Human scan target — decodes the embedded LNURL and forwards to `GET /lnurlp/{id}`. |
+| Method & path                | Purpose                                                                                                                                                                                                   |
+| ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `GET /lnurlp/{id}`           | LNURL-pay step 1 — returns the pay request. Optional `standard`, `timeout`.                                                                                                                               |
+| `GET /lnurlp/cb/{id}`        | LNURL-pay step 2 (callback) — returns the actual invoice/URI. Params: `quote` (required), and per standard `amount` (msat, Bolt11) or `method`+`asset` (PayToAddress), plus optional `tx`/`hex`/`sender`. |
+| `GET /lnurlp/tx/{id}`        | Submit a signed tx `hex` or broadcast `txId` (on-chain methods). Returns `{ txId }`.                                                                                                                      |
+| `GET /lnurlp/wait/{id}`      | Long-poll until the payment reaches a terminal state. Returns `{ status }`.                                                                                                                               |
+| `DELETE /lnurlp/cancel/{id}` | Cancel a pending payment (only if the link is `cancellable`).                                                                                                                                             |
+| `GET /pl?lightning=LNURL1…`  | Human scan target — decodes the embedded LNURL and forwards to `GET /lnurlp/{id}`.                                                                                                                        |
 
 ### 6.3 Managed payment-link endpoints (authenticated)
 
@@ -281,20 +281,20 @@ Most of these require a merchant **JWT** (DFX login) or, where noted, a payment-
 **access key** (`?key=…`); the **Auth** column is authoritative per row (a few, such as
 `assign` and `locations`, are public).
 
-| Method & path | Auth | Purpose |
-|---|---|---|
-| `POST /paymentLink` | JWT or `key` | Create a persistent, managed link (`CreatePaymentLink` body). |
-| `GET /paymentLink` | JWT | List links / fetch one (`linkId`/`externalLinkId`/`externalPaymentId`). |
-| `PUT /paymentLink` | JWT | Update a link (status, label, webhook, config). |
-| `GET /paymentLink/history` | JWT or `key` | Payment history (`status`, `from`, `to`). |
-| `POST /paymentLink/payment` | optional JWT / `key` | Create a payment on a link (POS path with `key`). |
-| `GET /paymentLink/payment/wait` | JWT or `key` | Long-poll a link's pending payment to a terminal state; returns the full link. |
-| `PUT /paymentLink/payment/confirm` | JWT or `key` | Mark a completed payment confirmed. |
-| `DELETE /paymentLink/payment` | optional JWT / `key` | Cancel the pending payment. |
-| `PUT /paymentLink/pos` | JWT | Get a POS URL (`{ url }`) for a link. |
-| `GET /paymentLink/config`, `PUT /paymentLink/config` | JWT (account) | Read/update the account-level link config (incl. POS access key). |
-| `PUT /paymentLink/assign` | none | Assign an unassigned link to a route by `publicName`. |
-| `GET /paymentLink/locations` | none | Distinct recipient addresses for a `publicName`. |
+| Method & path                                        | Auth                 | Purpose                                                                        |
+| ---------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------ |
+| `POST /paymentLink`                                  | JWT or `key`         | Create a persistent, managed link (`CreatePaymentLink` body).                  |
+| `GET /paymentLink`                                   | JWT                  | List links / fetch one (`linkId`/`externalLinkId`/`externalPaymentId`).        |
+| `PUT /paymentLink`                                   | JWT                  | Update a link (status, label, webhook, config).                                |
+| `GET /paymentLink/history`                           | JWT or `key`         | Payment history (`status`, `from`, `to`).                                      |
+| `POST /paymentLink/payment`                          | optional JWT / `key` | Create a payment on a link (POS path with `key`).                              |
+| `GET /paymentLink/payment/wait`                      | JWT or `key`         | Long-poll a link's pending payment to a terminal state; returns the full link. |
+| `PUT /paymentLink/payment/confirm`                   | JWT or `key`         | Mark a completed payment confirmed.                                            |
+| `DELETE /paymentLink/payment`                        | optional JWT / `key` | Cancel the pending payment.                                                    |
+| `PUT /paymentLink/pos`                               | JWT                  | Get a POS URL (`{ url }`) for a link.                                          |
+| `GET /paymentLink/config`, `PUT /paymentLink/config` | JWT (account)        | Read/update the account-level link config (incl. POS access key).              |
+| `PUT /paymentLink/assign`                            | none                 | Assign an unassigned link to a route by `publicName`.                          |
+| `GET /paymentLink/locations`                         | none                 | Distinct recipient addresses for a `publicName`.                               |
 
 > Administrative endpoints (route-label assignment, internal link/payment edits, sticker
 > PDF generation, exchange-provider enrollment) exist but are internal/admin-only and are
@@ -303,10 +303,13 @@ Most of these require a merchant **JWT** (DFX login) or, where noted, a payment-
 ### 6.4 Example — `GET /v1/paymentLink/payment` → pay request
 
 Request:
+
 ```
 GET https://api.dfx.swiss/v1/paymentLink/payment?route=Coffeeshop&message=INV-1001&amount=4.50&currency=CHF
 ```
+
 Response (`PaymentLinkPayRequest`):
+
 ```json
 {
   "id": "pl_8sJ2Kd9fQ1",
@@ -330,14 +333,23 @@ Response (`PaymentLinkPayRequest`):
   },
   "requestedAmount": { "asset": "CHF", "amount": 4.5 },
   "transferAmounts": [
-    { "method": "Lightning", "minFee": 0,    "assets": [{ "asset": "BTC", "amount": "0.00005742" }], "available": true },
-    { "method": "Polygon",   "minFee": 0.01, "assets": [{ "asset": "ZCHF", "amount": "4.50" }, { "asset": "USDT", "amount": "5.07" }], "available": true },
-    { "method": "Bitcoin",   "minFee": 2,    "assets": [{ "asset": "BTC", "amount": "0.00005742" }], "available": true }
+    { "method": "Lightning", "minFee": 0, "assets": [{ "asset": "BTC", "amount": "0.00005742" }], "available": true },
+    {
+      "method": "Polygon",
+      "minFee": 0.01,
+      "assets": [
+        { "asset": "ZCHF", "amount": "4.50" },
+        { "asset": "USDT", "amount": "5.07" }
+      ],
+      "available": true
+    },
+    { "method": "Bitcoin", "minFee": 2, "assets": [{ "asset": "BTC", "amount": "0.00005742" }], "available": true }
   ]
 }
 ```
 
 Notes:
+
 - `id` is the **link** id (`pl_…`); `quote.payment` is the **payment** id (`plp_…`). The
   `callback` URL embeds the **link** id (same value as `id`).
 - `minSendable`/`maxSendable` are **millisatoshis** and equal (the amount is fixed).
@@ -353,34 +365,34 @@ A link offers one or more standards (default: `OpenCryptoPay`). The pay request'
 `possibleStandards` lists them; `standard` is the active one. Request a specific one with
 `&standard=` (or `&s=`).
 
-| Standard | What the payer gets | Notes |
-|---|---|---|
-| **`OpenCryptoPay`** (default) | An LNURL; the wallet/page lets the user pick any supported chain + asset from `transferAmounts`. | Multi-chain. The LNURL is built client-side; no extra callback round-trip to start. |
-| **`LightningBolt11`** | A classic BOLT11 Lightning invoice (`pr`). | The page calls the callback `?quote=<id>&amount=<msat>` and shows the returned `pr`. |
-| **`PayToAddress`** | A chain payment URI/address for a chosen chain + asset. | The page calls `?quote=<id>&method=<chain>&asset=<asset>`; the response `uri` is the address/URI. Longer quote window (2 h) and a slightly higher FX fee. |
+| Standard                      | What the payer gets                                                                              | Notes                                                                                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`OpenCryptoPay`** (default) | An LNURL; the wallet/page lets the user pick any supported chain + asset from `transferAmounts`. | Multi-chain. The LNURL is built client-side; no extra callback round-trip to start.                                                                       |
+| **`LightningBolt11`**         | A classic BOLT11 Lightning invoice (`pr`).                                                       | The page calls the callback `?quote=<id>&amount=<msat>` and shows the returned `pr`.                                                                      |
+| **`PayToAddress`**            | A chain payment URI/address for a chosen chain + asset.                                          | The page calls `?quote=<id>&method=<chain>&asset=<asset>`; the response `uri` is the address/URI. Longer quote window (2 h) and a slightly higher FX fee. |
 
 ### 7.1 The pay-request object
 
 `PaymentLinkPayRequest` (returned by the invoice and LNURL endpoints):
 
-| Field | Type | Meaning |
-|---|---|---|
-| `id` | string | Link uniqueId (`pl_…`). |
-| `externalId` | string? | The link's external id (derived `message/amount` if you didn't pass one). |
-| `tag` | string | Always `"payRequest"` (LNURL discriminator). |
-| `callback` | string | LNURL callback URL the wallet calls next. |
-| `minSendable` / `maxSendable` | number | Payable amount in **millisatoshi** (equal — fixed amount). |
-| `metadata` | string | LNURL metadata, `[["text/plain","<payee> - <ccy> <amount>"]]`. |
-| `displayName` | string | Payee display name. |
-| `standard` | enum | Active standard. |
-| `possibleStandards` | enum[] | All standards the link supports. |
-| `displayQr` | boolean | Whether the UI should render a QR. |
-| `recipient` | object | Payee details (name, address, phone, mail, website, …). |
-| `mode` | enum | `Single` / `Multiple` / `Public`. |
-| `route` | string? | Route label. |
-| `quote` | object | `{ id, expiration, payment }` — the price quote this request is bound to. |
-| `requestedAmount` | object | `{ asset, amount }` in **fiat** (the requested invoice amount). |
-| `transferAmounts` | array | Payable crypto amounts per chain — see below. |
+| Field                         | Type    | Meaning                                                                   |
+| ----------------------------- | ------- | ------------------------------------------------------------------------- |
+| `id`                          | string  | Link uniqueId (`pl_…`).                                                   |
+| `externalId`                  | string? | The link's external id (derived `message/amount` if you didn't pass one). |
+| `tag`                         | string  | Always `"payRequest"` (LNURL discriminator).                              |
+| `callback`                    | string  | LNURL callback URL the wallet calls next.                                 |
+| `minSendable` / `maxSendable` | number  | Payable amount in **millisatoshi** (equal — fixed amount).                |
+| `metadata`                    | string  | LNURL metadata, `[["text/plain","<payee> - <ccy> <amount>"]]`.            |
+| `displayName`                 | string  | Payee display name.                                                       |
+| `standard`                    | enum    | Active standard.                                                          |
+| `possibleStandards`           | enum[]  | All standards the link supports.                                          |
+| `displayQr`                   | boolean | Whether the UI should render a QR.                                        |
+| `recipient`                   | object  | Payee details (name, address, phone, mail, website, …).                   |
+| `mode`                        | enum    | `Single` / `Multiple` / `Public`.                                         |
+| `route`                       | string? | Route label.                                                              |
+| `quote`                       | object  | `{ id, expiration, payment }` — the price quote this request is bound to. |
+| `requestedAmount`             | object  | `{ asset, amount }` in **fiat** (the requested invoice amount).           |
+| `transferAmounts`             | array   | Payable crypto amounts per chain — see below.                             |
 
 ### 7.2 `transferAmounts`
 
@@ -488,7 +500,8 @@ key**. Obtain the public key from DFX out-of-band (there is no endpoint that ser
 Pseudo-code:
 
 ```js
-const ok = crypto.createVerify('sha256')
+const ok = crypto
+  .createVerify('sha256')
   .update(sha256Hex(rawBody))
   .verify(DFX_WEBHOOK_PUBLIC_KEY_PEM, signatureHeader, 'base64');
 ```
@@ -522,7 +535,7 @@ USD); that currency governs every invoice on the route.
 A route can have a **label** — a globally-unique text handle you can use in URLs instead of
 the numeric id. Labels are enforced unique across all routes (assigning a taken label
 fails). **Label assignment is currently performed by DFX** (the self-service "rename" in
-the app edits a *payment-link* label, not the route label). In practice:
+the app edits a _payment-link_ label, not the route label). In practice:
 
 - Use your **numeric route id** in `route=`/`routeId=` — you always have it, no setup needed.
 - Ask DFX to assign a memorable **label** if you prefer a readable URL.
@@ -534,17 +547,17 @@ If a `route` value doesn't resolve to one of your Lightning routes, the request 
 
 Per link (or per account), the configurable fields and their defaults:
 
-| Field | Default | Meaning |
-|---|---|---|
-| `standards` | `["OpenCryptoPay"]` | Offered payment standards. |
-| `blockchains` | all supported | Which chains appear in `transferAmounts`. |
-| `minCompletionStatus` | `TxMempool` | Completion threshold ([§8.2](#82-when-does-a-payment-complete)). |
-| `displayQr` | `false` | Whether the pay UI shows a QR. |
-| `paymentTimeout` | `60` (s) | Default invoice expiry when `expiryDate` is omitted. |
-| `scanTimeout` | — | Optional: drop a shown-but-never-scanned QR after N seconds. |
-| `cancellable` | `true` | Whether the payer may cancel. |
-| `recipient` | — | Payee identity shown to the payer (see below). |
-| `fee` | `0.002` | Read-only service fee fraction. |
+| Field                 | Default             | Meaning                                                          |
+| --------------------- | ------------------- | ---------------------------------------------------------------- |
+| `standards`           | `["OpenCryptoPay"]` | Offered payment standards.                                       |
+| `blockchains`         | all supported       | Which chains appear in `transferAmounts`.                        |
+| `minCompletionStatus` | `TxMempool`         | Completion threshold ([§8.2](#82-when-does-a-payment-complete)). |
+| `displayQr`           | `false`             | Whether the pay UI shows a QR.                                   |
+| `paymentTimeout`      | `60` (s)            | Default invoice expiry when `expiryDate` is omitted.             |
+| `scanTimeout`         | —                   | Optional: drop a shown-but-never-scanned QR after N seconds.     |
+| `cancellable`         | `true`              | Whether the payer may cancel.                                    |
+| `recipient`           | —                   | Payee identity shown to the payer (see below).                   |
+| `fee`                 | `0.002`             | Read-only service fee fraction.                                  |
 
 Config precedence (later wins): **defaults < account-level config < per-link config**.
 
@@ -570,13 +583,13 @@ Treat the key as a credential: TLS only, never log it, rotate if leaked. Get a P
 
 ## 11. The web tools
 
-| Tool | URL | Use |
-|---|---|---|
-| **Create Invoice** | `app.dfx.swiss/invoice` | No-login: recipient + invoice id + amount → shareable link + QR ([§3](#3-the-invoice-tool-invoice)). |
-| **Payment Routes** | `app.dfx.swiss/routes` | Logged-in management of routes and persistent links (create/edit, recipient, config, QR, stickers, POS). |
-| **POS terminal** | `app.dfx.swiss/pl/pos` | Cashier view for an existing link: authenticate with an access key, enter an amount, show the QR. |
-| **Payment page** | `app.dfx.swiss/pl` | The payer-facing page a scanned link opens. |
-| **Stickers** | `app.dfx.swiss/stickers` | Printable OpenCryptoPay sticker PDF for a route. |
+| Tool               | URL                      | Use                                                                                                      |
+| ------------------ | ------------------------ | -------------------------------------------------------------------------------------------------------- |
+| **Create Invoice** | `app.dfx.swiss/invoice`  | No-login: recipient + invoice id + amount → shareable link + QR ([§3](#3-the-invoice-tool-invoice)).     |
+| **Payment Routes** | `app.dfx.swiss/routes`   | Logged-in management of routes and persistent links (create/edit, recipient, config, QR, stickers, POS). |
+| **POS terminal**   | `app.dfx.swiss/pl/pos`   | Cashier view for an existing link: authenticate with an access key, enter an amount, show the QR.        |
+| **Payment page**   | `app.dfx.swiss/pl`       | The payer-facing page a scanned link opens.                                                              |
+| **Stickers**       | `app.dfx.swiss/stickers` | Printable OpenCryptoPay sticker PDF for a route.                                                         |
 
 ---
 
@@ -594,6 +607,7 @@ https://app.dfx.swiss/pl?route=Coffeeshop&amount=4.50&message=INV-1001&expiryDat
 ```
 
 On scan it resolves to:
+
 ```
 https://api.dfx.swiss/v1/paymentLink/payment?route=Coffeeshop&amount=4.50&message=INV-1001&expiryDate=2025-12-31T23:59:59.000Z
 # compact:
@@ -610,7 +624,9 @@ Add `&webhookUrl=https://coffeeshop.example/dfx-hook` to be notified on payment.
 const base = 'https://app.dfx.swiss/pl';
 function invoiceQrUrl({ route, amount, invoiceId, validUntil }) {
   const p = new URLSearchParams({
-    route, amount: String(amount), message: invoiceId,
+    route,
+    amount: String(amount),
+    message: invoiceId,
     expiryDate: validUntil.toISOString(),
     webhookUrl: 'https://you.example.com/dfx/webhook',
   });
@@ -646,16 +662,16 @@ and act on `payment.status === 'Completed'`, deduping on `payment.id`.
 
 ## 14. Troubleshooting / FAQ
 
-| Symptom | Cause / fix |
-|---|---|
-| The `/pl` page does nothing / no payment appears | A required param is missing. You need **all** of `route`(or `routeId`), `message`(or `externalId`), `amount`. |
-| `400 — Only Lightning routes are allowed` | The `route` label/id doesn't resolve to one of your **Lightning** routes (wrong/unknown label, or a non-Lightning route). |
-| `400 — Payment currency mismatch` | You passed a `currency` other than the route's settlement currency. Omit it or match it. |
-| Invoice expired almost immediately | You didn't set `expiryDate`; it defaulted to ~60 s. Always set an explicit ISO-8601 `expiryDate` for invoices. |
-| A generic Lightning wallet won't scan my printed QR | The printed QR is a **web link** (`…/pl?…`), not a raw LNURL. The customer opens it in a browser, which then shows the wallet-scannable code. |
-| Used `id=` / `name=` and it's ignored | Those aren't parameters. Payee = `route`/`routeId`, reference = `message`/`externalId`. |
-| Two invoices with the same number collapsed into one | The idempotency key is `message/amount`; identical reference **and** amount reuse the same link. Use distinct invoice ids. |
-| Didn't receive a webhook | Return HTTP 2xx quickly (non-2xx triggers retries, then drop). There's no replay — reconcile with the wait/poll endpoints. Dedupe on `payment.id`+`status`. |
+| Symptom                                              | Cause / fix                                                                                                                                                 |
+| ---------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The `/pl` page does nothing / no payment appears     | A required param is missing. You need **all** of `route`(or `routeId`), `message`(or `externalId`), `amount`.                                               |
+| `400 — Only Lightning routes are allowed`            | The `route` label/id doesn't resolve to one of your **Lightning** routes (wrong/unknown label, or a non-Lightning route).                                   |
+| `400 — Payment currency mismatch`                    | You passed a `currency` other than the route's settlement currency. Omit it or match it.                                                                    |
+| Invoice expired almost immediately                   | You didn't set `expiryDate`; it defaulted to ~60 s. Always set an explicit ISO-8601 `expiryDate` for invoices.                                              |
+| A generic Lightning wallet won't scan my printed QR  | The printed QR is a **web link** (`…/pl?…`), not a raw LNURL. The customer opens it in a browser, which then shows the wallet-scannable code.               |
+| Used `id=` / `name=` and it's ignored                | Those aren't parameters. Payee = `route`/`routeId`, reference = `message`/`externalId`.                                                                     |
+| Two invoices with the same number collapsed into one | The idempotency key is `message/amount`; identical reference **and** amount reuse the same link. Use distinct invoice ids.                                  |
+| Didn't receive a webhook                             | Return HTTP 2xx quickly (non-2xx triggers retries, then drop). There's no replay — reconcile with the wait/poll endpoints. Dedupe on `payment.id`+`status`. |
 
 ---
 
