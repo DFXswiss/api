@@ -292,9 +292,13 @@ export class SupportIssueService {
     const termCount = Math.min(terms.length, 10);
     for (let i = 0; i < termCount; i++) {
       const param = `term${i}`;
+      // Only emit the id branch when the term is fully numeric — keeps the predicate on the PK
+      // index (no cast-to-text) and avoids partial-match surprises (term "42" doesn't match id 142).
+      const idTerm = /^\d+$/.test(terms[i]) ? parseInt(terms[i], 10) : null;
+      const idClause = idTerm != null ? ` OR issue.id = :${param}Id` : '';
       qb.andWhere(
-        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR "userData".firstname LIKE :${param} OR "userData".surname LIKE :${param} OR "userData"."organizationName" LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m."issueId" = issue.id AND m.message LIKE :${param}))`,
-        { [param]: `%${terms[i]}%` },
+        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR "userData".firstname LIKE :${param} OR "userData".surname LIKE :${param} OR "userData"."organizationName" LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m."issueId" = issue.id AND m.message LIKE :${param})${idClause})`,
+        { [param]: `%${terms[i]}%`, ...(idTerm != null ? { [`${param}Id`]: idTerm } : {}) },
       );
     }
 
