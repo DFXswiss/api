@@ -1171,10 +1171,6 @@ export class Configuration {
         ?.replace('BlobEndpoint=', ''),
       connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
     },
-    appInsights: {
-      appId: process.env.APPINSIGHTS_APP_ID,
-      apiKey: process.env.APPINSIGHTS_API_KEY,
-    },
   };
 
   alby = {

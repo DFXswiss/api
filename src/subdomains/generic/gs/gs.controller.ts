@@ -10,7 +10,6 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
 import { DebugQueryDto, DebugQueryResult } from './dto/debug-query.dto';
-import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
 
@@ -68,15 +67,5 @@ export class GsController {
     // `JSON.stringify` in the audit log, and the service walker.
 
     return this.gsService.executeDebugQuery(dto, jwt.address ?? `account:${jwt.account}`);
-  }
-
-  @Post('debug/logs')
-  @ApiBearerAuth()
-  @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
-  async executeLogQuery(@GetJwt() jwt: JwtPayload, @Body() dto: LogQueryDto): Promise<LogQueryResult> {
-    if (DisabledProcess(Process.GS_DEBUG)) throw new ForbiddenException('Endpoint disabled');
-
-    return this.gsService.executeLogQuery(dto, jwt.address ?? `account:${jwt.account}`);
   }
 }

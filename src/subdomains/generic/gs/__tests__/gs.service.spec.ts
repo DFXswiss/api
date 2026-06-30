@@ -1,16 +1,9 @@
 import { BadRequestException } from '@nestjs/common';
 import { createMock } from '@golevelup/ts-jest';
 import { DataSource } from 'typeorm';
-import { AppInsightsQueryService } from 'src/integration/infrastructure/app-insights-query.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { GsService } from '../gs.service';
-import {
-  DebugLogQueryTemplates,
-  DebugQueryAuditPrefix,
-  GsDbOperationalLogPrefixes,
-  LogQueryAuditPrefix,
-} from '../dto/gs.dto';
-import { LogQueryTemplate } from '../dto/log-query.dto';
+import { DebugQueryAuditPrefix } from '../dto/gs.dto';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UserService } from '../../user/models/user/user.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -63,13 +56,8 @@ function storageBlob(name: string, created: Date): Blob {
   };
 }
 
-function buildGsService(
-  kycDocumentService: KycDocumentService,
-  dataSource: DataSource,
-  appInsightsQueryService: AppInsightsQueryService = createMock<AppInsightsQueryService>(),
-): GsService {
+function buildGsService(kycDocumentService: KycDocumentService, dataSource: DataSource): GsService {
   return new GsService(
-    appInsightsQueryService,
     createMock<UserDataService>(),
     createMock<UserService>(),
     createMock<BuyService>(),
@@ -97,16 +85,14 @@ function buildGsService(
 describe('GsService', () => {
   let service: GsService;
   let dataSource: DataSource;
-  let appInsightsQueryService: AppInsightsQueryService;
   let kycDocumentService: KycDocumentService;
 
   beforeEach(() => {
     dataSource = createMock<DataSource>();
-    appInsightsQueryService = createMock<AppInsightsQueryService>();
     kycDocumentService = createMock<KycDocumentService>();
 
     // Reuse the same constructor helper as the round-trip test, passing in the mocks the tests reference.
-    service = buildGsService(kycDocumentService, dataSource, appInsightsQueryService);
+    service = buildGsService(kycDocumentService, dataSource);
   });
 
   // Helper that captures the SQL string and the bound-parameter array passed to the data
@@ -2258,67 +2244,8 @@ describe('GsService', () => {
     });
   });
 
-  describe('Audit-prefix sync (cross-user history leak protection)', () => {
-    it(`Nest Logger renders the GsService context as "[GsService] " — the literal the KQL filters expect`, () => {
-      // TaprootFreak review: the KQL filters in the trace templates hardcode the string
-      // `[GsService] ` (the class-name context that NestJS' Logger prepends). If the
-      // GsService class were renamed without updating the KQL, every operational and
-      // audit log line would silently slip past the filter — defeating the cross-user
-      // history-leak protection.
-      //
-      // Pin the coupling by going through the real `@nestjs/common` Logger pipeline:
-      // construct a `DfxLogger(GsService)`, capture stdout via a Logger override, and
-      // assert the line starts with `[GsService] `.
-      const captured: string[] = [];
-      const realWrite = process.stdout.write.bind(process.stdout);
-      const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation((chunk: unknown) => {
-        captured.push(typeof chunk === 'string' ? chunk : String(chunk));
-        return true;
-      });
-      try {
-        new DfxLogger(GsService).verbose('Debug-query by 0xtester: probe');
-      } finally {
-        stdoutSpy.mockRestore();
-        void realWrite;
-      }
-      // Strip ANSI escape codes; Nest's default formatter colorizes when stdout is a TTY,
-      // but App Insights traces strip them, so the KQL filter operates on the clean string.
-      // eslint-disable-next-line no-control-regex
-      const ansi = /\x1b\[[0-9;]*m/g;
-      const line = (captured.find((c) => c.includes('Debug-query by 0xtester')) ?? '').replace(ansi, '');
-      // NestJS' Logger prepends `[GsService] ` (after timestamp/level prefix) before the
-      // user-supplied message. The KQL templates hardcode that literal — keep both in sync.
-      expect(line).toContain('[GsService] Debug-query by 0xtester');
-      const kql = DebugLogQueryTemplates[LogQueryTemplate.ALL_TRACES].kql;
-      expect(kql).toContain('[GsService] Debug-query by ');
-    });
-
-    it('ALL_TRACES template excludes the exact audit prefix that gs.service emits', async () => {
-      const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
-      jest.spyOn(appInsightsQueryService, 'query').mockResolvedValue({ tables: [{ columns: [], rows: [] }] } as never);
-
-      await service.executeLogQuery({ template: LogQueryTemplate.ALL_TRACES, hours: 1 }, '0xtester');
-
-      // 1) The service emits an audit log that starts with LogQueryAuditPrefix
-      const emitted = verboseSpy.mock.calls.map((args) => String(args[0])).join('\n');
-      expect(emitted).toContain(`${LogQueryAuditPrefix}0xtester`);
-      expect(emitted.startsWith(LogQueryAuditPrefix)).toBe(true);
-
-      // 2) The ALL_TRACES template KQL excludes lines with that exact prefix
-      //    (after DfxLogger's "[GsService] " class-context prefix). This binds
-      //    service and template via the shared constant — refactoring the
-      //    constant will update both sides at once.
-      const kql = DebugLogQueryTemplates[LogQueryTemplate.ALL_TRACES].kql;
-      expect(kql).toContain(`[GsService] ${LogQueryAuditPrefix}`);
-
-      verboseSpy.mockRestore();
-    });
-
-    it('executeDebugQuery emits the exact prefix that the trace templates filter', async () => {
-      // A DEBUG user could otherwise call /gs/debug/logs with
-      // `messageFilter: "Debug-query by 0xother"` and read another user's audit-line
-      // history. The trace-returning templates filter the prefix, but they only work if
-      // the emitter and the templates use the same string. This test pins both.
+  describe('executeDebugQuery audit logging', () => {
+    it('emits an audit line that starts with DebugQueryAuditPrefix and includes the caller identifier', async () => {
       const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
       jest.spyOn(dataSource, 'query').mockImplementation(async () => []);
 
@@ -2330,22 +2257,6 @@ describe('GsService', () => {
       const emitted = verboseSpy.mock.calls.map((args) => String(args[0])).join('\n');
       expect(emitted).toContain(`${DebugQueryAuditPrefix}0xtester`);
       expect(emitted.startsWith(DebugQueryAuditPrefix)).toBe(true);
-
-      // Every template that returns `traces` AND lets the caller influence what's returned
-      // must filter BOTH audit prefixes AND the /gs/db operational log prefixes that embed
-      // request JSON.
-      for (const template of [
-        LogQueryTemplate.ALL_TRACES,
-        LogQueryTemplate.TRACES_BY_MESSAGE,
-        LogQueryTemplate.TRACES_BY_OPERATION,
-      ]) {
-        const kql = DebugLogQueryTemplates[template].kql;
-        expect(kql).toContain(`[GsService] ${DebugQueryAuditPrefix}`);
-        expect(kql).toContain(`[GsService] ${LogQueryAuditPrefix}`);
-        for (const opPrefix of GsDbOperationalLogPrefixes) {
-          expect(kql).toContain(`[GsService] ${opPrefix}`);
-        }
-      }
 
       verboseSpy.mockRestore();
     });

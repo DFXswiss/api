@@ -1,15 +1,16 @@
 # Debug Endpoint Configuration
 
-This document describes how to configure and use the debug endpoints for database and log access.
+This document describes how to configure and use the debug endpoint for database access.
 
 ## Overview
 
-The API provides two debug endpoints for authorized users with the `DEBUG` role:
+The API provides a debug endpoint for authorized users with the `DEBUG` role:
 
-| Endpoint | Purpose |
-|----------|---------|
+| Endpoint         | Purpose                                                                                       |
+| ---------------- | --------------------------------------------------------------------------------------------- |
 | `POST /gs/debug` | Run structured read-only queries against the database (allowlist-driven JSON DTO; no raw SQL) |
-| `POST /gs/debug/logs` | Query Azure Application Insights logs |
+
+> **Where are the logs?** The former `/gs/debug/logs` endpoint (Azure Application Insights) was removed during the on-prem cutover. Container logs now live in **Grafana on dfx01** — Loki ingests all dfx-api stdout via the Alloy agent on dfxprd/dfxdev, retained ~30 days. Operators query it through the Grafana UI; ask an admin for access.
 
 ## Prerequisites
 
@@ -29,81 +30,11 @@ No additional server-side configuration required. The endpoint uses the existing
 
 **Client-side configuration** (in the repo-root `.env`; the migrated scripts read this file directly):
 
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `DEBUG_ADDRESS` | Yes | Your Ethereum wallet address with DEBUG role |
-| `DEBUG_SIGNATURE` | Yes | Signature from signing the DFX login message |
-| `DEBUG_API_URL` | No | API URL (default: `https://api.dfx.swiss/v1`) |
-
-### For Log Access (`/gs/debug/logs`)
-
-**Server-side configuration** (in production `.env`):
-
-| Variable | Required | Description | Where to find |
-|----------|----------|-------------|---------------|
-| `APPINSIGHTS_APP_ID` | Yes | Application Insights App ID | Azure Portal |
-| `AZURE_TENANT_ID` | Yes | Azure AD Tenant ID | Azure Portal |
-| `AZURE_CLIENT_ID` | Yes | Azure AD App Registration Client ID | Azure Portal |
-| `AZURE_CLIENT_SECRET` | Yes | Azure AD App Registration Secret | Azure Portal |
-
-## Azure Portal Configuration
-
-### Step 1: Get Application Insights App ID
-
-1. Go to [Azure Portal](https://portal.azure.com)
-2. Navigate to **Application Insights** → Your resource
-3. In the left menu, click **Configure** → **API Access**
-4. Copy the **Application ID** (NOT the Instrumentation Key!)
-
-```
-APPINSIGHTS_APP_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-```
-
-### Step 2: Get Azure AD Tenant ID
-
-1. Go to **Azure Active Directory** → **Overview**
-2. Copy the **Tenant ID**
-
-```
-AZURE_TENANT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-```
-
-### Step 3: Create App Registration
-
-1. Go to **Azure Active Directory** → **App registrations**
-2. Click **New registration**
-3. Name: `DFX API Debug` (or similar)
-4. Supported account types: Single tenant
-5. Click **Register**
-6. Copy the **Application (client) ID**
-
-```
-AZURE_CLIENT_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
-```
-
-### Step 4: Create Client Secret
-
-1. In your App Registration, go to **Certificates & secrets**
-2. Click **New client secret**
-3. Description: `Debug endpoint access`
-4. Expiry: Choose appropriate duration
-5. Click **Add**
-6. **Copy the secret value immediately** (it won't be shown again!)
-
-```
-AZURE_CLIENT_SECRET=your-secret-value
-```
-
-### Step 5: Grant API Permissions
-
-1. In your App Registration, go to **API permissions**
-2. Click **Add a permission**
-3. Select **APIs my organization uses**
-4. Search for `Application Insights API`
-5. Select **Delegated permissions** or **Application permissions**
-6. Check **Data.Read**
-7. Click **Add permissions**
-8. Click **Grant admin consent for [Your Tenant]**
+| Variable          | Required | Description                                   |
+| ----------------- | -------- | --------------------------------------------- |
+| `DEBUG_ADDRESS`   | Yes      | Your Ethereum wallet address with DEBUG role  |
+| `DEBUG_SIGNATURE` | Yes      | Signature from signing the DFX login message  |
+| `DEBUG_API_URL`   | No       | API URL (default: `https://api.dfx.swiss/v1`) |
 
 ## Local Setup
 
@@ -128,12 +59,6 @@ with the wallet at `DEBUG_ADDRESS`.
 ./scripts/db-debug.sh                # default mode: assets summary
 ./scripts/db-debug.sh --balance 10   # last 10 FinancialDataLog totals
 ./scripts/db-debug.sh --help         # all predefined modes
-```
-
-### 3. Test log access
-
-```bash
-./scripts/log-debug.sh exceptions
 ```
 
 ## Usage Examples
@@ -169,28 +94,6 @@ per-table column allowlist lives in
 `src/subdomains/generic/gs/dto/gs.dto.ts` (`DebugAllowedColumns`); a column
 absent from a table's entry is unreachable from this endpoint.
 
-### Log Queries
-
-```bash
-# Recent exceptions (last hour)
-./scripts/log-debug.sh exceptions
-
-# Failed requests (last 24 hours)
-./scripts/log-debug.sh failures --hours 24
-
-# Slow dependencies (>2000ms)
-./scripts/log-debug.sh slow 2000
-
-# Search traces
-./scripts/log-debug.sh traces "error"
-
-# Traces by operation ID
-./scripts/log-debug.sh operation "abc12345-1234-1234-1234-123456789abc"
-
-# Custom events
-./scripts/log-debug.sh events "UserLogin"
-```
-
 ## Security Notes
 
 1. **Never commit** `.env` to git (it's in `.gitignore`)
@@ -207,9 +110,9 @@ absent from a table's entry is unreachable from this endpoint.
 
 ### Kill switch / revocation
 
-* Flip `Process.GS_DEBUG` via `PUT /v1/setting/disabledProcesses` (ADMIN JWT). Disables both
-  `/gs/debug` and `/gs/debug/logs`; propagates in ~30s without restart.
-* Revoke a specific JWT by adding its `address` to the `jwtAddressDenylist` setting (lowercase
+- Flip `Process.GS_DEBUG` via `PUT /v1/setting/disabledProcesses` (ADMIN JWT). Disables
+  `/gs/debug`; propagates in ~30s without restart.
+- Revoke a specific JWT by adding its `address` to the `jwtAddressDenylist` setting (lowercase
   JSON array); refreshes in ~30s.
 
 ## Troubleshooting
@@ -228,20 +131,3 @@ absent from a table's entry is unreachable from this endpoint.
   (currently only `log.message`)
 - If the JSON body is malformed at the DTO level (wrong `kind`, missing required field, value out
   of range) NestJS' ValidationPipe rejects with a 400 before the service runs
-
-### "Query execution failed" for logs
-
-- Verify Azure environment variables are set on the server
-- Check that the App Registration has correct permissions
-- Ensure admin consent was granted for API permissions
-
-## Available Log Templates
-
-| Template | Description | Required Parameters |
-|----------|-------------|---------------------|
-| `exceptions-recent` | Recent exceptions | - |
-| `request-failures` | Failed HTTP requests | - |
-| `dependencies-slow` | Slow external calls | `durationMs` |
-| `traces-by-message` | Search trace messages | `messageFilter` |
-| `traces-by-operation` | Traces by operation ID | `operationId` |
-| `custom-events` | Custom events by name | `eventName` |
