@@ -4,7 +4,12 @@ import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { ScorechainAnalysisType, ScorechainObjectType, toScorechainBlockchain } from '../dto/scorechain.dto';
+import {
+  ScorechainAnalysisType,
+  ScorechainObjectType,
+  severityFromScore,
+  toScorechainBlockchain,
+} from '../dto/scorechain.dto';
 import { ScorechainScreening, ScorechainScreeningContext } from '../entities/scorechain-screening.entity';
 import { ScorechainScreeningRepository } from '../repositories/scorechain-screening.repository';
 import { ScorechainService } from './scorechain.service';
@@ -62,13 +67,14 @@ export class ScorechainScreeningService {
     return this.screen({ objectType, objectId, blockchain, analysisType, context: ScorechainScreeningContext.MANUAL });
   }
 
-  // Advisory decision (spec §8): a result at/above the configured threshold, an invalid
-  // signature, or an unscreenable chain is "high risk" → route the tx to manual review.
-  // Fail-closed: never treat an unknown/failed screening as a pass.
+  // Advisory decision (spec §8): a screening is "high risk" → route the tx to manual review.
+  // Scorechain scores run 1-100 where LOW = riskier (1=Critical … 100=No risk), so a score
+  // BELOW the configured threshold is high risk. Fail-closed: an invalid signature, a missing
+  // score, or an unscreenable chain is always treated as high risk (never a silent pass).
   isHighRisk(screening: ScorechainScreening): boolean {
     if (!screening.signatureValid) return true;
     if (screening.riskScore == null) return true;
-    return screening.riskScore >= Config.scorechain.riskThreshold;
+    return screening.riskScore < Config.scorechain.riskThreshold;
   }
 
   // --- CORE --- //
@@ -94,9 +100,9 @@ export class ScorechainScreeningService {
 
     return this.save(params, {
       signatureValid,
-      riskScore: data?.score,
-      severity: data?.severity,
-      riskIndicators: data?.riskIndicators,
+      riskScore: data?.lowestScore,
+      severity: severityFromScore(data?.lowestScore),
+      riskIndicators: data?.analysis,
       raw: data,
     });
   }

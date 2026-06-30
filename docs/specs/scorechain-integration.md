@@ -83,11 +83,20 @@ specification, then a single implementation PR (see §11).
   stored as a deployment secret (see §7). It is not sent by the provider via email.
 
 ### Proof of authenticity (response signature)
-- Algorithm **RSA-SHA256** (RSASSA-PKCS1-v1_5, RFC 8017).
+- Algorithm **RSA-SHA256** (RSASSA-PKCS1-v1_5, RFC 8017). The signed message is
+  `JSON.stringify({ data, timestamp })` where `data` is the parsed response body and
+  `timestamp` is `X-Server-Time`; the signature is **hex**-encoded. (Confirmed against the
+  live API and the `scorechain-sdk` source.)
 - Response headers: **`X-Signature`** (signature), **`X-Server-Time`** (UNIX server time).
-- Public key from **`GET /publicKeys`** (camelCase).
-- A provider JS SDK validates this; DFX may validate manually with Node `crypto` to avoid
-  the extra dependency — open decision (§12, Q3).
+- Public key from **`GET /publicKeys`** (camelCase) — returns `[{ key }]`.
+- Verified via the official **`scorechain-sdk`** `proofOfAuthenticityVerifier` (resolved §12.3).
+
+### Base URL & score direction (confirmed via sandbox)
+- Base URL is **`https://api.scorechain.com/v1`** (the `/v1` prefix is required).
+- `scoringAnalysis` returns `{ id, lowestScore, analysis, request }` — the risk value is
+  **`lowestScore` (1–100)** where **LOW = riskier**: `1` Critical, `2–29` High, `30–69`
+  Medium, `70–99` Low, `100` No risk. The manual-review gate therefore triggers when
+  `lowestScore < SCORECHAIN_RISK_THRESHOLD` (default 70).
 
 ### Supported blockchains (relevant subset for DFX)
 BITCOIN, ETHEREUM, ARBITRUMONE, BASE, OPTIMISM, POLYGON, BSC, SOLANA, TRON, LITECOIN,
@@ -353,9 +362,10 @@ and consistent — no untyped failures, no silent passes:
 2. **TMS depth:** start with the **synchronous `scoringAnalysis` gate only**. The async TMS
    workflow (`register*`) is a license-gated feature (`NotIncludedInLicense`) and is kept as
    an opt-in extension; the client methods exist but are not wired into the gate.
-3. **Signature verification:** implemented manually via `Util.verifySign` (RSA-SHA256, PKCS8
-   PEM), no JS SDK. The signed input is the response body combined with `X-Server-Time`; both
-   concatenation orders are accepted. Fail-closed.
+3. **Signature verification:** uses the official **`scorechain-sdk`** `proofOfAuthenticityVerifier`
+   (RSA-SHA256 over `JSON.stringify({ data, timestamp })`, hex). The exact canonical form is
+   non-obvious and vendor-specific, so the maintained SDK function is used rather than a
+   hand-rolled reimplementation (it also handles provider key rotation). Fail-closed.
 4. **Quota policy at limit:** fail-closed — a reached `SCORECHAIN_MONTHLY_CHECK_LIMIT` throws
    `ServiceUnavailableException`, routing the transaction to manual review.
 5. **ikna coexistence:** run both fully in parallel (no routing rule); Scorechain is additive.

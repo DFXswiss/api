@@ -79,14 +79,38 @@ export interface RegisterWithdrawalRequest {
 
 // --- RESPONSES --- //
 
-// Synchronous scoring result. Field names follow the provider OpenAPI; kept permissive
-// where the exact schema is not pinned down, with the raw payload persisted for audit.
+// Scorechain risk severity bands (RiskSeverity enum). Note the score direction:
+// LOW score = HIGH risk. 1=Critical, 2-29=High, 30-69=Medium, 70-99=Low, 100=No risk.
+export enum ScorechainSeverity {
+  CRITICAL_RISK = 'CRITICAL_RISK',
+  HIGH_RISK = 'HIGH_RISK',
+  MEDIUM_RISK = 'MEDIUM_RISK',
+  LOW_RISK = 'LOW_RISK',
+  NO_RISK = 'NO_RISK',
+}
+
+export function severityFromScore(score?: number): ScorechainSeverity | undefined {
+  if (score == null) return undefined;
+  if (score <= 1) return ScorechainSeverity.CRITICAL_RISK;
+  if (score <= 29) return ScorechainSeverity.HIGH_RISK;
+  if (score <= 69) return ScorechainSeverity.MEDIUM_RISK;
+  if (score <= 99) return ScorechainSeverity.LOW_RISK;
+  return ScorechainSeverity.NO_RISK;
+}
+
+// Synchronous scoring result (provider OpenAPI). `lowestScore` is the quick-check score
+// across assigned/incoming/outgoing (1-100, lower = riskier). Per-analysis detail lives
+// under `analysis.<type>.result`; kept permissive and persisted raw for audit.
+export interface ScoringAnalysisResult {
+  hasResult: boolean;
+  result: { score?: number; severity?: string; [key: string]: unknown } | null;
+}
+
 export interface ScoringAnalysisResponse {
-  score?: number;
-  severity?: string;
-  lowestScore?: number;
-  riskIndicators?: unknown;
-  [key: string]: unknown;
+  id: string;
+  lowestScore: number;
+  analysis: Partial<Record<'assigned' | 'incoming' | 'outgoing' | 'full', ScoringAnalysisResult>>;
+  request?: unknown;
 }
 
 // Async registration ack (provider schema: PendingWithdrawal / deposit feed ack).
@@ -95,8 +119,9 @@ export interface PendingTransactionResponse {
   identifier: string;
 }
 
-export interface ScorechainPublicKeyResponse {
-  publicKeys: string[];
+// GET /publicKeys returns an array of these.
+export interface ScorechainPublicKey {
+  key: string;
 }
 
 // TMS scenario alert (webhook ScenarioAlertCallback / GET /scenarios/{id}/alerts).

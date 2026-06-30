@@ -1,15 +1,15 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { AxiosResponse } from 'axios';
+import { proofOfAuthenticityVerifier } from 'scorechain-sdk';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
-import { Util } from 'src/shared/utils/util';
 import {
   PendingTransactionResponse,
   RegisterDepositRequest,
   RegisterWithdrawalRequest,
   ScorechainAlert,
-  ScorechainPublicKeyResponse,
+  ScorechainPublicKey,
   ScoringAnalysisRequest,
   ScoringAnalysisResponse,
 } from '../dto/scorechain.dto';
@@ -22,11 +22,13 @@ export interface SignedResponse<T> {
 @Injectable()
 export class ScorechainService {
   private readonly logger = new DfxLogger(ScorechainService);
-  private readonly baseUrl = 'https://api.scorechain.com';
+  private readonly baseUrl = 'https://api.scorechain.com/v1';
+
+  private cachedPublicKey?: string;
 
   constructor(private readonly http: HttpService) {}
 
-  // --- RISK SCORING (synchronous) --- //
+  // --- RISK SCORING (synchronous gate) --- //
 
   async scoringAnalysis(request: ScoringAnalysisRequest): Promise<SignedResponse<ScoringAnalysisResponse>> {
     return this.post<ScoringAnalysisResponse>('/scoringAnalysis', request);
@@ -48,16 +50,41 @@ export class ScorechainService {
 
   // --- MISC --- //
 
-  async getPublicKeys(): Promise<string[]> {
-    const { data } = await this.get<ScorechainPublicKeyResponse>('/publicKeys');
-    return data?.publicKeys ?? [];
-  }
-
   async getStatus(): Promise<boolean> {
     try {
-      await this.get('/status');
+      await this.rawGet('/status');
       return true;
     } catch {
+      return false;
+    }
+  }
+
+  // Public key for proof-of-authenticity: Config override, else fetched from /publicKeys
+  // (returns [{ key }]) and cached. Fetched without signature verification (chicken/egg).
+  async getPublicKey(): Promise<string | undefined> {
+    if (Config.scorechain.publicKey) return Config.scorechain.publicKey;
+    if (this.cachedPublicKey) return this.cachedPublicKey;
+
+    const res = await this.rawGet<ScorechainPublicKey[]>('/publicKeys');
+    this.cachedPublicKey = res.data?.[0]?.key;
+    return this.cachedPublicKey;
+  }
+
+  // Proof of authenticity — delegates to the Scorechain SDK verifier
+  // (RSA-SHA256 over JSON.stringify({ data, timestamp }), hex signature). Fail-closed:
+  // any missing input, missing key or verification failure returns false.
+  async isValidSignature(data: unknown, signature?: string, serverTime?: string): Promise<boolean> {
+    if (data == null || !signature || !serverTime) return false;
+
+    const publicKey = await this.getPublicKey();
+    if (!publicKey) return false;
+
+    try {
+      // SDK verifies RSA-SHA256 over JSON.stringify({ data, timestamp }); throws on failure.
+      proofOfAuthenticityVerifier(data as Record<string, unknown>, signature, publicKey, serverTime);
+      return true;
+    } catch (e) {
+      this.logger.warn(`Scorechain signature verification failed: ${e.message}`);
       return false;
     }
   }
@@ -65,56 +92,39 @@ export class ScorechainService {
   // --- HELPERS --- //
 
   private async get<T>(url: string, config?: HttpRequestConfig): Promise<SignedResponse<T>> {
+    return this.toSignedResponse<T>(await this.rawGet<T>(url, config));
+  }
+
+  private async post<T>(url: string, body: unknown, config?: HttpRequestConfig): Promise<SignedResponse<T>> {
+    return this.toSignedResponse<T>(await this.rawPost<T>(url, body, config));
+  }
+
+  private async rawGet<T>(url: string, config?: HttpRequestConfig): Promise<AxiosResponse<T>> {
     try {
-      const response = await this.http.getRaw<string>(`${this.baseUrl}${url}`, this.rawConfig(config));
-      return this.toSignedResponse<T>(response);
+      return await this.http.getRaw<T>(`${this.baseUrl}${url}`, this.authConfig(config));
     } catch (e) {
       throw new ServiceUnavailableException(`Scorechain GET ${url} failed: ${e.message}`);
     }
   }
 
-  private async post<T>(url: string, data: unknown, config?: HttpRequestConfig): Promise<SignedResponse<T>> {
+  private async rawPost<T>(url: string, body: unknown, config?: HttpRequestConfig): Promise<AxiosResponse<T>> {
     try {
-      const response = await this.http.postRaw<string>(`${this.baseUrl}${url}`, data, this.rawConfig(config));
-      return this.toSignedResponse<T>(response);
+      return await this.http.postRaw<T>(`${this.baseUrl}${url}`, body, this.authConfig(config));
     } catch (e) {
       throw new ServiceUnavailableException(`Scorechain POST ${url} failed: ${e.message}`);
     }
   }
 
-  // Keep the raw response body (string) so the signature can be verified over the exact bytes.
-  private rawConfig(config?: HttpRequestConfig): HttpRequestConfig {
-    return {
-      ...config,
-      headers: { 'X-API-KEY': Config.scorechain.apiKey, ...config?.headers },
-      transformResponse: [(d) => d],
-    };
+  private authConfig(config?: HttpRequestConfig): HttpRequestConfig {
+    return { ...config, headers: { 'X-API-KEY': Config.scorechain.apiKey, ...config?.headers } };
   }
 
-  private toSignedResponse<T>(response: AxiosResponse<string>): SignedResponse<T> {
-    const raw = response.data ?? '';
-    const signatureValid = this.verifySignature(raw, response.headers);
-    const data = (raw ? JSON.parse(raw) : undefined) as T;
-    return { data, signatureValid };
-  }
-
-  private verifySignature(rawBody: string, headers: Record<string, unknown>): boolean {
-    return this.isValidSignature(rawBody, headers?.['x-signature'] as string, headers?.['x-server-time'] as string);
-  }
-
-  // Proof of authenticity (also reused for the TMS webhook): RSA-SHA256 over the response body
-  // combined with X-Server-Time (unix), public key from /publicKeys (SPKI PEM). The OpenAPI does
-  // not pin the concatenation order, so both compositions are accepted. Fail-closed.
-  isValidSignature(rawBody: string, signature?: string, serverTime?: string | number): boolean {
-    const publicKey = Config.scorechain.publicKey;
-    if (!signature || !publicKey || !rawBody) return false;
-
-    const candidates = [`${rawBody}${serverTime ?? ''}`, `${serverTime ?? ''}${rawBody}`];
-    try {
-      return candidates.some((data) => Util.verifySign(data, publicKey, signature, 'sha256', 'base64'));
-    } catch (e) {
-      this.logger.warn(`Scorechain signature verification error: ${e.message}`);
-      return false;
-    }
+  private async toSignedResponse<T>(response: AxiosResponse<T>): Promise<SignedResponse<T>> {
+    const signatureValid = await this.isValidSignature(
+      response.data,
+      response.headers['x-signature'],
+      response.headers['x-server-time'],
+    );
+    return { data: response.data, signatureValid };
   }
 }

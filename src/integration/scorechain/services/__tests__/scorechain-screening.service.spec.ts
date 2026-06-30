@@ -52,7 +52,10 @@ describe('ScorechainScreeningService', () => {
 
   describe('screening', () => {
     it('scores a withdrawal address (objectType=ADDRESS, OUTGOING) and persists the result', async () => {
-      scorechain.scoringAnalysis.mockResolvedValue({ data: { score: 12, severity: 'low' }, signatureValid: true });
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: { id: 'x', lowestScore: 85, analysis: {} },
+        signatureValid: true,
+      });
 
       const result = await service.screenWithdrawalAddress(Blockchain.ETHEREUM, '0xabc');
 
@@ -64,8 +67,20 @@ describe('ScorechainScreeningService', () => {
           objectId: '0xabc',
         }),
       );
-      expect(result.riskScore).toBe(12);
-      expect(service.isHighRisk(result)).toBe(false);
+      expect(result.riskScore).toBe(85);
+      expect(service.isHighRisk(result)).toBe(false); // high score = safe
+    });
+
+    it('flags a low-scoring (risky) deposit transaction for manual review', async () => {
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: { id: 'x', lowestScore: 15, analysis: {} },
+        signatureValid: true,
+      });
+
+      const result = await service.screenDepositTransaction(Blockchain.BITCOIN, 'txhash');
+
+      expect(result.riskScore).toBe(15);
+      expect(service.isHighRisk(result)).toBe(true); // low score = risky
     });
 
     it('skips an unsupported chain without calling the API and flags it high-risk', async () => {
@@ -103,16 +118,20 @@ describe('ScorechainScreeningService', () => {
   describe('isHighRisk (fail-closed)', () => {
     const make = (p: Partial<ScorechainScreening>) => Object.assign(new ScorechainScreening(), p);
 
-    it('flags an invalid signature', () => {
-      expect(service.isHighRisk(make({ signatureValid: false, riskScore: 0 }))).toBe(true);
+    it('flags an invalid signature even with a safe score', () => {
+      expect(service.isHighRisk(make({ signatureValid: false, riskScore: 95 }))).toBe(true);
     });
 
     it('flags a missing score', () => {
       expect(service.isHighRisk(make({ signatureValid: true }))).toBe(true);
     });
 
-    it('passes a valid low score', () => {
-      expect(service.isHighRisk(make({ signatureValid: true, riskScore: 1 }))).toBe(false);
+    it('flags a low score (risky)', () => {
+      expect(service.isHighRisk(make({ signatureValid: true, riskScore: 10 }))).toBe(true);
+    });
+
+    it('passes a high score (safe)', () => {
+      expect(service.isHighRisk(make({ signatureValid: true, riskScore: 90 }))).toBe(false);
     });
   });
 });

@@ -1,11 +1,10 @@
-import { generateKeyPairSync, createSign } from 'crypto';
-import { ConfigService, Config } from 'src/config/config';
+import { createSign, generateKeyPairSync } from 'crypto';
+import { Config, ConfigService } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { ScorechainService } from '../scorechain.service';
 
 describe('ScorechainService', () => {
   let service: ScorechainService;
-  let publicKey: string;
   let privateKey: string;
 
   beforeAll(() => {
@@ -15,38 +14,43 @@ describe('ScorechainService', () => {
       publicKeyEncoding: { type: 'spki', format: 'pem' },
       privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
     });
-    publicKey = pair.publicKey;
     privateKey = pair.privateKey;
-    Config.scorechain.publicKey = publicKey;
+    Config.scorechain.publicKey = pair.publicKey;
   });
 
   beforeEach(() => {
     service = new ScorechainService({} as HttpService);
   });
 
-  const sign = (data: string) => createSign('RSA-SHA256').update(data).end().sign(privateKey, 'base64');
+  // Mirrors the Scorechain SDK: sign RSA-SHA256 over JSON.stringify({ data, timestamp }), hex.
+  const sign = (data: unknown, time: string) =>
+    createSign('RSA-SHA256')
+      .update(JSON.stringify({ data, timestamp: time }))
+      .sign(privateKey, 'hex');
 
   describe('isValidSignature', () => {
-    it('accepts a signature over body + server time', () => {
-      const body = '{"score":10}';
-      const time = '1782800000';
-      expect(service.isValidSignature(body, sign(`${body}${time}`), time)).toBe(true);
+    const data = { id: 'abc', lowestScore: 80 };
+    const time = '1782820050';
+
+    it('accepts a valid signature', async () => {
+      await expect(service.isValidSignature(data, sign(data, time), time)).resolves.toBe(true);
     });
 
-    it('accepts a signature over server time + body (order tolerant)', () => {
-      const body = '{"score":10}';
-      const time = '1782800000';
-      expect(service.isValidSignature(body, sign(`${time}${body}`), time)).toBe(true);
+    it('rejects a tampered payload (fail-closed)', async () => {
+      const signature = sign(data, time);
+      await expect(service.isValidSignature({ id: 'abc', lowestScore: 1 }, signature, time)).resolves.toBe(false);
     });
 
-    it('rejects a tampered body (fail-closed)', () => {
-      const time = '1782800000';
-      const signature = sign(`{"score":10}${time}`);
-      expect(service.isValidSignature('{"score":99}', signature, time)).toBe(false);
+    it('rejects a wrong server time (fail-closed)', async () => {
+      await expect(service.isValidSignature(data, sign(data, time), '9999999999')).resolves.toBe(false);
     });
 
-    it('rejects a missing signature (fail-closed)', () => {
-      expect(service.isValidSignature('{"score":10}', undefined, '1782800000')).toBe(false);
+    it('rejects a missing signature (fail-closed)', async () => {
+      await expect(service.isValidSignature(data, undefined, time)).resolves.toBe(false);
+    });
+
+    it('rejects missing data (fail-closed)', async () => {
+      await expect(service.isValidSignature(null, sign(data, time), time)).resolves.toBe(false);
     });
   });
 });

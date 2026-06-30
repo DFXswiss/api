@@ -14,8 +14,7 @@ export class ScorechainWebhookController {
   @Post('webhook')
   @ApiExcludeEndpoint()
   @UseGuards(ScorechainWebhookGuard)
-  async handleAlert(@Body() body: Buffer | ScorechainAlert): Promise<void> {
-    const alert: ScorechainAlert = Buffer.isBuffer(body) ? JSON.parse(body.toString()) : body;
+  async handleAlert(@Body() alert: ScorechainAlert): Promise<void> {
     this.logger.verbose(`Scorechain TMS alert received: ${JSON.stringify(alert)}`);
     // TODO(spec §12 Q6/Q7): correlate `alert.identifier` to the originating tx and raise the
     // AML manual-review signal (AmlError → CheckStatus.PENDING).
