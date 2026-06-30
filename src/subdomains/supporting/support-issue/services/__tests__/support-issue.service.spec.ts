@@ -230,18 +230,34 @@ describe('SupportIssueService.closeIssue', () => {
 describe('SupportIssueService.getSupportIssueStatistics', () => {
   let service: SupportIssueService;
 
-  // empty-result query-builder: every builder method chains, getRawOne/getRawMany resolve empty
+  let trendRows: { d: Date; count: string }[];
+  let totalCount: number;
+
+  const pad = (n: number): string => String(n).padStart(2, '0');
+  const dayKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  // a Postgres DATE comes back from the pg driver as a JS Date at local midnight
+  const localDate = (d: Date): Date => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+
+  // only the day-grouped trend query (the one calling groupBy) returns trendRows; every other getRawMany
+  // returns []; getRawOne returns the configured total/message count
   function statsQbMock(): Record<string, jest.Mock> {
+    let grouped = false;
     const qb: Record<string, jest.Mock> = {};
-    for (const m of ['select', 'addSelect', 'innerJoin', 'where', 'andWhere', 'groupBy', 'addGroupBy']) {
+    for (const m of ['select', 'addSelect', 'innerJoin', 'where', 'andWhere', 'addGroupBy']) {
       qb[m] = jest.fn(() => qb);
     }
-    qb.getRawOne = jest.fn().mockResolvedValue({ count: '0' });
-    qb.getRawMany = jest.fn().mockResolvedValue([]);
+    qb.groupBy = jest.fn(() => {
+      grouped = true;
+      return qb;
+    });
+    qb.getRawOne = jest.fn(() => Promise.resolve({ count: String(totalCount) }));
+    qb.getRawMany = jest.fn(() => Promise.resolve(grouped ? trendRows : []));
     return qb;
   }
 
   beforeEach(() => {
+    trendRows = [];
+    totalCount = 0;
     const supportIssueRepo = createMock<SupportIssueRepository>();
     const messageRepo = createMock<SupportMessageRepository>();
     (supportIssueRepo.createQueryBuilder as jest.Mock).mockImplementation(() => statsQbMock());
@@ -262,12 +278,30 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
     );
   });
 
-  it('builds a daily bucket for every calendar day the window touches, summing to total', async () => {
+  it('builds a daily bucket for every calendar day the window touches', async () => {
     const dto = await service.getSupportIssueStatistics(UserRole.ADMIN, 7);
     expect(dto.granularity).toBe('day');
     // days + 1: the window [now - 7d, now] touches 8 calendar dates, so the trend covers them all
     expect(dto.trend).toHaveLength(8);
     expect(dto.total).toBe(0);
+  });
+
+  it('places daily counts in their calendar-day buckets and sums to total', async () => {
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+    trendRows = [
+      { d: localDate(today), count: '3' },
+      { d: localDate(yesterday), count: '2' },
+    ];
+    totalCount = 5;
+
+    const dto = await service.getSupportIssueStatistics(UserRole.ADMIN, 7);
+
+    const byKey = Object.fromEntries(dto.trend.map((b) => [b.key, b.count]));
+    expect(byKey[dayKey(today)]).toBe(3);
+    expect(byKey[dayKey(yesterday)]).toBe(2);
+    expect(dto.total).toBe(5);
     expect(dto.trend.reduce((sum, b) => sum + b.count, 0)).toBe(dto.total);
   });
 

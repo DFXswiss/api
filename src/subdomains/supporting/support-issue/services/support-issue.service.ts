@@ -140,48 +140,43 @@ export class SupportIssueService {
     if (departments) msgQb.andWhere('issue.department IN (:...departments)', { departments });
     const messages = +((await msgQb.getRawOne<{ count: string }>())?.count ?? 0);
 
-    // trend buckets (daily for short periods, monthly otherwise)
+    // trend buckets: always group by day in SQL (CAST avoids Postgres-incompatible date-part functions and
+    // keeps the raw query alias-clean, see query-builder-alias.spec.ts), then bucket daily or monthly in JS
+    const trendQb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .select('CAST(issue.created AS DATE)', 'd')
+      .addSelect('COUNT(*)', 'count')
+      .where('issue.created >= :from', { from })
+      .groupBy('CAST(issue.created AS DATE)');
+    if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
+    const dayRows = await trendQb.getRawMany<{ d: Date | string; count: string }>();
+
+    // build keys from local date parts on BOTH the rows and the bucket loop, so they line up in any timezone
+    const dayKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const monthKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+
     const trend: { key: string; count: number }[] = [];
     if (granularity === 'day') {
-      const trendQb = this.supportIssueRepo
-        .createQueryBuilder('issue')
-        .select('CAST(issue.created AS DATE)', 'd')
-        .addSelect('COUNT(*)', 'count')
-        .where('issue.created >= :from', { from })
-        .groupBy('CAST(issue.created AS DATE)');
-      if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
-      const rows = await trendQb.getRawMany<{ d: Date | string; count: string }>();
-      const map = new Map(rows.map((r) => [new Date(r.d).toISOString().slice(0, 10), +r.count]));
+      const map = new Map(dayRows.map((r) => [dayKey(new Date(r.d)), +r.count]));
       // cover every calendar day the [from, now] window touches, so the daily trend sums to total
       for (let i = days; i >= 0; i--) {
         const d = new Date(now);
         d.setHours(0, 0, 0, 0);
         d.setDate(d.getDate() - i);
-        const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-        trend.push({ key, count: map.get(key) ?? 0 });
+        trend.push({ key: dayKey(d), count: map.get(dayKey(d)) ?? 0 });
       }
     } else {
-      // group by day in SQL (CAST avoids Postgres-incompatible date-part functions and keeps the raw query
-      // alias-clean, see query-builder-alias.spec.ts), then roll the daily counts up into months in JS
-      const trendQb = this.supportIssueRepo
-        .createQueryBuilder('issue')
-        .select('CAST(issue.created AS DATE)', 'd')
-        .addSelect('COUNT(*)', 'count')
-        .where('issue.created >= :from', { from })
-        .groupBy('CAST(issue.created AS DATE)');
-      if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
-      const rows = await trendQb.getRawMany<{ d: Date | string; count: string }>();
+      // roll the daily counts up into months
       const map = new Map<string, number>();
-      for (const r of rows) {
-        const key = new Date(r.d).toISOString().slice(0, 7); // YYYY-MM
+      for (const r of dayRows) {
+        const key = monthKey(new Date(r.d));
         map.set(key, (map.get(key) ?? 0) + +r.count);
       }
       // span every calendar month the [from, now] window touches, so the trend always sums to total
       const monthSpan = (now.getFullYear() - from.getFullYear()) * 12 + (now.getMonth() - from.getMonth());
       for (let i = monthSpan; i >= 0; i--) {
         const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-        const key = `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
-        trend.push({ key, count: map.get(key) ?? 0 });
+        trend.push({ key: monthKey(d), count: map.get(monthKey(d)) ?? 0 });
       }
     }
 
