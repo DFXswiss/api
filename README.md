@@ -139,6 +139,8 @@ _Get payment infos_
 
 This section explains the concepts behind the administrative API for the DFX implementation of the [Open CryptoPay](https://opencryptopay.io/) standard. There are two different ways to authenticate API requests. For admin access (only required for a one-time setup or configuration changes), a time-limited JWT access token must be used. For productive operation on POS systems, it is recommended to use a static access key with limited rights. The key can be obtained from payment link config (see [config](#config)).
 
+> For a complete integration guide — invoice URLs, embedding an offline "pay with crypto" QR on invoices, the full HTTP/LNURL API reference, payment standards, lifecycle, and webhooks — see [docs/payment-links.md](docs/payment-links.md).
+
 ### Admin API
 
 #### Authentication
