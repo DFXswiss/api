@@ -1,90 +1,147 @@
 import { DfxLogger } from '../../services/dfx-logger';
 import { apiTraceMiddleware } from '../api-trace.middleware';
 
-function runTrace(req: any, statusCode: number, responseBody: unknown): string {
+type Emit = (res: any) => void;
+
+function runTrace(req: any, statusCode: number, emit?: Emit): { lines: string[]; nextCalled: boolean } {
   const spy = jest.spyOn(DfxLogger.prototype, 'info').mockImplementation(() => undefined);
 
   let finish: () => void = () => undefined;
   const res: any = {
     statusCode,
-    json: (body: unknown) => body,
-    send: (body: unknown) => body,
-    on: (event: string, cb: () => void) => {
+    // Model Express: res.json() delegates to res.send() (so the send override is exercised).
+    json(body: unknown) {
+      return this.send(body);
+    },
+    send(body: unknown) {
+      return body;
+    },
+    on(event: string, cb: () => void) {
       if (event === 'finish') finish = cb;
     },
   };
 
-  apiTraceMiddleware()(req, res, () => undefined);
-  res.json(responseBody); // captured by the middleware's override
+  let nextCalled = false;
+  apiTraceMiddleware()(req, res, () => {
+    nextCalled = true;
+  });
+  if (emit) emit(res);
   finish();
 
-  const line = spy.mock.calls.map((c) => c.join(' ')).join('\n');
+  const lines = spy.mock.calls.map((c) => c.join(' '));
   spy.mockRestore();
-  return line;
+  return { lines, nextCalled };
 }
 
+const realunitReq = (body: unknown) => ({
+  method: 'POST',
+  originalUrl: '/v1/realunit/buy/0x1234567890123456789012345678901234567890/confirm?ref=abc',
+  headers: {
+    'x-client': 'realunit-app',
+    'content-type': 'application/json',
+    'x-forwarded-for': '192.0.2.1',
+    cookie: 'session=dummy-session-value',
+    authorization: 'Bearer dummy.jwt.value',
+  },
+  body,
+});
+
 describe('apiTraceMiddleware', () => {
-  // All values below are synthetic placeholders (example.com / RFC 5737 TEST-NET IP /
-  // dummy wallet) — never real user data.
-  const req = {
-    method: 'POST',
-    originalUrl: '/v1/realunit/buy/0x1234567890123456789012345678901234567890/confirm?ref=abc',
-    headers: {
-      'x-client': 'realunit-app',
-      'content-type': 'application/json',
-      'x-forwarded-for': '192.0.2.1',
-      'cf-connecting-ip': '192.0.2.1',
-      cookie: 'session=dummy-session-value',
-      authorization: 'Bearer dummy.jwt.value',
-    },
-    body: {
+  describe('realunit path — full redacted trace (via res.json → res.send)', () => {
+    const req = realunitReq({
       email: 'jane.doe@example.com',
       name: 'Jane Doe',
       phoneNumber: '+41790000000',
-      addressStreet: 'Teststrasse 1',
-      addressPostalCode: '0000',
-      addressCity: 'Testtown',
+      bic: 'TESTCHBEXXX',
+      kycData: {
+        firstName: 'Jane',
+        addressStreet: 'Teststrasse 1',
+        addressCity: 'Testtown',
+        documentNumber: 'X1234567',
+      },
       walletAddress: '0x1234567890123456789012345678901234567890',
+      txHash: '0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
       amount: 50,
-    },
-  };
-  const responseBody = { status: 'CONFIRMED', error: 'Not Found', ref: 'jane.doe@example.com' };
+    });
+    const { lines } = runTrace(req, 201, (res) => res.json({ status: 'CONFIRMED', error: 'Not Found' }));
+    const line = lines.join('\n');
 
-  const line = runTrace(req, 201, responseBody);
+    it('logs exactly one line', () => {
+      expect(lines).toHaveLength(1);
+      expect(line).not.toContain('\n');
+    });
 
-  it('logs a single line', () => {
-    expect(line).not.toContain('\n');
+    it('keeps the non-personal data', () => {
+      expect(line).toContain('POST');
+      expect(line).toContain('→ 201');
+      expect(line).toContain('client=realunit-app');
+      expect(line).toContain('"amount":50');
+      expect(line).toContain('"status":"CONFIRMED"');
+    });
+
+    it.each([
+      ['email', 'jane.doe@example.com'],
+      ['name', 'Jane Doe'],
+      ['nested firstName', '"firstName":"Jane"'],
+      ['nested street', 'Teststrasse'],
+      ['nested document number', 'X1234567'],
+      ['phone', '41790000000'],
+      ['bic', 'TESTCHBEXXX'],
+      ['client IP', '192.0.2.1'],
+      ['cookie value', 'dummy-session-value'],
+      ['auth token', 'dummy.jwt.value'],
+    ])('masks the %s', (_label, secret) => {
+      expect(line).not.toContain(secret);
+    });
+
+    it('masks the wallet address in path and body but keeps the tx hash intact', () => {
+      expect(line).toContain('/v1/realunit/buy/0x…/confirm');
+      expect(line).toContain('"walletAddress":"***"');
+      expect(line).toContain('0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789');
+    });
+
+    it('drops the query string', () => {
+      expect(line).not.toContain('ref=abc');
+    });
   });
 
-  it('keeps the non-personal trace data', () => {
-    expect(line).toContain('POST');
-    expect(line).toContain('→ 201');
-    expect(line).toContain('client=realunit-app');
-    expect(line).toContain('"amount":50');
-    expect(line).toContain('"status":"CONFIRMED"');
+  it('captures a response sent via res.send only', () => {
+    const { lines } = runTrace(realunitReq({ amount: 1 }), 200, (res) =>
+      res.send({ secretMail: 'x@example.com', ok: true }),
+    );
+    const line = lines.join('\n');
+    expect(line).toContain('"ok":true');
+    expect(line).not.toContain('x@example.com');
   });
 
-  it.each([
-    ['email', 'jane.doe@example.com'],
-    ['email local part', 'jane.doe'],
-    ['name', 'Jane Doe'],
-    ['phone', '41790000000'],
-    ['street', 'Teststrasse'],
-    ['city', 'Testtown'],
-    ['postal code', '0000'],
-    ['client IP', '192.0.2.1'],
-    ['wallet address', '1234567890123456789012345678901234567890'],
-    ['cookie value', 'dummy-session-value'],
-    ['auth token', 'dummy.jwt.value'],
-  ])('does not leak the %s', (_label, secret) => {
-    expect(line).not.toContain(secret);
+  it('truncates oversized strings and summarizes binary bodies', () => {
+    const big = 'A'.repeat(600);
+    const { lines } = runTrace(realunitReq({ note: big, img: Buffer.from('PNGDATA') }), 200, (res) => res.json({}));
+    const line = lines.join('\n');
+    expect(line).not.toContain(big);
+    expect(line).toContain('600 chars');
+    expect(line).toContain('<binary 7 bytes>');
   });
 
-  it('masks the wallet address in the path', () => {
-    expect(line).toContain('/v1/realunit/buy/0x…/confirm');
+  it('logs metadata-only for a realunit-app call to a non-realunit path', () => {
+    const req = {
+      method: 'POST',
+      originalUrl: '/v1/kyc/data',
+      headers: { 'x-client': 'realunit-app' },
+      body: { documentNumber: 'X1234567', gender: 'male' },
+    };
+    const { lines } = runTrace(req, 200, (res) => res.json({ documentNumber: 'X1234567' }));
+    const line = lines.join('\n');
+    expect(lines).toHaveLength(1);
+    expect(line).toContain('POST /v1/kyc/data → 200');
+    expect(line).not.toContain('req.body');
+    expect(line).not.toContain('X1234567');
   });
 
-  it('drops the query string', () => {
-    expect(line).not.toContain('ref=abc');
+  it('does not trace a non-realunit request at all', () => {
+    const req = { method: 'GET', originalUrl: '/v1/transaction', headers: { 'x-client': 'dfx-app' }, body: {} };
+    const { lines, nextCalled } = runTrace(req, 200, (res) => res.json({ ok: true }));
+    expect(lines).toHaveLength(0);
+    expect(nextCalled).toBe(true);
   });
 });
