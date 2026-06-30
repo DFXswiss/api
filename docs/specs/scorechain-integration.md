@@ -366,9 +366,12 @@ and consistent — no untyped failures, no silent passes:
    it must never be returned to customers or partner webhooks; only Support/Compliance read it
    (e.g. the `RoleGuard(SUPPORT)`-gated support-issue data endpoint). Do not add a Scorechain-named
    `AmlReason` and do not surface `comment` in any customer-facing DTO.
-2. **TMS depth:** start with the **synchronous `scoringAnalysis` gate only**. The async TMS
-   workflow (`register*`) is a license-gated feature (`NotIncludedInLicense`) and is kept as
-   an opt-in extension; the client methods exist but are not wired into the gate.
+2. **TMS depth:** the **synchronous `scoringAnalysis` gate is the only implemented flow**. The
+   async TMS workflow (`register*` → scenarios/alerts) is a license-gated feature
+   (`NotIncludedInLicense`) that DFX does **not** license. Its placeholder client methods, the
+   alert-webhook receiver and the TMS-only DTOs were therefore **removed** rather than shipped
+   unused (DFXswiss/api#4013); only the synchronous gate ships. Should TMS be licensed later,
+   it can be re-added against this spec.
 3. **Signature verification:** uses the official **`scorechain-sdk`** `proofOfAuthenticityVerifier`
    (RSA-SHA256 over `JSON.stringify({ data, timestamp })`, hex). The exact canonical form is
    non-obvious and vendor-specific, so the maintained SDK function is used rather than a
@@ -382,9 +385,11 @@ and consistent — no untyped failures, no silent passes:
    `getAmlResult`/`getAmlErrors` pipeline of every buy/sell transaction is staged as a
    separately integration-tested step (it changes core-flow behaviour for all flows and needs
    a DB + Scorechain sandbox to validate end-to-end) — not wired blind in this PR.
-7. **Alert delivery:** inbound webhook (`ScenarioAlertCallback`), authenticated by the same
-   `X-Signature` proof of authenticity via `ScorechainWebhookGuard`; `/scenarios/checks`
-   polling remains available as a fallback.
+7. **Alert delivery:** part of the async TMS feature in decision 2 and therefore **not
+   implemented** — DFX does not license TMS, so no alert-webhook receiver ships. Were TMS
+   licensed, alerts would arrive via the inbound `ScenarioAlertCallback` webhook (authenticated
+   by the same `X-Signature` proof of authenticity), with `/scenarios/checks` polling as a
+   fallback.
 
 ## 13. Testing (covers the complete surface)
 
