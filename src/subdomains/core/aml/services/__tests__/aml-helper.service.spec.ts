@@ -33,14 +33,12 @@ import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data
 import { Test } from '@nestjs/testing';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { createCustomBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycLevel, KycType } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
-import { createCustomBuyFiat } from '../../../sell-crypto/process/__mocks__/buy-fiat.entity.mock';
-import { AmlError } from '../../enums/aml-error.enum';
-import { AmlReason } from '../../enums/aml-reason.enum';
-import { AmlRule } from '../../enums/aml-rule.enum';
-import { CheckStatus } from '../../enums/check-status.enum';
-import { AmlHelperService } from '../aml-helper.service';
 
 describe('AmlHelperService - Scorechain gate', () => {
   afterEach(() => jest.restoreAllMocks());
