@@ -254,7 +254,11 @@ export class SwissQRService {
       minute: '2-digit',
       hourCycle: 'h23',
     }).formatToParts(date);
-    const get = (type: string): string => parts.find((p) => p.type === type)?.value ?? '';
+    const get = (type: string): string => {
+      const part = parts.find((p) => p.type === type)?.value;
+      if (part == null) throw new Error(`Missing date part "${type}" while formatting receipt date`);
+      return part;
+    };
     return {
       day: Number(get('day')),
       month: Number(get('month')),

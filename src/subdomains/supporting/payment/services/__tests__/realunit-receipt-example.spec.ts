@@ -5,9 +5,9 @@ import * as path from 'path';
 import { ConfigService, GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { PdfBrand } from 'src/shared/utils/pdf.util';
+import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { HistoryEventType } from 'src/subdomains/supporting/realunit/dto/client.dto';
 import { HistoryEventDto } from 'src/subdomains/supporting/realunit/dto/realunit.dto';
-import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { SwissQRService } from '../swiss-qr.service';
 
 /**
