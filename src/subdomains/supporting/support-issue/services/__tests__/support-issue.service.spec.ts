@@ -450,3 +450,43 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
     expect(supportIssueRepo.createQueryBuilder).not.toHaveBeenCalled();
   });
 });
+
+// the count / activity endpoints share the same fail-closed guard as list / statistics: a role with no
+// department access gets an empty result without ever touching the database
+describe('SupportIssueService no-department-access guards', () => {
+  let service: SupportIssueService;
+  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
+  let messageRepo: DeepMocked<SupportMessageRepository>;
+
+  beforeEach(() => {
+    supportIssueRepo = createMock<SupportIssueRepository>();
+    messageRepo = createMock<SupportMessageRepository>();
+
+    service = new SupportIssueService(
+      supportIssueRepo,
+      createMock<TransactionService>(),
+      createMock<SupportDocumentService>(),
+      createMock<UserDataService>(),
+      messageRepo,
+      createMock<SupportIssueNotificationService>(),
+      createMock<LimitRequestService>(),
+      createMock<TransactionRequestService>(),
+      createMock<SupportLogService>(),
+      createMock<BankDataService>(),
+      createMock<SettingService>(),
+    );
+  });
+
+  it('getSupportIssueCounts returns an all-zero, unqueried record', async () => {
+    const counts = await service.getSupportIssueCounts(UserRole.USER);
+    const zero = Object.fromEntries(Object.values(SupportIssueInternalState).map((s) => [s, 0]));
+    expect(counts).toEqual(zero);
+    expect(supportIssueRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('getSupportIssueActivity returns empty activity without querying', async () => {
+    const activity = await service.getSupportIssueActivity(undefined, UserRole.USER);
+    expect(activity).toEqual({ count: 0, latestAt: undefined });
+    expect(messageRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+});
