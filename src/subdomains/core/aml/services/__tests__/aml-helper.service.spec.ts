@@ -7,6 +7,8 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { createDefaultBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BankData } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { createDefaultBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 
 /**
  * Tests for isTrustedReferrer phone verification exemption
@@ -340,5 +342,69 @@ describe('AmlHelperService.getAmlErrors - null-safety (fail-closed, no poison-en
     let errors: AmlError[];
     expect(() => (errors = runErrors(entity, undefined, undefined))).not.toThrow();
     expect(errors).toContain(AmlError.CARD_NAME_MISMATCH);
+  });
+});
+
+describe('AmlHelperService.getAmlErrors - RULE_11 KYC waiver is IP-gated; wallet rules evaluated once', () => {
+  beforeAll(() => {
+    new ConfigService(); // initialise the global Config singleton used inside getAmlErrors
+  });
+
+  function errorsFor(entity: BuyCrypto | BuyFiat): AmlError[] {
+    return AmlHelperService.getAmlErrors(
+      entity,
+      entity.cryptoInput?.asset ?? entity.outputAsset,
+      0, // minVolume
+      100, // amountInChf
+      0, // last7dCheckoutVolume
+      0, // last30dVolume
+      0, // last365dVolume
+      undefined, // bankData
+      [], // blacklist
+      [], // phoneCallList
+      [], // banks
+      undefined, // ibanCountry
+      undefined, // refUser
+      [], // ipLogCountries
+      undefined, // virtualIban
+      [], // multiAccountBankNames
+      undefined, // recommender
+    );
+  }
+
+  // Wallet carries RULE_3 (requires KycLevel 50) + RULE_11 (KYC waiver for special IP countries),
+  // user below LEVEL_50 → RULE_3 would push KYC_LEVEL_50_NOT_REACHED unless the RULE_11 waiver applies.
+  function withRule11KycWallet(entity: BuyCrypto | BuyFiat, ipCountry: string): BuyCrypto | BuyFiat {
+    entity.user.wallet.amlRules = '3;11';
+    entity.user.ipCountry = ipCountry;
+    entity.userData.kycLevel = KycLevel.LEVEL_30;
+    return entity;
+  }
+
+  it('#581: non-CH user on a RULE_11 wallet is NOT waived → KYC stays required (sell/BuyFiat)', () => {
+    const entity = withRule11KycWallet(createDefaultBuyFiat(), 'DE');
+    expect(errorsFor(entity)).toContain(AmlError.KYC_LEVEL_50_NOT_REACHED);
+  });
+
+  it('#581: CH user on a RULE_11 wallet IS waived → KYC suppressed (sell/BuyFiat)', () => {
+    const entity = withRule11KycWallet(createDefaultBuyFiat(), 'CH');
+    expect(errorsFor(entity)).not.toContain(AmlError.KYC_LEVEL_50_NOT_REACHED);
+  });
+
+  it('#582: buy behaves like sell — CH user waiver is no longer negated by a second loop (BuyCrypto)', () => {
+    const entity = withRule11KycWallet(createCustomBuyCrypto({ bankTx: createDefaultBankTx() }), 'CH');
+    expect(errorsFor(entity)).not.toContain(AmlError.KYC_LEVEL_50_NOT_REACHED);
+  });
+
+  it('#582: non-CH buy stays fail-closed — KYC still required (BuyCrypto)', () => {
+    const entity = withRule11KycWallet(createCustomBuyCrypto({ bankTx: createDefaultBankTx() }), 'DE');
+    expect(errorsFor(entity)).toContain(AmlError.KYC_LEVEL_50_NOT_REACHED);
+  });
+
+  it('#582: wallet rules are evaluated exactly once — no duplicate FORCE_MANUAL_CHECK (BuyCrypto)', () => {
+    const entity = createCustomBuyCrypto({ bankTx: createDefaultBankTx() });
+    entity.user.wallet.amlRules = '15'; // RULE_15 = Force Manual Check (unconditional)
+    const occurrences = errorsFor(entity).filter((e) => e === AmlError.FORCE_MANUAL_CHECK).length;
+    expect(occurrences).toBe(1);
   });
 });
