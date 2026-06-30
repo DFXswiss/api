@@ -107,6 +107,12 @@ export class BuyFiat extends IEntity {
   @Column({ length: 256, nullable: true })
   amlReason?: AmlReason;
 
+  // Whether postProcessing() (user activation, AML-list registration, tx amlCheck) has completed for
+  // the current verdict. A PASS is treated as fully handled only once this is true; doAmlCheck re-selects
+  // a PASS whose postProcessing did not complete, so a transient failure is retried instead of lost.
+  @Column({ default: false })
+  amlPostProcessed: boolean;
+
   @Column({ nullable: true })
   highRisk?: boolean;
 
@@ -508,6 +514,10 @@ export class BuyFiat extends IEntity {
     )
       update.mail2SendDate = null;
 
+    // A freshly computed verdict has not been post-processed yet — reset the flag so a PASS is only
+    // treated as fully handled once doAmlCheck has actually run postProcessing for it.
+    update.amlPostProcessed = false;
+
     Object.assign(this, update);
 
     return [this.id, update];
@@ -517,6 +527,7 @@ export class BuyFiat extends IEntity {
     const update: Partial<BuyFiat> = {
       amlCheck: null,
       amlReason: null,
+      amlPostProcessed: false,
       mail2SendDate: null,
       mail3SendDate: null,
       percentFee: null,

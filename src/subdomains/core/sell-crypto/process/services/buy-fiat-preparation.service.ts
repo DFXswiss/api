@@ -82,6 +82,9 @@ export class BuyFiatPreparationService {
           ...request,
         },
         { amlCheck: CheckStatus.PENDING, amlReason: Not(In(BlockAmlReasons)), ...request },
+        // Retry a PASS whose post-processing did not complete (transient failure) so its compliance
+        // side-effects are not silently lost; postProcessing is idempotent, so re-running is safe.
+        { amlCheck: CheckStatus.PASS, amlPostProcessed: false, ...request },
       ],
       relations: {
         cryptoInput: { asset: { balance: true, liquidityManagementRule: true } },
@@ -138,6 +141,16 @@ export class BuyFiatPreparationService {
           referenceChfPrice,
         );
 
+        // Retry path: this row is already PASS but its post-processing did not complete — a transient
+        // cron failure, or a manual reviewer / other path that committed PASS without finishing
+        // post-processing. Re-run post-processing ONLY; never recompute the verdict here, so a committed
+        // PASS (including a human reviewer's decision) is never reverted, re-screened or re-billed.
+        if (entity.amlCheck === CheckStatus.PASS && !entity.amlPostProcessed) {
+          await this.amlService.postProcessing(entity, last30dVolume);
+          await this.buyFiatRepo.update(entity.id, { amlPostProcessed: true });
+          continue;
+        }
+
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
           users,
@@ -175,6 +188,14 @@ export class BuyFiatPreparationService {
         if (!affected) continue;
 
         await this.amlService.postProcessing(entity, last30dVolume);
+
+        // postProcessing's compliance side-effects completed → mark the verdict fully handled so the
+        // PASS-retry branch above stops re-selecting it. A throw above skips this, leaving the flag
+        // false so the next run retries.
+        if (entity.amlCheck === CheckStatus.PASS) {
+          await this.buyFiatRepo.update(id, { amlPostProcessed: true });
+          entity.amlPostProcessed = true;
+        }
 
         if (amlCheckBefore !== entity.amlCheck) await this.buyFiatService.triggerWebhook(entity);
 

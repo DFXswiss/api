@@ -92,6 +92,9 @@ export class BuyCryptoPreparationService {
           ...request,
         },
         { amlCheck: CheckStatus.PENDING, amlReason: Not(In(BlockAmlReasons)), ...request },
+        // Retry a PASS whose post-processing did not complete (transient failure) so its compliance
+        // side-effects are not silently lost; postProcessing is idempotent, so re-running is safe.
+        { amlCheck: CheckStatus.PASS, amlPostProcessed: false, ...request },
       ],
       relations: {
         bankTx: true,
@@ -173,6 +176,16 @@ export class BuyCryptoPreparationService {
           referenceChfPrice,
         );
 
+        // Retry path: this row is already PASS but its post-processing did not complete — a transient
+        // cron failure, or a manual reviewer / other path that committed PASS without finishing
+        // post-processing. Re-run post-processing ONLY; never recompute the verdict here, so a committed
+        // PASS (including a human reviewer's decision) is never reverted, re-screened or re-billed.
+        if (entity.amlCheck === CheckStatus.PASS && !entity.amlPostProcessed) {
+          await this.amlService.postProcessing(entity, last30dVolume, isFirstRun);
+          await this.buyCryptoRepo.update(entity.id, { amlPostProcessed: true });
+          continue;
+        }
+
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
           users,
@@ -222,6 +235,14 @@ export class BuyCryptoPreparationService {
         if (!affected) continue;
 
         await this.amlService.postProcessing(entity, last30dVolume, isFirstRun);
+
+        // postProcessing's compliance side-effects completed → mark the verdict fully handled so the
+        // PASS-retry branch above stops re-selecting it. A throw above skips this, leaving the flag
+        // false so the next run retries.
+        if (entity.amlCheck === CheckStatus.PASS) {
+          await this.buyCryptoRepo.update(id, { amlPostProcessed: true });
+          entity.amlPostProcessed = true;
+        }
 
         if (amlCheckBefore !== entity.amlCheck) await this.buyCryptoWebhookService.triggerWebhook(entity);
 
