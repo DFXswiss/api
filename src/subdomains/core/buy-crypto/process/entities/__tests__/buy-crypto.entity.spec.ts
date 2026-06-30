@@ -1,5 +1,8 @@
 import { Test } from '@nestjs/testing';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
@@ -592,6 +595,79 @@ describe('BuyCrypto', () => {
       const updatedEntity = entity.confirmSentMail();
 
       expect(updatedEntity).toBeInstanceOf(Array);
+    });
+  });
+
+  describe('#amlCheckAndFillUp Scorechain gate', () => {
+    afterEach(() => jest.restoreAllMocks());
+
+    const run = (entity: BuyCrypto, screen?: () => Promise<boolean>) =>
+      entity.amlCheckAndFillUp(
+        null as any, // inputAsset
+        0, // minVolume
+        100, // amountInEur
+        120, // amountInChf
+        0, // last7dCheckoutVolume
+        0, // last30dVolume
+        0, // last365dVolume
+        null as any, // bankData
+        [], // blacklist
+        [], // phoneCallList
+        [], // banks
+        null as any, // ibanCountry
+        undefined, // refUser
+        undefined, // recommender
+        undefined, // ipLogCountries
+        undefined, // virtualIban
+        undefined, // multiAccountBankNames
+        screen,
+      );
+
+    it('does not screen when the tx would not otherwise pass', async () => {
+      jest.spyOn(AmlHelperService, 'getAmlResult').mockReturnValue({ amlCheck: CheckStatus.FAIL } as any);
+      const screen = jest.fn().mockResolvedValue(true);
+
+      await run(createDefaultBuyCrypto(), screen);
+
+      expect(screen).not.toHaveBeenCalled();
+      expect(AmlHelperService.getAmlResult).toHaveBeenCalledTimes(1);
+    });
+
+    it('screens when the tx would otherwise pass and flips to PENDING on a high-risk hit', async () => {
+      const spy = jest
+        .spyOn(AmlHelperService, 'getAmlResult')
+        .mockReturnValueOnce({ amlCheck: CheckStatus.PASS } as any)
+        .mockReturnValueOnce({ amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK } as any);
+      const screen = jest.fn().mockResolvedValue(true);
+      const entity = createDefaultBuyCrypto();
+
+      await run(entity, screen);
+
+      expect(screen).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy.mock.calls[0].at(-1)).toBe(false); // phase 1: scorechainHighRisk=false
+      expect(spy.mock.calls[1].at(-1)).toBe(true); // phase 2: scorechainHighRisk=true
+      expect(entity.amlCheck).toBe(CheckStatus.PENDING);
+    });
+
+    it('keeps PASS when the tx would pass and screening is clean (no phase 2)', async () => {
+      jest.spyOn(AmlHelperService, 'getAmlResult').mockReturnValue({ amlCheck: CheckStatus.PASS } as any);
+      const screen = jest.fn().mockResolvedValue(false);
+      const entity = createDefaultBuyCrypto();
+
+      await run(entity, screen);
+
+      expect(screen).toHaveBeenCalledTimes(1);
+      expect(AmlHelperService.getAmlResult).toHaveBeenCalledTimes(1);
+      expect(entity.amlCheck).toBe(CheckStatus.PASS);
+    });
+
+    it('does not screen when no callback is provided', async () => {
+      jest.spyOn(AmlHelperService, 'getAmlResult').mockReturnValue({ amlCheck: CheckStatus.PASS } as any);
+
+      await run(createDefaultBuyCrypto());
+
+      expect(AmlHelperService.getAmlResult).toHaveBeenCalledTimes(1);
     });
   });
 });

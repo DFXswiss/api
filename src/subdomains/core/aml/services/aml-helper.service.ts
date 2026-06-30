@@ -50,6 +50,7 @@ export class AmlHelperService {
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
     recommender?: UserData,
+    scorechainHighRisk = false,
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
@@ -59,6 +60,10 @@ export class AmlHelperService {
       [Environment.LOC, Environment.DEV].includes(Config.environment)
     )
       return errors;
+
+    // Scorechain on-chain screening (withdrawal target address / deposit tx); the async call runs in
+    // the AML orchestrator and is reduced to this boolean. Outcome layer only (CRUCIAL → manual review).
+    if (scorechainHighRisk) errors.push(AmlError.SCORECHAIN_HIGH_RISK);
 
     if (isAsset(inputAsset) && inputAsset.name === 'REALU') errors.push(AmlError.ASSET_INPUT_NOT_ALLOWED);
 
@@ -597,6 +602,7 @@ export class AmlHelperService {
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
+    scorechainHighRisk = false,
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;
@@ -623,6 +629,7 @@ export class AmlHelperService {
       virtualIban,
       multiAccountBankNames,
       recommender,
+      scorechainHighRisk,
     ).filter((e) => e);
 
     const comment = Array.from(new Set(amlErrors)).join(';');

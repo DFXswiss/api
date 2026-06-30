@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { isBankHoliday } from 'src/config/bank-holiday.config';
 import { Config } from 'src/config/config';
+import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
+import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -50,7 +52,20 @@ export class BuyFiatPreparationService {
     private readonly fiatOutputService: FiatOutputService,
     private readonly transactionService: TransactionService,
     private readonly custodyOrderService: CustodyOrderService,
+    private readonly scorechainScreeningService: ScorechainScreeningService,
   ) {}
+
+  // Scorechain on-chain screening for the sell/BuyFiat AML gate: screens the incoming crypto deposit
+  // tx. Chains Scorechain does not cover yield no signal (the other AML mechanisms apply). isHighRisk
+  // is fail-closed; provider errors propagate so the tx is retried rather than passing unscreened.
+  private async screenScorechain(entity: BuyFiat): Promise<boolean> {
+    const blockchain = entity.cryptoInput?.asset.blockchain;
+    const txHash = entity.cryptoInput?.inTxId;
+    if (!txHash || !toScorechainBlockchain(blockchain)) return false;
+
+    const screening = await this.scorechainScreeningService.screenDepositTransaction(blockchain, txHash);
+    return this.scorechainScreeningService.isHighRisk(screening);
+  }
 
   async doAmlCheck(): Promise<void> {
     const request: FindOptionsWhere<BuyFiat> = {
@@ -143,7 +158,7 @@ export class BuyFiatPreparationService {
           continue;
 
         await this.buyFiatRepo.update(
-          ...entity.amlCheckAndFillUp(
+          ...(await entity.amlCheckAndFillUp(
             inputReferenceCurrency,
             minVolume,
             referenceEurPrice.convert(entity.inputReferenceAmount, 2),
@@ -156,7 +171,8 @@ export class BuyFiatPreparationService {
             ibanCountry,
             refUser,
             recommender,
-          ),
+            () => this.screenScorechain(entity),
+          )),
         );
 
         await this.amlService.postProcessing(entity, last30dVolume);
