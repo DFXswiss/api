@@ -22,6 +22,12 @@ export const GsRestrictedColumns: Record<string, string[]> = {
 export const LogQueryAuditPrefix = 'Log query by ';
 export const DebugQueryAuditPrefix = 'Debug-query by ';
 
+// Operational log-line prefixes emitted by the `/gs/db` (ADMIN) path. The full request
+// JSON is embedded after the prefix, which can include customer identifiers in a WHERE
+// filter. The trace-returning log templates filter these alongside the two audit prefixes
+// so a DEBUG user can't enumerate ADMIN operators' query history via TRACES_BY_MESSAGE.
+export const GsDbOperationalLogPrefixes = ['Long DB runtime for ', 'GS userDataDoc use, with query'];
+
 // Debug endpoint
 export const DebugMaxResults = 10000;
 
@@ -72,6 +78,11 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   asset: {
+    // No `ikna` — it's the sole entry in `GsRestrictedColumns`, which `/gs/db` masks to
+    // `[RESTRICTED]` for everyone except SUPER_ADMIN. The structured `/gs/debug` endpoint
+    // doesn't apply that masking, so allowlisting it would bypass the deliberate
+    // SUPER_ADMIN-only restriction. The startup assertion below enforces that
+    // `DebugAllowedColumns` and `GsRestrictedColumns` never overlap.
     columns: [
       'id',
       'created',
@@ -92,7 +103,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'description',
       'dexName',
       'financialType',
-      'ikna',
       'instantBuyable',
       'instantSellable',
       'name',
@@ -148,6 +158,9 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   bank_tx: {
+    // No `memberId` — it's the counterparty clearing-system member ID set by the SEPA
+    // parser from the debtor/creditor agent. Same routing-data class as the excluded
+    // `bic` / `aba`.
     columns: [
       'id',
       'created',
@@ -179,7 +192,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'instructedAmount',
       'instructedCurrency',
       'instructionId',
-      'memberId',
       'subFamilyCode',
       'txAmount',
       'txCount',
@@ -519,7 +531,10 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   custody_account: {
-    columns: ['id', 'created', 'updated', 'description', 'ownerId', 'requiredSignatures', 'status', 'title'],
+    // No `title` (varchar 256) / `description` (text) — both are user-supplied free-form
+    // text written unsanitized from the create DTO. Same risk class as the excluded
+    // `support_issue.name` and `payment_link.label`.
+    columns: ['id', 'created', 'updated', 'ownerId', 'requiredSignatures', 'status'],
   },
   custody_account_access: {
     columns: ['id', 'created', 'updated', 'accessLevel', 'accountId', 'userDataId'],
@@ -698,15 +713,20 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     // No name / uid (uid is a secret identifier).
     columns: ['id', 'created', 'updated', 'kycStepId', 'protected', 'subType', 'type', 'userDataId', 'valid'],
   },
-  kyc_file_log: {
-    columns: ['id', 'created', 'updated', 'eventDate', 'type'],
-  },
   kyc_log: {
     // No comment / ipAddress / result / pdfUrl.
+    // This is the single physical table; the various `@ChildEntity` classes
+    // (`kyc_file_log`, `mail_change_log`, `manual_log`, `merge_log`, `name_check_log`,
+    // `risk_status_log`, `step_log`, `tfa_log`) all share this table and are
+    // discriminated by `type`. Filter with `where: {column: 'type', op: '=', value: 'X'}`
+    // to isolate one subtype.
     columns: ['id', 'created', 'updated', 'eventDate', 'fileId', 'type', 'userDataId'],
   },
   kyc_step: {
-    // No result (free-form text).
+    // No `result` / `comment` (free-form text). No `sessionId` — it's the live
+    // ident-provider bearer token returned by `initiateIdent()`, valid for 30 days
+    // (`identFailAfterDays`), and used verbatim as the ident-launch URL. Same secrets
+    // class as `apiKeyCT` / `totpSecret`.
     columns: [
       'id',
       'created',
@@ -714,7 +734,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'name',
       'reminderSentDate',
       'sequenceNumber',
-      'sessionId',
       'status',
       'transactionId',
       'type',
@@ -739,9 +758,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'limit',
       'mailSendDate',
     ],
-  },
-  limit_request_log: {
-    columns: ['id', 'created', 'updated', 'limitRequestId'],
   },
   liquidity_balance: {
     columns: ['id', 'created', 'updated', 'amount', 'assetId', 'availableAmount', 'isDfxOwned'],
@@ -834,20 +850,8 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'category', 'message', 'severity', 'subsystem', 'system', 'valid'],
     jsonbColumns: ['message'],
   },
-  mail_change_log: {
-    columns: ['id', 'created', 'updated', 'eventDate', 'type'],
-  },
-  manual_log: {
-    columns: ['id', 'created', 'updated', 'eventDate', 'type'],
-  },
-  merge_log: {
-    columns: ['id', 'created', 'updated', 'eventDate', 'type'],
-  },
   mros: {
     columns: ['id', 'created', 'updated', 'userDataId'],
-  },
-  name_check_log: {
-    columns: ['id', 'created', 'updated', 'bankDataId', 'eventDate', 'riskEvaluationDate', 'riskStatus', 'type'],
   },
   notification: {
     // No data (free-form JSON payload that may contain PII).
@@ -1057,9 +1061,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'txId',
     ],
   },
-  risk_status_log: {
-    columns: ['id', 'created', 'updated', 'eventDate', 'type'],
-  },
   route: {
     columns: ['id', 'created', 'updated'],
   },
@@ -1158,9 +1159,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'txId',
     ],
   },
-  step_log: {
-    columns: ['id', 'created', 'updated', 'eventDate', 'status', 'type'],
-  },
   support_issue: {
     // No `name` (customer-supplied title), no `information` (free-form), no `uid` (secret id).
     // Workflow metadata is safe.
@@ -1178,15 +1176,14 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'userDataId',
     ],
   },
-  support_issue_log: {
-    columns: ['id', 'created', 'updated', 'supportIssueId'],
-  },
   support_issue_template: {
     // No authorMail / contentDe / contentEn — free-form / contact info.
     columns: ['id', 'created', 'updated', 'authorId'],
   },
   support_log: {
     // `message` / `comment` excluded — free-form clerk notes.
+    // This is the single physical table; `@ChildEntity` classes (`support_issue_log`,
+    // `limit_request_log`) share this table and are discriminated by `type`.
     columns: ['id', 'created', 'updated', 'clerk', 'eventDate', 'type', 'userDataId'],
   },
   support_message: {
@@ -1215,9 +1212,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   system_state_snapshot: {
     // `data` is a JSON dump of subsystem metrics — internal observability values only.
     columns: ['id', 'created', 'updated', 'data'],
-  },
-  tfa_log: {
-    columns: ['id', 'created', 'updated', 'eventDate', 'type'],
   },
   trading_order: {
     // `errorMessage` removed — unbounded text from exception messages can carry operational
@@ -1292,6 +1286,11 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   transaction_request: {
+    // No `uid` — it's the random capability/lookup token returned to clients as the public
+    // `/tx/<uid>` status URL, resolved by the unauthenticated `GET /transaction/single`
+    // (no auth, no ownership check) to return the transaction DTO. Allowlisting `uid` here
+    // would let a DEBUG caller enumerate working lookup handles for arbitrary users'
+    // transactions. Matches the sibling `transaction` allowlist exclusion.
     columns: [
       'id',
       'created',
@@ -1315,7 +1314,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'targetPaymentMethod',
       'totalFee',
       'type',
-      'uid',
       'userId',
     ],
   },
@@ -1403,8 +1401,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'kycType',
       'languageId',
       'lastNameCheckDate',
-      'letterSendDate',
-      'manualReviewRequired',
+      'letterSentDate',
       'moderator',
       'monthlyBuyVolume',
       'monthlyCryptoVolume',
@@ -1510,33 +1507,61 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   },
 };
 
+// Invariant: `GsRestrictedColumns` is the per-role masking list that `/gs/db` applies (only
+// SUPER_ADMIN sees the real value). The structured `/gs/debug` endpoint does NOT apply any
+// such masking, so allowlisting any column also listed there would bypass the role
+// restriction. Fail at module load if the two sets overlap so a future addition can't slip
+// in silently.
+for (const [table, restricted] of Object.entries(GsRestrictedColumns)) {
+  const spec = DebugAllowedColumns[table];
+  if (!spec) continue;
+  for (const col of restricted) {
+    if (spec.columns.includes(col)) {
+      throw new Error(
+        `DebugAllowedColumns['${table}'] contains '${col}' which is in GsRestrictedColumns; ` +
+          `the /gs/debug endpoint does not apply role masking. Remove it from DebugAllowedColumns.`,
+      );
+    }
+  }
+}
+
+// KQL fragment that filters out self-emitted audit lines (`Debug-query by`, `Log query by`)
+// AND the `/gs/db` operational lines that embed request JSON. Shared by every trace-
+// returning template so a DEBUG user can't enumerate other operators' query history.
+const TraceSelfFilter = [
+  `not(message startswith "[GsService] ${LogQueryAuditPrefix}")`,
+  `not(message startswith "[GsService] ${DebugQueryAuditPrefix}")`,
+  ...GsDbOperationalLogPrefixes.map((p) => `not(message startswith "[GsService] ${p}")`),
+]
+  .map((cond) => `| where ${cond}`)
+  .join('\n');
+
 export const DebugLogQueryTemplates: Record<
   LogQueryTemplate,
   { kql: string; requiredParams: (keyof LogQueryDto)[]; defaultLimit: number }
 > = {
   [LogQueryTemplate.TRACES_BY_OPERATION]: {
-    // Self-audit lines from /gs/debug and /gs/debug/logs are filtered out so a DEBUG user
-    // can't read another DEBUG user's audit history by guessing or sweeping operationIds.
+    // Self-audit lines (Debug-query/Log query) and /gs/db operational lines (Long DB
+    // runtime / GS userDataDoc use) are filtered so a DEBUG user can't read another
+    // operator's query history by sweeping operationIds.
     kql: `traces
 | where operation_Id == "{operationId}"
 | where timestamp > ago({hours}h)
-| where not(message startswith "[GsService] ${LogQueryAuditPrefix}")
-| where not(message startswith "[GsService] ${DebugQueryAuditPrefix}")
+${TraceSelfFilter}
 | project timestamp, severityLevel, message, customDimensions
 | order by timestamp desc`,
     requiredParams: ['operationId'],
     defaultLimit: 500,
   },
   [LogQueryTemplate.TRACES_BY_MESSAGE]: {
-    // Self-audit lines filtered for the same reason as TRACES_BY_OPERATION above. Critical
-    // here because the caller supplies a free-form substring filter — without this, a DEBUG
-    // user can read another DEBUG user's full audit-line history by passing the audit prefix
-    // as messageFilter.
+    // Self-audit + /gs/db operational lines filtered for the same reason. Critical here
+    // because the caller supplies a free-form substring filter — without this, a DEBUG
+    // user can read another operator's history by passing any of the prefixes as
+    // messageFilter.
     kql: `traces
 | where timestamp > ago({hours}h)
 | where message contains "{messageFilter}"
-| where not(message startswith "[GsService] ${LogQueryAuditPrefix}")
-| where not(message startswith "[GsService] ${DebugQueryAuditPrefix}")
+${TraceSelfFilter}
 | project timestamp, severityLevel, message, operation_Id
 | order by timestamp desc`,
     requiredParams: ['messageFilter'],
@@ -1579,15 +1604,15 @@ export const DebugLogQueryTemplates: Record<
   },
   [LogQueryTemplate.ALL_TRACES]: {
     // Returns all trace entries in the given window. Self-emitted audit lines from
-    // /gs/debug ("Debug-query by ...") and /gs/debug/logs ("Log query by ...") are filtered
-    // out at the source so a DEBUG user can't read another DEBUG user's audit history, and
-    // so high-frequency dashboard callers don't recursively self-match. The "[GsService] "
-    // prefix is added by DfxLogger's class-context; the audit-prefix constants are shared
-    // with the emitters in gs.service.ts.
+    // /gs/debug ("Debug-query by ...") and /gs/debug/logs ("Log query by ...") AND the
+    // /gs/db operational lines ("Long DB runtime ...", "GS userDataDoc use ...") are
+    // filtered out at the source so a DEBUG user can't read another operator's query
+    // history, and so high-frequency dashboard callers don't recursively self-match. The
+    // "[GsService] " prefix is added by DfxLogger's class-context; the prefix constants
+    // are shared with the emitters in gs.service.ts.
     kql: `traces
 | where timestamp > ago({hours}h)
-| where not(message startswith "[GsService] ${LogQueryAuditPrefix}")
-| where not(message startswith "[GsService] ${DebugQueryAuditPrefix}")
+${TraceSelfFilter}
 | project timestamp, severityLevel, message, operation_Id
 | order by timestamp desc`,
     requiredParams: [],

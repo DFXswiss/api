@@ -13,7 +13,9 @@ import {
   Max,
   MaxLength,
   Min,
+  registerDecorator,
   ValidateNested,
+  ValidationOptions,
 } from 'class-validator';
 
 // Structured /gs/debug DTO.
@@ -26,19 +28,77 @@ import {
 // here. To add functionality (CASE, window funcs, OR-with-NOT-NULL, …) extend the schema
 // explicitly. There is no escape hatch.
 
-// Maximum nesting depth of a WHERE tree (and/or/not nesting). Validated in the service.
+// Maximum nesting depth of a WHERE tree (and/or/not nesting). Enforced at the DTO layer
+// by `@MaxWhereTreeSize` (iterative walk, so the tree is rejected by ValidationPipe before
+// the audit log's JSON.stringify can stack-overflow on it) and re-enforced by the service
+// walker.
 export const DebugQueryMaxWhereDepth = 5;
+// Maximum total number of nodes in the WHERE tree (internal AND/OR/NOT + leaves), enforced
+// at the DTO layer by `@MaxWhereTreeSize`. A linear NOT-chain has no children-width cap, so
+// this is the only thing that bounds it before the recursive walk fires.
+export const DebugQueryMaxWhereNodes = 200;
 // Maximum total number of leaf predicates across the entire WHERE tree. Counted in the
 // service walker; covers all-leaf trees.
 export const DebugQueryMaxPredicates = 50;
 // Maximum children of a single AND/OR node. Bounds the body parse + class-validator pass
-// before the depth/predicate walk runs, so an attacker can't burn CPU on a deeply-recursive
-// validation pass. Combined with `DebugQueryMaxWhereDepth = 5` this gives at most 5^5 = 3125
-// internal nodes in the worst case; the predicate-count cap above further bounds the leaves
-// to 50. 5 children per AND/OR is comfortably more than realistic debug queries need.
+// for AND/OR branching; combined with `DebugQueryMaxWhereDepth = 5` and the node-count cap
+// above, an attacker can't burn CPU on a deeply-recursive validation pass.
 export const DebugQueryMaxAndOrChildren = 5;
 // Maximum number of values inside an IN / NOT IN list.
 export const DebugQueryMaxInListSize = 100;
+
+// Iterative walker for the WHERE tree — used inside the custom class-validator constraint
+// below. Cannot use recursion: a malicious linear `not → child → not → …` chain would
+// stack-overflow the validator itself (which is what we're trying to prevent).
+export function walkWhereTreeIteratively(root: unknown): { depth: number; nodes: number } {
+  let maxDepth = 0;
+  let nodeCount = 0;
+  // Stack entries are (node, depth). Depth starts at 1 for the root.
+  const stack: Array<{ node: unknown; depth: number }> = [{ node: root, depth: 1 }];
+  while (stack.length > 0) {
+    const { node, depth } = stack.pop()!;
+    if (!node || typeof node !== 'object') continue;
+    nodeCount++;
+    if (depth > maxDepth) maxDepth = depth;
+    // Early-out if we've already exceeded the caps — bound the work to O(cap).
+    if (nodeCount > DebugQueryMaxWhereNodes || maxDepth > DebugQueryMaxWhereDepth) {
+      return { depth: maxDepth, nodes: nodeCount };
+    }
+    const obj = node as Record<string, unknown>;
+    if (Array.isArray(obj.children)) {
+      for (const child of obj.children) stack.push({ node: child, depth: depth + 1 });
+    }
+    if (obj.child !== undefined) {
+      stack.push({ node: obj.child, depth: depth + 1 });
+    }
+  }
+  return { depth: maxDepth, nodes: nodeCount };
+}
+
+// Class-validator decorator that enforces depth + node-count caps on a WHERE-tree-shaped
+// value at the DTO layer. The walk is iterative — recursion here would defeat the point.
+export function MaxWhereTreeSize(validationOptions?: ValidationOptions): PropertyDecorator {
+  return function (object: object, propertyName: string | symbol): void {
+    registerDecorator({
+      name: 'maxWhereTreeSize',
+      target: object.constructor,
+      propertyName: propertyName as string,
+      options: validationOptions,
+      validator: {
+        validate(value: unknown): boolean {
+          if (value === undefined || value === null) return true;
+          const { depth, nodes } = walkWhereTreeIteratively(value);
+          return depth <= DebugQueryMaxWhereDepth && nodes <= DebugQueryMaxWhereNodes;
+        },
+        defaultMessage(): string {
+          return (
+            `WHERE tree exceeds caps (max depth ${DebugQueryMaxWhereDepth}, ` + `max ${DebugQueryMaxWhereNodes} nodes)`
+          );
+        },
+      },
+    });
+  };
+}
 
 export enum DebugAggregate {
   COUNT = 'count',
@@ -170,7 +230,14 @@ export class DebugQueryDto {
   select: DebugSelectItem[];
 
   // WHERE tree. Optional. If absent, the SQL has no WHERE clause.
+  //
+  // The `DebugQueryTreeSizePipe` on the controller method runs BEFORE the global
+  // `ValidationPipe`'s recursive `plainToInstance`, so a malicious `not → child → not → …`
+  // chain that would stack-overflow `@Type`'s recursion (and the audit log's
+  // `JSON.stringify`) is rejected with a clean 400. `@MaxWhereTreeSize` here is a
+  // belt-and-braces downstream check on the instantiated tree.
   @IsOptional()
+  @MaxWhereTreeSize()
   @IsObject()
   @ValidateNested()
   @Type(() => DebugWhereNode)

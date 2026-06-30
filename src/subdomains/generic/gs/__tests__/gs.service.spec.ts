@@ -4,7 +4,12 @@ import { DataSource } from 'typeorm';
 import { AppInsightsQueryService } from 'src/integration/infrastructure/app-insights-query.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { GsService } from '../gs.service';
-import { DebugLogQueryTemplates, DebugQueryAuditPrefix, LogQueryAuditPrefix } from '../dto/gs.dto';
+import {
+  DebugLogQueryTemplates,
+  DebugQueryAuditPrefix,
+  GsDbOperationalLogPrefixes,
+  LogQueryAuditPrefix,
+} from '../dto/gs.dto';
 import { LogQueryTemplate } from '../dto/log-query.dto';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { UserService } from '../../user/models/user/user.service';
@@ -33,6 +38,9 @@ import { AccountType } from 'src/subdomains/generic/user/models/user-data/accoun
 import { Blob } from 'src/integration/infrastructure/azure-storage.service';
 import { ConfigService } from 'src/config/config';
 import { DebugAggregate, DebugQueryDto, DebugWhereNode, DebugWhereOp } from '../dto/debug-query.dto';
+import { plainToInstance } from 'class-transformer';
+import { validate, ValidationError } from 'class-validator';
+import { DebugQueryTreeSizePipe } from '../pipes/debug-query-tree-size.pipe';
 
 // Shape of a document as it travels through setUserDataDocs (a KycFileBlob with the relevant fields set).
 type KycFileDoc = Pick<KycFileBlob, 'path' | 'url' | 'name'> & { created: Date };
@@ -149,6 +157,29 @@ describe('GsService', () => {
           await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/not allowed/);
         },
       );
+
+      // TaprootFreak review: these were @ChildEntity classes in the source (single-table
+      // inheritance), so there's no physical table to query. The base tables (`kyc_log` /
+      // `support_log`) carry a `type` discriminator and are the right entrypoints.
+      it.each([
+        'kyc_file_log',
+        'mail_change_log',
+        'manual_log',
+        'merge_log',
+        'name_check_log',
+        'risk_status_log',
+        'step_log',
+        'tfa_log',
+        'support_issue_log',
+        'limit_request_log',
+      ])('rejects dead ChildEntity table `%s` (no physical table)', async (name) => {
+        const dto = {
+          table: name,
+          select: [{ kind: 'column' as const, column: 'id' }],
+          limit: 10,
+        };
+        await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/not allowed/);
+      });
     });
 
     describe('column allowlist', () => {
@@ -348,6 +379,22 @@ describe('GsService', () => {
         ['liquidity_management_order', 'errorMessage'],
         // fiat admin-config JSON
         ['fiat', 'ibanCountryConfig'],
+        // TaprootFreak review: capability/lookup token (`uid` is the public `/tx/<uid>`
+        // handle for an unauthenticated route).
+        ['transaction_request', 'uid'],
+        // TaprootFreak review: 30-day live KYC bearer token returned by `initiateIdent`.
+        ['kyc_step', 'sessionId'],
+        // TaprootFreak review: user-supplied free-form text written unsanitized from the
+        // create DTO.
+        ['custody_account', 'title'],
+        ['custody_account', 'description'],
+        // TaprootFreak review: SEPA counterparty clearing-system member ID, same routing
+        // class as the already-excluded `bic` / `aba`.
+        ['bank_tx', 'memberId'],
+        // TaprootFreak review: `asset.ikna` is in `GsRestrictedColumns` (masked for non-
+        // SUPER_ADMIN on /gs/db). The structured endpoint has no masking; allowlisting
+        // would bypass that role restriction.
+        ['asset', 'ikna'],
       ])('rejects sensitive column %s.%s', async (table, column) => {
         const dto = { table, select: [{ kind: 'column' as const, column }], limit: 10 };
         await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);
@@ -638,6 +685,48 @@ describe('GsService', () => {
           limit: 10,
         };
         await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(/neither an allowed column/);
+      });
+
+      it('emits GROUP BY as an ORDINAL POSITION when resolving an alias (alias-shadow safe)', async () => {
+        // Postgres' unqualified-name resolution for GROUP BY prefers the *input column* over
+        // the output alias in case of ambiguity. If a caller declared an alias whose text
+        // matches a physical-but-not-allowlisted column (e.g. on `user`: `ip`, `signature`,
+        // `apiKeyCT`, `comment`, `label`), `GROUP BY "<alias>"` would group by the hidden
+        // physical column and bypass the column allowlist for grouping. Emitting the
+        // ordinal position (`GROUP BY 2`) sidesteps the ambiguity entirely.
+        const q = spyQuery();
+        const dto: DebugQueryDto = {
+          table: 'user',
+          select: [
+            { kind: 'column', column: 'id' },
+            // 'ip' is NOT in the user allowlist (it's a sensitive physical column). The
+            // alias `ip` here would be ambiguous in unqualified GROUP BY. We emit `GROUP BY 2`.
+            { kind: 'column', column: 'status', as: 'ip' },
+          ],
+          groupBy: ['ip'],
+          limit: 10,
+        };
+        await service.executeDebugQuery(dto, 'tester');
+        const sql = q.mock.calls[0][0] as string;
+        expect(sql).toContain(`GROUP BY 2`);
+        expect(sql).not.toContain(`GROUP BY "ip"`);
+      });
+
+      it('mixes ordinal-emitted alias and qualified column in a multi-column GROUP BY', async () => {
+        const q = spyQuery();
+        const dto: DebugQueryDto = {
+          table: 'log',
+          select: [
+            { kind: 'column', column: 'subsystem' },
+            { kind: 'aggregate', aggregate: DebugAggregate.COUNT, column: 'id', as: 'n' },
+          ],
+          // 'n' is an alias → emits `2`; 'subsystem' is allowlisted → emits qualified.
+          groupBy: ['subsystem', 'n'],
+          limit: 10,
+        };
+        await service.executeDebugQuery(dto, 'tester');
+        const sql = q.mock.calls[0][0] as string;
+        expect(sql).toContain(`GROUP BY "log"."subsystem", 2`);
       });
     });
 
@@ -2189,7 +2278,8 @@ describe('GsService', () => {
       expect(emitted.startsWith(DebugQueryAuditPrefix)).toBe(true);
 
       // Every template that returns `traces` AND lets the caller influence what's returned
-      // must filter the debug-query audit prefix.
+      // must filter BOTH audit prefixes AND the /gs/db operational log prefixes that embed
+      // request JSON.
       for (const template of [
         LogQueryTemplate.ALL_TRACES,
         LogQueryTemplate.TRACES_BY_MESSAGE,
@@ -2198,9 +2288,179 @@ describe('GsService', () => {
         const kql = DebugLogQueryTemplates[template].kql;
         expect(kql).toContain(`[GsService] ${DebugQueryAuditPrefix}`);
         expect(kql).toContain(`[GsService] ${LogQueryAuditPrefix}`);
+        for (const opPrefix of GsDbOperationalLogPrefixes) {
+          expect(kql).toContain(`[GsService] ${opPrefix}`);
+        }
       }
 
       verboseSpy.mockRestore();
     });
+  });
+});
+
+// DTO-layer tests. These exercise the class-validator decorators directly via
+// `plainToInstance` + `validate`, the same way NestJS' global `ValidationPipe` does
+// (`useGlobalPipes(new ValidationPipe(...))` in main.ts:84). The other tests in this file
+// call the service directly and bypass the pipe — so without these, removing a decorator
+// (an `@IsEnum`, the `@Matches` regex on `as`, the new `@MaxWhereTreeSize`, etc.) would
+// pass CI even though the production endpoint would lose the gate.
+describe('DebugQueryDto - ValidationPipe layer', () => {
+  // Validate a plain JS object against `DebugQueryDto` the way NestJS' ValidationPipe does:
+  // first transform to a class instance (so `@Type(() => DebugWhereNode)` instantiates the
+  // tree), then run class-validator. Returns the list of validation errors.
+  async function validateDto(payload: unknown): Promise<ValidationError[]> {
+    const instance = plainToInstance(DebugQueryDto, payload);
+    return validate(instance, { whitelist: true, forbidUnknownValues: false });
+  }
+
+  // Convenience: flatten the nested error tree to a list of constraint names that fired.
+  function constraintNames(errors: ValidationError[]): string[] {
+    const names: string[] = [];
+    const visit = (errs: ValidationError[]) => {
+      for (const e of errs) {
+        if (e.constraints) names.push(...Object.keys(e.constraints));
+        if (e.children?.length) visit(e.children);
+      }
+    };
+    visit(errors);
+    return names;
+  }
+
+  it('accepts a minimal valid query', async () => {
+    const errors = await validateDto({
+      table: 'asset',
+      select: [{ kind: 'column', column: 'id' }],
+      limit: 10,
+    });
+    expect(errors).toHaveLength(0);
+  });
+
+  it.each([
+    ['table missing', { select: [{ kind: 'column', column: 'id' }], limit: 10 }, 'isString'],
+    ['table has uppercase', { table: 'Asset', select: [{ kind: 'column', column: 'id' }], limit: 10 }, 'matches'],
+    ['select empty', { table: 'asset', select: [], limit: 10 }, 'arrayMinSize'],
+    ['select.kind unknown', { table: 'asset', select: [{ kind: 'BOGUS', column: 'id' }], limit: 10 }, 'isIn'],
+    [
+      'select.column with quote',
+      { table: 'asset', select: [{ kind: 'column', column: 'id"; DROP --' }], limit: 10 },
+      'matches',
+    ],
+    [
+      'select.as with quote',
+      { table: 'asset', select: [{ kind: 'column', column: 'id', as: 'a"; DROP --' }], limit: 10 },
+      'matches',
+    ],
+    [
+      'select.aggregate unknown',
+      { table: 'asset', select: [{ kind: 'aggregate', column: 'id', aggregate: 'BOGUS' }], limit: 10 },
+      'isEnum',
+    ],
+    [
+      'where.kind unknown',
+      {
+        table: 'asset',
+        select: [{ kind: 'column', column: 'id' }],
+        where: { kind: 'BOGUS', column: 'id', op: '=', value: 1 },
+        limit: 10,
+      },
+      'isIn',
+    ],
+    [
+      'where.op unknown',
+      {
+        table: 'asset',
+        select: [{ kind: 'column', column: 'id' }],
+        where: { kind: 'leaf', column: 'id', op: 'BOGUS', value: 1 },
+        limit: 10,
+      },
+      'isEnum',
+    ],
+    [
+      'orderBy.direction unknown',
+      {
+        table: 'asset',
+        select: [{ kind: 'column', column: 'id' }],
+        orderBy: [{ column: 'id', direction: 'BOGUS' }],
+        limit: 10,
+      },
+      'isIn',
+    ],
+    ['limit too small', { table: 'asset', select: [{ kind: 'column', column: 'id' }], limit: 0 }, 'min'],
+    ['limit too large', { table: 'asset', select: [{ kind: 'column', column: 'id' }], limit: 10001 }, 'max'],
+    ['offset negative', { table: 'asset', select: [{ kind: 'column', column: 'id' }], limit: 10, offset: -1 }, 'min'],
+  ])('rejects %s', async (_label, payload, expectedConstraint) => {
+    const errors = await validateDto(payload);
+    expect(errors.length).toBeGreaterThan(0);
+    expect(constraintNames(errors)).toContain(expectedConstraint);
+  });
+
+  it('rejects a linear NOT-chain via DebugQueryTreeSizePipe before validation can stack-overflow', () => {
+    // class-transformer's `plainToInstance` recurses through `@Type(() => DebugWhereNode)`,
+    // so the global `ValidationPipe` itself stack-overflows on a deep chain (verified
+    // empirically). The controller-method-scoped `DebugQueryTreeSizePipe` runs FIRST, walks
+    // the raw body iteratively, and rejects oversized trees with a clean 400.
+    let chain: unknown = { kind: 'leaf', column: 'id', op: '=', value: 1 };
+    for (let i = 0; i < 10000; i++) chain = { kind: 'not', child: chain };
+    const pipe = new DebugQueryTreeSizePipe();
+    expect(() =>
+      pipe.transform({
+        table: 'asset',
+        select: [{ kind: 'column', column: 'id' }],
+        where: chain,
+        limit: 10,
+      }),
+    ).toThrow(/WHERE tree exceeds caps/);
+  });
+
+  it('rejects a wide-and-shallow tree via DebugQueryTreeSizePipe (node-count cap)', () => {
+    // Width 5 × depth 5 = 5^5 leaves is allowed by the per-level `@ArrayMaxSize(5)` cap,
+    // but the total node-count cap kicks in earlier. Synthesize a tree that exceeds the
+    // node cap regardless of depth.
+    const wide = (n: number) => ({
+      kind: 'and',
+      children: Array.from({ length: n }, (_, i) => ({ kind: 'leaf', column: 'id', op: '=', value: i })),
+    });
+    // Nest 5 levels of width-5 — total internal+leaf nodes = 1 + 5 + 25 + 125 + 625 + 3125 = 3906,
+    // safely over the 200-node cap.
+    let tree: unknown = wide(5);
+    for (let d = 0; d < 4; d++) tree = { kind: 'and', children: Array.from({ length: 5 }, () => tree) };
+    const pipe = new DebugQueryTreeSizePipe();
+    expect(() =>
+      pipe.transform({ table: 'asset', select: [{ kind: 'column', column: 'id' }], where: tree, limit: 10 }),
+    ).toThrow(/WHERE tree exceeds caps/);
+  });
+
+  it('lets a benign small tree pass DebugQueryTreeSizePipe unchanged', () => {
+    const body = {
+      table: 'asset',
+      select: [{ kind: 'column', column: 'id' }],
+      where: {
+        kind: 'and',
+        children: [
+          { kind: 'leaf', column: 'id', op: '=', value: 1 },
+          { kind: 'leaf', column: 'id', op: '=', value: 2 },
+        ],
+      },
+      limit: 10,
+    };
+    const pipe = new DebugQueryTreeSizePipe();
+    expect(pipe.transform(body)).toBe(body);
+  });
+
+  it('rejects an AND tree with >5 children per node (DebugQueryMaxAndOrChildren)', async () => {
+    const children = Array.from({ length: 6 }, (_, i) => ({
+      kind: 'leaf',
+      column: 'id',
+      op: '=',
+      value: i,
+    }));
+    const errors = await validateDto({
+      table: 'asset',
+      select: [{ kind: 'column', column: 'id' }],
+      where: { kind: 'and', children },
+      limit: 10,
+    });
+    expect(errors.length).toBeGreaterThan(0);
+    expect(constraintNames(errors)).toContain('arrayMaxSize');
   });
 });

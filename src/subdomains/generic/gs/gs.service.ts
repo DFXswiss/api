@@ -62,7 +62,12 @@ interface DebugQueryEmitCtx {
   table: string;
   spec: DebugTableSpec;
   params: (string | number | boolean)[];
-  aliases: Set<string>;
+  // Map of select-list alias → 1-based position in the SELECT clause. GROUP BY resolves
+  // aliases to their ordinal position (`GROUP BY 2`) because Postgres' unqualified-name
+  // resolution prefers the *input column* over the alias in case of ambiguity — emitting
+  // the alias name directly would let a caller bypass the column allowlist for grouping by
+  // declaring an alias whose text matches a physical-but-not-allowlisted column.
+  aliases: Map<string, number>;
   predicateCount: number;
 }
 
@@ -253,24 +258,27 @@ export class GsService {
       table: dto.table,
       spec,
       params: [],
-      aliases: new Set<string>(),
+      aliases: new Map<string, number>(),
       predicateCount: 0,
     };
 
-    // SELECT — emit fragments in the order they appear in the DTO. Aliases are collected so
-    // they can be referenced from ORDER BY (PG allows ORDER BY by output alias).
-    const selectFragments = dto.select.map((item) => this.emitDebugSelectItem(item, ctx));
+    // SELECT — emit fragments in the order they appear in the DTO. Aliases are collected
+    // with their 1-based position so GROUP BY can reference them by ordinal (avoiding PG's
+    // alias-vs-input-column ambiguity); ORDER BY references the alias name (PG prefers the
+    // alias there).
+    const selectFragments = dto.select.map((item, i) => this.emitDebugSelectItem(item, ctx, i + 1));
     const selectClause = selectFragments.join(', ');
 
     // WHERE — recursive emitter capped at DebugQueryMaxWhereDepth and DebugQueryMaxPredicates.
     const whereClause = dto.where ? ` WHERE ${this.emitDebugWhere(dto.where, ctx, 1)}` : '';
 
     // GROUP BY — each item must resolve to either a table column or an existing select alias.
+    // Aliases resolve to their 1-based ordinal position.
     const groupByClause = dto.groupBy?.length
-      ? ` GROUP BY ${dto.groupBy.map((c) => this.emitDebugGroupOrderIdent(c, ctx)).join(', ')}`
+      ? ` GROUP BY ${dto.groupBy.map((c) => this.emitDebugGroupIdent(c, ctx)).join(', ')}`
       : '';
 
-    // ORDER BY — same name resolution as GROUP BY; direction comes from a server-side enum.
+    // ORDER BY — like GROUP BY but emits the alias name (PG prefers alias here).
     const orderByClause = dto.orderBy?.length
       ? ` ORDER BY ${dto.orderBy.map((o) => this.emitDebugOrderByItem(o, ctx)).join(', ')}`
       : '';
@@ -299,14 +307,29 @@ export class GsService {
   // Replaces every `value` field (WHERE leaf scalars or IN-list arrays) with a redaction
   // marker for the audit log, then truncates. Preserves table/select/where structure so the
   // log is still useful for forensics; drops the actual user-supplied scalars.
+  //
+  // The `@MaxWhereTreeSize` DTO decorator already rejects WHERE trees deep enough to stack-
+  // overflow `JSON.stringify`'s recursion, but we still guard the call here as defense in
+  // depth: a future cap relaxation, a partially-validated DTO, or some other code path that
+  // bypasses ValidationPipe shouldn't be able to turn the audit emission into an uncaught
+  // 500 — that would defeat the "audit fires even when emit throws" guarantee for exactly
+  // the malicious case.
   private serializeDebugQueryForAudit(dto: DebugQueryDto): string {
-    const redacted = JSON.stringify(dto, (key, val) => {
-      if (key === 'value') {
-        if (Array.isArray(val)) return `<array:${val.length}>`;
-        return '<scalar>';
-      }
-      return val;
-    });
+    let redacted: string;
+    try {
+      redacted = JSON.stringify(dto, (key, val) => {
+        if (key === 'value') {
+          if (Array.isArray(val)) return `<array:${val.length}>`;
+          return '<scalar>';
+        }
+        return val;
+      });
+    } catch {
+      // Stack overflow or other serialization error — log a placeholder so the audit line
+      // still exists. The request will be rejected downstream (the DTO cap prevents this
+      // path from being reachable, but defense in depth).
+      redacted = '<unserializable>';
+    }
     return redacted.length > 500 ? `${redacted.substring(0, 500)}...` : redacted;
   }
 
@@ -352,7 +375,7 @@ export class GsService {
   // default alias is derived, so `defaultDebugSelectAlias` always reads from already-checked
   // inputs. Otherwise a malformed `{kind: 'jsonb'}` (no jsonbPath) would TypeError when
   // synthesizing the alias and surface as 500 instead of a clean 400.
-  private emitDebugSelectItem(item: DebugSelectItem, ctx: DebugQueryEmitCtx): string {
+  private emitDebugSelectItem(item: DebugSelectItem, ctx: DebugQueryEmitCtx, position: number): string {
     this.assertDebugColumnAllowed(item.column, ctx.spec);
 
     // Defense in depth: an explicit `as` is interpolated as `AS "${alias}"`. The DTO regex
@@ -380,7 +403,7 @@ export class GsService {
     }
 
     const alias = item.as ?? this.defaultDebugSelectAlias(item);
-    ctx.aliases.add(alias);
+    ctx.aliases.set(alias, position);
 
     const colSql = `"${ctx.table}"."${item.column}"`;
 
@@ -505,18 +528,31 @@ export class GsService {
     return ctx.params.length;
   }
 
-  // GROUP BY / ORDER BY identifier resolver. Accepts either a real column (validated against
-  // the table allowlist) OR a select-list alias (added to ctx.aliases earlier). Order matters:
-  // we check the column allowlist first so an alias can't shadow a disallowed real column —
-  // but in practice the regex already prevented quoted dot-pathing.
-  private emitDebugGroupOrderIdent(name: string, ctx: DebugQueryEmitCtx): string {
+  // GROUP BY identifier resolver. Accepts either a real allowlisted column (emitted as
+  // qualified `"table"."col"`) or a select-list alias (emitted as the ORDINAL POSITION,
+  // `GROUP BY 2`, not as a quoted alias name). Postgres' unqualified-name resolution prefers
+  // the *input column* over the output alias in case of ambiguity — so emitting `GROUP BY
+  // "ip"` would bind to a physical `ip` column (if one exists on the table but isn't in the
+  // allowlist), bypassing the allowlist for grouping. Ordinals sidestep the ambiguity.
+  private emitDebugGroupIdent(name: string, ctx: DebugQueryEmitCtx): string {
+    if (ctx.spec.columns.includes(name)) return `"${ctx.table}"."${name}"`;
+    const position = ctx.aliases.get(name);
+    if (position !== undefined) return String(position);
+    throw new BadRequestException(`'${name}' is neither an allowed column nor a select alias`);
+  }
+
+  // ORDER BY identifier resolver. Same accept rules as GROUP BY, but Postgres prefers the
+  // output alias over the input column for unqualified ORDER BY names, so emitting the
+  // quoted alias is safe. Kept separate from `emitDebugGroupIdent` so the GROUP BY ordinal
+  // emission is explicit at the call site.
+  private emitDebugOrderIdent(name: string, ctx: DebugQueryEmitCtx): string {
     if (ctx.spec.columns.includes(name)) return `"${ctx.table}"."${name}"`;
     if (ctx.aliases.has(name)) return `"${name}"`;
     throw new BadRequestException(`'${name}' is neither an allowed column nor a select alias`);
   }
 
   private emitDebugOrderByItem(item: DebugOrderByItem, ctx: DebugQueryEmitCtx): string {
-    const ident = this.emitDebugGroupOrderIdent(item.column, ctx);
+    const ident = this.emitDebugOrderIdent(item.column, ctx);
     if (item.direction !== undefined && item.direction !== 'ASC' && item.direction !== 'DESC') {
       // Defense in depth — `direction` is interpolated into SQL. The DTO restricts it to
       // ASC/DESC via @IsIn; re-check here so the service alone catches an invalid value.

@@ -27,7 +27,7 @@ Sign the DFX login message with your wallet to get a valid signature.
 
 No additional server-side configuration required. The endpoint uses the existing database connection.
 
-**Client-side configuration** (in `scripts/.env.db-debug`):
+**Client-side configuration** (in the repo-root `.env`; the migrated scripts read this file directly):
 
 | Variable | Required | Description |
 |----------|----------|-------------|
@@ -107,22 +107,22 @@ AZURE_CLIENT_SECRET=your-secret-value
 
 ## Local Setup
 
-### 1. Copy the sample environment file
+### 1. Add the debug credentials to the repo-root `.env`
+
+The migrated shell scripts (`db-debug.sh`, `compare-balance-logs.sh`,
+`inspect-asset-balance.sh`, `sum-asset-balances.sh`, `sync-prod-logs.js`) all
+read these variables from `<repo-root>/.env`. Append:
 
 ```bash
-cp scripts/.env.db-debug.sample scripts/.env.db-debug
-```
-
-### 2. Edit the configuration
-
-```bash
-# scripts/.env.db-debug
 DEBUG_ADDRESS=0xYourWalletAddress
 DEBUG_SIGNATURE=0xYourSignature
-DEBUG_API_URL=https://api.dfx.swiss/v1
+DEBUG_API_URL=https://api.dfx.swiss/v1   # optional; defaults to prod
 ```
 
-### 3. Test database access
+`DEBUG_SIGNATURE` is the signature of the DFX login message produced by signing
+with the wallet at `DEBUG_ADDRESS`.
+
+### 2. Test database access
 
 ```bash
 ./scripts/db-debug.sh                # default mode: assets summary
@@ -130,7 +130,7 @@ DEBUG_API_URL=https://api.dfx.swiss/v1
 ./scripts/db-debug.sh --help         # all predefined modes
 ```
 
-### 4. Test log access
+### 3. Test log access
 
 ```bash
 ./scripts/log-debug.sh exceptions
@@ -193,7 +193,7 @@ absent from a table's entry is unreachable from this endpoint.
 
 ## Security Notes
 
-1. **Never commit** `.env.db-debug` to git (it's in `.gitignore`)
+1. **Never commit** `.env` to git (it's in `.gitignore`)
 2. The DEBUG role should only be granted to authorized personnel
 3. All queries are logged with user identifier for audit (`Debug-query by <addr>: …`).
    WHERE leaf values are redacted in the audit log; structure (table / columns / ops) is preserved.
