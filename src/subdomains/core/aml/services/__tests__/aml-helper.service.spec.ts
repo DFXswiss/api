@@ -374,7 +374,7 @@ describe('AmlHelperService.getAmlErrors - RULE_11 KYC waiver is IP-gated; wallet
 
   // Wallet carries RULE_3 (requires KycLevel 50) + RULE_11 (KYC waiver for special IP countries),
   // user below LEVEL_50 → RULE_3 would push KYC_LEVEL_50_NOT_REACHED unless the RULE_11 waiver applies.
-  function withRule11KycWallet(entity: BuyCrypto | BuyFiat, ipCountry: string) {
+  function withRule11KycWallet(entity: BuyCrypto | BuyFiat, ipCountry: string): BuyCrypto | BuyFiat {
     entity.user.wallet.amlRules = '3;11';
     entity.user.ipCountry = ipCountry;
     entity.userData.kycLevel = KycLevel.LEVEL_30;
