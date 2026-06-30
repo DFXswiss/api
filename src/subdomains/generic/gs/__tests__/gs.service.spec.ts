@@ -2258,6 +2258,40 @@ describe('GsService', () => {
   });
 
   describe('Audit-prefix sync (cross-user history leak protection)', () => {
+    it(`Nest Logger renders the GsService context as "[GsService] " — the literal the KQL filters expect`, () => {
+      // TaprootFreak review: the KQL filters in the trace templates hardcode the string
+      // `[GsService] ` (the class-name context that NestJS' Logger prepends). If the
+      // GsService class were renamed without updating the KQL, every operational and
+      // audit log line would silently slip past the filter — defeating the cross-user
+      // history-leak protection.
+      //
+      // Pin the coupling by going through the real `@nestjs/common` Logger pipeline:
+      // construct a `DfxLogger(GsService)`, capture stdout via a Logger override, and
+      // assert the line starts with `[GsService] `.
+      const captured: string[] = [];
+      const realWrite = process.stdout.write.bind(process.stdout);
+      const stdoutSpy = jest.spyOn(process.stdout, 'write').mockImplementation((chunk: unknown) => {
+        captured.push(typeof chunk === 'string' ? chunk : String(chunk));
+        return true;
+      });
+      try {
+        new DfxLogger(GsService).verbose('Debug-query by 0xtester: probe');
+      } finally {
+        stdoutSpy.mockRestore();
+        void realWrite;
+      }
+      // Strip ANSI escape codes; Nest's default formatter colorizes when stdout is a TTY,
+      // but App Insights traces strip them, so the KQL filter operates on the clean string.
+      // eslint-disable-next-line no-control-regex
+      const ansi = /\x1b\[[0-9;]*m/g;
+      const line = (captured.find((c) => c.includes('Debug-query by 0xtester')) ?? '').replace(ansi, '');
+      // NestJS' Logger prepends `[GsService] ` (after timestamp/level prefix) before the
+      // user-supplied message. The KQL templates hardcode that literal — keep both in sync.
+      expect(line).toContain('[GsService] Debug-query by 0xtester');
+      const kql = DebugLogQueryTemplates[LogQueryTemplate.ALL_TRACES].kql;
+      expect(kql).toContain('[GsService] Debug-query by ');
+    });
+
     it('ALL_TRACES template excludes the exact audit prefix that gs.service emits', async () => {
       const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation(() => undefined);
       jest.spyOn(appInsightsQueryService, 'query').mockResolvedValue({ tables: [{ columns: [], rows: [] }] } as never);
