@@ -324,10 +324,7 @@ export class UserDataService {
     if (dto.phoneCallExternalAccountCheckValue)
       userData.addPhoneCallExternalAccountCheckValue(dto.phoneCallExternalAccountCheckValue);
 
-    if (
-      dto.phoneCallStatus === PhoneCallStatus.COMPLETED &&
-      [PhoneCallStatus.FAILED, PhoneCallStatus.USER_REJECTED].includes(userData.phoneCallStatus)
-    )
+    if (dto.phoneCallStatus === PhoneCallStatus.COMPLETED && PhoneCallStatus.COMPLETED !== userData.phoneCallStatus)
       this.phoneCallCompletedSubject.next(userData);
 
     if (dto.bankTransactionVerification === CheckStatus.PASS) {
