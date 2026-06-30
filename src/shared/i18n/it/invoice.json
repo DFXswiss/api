@@ -2,7 +2,7 @@
   "title": "Fattura No. {invoiceId}",
   "credit_title": "Credito No. {invoiceId}",
   "receipt_title": "Conferma di Transazione No. {invoiceId}",
-  "multi_receipt_title": "Conferma di Transazione",
+  "multi_receipt_title": "Storico delle transazioni",
   "section": {
     "buy": "Acquisti",
     "sell": "Vendite"

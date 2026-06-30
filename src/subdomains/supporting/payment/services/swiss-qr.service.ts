@@ -281,7 +281,7 @@ export class SwissQRService {
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
     const isRealUnit = brand === PdfBrand.REALUNIT;
-    const lang = typeof language === 'string' ? language.toLowerCase() : language;
+    const lang = language.toLowerCase();
 
     PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
     this.drawSenderAddress(pdf, brand);
@@ -293,7 +293,7 @@ export class SwissQRService {
     pdf.fontSize(11);
     pdf.font('Helvetica');
     if (isRealUnit) {
-      const creditorCity = billData.creditor?.city ?? 'Baar';
+      const creditorCity = Config.blockchain.realunit.address.city;
       pdf.text(`${creditorCity}, ${this.formatChDateTime(d)}`, {
         align: 'right',
         width: mm2pt(170),
@@ -527,29 +527,33 @@ export class SwissQRService {
     return promise;
   }
 
-  private drawReceiptDetails(pdf: typeof PDFDocument.prototype, tableData: SwissQRBillTableData, lang: string): void {
+  private drawReceiptDetails(
+    pdf: typeof PDFDocument.prototype,
+    receipt: { buyerName?: string; walletAddress?: string; txHash?: string },
+    lang: string,
+  ): void {
     const labelX = mm2pt(20);
 
     const details: { label: string; value: string }[] = [];
 
-    if (tableData.buyerName) {
+    if (receipt.buyerName) {
       details.push({
         label: this.translate('invoice.realunit_receipt.buyer_label', lang),
-        value: tableData.buyerName,
+        value: receipt.buyerName,
       });
     }
 
-    if (tableData.walletAddress) {
+    if (receipt.walletAddress) {
       details.push({
         label: this.translate('invoice.realunit_receipt.wallet_label', lang),
-        value: tableData.walletAddress,
+        value: receipt.walletAddress,
       });
     }
 
-    if (tableData.txHash) {
+    if (receipt.txHash) {
       details.push({
         label: this.translate('invoice.realunit_receipt.tx_hash_label', lang),
-        value: tableData.txHash,
+        value: receipt.txHash,
       });
     }
 
@@ -583,7 +587,7 @@ export class SwissQRService {
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
     const isRealUnit = brand === PdfBrand.REALUNIT;
-    const lang = typeof language === 'string' ? language.toLowerCase() : language;
+    const lang = language.toLowerCase();
     const hasUnitPrice = isRealUnit && tableDataWithType.some((t) => t.data.unitPrice != null);
 
     PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
@@ -729,16 +733,7 @@ export class SwissQRService {
 
     // RealUnit details section
     if (isRealUnit && (walletAddress || buyerName)) {
-      const detailsData: SwissQRBillTableData = {
-        title: '',
-        quantity: 0,
-        description: {},
-        fiatAmount: 0,
-        date: new Date(),
-        walletAddress,
-        buyerName,
-      };
-      this.drawReceiptDetails(pdf, detailsData, lang);
+      this.drawReceiptDetails(pdf, { buyerName, walletAddress }, lang);
     }
 
     pdf.end();
