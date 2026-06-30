@@ -151,7 +151,8 @@ export class SupportIssueService {
     if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
     const dayRows = await trendQb.getRawMany<{ d: Date | string; count: string }>();
 
-    // build keys from local date parts on BOTH the rows and the bucket loop, so they line up in any timezone
+    // build keys from local date parts on both the rows and the bucket loop; the app and DB both run UTC,
+    // so the row-date space and the loop-date space align and the trend sums to total
     const dayKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     const monthKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
 
@@ -159,7 +160,7 @@ export class SupportIssueService {
     if (granularity === 'day') {
       const map = new Map(dayRows.map((r) => [dayKey(new Date(r.d)), +r.count]));
       // anchor the first bucket to `from`'s calendar day (not a fixed day count), so the daily trend covers
-      // every day a row can fall on regardless of DST/timezone and always sums to total
+      // every day a row can fall on and always sums to total
       const lastDay = new Date(now);
       lastDay.setHours(0, 0, 0, 0);
       const d = new Date(from);
