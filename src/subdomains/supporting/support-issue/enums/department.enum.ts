@@ -12,3 +12,11 @@ export const RoleDepartmentMap: Partial<Record<UserRole, Department>> = {
   [UserRole.COMPLIANCE]: Department.COMPLIANCE,
   [UserRole.MARKETING]: Department.MARKETING,
 };
+
+// Departments a role may view and handle. Compliance is a superset of support: it additionally sees
+// and answers support tickets. Returns undefined for unrestricted access (admin / super admin).
+export function getVisibleDepartments(role: UserRole): Department[] | undefined {
+  const own = RoleDepartmentMap[role];
+  if (!own) return undefined;
+  return role === UserRole.COMPLIANCE ? [Department.SUPPORT, Department.COMPLIANCE] : [own];
+}
