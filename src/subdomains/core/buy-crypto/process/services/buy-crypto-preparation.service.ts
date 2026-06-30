@@ -170,34 +170,33 @@ export class BuyCryptoPreparationService {
           ? await this.virtualIbanService.getByIban(entity.bankTx.virtualIban)
           : undefined;
 
-        // check if amlCheck changed (e.g. reset or refund)
-        if (
-          entity.amlCheck === CheckStatus.PENDING &&
-          (await this.buyCryptoRepo.existsBy({ id: entity.id, amlCheck: Not(CheckStatus.PENDING) }))
-        )
-          continue;
-
-        await this.buyCryptoRepo.update(
-          ...entity.amlCheckAndFillUp(
-            inputCurrency,
-            minVolume,
-            referenceEurPrice.convert(entity.inputReferenceAmount, 2),
-            referenceChfPrice.convert(entity.inputReferenceAmount, 2),
-            last7dCheckoutVolume,
-            last30dVolume,
-            last365dVolume,
-            bankData,
-            blacklist,
-            phoneCallList,
-            banks,
-            ibanCountry,
-            refUser,
-            recommender,
-            ipLogCountries,
-            virtualIban,
-            multiAccountBankNames,
-          ),
+        const [id, update] = entity.amlCheckAndFillUp(
+          inputCurrency,
+          minVolume,
+          referenceEurPrice.convert(entity.inputReferenceAmount, 2),
+          referenceChfPrice.convert(entity.inputReferenceAmount, 2),
+          last7dCheckoutVolume,
+          last30dVolume,
+          last365dVolume,
+          bankData,
+          blacklist,
+          phoneCallList,
+          banks,
+          ibanCountry,
+          refUser,
+          recommender,
+          ipLogCountries,
+          virtualIban,
+          multiAccountBankNames,
         );
+
+        // Atomic guard: persist only if amlCheck is unchanged since it was read, so a concurrent manual
+        // reviewer / refund / reset (NULL or PENDING) is never silently overwritten by the cron.
+        const { affected } = await this.buyCryptoRepo.update(
+          { id, amlCheck: amlCheckBefore == null ? IsNull() : amlCheckBefore },
+          update,
+        );
+        if (!affected) continue;
 
         await this.amlService.postProcessing(entity, last30dVolume, isFirstRun);
 

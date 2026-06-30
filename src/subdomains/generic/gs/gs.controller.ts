@@ -9,10 +9,11 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DbQueryBaseDto, DbQueryDto, DbReturnData } from './dto/db-query.dto';
-import { DebugQueryDto } from './dto/debug-query.dto';
+import { DebugQueryDto, DebugQueryResult } from './dto/debug-query.dto';
 import { LogQueryDto, LogQueryResult } from './dto/log-query.dto';
 import { SupportDataQuery, SupportReturnData } from './dto/support-data.dto';
 import { GsService } from './gs.service';
+import { DebugQueryTreeSizePipe } from './pipes/debug-query-tree-size.pipe';
 
 @Controller('gs')
 export class GsController {
@@ -53,14 +54,24 @@ export class GsController {
     return this.gsService.getSupportData(query);
   }
 
+  // Structured debug endpoint. Takes a JSON description of the query (table, select, where,
+  // group/order/limit) and emits SQL via QueryBuilder with parameter binding — no raw SQL is
+  // accepted, parsed, or interpolated.
   @Post('debug')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.DEBUG), UserActiveGuard())
-  async executeDebugQuery(@GetJwt() jwt: JwtPayload, @Body() dto: DebugQueryDto): Promise<Record<string, unknown>[]> {
+  async executeDebugQuery(
+    @GetJwt() jwt: JwtPayload,
+    // `DebugQueryTreeSizePipe` runs on the raw body before the global `ValidationPipe`'s
+    // recursive `plainToInstance` — bounds the WHERE tree iteratively so a malicious
+    // `not → child → not → …` chain can't stack-overflow the validator or the audit
+    // serializer.
+    @Body(DebugQueryTreeSizePipe) dto: DebugQueryDto,
+  ): Promise<DebugQueryResult> {
     if (DisabledProcess(Process.GS_DEBUG)) throw new ForbiddenException('Endpoint disabled');
 
-    return this.gsService.executeDebugQuery(dto.sql, jwt.address ?? `account:${jwt.account}`);
+    return this.gsService.executeDebugQuery(dto, jwt.address ?? `account:${jwt.account}`);
   }
 
   @Post('debug/logs')
