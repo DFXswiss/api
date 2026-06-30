@@ -44,15 +44,13 @@
   "realunit_receipt": {
     "buy_description": "Action nominative RealUnit (jeton d'action REALU), ISIN CH1137233305 — droit-valeur inscrit via {assetBlockchain} Blockchain",
     "sell_description": "Action nominative RealUnit (jeton d'action REALU), ISIN CH1137233305 — droit-valeur inscrit via {assetBlockchain} Blockchain",
-    "unit_price_label": "Cours par action",
+    "unit_price_label": "Cours",
     "fees_label": "Frais",
     "fees_free": "sans frais",
     "details_title": "Détails de la transaction",
     "buyer_label": "Acheteur / Détenteur",
     "wallet_label": "Adresse du portefeuille",
     "tx_hash_label": "Hash de transaction",
-    "payment_method_label": "Moyen de paiement",
-    "payment_method_blockchain": "Transfert Blockchain",
     "receipt_total_label": "Total du reçu"
   }
 }

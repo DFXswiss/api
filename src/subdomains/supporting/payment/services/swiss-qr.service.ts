@@ -553,11 +553,6 @@ export class SwissQRService {
       });
     }
 
-    details.push({
-      label: this.translate('invoice.realunit_receipt.payment_method_label', lang),
-      value: this.translate('invoice.realunit_receipt.payment_method_blockchain', lang),
-    });
-
     // Start a new page if title + all detail rows would not fit on the current page.
     // Long values (wallet, tx hash) wrap to a second line, so reserve up to two lines per
     // detail plus a safety margin — overestimate on purpose so nothing gets cut off.

@@ -44,15 +44,13 @@
   "realunit_receipt": {
     "buy_description": "Azione nominativa RealUnit (token azionario REALU), ISIN CH1137233305 — diritto patrimoniale registrato via {assetBlockchain} Blockchain",
     "sell_description": "Azione nominativa RealUnit (token azionario REALU), ISIN CH1137233305 — diritto patrimoniale registrato via {assetBlockchain} Blockchain",
-    "unit_price_label": "Prezzo per azione",
+    "unit_price_label": "Prezzo",
     "fees_label": "Spese",
     "fees_free": "senza spese",
     "details_title": "Dettagli della transazione",
     "buyer_label": "Acquirente / Titolare",
     "wallet_label": "Indirizzo del portafoglio",
     "tx_hash_label": "Hash della transazione",
-    "payment_method_label": "Metodo di pagamento",
-    "payment_method_blockchain": "Trasferimento Blockchain",
     "receipt_total_label": "Totale della ricevuta"
   }
 }

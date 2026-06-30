@@ -44,15 +44,13 @@
   "realunit_receipt": {
     "buy_description": "RealUnit registered share (share token REALU), ISIN CH1137233305 — registered value right via {assetBlockchain} Blockchain",
     "sell_description": "RealUnit registered share (share token REALU), ISIN CH1137233305 — registered value right via {assetBlockchain} Blockchain",
-    "unit_price_label": "Price per share",
+    "unit_price_label": "Price",
     "fees_label": "Fees",
     "fees_free": "fee-free",
     "details_title": "Transaction Details",
     "buyer_label": "Buyer / Holder",
     "wallet_label": "Wallet address",
     "tx_hash_label": "Transaction hash",
-    "payment_method_label": "Payment method",
-    "payment_method_blockchain": "Blockchain transfer",
     "receipt_total_label": "Receipt Total"
   }
 }
