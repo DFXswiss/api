@@ -672,6 +672,18 @@ export class UserData extends IEntity {
     return this.users?.some((u) => u.role === role) ?? false;
   }
 
+  // Resolves the user a mail login should authenticate as for an elevated role: the highest-privileged
+  // (staffRoles is priority-ordered), non-blocked user whose role is in staffRoles. A wallet-less user is
+  // skipped so the resulting user token's blockchains getter never dereferences a null wallet. Returns
+  // undefined for a regular account, which then keeps a plain account token.
+  getMailLoginUser(staffRoles: UserRole[]): User | undefined {
+    for (const role of staffRoles) {
+      const user = this.users?.find((u) => u.role === role && u.wallet && !u.isBlockedOrDeleted);
+      if (user) return user;
+    }
+    return undefined;
+  }
+
   get address() {
     return [AccountType.ORGANIZATION, AccountType.SOLE_PROPRIETORSHIP].includes(this.accountType)
       ? {

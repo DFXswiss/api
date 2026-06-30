@@ -363,7 +363,7 @@ export class AuthService {
       // Regular accounts (USER-role wallets only) keep the account token. A blocked/deactivated account is
       // never elevated (mirrors changeUser), so a magic link can never grant active staff access to a
       // disabled account — and no privilege is granted that the user does not already hold on their wallet.
-      const staffUser = account.isBlockedOrDeactivated ? undefined : this.getMailLoginStaffUser(account);
+      const staffUser = account.isBlockedOrDeactivated ? undefined : account.getMailLoginUser(MailLoginStaffRoles);
       if (staffUser) staffUser.userData = account;
       const token = staffUser ? this.generateUserToken(staffUser, ip) : this.generateAccountToken(account, ip);
 
@@ -537,18 +537,6 @@ export class AuthService {
 
   private hasChallenge(address: string): boolean {
     return this.challengeList.has(address);
-  }
-
-  // Resolves the staff user of an account for a mail login, or undefined for a regular account. Picks
-  // the highest-privileged, non-blocked user whose role is in the elevation whitelist (MailLoginStaffRoles).
-  // Requires a loaded wallet: generateUserToken reads user.blockchains, whose getter dereferences
-  // user.wallet — a wallet-less user would throw instead of cleanly falling back to the account token.
-  private getMailLoginStaffUser(account: UserData): User | undefined {
-    for (const role of MailLoginStaffRoles) {
-      const user = account.users?.find((u) => u.role === role && u.wallet && !u.isBlockedOrDeleted);
-      if (user) return user;
-    }
-    return undefined;
   }
 
   generateUserToken(user: User, ip: string): string {
