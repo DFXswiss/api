@@ -117,6 +117,32 @@ describe('ScorechainScreeningService', () => {
       expect(scorechain.scoringAnalysis).not.toHaveBeenCalled();
     });
 
+    it('reuses a TRANSACTION verdict with no time bound (screened at most once) but expires ADDRESS verdicts after a short TTL', async () => {
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: {
+          id: 'x',
+          lowestScore: 80,
+          analysis: {
+            assigned: { hasResult: true, result: { score: 80 } },
+            incoming: { hasResult: true, result: { score: 80 } },
+          },
+        },
+        signatureValid: true,
+      });
+
+      await service.screenWithdrawalAddress(Blockchain.ETHEREUM, '0xabc');
+      const addressWhere = repo.findOne.mock.calls[0][0].where;
+
+      await service.screenDepositTransaction(Blockchain.ETHEREUM, 'txhash');
+      const transactionWhere = repo.findOne.mock.calls[1][0].where;
+
+      // ADDRESS: a created lower bound (short TTL) so a stale clean verdict cannot survive.
+      expect(addressWhere.created).toBeDefined();
+      // TRANSACTION: NO created bound → any prior verified record is reused regardless of age, so a
+      // given tx hash is never re-sent to the provider in regular operation.
+      expect(transactionWhere.created).toBeUndefined();
+    });
+
     it('fails closed when the monthly quota is reached', async () => {
       process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT = '5';
       new ConfigService();

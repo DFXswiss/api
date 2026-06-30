@@ -137,7 +137,13 @@ export class ScorechainScreeningService {
           // (clock skew / key rotation) would otherwise pin the object to high-risk for the whole
           // cache window. Re-screen instead so the gate can self-heal once signatures verify again.
           signatureValid: true,
-          created: MoreThanOrEqual(Util.minutesBefore(Config.scorechain.cacheMinutes)),
+          // A TRANSACTION verdict is bound to an immutable tx hash, so a verified screening stays valid
+          // forever — reuse it with NO time bound so a given tx is sent to the provider at most once.
+          // ADDRESS/WALLET risk is mutable, so those verdicts expire after addressCacheMinutes and
+          // re-screen.
+          ...(params.objectType !== ScorechainObjectType.TRANSACTION && {
+            created: MoreThanOrEqual(Util.minutesBefore(Config.scorechain.addressCacheMinutes)),
+          }),
         },
         order: { created: 'DESC' },
       })) ?? undefined
