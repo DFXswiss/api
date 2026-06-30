@@ -114,7 +114,9 @@ describe('AuthService', () => {
 
     it('elevates an active staff account to a user token (generateUserToken)', async () => {
       setKey();
-      userDataServiceMock.getUserData.mockResolvedValue(account({ users: [regularUser(), staffUser(UserRole.SUPPORT)] }));
+      userDataServiceMock.getUserData.mockResolvedValue(
+        account({ users: [regularUser(), staffUser(UserRole.SUPPORT)] }),
+      );
 
       const result = await service.completeSignInByMail(code, ip);
 
@@ -129,7 +131,9 @@ describe('AuthService', () => {
     it('keeps a regular account on an account token and survives a failing KYC init', async () => {
       setKey();
       // no tradeApprovalDate -> exercises the checkPendingRecommendation branch as well
-      userDataServiceMock.getUserData.mockResolvedValue(account({ tradeApprovalDate: undefined, users: [regularUser()] }));
+      userDataServiceMock.getUserData.mockResolvedValue(
+        account({ tradeApprovalDate: undefined, users: [regularUser()] }),
+      );
       kycServiceMock.initializeProcess.mockRejectedValue(new Error('kyc down'));
 
       const result = await service.completeSignInByMail(code, ip);
