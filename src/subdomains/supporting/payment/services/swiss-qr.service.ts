@@ -472,7 +472,7 @@ export class SwissQRService {
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
 
-    // RealUnit details section (buyer, wallet, txHash, payment method)
+    // RealUnit details section (buyer, wallet, tx hash)
     if (isRealUnit && (tableData.txHash || tableData.walletAddress || tableData.buyerName)) {
       this.drawReceiptDetails(pdf, tableData, lang);
     }
