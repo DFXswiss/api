@@ -551,3 +551,83 @@ describe('AmlHelperService.getAmlErrors - RULE_11 KYC waiver is IP-gated; wallet
     expect(occurrences).toBe(1);
   });
 });
+
+describe('AmlHelperService.getAmlErrors - granted annual deposit limit holds below the monthly KYC threshold', () => {
+  beforeAll(() => {
+    new ConfigService(); // initialise the global Config singleton used inside getAmlErrors
+  });
+
+  // last30dVolume defaults to 0 (below monthlyDefaultWoKyc) so only the new below-threshold block can
+  // fire; pass a value to exercise the boundary against the original above-threshold block.
+  function errorsFor(entity: BuyCrypto | BuyFiat, last365dVolume: number, last30dVolume = 0): AmlError[] {
+    return AmlHelperService.getAmlErrors(
+      entity,
+      entity.cryptoInput?.asset ?? entity.outputAsset,
+      0, // minVolume
+      100, // amountInChf
+      0, // last7dCheckoutVolume
+      last30dVolume,
+      last365dVolume,
+      undefined, // bankData
+      [], // blacklist
+      [], // phoneCallList
+      [], // banks
+      undefined, // ibanCountry
+      undefined, // refUser
+      [], // ipLogCountries
+      undefined, // virtualIban
+      [], // multiAccountBankNames
+      undefined, // recommender
+    );
+  }
+
+  it('flags a granted annual limit that is exceeded even though monthly volume is below the threshold', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = 5000;
+    expect(errorsFor(entity, 6000)).toContain(AmlError.DEPOSIT_LIMIT_REACHED);
+  });
+
+  it('does not flag when the granted annual limit is not exceeded', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = 5000;
+    expect(errorsFor(entity, 4000)).not.toContain(AmlError.DEPOSIT_LIMIT_REACHED);
+  });
+
+  it('does not flag a user without a granted limit — null means none granted, not a zero limit', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = null;
+    expect(errorsFor(entity, 1000000)).not.toContain(AmlError.DEPOSIT_LIMIT_REACHED);
+  });
+
+  const depositLimitHits = (errors: AmlError[]): number =>
+    errors.filter((e) => e === AmlError.DEPOSIT_LIMIT_REACHED).length;
+
+  it('owns the boundary at exactly the monthly threshold (last30dVolume === 1000) and flags it once', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = 5000;
+    // the new block uses <= 1000 and the original block uses > 1000, so exactly one of them owns 1000:
+    // catches a <=→< regression (would leave a gap at 1000) and a dropped last30dVolume guard (double-push).
+    expect(depositLimitHits(errorsFor(entity, 6000, 1000))).toBe(1);
+  });
+
+  it('does not flag when annual volume is exactly at the granted limit (strict greater-than)', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = 5000;
+    // catches a >→>= regression that would flag a user who is exactly at, not over, their limit
+    expect(errorsFor(entity, 5000)).not.toContain(AmlError.DEPOSIT_LIMIT_REACHED);
+  });
+
+  it('treats a granted limit of 0 as a real limit and flags any annual volume (0 is not "none granted")', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = 0;
+    // catches the != null guard being rewritten to a falsy check, which would wrongly skip a 0 limit
+    expect(errorsFor(entity, 100)).toContain(AmlError.DEPOSIT_LIMIT_REACHED);
+  });
+
+  it('above the monthly threshold the original block still flags, without double-pushing with the new block', () => {
+    const entity = createDefaultBuyFiat();
+    entity.userData.depositLimit = 5000;
+    // last30dVolume > 1000 → only the original above-threshold block applies; still exactly one hit
+    expect(depositLimitHits(errorsFor(entity, 6000, 2000))).toBe(1);
+  });
+});
