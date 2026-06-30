@@ -79,21 +79,22 @@ export class SupportIssueService {
   }
 
   async getSupportIssueCounts(role: UserRole): Promise<Record<SupportIssueInternalState, number>> {
+    const counts = Object.values(SupportIssueInternalState).reduce(
+      (acc, state) => ({ ...acc, [state]: 0 }),
+      {} as Record<SupportIssueInternalState, number>,
+    );
+
+    const departments = getVisibleDepartments(role);
+    if (departments?.length === 0) return counts; // no department access
+
     const qb = this.supportIssueRepo
       .createQueryBuilder('issue')
       .select('issue.state', 'state')
       .addSelect('COUNT(*)', 'count')
       .groupBy('issue.state');
-
-    const departments = getVisibleDepartments(role);
     if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
 
     const raw: { state: SupportIssueInternalState; count: string }[] = await qb.getRawMany();
-
-    const counts = Object.values(SupportIssueInternalState).reduce(
-      (acc, state) => ({ ...acc, [state]: 0 }),
-      {} as Record<SupportIssueInternalState, number>,
-    );
     for (const row of raw) counts[row.state] = +row.count;
 
     return counts;
@@ -101,6 +102,7 @@ export class SupportIssueService {
 
   async getSupportIssueActivity(since: Date | undefined, role: UserRole): Promise<{ count: number; latestAt?: Date }> {
     const departments = getVisibleDepartments(role);
+    if (departments?.length === 0) return { count: 0, latestAt: undefined }; // no department access
 
     const qb = this.messageRepo
       .createQueryBuilder('m')
@@ -420,6 +422,8 @@ export class SupportIssueService {
 
     // department filtering: the role defines the allowed departments, an explicit filter may narrow within them
     const allowedDepartments = getVisibleDepartments(role);
+    if (allowedDepartments?.length === 0) return { data: [], total: 0 }; // no department access
+
     const departments =
       filter.department && (!allowedDepartments || allowedDepartments.includes(filter.department))
         ? [filter.department]

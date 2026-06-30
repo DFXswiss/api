@@ -16,6 +16,7 @@ import {
   SupportIssueListOrderBy,
 } from 'src/subdomains/supporting/support-issue/dto/get-support-issue.dto';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
+import { Department } from 'src/subdomains/supporting/support-issue/enums/department.enum';
 import {
   SupportIssueInternalState,
   SupportIssueReason,
@@ -33,6 +34,7 @@ import { SupportLogService } from 'src/subdomains/supporting/support-issue/servi
 
 describe('SupportIssueService.getSupportIssueList', () => {
   let service: SupportIssueService;
+  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
   let qb: Record<string, jest.Mock>;
 
   // chainable query-builder recorder: every builder method returns the same object,
@@ -51,9 +53,15 @@ describe('SupportIssueService.getSupportIssueList', () => {
 
   const andWhereClauses = (): string[] => qb.andWhere.mock.calls.map((c) => String(c[0]));
 
+  // the department parameter handed to the "issue.department IN (:...departments)" clause (undefined if absent)
+  const departmentsParam = (): Department[] | undefined => {
+    const call = qb.andWhere.mock.calls.find((c) => String(c[0]).includes('issue.department IN'));
+    return call?.[1]?.departments as Department[] | undefined;
+  };
+
   beforeEach(() => {
     qb = createQbMock();
-    const supportIssueRepo = createMock<SupportIssueRepository>();
+    supportIssueRepo = createMock<SupportIssueRepository>();
     (supportIssueRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
 
     service = new SupportIssueService(
@@ -128,6 +136,46 @@ describe('SupportIssueService.getSupportIssueList', () => {
       const dto = plainToInstance(GetSupportIssueListFilter, { orderBy: 'id); DROP TABLE support_issue; --' });
       const errors = await validate(dto);
       expect(errors.find((e) => e.property === 'orderBy')?.constraints).toHaveProperty('isEnum');
+    });
+  });
+
+  // Guards the security-relevant department narrowing: an out-of-set ?department= must never widen access,
+  // the role's allowed set is the ceiling, and a role with no department access never even queries.
+  describe('department narrowing', () => {
+    it('keeps support locked to its own department, ignoring an out-of-set ?department (no escalation)', async () => {
+      await run({ department: Department.COMPLIANCE }, UserRole.SUPPORT);
+      expect(departmentsParam()).toEqual([Department.SUPPORT]);
+    });
+
+    it('lets compliance narrow to the support department via ?department', async () => {
+      await run({ department: Department.SUPPORT }, UserRole.COMPLIANCE);
+      expect(departmentsParam()).toEqual([Department.SUPPORT]);
+    });
+
+    it('defaults compliance to its full allowed set (support + compliance) without ?department', async () => {
+      await run({}, UserRole.COMPLIANCE);
+      expect(departmentsParam()).toEqual([Department.SUPPORT, Department.COMPLIANCE]);
+    });
+
+    it('applies an arbitrary ?department for an unrestricted admin', async () => {
+      await run({ department: Department.MARKETING }, UserRole.ADMIN);
+      expect(departmentsParam()).toEqual([Department.MARKETING]);
+    });
+
+    it('applies no department filter for admin without ?department (unrestricted)', async () => {
+      await run({}, UserRole.ADMIN);
+      expect(departmentsParam()).toBeUndefined();
+    });
+
+    it('applies no department filter for super admin without ?department (unrestricted)', async () => {
+      await run({}, UserRole.SUPER_ADMIN);
+      expect(departmentsParam()).toBeUndefined();
+    });
+
+    it('returns nothing for a role with no department access, without querying', async () => {
+      const result = await run({}, UserRole.USER);
+      expect(result).toEqual({ data: [], total: 0 });
+      expect(supportIssueRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
   });
 });
