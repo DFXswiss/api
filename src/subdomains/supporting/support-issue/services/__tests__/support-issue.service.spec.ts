@@ -226,3 +226,60 @@ describe('SupportIssueService.closeIssue', () => {
     expect(messageRepo.findBy).toHaveBeenCalledWith({ issue: { id: 7 } });
   });
 });
+
+describe('SupportIssueService.getSupportIssueStatistics', () => {
+  let service: SupportIssueService;
+
+  // empty-result query-builder: every builder method chains, getRawOne/getRawMany resolve empty
+  function statsQbMock(): Record<string, jest.Mock> {
+    const qb: Record<string, jest.Mock> = {};
+    for (const m of ['select', 'addSelect', 'innerJoin', 'where', 'andWhere', 'groupBy', 'addGroupBy']) {
+      qb[m] = jest.fn(() => qb);
+    }
+    qb.getRawOne = jest.fn().mockResolvedValue({ count: '0' });
+    qb.getRawMany = jest.fn().mockResolvedValue([]);
+    return qb;
+  }
+
+  beforeEach(() => {
+    const supportIssueRepo = createMock<SupportIssueRepository>();
+    const messageRepo = createMock<SupportMessageRepository>();
+    (supportIssueRepo.createQueryBuilder as jest.Mock).mockImplementation(() => statsQbMock());
+    (messageRepo.createQueryBuilder as jest.Mock).mockImplementation(() => statsQbMock());
+
+    service = new SupportIssueService(
+      supportIssueRepo,
+      createMock<TransactionService>(),
+      createMock<SupportDocumentService>(),
+      createMock<UserDataService>(),
+      messageRepo,
+      createMock<SupportIssueNotificationService>(),
+      createMock<LimitRequestService>(),
+      createMock<TransactionRequestService>(),
+      createMock<SupportLogService>(),
+      createMock<BankDataService>(),
+      createMock<SettingService>(),
+    );
+  });
+
+  it('builds a daily bucket for every calendar day the window touches, summing to total', async () => {
+    const dto = await service.getSupportIssueStatistics(UserRole.ADMIN, 7);
+    expect(dto.granularity).toBe('day');
+    // days + 1: the window [now - 7d, now] touches 8 calendar dates, so the trend covers them all
+    expect(dto.trend).toHaveLength(8);
+    expect(dto.total).toBe(0);
+    expect(dto.trend.reduce((sum, b) => sum + b.count, 0)).toBe(dto.total);
+  });
+
+  it('switches to monthly granularity for long periods', async () => {
+    const dto = await service.getSupportIssueStatistics(UserRole.ADMIN, 365);
+    expect(dto.granularity).toBe('month');
+    expect(dto.trend.length).toBeGreaterThanOrEqual(12);
+  });
+
+  it('falls back to the default period for a non-numeric days value', async () => {
+    const dto = await service.getSupportIssueStatistics(UserRole.ADMIN, NaN);
+    expect(dto.periodDays).toBe(365);
+    expect(dto.granularity).toBe('month');
+  });
+});

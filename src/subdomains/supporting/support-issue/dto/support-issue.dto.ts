@@ -276,7 +276,7 @@ export class SupportIssueListDto {
   @ApiProperty({ type: Date })
   created: Date;
 
-  @ApiProperty({ type: Date, description: 'Last update; used as the completion time proxy for resolution stats' })
+  @ApiProperty({ type: Date, description: 'Last update timestamp' })
   updated: Date;
 
   @ApiProperty()

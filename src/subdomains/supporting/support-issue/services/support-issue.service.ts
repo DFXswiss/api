@@ -152,7 +152,8 @@ export class SupportIssueService {
       if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
       const rows = await trendQb.getRawMany<{ d: Date | string; count: string }>();
       const map = new Map(rows.map((r) => [new Date(r.d).toISOString().slice(0, 10), +r.count]));
-      for (let i = days - 1; i >= 0; i--) {
+      // cover every calendar day the [from, now] window touches, so the daily trend sums to total
+      for (let i = days; i >= 0; i--) {
         const d = new Date(now);
         d.setHours(0, 0, 0, 0);
         d.setDate(d.getDate() - i);
@@ -162,12 +163,12 @@ export class SupportIssueService {
     } else {
       const trendQb = this.supportIssueRepo
         .createQueryBuilder('issue')
-        .select('YEAR(issue.created)', 'y')
-        .addSelect('MONTH(issue.created)', 'm')
+        .select('EXTRACT(YEAR FROM issue.created)', 'y')
+        .addSelect('EXTRACT(MONTH FROM issue.created)', 'm')
         .addSelect('COUNT(*)', 'count')
         .where('issue.created >= :from', { from })
-        .groupBy('YEAR(issue.created)')
-        .addGroupBy('MONTH(issue.created)');
+        .groupBy('EXTRACT(YEAR FROM issue.created)')
+        .addGroupBy('EXTRACT(MONTH FROM issue.created)');
       if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
       const rows = await trendQb.getRawMany<{ y: number; m: number; count: string }>();
       const map = new Map(rows.map((r) => [`${r.y}-${pad(r.m)}`, +r.count]));
