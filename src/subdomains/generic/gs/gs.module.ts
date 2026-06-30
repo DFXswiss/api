@@ -1,4 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule, RequestMethod } from '@nestjs/common';
+import { GetConfig } from 'src/config/config';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { IntegrationModule } from 'src/integration/integration.module';
 import { LetterModule } from 'src/integration/letter/letter.module';
@@ -50,7 +51,17 @@ export class GsModule implements NestModule {
   // Bind the WHERE-tree size cap as a middleware (not a pipe). NestJS runs middleware
   // before guards/interceptors/pipes, so this fires before the global `ValidationPipe`'s
   // recursive `plainToInstance` would stack-overflow on a pathological linear NOT-chain.
+  //
+  // `version` is REQUIRED — `main.ts` calls `app.enableVersioning({ type: URI })` and the
+  // production routes live at `/v1/...`. NestJS' `RouteInfoPathExtractor` prepends the
+  // version segment only when `version` is set on the route info; without it the
+  // middleware would register at literal `/gs/debug` and never match the real
+  // `/v1/gs/debug` URL — i.e. the cap would silently never fire. Uses `GetConfig()`
+  // (returns a fresh `Configuration` instance, no NestJS DI needed) rather than the
+  // lazy-initialised `Config` export, so the binding is robust to module-init ordering.
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(DebugQueryTreeSizeMiddleware).forRoutes({ path: 'gs/debug', method: RequestMethod.POST });
+    consumer
+      .apply(DebugQueryTreeSizeMiddleware)
+      .forRoutes({ path: 'gs/debug', method: RequestMethod.POST, version: GetConfig().defaultVersion });
   }
 }

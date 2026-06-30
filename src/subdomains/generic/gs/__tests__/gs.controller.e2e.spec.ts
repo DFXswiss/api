@@ -7,10 +7,12 @@ import {
   Post,
   RequestMethod,
   ValidationPipe,
+  VersioningType,
 } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as bodyParser from 'body-parser';
 import request from 'supertest';
+import { GetConfig } from 'src/config/config';
 import { DebugQueryDto, DebugQueryResult } from '../dto/debug-query.dto';
 import { DebugQueryTreeSizeMiddleware } from '../middleware/debug-query-tree-size.middleware';
 
@@ -53,8 +55,13 @@ class GsDebugTestController {
   controllers: [GsDebugTestController],
 })
 class GsControllerTestModule {
+  // Mirrors the production binding in `GsModule.configure` — including the use of
+  // `GetConfig().defaultVersion` for the route version. If those two diverge, the test
+  // and the prod binding can drift; reading both from the same source keeps them in sync.
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(DebugQueryTreeSizeMiddleware).forRoutes({ path: 'gs/debug', method: RequestMethod.POST });
+    consumer
+      .apply(DebugQueryTreeSizeMiddleware)
+      .forRoutes({ path: 'gs/debug', method: RequestMethod.POST, version: GetConfig().defaultVersion });
   }
 }
 
@@ -67,10 +74,11 @@ describe('GsController e2e (NestJS pipeline)', () => {
     }).compile();
 
     app = moduleRef.createNestApplication();
-    // Match the production setup so the test is faithful to what runs in `main.ts`:
-    // 20 MB JSON body parser + global ValidationPipe with `whitelist: true`. The
-    // versioning prefix is intentionally NOT applied — the test posts to `/gs/debug`
-    // directly so the URL stays decoupled from API versioning concerns.
+    // Match the production `main.ts` setup faithfully: URI versioning, 20 MB JSON body
+    // parser, global ValidationPipe with `whitelist: true`. Versioning matters — NestJS
+    // prepends the version segment to middleware paths only when `version` is set on the
+    // route info; getting that wrong is the bug this file caught the first time around.
+    app.enableVersioning({ type: VersioningType.URI, defaultVersion: [GetConfig().defaultVersion] });
     app.use(bodyParser.json({ limit: '20mb' }));
     app.useGlobalPipes(
       new ValidationPipe({
@@ -91,7 +99,7 @@ describe('GsController e2e (NestJS pipeline)', () => {
 
   it('accepts a minimal valid query and reaches the handler', async () => {
     await request(app.getHttpServer())
-      .post('/gs/debug')
+      .post('/v1/gs/debug')
       .send({
         table: 'asset',
         select: [{ kind: 'column', column: 'id' }],
@@ -107,7 +115,7 @@ describe('GsController e2e (NestJS pipeline)', () => {
 
   it('rejects a malformed DTO (limit out of range) via the global ValidationPipe', async () => {
     await request(app.getHttpServer())
-      .post('/gs/debug')
+      .post('/v1/gs/debug')
       .send({
         table: 'asset',
         select: [{ kind: 'column', column: 'id' }],
@@ -129,7 +137,7 @@ describe('GsController e2e (NestJS pipeline)', () => {
     const body = '{"table":"asset","select":[{"kind":"column","column":"id"}],"where":' + s + ',"limit":1}';
 
     await request(app.getHttpServer())
-      .post('/gs/debug')
+      .post('/v1/gs/debug')
       .set('Content-Type', 'application/json')
       .send(body)
       .expect(400)
@@ -150,7 +158,7 @@ describe('GsController e2e (NestJS pipeline)', () => {
     for (let d = 0; d < 4; d++) tree = { kind: 'and', children: Array.from({ length: 5 }, () => tree) };
 
     await request(app.getHttpServer())
-      .post('/gs/debug')
+      .post('/v1/gs/debug')
       .send({
         table: 'asset',
         select: [{ kind: 'column', column: 'id' }],
@@ -167,7 +175,7 @@ describe('GsController e2e (NestJS pipeline)', () => {
 
   it('lets a small benign tree through to the handler', async () => {
     await request(app.getHttpServer())
-      .post('/gs/debug')
+      .post('/v1/gs/debug')
       .send({
         table: 'asset',
         select: [{ kind: 'column', column: 'id' }],
