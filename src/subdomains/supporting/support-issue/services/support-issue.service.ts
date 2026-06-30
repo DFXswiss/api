@@ -234,6 +234,9 @@ export class SupportIssueService {
 
     // idempotent: leave already-closed issues untouched (a new customer message reopens them via createMessageInternal)
     if (![SupportIssueInternalState.COMPLETED, SupportIssueInternalState.CANCELED].includes(issue.state)) {
+      // persist the state change first, so the audit log only ever reflects a committed transition
+      await this.supportIssueRepo.update(...issue.setState(SupportIssueInternalState.COMPLETED));
+
       await this.supportLogService.createSupportLog(issue.userData, {
         type: SupportLogType.CUSTOMER,
         state: SupportIssueInternalState.COMPLETED,
@@ -241,8 +244,6 @@ export class SupportIssueService {
         supportIssue: issue,
         supportIssueType: issue.type,
       });
-
-      await this.supportIssueRepo.update(...issue.setState(SupportIssueInternalState.COMPLETED));
     }
 
     // load messages so the response matches GET /:id instead of claiming an empty thread
@@ -338,11 +339,11 @@ export class SupportIssueService {
       );
     }
 
-    // whitelisted sort column + direction (tie-break on id for stable pagination)
+    // whitelisted sort column + direction, with an id tie-break for stable pagination on equal sort keys
     const orderBy = filter.orderBy ?? SupportIssueListOrderBy.CREATED;
     const orderDir = filter.orderDir ?? ListOrderDirection.DESC;
     qb.orderBy(`issue.${orderBy}`, orderDir);
-    if (orderBy !== SupportIssueListOrderBy.CREATED) qb.addOrderBy('issue.id', orderDir);
+    qb.addOrderBy('issue.id', orderDir);
 
     if (filter.take != null) {
       qb.take(filter.take);

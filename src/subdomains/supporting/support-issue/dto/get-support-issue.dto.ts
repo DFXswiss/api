@@ -13,6 +13,8 @@ export enum SupportIssueListOrderBy {
   STATE = 'state',
 }
 
+// Values are the literal SQL directions TypeORM's orderBy expects, hence uppercase rather than
+// the usual PascalCase enum-value convention.
 export enum ListOrderDirection {
   ASC = 'ASC',
   DESC = 'DESC',

@@ -110,10 +110,10 @@ describe('SupportIssueService.getSupportIssueList', () => {
   });
 
   describe('sorting', () => {
-    it('defaults to created DESC without an id tie-break', async () => {
+    it('defaults to created DESC with an id tie-break for stable pagination', async () => {
       await run({});
       expect(qb.orderBy).toHaveBeenCalledWith('issue.created', 'DESC');
-      expect(qb.addOrderBy).not.toHaveBeenCalled();
+      expect(qb.addOrderBy).toHaveBeenCalledWith('issue.id', 'DESC');
     });
 
     it('applies a whitelisted sort column with an id tie-break for stable pagination', async () => {
