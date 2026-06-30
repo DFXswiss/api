@@ -287,10 +287,16 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
   });
 
   it('builds a daily bucket for every calendar day the window touches', async () => {
+    const now = new Date();
+    const from = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
     const dto = await service.getSupportIssueStatistics(UserRole.ADMIN, 7);
+
     expect(dto.granularity).toBe('day');
-    // days + 1: the window [now - 7d, now] touches 8 calendar dates, so the trend covers them all
-    expect(dto.trend).toHaveLength(8);
+    // the trend spans from's calendar day through today, contiguously (asserting the span, not a fixed
+    // count, keeps this correct under any DST/timezone shift in the window)
+    expect(dto.trend[0].key).toBe(dayKey(from));
+    expect(dto.trend[dto.trend.length - 1].key).toBe(dayKey(now));
     expect(dto.total).toBe(0);
   });
 

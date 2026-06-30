@@ -105,6 +105,14 @@ describe('SupportEscalationService.checkEscalations', () => {
     });
   }
 
+  // getLastMessages reads the latest message per issue via a query builder; stub it to a single row
+  const mockLastMessage = (author: string, date: Date): void => {
+    const qb: Record<string, jest.Mock> = {};
+    for (const m of ['select', 'addSelect', 'where', 'groupBy']) qb[m] = jest.fn(() => qb);
+    qb.getRawMany = jest.fn().mockResolvedValue([{ issueId: String(ISSUE_ID), lastDate: date, lastAuthor: author }]);
+    (messageRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+  };
+
   beforeEach(() => {
     // token + slaHours are read from Config, which is only populated at bootstrap — stub it here
     (ConfigModule as Record<string, unknown>).Config = {
@@ -119,14 +127,7 @@ describe('SupportEscalationService.checkEscalations', () => {
 
     settingService.get.mockResolvedValue('555'); // escalation chat already bound
     supportIssueRepo.find.mockResolvedValue([makeIssue()]);
-
-    // getLastMessages: the last message on the ticket is from the customer, dated `waitedSince`
-    const qb: Record<string, jest.Mock> = {};
-    for (const m of ['select', 'addSelect', 'where', 'groupBy']) qb[m] = jest.fn(() => qb);
-    qb.getRawMany = jest
-      .fn()
-      .mockResolvedValue([{ issueId: String(ISSUE_ID), lastDate: waitedSince, lastAuthor: CustomerAuthor }]);
-    (messageRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
+    mockLastMessage(CustomerAuthor, waitedSince); // by default the customer wrote last, overdue
   });
 
   it('escalates an overdue customer-waiting ticket once and records the waiting cycle', async () => {
@@ -149,5 +150,16 @@ describe('SupportEscalationService.checkEscalations', () => {
 
     expect(send).not.toHaveBeenCalled();
     expect(settingService.setObj).toHaveBeenCalledWith(NOTIFIED_KEY, { [ISSUE_ID]: cycle });
+  });
+
+  it('does not escalate when support — not the customer — wrote the last message', async () => {
+    mockLastMessage('Support', waitedSince);
+    settingService.getObj.mockImplementation((key: string) => Promise.resolve(key === NOTIFIED_KEY ? {} : []));
+    const send = jest.spyOn(service, 'sendMessage').mockResolvedValue();
+
+    await service.checkEscalations();
+
+    expect(send).not.toHaveBeenCalled();
+    expect(settingService.setObj).toHaveBeenCalledWith(NOTIFIED_KEY, {}); // nothing marked for this cycle
   });
 });
