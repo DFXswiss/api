@@ -56,6 +56,7 @@ describe('apiTraceMiddleware', () => {
       kycData: {
         firstName: 'Jane',
         addressStreet: 'Teststrasse 1',
+        addressPostalCode: '8001ABC',
         addressCity: 'Testtown',
         documentNumber: 'X1234567',
       },
@@ -84,6 +85,7 @@ describe('apiTraceMiddleware', () => {
       ['name', 'Jane Doe'],
       ['nested firstName', '"firstName":"Jane"'],
       ['nested street', 'Teststrasse'],
+      ['nested postal code', '8001ABC'],
       ['nested document number', 'X1234567'],
       ['phone', '41790000000'],
       ['bic', 'TESTCHBEXXX'],

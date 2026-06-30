@@ -46,7 +46,6 @@ function redact(value: unknown, key?: string): unknown {
 function format(value: unknown): string {
   if (value === undefined || value === null) return '(empty)';
   if (Buffer.isBuffer(value)) return `<binary ${value.length} bytes>`;
-  if (typeof value === 'object' && Object.keys(value as object).length === 0) return '(empty)';
   let s: string;
   try {
     s = JSON.stringify(redact(value));
