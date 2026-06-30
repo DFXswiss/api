@@ -1,5 +1,3 @@
-import { LogQueryDto, LogQueryTemplate } from './log-query.dto';
-
 export const GsRestrictedMarker = '[RESTRICTED]';
 
 // db endpoint
@@ -7,26 +5,10 @@ export const GsRestrictedColumns: Record<string, string[]> = {
   asset: ['ikna'],
 };
 
-/**
- * Prefixes of the verbose audit messages emitted by `gs.service.executeLogQuery`
- * (`[GsService] Log query by ...`) and `gs.service.executeDebugQuery`
- * (`[GsService] Debug-query by ...`). The trace-returning log-query templates
- * filter both prefixes so a DEBUG user can't enumerate other DEBUG users'
- * audit history via `TRACES_BY_MESSAGE`/`TRACES_BY_OPERATION`/`ALL_TRACES`.
- * Keep service and templates in sync via these constants.
- *
- * Note: the leading `[GsService] ` is prepended by `DfxLogger` from the
- * `GsService` class name, not from this constant. Renaming the service
- * class would break the KQL filter silently — no test covers that path.
- */
-export const LogQueryAuditPrefix = 'Log query by ';
+// Prefix of the verbose audit message emitted by `gs.service.executeDebugQuery`
+// (`[GsService] Debug-query by ...`). The leading `[GsService] ` is prepended by
+// `DfxLogger` from the `GsService` class name, not from this constant.
 export const DebugQueryAuditPrefix = 'Debug-query by ';
-
-// Operational log-line prefixes emitted by the `/gs/db` (ADMIN) path. The full request
-// JSON is embedded after the prefix, which can include customer identifiers in a WHERE
-// filter. The trace-returning log templates filter these alongside the two audit prefixes
-// so a DEBUG user can't enumerate ADMIN operators' query history via TRACES_BY_MESSAGE.
-export const GsDbOperationalLogPrefixes = ['Long DB runtime for ', 'GS userDataDoc use, with query'];
 
 // Debug endpoint
 export const DebugMaxResults = 10000;
@@ -1528,101 +1510,6 @@ for (const [table, restricted] of Object.entries(GsRestrictedColumns)) {
     }
   }
 }
-
-// KQL fragment that filters out self-emitted audit lines (`Debug-query by`, `Log query by`)
-// AND the `/gs/db` operational lines that embed request JSON. Shared by every trace-
-// returning template so a DEBUG user can't enumerate other operators' query history.
-const TraceSelfFilter = [
-  `not(message startswith "[GsService] ${LogQueryAuditPrefix}")`,
-  `not(message startswith "[GsService] ${DebugQueryAuditPrefix}")`,
-  ...GsDbOperationalLogPrefixes.map((p) => `not(message startswith "[GsService] ${p}")`),
-]
-  .map((cond) => `| where ${cond}`)
-  .join('\n');
-
-export const DebugLogQueryTemplates: Record<
-  LogQueryTemplate,
-  { kql: string; requiredParams: (keyof LogQueryDto)[]; defaultLimit: number }
-> = {
-  [LogQueryTemplate.TRACES_BY_OPERATION]: {
-    // Self-audit lines (Debug-query/Log query) and /gs/db operational lines (Long DB
-    // runtime / GS userDataDoc use) are filtered so a DEBUG user can't read another
-    // operator's query history by sweeping operationIds.
-    kql: `traces
-| where operation_Id == "{operationId}"
-| where timestamp > ago({hours}h)
-${TraceSelfFilter}
-| project timestamp, severityLevel, message, customDimensions
-| order by timestamp desc`,
-    requiredParams: ['operationId'],
-    defaultLimit: 500,
-  },
-  [LogQueryTemplate.TRACES_BY_MESSAGE]: {
-    // Self-audit + /gs/db operational lines filtered for the same reason. Critical here
-    // because the caller supplies a free-form substring filter — without this, a DEBUG
-    // user can read another operator's history by passing any of the prefixes as
-    // messageFilter.
-    kql: `traces
-| where timestamp > ago({hours}h)
-| where message contains "{messageFilter}"
-${TraceSelfFilter}
-| project timestamp, severityLevel, message, operation_Id
-| order by timestamp desc`,
-    requiredParams: ['messageFilter'],
-    defaultLimit: 200,
-  },
-  [LogQueryTemplate.EXCEPTIONS_RECENT]: {
-    kql: `exceptions
-| where timestamp > ago({hours}h)
-| project timestamp, problemId, outerMessage, innermostMessage, operation_Id
-| order by timestamp desc`,
-    requiredParams: [],
-    defaultLimit: 500,
-  },
-  [LogQueryTemplate.REQUEST_FAILURES]: {
-    kql: `requests
-| where timestamp > ago({hours}h)
-| where success == false
-| project timestamp, resultCode, duration, operation_Name, operation_Id
-| order by timestamp desc`,
-    requiredParams: [],
-    defaultLimit: 500,
-  },
-  [LogQueryTemplate.DEPENDENCIES_SLOW]: {
-    kql: `dependencies
-| where timestamp > ago({hours}h)
-| where duration > {durationMs}
-| project timestamp, target, type, duration, success, operation_Id
-| order by duration desc`,
-    requiredParams: ['durationMs'],
-    defaultLimit: 200,
-  },
-  [LogQueryTemplate.CUSTOM_EVENTS]: {
-    kql: `customEvents
-| where timestamp > ago({hours}h)
-| where name == "{eventName}"
-| project timestamp, name, customDimensions, operation_Id
-| order by timestamp desc`,
-    requiredParams: ['eventName'],
-    defaultLimit: 500,
-  },
-  [LogQueryTemplate.ALL_TRACES]: {
-    // Returns all trace entries in the given window. Self-emitted audit lines from
-    // /gs/debug ("Debug-query by ...") and /gs/debug/logs ("Log query by ...") AND the
-    // /gs/db operational lines ("Long DB runtime ...", "GS userDataDoc use ...") are
-    // filtered out at the source so a DEBUG user can't read another operator's query
-    // history, and so high-frequency dashboard callers don't recursively self-match. The
-    // "[GsService] " prefix is added by DfxLogger's class-context; the prefix constants
-    // are shared with the emitters in gs.service.ts.
-    kql: `traces
-| where timestamp > ago({hours}h)
-${TraceSelfFilter}
-| project timestamp, severityLevel, message, operation_Id
-| order by timestamp desc`,
-    requiredParams: [],
-    defaultLimit: 500,
-  },
-};
 
 // Support endpoint
 export enum SupportTable {

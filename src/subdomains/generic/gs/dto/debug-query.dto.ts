@@ -231,11 +231,12 @@ export class DebugQueryDto {
 
   // WHERE tree. Optional. If absent, the SQL has no WHERE clause.
   //
-  // The `DebugQueryTreeSizePipe` on the controller method runs BEFORE the global
-  // `ValidationPipe`'s recursive `plainToInstance`, so a malicious `not → child → not → …`
-  // chain that would stack-overflow `@Type`'s recursion (and the audit log's
-  // `JSON.stringify`) is rejected with a clean 400. `@MaxWhereTreeSize` here is a
-  // belt-and-braces downstream check on the instantiated tree.
+  // The `DebugQueryTreeSizeMiddleware` (registered in `GsModule.configure`) runs BEFORE the
+  // global `ValidationPipe`, so a malicious `not → child → not → …` chain that would
+  // stack-overflow class-transformer's `@Type`-driven recursion (and the audit log's
+  // `JSON.stringify`) is rejected with a clean 400 before any of that runs.
+  // `@MaxWhereTreeSize` here is a belt-and-braces downstream check on the instantiated
+  // tree (the middleware is the load-bearing one).
   @IsOptional()
   @MaxWhereTreeSize()
   @IsObject()
