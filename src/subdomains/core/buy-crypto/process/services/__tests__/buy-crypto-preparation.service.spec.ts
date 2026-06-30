@@ -11,6 +11,7 @@ import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { IsNull } from 'typeorm';
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoStatus } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
@@ -190,9 +191,9 @@ describe('BuyCryptoPreparationService', () => {
 
       await service.doAmlCheck();
 
-      // guarded write: criteria is an object carrying the amlCheck guard, not a bare id
+      // guarded write: criteria carries the amlCheck guard (NULL first-run), not a bare id
       expect(buyCryptoRepo.update).toHaveBeenCalledWith(
-        expect.objectContaining({ id: 1 }),
+        expect.objectContaining({ id: 1, amlCheck: IsNull() }),
         expect.objectContaining({ amlCheck: CheckStatus.PASS }),
       );
       expect(amlService.postProcessing).not.toHaveBeenCalled();
