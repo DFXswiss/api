@@ -2,7 +2,7 @@
   "title": "Rechnung Nr. {invoiceId}",
   "credit_title": "Gutschrift Nr. {invoiceId}",
   "receipt_title": "Transaktionsbestätigung Nr. {invoiceId}",
-  "multi_receipt_title": "Transaktionsbestätigung",
+  "multi_receipt_title": "Transaktionshistorie",
   "section": {
     "buy": "Käufe",
     "sell": "Verkäufe"
