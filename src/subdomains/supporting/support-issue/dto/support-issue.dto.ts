@@ -297,7 +297,7 @@ export class SupportIssueStatisticsBucketDto {
   count: number;
 }
 
-export class SupportIssueResolutionDto {
+export class SupportIssueStatisticsResolutionDto {
   @ApiProperty({ description: 'Issue type' })
   key: string;
 
@@ -334,10 +334,10 @@ export class SupportIssueStatisticsDto {
   avgResolutionHours: number;
 
   @ApiProperty({
-    type: [SupportIssueResolutionDto],
+    type: [SupportIssueStatisticsResolutionDto],
     description: 'Average resolution time per type, descending by count',
   })
-  resolutionByType: SupportIssueResolutionDto[];
+  resolutionByType: SupportIssueStatisticsResolutionDto[];
 }
 
 export const SupportIssueStateMapper: {

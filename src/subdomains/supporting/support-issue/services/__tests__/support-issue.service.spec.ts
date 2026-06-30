@@ -127,7 +127,7 @@ describe('SupportIssueService.getSupportIssueList', () => {
     it('rejects an out-of-whitelist orderBy at DTO validation (the actual injection guard)', async () => {
       const dto = plainToInstance(GetSupportIssueListFilter, { orderBy: 'id); DROP TABLE support_issue; --' });
       const errors = await validate(dto);
-      expect(errors.some((e) => e.property === 'orderBy')).toBe(true);
+      expect(errors.find((e) => e.property === 'orderBy')?.constraints).toHaveProperty('isEnum');
     });
   });
 });
