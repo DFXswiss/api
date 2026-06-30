@@ -15,7 +15,9 @@ export class ScorechainWebhookController {
   @ApiExcludeEndpoint()
   @UseGuards(ScorechainWebhookGuard)
   async handleAlert(@Body() alert: ScorechainAlert): Promise<void> {
-    this.logger.verbose(`Scorechain TMS alert received: ${JSON.stringify(alert)}`);
+    // Fail loud: until the TODO below is implemented an incoming alert is NOT acted on. Warn (not
+    // verbose) so an accidentally armed TMS path surfaces instead of silently dropping an AML escalation.
+    this.logger.warn(`Scorechain TMS alert received but not yet handled: ${JSON.stringify(alert)}`);
     // TODO(spec §12 Q6/Q7): correlate `alert.identifier` to the originating tx and raise the
     // AML manual-review signal (AmlError → CheckStatus.PENDING).
   }
