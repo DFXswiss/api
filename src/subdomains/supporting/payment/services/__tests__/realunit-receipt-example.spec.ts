@@ -130,4 +130,23 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     expectValidPdf(pdf);
     writeExample('transaction-history-de.pdf', pdf);
   });
+
+  it('renders the transaction history (EN)', async () => {
+    const pdf = await service.createTxFromBlockchainMultiReceipt(
+      [
+        { historyEvent: event('100', TX1, '2025-10-28T13:30:00Z'), fiatPrice: 1.29, isIncoming: true },
+        { historyEvent: event('250', TX2, '2025-11-15T09:05:00Z'), fiatPrice: 1.31, isIncoming: true },
+        { historyEvent: event('50', TX3, '2026-01-10T16:45:00Z', false), fiatPrice: 1.34, isIncoming: false },
+      ],
+      buyer,
+      REALU_ASSET,
+      'CHF',
+      PdfBrand.REALUNIT,
+      'EN',
+      BUYER_WALLET,
+    );
+
+    expectValidPdf(pdf);
+    writeExample('transaction-history-en.pdf', pdf);
+  });
 });
