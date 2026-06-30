@@ -34,9 +34,6 @@ export class ScorechainScreening extends IEntity {
   @Column({ default: false })
   signatureValid: boolean;
 
-  @Column({ length: 256, nullable: true })
-  scorechainRef?: string;
-
   @Column({ type: 'text', nullable: true })
   riskIndicators?: string; // JSON string
 
@@ -45,7 +42,7 @@ export class ScorechainScreening extends IEntity {
 
   // --- JSON GETTERS / SETTERS (canonical DFX pattern, never expose raw string) --- //
 
-  get riskIndicatorData(): unknown | undefined {
+  get riskIndicatorData(): unknown {
     return this.riskIndicators ? JSON.parse(this.riskIndicators) : undefined;
   }
 
@@ -53,7 +50,7 @@ export class ScorechainScreening extends IEntity {
     this.riskIndicators = data != null ? JSON.stringify(data) : null;
   }
 
-  get rawResponseData(): unknown | undefined {
+  get rawResponseData(): unknown {
     return this.rawResponse ? JSON.parse(this.rawResponse) : undefined;
   }
 

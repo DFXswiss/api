@@ -103,8 +103,8 @@ export class ScorechainService {
   }
 
   // Proof of authenticity (also reused for the TMS webhook): RSA-SHA256 over the response body
-  // combined with X-Server-Time (unix), key from /publicKeys (PKCS8 PEM). The OpenAPI does not
-  // pin the concatenation order, so both compositions are accepted. Fail-closed.
+  // combined with X-Server-Time (unix), public key from /publicKeys (SPKI PEM). The OpenAPI does
+  // not pin the concatenation order, so both compositions are accepted. Fail-closed.
   isValidSignature(rawBody: string, signature?: string, serverTime?: string | number): boolean {
     const publicKey = Config.scorechain.publicKey;
     if (!signature || !publicKey || !rawBody) return false;

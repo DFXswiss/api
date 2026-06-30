@@ -17,6 +17,8 @@ interface ScreenParams {
   context: ScorechainScreeningContext;
 }
 
+export const ScorechainNotSupportedSeverity = 'NotSupported';
+
 @Injectable()
 export class ScorechainScreeningService {
   private readonly logger = new DfxLogger(ScorechainScreeningService);
@@ -78,7 +80,7 @@ export class ScorechainScreeningService {
     const scBlockchain = toScorechainBlockchain(params.blockchain);
     if (!scBlockchain) {
       this.logger.warn(`Scorechain does not support ${params.blockchain} — screening skipped (not a pass)`);
-      return this.save(params, { signatureValid: false, severity: 'NotSupported' });
+      return this.save(params, { signatureValid: false, severity: ScorechainNotSupportedSeverity });
     }
 
     await this.assertQuota();
@@ -107,7 +109,7 @@ export class ScorechainScreeningService {
           objectId: params.objectId,
           blockchain: params.blockchain,
           analysisType: params.analysisType,
-          created: MoreThanOrEqual(Util.daysBefore(1)),
+          created: MoreThanOrEqual(Util.minutesBefore(Config.scorechain.cacheMinutes)),
         },
         order: { created: 'DESC' },
       })) ?? undefined
