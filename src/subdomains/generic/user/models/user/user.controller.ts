@@ -123,7 +123,7 @@ export class UserController {
     @Body() changeUser: LinkedUserInDto,
     @RealIP() ip: string,
   ): Promise<AuthResponseDto> {
-    return this.authService.changeUser(jwt.account, changeUser, ip);
+    return this.authService.changeUser(jwt.account, changeUser, ip, jwt.tfaRequired);
   }
 
   // TODO: temporary CC solution

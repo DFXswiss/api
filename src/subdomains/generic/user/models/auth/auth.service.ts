@@ -416,7 +416,12 @@ export class AuthService {
     return { challenge: challenge };
   }
 
-  async changeUser(userDataId: number, changeUser: LinkedUserInDto, ip: string): Promise<AuthResponseDto> {
+  async changeUser(
+    userDataId: number,
+    changeUser: LinkedUserInDto,
+    ip: string,
+    tfaRequired = false,
+  ): Promise<AuthResponseDto> {
     const user = await this.getLinkedUser(userDataId, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
     if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
@@ -425,7 +430,8 @@ export class AuthService {
 
     if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, user.wallet);
 
-    return { accessToken: this.generateUserToken(user, ip) };
+    // forward tfaRequired so a re-minted token keeps the mail-origin 2FA marker (see generateUserToken)
+    return { accessToken: this.generateUserToken(user, ip, tfaRequired) };
   }
 
   // --- SIGN MESSAGES --- //
@@ -546,6 +552,9 @@ export class AuthService {
     return this.challengeList.has(address);
   }
 
+  // tfaRequired marks a mail-origin staff session that TfaGuard must keep enforcing 2FA on even when the
+  // enforcement flag is off. Any path that re-mints a token from an authenticated session (changeUser,
+  // createAccessTokenAfterMerge) MUST forward the caller's jwt.tfaRequired, or the marker is silently lost.
   generateUserToken(user: User, ip: string, tfaRequired = false): string {
     const payload: JwtPayload = {
       user: user.id,

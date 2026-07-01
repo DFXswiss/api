@@ -246,4 +246,42 @@ describe('AuthService', () => {
       }
     });
   });
+
+  describe('changeUser', () => {
+    const ip = '1.2.3.4';
+
+    const accountWith = (user: ReturnType<typeof createCustomUser>) => {
+      const account = createCustomUserData({
+        id: 1,
+        status: UserDataStatus.NA,
+        tradeApprovalDate: new Date(),
+        users: [user],
+      });
+      user.userData = account;
+      return account;
+    };
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      jwtServiceMock.sign.mockReturnValue('signed-jwt');
+    });
+
+    it('forwards tfaRequired into the re-minted token (mail-origin staff session)', async () => {
+      const staff = createCustomUser({ id: 7, role: UserRole.SUPPORT, address: 'STAFF_ADDR' });
+      userDataServiceMock.getUserData.mockResolvedValue(accountWith(staff));
+
+      await service.changeUser(1, { address: 'STAFF_ADDR' } as any, ip, true);
+
+      expect((jwtServiceMock.sign.mock.calls[0][0] as any).tfaRequired).toBe(true);
+    });
+
+    it('leaves tfaRequired unset for a session that did not require 2FA', async () => {
+      const user = createCustomUser({ id: 7, role: UserRole.USER, address: 'USER_ADDR' });
+      userDataServiceMock.getUserData.mockResolvedValue(accountWith(user));
+
+      await service.changeUser(1, { address: 'USER_ADDR' } as any, ip);
+
+      expect((jwtServiceMock.sign.mock.calls[0][0] as any).tfaRequired).toBeUndefined();
+    });
+  });
 });

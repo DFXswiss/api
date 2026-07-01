@@ -127,7 +127,9 @@ export class AuthController {
   ): Promise<MergeResponseDto> {
     const { master } = await this.mergeService.executeMerge(code);
 
-    const accessToken = jwt ? await this.createAccessTokenAfterMerge(master, jwt.address, ip) : undefined;
+    const accessToken = jwt
+      ? await this.createAccessTokenAfterMerge(master, jwt.address, ip, jwt.tfaRequired)
+      : undefined;
 
     return {
       kycHash: master.kycHash,
@@ -139,6 +141,7 @@ export class AuthController {
     userData: UserData,
     address: string | undefined,
     ip: string,
+    tfaRequired = false,
   ): Promise<string | undefined> {
     // create user token, if the user is known
     if (address) {
@@ -147,7 +150,8 @@ export class AuthController {
         relations: { userData: true, wallet: true },
       });
 
-      if (user) return this.authService.generateUserToken(user, ip);
+      // forward tfaRequired so a re-minted token keeps the mail-origin 2FA marker (see generateUserToken)
+      if (user) return this.authService.generateUserToken(user, ip, tfaRequired);
     }
 
     return this.authService.generateAccountToken(userData, ip);
