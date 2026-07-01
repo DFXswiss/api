@@ -8,6 +8,8 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { isUserActive } from 'src/shared/auth/user-active.guard';
 import { ADMIN_ROLES, UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -447,13 +449,15 @@ export class KycService {
     return this.toDto(user, false, undefined, context);
   }
 
-  async getFileByUid(uid: string, userDataId?: number, role?: UserRole): Promise<KycFileDataDto> {
+  async getFileByUid(uid: string, jwt?: JwtPayload): Promise<KycFileDataDto> {
     const kycFile = await this.kycFileService.getKycFile(uid);
 
     if (!kycFile) throw new NotFoundException('KYC file not found');
 
-    if (kycFile.protected && ![...ADMIN_ROLES, UserRole.COMPLIANCE].includes(role)) {
-      throw new ForbiddenException('Requires admin or compliance role');
+    if (kycFile.protected) {
+      if (![...ADMIN_ROLES, UserRole.COMPLIANCE].includes(jwt?.role))
+        throw new ForbiddenException('Requires admin or compliance role');
+      if (!jwt || !isUserActive(jwt)) throw new ForbiddenException('User is not active');
     }
 
     const blob = await this.documentService.downloadFile(
@@ -463,7 +467,7 @@ export class KycService {
       kycFile.name,
     );
 
-    const log = `User ${userDataId} is downloading KYC file ${kycFile.name} (ID: ${kycFile.id})`;
+    const log = `User ${jwt?.account} is downloading KYC file ${kycFile.name} (ID: ${kycFile.id})`;
     await this.kycLogService.createKycFileLog(log, kycFile.userData);
 
     return KycFileMapper.mapKycFile(kycFile, blob);
