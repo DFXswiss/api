@@ -57,14 +57,27 @@ export class BuyFiatPreparationService {
 
   // Scorechain on-chain screening for the sell/BuyFiat AML gate: screens the incoming crypto deposit
   // tx. Chains Scorechain does not cover yield no signal (the other AML mechanisms apply). isHighRisk
-  // is fail-closed; provider errors propagate so the tx is retried rather than passing unscreened.
+  // is fail-closed (invalid signature / no coverage / unsupported → high risk).
   private async screenScorechain(entity: BuyFiat): Promise<boolean> {
+    // Feature gate / kill-switch: when Scorechain is disabled or unconfigured (no API key), emit no
+    // signal so the tx is decided by the other AML mechanisms. This is the deliberate off-state and
+    // must never route an unscreened-because-off tx to manual review.
+    if (DisabledProcess(Process.SCORECHAIN) || !Config.scorechain.apiKey) return false;
+
     const blockchain = entity.cryptoInput?.asset.blockchain;
     const txHash = entity.cryptoInput?.inTxId;
     if (!txHash || !toScorechainBlockchain(blockchain)) return false;
 
-    const screening = await this.scorechainScreeningService.screenDepositTransaction(blockchain, txHash);
-    return this.scorechainScreeningService.isHighRisk(screening);
+    try {
+      const screening = await this.scorechainScreeningService.screenDepositTransaction(blockchain, txHash);
+      return this.scorechainScreeningService.isHighRisk(screening);
+    } catch (e) {
+      // Fail-closed to manual review: a provider/transport error or a reached monthly quota must not
+      // throw out of the AML computation (which would silently stall settlement of every otherwise-
+      // passing tx on every cron run). Treat it as high risk → SCORECHAIN_HIGH_RISK → PENDING.
+      this.logger.error(`Scorechain screening failed for buy-fiat ${entity.id}, routing to manual review:`, e);
+      return true;
+    }
   }
 
   async doAmlCheck(): Promise<void> {
