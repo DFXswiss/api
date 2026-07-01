@@ -20,3 +20,8 @@ export enum UserRole {
   KYC_CLIENT_COMPANY = 'KycClientCompany',
   CLIENT_COMPANY = 'ClientCompany',
 }
+
+// Staff roles a mail login may authenticate as. These get an elevated user token and, on staff endpoints,
+// must pass an independent TOTP second factor (never a mail code to the same inbox as the magic link).
+// Priority-ordered (highest privilege first) for mail-login role resolution.
+export const StaffRoles = [UserRole.COMPLIANCE, UserRole.SUPPORT, UserRole.REALUNIT];

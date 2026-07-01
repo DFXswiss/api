@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -86,7 +86,7 @@ export class GsService {
     private readonly dataSource: DataSource,
     private readonly kycDocumentService: KycDocumentService,
     private readonly transactionService: TransactionService,
-    private readonly kycAdminService: KycAdminService,
+    @Inject(forwardRef(() => KycAdminService)) private readonly kycAdminService: KycAdminService,
     private readonly bankDataService: BankDataService,
     private readonly notificationService: NotificationService,
     private readonly limitRequestService: LimitRequestService,

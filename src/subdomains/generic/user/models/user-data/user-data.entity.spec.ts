@@ -75,4 +75,43 @@ describe('UserData', () => {
       expect(resolve(undefined)).toBeUndefined();
     });
   });
+
+  // isStaff drives the TOTP-only 2FA enforcement: any account carrying a staff role must use an app factor
+  // (see TfaService.setup/checkVerification). It uses hasRole, so — unlike getMailLoginUser — it does not
+  // filter blocked users: an account that holds a staff role stays fail-closed onto TOTP.
+  describe('isStaff', () => {
+    const isStaff = (users?: User[]): boolean => createCustomUserData({ users }).isStaff;
+
+    it('is true for a support account', () => {
+      expect(isStaff([createCustomUser({ role: UserRole.USER }), createCustomUser({ role: UserRole.SUPPORT })])).toBe(
+        true,
+      );
+    });
+
+    it('is true for a compliance account', () => {
+      expect(isStaff([createCustomUser({ role: UserRole.COMPLIANCE })])).toBe(true);
+    });
+
+    it('is true for a realunit account', () => {
+      expect(isStaff([createCustomUser({ role: UserRole.REALUNIT })])).toBe(true);
+    });
+
+    it('is false for a regular account', () => {
+      expect(isStaff([createCustomUser({ role: UserRole.USER })])).toBe(false);
+    });
+
+    it('is false for an admin/marketing account (not a staff role)', () => {
+      expect(
+        isStaff([createCustomUser({ role: UserRole.ADMIN }), createCustomUser({ role: UserRole.MARKETING })]),
+      ).toBe(false);
+    });
+
+    it('is fail-closed: true even for a blocked staff user', () => {
+      expect(isStaff([createCustomUser({ role: UserRole.SUPPORT, status: UserStatus.BLOCKED })])).toBe(true);
+    });
+
+    it('is false when the users relation is not loaded', () => {
+      expect(isStaff(undefined)).toBe(false);
+    });
+  });
 });

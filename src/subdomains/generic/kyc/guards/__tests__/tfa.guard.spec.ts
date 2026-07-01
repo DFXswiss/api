@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import { ModuleRef } from '@nestjs/core';
 import { Config, ConfigService, Configuration } from 'src/config/config';
 import { TfaRequiredException } from '../../exceptions/tfa-required.exception';
 import { TfaLevel, TfaService } from '../../services/tfa.service';
@@ -16,6 +17,7 @@ jest.mock('../../services/tfa.service', () => ({
 describe('TfaGuard', () => {
   let guard: TfaGuard;
   let tfaService: TfaService;
+  let moduleRef: ModuleRef;
 
   const context = (request: any): ExecutionContext =>
     createMock<ExecutionContext>({ switchToHttp: () => ({ getRequest: () => request }) as any });
@@ -26,7 +28,9 @@ describe('TfaGuard', () => {
 
   beforeEach(() => {
     tfaService = createMock<TfaService>();
-    guard = new TfaGuard(tfaService);
+    moduleRef = createMock<ModuleRef>();
+    jest.spyOn(moduleRef, 'get').mockReturnValue(tfaService);
+    guard = new TfaGuard(moduleRef);
     Object.assign(Config.auth, { tfaStaffEnforced: true });
   });
 

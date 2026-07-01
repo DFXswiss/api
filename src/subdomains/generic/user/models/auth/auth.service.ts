@@ -16,7 +16,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import { StaffRoles, UserRole } from 'src/shared/auth/user-role.enum';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -69,7 +69,7 @@ export interface MailKeyData {
 // account linked to multiple staff users resolves deterministically to the most privileged one.
 // Deliberately excludes ADMIN/SUPER_ADMIN: the strongest privileges stay bound to wallet-signature
 // login, since a magic link is a weaker authentication factor.
-const MailLoginStaffRoles = [UserRole.COMPLIANCE, UserRole.SUPPORT, UserRole.REALUNIT];
+const MailLoginStaffRoles = StaffRoles;
 
 @Injectable()
 export class AuthService {
@@ -361,10 +361,15 @@ export class AuthService {
 
       // Staff members (support/compliance/realunit) get a full user token carrying their real role, so a
       // magic-link login reaches the staff dashboards instead of being stuck on a generic account token.
-      // Regular accounts (USER-role wallets only) keep the account token. A blocked/deactivated account is
-      // never elevated (mirrors changeUser), so a magic link can never grant active staff access to a
-      // disabled account — and no privilege is granted that the user does not already hold on their wallet.
-      const staffUser = account.isBlockedOrDeactivated ? undefined : account.getMailLoginUser(MailLoginStaffRoles);
+      // This elevation is coupled to Config.auth.tfaStaffEnforced: staff are only elevated where TfaGuard
+      // also enforces 2FA on staff endpoints, so a mail login can never reach staff functions without a
+      // second factor (fail-closed — the flag is a single kill-switch for the whole feature). Regular
+      // accounts (USER-role wallets) keep the account token. A blocked/deactivated account is never elevated
+      // (mirrors changeUser), and no privilege is granted that the user does not already hold on their wallet.
+      const staffUser =
+        Config.auth.tfaStaffEnforced && !account.isBlockedOrDeactivated
+          ? account.getMailLoginUser(MailLoginStaffRoles)
+          : undefined;
       if (staffUser) staffUser.userData = account;
       const token = staffUser ? this.generateUserToken(staffUser, ip) : this.generateAccountToken(account, ip);
 

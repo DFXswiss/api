@@ -9,6 +9,7 @@ import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { Config } from 'src/config/config';
 import { RefService } from 'src/subdomains/core/referral/process/ref.service';
 import { KycAdminService } from 'src/subdomains/generic/kyc/services/kyc-admin.service';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
@@ -223,6 +224,24 @@ describe('AuthService', () => {
 
       expect(first).toBe('https://services.test/account?session=signed-jwt');
       expect(second).toBe('https://services.test/error?msg=Login%20link%20expired');
+    });
+
+    it('does not elevate staff when the feature flag is off (fail-closed kill-switch)', async () => {
+      setKey();
+      userDataServiceMock.getUserData.mockResolvedValue(account({ users: [staffUser(UserRole.COMPLIANCE)] }));
+      Object.assign(Config.auth, { tfaStaffEnforced: false });
+
+      try {
+        const result = await service.completeSignInByMail(code, ip);
+
+        // elevation is coupled to enforcement: with the flag off a staff account stays on an account token,
+        // so a mail login can never reach staff functions without the 2FA that the flag also enforces
+        expect(result).toBe('https://services.test/account?session=signed-jwt');
+        expect(signPayload().role).toBe(UserRole.ACCOUNT);
+        expect(signPayload().user).toBeUndefined();
+      } finally {
+        Object.assign(Config.auth, { tfaStaffEnforced: true });
+      }
     });
   });
 });
