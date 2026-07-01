@@ -9,6 +9,7 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BlockAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -61,20 +62,32 @@ export class BuyCryptoPreparationService {
   // Scorechain on-chain screening for the AML gate. BuyCrypto withdrawal (fiat-funded) screens the
   // crypto-out target address; a swap (crypto-in) screens the incoming deposit tx. Chains Scorechain
   // does not cover yield no signal (the other AML mechanisms apply). isHighRisk is fail-closed
-  // (invalid signature / no coverage / unsupported → high risk); provider errors propagate so the
-  // tx is retried on the next run rather than passing unscreened.
+  // (invalid signature / no coverage / unsupported → high risk).
   private async screenScorechain(entity: BuyCrypto): Promise<boolean> {
+    // Feature gate / kill-switch: when Scorechain is disabled or unconfigured (no API key), emit no
+    // signal so the tx is decided by the other AML mechanisms. This is the deliberate off-state and
+    // must never route an unscreened-because-off tx to manual review.
+    if (DisabledProcess(Process.SCORECHAIN) || !Config.scorechain.apiKey) return false;
+
     const [blockchain, objectId, isDeposit] = entity.cryptoInput
       ? [entity.cryptoInput.asset.blockchain, entity.cryptoInput.inTxId, true]
       : [entity.outputAsset.blockchain, entity.targetAddress, false];
 
     if (!objectId || !toScorechainBlockchain(blockchain)) return false;
 
-    const screening = isDeposit
-      ? await this.scorechainScreeningService.screenDepositTransaction(blockchain, objectId)
-      : await this.scorechainScreeningService.screenWithdrawalAddress(blockchain, objectId);
+    try {
+      const screening = isDeposit
+        ? await this.scorechainScreeningService.screenDepositTransaction(blockchain, objectId)
+        : await this.scorechainScreeningService.screenWithdrawalAddress(blockchain, objectId);
 
-    return this.scorechainScreeningService.isHighRisk(screening);
+      return this.scorechainScreeningService.isHighRisk(screening);
+    } catch (e) {
+      // Fail-closed to manual review: a provider/transport error or a reached monthly quota must not
+      // throw out of the AML computation (which would silently stall settlement of every otherwise-
+      // passing tx on every cron run). Treat it as high risk → SCORECHAIN_HIGH_RISK → PENDING.
+      this.logger.error(`Scorechain screening failed for buy-crypto ${entity.id}, routing to manual review:`, e);
+      return true;
+    }
   }
 
   async doAmlCheck(): Promise<void> {

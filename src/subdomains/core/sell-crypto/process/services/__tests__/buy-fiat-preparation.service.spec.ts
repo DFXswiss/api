@@ -1,7 +1,10 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { CountryService } from 'src/shared/models/country/country.service';
+import * as processServiceModule from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -92,6 +95,85 @@ describe('BuyFiatPreparationService', () => {
     // bypass the heavy getAmlResult/getAmlErrors internals; we only test the persistence guard
     jest.spyOn(entity, 'amlCheckAndFillUp').mockReturnValue([entity.id, { amlCheck: CheckStatus.PASS }] as any);
   }
+
+  describe('screenScorechain (Scorechain AML gate)', () => {
+    const call = (entity: any): Promise<boolean> => (service as any).screenScorechain(entity);
+
+    let apiKeyBackup: string | undefined;
+
+    beforeEach(() => {
+      // enable the feature so the screening path is exercised: DisabledProcess is fail-closed
+      // (disabled) by default in tests and no API key is configured
+      jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
+      apiKeyBackup = Config.scorechain.apiKey;
+      Config.scorechain.apiKey = 'test-key';
+    });
+
+    afterEach(() => {
+      Config.scorechain.apiKey = apiKeyBackup;
+      jest.restoreAllMocks();
+    });
+
+    it('screens the incoming deposit tx on a supported chain', async () => {
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
+
+      await expect(call(entity)).resolves.toBe(true);
+      expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalledWith(Blockchain.BITCOIN, 'txhash');
+    });
+
+    it('yields no signal (false) and skips the provider for an unsupported chain', async () => {
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.MONERO }, inTxId: 'txhash' } as any,
+      });
+
+      await expect(call(entity)).resolves.toBe(false);
+      expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    it('yields no signal when the deposit tx id is missing', async () => {
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: undefined } as any,
+      });
+
+      await expect(call(entity)).resolves.toBe(false);
+      expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    it('yields no signal (false) and skips the provider when the Scorechain process is disabled', async () => {
+      jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(true);
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+
+      await expect(call(entity)).resolves.toBe(false);
+      expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    it('yields no signal (false) and skips the provider when no API key is configured', async () => {
+      Config.scorechain.apiKey = undefined;
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+
+      await expect(call(entity)).resolves.toBe(false);
+      expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    it('fails closed to manual review (true) when the provider throws (outage / quota reached)', async () => {
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest
+        .spyOn(scorechainScreeningService, 'screenDepositTransaction')
+        .mockRejectedValue(new Error('scorechain unavailable'));
+
+      await expect(call(entity)).resolves.toBe(true);
+    });
+  });
 
   describe('doAmlCheck — concurrent decision guard', () => {
     it('skips post-processing (no overwrite) when the conditional update affects 0 rows', async () => {

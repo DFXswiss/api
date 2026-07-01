@@ -376,15 +376,24 @@ and consistent — no untyped failures, no silent passes:
    (RSA-SHA256 over `JSON.stringify({ data, timestamp })`, hex). The exact canonical form is
    non-obvious and vendor-specific, so the maintained SDK function is used rather than a
    hand-rolled reimplementation (it also handles provider key rotation). Fail-closed.
-4. **Quota policy at limit:** fail-closed — a reached `SCORECHAIN_MONTHLY_CHECK_LIMIT` throws
-   `ServiceUnavailableException`, routing the transaction to manual review.
+4. **Quota policy at limit / provider failure:** fail-closed to manual review. A reached
+   `SCORECHAIN_MONTHLY_CHECK_LIMIT` (or a provider/transport error) throws
+   `ServiceUnavailableException` inside the screening service. The AML call-site
+   (`screenScorechain` in `buy-crypto-preparation` / `buy-fiat-preparation`) catches it and
+   returns high risk, so the tx is routed to manual review (`AmlError.SCORECHAIN_HIGH_RISK` →
+   `CheckStatus.PENDING`) instead of throwing out of the AML computation. Letting the throw escape
+   the compute path would silently stall settlement of every otherwise-passing tx on every cron
+   run, so the error is deliberately caught at the seam.
 5. **ikna coexistence:** run both fully in parallel (no routing rule); Scorechain is additive.
-6. **Live pipeline injection (call-sites):** the screening seam is complete
-   (`screenDepositTransaction` / `screenWithdrawalAddress` / `isHighRisk` → push
-   `AmlError.SCORECHAIN_HIGH_RISK`). Injecting the async screening into the synchronous
-   `getAmlResult`/`getAmlErrors` pipeline of every buy/sell transaction is staged as a
-   separately integration-tested step (it changes core-flow behaviour for all flows and needs
-   a DB + Scorechain sandbox to validate end-to-end) — not wired blind in this PR.
+6. **Live pipeline injection (call-sites):** the async screening is wired into the synchronous
+   AML pipeline (`screenScorechain` is threaded through `amlCheckAndFillUp` for every buy/sell that
+   would otherwise PASS, on both `buy-crypto` and `buy-fiat`). Because this changes core-flow
+   behaviour for all flows, it is guarded so it can be operated safely: the call is gated behind
+   `DisabledProcess(Process.SCORECHAIN)` and a `Config.scorechain.apiKey` presence check (runtime
+   kill-switch; when off it emits no signal and the other AML mechanisms decide), and every
+   provider/quota error fails closed to manual review (decision 4) rather than stalling the tx.
+   Enable it in a given environment only once the API key is provisioned and end-to-end validated
+   against a Scorechain sandbox.
 7. **Alert delivery:** part of the async TMS feature in decision 2 and therefore **not
    implemented** — DFX does not license TMS, so no alert-webhook receiver ships. Were TMS
    licensed, alerts would arrive via the inbound `ScenarioAlertCallback` webhook (authenticated
