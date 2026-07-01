@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import { ADMIN_ROLES, UserRole } from 'src/shared/auth/user-role.enum';
 import {
   Department,
   getVisibleDepartments,
@@ -21,8 +21,6 @@ import { SupportNoteRepository } from '../repositories/support-note.repository';
 
 // Departments an admin may file a note in (note creation is restricted to these; viewing uses getVisibleDepartments)
 const NOTE_CREATE_DEPARTMENTS: Department[] = [Department.SUPPORT, Department.COMPLIANCE, Department.MARKETING];
-// Super admin is an admin superset everywhere else, so it gets the same note write/admin rights
-const ADMIN_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.SUPER_ADMIN];
 const SEARCH_LIMIT = 200;
 
 @Injectable()
