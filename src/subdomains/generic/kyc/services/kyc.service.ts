@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import { ADMIN_ROLES, UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
@@ -452,7 +452,7 @@ export class KycService {
 
     if (!kycFile) throw new NotFoundException('KYC file not found');
 
-    if (kycFile.protected && ![UserRole.ADMIN, UserRole.COMPLIANCE].includes(role)) {
+    if (kycFile.protected && ![...ADMIN_ROLES, UserRole.COMPLIANCE].includes(role)) {
       throw new ForbiddenException('Requires admin or compliance role');
     }
 

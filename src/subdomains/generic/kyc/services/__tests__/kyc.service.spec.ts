@@ -1,8 +1,16 @@
 import { createMock } from '@golevelup/ts-jest';
+import { ForbiddenException } from '@nestjs/common';
+import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../../user/models/user-data/user-data.service';
+import { FileType } from '../../dto/kyc-file.dto';
+import { KycFile } from '../../entities/kyc-file.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { KycStepName } from '../../enums/kyc-step-name.enum';
+import { KycDocumentService } from '../integration/kyc-document.service';
+import { KycFileService } from '../kyc-file.service';
+import { KycLogService } from '../kyc-log.service';
 import { KycService } from '../kyc.service';
 
 describe('KycService', () => {
@@ -61,5 +69,75 @@ describe('KycService', () => {
       expect(result.step).toBe(newStep);
       expect(userDataService.getByKycHashOrThrow).not.toHaveBeenCalled();
     });
+  });
+});
+
+// Protected KYC file download keys off the admin/compliance check in getFileByUid, which now uses ADMIN_ROLES.
+// Before this change a super admin was denied a protected file even though it is an admin superset.
+describe('KycService getFileByUid protected-file access', () => {
+  let service: KycService;
+  let kycFileService: jest.Mocked<KycFileService>;
+  let documentService: jest.Mocked<KycDocumentService>;
+  let kycLogService: jest.Mocked<KycLogService>;
+
+  const protectedFile = (): KycFile =>
+    Object.assign(new KycFile(), {
+      id: 7,
+      uid: 'FILE-UID',
+      name: 'protected.pdf',
+      type: FileType.IDENTIFICATION,
+      protected: true,
+      userData: Object.assign(new UserData(), { id: 42 }),
+    });
+
+  beforeEach(() => {
+    kycFileService = createMock<KycFileService>();
+    documentService = createMock<KycDocumentService>();
+    kycLogService = createMock<KycLogService>();
+
+    // getFileByUid only touches these three deps; avoid wiring all constructor deps
+    service = Object.create(KycService.prototype);
+    (service as any).kycFileService = kycFileService;
+    (service as any).documentService = documentService;
+    (service as any).kycLogService = kycLogService;
+
+    documentService.downloadFile.mockResolvedValue(
+      createMock<BlobContent>({ contentType: 'application/pdf', data: Buffer.from('x') }),
+    );
+  });
+
+  // super admin is an admin superset, so it must reach a protected file exactly like admin / compliance
+  describe.each([UserRole.SUPER_ADMIN, UserRole.ADMIN, UserRole.COMPLIANCE])('%s', (role) => {
+    it('may download a protected KYC file', async () => {
+      kycFileService.getKycFile.mockResolvedValue(protectedFile());
+
+      const dto = await service.getFileByUid('FILE-UID', 1, role);
+
+      expect(dto.uid).toBe('FILE-UID');
+      expect(documentService.downloadFile).toHaveBeenCalled();
+    });
+  });
+
+  it('forbids a non-privileged role from a protected file, without downloading', async () => {
+    kycFileService.getKycFile.mockResolvedValue(protectedFile());
+
+    await expect(service.getFileByUid('FILE-UID', 1, UserRole.USER)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(documentService.downloadFile).not.toHaveBeenCalled();
+  });
+
+  it('forbids an unauthenticated request (no role) from a protected file', async () => {
+    kycFileService.getKycFile.mockResolvedValue(protectedFile());
+
+    await expect(service.getFileByUid('FILE-UID', undefined, undefined)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(documentService.downloadFile).not.toHaveBeenCalled();
+  });
+
+  it('serves a non-protected file to any role', async () => {
+    kycFileService.getKycFile.mockResolvedValue(Object.assign(protectedFile(), { protected: false }));
+
+    const dto = await service.getFileByUid('FILE-UID', 1, UserRole.USER);
+
+    expect(dto.uid).toBe('FILE-UID');
+    expect(documentService.downloadFile).toHaveBeenCalled();
   });
 });
