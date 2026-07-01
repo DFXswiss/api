@@ -33,9 +33,9 @@ export class ScryptService extends PricingProvider {
   private readonly logger = new DfxLogger(ScryptService);
   private readonly connection: ScryptWebSocketConnection;
 
-  // Subscriptions
-  private readonly securities!: AsyncSubscription<ScryptSecurity[]>;
-  private readonly balances!: AsyncSubscription<Map<string, ScryptBalance>>;
+  // Subscriptions (undefined when Scrypt is not configured, see constructor)
+  private readonly securities?: AsyncSubscription<ScryptSecurity[]>;
+  private readonly balances?: AsyncSubscription<Map<string, ScryptBalance>>;
   private readonly executionReports: Map<string, ScryptExecutionReport> = new Map();
   private readonly balanceTransactions: Map<string, ScryptBalanceTransaction> = new Map();
 
@@ -112,7 +112,7 @@ export class ScryptService extends PricingProvider {
   // --- BALANCES --- //
 
   async getBalances(): Promise<{ total: Record<string, number>; available: Record<string, number> }> {
-    const balances = await this.balances;
+    const balances = await this.getBalancesSubscription();
 
     const total: Record<string, number> = {};
     const available: Record<string, number> = {};
@@ -129,13 +129,18 @@ export class ScryptService extends PricingProvider {
   }
 
   async getAvailableBalance(currency: string): Promise<number> {
-    const balances = await this.balances;
+    const balances = await this.getBalancesSubscription();
 
     const balance = balances.get(currency);
     if (!balance) return 0;
 
     const amount = parseFloat(balance.Amount) || 0;
     return parseFloat(balance.AvailableAmount) || amount;
+  }
+
+  private getBalancesSubscription(): AsyncSubscription<Map<string, ScryptBalance>> {
+    if (!this.balances) throw new Error(`${this.name} is not configured`);
+    return this.balances;
   }
 
   // --- WITHDRAWALS --- //
@@ -541,7 +546,7 @@ export class ScryptService extends PricingProvider {
   // --- MARKET DATA --- //
 
   async getTradePair(from: string, to: string): Promise<{ symbol: string; side: ScryptOrderSide }> {
-    const securities = await this.securities;
+    const securities = await this.getSecuritiesSubscription();
 
     // Find matching pair: either from=base,to=quote (SELL base) or from=quote,to=base (BUY base)
     const security = securities.find(
@@ -559,7 +564,7 @@ export class ScryptService extends PricingProvider {
   }
 
   private async getSecurity(symbol: string): Promise<ScryptSecurity> {
-    const securities = await this.securities;
+    const securities = await this.getSecuritiesSubscription();
     const security = securities.find((s) => s.Symbol === symbol);
 
     if (!security) {
@@ -567,6 +572,11 @@ export class ScryptService extends PricingProvider {
     }
 
     return security;
+  }
+
+  private getSecuritiesSubscription(): AsyncSubscription<ScryptSecurity[]> {
+    if (!this.securities) throw new Error(`${this.name} is not configured`);
+    return this.securities;
   }
 
   private async getOrderBookPrice(symbol: string, side: ScryptOrderSide): Promise<number> {
