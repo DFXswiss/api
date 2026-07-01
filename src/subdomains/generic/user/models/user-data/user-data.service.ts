@@ -1241,8 +1241,10 @@ export class UserDataService {
     if (notifyUser && slave.mail && ![slave.mail, mail].includes(master.mail))
       await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
 
-    // Adapt slave kyc step sequenceNumber
-    const sequenceNumberOffset = master.kycSteps.length ? Util.minObjValue(master.kycSteps, 'sequenceNumber') - 100 : 0;
+    // Adapt slave kyc step sequenceNumber: absolute, strictly-decreasing numbers below master's min, so a
+    // reassigned slave step can't collide on the userDataId+name+type+sequenceNumber unique index (nor compound
+    // on a re-run of a partially-applied merge).
+    let nextSequenceNumber = (master.kycSteps.length ? Util.minObjValue(master.kycSteps, 'sequenceNumber') : 0) - 1;
     const kycStepMerge = !!slave.kycSteps?.length;
     for (const kycStep of slave.kycSteps) {
       await this.kycAdminService.updateKycStepInternal(
@@ -1262,7 +1264,7 @@ export class UserDataService {
             : undefined,
           undefined,
           undefined,
-          kycStep.sequenceNumber + sequenceNumberOffset,
+          nextSequenceNumber--,
         ),
       );
     }
