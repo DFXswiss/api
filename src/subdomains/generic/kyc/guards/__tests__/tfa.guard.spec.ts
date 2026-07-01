@@ -45,6 +45,16 @@ describe('TfaGuard', () => {
     expect(tfaService.check).not.toHaveBeenCalled();
   });
 
+  it('still enforces when the flag is off but the token was minted requiring 2FA', async () => {
+    Object.assign(Config.auth, { tfaStaffEnforced: false });
+    jest.spyOn(tfaService, 'check').mockResolvedValue(undefined);
+
+    await expect(
+      guard.canActivate(context({ user: { account: 7, tfaRequired: true }, realIp: '1.2.3.4' })),
+    ).resolves.toBe(true);
+    expect(tfaService.check).toHaveBeenCalledWith(7, '1.2.3.4', TfaLevel.STRICT);
+  });
+
   it('allows the request when 2FA is verified (STRICT, live request ip)', async () => {
     jest.spyOn(tfaService, 'check').mockResolvedValue(undefined);
 

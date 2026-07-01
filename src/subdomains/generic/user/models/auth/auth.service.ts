@@ -67,9 +67,8 @@ export interface MailKeyData {
 
 // Staff roles a magic-link (mail) login may elevate to, ordered by privilege (highest first) so an
 // account linked to multiple staff users resolves deterministically to the most privileged one.
-// Deliberately excludes ADMIN/SUPER_ADMIN: the strongest privileges stay bound to wallet-signature
-// login, since a magic link is a weaker authentication factor.
-const MailLoginStaffRoles = StaffRoles;
+// StaffRoles (Compliance/Support/RealUnit) deliberately excludes ADMIN/SUPER_ADMIN: the strongest privileges
+// stay bound to wallet-signature login, since a magic link is a weaker authentication factor.
 
 @Injectable()
 export class AuthService {
@@ -368,10 +367,12 @@ export class AuthService {
       // (mirrors changeUser), and no privilege is granted that the user does not already hold on their wallet.
       const staffUser =
         Config.auth.tfaStaffEnforced && !account.isBlockedOrDeactivated
-          ? account.getMailLoginUser(MailLoginStaffRoles)
+          ? account.getMailLoginUser(StaffRoles)
           : undefined;
       if (staffUser) staffUser.userData = account;
-      const token = staffUser ? this.generateUserToken(staffUser, ip) : this.generateAccountToken(account, ip);
+      // tfaRequired is stamped on the mail-elevated staff token so TfaGuard keeps enforcing 2FA on it even if
+      // the enforcement flag is later disabled — a mail login must never reach staff functions without 2FA.
+      const token = staffUser ? this.generateUserToken(staffUser, ip, true) : this.generateAccountToken(account, ip);
 
       await this.checkIpBlacklistFor(account, ip);
 
@@ -545,7 +546,7 @@ export class AuthService {
     return this.challengeList.has(address);
   }
 
-  generateUserToken(user: User, ip: string): string {
+  generateUserToken(user: User, ip: string, tfaRequired = false): string {
     const payload: JwtPayload = {
       user: user.id,
       address: user.address,
@@ -556,6 +557,7 @@ export class AuthService {
       riskStatus: user.userData.riskStatus,
       blockchains: user.blockchains,
       ip,
+      ...(tfaRequired && { tfaRequired: true }),
     };
     return this.jwtService.sign(payload);
   }

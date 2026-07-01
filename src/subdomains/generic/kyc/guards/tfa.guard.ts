@@ -17,9 +17,11 @@ export class TfaGuard implements CanActivate {
   constructor(private readonly moduleRef: ModuleRef) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    if (!Config.auth.tfaStaffEnforced) return true;
-
     const request = context.switchToHttp().getRequest();
+
+    // Enforce when the feature flag is on, or when the token was minted requiring 2FA (mail-elevated staff) —
+    // so disabling the flag as a rollback cannot un-gate a residual mail-minted staff token.
+    if (!Config.auth.tfaStaffEnforced && !request.user?.tfaRequired) return true;
 
     const userDataId = request.user?.account;
     if (!userDataId) throw new ForbiddenException('User not authenticated');

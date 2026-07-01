@@ -127,6 +127,8 @@ describe('AuthService', () => {
       expect(payload.user).toBe(7);
       expect(payload.address).toBe('STAFF_ADDR');
       expect(payload.account).toBe(1);
+      // stamped so TfaGuard keeps enforcing 2FA on this token even if the flag is later disabled
+      expect(payload.tfaRequired).toBe(true);
     });
 
     it('keeps a regular account on an account token and survives a failing KYC init', async () => {

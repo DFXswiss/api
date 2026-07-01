@@ -86,7 +86,6 @@ import { TfaService } from './services/tfa.service';
     KycDocumentService,
     NameCheckService,
     TfaService,
-    TfaGuard,
     KycAdminService,
     KycLogService,
     KycNotificationService,
