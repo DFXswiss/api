@@ -1,5 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import { ADMIN_ROLES, UserRole } from 'src/shared/auth/user-role.enum';
 import {
   Department,
   getVisibleDepartments,
@@ -19,13 +19,9 @@ import {
 import { SupportNote } from '../entities/support-note.entity';
 import { SupportNoteRepository } from '../repositories/support-note.repository';
 
-const ADMIN_DEPARTMENTS: Department[] = [Department.SUPPORT, Department.COMPLIANCE, Department.MARKETING];
+// Departments an admin may file a note in (note creation is restricted to these; viewing uses getVisibleDepartments)
+const NOTE_CREATE_DEPARTMENTS: Department[] = [Department.SUPPORT, Department.COMPLIANCE, Department.MARKETING];
 const SEARCH_LIMIT = 200;
-
-export function visibleDepartments(role: UserRole): Department[] {
-  if (role === UserRole.ADMIN) return ADMIN_DEPARTMENTS;
-  return getVisibleDepartments(role) ?? [];
-}
 
 @Injectable()
 export class SupportNoteService {
@@ -35,11 +31,12 @@ export class SupportNoteService {
   ) {}
 
   async search(role: UserRole, query: SupportNoteListQuery): Promise<SupportNote[]> {
-    const departments = visibleDepartments(role);
-    if (departments.length === 0) return [];
+    const departments = getVisibleDepartments(role);
+    if (departments?.length === 0) return [];
 
     const scope = query.scope ?? SupportNoteScope.ALL;
-    const baseFilter: FindOptionsWhere<SupportNote> = { department: In(departments) };
+    // undefined => unrestricted (no department filter); a list => restricted to those departments
+    const baseFilter: FindOptionsWhere<SupportNote> = departments ? { department: In(departments) } : {};
 
     if (scope === SupportNoteScope.FREE) {
       baseFilter.userData = IsNull();
@@ -79,16 +76,10 @@ export class SupportNoteService {
   }
 
   async listUsers(role: UserRole): Promise<SupportNoteUserDto[]> {
-    const departments = visibleDepartments(role);
-    if (departments.length === 0) return [];
+    const departments = getVisibleDepartments(role);
+    if (departments?.length === 0) return [];
 
-    const rows: Array<{
-      userDataId: number;
-      firstname?: string;
-      surname?: string;
-      organizationName?: string;
-      count: string;
-    }> = await this.noteRepo
+    const qb = this.noteRepo
       .createQueryBuilder('note')
       .innerJoin('note.userData', 'userData')
       .select('note.userDataId', 'userDataId')
@@ -96,13 +87,22 @@ export class SupportNoteService {
       .addSelect('userData.surname', 'surname')
       .addSelect('userData.organizationName', 'organizationName')
       .addSelect('COUNT(note.id)', 'count')
-      .where('note.department IN (:...departments)', { departments })
-      .andWhere('note.userDataId IS NOT NULL')
+      .where('note.userDataId IS NOT NULL')
       .groupBy('note.userDataId')
       .addGroupBy('userData.firstname')
       .addGroupBy('userData.surname')
-      .addGroupBy('userData.organizationName')
-      .getRawMany();
+      .addGroupBy('userData.organizationName');
+
+    // undefined => unrestricted; a list => restricted to those departments
+    if (departments) qb.andWhere('note.department IN (:...departments)', { departments });
+
+    const rows: Array<{
+      userDataId: number;
+      firstname?: string;
+      surname?: string;
+      organizationName?: string;
+      count: string;
+    }> = await qb.getRawMany();
 
     return rows
       .map((r) => ({
@@ -168,16 +168,16 @@ export class SupportNoteService {
       userDataId: note.userData?.id,
       userName: note.userData?.completeName,
       isOwn: note.authorId === jwtAccount,
-      isAdmin: role === UserRole.ADMIN,
+      isAdmin: ADMIN_ROLES.includes(role),
       created: note.created,
       updated: note.updated,
     };
   }
 
   private resolveDepartmentForCreate(role: UserRole, requested: Department | undefined): Department {
-    if (role === UserRole.ADMIN) {
+    if (ADMIN_ROLES.includes(role)) {
       if (!requested) throw new ForbiddenException('Department is required when creating notes as admin');
-      if (!ADMIN_DEPARTMENTS.includes(requested)) {
+      if (!NOTE_CREATE_DEPARTMENTS.includes(requested)) {
         throw new ForbiddenException(`Department ${requested} cannot be assigned to a note`);
       }
       return requested;
@@ -189,7 +189,7 @@ export class SupportNoteService {
   }
 
   private canModify(note: SupportNote, role: UserRole, jwtAccount: number): boolean {
-    if (role === UserRole.ADMIN) return true;
+    if (ADMIN_ROLES.includes(role)) return true;
     return note.authorId === jwtAccount;
   }
 }

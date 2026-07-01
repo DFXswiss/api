@@ -1,6 +1,7 @@
 import { forwardRef, Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
+import { ScorechainModule } from 'src/integration/scorechain/scorechain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
@@ -40,6 +41,7 @@ import { SellService } from './route/sell.service';
     NotificationModule,
     forwardRef(() => PaymentModule),
     BlockchainModule,
+    ScorechainModule,
     forwardRef(() => BankModule),
     forwardRef(() => BankTxModule),
     forwardRef(() => PayInModule),

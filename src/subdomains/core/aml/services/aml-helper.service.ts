@@ -50,6 +50,7 @@ export class AmlHelperService {
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
     recommender?: UserData,
+    scorechainHighRisk = false,
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
@@ -59,6 +60,10 @@ export class AmlHelperService {
       [Environment.LOC, Environment.DEV].includes(Config.environment)
     )
       return errors;
+
+    // Scorechain on-chain screening (withdrawal target address / deposit tx); the async call runs in
+    // the AML orchestrator and is reduced to this boolean. Outcome layer only (CRUCIAL → manual review).
+    if (scorechainHighRisk) errors.push(AmlError.SCORECHAIN_HIGH_RISK);
 
     if (isAsset(inputAsset) && inputAsset.name === 'REALU') errors.push(AmlError.ASSET_INPUT_NOT_ALLOWED);
 
@@ -137,6 +142,18 @@ export class AmlHelperService {
         errors.push(AmlError.NO_LETTER);
       if (last365dVolume > entity.userData.depositLimit) errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
     }
+
+    // A granted annual deposit limit must hold regardless of monthly volume, so it cannot be evaded by
+    // structuring turnover below the monthly KYC threshold. Above the threshold this is already covered
+    // by the KYC-gating block above; here we add only the below-threshold case, and only for users who
+    // actually have a limit set (a null limit means none granted — not a zero limit, which would flag
+    // every user with any annual volume).
+    if (
+      last30dVolume <= Config.tradingLimits.monthlyDefaultWoKyc &&
+      entity.userData.depositLimit != null &&
+      last365dVolume > entity.userData.depositLimit
+    )
+      errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
 
     // AmlRule asset/fiat check
     errors.push(
@@ -598,6 +615,7 @@ export class AmlHelperService {
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
+    scorechainHighRisk = false,
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;
@@ -624,6 +642,7 @@ export class AmlHelperService {
       virtualIban,
       multiAccountBankNames,
       recommender,
+      scorechainHighRisk,
     ).filter((e) => e);
 
     const comment = Array.from(new Set(amlErrors)).join(';');

@@ -6,6 +6,7 @@ import { CheckoutModule } from './checkout/checkout.module';
 import { ExchangeModule } from './exchange/exchange.module';
 import { IknaModule } from './ikna/ikna.module';
 import { LetterModule } from './letter/letter.module';
+import { ScorechainModule } from './scorechain/scorechain.module';
 import { SiftModule } from './sift/sift.module';
 
 @Module({
@@ -18,6 +19,7 @@ import { SiftModule } from './sift/sift.module';
     IknaModule,
     CheckoutModule,
     SiftModule,
+    ScorechainModule,
   ],
   controllers: [],
   providers: [],
@@ -29,6 +31,7 @@ import { SiftModule } from './sift/sift.module';
     IknaModule,
     CheckoutModule,
     SiftModule,
+    ScorechainModule,
   ],
 })
 export class IntegrationModule {}

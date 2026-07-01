@@ -8,6 +8,7 @@ import {
 import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { SupportClerkAccountDto } from 'src/shared/models/setting/dto/support-clerk-account.dto';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
@@ -33,6 +34,7 @@ import {
   SupportIssueDto,
   SupportIssueInternalDataDto,
   SupportIssueListDto,
+  SupportIssueStatisticsDto,
   SupportMessageDto,
 } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
@@ -69,22 +71,30 @@ export class SupportIssueService {
     return clerks.length > 0 ? clerks : ['Support'];
   }
 
+  // Resolves the clerk name assigned to a support account via the `supportClerkAccounts`
+  // setting ([{ account, name }]). Returns undefined if the account is unmapped.
+  async getSupportIssueClerkForAccount(account: number): Promise<string | undefined> {
+    const clerks = await this.settingService.getObj<SupportClerkAccountDto[]>('supportClerkAccounts', []);
+    return clerks.find((c) => c.account === account)?.name;
+  }
+
   async getSupportIssueCounts(role: UserRole): Promise<Record<SupportIssueInternalState, number>> {
+    const counts = Object.values(SupportIssueInternalState).reduce(
+      (acc, state) => ({ ...acc, [state]: 0 }),
+      {} as Record<SupportIssueInternalState, number>,
+    );
+
+    const departments = getVisibleDepartments(role);
+    if (departments?.length === 0) return counts; // no department access
+
     const qb = this.supportIssueRepo
       .createQueryBuilder('issue')
       .select('issue.state', 'state')
       .addSelect('COUNT(*)', 'count')
       .groupBy('issue.state');
-
-    const departments = getVisibleDepartments(role);
     if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
 
     const raw: { state: SupportIssueInternalState; count: string }[] = await qb.getRawMany();
-
-    const counts = Object.values(SupportIssueInternalState).reduce(
-      (acc, state) => ({ ...acc, [state]: 0 }),
-      {} as Record<SupportIssueInternalState, number>,
-    );
     for (const row of raw) counts[row.state] = +row.count;
 
     return counts;
@@ -92,6 +102,7 @@ export class SupportIssueService {
 
   async getSupportIssueActivity(since: Date | undefined, role: UserRole): Promise<{ count: number; latestAt?: Date }> {
     const departments = getVisibleDepartments(role);
+    if (departments?.length === 0) return { count: 0, latestAt: undefined }; // no department access
 
     const qb = this.messageRepo
       .createQueryBuilder('m')
@@ -103,6 +114,132 @@ export class SupportIssueService {
 
     const raw = await qb.getRawOne<{ count: string | number; latestAt: Date | null }>();
     return { count: +(raw?.count ?? 0), latestAt: raw?.latestAt ?? undefined };
+  }
+
+  async getSupportIssueStatistics(role: UserRole, periodDays = 365): Promise<SupportIssueStatisticsDto> {
+    const departments = getVisibleDepartments(role);
+    // guard against a non-numeric ?days reaching the clamp as NaN (which would propagate to an Invalid Date)
+    const days = Number.isFinite(periodDays) ? Math.min(Math.max(Math.round(periodDays), 1), 366) : 365;
+    const granularity: 'day' | 'month' = days <= 31 ? 'day' : 'month';
+
+    // no department access: return an empty statistic without querying. An empty `departments` list would
+    // otherwise reach the queries below, where `if (departments)` is truthy and expands to a degenerate
+    // `IN ()` clause (the same fail-closed contract the counts / activity / list queries already follow).
+    if (departments?.length === 0)
+      return {
+        periodDays: days,
+        total: 0,
+        avgMessages: 0,
+        perDay: 0,
+        granularity,
+        trend: [],
+        avgResolutionHours: 0,
+        resolutionByType: [],
+      };
+
+    const now = new Date();
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    // total tickets and message count within the period
+    const totalQb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .select('COUNT(*)', 'count')
+      .where('issue.created >= :from', { from });
+    if (departments) totalQb.andWhere('issue.department IN (:...departments)', { departments });
+    const total = +((await totalQb.getRawOne<{ count: string }>())?.count ?? 0);
+
+    const msgQb = this.messageRepo
+      .createQueryBuilder('m')
+      .innerJoin('m.issue', 'issue')
+      .select('COUNT(*)', 'count')
+      .where('issue.created >= :from', { from });
+    if (departments) msgQb.andWhere('issue.department IN (:...departments)', { departments });
+    const messages = +((await msgQb.getRawOne<{ count: string }>())?.count ?? 0);
+
+    // trend buckets: always group by day in SQL (CAST avoids Postgres-incompatible date-part functions and
+    // keeps the raw query alias-clean, see query-builder-alias.spec.ts), then bucket daily or monthly in JS
+    const trendQb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .select('CAST(issue.created AS DATE)', 'd')
+      .addSelect('COUNT(*)', 'count')
+      .where('issue.created >= :from', { from })
+      .groupBy('CAST(issue.created AS DATE)');
+    if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
+    const dayRows = await trendQb.getRawMany<{ d: Date | string; count: string }>();
+
+    // build keys from local date parts on both the rows and the bucket loop; the app and DB both run UTC,
+    // so the row-date space and the loop-date space align and the trend sums to total
+    const dayKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const monthKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+
+    const trend: { key: string; count: number }[] = [];
+    if (granularity === 'day') {
+      const map = new Map(dayRows.map((r) => [dayKey(new Date(r.d)), +r.count]));
+      // anchor the first bucket to `from`'s calendar day (not a fixed day count), so the daily trend covers
+      // every day a row can fall on and always sums to total
+      const lastDay = new Date(now);
+      lastDay.setHours(0, 0, 0, 0);
+      const d = new Date(from);
+      d.setHours(0, 0, 0, 0);
+      while (d.getTime() <= lastDay.getTime()) {
+        trend.push({ key: dayKey(d), count: map.get(dayKey(d)) ?? 0 });
+        d.setDate(d.getDate() + 1);
+      }
+    } else {
+      // roll the daily counts up into months
+      const map = new Map<string, number>();
+      for (const r of dayRows) {
+        const key = monthKey(new Date(r.d));
+        map.set(key, (map.get(key) ?? 0) + +r.count);
+      }
+      // span every calendar month the [from, now] window touches, so the trend always sums to total
+      const monthSpan = (now.getFullYear() - from.getFullYear()) * 12 + (now.getMonth() - from.getMonth());
+      for (let i = monthSpan; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        trend.push({ key: monthKey(d), count: map.get(monthKey(d)) ?? 0 });
+      }
+    }
+
+    // average resolution time per type for tickets completed within the period (the last-update
+    // timestamp is the completion proxy). Computed in JS so the raw SQL stays free of bare
+    // date-part identifiers (see query-builder-alias.spec.ts).
+    const resolvedQb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .select('issue.type', 'type')
+      .addSelect('issue.created', 'created')
+      .addSelect('issue.updated', 'updated')
+      .where('issue.state = :completed', { completed: SupportIssueInternalState.COMPLETED })
+      .andWhere('issue.updated >= :from', { from });
+    if (departments) resolvedQb.andWhere('issue.department IN (:...departments)', { departments });
+    const resolvedRows = await resolvedQb.getRawMany<{ type: string; created: Date; updated: Date }>();
+
+    const resolutionStats = new Map<string, { sum: number; count: number }>();
+    for (const r of resolvedRows) {
+      const hours = (new Date(r.updated).getTime() - new Date(r.created).getTime()) / (60 * 60 * 1000);
+      const e = resolutionStats.get(r.type) ?? { sum: 0, count: 0 };
+      e.sum += hours;
+      e.count += 1;
+      resolutionStats.set(r.type, e);
+    }
+    const resolutionByType = Array.from(resolutionStats.entries())
+      .map(([key, v]) => ({ key, avgHours: v.sum / v.count, count: v.count }))
+      .sort((a, b) => b.count - a.count);
+    const avgResolutionHours =
+      resolvedRows.length > 0
+        ? resolutionByType.reduce((sum, r) => sum + r.avgHours * r.count, 0) / resolvedRows.length
+        : 0;
+
+    return {
+      periodDays: days,
+      total,
+      avgMessages: total > 0 ? messages / total : 0,
+      perDay: total / days,
+      granularity,
+      trend,
+      avgResolutionHours,
+      resolutionByType,
+    };
   }
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
@@ -300,6 +437,8 @@ export class SupportIssueService {
 
     // department filtering: the role defines the allowed departments, an explicit filter may narrow within them
     const allowedDepartments = getVisibleDepartments(role);
+    if (allowedDepartments?.length === 0) return { data: [], total: 0 }; // no department access
+
     const departments =
       filter.department && (!allowedDepartments || allowedDepartments.includes(filter.department))
         ? [filter.department]
@@ -332,9 +471,13 @@ export class SupportIssueService {
     const termCount = Math.min(terms.length, 10);
     for (let i = 0; i < termCount; i++) {
       const param = `term${i}`;
+      // Only emit the id branch when the term is fully numeric — keeps the predicate on the PK
+      // index (no cast-to-text) and avoids partial-match surprises (term "42" doesn't match id 142).
+      const idTerm = /^\d+$/.test(terms[i]) ? parseInt(terms[i], 10) : null;
+      const idClause = idTerm != null ? ` OR issue.id = :${param}Id` : '';
       qb.andWhere(
-        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR "userData".firstname LIKE :${param} OR "userData".surname LIKE :${param} OR "userData"."organizationName" LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m."issueId" = issue.id AND m.message LIKE :${param}))`,
-        { [param]: `%${terms[i]}%` },
+        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR "userData".firstname LIKE :${param} OR "userData".surname LIKE :${param} OR "userData"."organizationName" LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m."issueId" = issue.id AND m.message LIKE :${param})${idClause})`,
+        { [param]: `%${terms[i]}%`, ...(idTerm != null ? { [`${param}Id`]: idTerm } : {}) },
       );
     }
 

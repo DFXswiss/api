@@ -25,3 +25,6 @@ export enum UserRole {
 // must pass an independent TOTP second factor (never a mail code to the same inbox as the magic link).
 // Priority-ordered (highest privilege first) for mail-login role resolution.
 export const StaffRoles = [UserRole.COMPLIANCE, UserRole.SUPPORT, UserRole.REALUNIT];
+
+// Roles with admin privileges: super admin is a strict superset of admin, so both are treated as admin.
+export const ADMIN_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.SUPER_ADMIN];

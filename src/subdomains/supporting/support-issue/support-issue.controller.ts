@@ -8,7 +8,8 @@ import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import { ADMIN_ROLES, UserRole } from 'src/shared/auth/user-role.enum';
+import { BindEscalationChatDto } from './dto/bind-escalation-chat.dto';
 import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
 import { GetSupportIssueFilter, GetSupportIssueListFilter } from './dto/get-support-issue.dto';
@@ -16,6 +17,7 @@ import {
   SupportIssueDto,
   SupportIssueInternalDataDto,
   SupportIssueListDto,
+  SupportIssueStatisticsDto,
   SupportMessageDto,
 } from './dto/support-issue.dto';
 import { UpdateSupportIssueDto } from './dto/update-support-issue.dto';
@@ -23,12 +25,19 @@ import { SupportIssue } from './entities/support-issue.entity';
 import { CustomerAuthor } from './entities/support-message.entity';
 import { Department } from './enums/department.enum';
 import { SupportIssueInternalState, SupportIssueType } from './enums/support-issue.enum';
+import { SupportEscalationService, TelegramChat } from './services/support-escalation.service';
 import { SupportIssueService } from './services/support-issue.service';
+
+// Roles whose messages count as staff replies (createMessageSupport) rather than customer messages
+const SUPPORT_STAFF_ROLES: UserRole[] = [UserRole.SUPPORT, UserRole.COMPLIANCE, ...ADMIN_ROLES];
 
 @ApiTags('Support')
 @Controller('support/issue')
 export class SupportIssueController {
-  constructor(private readonly supportIssueService: SupportIssueService) {}
+  constructor(
+    private readonly supportIssueService: SupportIssueService,
+    private readonly supportEscalationService: SupportEscalationService,
+  ) {}
 
   @Post()
   @ApiBearerAuth()
@@ -96,6 +105,41 @@ export class SupportIssueController {
     return this.supportIssueService.getSupportIssueCounts(jwt.role);
   }
 
+  @Get('statistics')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportIssueStatistics(
+    @GetJwt() jwt: JwtPayload,
+    @Query('days') days?: string,
+  ): Promise<SupportIssueStatisticsDto> {
+    return this.supportIssueService.getSupportIssueStatistics(jwt.role, days ? +days : undefined);
+  }
+
+  @Get('escalation/telegram-chats')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getEscalationChats(): Promise<TelegramChat[]> {
+    return this.supportEscalationService.getGroupChats();
+  }
+
+  @Post('escalation/telegram-bind')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async bindEscalationChat(@Body() dto: BindEscalationChatDto): Promise<{ chat: TelegramChat | null }> {
+    return { chat: (await this.supportEscalationService.bindGroupChat(dto.chatId)) ?? null };
+  }
+
+  @Post('escalation/telegram-test')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async testEscalationChat(): Promise<{ sent: boolean }> {
+    return { sent: await this.supportEscalationService.sendTestMessage() };
+  }
+
   @Get('activity')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
@@ -113,6 +157,14 @@ export class SupportIssueController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getSupportIssueClerks(): Promise<string[]> {
     return this.supportIssueService.getSupportIssueClerks();
+  }
+
+  @Get('clerk')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  async getSupportIssueClerk(@GetJwt() jwt: JwtPayload): Promise<{ clerk: string | null }> {
+    return { clerk: (await this.supportIssueService.getSupportIssueClerkForAccount(jwt.account)) ?? null };
   }
 
   @Get(':id')
@@ -142,7 +194,7 @@ export class SupportIssueController {
     @Param('id') id: string,
     @Body() dto: CreateSupportMessageDto,
   ): Promise<SupportMessageDto> {
-    return jwt?.role && [UserRole.SUPPORT, UserRole.COMPLIANCE, UserRole.ADMIN].includes(jwt.role)
+    return jwt?.role && SUPPORT_STAFF_ROLES.includes(jwt.role)
       ? this.supportIssueService.createMessageSupport(+id, dto)
       : this.supportIssueService.createMessage(id, dto, jwt?.account);
   }

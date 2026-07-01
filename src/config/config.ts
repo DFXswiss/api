@@ -574,6 +574,10 @@ export class Configuration {
       mailBanner: process.env.SUPPORT_MESSAGE_BANNER,
     },
     issueOnHoldExpiry: 14, //days
+    escalation: {
+      telegramBotToken: process.env.SUPPORT_TELEGRAM_BOT_TOKEN,
+      slaHours: 24, // customer waiting longer than this escalates
+    },
   };
 
   letter = {
@@ -1106,6 +1110,23 @@ export class Configuration {
 
   ikna = {
     Authorization: process.env.IKNA_KEY,
+  };
+
+  scorechain = {
+    apiKey: process.env.SCORECHAIN_API_KEY,
+    // PEM key stored single-line in the env/vault with <br> line breaks (same convention as the
+    // other PEM env vars, e.g. PAYMENT_WEBHOOK_PUBLIC_KEY). Restore real newlines so node's crypto
+    // verifier can parse it; without this a pinned key fails to parse, every signature check fails,
+    // and isHighRisk() treats every screen as high risk.
+    publicKey: process.env.SCORECHAIN_PUBLIC_KEY?.split('<br>').join('\n'),
+    riskThreshold: +(process.env.SCORECHAIN_RISK_THRESHOLD ?? 70),
+    // ADDRESS/WALLET risk is mutable — an address can be flagged after a clean screen — so a clean
+    // verdict expires after this TTL and is re-screened. A TRANSACTION verdict is keyed by an
+    // immutable tx hash and is reused with no time bound, so a given tx is screened at most once.
+    addressCacheMinutes: +(process.env.SCORECHAIN_ADDRESS_CACHE_MINUTES ?? 7 * 24 * 60),
+    monthlyCheckLimit: process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT
+      ? +process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT
+      : undefined,
   };
 
   invoice = {

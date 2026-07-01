@@ -1,5 +1,10 @@
+import { Test } from '@nestjs/testing';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { TestUtil } from 'src/shared/utils/test.util';
+import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -110,6 +115,80 @@ describe('BuyFiat entity', () => {
       });
 
       expect(buyFiat.pendingInputAmount(cryptoAsset)).toEqual(0);
+    });
+  });
+
+  describe('#amlCheckAndFillUp Scorechain gate', () => {
+    beforeAll(async () => {
+      await Test.createTestingModule({ providers: [TestUtil.provideConfig()] }).compile();
+    });
+    afterEach(() => jest.restoreAllMocks());
+
+    const run = (entity: any, screen?: () => Promise<boolean>) =>
+      entity.amlCheckAndFillUp(
+        null, // inputAsset
+        0, // minVolume
+        100, // amountInEur
+        120, // amountInChf
+        0, // last30dVolume
+        0, // last365dVolume
+        null, // bankData
+        [], // blacklist
+        [], // phoneCallList
+        null, // ibanCountry
+        undefined, // refUser
+        undefined, // recommender
+        screen,
+      );
+
+    it('does not screen when the tx would not otherwise pass', async () => {
+      jest.spyOn(AmlHelperService, 'getAmlResult').mockReturnValue({ amlCheck: CheckStatus.FAIL } as any);
+      const screen = jest.fn().mockResolvedValue(true);
+
+      await run(createCustomBuyFiat({}), screen);
+
+      expect(screen).not.toHaveBeenCalled();
+      expect(AmlHelperService.getAmlResult).toHaveBeenCalledTimes(1);
+    });
+
+    it('screens when the tx would otherwise pass and flips to PENDING on a high-risk hit', async () => {
+      const spy = jest
+        .spyOn(AmlHelperService, 'getAmlResult')
+        .mockReturnValueOnce({ amlCheck: CheckStatus.PASS } as any)
+        .mockReturnValueOnce({ amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK } as any);
+      const screen = jest.fn().mockResolvedValue(true);
+      const entity = createCustomBuyFiat({});
+
+      await run(entity, screen);
+
+      expect(screen).toHaveBeenCalledTimes(1);
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect(spy.mock.calls[0].at(-1)).toBe(false); // phase 1
+      expect(spy.mock.calls[1].at(-1)).toBe(true); // phase 2
+      expect(entity.amlCheck).toBe(CheckStatus.PENDING);
+    });
+
+    it('keeps PASS when the tx would pass and screening is clean (no phase 2)', async () => {
+      jest.spyOn(AmlHelperService, 'getAmlResult').mockReturnValue({ amlCheck: CheckStatus.PASS } as any);
+      const screen = jest.fn().mockResolvedValue(false);
+      const entity = createCustomBuyFiat({});
+
+      await run(entity, screen);
+
+      expect(screen).toHaveBeenCalledTimes(1);
+      expect(AmlHelperService.getAmlResult).toHaveBeenCalledTimes(1);
+      expect(entity.amlCheck).toBe(CheckStatus.PASS);
+    });
+  });
+
+  describe('#resetAmlCheck()', () => {
+    it('clears amlPostProcessed so the reset verdict is re-processed once it is re-evaluated', () => {
+      const entity = createCustomBuyFiat({ amlPostProcessed: true });
+
+      const [, update] = entity.resetAmlCheck();
+
+      expect(update.amlPostProcessed).toBe(false);
+      expect(entity.amlPostProcessed).toBe(false);
     });
   });
 });
