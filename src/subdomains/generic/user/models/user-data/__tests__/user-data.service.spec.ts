@@ -126,5 +126,24 @@ describe('UserDataService', () => {
       expect(savedArg.users).toBeUndefined();
       expect(savedArg.id).toBe(1);
     });
+
+    it("re-applies the user's own kycFileId without throwing (self-exclusion, idempotent AML retry)", async () => {
+      const userData = Object.assign(new UserData(), { id: 1, kycLevel: 0, users: [], kycSteps: [] });
+      userDataRepo.findOne.mockResolvedValue(userData);
+      // the same user already holds this kycFileId — re-applying it must not be treated as a conflict
+      userDataRepo.findOneBy.mockResolvedValue(userData);
+      userDataRepo.save.mockImplementation(async (e) => e as UserData);
+
+      await expect(service.updateUserData(1, { kycFileId: 42 })).resolves.toBeDefined();
+    });
+
+    it('throws a conflict when a different user already holds the kycFileId', async () => {
+      const userData = Object.assign(new UserData(), { id: 1, kycLevel: 0, users: [], kycSteps: [] });
+      const otherUser = Object.assign(new UserData(), { id: 2 });
+      userDataRepo.findOne.mockResolvedValue(userData);
+      userDataRepo.findOneBy.mockResolvedValue(otherUser);
+
+      await expect(service.updateUserData(1, { kycFileId: 42 })).rejects.toBeInstanceOf(ConflictException);
+    });
   });
 });

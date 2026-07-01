@@ -1028,7 +1028,11 @@ export class UserDataService {
 
     if (dto.kycFileId) {
       const userWithSameFileId = await this.userDataRepo.findOneBy({ kycFileId: dto.kycFileId });
-      if (userWithSameFileId) throw new ConflictException('A user with this KYC file ID already exists');
+      // exclude the user itself, so re-applying an already-assigned kycFileId is idempotent (mirrors the
+      // nationality/identDocumentId self-exclusion below). Without this, an AML post-processing retry that
+      // re-sends the same kycFileId conflicts with the user's own record and loops on every cron run.
+      if (userWithSameFileId && userWithSameFileId.id !== userData.id)
+        throw new ConflictException('A user with this KYC file ID already exists');
 
       Object.assign(userData, { kycFileId: dto.kycFileId });
     }
