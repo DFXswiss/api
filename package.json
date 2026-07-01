@@ -124,6 +124,7 @@
     "rimraf": "^4.4.1",
     "rxjs": "^7.8.2",
     "sanitize-html": "^2.17.4",
+    "scorechain-sdk": "^1.0.3",
     "secp256k1": "^5.0.1",
     "swagger-ui-express": "^4.6.3",
     "swissqrbill": "^4.2.0",

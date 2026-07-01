@@ -83,11 +83,20 @@ specification, then a single implementation PR (see §11).
   stored as a deployment secret (see §7). It is not sent by the provider via email.
 
 ### Proof of authenticity (response signature)
-- Algorithm **RSA-SHA256** (RSASSA-PKCS1-v1_5, RFC 8017).
+- Algorithm **RSA-SHA256** (RSASSA-PKCS1-v1_5, RFC 8017). The signed message is
+  `JSON.stringify({ data, timestamp })` where `data` is the parsed response body and
+  `timestamp` is `X-Server-Time`; the signature is **hex**-encoded. (Confirmed against the
+  live API and the `scorechain-sdk` source.)
 - Response headers: **`X-Signature`** (signature), **`X-Server-Time`** (UNIX server time).
-- Public key from **`GET /publicKeys`** (camelCase).
-- A provider JS SDK validates this; DFX may validate manually with Node `crypto` to avoid
-  the extra dependency — open decision (§12, Q3).
+- Public key from **`GET /publicKeys`** (camelCase) — returns `[{ key }]`.
+- Verified via the official **`scorechain-sdk`** `proofOfAuthenticityVerifier` (resolved §12.3).
+
+### Base URL & score direction (confirmed via sandbox)
+- Base URL is **`https://api.scorechain.com/v1`** (the `/v1` prefix is required).
+- `scoringAnalysis` returns `{ id, lowestScore, analysis, request }` — the risk value is
+  **`lowestScore` (1–100)** where **LOW = riskier**: `1` Critical, `2–29` High, `30–69`
+  Medium, `70–99` Low, `100` No risk. The manual-review gate therefore triggers when
+  `lowestScore < SCORECHAIN_RISK_THRESHOLD` (default 70).
 
 ### Supported blockchains (relevant subset for DFX)
 BITCOIN, ETHEREUM, ARBITRUMONE, BASE, OPTIMISM, POLYGON, BSC, SOLANA, TRON, LITECOIN,
@@ -344,25 +353,52 @@ and consistent — no untyped failures, no silent passes:
 - API key / webhook secret only from config/secret storage; never logged, never committed.
 - Commits **signed**; PR opened as **Draft**.
 
-## 12. Open questions (for reviewers)
+## 12. Resolved decisions
 
-1. **AML modelling:** reuse `AmlError.FORCE_MANUAL_CHECK` / `AmlReason.MANUAL_CHECK`, or add
-   a dedicated Scorechain `AmlError` + `AmlReason` (both mapped to `CheckStatus.PENDING` for
-   manual review)? Who owns the threshold config?
-2. **TMS depth:** the synchronous gate is `scoringAnalysis`. Do we **also** run the async
-   TMS workflow (`registerDeposit`/`registerWithdrawal` → scenarios/alerts) for the full
-   rules engine + audit trail, or start with `scoringAnalysis` alone? (`register*` is a
-   license-gated TMS feature — `NotIncludedInLicense`.)
-3. **Signature verification:** adopt the Scorechain JS SDK, or implement RSA-SHA256
-   verification with Node `crypto` (no new dependency)?
-4. **Quota policy at limit:** fail-closed (→ manual review) vs. fail-open + alert? Spec
-   recommends fail-closed.
-5. **ikna coexistence:** any short-term routing rule (which chains/flows go to which
-   provider), or run both fully in parallel and compare?
-6. **Exact call-sites** — the deposit gate on the sell-crypto / buy-crypto-swap pay-in path,
-   the withdrawal gate on the buy-crypto / payout path — confirm during review.
-7. **Alert delivery:** inbound webhook (`ScenarioAlertCallback`) vs. scheduled polling of
-   `/scenarios/alerts` — which is acceptable for our infra?
+1. **AML modelling:** dedicated `AmlError.SCORECHAIN_HIGH_RISK`, mapped in `aml-error.enum.ts`
+   to `{ type: CRUCIAL, amlCheck: CheckStatus.PENDING, amlReason: AmlReason.MANUAL_CHECK }`.
+   A dedicated error keeps Scorechain-triggered reviews distinguishable in logs/stats while
+   reusing the existing `AmlReason`. Thresholds are config-driven (`SCORECHAIN_RISK_THRESHOLD`).
+   **No tipping-off (invariant):** the `amlReason` stays the generic `MANUAL_CHECK`; the
+   customer-facing reason maps to `null` (`TransactionReasonMapper` in `transaction.dto.ts`), so a
+   customer never learns Scorechain flagged the tx. The provider is recorded **only in the internal
+   `comment`** (the joined AmlError name `ScorechainHighRisk`). That `comment` is INTERNAL ONLY —
+   it must never be returned to customers or partner webhooks; only Support/Compliance read it
+   (e.g. the `RoleGuard(SUPPORT)`-gated support-issue data endpoint). Do not add a Scorechain-named
+   `AmlReason` and do not surface `comment` in any customer-facing DTO.
+2. **TMS depth:** the **synchronous `scoringAnalysis` gate is the only implemented flow**. The
+   async TMS workflow (`register*` → scenarios/alerts) is a license-gated feature
+   (`NotIncludedInLicense`) that DFX does **not** license. Its placeholder client methods, the
+   alert-webhook receiver and the TMS-only DTOs were therefore **removed** rather than shipped
+   unused (DFXswiss/api#4013); only the synchronous gate ships. Should TMS be licensed later,
+   it can be re-added against this spec.
+3. **Signature verification:** uses the official **`scorechain-sdk`** `proofOfAuthenticityVerifier`
+   (RSA-SHA256 over `JSON.stringify({ data, timestamp })`, hex). The exact canonical form is
+   non-obvious and vendor-specific, so the maintained SDK function is used rather than a
+   hand-rolled reimplementation (it also handles provider key rotation). Fail-closed.
+4. **Quota policy at limit / provider failure:** fail-closed to manual review. A reached
+   `SCORECHAIN_MONTHLY_CHECK_LIMIT` (or a provider/transport error) throws
+   `ServiceUnavailableException` inside the screening service. The AML call-site
+   (`screenScorechain` in `buy-crypto-preparation` / `buy-fiat-preparation`) catches it and
+   returns high risk, so the tx is routed to manual review (`AmlError.SCORECHAIN_HIGH_RISK` →
+   `CheckStatus.PENDING`) instead of throwing out of the AML computation. Letting the throw escape
+   the compute path would silently stall settlement of every otherwise-passing tx on every cron
+   run, so the error is deliberately caught at the seam.
+5. **ikna coexistence:** run both fully in parallel (no routing rule); Scorechain is additive.
+6. **Live pipeline injection (call-sites):** the async screening is wired into the synchronous
+   AML pipeline (`screenScorechain` is threaded through `amlCheckAndFillUp` for every buy/sell that
+   would otherwise PASS, on both `buy-crypto` and `buy-fiat`). Because this changes core-flow
+   behaviour for all flows, it is guarded so it can be operated safely: the call is gated behind
+   `DisabledProcess(Process.SCORECHAIN)` and a `Config.scorechain.apiKey` presence check (runtime
+   kill-switch; when off it emits no signal and the other AML mechanisms decide), and every
+   provider/quota error fails closed to manual review (decision 4) rather than stalling the tx.
+   Enable it in a given environment only once the API key is provisioned and end-to-end validated
+   against a Scorechain sandbox.
+7. **Alert delivery:** part of the async TMS feature in decision 2 and therefore **not
+   implemented** — DFX does not license TMS, so no alert-webhook receiver ships. Were TMS
+   licensed, alerts would arrive via the inbound `ScenarioAlertCallback` webhook (authenticated
+   by the same `X-Signature` proof of authenticity), with `/scenarios/checks` polling as a
+   fallback.
 
 ## 13. Testing (covers the complete surface)
 

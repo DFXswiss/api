@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
+import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
+import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { Active, isAsset, isFiat } from 'src/shared/models/active';
@@ -7,6 +9,7 @@ import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BlockAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -53,7 +56,39 @@ export class BuyCryptoPreparationService {
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly virtualIbanService: VirtualIbanService,
     private readonly transactionService: TransactionService,
+    private readonly scorechainScreeningService: ScorechainScreeningService,
   ) {}
+
+  // Scorechain on-chain screening for the AML gate. BuyCrypto withdrawal (fiat-funded) screens the
+  // crypto-out target address; a swap (crypto-in) screens the incoming deposit tx. Chains Scorechain
+  // does not cover yield no signal (the other AML mechanisms apply). isHighRisk is fail-closed
+  // (invalid signature / no coverage / unsupported → high risk).
+  private async screenScorechain(entity: BuyCrypto): Promise<boolean> {
+    // Feature gate / kill-switch: when Scorechain is disabled or unconfigured (no API key), emit no
+    // signal so the tx is decided by the other AML mechanisms. This is the deliberate off-state and
+    // must never route an unscreened-because-off tx to manual review.
+    if (DisabledProcess(Process.SCORECHAIN) || !Config.scorechain.apiKey) return false;
+
+    const [blockchain, objectId, isDeposit] = entity.cryptoInput
+      ? [entity.cryptoInput.asset.blockchain, entity.cryptoInput.inTxId, true]
+      : [entity.outputAsset.blockchain, entity.targetAddress, false];
+
+    if (!objectId || !toScorechainBlockchain(blockchain)) return false;
+
+    try {
+      const screening = isDeposit
+        ? await this.scorechainScreeningService.screenDepositTransaction(blockchain, objectId)
+        : await this.scorechainScreeningService.screenWithdrawalAddress(blockchain, objectId);
+
+      return this.scorechainScreeningService.isHighRisk(screening);
+    } catch (e) {
+      // Fail-closed to manual review: a provider/transport error or a reached monthly quota must not
+      // throw out of the AML computation (which would silently stall settlement of every otherwise-
+      // passing tx on every cron run). Treat it as high risk → SCORECHAIN_HIGH_RISK → PENDING.
+      this.logger.error(`Scorechain screening failed for buy-crypto ${entity.id}, routing to manual review:`, e);
+      return true;
+    }
+  }
 
   async doAmlCheck(): Promise<void> {
     const request: FindOptionsWhere<BuyCrypto> = {
@@ -70,6 +105,9 @@ export class BuyCryptoPreparationService {
           ...request,
         },
         { amlCheck: CheckStatus.PENDING, amlReason: Not(In(BlockAmlReasons)), ...request },
+        // Retry a PASS whose post-processing did not complete (transient failure) so its compliance
+        // side-effects are not silently lost; postProcessing is idempotent, so re-running is safe.
+        { amlCheck: CheckStatus.PASS, amlPostProcessed: false, ...request },
       ],
       relations: {
         bankTx: true,
@@ -151,6 +189,16 @@ export class BuyCryptoPreparationService {
           referenceChfPrice,
         );
 
+        // Retry path: this row is already PASS but its post-processing did not complete — a transient
+        // cron failure, or a manual reviewer / other path that committed PASS without finishing
+        // post-processing. Re-run post-processing ONLY; never recompute the verdict here, so a committed
+        // PASS (including a human reviewer's decision) is never reverted, re-screened or re-billed.
+        if (entity.amlCheck === CheckStatus.PASS && !entity.amlPostProcessed) {
+          await this.amlService.postProcessing(entity, last30dVolume, isFirstRun);
+          await this.buyCryptoRepo.update(entity.id, { amlPostProcessed: true });
+          continue;
+        }
+
         const last365dVolume = await this.transactionHelper.getVolumeChfSince(
           entity,
           users,
@@ -170,7 +218,7 @@ export class BuyCryptoPreparationService {
           ? await this.virtualIbanService.getByIban(entity.bankTx.virtualIban)
           : undefined;
 
-        const [id, update] = entity.amlCheckAndFillUp(
+        const [id, update] = await entity.amlCheckAndFillUp(
           inputCurrency,
           minVolume,
           referenceEurPrice.convert(entity.inputReferenceAmount, 2),
@@ -188,6 +236,7 @@ export class BuyCryptoPreparationService {
           ipLogCountries,
           virtualIban,
           multiAccountBankNames,
+          () => this.screenScorechain(entity),
         );
 
         // Atomic guard: persist only if amlCheck is unchanged since it was read, so a concurrent manual
@@ -199,6 +248,14 @@ export class BuyCryptoPreparationService {
         if (!affected) continue;
 
         await this.amlService.postProcessing(entity, last30dVolume, isFirstRun);
+
+        // postProcessing's compliance side-effects completed → mark the verdict fully handled so the
+        // PASS-retry branch above stops re-selecting it. A throw above skips this, leaving the flag
+        // false so the next run retries.
+        if (entity.amlCheck === CheckStatus.PASS) {
+          await this.buyCryptoRepo.update(id, { amlPostProcessed: true });
+          entity.amlPostProcessed = true;
+        }
 
         if (amlCheckBefore !== entity.amlCheck) await this.buyCryptoWebhookService.triggerWebhook(entity);
 

@@ -2,7 +2,7 @@
   "title": "Facture No. {invoiceId}",
   "credit_title": "Crédit No. {invoiceId}",
   "receipt_title": "Confirmation de Transaction No. {invoiceId}",
-  "multi_receipt_title": "Confirmation de Transaction",
+  "multi_receipt_title": "Historique des transactions",
   "section": {
     "buy": "Achats",
     "sell": "Ventes"
@@ -40,5 +40,17 @@
   "payment_info_iban": "IBAN",
   "payment_info_bic": "BIC",
   "payment_info_recipient": "Bénéficiaire",
-  "payment_info_reference": "Motif de paiement"
+  "payment_info_reference": "Motif de paiement",
+  "realunit_receipt": {
+    "buy_description": "Action nominative RealUnit (jeton d'action REALU), ISIN CH1137233305 — droit-valeur inscrit via {assetBlockchain} Blockchain",
+    "sell_description": "Action nominative RealUnit (jeton d'action REALU), ISIN CH1137233305 — droit-valeur inscrit via {assetBlockchain} Blockchain",
+    "unit_price_label": "Cours",
+    "fees_label": "Frais",
+    "fees_free": "sans frais",
+    "details_title": "Détails de la transaction",
+    "buyer_label": "Acheteur / Détenteur",
+    "wallet_label": "Adresse du portefeuille",
+    "tx_hash_label": "Hash de transaction",
+    "receipt_total_label": "Total du reçu"
+  }
 }

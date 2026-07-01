@@ -103,6 +103,17 @@ export class HttpService {
     ).data;
   }
 
+  public async postRaw<T>(url: string, data: any, config?: HttpRequestConfig): Promise<AxiosResponse<T>> {
+    if (this.shouldMock(url)) {
+      return { data: this.getMockResponse<T>(url), status: 200, statusText: 'OK', headers: {}, config: {} as any };
+    }
+    return Util.retry(
+      () => firstValueFrom(this.http.post<T>(url, data, config)),
+      config?.tryCount ?? 1,
+      config?.retryDelay,
+    );
+  }
+
   public async patch<T>(url: string, data: any, config?: HttpRequestConfig): Promise<T> {
     if (this.shouldMock(url)) return this.getMockResponse<T>(url);
     return (

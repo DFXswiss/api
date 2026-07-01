@@ -57,6 +57,7 @@ export enum Process {
   ASSET_DECIMALS = 'AssetDecimals',
   UPDATE_BLOCKCHAIN_FEE = 'UpdateBlockchainFee',
   SANCTION_SYNC = 'SanctionSync',
+  SCORECHAIN = 'Scorechain',
   PAYMENT_EXPIRATION = 'PaymentExpiration',
   PAYMENT_CONFIRMATIONS = 'PaymentConfirmations',
   PAYMENT_FORWARDING = 'PaymentForwarding',

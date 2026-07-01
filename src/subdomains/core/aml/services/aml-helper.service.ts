@@ -50,6 +50,7 @@ export class AmlHelperService {
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
     recommender?: UserData,
+    scorechainHighRisk = false,
   ): AmlError[] {
     const errors: AmlError[] = [];
     const nationality = entity.userData.nationality;
@@ -59,6 +60,10 @@ export class AmlHelperService {
       [Environment.LOC, Environment.DEV].includes(Config.environment)
     )
       return errors;
+
+    // Scorechain on-chain screening (withdrawal target address / deposit tx); the async call runs in
+    // the AML orchestrator and is reduced to this boolean. Outcome layer only (CRUCIAL → manual review).
+    if (scorechainHighRisk) errors.push(AmlError.SCORECHAIN_HIGH_RISK);
 
     if (isAsset(inputAsset) && inputAsset.name === 'REALU') errors.push(AmlError.ASSET_INPUT_NOT_ALLOWED);
 
@@ -138,6 +143,18 @@ export class AmlHelperService {
       if (last365dVolume > entity.userData.depositLimit) errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
     }
 
+    // A granted annual deposit limit must hold regardless of monthly volume, so it cannot be evaded by
+    // structuring turnover below the monthly KYC threshold. Above the threshold this is already covered
+    // by the KYC-gating block above; here we add only the below-threshold case, and only for users who
+    // actually have a limit set (a null limit means none granted — not a zero limit, which would flag
+    // every user with any annual volume).
+    if (
+      last30dVolume <= Config.tradingLimits.monthlyDefaultWoKyc &&
+      entity.userData.depositLimit != null &&
+      last365dVolume > entity.userData.depositLimit
+    )
+      errors.push(AmlError.DEPOSIT_LIMIT_REACHED);
+
     // AmlRule asset/fiat check
     errors.push(
       ...this.amlRuleCheck(
@@ -177,6 +194,11 @@ export class AmlHelperService {
           last7dCheckoutVolume,
         ),
       );
+    // RULE_11 waives the KYC-level requirement ONLY for special IP countries (CH), exactly like the
+    // quote-time check (amlRuleQuoteCheck). Without the IP gate a non-CH user on a RULE_11 wallet would
+    // have KYC silently waived — a fail-open KYC bypass. Missing ipCountry → no waiver (fail-closed).
+    const rule11KycWaiver =
+      entity.wallet.amlRuleList.includes(AmlRule.RULE_11) && SpecialIpCountries.includes(entity.user.ipCountry);
     for (const amlRule of entity.wallet.amlRuleList) {
       const error = this.amlRuleCheck(
         amlRule,
@@ -186,7 +208,7 @@ export class AmlHelperService {
         last7dCheckoutVolume,
       );
       if (
-        !entity.wallet.amlRuleList.includes(AmlRule.RULE_11) ||
+        !rule11KycWaiver ||
         (!error.includes(AmlError.KYC_LEVEL_30_NOT_REACHED) && !error.includes(AmlError.KYC_LEVEL_50_NOT_REACHED))
       )
         errors.push(...error);
@@ -245,12 +267,6 @@ export class AmlHelperService {
         (entity.checkoutTx || (entity.bankTx && entity.userData.kycLevel < KycLevel.LEVEL_30))
       )
         errors.push(AmlError.SUSPICIOUS_MAIL);
-
-      for (const amlRule of entity.user.wallet.amlRuleList) {
-        errors.push(
-          ...this.amlRuleCheck(amlRule, entity.wallet.exceptAmlRuleList, entity, amountInChf, last7dCheckoutVolume),
-        );
-      }
 
       if (
         !entity.userData.phoneCallCheckDate &&
@@ -599,6 +615,7 @@ export class AmlHelperService {
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
+    scorechainHighRisk = false,
   ): {
     bankData?: BankData;
     amlCheck?: CheckStatus;
@@ -625,6 +642,7 @@ export class AmlHelperService {
       virtualIban,
       multiAccountBankNames,
       recommender,
+      scorechainHighRisk,
     ).filter((e) => e);
 
     const comment = Array.from(new Set(amlErrors)).join(';');
