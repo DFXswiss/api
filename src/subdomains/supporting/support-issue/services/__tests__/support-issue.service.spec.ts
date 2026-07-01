@@ -16,6 +16,7 @@ import {
   SupportIssueListOrderBy,
 } from 'src/subdomains/supporting/support-issue/dto/get-support-issue.dto';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
+import { Department } from 'src/subdomains/supporting/support-issue/enums/department.enum';
 import {
   SupportIssueInternalState,
   SupportIssueReason,
@@ -33,6 +34,7 @@ import { SupportLogService } from 'src/subdomains/supporting/support-issue/servi
 
 describe('SupportIssueService.getSupportIssueList', () => {
   let service: SupportIssueService;
+  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
   let qb: Record<string, jest.Mock>;
 
   // chainable query-builder recorder: every builder method returns the same object,
@@ -51,9 +53,15 @@ describe('SupportIssueService.getSupportIssueList', () => {
 
   const andWhereClauses = (): string[] => qb.andWhere.mock.calls.map((c) => String(c[0]));
 
+  // the department parameter handed to the "issue.department IN (:...departments)" clause (undefined if absent)
+  const departmentsParam = (): Department[] | undefined => {
+    const call = qb.andWhere.mock.calls.find((c) => String(c[0]).includes('issue.department IN'));
+    return call?.[1]?.departments as Department[] | undefined;
+  };
+
   beforeEach(() => {
     qb = createQbMock();
-    const supportIssueRepo = createMock<SupportIssueRepository>();
+    supportIssueRepo = createMock<SupportIssueRepository>();
     (supportIssueRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
 
     service = new SupportIssueService(
@@ -128,6 +136,46 @@ describe('SupportIssueService.getSupportIssueList', () => {
       const dto = plainToInstance(GetSupportIssueListFilter, { orderBy: 'id); DROP TABLE support_issue; --' });
       const errors = await validate(dto);
       expect(errors.find((e) => e.property === 'orderBy')?.constraints).toHaveProperty('isEnum');
+    });
+  });
+
+  // Guards the security-relevant department narrowing: an out-of-set ?department= must never widen access,
+  // the role's allowed set is the ceiling, and a role with no department access never even queries.
+  describe('department narrowing', () => {
+    it('keeps support locked to its own department, ignoring an out-of-set ?department (no escalation)', async () => {
+      await run({ department: Department.COMPLIANCE }, UserRole.SUPPORT);
+      expect(departmentsParam()).toEqual([Department.SUPPORT]);
+    });
+
+    it('lets compliance narrow to the support department via ?department', async () => {
+      await run({ department: Department.SUPPORT }, UserRole.COMPLIANCE);
+      expect(departmentsParam()).toEqual([Department.SUPPORT]);
+    });
+
+    it('defaults compliance to its full allowed set (support + compliance) without ?department', async () => {
+      await run({}, UserRole.COMPLIANCE);
+      expect(departmentsParam()).toEqual([Department.SUPPORT, Department.COMPLIANCE]);
+    });
+
+    it('applies an arbitrary ?department for an unrestricted admin', async () => {
+      await run({ department: Department.MARKETING }, UserRole.ADMIN);
+      expect(departmentsParam()).toEqual([Department.MARKETING]);
+    });
+
+    it('applies no department filter for admin without ?department (unrestricted)', async () => {
+      await run({}, UserRole.ADMIN);
+      expect(departmentsParam()).toBeUndefined();
+    });
+
+    it('applies no department filter for super admin without ?department (unrestricted)', async () => {
+      await run({}, UserRole.SUPER_ADMIN);
+      expect(departmentsParam()).toBeUndefined();
+    });
+
+    it('returns nothing for a role with no department access, without querying', async () => {
+      const result = await run({}, UserRole.USER);
+      expect(result).toEqual({ data: [], total: 0 });
+      expect(supportIssueRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
   });
 });
@@ -229,6 +277,7 @@ describe('SupportIssueService.closeIssue', () => {
 
 describe('SupportIssueService.getSupportIssueStatistics', () => {
   let service: SupportIssueService;
+  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
 
   let trendRows: { d: Date; count: string }[];
   let resolvedRows: { type: SupportIssueType; created: Date; updated: Date }[];
@@ -266,7 +315,7 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
     resolvedRows = [];
     totalCount = 0;
     andWhereClauses = [];
-    const supportIssueRepo = createMock<SupportIssueRepository>();
+    supportIssueRepo = createMock<SupportIssueRepository>();
     const messageRepo = createMock<SupportMessageRepository>();
     (supportIssueRepo.createQueryBuilder as jest.Mock).mockImplementation(() => statsQbMock());
     (messageRepo.createQueryBuilder as jest.Mock).mockImplementation(() => statsQbMock());
@@ -390,5 +439,54 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
   it('does not department-scope for an all-access role', async () => {
     await service.getSupportIssueStatistics(UserRole.ADMIN, 7);
     expect(andWhereClauses.some((c) => c.includes('issue.department'))).toBe(false);
+  });
+
+  it('returns an empty, unqueried statistic for a role with no department access', async () => {
+    const dto = await service.getSupportIssueStatistics(UserRole.USER, 7);
+    expect(dto.total).toBe(0);
+    expect(dto.trend).toEqual([]);
+    expect(dto.resolutionByType).toEqual([]);
+    expect(dto.avgResolutionHours).toBe(0);
+    expect(supportIssueRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+});
+
+// the count / activity endpoints share the same fail-closed guard as list / statistics: a role with no
+// department access gets an empty result without ever touching the database
+describe('SupportIssueService no-department-access guards', () => {
+  let service: SupportIssueService;
+  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
+  let messageRepo: DeepMocked<SupportMessageRepository>;
+
+  beforeEach(() => {
+    supportIssueRepo = createMock<SupportIssueRepository>();
+    messageRepo = createMock<SupportMessageRepository>();
+
+    service = new SupportIssueService(
+      supportIssueRepo,
+      createMock<TransactionService>(),
+      createMock<SupportDocumentService>(),
+      createMock<UserDataService>(),
+      messageRepo,
+      createMock<SupportIssueNotificationService>(),
+      createMock<LimitRequestService>(),
+      createMock<TransactionRequestService>(),
+      createMock<SupportLogService>(),
+      createMock<BankDataService>(),
+      createMock<SettingService>(),
+    );
+  });
+
+  it('getSupportIssueCounts returns an all-zero, unqueried record', async () => {
+    const counts = await service.getSupportIssueCounts(UserRole.USER);
+    const zero = Object.fromEntries(Object.values(SupportIssueInternalState).map((s) => [s, 0]));
+    expect(counts).toEqual(zero);
+    expect(supportIssueRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+
+  it('getSupportIssueActivity returns empty activity without querying', async () => {
+    const activity = await service.getSupportIssueActivity(undefined, UserRole.USER);
+    expect(activity).toEqual({ count: 0, latestAt: undefined });
+    expect(messageRepo.createQueryBuilder).not.toHaveBeenCalled();
   });
 });

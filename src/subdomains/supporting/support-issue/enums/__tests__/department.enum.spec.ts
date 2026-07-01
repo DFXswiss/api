@@ -14,8 +14,12 @@ describe('getVisibleDepartments', () => {
     expect(getVisibleDepartments(UserRole.MARKETING)).toEqual([Department.MARKETING]);
   });
 
-  it('returns undefined (unrestricted) for admin and super admin', () => {
+  it('leaves admin and super admin unrestricted (undefined = every department)', () => {
     expect(getVisibleDepartments(UserRole.ADMIN)).toBeUndefined();
     expect(getVisibleDepartments(UserRole.SUPER_ADMIN)).toBeUndefined();
+  });
+
+  it('gives non-staff roles no department access (empty list)', () => {
+    expect(getVisibleDepartments(UserRole.USER)).toEqual([]);
   });
 });
