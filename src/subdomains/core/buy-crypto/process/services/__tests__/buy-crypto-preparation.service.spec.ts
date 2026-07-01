@@ -1,6 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { Config } from 'src/config/config';
+import { Config, ConfigService } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
@@ -113,6 +113,12 @@ describe('BuyCryptoPreparationService', () => {
     const call = (entity: any): Promise<boolean> => (service as any).screenScorechain(entity);
 
     let apiKeyBackup: string | undefined;
+
+    beforeAll(() => {
+      // Config is an uninitialized `export let` until a ConfigService is constructed; the gate reads
+      // Config.scorechain.apiKey, so prime it (mirrors scorechain.service.spec)
+      new ConfigService();
+    });
 
     beforeEach(() => {
       // enable the feature so the screening path is exercised: DisabledProcess is fail-closed
