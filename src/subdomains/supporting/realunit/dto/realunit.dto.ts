@@ -357,4 +357,15 @@ export class RealUnitPaymentInfoDto {
 export class RealUnitBuyConfirmDto {
   @ApiProperty({ description: 'Aktionariat reference for the confirmed buy order' })
   reference: string;
+
+  @ApiProperty({
+    description:
+      'Purpose of payment the customer must put on the bank transfer so the payment is matched. Equals the confirmed Aktionariat reference.',
+  })
+  remittanceInfo: string;
+
+  @ApiPropertyOptional({
+    description: 'QR code for payment (Swiss QR-bill or GiroCode), encoding the confirmed reference',
+  })
+  paymentRequest?: string;
 }
