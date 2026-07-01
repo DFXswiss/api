@@ -552,7 +552,10 @@ export class UserDataService {
   }
 
   async getLastKycFileId(): Promise<number> {
-    return this.userDataRepo.findOne({ where: {}, order: { kycFileId: 'DESC' } }).then((u) => u.kycFileId);
+    // Postgres `ORDER BY … DESC` is NULLS FIRST, so exclude nulls to get the real max.
+    return this.userDataRepo
+      .findOne({ where: { kycFileId: Not(IsNull()) }, order: { kycFileId: 'DESC' } })
+      .then((u) => u?.kycFileId ?? 0);
   }
 
   async updatePersonalData(userData: UserData, data: KycPersonalData): Promise<UserData> {
