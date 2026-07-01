@@ -551,11 +551,23 @@ export class UserDataService {
     return userData;
   }
 
-  async getLastKycFileId(): Promise<number> {
+  // Read-max-then-write is racy between concurrent AML postProcessing calls; the unique index on
+  // kycFileId is the actual backstop, this just retries so the loser gets the next free id.
+  async assignNextKycFileId(userData: UserData, attempt = 0): Promise<UserData> {
     // Postgres `ORDER BY … DESC` is NULLS FIRST, so exclude nulls to get the real max.
-    return this.userDataRepo
-      .findOne({ where: { kycFileId: Not(IsNull()) }, order: { kycFileId: 'DESC' } })
-      .then((u) => u?.kycFileId ?? 0);
+    const last = await this.userDataRepo.findOne({
+      where: { kycFileId: Not(IsNull()) },
+      order: { kycFileId: 'DESC' },
+    });
+    const kycFileId = (last?.kycFileId ?? 0) + 1;
+
+    try {
+      return await this.updateUserDataInternal(userData, { kycFileId, amlListAddedDate: new Date() });
+    } catch (e) {
+      if (attempt >= 4 || !(e instanceof ConflictException || e.message?.includes('duplicate key'))) throw e;
+
+      return this.assignNextKycFileId(userData, attempt + 1);
+    }
   }
 
   async updatePersonalData(userData: UserData, data: KycPersonalData): Promise<UserData> {
