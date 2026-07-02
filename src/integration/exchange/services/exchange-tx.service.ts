@@ -1,10 +1,10 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, OnModuleInit } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Process } from 'src/shared/services/process.service';
+import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import {
@@ -14,6 +14,7 @@ import {
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { FindOptionsRelations, In, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { ExchangeTxDto } from '../dto/exchange-tx.dto';
+import { ScryptBalanceTransaction, ScryptTransactionType } from '../dto/scrypt.dto';
 import { ExchangeSync, ExchangeSyncs, ExchangeTx, ExchangeTxType } from '../entities/exchange-tx.entity';
 import { ExchangeName } from '../enums/exchange.enum';
 import { ExchangeTxMapper } from '../mappers/exchange-tx.mapper';
@@ -22,10 +23,13 @@ import { ExchangeRegistryService } from './exchange-registry.service';
 import { ScryptService } from './scrypt.service';
 
 @Injectable()
-export class ExchangeTxService {
+export class ExchangeTxService implements OnModuleInit {
   private readonly logger = new DfxLogger(ExchangeTxService);
 
   private readonly syncWarningsLogged = new Set<string>();
+
+  // serializes event-driven upserts so overlapping WS callbacks cannot interleave DB writes
+  private scryptTxQueue: Promise<void> = Promise.resolve();
 
   constructor(
     private readonly exchangeTxRepo: ExchangeTxRepository,
@@ -34,6 +38,61 @@ export class ExchangeTxService {
     private readonly pricingService: PricingService,
     private readonly fiatService: FiatService,
   ) {}
+
+  onModuleInit() {
+    const scryptService = this.registryService.getExchange(ExchangeName.SCRYPT);
+    if (scryptService instanceof ScryptService && scryptService.isConfigured) {
+      scryptService.onBalanceTransactions((transactions) => this.handleScryptTransactions(transactions));
+    }
+  }
+
+  //*** EVENTS ***//
+
+  private handleScryptTransactions(transactions: ScryptBalanceTransaction[]): void {
+    // the 5-minute sync also persists these; skip event-driven writes when it is disabled
+    if (DisabledProcess(Process.EXCHANGE_TX_SYNC)) return;
+
+    // deposits only — withdrawals/trades keep their sync-only persistence timing, and the type
+    // filter on the raw records makes unknown transaction types harmless (never reach the mapper);
+    // the recency bound trims reconnect snapshot bursts while live pushes trivially pass
+    const deposits = transactions.filter(
+      (t) =>
+        t.TransactionType === ScryptTransactionType.DEPOSIT &&
+        t.Timestamp &&
+        new Date(t.Timestamp) >= Util.daysBefore(1),
+    );
+    if (!deposits.length) return;
+
+    const dtos = ExchangeTxMapper.mapScryptTransactions(deposits, ExchangeName.SCRYPT);
+
+    this.scryptTxQueue = this.scryptTxQueue
+      .then(() => this.upsertScryptTx(dtos))
+      .catch((e) => this.logger.warn('Failed to persist Scrypt deposit transactions:', e));
+  }
+
+  private async upsertScryptTx(dtos: ExchangeTxDto[]): Promise<void> {
+    for (const dto of dtos) {
+      try {
+        let entity = await this.exchangeTxRepo.findOneBy({
+          exchange: dto.exchange,
+          externalId: dto.externalId,
+          type: dto.type,
+        });
+
+        // stale event: the row already carries fresher data (later push or sync) — keep it
+        if (entity?.externalUpdated && dto.externalUpdated && entity.externalUpdated > dto.externalUpdated) continue;
+
+        // no pricing calls in the event path — amountChf/feeAmountChf stay untouched (they are not
+        // on the DTO, so Object.assign preserves them) and the sync backfills them on its next run
+        entity = entity ? Object.assign(entity, dto) : this.exchangeTxRepo.create(dto);
+
+        await this.exchangeTxRepo.save(entity);
+      } catch (e) {
+        // unique-index race or transient DB error — the 5-minute sync backfills the record
+        this.logger.warn(`Failed to persist Scrypt deposit ${dto.externalId}:`, e);
+      }
+    }
+  }
 
   //*** JOBS ***//
 
@@ -56,6 +115,15 @@ export class ExchangeTxService {
         externalId: transaction.externalId,
         type: transaction.type,
       });
+
+      // the run reads the map once at start and saves for minutes — do not let that stale
+      // snapshot overwrite rows the event-driven path has already updated
+      if (
+        entity?.externalUpdated &&
+        transaction.externalUpdated &&
+        entity.externalUpdated > transaction.externalUpdated
+      )
+        continue;
 
       // Preserve calculated spread fee for Scrypt (DTO's feeAmount=0 would overwrite it)
       const preservedSpreadFee =
