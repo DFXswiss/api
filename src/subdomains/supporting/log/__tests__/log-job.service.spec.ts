@@ -190,6 +190,22 @@ describe('LogJobService', () => {
       expect(log.balancesTotal.minusBalanceChf).toBe(3920);
       expect(log.balancesTotal.totalBalanceChf).toBe(6080);
     });
+
+    it('persists a negative totalBalanceChf as a real number instead of nulling it to undefined', async () => {
+      // a book whose liabilities exceed assets -> genuinely negative total
+      const createSpy = setupSaveTradingLog(
+        { amountEur: 0, amountChf: 0 },
+        { EUR: { plusBalance: 0, plusBalanceChf: 1000, minusBalance: 5000, minusBalanceChf: 5000 } },
+      );
+
+      await service.saveTradingLog();
+
+      const log = getFinancialLog(createSpy);
+      // must stay numeric so next run's lastTotalBalance is defined and the change-limit comparison
+      // (Math.abs(total - last)) does not break on undefined
+      expect(log.balancesTotal.totalBalanceChf).toBe(-4000);
+      expect(log.balancesTotal.totalBalanceChf).not.toBeUndefined();
+    });
   });
 
   describe('getBalancesByFinancialType (negative aggregates)', () => {

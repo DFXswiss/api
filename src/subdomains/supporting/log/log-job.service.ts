@@ -162,9 +162,12 @@ export class LogJobService {
           tradings: tradingLog,
           balancesByFinancialType,
           balancesTotal: {
-            plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
-            minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
-            totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
+            // keep negative totals as real numbers (returnNegativeValue): a genuinely negative
+            // plus/minus/total must stay numeric so next run's lastTotalBalance is defined and the
+            // change-limit comparison (Math.abs(total - last)) does not break on undefined.
+            plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true, true),
+            minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true, true),
+            totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true, true),
           },
         }),
         // jump vs. the last VALID entry (lastLog above), not the direct predecessor; must be
