@@ -20,3 +20,6 @@ export enum UserRole {
   KYC_CLIENT_COMPANY = 'KycClientCompany',
   CLIENT_COMPANY = 'ClientCompany',
 }
+
+// Roles with admin privileges: super admin is a strict superset of admin, so both are treated as admin.
+export const ADMIN_ROLES: UserRole[] = [UserRole.ADMIN, UserRole.SUPER_ADMIN];

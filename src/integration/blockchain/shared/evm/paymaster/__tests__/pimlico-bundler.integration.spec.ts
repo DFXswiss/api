@@ -2,21 +2,22 @@
  * Integration tests for PimlicoBundlerService
  *
  * These tests make REAL API calls to Pimlico. Run with:
- *   PIMLICO_API_KEY=your_key npm test -- pimlico-bundler.integration.spec.ts
+ *   TEST_WALLET=0x... PIMLICO_API_KEY=your_key npm test -- pimlico-bundler.integration.spec.ts
  *
  * Skip in CI by default (no API key), run locally for verification.
+ * TEST_WALLET must be a throwaway address whose seed is not committed anywhere.
  */
 import { encodeFunctionData, parseAbi } from 'viem';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 
 // Real Pimlico API key from environment
 const PIMLICO_API_KEY = process.env.PIMLICO_API_KEY;
-const TEST_WALLET = '0x482c8a499c7ac19925a0D2aA3980E1f3C5F19120';
+const TEST_WALLET = process.env.TEST_WALLET;
 
-// Skip all tests if no API key
-const describeIfApiKey = PIMLICO_API_KEY ? describe : describe.skip;
+// Skip unless both a Pimlico API key and a throwaway test wallet are provided.
+const describeIfConfigured = PIMLICO_API_KEY && TEST_WALLET ? describe : describe.skip;
 
-describeIfApiKey('PimlicoBundlerService Integration (Real API)', () => {
+describeIfConfigured('PimlicoBundlerService Integration (Real API)', () => {
   const getPimlicoUrl = (blockchain: Blockchain): string => {
     const chainNames: Partial<Record<Blockchain, string>> = {
       [Blockchain.ETHEREUM]: 'ethereum',
@@ -191,7 +192,7 @@ describeIfApiKey('PimlicoBundlerService Integration (Real API)', () => {
   });
 });
 
-describeIfApiKey('PimlicoBundlerService UserOperation Building', () => {
+describeIfConfigured('PimlicoBundlerService UserOperation Building', () => {
   const EIP7702_FACTORY = '0x0000000000000000000000000000000000007702';
 
   it('should build a valid UserOperation structure for EIP-7702', () => {
@@ -249,7 +250,7 @@ describeIfApiKey('PimlicoBundlerService UserOperation Building', () => {
 });
 
 // Summary test to document the full flow
-describeIfApiKey('EIP-7702 Gasless Flow Documentation', () => {
+describeIfConfigured('EIP-7702 Gasless Flow Documentation', () => {
   it('should document the complete gasless transaction flow', () => {
     const flow = `
     EIP-7702 + ERC-4337 Gasless Flow:
