@@ -5,7 +5,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 // `entryRole` requirement (super-roles). Single source of truth for role checks —
 // the `hasRoleAccess` predicate below routes every ad-hoc `.includes()` at call
 // sites through this map, so a hierarchy change here reaches every gate.
-const additionalRoles: Record<string, UserRole[]> = {
+const additionalRoles: Partial<Record<UserRole, UserRole[]>> = {
   [UserRole.ACCOUNT]: [
     UserRole.USER,
     UserRole.CUSTODY,

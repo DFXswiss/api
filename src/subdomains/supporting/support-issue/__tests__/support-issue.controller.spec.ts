@@ -53,4 +53,40 @@ describe('SupportIssueController.createSupportMessage routing', () => {
     expect(service.createMessage).toHaveBeenCalledWith('42', dto, undefined);
     expect(service.createMessageSupport).not.toHaveBeenCalled();
   });
+
+  // The JWT role stays valid until the token expires (default 2d), but the account may be
+  // blocked in the meantime. Staff routing must additionally check `isUserActive(jwt)` so a
+  // blocked staff account cannot keep posting official replies. Pins the fallthrough
+  // behaviour introduced by #4033 item 1.
+  describe('blocked staff fallthrough to createMessage', () => {
+    it.each([
+      ['userStatus BLOCKED', { userStatus: 'Blocked' as const }],
+      ['userStatus DELETED', { userStatus: 'Deleted' as const }],
+      ['accountStatus BLOCKED', { accountStatus: 'Blocked' as const }],
+      ['accountStatus DEACTIVATED', { accountStatus: 'Deactivated' as const }],
+      ['riskStatus BLOCKED', { riskStatus: 'Blocked' as const }],
+      ['riskStatus SUSPICIOUS', { riskStatus: 'Suspicious' as const }],
+    ])('routes to createMessage when a staff JWT has %s', async (_label, block) => {
+      const jwt = { role: UserRole.SUPPORT, account: 7, ...block } as unknown as JwtPayload;
+
+      await controller.createSupportMessage(jwt, '42', dto);
+
+      expect(service.createMessage).toHaveBeenCalledWith('42', dto, 7);
+      expect(service.createMessageSupport).not.toHaveBeenCalled();
+    });
+
+    it('routes an active staff JWT (all statuses ACTIVE) to createMessageSupport', async () => {
+      const jwt = {
+        role: UserRole.SUPPORT,
+        account: 7,
+        userStatus: 'Active',
+        accountStatus: 'Active',
+      } as unknown as JwtPayload;
+
+      await controller.createSupportMessage(jwt, '42', dto);
+
+      expect(service.createMessageSupport).toHaveBeenCalledWith(42, dto);
+      expect(service.createMessage).not.toHaveBeenCalled();
+    });
+  });
 });
