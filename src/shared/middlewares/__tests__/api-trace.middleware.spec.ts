@@ -1,5 +1,5 @@
-import { DfxLogger } from '../../services/dfx-logger';
-import { apiTraceMiddleware } from '../api-trace.middleware';
+import { apiTraceMiddleware } from 'src/shared/middlewares/api-trace.middleware';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 type Emit = (res: any) => void;
 
@@ -48,24 +48,29 @@ const realunitReq = (body: unknown) => ({
 
 describe('apiTraceMiddleware', () => {
   describe('realunit path — full redacted trace (via res.json → res.send)', () => {
-    const req = realunitReq({
-      email: 'jane.doe@example.com',
-      name: 'Jane Doe',
-      phoneNumber: '+41790000000',
-      bic: 'TESTCHBEXXX',
-      kycData: {
-        firstName: 'Jane',
-        addressStreet: 'Teststrasse 1',
-        addressPostalCode: '8001ABC',
-        addressCity: 'Testtown',
-        documentNumber: 'X1234567',
-      },
-      walletAddress: '0x1234567890123456789012345678901234567890',
-      txHash: '0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
-      amount: 50,
+    let lines: string[];
+    let line: string;
+
+    beforeAll(() => {
+      const req = realunitReq({
+        email: 'jane.doe@example.com',
+        name: 'Jane Doe',
+        phoneNumber: '+41790000000',
+        bic: 'TESTCHBEXXX',
+        kycData: {
+          firstName: 'Jane',
+          addressStreet: 'Teststrasse 1',
+          addressPostalCode: '8001ABC',
+          addressCity: 'Testtown',
+          documentNumber: 'X1234567',
+        },
+        walletAddress: '0x1234567890123456789012345678901234567890',
+        txHash: '0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789',
+        amount: 50,
+      });
+      ({ lines } = runTrace(req, 201, (res) => res.json({ status: 'CONFIRMED', error: 'Not Found' })));
+      line = lines.join('\n');
     });
-    const { lines } = runTrace(req, 201, (res) => res.json({ status: 'CONFIRMED', error: 'Not Found' }));
-    const line = lines.join('\n');
 
     it('logs exactly one line', () => {
       expect(lines).toHaveLength(1);
@@ -124,6 +129,51 @@ describe('apiTraceMiddleware', () => {
     expect(line).not.toContain('a@example.com');
     expect(line).not.toContain('192.0.2.2');
     expect(line).toContain('"tags":["ok","fine"]');
+  });
+
+  it('masks sell-broadcast signature material (unsignedTx / r / s / v)', () => {
+    const { lines } = runTrace(
+      realunitReq({
+        unsignedTx: '0x02f87261e08459682f008459682f0e82520894',
+        r: '0x1111111111111111111111111111111111111111111111111111111111111111',
+        s: '0x2222222222222222222222222222222222222222222222222222222222222222',
+        v: 27,
+      }),
+      200,
+      (res) => res.json({}),
+    );
+    const line = lines.join('\n');
+    expect(line).not.toContain('0x02f872');
+    expect(line).not.toContain('0x1111');
+    expect(line).not.toContain('0x2222');
+    expect(line).toContain('"v":"***"');
+  });
+
+  it('masks an uppercase-hex wallet and an email in the path', () => {
+    const req = {
+      method: 'GET',
+      originalUrl: '/v1/realunit/account/0X12345678901234567890123456789012345678AB/jane@example.com',
+      headers: {},
+      body: undefined,
+    };
+    const { lines } = runTrace(req, 404, (res) => res.send('Not Found'));
+    const line = lines.join('\n');
+    expect(line).toContain('/v1/realunit/account/0x…/***');
+    expect(line).not.toContain('0X12345678');
+    expect(line).not.toContain('jane@example.com');
+  });
+
+  it('stops redaction at the compute budget instead of walking a huge body', () => {
+    const huge = { items: Array.from({ length: 50_000 }, (_, i) => `leaf-value-${i}-${'x'.repeat(400)}`) };
+    const { lines } = runTrace(realunitReq(huge), 200, (res) => res.json({}));
+    const line = lines.join('\n');
+    expect(lines).toHaveLength(1);
+    expect(line).not.toContain('leaf-value-49999');
+    expect(line.length).toBeLessThan(3 * 4500); // each of the 3 sections stays within MAX_PART
+    // the reported serialized size proves the walk stopped at the budget
+    // instead of stringifying the whole ~20 MB body
+    const [, serializedSize] = line.match(/req\.body=.*…\((\d+) chars\)/) ?? [];
+    expect(Number(serializedSize)).toBeLessThan(10_000);
   });
 
   it('truncates oversized strings and summarizes binary bodies', () => {

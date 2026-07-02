@@ -12,37 +12,69 @@ const REALUNIT_PATH = /^\/v\d+\/realunit\//i;
 // `/v{n}/realunit/*` paths (below), so this only has to cover the RealUnit DTOs
 // — but kept deliberately broad: over-masking a harmless field is fine, leaking
 // a personal one is not.
-const REDACT_KEY =
-  /(^authorization$|^cookie$|^set-cookie$|^forwarded$|token$|signature$|password|secret|mnemonic|privatekey|name$|firstname|surname|mail|phone|street|address|city|zip|postalcode|housenumber|^number$|country|nationality|gender|document|birth|iban|bic|tin|x-forwarded-for|x-real-ip|cf-connecting-ip|true-client-ip|x-client-ip)/i;
+export const REDACT_KEY =
+  /(^authorization$|^cookie$|^set-cookie$|^forwarded$|^r$|^s$|^v$|^unsignedtx$|token$|signature$|password|secret|mnemonic|privatekey|name$|firstname|surname|mail|phone|street|address|city|zip|postalcode|housenumber|^number$|country|nationality|gender|document|birth|iban|bic|tin|tax|x-forwarded-for|x-real-ip|cf-connecting-ip|true-client-ip|x-client-ip)/i;
 
 // Value patterns masked wherever they appear, even under a key we didn't list.
 // The wallet match is exactly 40 hex — the lookahead leaves longer hex runs (tx
-// hashes, signatures) intact, since those are on-chain identifiers, not PII.
-const WALLET_ADDRESS = /0x[0-9a-fA-F]{40}(?![0-9a-fA-F])/g;
-const EMAIL = /[^\s"@]+@[^\s"@]+\.[^\s"@]+/g;
+// hashes) intact, since those are on-chain identifiers, not PII. The EMAIL
+// quantifiers are bounded so an adversarial body can't trigger super-linear
+// backtracking on the request path.
+const WALLET_ADDRESS = /0x[0-9a-f]{40}(?![0-9a-f])/gi;
+const EMAIL = /[^\s"@/]{1,64}@[^\s"@/]{1,255}\.[^\s"@/.]{1,24}/g;
 const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
 
 const MAX_STRING = 512; // per string leaf
 const MAX_PART = 4000; // per serialized section (headers / req body / res body)
+const REDACT_BUDGET = 2 * MAX_PART; // per section: bounds the compute, not just the output
 const REDACTED = '***';
+const TRUNCATED = '<…truncated…>';
 
 function maskValue(s: string): string {
   return s.replace(WALLET_ADDRESS, '0x…').replace(EMAIL, REDACTED).replace(IPV4, REDACTED);
 }
 
-function redact(value: unknown, key?: string): unknown {
+export function maskUrl(url: string): string {
+  return maskValue(url.split('?')[0]);
+}
+
+// `budget` bounds the total work per section: each processed node deducts from
+// it and the walk stops once it is spent, so a 20 MB body can't burn seconds of
+// synchronous CPU (regexes + stringify) just to emit a 4000-char log line.
+function redact(value: unknown, key: string | undefined, budget: { left: number }): unknown {
+  if (budget.left <= 0) return TRUNCATED;
   // Resolve the array case first: a tampered HTTP parameter (header / body) can
   // be an array, so this runs before any typeof / length / string comparison
   // (CodeQL js/type-confusion-through-parameter-tampering). The key is passed
   // through so array elements under a sensitive key are still masked.
-  if (Array.isArray(value)) return value.map((entry) => redact(entry, key));
+  if (Array.isArray(value)) {
+    const out: unknown[] = [];
+    for (const entry of value) {
+      if (budget.left <= 0) {
+        out.push(TRUNCATED);
+        break;
+      }
+      out.push(redact(entry, key, budget));
+    }
+    return out;
+  }
+  budget.left -= (key?.length ?? 0) + 8;
   if (key && REDACT_KEY.test(key) && value != null && value !== '') return REDACTED;
   if (Buffer.isBuffer(value)) return `<binary ${value.length} bytes>`;
   if (typeof value === 'string') {
+    budget.left -= Math.min(value.length, MAX_STRING);
     return value.length > MAX_STRING ? `<… ${value.length} chars …>` : maskValue(value);
   }
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, redact(v, k)]));
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (budget.left <= 0) {
+        out['…'] = TRUNCATED;
+        break;
+      }
+      out[k] = redact(v, k, budget);
+    }
+    return out;
   }
   return value;
 }
@@ -53,7 +85,7 @@ function format(value: unknown): string {
   try {
     // redact() handles Buffer + the array case (Array.isArray first), so the
     // raw value is never length/type-inspected here.
-    s = JSON.stringify(redact(value));
+    s = JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET }));
   } catch {
     return '(unserializable)';
   }
@@ -104,7 +136,7 @@ export function apiTraceMiddleware(): RequestHandler {
 
     res.on('finish', () => {
       const durationMs = Date.now() - start;
-      const path = req.originalUrl.split('?')[0].replace(WALLET_ADDRESS, '0x…');
+      const path = maskUrl(req.originalUrl);
       const meta = `${req.method} ${path} → ${res.statusCode} (${durationMs}ms)  client=${clientStr || '(none)'}`;
       if (isRealUnitPath) {
         logger.info(
