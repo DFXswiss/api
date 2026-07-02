@@ -65,7 +65,10 @@ export class TfaService {
     const user = await this.getUser(kycHash);
     if (user.isBlockedOrDeactivated) throw new ForbiddenException('Account is blocked/deactivated');
 
-    if (user.mail && (level === TfaLevel.BASIC || user.users.length > 0)) {
+    // Staff (Compliance/Support/RealUnit) are forced onto an app/TOTP factor: a mail code goes to the same
+    // inbox as the magic-link login, so it would not be an independent second factor. Everyone else keeps the
+    // existing mail-vs-app selection.
+    if (user.mail && !user.isStaff && (level === TfaLevel.BASIC || user.users.length > 0)) {
       // mail 2FA
       const type = TfaType.MAIL;
       const secret = Util.randomIdString(6);
@@ -141,13 +144,13 @@ export class TfaService {
   }
 
   async check(userDataId: number, ip: string, level?: TfaLevel): Promise<void> {
-    const userData = await this.userDataService.getUserData(userDataId);
+    const userData = await this.userDataService.getUserData(userDataId, { users: true });
     if (!userData) throw new NotFoundException('User data not found');
 
-    await this.checkVerification(userData, ip, level);
+    await this.checkVerification(userData, ip, level, userData.isStaff);
   }
 
-  async checkVerification(user: UserData, ip: string, level?: TfaLevel) {
+  async checkVerification(user: UserData, ip: string, level?: TfaLevel, requireApp = false) {
     const allowedLevels = level === TfaLevel.STRICT ? [TfaLevel.STRICT] : [TfaLevel.BASIC, TfaLevel.STRICT];
     const logs = await this.tfaRepo.findBy({
       userData: { id: user.id },
@@ -155,9 +158,14 @@ export class TfaService {
       created: MoreThan(Util.hoursBefore(TfaValidityHours)),
     });
 
-    const isVerified = logs.some(
-      (log) => allowedLevels.some((l) => log.comment.includes(l)) || log.comment === 'Verified', // TODO: remove compatibility code
-    );
+    const isVerified = logs.some((log) => {
+      const levelOk = allowedLevels.some((l) => log.comment.includes(l));
+      // Staff must have verified with an app/TOTP factor; a mail-code log never satisfies a staff check.
+      const typeOk = !requireApp || log.comment.includes(TfaType.APP);
+      // Legacy untyped 'Verified' logs predate typed logs; never accept them for a STRICT or staff check.
+      const legacyOk = !requireApp && level !== TfaLevel.STRICT && log.comment === 'Verified';
+      return (levelOk && typeOk) || legacyOk;
+    });
     if (!isVerified) throw new TfaRequiredException(level);
   }
 

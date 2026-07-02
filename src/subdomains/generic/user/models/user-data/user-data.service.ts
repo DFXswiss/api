@@ -104,6 +104,9 @@ export class UserDataService {
     @Inject(forwardRef(() => KycAdminService))
     private readonly kycAdminService: KycAdminService,
     private readonly organizationService: OrganizationService,
+    // UserData <-> Tfa is a circular dependency (TfaService injects UserDataService via forwardRef); make
+    // this side explicit too so resolution does not depend on module import order.
+    @Inject(forwardRef(() => TfaService))
     private readonly tfaService: TfaService,
     @Inject(forwardRef(() => TransactionService))
     private readonly transactionService: TransactionService,
