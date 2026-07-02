@@ -3,6 +3,8 @@ import { createCustomUser } from '../user/__mocks__/user.entity.mock';
 import { User } from '../user/user.entity';
 import { UserStatus } from '../user/user.enum';
 import { createCustomUserData } from './__mocks__/user-data.entity.mock';
+import { UserData } from './user-data.entity';
+import { ServiceProvider } from './user-data.enum';
 
 describe('UserData', () => {
   // getMailLoginUser resolves which user a mail login authenticates as for an elevated role. It is the
@@ -112,6 +114,45 @@ describe('UserData', () => {
 
     it('is false when the users relation is not loaded', () => {
       expect(isStaff(undefined)).toBe(false);
+    });
+  });
+
+  // serviceProviders is the additive RealUnit customer marker ("add-on on top" of the DFX core). It must
+  // never influence DFX core logic; only the RealUnit dashboards read it. These tests pin the additive,
+  // idempotent, merge-safe semantics the scope service and the merge union rely on.
+  describe('serviceProviders (RealUnit customer add-on)', () => {
+    const userData = (serviceProviders?: string): UserData => createCustomUserData({ serviceProviders });
+
+    it('serviceProviderList is empty when unset', () => {
+      expect(userData(undefined).serviceProviderList).toEqual([]);
+    });
+
+    it('isRealUnitCustomer is false for a plain DFX account', () => {
+      expect(userData(undefined).isRealUnitCustomer).toBe(false);
+    });
+
+    it('isRealUnitCustomer is true when the RealUnit marker is present', () => {
+      expect(userData('RealUnit').isRealUnitCustomer).toBe(true);
+    });
+
+    it('addServiceProvider sets the marker on an account that had none', () => {
+      const ud = userData(undefined);
+      ud.addServiceProvider(ServiceProvider.REALUNIT);
+      expect(ud.serviceProviders).toBe('RealUnit');
+      expect(ud.isRealUnitCustomer).toBe(true);
+    });
+
+    it('addServiceProvider is idempotent — no duplicate token', () => {
+      const ud = userData('RealUnit');
+      ud.addServiceProvider(ServiceProvider.REALUNIT);
+      expect(ud.serviceProviders).toBe('RealUnit');
+    });
+
+    it('addServiceProvider returns an UpdateResult tuple [id, update]', () => {
+      const ud = createCustomUserData({ id: 42, serviceProviders: undefined });
+      const [id, update] = ud.addServiceProvider(ServiceProvider.REALUNIT);
+      expect(id).toBe(42);
+      expect(update).toEqual({ serviceProviders: 'RealUnit' });
     });
   });
 });

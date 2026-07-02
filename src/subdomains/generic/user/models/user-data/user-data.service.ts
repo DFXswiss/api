@@ -66,7 +66,7 @@ import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
 import { UserData } from './user-data.entity';
-import { KycLevel, PhoneCallStatus, TradeApprovalReason, UserDataStatus } from './user-data.enum';
+import { KycLevel, PhoneCallStatus, ServiceProvider, TradeApprovalReason, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -1062,6 +1062,14 @@ export class UserDataService {
     await this.userDataRepo.update(...userData.removeKycClient(walletId));
   }
 
+  // --- SERVICE PROVIDERS --- //
+
+  async addServiceProvider(userData: UserData, provider: ServiceProvider): Promise<void> {
+    if (userData.serviceProviderList.includes(provider)) return;
+
+    await this.userDataRepo.update(...userData.addServiceProvider(provider));
+  }
+
   // --- FEES --- //
 
   async addFee(userData: UserData, feeId: number): Promise<void> {
@@ -1298,6 +1306,9 @@ export class UserDataService {
     master.transactions = master.transactions.concat(slave.transactions);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
+    slave.serviceProviderList.forEach(
+      (sp) => !master.serviceProviderList.includes(sp) && master.addServiceProvider(sp),
+    );
 
     // copy all documents
     void this.documentService
