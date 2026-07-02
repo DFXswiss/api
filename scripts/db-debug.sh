@@ -72,8 +72,12 @@
 #     2. FX (plus and minus are different asset baskets, so their CHF marks drift
 #        independently while orders are open -- the normal intraday noise)
 #     3. an error or a realised loss (a discrete, persisting step)
-#   A sudden step (especially negative) is therefore suspicious rather than customer activity.
-#   The `valid` column is false when the jump vs. the previous entry exceeds
+#     4. snapshot skew (per-source reads are not atomic, so a snapshot taken while an
+#        internal transfer/order is in flight can double-count or miss the moving amount)
+#   A single-snapshot spike (one entry, reverted by the next 1-minute snapshot) is expected
+#   skew from these non-atomic reads and is benign. A spike that persists across multiple
+#   snapshots is NOT skew -- treat it as an error / realised loss (case 3) and investigate.
+#   The `valid` column is false when the jump vs. the last valid entry exceeds
 #   Config.financeLogTotalBalanceChangeLimit and that entry is under 15 minutes old (a larger
 #   gap suppresses the flag); --anomalies lists these valid=false rows. Full reference: the
 #   BalancesTotal type in src/subdomains/supporting/log/dto/log.dto.ts and LogJobService.

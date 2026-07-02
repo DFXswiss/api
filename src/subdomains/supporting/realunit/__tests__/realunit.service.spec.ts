@@ -822,6 +822,18 @@ describe('RealUnitService', () => {
       },
     };
 
+    const emptyHistory = {
+      account: {
+        address: '0xabc',
+        addressType: 'EOA',
+        history: {
+          items: [],
+          totalCount: 0,
+          pageInfo: { endCursor: null, hasNextPage: false, hasPreviousPage: false, startCursor: null },
+        },
+      },
+    };
+
     // a real payload observed in prod against /v1/realunit/holders
     const injection =
       'zzz") { items { address } } __schema { queryType { name } } x: accounts(where: { balance_gt: "0" })';
@@ -848,6 +860,21 @@ describe('RealUnitService', () => {
       await service.getHolders(5, undefined, injection);
 
       expect(requestMock.mock.calls[1][1]).toBe(requestMock.mock.calls[0][1]);
+    });
+
+    it('passes the account history before cursor as a GraphQL variable, never interpolated into the query', async () => {
+      requestMock.mockResolvedValue(emptyHistory);
+
+      await service.getAccountHistory('0xabc', 2, injection);
+
+      expect(requestMock).toHaveBeenCalledTimes(1);
+      const [url, query, variables] = requestMock.mock.calls[0];
+      expect(url).toBe('https://mock-ponder.example.com');
+      expect(variables).toEqual({ id: '0xabc', limit: 2, before: injection, after: null });
+      // the query document is static and parameterized; the payload stays in variables only
+      expect(query).toContain('$before');
+      expect(query).not.toContain('__schema');
+      expect(query).not.toContain(injection);
     });
 
     it('passes the account address as a variable, lower-cased', async () => {

@@ -1,5 +1,6 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { ADMIN_ROLES, UserRole } from 'src/shared/auth/user-role.enum';
+import { hasRoleAccess } from 'src/shared/auth/role.guard';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import {
   Department,
   getVisibleDepartments,
@@ -168,14 +169,14 @@ export class SupportNoteService {
       userDataId: note.userData?.id,
       userName: note.userData?.completeName,
       isOwn: note.authorId === jwtAccount,
-      isAdmin: ADMIN_ROLES.includes(role),
+      isAdmin: hasRoleAccess(UserRole.ADMIN, role),
       created: note.created,
       updated: note.updated,
     };
   }
 
   private resolveDepartmentForCreate(role: UserRole, requested: Department | undefined): Department {
-    if (ADMIN_ROLES.includes(role)) {
+    if (hasRoleAccess(UserRole.ADMIN, role)) {
       if (!requested) throw new ForbiddenException('Department is required when creating notes as admin');
       if (!NOTE_CREATE_DEPARTMENTS.includes(requested)) {
         throw new ForbiddenException(`Department ${requested} cannot be assigned to a note`);
@@ -189,7 +190,7 @@ export class SupportNoteService {
   }
 
   private canModify(note: SupportNote, role: UserRole, jwtAccount: number): boolean {
-    if (ADMIN_ROLES.includes(role)) return true;
+    if (hasRoleAccess(UserRole.ADMIN, role)) return true;
     return note.authorId === jwtAccount;
   }
 }

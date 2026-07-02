@@ -12,10 +12,13 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 
 // Real Pimlico API key from environment
 const PIMLICO_API_KEY = process.env.PIMLICO_API_KEY;
-const TEST_WALLET = process.env.TEST_WALLET;
+// For the offline UserOperation-building suite this is only used as an arbitrary sender
+// literal; fall back to a stable placeholder so the suite runs without env config.
+const TEST_WALLET = process.env.TEST_WALLET ?? '0x0000000000000000000000000000000000000001';
 
-// Skip unless both a Pimlico API key and a throwaway test wallet are provided.
-const describeIfConfigured = PIMLICO_API_KEY && TEST_WALLET ? describe : describe.skip;
+// The Real-API suite calls Pimlico and needs a real throwaway wallet + a real key. The
+// offline suites (UserOperation Building, Flow Documentation) do neither and run always.
+const describeIfConfigured = PIMLICO_API_KEY && process.env.TEST_WALLET ? describe : describe.skip;
 
 describeIfConfigured('PimlicoBundlerService Integration (Real API)', () => {
   const getPimlicoUrl = (blockchain: Blockchain): string => {
@@ -192,7 +195,7 @@ describeIfConfigured('PimlicoBundlerService Integration (Real API)', () => {
   });
 });
 
-describeIfConfigured('PimlicoBundlerService UserOperation Building', () => {
+describe('PimlicoBundlerService UserOperation Building', () => {
   const EIP7702_FACTORY = '0x0000000000000000000000000000000000007702';
 
   it('should build a valid UserOperation structure for EIP-7702', () => {
@@ -250,7 +253,7 @@ describeIfConfigured('PimlicoBundlerService UserOperation Building', () => {
 });
 
 // Summary test to document the full flow
-describeIfConfigured('EIP-7702 Gasless Flow Documentation', () => {
+describe('EIP-7702 Gasless Flow Documentation', () => {
   it('should document the complete gasless transaction flow', () => {
     const flow = `
     EIP-7702 + ERC-4337 Gasless Flow:

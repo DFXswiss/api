@@ -33,17 +33,28 @@ export interface FinanceLog {
  *   2. FX — plus and minus are different asset baskets, so their CHF marks drift
  *      independently while orders are open (the normal intraday noise)
  *   3. an error or a realised loss — a discrete, persisting step
+ *   4. snapshot skew — per-source balance reads are not atomic, so a snapshot taken
+ *      while an internal transfer/order is in flight can double-count or miss the moving
+ *      amount; such a spike reverts by the next 1-minute snapshot and is benign. A
+ *      deviation that PERSISTS across multiple snapshots is never skew and must be treated
+ *      as case 3.
  *
  * The open referral-credit liability is carried in minus continuously, so a ref payout is
  * balance-neutral (plus and minus drop together) instead of a phantom equity step; see
  * REF_CREDIT_FINANCIAL_TYPE in LogJobService.
  *
- * A sudden step (especially negative) is therefore suspicious rather than customer
- * activity. Two guardrails act on this signal in LogJobService: the entry is flagged
- * `valid: false` when the jump vs. the previous entry exceeds
+ * A single-snapshot step that reverts by the next snapshot is expected skew (case 4); a
+ * step that persists (especially negative) is suspicious rather than customer activity.
+ * Two guardrails act on this signal in LogJobService: the entry is flagged `valid: false`
+ * when the jump vs. the last VALID entry (not necessarily the direct predecessor) exceeds
  * `Config.financeLogTotalBalanceChangeLimit` and that entry is under 15 minutes old (a
  * larger logging gap suppresses the flag), and safety mode is triggered when
- * `totalBalanceChf` drops below the `minTotalBalanceChf` setting.
+ * `totalBalanceChf` drops below the `minTotalBalanceChf` setting or is not finite
+ * (unknown books fail closed). A non-finite total is never `valid`, so it can not
+ * become the comparison baseline. The flag detects the step, not persistence: a
+ * persisting error is flagged only while the pre-step level is still the last valid
+ * entry, so once that entry ages past 15 minutes the jump is force-validated and the
+ * new level silently becomes the baseline.
  */
 export interface BalancesTotal {
   plusBalanceChf: number;

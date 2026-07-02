@@ -106,8 +106,9 @@ describe('SupportNoteService department visibility', () => {
   });
 });
 
-// The note write/admin paths key off ADMIN_ROLES, which now also includes SUPER_ADMIN. Before this change a
-// super admin threw on note creation and could only touch its own notes; these pin the new admin-superset behaviour.
+// The note write/admin paths gate on `hasRoleAccess(UserRole.ADMIN, role)`, which treats SUPER_ADMIN as an
+// admin superset. Before this change a super admin threw on note creation and could only touch its own notes;
+// these pin the admin-superset behaviour.
 describe('SupportNoteService admin-role write access', () => {
   let service: SupportNoteService;
   let noteRepo: DeepMocked<SupportNoteRepository>;

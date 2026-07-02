@@ -9,8 +9,9 @@ import {
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { hasRoleAccess } from 'src/shared/auth/role.guard';
 import { isUserActive } from 'src/shared/auth/user-active.guard';
-import { ADMIN_ROLES, UserRole } from 'src/shared/auth/user-role.enum';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
@@ -455,7 +456,7 @@ export class KycService {
     if (!kycFile) throw new NotFoundException('KYC file not found');
 
     if (kycFile.protected) {
-      if (![...ADMIN_ROLES, UserRole.COMPLIANCE].includes(jwt?.role))
+      if (!hasRoleAccess(UserRole.COMPLIANCE, jwt?.role))
         throw new ForbiddenException('Requires admin or compliance role');
       if (!jwt || !isUserActive(jwt)) throw new ForbiddenException('User is not active');
     }

@@ -142,7 +142,22 @@ export class LogJobService {
       // safety module
       const minTotalBalanceChf = await this.settingService.getObj<number>('minTotalBalanceChf', 100000);
 
-      await this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
+      // fail closed: a non-finite total means the balance is unknown (e.g. a bucket aggregate could not
+      // be summed), so activate the safety mode instead of silently leaving it off on a false comparison.
+      const totalBalanceIsFinite = Number.isFinite(totalBalanceChf);
+      if (!totalBalanceIsFinite)
+        this.logger.error(`Total balance is not finite (${totalBalanceChf}); activating safety mode`);
+
+      // fail closed on the threshold too: a non-finite minTotalBalanceChf (misconfigured setting) would
+      // make every `totalBalanceChf < minTotalBalanceChf` comparison false (x < NaN === false) and thus
+      // silently disable the safety net, so treat it as an error and activate the safety mode.
+      const minTotalBalanceIsFinite = Number.isFinite(minTotalBalanceChf);
+      if (!minTotalBalanceIsFinite)
+        this.logger.error(`minTotalBalanceChf is not finite (${minTotalBalanceChf}); activating safety mode`);
+
+      const safetyModeActive =
+        !totalBalanceIsFinite || !minTotalBalanceIsFinite || totalBalanceChf < minTotalBalanceChf;
+      await this.processService.setSafetyModeActive(safetyModeActive);
 
       const lastLog = await this.logService.maxEntity('LogService', 'FinancialDataLog', LogSeverity.INFO, true);
       const lastTotalBalance = (JSON.parse(lastLog.message) as FinanceLog).balancesTotal.totalBalanceChf;
@@ -156,14 +171,22 @@ export class LogJobService {
           tradings: tradingLog,
           balancesByFinancialType,
           balancesTotal: {
-            plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
-            minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
-            totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
+            // keep negative totals as real numbers (returnNegativeValue): a genuinely negative
+            // plus/minus/total must stay numeric so next run's lastTotalBalance is defined and the
+            // change-limit comparison (Math.abs(total - last)) does not break on undefined.
+            plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true, true),
+            minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true, true),
+            totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true, true),
           },
         }),
+        // jump vs. the last VALID entry (lastLog above), not the direct predecessor; must be
+        // read as transient skew vs. persisting deviation -- see BalancesTotal in dto/log.dto.ts.
+        // A non-finite total is never valid: the 15-minute clause would otherwise mark a long
+        // incident entry valid and make its null total the baseline for later comparisons.
         valid:
-          Math.abs(totalBalanceChf - lastTotalBalance) <= Config.financeLogTotalBalanceChangeLimit ||
-          Util.minutesDiff(lastLog.created) > 15,
+          totalBalanceIsFinite &&
+          (Math.abs(totalBalanceChf - lastTotalBalance) <= Config.financeLogTotalBalanceChangeLimit ||
+            Util.minutesDiff(lastLog.created) > 15),
         category: null,
       });
 
@@ -203,11 +226,14 @@ export class LogJobService {
         0,
       );
 
+      // keep negative aggregates as real numbers (returnNegativeValue): a negative bucket total is a
+      // genuine state (e.g. an overdrawn/blocked bank account) that must stay visible instead of being
+      // nulled out, which also keeps the downstream sum numeric rather than turning into NaN.
       acc[financialType] = {
-        plusBalance: this.getJsonValue(plusBalance, this.financialTypeAmountType(financialType), true),
-        plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
-        minusBalance: this.getJsonValue(minusBalance, this.financialTypeAmountType(financialType), true),
-        minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
+        plusBalance: this.getJsonValue(plusBalance, this.financialTypeAmountType(financialType), true, true),
+        plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true, true),
+        minusBalance: this.getJsonValue(minusBalance, this.financialTypeAmountType(financialType), true, true),
+        minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true, true),
       };
 
       return acc;
@@ -983,7 +1009,9 @@ export class LogJobService {
           //   : undefined,
         },
         minusBalance: {
-          total: this.getJsonValue(totalMinus, amountType(curr), true),
+          // returnNegativeValue like the plus side: a negative minus total (possible via a negative
+          // manual debt position) must stay numeric, or the CHF multiplication turns it into NaN
+          total: this.getJsonValue(totalMinus, amountType(curr), true, true),
           debt: this.getJsonValue(manualDebtPosition, amountType(curr)),
           pending: totalMinusPending
             ? {
