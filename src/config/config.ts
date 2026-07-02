@@ -52,7 +52,7 @@ export class Configuration {
   transactionRefundExpirySeconds = 300; // 5 minutes - enough time to fill out the refund form
   txRequestWaitingExpiryDays = 7;
   txRequestValidityMinutes = 30;
-  financeLogTotalBalanceChangeLimit = 5000;
+  financeLogTotalBalanceChangeLimit = 5000; // CHF
   faucetAmount = 0.0005; // ETH
   faucetEnabled =
     process.env.FAUCET_ENABLED === 'true' || [Environment.DEV, Environment.LOC].includes(this.environment);
