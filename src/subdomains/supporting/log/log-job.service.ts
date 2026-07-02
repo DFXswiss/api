@@ -144,10 +144,19 @@ export class LogJobService {
 
       // fail closed: a non-finite total means the balance is unknown (e.g. a bucket aggregate could not
       // be summed), so activate the safety mode instead of silently leaving it off on a false comparison.
-      if (!Number.isFinite(totalBalanceChf))
+      const totalBalanceIsFinite = Number.isFinite(totalBalanceChf);
+      if (!totalBalanceIsFinite)
         this.logger.error(`Total balance is not finite (${totalBalanceChf}); activating safety mode`);
 
-      const safetyModeActive = !Number.isFinite(totalBalanceChf) || totalBalanceChf < minTotalBalanceChf;
+      // fail closed on the threshold too: a non-finite minTotalBalanceChf (misconfigured setting) would
+      // make every `totalBalanceChf < minTotalBalanceChf` comparison false (x < NaN === false) and thus
+      // silently disable the safety net, so treat it as an error and activate the safety mode.
+      const minTotalBalanceIsFinite = Number.isFinite(minTotalBalanceChf);
+      if (!minTotalBalanceIsFinite)
+        this.logger.error(`minTotalBalanceChf is not finite (${minTotalBalanceChf}); activating safety mode`);
+
+      const safetyModeActive =
+        !totalBalanceIsFinite || !minTotalBalanceIsFinite || totalBalanceChf < minTotalBalanceChf;
       await this.processService.setSafetyModeActive(safetyModeActive);
 
       const lastLog = await this.logService.maxEntity('LogService', 'FinancialDataLog', LogSeverity.INFO, true);
@@ -175,7 +184,7 @@ export class LogJobService {
         // A non-finite total is never valid: the 15-minute clause would otherwise mark a long
         // incident entry valid and make its null total the baseline for later comparisons.
         valid:
-          Number.isFinite(totalBalanceChf) &&
+          totalBalanceIsFinite &&
           (Math.abs(totalBalanceChf - lastTotalBalance) <= Config.financeLogTotalBalanceChangeLimit ||
             Util.minutesDiff(lastLog.created) > 15),
         category: null,
