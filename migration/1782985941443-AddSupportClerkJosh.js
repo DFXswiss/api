@@ -10,8 +10,8 @@
  * @typedef {import('typeorm').QueryRunner} QueryRunner
  */
 
-module.exports = class AddSupportClerkJosh1781871148903 {
-  name = 'AddSupportClerkJosh1781871148903';
+module.exports = class AddSupportClerkJosh1782985941443 {
+  name = 'AddSupportClerkJosh1782985941443';
 
   async up(queryRunner) {
     // .at(0) instead of array destructuring: the migration-psql-check flags brackets around a word
@@ -38,9 +38,17 @@ module.exports = class AddSupportClerkJosh1781871148903 {
     const row = (await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = 'supportClerks'`)).at(0);
     if (!row) return;
 
-    const clerks = JSON.parse(row.value).filter((clerk) => clerk !== 'Josh');
-    await queryRunner.query(`UPDATE "setting" SET "value" = $1, "updated" = NOW() WHERE "key" = 'supportClerks'`, [
-      JSON.stringify(clerks),
-    ]);
+    const clerks = JSON.parse(row.value);
+    if (!clerks.includes('Josh')) return;
+
+    const remaining = clerks.filter((clerk) => clerk !== 'Josh');
+    if (remaining.length === 0) {
+      // up() created the row when it was missing — an empty list would be a leftover, so remove it again
+      await queryRunner.query(`DELETE FROM "setting" WHERE "key" = 'supportClerks'`);
+    } else {
+      await queryRunner.query(`UPDATE "setting" SET "value" = $1, "updated" = NOW() WHERE "key" = 'supportClerks'`, [
+        JSON.stringify(remaining),
+      ]);
+    }
   }
 };
