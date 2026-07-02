@@ -161,6 +161,8 @@ export class LogJobService {
             totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true),
           },
         }),
+        // jump vs. the last VALID entry (lastLog above), not the direct predecessor; must be
+        // read as transient skew vs. persisting deviation -- see BalancesTotal in dto/log.dto.ts
         valid:
           Math.abs(totalBalanceChf - lastTotalBalance) <= Config.financeLogTotalBalanceChangeLimit ||
           Util.minutesDiff(lastLog.created) > 15,
