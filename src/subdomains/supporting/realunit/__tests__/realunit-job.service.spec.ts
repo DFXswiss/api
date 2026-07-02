@@ -22,7 +22,7 @@ describe('RealUnitJobService', () => {
     id: 10,
     estimatedAmount: 72.123,
     created: new Date('2026-06-29T16:00:00Z'),
-    user: { address: userAddress },
+    user: { id: 42, address: userAddress },
   };
 
   const settlementEvent = {
@@ -41,6 +41,7 @@ describe('RealUnitJobService', () => {
 
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
     jest.spyOn(realunitService, 'getRealuAsset').mockResolvedValue(realuAsset);
+    jest.spyOn(transactionRequestService, 'getUsedSettlementTxIds').mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -66,7 +67,7 @@ describe('RealUnitJobService', () => {
 
     await service.completeSettledQuotes();
 
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10);
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, '0xSettlementTx');
   });
 
   it('should not complete a quote when the transfer amount does not match', async () => {
@@ -105,7 +106,7 @@ describe('RealUnitJobService', () => {
     expect(transactionRequestService.complete).not.toHaveBeenCalled();
   });
 
-  it('should settle at most one quote per settlement tx', async () => {
+  it('should settle at most one quote per settlement tx within a run', async () => {
     const secondQuote = { ...quote, id: 11 };
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote, secondQuote] as any);
     mockHistory([settlementEvent]);
@@ -113,11 +114,41 @@ describe('RealUnitJobService', () => {
     await service.completeSettledQuotes();
 
     expect(transactionRequestService.complete).toHaveBeenCalledTimes(1);
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(10);
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, '0xSettlementTx');
+  });
+
+  it('should not reuse a settlement tx that already completed a quote in an earlier run', async () => {
+    jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
+    jest.spyOn(transactionRequestService, 'getUsedSettlementTxIds').mockResolvedValue(['0xSettlementTx']);
+    mockHistory([settlementEvent]);
+
+    await service.completeSettledQuotes();
+
+    expect(transactionRequestService.complete).not.toHaveBeenCalled();
+  });
+
+  it('should match the oldest unused settlement transfer', async () => {
+    const laterEvent = { ...settlementEvent, txHash: '0xLaterTx', timestamp: new Date('2026-07-01T12:00:00Z') };
+    jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote] as any);
+    mockHistory([laterEvent, settlementEvent]); // ponder returns newest first
+
+    await service.completeSettledQuotes();
+
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(10, '0xSettlementTx');
+  });
+
+  it('should fetch the account history only once per address', async () => {
+    const secondQuote = { ...quote, id: 11, estimatedAmount: 100 };
+    jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote, secondQuote] as any);
+    mockHistory([settlementEvent]);
+
+    await service.completeSettledQuotes();
+
+    expect(realunitService.getAccountHistory).toHaveBeenCalledTimes(1);
   });
 
   it('should continue with the next quote when an account is not indexed yet', async () => {
-    const secondQuote = { ...quote, id: 11, user: { address: '0xIndexedAddress' } };
+    const secondQuote = { ...quote, id: 11, user: { id: 43, address: '0xIndexedAddress' } };
     jest.spyOn(transactionRequestService, 'getOpenBuyQuotes').mockResolvedValue([quote, secondQuote] as any);
     jest
       .spyOn(realunitService, 'getAccountHistory')
@@ -129,7 +160,7 @@ describe('RealUnitJobService', () => {
     await service.completeSettledQuotes();
 
     expect(transactionRequestService.complete).toHaveBeenCalledTimes(1);
-    expect(transactionRequestService.complete).toHaveBeenCalledWith(11);
+    expect(transactionRequestService.complete).toHaveBeenCalledWith(11, '0xSettlementTx');
   });
 
   it('should do nothing when the process is disabled', async () => {

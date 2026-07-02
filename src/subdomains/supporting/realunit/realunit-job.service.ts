@@ -5,6 +5,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Lock } from 'src/shared/utils/lock';
 import { Util } from 'src/shared/utils/util';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
+import { HistoryEventDto } from './dto/realunit.dto';
 import { RealUnitService } from './realunit.service';
 
 @Injectable()
@@ -28,29 +29,46 @@ export class RealUnitJobService {
     const openQuotes = await this.transactionRequestService.getOpenBuyQuotes(realuAsset.id);
     if (!openQuotes.length) return;
 
-    // quotes are ordered oldest-first and each settlement tx settles at most one quote
-    const usedTxHashes = new Set<string>();
+    const historyCache = new Map<string, HistoryEventDto[]>();
+    // per user: settlement txs already consumed by earlier runs (persisted) or earlier in this run
+    const usedTxIdsByUser = new Map<number, Set<string>>();
 
     for (const quote of openQuotes) {
       try {
+        const address = quote.user.address;
         const expectedShares = Math.floor(quote.estimatedAmount);
 
-        const { history } = await this.realunitService.getAccountHistory(quote.user.address, 100);
-        const settlement = history.find(
-          (e) =>
-            e.transfer &&
-            !usedTxHashes.has(e.txHash) &&
-            Util.equalsIgnoreCase(e.transfer.to, quote.user.address) &&
-            Number(e.transfer.value) === expectedShares &&
-            e.timestamp >= quote.created,
-        );
+        let history = historyCache.get(address);
+        if (!history) {
+          history = (await this.realunitService.getAccountHistory(address, 100)).history;
+          historyCache.set(address, history);
+        }
+
+        let usedTxIds = usedTxIdsByUser.get(quote.user.id);
+        if (!usedTxIds) {
+          usedTxIds = new Set(await this.transactionRequestService.getUsedSettlementTxIds(quote.user.id));
+          usedTxIdsByUser.set(quote.user.id, usedTxIds);
+        }
+
+        // quotes are ordered oldest-first, so match the oldest unused settlement transfer
+        const settlement = history
+          .filter(
+            (e) =>
+              e.transfer &&
+              !usedTxIds.has(e.txHash) &&
+              Util.equalsIgnoreCase(e.transfer.to, address) &&
+              Number(e.transfer.value) === expectedShares &&
+              e.timestamp >= quote.created,
+          )
+          .sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime())
+          .at(0);
         if (!settlement) continue;
 
-        usedTxHashes.add(settlement.txHash);
-        await this.transactionRequestService.complete(quote.id);
+        usedTxIds.add(settlement.txHash);
+        await this.transactionRequestService.complete(quote.id, settlement.txHash);
 
         this.logger.info(
-          `Completed settled quote ${quote.id}: ${expectedShares} shares received in tx ${settlement.txHash}`,
+          `Completed settled quote ${quote.id}: ${expectedShares} shares received from ${settlement.transfer.from} in tx ${settlement.txHash}`,
         );
       } catch (e) {
         // address not yet indexed by the ponder (no on-chain events yet)

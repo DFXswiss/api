@@ -19,7 +19,7 @@ import { TransactionRequestExtended } from 'src/subdomains/core/history/mappers/
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
-import { Between, FindOptionsRelations, In, IsNull, LessThan, MoreThan } from 'typeorm';
+import { Between, FindOptionsRelations, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { CustodyOrder } from '../../../core/custody/entities/custody-order.entity';
 import { CustodyOrderStatus } from '../../../core/custody/enums/custody';
 import { Deposit } from '../../address-pool/deposit/deposit.entity';
@@ -307,8 +307,21 @@ export class TransactionRequestService {
     return matchingRequest;
   }
 
-  async complete(id: number): Promise<void> {
-    await this.transactionRequestRepo.update(id, { isComplete: true, status: TransactionRequestStatus.COMPLETED });
+  async complete(id: number, settlementTxId?: string): Promise<void> {
+    await this.transactionRequestRepo.update(id, {
+      isComplete: true,
+      status: TransactionRequestStatus.COMPLETED,
+      ...(settlementTxId && { settlementTxId }),
+    });
+  }
+
+  async getUsedSettlementTxIds(userId: number): Promise<string[]> {
+    return this.transactionRequestRepo
+      .find({
+        where: { user: { id: userId }, settlementTxId: Not(IsNull()) },
+        select: { settlementTxId: true },
+      })
+      .then((requests) => requests.map((r) => r.settlementTxId));
   }
 
   async updateEstimatedAmount(id: number, estimatedAmount: number): Promise<void> {

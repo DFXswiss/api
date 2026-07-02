@@ -1293,6 +1293,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'paymentRequest',
       'rate',
       'routeId',
+      'settlementTxId',
       'sourceId',
       'sourcePaymentMethod',
       'status',
