@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { Cron, CronExpression } from '@nestjs/schedule';
+import { CronExpression } from '@nestjs/schedule';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { Lock } from 'src/shared/utils/lock';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { HistoryEventDto } from './dto/realunit.dto';
@@ -20,11 +20,8 @@ export class RealUnitJobService {
   // Completes open REALU buy quotes as soon as the shares arrive on-chain. Share allocations
   // triggered outside the DFX payment flow (e.g. booked manually by the issuer) would otherwise
   // leave the quote in WaitingForPayment and keep showing a pending payment to the customer.
-  @Cron(CronExpression.EVERY_MINUTE)
-  @Lock(1800)
-  async completeSettledQuotes() {
-    if (DisabledProcess(Process.REALUNIT_QUOTE_COMPLETION)) return;
-
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.REALUNIT_QUOTE_COMPLETION, timeout: 1800 })
+  async completeSettledQuotes(): Promise<void> {
     const realuAsset = await this.realunitService.getRealuAsset();
     const openQuotes = await this.transactionRequestService.getOpenBuyQuotes(realuAsset.id);
     if (!openQuotes.length) return;

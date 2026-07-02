@@ -2,7 +2,6 @@ import { createMock } from '@golevelup/ts-jest';
 import { NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
-import * as processServiceModule from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
@@ -39,7 +38,6 @@ describe('RealUnitJobService', () => {
     realunitService = createMock<RealUnitService>();
     transactionRequestService = createMock<TransactionRequestService>();
 
-    jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
     jest.spyOn(realunitService, 'getRealuAsset').mockResolvedValue(realuAsset);
     jest.spyOn(transactionRequestService, 'getUsedSettlementTxIds').mockResolvedValue([]);
 
@@ -161,14 +159,5 @@ describe('RealUnitJobService', () => {
 
     expect(transactionRequestService.complete).toHaveBeenCalledTimes(1);
     expect(transactionRequestService.complete).toHaveBeenCalledWith(11, '0xSettlementTx');
-  });
-
-  it('should do nothing when the process is disabled', async () => {
-    jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(true);
-
-    await service.completeSettledQuotes();
-
-    expect(realunitService.getRealuAsset).not.toHaveBeenCalled();
-    expect(transactionRequestService.complete).not.toHaveBeenCalled();
   });
 });
