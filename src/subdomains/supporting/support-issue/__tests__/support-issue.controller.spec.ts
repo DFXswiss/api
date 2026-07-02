@@ -6,6 +6,15 @@ import { SupportEscalationService } from '../services/support-escalation.service
 import { SupportIssueService } from '../services/support-issue.service';
 import { SupportIssueController } from '../support-issue.controller';
 
+// SupportIssueController imports TfaGuard on its staff routes, which transitively pulls in the kyc entity
+// graph; that graph has a circular import that resolves to `undefined` when this spec is loaded in isolation.
+// The guard is never exercised here (the controller is unit-constructed), so stub the service module — same
+// approach as tfa.guard.spec.
+jest.mock('src/subdomains/generic/kyc/services/tfa.service', () => ({
+  TfaLevel: { BASIC: 'Basic', STRICT: 'Strict' },
+  TfaService: class TfaService {},
+}));
+
 // createSupportMessage decides whether a message is a staff reply (createMessageSupport) or a customer
 // message (createMessage). Super admin must count as staff — before this change it fell through to createMessage.
 describe('SupportIssueController.createSupportMessage routing', () => {

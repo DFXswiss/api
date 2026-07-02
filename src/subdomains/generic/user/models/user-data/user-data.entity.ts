@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import { StaffRoles, UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -670,6 +670,25 @@ export class UserData extends IEntity {
 
   hasRole(role: UserRole): boolean {
     return this.users?.some((u) => u.role === role) ?? false;
+  }
+
+  // A staff account (Compliance/Support/RealUnit). Staff must set up an independent TOTP factor and are 2FA-
+  // enforced on staff endpoints, so a mail code to the same inbox as the magic link can never be the second
+  // factor. Requires the users relation to be loaded (mirrors hasRole).
+  get isStaff(): boolean {
+    return StaffRoles.some((role) => this.hasRole(role));
+  }
+
+  // Resolves the user a mail login should authenticate as for an elevated role: the highest-privileged
+  // (staffRoles is priority-ordered), non-blocked user whose role is in staffRoles. A wallet-less user is
+  // skipped so the resulting user token's blockchains getter never dereferences a null wallet. Returns
+  // undefined for a regular account, which then keeps a plain account token.
+  getMailLoginUser(staffRoles: UserRole[]): User | undefined {
+    for (const role of staffRoles) {
+      const user = this.users?.find((u) => u.role === role && u.wallet && !u.isBlockedOrDeleted);
+      if (user) return user;
+    }
+    return undefined;
   }
 
   get address() {

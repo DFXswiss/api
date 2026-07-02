@@ -16,7 +16,7 @@ import { CryptoService } from 'src/integration/blockchain/shared/services/crypto
 import { GeoLocationService } from 'src/integration/geolocation/geo-location.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import { StaffRoles, UserRole } from 'src/shared/auth/user-role.enum';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
 import { LanguageService } from 'src/shared/models/language/language.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
@@ -64,6 +64,11 @@ export interface MailKeyData {
   loginUrl: string;
   redirectUri?: string;
 }
+
+// Staff roles a magic-link (mail) login may elevate to, ordered by privilege (highest first) so an
+// account linked to multiple staff users resolves deterministically to the most privileged one.
+// StaffRoles (Compliance/Support/RealUnit) deliberately excludes ADMIN/SUPER_ADMIN: the strongest privileges
+// stay bound to wallet-signature login, since a magic link is a weaker authentication factor.
 
 @Injectable()
 export class AuthService {
@@ -342,14 +347,31 @@ export class AuthService {
     try {
       const entry = this.mailKeyList.get(code);
       if (!this.isMailKeyValid(entry)) throw new Error('Login link expired');
+      this.mailKeyList.delete(code); // one-time use: consume the code immediately so the link cannot be replayed
 
-      const account = await this.userDataService.getUserData(entry.userDataId, { users: true, wallet: true });
+      const account = await this.userDataService.getUserData(entry.userDataId, {
+        users: { wallet: true },
+        wallet: true,
+      });
       if (account.status === UserDataStatus.MERGED) throw new UnauthorizedException('User data is merged');
 
       const ipLog = await this.ipLogService.create(ip, entry.loginUrl, entry.mail, undefined, account);
       if (!ipLog.result) throw new Error('The country of IP address is not allowed');
 
-      const token = this.generateAccountToken(account, ip);
+      // Staff members (support/compliance/realunit) get a full user token carrying their real role, so a
+      // magic-link login reaches the staff dashboards instead of being stuck on a generic account token.
+      // Config.auth.tfaStaffEnforced is the feature kill-switch (off = no new mail elevations). Regular
+      // accounts (USER-role wallets) keep the account token. A blocked/deactivated account is never elevated
+      // (mirrors changeUser), and no privilege is granted that the user does not already hold on their wallet.
+      const staffUser =
+        Config.auth.tfaStaffEnforced && !account.isBlockedOrDeactivated
+          ? account.getMailLoginUser(StaffRoles)
+          : undefined;
+      if (staffUser) staffUser.userData = account;
+      // tfaRequired is stamped only on the mail-elevated staff token; TfaGuard enforces STRICT 2FA on exactly
+      // these tokens (wallet-login staff never carry the marker and stay unaffected), so a mail login can
+      // never reach staff functions without a second factor.
+      const token = staffUser ? this.generateUserToken(staffUser, ip, true) : this.generateAccountToken(account, ip);
 
       await this.checkIpBlacklistFor(account, ip);
 
@@ -393,7 +415,12 @@ export class AuthService {
     return { challenge: challenge };
   }
 
-  async changeUser(userDataId: number, changeUser: LinkedUserInDto, ip: string): Promise<AuthResponseDto> {
+  async changeUser(
+    userDataId: number,
+    changeUser: LinkedUserInDto,
+    ip: string,
+    tfaRequired = false,
+  ): Promise<AuthResponseDto> {
     const user = await this.getLinkedUser(userDataId, changeUser.address);
     if (!user) throw new NotFoundException('User not found');
     if (user.isBlockedOrDeleted || user.userData.isBlockedOrDeactivated)
@@ -402,7 +429,8 @@ export class AuthService {
 
     if (!user.userData.tradeApprovalDate) await this.checkPendingRecommendation(user.userData, user.wallet);
 
-    return { accessToken: this.generateUserToken(user, ip) };
+    // forward tfaRequired so a re-minted token keeps the mail-origin 2FA marker (see generateUserToken)
+    return { accessToken: this.generateUserToken(user, ip, tfaRequired) };
   }
 
   // --- SIGN MESSAGES --- //
@@ -523,7 +551,10 @@ export class AuthService {
     return this.challengeList.has(address);
   }
 
-  generateUserToken(user: User, ip: string): string {
+  // tfaRequired marks a mail-origin staff session that TfaGuard must keep enforcing 2FA on even when the
+  // enforcement flag is off. Any path that re-mints a token from an authenticated session (changeUser,
+  // createAccessTokenAfterMerge) MUST forward the caller's jwt.tfaRequired, or the marker is silently lost.
+  generateUserToken(user: User, ip: string, tfaRequired = false): string {
     const payload: JwtPayload = {
       user: user.id,
       address: user.address,
@@ -534,6 +565,7 @@ export class AuthService {
       riskStatus: user.userData.riskStatus,
       blockchains: user.blockchains,
       ip,
+      ...(tfaRequired && { tfaRequired: true }),
     };
     return this.jwtService.sign(payload);
   }

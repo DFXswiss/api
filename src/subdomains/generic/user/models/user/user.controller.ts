@@ -29,6 +29,7 @@ import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
@@ -122,7 +123,7 @@ export class UserController {
     @Body() changeUser: LinkedUserInDto,
     @RealIP() ip: string,
   ): Promise<AuthResponseDto> {
-    return this.authService.changeUser(jwt.account, changeUser, ip);
+    return this.authService.changeUser(jwt.account, changeUser, ip, jwt.tfaRequired);
   }
 
   // TODO: temporary CC solution
@@ -215,7 +216,7 @@ export class UserController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async updateUserAdmin(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
