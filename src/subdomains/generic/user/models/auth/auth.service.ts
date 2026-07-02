@@ -360,9 +360,7 @@ export class AuthService {
 
       // Staff members (support/compliance/realunit) get a full user token carrying their real role, so a
       // magic-link login reaches the staff dashboards instead of being stuck on a generic account token.
-      // This elevation is coupled to Config.auth.tfaStaffEnforced: staff are only elevated where TfaGuard
-      // also enforces 2FA on staff endpoints, so a mail login can never reach staff functions without a
-      // second factor (fail-closed — the flag is a single kill-switch for the whole feature). Regular
+      // Config.auth.tfaStaffEnforced is the feature kill-switch (off = no new mail elevations). Regular
       // accounts (USER-role wallets) keep the account token. A blocked/deactivated account is never elevated
       // (mirrors changeUser), and no privilege is granted that the user does not already hold on their wallet.
       const staffUser =
@@ -370,8 +368,9 @@ export class AuthService {
           ? account.getMailLoginUser(StaffRoles)
           : undefined;
       if (staffUser) staffUser.userData = account;
-      // tfaRequired is stamped on the mail-elevated staff token so TfaGuard keeps enforcing 2FA on it even if
-      // the enforcement flag is later disabled — a mail login must never reach staff functions without 2FA.
+      // tfaRequired is stamped only on the mail-elevated staff token; TfaGuard enforces STRICT 2FA on exactly
+      // these tokens (wallet-login staff never carry the marker and stay unaffected), so a mail login can
+      // never reach staff functions without a second factor.
       const token = staffUser ? this.generateUserToken(staffUser, ip, true) : this.generateAccountToken(account, ip);
 
       await this.checkIpBlacklistFor(account, ip);

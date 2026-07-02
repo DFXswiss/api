@@ -236,8 +236,8 @@ describe('AuthService', () => {
       try {
         const result = await service.completeSignInByMail(code, ip);
 
-        // elevation is coupled to enforcement: with the flag off a staff account stays on an account token,
-        // so a mail login can never reach staff functions without the 2FA that the flag also enforces
+        // the flag is the elevation kill-switch: with it off a staff account stays on an account token, so no
+        // mail-origin tfaRequired token is ever minted and the mail login cannot reach staff functions at all
         expect(result).toBe('https://services.test/account?session=signed-jwt');
         expect(signPayload().role).toBe(UserRole.ACCOUNT);
         expect(signPayload().user).toBeUndefined();

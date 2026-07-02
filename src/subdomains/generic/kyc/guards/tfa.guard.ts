@@ -1,13 +1,14 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
-import { Config } from 'src/config/config';
 import { TfaLevel, TfaService } from '../services/tfa.service';
 
-// Enforces a valid 2FA verification on staff endpoints, so a staff role obtained via the weaker
-// mail-magic-link factor (or any login) is only usable with a true second factor (TfaLevel.STRICT).
+// Enforces a valid 2FA verification (TfaLevel.STRICT) on staff endpoints for mail-origin sessions only.
+// A staff role reached via the weaker mail-magic-link factor carries request.user.tfaRequired (stamped when
+// the token is minted, see AuthService.generateUserToken); wallet-signature logins never carry it and pass
+// through unchanged. Enforcement thus follows the mail-origin marker, not the feature flag: turning off
+// Config.auth.tfaStaffEnforced stops NEW mail elevations but never un-gates a residual mail-minted token.
 // Place AFTER AuthGuard/RoleGuard so request.user is populated. Reuses the existing TfaService;
-// throws TfaRequiredException (403, code TFA_REQUIRED) which the staff frontend already handles.
-// Gated by Config.auth.tfaStaffEnforced (default on) so the whole feature can be disabled per environment.
+// throws TfaRequiredException (403, code TFA_REQUIRED) which the staff frontend handles.
 @Injectable()
 export class TfaGuard implements CanActivate {
   // A controller-scoped guard is instantiated in its host module's DI context. TfaService lives deep in the
@@ -19,9 +20,8 @@ export class TfaGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
-    // Enforce when the feature flag is on, or when the token was minted requiring 2FA (mail-elevated staff) —
-    // so disabling the flag as a rollback cannot un-gate a residual mail-minted staff token.
-    if (!Config.auth.tfaStaffEnforced && !request.user?.tfaRequired) return true;
+    // Only mail-origin staff sessions (tfaRequired) require 2FA; wallet-signature logins are unaffected.
+    if (!request.user?.tfaRequired) return true;
 
     const userDataId = request.user?.account;
     if (!userDataId) throw new ForbiddenException('User not authenticated');

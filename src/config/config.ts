@@ -263,8 +263,9 @@ export class Configuration {
       expiresIn: +(process.env.CHALLENGE_EXPIRES_IN ?? 10), // sec
     },
     mailLoginExpiresIn: +(process.env.MAIL_LOGIN_EXPIRES_IN ?? 10), // min
-    // Couples staff mail-login elevation with 2FA enforcement on staff endpoints. Default on (fail-closed);
-    // set TFA_STAFF_ENFORCED=false to disable the whole staff-mail-login feature (kill-switch/rollback).
+    // Enables staff mail-login elevation (kill-switch for the whole staff-mail-login feature). Default on;
+    // set TFA_STAFF_ENFORCED=false to stop new mail elevations. 2FA enforcement itself follows the mail-origin
+    // tfaRequired token marker in TfaGuard, so wallet-signature logins are never affected by this flag.
     tfaStaffEnforced: process.env.TFA_STAFF_ENFORCED !== 'false',
     signMessage:
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',

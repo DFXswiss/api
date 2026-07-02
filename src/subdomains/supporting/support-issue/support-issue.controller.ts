@@ -108,7 +108,7 @@ export class SupportIssueController {
   @Get('statistics')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getSupportIssueStatistics(
     @GetJwt() jwt: JwtPayload,
     @Query('days') days?: string,
@@ -119,7 +119,7 @@ export class SupportIssueController {
   @Get('escalation/telegram-chats')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getEscalationChats(): Promise<TelegramChat[]> {
     return this.supportEscalationService.getGroupChats();
   }
@@ -127,7 +127,7 @@ export class SupportIssueController {
   @Post('escalation/telegram-bind')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async bindEscalationChat(@Body() dto: BindEscalationChatDto): Promise<{ chat: TelegramChat | null }> {
     return { chat: (await this.supportEscalationService.bindGroupChat(dto.chatId)) ?? null };
   }
@@ -135,7 +135,7 @@ export class SupportIssueController {
   @Post('escalation/telegram-test')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async testEscalationChat(): Promise<{ sent: boolean }> {
     return { sent: await this.supportEscalationService.sendTestMessage() };
   }
@@ -162,7 +162,7 @@ export class SupportIssueController {
   @Get('clerk')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getSupportIssueClerk(@GetJwt() jwt: JwtPayload): Promise<{ clerk: string | null }> {
     return { clerk: (await this.supportIssueService.getSupportIssueClerkForAccount(jwt.account)) ?? null };
   }
