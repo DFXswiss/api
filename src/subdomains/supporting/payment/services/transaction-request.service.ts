@@ -256,6 +256,18 @@ export class TransactionRequestService {
     return this.transactionRequestRepo.findOne({ where: { uid }, relations });
   }
 
+  async getOpenBuyQuotes(assetId: number): Promise<TransactionRequest[]> {
+    return this.transactionRequestRepo.find({
+      where: {
+        type: TransactionRequestType.BUY,
+        targetId: assetId,
+        status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
+      },
+      relations: { user: true },
+      order: { created: 'ASC' },
+    });
+  }
+
   async findAndComplete(
     amount: number,
     routeId: number,
