@@ -5,10 +5,10 @@ import { BlobContent } from 'src/integration/infrastructure/azure-storage.servic
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
-import { RoleGuard } from 'src/shared/auth/role.guard';
+import { hasRoleAccess, RoleGuard } from 'src/shared/auth/role.guard';
 import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
-import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
-import { ADMIN_ROLES, UserRole } from 'src/shared/auth/user-role.enum';
+import { isUserActive, UserActiveGuard } from 'src/shared/auth/user-active.guard';
+import { UserRole } from 'src/shared/auth/user-role.enum';
 import { BindEscalationChatDto } from './dto/bind-escalation-chat.dto';
 import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from './dto/create-support-message.dto';
@@ -27,9 +27,6 @@ import { Department } from './enums/department.enum';
 import { SupportIssueInternalState, SupportIssueType } from './enums/support-issue.enum';
 import { SupportEscalationService, TelegramChat } from './services/support-escalation.service';
 import { SupportIssueService } from './services/support-issue.service';
-
-// Roles whose messages count as staff replies (createMessageSupport) rather than customer messages
-const SUPPORT_STAFF_ROLES: UserRole[] = [UserRole.SUPPORT, UserRole.COMPLIANCE, ...ADMIN_ROLES];
 
 @ApiTags('Support')
 @Controller('support/issue')
@@ -194,7 +191,10 @@ export class SupportIssueController {
     @Param('id') id: string,
     @Body() dto: CreateSupportMessageDto,
   ): Promise<SupportMessageDto> {
-    return jwt?.role && SUPPORT_STAFF_ROLES.includes(jwt.role)
+    // Staff routing requires an active account: blocked staff keep their JWT role until token
+    // expiry (default 2d) but must not be able to post official replies. Non-staff callers
+    // (including anonymous, since the guard is Optional) fall through to createMessage.
+    return jwt?.role && hasRoleAccess(UserRole.SUPPORT, jwt.role) && isUserActive(jwt)
       ? this.supportIssueService.createMessageSupport(+id, dto)
       : this.supportIssueService.createMessage(id, dto, jwt?.account);
   }

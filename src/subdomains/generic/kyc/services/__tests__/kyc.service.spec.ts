@@ -76,8 +76,8 @@ describe('KycService', () => {
   });
 });
 
-// getFileByUid gates protected files on an active account with admin (ADMIN_ROLES) or compliance role;
-// non-protected files are public.
+// getFileByUid gates protected files on an active account with admin (hasRoleAccess: super admin
+// counts) or compliance role; non-protected files are public.
 describe('KycService getFileByUid protected-file access', () => {
   let service: KycService;
   let kycFileService: jest.Mocked<KycFileService>;

@@ -2,23 +2,31 @@ import { CanActivate, ExecutionContext } from '@nestjs/common';
 import { RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 
+const DEFAULT_BLOCKED_USER_STATUS: UserStatus[] = [UserStatus.BLOCKED, UserStatus.DELETED];
+const DEFAULT_BLOCKED_ACCOUNT_STATUS: UserDataStatus[] = [UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED];
+const DEFAULT_BLOCKED_RISK_STATUS: RiskStatus[] = [RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS];
+
 export function isUserActive(
   user: { userStatus?: UserStatus; accountStatus?: UserDataStatus; riskStatus?: RiskStatus },
   blockedUserStatus: UserStatus[] = [],
   blockedUserDataStatus: UserDataStatus[] = [],
   blockedUserDataRiskStatus: RiskStatus[] = [],
 ): boolean {
-  const userStatus = user.userStatus;
-  const accountStatus = user.accountStatus;
-  const riskStatus = user.riskStatus;
+  const { userStatus, accountStatus, riskStatus } = user;
 
-  return blockedUserDataStatus.length || blockedUserStatus.length || blockedUserDataRiskStatus.length
-    ? !blockedUserStatus.includes(userStatus) &&
-        !blockedUserDataStatus.includes(accountStatus) &&
-        (!riskStatus || !blockedUserDataRiskStatus.includes(riskStatus))
-    : ![UserStatus.BLOCKED, UserStatus.DELETED].includes(userStatus) &&
-        ![UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED].includes(accountStatus) &&
-        (!riskStatus || ![RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS].includes(riskStatus));
+  // An empty argument list falls back to the default block lists — if any dimension is
+  // customised, all three custom lists are used together (same "custom OR default" branch
+  // semantics as before, but evaluated once instead of duplicating the predicate).
+  const hasCustom = !!(blockedUserStatus.length || blockedUserDataStatus.length || blockedUserDataRiskStatus.length);
+  const blockedUsers = hasCustom ? blockedUserStatus : DEFAULT_BLOCKED_USER_STATUS;
+  const blockedAccounts = hasCustom ? blockedUserDataStatus : DEFAULT_BLOCKED_ACCOUNT_STATUS;
+  const blockedRisks = hasCustom ? blockedUserDataRiskStatus : DEFAULT_BLOCKED_RISK_STATUS;
+
+  return (
+    !blockedUsers.includes(userStatus) &&
+    !blockedAccounts.includes(accountStatus) &&
+    (!riskStatus || !blockedRisks.includes(riskStatus))
+  );
 }
 
 class UserActiveGuardClass implements CanActivate {
