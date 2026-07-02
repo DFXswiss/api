@@ -119,7 +119,7 @@ describe('LogJobService', () => {
   });
 
   describe('saveTradingLog (referral-credit liability)', () => {
-    // a positive base book so totalBalanceChf stays positive (getJsonValue suppresses negative totals)
+    // a positive base book so the referral-credit assertions work on round numbers
     const baseBuckets = () => ({
       EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 },
     });
@@ -189,6 +189,157 @@ describe('LogJobService', () => {
       expect(log.balancesTotal.plusBalanceChf).toBe(10000);
       expect(log.balancesTotal.minusBalanceChf).toBe(3920);
       expect(log.balancesTotal.totalBalanceChf).toBe(6080);
+    });
+
+    it('persists a negative totalBalanceChf as a real number instead of nulling it to undefined', async () => {
+      // a book whose liabilities exceed assets -> genuinely negative total
+      const createSpy = setupSaveTradingLog(
+        { amountEur: 0, amountChf: 0 },
+        { EUR: { plusBalance: 0, plusBalanceChf: 1000, minusBalance: 5000, minusBalanceChf: 5000 } },
+      );
+
+      await service.saveTradingLog();
+
+      const log = getFinancialLog(createSpy);
+      // must stay numeric so next run's lastTotalBalance is defined and the change-limit comparison
+      // (Math.abs(total - last)) does not break on undefined
+      expect(log.balancesTotal.totalBalanceChf).toBe(-4000);
+      expect(log.balancesTotal.totalBalanceChf).not.toBeUndefined();
+    });
+  });
+
+  describe('getBalancesByFinancialType (negative aggregates)', () => {
+    it('keeps a negative bucket aggregate numeric instead of nulling it to undefined', () => {
+      // a bank asset whose reported balance turned negative (e.g. overdrawn/blocked account)
+      const asset = createCustomAsset({ id: 1, financialType: 'EUR' });
+      const assetLog = {
+        1: { plusBalance: { total: -5000 }, minusBalance: { total: 0 }, priceChf: 1 },
+      };
+
+      const result = service['getBalancesByFinancialType']([asset], assetLog as any);
+
+      // must stay a real negative number so the downstream sum stays numeric (not NaN)
+      expect(result.EUR.plusBalance).toBe(-5000);
+      expect(result.EUR.plusBalanceChf).toBe(-5000);
+      expect(result.EUR.plusBalance).not.toBeUndefined();
+    });
+  });
+
+  describe('safety mode (fail closed on non-finite total)', () => {
+    function setup(buckets: Record<string, unknown>, minTotalBalanceChf: number) {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getBalancesByFinancialType').mockReturnValue(buckets);
+      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(minTotalBalanceChf as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      jest
+        .spyOn(logService, 'maxEntity')
+        .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 0 } }) } as any);
+      jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    it('activates safety mode and logs an error when the total is not finite', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      // an unsummable bucket (undefined chf) makes the summed total NaN -> non-finite
+      setup({ EUR: { plusBalance: 0, plusBalanceChf: undefined, minusBalance: 0, minusBalanceChf: 0 } }, 100000);
+
+      await service.saveTradingLog();
+
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(true);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('not finite'));
+    });
+
+    it('activates safety mode and logs an error when the minimum threshold is not finite', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      // a healthy finite total but a misconfigured (non-finite) threshold must still fail closed:
+      // `total < NaN` is always false, so the safety net would otherwise stay silently disabled
+      setup({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } }, NaN);
+
+      await service.saveTradingLog();
+
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(true);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('minTotalBalanceChf is not finite'));
+    });
+
+    it('never marks a non-finite total as valid, even after a long logging gap', async () => {
+      setup({ EUR: { plusBalance: 0, plusBalanceChf: undefined, minusBalance: 0, minusBalanceChf: 0 } }, 100000);
+      // last valid entry is older than 15 minutes -> the gap clause alone would force-validate
+      jest.spyOn(logService, 'maxEntity').mockResolvedValue({
+        created: new Date(Date.now() - 60 * 60 * 1000),
+        message: JSON.stringify({ balancesTotal: { totalBalanceChf: 0 } }),
+      } as any);
+
+      await service.saveTradingLog();
+
+      const financialLog = (logService.create as jest.Mock).mock.calls.find(
+        ([entry]) => entry.subsystem === 'FinancialDataLog',
+      )?.[0];
+      expect(financialLog.valid).toBe(false);
+    });
+
+    it('activates safety mode when the finite total is below the minimum', async () => {
+      setup({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } }, 100000);
+
+      await service.saveTradingLog();
+
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(true);
+    });
+
+    it('leaves safety mode inactive when the finite total meets the minimum', async () => {
+      setup({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } }, 5000);
+
+      await service.saveTradingLog();
+
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe('valid flag (change-limit interaction with negative totals)', () => {
+    // drive saveTradingLog with a controllable current book and last valid entry, then read the
+    // FinancialDataLog `valid` flag. A fresh `created` keeps minutesDiff under 15, so the 15-minute
+    // gap clause stays out of the way and the change-limit branch is what is under test.
+    function setup(buckets: Record<string, unknown>, lastTotalBalanceChf: number, createdMinutesAgo: number) {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getBalancesByFinancialType').mockReturnValue(buckets);
+      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(100000 as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      jest.spyOn(logService, 'maxEntity').mockResolvedValue({
+        created: new Date(Date.now() - createdMinutesAgo * 60 * 1000),
+        message: JSON.stringify({ balancesTotal: { totalBalanceChf: lastTotalBalanceChf } }),
+      } as any);
+      return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    function validFlag(createSpy: jest.SpyInstance): boolean {
+      return createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog')?.[0].valid;
+    }
+
+    // book totalling -4000 (plus 1000, minus 5000), i.e. a genuinely negative equity on both sides
+    const negativeBook = () => ({
+      EUR: { plusBalance: 0, plusBalanceChf: 1000, minusBalance: 5000, minusBalanceChf: 5000 },
+    });
+
+    it('validates a negative-to-negative move that stays under the change limit', async () => {
+      // total -4000 vs last -4500 -> |diff| 500 <= 5000 limit -> valid even though both totals are negative
+      const createSpy = setup(negativeBook(), -4500, 1);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(true);
+    });
+
+    it('invalidates a positive-to-negative jump over the change limit within the 15-minute window', async () => {
+      // total -4000 vs last +50000 -> |diff| 54000 > 5000 limit and the entry is fresh -> not force-validated
+      const createSpy = setup(negativeBook(), 50000, 1);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(false);
     });
   });
 
