@@ -1,5 +1,5 @@
 import { Request } from 'express';
-import { getClient, isRealUnitClient, isRealUnitRequest } from '../request-client';
+import { getClient, isRealUnitClient, isRealUnitRequest, resolveClientSource } from '../request-client';
 
 function req(headers: Record<string, string | string[]>, originalUrl = '/v1/support'): Request {
   return { headers, originalUrl } as unknown as Request;
@@ -30,6 +30,23 @@ describe('request-client', () => {
       expect(getClient(req({ 'x-client': 'realunit-app' }))).toBe('realunit-app');
       expect(getClient(req({ 'x-client': ['realunit-app', 'x'] }))).toBe('realunit-app');
       expect(getClient(req({}))).toBe('');
+    });
+  });
+
+  describe('resolveClientSource', () => {
+    it('resolves the exact known clients (case-insensitive, trimmed)', () => {
+      expect(resolveClientSource('realunit-app')).toBe('RealUnit');
+      expect(resolveClientSource('RealUnit-App')).toBe('RealUnit');
+      expect(resolveClientSource('dfx-services')).toBe('DFX');
+      expect(resolveClientSource(' DFX-Services ')).toBe('DFX');
+    });
+
+    it('returns undefined for unknown, empty or missing clients - never a brand', () => {
+      expect(resolveClientSource('dfx-services-proxy')).toBeUndefined();
+      expect(resolveClientSource('realunit-app-proxy')).toBeUndefined();
+      expect(resolveClientSource('dfx')).toBeUndefined();
+      expect(resolveClientSource('')).toBeUndefined();
+      expect(resolveClientSource(undefined)).toBeUndefined();
     });
   });
 

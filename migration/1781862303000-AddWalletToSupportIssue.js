@@ -12,13 +12,16 @@ module.exports = class AddWalletToSupportIssue1781862303000 {
 
     /**
      * Adds the source wallet (app the ticket was opened from) to support_issue.
-     * walletId is nullable by design: only RealUnit-app tickets (trusted X-Client header) get a positive
-     * wallet; NULL means "DFX default brand". No NOT NULL / backfill - X-Client is RealUnit-only today, so
-     * there is no positive DFX signal across the ecosystem to backfill against, and NULL=DFX is intentional.
+     * The column is NOT NULL: every creation path resolves an exact source (X-Client) or fails, so an
+     * unattributed ticket cannot exist. Legacy rows predate source attribution and carry no exact signal;
+     * they are backfilled to the DFX default wallet (Config.defaultWalletId = 1) as an explicit one-time
+     * legacy decision - NOT as a runtime fallback.
      * @param {QueryRunner} queryRunner
      */
     async up(queryRunner) {
         await queryRunner.query(`ALTER TABLE "support_issue" ADD "walletId" integer`);
+        await queryRunner.query(`UPDATE "support_issue" SET "walletId" = 1 WHERE "walletId" IS NULL`);
+        await queryRunner.query(`ALTER TABLE "support_issue" ALTER COLUMN "walletId" SET NOT NULL`);
         await queryRunner.query(`CREATE INDEX "IDX_f5224979beab23e21df3066a60" ON "support_issue" ("walletId")`);
         await queryRunner.query(`ALTER TABLE "support_issue" ADD CONSTRAINT "FK_f5224979beab23e21df3066a60a" FOREIGN KEY ("walletId") REFERENCES "wallet"("id") ON DELETE NO ACTION ON UPDATE NO ACTION`);
     }

@@ -68,8 +68,9 @@ export class SupportIssueController {
       ...dto,
       department: jwt.role === UserRole.COMPLIANCE ? Department.COMPLIANCE : Department.SUPPORT,
     };
-    // Support-created tickets originate from the DFX support tool and are deliberately DFX-attributed.
-    // The dedicated service method encodes that no-source invariant (no client param to forward).
+    // Support-created tickets originate from the DFX support tool (part of the DFX services app) and are
+    // therefore exactly DFX-attributed. The dedicated service method encodes that invariant (no client
+    // param to forward), so a customer client header can never rebrand a staff-created ticket.
     return this.supportIssueService.createIssueBySupport(+userDataId, input);
   }
 

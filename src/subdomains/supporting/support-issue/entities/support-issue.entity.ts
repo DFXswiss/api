@@ -52,13 +52,12 @@ export class SupportIssue extends IEntity {
   @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;
 
-  // Wallet/app the issue was opened from, attributed from the trusted inbound X-Client header at creation
-  // (NOT the user's persisted wallet) - drives mail branding. Nullable by design: X-Client is a RealUnit-only
-  // signal today, so only RealUnit-app tickets get a positive wallet; the entire DFX ecosystem and legacy/
-  // support-created issues are null, which means "DFX default brand" (resolved at mail time, logged).
+  // Wallet/app the issue was opened from, resolved exactly from the inbound X-Client header at creation
+  // (NOT the user's persisted wallet) - drives mail branding. NOT NULL: every creation path must attribute
+  // an exact source or fail; legacy rows were backfilled to the DFX default wallet by the migration.
   @Index()
-  @ManyToOne(() => Wallet, { nullable: true, eager: true })
-  wallet?: Wallet;
+  @ManyToOne(() => Wallet, { nullable: false, eager: true })
+  wallet: Wallet;
 
   @OneToOne(() => LimitRequest, { nullable: true })
   @JoinColumn()

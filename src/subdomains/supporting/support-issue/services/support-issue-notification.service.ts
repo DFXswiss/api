@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
-import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { MailContext, MailType } from '../../notification/enums';
 import { MailTranslationKey } from '../../notification/factories/mail.factory';
 import { REALUNIT_WALLET_NAME } from '../../notification/realunit-mail-rules';
@@ -13,33 +12,30 @@ import { SupportMessage } from '../entities/support-message.entity';
 export class SupportIssueNotificationService {
   private readonly logger = new DfxLogger(SupportIssueNotificationService);
 
-  constructor(
-    private readonly notificationService: NotificationService,
-    private readonly walletService: WalletService,
-  ) {}
+  constructor(private readonly notificationService: NotificationService) {}
 
   async newSupportMessage(entity: SupportMessage): Promise<void> {
     try {
       if (!entity.userData.mail || DisabledProcess(Process.SUPPORT_MESSAGE_MAIL)) return;
 
-      // Mail branding follows the app the ticket was opened from, attributed at creation from the trusted
-      // inbound X-Client signal (NOT the user's persisted wallet): RealUnit-app tickets carry the RealUnit
-      // wallet. Every other client defaults to DFX - X-Client is a RealUnit-only header today, so the whole
-      // DFX ecosystem (web app, dfx-wallet, OCP, integrators) legitimately has no source. DFX-as-default is
-      // the intended house brand, but the miss is logged so it is observable, not silent.
+      // Mail branding follows the app the ticket was opened from, attributed EXACTLY at creation from the
+      // X-Client signal (NOT the user's persisted wallet) and persisted NOT NULL. No fallback chain here:
+      // an unattributed issue (only possible for rows predating the backfill migration) or a positively
+      // RealUnit-attributed issue without its mail config means the correct brand cannot be rendered -
+      // fail closed (no mail, error log) instead of guessing a brand.
       // Passing the wallet explicitly also bypasses resolveMailWallet's account-history override.
-      let wallet = entity.issue.wallet;
+      const wallet = entity.issue.wallet;
       if (!wallet) {
-        wallet = await this.walletService.getDefault();
-        this.logger.verbose(
-          `Support message mail for issue ${entity.issue.id}: no attributed source, branding DFX default`,
+        this.logger.error(
+          `Support message mail for issue ${entity.issue.id} suppressed: issue has no attributed source wallet`,
         );
-      } else if (wallet.name === REALUNIT_WALLET_NAME && !Config.mail.wallet[REALUNIT_WALLET_NAME]) {
-        // RealUnit was positively attributed, but its mail config is absent (REALUNIT_MAIL_USER unset): the
-        // factory would silently render the DFX default template. Surface the misconfiguration loudly.
-        this.logger.warn(
-          `Support message mail for issue ${entity.issue.id} is RealUnit-attributed but REALUNIT_MAIL_USER is unset; rendering DFX default template`,
+        return;
+      }
+      if (wallet.name === REALUNIT_WALLET_NAME && !Config.mail.wallet[REALUNIT_WALLET_NAME]) {
+        this.logger.error(
+          `Support message mail for issue ${entity.issue.id} suppressed: RealUnit-attributed but REALUNIT_MAIL_USER is unset (would mis-brand as DFX)`,
         );
+        return;
       }
 
       await this.notificationService.sendMail({

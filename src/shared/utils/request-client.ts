@@ -14,6 +14,12 @@ export const CLIENT_HEADER = 'x-client';
 // Anchored: only the exact `realunit-app` client matches (not substrings like `realunit-app-proxy`).
 const REALUNIT_CLIENT = /^realunit-app$/i;
 const REALUNIT_PATH = /^\/v\d+\/realunit\//i;
+const DFX_CLIENT = /^dfx-services$/i;
+
+// The application a request exactly identifies itself as. `undefined` means the request carried no (or
+// an unrecognized) X-Client value - callers that need exact attribution must treat that as unresolvable
+// and fail closed, never map it to a brand.
+export type ClientSource = 'DFX' | 'RealUnit';
 
 export function getClient(req: Request): string {
   const client = req.headers[CLIENT_HEADER];
@@ -22,6 +28,13 @@ export function getClient(req: Request): string {
 
 export function isRealUnitClient(client: string | undefined): boolean {
   return REALUNIT_CLIENT.test(client?.trim() ?? '');
+}
+
+export function resolveClientSource(client: string | undefined): ClientSource | undefined {
+  const value = client?.trim() ?? '';
+  if (REALUNIT_CLIENT.test(value)) return 'RealUnit';
+  if (DFX_CLIENT.test(value)) return 'DFX';
+  return undefined;
 }
 
 export function isRealUnitRequest(req: Request): boolean {

@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
@@ -10,7 +11,7 @@ import { BlobContent } from 'src/integration/infrastructure/azure-storage.servic
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { isRealUnitClient } from 'src/shared/utils/request-client';
+import { CLIENT_HEADER, resolveClientSource } from 'src/shared/utils/request-client';
 import { Util } from 'src/shared/utils/util';
 import { REALUNIT_WALLET_NAME } from 'src/subdomains/supporting/notification/realunit-mail-rules';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
@@ -124,17 +125,18 @@ export class SupportIssueService {
     return this.createForUserData(userDataId, dto, await this.resolveSourceWallet(client));
   }
 
-  // Support-tool-created ticket: always DFX-attributed (no app client). A dedicated method - rather than an
-  // omitted optional arg on createIssue - so the no-source invariant cannot be broken by a future caller
-  // forwarding a client header into the support path.
+  // Support-tool-created ticket: the support tool is part of the DFX services app, so these tickets are
+  // deterministically DFX-attributed (an exact property of the creating application, not a guess). A
+  // dedicated method - rather than an omitted optional arg on createIssue - so the invariant cannot be
+  // broken by a future caller forwarding a customer client header into the support path.
   async createIssueBySupport(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
-    return this.createForUserData(userDataId, dto, undefined);
+    return this.createForUserData(userDataId, dto, await this.walletService.getDefault());
   }
 
   private async createForUserData(
     userDataId: number,
     dto: CreateSupportIssueDto,
-    sourceWallet: Wallet | undefined,
+    sourceWallet: Wallet,
   ): Promise<SupportIssueDto> {
     const userData = await this.userDataService.getUserData(userDataId, { wallet: true });
     if (!userData) throw new NotFoundException('UserData not found');
@@ -142,25 +144,34 @@ export class SupportIssueService {
     return this.createIssueInternal(userData, dto, sourceWallet);
   }
 
-  // App the ticket is opened from, derived from the per-request X-Client header (not the user's persisted
-  // wallet). Only the RealUnit app is branded explicitly; every other client defaults to DFX (returns
-  // undefined here -> DFX branding at mail time).
-  private async resolveSourceWallet(client?: string): Promise<Wallet | undefined> {
-    if (!isRealUnitClient(client)) return undefined;
-
-    const wallet = await this.walletService.getByIdOrName(undefined, REALUNIT_WALLET_NAME);
-    if (!wallet)
-      this.logger.warn(
-        `RealUnit ticket source requested but the '${REALUNIT_WALLET_NAME}' wallet is missing; ticket falls back to DFX branding`,
+  // App the ticket is opened from, resolved EXACTLY from the per-request X-Client header (never from the
+  // user's persisted wallet). Fail closed: an unknown or missing client is rejected instead of being
+  // guessed into a brand - every ticket-creating app must identify itself (realunit-app, dfx-services).
+  private async resolveSourceWallet(client?: string): Promise<Wallet> {
+    const source = resolveClientSource(client);
+    if (!source)
+      throw new BadRequestException(
+        `Support ticket source could not be resolved: missing or unknown '${CLIENT_HEADER}' header`,
       );
 
-    return wallet;
+    if (source === 'RealUnit') {
+      const wallet = await this.walletService.getByIdOrName(undefined, REALUNIT_WALLET_NAME);
+      // Fail closed: without the RealUnit wallet the ticket cannot be attributed exactly, and rendering
+      // it as DFX would be a wrong brand, not a fallback.
+      if (!wallet)
+        throw new ServiceUnavailableException(
+          `RealUnit ticket source resolved but the '${REALUNIT_WALLET_NAME}' wallet is missing`,
+        );
+      return wallet;
+    }
+
+    return this.walletService.getDefault();
   }
 
   async createIssueInternal(
     userData: UserData,
     dto: CreateSupportIssueDto,
-    sourceWallet?: Wallet,
+    sourceWallet: Wallet,
   ): Promise<SupportIssueDto> {
     // mail is required
     if (!userData.mail) throw new BadRequestException('Mail is missing');
@@ -256,10 +267,11 @@ export class SupportIssueService {
 
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
 
-    // Upgrade a not-yet-attributed (legacy or DFX-defaulted) issue when a follow-up message arrives with a
-    // positive source (e.g. the RealUnit app). Never clobber an existing source - a later headerless message
-    // must not downgrade a known RealUnit ticket to DFX.
-    if (existingIssue && !existingIssue.wallet && sourceWallet) {
+    // Dedup keeps the existing issue's attribution: the source is a property of the app the ticket was
+    // originally opened from (NOT NULL since the backfill migration), so a follow-up message from another
+    // app must not rebrand it. Legacy rows created before attribution existed were backfilled to DFX; if
+    // one ever surfaces unattributed, upgrade it with the now-known exact source instead of guessing.
+    if (existingIssue && !existingIssue.wallet) {
       existingIssue.wallet = sourceWallet;
       await this.supportIssueRepo.update(existingIssue.id, { wallet: sourceWallet });
     }
