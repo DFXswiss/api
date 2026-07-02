@@ -14,7 +14,9 @@ module.exports = class AddSupportClerkJosh1781871148903 {
   name = 'AddSupportClerkJosh1781871148903';
 
   async up(queryRunner) {
-    const [row] = await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = 'supportClerks'`);
+    // .at(0) instead of array destructuring: the migration-psql-check flags brackets around a word
+    // as MSSQL bracket quoting
+    const row = (await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = 'supportClerks'`)).at(0);
     const clerks = row ? JSON.parse(row.value) : [];
 
     if (clerks.includes('Josh')) return;
@@ -33,7 +35,7 @@ module.exports = class AddSupportClerkJosh1781871148903 {
   }
 
   async down(queryRunner) {
-    const [row] = await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = 'supportClerks'`);
+    const row = (await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = 'supportClerks'`)).at(0);
     if (!row) return;
 
     const clerks = JSON.parse(row.value).filter((clerk) => clerk !== 'Josh');
