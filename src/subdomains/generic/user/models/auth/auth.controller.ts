@@ -103,16 +103,18 @@ export class AuthController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   async setup2fa(@GetJwt() jwt: JwtPayload, @Query() { level }: Start2faDto): Promise<Setup2faDto> {
     const { kycHash } = await this.userDataService.getUserData(jwt.account);
-    return this.tfaService.setup(kycHash, level);
+    // A wallet-signature login has no tfaRequired marker (trusted); a mail-elevated staff token has it (not trusted).
+    return this.tfaService.setup(kycHash, level, !jwt.tfaRequired);
   }
 
   @Post('2fa/verify')
   @ApiBearerAuth()
   @ApiCreatedResponse({ description: '2FA successful' })
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @UseGuards(RateLimitGuard, AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @Throttle(10, 60)
   async verify2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Body() dto: Verify2faDto): Promise<void> {
     const { kycHash } = await this.userDataService.getUserData(jwt.account);
-    return this.tfaService.verify(kycHash, dto.token, ip);
+    return this.tfaService.verify(kycHash, dto.token, ip, !jwt.tfaRequired);
   }
 
   @Get('mail/confirm')

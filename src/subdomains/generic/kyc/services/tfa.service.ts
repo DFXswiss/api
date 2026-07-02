@@ -61,7 +61,7 @@ export class TfaService {
     keysToBeDeleted.forEach((k) => this.secretCache.delete(k));
   }
 
-  async setup(kycHash: string, level: TfaLevel): Promise<Setup2faDto> {
+  async setup(kycHash: string, level: TfaLevel, allowStaffEnrollment = false): Promise<Setup2faDto> {
     const user = await this.getUser(kycHash);
     if (user.isBlockedOrDeactivated) throw new ForbiddenException('Account is blocked/deactivated');
 
@@ -89,6 +89,11 @@ export class TfaService {
       // app 2FA
       if (user.totpSecret) throw new ConflictException('2FA already set up');
 
+      // Initial staff enrollment must originate from a trusted (wallet-signature) session: a code-header or
+      // mail-elevated session shares the magic-link inbox and would not be an independent second factor.
+      if (user.isStaff && !user.totpSecret && !allowStaffEnrollment)
+        throw new ForbiddenException('Staff 2FA must be enrolled from a wallet-authenticated session');
+
       const type = TfaType.APP;
       const { secret, uri } = generateSecret({ name: 'DFX.swiss', account: user.mail ?? '' });
 
@@ -103,7 +108,7 @@ export class TfaService {
     }
   }
 
-  async verify(kycHash: string, token: string, ip: string): Promise<void> {
+  async verify(kycHash: string, token: string, ip: string, allowStaffEnrollment = false): Promise<void> {
     const user = await this.getUser(kycHash);
 
     let level: TfaLevel;
@@ -126,9 +131,21 @@ export class TfaService {
         const secret = user.totpSecret ?? cacheEntry?.secret;
         if (!secret) throw new NotFoundException('2FA not set up');
 
-        this.verifyOrThrow(secret, token);
+        // Durable per-account lockout: an enrolled account (totpSecret set) has no secretCache entry, so the
+        // transient tryCount gate above never fires for it — this is the brute-force gap being closed here.
+        if (user.totpBlockedUntil && user.totpBlockedUntil > new Date())
+          throw new ForbiddenException('Too many failed 2FA attempts, please try again later');
 
-        if (!user.totpSecret) await this.userDataService.updateTotpSecret(user, secret);
+        await this.verifyTotpOrLock(user, secret, token);
+
+        if (!user.totpSecret) {
+          // Initial staff enrollment must originate from a trusted (wallet-signature) session; a code-header or
+          // mail-elevated session shares the magic-link inbox and is not an independent factor.
+          if (user.isStaff && !allowStaffEnrollment)
+            throw new ForbiddenException('Staff 2FA must be enrolled from a wallet-authenticated session');
+
+          await this.userDataService.updateTotpSecret(user, secret);
+        }
 
         level = TfaLevel.STRICT;
         type = TfaType.APP;
@@ -141,6 +158,29 @@ export class TfaService {
 
     this.secretCache.delete(user.id);
     await this.createTfaLog(user, ip, level, type);
+  }
+
+  private async verifyTotpOrLock(user: UserData, secret: string, token: string): Promise<void> {
+    try {
+      this.verifyOrThrow(secret, token);
+    } catch (e) {
+      const failedAttempts = (user.totpFailedAttempts ?? 0) + 1;
+      const isLocked = failedAttempts >= TfaMaxTryCount;
+
+      if (isLocked)
+        this.logger.warn(`TOTP lockout triggered for account ${user.id} after ${failedAttempts} failed attempts`);
+
+      await this.userDataService.setTotpLockout(
+        user,
+        isLocked ? 0 : failedAttempts,
+        isLocked ? Util.minutesAfter(15) : null,
+      );
+
+      throw e;
+    }
+
+    // reset the durable counter for a legitimate user so failures never accumulate to a lockout over time
+    if (user.totpFailedAttempts || user.totpBlockedUntil) await this.userDataService.setTotpLockout(user, 0, null);
   }
 
   async check(userDataId: number, ip: string, level?: TfaLevel): Promise<void> {

@@ -356,6 +356,12 @@ export class UserData extends IEntity {
   @Column({ nullable: true })
   totpSecret?: string;
 
+  @Column({ type: 'integer', default: 0 })
+  totpFailedAttempts: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  totpBlockedUntil?: Date;
+
   // Point of Sale
   @Column({ default: false })
   paymentLinksAllowed: boolean;
