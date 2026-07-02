@@ -28,7 +28,9 @@ import { UploadFileDto } from 'src/subdomains/generic/user/models/user-data/dto/
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { DownloadUserDataDto } from '../user/dto/download-user-data.dto';
 import { CreateUserDataDto } from './dto/create-user-data.dto';
+import { KycFileIdBackfillQuery } from './dto/kyc-file-id-backfill.dto';
 import { UpdateUserDataDto } from './dto/update-user-data.dto';
+import { BackfillStartResult, KycFileIdBackfillService } from './kyc-file-id-backfill.service';
 import { UserData, UserDataComplianceUpdateCols, UserDataSupportUpdateCols } from './user-data.entity';
 import { UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
@@ -44,6 +46,7 @@ export class UserDataController {
     private readonly feeService: FeeService,
     private readonly documentService: KycDocumentService,
     private readonly kycLogService: KycLogService,
+    private readonly kycFileIdBackfillService: KycFileIdBackfillService,
   ) {}
 
   @Get()
@@ -188,5 +191,16 @@ export class UserDataController {
     });
 
     return new StreamableFile(zipContent);
+  }
+
+  // One-shot backfill of kycFileId / amlListAddedDate for rows the AML flow failed to assign while
+  // getLastKycFileId() returned a NULLS-FIRST null. Runs in the background — the report is written
+  // to the log. Dry-runs unless ?dryRun=false is passed explicitly.
+  @Post('backfill/kyc-file-ids')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPER_ADMIN), UserActiveGuard())
+  backfillKycFileIds(@Query() query: KycFileIdBackfillQuery): BackfillStartResult {
+    return this.kycFileIdBackfillService.start({ dryRun: query.dryRun !== 'false' });
   }
 }

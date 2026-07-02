@@ -44,7 +44,10 @@ import { RecommendationService } from './models/recommendation/recommendation.se
 import { UserDataRelationController } from './models/user-data-relation/user-data-relation.controller';
 import { UserDataRelationRepository } from './models/user-data-relation/user-data-relation.repository';
 import { UserDataRelationService } from './models/user-data-relation/user-data-relation.service';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { JwtRevocationSyncService } from './models/user-data/jwt-revocation-sync.service';
+import { KycFileIdBackfillService } from './models/user-data/kyc-file-id-backfill.service';
 import { UserDataJobService } from './models/user-data/user-data-job.service';
 import { UserDataNotificationService } from './models/user-data/user-data-notification.service';
 import { UserData } from './models/user-data/user-data.entity';
@@ -73,6 +76,8 @@ import { WebhookService } from './services/webhook/webhook.service';
       CustodyProvider,
       Organization,
       Recommendation,
+      BuyCrypto,
+      BuyFiat, // source entities (read-only, KycFileIdBackfillService)
     ]),
     SharedModule,
     NotificationModule,
@@ -131,6 +136,7 @@ import { WebhookService } from './services/webhook/webhook.service';
     UserJobService,
     RecommendationRepository,
     RecommendationService,
+    KycFileIdBackfillService,
   ],
   exports: [
     UserService,
