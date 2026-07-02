@@ -55,12 +55,17 @@ import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
-import { TransactionRequestStatus } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
+import {
+  TransactionRequest,
+  TransactionRequestStatus,
+  TransactionRequestType,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
+import { FindOptionsRelations } from 'typeorm';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
 import {
@@ -1421,9 +1426,33 @@ export class RealUnitService {
 
   // --- Admin Methods ---
 
-  async confirmPaymentReceived(requestId: number): Promise<void> {
-    const request = await this.transactionRequestService.getTransactionRequest(requestId, { user: true });
+  private async getRealuQuote(
+    requestId: number,
+    relations: FindOptionsRelations<TransactionRequest> = {},
+  ): Promise<TransactionRequest> {
+    const request = await this.transactionRequestService.getTransactionRequest(requestId, relations);
     if (!request) throw new NotFoundException('Transaction request not found');
+
+    // admin access is scoped to REALU buy/sell quotes
+    if (request.type === TransactionRequestType.SWAP) throw new NotFoundException('Transaction request not found');
+
+    const realuAsset = await this.getRealuAsset();
+    const realuAssetId = request.type === TransactionRequestType.SELL ? request.sourceId : request.targetId;
+    if (realuAssetId !== realuAsset.id) throw new NotFoundException('Transaction request not found');
+
+    return request;
+  }
+
+  async confirmPaymentReceived(requestId: number): Promise<void> {
+    const request = await this.getRealuQuote(requestId, { user: true });
+    // getRealuQuote is a generic buy/sell-scoped helper; this endpoint
+    // only confirms fiat payment on a buy quote. Reject sell quotes here: the DEV simulation path and the
+    // PRD payAndAllocate path both assume buy-only state (routeId is a buy route; aktionariatResponse is
+    // only written on buy). BadRequest, not NotFound — the quote already passed REALU scoping, so its
+    // existence is disclosable.
+    if (request.type !== TransactionRequestType.BUY) {
+      throw new BadRequestException('Only buy quotes can be confirmed');
+    }
     if (request.status !== TransactionRequestStatus.WAITING_FOR_PAYMENT) {
       throw new BadRequestException('Transaction request is not in WaitingForPayment status');
     }

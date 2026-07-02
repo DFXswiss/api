@@ -116,6 +116,11 @@ export class TransactionRequest extends IEntity {
   @Column({ type: 'text', nullable: true })
   aktionariatResponse?: string;
 
+  // tx hash of the on-chain transfer that settled this request (set by the settlement job);
+  // each settlement tx may complete at most one request per user
+  @Column({ length: 256, nullable: true })
+  settlementTxId?: string;
+
   @OneToOne(() => Transaction, (transaction) => transaction.request, { nullable: true })
   transaction?: Transaction;
 

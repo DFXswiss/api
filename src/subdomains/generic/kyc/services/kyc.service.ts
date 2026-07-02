@@ -450,7 +450,7 @@ export class KycService {
     return this.toDto(user, false, undefined, context);
   }
 
-  async getFileByUid(uid: string, jwt?: JwtPayload): Promise<KycFileDataDto> {
+  async getFileByUid(uid: string, jwt: JwtPayload | undefined, ip: string): Promise<KycFileDataDto> {
     const kycFile = await this.kycFileService.getKycFile(uid);
 
     if (!kycFile) throw new NotFoundException('KYC file not found');
@@ -459,6 +459,10 @@ export class KycService {
       if (!hasRoleAccess(UserRole.COMPLIANCE, jwt?.role))
         throw new ForbiddenException('Requires admin or compliance role');
       if (!jwt || !isUserActive(jwt)) throw new ForbiddenException('User is not active');
+
+      // Mail-origin staff sessions (tfaRequired) must complete STRICT 2FA before downloading protected KYC
+      // files, matching the TfaGuard on the dedicated compliance routes; wallet-signature logins are unaffected.
+      if (jwt.tfaRequired) await this.tfaService.check(jwt.account, ip, TfaLevel.STRICT);
     }
 
     const blob = await this.documentService.downloadFile(
