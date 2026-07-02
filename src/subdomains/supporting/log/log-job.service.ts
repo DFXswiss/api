@@ -142,7 +142,13 @@ export class LogJobService {
       // safety module
       const minTotalBalanceChf = await this.settingService.getObj<number>('minTotalBalanceChf', 100000);
 
-      await this.processService.setSafetyModeActive(totalBalanceChf < minTotalBalanceChf);
+      // fail closed: a non-finite total means the balance is unknown (e.g. a bucket aggregate could not
+      // be summed), so activate the safety mode instead of silently leaving it off on a false comparison.
+      if (!Number.isFinite(totalBalanceChf))
+        this.logger.error(`Total balance is not finite (${totalBalanceChf}); activating safety mode`);
+
+      const safetyModeActive = !Number.isFinite(totalBalanceChf) || totalBalanceChf < minTotalBalanceChf;
+      await this.processService.setSafetyModeActive(safetyModeActive);
 
       const lastLog = await this.logService.maxEntity('LogService', 'FinancialDataLog', LogSeverity.INFO, true);
       const lastTotalBalance = (JSON.parse(lastLog.message) as FinanceLog).balancesTotal.totalBalanceChf;
@@ -205,11 +211,14 @@ export class LogJobService {
         0,
       );
 
+      // keep negative aggregates as real numbers (returnNegativeValue): a negative bucket total is a
+      // genuine state (e.g. an overdrawn/blocked bank account) that must stay visible instead of being
+      // nulled out, which also keeps the downstream sum numeric rather than turning into NaN.
       acc[financialType] = {
-        plusBalance: this.getJsonValue(plusBalance, this.financialTypeAmountType(financialType), true),
-        plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true),
-        minusBalance: this.getJsonValue(minusBalance, this.financialTypeAmountType(financialType), true),
-        minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true),
+        plusBalance: this.getJsonValue(plusBalance, this.financialTypeAmountType(financialType), true, true),
+        plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true, true),
+        minusBalance: this.getJsonValue(minusBalance, this.financialTypeAmountType(financialType), true, true),
+        minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true, true),
       };
 
       return acc;

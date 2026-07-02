@@ -192,6 +192,66 @@ describe('LogJobService', () => {
     });
   });
 
+  describe('getBalancesByFinancialType (negative aggregates)', () => {
+    it('keeps a negative bucket aggregate numeric instead of nulling it to undefined', () => {
+      // a bank asset whose reported balance turned negative (e.g. overdrawn/blocked account)
+      const asset = createCustomAsset({ id: 1, financialType: 'EUR' });
+      const assetLog = {
+        1: { plusBalance: { total: -5000 }, minusBalance: { total: 0 }, priceChf: 1 },
+      };
+
+      const result = service['getBalancesByFinancialType']([asset], assetLog as any);
+
+      // must stay a real negative number so the downstream sum stays numeric (not NaN)
+      expect(result.EUR.plusBalance).toBe(-5000);
+      expect(result.EUR.plusBalanceChf).toBe(-5000);
+      expect(result.EUR.plusBalance).not.toBeUndefined();
+    });
+  });
+
+  describe('safety mode (fail closed on non-finite total)', () => {
+    function setup(buckets: Record<string, unknown>, minTotalBalanceChf: number) {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getBalancesByFinancialType').mockReturnValue(buckets);
+      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(minTotalBalanceChf as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      jest
+        .spyOn(logService, 'maxEntity')
+        .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 0 } }) } as any);
+      jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    it('activates safety mode and logs an error when the total is not finite', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      // an unsummable bucket (undefined chf) makes the summed total NaN -> non-finite
+      setup({ EUR: { plusBalance: 0, plusBalanceChf: undefined, minusBalance: 0, minusBalanceChf: 0 } }, 100000);
+
+      await service.saveTradingLog();
+
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(true);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('not finite'));
+    });
+
+    it('activates safety mode when the finite total is below the minimum', async () => {
+      setup({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } }, 100000);
+
+      await service.saveTradingLog();
+
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(true);
+    });
+
+    it('leaves safety mode inactive when the finite total meets the minimum', async () => {
+      setup({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } }, 5000);
+
+      await service.saveTradingLog();
+
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(false);
+    });
+  });
+
   it('should filter same length sender & receiver', async () => {
     if (new Date().getHours() > 19) return;
 
