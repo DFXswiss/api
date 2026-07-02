@@ -1248,7 +1248,8 @@ export class UserDataService {
     const existingSteps = [...master.kycSteps, ...(slave.kycSteps ?? [])];
     let nextSequenceNumber = (existingSteps.length ? Util.minObjValue(existingSteps, 'sequenceNumber') : 0) - 1;
     const kycStepMerge = !!slave.kycSteps?.length;
-    for (const kycStep of slave.kycSteps) {
+    // Descending by old sequenceNumber, so the newest attempt keeps the highest new number (order-preserving).
+    for (const kycStep of [...slave.kycSteps].sort((a, b) => b.sequenceNumber - a.sequenceNumber)) {
       await this.kycAdminService.updateKycStepInternal(
         kycStep.update(
           [
