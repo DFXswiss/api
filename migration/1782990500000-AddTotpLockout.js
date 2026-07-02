@@ -7,8 +7,8 @@
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class AddTotpLockout1782990000000 {
-  name = 'AddTotpLockout1782990000000';
+module.exports = class AddTotpLockout1782990500000 {
+  name = 'AddTotpLockout1782990500000';
 
   /**
    * @param {QueryRunner} queryRunner

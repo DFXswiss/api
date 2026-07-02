@@ -91,7 +91,7 @@ export class TfaService {
 
       // Initial staff enrollment must originate from a trusted (wallet-signature) session: a code-header or
       // mail-elevated session shares the magic-link inbox and would not be an independent second factor.
-      if (user.isStaff && !user.totpSecret && !allowStaffEnrollment)
+      if (user.isStaff && !allowStaffEnrollment)
         throw new ForbiddenException('Staff 2FA must be enrolled from a wallet-authenticated session');
 
       const type = TfaType.APP;

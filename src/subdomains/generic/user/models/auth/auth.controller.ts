@@ -104,7 +104,10 @@ export class AuthController {
   async setup2fa(@GetJwt() jwt: JwtPayload, @Query() { level }: Start2faDto): Promise<Setup2faDto> {
     const { kycHash } = await this.userDataService.getUserData(jwt.account);
     // A wallet-signature login has no tfaRequired marker (trusted); a mail-elevated staff token has it (not trusted).
-    return this.tfaService.setup(kycHash, level, !jwt.tfaRequired);
+    // Trusted origin = a wallet-signature login: no tfaRequired marker AND a real wallet address on the token.
+    // The account-token fallback (staff enforcement off, or a wallet-less staff user) carries neither, so it
+    // cannot self-enroll a staff TOTP factor from a mail inbox.
+    return this.tfaService.setup(kycHash, level, !jwt.tfaRequired && !!jwt.address);
   }
 
   @Post('2fa/verify')
@@ -114,7 +117,7 @@ export class AuthController {
   @Throttle(10, 60)
   async verify2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Body() dto: Verify2faDto): Promise<void> {
     const { kycHash } = await this.userDataService.getUserData(jwt.account);
-    return this.tfaService.verify(kycHash, dto.token, ip, !jwt.tfaRequired);
+    return this.tfaService.verify(kycHash, dto.token, ip, !jwt.tfaRequired && !!jwt.address);
   }
 
   @Get('mail/confirm')
