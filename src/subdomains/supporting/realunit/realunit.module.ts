@@ -18,6 +18,7 @@ import { PricingModule } from '../pricing/pricing.module';
 import { RealUnitController } from './controllers/realunit.controller';
 import { RealUnitDevService } from './realunit-dev.service';
 import { RealUnitJobService } from './realunit-job.service';
+import { RealunitScopeService } from './realunit-scope.service';
 import { RealUnitService } from './realunit.service';
 
 @Module({
@@ -40,7 +41,7 @@ import { RealUnitService } from './realunit.service';
     FaucetRequestModule,
   ],
   controllers: [RealUnitController],
-  providers: [RealUnitService, RealUnitDevService, RealUnitJobService],
-  exports: [RealUnitService],
+  providers: [RealUnitService, RealUnitDevService, RealUnitJobService, RealunitScopeService],
+  exports: [RealUnitService, RealunitScopeService],
 })
 export class RealUnitModule {}

@@ -47,7 +47,7 @@ import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.se
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { Equal, FindOptionsRelations, In, IsNull, MoreThan, Not, Raw } from 'typeorm';
+import { Equal, FindOptionsRelations, In, IsNull, Like, MoreThan, Not, Raw } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -157,6 +157,12 @@ export class UserDataService {
   async getUserDataByIds(ids: number[]): Promise<UserData[]> {
     if (!ids.length) return [];
     return this.userDataRepo.find({ where: { id: In(ids) } });
+  }
+
+  async getUserDataIdsByServiceProvider(provider: ServiceProvider): Promise<number[]> {
+    return this.userDataRepo
+      .find({ where: { serviceProviders: Like(`%${provider}%`) }, select: { id: true } })
+      .then((list) => list.map((u) => u.id));
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
