@@ -17,13 +17,13 @@ module.exports = class AddUserDataKycFileIdUniqueIndex1782911659474 {
      * @param {QueryRunner} queryRunner
      */
     async up(queryRunner) {
-        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_user_data_kyc_file_id" ON "user_data" ("kycFileId") WHERE "kycFileId" IS NOT NULL`);
+        await queryRunner.query(`CREATE UNIQUE INDEX "IDX_8dae6f6af0a6b5dc2ec16c333c" ON "user_data" ("kycFileId") WHERE "kycFileId" IS NOT NULL`);
     }
 
     /**
      * @param {QueryRunner} queryRunner
      */
     async down(queryRunner) {
-        await queryRunner.query(`DROP INDEX "public"."IDX_user_data_kyc_file_id"`);
+        await queryRunner.query(`DROP INDEX "public"."IDX_8dae6f6af0a6b5dc2ec16c333c"`);
     }
 };

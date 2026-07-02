@@ -553,6 +553,8 @@ export class UserDataService {
 
   // Read-max-then-write is racy between concurrent AML postProcessing calls; the unique index on
   // kycFileId is the actual backstop, this just retries so the loser gets the next free id.
+  // max+1 over a sequence (nextval) to keep ids gapless: a sequence burns a number on every
+  // rolled-back txn and doesn't follow manual/merge kycFileId writes.
   async assignNextKycFileId(userData: UserData, attempt = 0): Promise<UserData> {
     // Postgres `ORDER BY … DESC` is NULLS FIRST, so exclude nulls to get the real max.
     const last = await this.userDataRepo.findOne({
