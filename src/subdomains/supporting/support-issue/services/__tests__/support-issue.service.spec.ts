@@ -178,6 +178,59 @@ describe('SupportIssueService.getSupportIssueList', () => {
       expect(supportIssueRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
   });
+
+  // The id branch of the search predicate is added only when the term is fully numeric AND
+  // fits int4. Anything above 2^31-1 (a pasted phone number) would produce a Postgres 22003
+  // range error and 500 the entire search — this block pins the guard against that regression.
+  describe('search-term id branch', () => {
+    // returns the parameter bag from the last andWhere call that includes the search predicate
+    const lastSearchParams = (): Record<string, unknown> | undefined => {
+      const calls = qb.andWhere.mock.calls;
+      const call = [...calls].reverse().find((c) => String(c[0]).includes('issue.name LIKE'));
+      return call?.[1] as Record<string, unknown> | undefined;
+    };
+
+    // returns the SQL fragment string from the last search predicate
+    const lastSearchFragment = (): string => {
+      const calls = qb.andWhere.mock.calls;
+      const call = [...calls].reverse().find((c) => String(c[0]).includes('issue.name LIKE'));
+      return String(call?.[0] ?? '');
+    };
+
+    it('emits the id clause for a small numeric term and binds the int', async () => {
+      await run({ query: '12345' });
+      expect(lastSearchFragment()).toContain('issue.id = :term0Id');
+      expect(lastSearchParams()).toEqual({ term0: '%12345%', term0Id: 12345 });
+    });
+
+    it('emits the id clause for exactly int4 max (2147483647)', async () => {
+      await run({ query: '2147483647' });
+      expect(lastSearchFragment()).toContain('issue.id = :term0Id');
+      expect(lastSearchParams()).toMatchObject({ term0Id: 2147483647 });
+    });
+
+    it('omits the id clause and Id-bind for a numeric term above int4 max (phone-number regression)', async () => {
+      await run({ query: '41791234567' });
+      expect(lastSearchFragment()).not.toContain('issue.id = :term0Id');
+      expect(lastSearchParams()).toEqual({ term0: '%41791234567%' });
+    });
+
+    it('omits the id clause for a non-numeric term', async () => {
+      await run({ query: 'alice' });
+      expect(lastSearchFragment()).not.toContain('issue.id = :term0Id');
+      expect(lastSearchParams()).toEqual({ term0: '%alice%' });
+    });
+
+    it('mixes term shapes across ANDed clauses', async () => {
+      await run({ query: 'alice 12345' });
+      const calls = qb.andWhere.mock.calls.filter((c) => String(c[0]).includes('issue.name LIKE'));
+      expect(calls).toHaveLength(2);
+      expect(String(calls[0][0])).not.toContain('issue.id = :term0Id');
+      expect(String(calls[1][0])).toContain('issue.id = :term1Id');
+      expect(calls[0][1]).toEqual({ term0: '%alice%' });
+      expect(calls[1][1]).toEqual({ term1: '%12345%', term1Id: 12345 });
+    });
+  });
 });
 
 describe('SupportIssueService.closeIssue', () => {
