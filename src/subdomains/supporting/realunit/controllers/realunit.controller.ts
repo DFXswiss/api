@@ -111,9 +111,9 @@ export class RealUnitController {
   })
   async getAccountHistory(
     @Param('address') address: string,
-    @Query() { first, after }: AccountHistoryQueryDto,
+    @Query() { first, before, after }: AccountHistoryQueryDto,
   ): Promise<AccountHistoryDto> {
-    return this.realunitService.getAccountHistory(address, first, after);
+    return this.realunitService.getAccountHistory(address, first, before, after);
   }
 
   @Get('holders')

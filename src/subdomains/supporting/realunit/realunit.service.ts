@@ -222,10 +222,16 @@ export class RealUnitService {
     return RealUnitDtoMapper.toHoldersDto(clientResponse);
   }
 
-  async getAccountHistory(address: string, first?: number, after?: string): Promise<AccountHistoryDto> {
+  async getAccountHistory(
+    address: string,
+    first?: number,
+    before?: string,
+    after?: string,
+  ): Promise<AccountHistoryDto> {
     const clientResponse = await request<AccountHistoryClientResponse>(this.ponderUrl, accountHistoryQuery, {
       id: address.toLowerCase(),
       limit: first || 50,
+      before: before ?? null,
       after: after ?? null,
     });
     if (!clientResponse.account) throw new NotFoundException('Account not found');
@@ -238,7 +244,7 @@ export class RealUnitService {
     let cursor: string | undefined;
 
     while (true) {
-      const history = await this.getAccountHistory(address, 100, cursor);
+      const history = await this.getAccountHistory(address, 100, undefined, cursor);
 
       const event = history.history.find(
         (e) => e.txHash.toLowerCase() === normalizedTxHash && e.eventType === HistoryEventType.TRANSFER,
@@ -259,7 +265,7 @@ export class RealUnitService {
     let cursor: string | undefined;
 
     while (foundEvents.length < txHashes.length) {
-      const history = await this.getAccountHistory(address, 100, cursor);
+      const history = await this.getAccountHistory(address, 100, undefined, cursor);
 
       for (const event of history.history) {
         if (
