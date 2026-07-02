@@ -16,6 +16,7 @@ import { KycDocumentService } from '../integration/kyc-document.service';
 import { KycFileService } from '../kyc-file.service';
 import { KycLogService } from '../kyc-log.service';
 import { KycService } from '../kyc.service';
+import { TfaLevel } from '../tfa.service';
 
 describe('KycService', () => {
   let service: KycService;
@@ -82,6 +83,9 @@ describe('KycService getFileByUid protected-file access', () => {
   let service: KycService;
   let kycFileService: jest.Mocked<KycFileService>;
   let documentService: jest.Mocked<KycDocumentService>;
+  let tfaService: { check: jest.Mock };
+
+  const ip = '1.2.3.4';
 
   const kycFile = (overrides: Partial<KycFile> = {}): KycFile =>
     Object.assign(new KycFile(), {
@@ -104,12 +108,14 @@ describe('KycService getFileByUid protected-file access', () => {
   beforeEach(() => {
     kycFileService = createMock<KycFileService>();
     documentService = createMock<KycDocumentService>();
+    tfaService = { check: jest.fn() };
 
-    // getFileByUid only touches these three deps; avoid wiring all constructor deps
+    // getFileByUid only touches these deps; avoid wiring all constructor deps
     service = Object.create(KycService.prototype);
     (service as any).kycFileService = kycFileService;
     (service as any).documentService = documentService;
     (service as any).kycLogService = createMock<KycLogService>();
+    (service as any).tfaService = tfaService;
 
     documentService.downloadFile.mockResolvedValue(
       createMock<BlobContent>({ contentType: 'application/pdf', data: Buffer.from('x') }),
@@ -121,7 +127,7 @@ describe('KycService getFileByUid protected-file access', () => {
     it('may download a protected KYC file', async () => {
       kycFileService.getKycFile.mockResolvedValue(kycFile());
 
-      const dto = await service.getFileByUid('FILE-UID', jwtFor(role));
+      const dto = await service.getFileByUid('FILE-UID', jwtFor(role), ip);
 
       expect(dto.uid).toBe('FILE-UID');
       expect(documentService.downloadFile).toHaveBeenCalled();
@@ -131,14 +137,16 @@ describe('KycService getFileByUid protected-file access', () => {
   it('forbids a non-privileged role from a protected file, without downloading', async () => {
     kycFileService.getKycFile.mockResolvedValue(kycFile());
 
-    await expect(service.getFileByUid('FILE-UID', jwtFor(UserRole.USER))).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.getFileByUid('FILE-UID', jwtFor(UserRole.USER), ip)).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
     expect(documentService.downloadFile).not.toHaveBeenCalled();
   });
 
   it('forbids an unauthenticated request (no JWT) from a protected file', async () => {
     kycFileService.getKycFile.mockResolvedValue(kycFile());
 
-    await expect(service.getFileByUid('FILE-UID', undefined)).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(service.getFileByUid('FILE-UID', undefined, ip)).rejects.toBeInstanceOf(ForbiddenException);
     expect(documentService.downloadFile).not.toHaveBeenCalled();
   });
 
@@ -152,7 +160,7 @@ describe('KycService getFileByUid protected-file access', () => {
     it('is forbidden from a protected file, without downloading', async () => {
       kycFileService.getKycFile.mockResolvedValue(kycFile());
 
-      await expect(service.getFileByUid('FILE-UID', jwtFor(role, statuses))).rejects.toThrow('User is not active');
+      await expect(service.getFileByUid('FILE-UID', jwtFor(role, statuses), ip)).rejects.toThrow('User is not active');
       expect(documentService.downloadFile).not.toHaveBeenCalled();
     });
   });
@@ -160,9 +168,52 @@ describe('KycService getFileByUid protected-file access', () => {
   it('serves a non-protected file to any role', async () => {
     kycFileService.getKycFile.mockResolvedValue(kycFile({ protected: false }));
 
-    const dto = await service.getFileByUid('FILE-UID', jwtFor(UserRole.USER));
+    const dto = await service.getFileByUid('FILE-UID', jwtFor(UserRole.USER), ip);
 
     expect(dto.uid).toBe('FILE-UID');
     expect(documentService.downloadFile).toHaveBeenCalled();
+  });
+
+  // A mail-elevated staff token (tfaRequired) must pass STRICT 2FA before a protected file is served,
+  // mirroring the TfaGuard on the dedicated compliance routes. Wallet-signature staff sessions are unaffected.
+  describe('2FA enforcement on mail-origin staff sessions', () => {
+    it('enforces STRICT 2FA before serving a protected file', async () => {
+      kycFileService.getKycFile.mockResolvedValue(kycFile());
+
+      const dto = await service.getFileByUid('FILE-UID', jwtFor(UserRole.COMPLIANCE, { tfaRequired: true }), ip);
+
+      expect(tfaService.check).toHaveBeenCalledWith(1, ip, TfaLevel.STRICT);
+      expect(dto.uid).toBe('FILE-UID');
+      expect(documentService.downloadFile).toHaveBeenCalled();
+    });
+
+    it('blocks the download when 2FA verification fails', async () => {
+      kycFileService.getKycFile.mockResolvedValue(kycFile());
+      tfaService.check.mockRejectedValue(new Error('TFA required (strict)'));
+
+      await expect(
+        service.getFileByUid('FILE-UID', jwtFor(UserRole.COMPLIANCE, { tfaRequired: true }), ip),
+      ).rejects.toThrow('TFA required (strict)');
+      expect(documentService.downloadFile).not.toHaveBeenCalled();
+    });
+
+    it('skips 2FA for a wallet-login staff session (no tfaRequired marker)', async () => {
+      kycFileService.getKycFile.mockResolvedValue(kycFile());
+
+      const dto = await service.getFileByUid('FILE-UID', jwtFor(UserRole.COMPLIANCE), ip);
+
+      expect(tfaService.check).not.toHaveBeenCalled();
+      expect(dto.uid).toBe('FILE-UID');
+      expect(documentService.downloadFile).toHaveBeenCalled();
+    });
+
+    it('does not run 2FA for a non-protected file even with tfaRequired', async () => {
+      kycFileService.getKycFile.mockResolvedValue(kycFile({ protected: false }));
+
+      await service.getFileByUid('FILE-UID', jwtFor(UserRole.COMPLIANCE, { tfaRequired: true }), ip);
+
+      expect(tfaService.check).not.toHaveBeenCalled();
+      expect(documentService.downloadFile).toHaveBeenCalled();
+    });
   });
 });
