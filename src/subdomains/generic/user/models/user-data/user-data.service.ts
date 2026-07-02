@@ -1246,7 +1246,8 @@ export class UserDataService {
     // master's rows (checked when userDataId flips on save) nor against the slave's own rows from earlier merges
     // (checked at update time, before the flip) — and a re-run of a partially-applied merge can't compound.
     const existingSteps = [...master.kycSteps, ...(slave.kycSteps ?? [])];
-    let nextSequenceNumber = (existingSteps.length ? Util.minObjValue(existingSteps, 'sequenceNumber') : 0) - 1;
+    // Seeded 100 below the floor: the gap marks each merge batch as such in the raw data.
+    let nextSequenceNumber = (existingSteps.length ? Util.minObjValue(existingSteps, 'sequenceNumber') : 0) - 100;
     const kycStepMerge = !!slave.kycSteps?.length;
     // Descending by old sequenceNumber, so the newest attempt keeps the highest new number (order-preserving).
     for (const kycStep of [...slave.kycSteps].sort((a, b) => b.sequenceNumber - a.sequenceNumber)) {

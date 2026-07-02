@@ -218,21 +218,21 @@ describe('UserDataService', () => {
     });
 
     it('re-running a partially-applied merge assigns fresh lower numbers (no compounding, no collision)', async () => {
-      // first run assigned -401 … -406; simulate those writes having been committed
+      // first run seeded 100 below the -400 floor and assigned -500 … -505; simulate those writes committed
       const committedSlaveSteps = [
-        buildStep(KycStepName.CONTACT_DATA, -401),
-        buildStep(KycStepName.CONTACT_DATA, -403),
-        buildStep(KycStepName.CONTACT_DATA, -404),
-        buildStep(KycStepName.CONTACT_DATA, -405),
-        buildStep(KycStepName.CONTACT_DATA, -406),
-        buildStep(KycStepName.PERSONAL_DATA, -402),
+        buildStep(KycStepName.CONTACT_DATA, -500),
+        buildStep(KycStepName.CONTACT_DATA, -502),
+        buildStep(KycStepName.CONTACT_DATA, -503),
+        buildStep(KycStepName.CONTACT_DATA, -504),
+        buildStep(KycStepName.CONTACT_DATA, -505),
+        buildStep(KycStepName.PERSONAL_DATA, -501),
       ];
       const preExisting = new Set(committedSlaveSteps.map((s) => `${s.name}|${s.sequenceNumber}`));
 
       const assigned = await runMerge([buildStep(KycStepName.CONTACT_DATA, 0)], committedSlaveSteps);
 
       for (const [id, seq] of assigned) {
-        expect(seq).toBeLessThan(-406);
+        expect(seq).toBeLessThan(-505);
         expect(preExisting.has(`${committedSlaveSteps.find((s) => s.id === id).name}|${seq}`)).toBe(false);
       }
       expect(new Set(assigned.map(([, s]) => s)).size).toBe(assigned.length);
