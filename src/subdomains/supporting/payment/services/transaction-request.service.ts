@@ -1,4 +1,11 @@
-import { ForbiddenException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  NotFoundException,
+  forwardRef,
+} from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -19,7 +26,7 @@ import { TransactionRequestExtended } from 'src/subdomains/core/history/mappers/
 import { GetSellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/get-sell-payment-info.dto';
 import { SellPaymentInfoDto } from 'src/subdomains/core/sell-crypto/route/dto/sell-payment-info.dto';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
-import { Between, FindOptionsRelations, In, IsNull, LessThan, MoreThan } from 'typeorm';
+import { Between, FindOptionsRelations, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { CustodyOrder } from '../../../core/custody/entities/custody-order.entity';
 import { CustodyOrderStatus } from '../../../core/custody/enums/custody';
 import { Deposit } from '../../address-pool/deposit/deposit.entity';
@@ -299,6 +306,22 @@ export class TransactionRequestService {
     await this.transactionRequestRepo.update(id, { isComplete: true, status: TransactionRequestStatus.COMPLETED });
   }
 
+  async cancel(id: number): Promise<void> {
+    // conditional update: a concurrent payment match (findAndComplete) must win over the cancel
+    const result = await this.transactionRequestRepo.update(
+      [
+        { id, isComplete: false, status: IsNull() },
+        {
+          id,
+          isComplete: false,
+          status: Not(In([TransactionRequestStatus.COMPLETED, TransactionRequestStatus.CANCELLED])),
+        },
+      ],
+      { status: TransactionRequestStatus.CANCELLED },
+    );
+    if (!result.affected) throw new ConflictException('Transaction request is already completed or cancelled');
+  }
+
   async updateEstimatedAmount(id: number, estimatedAmount: number): Promise<void> {
     await this.transactionRequestRepo.update(id, { estimatedAmount });
   }
@@ -335,6 +358,8 @@ export class TransactionRequestService {
   }
 
   async confirmTransactionRequest(txRequest: TransactionRequest, aktionariatResponse?: string): Promise<void> {
+    if (txRequest.isCancelled) throw new ConflictException('Transaction request is cancelled');
+
     await this.transactionRequestRepo.update(txRequest.id, {
       status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
       ...(aktionariatResponse && { aktionariatResponse }),

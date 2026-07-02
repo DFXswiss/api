@@ -21,6 +21,7 @@ export enum TransactionRequestStatus {
   CREATED = 'Created',
   WAITING_FOR_PAYMENT = 'WaitingForPayment',
   COMPLETED = 'Completed',
+  CANCELLED = 'Cancelled',
 }
 
 @Entity()
@@ -129,6 +130,10 @@ export class TransactionRequest extends IEntity {
 
   get userData(): UserData {
     return this.user.userData;
+  }
+
+  get isCancelled(): boolean {
+    return this.status === TransactionRequestStatus.CANCELLED;
   }
 
   resetStatus(): UpdateResult<TransactionRequest> {

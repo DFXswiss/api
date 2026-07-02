@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Wallet } from 'ethers';
 import { verifyTypedData } from 'ethers/lib/utils';
@@ -25,6 +25,10 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
+import {
+  TransactionRequestStatus,
+  TransactionRequestType,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
@@ -193,7 +197,9 @@ describe('RealUnitService', () => {
           provide: TransactionRequestService,
           useValue: {
             getOrThrow: jest.fn(),
+            getTransactionRequest: jest.fn(),
             complete: jest.fn(),
+            cancel: jest.fn(),
           },
         },
         { provide: TransactionService, useValue: {} },
@@ -406,6 +412,75 @@ describe('RealUnitService', () => {
       assetService.getAssetByQuery.mockResolvedValue(realuAsset);
 
       await expect(service.confirmSell(42, 1, {})).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('cancelQuote', () => {
+    const waitingQuote = {
+      id: 1,
+      type: TransactionRequestType.BUY,
+      status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
+      targetId: realuAsset.id,
+      sourceId: 99,
+    };
+
+    beforeEach(() => {
+      assetService.getAssetByQuery.mockResolvedValue(realuAsset);
+    });
+
+    it('should cancel a waiting REALU buy quote', async () => {
+      transactionRequestService.getTransactionRequest.mockResolvedValue(waitingQuote as any);
+
+      await service.cancelQuote(1);
+
+      expect(transactionRequestService.cancel).toHaveBeenCalledWith(1);
+    });
+
+    it('should cancel a waiting REALU sell quote', async () => {
+      transactionRequestService.getTransactionRequest.mockResolvedValue({
+        ...waitingQuote,
+        type: TransactionRequestType.SELL,
+        sourceId: realuAsset.id,
+        targetId: 99,
+      } as any);
+
+      await service.cancelQuote(1);
+
+      expect(transactionRequestService.cancel).toHaveBeenCalledWith(1);
+    });
+
+    it('should throw NotFoundException if request does not exist', async () => {
+      transactionRequestService.getTransactionRequest.mockResolvedValue(undefined);
+
+      await expect(service.cancelQuote(1)).rejects.toThrow(NotFoundException);
+      expect(transactionRequestService.cancel).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException for a non-REALU quote', async () => {
+      transactionRequestService.getTransactionRequest.mockResolvedValue({ ...waitingQuote, targetId: 99 } as any);
+
+      await expect(service.cancelQuote(1)).rejects.toThrow(NotFoundException);
+      expect(transactionRequestService.cancel).not.toHaveBeenCalled();
+    });
+
+    it('should throw ConflictException if request is already completed', async () => {
+      transactionRequestService.getTransactionRequest.mockResolvedValue({
+        ...waitingQuote,
+        status: TransactionRequestStatus.COMPLETED,
+      } as any);
+
+      await expect(service.cancelQuote(1)).rejects.toThrow(ConflictException);
+      expect(transactionRequestService.cancel).not.toHaveBeenCalled();
+    });
+
+    it('should throw ConflictException if request is already cancelled', async () => {
+      transactionRequestService.getTransactionRequest.mockResolvedValue({
+        ...waitingQuote,
+        status: TransactionRequestStatus.CANCELLED,
+      } as any);
+
+      await expect(service.cancelQuote(1)).rejects.toThrow(ConflictException);
+      expect(transactionRequestService.cancel).not.toHaveBeenCalled();
     });
   });
 

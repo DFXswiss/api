@@ -180,6 +180,7 @@ export class SellController {
     const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+    if (request.isCancelled) throw new ConflictException('Transaction request is cancelled');
 
     const route = await this.sellService.getById(request.routeId, { relations: { deposit: true } });
     if (!route) throw new NotFoundException('Sell route not found');
@@ -208,6 +209,7 @@ export class SellController {
     const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+    if (request.isCancelled) throw new ConflictException('Transaction request is cancelled');
 
     return this.sellService.confirmSell(request, dto).then((tx) => TransactionDtoMapper.mapBuyFiatTransaction(tx));
   }

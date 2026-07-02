@@ -178,6 +178,7 @@ export class SwapController {
     const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+    if (request.isCancelled) throw new ConflictException('Transaction request is cancelled');
 
     const route = await this.swapService.getById(request.routeId);
     if (!route) throw new NotFoundException('Swap route not found');
@@ -197,6 +198,7 @@ export class SwapController {
     const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+    if (request.isCancelled) throw new ConflictException('Transaction request is cancelled');
 
     return this.swapService.confirmSwap(request, dto).then((tx) => TransactionDtoMapper.mapBuyCryptoTransaction(tx));
   }

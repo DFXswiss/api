@@ -770,6 +770,17 @@ export class RealUnitController {
     await this.realunitService.confirmPaymentReceived(+id);
   }
 
+  @Put('admin/quotes/:id/cancel')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @ApiOperation({ summary: 'Cancel an open RealUnit request (quote)' })
+  @ApiParam({ name: 'id', description: 'Transaction request ID' })
+  @ApiOkResponse({ description: 'Quote cancelled' })
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  async cancelQuote(@Param('id') id: string): Promise<void> {
+    await this.realunitService.cancelQuote(+id);
+  }
+
   @Put('admin/registration/:kycStepId/forward')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

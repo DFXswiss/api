@@ -169,6 +169,7 @@ export class BuyController {
     if (!request.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
     if (request.isComplete) throw new ConflictException('Transaction request is already confirmed');
+    if (request.isCancelled) throw new ConflictException('Transaction request is cancelled');
 
     const user = await this.userService.getUser(jwt.user, { wallet: true });
     const buy = await this.buyService.get(jwt.account, request.routeId);
@@ -207,6 +208,7 @@ export class BuyController {
   async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<void> {
     const request = await this.transactionRequestService.getOrThrow(id, jwt.user);
     if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+    if (request.isCancelled) throw new ConflictException('Transaction request is cancelled');
     if ([TransactionRequestStatus.COMPLETED, TransactionRequestStatus.WAITING_FOR_PAYMENT].includes(request.status))
       throw new ConflictException('Transaction request is already confirmed');
     if (Util.daysDiff(request.created) >= Config.txRequestWaitingExpiryDays)

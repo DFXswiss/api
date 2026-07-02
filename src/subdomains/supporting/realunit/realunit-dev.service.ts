@@ -86,7 +86,7 @@ export class RealUnitDevService {
     );
 
     // 2. Create BuyCrypto with amlCheck: PASS
-    // Use Sepolia REALU asset for payout (not request.targetId which points to Mainnet)
+    // Use the passed REALU asset for payout (request.targetId may point to a stale asset)
     const buyCrypto = this.buyCryptoRepo.create({
       bankTx: { id: bankTx.id } as any,
       buy,

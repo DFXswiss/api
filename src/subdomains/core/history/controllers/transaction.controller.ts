@@ -461,6 +461,7 @@ export class TransactionController {
         if (request.user.userData.id !== jwt.account) throw new ForbiddenException('Not your transaction request');
         if (!request.userData.isInvoiceDataComplete) throw new BadRequestException('User data is not complete');
         if (!request.isValid) throw new BadRequestException('Transaction request is not valid');
+        if (request.isCancelled) throw new ConflictException('Transaction request is cancelled');
 
         // Generate invoice from request (pending transaction)
         const currency = await this.fiatService.getFiat(request.sourceId);
@@ -617,7 +618,7 @@ export class TransactionController {
     detailed = false,
   ): Promise<UnassignedTransactionDto | TransactionDto | undefined> {
     if (tx instanceof Transaction) return this.txToTransactionDto(tx, detailed);
-    if (tx instanceof TransactionRequest) return this.waitingTxRequestToTransactionDto(tx, detailed);
+    if (tx instanceof TransactionRequest && !tx.isCancelled) return this.waitingTxRequestToTransactionDto(tx, detailed);
   }
 
   private async getRefundTarget(transaction: Transaction): Promise<string | undefined> {
