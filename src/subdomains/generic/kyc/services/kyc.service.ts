@@ -113,7 +113,7 @@ export class KycService {
     private readonly languageService: LanguageService,
     private readonly countryService: CountryService,
     private readonly stepLogRepo: StepLogRepository,
-    private readonly tfaService: TfaService,
+    @Inject(forwardRef(() => TfaService)) private readonly tfaService: TfaService,
     private readonly kycFileService: KycFileService,
     private readonly kycNotificationService: KycNotificationService,
     @Inject(forwardRef(() => BankDataService))
