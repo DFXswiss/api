@@ -119,7 +119,7 @@ describe('LogJobService', () => {
   });
 
   describe('saveTradingLog (referral-credit liability)', () => {
-    // a positive base book so totalBalanceChf stays positive (getJsonValue suppresses negative totals)
+    // a positive base book so the referral-credit assertions work on round numbers
     const baseBuckets = () => ({
       EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 },
     });
@@ -249,6 +249,22 @@ describe('LogJobService', () => {
 
       expect(processService.setSafetyModeActive).toHaveBeenCalledWith(true);
       expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('not finite'));
+    });
+
+    it('never marks a non-finite total as valid, even after a long logging gap', async () => {
+      setup({ EUR: { plusBalance: 0, plusBalanceChf: undefined, minusBalance: 0, minusBalanceChf: 0 } }, 100000);
+      // last valid entry is older than 15 minutes -> the gap clause alone would force-validate
+      jest.spyOn(logService, 'maxEntity').mockResolvedValue({
+        created: new Date(Date.now() - 60 * 60 * 1000),
+        message: JSON.stringify({ balancesTotal: { totalBalanceChf: 0 } }),
+      } as any);
+
+      await service.saveTradingLog();
+
+      const financialLog = (logService.create as jest.Mock).mock.calls.find(
+        ([entry]) => entry.subsystem === 'FinancialDataLog',
+      )?.[0];
+      expect(financialLog.valid).toBe(false);
     });
 
     it('activates safety mode when the finite total is below the minimum', async () => {

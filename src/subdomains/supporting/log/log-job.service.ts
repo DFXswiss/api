@@ -171,10 +171,13 @@ export class LogJobService {
           },
         }),
         // jump vs. the last VALID entry (lastLog above), not the direct predecessor; must be
-        // read as transient skew vs. persisting deviation -- see BalancesTotal in dto/log.dto.ts
+        // read as transient skew vs. persisting deviation -- see BalancesTotal in dto/log.dto.ts.
+        // A non-finite total is never valid: the 15-minute clause would otherwise mark a long
+        // incident entry valid and make its null total the baseline for later comparisons.
         valid:
-          Math.abs(totalBalanceChf - lastTotalBalance) <= Config.financeLogTotalBalanceChangeLimit ||
-          Util.minutesDiff(lastLog.created) > 15,
+          Number.isFinite(totalBalanceChf) &&
+          (Math.abs(totalBalanceChf - lastTotalBalance) <= Config.financeLogTotalBalanceChangeLimit ||
+            Util.minutesDiff(lastLog.created) > 15),
         category: null,
       });
 
@@ -997,7 +1000,9 @@ export class LogJobService {
           //   : undefined,
         },
         minusBalance: {
-          total: this.getJsonValue(totalMinus, amountType(curr), true),
+          // returnNegativeValue like the plus side: a negative minus total (possible via a negative
+          // manual debt position) must stay numeric, or the CHF multiplication turns it into NaN
+          total: this.getJsonValue(totalMinus, amountType(curr), true, true),
           debt: this.getJsonValue(manualDebtPosition, amountType(curr)),
           pending: totalMinusPending
             ? {

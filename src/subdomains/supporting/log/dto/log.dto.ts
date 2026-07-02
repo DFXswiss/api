@@ -49,10 +49,12 @@ export interface FinanceLog {
  * when the jump vs. the last VALID entry (not necessarily the direct predecessor) exceeds
  * `Config.financeLogTotalBalanceChangeLimit` and that entry is under 15 minutes old (a
  * larger logging gap suppresses the flag), and safety mode is triggered when
- * `totalBalanceChf` drops below the `minTotalBalanceChf` setting. The flag detects the
- * step, not persistence: a persisting error is flagged only while the pre-step level is
- * still the last valid entry, so once that entry ages past 15 minutes the jump is
- * force-validated and the new level silently becomes the baseline.
+ * `totalBalanceChf` drops below the `minTotalBalanceChf` setting or is not finite
+ * (unknown books fail closed). A non-finite total is never `valid`, so it can not
+ * become the comparison baseline. The flag detects the step, not persistence: a
+ * persisting error is flagged only while the pre-step level is still the last valid
+ * entry, so once that entry ages past 15 minutes the jump is force-validated and the
+ * new level silently becomes the baseline.
  */
 export interface BalancesTotal {
   plusBalanceChf: number;
