@@ -265,7 +265,8 @@ export class Configuration {
     mailLoginExpiresIn: +(process.env.MAIL_LOGIN_EXPIRES_IN ?? 10), // min
     // Enables staff mail-login elevation (kill-switch for the whole staff-mail-login feature). Default on;
     // set TFA_STAFF_ENFORCED=false to stop new mail elevations. 2FA enforcement itself follows the mail-origin
-    // tfaRequired token marker in TfaGuard, so wallet-signature logins are never affected by this flag.
+    // tfaRequired token marker (enforced by the global TfaEnforcementInterceptor), so wallet-signature logins
+    // are never affected by this flag.
     tfaStaffEnforced: process.env.TFA_STAFF_ENFORCED !== 'false',
     signMessage:
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
@@ -1123,8 +1124,9 @@ export class Configuration {
     apiKey: process.env.SCORECHAIN_API_KEY,
     // PEM key stored single-line in the env/vault with <br> line breaks (same convention as the
     // other PEM env vars, e.g. PAYMENT_WEBHOOK_PUBLIC_KEY). Restore real newlines so node's crypto
-    // verifier can parse it; without this a pinned key fails to parse, every signature check fails,
-    // and isHighRisk() treats every screen as high risk.
+    // verifier can parse it; without this a pinned key fails to parse, so every signature check fails
+    // and isHighRisk() routes every signed screen to high risk (a not-found withdrawal — an unsigned
+    // 404 — still passes).
     publicKey: process.env.SCORECHAIN_PUBLIC_KEY?.split('<br>').join('\n'),
     riskThreshold: +(process.env.SCORECHAIN_RISK_THRESHOLD ?? 70),
     // ADDRESS/WALLET risk is mutable — an address can be flagged after a clean screen — so a clean

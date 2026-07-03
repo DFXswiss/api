@@ -7,10 +7,10 @@ import { SupportEscalationService } from '../services/support-escalation.service
 import { SupportIssueService } from '../services/support-issue.service';
 import { SupportIssueController } from '../support-issue.controller';
 
-// SupportIssueController imports TfaGuard on its staff routes, which transitively pulls in the kyc entity
-// graph; that graph has a circular import that resolves to `undefined` when this spec is loaded in isolation.
-// The guard is never exercised here (the controller is unit-constructed), so stub the service module — same
-// approach as tfa.guard.spec.
+// SupportIssueController imports TfaService (for its inline 2FA check) from the kyc domain, which transitively
+// pulls in the kyc entity graph; that graph has a circular import that resolves to `undefined` when this spec
+// is loaded in isolation. The real service is never exercised here (the controller is unit-constructed with a
+// mocked ModuleRef), so stub the service module.
 jest.mock('src/subdomains/generic/kyc/services/tfa.service', () => ({
   TfaLevel: { BASIC: 'Basic', STRICT: 'Strict' },
   TfaService: class TfaService {},
@@ -98,7 +98,7 @@ describe('SupportIssueController.createSupportMessage routing', () => {
   });
 
   // A mail-elevated staff token (tfaRequired) must pass STRICT 2FA before an official reply is dispatched,
-  // mirroring the TfaGuard on the dedicated staff routes. Wallet-signature staff sessions are unaffected.
+  // mirroring the global TfaEnforcementInterceptor. Wallet-signature staff sessions are unaffected.
   describe('2FA enforcement on mail-origin staff sessions', () => {
     it('enforces STRICT 2FA before dispatching the staff reply', async () => {
       const jwt = { role: UserRole.COMPLIANCE, account: 7, tfaRequired: true } as JwtPayload;

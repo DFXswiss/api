@@ -10,7 +10,7 @@ import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.ser
 
 interface ExternalServicesData {
   name: string;
-  balance: number;
+  balance?: number;
   status: Status;
 }
 
@@ -43,24 +43,25 @@ export class ExternalServicesObserver extends MetricObserver<ExternalServicesDat
   // *** HELPER METHODS *** //
 
   private async getExternalServices(): Promise<ExternalServicesData[]> {
-    return [await this.getIbanService(), await this.getLetterService()];
+    const services = [
+      { name: 'IBAN', service: this.ibanService },
+      { name: 'Letter', service: this.letterService },
+    ];
+
+    return Promise.all(
+      services
+        .filter(({ service }) => service.isConfigured)
+        .map(({ name, service }) => this.checkService(name, service)),
+    );
   }
 
-  private async getIbanService(): Promise<ExternalServicesData> {
+  private async checkService(name: string, service: { getBalance(): Promise<number> }): Promise<ExternalServicesData> {
     try {
-      const balance = await this.ibanService.getBalance();
-      return { name: 'IBAN', balance, status: balance ? Status.ONLINE : Status.OFFLINE };
+      const balance = await service.getBalance();
+      return { name, balance, status: balance ? Status.ONLINE : Status.OFFLINE };
     } catch (e) {
-      this.logger.error('Failed to get IBAN service balance:', e);
-    }
-  }
-
-  private async getLetterService(): Promise<ExternalServicesData> {
-    try {
-      const balance = await this.letterService.getBalance();
-      return { name: 'Letter', balance, status: balance ? Status.ONLINE : Status.OFFLINE };
-    } catch (e) {
-      this.logger.error('Failed to get letter service balance:', e);
+      this.logger.error(`Failed to get ${name} service balance:`, e);
+      return { name, status: Status.OFFLINE };
     }
   }
 }

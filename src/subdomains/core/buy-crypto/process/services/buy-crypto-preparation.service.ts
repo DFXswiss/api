@@ -61,8 +61,9 @@ export class BuyCryptoPreparationService {
 
   // Scorechain on-chain screening for the AML gate. BuyCrypto withdrawal (fiat-funded) screens the
   // crypto-out target address; a swap (crypto-in) screens the incoming deposit tx. Chains Scorechain
-  // does not cover yield no signal (the other AML mechanisms apply). isHighRisk is fail-closed
-  // (invalid signature / no coverage / unsupported → high risk).
+  // does not cover yield no signal (the other AML mechanisms apply). isHighRisk is fail-closed for
+  // deposits (invalid signature / no coverage / unsupported → high risk); a withdrawal to an address
+  // with no coverage passes, since a fresh destination address has no data to assess.
   private async screenScorechain(entity: BuyCrypto): Promise<boolean> {
     // Feature gate / kill-switch: when Scorechain is disabled or unconfigured (no API key), emit no
     // signal so the tx is decided by the other AML mechanisms. This is the deliberate off-state and

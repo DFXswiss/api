@@ -7,7 +7,7 @@ import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.se
 // Global backstop for the "mail-origin staff ⇒ STRICT app-2FA" invariant. A staff role reached via the weaker
 // mail-magic-link factor carries request.user.tfaRequired (stamped when the token is minted, see
 // AuthService.generateUserToken); such a session must complete STRICT app/TOTP 2FA before it may touch ANY
-// route. Enforcing this per-route via TfaGuard is easy to forget on optional-auth branches and service-layer
+// route. Enforcing this per-route was easy to forget on optional-auth branches and service-layer
 // role checks (that gap was #4031/#4036) — this interceptor closes it in ONE place so it cannot be forgotten.
 //
 // - Registered as an APP_INTERCEPTOR: interceptors run AFTER guards, so request.user is already populated here
@@ -17,10 +17,11 @@ import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.se
 //   critical: the interceptor is global and must be a no-op for essentially all traffic.
 // - Endpoints marked @AllowTfaPending are skipped: the 2FA-completion endpoints (else a tfaRequired token could
 //   never clear its marker) and non-staff-privileged own-account reads needed to bootstrap the session.
-// - TfaService is resolved lazily via ModuleRef (mirrors TfaGuard) so AppModule need not import KycModule,
+// - TfaService is resolved lazily via ModuleRef so AppModule need not import KycModule,
 //   which would create a module-import cycle.
-// - With this global backstop in place the per-route TfaGuard decorators are now redundant and can be retired
-//   in a follow-up; they are kept here belt-and-suspenders to keep this change minimal.
+// - This interceptor is the central enforcement point for the invariant; the earlier per-route TfaGuard
+//   decorators that duplicated it have been retired in favor of it. Two sensitive sinks (the KYC-file
+//   download and the support-message post) additionally keep a redundant inline check as defense-in-depth.
 @Injectable()
 export class TfaEnforcementInterceptor implements NestInterceptor {
   constructor(
@@ -42,7 +43,7 @@ export class TfaEnforcementInterceptor implements NestInterceptor {
     ]);
     if (allowPending) return next.handle();
 
-    // Mirror TfaGuard: a tfaRequired token is always minted with an account, but guard against a malformed one.
+    // A tfaRequired token is always minted with an account, but guard against a malformed one.
     if (!request.user.account) throw new ForbiddenException('User not authenticated');
 
     // live request IP (mirrors RealIP), so the check matches the IP the 2FA log was written with

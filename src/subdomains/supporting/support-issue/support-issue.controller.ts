@@ -11,7 +11,6 @@ import { hasRoleAccess, RoleGuard } from 'src/shared/auth/role.guard';
 import { isUserActive, UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CLIENT_HEADER } from 'src/shared/utils/request-client';
-import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { BindEscalationChatDto } from './dto/bind-escalation-chat.dto';
 import { CreateSupportIssueDto, CreateSupportIssueSupportDto } from './dto/create-support-issue.dto';
@@ -39,7 +38,7 @@ export class SupportIssueController {
     private readonly supportIssueService: SupportIssueService,
     private readonly supportEscalationService: SupportEscalationService,
     // TfaService lives deep in the KYC graph (circular deps), so resolve it lazily at request time via
-    // ModuleRef instead of injecting it directly — same approach as TfaGuard.
+    // ModuleRef instead of injecting it directly — same approach as the global TfaEnforcementInterceptor.
     private readonly moduleRef: ModuleRef,
   ) {}
 
@@ -71,7 +70,7 @@ export class SupportIssueController {
   @Post('support')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async createIssueBySupport(
     @Query('userDataId') userDataId: string,
     @Body() dto: CreateSupportIssueSupportDto,
@@ -97,7 +96,7 @@ export class SupportIssueController {
   @Get('list')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportIssueList(
     @GetJwt() jwt: JwtPayload,
     @Query() filter: GetSupportIssueListFilter,
@@ -108,7 +107,7 @@ export class SupportIssueController {
   @Get('counts')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportIssueCounts(@GetJwt() jwt: JwtPayload): Promise<Record<SupportIssueInternalState, number>> {
     return this.supportIssueService.getSupportIssueCounts(jwt.role);
   }
@@ -116,7 +115,7 @@ export class SupportIssueController {
   @Get('statistics')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportIssueStatistics(
     @GetJwt() jwt: JwtPayload,
     @Query('days') days?: string,
@@ -127,7 +126,7 @@ export class SupportIssueController {
   @Get('escalation/telegram-chats')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getEscalationChats(): Promise<TelegramChat[]> {
     return this.supportEscalationService.getGroupChats();
   }
@@ -135,7 +134,7 @@ export class SupportIssueController {
   @Post('escalation/telegram-bind')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async bindEscalationChat(@Body() dto: BindEscalationChatDto): Promise<{ chat: TelegramChat | null }> {
     return { chat: (await this.supportEscalationService.bindGroupChat(dto.chatId)) ?? null };
   }
@@ -143,7 +142,7 @@ export class SupportIssueController {
   @Post('escalation/telegram-test')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async testEscalationChat(): Promise<{ sent: boolean }> {
     return { sent: await this.supportEscalationService.sendTestMessage() };
   }
@@ -151,7 +150,7 @@ export class SupportIssueController {
   @Get('activity')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportIssueActivity(
     @GetJwt() jwt: JwtPayload,
     @Query('since') since?: string,
@@ -162,7 +161,7 @@ export class SupportIssueController {
   @Get('clerks')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportIssueClerks(): Promise<string[]> {
     return this.supportIssueService.getSupportIssueClerks();
   }
@@ -170,7 +169,7 @@ export class SupportIssueController {
   @Get('clerk')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getSupportIssueClerk(@GetJwt() jwt: JwtPayload): Promise<{ clerk: string | null }> {
     return { clerk: (await this.supportIssueService.getSupportIssueClerkForAccount(jwt.account)) ?? null };
   }
@@ -189,7 +188,7 @@ export class SupportIssueController {
   @Get(':id/data')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   async getIssueData(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SupportIssueInternalDataDto> {
     return this.supportIssueService.getIssueData(+id, jwt.role);
   }
@@ -207,9 +206,10 @@ export class SupportIssueController {
     // expiry (default 2d) but must not be able to post official replies. Non-staff callers
     // (including anonymous, since the guard is Optional) fall through to createMessage.
     if (jwt?.role && hasRoleAccess(UserRole.SUPPORT, jwt.role) && isUserActive(jwt)) {
-      // Mail-origin staff sessions must complete STRICT 2FA before posting an official reply, matching the
-      // TfaGuard the dedicated staff routes carry; wallet-signature logins (no tfaRequired) are unaffected.
-      // TfaService is resolved lazily via ModuleRef (KYC-graph circular deps), same approach as TfaGuard.
+      // Mail-origin staff sessions must complete STRICT 2FA before posting an official reply. The global
+      // TfaEnforcementInterceptor already enforces this invariant on every route; this inline check is kept as
+      // defense-in-depth on this sensitive sink. Wallet-signature logins (no tfaRequired) are unaffected.
+      // TfaService is resolved lazily via ModuleRef (KYC-graph circular deps), same approach as the interceptor.
       if (jwt.tfaRequired) {
         const tfaService = this.moduleRef.get(TfaService, { strict: false });
         await tfaService.check(jwt.account, ip, TfaLevel.STRICT);
@@ -242,7 +242,7 @@ export class SupportIssueController {
   // --- SUPPORT --- //
   @Put(':id')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
   @ApiExcludeEndpoint()
   async updateSupportIssue(@Param('id') id: string, @Body() dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     return this.supportIssueService.updateIssue(+id, dto);

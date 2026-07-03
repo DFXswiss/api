@@ -175,7 +175,7 @@ describe('KycService getFileByUid protected-file access', () => {
   });
 
   // A mail-elevated staff token (tfaRequired) must pass STRICT 2FA before a protected file is served,
-  // mirroring the TfaGuard on the dedicated compliance routes. Wallet-signature staff sessions are unaffected.
+  // mirroring the global TfaEnforcementInterceptor. Wallet-signature staff sessions are unaffected.
   describe('2FA enforcement on mail-origin staff sessions', () => {
     it('enforces STRICT 2FA before serving a protected file', async () => {
       kycFileService.getKycFile.mockResolvedValue(kycFile());
