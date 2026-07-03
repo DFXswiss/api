@@ -8,6 +8,7 @@ import {
   toScorechainBlockchain,
 } from '../../dto/scorechain.dto';
 import { ScorechainScreening } from '../../entities/scorechain-screening.entity';
+import { ScorechainObjectNotFoundException } from '../../exceptions/scorechain-object-not-found.exception';
 import { ScorechainScreeningRepository } from '../../repositories/scorechain-screening.repository';
 import { ScorechainScreeningService } from '../scorechain-screening.service';
 import { ScorechainService } from '../scorechain.service';
@@ -180,6 +181,40 @@ describe('ScorechainScreeningService', () => {
       await service.screenWithdrawalAddress(Blockchain.ETHEREUM, '0xabc');
 
       expect(repo.countBy).toHaveBeenCalledWith(expect.objectContaining({ severity: expect.anything() }));
+
+      delete process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT;
+      new ConfigService();
+    });
+
+    it('records a not-found object (404) as a NotFound verdict without throwing, treated as high-risk', async () => {
+      scorechain.scoringAnalysis.mockRejectedValue(new ScorechainObjectNotFoundException('/scoringAnalysis'));
+
+      const result = await service.screenWithdrawalAddress(Blockchain.BITCOIN, 'bc1qfresh');
+
+      expect(result.severity).toBe('NotFound');
+      expect(result.signatureValid).toBe(false);
+      expect(service.isHighRisk(result)).toBe(true);
+      expect(repo.save).toHaveBeenCalled();
+    });
+
+    it('propagates a non-not-found provider error instead of masking it', async () => {
+      scorechain.scoringAnalysis.mockRejectedValue(new ServiceUnavailableException('boom'));
+
+      await expect(service.screenWithdrawalAddress(Blockchain.BITCOIN, 'bc1qfresh')).rejects.toBeInstanceOf(
+        ServiceUnavailableException,
+      );
+    });
+
+    it('excludes non-billable NotFound rows from the monthly quota count', async () => {
+      process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT = '5';
+      new ConfigService();
+      scorechain.scoringAnalysis.mockRejectedValue(new ScorechainObjectNotFoundException('/scoringAnalysis'));
+
+      await service.screenWithdrawalAddress(Blockchain.BITCOIN, 'bc1qfresh');
+
+      const where = repo.countBy.mock.calls[0][0];
+      expect(JSON.stringify(where.severity)).toContain('NotSupported');
+      expect(JSON.stringify(where.severity)).toContain('NotFound');
 
       delete process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT;
       new ConfigService();
