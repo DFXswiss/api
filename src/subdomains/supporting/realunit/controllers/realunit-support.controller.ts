@@ -97,6 +97,21 @@ export class RealUnitSupportController {
     return this.supportIssueService.getIssueData(+id, jwt.role, customerIds);
   }
 
+  // Scoped message thread by numeric issue id — the tenant-isolated replacement for the shared uid-keyed
+  // support/issue/:uid endpoint. Membership is enforced server-side (fail-closed 404 for a foreign/unknown id).
+  @Get(':id/messages')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  async getIssueMessages(
+    @Param('id') id: string,
+    @Query('fromMessageId') fromMessageId?: string,
+  ): Promise<SupportMessageDto[]> {
+    const customerIds = await this.scopeService.getCustomerIds();
+    await this.assertIssueOwnership(+id); // membership before returning; getIssueMessages(customerIds) also enforces it
+    return this.supportIssueService.getIssueMessages(+id, customerIds, fromMessageId ? +fromMessageId : undefined);
+  }
+
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()

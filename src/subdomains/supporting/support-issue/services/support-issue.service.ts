@@ -708,6 +708,25 @@ export class SupportIssueService {
     return SupportIssueDtoMapper.mapSupportIssueData(issue, hideLimitRequest);
   }
 
+  // Returns an issue's message thread, optionally scoped to a customer set (RealUnit tenant boundary): fail-closed
+  // 404 when the issue does not belong to a scoped customer (no existence leak). This lets RealUnit staff read
+  // messages for their own tenant's issues by numeric issue id, with server-side membership enforcement, instead
+  // of the shared uid-keyed public endpoint. `fromMessageId` returns only newer messages (incremental polling).
+  async getIssueMessages(id: number, customerIds?: number[], fromMessageId?: number): Promise<SupportMessageDto[]> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: { id },
+      relations: { userData: true },
+      loadEagerRelations: false,
+    });
+    if (!issue) throw new NotFoundException('Support issue not found');
+    // customer scope (RealUnit): fail-closed 404 when the issue does not belong to a scoped customer (no existence leak)
+    if (customerIds && !customerIds.includes(issue.userData?.id))
+      throw new NotFoundException('Support issue not found');
+
+    const messages = await this.messageRepo.findBy({ issue: { id }, id: MoreThan(fromMessageId ?? 0) });
+    return messages.map(SupportIssueDtoMapper.mapSupportMessage);
+  }
+
   async getIssueFile(id: string, messageId: number, userDataId?: number): Promise<BlobContent> {
     const message = await this.messageRepo.findOneBy({ id: messageId, issue: this.getIssueSearch(id, userDataId) });
     if (!message) throw new NotFoundException('Message not found');
