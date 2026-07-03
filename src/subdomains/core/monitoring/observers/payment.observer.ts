@@ -21,6 +21,7 @@ interface PaymentData {
   freeDeposit: { blockchain: string; count: number }[];
   unhandledCryptoInputs: number;
   unconfirmedCryptoInputs: number;
+  stuckReturns: number;
   bankTxWithoutType: number;
   bankTxGsType: number;
   refRewardManualCheck: number;
@@ -96,6 +97,11 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         ),
         action: In([PayInAction.FORWARD, PayInAction.RETURN]),
         created: LessThan(Util.hoursBefore(1)),
+      }),
+      stuckReturns: await this.repos.payIn.countBy({
+        action: PayInAction.RETURN,
+        status: In([PayInStatus.TO_RETURN, PayInStatus.PREPARING, PayInStatus.PREPARED]),
+        updated: LessThan(Util.hoursBefore(12)),
       }),
       refRewardManualCheck: await this.repos.refReward.countBy({ status: RewardStatus.MANUAL_CHECK }),
       stuckPayments: await this.repos.paymentQuote.countBy({
