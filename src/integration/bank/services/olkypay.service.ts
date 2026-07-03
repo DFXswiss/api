@@ -74,6 +74,8 @@ export class OlkypayService {
     // --- BALANCE METHODS --- //
   }
 
+  // Returns the AVAILABLE balance: bank-side holds/reservations reduce it without any corresponding
+  // transaction existing, so this value can move (and even go negative) independently of booked activity.
   async getBalance(): Promise<{ balance: number; balanceOperationYesterday: number }> {
     const balance = await this.getBalanceRaw();
     return {

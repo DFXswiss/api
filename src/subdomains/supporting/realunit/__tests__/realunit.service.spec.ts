@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Wallet } from 'ethers';
 import { verifyTypedData } from 'ethers/lib/utils';
@@ -25,6 +25,10 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
+import {
+  TransactionRequestStatus,
+  TransactionRequestType,
+} from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
@@ -193,12 +197,13 @@ describe('RealUnitService', () => {
           provide: TransactionRequestService,
           useValue: {
             getOrThrow: jest.fn(),
+            getTransactionRequest: jest.fn(),
             complete: jest.fn(),
           },
         },
         { provide: TransactionService, useValue: {} },
         { provide: AccountMergeService, useValue: {} },
-        { provide: RealUnitDevService, useValue: {} },
+        { provide: RealUnitDevService, useValue: { simulatePaymentForRequest: jest.fn() } },
         { provide: SwissQRService, useValue: {} },
         { provide: FeeService, useValue: {} },
         { provide: FaucetRequestService, useValue: {} },
@@ -406,6 +411,98 @@ describe('RealUnitService', () => {
       assetService.getAssetByQuery.mockResolvedValue(realuAsset);
 
       await expect(service.confirmSell(42, 1, {})).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('confirmPaymentReceived (REALU scoping)', () => {
+    // mockEnvironment stays at its 'loc' default so confirmPaymentReceived takes the DEV
+    // simulation path (devService.simulatePaymentForRequest), never the PRD payAndAllocate path.
+    const waitingBuyQuote = {
+      id: 1,
+      type: TransactionRequestType.BUY,
+      status: TransactionRequestStatus.WAITING_FOR_PAYMENT,
+      targetId: realuAsset.id,
+      sourceId: 99,
+      user: { id: 42, address: '0xUserAddress' },
+    };
+
+    const devService = () => (service as any).devService.simulatePaymentForRequest as jest.Mock;
+
+    beforeEach(() => {
+      assetService.getAssetByQuery.mockResolvedValue(realuAsset);
+    });
+
+    it('should throw NotFoundException if the request does not exist', async () => {
+      transactionRequestService.getTransactionRequest.mockResolvedValue(undefined);
+
+      await expect(service.confirmPaymentReceived(1)).rejects.toThrow(NotFoundException);
+      expect(devService()).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException for a non-REALU buy quote (targetId mismatch)', async () => {
+      transactionRequestService.getTransactionRequest.mockResolvedValue({ ...waitingBuyQuote, targetId: 99 } as any);
+
+      await expect(service.confirmPaymentReceived(1)).rejects.toThrow(NotFoundException);
+      expect(devService()).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException for a SWAP quote even when targetId matches REALU', async () => {
+      transactionRequestService.getTransactionRequest.mockResolvedValue({
+        ...waitingBuyQuote,
+        type: TransactionRequestType.SWAP,
+      } as any);
+
+      await expect(service.confirmPaymentReceived(1)).rejects.toThrow(NotFoundException);
+      expect(devService()).not.toHaveBeenCalled();
+    });
+
+    it('should throw BadRequestException for a REALU buy quote not in WaitingForPayment status', async () => {
+      transactionRequestService.getTransactionRequest.mockResolvedValue({
+        ...waitingBuyQuote,
+        status: TransactionRequestStatus.COMPLETED,
+      } as any);
+
+      await expect(service.confirmPaymentReceived(1)).rejects.toThrow(BadRequestException);
+      expect(devService()).not.toHaveBeenCalled();
+    });
+
+    it('should simulate payment for a waiting REALU buy quote (dev/loc path)', async () => {
+      transactionRequestService.getTransactionRequest.mockResolvedValue(waitingBuyQuote as any);
+
+      await service.confirmPaymentReceived(1);
+
+      expect(devService()).toHaveBeenCalledWith(waitingBuyQuote, realuAsset);
+    });
+
+    it('should throw BadRequestException for a REALU sell quote even when scoped and waiting (only buy quotes can be confirmed)', async () => {
+      // sourceId == realuAsset.id makes this a properly-scoped REALU sell quote (getRealuQuote matches
+      // sourceId for SELL), so reaching BadRequestException — not NotFoundException — proves the 404
+      // scoping passed and the buy-only guard is what rejects it.
+      const waitingSellQuote = {
+        ...waitingBuyQuote,
+        type: TransactionRequestType.SELL,
+        sourceId: realuAsset.id,
+        targetId: 99,
+      };
+      transactionRequestService.getTransactionRequest.mockResolvedValue(waitingSellQuote as any);
+
+      await expect(service.confirmPaymentReceived(1)).rejects.toThrow(BadRequestException);
+      expect(devService()).not.toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException for a sell quote whose targetId (not sourceId) collides with the REALU asset id', async () => {
+      // Adversarial scoping check: a sell quote where the fiat targetId happens to equal realuAsset.id.
+      // getRealuQuote only matches sourceId for SELL, so this must never be treated as a REALU quote.
+      const foreignSellQuote = {
+        ...waitingBuyQuote,
+        type: TransactionRequestType.SELL,
+        sourceId: 99,
+        targetId: realuAsset.id,
+      };
+      transactionRequestService.getTransactionRequest.mockResolvedValue(foreignSellQuote as any);
+
+      await expect(service.confirmPaymentReceived(1)).rejects.toThrow(NotFoundException);
+      expect(devService()).not.toHaveBeenCalled();
     });
   });
 
@@ -822,6 +919,18 @@ describe('RealUnitService', () => {
       },
     };
 
+    const emptyHistory = {
+      account: {
+        address: '0xabc',
+        addressType: 'EOA',
+        history: {
+          items: [],
+          totalCount: 0,
+          pageInfo: { endCursor: null, hasNextPage: false, hasPreviousPage: false, startCursor: null },
+        },
+      },
+    };
+
     // a real payload observed in prod against /v1/realunit/holders
     const injection =
       'zzz") { items { address } } __schema { queryType { name } } x: accounts(where: { balance_gt: "0" })';
@@ -848,6 +957,21 @@ describe('RealUnitService', () => {
       await service.getHolders(5, undefined, injection);
 
       expect(requestMock.mock.calls[1][1]).toBe(requestMock.mock.calls[0][1]);
+    });
+
+    it('passes the account history before cursor as a GraphQL variable, never interpolated into the query', async () => {
+      requestMock.mockResolvedValue(emptyHistory);
+
+      await service.getAccountHistory('0xabc', 2, injection);
+
+      expect(requestMock).toHaveBeenCalledTimes(1);
+      const [url, query, variables] = requestMock.mock.calls[0];
+      expect(url).toBe('https://mock-ponder.example.com');
+      expect(variables).toEqual({ id: '0xabc', limit: 2, before: injection, after: null });
+      // the query document is static and parameterized; the payload stays in variables only
+      expect(query).toContain('$before');
+      expect(query).not.toContain('__schema');
+      expect(query).not.toContain(injection);
     });
 
     it('passes the account address as a variable, lower-cased', async () => {

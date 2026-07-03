@@ -52,7 +52,7 @@ export class Configuration {
   transactionRefundExpirySeconds = 300; // 5 minutes - enough time to fill out the refund form
   txRequestWaitingExpiryDays = 7;
   txRequestValidityMinutes = 30;
-  financeLogTotalBalanceChangeLimit = 5000;
+  financeLogTotalBalanceChangeLimit = 5000; // CHF
   faucetAmount = 0.0005; // ETH
   faucetEnabled =
     process.env.FAUCET_ENABLED === 'true' || [Environment.DEV, Environment.LOC].includes(this.environment);
@@ -263,6 +263,10 @@ export class Configuration {
       expiresIn: +(process.env.CHALLENGE_EXPIRES_IN ?? 10), // sec
     },
     mailLoginExpiresIn: +(process.env.MAIL_LOGIN_EXPIRES_IN ?? 10), // min
+    // Enables staff mail-login elevation (kill-switch for the whole staff-mail-login feature). Default on;
+    // set TFA_STAFF_ENFORCED=false to stop new mail elevations. 2FA enforcement itself follows the mail-origin
+    // tfaRequired token marker in TfaGuard, so wallet-signature logins are never affected by this flag.
+    tfaStaffEnforced: process.env.TFA_STAFF_ENFORCED !== 'false',
     signMessage:
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
     signMessageGeneral:

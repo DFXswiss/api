@@ -18,11 +18,11 @@ export const accountSummaryQuery = gql`
 `;
 
 export const accountHistoryQuery = gql`
-  query AccountHistory($id: String!, $limit: Int!, $after: String) {
+  query AccountHistory($id: String!, $limit: Int!, $before: String, $after: String) {
     account(id: $id) {
       address
       addressType
-      history(orderBy: "timestamp", orderDirection: "desc", limit: $limit, after: $after) {
+      history(orderBy: "timestamp", orderDirection: "desc", limit: $limit, before: $before, after: $after) {
         items {
           timestamp
           eventType

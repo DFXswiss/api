@@ -16,6 +16,7 @@ import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse } from '@nestjs/swagge
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundDataDto } from 'src/subdomains/core/history/dto/refund-data.dto';
@@ -67,7 +68,7 @@ export class SupportController {
   @Get()
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async searchUserByKey(@Query() query: UserDataSupportQuery): Promise<UserDataSupportInfoResult> {
     return this.supportService.searchUserDataByKey(query);
   }
@@ -75,7 +76,7 @@ export class SupportController {
   @Get('kycFileList')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async getKycFileList(): Promise<KycFileListEntry[]> {
     return this.supportService.getKycFileList();
   }
@@ -83,7 +84,7 @@ export class SupportController {
   @Get('kycFileStats')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async getKycFileStats(): Promise<KycFileYearlyStats[]> {
     return this.supportService.getKycFileStats();
   }
@@ -91,7 +92,7 @@ export class SupportController {
   @Get('transactionList')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async getTransactionList(@Query() query: TransactionListQuery): Promise<TransactionListEntry[]> {
     return this.supportService.getTransactionList(query);
   }
@@ -99,7 +100,7 @@ export class SupportController {
   @Get('recommendation-graph/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async getRecommendationGraph(@Param('id') id: string): Promise<RecommendationGraph> {
     return this.supportService.getRecommendationGraph(+id);
   }
@@ -107,7 +108,7 @@ export class SupportController {
   @Get('pending-transactions')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async getPendingTransactions(): Promise<PendingTransactionInfo[]> {
     return this.supportService.getPendingTransactions();
   }
@@ -115,7 +116,7 @@ export class SupportController {
   @Get('pending-reviews')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async getPendingReviews(): Promise<PendingReviewSummaryEntry[]> {
     return this.supportService.getPendingReviewsSummary();
   }
@@ -123,7 +124,7 @@ export class SupportController {
   @Get('pending-reviews/items')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async getPendingReviewItems(
     @Query('type') type: PendingReviewType,
     @Query('status') status: ReviewStatus,
@@ -135,7 +136,7 @@ export class SupportController {
   @Get('call-queues')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async getCallQueues(): Promise<CallQueueSummaryEntry[]> {
     return this.supportService.getCallQueuesSummary();
   }
@@ -143,7 +144,7 @@ export class SupportController {
   @Get('call-queues/clerks')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async getCallQueueClerks(): Promise<string[]> {
     return this.supportService.getCallQueueClerks();
   }
@@ -151,7 +152,7 @@ export class SupportController {
   @Get('call-queues/:queue/items')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async getCallQueueItems(@Param('queue', new ParseEnumPipe(CallQueue)) queue: CallQueue): Promise<CallQueueItem[]> {
     return this.supportService.getCallQueueItems(queue);
   }
@@ -159,7 +160,7 @@ export class SupportController {
   @Get(':id/ip-log-pdf')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async getIpLogPdf(@Param('id') id: string): Promise<{ pdfData: string }> {
     const pdfData = await this.supportService.generateIpLogPdf(+id);
     return { pdfData };
@@ -168,7 +169,7 @@ export class SupportController {
   @Get(':id/transaction-pdf')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getTransactionPdf(@Param('id') id: string): Promise<{ pdfData: string }> {
     const pdfData = await this.supportService.generateTransactionPdf(+id);
     return { pdfData };
@@ -177,7 +178,7 @@ export class SupportController {
   @Post(':id/onboarding-pdf')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async generateOnboardingPdf(
     @Param('id') id: string,
     @Body() dto: GenerateOnboardingPdfDto,
@@ -188,7 +189,7 @@ export class SupportController {
   @Get('note')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getNotes(@Query() query: SupportNoteListQuery, @GetJwt() jwt: JwtPayload): Promise<SupportNoteDto[]> {
     const notes = await this.supportNoteService.search(jwt.role, query);
     return notes.map((n) => this.supportNoteService.toDto(n, jwt.role, jwt.account));
@@ -197,7 +198,7 @@ export class SupportController {
   @Get('note/users')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async listNoteUsers(@GetJwt() jwt: JwtPayload): Promise<SupportNoteUserDto[]> {
     return this.supportNoteService.listUsers(jwt.role);
   }
@@ -205,7 +206,7 @@ export class SupportController {
   @Post('note')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async createNote(@Body() dto: CreateSupportNoteDto, @GetJwt() jwt: JwtPayload): Promise<SupportNoteDto> {
     const note = await this.supportNoteService.create(jwt.role, jwt.account, dto);
     return this.supportNoteService.toDto(note, jwt.role, jwt.account);
@@ -214,7 +215,7 @@ export class SupportController {
   @Put('note/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async updateNote(
     @Param('id') id: string,
     @Body() dto: UpdateSupportNoteDto,
@@ -227,7 +228,7 @@ export class SupportController {
   @Delete('note/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async deleteNote(@Param('id') id: string, @GetJwt() jwt: JwtPayload): Promise<void> {
     await this.supportNoteService.delete(+id, jwt.role, jwt.account);
   }
@@ -235,7 +236,7 @@ export class SupportController {
   @Get('template')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getTemplates(
     @Query() query: SupportIssueTemplateListQuery,
     @GetJwt() jwt: JwtPayload,
@@ -247,7 +248,7 @@ export class SupportController {
   @Post('template')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async createTemplate(
     @Body() dto: CreateSupportIssueTemplateDto,
     @GetJwt() jwt: JwtPayload,
@@ -259,7 +260,7 @@ export class SupportController {
   @Put('template/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async updateTemplate(
     @Param('id') id: string,
     @Body() dto: UpdateSupportIssueTemplateDto,
@@ -272,7 +273,7 @@ export class SupportController {
   @Delete('template/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async deleteTemplate(@Param('id') id: string, @GetJwt() jwt: JwtPayload): Promise<void> {
     await this.supportIssueTemplateService.delete(+id, jwt.role, jwt.account);
   }
@@ -280,7 +281,7 @@ export class SupportController {
   @Get(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async getUserData(@Param('id') id: string, @GetJwt() jwt: JwtPayload): Promise<UserDataSupportInfoDetails> {
     return this.supportService.getUserDataDetails(+id, jwt.role, jwt.account);
   }
@@ -289,7 +290,7 @@ export class SupportController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @ApiOkResponse({ type: RefundDataDto })
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async getTransactionRefund(@Param('id') id: string): Promise<RefundDataDto> {
     const refundData = await this.supportService.getTransactionRefundData(+id);
     if (!refundData) throw new NotFoundException('Transaction not found or not refundable');
@@ -299,7 +300,7 @@ export class SupportController {
   @Put('transaction/:id/refund')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async setTransactionRefund(
     @Param('id') id: string,
     @Body() dto: ChargebackRefundDto,

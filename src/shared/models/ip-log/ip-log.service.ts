@@ -25,10 +25,17 @@ export class IpLogService {
   private readonly idCache = new AsyncCache<IpLog>(CacheItemResetPeriod.EVERY_6_MONTHS);
   private readonly recentLogCache = new AsyncCache<IpLog>(CacheItemResetPeriod.EVERY_10_SECONDS);
 
-  async create(ip: string, url: string, address: string, walletType?: WalletType, userData?: UserData): Promise<IpLog> {
-    const cacheKey = `${ip}:${address}:${url}:${walletType ?? ''}:${userData?.id ?? ''}`;
+  async create(
+    ip: string,
+    url: string,
+    address: string,
+    walletType?: WalletType,
+    walletName?: string,
+    userData?: UserData,
+  ): Promise<IpLog> {
+    const cacheKey = `${ip}:${address}:${url}:${walletType ?? ''}:${walletName ?? ''}:${userData?.id ?? ''}`;
 
-    return this.recentLogCache.get(cacheKey, () => this.doCreate(ip, url, address, walletType, userData));
+    return this.recentLogCache.get(cacheKey, () => this.doCreate(ip, url, address, walletType, walletName, userData));
   }
 
   private async doCreate(
@@ -36,6 +43,7 @@ export class IpLogService {
     url: string,
     address: string,
     walletType?: WalletType,
+    walletName?: string,
     userData?: UserData,
   ): Promise<IpLog> {
     const { country, result, user } = await this.checkIpCountry(ip, address);
@@ -48,6 +56,7 @@ export class IpLogService {
       user,
       userData: userData ?? user?.userData,
       walletType,
+      walletName,
     });
 
     return this.ipLogRepo.save(ipLog);

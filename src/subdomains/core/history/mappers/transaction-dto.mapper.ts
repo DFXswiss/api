@@ -430,7 +430,10 @@ function getTransactionStateDetails(entity: BuyFiat | BuyCrypto | RefReward | Tr
   chargebackTxId?: string;
 } {
   if (entity instanceof TransactionRequest) {
-    return { state: TransactionState.WAITING_FOR_PAYMENT, reason: null };
+    return {
+      state: entity.isComplete ? TransactionState.COMPLETED : TransactionState.WAITING_FOR_PAYMENT,
+      reason: null,
+    };
   }
 
   if (entity instanceof RefReward) {

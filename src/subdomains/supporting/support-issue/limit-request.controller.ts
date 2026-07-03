@@ -2,6 +2,7 @@ import { Body, Controller, Param, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UpdateLimitRequestDto } from './dto/update-limit-request.dto';
@@ -17,7 +18,7 @@ export class LimitRequestController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard(), TfaGuard)
   async updateUserData(@Param('id') id: string, @Body() dto: UpdateLimitRequestDto): Promise<LimitRequest> {
     return this.limitRequestService.updateLimitRequest(+id, dto);
   }

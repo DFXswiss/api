@@ -6,8 +6,9 @@ import { SupportIssueTemplate } from '../../entities/support-issue-template.enti
 import { SupportIssueTemplateRepository } from '../../repositories/support-issue-template.repository';
 import { SupportIssueTemplateService } from '../support-issue-template.service';
 
-// Template edit/delete and the isAdmin dto flag key off ADMIN_ROLES, which treats super admin as an admin
-// superset. Before this change a super admin was not flagged admin and could only touch its own templates.
+// Template edit/delete and the isAdmin dto flag gate on `hasRoleAccess(UserRole.ADMIN, role)`, which treats
+// super admin as an admin superset. Before this change a super admin was not flagged admin and could only
+// touch its own templates.
 describe('SupportIssueTemplateService admin-role access', () => {
   let service: SupportIssueTemplateService;
   let templateRepo: DeepMocked<SupportIssueTemplateRepository>;

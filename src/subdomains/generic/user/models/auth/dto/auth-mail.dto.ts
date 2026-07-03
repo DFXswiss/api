@@ -35,5 +35,6 @@ export class AuthMailDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
+  @Transform(Util.sanitize)
   wallet?: string;
 }

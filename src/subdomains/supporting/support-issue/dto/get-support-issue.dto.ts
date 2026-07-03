@@ -27,6 +27,11 @@ export class GetSupportIssueFilter {
   @IsOptional()
   @Transform(({ value }) => (value == null ? value : +value))
   @IsInt()
+  // Same 22003 class as the numeric search-term id branch: `fromMessageId` is fed into
+  // `MoreThan(...)` against an int4 `support_message.id`, so a value > 2^31-1 makes Postgres
+  // 500 the whole request. Cap at int4 max.
+  @Max(2147483647)
+  @Min(0)
   fromMessageId?: number;
 }
 

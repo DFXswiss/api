@@ -4,6 +4,7 @@ import { ApiBearerAuth, ApiExcludeController, ApiExcludeEndpoint, ApiTags } from
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
+import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IpBlacklistDto } from 'src/shared/models/setting/dto/ip-blacklist.dto';
@@ -43,7 +44,7 @@ export class KycAdminController {
   @Put('step/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   async updateKycStep(@Param('id') id: string, @Body() dto: UpdateKycStepDto): Promise<void> {
     await this.kycAdminService.updateKycStep(+id, dto);
   }
@@ -77,7 +78,7 @@ export class KycAdminController {
 
   @Post('log')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard())
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.SUPPORT), UserActiveGuard(), TfaGuard)
   @ApiExcludeEndpoint()
   async createLog(@GetJwt() jwt: JwtPayload, @Body() dto: CreateKycLogDto): Promise<void> {
     await this.kycLogService.createLog(jwt.account, dto);

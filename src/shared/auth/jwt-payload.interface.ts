@@ -13,4 +13,5 @@ export interface JwtPayload {
   userStatus?: UserStatus;
   accountStatus?: UserDataStatus;
   riskStatus?: RiskStatus;
+  tfaRequired?: boolean; // mail-elevated staff tokens: enforce 2FA even if the staff enforcement flag is later disabled
 }
