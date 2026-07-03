@@ -1,5 +1,5 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { MoreThanOrEqual, Not } from 'typeorm';
+import { In, MoreThanOrEqual, Not } from 'typeorm';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -12,6 +12,7 @@ import {
   toScorechainBlockchain,
 } from '../dto/scorechain.dto';
 import { ScorechainScreening, ScorechainScreeningContext } from '../entities/scorechain-screening.entity';
+import { ScorechainObjectNotFoundException } from '../exceptions/scorechain-object-not-found.exception';
 import { ScorechainScreeningRepository } from '../repositories/scorechain-screening.repository';
 import { ScorechainService } from './scorechain.service';
 
@@ -25,6 +26,7 @@ interface ScreenParams {
 
 export const ScorechainNotSupportedSeverity = 'NotSupported';
 export const ScorechainNoCoverageSeverity = 'NoCoverage';
+export const ScorechainNotFoundSeverity = 'NotFound';
 
 @Injectable()
 export class ScorechainScreeningService {
@@ -93,30 +95,45 @@ export class ScorechainScreeningService {
 
     await this.assertQuota();
 
-    const { data, signatureValid } = await this.scorechain.scoringAnalysis({
-      objectType: params.objectType,
-      objectId: params.objectId,
-      blockchain: scBlockchain,
-      analysisType: params.analysisType,
-    });
+    try {
+      const { data, signatureValid } = await this.scorechain.scoringAnalysis({
+        objectType: params.objectType,
+        objectId: params.objectId,
+        blockchain: scBlockchain,
+        analysisType: params.analysisType,
+      });
 
-    // Scorechain returns lowestScore=100 (No risk) even when it holds NO data for the object
-    // (every analysis section reports hasResult=false). A score without any backing analysis is
-    // meaningless, so treat "no coverage" as unscreenable → high risk, never as a clean pass.
-    if (!this.hasCoverage(data)) {
-      this.logger.warn(
-        `Scorechain returned no coverage for ${params.objectType} ${params.objectId} on ${params.blockchain} — treated as high risk (not a pass)`,
-      );
-      return this.save(params, { signatureValid, severity: ScorechainNoCoverageSeverity, raw: data });
+      // Scorechain returns lowestScore=100 (No risk) even when it holds NO data for the object
+      // (every analysis section reports hasResult=false). A score without any backing analysis is
+      // meaningless, so treat "no coverage" as unscreenable → high risk, never as a clean pass.
+      if (!this.hasCoverage(data)) {
+        this.logger.warn(
+          `Scorechain returned no coverage for ${params.objectType} ${params.objectId} on ${params.blockchain} — treated as high risk (not a pass)`,
+        );
+        return await this.save(params, { signatureValid, severity: ScorechainNoCoverageSeverity, raw: data });
+      }
+
+      return await this.save(params, {
+        signatureValid,
+        riskScore: data?.lowestScore,
+        severity: severityFromScore(data?.lowestScore),
+        riskIndicators: data?.analysis,
+        raw: data,
+      });
+    } catch (e) {
+      // Scorechain has no record of the object — e.g. a withdrawal target address that has never
+      // appeared on-chain (404). This is an expected outcome, not a provider outage: record it as a
+      // NotFound verdict (fail-closed → high risk via isHighRisk) instead of throwing. Same routing
+      // (manual review), but observable as a WARN with an audit row instead of a recurring ERROR,
+      // and accounted for like the other non-scored outcomes.
+      if (e instanceof ScorechainObjectNotFoundException) {
+        this.logger.warn(
+          `Scorechain has no record of ${params.objectType} ${params.objectId} on ${params.blockchain} — treated as high risk (not a pass)`,
+        );
+        return this.save(params, { signatureValid: false, severity: ScorechainNotFoundSeverity });
+      }
+      throw e;
     }
-
-    return this.save(params, {
-      signatureValid,
-      riskScore: data?.lowestScore,
-      severity: severityFromScore(data?.lowestScore),
-      riskIndicators: data?.analysis,
-      raw: data,
-    });
   }
 
   // Coverage = at least one analysis section actually produced a result. Without it the provider's
@@ -159,9 +176,10 @@ export class ScorechainScreeningService {
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const used = await this.repo.countBy({
       created: MoreThanOrEqual(monthStart),
-      // NotSupported rows are saved without any API call (unsupported chain) → not billable, so a
-      // flood of unsupported-chain screenings must not exhaust the paid monthly cap.
-      severity: Not(ScorechainNotSupportedSeverity),
+      // Exclude the non-scored outcomes from the paid monthly cap: NotSupported makes no API call at
+      // all, and NotFound is a 404 with no completed analysis — matching the pre-existing behavior
+      // where a 404 threw before persisting and was therefore never counted.
+      severity: Not(In([ScorechainNotSupportedSeverity, ScorechainNotFoundSeverity])),
     });
     if (used >= limit) throw new ServiceUnavailableException('Scorechain monthly screening quota reached');
   }

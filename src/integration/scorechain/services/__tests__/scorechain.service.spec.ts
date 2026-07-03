@@ -1,6 +1,9 @@
+import { ServiceUnavailableException } from '@nestjs/common';
 import { createSign, generateKeyPairSync } from 'crypto';
 import { Config, ConfigService } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
+import { ScorechainAnalysisType, ScorechainBlockchain, ScorechainObjectType } from '../../dto/scorechain.dto';
+import { ScorechainObjectNotFoundException } from '../../exceptions/scorechain-object-not-found.exception';
 import { ScorechainService } from '../scorechain.service';
 
 describe('ScorechainService', () => {
@@ -51,6 +54,56 @@ describe('ScorechainService', () => {
 
     it('rejects missing data (fail-closed)', async () => {
       await expect(service.isValidSignature(null, sign(data, time), time)).resolves.toBe(false);
+    });
+  });
+
+  describe('scoringAnalysis error mapping', () => {
+    const request = {
+      objectType: ScorechainObjectType.ADDRESS,
+      objectId: 'bc1qfresh',
+      blockchain: ScorechainBlockchain.BITCOIN,
+      analysisType: ScorechainAnalysisType.OUTGOING,
+    };
+
+    const axiosError = (status: number, error?: string) => ({
+      isAxiosError: true,
+      message: `Request failed with status code ${status}`,
+      response: { status, data: error ? { error } : {} },
+    });
+
+    it('maps a 404 NOT_FOUND_* to ScorechainObjectNotFoundException (expected outcome, not an outage)', async () => {
+      const http = { postRaw: jest.fn().mockRejectedValue(axiosError(404, 'NOT_FOUND_WALLET')) };
+      service = new ScorechainService(http as unknown as HttpService);
+
+      await expect(service.scoringAnalysis(request)).rejects.toBeInstanceOf(ScorechainObjectNotFoundException);
+    });
+
+    it('maps any other provider error to ServiceUnavailableException', async () => {
+      const http = { postRaw: jest.fn().mockRejectedValue(axiosError(500)) };
+      service = new ScorechainService(http as unknown as HttpService);
+
+      await expect(service.scoringAnalysis(request)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
+
+    it('does not treat a 404 with a non-NOT_FOUND error code as object-not-found', async () => {
+      const http = { postRaw: jest.fn().mockRejectedValue(axiosError(404, 'RATE_LIMITED')) };
+      service = new ScorechainService(http as unknown as HttpService);
+
+      await expect(service.scoringAnalysis(request)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
+
+    it('does not treat a 404 with an empty body as object-not-found', async () => {
+      const http = { postRaw: jest.fn().mockRejectedValue(axiosError(404)) };
+      service = new ScorechainService(http as unknown as HttpService);
+
+      await expect(service.scoringAnalysis(request)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
+
+    it('maps a non-axios error to ServiceUnavailableException', async () => {
+      const http = { postRaw: jest.fn().mockRejectedValue(new Error('socket hang up')) };
+      service = new ScorechainService(http as unknown as HttpService);
+
+      await expect(service.scoringAnalysis(request)).rejects.toBeInstanceOf(ServiceUnavailableException);
     });
   });
 });
