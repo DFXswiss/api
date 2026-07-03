@@ -40,6 +40,7 @@ export enum Blockchain {
   // Banks
   MAERKI_BAUMANN = 'MaerkiBaumann',
   OLKYPAY = 'Olkypay',
+  OLKY_FROZEN = 'OlkyFrozen',
   CHECKOUT = 'Checkout',
   SUMIXX = 'Sumixx',
   YAPEAL = 'Yapeal',
