@@ -259,7 +259,11 @@ describe('ScorechainScreeningService', () => {
     });
 
     it('fails a withdrawal no-coverage response closed when its signature did not verify', () => {
-      const unsigned = make({ context: ScorechainScreeningContext.WITHDRAWAL, signatureValid: false, severity: 'NoCoverage' });
+      const unsigned = make({
+        context: ScorechainScreeningContext.WITHDRAWAL,
+        signatureValid: false,
+        severity: 'NoCoverage',
+      });
       expect(service.isHighRisk(unsigned)).toBe(true);
     });
 
