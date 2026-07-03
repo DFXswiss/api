@@ -261,7 +261,7 @@ describe('SupportIssueService.closeIssue', () => {
     supportIssueRepo = createMock<SupportIssueRepository>();
     messageRepo = createMock<SupportMessageRepository>();
     supportLogService = createMock<SupportLogService>();
-    messageRepo.findBy.mockResolvedValue([]);
+    messageRepo.find.mockResolvedValue([]);
 
     service = new SupportIssueService(
       supportIssueRepo,
@@ -324,7 +324,65 @@ describe('SupportIssueService.closeIssue', () => {
   it('loads messages so the response matches GET /:id instead of an empty thread', async () => {
     supportIssueRepo.findOne.mockResolvedValue(makeIssue(SupportIssueInternalState.PENDING));
     await service.closeIssue('7', 42);
-    expect(messageRepo.findBy).toHaveBeenCalledWith({ issue: { id: 7 } });
+    // Postgres has no implicit read order, so the load must be explicitly sorted — the frontend
+    // renders the thread chronologically as it did on MSSQL where the clustered PK gave that order.
+    expect(messageRepo.find).toHaveBeenCalledWith({
+      where: { issue: { id: 7 } },
+      order: { id: 'ASC' },
+    });
+  });
+});
+
+// The primary user-facing regression from the MSSQL → Postgres migration: `getIssue` used to
+// return messages in id order for free (MSSQL clustered PK). On Postgres heap tables there is
+// no implicit read order, so this pins the explicit chronological sort on the load.
+describe('SupportIssueService.getIssue message ordering', () => {
+  let service: SupportIssueService;
+  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
+  let messageRepo: DeepMocked<SupportMessageRepository>;
+
+  beforeEach(() => {
+    (ConfigModule as Record<string, unknown>).Config = {
+      prefixes: { issueUidPrefix: 'issue_', quoteUidPrefix: 'quote_' },
+    };
+
+    supportIssueRepo = createMock<SupportIssueRepository>();
+    messageRepo = createMock<SupportMessageRepository>();
+    supportIssueRepo.findOne.mockResolvedValue(
+      Object.assign(new SupportIssue(), { id: 7, uid: 'Iabc', userData: { id: 42 } as UserData }),
+    );
+    messageRepo.find.mockResolvedValue([]);
+
+    service = new SupportIssueService(
+      supportIssueRepo,
+      createMock<TransactionService>(),
+      createMock<SupportDocumentService>(),
+      createMock<UserDataService>(),
+      messageRepo,
+      createMock<SupportIssueNotificationService>(),
+      createMock<LimitRequestService>(),
+      createMock<TransactionRequestService>(),
+      createMock<SupportLogService>(),
+      createMock<BankDataService>(),
+      createMock<SettingService>(),
+    );
+  });
+
+  it('loads messages ordered by id ASC (bare filter)', async () => {
+    await service.getIssue('7', {}, 42);
+    expect(messageRepo.find).toHaveBeenCalledWith(expect.objectContaining({ order: { id: 'ASC' } }));
+  });
+
+  it('carries the fromMessageId cursor into the where clause while still sorting by id ASC', async () => {
+    await service.getIssue('7', { fromMessageId: 3 }, 42);
+    const call = messageRepo.find.mock.calls[0][0] as {
+      where: Record<string, unknown>;
+      order: Record<string, unknown>;
+    };
+    expect(call.order).toEqual({ id: 'ASC' });
+    expect(call.where).toMatchObject({ issue: { id: 7 } });
+    // MoreThan is a typeorm FindOperator, not a plain value; verify by shape rather than value
+    expect(call.where.id).toBeDefined();
   });
 });
 

@@ -120,6 +120,9 @@ export class SupportIssueJobService {
           { ...request, clerk: Not(AutoResponder) },
         ],
         relations: { messages: true },
+        // `.at(-1)` below assumes chronological order — Postgres has no implicit read order,
+        // so a missing sort would silently mis-identify the last author.
+        order: { messages: { id: 'ASC' } },
       })
       .then((issues) =>
         issues.filter(

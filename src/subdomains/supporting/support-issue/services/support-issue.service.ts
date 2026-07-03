@@ -413,8 +413,14 @@ export class SupportIssueService {
       });
     }
 
-    // load messages so the response matches GET /:id instead of claiming an empty thread
-    issue.messages = await this.messageRepo.findBy({ issue: { id: issue.id } });
+    // load messages so the response matches GET /:id instead of claiming an empty thread.
+    // Explicit id ASC — Postgres has no implicit read order (heap layout), and the frontend
+    // renders the thread chronologically as it did on MSSQL where the clustered PK gave that
+    // order for free.
+    issue.messages = await this.messageRepo.find({
+      where: { issue: { id: issue.id } },
+      order: { id: 'ASC' },
+    });
 
     return SupportIssueDtoMapper.mapSupportIssue(issue);
   }
@@ -592,7 +598,9 @@ export class SupportIssueService {
       where: { userData: { id: userDataId } },
       relations: { transaction: true, limitRequest: true, messages: true },
       loadEagerRelations: false,
-      order: { created: 'DESC' },
+      // Sort issues newest-first, but the messages inside each issue chronologically —
+      // Postgres has no implicit read order (heap layout), so both need to be explicit.
+      order: { created: 'DESC', messages: { id: 'ASC' } },
     });
   }
 
@@ -612,9 +620,12 @@ export class SupportIssueService {
     });
     if (!issue) throw new NotFoundException('Support issue not found');
 
-    issue.messages = await this.messageRepo.findBy({
-      issue: { id: issue.id },
-      id: MoreThan(query.fromMessageId ?? 0),
+    // Explicit id ASC — Postgres has no implicit read order (heap layout), and the frontend
+    // renders the thread chronologically as it did on MSSQL where the clustered PK gave that
+    // order for free.
+    issue.messages = await this.messageRepo.find({
+      where: { issue: { id: issue.id }, id: MoreThan(query.fromMessageId ?? 0) },
+      order: { id: 'ASC' },
     });
 
     return SupportIssueDtoMapper.mapSupportIssue(issue);
@@ -660,7 +671,12 @@ export class SupportIssueService {
     });
     return {
       supportIssues,
-      supportMessages: await this.messageRepo.findBy({ issue: { id: In(supportIssues.map((i) => i.id)) } }),
+      // Explicit id ASC — Postgres has no implicit read order, and downstream consumers
+      // group these messages by issue and render them chronologically.
+      supportMessages: await this.messageRepo.find({
+        where: { issue: { id: In(supportIssues.map((i) => i.id)) } },
+        order: { id: 'ASC' },
+      }),
     };
   }
 
