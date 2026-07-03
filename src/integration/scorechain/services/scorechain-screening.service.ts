@@ -122,8 +122,9 @@ export class ScorechainScreeningService {
     } catch (e) {
       // Scorechain has no record of the object — e.g. a withdrawal target address that has never
       // appeared on-chain (404). This is an expected outcome, not a provider outage: record it as a
-      // NotFound verdict (fail-closed → high risk via isHighRisk) instead of throwing, so the tx is
-      // routed to manual review rather than stalling the whole AML computation on every cron run.
+      // NotFound verdict (fail-closed → high risk via isHighRisk) instead of throwing. Same routing
+      // (manual review), but observable as a WARN with an audit row instead of a recurring ERROR,
+      // and accounted for like the other non-scored outcomes.
       if (e instanceof ScorechainObjectNotFoundException) {
         this.logger.warn(
           `Scorechain has no record of ${params.objectType} ${params.objectId} on ${params.blockchain} — treated as high risk (not a pass)`,
@@ -174,8 +175,9 @@ export class ScorechainScreeningService {
     const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
     const used = await this.repo.countBy({
       created: MoreThanOrEqual(monthStart),
-      // NotSupported (unsupported chain) and NotFound (404, object not on-chain) rows are saved
-      // without a billable API result → they must not count against the paid monthly cap.
+      // Exclude the non-scored outcomes from the paid monthly cap: NotSupported makes no API call at
+      // all, and NotFound is a 404 with no completed analysis — matching the pre-existing behavior
+      // where a 404 threw before persisting and was therefore never counted.
       severity: Not(In([ScorechainNotSupportedSeverity, ScorechainNotFoundSeverity])),
     });
     if (used >= limit) throw new ServiceUnavailableException('Scorechain monthly screening quota reached');

@@ -83,5 +83,26 @@ describe('ScorechainService', () => {
 
       await expect(service.scoringAnalysis(request)).rejects.toBeInstanceOf(ServiceUnavailableException);
     });
+
+    it('does not treat a 404 with a non-NOT_FOUND error code as object-not-found', async () => {
+      const http = { postRaw: jest.fn().mockRejectedValue(axiosError(404, 'RATE_LIMITED')) };
+      service = new ScorechainService(http as unknown as HttpService);
+
+      await expect(service.scoringAnalysis(request)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
+
+    it('does not treat a 404 with an empty body as object-not-found', async () => {
+      const http = { postRaw: jest.fn().mockRejectedValue(axiosError(404)) };
+      service = new ScorechainService(http as unknown as HttpService);
+
+      await expect(service.scoringAnalysis(request)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
+
+    it('maps a non-axios error to ServiceUnavailableException', async () => {
+      const http = { postRaw: jest.fn().mockRejectedValue(new Error('socket hang up')) };
+      service = new ScorechainService(http as unknown as HttpService);
+
+      await expect(service.scoringAnalysis(request)).rejects.toBeInstanceOf(ServiceUnavailableException);
+    });
   });
 });
