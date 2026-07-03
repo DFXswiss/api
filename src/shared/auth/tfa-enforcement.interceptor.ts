@@ -15,8 +15,8 @@ import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.se
 // - FAST PATH: any request without a tfaRequired token — wallet-signature staff (never stamped) and all
 //   non-staff traffic — returns on a single property read, with zero Reflector/DB/ModuleRef overhead. This is
 //   critical: the interceptor is global and must be a no-op for essentially all traffic.
-// - Endpoints marked @AllowTfaPending (the 2FA-completion endpoints) are skipped, otherwise a tfaRequired
-//   token could never reach the flow that clears its marker.
+// - Endpoints marked @AllowTfaPending are skipped: the 2FA-completion endpoints (else a tfaRequired token could
+//   never clear its marker) and non-staff-privileged own-account reads needed to bootstrap the session.
 // - TfaService is resolved lazily via ModuleRef (mirrors TfaGuard) so AppModule need not import KycModule,
 //   which would create a module-import cycle.
 // - With this global backstop in place the per-route TfaGuard decorators are now redundant and can be retired
