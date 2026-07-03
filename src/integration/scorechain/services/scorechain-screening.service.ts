@@ -81,9 +81,13 @@ export class ScorechainScreeningService {
     // on-chain history), so "no coverage / not found" is the expected normal case, not a risk signal —
     // flagging it would route essentially every withdrawal to manual review. Only an actual score gates
     // a withdrawal. Deposits stay fail-closed: an unanalysable incoming tx can mask a dirty source.
+    // NoCoverage is a signed 200 response, so trust it only if the signature verified — an unverifiable
+    // reply (missing/misparsed pinned key or a tampered response) still fails closed. NotFound is an
+    // inherently unsigned 404.
     if (
       screening.context === ScorechainScreeningContext.WITHDRAWAL &&
-      (screening.severity === ScorechainNoCoverageSeverity || screening.severity === ScorechainNotFoundSeverity)
+      ((screening.severity === ScorechainNoCoverageSeverity && screening.signatureValid) ||
+        screening.severity === ScorechainNotFoundSeverity)
     ) {
       return false;
     }

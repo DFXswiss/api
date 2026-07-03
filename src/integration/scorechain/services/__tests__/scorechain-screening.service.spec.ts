@@ -258,6 +258,11 @@ describe('ScorechainScreeningService', () => {
       expect(service.isHighRisk(make({ context: w, signatureValid: false, severity: 'NotFound' }))).toBe(false);
     });
 
+    it('fails a withdrawal no-coverage response closed when its signature did not verify', () => {
+      const unsigned = make({ context: ScorechainScreeningContext.WITHDRAWAL, signatureValid: false, severity: 'NoCoverage' });
+      expect(service.isHighRisk(unsigned)).toBe(true);
+    });
+
     it('still flags a withdrawal with an actual low score', () => {
       const risky = make({ context: ScorechainScreeningContext.WITHDRAWAL, signatureValid: true, riskScore: 40 });
       expect(service.isHighRisk(risky)).toBe(true);

@@ -1123,8 +1123,9 @@ export class Configuration {
     apiKey: process.env.SCORECHAIN_API_KEY,
     // PEM key stored single-line in the env/vault with <br> line breaks (same convention as the
     // other PEM env vars, e.g. PAYMENT_WEBHOOK_PUBLIC_KEY). Restore real newlines so node's crypto
-    // verifier can parse it; without this a pinned key fails to parse, every signature check fails,
-    // and isHighRisk() treats every screen as high risk.
+    // verifier can parse it; without this a pinned key fails to parse, so every signature check fails
+    // and isHighRisk() routes every signed screen to high risk (a not-found withdrawal — an unsigned
+    // 404 — still passes).
     publicKey: process.env.SCORECHAIN_PUBLIC_KEY?.split('<br>').join('\n'),
     riskThreshold: +(process.env.SCORECHAIN_RISK_THRESHOLD ?? 70),
     // ADDRESS/WALLET risk is mutable — an address can be flagged after a clean screen — so a clean
