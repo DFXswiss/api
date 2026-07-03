@@ -109,7 +109,13 @@ export class SettingService {
   }
 
   async getDeniedJwtAccounts(): Promise<number[]> {
-    return this.getObj<string[]>('jwtAccountDenylist', []).then((list) => list.map(Number));
+    // Union of the manual override (`jwtAccountDenylist`) and the DB-derived auto denylist
+    // (`jwtAccountDenylistAuto`, maintained by JwtRevocationSyncService), deduped to numbers.
+    const [manual, auto] = await Promise.all([
+      this.getObj<(string | number)[]>('jwtAccountDenylist', []),
+      this.getObj<(string | number)[]>('jwtAccountDenylistAuto', []),
+    ]);
+    return [...new Set([...manual, ...auto].map(Number))];
   }
 
   async getCustomBalanceSettings(): Promise<{ addresses: string[]; assets: string[] }> {
