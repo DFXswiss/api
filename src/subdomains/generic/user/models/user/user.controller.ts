@@ -68,9 +68,7 @@ export class UserController {
 
   // --- USER --- //
   @Get()
-  // Own-account read (not staff-privileged): reachable by a not-yet-2FA'd mail-origin staff session so the
-  // session can bootstrap; staff-privileged routes remain gated by TfaEnforcementInterceptor.
-  @AllowTfaPending()
+  @AllowTfaPending() // own-account read, reachable pre-2FA for the mail-staff session bootstrap
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOkResponse({ type: UserDto })
@@ -80,7 +78,7 @@ export class UserController {
   }
 
   @Get('detail')
-  @AllowTfaPending() // own-account read: reachable pre-2FA for mail-origin staff session bootstrap
+  @AllowTfaPending() // own-account read, reachable pre-2FA for the mail-staff session bootstrap
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOkResponse({ type: UserDetailDto })
@@ -243,10 +241,7 @@ export class UserV2Controller {
   constructor(private readonly userService: UserService) {}
 
   @Get()
-  // Own-account read (not staff-privileged) and the SDK's session-bootstrap call: reachable by a not-yet-2FA'd
-  // mail-origin staff session so it can load, then hit the 2FA flow on the first staff action. Staff-privileged
-  // routes stay gated by TfaEnforcementInterceptor.
-  @AllowTfaPending()
+  @AllowTfaPending() // own-account read (the SDK session-bootstrap call), reachable pre-2FA for the mail-staff session
   @ApiBearerAuth()
   @UseGuards(
     AuthGuard(),
