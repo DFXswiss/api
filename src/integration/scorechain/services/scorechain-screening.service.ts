@@ -109,10 +109,10 @@ export class ScorechainScreeningService {
         this.logger.warn(
           `Scorechain returned no coverage for ${params.objectType} ${params.objectId} on ${params.blockchain} — treated as high risk (not a pass)`,
         );
-        return this.save(params, { signatureValid, severity: ScorechainNoCoverageSeverity, raw: data });
+        return await this.save(params, { signatureValid, severity: ScorechainNoCoverageSeverity, raw: data });
       }
 
-      return this.save(params, {
+      return await this.save(params, {
         signatureValid,
         riskScore: data?.lowestScore,
         severity: severityFromScore(data?.lowestScore),
