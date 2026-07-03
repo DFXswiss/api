@@ -377,9 +377,9 @@ export class AuthService {
           ? account.getMailLoginUser(StaffRoles)
           : undefined;
       if (staffUser) staffUser.userData = account;
-      // tfaRequired is stamped only on the mail-elevated staff token; TfaGuard enforces STRICT 2FA on exactly
-      // these tokens (wallet-login staff never carry the marker and stay unaffected), so a mail login can
-      // never reach staff functions without a second factor.
+      // tfaRequired is stamped only on the mail-elevated staff token; the global TfaEnforcementInterceptor
+      // enforces STRICT 2FA on exactly these tokens (wallet-login staff never carry the marker and stay
+      // unaffected), so a mail login can never reach staff functions without a second factor.
       const token = staffUser ? this.generateUserToken(staffUser, ip, true) : this.generateAccountToken(account, ip);
 
       await this.checkIpBlacklistFor(account, ip);
@@ -560,9 +560,10 @@ export class AuthService {
     return this.challengeList.has(address);
   }
 
-  // tfaRequired marks a mail-origin staff session that TfaGuard must keep enforcing 2FA on even when the
-  // enforcement flag is off. Any path that re-mints a token from an authenticated session (changeUser,
-  // createAccessTokenAfterMerge) MUST forward the caller's jwt.tfaRequired, or the marker is silently lost.
+  // tfaRequired marks a mail-origin staff session that the global TfaEnforcementInterceptor must keep enforcing
+  // 2FA on even when the enforcement flag is off. Any path that re-mints a token from an authenticated session
+  // (changeUser, createAccessTokenAfterMerge) MUST forward the caller's jwt.tfaRequired, or the marker is
+  // silently lost.
   generateUserToken(user: User, ip: string, tfaRequired = false): string {
     const payload: JwtPayload = {
       user: user.id,

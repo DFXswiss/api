@@ -7,7 +7,6 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
-import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { CreateSupportMessageDto } from 'src/subdomains/supporting/support-issue/dto/create-support-message.dto';
 import { GetSupportIssueListFilter } from 'src/subdomains/supporting/support-issue/dto/get-support-issue.dto';
 import {
@@ -37,7 +36,7 @@ export class RealUnitSupportController {
   @Get('list')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getSupportIssueList(
     @GetJwt() jwt: JwtPayload,
     @Query() filter: GetSupportIssueListFilter,
@@ -49,7 +48,7 @@ export class RealUnitSupportController {
   @Get('counts')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getSupportIssueCounts(@GetJwt() jwt: JwtPayload): Promise<Record<SupportIssueInternalState, number>> {
     const customerIds = await this.scopeService.getCustomerIds();
     return this.supportIssueService.getSupportIssueCounts(jwt.role, customerIds);
@@ -58,7 +57,7 @@ export class RealUnitSupportController {
   @Get('statistics')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getSupportIssueStatistics(
     @GetJwt() jwt: JwtPayload,
     @Query('days') days?: string,
@@ -70,7 +69,7 @@ export class RealUnitSupportController {
   @Get('activity')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getSupportIssueActivity(
     @GetJwt() jwt: JwtPayload,
     @Query('since') since?: string,
@@ -82,7 +81,7 @@ export class RealUnitSupportController {
   @Get('clerks')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getRealUnitSupportClerks(): Promise<string[]> {
     return this.supportIssueService.getRealUnitSupportClerks();
   }
@@ -90,7 +89,7 @@ export class RealUnitSupportController {
   @Get(':id/data')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getIssueData(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<SupportIssueInternalDataDto> {
     const customerIds = await this.scopeService.getCustomerIds();
     await this.assertIssueOwnership(+id); // membership before returning; getIssueData(customerIds) also enforces it
@@ -100,7 +99,7 @@ export class RealUnitSupportController {
   @Put(':id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async updateSupportIssue(@Param('id') id: string, @Body() dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     await this.assertIssueOwnership(+id);
     return this.supportIssueService.updateIssue(+id, dto);
@@ -109,7 +108,7 @@ export class RealUnitSupportController {
   @Post(':id/message')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async createSupportMessage(
     @Param('id') id: string,
     @Body() dto: CreateSupportMessageDto,
@@ -121,7 +120,7 @@ export class RealUnitSupportController {
   @Get(':id/message/:messageId/file')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getFile(@Param('id') id: string, @Param('messageId') messageId: string): Promise<BlobContent> {
     const userDataId = await this.assertIssueOwnership(+id);
     return this.supportIssueService.getIssueFile(id, +messageId, userDataId);

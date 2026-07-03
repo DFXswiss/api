@@ -29,7 +29,6 @@ import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
-import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { PdfBrand } from 'src/shared/utils/pdf.util';
@@ -744,7 +743,7 @@ export class RealUnitController {
   @ApiExcludeEndpoint()
   @ApiOperation({ summary: 'Get RealUnit quotes' })
   @ApiOkResponse({ type: [RealUnitQuoteDto], description: 'List of open RealUnit requests (quotes)' })
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getAdminQuotes(@Query() { limit, offset }: RealUnitAdminQueryDto): Promise<RealUnitQuoteDto[]> {
     return this.realunitService.getAdminQuotes(limit, offset);
   }
@@ -754,7 +753,7 @@ export class RealUnitController {
   @ApiExcludeEndpoint()
   @ApiOperation({ summary: 'Get RealUnit transactions' })
   @ApiOkResponse({ type: [RealUnitTransactionDto], description: 'List of completed RealUnit transactions' })
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getAdminTransactions(@Query() { limit, offset }: RealUnitAdminQueryDto): Promise<RealUnitTransactionDto[]> {
     return this.realunitService.getAdminTransactions(limit, offset);
   }
@@ -765,7 +764,7 @@ export class RealUnitController {
   @ApiOperation({ summary: 'Confirm payment received for a open RealUnit request (quote)' })
   @ApiParam({ name: 'id', description: 'Transaction request ID' })
   @ApiOkResponse({ description: 'Payment confirmed and shares allocated' })
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async confirmPaymentReceived(@Param('id') id: string): Promise<void> {
     await this.realunitService.confirmPaymentReceived(+id);
   }
@@ -773,7 +772,7 @@ export class RealUnitController {
   @Put('admin/registration/:kycStepId/forward')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async forwardRegistration(@Param('kycStepId') kycStepId: string): Promise<void> {
     await this.realunitService.forwardRegistrationToAktionariat(+kycStepId);
   }

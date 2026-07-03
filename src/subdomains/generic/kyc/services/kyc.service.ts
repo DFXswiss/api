@@ -461,7 +461,8 @@ export class KycService {
       if (!jwt || !isUserActive(jwt)) throw new ForbiddenException('User is not active');
 
       // Mail-origin staff sessions (tfaRequired) must complete STRICT 2FA before downloading protected KYC
-      // files, matching the TfaGuard on the dedicated compliance routes; wallet-signature logins are unaffected.
+      // files. The global TfaEnforcementInterceptor already enforces this invariant on every route; this inline
+      // check is kept as defense-in-depth on this sensitive sink. Wallet-signature logins are unaffected.
       if (jwt.tfaRequired) await this.tfaService.check(jwt.account, ip, TfaLevel.STRICT);
     }
 
