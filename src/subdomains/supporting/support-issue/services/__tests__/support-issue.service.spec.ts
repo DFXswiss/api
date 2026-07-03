@@ -17,6 +17,7 @@ import {
   SupportIssueListOrderBy,
 } from 'src/subdomains/supporting/support-issue/dto/get-support-issue.dto';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
+import { SupportMessage } from 'src/subdomains/supporting/support-issue/entities/support-message.entity';
 import { Department } from 'src/subdomains/supporting/support-issue/enums/department.enum';
 import {
   SupportIssueInternalState,
@@ -546,5 +547,66 @@ describe('SupportIssueService no-department-access guards', () => {
     const activity = await service.getSupportIssueActivity(undefined, UserRole.USER);
     expect(activity).toEqual({ count: 0, latestAt: undefined });
     expect(messageRepo.createQueryBuilder).not.toHaveBeenCalled();
+  });
+});
+
+describe('SupportIssueService.getIssueMessages', () => {
+  let service: SupportIssueService;
+  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
+  let messageRepo: DeepMocked<SupportMessageRepository>;
+
+  const issueOfCustomer = (userDataId: number): SupportIssue =>
+    Object.assign(new SupportIssue(), { id: 7, userData: { id: userDataId } as UserData });
+
+  const message = (id: number): SupportMessage =>
+    Object.assign(new SupportMessage(), {
+      id,
+      author: 'Customer',
+      message: `msg ${id}`,
+      created: new Date('2026-01-01T00:00:00.000Z'),
+    });
+
+  beforeEach(() => {
+    supportIssueRepo = createMock<SupportIssueRepository>();
+    messageRepo = createMock<SupportMessageRepository>();
+
+    service = new SupportIssueService(
+      supportIssueRepo,
+      createMock<TransactionService>(),
+      createMock<SupportDocumentService>(),
+      createMock<UserDataService>(),
+      messageRepo,
+      createMock<SupportIssueNotificationService>(),
+      createMock<LimitRequestService>(),
+      createMock<TransactionRequestService>(),
+      createMock<SupportLogService>(),
+      createMock<BankDataService>(),
+      createMock<SettingService>(),
+      createMock<WalletService>(),
+    );
+  });
+
+  it('throws NotFound when the issue does not exist', async () => {
+    supportIssueRepo.findOne.mockResolvedValue(null);
+    await expect(service.getIssueMessages(7, [42])).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('throws NotFound (fail-closed) when the issue owner is outside the customer scope, without reading messages', async () => {
+    supportIssueRepo.findOne.mockResolvedValue(issueOfCustomer(99));
+    await expect(service.getIssueMessages(7, [42])).rejects.toBeInstanceOf(NotFoundException);
+    expect(messageRepo.findBy).not.toHaveBeenCalled();
+  });
+
+  it('returns the mapped thread for an in-scope customer, honoring fromMessageId', async () => {
+    supportIssueRepo.findOne.mockResolvedValue(issueOfCustomer(42));
+    messageRepo.findBy.mockResolvedValue([message(11), message(12)]);
+
+    const result = await service.getIssueMessages(7, [42], 10);
+
+    const findByArg = messageRepo.findBy.mock.calls[0][0] as { issue: { id: number }; id: { value: number } };
+    expect(findByArg.issue).toEqual({ id: 7 });
+    expect(findByArg.id.value).toBe(10); // MoreThan(10)
+    expect(result).toHaveLength(2);
+    expect(result[0]).toMatchObject({ id: 11, author: 'Customer', message: 'msg 11' });
   });
 });
