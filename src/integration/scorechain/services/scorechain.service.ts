@@ -1,10 +1,21 @@
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { AxiosResponse } from 'axios';
+import { AxiosResponse, isAxiosError } from 'axios';
 import { proofOfAuthenticityVerifier } from 'scorechain-sdk';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { ScorechainPublicKey, ScoringAnalysisRequest, ScoringAnalysisResponse } from '../dto/scorechain.dto';
+
+// Thrown when Scorechain has no record of the screened object — an HTTP 404 whose body reports a
+// NOT_FOUND_* error (e.g. a withdrawal target address that has never appeared on-chain). This is an
+// expected screening outcome, not a provider outage, so callers translate it into a NotFound verdict
+// (fail-closed → high risk) instead of failing the whole request.
+export class ScorechainObjectNotFoundException extends Error {
+  constructor(url: string) {
+    super(`Scorechain has no record of the requested object: POST ${url}`);
+    this.name = ScorechainObjectNotFoundException.name;
+  }
+}
 
 export interface SignedResponse<T> {
   data: T;
@@ -90,8 +101,20 @@ export class ScorechainService {
     try {
       return await this.http.postRaw<T>(`${this.baseUrl}${url}`, body, this.authConfig(config));
     } catch (e) {
+      if (this.isObjectNotFound(e)) throw new ScorechainObjectNotFoundException(url);
       throw new ServiceUnavailableException(`Scorechain POST ${url} failed: ${e.message}`);
     }
+  }
+
+  // A 404 on the scoring endpoint means Scorechain has no record of the queried object (the endpoint
+  // itself is valid — other blockchains score fine), reported as a NOT_FOUND_* error code (e.g.
+  // NOT_FOUND_WALLET for an address that has never been seen on-chain).
+  private isObjectNotFound(e: unknown): boolean {
+    return (
+      isAxiosError(e) &&
+      e.response?.status === 404 &&
+      String((e.response.data as { error?: string })?.error ?? '').startsWith('NOT_FOUND')
+    );
   }
 
   private authConfig(config?: HttpRequestConfig): HttpRequestConfig {
