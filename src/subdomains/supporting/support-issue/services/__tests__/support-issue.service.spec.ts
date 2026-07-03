@@ -386,6 +386,70 @@ describe('SupportIssueService.getIssue message ordering', () => {
   });
 });
 
+// On a ticket-reopen / append (a matching existing issue exists), `createIssueInternal` returns
+// the existing thread + the freshly-created message. The returned DTO's `messages` array is
+// what the frontend renders immediately after submit — same Postgres heap-order bug as
+// `getIssue`. Pins the `order` clause on the existing-issue lookup.
+describe('SupportIssueService.createIssueInternal existing-issue message ordering', () => {
+  let service: SupportIssueService;
+  let supportIssueRepo: DeepMocked<SupportIssueRepository>;
+  let messageRepo: DeepMocked<SupportMessageRepository>;
+  let notificationService: DeepMocked<SupportIssueNotificationService>;
+
+  beforeEach(() => {
+    (ConfigModule as Record<string, unknown>).Config = {
+      prefixes: { issueUidPrefix: 'issue_', quoteUidPrefix: 'quote_', transactionUidPrefix: 'T' },
+    };
+
+    supportIssueRepo = createMock<SupportIssueRepository>();
+    messageRepo = createMock<SupportMessageRepository>();
+    notificationService = createMock<SupportIssueNotificationService>();
+
+    supportIssueRepo.findOne.mockResolvedValue(
+      Object.assign(new SupportIssue(), {
+        id: 7,
+        uid: 'Iabc',
+        state: SupportIssueInternalState.CREATED,
+        userData: { id: 42 } as UserData,
+        messages: [],
+      }),
+    );
+    messageRepo.create.mockImplementation((entity) => entity as never);
+    messageRepo.save.mockImplementation((entity) => Promise.resolve(entity) as never);
+
+    service = new SupportIssueService(
+      supportIssueRepo,
+      createMock<TransactionService>(),
+      createMock<SupportDocumentService>(),
+      createMock<UserDataService>(),
+      messageRepo,
+      notificationService,
+      createMock<LimitRequestService>(),
+      createMock<TransactionRequestService>(),
+      createMock<SupportLogService>(),
+      createMock<BankDataService>(),
+      createMock<SettingService>(),
+    );
+  });
+
+  it('loads the existing issue with messages ordered by id ASC', async () => {
+    await service.createIssueInternal(
+      { id: 42, mail: 'a@b.c' } as UserData,
+      {
+        type: SupportIssueType.GENERIC_ISSUE,
+        reason: SupportIssueReason.OTHER,
+        name: 'help',
+        author: 'Customer',
+        message: 'body',
+      } as never,
+    );
+
+    expect(supportIssueRepo.findOne).toHaveBeenCalledWith(
+      expect.objectContaining({ order: { messages: { id: 'ASC' } } }),
+    );
+  });
+});
+
 describe('SupportIssueService.getSupportIssueStatistics', () => {
   let service: SupportIssueService;
   let supportIssueRepo: DeepMocked<SupportIssueRepository>;

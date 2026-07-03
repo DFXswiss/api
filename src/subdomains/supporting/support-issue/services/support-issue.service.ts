@@ -315,6 +315,10 @@ export class SupportIssueService {
     const existingIssue = await this.supportIssueRepo.findOne({
       where: existingWhere,
       relations: { messages: true, limitRequest: true, userData: { wallet: true } },
+      // Same MSSQL → Postgres migration regression as `getIssue`: on a ticket-reopen /
+      // append path this load feeds the returned DTO's `messages` array (line 389–390),
+      // which the frontend renders immediately after the user submits.
+      order: { messages: { id: 'ASC' } },
     });
 
     if (!existingIssue) {
