@@ -3,7 +3,8 @@ import { createSign, generateKeyPairSync } from 'crypto';
 import { Config, ConfigService } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
 import { ScorechainAnalysisType, ScorechainBlockchain, ScorechainObjectType } from '../../dto/scorechain.dto';
-import { ScorechainObjectNotFoundException, ScorechainService } from '../scorechain.service';
+import { ScorechainObjectNotFoundException } from '../../exceptions/scorechain-object-not-found.exception';
+import { ScorechainService } from '../scorechain.service';
 
 describe('ScorechainService', () => {
   let service: ScorechainService;

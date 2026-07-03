@@ -12,8 +12,9 @@ import {
   toScorechainBlockchain,
 } from '../dto/scorechain.dto';
 import { ScorechainScreening, ScorechainScreeningContext } from '../entities/scorechain-screening.entity';
+import { ScorechainObjectNotFoundException } from '../exceptions/scorechain-object-not-found.exception';
 import { ScorechainScreeningRepository } from '../repositories/scorechain-screening.repository';
-import { ScorechainObjectNotFoundException, ScorechainService } from './scorechain.service';
+import { ScorechainService } from './scorechain.service';
 
 interface ScreenParams {
   objectType: ScorechainObjectType;

@@ -8,9 +8,10 @@ import {
   toScorechainBlockchain,
 } from '../../dto/scorechain.dto';
 import { ScorechainScreening } from '../../entities/scorechain-screening.entity';
+import { ScorechainObjectNotFoundException } from '../../exceptions/scorechain-object-not-found.exception';
 import { ScorechainScreeningRepository } from '../../repositories/scorechain-screening.repository';
 import { ScorechainScreeningService } from '../scorechain-screening.service';
-import { ScorechainObjectNotFoundException, ScorechainService } from '../scorechain.service';
+import { ScorechainService } from '../scorechain.service';
 
 describe('ScorechainScreeningService', () => {
   let service: ScorechainScreeningService;
