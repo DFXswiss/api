@@ -20,7 +20,7 @@ import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.se
 // - TfaService is resolved lazily via ModuleRef so AppModule need not import KycModule,
 //   which would create a module-import cycle.
 // - This interceptor is the central enforcement point for the invariant; the earlier per-route TfaGuard
-//   decorators that duplicated it have been retired in favour of it. Two sensitive sinks (the KYC-file
+//   decorators that duplicated it have been retired in favor of it. Two sensitive sinks (the KYC-file
 //   download and the support-message post) additionally keep a redundant inline check as defense-in-depth.
 @Injectable()
 export class TfaEnforcementInterceptor implements NestInterceptor {
