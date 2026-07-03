@@ -49,7 +49,7 @@ import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { KycLevel, ServiceProvider } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -662,6 +662,9 @@ export class RealUnitService {
     if (userData.kycLevel < KycLevel.LEVEL_10) {
       await this.kycService.initializeProcess(userData);
     }
+
+    // mark the account as a RealUnit customer (additive add-on; never read by DFX core logic)
+    await this.userDataService.addServiceProvider(userData, ServiceProvider.REALUNIT);
 
     return RealUnitEmailRegistrationStatus.EMAIL_REGISTERED;
   }

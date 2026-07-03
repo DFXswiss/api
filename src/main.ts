@@ -11,7 +11,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { spawnSync } from 'child_process';
 import { useContainer } from 'class-validator';
 import cors from 'cors';
-import { json, raw, text } from 'express';
+import { json, raw, text, Request } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { join } from 'path';
@@ -19,7 +19,7 @@ import { getVerifiedIp } from './shared/utils/ip.util';
 import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
-import { apiTraceMiddleware } from './shared/middlewares/api-trace.middleware';
+import { apiTraceMiddleware, maskUrl } from './shared/middlewares/api-trace.middleware';
 import { DfxLogger } from './shared/services/dfx-logger';
 import { AccountChangedWebhookDto } from './subdomains/generic/user/services/webhook/dto/account-changed-webhook.dto';
 import {
@@ -51,6 +51,10 @@ async function bootstrap() {
 
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
+  // morgan's default :url logs the raw query string and unmasked wallet
+  // addresses to the same stdout the log pipeline ships — mask it like the
+  // trace middleware does.
+  morgan.token('url', (req) => maskUrl((req as Request).originalUrl ?? req.url ?? ''));
   app.use(morgan('dev'));
   app.use(helmet());
   app.use(

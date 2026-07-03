@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
+import { AllowTfaPending } from 'src/shared/auth/allow-tfa-pending.decorator';
 import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpCountryGuard } from 'src/shared/auth/ip-country.guard';
@@ -90,6 +91,7 @@ export class AuthController {
   // Lets a logged-in user (e.g. staff who reached a staff endpoint and got TFA_REQUIRED) set up and
   // verify 2FA via their session token, resolving the kycHash from jwt.account. Reuses TfaService.
   @Get('2fa')
+  @AllowTfaPending()
   @ApiBearerAuth()
   @ApiOkResponse({ description: '2FA active' })
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
@@ -98,21 +100,28 @@ export class AuthController {
   }
 
   @Post('2fa')
+  @AllowTfaPending()
   @ApiBearerAuth()
   @ApiCreatedResponse({ type: Setup2faDto })
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   async setup2fa(@GetJwt() jwt: JwtPayload, @Query() { level }: Start2faDto): Promise<Setup2faDto> {
     const { kycHash } = await this.userDataService.getUserData(jwt.account);
-    return this.tfaService.setup(kycHash, level);
+    // A wallet-signature login has no tfaRequired marker (trusted); a mail-elevated staff token has it (not trusted).
+    // Trusted origin = a wallet-signature login: no tfaRequired marker AND a real wallet address on the token.
+    // The account-token fallback (staff enforcement off, or a wallet-less staff user) carries neither, so it
+    // cannot self-enroll a staff TOTP factor from a mail inbox.
+    return this.tfaService.setup(kycHash, level, !jwt.tfaRequired && !!jwt.address);
   }
 
   @Post('2fa/verify')
+  @AllowTfaPending()
   @ApiBearerAuth()
   @ApiCreatedResponse({ description: '2FA successful' })
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @UseGuards(RateLimitGuard, AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @Throttle(10, 60)
   async verify2fa(@GetJwt() jwt: JwtPayload, @RealIP() ip: string, @Body() dto: Verify2faDto): Promise<void> {
     const { kycHash } = await this.userDataService.getUserData(jwt.account);
-    return this.tfaService.verify(kycHash, dto.token, ip);
+    return this.tfaService.verify(kycHash, dto.token, ip, !jwt.tfaRequired && !!jwt.address);
   }
 
   @Get('mail/confirm')

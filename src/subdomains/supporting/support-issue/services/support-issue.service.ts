@@ -3,19 +3,25 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { SupportClerkAccountDto } from 'src/shared/models/setting/dto/support-clerk-account.dto';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { CLIENT_HEADER, resolveClientSource } from 'src/shared/utils/request-client';
 import { Util } from 'src/shared/utils/util';
+import { REALUNIT_WALLET_NAME } from 'src/subdomains/supporting/notification/realunit-mail-rules';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { PhoneCallStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { FindOptionsWhere, In, IsNull, MoreThan, Not } from 'typeorm';
 import { TransactionRequestType } from '../../payment/entities/transaction-request.entity';
 import { TransactionSourceType } from '../../payment/entities/transaction.entity';
@@ -52,6 +58,8 @@ import { SupportLogService } from './support-log.service';
 
 @Injectable()
 export class SupportIssueService {
+  private readonly logger = new DfxLogger(SupportIssueService);
+
   constructor(
     private readonly supportIssueRepo: SupportIssueRepository,
     private readonly transactionService: TransactionService,
@@ -64,10 +72,16 @@ export class SupportIssueService {
     private readonly supportLogService: SupportLogService,
     private readonly bankDataService: BankDataService,
     private readonly settingService: SettingService,
+    private readonly walletService: WalletService,
   ) {}
 
   async getSupportIssueClerks(): Promise<string[]> {
     const clerks = await this.settingService.getObj<string[]>('supportClerks', []);
+    return clerks.length > 0 ? clerks : ['Support'];
+  }
+
+  async getRealUnitSupportClerks(): Promise<string[]> {
+    const clerks = await this.settingService.getObj<string[]>('realUnitSupportClerks', []);
     return clerks.length > 0 ? clerks : ['Support'];
   }
 
@@ -78,21 +92,27 @@ export class SupportIssueService {
     return clerks.find((c) => c.account === account)?.name;
   }
 
-  async getSupportIssueCounts(role: UserRole): Promise<Record<SupportIssueInternalState, number>> {
+  async getSupportIssueCounts(
+    role: UserRole,
+    customerIds?: number[],
+  ): Promise<Record<SupportIssueInternalState, number>> {
     const counts = Object.values(SupportIssueInternalState).reduce(
       (acc, state) => ({ ...acc, [state]: 0 }),
       {} as Record<SupportIssueInternalState, number>,
     );
 
     const departments = getVisibleDepartments(role);
-    if (departments?.length === 0) return counts; // no department access
+    if (!customerIds && departments?.length === 0) return counts; // no department access
+    if (customerIds && !customerIds.length) return counts; // fail-closed: empty customer scope
 
     const qb = this.supportIssueRepo
       .createQueryBuilder('issue')
       .select('issue.state', 'state')
       .addSelect('COUNT(*)', 'count')
       .groupBy('issue.state');
-    if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
+    if (customerIds)
+      qb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
 
     const raw: { state: SupportIssueInternalState; count: string }[] = await qb.getRawMany();
     for (const row of raw) counts[row.state] = +row.count;
@@ -100,9 +120,14 @@ export class SupportIssueService {
     return counts;
   }
 
-  async getSupportIssueActivity(since: Date | undefined, role: UserRole): Promise<{ count: number; latestAt?: Date }> {
+  async getSupportIssueActivity(
+    since: Date | undefined,
+    role: UserRole,
+    customerIds?: number[],
+  ): Promise<{ count: number; latestAt?: Date }> {
     const departments = getVisibleDepartments(role);
-    if (departments?.length === 0) return { count: 0, latestAt: undefined }; // no department access
+    if (!customerIds && departments?.length === 0) return { count: 0, latestAt: undefined }; // no department access
+    if (customerIds && !customerIds.length) return { count: 0, latestAt: undefined }; // fail-closed: empty customer scope
 
     const qb = this.messageRepo
       .createQueryBuilder('m')
@@ -110,13 +135,18 @@ export class SupportIssueService {
       .select('COUNT(*)', 'count')
       .addSelect('MAX(m.created)', 'latestAt');
     if (since) qb.andWhere('m.created > :since', { since: since.toISOString() });
-    if (departments) qb.andWhere('i.department IN (:...departments)', { departments });
+    if (customerIds) qb.innerJoin('i.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) qb.andWhere('i.department IN (:...departments)', { departments });
 
     const raw = await qb.getRawOne<{ count: string | number; latestAt: Date | null }>();
     return { count: +(raw?.count ?? 0), latestAt: raw?.latestAt ?? undefined };
   }
 
-  async getSupportIssueStatistics(role: UserRole, periodDays = 365): Promise<SupportIssueStatisticsDto> {
+  async getSupportIssueStatistics(
+    role: UserRole,
+    periodDays = 365,
+    customerIds?: number[],
+  ): Promise<SupportIssueStatisticsDto> {
     const departments = getVisibleDepartments(role);
     // guard against a non-numeric ?days reaching the clamp as NaN (which would propagate to an Invalid Date)
     const days = Number.isFinite(periodDays) ? Math.min(Math.max(Math.round(periodDays), 1), 366) : 365;
@@ -125,7 +155,8 @@ export class SupportIssueService {
     // no department access: return an empty statistic without querying. An empty `departments` list would
     // otherwise reach the queries below, where `if (departments)` is truthy and expands to a degenerate
     // `IN ()` clause (the same fail-closed contract the counts / activity / list queries already follow).
-    if (departments?.length === 0)
+    // A customer-scoped (RealUnit) caller bypasses the department gate but fail-closes on an empty scope.
+    if ((!customerIds && departments?.length === 0) || (customerIds && !customerIds.length))
       return {
         periodDays: days,
         total: 0,
@@ -146,7 +177,9 @@ export class SupportIssueService {
       .createQueryBuilder('issue')
       .select('COUNT(*)', 'count')
       .where('issue.created >= :from', { from });
-    if (departments) totalQb.andWhere('issue.department IN (:...departments)', { departments });
+    if (customerIds)
+      totalQb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) totalQb.andWhere('issue.department IN (:...departments)', { departments });
     const total = +((await totalQb.getRawOne<{ count: string }>())?.count ?? 0);
 
     const msgQb = this.messageRepo
@@ -154,7 +187,9 @@ export class SupportIssueService {
       .innerJoin('m.issue', 'issue')
       .select('COUNT(*)', 'count')
       .where('issue.created >= :from', { from });
-    if (departments) msgQb.andWhere('issue.department IN (:...departments)', { departments });
+    if (customerIds)
+      msgQb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) msgQb.andWhere('issue.department IN (:...departments)', { departments });
     const messages = +((await msgQb.getRawOne<{ count: string }>())?.count ?? 0);
 
     // trend buckets: always group by day in SQL (CAST avoids Postgres-incompatible date-part functions and
@@ -165,7 +200,9 @@ export class SupportIssueService {
       .addSelect('COUNT(*)', 'count')
       .where('issue.created >= :from', { from })
       .groupBy('CAST(issue.created AS DATE)');
-    if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
+    if (customerIds)
+      trendQb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
     const dayRows = await trendQb.getRawMany<{ d: Date | string; count: string }>();
 
     // build keys from local date parts on both the rows and the bucket loop; the app and DB both run UTC,
@@ -211,7 +248,9 @@ export class SupportIssueService {
       .addSelect('issue.updated', 'updated')
       .where('issue.state = :completed', { completed: SupportIssueInternalState.COMPLETED })
       .andWhere('issue.updated >= :from', { from });
-    if (departments) resolvedQb.andWhere('issue.department IN (:...departments)', { departments });
+    if (customerIds)
+      resolvedQb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) resolvedQb.andWhere('issue.department IN (:...departments)', { departments });
     const resolvedRows = await resolvedQb.getRawMany<{ type: string; created: Date; updated: Date }>();
 
     const resolutionStats = new Map<string, { sum: number; count: number }>();
@@ -242,7 +281,7 @@ export class SupportIssueService {
     };
   }
 
-  async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto): Promise<SupportIssueDto> {
+  async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto, client?: string): Promise<SupportIssueDto> {
     if (!dto?.transaction?.orderUid) throw new BadRequestException('JWT Token or quoteUid missing');
     const transactionRequest = await this.transactionRequestService.getTransactionRequestByUid(
       dto.transaction.orderUid,
@@ -250,21 +289,66 @@ export class SupportIssueService {
     );
     if (!transactionRequest) throw new NotFoundException('TransactionRequest not found');
 
-    return this.createIssueInternal(transactionRequest.userData, dto);
+    return this.createIssueInternal(transactionRequest.userData, dto, await this.resolveSourceWallet(client));
   }
 
-  async createIssue(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
+  // User-opened ticket: source app comes from the per-request X-Client header.
+  async createIssue(userDataId: number, dto: CreateSupportIssueDto, client?: string): Promise<SupportIssueDto> {
+    return this.createForUserData(userDataId, dto, await this.resolveSourceWallet(client));
+  }
+
+  // Support-tool-created ticket: the support tool is part of the DFX services app, so these tickets are
+  // deterministically DFX-attributed (an exact property of the creating application, not a guess). A
+  // dedicated method - rather than an omitted optional arg on createIssue - so the invariant cannot be
+  // broken by a future caller forwarding a customer client header into the support path.
+  async createIssueBySupport(userDataId: number, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
+    return this.createForUserData(userDataId, dto, await this.walletService.getDefault());
+  }
+
+  private async createForUserData(
+    userDataId: number,
+    dto: CreateSupportIssueDto,
+    sourceWallet: Wallet,
+  ): Promise<SupportIssueDto> {
     const userData = await this.userDataService.getUserData(userDataId, { wallet: true });
     if (!userData) throw new NotFoundException('UserData not found');
 
-    return this.createIssueInternal(userData, dto);
+    return this.createIssueInternal(userData, dto, sourceWallet);
   }
 
-  async createIssueInternal(userData: UserData, dto: CreateSupportIssueDto): Promise<SupportIssueDto> {
+  // App the ticket is opened from, resolved EXACTLY from the per-request X-Client header (never from the
+  // user's persisted wallet). Fail closed: an unknown or missing client is rejected instead of being
+  // guessed into a brand - every ticket-creating app must identify itself (realunit-app, dfx-services).
+  private async resolveSourceWallet(client?: string): Promise<Wallet> {
+    const source = resolveClientSource(client);
+    if (!source)
+      throw new BadRequestException(
+        `Support ticket source could not be resolved: missing or unknown '${CLIENT_HEADER}' header`,
+      );
+
+    if (source === 'RealUnit') {
+      const wallet = await this.walletService.getByIdOrName(undefined, REALUNIT_WALLET_NAME);
+      // Fail closed: without the RealUnit wallet the ticket cannot be attributed exactly, and rendering
+      // it as DFX would be a wrong brand, not a fallback.
+      if (!wallet)
+        throw new ServiceUnavailableException(
+          `RealUnit ticket source resolved but the '${REALUNIT_WALLET_NAME}' wallet is missing`,
+        );
+      return wallet;
+    }
+
+    return this.walletService.getDefault();
+  }
+
+  async createIssueInternal(
+    userData: UserData,
+    dto: CreateSupportIssueDto,
+    sourceWallet: Wallet,
+  ): Promise<SupportIssueDto> {
     // mail is required
     if (!userData.mail) throw new BadRequestException('Mail is missing');
 
-    const newIssue = this.supportIssueRepo.create({ userData, ...dto });
+    const newIssue = this.supportIssueRepo.create({ userData, wallet: sourceWallet, ...dto });
 
     const existingWhere: FindOptionsWhere<SupportIssue> = {
       userData: { id: userData.id },
@@ -354,6 +438,16 @@ export class SupportIssueService {
     }
 
     const entity = existingIssue ?? (await this.supportIssueRepo.save(newIssue));
+
+    // Dedup keeps the existing issue's attribution: the source is a property of the app the ticket was
+    // originally opened from (NOT NULL since the backfill migration), so a follow-up message from another
+    // app must not rebrand it. Legacy rows created before attribution existed were backfilled to DFX; if
+    // one ever surfaces unattributed, upgrade it with the now-known exact source instead of guessing.
+    if (existingIssue && !existingIssue.wallet) {
+      existingIssue.wallet = sourceWallet;
+      await this.supportIssueRepo.update(existingIssue.id, { wallet: sourceWallet });
+    }
+
     const supportMessage = await this.createMessageInternal(entity, dto);
 
     const issue = SupportIssueDtoMapper.mapSupportIssue(entity);
@@ -432,12 +526,14 @@ export class SupportIssueService {
   async getSupportIssueList(
     filter: GetSupportIssueListFilter,
     role: UserRole,
+    customerIds?: number[],
   ): Promise<{ data: SupportIssueListDto[]; total: number }> {
     const where: FindOptionsWhere<SupportIssue> = {};
 
     // department filtering: the role defines the allowed departments, an explicit filter may narrow within them
     const allowedDepartments = getVisibleDepartments(role);
-    if (allowedDepartments?.length === 0) return { data: [], total: 0 }; // no department access
+    if (!customerIds && allowedDepartments?.length === 0) return { data: [], total: 0 }; // no department access
+    if (customerIds && !customerIds.length) return { data: [], total: 0 }; // fail-closed: empty customer scope
 
     const departments =
       filter.department && (!allowedDepartments || allowedDepartments.includes(filter.department))
@@ -454,9 +550,13 @@ export class SupportIssueService {
       .slice(0, 10);
 
     const qb = this.supportIssueRepo.createQueryBuilder('issue');
-    if (terms.length > 0) qb.leftJoin('issue.userData', 'userData');
+    // the search predicate and the RealUnit customer scope both need the userData join; share the single 'userData' alias
+    if (terms.length > 0 || customerIds) qb.leftJoin('issue.userData', 'userData');
 
-    if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
+    // customer scope (RealUnit) takes precedence over and replaces the department gate; the left join + IN filter
+    // fail-closes issues without a userData (NULL is never IN the scope list)
+    if (customerIds) qb.andWhere('"userData".id IN (:...customerIds)', { customerIds });
+    else if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
     if (filter.states?.length) qb.andWhere('issue.state IN (:...states)', { states: filter.states });
     if (where.type) qb.andWhere('issue.type = :type', { type: where.type });
     if (filter.clerk) qb.andWhere('issue.clerk = :clerk', { clerk: filter.clerk });
@@ -584,7 +684,7 @@ export class SupportIssueService {
     return SupportIssueDtoMapper.mapSupportIssue(issue);
   }
 
-  async getIssueData(id: number, role: UserRole): Promise<SupportIssueInternalDataDto> {
+  async getIssueData(id: number, role: UserRole, customerIds?: number[]): Promise<SupportIssueInternalDataDto> {
     const issue = await this.supportIssueRepo.findOne({
       where: { id },
       relations: {
@@ -599,8 +699,13 @@ export class SupportIssueService {
       loadEagerRelations: false,
     });
     if (!issue) throw new NotFoundException('Support issue not found');
+    // customer scope (RealUnit): fail-closed 404 when the issue does not belong to a scoped customer (no existence leak)
+    if (customerIds && !customerIds.includes(issue.userData?.id))
+      throw new NotFoundException('Support issue not found');
 
-    return SupportIssueDtoMapper.mapSupportIssueData(issue, role);
+    // DFX Support and RealUnit tenant staff must not see the DFX AML-internal limit request
+    const hideLimitRequest = [UserRole.SUPPORT, UserRole.REALUNIT].includes(role);
+    return SupportIssueDtoMapper.mapSupportIssueData(issue, hideLimitRequest);
   }
 
   async getIssueFile(id: string, messageId: number, userDataId?: number): Promise<BlobContent> {
@@ -621,6 +726,19 @@ export class SupportIssueService {
       supportIssues,
       supportMessages: await this.messageRepo.findBy({ issue: { id: In(supportIssues.map((i) => i.id)) } }),
     };
+  }
+
+  // Resolves the owning userData id of an issue by numeric id, so a caller can enforce a membership/tenant
+  // boundary before a mutating or data call. Throws NotFound (no existence leak) when the issue or its owner is missing.
+  async getIssueUserDataId(id: number): Promise<number> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: { id },
+      relations: { userData: true },
+      loadEagerRelations: false,
+    });
+    if (!issue?.userData) throw new NotFoundException('Support issue not found');
+
+    return issue.userData.id;
   }
 
   // --- HELPER METHODS --- //

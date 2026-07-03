@@ -45,6 +45,7 @@ import {
   PhoneCallPreferredTime,
   PhoneCallStatus,
   RiskStatus,
+  ServiceProvider,
   SignatoryPower,
   UserDataStatus,
 } from './user-data.enum';
@@ -203,6 +204,7 @@ export class UserData extends IEntity {
   @OneToMany(() => KycFile, (kycFile) => kycFile.userData)
   kycFiles?: KycFile[];
 
+  @Index({ unique: true, where: '"kycFileId" IS NOT NULL' })
   @Column({ type: 'integer', nullable: true })
   kycFileId?: number;
 
@@ -245,6 +247,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, nullable: true })
   kycClients?: string; // semicolon separated wallet id's
+
+  @Column({ length: 256, nullable: true })
+  serviceProviders?: string; // semicolon separated ServiceProvider add-ons (e.g. RealUnit); DFX core never reads this, only the RealUnit dashboards
 
   @Column({ type: 'timestamp', nullable: true })
   phoneCallCheckDate?: Date;
@@ -355,6 +360,12 @@ export class UserData extends IEntity {
   // 2FA
   @Column({ nullable: true })
   totpSecret?: string;
+
+  @Column({ type: 'integer', default: 0 })
+  totpFailedAttempts: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  totpBlockedUntil?: Date;
 
   // Point of Sale
   @Column({ default: false })
@@ -493,6 +504,18 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  addServiceProvider(provider: ServiceProvider): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      serviceProviders: this.serviceProviderList.includes(provider)
+        ? this.serviceProviders
+        : [...this.serviceProviderList, provider].join(';'),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   removeKycClient(walletId: number): UpdateResult<UserData> {
     const update: Partial<UserData> = {
       kycClients: this.kycClientList.filter((id) => id !== walletId).join(';'),
@@ -581,6 +604,14 @@ export class UserData extends IEntity {
 
   get kycClientList(): number[] {
     return this.kycClients?.split(';')?.map(Number) ?? [];
+  }
+
+  get serviceProviderList(): ServiceProvider[] {
+    return (this.serviceProviders?.split(';') as ServiceProvider[]) ?? [];
+  }
+
+  get isRealUnitCustomer(): boolean {
+    return this.serviceProviderList.includes(ServiceProvider.REALUNIT);
   }
 
   get hasActiveUser(): boolean {

@@ -1,83 +1,149 @@
 import { NextFunction, Request, RequestHandler, Response } from 'express';
 import { DfxLogger } from '../services/dfx-logger';
+import { getClient, isRealUnitRequest } from '../utils/request-client';
 
 const logger = new DfxLogger('RealUnitTrace');
 
-const CLIENT_HEADER = 'x-client';
-const REALUNIT_CLIENT = /realunit-app/i;
 const REALUNIT_PATH = /^\/v\d+\/realunit\//i;
 
-// Keys whose values are masked: auth header, JWT/access tokens, signatures, credentials.
-// Anchored so public fields like `tokenInfo` / `tokenAddress` are NOT redacted.
-const SECRET_KEY = /(^authorization$|token$|signature$|password|secret|mnemonic|privatekey)/i;
-const MAX_STRING = 512;
-const REDACTED = '***';
+// Object keys whose value is fully replaced with `***`: credentials, personal
+// data, and the client-IP / cookie headers. Body capture is scoped to the
+// `/v{n}/realunit/*` paths (below), so this only has to cover the RealUnit DTOs
+// — but kept deliberately broad: over-masking a harmless field is fine, leaking
+// a personal one is not.
+export const REDACT_KEY =
+  /(^authorization$|^cookie$|^set-cookie$|^forwarded$|^r$|^s$|^v$|^unsignedtx$|token$|signature$|password|secret|mnemonic|privatekey|name$|firstname|surname|mail|phone|street|address|city|zip|postalcode|housenumber|^number$|country|nationality|gender|document|birth|iban|bic|tin|tax|x-forwarded-for|x-real-ip|cf-connecting-ip|true-client-ip|x-client-ip)/i;
 
-function redact(value: unknown, key?: string): unknown {
-  if (key && SECRET_KEY.test(key) && value != null && value !== '') return REDACTED;
-  if (typeof value === 'string') {
-    return value.length > MAX_STRING ? `<… ${value.length} chars …>` : value;
+// Value patterns masked wherever they appear, even under a key we didn't list.
+// The wallet match is exactly 40 hex — the lookahead leaves longer hex runs (tx
+// hashes) intact, since those are on-chain identifiers, not PII. The EMAIL
+// quantifiers are bounded so an adversarial body can't trigger super-linear
+// backtracking on the request path.
+const WALLET_ADDRESS = /0x[0-9a-f]{40}(?![0-9a-f])/gi;
+const EMAIL = /[^\s"@/]{1,64}@[^\s"@/]{1,255}\.[^\s"@/.]{1,24}/g;
+const IPV4 = /\b\d{1,3}(?:\.\d{1,3}){3}\b/g;
+
+const MAX_STRING = 512; // per string leaf
+const MAX_PART = 4000; // per serialized section (headers / req body / res body)
+const REDACT_BUDGET = 2 * MAX_PART; // per section: bounds the compute, not just the output
+const REDACTED = '***';
+const TRUNCATED = '<…truncated…>';
+
+function maskValue(s: string): string {
+  return s.replace(WALLET_ADDRESS, '0x…').replace(EMAIL, REDACTED).replace(IPV4, REDACTED);
+}
+
+export function maskUrl(url: string): string {
+  return maskValue(url.split('?')[0]);
+}
+
+// `budget` bounds the total work per section: each processed node deducts from
+// it and the walk stops once it is spent, so a 20 MB body can't burn seconds of
+// synchronous CPU (regexes + stringify) just to emit a 4000-char log line.
+function redact(value: unknown, key: string | undefined, budget: { left: number }): unknown {
+  if (budget.left <= 0) return TRUNCATED;
+  // Resolve the array case first: a tampered HTTP parameter (header / body) can
+  // be an array, so this runs before any typeof / length / string comparison
+  // (CodeQL js/type-confusion-through-parameter-tampering). The key is passed
+  // through so array elements under a sensitive key are still masked.
+  if (Array.isArray(value)) {
+    const out: unknown[] = [];
+    for (const entry of value) {
+      if (budget.left <= 0) {
+        out.push(TRUNCATED);
+        break;
+      }
+      out.push(redact(entry, key, budget));
+    }
+    return out;
   }
-  if (Array.isArray(value)) return value.map((entry) => redact(entry));
+  budget.left -= (key?.length ?? 0) + 8;
+  if (key && REDACT_KEY.test(key) && value != null && value !== '') return REDACTED;
+  if (Buffer.isBuffer(value)) return `<binary ${value.length} bytes>`;
+  if (typeof value === 'string') {
+    budget.left -= Math.min(value.length, MAX_STRING);
+    return value.length > MAX_STRING ? `<… ${value.length} chars …>` : maskValue(value);
+  }
   if (value && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value as Record<string, unknown>).map(([k, v]) => [k, redact(v, k)]));
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+      if (budget.left <= 0) {
+        out['…'] = TRUNCATED;
+        break;
+      }
+      out[k] = redact(v, k, budget);
+    }
+    return out;
   }
   return value;
 }
 
 function format(value: unknown): string {
   if (value === undefined || value === null) return '(empty)';
-  if (typeof value === 'object' && Object.keys(value as object).length === 0) return '(empty)';
+  let s: string;
   try {
-    return JSON.stringify(redact(value), null, 2);
+    // redact() handles Buffer + the array case (Array.isArray first), so the
+    // raw value is never length/type-inspected here.
+    s = JSON.stringify(redact(value, undefined, { left: REDACT_BUDGET }));
   } catch {
     return '(unserializable)';
   }
+  return s.length > MAX_PART ? `${s.slice(0, MAX_PART)}…(${s.length} chars)` : s;
 }
 
 /**
- * Full request/response tracer for the RealUnit internal test phase.
- * Enabled on DEV and PRD — see the environment gate in `main.ts`.
+ * Request/response tracer for the RealUnit internal test phase (DEV + PRD — see
+ * the environment gate in `main.ts`). Emits one INFO line per call from the
+ * realunit-app (`X-Client: realunit-app`) or a `/v{n}/realunit/*` path.
  *
- * Emits one log block per call originating from the realunit-app — detected
- * either via the `X-Client: realunit-app` header or a `/v{n}/realunit/*` path
- * (the latter also covers app builds shipped before the header existed).
- * Secrets are masked; KYC/PII bodies are kept intact by design — on PRD this
- * means real customer data is written to the container logs.
+ * Headers + request body + response body are captured only for `/v{n}/realunit/*`
+ * paths — the DTOs the redaction is tuned for. A realunit-app call to any other
+ * endpoint is logged metadata-only (method/path/status/duration/client), so
+ * generic KYC/ident bodies are never traced through this RealUnit-scoped denylist.
+ *
+ * Personal data is redacted — credentials, names, addresses, email, phone,
+ * document/IBAN/BIC etc. by key, plus wallet addresses / emails / IPv4 by value.
+ * Each section is size-capped and binary bodies are summarized, and the whole
+ * trace is a single INFO line, so the pipeline can't split it into fragments and
+ * mis-tag them as ERROR.
  */
 export function apiTraceMiddleware(): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
-    const client = req.headers[CLIENT_HEADER];
-    const clientStr = Array.isArray(client) ? client[0] : (client ?? '');
+    const clientStr = getClient(req);
 
-    const isRealUnit = REALUNIT_CLIENT.test(clientStr) || REALUNIT_PATH.test(req.originalUrl);
-    if (!isRealUnit) return next();
+    // Same gate as develop's inline client/path test, via the shared (anchored) helpers.
+    const isRealUnitPath = REALUNIT_PATH.test(req.originalUrl);
+    if (!isRealUnitRequest(req)) return next();
 
     const start = Date.now();
     let responseBody: unknown;
 
-    const originalJson = res.json.bind(res);
-    res.json = (body: any) => {
-      responseBody = body;
-      return originalJson(body);
-    };
+    // Only capture bodies for the RealUnit paths the redaction is built for.
+    if (isRealUnitPath) {
+      const originalJson = res.json.bind(res);
+      res.json = (body: any) => {
+        responseBody = body;
+        return originalJson(body);
+      };
 
-    const originalSend = res.send.bind(res);
-    res.send = (body: any) => {
-      if (responseBody === undefined) responseBody = body;
-      return originalSend(body);
-    };
+      const originalSend = res.send.bind(res);
+      res.send = (body: any) => {
+        if (responseBody === undefined) responseBody = body;
+        return originalSend(body);
+      };
+    }
 
     res.on('finish', () => {
       const durationMs = Date.now() - start;
-      const block = [
-        `${req.method} ${req.originalUrl} → ${res.statusCode} (${durationMs}ms)  ` +
-          `client=${clientStr || '(none)'} ip=${req.realIp}`,
-        `  req.headers: ${format(req.headers)}`,
-        `  req.body:    ${format(req.body)}`,
-        `  res.body:    ${format(responseBody)}`,
-      ].join('\n');
-      logger.info(block);
+      const path = maskUrl(req.originalUrl);
+      const meta = `${req.method} ${path} → ${res.statusCode} (${durationMs}ms)  client=${clientStr || '(none)'}`;
+      if (isRealUnitPath) {
+        logger.info(
+          `${meta}  req.headers=${format(req.headers)}  req.body=${format(req.body)}  res.body=${format(responseBody)}`,
+        );
+      } else {
+        logger.info(meta);
+      }
     });
 
     next();

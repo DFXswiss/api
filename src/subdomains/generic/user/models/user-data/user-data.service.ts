@@ -66,7 +66,7 @@ import { UpdateUserDataDto } from './dto/update-user-data.dto';
 import { KycIdentificationType } from './kyc-identification-type.enum';
 import { UserDataNotificationService } from './user-data-notification.service';
 import { UserData } from './user-data.entity';
-import { KycLevel, PhoneCallStatus, TradeApprovalReason, UserDataStatus } from './user-data.enum';
+import { KycLevel, PhoneCallStatus, ServiceProvider, TradeApprovalReason, UserDataStatus } from './user-data.enum';
 import { UserDataRepository } from './user-data.repository';
 
 export const MergedPrefix = 'Merged into ';
@@ -157,6 +157,17 @@ export class UserDataService {
   async getUserDataByIds(ids: number[]): Promise<UserData[]> {
     if (!ids.length) return [];
     return this.userDataRepo.find({ where: { id: In(ids) } });
+  }
+
+  async getUserDataIdsByServiceProvider(provider: ServiceProvider): Promise<number[]> {
+    // exact token match on the semicolon list (mirrors the backfill migration and the UserData.isRealUnitCustomer
+    // getter), so the scope source and the per-issue membership check share one definition and cannot diverge
+    return this.userDataRepo
+      .createQueryBuilder('userData')
+      .select('userData.id', 'id')
+      .where(`';' || userData.serviceProviders || ';' LIKE :pattern`, { pattern: `%;${provider};%` })
+      .getRawMany<{ id: number }>()
+      .then((rows) => rows.map((r) => r.id));
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
@@ -554,8 +565,25 @@ export class UserDataService {
     return userData;
   }
 
-  async getLastKycFileId(): Promise<number> {
-    return this.userDataRepo.findOne({ where: {}, order: { kycFileId: 'DESC' } }).then((u) => u.kycFileId);
+  // Read-max-then-write is racy between concurrent AML postProcessing calls; the unique index on
+  // kycFileId is the actual backstop, this just retries so the loser gets the next free id.
+  // max+1 over a sequence (nextval) to keep ids gapless: a sequence burns a number on every
+  // rolled-back txn and doesn't follow manual/merge kycFileId writes.
+  async assignNextKycFileId(userData: UserData, attempt = 0): Promise<UserData> {
+    // Postgres `ORDER BY … DESC` is NULLS FIRST, so exclude nulls to get the real max.
+    const last = await this.userDataRepo.findOne({
+      where: { kycFileId: Not(IsNull()) },
+      order: { kycFileId: 'DESC' },
+    });
+    const kycFileId = (last?.kycFileId ?? 0) + 1;
+
+    try {
+      return await this.updateUserDataInternal(userData, { kycFileId, amlListAddedDate: new Date() });
+    } catch (e) {
+      if (attempt >= 4 || !(e instanceof ConflictException || e.message?.includes('duplicate key'))) throw e;
+
+      return this.assignNextKycFileId(userData, attempt + 1);
+    }
   }
 
   async updatePersonalData(userData: UserData, data: KycPersonalData): Promise<UserData> {
@@ -645,6 +673,11 @@ export class UserDataService {
 
   async updateTotpSecret(user: UserData, secret: string): Promise<void> {
     await this.userDataRepo.update(user.id, { totpSecret: secret });
+  }
+
+  async setTotpLockout(user: UserData, failedAttempts: number, blockedUntil: Date | null): Promise<void> {
+    await this.userDataRepo.update(user.id, { totpFailedAttempts: failedAttempts, totpBlockedUntil: blockedUntil });
+    Object.assign(user, { totpFailedAttempts: failedAttempts, totpBlockedUntil: blockedUntil });
   }
 
   async updatePaymentLinksConfig(user: UserData, dto: Partial<PaymentLinkConfig>): Promise<void> {
@@ -1062,6 +1095,14 @@ export class UserDataService {
     await this.userDataRepo.update(...userData.removeKycClient(walletId));
   }
 
+  // --- SERVICE PROVIDERS --- //
+
+  async addServiceProvider(userData: UserData, provider: ServiceProvider): Promise<void> {
+    if (userData.serviceProviderList.includes(provider)) return;
+
+    await this.userDataRepo.update(...userData.addServiceProvider(provider));
+  }
+
   // --- FEES --- //
 
   async addFee(userData: UserData, feeId: number): Promise<void> {
@@ -1244,10 +1285,16 @@ export class UserDataService {
     if (notifyUser && slave.mail && ![slave.mail, mail].includes(master.mail))
       await this.userDataNotificationService.userDataChangedMailInfo(master, slave);
 
-    // Adapt slave kyc step sequenceNumber
-    const sequenceNumberOffset = master.kycSteps.length ? Util.minObjValue(master.kycSteps, 'sequenceNumber') - 100 : 0;
+    // Adapt slave kyc step sequenceNumber: absolute, strictly-decreasing numbers below BOTH sides' min, so a
+    // reassigned step can't collide on the userDataId+name+type+sequenceNumber unique index — neither against the
+    // master's rows (checked when userDataId flips on save) nor against the slave's own rows from earlier merges
+    // (checked at update time, before the flip) — and a re-run of a partially-applied merge can't compound.
+    const existingSteps = [...master.kycSteps, ...(slave.kycSteps ?? [])];
+    // Seeded 100 below the floor: the gap marks each merge batch as such in the raw data.
+    let nextSequenceNumber = (existingSteps.length ? Util.minObjValue(existingSteps, 'sequenceNumber') : 0) - 100;
     const kycStepMerge = !!slave.kycSteps?.length;
-    for (const kycStep of slave.kycSteps) {
+    // Descending by old sequenceNumber, so the newest attempt keeps the highest new number (order-preserving).
+    for (const kycStep of [...slave.kycSteps].sort((a, b) => b.sequenceNumber - a.sequenceNumber)) {
       await this.kycAdminService.updateKycStepInternal(
         kycStep.update(
           [
@@ -1265,7 +1312,7 @@ export class UserDataService {
             : undefined,
           undefined,
           undefined,
-          kycStep.sequenceNumber + sequenceNumberOffset,
+          nextSequenceNumber--,
         ),
       );
     }
@@ -1298,6 +1345,9 @@ export class UserDataService {
     master.transactions = master.transactions.concat(slave.transactions);
     slave.individualFeeList?.forEach((fee) => !master.individualFeeList?.includes(fee) && master.addFee(fee));
     slave.kycClientList.forEach((kc) => !master.kycClientList.includes(kc) && master.addKycClient(kc));
+    slave.serviceProviderList.forEach(
+      (sp) => !master.serviceProviderList.includes(sp) && master.addServiceProvider(sp),
+    );
 
     // copy all documents
     void this.documentService

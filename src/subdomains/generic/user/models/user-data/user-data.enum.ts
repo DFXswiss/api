@@ -63,6 +63,12 @@ export enum KycType {
   LOCK = 'LOCK',
 }
 
+// Additive service-provider tenants an account is a customer of, on top of the DFX core (e.g. RealUnit,
+// a regulated intermediary DFX serves as SaaS). Never consumed by DFX core logic — only the RealUnit dashboards.
+export enum ServiceProvider {
+  REALUNIT = 'RealUnit',
+}
+
 export enum LegalEntity {
   AG = 'AG',
   GMBH = 'GmbH',

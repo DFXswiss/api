@@ -2,7 +2,7 @@ import { UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { GetConfig } from 'src/config/config';
-import { IsJwtAddressDenied } from '../services/process.service';
+import { IsJwtAccountDenied, IsJwtAddressDenied } from '../services/process.service';
 import { JwtPayload } from './jwt-payload.interface';
 import { UserRole } from './user-role.enum';
 
@@ -33,6 +33,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     }
 
     if (IsJwtAddressDenied(address)) throw new UnauthorizedException();
+    // Addressless-token counterpart: account/mail/staff tokens carry no `address`, so revoke them by
+    // account id (checked in-memory, primed by ProcessService) — see `IsJwtAccountDenied`.
+    if (IsJwtAccountDenied(account)) throw new UnauthorizedException();
 
     return payload;
   }

@@ -1,4 +1,3 @@
-import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CountryDtoMapper } from 'src/shared/models/country/dto/country-dto.mapper';
 import { LanguageDtoMapper } from 'src/shared/models/language/dto/language-dto.mapper';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -37,7 +36,9 @@ export class SupportIssueDtoMapper {
     return Object.assign(new SupportIssueDto(), dto);
   }
 
-  static mapSupportIssueData(supportIssue: SupportIssue, role: UserRole): SupportIssueInternalDataDto {
+  // `hideLimitRequest` redacts the DFX AML-internal limit request for callers who must not see it
+  // (DFX Support staff and RealUnit tenant staff); Compliance/Admin pass false and keep it.
+  static mapSupportIssueData(supportIssue: SupportIssue, hideLimitRequest: boolean): SupportIssueInternalDataDto {
     const dto: SupportIssueInternalDataDto = {
       id: supportIssue.id,
       created: supportIssue.created,
@@ -50,8 +51,7 @@ export class SupportIssueDtoMapper {
       clerk: supportIssue.clerk,
       account: SupportIssueDtoMapper.mapUserData(supportIssue.userData),
       transaction: SupportIssueDtoMapper.mapTransactionData(supportIssue.transaction),
-      limitRequest:
-        role === UserRole.SUPPORT ? undefined : SupportIssueDtoMapper.mapLimitRequestData(supportIssue.limitRequest),
+      limitRequest: hideLimitRequest ? undefined : SupportIssueDtoMapper.mapLimitRequestData(supportIssue.limitRequest),
       transactionMissing: SupportIssueDtoMapper.mapTransactionMissingData(supportIssue),
     };
 
