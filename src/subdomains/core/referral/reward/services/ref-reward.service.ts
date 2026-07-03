@@ -57,6 +57,7 @@ const PayoutLimits: { [k in Blockchain]: number } = {
   [Blockchain.MEXC]: undefined,
   [Blockchain.MAERKI_BAUMANN]: undefined,
   [Blockchain.OLKYPAY]: undefined,
+  [Blockchain.OLKY_FROZEN]: undefined,
   [Blockchain.CHECKOUT]: undefined,
   [Blockchain.SUMIXX]: undefined,
   [Blockchain.YAPEAL]: undefined,

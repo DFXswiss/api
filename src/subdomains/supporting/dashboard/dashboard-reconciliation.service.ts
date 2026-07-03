@@ -47,6 +47,7 @@ const BLOCKCHAIN_WALLET_ENV: Partial<Record<Blockchain, string>> = {
 const BANK_BLOCKCHAINS: Blockchain[] = [
   Blockchain.MAERKI_BAUMANN,
   Blockchain.OLKYPAY,
+  Blockchain.OLKY_FROZEN,
   Blockchain.CHECKOUT,
   Blockchain.SUMIXX,
   Blockchain.YAPEAL,

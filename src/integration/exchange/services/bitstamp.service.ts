@@ -45,6 +45,7 @@ export class BitstampService extends ExchangeService {
     MEXC: undefined,
     MaerkiBaumann: undefined,
     Olkypay: undefined,
+    OlkyFrozen: undefined,
     Checkout: undefined,
     Sumixx: undefined,
     Yapeal: undefined,

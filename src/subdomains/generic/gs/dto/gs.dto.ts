@@ -246,6 +246,9 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   buy_crypto: {
+    // No annualVolume / monthlyVolume / volume — those columns live on the `buy` entity, not
+    // buy_crypto. Listing them here made /gs/debug emit SQL that errors ("Query execution
+    // failed") because the physical columns don't exist on this table.
     columns: [
       'id',
       'created',
@@ -255,7 +258,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'amlReason',
       'amountInChf',
       'amountInEur',
-      'annualVolume',
       'bankDataId',
       'bankFeeAmount',
       'bankFixedFeeAmount',
@@ -283,7 +285,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'mailSendDate',
       'minFeeAmount',
       'minFeeAmountFiat',
-      'monthlyVolume',
       'networkStartAmount',
       'networkStartAsset',
       'networkStartFeeAmount',
@@ -307,7 +308,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'txId',
       'usedPartnerRef',
       'usedRef',
-      'volume',
     ],
   },
   buy_crypto_batch: {

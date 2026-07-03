@@ -25,6 +25,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { Response } from 'express';
+import { AllowTfaPending } from 'src/shared/auth/allow-tfa-pending.decorator';
 import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -67,6 +68,7 @@ export class UserController {
 
   // --- USER --- //
   @Get()
+  @AllowTfaPending() // own-account read, reachable pre-2FA for the mail-staff session bootstrap
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOkResponse({ type: UserDto })
@@ -76,6 +78,7 @@ export class UserController {
   }
 
   @Get('detail')
+  @AllowTfaPending() // own-account read, reachable pre-2FA for the mail-staff session bootstrap
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOkResponse({ type: UserDetailDto })
@@ -238,6 +241,7 @@ export class UserV2Controller {
   constructor(private readonly userService: UserService) {}
 
   @Get()
+  @AllowTfaPending() // own-account read (the SDK session-bootstrap call), reachable pre-2FA for the mail-staff session
   @ApiBearerAuth()
   @UseGuards(
     AuthGuard(),
