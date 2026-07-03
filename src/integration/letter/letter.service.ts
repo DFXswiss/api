@@ -56,10 +56,12 @@ export class LetterService {
   }
 
   async getBalance(): Promise<number> {
-    if (!this.isConfigured) return 0;
-
     return this.http
-      .post<BalanceResponse>(`${Config.letter.url}/getBalance`, { auth: Config.letter.auth })
+      .post<BalanceResponse>(
+        `${Config.letter.url}/getBalance`,
+        { auth: Config.letter.auth },
+        { timeout: 10000, tryCount: 3, retryDelay: 1000 },
+      )
       .then((r) => +r.balance.value);
   }
 }

@@ -5,7 +5,6 @@ import { LetterService } from 'src/integration/letter/letter.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
-import { Util } from 'src/shared/utils/util';
 import { MetricObserver } from 'src/subdomains/core/monitoring/metric.observer';
 import { MonitoringService } from 'src/subdomains/core/monitoring/monitoring.service';
 
@@ -44,31 +43,25 @@ export class ExternalServicesObserver extends MetricObserver<ExternalServicesDat
   // *** HELPER METHODS *** //
 
   private async getExternalServices(): Promise<ExternalServicesData[]> {
-    const services: ExternalServicesData[] = [];
+    const services = [
+      { name: 'IBAN', service: this.ibanService },
+      { name: 'Letter', service: this.letterService },
+    ];
 
-    if (this.ibanService.isConfigured) services.push(await this.getIbanService());
-    if (this.letterService.isConfigured) services.push(await this.getLetterService());
-
-    return services;
+    return Promise.all(
+      services
+        .filter(({ service }) => service.isConfigured)
+        .map(({ name, service }) => this.checkService(name, service)),
+    );
   }
 
-  private async getIbanService(): Promise<ExternalServicesData> {
+  private async checkService(name: string, service: { getBalance(): Promise<number> }): Promise<ExternalServicesData> {
     try {
-      const balance = await Util.retry(() => this.ibanService.getBalance(), 3, 1000);
-      return { name: 'IBAN', balance, status: balance ? Status.ONLINE : Status.OFFLINE };
+      const balance = await service.getBalance();
+      return { name, balance, status: balance ? Status.ONLINE : Status.OFFLINE };
     } catch (e) {
-      this.logger.error('Failed to get IBAN service balance:', e);
-      return { name: 'IBAN', status: Status.OFFLINE };
-    }
-  }
-
-  private async getLetterService(): Promise<ExternalServicesData> {
-    try {
-      const balance = await Util.retry(() => this.letterService.getBalance(), 3, 1000);
-      return { name: 'Letter', balance, status: balance ? Status.ONLINE : Status.OFFLINE };
-    } catch (e) {
-      this.logger.error('Failed to get letter service balance:', e);
-      return { name: 'Letter', status: Status.OFFLINE };
+      this.logger.error(`Failed to get ${name} service balance:`, e);
+      return { name, status: Status.OFFLINE };
     }
   }
 }

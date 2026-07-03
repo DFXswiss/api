@@ -133,6 +133,13 @@ export class IbanService {
   }
 
   async getBalance(): Promise<number> {
-    return this.http.get<IbanBalance>(`${this.baseUrl}/get_balance`, Config.sepaTools).then((r) => r.balance);
+    return this.http
+      .get<IbanBalance>(`${this.baseUrl}/get_balance`, {
+        ...Config.sepaTools,
+        timeout: 10000,
+        tryCount: 3,
+        retryDelay: 1000,
+      })
+      .then((r) => r.balance);
   }
 }
