@@ -347,6 +347,36 @@ export class RecommendationService {
     });
   }
 
+  // count of distinct recommended counterparts per recommender, excluding counterparts already shown (excludeIds)
+  async countByRecommenderIds(ids: number[], excludeIds: number[] = []): Promise<{ id: number; count: number }[]> {
+    if (ids.length === 0) return [];
+    const query = this.recommendationRepo
+      .createQueryBuilder('recommendation')
+      .select('recommendation.recommenderId', 'id')
+      .addSelect('COUNT(DISTINCT recommendation.recommendedId)', 'count')
+      .where('recommendation.recommenderId IN (:...ids)', { ids })
+      .andWhere('recommendation.recommendedId IS NOT NULL')
+      .andWhere('recommendation.recommendedId != recommendation.recommenderId');
+    if (excludeIds.length > 0) query.andWhere('recommendation.recommendedId NOT IN (:...excludeIds)', { excludeIds });
+    const rows = await query.groupBy('recommendation.recommenderId').getRawMany<{ id: string; count: string }>();
+    return rows.map((r) => ({ id: +r.id, count: +r.count }));
+  }
+
+  // count of distinct recommender counterparts per recommended, excluding counterparts already shown (excludeIds)
+  async countByRecommendedIds(ids: number[], excludeIds: number[] = []): Promise<{ id: number; count: number }[]> {
+    if (ids.length === 0) return [];
+    const query = this.recommendationRepo
+      .createQueryBuilder('recommendation')
+      .select('recommendation.recommendedId', 'id')
+      .addSelect('COUNT(DISTINCT recommendation.recommenderId)', 'count')
+      .where('recommendation.recommendedId IN (:...ids)', { ids })
+      .andWhere('recommendation.recommenderId IS NOT NULL')
+      .andWhere('recommendation.recommenderId != recommendation.recommendedId');
+    if (excludeIds.length > 0) query.andWhere('recommendation.recommenderId NOT IN (:...excludeIds)', { excludeIds });
+    const rows = await query.groupBy('recommendation.recommendedId').getRawMany<{ id: string; count: string }>();
+    return rows.map((r) => ({ id: +r.id, count: +r.count }));
+  }
+
   // --- NOTIFICATIONS --- //
   private async sendInvitationMail(entity: Recommendation): Promise<void> {
     try {
