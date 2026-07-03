@@ -55,7 +55,10 @@ describe('JwtRevocationSyncService', () => {
       const options = userDataRepo.find.mock.calls[0][0];
       expect(options.select).toEqual({ id: true });
 
-      const where = options.where as [{ status: FindOperator<UserDataStatus> }, { riskStatus: FindOperator<RiskStatus> }];
+      const where = options.where as [
+        { status: FindOperator<UserDataStatus> },
+        { riskStatus: FindOperator<RiskStatus> },
+      ];
       expect(where[0].status).toEqual(In([UserDataStatus.BLOCKED, UserDataStatus.DEACTIVATED]));
       expect(where[1].riskStatus).toEqual(In([RiskStatus.BLOCKED, RiskStatus.SUSPICIOUS]));
     });

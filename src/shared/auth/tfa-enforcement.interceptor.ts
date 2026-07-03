@@ -1,4 +1,4 @@
-import { CallHandler, ExecutionContext, Injectable, NestInterceptor } from '@nestjs/common';
+import { CallHandler, ExecutionContext, ForbiddenException, Injectable, NestInterceptor } from '@nestjs/common';
 import { ModuleRef, Reflector } from '@nestjs/core';
 import { Observable } from 'rxjs';
 import { AllowTfaPendingKey } from 'src/shared/auth/allow-tfa-pending.decorator';
@@ -41,6 +41,9 @@ export class TfaEnforcementInterceptor implements NestInterceptor {
       context.getClass(),
     ]);
     if (allowPending) return next.handle();
+
+    // Mirror TfaGuard: a tfaRequired token is always minted with an account, but guard against a malformed one.
+    if (!request.user.account) throw new ForbiddenException('User not authenticated');
 
     // live request IP (mirrors RealIP), so the check matches the IP the 2FA log was written with
     const ip = request.realIp ?? request.socket?.remoteAddress ?? 'unknown';

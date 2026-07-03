@@ -1,5 +1,5 @@
 import { createMock } from '@golevelup/ts-jest';
-import { CallHandler, ExecutionContext } from '@nestjs/common';
+import { CallHandler, ExecutionContext, ForbiddenException } from '@nestjs/common';
 import { ModuleRef, Reflector } from '@nestjs/core';
 import { of } from 'rxjs';
 import { TfaRequiredException } from 'src/subdomains/generic/kyc/exceptions/tfa-required.exception';
@@ -55,6 +55,16 @@ describe('TfaEnforcementInterceptor', () => {
     await expect(
       interceptor.intercept(context({ user: { account: 7, tfaRequired: true }, realIp: '1.2.3.4' }), next),
     ).rejects.toBeInstanceOf(TfaRequiredException);
+    expect(handle).not.toHaveBeenCalled();
+  });
+
+  it('rejects a tfaRequired token with no account (fails closed) without calling the 2FA check', async () => {
+    jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(false);
+
+    await expect(
+      interceptor.intercept(context({ user: { tfaRequired: true }, realIp: '1.2.3.4' }), next),
+    ).rejects.toBeInstanceOf(ForbiddenException);
+    expect(tfaService.check).not.toHaveBeenCalled();
     expect(handle).not.toHaveBeenCalled();
   });
 
