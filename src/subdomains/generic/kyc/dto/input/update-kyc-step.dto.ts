@@ -1,4 +1,4 @@
-import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsNumber, IsOptional, IsString } from 'class-validator';
 import { ReviewStatus } from '../../enums/review-status.enum';
 
 export class UpdateKycStepDto {
@@ -13,4 +13,8 @@ export class UpdateKycStepDto {
   @IsOptional()
   @IsString()
   comment?: string;
+
+  @IsOptional()
+  @IsNumber()
+  sequenceNumber: number;
 }
