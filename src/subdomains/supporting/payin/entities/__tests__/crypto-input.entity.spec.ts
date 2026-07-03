@@ -33,9 +33,7 @@ describe('CryptoInput', () => {
     });
 
     it('blocks a return above a high order cap above the policy fee', () => {
-      expect(() => CryptoInput.verifyForwardFee(61, 60, 55, 100, SendType.RETURN)).toThrow(
-        FeeLimitExceededException,
-      );
+      expect(() => CryptoInput.verifyForwardFee(61, 60, 55, 100, SendType.RETURN)).toThrow(FeeLimitExceededException);
     });
 
     it('throws when no fee estimation is provided', () => {
