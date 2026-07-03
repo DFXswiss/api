@@ -3,6 +3,7 @@ import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
 import { Request, Response } from 'express';
+import { AllowTfaPending } from 'src/shared/auth/allow-tfa-pending.decorator';
 import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpCountryGuard } from 'src/shared/auth/ip-country.guard';
@@ -90,6 +91,7 @@ export class AuthController {
   // Lets a logged-in user (e.g. staff who reached a staff endpoint and got TFA_REQUIRED) set up and
   // verify 2FA via their session token, resolving the kycHash from jwt.account. Reuses TfaService.
   @Get('2fa')
+  @AllowTfaPending()
   @ApiBearerAuth()
   @ApiOkResponse({ description: '2FA active' })
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
@@ -98,6 +100,7 @@ export class AuthController {
   }
 
   @Post('2fa')
+  @AllowTfaPending()
   @ApiBearerAuth()
   @ApiCreatedResponse({ type: Setup2faDto })
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
@@ -111,6 +114,7 @@ export class AuthController {
   }
 
   @Post('2fa/verify')
+  @AllowTfaPending()
   @ApiBearerAuth()
   @ApiCreatedResponse({ description: '2FA successful' })
   @UseGuards(RateLimitGuard, AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())

@@ -1,0 +1,58 @@
+import { createMock } from '@golevelup/ts-jest';
+import { Test, TestingModule } from '@nestjs/testing';
+import { Setting } from '../setting.entity';
+import { SettingRepository } from '../setting.repository';
+import { SettingService } from '../setting.service';
+
+describe('SettingService', () => {
+  let service: SettingService;
+  let settingRepo: jest.Mocked<SettingRepository>;
+
+  function mockSettings(values: Record<string, unknown>): void {
+    settingRepo.findOneBy.mockImplementation(async ({ key }: { key: string }) =>
+      key in values ? Object.assign(new Setting(), { key, value: JSON.stringify(values[key]) }) : null,
+    );
+  }
+
+  beforeEach(async () => {
+    settingRepo = createMock<SettingRepository>();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [SettingService, { provide: SettingRepository, useValue: settingRepo }],
+    }).compile();
+
+    service = module.get(SettingService);
+  });
+
+  describe('getDeniedJwtAccounts', () => {
+    it('returns the deduped union of the manual and auto denylists as numbers', async () => {
+      mockSettings({ jwtAccountDenylist: [1], jwtAccountDenylistAuto: [2, 2, 3] });
+
+      await expect(service.getDeniedJwtAccounts()).resolves.toEqual([1, 2, 3]);
+    });
+
+    it('dedupes ids present in both the manual and auto denylists', async () => {
+      mockSettings({ jwtAccountDenylist: [1, 2], jwtAccountDenylistAuto: [2, 3] });
+
+      await expect(service.getDeniedJwtAccounts()).resolves.toEqual([1, 2, 3]);
+    });
+
+    it('coerces string ids to numbers', async () => {
+      mockSettings({ jwtAccountDenylist: ['1'], jwtAccountDenylistAuto: ['2'] });
+
+      await expect(service.getDeniedJwtAccounts()).resolves.toEqual([1, 2]);
+    });
+
+    it('returns an empty array when both settings are missing', async () => {
+      mockSettings({});
+
+      await expect(service.getDeniedJwtAccounts()).resolves.toEqual([]);
+    });
+
+    it('returns only the auto denylist when the manual override is unset', async () => {
+      mockSettings({ jwtAccountDenylistAuto: [5, 6] });
+
+      await expect(service.getDeniedJwtAccounts()).resolves.toEqual([5, 6]);
+    });
+  });
+});
