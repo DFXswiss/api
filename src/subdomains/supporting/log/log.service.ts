@@ -1,9 +1,10 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { CreateLogDto, LogCleanupSetting, UpdateLogDto } from './dto/create-log.dto';
+import { SetFinancialLogValidityDto } from './dto/set-financial-log-validity.dto';
 import { Log, LogSeverity } from './log.entity';
 import { LogRepository } from './log.repository';
 
@@ -37,6 +38,17 @@ export class LogService {
     if (!log) throw new NotFoundException('Log not found');
 
     return this.logRepo.save({ ...log, ...dto });
+  }
+
+  async setFinancialLogValidity(dto: SetFinancialLogValidityDto): Promise<{ affected: number }> {
+    if (dto.from == null && dto.to == null && dto.min == null && dto.max == null)
+      throw new BadRequestException('At least one filter (from, to, min or max) is required');
+    if (dto.from && dto.to && dto.from > dto.to) throw new BadRequestException('from must not be after to');
+    if (dto.min != null && dto.max != null && dto.min >= dto.max)
+      throw new BadRequestException('min must be smaller than max');
+
+    const affected = await this.logRepo.setFinancialLogValidity(dto);
+    return { affected };
   }
 
   async maxEntity(system: string, subsystem: string, severity: LogSeverity, valid?: boolean): Promise<Log | undefined> {

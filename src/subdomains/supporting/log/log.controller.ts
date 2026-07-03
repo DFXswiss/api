@@ -5,6 +5,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { CreateLogDto, UpdateLogDto } from './dto/create-log.dto';
+import { SetFinancialLogValidityDto } from './dto/set-financial-log-validity.dto';
 import { Log } from './log.entity';
 import { LogService } from './log.service';
 
@@ -19,6 +20,14 @@ export class LogController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.BANKING_BOT), UserActiveGuard())
   async create(@Body() dto: CreateLogDto): Promise<Log> {
     return this.logService.create(dto);
+  }
+
+  @Put('financial/validity')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async setFinancialLogValidity(@Body() dto: SetFinancialLogValidityDto): Promise<{ affected: number }> {
+    return this.logService.setFinancialLogValidity(dto);
   }
 
   @Put(':id')
