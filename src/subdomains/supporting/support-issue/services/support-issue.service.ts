@@ -71,6 +71,11 @@ export class SupportIssueService {
     return clerks.length > 0 ? clerks : ['Support'];
   }
 
+  async getRealunitSupportClerks(): Promise<string[]> {
+    const clerks = await this.settingService.getObj<string[]>('realunitSupportClerks', []);
+    return clerks.length > 0 ? clerks : ['Support'];
+  }
+
   // Resolves the clerk name assigned to a support account via the `supportClerkAccounts`
   // setting ([{ account, name }]). Returns undefined if the account is unmapped.
   async getSupportIssueClerkForAccount(account: number): Promise<string | undefined> {
@@ -78,21 +83,27 @@ export class SupportIssueService {
     return clerks.find((c) => c.account === account)?.name;
   }
 
-  async getSupportIssueCounts(role: UserRole): Promise<Record<SupportIssueInternalState, number>> {
+  async getSupportIssueCounts(
+    role: UserRole,
+    customerIds?: number[],
+  ): Promise<Record<SupportIssueInternalState, number>> {
     const counts = Object.values(SupportIssueInternalState).reduce(
       (acc, state) => ({ ...acc, [state]: 0 }),
       {} as Record<SupportIssueInternalState, number>,
     );
 
     const departments = getVisibleDepartments(role);
-    if (departments?.length === 0) return counts; // no department access
+    if (!customerIds && departments?.length === 0) return counts; // no department access
+    if (customerIds && !customerIds.length) return counts; // fail-closed: empty customer scope
 
     const qb = this.supportIssueRepo
       .createQueryBuilder('issue')
       .select('issue.state', 'state')
       .addSelect('COUNT(*)', 'count')
       .groupBy('issue.state');
-    if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
+    if (customerIds)
+      qb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
 
     const raw: { state: SupportIssueInternalState; count: string }[] = await qb.getRawMany();
     for (const row of raw) counts[row.state] = +row.count;
@@ -100,9 +111,14 @@ export class SupportIssueService {
     return counts;
   }
 
-  async getSupportIssueActivity(since: Date | undefined, role: UserRole): Promise<{ count: number; latestAt?: Date }> {
+  async getSupportIssueActivity(
+    since: Date | undefined,
+    role: UserRole,
+    customerIds?: number[],
+  ): Promise<{ count: number; latestAt?: Date }> {
     const departments = getVisibleDepartments(role);
-    if (departments?.length === 0) return { count: 0, latestAt: undefined }; // no department access
+    if (!customerIds && departments?.length === 0) return { count: 0, latestAt: undefined }; // no department access
+    if (customerIds && !customerIds.length) return { count: 0, latestAt: undefined }; // fail-closed: empty customer scope
 
     const qb = this.messageRepo
       .createQueryBuilder('m')
@@ -110,13 +126,18 @@ export class SupportIssueService {
       .select('COUNT(*)', 'count')
       .addSelect('MAX(m.created)', 'latestAt');
     if (since) qb.andWhere('m.created > :since', { since: since.toISOString() });
-    if (departments) qb.andWhere('i.department IN (:...departments)', { departments });
+    if (customerIds) qb.innerJoin('i.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) qb.andWhere('i.department IN (:...departments)', { departments });
 
     const raw = await qb.getRawOne<{ count: string | number; latestAt: Date | null }>();
     return { count: +(raw?.count ?? 0), latestAt: raw?.latestAt ?? undefined };
   }
 
-  async getSupportIssueStatistics(role: UserRole, periodDays = 365): Promise<SupportIssueStatisticsDto> {
+  async getSupportIssueStatistics(
+    role: UserRole,
+    periodDays = 365,
+    customerIds?: number[],
+  ): Promise<SupportIssueStatisticsDto> {
     const departments = getVisibleDepartments(role);
     // guard against a non-numeric ?days reaching the clamp as NaN (which would propagate to an Invalid Date)
     const days = Number.isFinite(periodDays) ? Math.min(Math.max(Math.round(periodDays), 1), 366) : 365;
@@ -125,7 +146,8 @@ export class SupportIssueService {
     // no department access: return an empty statistic without querying. An empty `departments` list would
     // otherwise reach the queries below, where `if (departments)` is truthy and expands to a degenerate
     // `IN ()` clause (the same fail-closed contract the counts / activity / list queries already follow).
-    if (departments?.length === 0)
+    // A customer-scoped (RealUnit) caller bypasses the department gate but fail-closes on an empty scope.
+    if ((!customerIds && departments?.length === 0) || (customerIds && !customerIds.length))
       return {
         periodDays: days,
         total: 0,
@@ -146,7 +168,9 @@ export class SupportIssueService {
       .createQueryBuilder('issue')
       .select('COUNT(*)', 'count')
       .where('issue.created >= :from', { from });
-    if (departments) totalQb.andWhere('issue.department IN (:...departments)', { departments });
+    if (customerIds)
+      totalQb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) totalQb.andWhere('issue.department IN (:...departments)', { departments });
     const total = +((await totalQb.getRawOne<{ count: string }>())?.count ?? 0);
 
     const msgQb = this.messageRepo
@@ -154,7 +178,9 @@ export class SupportIssueService {
       .innerJoin('m.issue', 'issue')
       .select('COUNT(*)', 'count')
       .where('issue.created >= :from', { from });
-    if (departments) msgQb.andWhere('issue.department IN (:...departments)', { departments });
+    if (customerIds)
+      msgQb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) msgQb.andWhere('issue.department IN (:...departments)', { departments });
     const messages = +((await msgQb.getRawOne<{ count: string }>())?.count ?? 0);
 
     // trend buckets: always group by day in SQL (CAST avoids Postgres-incompatible date-part functions and
@@ -165,7 +191,9 @@ export class SupportIssueService {
       .addSelect('COUNT(*)', 'count')
       .where('issue.created >= :from', { from })
       .groupBy('CAST(issue.created AS DATE)');
-    if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
+    if (customerIds)
+      trendQb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
     const dayRows = await trendQb.getRawMany<{ d: Date | string; count: string }>();
 
     // build keys from local date parts on both the rows and the bucket loop; the app and DB both run UTC,
@@ -211,7 +239,9 @@ export class SupportIssueService {
       .addSelect('issue.updated', 'updated')
       .where('issue.state = :completed', { completed: SupportIssueInternalState.COMPLETED })
       .andWhere('issue.updated >= :from', { from });
-    if (departments) resolvedQb.andWhere('issue.department IN (:...departments)', { departments });
+    if (customerIds)
+      resolvedQb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) resolvedQb.andWhere('issue.department IN (:...departments)', { departments });
     const resolvedRows = await resolvedQb.getRawMany<{ type: string; created: Date; updated: Date }>();
 
     const resolutionStats = new Map<string, { sum: number; count: number }>();
@@ -432,12 +462,14 @@ export class SupportIssueService {
   async getSupportIssueList(
     filter: GetSupportIssueListFilter,
     role: UserRole,
+    customerIds?: number[],
   ): Promise<{ data: SupportIssueListDto[]; total: number }> {
     const where: FindOptionsWhere<SupportIssue> = {};
 
     // department filtering: the role defines the allowed departments, an explicit filter may narrow within them
     const allowedDepartments = getVisibleDepartments(role);
-    if (allowedDepartments?.length === 0) return { data: [], total: 0 }; // no department access
+    if (!customerIds && allowedDepartments?.length === 0) return { data: [], total: 0 }; // no department access
+    if (customerIds && !customerIds.length) return { data: [], total: 0 }; // fail-closed: empty customer scope
 
     const departments =
       filter.department && (!allowedDepartments || allowedDepartments.includes(filter.department))
@@ -454,9 +486,13 @@ export class SupportIssueService {
       .slice(0, 10);
 
     const qb = this.supportIssueRepo.createQueryBuilder('issue');
-    if (terms.length > 0) qb.leftJoin('issue.userData', 'userData');
+    // the search predicate and the RealUnit customer scope both need the userData join; share the single 'userData' alias
+    if (terms.length > 0 || customerIds) qb.leftJoin('issue.userData', 'userData');
 
-    if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
+    // customer scope (RealUnit) takes precedence over and replaces the department gate; the left join + IN filter
+    // fail-closes issues without a userData (NULL is never IN the scope list)
+    if (customerIds) qb.andWhere('"userData".id IN (:...customerIds)', { customerIds });
+    else if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
     if (filter.states?.length) qb.andWhere('issue.state IN (:...states)', { states: filter.states });
     if (where.type) qb.andWhere('issue.type = :type', { type: where.type });
     if (filter.clerk) qb.andWhere('issue.clerk = :clerk', { clerk: filter.clerk });
@@ -584,7 +620,7 @@ export class SupportIssueService {
     return SupportIssueDtoMapper.mapSupportIssue(issue);
   }
 
-  async getIssueData(id: number, role: UserRole): Promise<SupportIssueInternalDataDto> {
+  async getIssueData(id: number, role: UserRole, customerIds?: number[]): Promise<SupportIssueInternalDataDto> {
     const issue = await this.supportIssueRepo.findOne({
       where: { id },
       relations: {
@@ -599,8 +635,13 @@ export class SupportIssueService {
       loadEagerRelations: false,
     });
     if (!issue) throw new NotFoundException('Support issue not found');
+    // customer scope (RealUnit): fail-closed 404 when the issue does not belong to a scoped customer (no existence leak)
+    if (customerIds && !customerIds.includes(issue.userData?.id))
+      throw new NotFoundException('Support issue not found');
 
-    return SupportIssueDtoMapper.mapSupportIssueData(issue, role);
+    // DFX Support and RealUnit tenant staff must not see the DFX AML-internal limit request
+    const hideLimitRequest = [UserRole.SUPPORT, UserRole.REALUNIT].includes(role);
+    return SupportIssueDtoMapper.mapSupportIssueData(issue, hideLimitRequest);
   }
 
   async getIssueFile(id: string, messageId: number, userDataId?: number): Promise<BlobContent> {
@@ -621,6 +662,19 @@ export class SupportIssueService {
       supportIssues,
       supportMessages: await this.messageRepo.findBy({ issue: { id: In(supportIssues.map((i) => i.id)) } }),
     };
+  }
+
+  // Resolves the owning userData id of an issue by numeric id, so a caller can enforce a membership/tenant
+  // boundary before a mutating or data call. Throws NotFound (no existence leak) when the issue or its owner is missing.
+  async getIssueUserDataId(id: number): Promise<number> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: { id },
+      relations: { userData: true },
+      loadEagerRelations: false,
+    });
+    if (!issue?.userData) throw new NotFoundException('Support issue not found');
+
+    return issue.userData.id;
   }
 
   // --- HELPER METHODS --- //
