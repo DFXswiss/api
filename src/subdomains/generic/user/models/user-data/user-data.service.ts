@@ -159,6 +159,17 @@ export class UserDataService {
     return this.userDataRepo.find({ where: { id: In(ids) } });
   }
 
+  async getUserDataIdsByServiceProvider(provider: ServiceProvider): Promise<number[]> {
+    // exact token match on the semicolon list (mirrors the backfill migration and the UserData.isRealUnitCustomer
+    // getter), so the scope source and the per-issue membership check share one definition and cannot diverge
+    return this.userDataRepo
+      .createQueryBuilder('userData')
+      .select('userData.id', 'id')
+      .where(`';' || userData.serviceProviders || ';' LIKE :pattern`, { pattern: `%;${provider};%` })
+      .getRawMany<{ id: number }>()
+      .then((rows) => rows.map((r) => r.id));
+  }
+
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
     if (!Config.formats.kycHash.test(kycHash)) throw new UnauthorizedException('Invalid KYC hash');
 
