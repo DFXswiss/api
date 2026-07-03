@@ -212,6 +212,10 @@ export class ScryptService extends PricingProvider {
 
   // --- TRANSACTIONS --- //
 
+  onBalanceTransactions(callback: (transactions: ScryptBalanceTransaction[]) => void): void {
+    this.connection.subscribeToStream<ScryptBalanceTransaction>(ScryptMessageType.BALANCE_TRANSACTION, callback);
+  }
+
   async getAllTransactions(since?: Date): Promise<ScryptBalanceTransaction[]> {
     const transactions = Array.from(this.balanceTransactions.values());
     return transactions.filter((t) => !since || (t.TransactTime && new Date(t.TransactTime) >= since));
