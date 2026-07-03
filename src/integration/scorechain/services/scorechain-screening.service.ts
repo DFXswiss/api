@@ -140,9 +140,7 @@ export class ScorechainScreeningService {
       // for deposits; a pass for a fresh withdrawal address). Observable as a WARN + audit row instead
       // of a recurring ERROR, and excluded from the billable quota.
       if (e instanceof ScorechainObjectNotFoundException) {
-        this.logger.warn(
-          `Scorechain has no record of ${params.objectType} ${params.objectId} on ${params.blockchain}`,
-        );
+        this.logger.warn(`Scorechain has no record of ${params.objectType} ${params.objectId} on ${params.blockchain}`);
         return this.save(params, { signatureValid: false, severity: ScorechainNotFoundSeverity });
       }
       throw e;
