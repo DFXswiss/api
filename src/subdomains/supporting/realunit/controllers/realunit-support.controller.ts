@@ -101,7 +101,7 @@ export class RealUnitSupportController {
   @Get(':id/messages')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getIssueMessages(
     @Param('id') id: string,
     @Query('fromMessageId') fromMessageId?: string,
