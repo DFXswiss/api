@@ -52,7 +52,7 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
             payIn.destinationAddress.address,
           );
 
-          CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
+          CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount, type);
 
           const { outTxId, feeAmount } = await this.moneroService.sendTransfer(payIn);
           await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);

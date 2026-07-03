@@ -51,7 +51,7 @@ export class LightningStrategy extends SendStrategy {
             payIn.destinationAddress.address,
           );
 
-          CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
+          CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount, type);
 
           const { outTxId, feeAmount } = await this.lightningService.sendTransfer(payIn);
           await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);

@@ -19,6 +19,7 @@ import {
   PriceValidity,
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
+import { SendType } from './send-type.enum';
 import { SendStrategyRegistry } from './send.strategy-registry';
 
 export type SendGroupKey = string;
@@ -32,10 +33,7 @@ export interface SendGroup {
   payIns: CryptoInput[];
 }
 
-export enum SendType {
-  FORWARD = 'Forward',
-  RETURN = 'Return',
-}
+export { SendType };
 
 export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;

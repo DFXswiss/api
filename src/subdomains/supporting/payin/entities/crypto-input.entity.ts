@@ -10,6 +10,7 @@ import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
+import { SendType } from 'src/subdomains/supporting/payin/strategies/send/impl/base/send-type.enum';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { Transaction } from '../../payment/entities/transaction.entity';
@@ -176,12 +177,22 @@ export class CryptoInput extends IEntity {
 
   //*** UTILITY METHODS ***//
 
-  static verifyForwardFee(estimatedFee: number, maxFee: number, feeCap: number, totalAmount: number): void {
+  static verifyForwardFee(
+    estimatedFee: number,
+    maxFee: number,
+    feeCap: number,
+    totalAmount: number,
+    type: SendType,
+  ): void {
     if (estimatedFee == null) throw new Error('No fee estimation provided');
     if (maxFee == null) throw new Error('No maximum fee provided');
     if (totalAmount === 0) throw new Error('Total forward amount cannot be zero');
 
-    const maxApplicableFee = maxFee ? maxFee : feeCap;
+    // Forward: cap the network fee at the frozen per-order fee (fail-closed — wait for cheap gas).
+    // Return: a customer liability DFX must settle — never block it below what a forward would
+    // have allowed, so cap at the higher of the per-order fee and the global policy fee.
+    const forwardCap = maxFee ? maxFee : feeCap;
+    const maxApplicableFee = type === SendType.RETURN ? Math.max(maxFee, feeCap) : forwardCap;
 
     if (estimatedFee > maxApplicableFee * 1.01) {
       throw new FeeLimitExceededException(

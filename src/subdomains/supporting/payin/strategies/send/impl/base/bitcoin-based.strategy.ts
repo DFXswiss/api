@@ -50,7 +50,7 @@ export abstract class BitcoinBasedStrategy extends SendStrategy {
           payIn.destinationAddress.address,
         );
 
-        CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
+        CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount, type);
 
         const { outTxId, feeAmount } = await this.payInService.sendTransfer(payIn);
         await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);

@@ -66,7 +66,7 @@ export abstract class EvmStrategy extends SendStrategy {
             this.getForwardAddress().address,
           );
 
-          CryptoInput.verifyForwardFee(feeInputAsset, blockchainFee, maxFeeInputAsset, totalAmount);
+          CryptoInput.verifyForwardFee(feeInputAsset, blockchainFee, maxFeeInputAsset, totalAmount, type);
 
           /**
            * @note

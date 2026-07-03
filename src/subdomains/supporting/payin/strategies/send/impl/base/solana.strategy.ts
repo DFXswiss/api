@@ -44,7 +44,7 @@ export abstract class SolanaStrategy extends SendStrategy {
             payIn.destinationAddress.address,
           );
 
-          CryptoInput.verifyForwardFee(feeInputAsset, payIn.maxForwardFee, maxFeeInputAsset, payIn.amount);
+          CryptoInput.verifyForwardFee(feeInputAsset, payIn.maxForwardFee, maxFeeInputAsset, payIn.amount, type);
 
           /**
            * @note

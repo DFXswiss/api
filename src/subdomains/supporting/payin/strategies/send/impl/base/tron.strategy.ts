@@ -41,7 +41,7 @@ export abstract class TronStrategy extends SendStrategy {
             payIn.destinationAddress.address,
           );
 
-          CryptoInput.verifyForwardFee(feeInputAsset, payIn.maxForwardFee, maxFeeInputAsset, payIn.amount);
+          CryptoInput.verifyForwardFee(feeInputAsset, payIn.maxForwardFee, maxFeeInputAsset, payIn.amount, type);
 
           await this.prepareSend(payIn, feeNativeAsset);
         }

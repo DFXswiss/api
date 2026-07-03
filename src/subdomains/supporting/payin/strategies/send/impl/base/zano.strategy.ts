@@ -38,7 +38,7 @@ export abstract class ZanoStrategy extends BitcoinBasedStrategy {
             payIn.destinationAddress.address,
           );
 
-          CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
+          CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount, type);
 
           const { outTxId, feeAmount } = await this.payInZanoService.sendTransfer(payIn);
           await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
