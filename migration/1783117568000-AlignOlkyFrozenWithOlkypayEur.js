@@ -57,13 +57,25 @@ module.exports = class AlignOlkyFrozenWithOlkypayEur1783117568000 {
    * @param {QueryRunner} queryRunner
    */
   async down(queryRunner) {
-    const frozen = (await queryRunner.query(`SELECT "id" FROM "asset" WHERE "uniqueName" = 'OlkyFrozen/EUR'`)).at(0);
+    const frozen = (
+      await queryRunner.query(`SELECT "id", "priceRuleId" FROM "asset" WHERE "uniqueName" = 'OlkyFrozen/EUR'`)
+    ).at(0);
     if (!frozen) return;
 
+    // Remove the zero-amount door-opener row this migration added.
     await queryRunner.query(`DELETE FROM "liquidity_balance" WHERE "assetId" = $1 AND "amount" = 0`, [frozen.id]);
-    await queryRunner.query(
-      `UPDATE "asset" SET "priceRuleId" = NULL, "approxPriceChf" = NULL, "approxPriceUsd" = NULL WHERE "id" = $1`,
-      [frozen.id],
-    );
+
+    // Mirror up()'s guard: only revert the valuation if it still matches the rule adopted from
+    // Olkypay/EUR (i.e. up() set it here). This avoids nulling a price rule that was already
+    // present before this migration (e.g. seeded), keeping down() a faithful inverse of up().
+    const olkypay = (
+      await queryRunner.query(`SELECT "priceRuleId" FROM "asset" WHERE "uniqueName" = 'Olkypay/EUR'`)
+    ).at(0);
+    if (olkypay && frozen.priceRuleId != null && frozen.priceRuleId === olkypay.priceRuleId) {
+      await queryRunner.query(
+        `UPDATE "asset" SET "priceRuleId" = NULL, "approxPriceChf" = NULL, "approxPriceUsd" = NULL WHERE "id" = $1`,
+        [frozen.id],
+      );
+    }
   }
 };
