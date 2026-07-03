@@ -620,13 +620,32 @@ export class PaymentQuoteService {
     }
   }
 
+  // Mempool-accept flow for `UnverifiedTxIdBlockchains` (Monero, Zano, Tron, Cardano).
+  // See the comment on `UnverifiedTxIdBlockchains` in enums/index.ts for the design rationale
+  // (this is a feature, not a bug — point-of-sale payments cannot wait for block confirmation).
+  //
+  // We do NOT query the chain's node to confirm the tx exists, because the providers we use
+  // today don't expose mempool txs consistently and a node-side check would reject legitimate
+  // just-broadcast payments. The only validation here is structural: the txId must be a
+  // 64-character hex hash, which is the format all four chains use (Blake2b-256 for Cardano,
+  // Keccak/SHA-256 for the others). This blocks typos and obvious nonsense but does not stop
+  // a determined fraudster from generating a random valid-looking hash — that risk is accepted
+  // because the feature is scoped to on-premises retail.
+  private static readonly TX_ID_HEX_64 = /^[0-9a-f]{64}$/i;
+
   private async doTxIdPayment(transferInfo: TransferInfo, quote: PaymentQuote): Promise<void> {
     try {
-      if (transferInfo.tx) {
-        quote.txInMempool(transferInfo.tx);
-      } else {
+      if (!transferInfo.tx) {
         quote.txFailed('Transaction Id not found');
+        return;
       }
+
+      if (!PaymentQuoteService.TX_ID_HEX_64.test(transferInfo.tx)) {
+        quote.txFailed(`Invalid transaction id format for ${transferInfo.method}`);
+        return;
+      }
+
+      quote.txInMempool(transferInfo.tx);
     } catch (e) {
       quote.txFailed(e.message);
     }

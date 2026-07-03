@@ -390,8 +390,8 @@ export class BankTxService implements OnModuleInit {
       .createQueryBuilder('bankTx')
       .select('bankTx', 'bankTx')
       .leftJoinAndSelect('bankTx.transaction', 'transaction')
-      .where(`REPLACE(bankTx.remittanceInfo, ' ', '') LIKE :remittanceInfo`, {
-        remittanceInfo: `%${remittanceInfo.replace(/ /g, '')}%`,
+      .where(`REPLACE(bankTx.remittanceInfo, ' ', '') = :remittanceInfo`, {
+        remittanceInfo: remittanceInfo.replace(/ /g, ''),
       })
       .orderBy('bankTx.id', 'DESC')
       .getOne();

@@ -11,7 +11,6 @@ import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
-import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { InternalFeeDto } from 'src/subdomains/supporting/payment/dto/fee.dto';
@@ -107,6 +106,12 @@ export class BuyFiat extends IEntity {
 
   @Column({ length: 256, nullable: true })
   amlReason?: AmlReason;
+
+  // Whether postProcessing() (user activation, AML-list registration, tx amlCheck) has completed for
+  // the current verdict. A PASS is treated as fully handled only once this is true; doAmlCheck re-selects
+  // a PASS whose postProcessing did not complete, so a transient failure is retried instead of lost.
+  @Column({ default: false })
+  amlPostProcessed: boolean;
 
   @Column({ nullable: true })
   highRisk?: boolean;
@@ -248,6 +253,10 @@ export class BuyFiat extends IEntity {
   @Column({ default: false })
   isComplete: boolean;
 
+  // INTERNAL ONLY — AML audit trail: the joined AmlError names (e.g. provider hits such as
+  // "ScorechainHighRisk"). MUST NOT be exposed to the customer or to partner webhooks; only
+  // Support/Compliance may read it. The customer-facing reason is the generic, mapped AmlReason
+  // (see TransactionReasonMapper in transaction.dto.ts) — never this field's content.
   @Column({ type: 'text', nullable: true })
   comment?: string;
 
@@ -449,7 +458,7 @@ export class BuyFiat extends IEntity {
     return [this.id, update];
   }
 
-  amlCheckAndFillUp(
+  async amlCheckAndFillUp(
     inputAsset: Active,
     minVolume: number,
     amountInEur: number,
@@ -462,9 +471,10 @@ export class BuyFiat extends IEntity {
     ibanCountry: Country,
     refUser?: User,
     recommender?: UserData,
-  ): UpdateResult<BuyFiat> {
-    const update: Partial<BuyFiat> = {
-      ...AmlHelperService.getAmlResult(
+    screenScorechain?: () => Promise<boolean>,
+  ): Promise<UpdateResult<BuyFiat>> {
+    const computeAmlResult = (scorechainHighRisk: boolean) =>
+      AmlHelperService.getAmlResult(
         this,
         inputAsset,
         minVolume,
@@ -478,7 +488,20 @@ export class BuyFiat extends IEntity {
         ibanCountry,
         refUser,
         recommender,
-      ),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        scorechainHighRisk,
+      );
+
+    let amlResult = computeAmlResult(false);
+    // Run the (billable) Scorechain screening only when the tx would otherwise PASS.
+    if (screenScorechain && amlResult.amlCheck === CheckStatus.PASS && (await screenScorechain()))
+      amlResult = computeAmlResult(true);
+
+    const update: Partial<BuyFiat> = {
+      ...amlResult,
       amountInChf,
       amountInEur,
     };
@@ -491,6 +514,10 @@ export class BuyFiat extends IEntity {
     )
       update.mail2SendDate = null;
 
+    // A freshly computed verdict has not been post-processed yet — reset the flag so a PASS is only
+    // treated as fully handled once doAmlCheck has actually run postProcessing for it.
+    update.amlPostProcessed = false;
+
     Object.assign(this, update);
 
     return [this.id, update];
@@ -500,6 +527,7 @@ export class BuyFiat extends IEntity {
     const update: Partial<BuyFiat> = {
       amlCheck: null,
       amlReason: null,
+      amlPostProcessed: false,
       mail2SendDate: null,
       mail3SendDate: null,
       percentFee: null,
@@ -551,15 +579,23 @@ export class BuyFiat extends IEntity {
   }
 
   pendingInputAmount(asset: Asset): number {
-    return !this.outputAmount && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
+    // Keep the liability on the crypto-input side until the payout bank is known (fiatOutput exists).
+    // A sell whose output is already priced but not yet routed to a payout bank is still owed to the
+    // customer and must be counted exactly once on a real asset, without guessing a bank.
+    return (!this.outputAmount || !this.fiatOutput) && this.cryptoInput.asset.id === asset.id ? this.inputAmount : 0;
   }
 
   pendingOutputAmount(asset: Asset): number {
-    const payoutBankName = this.fiatOutput?.bank?.name ?? IbanBankName.YAPEAL;
+    // The liability is settlement-anchored: it stays counted until the buy_fiat leaves the pending set
+    // (isComplete=true, set only when outputDate + the settling bank_tx exist). Do NOT drop it at
+    // isTransmittedDate — the matching bank-cash reduction only lands at settlement, so an early drop
+    // overstates equity for the whole transmit->settle gap (up to days over weekends).
+    const payoutBankName = this.fiatOutput?.bank?.name;
 
-    if (payoutBankName === IbanBankName.YAPEAL && this.fiatOutput?.isTransmittedDate) return 0;
-
-    return this.outputAmount && asset.dexName === this.sell.fiat.name && asset.bank?.name === payoutBankName
+    return this.outputAmount &&
+      payoutBankName &&
+      asset.dexName === this.sell.fiat.name &&
+      asset.bank?.name === payoutBankName
       ? this.outputAmount
       : 0;
   }

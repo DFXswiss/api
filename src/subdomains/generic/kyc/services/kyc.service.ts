@@ -8,6 +8,9 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { hasRoleAccess } from 'src/shared/auth/role.guard';
+import { isUserActive } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -111,7 +114,7 @@ export class KycService {
     private readonly languageService: LanguageService,
     private readonly countryService: CountryService,
     private readonly stepLogRepo: StepLogRepository,
-    private readonly tfaService: TfaService,
+    @Inject(forwardRef(() => TfaService)) private readonly tfaService: TfaService,
     private readonly kycFileService: KycFileService,
     private readonly kycNotificationService: KycNotificationService,
     @Inject(forwardRef(() => BankDataService))
@@ -447,13 +450,19 @@ export class KycService {
     return this.toDto(user, false, undefined, context);
   }
 
-  async getFileByUid(uid: string, userDataId?: number, role?: UserRole): Promise<KycFileDataDto> {
+  async getFileByUid(uid: string, jwt: JwtPayload | undefined, ip: string): Promise<KycFileDataDto> {
     const kycFile = await this.kycFileService.getKycFile(uid);
 
     if (!kycFile) throw new NotFoundException('KYC file not found');
 
-    if (kycFile.protected && ![UserRole.ADMIN, UserRole.COMPLIANCE].includes(role)) {
-      throw new ForbiddenException('Requires admin or compliance role');
+    if (kycFile.protected) {
+      if (!hasRoleAccess(UserRole.COMPLIANCE, jwt?.role))
+        throw new ForbiddenException('Requires admin or compliance role');
+      if (!jwt || !isUserActive(jwt)) throw new ForbiddenException('User is not active');
+
+      // Mail-origin staff sessions (tfaRequired) must complete STRICT 2FA before downloading protected KYC
+      // files, matching the TfaGuard on the dedicated compliance routes; wallet-signature logins are unaffected.
+      if (jwt.tfaRequired) await this.tfaService.check(jwt.account, ip, TfaLevel.STRICT);
     }
 
     const blob = await this.documentService.downloadFile(
@@ -463,7 +472,7 @@ export class KycService {
       kycFile.name,
     );
 
-    const log = `User ${userDataId} is downloading KYC file ${kycFile.name} (ID: ${kycFile.id})`;
+    const log = `User ${jwt?.account} is downloading KYC file ${kycFile.name} (ID: ${kycFile.id})`;
     await this.kycLogService.createKycFileLog(log, kycFile.userData);
 
     return KycFileMapper.mapKycFile(kycFile, blob);
@@ -1139,15 +1148,25 @@ export class KycService {
 
     if (user.hasRole(UserRole.COMPLIANCE)) throw new BadRequestException('KYC not allowed for compliance accounts');
 
-    let step =
+    const findStep = (u: UserData): KycStep | undefined =>
       sequence != null
-        ? user.getStepsWith(name, type, sequence)[0]
-        : user
+        ? u.getStepsWith(name, type, sequence)[0]
+        : u
             .getStepsWith(name, type)
             .find((s) => s.isInProgress || s.isInReview || (!KycStepCancelable.includes(name) && s.isCompleted));
+
+    let step = findStep(user);
     if (!step) {
-      step = await this.initiateStep(user, name, type, true);
-      user.kycSteps.push(step);
+      try {
+        step = await this.initiateStep(user, name, type, true);
+        user.kycSteps.push(step);
+      } catch (e) {
+        // lost a concurrent create race - reload and return the step the winner created
+        if (!e.message?.includes('duplicate key')) throw e;
+        user = await this.getUser(user.kycHash);
+        step = findStep(user);
+        if (!step) throw e;
+      }
     }
 
     return { user, step };

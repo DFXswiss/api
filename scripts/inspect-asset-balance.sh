@@ -42,15 +42,29 @@ if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
   exit 1
 fi
 
-# Get log entry
-SQL="SELECT id, created, message FROM log WHERE id = $LOG_ID"
+# Get log entry. The /gs/debug endpoint takes a structured query, not raw SQL — payload
+# describes table+select+where+limit and the service emits SQL with parameter binding.
+PAYLOAD=$(jq -n --argjson logId "$LOG_ID" '{
+  table: "log",
+  select: [
+    {kind: "column", column: "id"},
+    {kind: "column", column: "created"},
+    {kind: "column", column: "message"}
+  ],
+  where: {kind: "leaf", column: "id", op: "=", value: $logId},
+  limit: 1
+}')
 RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"sql\":\"$SQL\"}")
+  -d "$PAYLOAD")
+
+# Response shape: {keys: ["id","created","message"], rows: [[1, "2026-...", "{...}"]]}.
+# Reshape back to an array of objects so the existing jq filter is unchanged below.
+ROWS=$(echo "$RESULT" | jq '[.keys as $k | .rows[] | [$k, .] | transpose | map({(.[0]): .[1]}) | add]')
 
 # Parse with jq
-echo "$RESULT" | jq -r --arg asset_id "$ASSET_ID" '
+echo "$ROWS" | jq -r --arg asset_id "$ASSET_ID" '
   .[0] as $entry |
   ($entry.message | fromjson) as $msg |
   $msg.assets[$asset_id] as $asset |

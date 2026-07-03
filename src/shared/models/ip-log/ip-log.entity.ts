@@ -24,6 +24,9 @@ export class IpLog extends IEntity {
   @Column({ length: 256, nullable: true })
   walletType?: WalletType;
 
+  @Column({ length: 256, nullable: true })
+  walletName?: string;
+
   @Index()
   @ManyToOne(() => User, { nullable: true })
   user?: User;

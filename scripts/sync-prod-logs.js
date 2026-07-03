@@ -78,8 +78,19 @@ async function authenticate() {
   console.log('Authenticated.');
 }
 
-async function execSql(query) {
-  return apiRequest('gs/debug', 'POST', { sql: query });
+// /gs/debug takes a structured JSON DTO, not raw SQL. The endpoint returns
+// `{ keys: [...], rows: [[...]] }`; reshape back to an array of row-objects so the
+// rest of the script (`row.id`, `row.message`, …) stays unchanged.
+async function execDebugQuery(dto) {
+  const res = await apiRequest('gs/debug', 'POST', dto);
+  if (!res || !Array.isArray(res.keys) || !Array.isArray(res.rows)) {
+    throw new Error(`Unexpected /gs/debug response: ${JSON.stringify(res)}`);
+  }
+  return res.rows.map((row) => {
+    const obj = {};
+    res.keys.forEach((k, i) => { obj[k] = row[i]; });
+    return obj;
+  });
 }
 
 async function main() {
@@ -87,7 +98,12 @@ async function main() {
   await authenticate();
 
   // Get total count
-  const countResult = await execSql(`SELECT COUNT(*) as cnt FROM log WHERE created >= '${SINCE}'`);
+  const countResult = await execDebugQuery({
+    table: 'log',
+    select: [{ kind: 'aggregate', aggregate: 'count', column: 'id', as: 'cnt' }],
+    where: { kind: 'leaf', column: 'created', op: '>=', value: SINCE },
+    limit: 1,
+  });
   const total = countResult[0].cnt;
   console.log(`Total log entries since ${SINCE}: ${total}`);
 
@@ -112,7 +128,29 @@ async function main() {
 
   while (true) {
     batchNum++;
-    const query = `SELECT TOP ${BATCH_SIZE} id, updated, created, system, subsystem, severity, message, category, valid FROM log WHERE created >= '${SINCE}' AND id > ${lastId} ORDER BY id ASC`;
+    const dto = {
+      table: 'log',
+      select: [
+        { kind: 'column', column: 'id' },
+        { kind: 'column', column: 'updated' },
+        { kind: 'column', column: 'created' },
+        { kind: 'column', column: 'system' },
+        { kind: 'column', column: 'subsystem' },
+        { kind: 'column', column: 'severity' },
+        { kind: 'column', column: 'message' },
+        { kind: 'column', column: 'category' },
+        { kind: 'column', column: 'valid' },
+      ],
+      where: {
+        kind: 'and',
+        children: [
+          { kind: 'leaf', column: 'created', op: '>=', value: SINCE },
+          { kind: 'leaf', column: 'id', op: '>', value: lastId },
+        ],
+      },
+      orderBy: [{ column: 'id', direction: 'ASC' }],
+      limit: BATCH_SIZE,
+    };
 
     process.stdout.write(`\r  Batch ${batchNum}/${totalBatches} (inserted: ${inserted}/${total}, lastId: ${lastId})...`);
 
@@ -120,7 +158,7 @@ async function main() {
     let retries = 3;
     while (retries > 0) {
       try {
-        rows = await execSql(query);
+        rows = await execDebugQuery(dto);
         break;
       } catch (e) {
         retries--;

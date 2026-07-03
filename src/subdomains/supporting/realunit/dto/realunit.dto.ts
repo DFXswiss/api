@@ -192,7 +192,20 @@ export class AccountHistoryQueryDto {
   @Type(() => Number)
   first?: number;
 
-  @ApiPropertyOptional({ type: String, description: 'Cursor for pagination - return events after this cursor' })
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Cursor for pagination - return events before this cursor, cursor is the startCursor of the previous page',
+  })
+  @IsOptional()
+  @IsString()
+  before?: string;
+
+  @ApiPropertyOptional({
+    type: String,
+    description:
+      'Cursor for pagination - return events after this cursor, cursor is the endCursor of the previous page',
+  })
   @IsOptional()
   @IsString()
   after?: string;

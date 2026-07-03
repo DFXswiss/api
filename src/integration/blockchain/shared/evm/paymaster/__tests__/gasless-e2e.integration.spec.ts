@@ -3,24 +3,27 @@
  *
  * Prerequisites:
  * - API running on localhost:3001
- * - Test wallet with USDT but 0 ETH on Sepolia
+ * - Test wallet with USDT but 0 ETH on Sepolia (supply seed via TEST_SEED env var)
  * - PIMLICO_API_KEY set
  *
  * Run with:
- *   PIMLICO_API_KEY=your_key npm test -- gasless-e2e.integration.spec.ts
+ *   TEST_SEED='...' PIMLICO_API_KEY=your_key npm test -- gasless-e2e.integration.spec.ts
+ *
+ * Do not commit a value for TEST_SEED. Any wallet used here must be a throwaway
+ * Sepolia-only account that has never been granted a role on prod.
  */
 import { ethers } from 'ethers';
 
 const API_URL = process.env.API_URL || 'http://localhost:3001';
 const PIMLICO_API_KEY = process.env.PIMLICO_API_KEY;
-const TEST_SEED = 'mixture gospel expand nation sphere relax wrist expand grocery basket seven convince';
+const TEST_SEED = process.env.TEST_SEED;
 const SEPOLIA_USDT_ADDRESS = '0xaA8E23Fb1079EA71e0a56F48a2aA51851D8433D0';
 const SEPOLIA_CHAIN_ID = 11155111;
 
-// Skip if no API key
-const describeIfApiKey = PIMLICO_API_KEY ? describe : describe.skip;
+// Skip unless both a Pimlico API key and a throwaway test seed are provided.
+const describeIfConfigured = PIMLICO_API_KEY && TEST_SEED ? describe : describe.skip;
 
-describeIfApiKey('EIP-7702 Gasless Sell E2E (Real API + Pimlico)', () => {
+describeIfConfigured('EIP-7702 Gasless Sell E2E (Real API + Pimlico)', () => {
   let wallet: ethers.Wallet;
   let accessToken: string;
 
@@ -193,8 +196,7 @@ describe('Gasless Transfer Dry Run', () => {
     const flow = `
     Real Gasless Transfer Flow:
 
-    1. User has: 10,000 USDT, 0 ETH on Sepolia
-       Wallet: 0x482c8a499c7ac19925a0D2aA3980E1f3C5F19120
+    1. User has: 10,000 USDT, 0 ETH on Sepolia (test wallet derived from TEST_SEED)
 
     2. API returns:
        - gaslessAvailable: true

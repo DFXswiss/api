@@ -14,7 +14,8 @@ const DUMMY_FILES = {
 
 async function getAdminToken() {
   const { ethers } = require('ethers');
-  const ADMIN_SEED = 'ignore dish destroy upgrade stem pulse lucky tomato yard baby obvious cool';
+  const ADMIN_SEED = process.env.UPLOAD_ADMIN_SEED;
+  if (!ADMIN_SEED) throw new Error('UPLOAD_ADMIN_SEED env var is required');
   const wallet = ethers.Wallet.fromMnemonic(ADMIN_SEED);
 
   // Get sign message

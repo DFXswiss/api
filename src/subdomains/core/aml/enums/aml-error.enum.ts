@@ -70,6 +70,7 @@ export enum AmlError {
   TRADE_APPROVAL_DATE_MISSING = 'TradeApprovalDateMissing',
   BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
   FORCE_MANUAL_CHECK = 'ForceManualCheck',
+  SCORECHAIN_HIGH_RISK = 'ScorechainHighRisk',
   ASSET_INPUT_NOT_ALLOWED = 'AssetInputNotAllowed',
   REFERRAL_NO_TRADE_HISTORY = 'ReferralNoTradeHistory',
 }
@@ -94,6 +95,13 @@ export const ManualPassWhitelistErrors: AmlError[] = [
   AmlError.USER_DATA_FAILED_CALL,
   AmlError.USER_DATA_REJECTED_CALL,
   AmlError.REFERRAL_NO_TRADE_HISTORY,
+];
+
+export const ManualPassBlacklistErrors: AmlError[] = [
+  AmlError.BANK_DATA_NOT_ACTIVE,
+  AmlError.BANK_DATA_MANUAL_REVIEW,
+  AmlError.BANK_DATA_MISSING,
+  AmlError.BANK_DATA_USER_MISMATCH,
 ];
 
 export function canManualPass(comment: string | null | undefined): boolean {
@@ -366,6 +374,15 @@ export const AmlErrorResult: {
   },
   [AmlError.FORCE_MANUAL_CHECK]: {
     type: AmlErrorType.SINGLE,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK,
+  },
+  // amlReason stays the generic MANUAL_CHECK on purpose: the customer-facing reason must NOT reveal
+  // that Scorechain flagged the tx (no tipping-off). The provider is recorded only in the internal
+  // `comment` (AmlError name "ScorechainHighRisk"), which is never exposed externally — see the
+  // `comment` field docs on BuyCrypto/BuyFiat.
+  [AmlError.SCORECHAIN_HIGH_RISK]: {
+    type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
   },

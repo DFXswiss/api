@@ -1,6 +1,8 @@
 export enum SupportIssueInternalState {
   CREATED = 'Created',
   PENDING = 'Pending',
+  IN_PROGRESS = 'InProgress',
+  IN_CLARIFICATION = 'InClarification',
   COMPLETED = 'Completed',
   CANCELED = 'Canceled',
   ON_HOLD = 'OnHold',
@@ -40,6 +42,8 @@ export enum SupportIssueReason {
 
 export enum SupportIssueState {
   PENDING = 'Pending',
+  IN_PROGRESS = 'InProgress',
+  IN_CLARIFICATION = 'InClarification',
   COMPLETED = 'Completed',
   CANCELED = 'Canceled',
 }

@@ -82,4 +82,29 @@ describe('UserService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+
+  describe('getOpenRefCreditEur', () => {
+    function mockQuery(rawResult: { liability: number } | undefined) {
+      const qb = {
+        leftJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue(rawResult),
+      };
+      jest.spyOn(userRepo, 'createQueryBuilder').mockReturnValue(qb as any);
+      return qb;
+    }
+
+    it('sums the open referral credit across users', async () => {
+      mockQuery({ liability: 4193.78 });
+
+      await expect(service.getOpenRefCreditEur()).resolves.toBe(4193.78);
+    });
+
+    it('returns 0 when no credit is open (SUM is null)', async () => {
+      mockQuery({ liability: null as unknown as number });
+
+      await expect(service.getOpenRefCreditEur()).resolves.toBe(0);
+    });
+  });
 });

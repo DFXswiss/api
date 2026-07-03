@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import * as IbanTools from 'ibantools';
 import { Observable, Subject } from 'rxjs';
@@ -41,6 +41,8 @@ export class BankDataService {
     private readonly fiatService: FiatService,
     private readonly countryService: CountryService,
     private readonly bankAccountService: BankAccountService,
+    // circular dependency across the User/Kyc domains; make it explicit so resolution is import-order-independent
+    @Inject(forwardRef(() => KycAdminService))
     private readonly kycAdminService: KycAdminService,
   ) {}
 
@@ -375,7 +377,7 @@ export class BankDataService {
         .createQueryBuilder()
         .update('bank_data')
         .set({ active: false, default: false })
-        .where('bank_data.userDataId = :userDataId', { userDataId })
+        .where('bank_data."userDataId" = :userDataId', { userDataId })
         .andWhere('bank_data.id != :id', { id: entity.id })
         .andWhere('bank_data.iban = :iban', { iban: entity.iban })
         .execute();

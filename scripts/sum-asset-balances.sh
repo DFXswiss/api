@@ -42,27 +42,47 @@ if [ "$TOKEN" == "null" ] || [ -z "$TOKEN" ]; then
   exit 1
 fi
 
-# Get asset IDs for this financial type
+# Get asset IDs for this financial type. The /gs/debug endpoint takes a structured query,
+# not raw SQL — payload describes table+select+where and the service emits SQL with bound
+# parameters. Response is {keys, rows}; flatten to a comma-list of IDs.
+ASSET_PAYLOAD=$(jq -n --arg ft "$FINANCIAL_TYPE" '{
+  table: "asset",
+  select: [{kind: "column", column: "id"}],
+  where: {kind: "leaf", column: "financialType", op: "=", value: $ft},
+  limit: 10000
+}')
 ASSET_IDS=$(curl -s -X POST "$API_URL/gs/debug" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"sql\":\"SELECT id FROM asset WHERE financialType = '$FINANCIAL_TYPE'\"}" | \
-  jq -r '.[].id' | tr '\n' ',' | sed 's/,$//')
+  -d "$ASSET_PAYLOAD" | \
+  jq -r '.rows[][0]' | tr '\n' ',' | sed 's/,$//')
 
 echo "=== Asset Balance Sum for Financial Type: $FINANCIAL_TYPE ==="
 echo "Log ID: $LOG_ID"
 echo "Asset IDs: $ASSET_IDS"
 echo ""
 
-# Get log entry
-SQL="SELECT id, created, message FROM log WHERE id = $LOG_ID"
+# Get log entry.
+LOG_PAYLOAD=$(jq -n --argjson logId "$LOG_ID" '{
+  table: "log",
+  select: [
+    {kind: "column", column: "id"},
+    {kind: "column", column: "created"},
+    {kind: "column", column: "message"}
+  ],
+  where: {kind: "leaf", column: "id", op: "=", value: $logId},
+  limit: 1
+}')
 RESULT=$(curl -s -X POST "$API_URL/gs/debug" \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d "{\"sql\":\"$SQL\"}")
+  -d "$LOG_PAYLOAD")
+
+# Reshape {keys, rows} back into array-of-objects so the existing jq filter is unchanged.
+ROWS=$(echo "$RESULT" | jq '[.keys as $k | .rows[] | [$k, .] | transpose | map({(.[0]): .[1]}) | add]')
 
 # Parse with jq
-echo "$RESULT" | jq -r --arg asset_ids "$ASSET_IDS" '
+echo "$ROWS" | jq -r --arg asset_ids "$ASSET_IDS" '
   .[0] as $entry |
   ($entry.message | fromjson) as $msg |
 

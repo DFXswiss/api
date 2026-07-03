@@ -104,6 +104,20 @@ export class SettingService {
     return this.getObjCached<string[]>('ipBlacklist', []);
   }
 
+  async getDeniedJwtAddresses(): Promise<string[]> {
+    return this.getObj<string[]>('jwtAddressDenylist', []);
+  }
+
+  async getDeniedJwtAccounts(): Promise<number[]> {
+    // Union of the manual override (`jwtAccountDenylist`) and the DB-derived auto denylist
+    // (`jwtAccountDenylistAuto`, maintained by JwtRevocationSyncService), deduped to numbers.
+    const [manual, auto] = await Promise.all([
+      this.getObj<(string | number)[]>('jwtAccountDenylist', []),
+      this.getObj<(string | number)[]>('jwtAccountDenylistAuto', []),
+    ]);
+    return [...new Set([...manual, ...auto].map(Number))];
+  }
+
   async getCustomBalanceSettings(): Promise<{ addresses: string[]; assets: string[] }> {
     const [addresses, assets] = await Promise.all([
       this.getObjCached<string[]>('customBalanceAddresses', []),

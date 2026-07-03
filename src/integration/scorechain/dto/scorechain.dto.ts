@@ -1,0 +1,104 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+
+// --- PROVIDER ENUMS --- //
+
+// Scorechain blockchain identifiers (subset relevant for DFX; full list via GET /blockchains)
+export enum ScorechainBlockchain {
+  BITCOIN = 'BITCOIN',
+  BITCOINCASH = 'BITCOINCASH',
+  LITECOIN = 'LITECOIN',
+  DOGECOIN = 'DOGECOIN',
+  ETHEREUM = 'ETHEREUM',
+  ARBITRUMONE = 'ARBITRUMONE',
+  OPTIMISM = 'OPTIMISM',
+  POLYGON = 'POLYGON',
+  BASE = 'BASE',
+  BSC = 'BSC',
+  SOLANA = 'SOLANA',
+  TRON = 'TRON',
+  RIPPLE = 'RIPPLE',
+  CARDANO = 'CARDANO',
+}
+
+export enum ScorechainAnalysisType {
+  ASSIGNED = 'ASSIGNED',
+  INCOMING = 'INCOMING',
+  OUTGOING = 'OUTGOING',
+  FULL = 'FULL',
+}
+
+export enum ScorechainObjectType {
+  ADDRESS = 'ADDRESS',
+  TRANSACTION = 'TRANSACTION',
+  WALLET = 'WALLET',
+}
+
+// Maps the DFX Blockchain enum to Scorechain identifiers. Chains not present here are not
+// supported by this integration and are skipped with an explicit not-supported result.
+export const ScorechainBlockchainMap: { [b in Blockchain]?: ScorechainBlockchain } = {
+  [Blockchain.BITCOIN]: ScorechainBlockchain.BITCOIN,
+  [Blockchain.ETHEREUM]: ScorechainBlockchain.ETHEREUM,
+  [Blockchain.ARBITRUM]: ScorechainBlockchain.ARBITRUMONE,
+  [Blockchain.OPTIMISM]: ScorechainBlockchain.OPTIMISM,
+  [Blockchain.POLYGON]: ScorechainBlockchain.POLYGON,
+  [Blockchain.BASE]: ScorechainBlockchain.BASE,
+  [Blockchain.BINANCE_SMART_CHAIN]: ScorechainBlockchain.BSC,
+  [Blockchain.SOLANA]: ScorechainBlockchain.SOLANA,
+  [Blockchain.TRON]: ScorechainBlockchain.TRON,
+};
+
+export function toScorechainBlockchain(blockchain: Blockchain): ScorechainBlockchain | undefined {
+  return ScorechainBlockchainMap[blockchain];
+}
+
+// --- REQUESTS --- //
+
+export interface ScoringAnalysisRequest {
+  objectType: ScorechainObjectType;
+  objectId: string; // address or transaction hash
+  blockchain: ScorechainBlockchain;
+  analysisType: ScorechainAnalysisType;
+  coin?: string; // 'ALL' | 'MAIN' | 'STABLE' | coinChainId
+  depth?: number; // <=100 UTXO, <=6 account-based
+}
+
+// --- RESPONSES --- //
+
+// Scorechain risk severity bands (RiskSeverity enum). Note the score direction:
+// LOW score = HIGH risk. 1=Critical, 2-29=High, 30-69=Medium, 70-99=Low, 100=No risk.
+export enum ScorechainSeverity {
+  CRITICAL_RISK = 'CRITICAL_RISK',
+  HIGH_RISK = 'HIGH_RISK',
+  MEDIUM_RISK = 'MEDIUM_RISK',
+  LOW_RISK = 'LOW_RISK',
+  NO_RISK = 'NO_RISK',
+}
+
+export function severityFromScore(score?: number): ScorechainSeverity | undefined {
+  if (score == null) return undefined;
+  if (score <= 1) return ScorechainSeverity.CRITICAL_RISK;
+  if (score <= 29) return ScorechainSeverity.HIGH_RISK;
+  if (score <= 69) return ScorechainSeverity.MEDIUM_RISK;
+  if (score <= 99) return ScorechainSeverity.LOW_RISK;
+  return ScorechainSeverity.NO_RISK;
+}
+
+// Synchronous scoring result (provider OpenAPI). `lowestScore` is the quick-check score
+// across assigned/incoming/outgoing (1-100, lower = riskier). Per-analysis detail lives
+// under `analysis.<type>.result`; kept permissive and persisted raw for audit.
+export interface ScoringAnalysisResult {
+  hasResult: boolean;
+  result: { score?: number; severity?: string; [key: string]: unknown } | null;
+}
+
+export interface ScoringAnalysisResponse {
+  id: string;
+  lowestScore: number;
+  analysis: Partial<Record<'assigned' | 'incoming' | 'outgoing' | 'full', ScoringAnalysisResult>>;
+  request?: unknown;
+}
+
+// GET /publicKeys returns an array of these.
+export interface ScorechainPublicKey {
+  key: string;
+}

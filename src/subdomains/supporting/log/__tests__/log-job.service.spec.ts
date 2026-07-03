@@ -3,7 +3,10 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { createCustomExchangeTx } from 'src/integration/exchange/dto/__mocks__/exchange-tx.entity.mock';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { createCustomFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { ProcessService } from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
@@ -14,14 +17,21 @@ import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity
 import { LiquidityManagementPipelineService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-pipeline.service';
 import { PaymentBalanceService } from 'src/subdomains/core/payment-link/services/payment-balance.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
+import { createCustomBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { createCustomSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
 import { TradingOrderService } from 'src/subdomains/core/trading/services/trading-order.service';
 import { TradingRuleService } from 'src/subdomains/core/trading/services/trading-rule.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankTxRepeatService } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return.service';
 import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
+import { Bank } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
+import { olkyEUR, yapealCHF } from '../../bank/bank/__mocks__/bank.entity.mock';
+import { IbanBankName } from '../../bank/bank/dto/bank.dto';
+import { createCustomFiatOutput } from '../../fiat-output/__mocks__/fiat-output.entity.mock';
 import { PayInService } from '../../payin/services/payin.service';
 import { PayoutService } from '../../payout/services/payout.service';
 import { LogJobService } from '../log-job.service';
@@ -106,6 +116,231 @@ describe('LogJobService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('saveTradingLog (referral-credit liability)', () => {
+    // a positive base book so the referral-credit assertions work on round numbers
+    const baseBuckets = () => ({
+      EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 },
+    });
+
+    function setupSaveTradingLog(
+      liability: { amountEur: number; amountChf: number },
+      buckets: Record<string, unknown> = baseBuckets(),
+    ) {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getBalancesByFinancialType').mockReturnValue(buckets);
+      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(100 as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue(liability);
+      jest
+        .spyOn(logService, 'maxEntity')
+        .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 0 } }) } as any);
+      return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    function getFinancialLog(createSpy: jest.SpyInstance) {
+      const call = createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog');
+      return JSON.parse(call[0].message);
+    }
+
+    it('accrues the open referral-credit liability into minus and reduces the total', async () => {
+      const createSpy = setupSaveTradingLog({ amountEur: 1000, amountChf: 920 });
+
+      await service.saveTradingLog();
+
+      const log = getFinancialLog(createSpy);
+      expect(log.balancesByFinancialType.RefCredit).toEqual({
+        plusBalance: 0,
+        plusBalanceChf: 0,
+        minusBalance: 1000,
+        minusBalanceChf: 920,
+      });
+      // base book: plus 5000 / minus 0 -> the liability raises minus and lowers total by exactly amountChf
+      expect(log.balancesTotal.plusBalanceChf).toBe(5000);
+      expect(log.balancesTotal.minusBalanceChf).toBe(920);
+      expect(log.balancesTotal.totalBalanceChf).toBe(4080);
+    });
+
+    it('writes no RefCredit bucket and leaves the total unchanged when nothing is owed', async () => {
+      const createSpy = setupSaveTradingLog({ amountEur: 0, amountChf: 0 });
+
+      await service.saveTradingLog();
+
+      const log = getFinancialLog(createSpy);
+      expect(log.balancesByFinancialType.RefCredit).toBeUndefined();
+      expect(log.balancesTotal.minusBalanceChf).toBe(0);
+      expect(log.balancesTotal.totalBalanceChf).toBe(5000);
+    });
+
+    it('sums the liability on top of an existing minus-bearing bucket', async () => {
+      // a base book that already carries a real liability, so the ref liability must add to it
+      const createSpy = setupSaveTradingLog(
+        { amountEur: 1000, amountChf: 920 },
+        { BTC: { plusBalance: 10, plusBalanceChf: 10000, minusBalance: 2, minusBalanceChf: 3000 } },
+      );
+
+      await service.saveTradingLog();
+
+      const log = getFinancialLog(createSpy);
+      // minus: existing 3000 + ref 920 = 3920; total: plus 10000 - 3920 = 6080
+      expect(log.balancesTotal.plusBalanceChf).toBe(10000);
+      expect(log.balancesTotal.minusBalanceChf).toBe(3920);
+      expect(log.balancesTotal.totalBalanceChf).toBe(6080);
+    });
+
+    it('persists a negative totalBalanceChf as a real number instead of nulling it to undefined', async () => {
+      // a book whose liabilities exceed assets -> genuinely negative total
+      const createSpy = setupSaveTradingLog(
+        { amountEur: 0, amountChf: 0 },
+        { EUR: { plusBalance: 0, plusBalanceChf: 1000, minusBalance: 5000, minusBalanceChf: 5000 } },
+      );
+
+      await service.saveTradingLog();
+
+      const log = getFinancialLog(createSpy);
+      // must stay numeric so next run's lastTotalBalance is defined and the change-limit comparison
+      // (Math.abs(total - last)) does not break on undefined
+      expect(log.balancesTotal.totalBalanceChf).toBe(-4000);
+      expect(log.balancesTotal.totalBalanceChf).not.toBeUndefined();
+    });
+  });
+
+  describe('getBalancesByFinancialType (negative aggregates)', () => {
+    it('keeps a negative bucket aggregate numeric instead of nulling it to undefined', () => {
+      // a bank asset whose reported balance turned negative (e.g. overdrawn/blocked account)
+      const asset = createCustomAsset({ id: 1, financialType: 'EUR' });
+      const assetLog = {
+        1: { plusBalance: { total: -5000 }, minusBalance: { total: 0 }, priceChf: 1 },
+      };
+
+      const result = service['getBalancesByFinancialType']([asset], assetLog as any);
+
+      // must stay a real negative number so the downstream sum stays numeric (not NaN)
+      expect(result.EUR.plusBalance).toBe(-5000);
+      expect(result.EUR.plusBalanceChf).toBe(-5000);
+      expect(result.EUR.plusBalance).not.toBeUndefined();
+    });
+  });
+
+  describe('safety mode (fail closed on non-finite total)', () => {
+    function setup(buckets: Record<string, unknown>, minTotalBalanceChf: number) {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getBalancesByFinancialType').mockReturnValue(buckets);
+      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(minTotalBalanceChf as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      jest
+        .spyOn(logService, 'maxEntity')
+        .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 0 } }) } as any);
+      jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    it('activates safety mode and logs an error when the total is not finite', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      // an unsummable bucket (undefined chf) makes the summed total NaN -> non-finite
+      setup({ EUR: { plusBalance: 0, plusBalanceChf: undefined, minusBalance: 0, minusBalanceChf: 0 } }, 100000);
+
+      await service.saveTradingLog();
+
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(true);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('not finite'));
+    });
+
+    it('activates safety mode and logs an error when the minimum threshold is not finite', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      // a healthy finite total but a misconfigured (non-finite) threshold must still fail closed:
+      // `total < NaN` is always false, so the safety net would otherwise stay silently disabled
+      setup({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } }, NaN);
+
+      await service.saveTradingLog();
+
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(true);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('minTotalBalanceChf is not finite'));
+    });
+
+    it('never marks a non-finite total as valid, even after a long logging gap', async () => {
+      setup({ EUR: { plusBalance: 0, plusBalanceChf: undefined, minusBalance: 0, minusBalanceChf: 0 } }, 100000);
+      // last valid entry is older than 15 minutes -> the gap clause alone would force-validate
+      jest.spyOn(logService, 'maxEntity').mockResolvedValue({
+        created: new Date(Date.now() - 60 * 60 * 1000),
+        message: JSON.stringify({ balancesTotal: { totalBalanceChf: 0 } }),
+      } as any);
+
+      await service.saveTradingLog();
+
+      const financialLog = (logService.create as jest.Mock).mock.calls.find(
+        ([entry]) => entry.subsystem === 'FinancialDataLog',
+      )?.[0];
+      expect(financialLog.valid).toBe(false);
+    });
+
+    it('activates safety mode when the finite total is below the minimum', async () => {
+      setup({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } }, 100000);
+
+      await service.saveTradingLog();
+
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(true);
+    });
+
+    it('leaves safety mode inactive when the finite total meets the minimum', async () => {
+      setup({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } }, 5000);
+
+      await service.saveTradingLog();
+
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(false);
+    });
+  });
+
+  describe('valid flag (change-limit interaction with negative totals)', () => {
+    // drive saveTradingLog with a controllable current book and last valid entry, then read the
+    // FinancialDataLog `valid` flag. A fresh `created` keeps minutesDiff under 15, so the 15-minute
+    // gap clause stays out of the way and the change-limit branch is what is under test.
+    function setup(buckets: Record<string, unknown>, lastTotalBalanceChf: number, createdMinutesAgo: number) {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getBalancesByFinancialType').mockReturnValue(buckets);
+      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(100000 as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      jest.spyOn(logService, 'maxEntity').mockResolvedValue({
+        created: new Date(Date.now() - createdMinutesAgo * 60 * 1000),
+        message: JSON.stringify({ balancesTotal: { totalBalanceChf: lastTotalBalanceChf } }),
+      } as any);
+      return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    function validFlag(createSpy: jest.SpyInstance): boolean {
+      return createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog')?.[0].valid;
+    }
+
+    // book totalling -4000 (plus 1000, minus 5000), i.e. a genuinely negative equity on both sides
+    const negativeBook = () => ({
+      EUR: { plusBalance: 0, plusBalanceChf: 1000, minusBalance: 5000, minusBalanceChf: 5000 },
+    });
+
+    it('validates a negative-to-negative move that stays under the change limit', async () => {
+      // total -4000 vs last -4500 -> |diff| 500 <= 5000 limit -> valid even though both totals are negative
+      const createSpy = setup(negativeBook(), -4500, 1);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(true);
+    });
+
+    it('invalidates a positive-to-negative jump over the change limit within the 15-minute window', async () => {
+      // total -4000 vs last +50000 -> |diff| 54000 > 5000 limit and the entry is fresh -> not force-validated
+      const createSpy = setup(negativeBook(), 50000, 1);
+
+      await service.saveTradingLog();
+
+      expect(validFlag(createSpy)).toBe(false);
+    });
   });
 
   it('should filter same length sender & receiver', async () => {
@@ -586,5 +821,160 @@ describe('LogJobService', () => {
     const receiverTx = [createCustomExchangeTx({ id: 1, created: Util.hoursBefore(20), txId: 'E2E-80100' })];
 
     expect(service.getUnmatchedSenders(senderTx, receiverTx)).toEqual([]);
+  });
+
+  // --- settlement-anchored buy_fiat liability (FinanceLog) ---
+
+  // Yapeal CHF payout-bank asset: dexName = currency, bank = settling bank.
+  // sellable=true keeps it active so it is not skipped by the asset-log reduce guard.
+  const yapealChfAsset = (): Asset =>
+    createCustomAsset({
+      id: 5000,
+      dexName: 'CHF',
+      bank: yapealCHF,
+      approxPriceChf: 1,
+      refundEnabled: true,
+      sellable: true,
+    });
+
+  // a transmitted-but-not-yet-settled Yapeal CHF sell payout
+  const transmittedUnsettledBuyFiat = (transmittedAt: Date): BuyFiat =>
+    createCustomBuyFiat({
+      outputAmount: 9911.89,
+      isComplete: false,
+      sell: createCustomSell({ fiat: createCustomFiat({ name: 'CHF' }) }),
+      fiatOutput: createCustomFiatOutput({
+        bank: yapealCHF,
+        isTransmittedDate: transmittedAt,
+        outputDate: null,
+      }),
+    });
+
+  // a transmitted-but-not-yet-settled Olky EUR sell payout — does NOT match a Yapeal CHF asset
+  const transmittedUnsettledOlkyEur = (transmittedAt: Date): BuyFiat =>
+    createCustomBuyFiat({
+      outputAmount: 5000,
+      isComplete: false,
+      sell: createCustomSell({ fiat: createCustomFiat({ name: 'EUR' }) }),
+      fiatOutput: createCustomFiatOutput({
+        bank: olkyEUR,
+        isTransmittedDate: transmittedAt,
+        outputDate: null,
+      }),
+    });
+
+  describe('settlement-anchored buy_fiat liability', () => {
+    it('aggregates the transmitted-unsettled Yapeal liability into output (was 0 before the fix)', () => {
+      const asset = yapealChfAsset();
+
+      const { output } = service['getPendingAmounts']([asset], [transmittedUnsettledBuyFiat(new Date())]);
+
+      expect(output).toEqual(9911.89);
+    });
+
+    // drive the full asset-log assembly (where the fail-closed guard lives) with a single bank asset
+    function setupAssetLog(pendingBuyFiat: BuyFiat[]): Asset {
+      const asset = yapealChfAsset();
+
+      jest.spyOn(settingService, 'getCustomBalanceSettings').mockResolvedValue({ assets: [], addresses: [] });
+      jest.spyOn(settingService, 'getObj').mockImplementation(async (_key, defaultValue) => defaultValue as never);
+      jest.spyOn(paymentBalanceService, 'getPaymentBalances').mockResolvedValue(new Map());
+
+      const bankFor = (name: IbanBankName, currency: string): Bank =>
+        Object.assign(new Bank(), { name, currency, iban: `IBAN_${name}_${currency}`, bic: 'BICTEST' });
+      jest.spyOn(bankService, 'getBankInternal').mockImplementation(async (name, currency) => bankFor(name, currency));
+
+      jest.spyOn(liquidityManagementPipelineService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(payInService, 'getPendingPayIns').mockResolvedValue([]);
+      jest.spyOn(buyFiatService, 'getPendingTransactions').mockResolvedValue(pendingBuyFiat);
+      jest.spyOn(buyCryptoService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(payoutService, 'getRecentPayoutSentCorrelationIds').mockResolvedValue(new Set());
+      jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getRecentExchangeTx').mockResolvedValue([]);
+      jest.spyOn(exchangeTxService, 'getRecentExchangeTx').mockResolvedValue([]);
+
+      return asset;
+    }
+
+    it('does NOT alarm when a transmitted-unsettled liability is correctly counted (fresh, within SLA)', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      const asset = setupAssetLog([transmittedUnsettledBuyFiat(Util.hoursBefore(1))]);
+
+      await service['getAssetLog']([asset]);
+
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it('does NOT alarm on a non-matching payout and counts only the matching liability (per-asset scoping)', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      // matching Yapeal CHF payout alongside a non-matching Olky EUR payout, both transmitted-unsettled
+      const asset = setupAssetLog([
+        transmittedUnsettledBuyFiat(Util.hoursBefore(1)),
+        transmittedUnsettledOlkyEur(Util.hoursBefore(1)),
+      ]);
+
+      const assetLog = await service['getAssetLog']([asset]);
+
+      // suppression tripwire must not fire — the Olky EUR liability is correctly scoped out, not "missing"
+      expect(errorSpy).not.toHaveBeenCalled();
+      // only the matching Yapeal CHF liability is counted in buyFiatPass (the Olky EUR 5000 is excluded)
+      expect(assetLog[asset.id].minusBalance.pending.buyFiatPass).toEqual(9911.89);
+    });
+
+    it('alarms when the transmitted-unsettled liability is suppressed (pendingOutputAmount regressed to 0)', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      const buyFiat = transmittedUnsettledBuyFiat(Util.hoursBefore(1));
+      // simulate a re-introduced premature drop: pendingOutputAmount returns 0 while the independent guard still counts it
+      jest.spyOn(buyFiat, 'pendingOutputAmount').mockReturnValue(0);
+      const asset = setupAssetLog([buyFiat]);
+
+      await service['getAssetLog']([asset]);
+
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('liability suppression'));
+    });
+
+    it('warns (not errors) when a transmitted payout is past the 144h settlement SLA', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      const warnSpy = jest.spyOn(service['logger'], 'warn');
+      const asset = setupAssetLog([transmittedUnsettledBuyFiat(Util.hoursBefore(150))]);
+
+      await service['getAssetLog']([asset]);
+
+      // ops-reconciliation signal: equity stays correct while a payout is stuck, so it warns rather than errors
+      expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('stale transmitted-unsettled'));
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
+
+    it('does NOT warn a transmitted payout still within the 144h settlement SLA (weekend+holiday gap)', async () => {
+      const warnSpy = jest.spyOn(service['logger'], 'warn');
+      // ~111h (Fri evening -> Tue/Wed) is normal settlement and must not trip the SLA warning
+      const asset = setupAssetLog([transmittedUnsettledBuyFiat(Util.hoursBefore(111))]);
+
+      await service['getAssetLog']([asset]);
+
+      expect(warnSpy).not.toHaveBeenCalledWith(expect.stringContaining('stale transmitted-unsettled'));
+    });
+
+    it('does NOT alarm a stale payout once it has settled (outputDate set)', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      const settled = createCustomBuyFiat({
+        outputAmount: 9911.89,
+        isComplete: false,
+        sell: createCustomSell({ fiat: createCustomFiat({ name: 'CHF' }) }),
+        fiatOutput: createCustomFiatOutput({
+          bank: yapealCHF,
+          isTransmittedDate: Util.hoursBefore(80),
+          outputDate: new Date(),
+        }),
+      });
+      const asset = setupAssetLog([settled]);
+
+      await service['getAssetLog']([asset]);
+
+      expect(errorSpy).not.toHaveBeenCalled();
+    });
   });
 });

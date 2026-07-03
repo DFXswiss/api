@@ -1,6 +1,6 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { UserRole } from 'src/shared/auth/user-role.enum';
+import { StaffRoles, UserRole } from 'src/shared/auth/user-role.enum';
 import { Country } from 'src/shared/models/country/country.entity';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
@@ -45,6 +45,7 @@ import {
   PhoneCallPreferredTime,
   PhoneCallStatus,
   RiskStatus,
+  ServiceProvider,
   SignatoryPower,
   UserDataStatus,
 } from './user-data.enum';
@@ -203,6 +204,7 @@ export class UserData extends IEntity {
   @OneToMany(() => KycFile, (kycFile) => kycFile.userData)
   kycFiles?: KycFile[];
 
+  @Index({ unique: true, where: '"kycFileId" IS NOT NULL' })
   @Column({ type: 'integer', nullable: true })
   kycFileId?: number;
 
@@ -245,6 +247,9 @@ export class UserData extends IEntity {
 
   @Column({ length: 256, nullable: true })
   kycClients?: string; // semicolon separated wallet id's
+
+  @Column({ length: 256, nullable: true })
+  serviceProviders?: string; // semicolon separated ServiceProvider add-ons (e.g. RealUnit); DFX core never reads this, only the RealUnit dashboards
 
   @Column({ type: 'timestamp', nullable: true })
   phoneCallCheckDate?: Date;
@@ -355,6 +360,12 @@ export class UserData extends IEntity {
   // 2FA
   @Column({ nullable: true })
   totpSecret?: string;
+
+  @Column({ type: 'integer', default: 0 })
+  totpFailedAttempts: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  totpBlockedUntil?: Date;
 
   // Point of Sale
   @Column({ default: false })
@@ -493,6 +504,18 @@ export class UserData extends IEntity {
     return [this.id, update];
   }
 
+  addServiceProvider(provider: ServiceProvider): UpdateResult<UserData> {
+    const update: Partial<UserData> = {
+      serviceProviders: this.serviceProviderList.includes(provider)
+        ? this.serviceProviders
+        : [...this.serviceProviderList, provider].join(';'),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   removeKycClient(walletId: number): UpdateResult<UserData> {
     const update: Partial<UserData> = {
       kycClients: this.kycClientList.filter((id) => id !== walletId).join(';'),
@@ -583,6 +606,14 @@ export class UserData extends IEntity {
     return this.kycClients?.split(';')?.map(Number) ?? [];
   }
 
+  get serviceProviderList(): ServiceProvider[] {
+    return (this.serviceProviders?.split(';') as ServiceProvider[]) ?? [];
+  }
+
+  get isRealUnitCustomer(): boolean {
+    return this.serviceProviderList.includes(ServiceProvider.REALUNIT);
+  }
+
   get hasActiveUser(): boolean {
     return !!this.users.find((e) => e.status === UserStatus.ACTIVE);
   }
@@ -670,6 +701,25 @@ export class UserData extends IEntity {
 
   hasRole(role: UserRole): boolean {
     return this.users?.some((u) => u.role === role) ?? false;
+  }
+
+  // A staff account (Compliance/Support/RealUnit). Staff must set up an independent TOTP factor and are 2FA-
+  // enforced on staff endpoints, so a mail code to the same inbox as the magic link can never be the second
+  // factor. Requires the users relation to be loaded (mirrors hasRole).
+  get isStaff(): boolean {
+    return StaffRoles.some((role) => this.hasRole(role));
+  }
+
+  // Resolves the user a mail login should authenticate as for an elevated role: the highest-privileged
+  // (staffRoles is priority-ordered), non-blocked user whose role is in staffRoles. A wallet-less user is
+  // skipped so the resulting user token's blockchains getter never dereferences a null wallet. Returns
+  // undefined for a regular account, which then keeps a plain account token.
+  getMailLoginUser(staffRoles: UserRole[]): User | undefined {
+    for (const role of staffRoles) {
+      const user = this.users?.find((u) => u.role === role && u.wallet && !u.isBlockedOrDeleted);
+      if (user) return user;
+    }
+    return undefined;
   }
 
   get address() {

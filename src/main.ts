@@ -1,13 +1,17 @@
-import './polyfills'; // must stay first: registers global EventSource before any SDK loads
+// Must be imported first: starts the OpenTelemetry SDK before any instrumented
+// library is loaded (see src/tracing.ts). The polyfills import (which pulls in
+// the `eventsource` package and ultimately Node's `http`) follows so its
+// internal HTTP usage is auto-instrumented.
+import './tracing';
+import './polyfills'; // registers global EventSource for @arkade-os/sdk; see src/polyfills.ts
 import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import { WsAdapter } from '@nestjs/platform-ws';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
-import * as AppInsights from 'applicationinsights';
 import { spawnSync } from 'child_process';
 import { useContainer } from 'class-validator';
 import cors from 'cors';
-import { json, raw, text } from 'express';
+import { json, raw, text, Request } from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
 import { join } from 'path';
@@ -15,7 +19,7 @@ import { getVerifiedIp } from './shared/utils/ip.util';
 import { AppModule } from './app.module';
 import { Config, Environment } from './config/config';
 import { ApiExceptionFilter } from './shared/filters/exception.filter';
-import { apiTraceMiddleware } from './shared/middlewares/api-trace.middleware';
+import { apiTraceMiddleware, maskUrl } from './shared/middlewares/api-trace.middleware';
 import { DfxLogger } from './shared/services/dfx-logger';
 import { AccountChangedWebhookDto } from './subdomains/generic/user/services/webhook/dto/account-changed-webhook.dto';
 import {
@@ -41,27 +45,16 @@ process.on('uncaughtException', (error) => {
 });
 
 async function bootstrap() {
-  if (process.env.APPINSIGHTS_INSTRUMENTATIONKEY) {
-    AppInsights.setup().setAutoDependencyCorrelation(true).setAutoCollectConsole(true, true);
-    AppInsights.defaultClient.context.tags[AppInsights.defaultClient.context.keys.cloudRole] = 'dfx-api';
-
-    // Don't mark 4xx client errors as failures - only 5xx are real server errors
-    AppInsights.defaultClient.addTelemetryProcessor((envelope) => {
-      const data = envelope.data as { baseType?: string; baseData?: { responseCode?: string; success?: boolean } };
-      if (data.baseType === 'RequestData' && data.baseData?.responseCode) {
-        const responseCode = parseInt(data.baseData.responseCode, 10);
-        if (responseCode >= 400 && responseCode < 500) {
-          data.baseData.success = true;
-        }
-      }
-      return true;
-    });
-
-    AppInsights.start();
-  }
+  // Observability is initialized in src/tracing.ts (imported above): the
+  // OpenTelemetry SDK auto-instruments HTTP/DB/NestJS and exports traces via
+  // OTLP. 4xx-not-a-failure is handled there in the HTTP response hook.
 
   const app = await NestFactory.create(AppModule, { bodyParser: false });
 
+  // morgan's default :url logs the raw query string and unmasked wallet
+  // addresses to the same stdout the log pipeline ships — mask it like the
+  // trace middleware does.
+  morgan.token('url', (req) => maskUrl((req as Request).originalUrl ?? req.url ?? ''));
   app.use(morgan('dev'));
   app.use(helmet());
   app.use(

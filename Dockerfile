@@ -38,8 +38,10 @@ COPY --from=builder /home/node/migration ./migration
 # Runtime assets referenced by source path (not dist/) in the app config:
 #   - i18n translations: config.ts → join(process.cwd(), 'src/shared/i18n/')
 #   - notification templates: *.hbs files
+#   - OCP sticker PNGs: ocp-sticker.service.ts → join(process.cwd(), 'assets', ...)
 COPY --from=builder /home/node/src/shared/i18n ./src/shared/i18n
 COPY --from=builder /home/node/src/subdomains/supporting/notification/templates ./src/subdomains/supporting/notification/templates
+COPY --from=builder /home/node/assets ./assets
 
 EXPOSE 3000
 

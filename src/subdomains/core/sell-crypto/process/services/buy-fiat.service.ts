@@ -30,7 +30,7 @@ import { SupportLogService } from 'src/subdomains/supporting/support-issue/servi
 import { Between, FindOptionsRelations, In, IsNull, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
-import { canManualPass } from '../../../aml/enums/aml-error.enum';
+import { canManualPass, ManualPassBlacklistErrors } from '../../../aml/enums/aml-error.enum';
 import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
@@ -202,6 +202,9 @@ export class BuyFiatService implements OnModuleInit {
       await this.bankDataService.updateBankData(update.bankData?.id ?? entity.bankData.id, {
         approved: dto.bankDataActive,
       });
+
+    if (dto.amlCheck === CheckStatus.PASS && ManualPassBlacklistErrors.some((b) => entity.comment?.includes(b)))
+      throw new BadRequestException('Blacklisted aml error cannot set Pass');
 
     const forceUpdate: Partial<BuyFiat> = {
       ...((BuyFiatEditableAmlCheck.includes(entity.amlCheck) ||
@@ -460,8 +463,12 @@ export class BuyFiatService implements OnModuleInit {
       throw new BadRequestException('BuyFiat is already complete or chargeback initiated');
     if ([CheckStatus.PASS, CheckStatus.FAIL].includes(entity.amlCheck))
       throw new BadRequestException('BuyFiat amlCheck is already finalized');
-    if (dto.amlCheck === CheckStatus.PASS && !canManualPass(entity.comment))
-      throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
+    if (dto.amlCheck === CheckStatus.PASS) {
+      if (ManualPassBlacklistErrors.some((b) => entity.comment?.includes(b)))
+        throw new BadRequestException('Blacklisted aml error cannot set Pass');
+      if (!canManualPass(entity.comment))
+        throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
+    }
 
     return this.update(id, {
       amlCheck: dto.amlCheck,

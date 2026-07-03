@@ -39,7 +39,6 @@ const MOCK_RESPONSES: { pattern: RegExp; response: any }[] = [
     },
   },
   { pattern: /login\.microsoftonline\.com/, response: { access_token: 'mock-token', expires_in: 3600 } },
-  { pattern: /api\.applicationinsights\.io/, response: { tables: [{ name: 'PrimaryResult', columns: [], rows: [] }] } },
   { pattern: /aktionariat\.com/, response: { priceInCHF: 1.57, priceInEUR: 1.71, availableShares: 65488 } },
 ];
 
@@ -102,6 +101,17 @@ export class HttpService {
         config?.retryDelay,
       )
     ).data;
+  }
+
+  public async postRaw<T>(url: string, data: any, config?: HttpRequestConfig): Promise<AxiosResponse<T>> {
+    if (this.shouldMock(url)) {
+      return { data: this.getMockResponse<T>(url), status: 200, statusText: 'OK', headers: {}, config: {} as any };
+    }
+    return Util.retry(
+      () => firstValueFrom(this.http.post<T>(url, data, config)),
+      config?.tryCount ?? 1,
+      config?.retryDelay,
+    );
   }
 
   public async patch<T>(url: string, data: any, config?: HttpRequestConfig): Promise<T> {

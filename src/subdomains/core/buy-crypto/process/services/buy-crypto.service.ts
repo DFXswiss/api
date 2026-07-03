@@ -57,7 +57,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
-import { canManualPass } from '../../../aml/enums/aml-error.enum';
+import { canManualPass, ManualPassBlacklistErrors } from '../../../aml/enums/aml-error.enum';
 import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
 import { Buy } from '../../routes/buy/buy.entity';
@@ -298,6 +298,9 @@ export class BuyCryptoService implements OnModuleInit {
         approved: dto.bankDataApproved,
         manualApproved: dto.bankDataManualApproved,
       });
+
+    if (dto.amlCheck === CheckStatus.PASS && ManualPassBlacklistErrors.some((b) => entity.comment?.includes(b)))
+      throw new BadRequestException('Blacklisted aml error cannot set Pass');
 
     if (dto.chargebackAllowedDate) {
       if (entity.bankTx && !entity.chargebackOutput) {
@@ -729,8 +732,12 @@ export class BuyCryptoService implements OnModuleInit {
       throw new BadRequestException('BuyCrypto is already complete or chargeback initiated');
     if ([CheckStatus.PASS, CheckStatus.FAIL].includes(entity.amlCheck))
       throw new BadRequestException('BuyCrypto amlCheck is already finalized');
-    if (dto.amlCheck === CheckStatus.PASS && !canManualPass(entity.comment))
-      throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
+    if (dto.amlCheck === CheckStatus.PASS) {
+      if (ManualPassBlacklistErrors.some((b) => entity.comment?.includes(b)))
+        throw new BadRequestException('Blacklisted aml error cannot set Pass');
+      if (!canManualPass(entity.comment))
+        throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
+    }
 
     return this.update(id, {
       amlCheck: dto.amlCheck,

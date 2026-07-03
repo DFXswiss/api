@@ -1,4 +1,5 @@
 import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { hasRoleAccess } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Like } from 'typeorm';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
@@ -92,14 +93,14 @@ export class SupportIssueTemplateService {
       },
       authorMail: template.authorMail,
       isOwn: template.authorId === jwtAccount,
-      isAdmin: role === UserRole.ADMIN,
+      isAdmin: hasRoleAccess(UserRole.ADMIN, role),
       created: template.created,
       updated: template.updated,
     };
   }
 
   private canModify(template: SupportIssueTemplate, role: UserRole, jwtAccount: number): boolean {
-    if (role === UserRole.ADMIN) return true;
+    if (hasRoleAccess(UserRole.ADMIN, role)) return true;
     return template.authorId === jwtAccount;
   }
 }

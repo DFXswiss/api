@@ -276,6 +276,9 @@ export class SupportIssueListDto {
   @ApiProperty({ type: Date })
   created: Date;
 
+  @ApiProperty({ type: Date })
+  updated: Date;
+
   @ApiProperty()
   messageCount: number;
 
@@ -286,11 +289,64 @@ export class SupportIssueListDto {
   lastMessageAuthor?: string;
 }
 
+export class SupportIssueStatisticsBucketDto {
+  @ApiProperty({ description: 'Bucket key: "YYYY-MM-DD" (daily) or "YYYY-MM" (monthly)' })
+  key: string;
+
+  @ApiProperty()
+  count: number;
+}
+
+export class SupportIssueStatisticsResolutionDto {
+  @ApiProperty({ description: 'Issue type' })
+  key: string;
+
+  @ApiProperty({ description: 'Average hours from creation to completion' })
+  avgHours: number;
+
+  @ApiProperty({ description: 'Number of completed tickets in the period' })
+  count: number;
+}
+
+export class SupportIssueStatisticsDto {
+  @ApiProperty({ description: 'Analysis period in days' })
+  periodDays: number;
+
+  @ApiProperty({ description: 'Tickets created within the period' })
+  total: number;
+
+  @ApiProperty({ description: 'Average number of messages per ticket within the period' })
+  avgMessages: number;
+
+  @ApiProperty({ description: 'Average tickets per day within the period' })
+  perDay: number;
+
+  @ApiProperty({ enum: ['day', 'month'], description: 'Trend bucket granularity' })
+  granularity: 'day' | 'month';
+
+  @ApiProperty({
+    type: [SupportIssueStatisticsBucketDto],
+    description: 'Trend buckets across the period, oldest first',
+  })
+  trend: SupportIssueStatisticsBucketDto[];
+
+  @ApiProperty({ description: 'Average hours from creation to completion (tickets completed in the period)' })
+  avgResolutionHours: number;
+
+  @ApiProperty({
+    type: [SupportIssueStatisticsResolutionDto],
+    description: 'Average resolution time per type, descending by count',
+  })
+  resolutionByType: SupportIssueStatisticsResolutionDto[];
+}
+
 export const SupportIssueStateMapper: {
   [key in SupportIssueInternalState]: SupportIssueState;
 } = {
   [SupportIssueInternalState.CREATED]: SupportIssueState.PENDING,
   [SupportIssueInternalState.PENDING]: SupportIssueState.PENDING,
+  [SupportIssueInternalState.IN_PROGRESS]: SupportIssueState.IN_PROGRESS,
+  [SupportIssueInternalState.IN_CLARIFICATION]: SupportIssueState.IN_CLARIFICATION,
   [SupportIssueInternalState.COMPLETED]: SupportIssueState.COMPLETED,
   [SupportIssueInternalState.CANCELED]: SupportIssueState.CANCELED,
   [SupportIssueInternalState.ON_HOLD]: SupportIssueState.PENDING,

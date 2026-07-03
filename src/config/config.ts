@@ -52,7 +52,7 @@ export class Configuration {
   transactionRefundExpirySeconds = 300; // 5 minutes - enough time to fill out the refund form
   txRequestWaitingExpiryDays = 7;
   txRequestValidityMinutes = 30;
-  financeLogTotalBalanceChangeLimit = 5000;
+  financeLogTotalBalanceChangeLimit = 5000; // CHF
   faucetAmount = 0.0005; // ETH
   faucetEnabled =
     process.env.FAUCET_ENABLED === 'true' || [Environment.DEV, Environment.LOC].includes(this.environment);
@@ -263,6 +263,10 @@ export class Configuration {
       expiresIn: +(process.env.CHALLENGE_EXPIRES_IN ?? 10), // sec
     },
     mailLoginExpiresIn: +(process.env.MAIL_LOGIN_EXPIRES_IN ?? 10), // min
+    // Enables staff mail-login elevation (kill-switch for the whole staff-mail-login feature). Default on;
+    // set TFA_STAFF_ENFORCED=false to stop new mail elevations. 2FA enforcement itself follows the mail-origin
+    // tfaRequired token marker in TfaGuard, so wallet-signature logins are never affected by this flag.
+    tfaStaffEnforced: process.env.TFA_STAFF_ENFORCED !== 'false',
     signMessage:
       'By_signing_this_message,_you_confirm_that_you_are_the_sole_owner_of_the_provided_DeFiChain_address_and_are_in_possession_of_its_private_key._Your_ID:_',
     signMessageGeneral:
@@ -571,6 +575,10 @@ export class Configuration {
       mailBanner: process.env.SUPPORT_MESSAGE_BANNER,
     },
     issueOnHoldExpiry: 14, //days
+    escalation: {
+      telegramBotToken: process.env.SUPPORT_TELEGRAM_BOT_TOKEN,
+      slaHours: 24, // customer waiting longer than this escalates
+    },
   };
 
   letter = {
@@ -1111,6 +1119,23 @@ export class Configuration {
     Authorization: process.env.IKNA_KEY,
   };
 
+  scorechain = {
+    apiKey: process.env.SCORECHAIN_API_KEY,
+    // PEM key stored single-line in the env/vault with <br> line breaks (same convention as the
+    // other PEM env vars, e.g. PAYMENT_WEBHOOK_PUBLIC_KEY). Restore real newlines so node's crypto
+    // verifier can parse it; without this a pinned key fails to parse, every signature check fails,
+    // and isHighRisk() treats every screen as high risk.
+    publicKey: process.env.SCORECHAIN_PUBLIC_KEY?.split('<br>').join('\n'),
+    riskThreshold: +(process.env.SCORECHAIN_RISK_THRESHOLD ?? 70),
+    // ADDRESS/WALLET risk is mutable — an address can be flagged after a clean screen — so a clean
+    // verdict expires after this TTL and is re-screened. A TRANSACTION verdict is keyed by an
+    // immutable tx hash and is reused with no time bound, so a given tx is screened at most once.
+    addressCacheMinutes: +(process.env.SCORECHAIN_ADDRESS_CACHE_MINUTES ?? 7 * 24 * 60),
+    monthlyCheckLimit: process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT
+      ? +process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT
+      : undefined,
+  };
+
   invoice = {
     currencies: ['EUR', 'CHF'],
     defaultCurrency: 'CHF',
@@ -1176,10 +1201,6 @@ export class Configuration {
         .find((p) => p.includes('BlobEndpoint'))
         ?.replace('BlobEndpoint=', ''),
       connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
-    },
-    appInsights: {
-      appId: process.env.APPINSIGHTS_APP_ID,
-      apiKey: process.env.APPINSIGHTS_API_KEY,
     },
   };
 

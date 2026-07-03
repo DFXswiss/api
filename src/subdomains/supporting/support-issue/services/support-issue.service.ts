@@ -10,6 +10,7 @@ import { Config } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { SupportClerkAccountDto } from 'src/shared/models/setting/dto/support-clerk-account.dto';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { CLIENT_HEADER, resolveClientSource } from 'src/shared/utils/request-client';
 import { Util } from 'src/shared/utils/util';
@@ -28,18 +29,24 @@ import { TransactionRequestService } from '../../payment/services/transaction-re
 import { TransactionService } from '../../payment/services/transaction.service';
 import { CreateSupportIssueBaseDto, CreateSupportIssueDto } from '../dto/create-support-issue.dto';
 import { CreateSupportMessageDto } from '../dto/create-support-message.dto';
-import { GetSupportIssueFilter, GetSupportIssueListFilter } from '../dto/get-support-issue.dto';
+import {
+  GetSupportIssueFilter,
+  GetSupportIssueListFilter,
+  ListOrderDirection,
+  SupportIssueListOrderBy,
+} from '../dto/get-support-issue.dto';
 import { SupportIssueDtoMapper } from '../dto/support-issue-dto.mapper';
 import {
   SupportIssueDto,
   SupportIssueInternalDataDto,
   SupportIssueListDto,
+  SupportIssueStatisticsDto,
   SupportMessageDto,
 } from '../dto/support-issue.dto';
 import { UpdateSupportIssueDto } from '../dto/update-support-issue.dto';
 import { SupportIssue } from '../entities/support-issue.entity';
 import { AutoResponder, CustomerAuthor, SupportMessage } from '../entities/support-message.entity';
-import { RoleDepartmentMap } from '../enums/department.enum';
+import { getVisibleDepartments } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueReason, SupportIssueType } from '../enums/support-issue.enum';
 import { SupportLogType } from '../enums/support-log.enum';
 import { SupportIssueRepository } from '../repositories/support-issue.repository';
@@ -73,29 +80,54 @@ export class SupportIssueService {
     return clerks.length > 0 ? clerks : ['Support'];
   }
 
-  async getSupportIssueCounts(role: UserRole): Promise<Record<SupportIssueInternalState, number>> {
+  async getRealUnitSupportClerks(): Promise<string[]> {
+    const clerks = await this.settingService.getObj<string[]>('realUnitSupportClerks', []);
+    return clerks.length > 0 ? clerks : ['Support'];
+  }
+
+  // Resolves the clerk name assigned to a support account via the `supportClerkAccounts`
+  // setting ([{ account, name }]). Returns undefined if the account is unmapped.
+  async getSupportIssueClerkForAccount(account: number): Promise<string | undefined> {
+    const clerks = await this.settingService.getObj<SupportClerkAccountDto[]>('supportClerkAccounts', []);
+    return clerks.find((c) => c.account === account)?.name;
+  }
+
+  async getSupportIssueCounts(
+    role: UserRole,
+    customerIds?: number[],
+  ): Promise<Record<SupportIssueInternalState, number>> {
+    const counts = Object.values(SupportIssueInternalState).reduce(
+      (acc, state) => ({ ...acc, [state]: 0 }),
+      {} as Record<SupportIssueInternalState, number>,
+    );
+
+    const departments = getVisibleDepartments(role);
+    if (!customerIds && departments?.length === 0) return counts; // no department access
+    if (customerIds && !customerIds.length) return counts; // fail-closed: empty customer scope
+
     const qb = this.supportIssueRepo
       .createQueryBuilder('issue')
       .select('issue.state', 'state')
       .addSelect('COUNT(*)', 'count')
       .groupBy('issue.state');
-
-    const departmentByRole = RoleDepartmentMap[role];
-    if (departmentByRole) qb.andWhere('issue.department = :department', { department: departmentByRole });
+    if (customerIds)
+      qb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
 
     const raw: { state: SupportIssueInternalState; count: string }[] = await qb.getRawMany();
-
-    const counts = Object.values(SupportIssueInternalState).reduce(
-      (acc, state) => ({ ...acc, [state]: 0 }),
-      {} as Record<SupportIssueInternalState, number>,
-    );
     for (const row of raw) counts[row.state] = +row.count;
 
     return counts;
   }
 
-  async getSupportIssueActivity(since: Date | undefined, role: UserRole): Promise<{ count: number; latestAt?: Date }> {
-    const departmentByRole = RoleDepartmentMap[role];
+  async getSupportIssueActivity(
+    since: Date | undefined,
+    role: UserRole,
+    customerIds?: number[],
+  ): Promise<{ count: number; latestAt?: Date }> {
+    const departments = getVisibleDepartments(role);
+    if (!customerIds && departments?.length === 0) return { count: 0, latestAt: undefined }; // no department access
+    if (customerIds && !customerIds.length) return { count: 0, latestAt: undefined }; // fail-closed: empty customer scope
 
     const qb = this.messageRepo
       .createQueryBuilder('m')
@@ -103,10 +135,150 @@ export class SupportIssueService {
       .select('COUNT(*)', 'count')
       .addSelect('MAX(m.created)', 'latestAt');
     if (since) qb.andWhere('m.created > :since', { since: since.toISOString() });
-    if (departmentByRole) qb.andWhere('i.department = :department', { department: departmentByRole });
+    if (customerIds) qb.innerJoin('i.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) qb.andWhere('i.department IN (:...departments)', { departments });
 
     const raw = await qb.getRawOne<{ count: string | number; latestAt: Date | null }>();
     return { count: +(raw?.count ?? 0), latestAt: raw?.latestAt ?? undefined };
+  }
+
+  async getSupportIssueStatistics(
+    role: UserRole,
+    periodDays = 365,
+    customerIds?: number[],
+  ): Promise<SupportIssueStatisticsDto> {
+    const departments = getVisibleDepartments(role);
+    // guard against a non-numeric ?days reaching the clamp as NaN (which would propagate to an Invalid Date)
+    const days = Number.isFinite(periodDays) ? Math.min(Math.max(Math.round(periodDays), 1), 366) : 365;
+    const granularity: 'day' | 'month' = days <= 31 ? 'day' : 'month';
+
+    // no department access: return an empty statistic without querying. An empty `departments` list would
+    // otherwise reach the queries below, where `if (departments)` is truthy and expands to a degenerate
+    // `IN ()` clause (the same fail-closed contract the counts / activity / list queries already follow).
+    // A customer-scoped (RealUnit) caller bypasses the department gate but fail-closes on an empty scope.
+    if ((!customerIds && departments?.length === 0) || (customerIds && !customerIds.length))
+      return {
+        periodDays: days,
+        total: 0,
+        avgMessages: 0,
+        perDay: 0,
+        granularity,
+        trend: [],
+        avgResolutionHours: 0,
+        resolutionByType: [],
+      };
+
+    const now = new Date();
+    const pad = (n: number): string => String(n).padStart(2, '0');
+    const from = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+
+    // total tickets and message count within the period
+    const totalQb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .select('COUNT(*)', 'count')
+      .where('issue.created >= :from', { from });
+    if (customerIds)
+      totalQb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) totalQb.andWhere('issue.department IN (:...departments)', { departments });
+    const total = +((await totalQb.getRawOne<{ count: string }>())?.count ?? 0);
+
+    const msgQb = this.messageRepo
+      .createQueryBuilder('m')
+      .innerJoin('m.issue', 'issue')
+      .select('COUNT(*)', 'count')
+      .where('issue.created >= :from', { from });
+    if (customerIds)
+      msgQb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) msgQb.andWhere('issue.department IN (:...departments)', { departments });
+    const messages = +((await msgQb.getRawOne<{ count: string }>())?.count ?? 0);
+
+    // trend buckets: always group by day in SQL (CAST avoids Postgres-incompatible date-part functions and
+    // keeps the raw query alias-clean, see query-builder-alias.spec.ts), then bucket daily or monthly in JS
+    const trendQb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .select('CAST(issue.created AS DATE)', 'd')
+      .addSelect('COUNT(*)', 'count')
+      .where('issue.created >= :from', { from })
+      .groupBy('CAST(issue.created AS DATE)');
+    if (customerIds)
+      trendQb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) trendQb.andWhere('issue.department IN (:...departments)', { departments });
+    const dayRows = await trendQb.getRawMany<{ d: Date | string; count: string }>();
+
+    // build keys from local date parts on both the rows and the bucket loop; the app and DB both run UTC,
+    // so the row-date space and the loop-date space align and the trend sums to total
+    const dayKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    const monthKey = (d: Date): string => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+
+    const trend: { key: string; count: number }[] = [];
+    if (granularity === 'day') {
+      const map = new Map(dayRows.map((r) => [dayKey(new Date(r.d)), +r.count]));
+      // anchor the first bucket to `from`'s calendar day (not a fixed day count), so the daily trend covers
+      // every day a row can fall on and always sums to total
+      const lastDay = new Date(now);
+      lastDay.setHours(0, 0, 0, 0);
+      const d = new Date(from);
+      d.setHours(0, 0, 0, 0);
+      while (d.getTime() <= lastDay.getTime()) {
+        trend.push({ key: dayKey(d), count: map.get(dayKey(d)) ?? 0 });
+        d.setDate(d.getDate() + 1);
+      }
+    } else {
+      // roll the daily counts up into months
+      const map = new Map<string, number>();
+      for (const r of dayRows) {
+        const key = monthKey(new Date(r.d));
+        map.set(key, (map.get(key) ?? 0) + +r.count);
+      }
+      // span every calendar month the [from, now] window touches, so the trend always sums to total
+      const monthSpan = (now.getFullYear() - from.getFullYear()) * 12 + (now.getMonth() - from.getMonth());
+      for (let i = monthSpan; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        trend.push({ key: monthKey(d), count: map.get(monthKey(d)) ?? 0 });
+      }
+    }
+
+    // average resolution time per type for tickets completed within the period (the last-update
+    // timestamp is the completion proxy). Computed in JS so the raw SQL stays free of bare
+    // date-part identifiers (see query-builder-alias.spec.ts).
+    const resolvedQb = this.supportIssueRepo
+      .createQueryBuilder('issue')
+      .select('issue.type', 'type')
+      .addSelect('issue.created', 'created')
+      .addSelect('issue.updated', 'updated')
+      .where('issue.state = :completed', { completed: SupportIssueInternalState.COMPLETED })
+      .andWhere('issue.updated >= :from', { from });
+    if (customerIds)
+      resolvedQb.innerJoin('issue.userData', 'scopeUd').andWhere('scopeUd.id IN (:...customerIds)', { customerIds });
+    else if (departments) resolvedQb.andWhere('issue.department IN (:...departments)', { departments });
+    const resolvedRows = await resolvedQb.getRawMany<{ type: string; created: Date; updated: Date }>();
+
+    const resolutionStats = new Map<string, { sum: number; count: number }>();
+    for (const r of resolvedRows) {
+      const hours = (new Date(r.updated).getTime() - new Date(r.created).getTime()) / (60 * 60 * 1000);
+      const e = resolutionStats.get(r.type) ?? { sum: 0, count: 0 };
+      e.sum += hours;
+      e.count += 1;
+      resolutionStats.set(r.type, e);
+    }
+    const resolutionByType = Array.from(resolutionStats.entries())
+      .map(([key, v]) => ({ key, avgHours: v.sum / v.count, count: v.count }))
+      .sort((a, b) => b.count - a.count);
+    const avgResolutionHours =
+      resolvedRows.length > 0
+        ? resolutionByType.reduce((sum, r) => sum + r.avgHours * r.count, 0) / resolvedRows.length
+        : 0;
+
+    return {
+      periodDays: days,
+      total,
+      avgMessages: total > 0 ? messages / total : 0,
+      perDay: total / days,
+      granularity,
+      trend,
+      avgResolutionHours,
+      resolutionByType,
+    };
   }
 
   async createTransactionRequestIssue(dto: CreateSupportIssueBaseDto, client?: string): Promise<SupportIssueDto> {
@@ -284,6 +456,33 @@ export class SupportIssueService {
     return issue;
   }
 
+  async closeIssue(id: string, userDataId?: number): Promise<SupportIssueDto> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: this.getIssueSearch(id, userDataId),
+      relations: { transaction: true, limitRequest: true },
+    });
+    if (!issue) throw new NotFoundException('Support issue not found');
+
+    // idempotent: leave already-closed issues untouched (a new customer message reopens them via createMessageInternal)
+    if (![SupportIssueInternalState.COMPLETED, SupportIssueInternalState.CANCELED].includes(issue.state)) {
+      // persist the state change first, so the audit log only ever reflects a committed transition
+      await this.supportIssueRepo.update(...issue.setState(SupportIssueInternalState.COMPLETED));
+
+      await this.supportLogService.createSupportLog(issue.userData, {
+        type: SupportLogType.CUSTOMER,
+        state: SupportIssueInternalState.COMPLETED,
+        comment: 'Closed by customer',
+        supportIssue: issue,
+        supportIssueType: issue.type,
+      });
+    }
+
+    // load messages so the response matches GET /:id instead of claiming an empty thread
+    issue.messages = await this.messageRepo.findBy({ issue: { id: issue.id } });
+
+    return SupportIssueDtoMapper.mapSupportIssue(issue);
+  }
+
   async updateIssue(id: number, dto: UpdateSupportIssueDto): Promise<SupportIssue> {
     const entity = await this.supportIssueRepo.findOneBy({ id });
     if (!entity) throw new NotFoundException('Support issue not found');
@@ -327,16 +526,19 @@ export class SupportIssueService {
   async getSupportIssueList(
     filter: GetSupportIssueListFilter,
     role: UserRole,
+    customerIds?: number[],
   ): Promise<{ data: SupportIssueListDto[]; total: number }> {
     const where: FindOptionsWhere<SupportIssue> = {};
 
-    // department filtering based on role
-    const departmentByRole = RoleDepartmentMap[role];
-    if (departmentByRole) {
-      where.department = departmentByRole;
-    } else if (filter.department) {
-      where.department = filter.department;
-    }
+    // department filtering: the role defines the allowed departments, an explicit filter may narrow within them
+    const allowedDepartments = getVisibleDepartments(role);
+    if (!customerIds && allowedDepartments?.length === 0) return { data: [], total: 0 }; // no department access
+    if (customerIds && !customerIds.length) return { data: [], total: 0 }; // fail-closed: empty customer scope
+
+    const departments =
+      filter.department && (!allowedDepartments || allowedDepartments.includes(filter.department))
+        ? [filter.department]
+        : allowedDepartments;
 
     if (filter.type) where.type = filter.type;
 
@@ -348,22 +550,44 @@ export class SupportIssueService {
       .slice(0, 10);
 
     const qb = this.supportIssueRepo.createQueryBuilder('issue');
-    if (terms.length > 0) qb.leftJoin('issue.userData', 'userData');
+    // the search predicate and the RealUnit customer scope both need the userData join; share the single 'userData' alias
+    if (terms.length > 0 || customerIds) qb.leftJoin('issue.userData', 'userData');
 
-    if (where.department) qb.andWhere('issue.department = :department', { department: where.department });
+    // customer scope (RealUnit) takes precedence over and replaces the department gate; the left join + IN filter
+    // fail-closes issues without a userData (NULL is never IN the scope list)
+    if (customerIds) qb.andWhere('"userData".id IN (:...customerIds)', { customerIds });
+    else if (departments) qb.andWhere('issue.department IN (:...departments)', { departments });
     if (filter.states?.length) qb.andWhere('issue.state IN (:...states)', { states: filter.states });
     if (where.type) qb.andWhere('issue.type = :type', { type: where.type });
+    if (filter.clerk) qb.andWhere('issue.clerk = :clerk', { clerk: filter.clerk });
+    if (filter.createdFrom) qb.andWhere('issue.created >= :createdFrom', { createdFrom: new Date(filter.createdFrom) });
+    if (filter.createdTo) {
+      const createdTo = new Date(filter.createdTo);
+      // a date-only bound (no time component) means "on or before that day" → include the whole day
+      if (!filter.createdTo.includes('T')) createdTo.setUTCHours(23, 59, 59, 999);
+      qb.andWhere('issue.created <= :createdTo', { createdTo });
+    }
 
     const termCount = Math.min(terms.length, 10);
     for (let i = 0; i < termCount; i++) {
       const param = `term${i}`;
+      // Only emit the id branch when the term is fully numeric AND fits int4 (Postgres rejects
+      // larger values with 22003, which would 500 the entire search — a pasted phone number
+      // like "41791234567" is a realistic trigger). Keeps the predicate on the PK index (no
+      // cast-to-text) and avoids partial-match surprises (term "42" doesn't match id 142).
+      const idTerm = /^\d+$/.test(terms[i]) && parseInt(terms[i], 10) <= 2147483647 ? parseInt(terms[i], 10) : null;
+      const idClause = idTerm != null ? ` OR issue.id = :${param}Id` : '';
       qb.andWhere(
-        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR userData.firstname LIKE :${param} OR userData.surname LIKE :${param} OR userData.organizationName LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m.issueId = issue.id AND m.message LIKE :${param}))`,
-        { [param]: `%${terms[i]}%` },
+        `(issue.name LIKE :${param} OR issue.uid LIKE :${param} OR issue.clerk LIKE :${param} OR "userData".firstname LIKE :${param} OR "userData".surname LIKE :${param} OR "userData"."organizationName" LIKE :${param} OR EXISTS (SELECT 1 FROM support_message m WHERE m."issueId" = issue.id AND m.message LIKE :${param})${idClause})`,
+        { [param]: `%${terms[i]}%`, ...(idTerm != null ? { [`${param}Id`]: idTerm } : {}) },
       );
     }
 
-    qb.orderBy('issue.created', 'DESC');
+    // whitelisted sort column + direction, with an id tie-break for stable pagination on equal sort keys
+    const orderBy = filter.orderBy ?? SupportIssueListOrderBy.CREATED;
+    const orderDir = filter.orderDir ?? ListOrderDirection.DESC;
+    qb.orderBy(`issue.${orderBy}`, orderDir);
+    qb.addOrderBy('issue.id', orderDir);
 
     if (filter.take != null) {
       qb.take(filter.take);
@@ -391,14 +615,14 @@ export class SupportIssueService {
       (chunk): Promise<{ issueId: string; count: string; lastDate: Date | null; lastAuthor: string | null }[]> =>
         this.messageRepo
           .createQueryBuilder('m')
-          .select('m.issueId', 'issueId')
+          .select('m."issueId"', 'issueId')
           .addSelect('COUNT(*)', 'count')
           .addSelect(
             (sub) =>
               sub
                 .select('m2.created')
                 .from(SupportMessage, 'm2')
-                .where('m2.issueId = m.issueId')
+                .where('m2."issueId" = m."issueId"')
                 .orderBy('m2.id', 'DESC')
                 .limit(1),
             'lastDate',
@@ -408,13 +632,13 @@ export class SupportIssueService {
               sub
                 .select('m2.author')
                 .from(SupportMessage, 'm2')
-                .where('m2.issueId = m.issueId')
+                .where('m2."issueId" = m."issueId"')
                 .orderBy('m2.id', 'DESC')
                 .limit(1),
             'lastAuthor',
           )
-          .where('m.issueId IN (:...ids)', { ids: chunk })
-          .groupBy('m.issueId')
+          .where('m."issueId" IN (:...ids)', { ids: chunk })
+          .groupBy('m."issueId"')
           .getRawMany(),
       1000,
     );
@@ -460,7 +684,7 @@ export class SupportIssueService {
     return SupportIssueDtoMapper.mapSupportIssue(issue);
   }
 
-  async getIssueData(id: number, role: UserRole): Promise<SupportIssueInternalDataDto> {
+  async getIssueData(id: number, role: UserRole, customerIds?: number[]): Promise<SupportIssueInternalDataDto> {
     const issue = await this.supportIssueRepo.findOne({
       where: { id },
       relations: {
@@ -475,8 +699,13 @@ export class SupportIssueService {
       loadEagerRelations: false,
     });
     if (!issue) throw new NotFoundException('Support issue not found');
+    // customer scope (RealUnit): fail-closed 404 when the issue does not belong to a scoped customer (no existence leak)
+    if (customerIds && !customerIds.includes(issue.userData?.id))
+      throw new NotFoundException('Support issue not found');
 
-    return SupportIssueDtoMapper.mapSupportIssueData(issue, role);
+    // DFX Support and RealUnit tenant staff must not see the DFX AML-internal limit request
+    const hideLimitRequest = [UserRole.SUPPORT, UserRole.REALUNIT].includes(role);
+    return SupportIssueDtoMapper.mapSupportIssueData(issue, hideLimitRequest);
   }
 
   async getIssueFile(id: string, messageId: number, userDataId?: number): Promise<BlobContent> {
@@ -497,6 +726,19 @@ export class SupportIssueService {
       supportIssues,
       supportMessages: await this.messageRepo.findBy({ issue: { id: In(supportIssues.map((i) => i.id)) } }),
     };
+  }
+
+  // Resolves the owning userData id of an issue by numeric id, so a caller can enforce a membership/tenant
+  // boundary before a mutating or data call. Throws NotFound (no existence leak) when the issue or its owner is missing.
+  async getIssueUserDataId(id: number): Promise<number> {
+    const issue = await this.supportIssueRepo.findOne({
+      where: { id },
+      relations: { userData: true },
+      loadEagerRelations: false,
+    });
+    if (!issue?.userData) throw new NotFoundException('Support issue not found');
+
+    return issue.userData.id;
   }
 
   // --- HELPER METHODS --- //
@@ -542,6 +784,10 @@ export class SupportIssueService {
     return SupportIssueDtoMapper.mapSupportMessage(entity);
   }
 
+  // The issue (and related quote) UID is treated as a capability token: knowing it grants access without
+  // an account, which is required for anonymous transaction-request issues. Access by numeric id is instead
+  // scoped to the owning userData. Consumers (get/message/file/close) are therefore as sensitive as the UID —
+  // keep it secret. Read more before widening this surface.
   private getIssueSearch(id: string, userDataId?: number): FindOptionsWhere<SupportIssue> {
     if (id.startsWith(Config.prefixes.issueUidPrefix)) return { uid: id };
     if (id.startsWith(Config.prefixes.quoteUidPrefix)) return { transactionRequest: { uid: id } };

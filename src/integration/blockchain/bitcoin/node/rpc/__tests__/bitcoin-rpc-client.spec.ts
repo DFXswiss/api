@@ -8,6 +8,7 @@
 import { HttpService } from 'src/shared/services/http.service';
 import { BitcoinRpcClient } from '../bitcoin-rpc-client';
 import { BitcoinRpcConfig } from '../bitcoin-rpc-types';
+import { NodeNotReadyError } from '../node-not-ready.error';
 
 describe('BitcoinRpcClient', () => {
   let client: BitcoinRpcClient;
@@ -447,6 +448,28 @@ describe('BitcoinRpcClient', () => {
       mockHttpService.post.mockRejectedValueOnce(new Error('Connection refused'));
 
       await expect(client.getBlockCount()).rejects.toThrow('Connection refused');
+    });
+
+    it('should throw NodeNotReadyError when node is warming up (code -28, body in response)', async () => {
+      mockHttpService.post.mockResolvedValueOnce({
+        result: null,
+        error: { code: -28, message: 'Verifying blocks...' },
+        id: 'test',
+      });
+
+      const error = await client.getBlockCount().catch((e) => e);
+
+      expect(error).toBeInstanceOf(NodeNotReadyError);
+      expect(error).toMatchObject({ code: -28, message: expect.stringContaining('Verifying blocks...') });
+    });
+
+    it('should throw NodeNotReadyError when warmup arrives as an axios error response', async () => {
+      mockHttpService.post.mockRejectedValueOnce({
+        response: { status: 500, data: { result: null, error: { code: -28, message: 'Loading wallet...' } } },
+        message: 'Request failed with status code 500',
+      });
+
+      await expect(client.getBlockCount()).rejects.toBeInstanceOf(NodeNotReadyError);
     });
 
     it('should return result when no error', async () => {

@@ -1,15 +1,37 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
-import { IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsDateString, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { StringToArray } from 'src/shared/utils/dto-transforms';
 import { Department } from '../enums/department.enum';
 import { SupportIssueInternalState, SupportIssueType } from '../enums/support-issue.enum';
+
+// Values are the literal SupportIssue column names interpolated into TypeORM's orderBy,
+// hence lowercase rather than the usual PascalCase enum-value convention.
+export enum SupportIssueListOrderBy {
+  CREATED = 'created',
+  UPDATED = 'updated',
+  CLERK = 'clerk',
+  DEPARTMENT = 'department',
+  STATE = 'state',
+}
+
+// Values are the literal SQL directions TypeORM's orderBy expects, hence uppercase rather than
+// the usual PascalCase enum-value convention.
+export enum ListOrderDirection {
+  ASC = 'ASC',
+  DESC = 'DESC',
+}
 
 export class GetSupportIssueFilter {
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(({ value }) => (value == null ? value : +value))
   @IsInt()
+  // Same 22003 class as the numeric search-term id branch: `fromMessageId` is fed into
+  // `MoreThan(...)` against an int4 `support_message.id`, so a value > 2^31-1 makes Postgres
+  // 500 the whole request. Cap at int4 max.
+  @Max(2147483647)
+  @Min(0)
   fromMessageId?: number;
 }
 
@@ -33,6 +55,31 @@ export class GetSupportIssueListFilter {
   @IsOptional()
   @IsEnum(SupportIssueType)
   type?: SupportIssueType;
+
+  @ApiPropertyOptional({ description: 'Filter by handling clerk (exact match)' })
+  @IsOptional()
+  @IsString()
+  clerk?: string;
+
+  @ApiPropertyOptional({ description: 'Filter issues created on or after this date (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  createdFrom?: string;
+
+  @ApiPropertyOptional({ description: 'Filter issues created on or before this date (ISO 8601)' })
+  @IsOptional()
+  @IsDateString()
+  createdTo?: string;
+
+  @ApiPropertyOptional({ enum: SupportIssueListOrderBy, description: 'Sort field (default: created)' })
+  @IsOptional()
+  @IsEnum(SupportIssueListOrderBy)
+  orderBy?: SupportIssueListOrderBy;
+
+  @ApiPropertyOptional({ enum: ListOrderDirection, description: 'Sort direction (default: DESC)' })
+  @IsOptional()
+  @IsEnum(ListOrderDirection)
+  orderDir?: ListOrderDirection;
 
   @ApiPropertyOptional()
   @IsOptional()

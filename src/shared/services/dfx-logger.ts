@@ -1,7 +1,5 @@
 import { Logger } from '@nestjs/common';
-import { TelemetryClient } from 'applicationinsights';
-import { SeverityLevel } from 'applicationinsights/out/Declarations/Contracts';
-import * as AppInsights from 'applicationinsights';
+import { isSpanContextValid, SpanStatusCode, trace } from '@opentelemetry/api';
 
 export enum LogLevel {
   CRITICAL = 'Critical',
@@ -45,42 +43,58 @@ export class DfxLogger {
   }
 
   critical(message: string, error?: Error) {
-    this.trace(SeverityLevel.Critical, message, error);
+    this.recordOnSpan(message, error, true);
     this.logger.error(this.format(message, error));
   }
 
   error(message: string, error?: Error) {
-    this.trace(SeverityLevel.Error, message, error);
+    this.recordOnSpan(message, error, true);
     this.logger.error(this.format(message, error));
   }
 
   warn(message: string, error?: Error) {
-    this.trace(SeverityLevel.Warning, message, error);
+    this.recordOnSpan(message, error, false);
     this.logger.warn(this.format(message, error));
   }
 
   info(message: string, error?: Error) {
-    this.trace(SeverityLevel.Information, message, error);
     this.logger.log(this.format(message, error));
   }
 
   verbose(message: string, error?: Error) {
-    this.trace(SeverityLevel.Verbose, message, error);
     this.logger.verbose(this.format(message, error));
   }
 
   // --- HELPER METHODS --- //
 
-  private trace(severity: SeverityLevel, message: string, error?: Error) {
-    const trace = (this.context ? `[${this.context}] ` : '') + this.format(message, error);
-    this.client?.trackTrace({ severity, message: trace });
+  // Attach the log to the active trace span so warnings/errors surface on the
+  // request's trace and exceptions are correlated to it — the OpenTelemetry
+  // equivalent of App Insights' exception/trace tracking. No-op when there is
+  // no active span (background jobs, startup).
+  private recordOnSpan(message: string, error: Error | undefined, isError: boolean) {
+    const span = trace.getActiveSpan();
+    if (!span) return;
+
+    if (error) {
+      span.recordException(error);
+    } else {
+      span.addEvent(message);
+    }
+
+    if (isError) span.setStatus({ code: SpanStatusCode.ERROR, message });
   }
 
   private format(message: string, error?: Error): string {
-    return message + (error ? ` ${error?.stack}` : '');
+    return message + (error ? ` ${error?.stack}` : '') + this.traceContext();
   }
 
-  private get client(): TelemetryClient | undefined {
-    return AppInsights.defaultClient;
+  // Append the active trace id so Grafana can link a Loki log line straight to
+  // its Tempo trace (the Loki data source matches `trace_id=<hex>`).
+  private traceContext(): string {
+    const span = trace.getActiveSpan();
+    if (!span) return '';
+
+    const ctx = span.spanContext();
+    return isSpanContextValid(ctx) ? ` trace_id=${ctx.traceId} span_id=${ctx.spanId}` : '';
   }
 }

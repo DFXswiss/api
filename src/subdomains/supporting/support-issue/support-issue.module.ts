@@ -20,6 +20,7 @@ import { SupportMessageRepository } from './repositories/support-message.reposit
 import { LimitRequestNotificationService } from './services/limit-request-notification.service';
 import { LimitRequestService } from './services/limit-request.service';
 import { SupportDocumentService } from './services/support-document.service';
+import { SupportEscalationService } from './services/support-escalation.service';
 import { SupportIssueJobService } from './services/support-issue-job.service';
 import { SupportIssueNotificationService } from './services/support-issue-notification.service';
 import { SupportIssueService } from './services/support-issue.service';
@@ -56,6 +57,7 @@ import { SupportIssueController } from './support-issue.controller';
     SupportLogRepository,
     SupportLogService,
     SupportIssueJobService,
+    SupportEscalationService,
   ],
   exports: [SupportIssueService, LimitRequestService, SupportLogService],
 })
