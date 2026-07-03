@@ -7,7 +7,6 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { KycFileDataDto } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
-import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import {
   RealUnitCustomerDetailDto,
   RealUnitCustomerListDto,
@@ -28,7 +27,7 @@ export class RealUnitComplianceController {
   @Get('customers')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async searchCustomers(@Query() query: RealUnitCustomerSearchQuery): Promise<RealUnitCustomerListDto[]> {
     return this.complianceService.searchCustomers(query.key);
   }
@@ -36,7 +35,7 @@ export class RealUnitComplianceController {
   @Get('customers/:id')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getCustomer(@Param('id') id: string): Promise<RealUnitCustomerDetailDto> {
     return this.complianceService.getReducedDossier(+id);
   }
@@ -44,7 +43,7 @@ export class RealUnitComplianceController {
   @Get('customers/:id/files')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getCustomerFiles(@Param('id') id: string): Promise<RealUnitKycFileDto[]> {
     return this.complianceService.listCustomerFiles(+id);
   }
@@ -52,7 +51,7 @@ export class RealUnitComplianceController {
   @Get('customers/:id/files/:uid')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async downloadCustomerFile(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
