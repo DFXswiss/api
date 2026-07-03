@@ -252,6 +252,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'updated',
       'absoluteFeeAmount',
       'amlCheck',
+      'amlPostProcessed',
       'amlReason',
       'amountInChf',
       'amountInEur',
@@ -347,6 +348,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'updated',
       'absoluteFeeAmount',
       'amlCheck',
+      'amlPostProcessed',
       'amlReason',
       'amountInChf',
       'amountInEur',
@@ -689,7 +691,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     // No ip / country / address — IP-tracking PII. No `url` — captured value is `req.url`
     // with its full query string, which embeds OAuth `?code=…` tokens (e.g.
     // `/v1/auth/alby/redirect/{id}?code=…`) and other short-lived secrets.
-    columns: ['id', 'created', 'updated', 'result', 'userDataId', 'userId', 'walletType'],
+    columns: ['id', 'created', 'updated', 'result', 'userDataId', 'userId', 'walletName', 'walletType'],
   },
   kyc_file: {
     // No name / uid (uid is a secret identifier).
@@ -1053,6 +1055,22 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   sanction: {
     columns: ['id', 'created', 'updated', 'address', 'currency'],
   },
+  scorechain_screening: {
+    // No `riskIndicators` / `rawResponse` (free-form JSON payloads from the provider).
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'analysisType',
+      'blockchain',
+      'context',
+      'objectId',
+      'objectType',
+      'riskScore',
+      'severity',
+      'signatureValid',
+    ],
+  },
   sell: {
     // No iban.
     columns: [
@@ -1407,9 +1425,12 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'recallAgreementAccepted',
       'riskStatus',
       'sellVolume',
+      'serviceProviders',
       'status',
       'totalCustodyBalanceChfAuditPeriod',
       'totalVolumeChfAuditPeriod',
+      'totpBlockedUntil',
+      'totpFailedAttempts',
       'tradeApprovalDate',
       'walletId',
     ],
