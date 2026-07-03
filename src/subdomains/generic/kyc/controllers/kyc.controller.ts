@@ -25,11 +25,13 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
 import { Request } from 'express';
 import { GetConfig } from 'src/config/config';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { OptionalJwtAuthGuard } from 'src/shared/auth/optional.guard';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
@@ -105,6 +107,8 @@ export class KycController {
   }
 
   @Post('2fa/verify')
+  @UseGuards(RateLimitGuard)
+  @Throttle(10, 60)
   @ApiCreatedResponse({ description: '2FA successful' })
   @ApiUnauthorizedResponse(MergedResponse)
   @ApiForbiddenResponse({ description: 'Invalid or expired 2FA token' })

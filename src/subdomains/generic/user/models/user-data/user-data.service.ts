@@ -647,6 +647,11 @@ export class UserDataService {
     await this.userDataRepo.update(user.id, { totpSecret: secret });
   }
 
+  async setTotpLockout(user: UserData, failedAttempts: number, blockedUntil: Date | null): Promise<void> {
+    await this.userDataRepo.update(user.id, { totpFailedAttempts: failedAttempts, totpBlockedUntil: blockedUntil });
+    Object.assign(user, { totpFailedAttempts: failedAttempts, totpBlockedUntil: blockedUntil });
+  }
+
   async updatePaymentLinksConfig(user: UserData, dto: Partial<PaymentLinkConfig>): Promise<void> {
     const mergedConfig = { ...JSON.parse(user.paymentLinksConfig || '{}'), ...dto };
     const customConfig = Util.removeDefaultFields(mergedConfig, DefaultPaymentLinkConfig);

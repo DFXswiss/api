@@ -108,6 +108,10 @@ export class SettingService {
     return this.getObj<string[]>('jwtAddressDenylist', []);
   }
 
+  async getDeniedJwtAccounts(): Promise<number[]> {
+    return this.getObj<string[]>('jwtAccountDenylist', []).then((list) => list.map(Number));
+  }
+
   async getCustomBalanceSettings(): Promise<{ addresses: string[]; assets: string[] }> {
     const [addresses, assets] = await Promise.all([
       this.getObjCached<string[]>('customBalanceAddresses', []),

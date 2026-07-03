@@ -126,6 +126,19 @@ export function IsJwtAddressDenied(address: string | undefined): boolean {
   return !!address && DeniedJwtAddresses.has(address.toLowerCase());
 }
 
+// JWT account denylist — the addressless-token counterpart of `DeniedJwtAddresses`. Account/mail/staff
+// JWTs minted by `generateAccountToken` carry no `address`, so the address denylist cannot revoke them
+// at all. A compromised account (user data) id can be added to the `jwtAccountDenylist` setting (JSON
+// number[]) and active addressless JWTs for that account are rejected within one refresh interval
+// (~30s) — no JWT-secret rotation, no API redeploy. Same fail-open-on-empty-Set semantics as the
+// address denylist: lookup is sync (in-memory Set) to keep JwtStrategy.validate off the DB hot path,
+// refreshed by ProcessService alongside the address denylist.
+let DeniedJwtAccounts: Set<number> = new Set();
+
+export function IsJwtAccountDenied(account: number | undefined): boolean {
+  return account != null && DeniedJwtAccounts.has(account);
+}
+
 @Injectable()
 export class ProcessService implements OnModuleInit {
   private safetyModeInactive = true;
@@ -134,9 +147,11 @@ export class ProcessService implements OnModuleInit {
 
   async onModuleInit(): Promise<void> {
     void this.resyncDisabledProcesses();
-    // await so the JWT denylist is primed before HTTP starts — `IsJwtAddressDenied` defaults to
-    // false on an empty Set (fail-open), unlike DisabledProcess which is fail-closed by sentinel
+    // await so the JWT denylists are primed before HTTP starts — `IsJwtAddressDenied` /
+    // `IsJwtAccountDenied` default to false on an empty Set (fail-open), unlike DisabledProcess which
+    // is fail-closed by sentinel
     await this.resyncDeniedJwtAddresses();
+    await this.resyncDeniedJwtAccounts();
   }
 
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
@@ -153,6 +168,12 @@ export class ProcessService implements OnModuleInit {
   async resyncDeniedJwtAddresses(): Promise<void> {
     const list = await this.settingService.getDeniedJwtAddresses();
     DeniedJwtAddresses = new Set(list.map((a) => a.toLowerCase()));
+  }
+
+  @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
+  async resyncDeniedJwtAccounts(): Promise<void> {
+    const list = await this.settingService.getDeniedJwtAccounts();
+    DeniedJwtAccounts = new Set(list);
   }
 
   public async setSafetyModeActive(active: boolean): Promise<void> {
