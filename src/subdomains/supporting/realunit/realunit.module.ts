@@ -16,11 +16,11 @@ import { BankModule } from '../bank/bank.module';
 import { PaymentModule } from '../payment/payment.module';
 import { TransactionModule } from '../payment/transaction.module';
 import { PricingModule } from '../pricing/pricing.module';
-import { RealunitSupportController } from './controllers/realunit-support.controller';
+import { RealUnitSupportController } from './controllers/realunit-support.controller';
 import { RealUnitController } from './controllers/realunit.controller';
 import { RealUnitDevService } from './realunit-dev.service';
 import { RealUnitJobService } from './realunit-job.service';
-import { RealunitScopeService } from './realunit-scope.service';
+import { RealUnitScopeService } from './realunit-scope.service';
 import { RealUnitService } from './realunit.service';
 
 @Module({
@@ -43,8 +43,8 @@ import { RealUnitService } from './realunit.service';
     FaucetRequestModule,
     SupportIssueModule,
   ],
-  controllers: [RealUnitController, RealunitSupportController],
-  providers: [RealUnitService, RealUnitDevService, RealUnitJobService, RealunitScopeService],
-  exports: [RealUnitService, RealunitScopeService],
+  controllers: [RealUnitController, RealUnitSupportController],
+  providers: [RealUnitService, RealUnitDevService, RealUnitJobService, RealUnitScopeService],
+  exports: [RealUnitService, RealUnitScopeService],
 })
 export class RealUnitModule {}

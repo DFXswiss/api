@@ -71,8 +71,8 @@ export class SupportIssueService {
     return clerks.length > 0 ? clerks : ['Support'];
   }
 
-  async getRealunitSupportClerks(): Promise<string[]> {
-    const clerks = await this.settingService.getObj<string[]>('realunitSupportClerks', []);
+  async getRealUnitSupportClerks(): Promise<string[]> {
+    const clerks = await this.settingService.getObj<string[]>('realUnitSupportClerks', []);
     return clerks.length > 0 ? clerks : ['Support'];
   }
 

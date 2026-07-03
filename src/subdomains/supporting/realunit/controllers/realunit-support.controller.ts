@@ -20,7 +20,7 @@ import { UpdateSupportIssueDto } from 'src/subdomains/supporting/support-issue/d
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import { SupportIssueInternalState } from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
-import { RealunitScopeService } from '../realunit-scope.service';
+import { RealUnitScopeService } from '../realunit-scope.service';
 
 // RealUnit tenant support dashboard: lets RealUnit staff (UserRole.REALUNIT) manage ONLY their own customers'
 // support issues. Every endpoint is strictly customer-scoped and fail-closed; the DFX RoleGuard is never widened
@@ -28,10 +28,10 @@ import { RealunitScopeService } from '../realunit-scope.service';
 // enforce membership before any data or mutation (fail-closed 404 for a foreign or unknown id).
 @ApiTags('Realunit')
 @Controller('realunit/support')
-export class RealunitSupportController {
+export class RealUnitSupportController {
   constructor(
     private readonly supportIssueService: SupportIssueService,
-    private readonly scopeService: RealunitScopeService,
+    private readonly scopeService: RealUnitScopeService,
   ) {}
 
   @Get('list')
@@ -83,8 +83,8 @@ export class RealunitSupportController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard(), TfaGuard)
-  async getRealunitSupportClerks(): Promise<string[]> {
-    return this.supportIssueService.getRealunitSupportClerks();
+  async getRealUnitSupportClerks(): Promise<string[]> {
+    return this.supportIssueService.getRealUnitSupportClerks();
   }
 
   @Get(':id/data')

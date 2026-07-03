@@ -47,7 +47,7 @@ import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.se
 import { MailContext } from 'src/subdomains/supporting/notification/enums';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
-import { Equal, FindOptionsRelations, In, IsNull, Like, MoreThan, Not, Raw } from 'typeorm';
+import { Equal, FindOptionsRelations, In, IsNull, MoreThan, Not, Raw } from 'typeorm';
 import { WebhookService } from '../../services/webhook/webhook.service';
 import { MergeReason } from '../account-merge/account-merge.entity';
 import { AccountMergeService } from '../account-merge/account-merge.service';
@@ -160,9 +160,14 @@ export class UserDataService {
   }
 
   async getUserDataIdsByServiceProvider(provider: ServiceProvider): Promise<number[]> {
+    // exact token match on the semicolon list (mirrors the backfill migration and the UserData.isRealUnitCustomer
+    // getter), so the scope source and the per-issue membership check share one definition and cannot diverge
     return this.userDataRepo
-      .find({ where: { serviceProviders: Like(`%${provider}%`) }, select: { id: true } })
-      .then((list) => list.map((u) => u.id));
+      .createQueryBuilder('userData')
+      .select('userData.id', 'id')
+      .where(`';' || userData.serviceProviders || ';' LIKE :pattern`, { pattern: `%;${provider};%` })
+      .getRawMany<{ id: number }>()
+      .then((rows) => rows.map((r) => r.id));
   }
 
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {

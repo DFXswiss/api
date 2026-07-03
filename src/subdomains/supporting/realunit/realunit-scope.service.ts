@@ -6,7 +6,7 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 // unreliable User.wallet). Everything is fail-closed: an empty scope yields an empty result, never unrestricted,
 // and a non-member id is treated as a missing resource (404) so tenant boundaries never leak existence.
 @Injectable()
-export class RealunitScopeService {
+export class RealUnitScopeService {
   constructor(private readonly userDataService: UserDataService) {}
 
   async getCustomerIds(): Promise<number[]> {

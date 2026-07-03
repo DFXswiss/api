@@ -3,10 +3,10 @@ import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { ServiceProvider } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
-import { RealunitScopeService } from 'src/subdomains/supporting/realunit/realunit-scope.service';
+import { RealUnitScopeService } from 'src/subdomains/supporting/realunit/realunit-scope.service';
 
-describe('RealunitScopeService', () => {
-  let service: RealunitScopeService;
+describe('RealUnitScopeService', () => {
+  let service: RealUnitScopeService;
   let userDataService: DeepMocked<UserDataService>;
 
   const realUnitCustomer = Object.assign(new UserData(), { id: 1, serviceProviders: ServiceProvider.REALUNIT });
@@ -14,7 +14,7 @@ describe('RealunitScopeService', () => {
 
   beforeEach(() => {
     userDataService = createMock<UserDataService>();
-    service = new RealunitScopeService(userDataService);
+    service = new RealUnitScopeService(userDataService);
   });
 
   describe('isCustomer', () => {
