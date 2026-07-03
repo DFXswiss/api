@@ -1,10 +1,9 @@
 import { NextFunction, Request, RequestHandler, Response } from 'express';
 import { DfxLogger } from '../services/dfx-logger';
+import { getClient, isRealUnitRequest } from '../utils/request-client';
 
 const logger = new DfxLogger('RealUnitTrace');
 
-const CLIENT_HEADER = 'x-client';
-const REALUNIT_CLIENT = /realunit-app/i;
 const REALUNIT_PATH = /^\/v\d+\/realunit\//i;
 
 // Object keys whose value is fully replaced with `***`: credentials, personal
@@ -110,11 +109,11 @@ function format(value: unknown): string {
  */
 export function apiTraceMiddleware(): RequestHandler {
   return (req: Request, res: Response, next: NextFunction) => {
-    const client = req.headers[CLIENT_HEADER];
-    const clientStr = Array.isArray(client) ? client[0] : (client ?? '');
+    const clientStr = getClient(req);
 
+    // Same gate as develop's inline client/path test, via the shared (anchored) helpers.
     const isRealUnitPath = REALUNIT_PATH.test(req.originalUrl);
-    if (!REALUNIT_CLIENT.test(clientStr) && !isRealUnitPath) return next();
+    if (!isRealUnitRequest(req)) return next();
 
     const start = Date.now();
     let responseBody: unknown;

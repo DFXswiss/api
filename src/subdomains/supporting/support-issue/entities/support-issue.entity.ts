@@ -1,6 +1,7 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { LimitRequest } from 'src/subdomains/supporting/support-issue/entities/limit-request.entity';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { TransactionRequest } from '../../payment/entities/transaction-request.entity';
@@ -50,6 +51,13 @@ export class SupportIssue extends IEntity {
   @Index()
   @ManyToOne(() => UserData, { nullable: false, eager: true })
   userData: UserData;
+
+  // Wallet/app the issue was opened from, resolved exactly from the inbound X-Client header at creation
+  // (NOT the user's persisted wallet) - drives mail branding. NOT NULL: every creation path must attribute
+  // an exact source or fail; legacy rows were backfilled to the DFX default wallet by the migration.
+  @Index()
+  @ManyToOne(() => Wallet, { nullable: false, eager: true })
+  wallet: Wallet;
 
   @OneToOne(() => LimitRequest, { nullable: true })
   @JoinColumn()

@@ -635,6 +635,12 @@ export class Configuration {
       noReplyMail: process.env.NOREPLY_MAIL || 'noreply@dfx.swiss',
     },
     wallet: {
+      // Explicit entry for the DFX house brand (name of the default wallet, Config.defaultWalletId), so a
+      // positively DFX-attributed mail is a first-class mapping and not the absence of every other brand.
+      // Values mirror the previous implicit defaults exactly (default transport, user-v2 template).
+      DFX: {
+        template: 'user-v2',
+      },
       onchainlabs: {
         template: 'onChainLabs',
       },

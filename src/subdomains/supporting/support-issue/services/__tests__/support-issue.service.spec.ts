@@ -5,6 +5,7 @@ import { validate } from 'class-validator';
 import * as ConfigModule from 'src/config/config';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { WalletService } from 'src/subdomains/generic/user/models/wallet/wallet.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -76,6 +77,7 @@ describe('SupportIssueService.getSupportIssueList', () => {
       createMock<SupportLogService>(),
       createMock<BankDataService>(),
       createMock<SettingService>(),
+      createMock<WalletService>(),
     );
   });
 
@@ -275,6 +277,7 @@ describe('SupportIssueService.closeIssue', () => {
       supportLogService,
       createMock<BankDataService>(),
       createMock<SettingService>(),
+      createMock<WalletService>(),
     );
   });
 
@@ -385,6 +388,7 @@ describe('SupportIssueService.getSupportIssueStatistics', () => {
       createMock<SupportLogService>(),
       createMock<BankDataService>(),
       createMock<SettingService>(),
+      createMock<WalletService>(),
     );
   });
 
@@ -527,6 +531,7 @@ describe('SupportIssueService no-department-access guards', () => {
       createMock<SupportLogService>(),
       createMock<BankDataService>(),
       createMock<SettingService>(),
+      createMock<WalletService>(),
     );
   });
 

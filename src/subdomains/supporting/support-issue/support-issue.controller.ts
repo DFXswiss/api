@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Headers, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBadRequestResponse, ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
@@ -10,6 +10,7 @@ import { RealIP } from 'src/shared/auth/real-ip.decorator';
 import { hasRoleAccess, RoleGuard } from 'src/shared/auth/role.guard';
 import { isUserActive, UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { CLIENT_HEADER } from 'src/shared/utils/request-client';
 import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { TfaLevel, TfaService } from 'src/subdomains/generic/kyc/services/tfa.service';
 import { BindEscalationChatDto } from './dto/bind-escalation-chat.dto';
@@ -52,6 +53,7 @@ export class SupportIssueController {
   async createIssue(
     @GetJwt() jwt: JwtPayload | undefined,
     @Body() dto: CreateSupportIssueDto,
+    @Headers(CLIENT_HEADER) client?: string,
   ): Promise<SupportIssueDto> {
     const input: CreateSupportIssueDto = {
       ...dto,
@@ -62,8 +64,8 @@ export class SupportIssueController {
           : Department.SUPPORT,
     };
     return jwt?.account
-      ? this.supportIssueService.createIssue(jwt.account, input)
-      : this.supportIssueService.createTransactionRequestIssue(input);
+      ? this.supportIssueService.createIssue(jwt.account, input, client)
+      : this.supportIssueService.createTransactionRequestIssue(input, client);
   }
 
   @Post('support')
@@ -79,7 +81,10 @@ export class SupportIssueController {
       ...dto,
       department: jwt.role === UserRole.COMPLIANCE ? Department.COMPLIANCE : Department.SUPPORT,
     };
-    return this.supportIssueService.createIssue(+userDataId, input);
+    // Support-created tickets originate from the DFX support tool (part of the DFX services app) and are
+    // therefore exactly DFX-attributed. The dedicated service method encodes that invariant (no client
+    // param to forward), so a customer client header can never rebrand a staff-created ticket.
+    return this.supportIssueService.createIssueBySupport(+userDataId, input);
   }
 
   @Get()
