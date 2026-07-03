@@ -103,8 +103,7 @@ export class AmlService {
         (!entity.cryptoInput || entity.cryptoInput.txType !== PayInType.PAYMENT) &&
         last30dVolume > Config.tradingLimits.monthlyDefaultWoKyc
       ) {
-        const kycFileId = (await this.userDataService.getLastKycFileId()) + 1;
-        await this.userDataService.updateUserDataInternal(entity.userData, { kycFileId, amlListAddedDate: new Date() });
+        entity.userData = await this.userDataService.assignNextKycFileId(entity.userData);
       }
     }
   }

@@ -204,6 +204,7 @@ export class UserData extends IEntity {
   @OneToMany(() => KycFile, (kycFile) => kycFile.userData)
   kycFiles?: KycFile[];
 
+  @Index({ unique: true, where: '"kycFileId" IS NOT NULL' })
   @Column({ type: 'integer', nullable: true })
   kycFileId?: number;
 

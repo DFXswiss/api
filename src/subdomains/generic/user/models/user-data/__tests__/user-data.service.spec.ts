@@ -1,7 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException } from '@nestjs/common';
-import { FindOperator } from 'typeorm';
+import { FindOperator, IsNull, Not } from 'typeorm';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -102,6 +102,61 @@ describe('UserDataService', () => {
       await expect(service.checkMail(userData, 'samuel.kullmann@startmail.com')).rejects.toBeInstanceOf(
         ConflictException,
       );
+    });
+  });
+
+  describe('assignNextKycFileId', () => {
+    it('starts at 1 when no user has a kycFileId yet', async () => {
+      const userData = Object.assign(new UserData(), { id: 1 });
+
+      userDataRepo.findOne.mockResolvedValue(null); // max lookup: table empty
+      userDataRepo.findOneBy.mockResolvedValue(null); // uniqueness check: no conflict
+      userDataRepo.update.mockResolvedValue(undefined);
+
+      const result = await service.assignNextKycFileId(userData);
+
+      expect(result.kycFileId).toBe(1);
+    });
+
+    it('assigns the real max + 1 (excluding nulls, not just the last-inserted row)', async () => {
+      const userData = Object.assign(new UserData(), { id: 1 });
+
+      userDataRepo.findOne.mockResolvedValue(Object.assign(new UserData(), { kycFileId: 6076 }));
+      userDataRepo.findOneBy.mockResolvedValue(null);
+      userDataRepo.update.mockResolvedValue(undefined);
+
+      const result = await service.assignNextKycFileId(userData);
+
+      expect(userDataRepo.findOne.mock.calls[0][0].where).toEqual({ kycFileId: Not(IsNull()) });
+      expect(result.kycFileId).toBe(6077);
+    });
+
+    it('retries with a fresh max when it loses a concurrent assignment race', async () => {
+      const userData = Object.assign(new UserData(), { id: 1 });
+      const winner = Object.assign(new UserData(), { id: 2, kycFileId: 6077 });
+
+      userDataRepo.findOne
+        .mockResolvedValueOnce(Object.assign(new UserData(), { kycFileId: 6076 })) // attempt 0: stale max
+        .mockResolvedValueOnce(Object.assign(new UserData(), { kycFileId: 6077 })); // attempt 1: winner's row now visible
+      userDataRepo.findOneBy
+        .mockResolvedValueOnce(winner) // attempt 0: 6077 already taken by the concurrent winner
+        .mockResolvedValueOnce(null); // attempt 1: 6078 is free
+      userDataRepo.update.mockResolvedValue(undefined);
+
+      const result = await service.assignNextKycFileId(userData);
+
+      expect(result.kycFileId).toBe(6078);
+      expect(userDataRepo.findOne).toHaveBeenCalledTimes(2);
+    });
+
+    it('gives up and rethrows after repeated concurrent conflicts', async () => {
+      const userData = Object.assign(new UserData(), { id: 1 });
+
+      userDataRepo.findOne.mockResolvedValue(Object.assign(new UserData(), { kycFileId: 6076 }));
+      userDataRepo.findOneBy.mockResolvedValue(Object.assign(new UserData(), { id: 2 })); // always conflicts
+
+      await expect(service.assignNextKycFileId(userData)).rejects.toBeInstanceOf(ConflictException);
+      expect(userDataRepo.findOne).toHaveBeenCalledTimes(5); // initial attempt + 4 retries
     });
   });
 
