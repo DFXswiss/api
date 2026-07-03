@@ -227,5 +227,51 @@ describe('ExchangeTxService', () => {
 
       expect(exchangeTxRepo.save).toHaveBeenCalledTimes(1);
     });
+
+    it('isolates a failing record (e.g. unique-index race) and continues with the rest of the run', async () => {
+      const ts = new Date();
+      const snapshotA = createDepositTx({
+        TransactionID: 'tx-race-a',
+        TxHash: 'hash-race-a',
+        Timestamp: ts.toISOString(),
+        TransactTime: ts.toISOString(),
+      });
+      const snapshotB = createDepositTx({
+        TransactionID: 'tx-race-b',
+        TxHash: 'hash-race-b',
+        Timestamp: ts.toISOString(),
+        TransactTime: ts.toISOString(),
+      });
+      (scryptService as unknown as { getAllTransactions: jest.Mock }).getAllTransactions.mockResolvedValue([
+        snapshotA,
+        snapshotB,
+      ]);
+
+      const existingFor = (id: number, externalId: string) =>
+        ({
+          id,
+          exchange: ExchangeName.SCRYPT,
+          type: ExchangeTxType.DEPOSIT,
+          externalId,
+          externalUpdated: new Date(ts), // equal timestamp → guard does not skip
+          amount: 100.5,
+          amountChf: 100.5, // already priced → no pricing calls needed
+          status: 'ok',
+        }) as ExchangeTx;
+      jest
+        .spyOn(exchangeTxRepo, 'findOneBy')
+        .mockResolvedValueOnce(existingFor(11, 'tx-race-a'))
+        .mockResolvedValueOnce(existingFor(12, 'tx-race-b'));
+
+      // first save loses the insert race (unique index), second one succeeds
+      jest
+        .spyOn(exchangeTxRepo, 'save')
+        .mockRejectedValueOnce(new Error('unique constraint'))
+        .mockResolvedValueOnce({} as ExchangeTx);
+
+      await expect(service.syncExchanges(syncFrom, ExchangeName.SCRYPT)).resolves.toBeUndefined();
+
+      expect(exchangeTxRepo.save).toHaveBeenCalledTimes(2);
+    });
   });
 });

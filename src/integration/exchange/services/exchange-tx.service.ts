@@ -110,91 +110,100 @@ export class ExchangeTxService implements OnModuleInit {
     transactions.sort((a, b) => a.externalCreated.getTime() - b.externalCreated.getTime());
 
     for (const transaction of transactions) {
-      let entity = await this.exchangeTxRepo.findOneBy({
-        exchange: transaction.exchange,
-        externalId: transaction.externalId,
-        type: transaction.type,
-      });
+      try {
+        let entity = await this.exchangeTxRepo.findOneBy({
+          exchange: transaction.exchange,
+          externalId: transaction.externalId,
+          type: transaction.type,
+        });
 
-      // the run reads the map once at start and saves for minutes — do not let that stale
-      // snapshot overwrite rows the event-driven path has already updated
-      if (
-        entity?.externalUpdated &&
-        transaction.externalUpdated &&
-        entity.externalUpdated > transaction.externalUpdated
-      )
-        continue;
+        // the run reads the map once at start and saves for minutes — do not let that stale
+        // snapshot overwrite rows the event-driven path has already updated
+        if (
+          entity?.externalUpdated &&
+          transaction.externalUpdated &&
+          entity.externalUpdated > transaction.externalUpdated
+        )
+          continue;
 
-      // Preserve calculated spread fee for Scrypt (DTO's feeAmount=0 would overwrite it)
-      const preservedSpreadFee =
-        entity?.exchange === ExchangeName.SCRYPT && entity.feeAmountChf != null
-          ? { feeAmount: entity.feeAmount, feeCurrency: entity.feeCurrency, feeAmountChf: entity.feeAmountChf }
-          : undefined;
+        // Preserve calculated spread fee for Scrypt (DTO's feeAmount=0 would overwrite it)
+        const preservedSpreadFee =
+          entity?.exchange === ExchangeName.SCRYPT && entity.feeAmountChf != null
+            ? { feeAmount: entity.feeAmount, feeCurrency: entity.feeCurrency, feeAmountChf: entity.feeAmountChf }
+            : undefined;
 
-      entity = entity ? Object.assign(entity, transaction) : this.exchangeTxRepo.create(transaction);
+        entity = entity ? Object.assign(entity, transaction) : this.exchangeTxRepo.create(transaction);
 
-      if (preservedSpreadFee) {
-        entity.feeAmount = preservedSpreadFee.feeAmount;
-        entity.feeCurrency = preservedSpreadFee.feeCurrency;
-        entity.feeAmountChf = preservedSpreadFee.feeAmountChf;
-      }
-
-      // Calculate spread fee for new Scrypt trades
-      if (
-        entity.exchange === ExchangeName.SCRYPT &&
-        entity.type === ExchangeTxType.TRADE &&
-        entity.price &&
-        entity.amount &&
-        entity.feeAmountChf == null
-      ) {
-        try {
-          await this.calculateSpreadFee(entity);
-        } catch (e) {
-          this.logger.warn(`Failed to calculate spread fee for Scrypt trade ${entity.externalId}:`, e);
+        if (preservedSpreadFee) {
+          entity.feeAmount = preservedSpreadFee.feeAmount;
+          entity.feeCurrency = preservedSpreadFee.feeCurrency;
+          entity.feeAmountChf = preservedSpreadFee.feeAmountChf;
         }
-      }
 
-      if (entity.feeAmount && !entity.feeAmountChf) {
-        if (entity.feeCurrency === 'CHF') {
-          entity.feeAmountChf = entity.feeAmount;
-        } else {
-          const feeAsset =
-            (await this.fiatService.getFiatByName(entity.feeCurrency)) ??
-            (await this.assetService.getAssetByQuery({
-              blockchain: undefined,
-              type: undefined,
-              name: entity.feeCurrency,
-            }));
-          if (!feeAsset) throw new Error(`Unknown fee currency ${entity.feeCurrency}`);
-
-          const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
-
-          entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
+        // Calculate spread fee for new Scrypt trades
+        if (
+          entity.exchange === ExchangeName.SCRYPT &&
+          entity.type === ExchangeTxType.TRADE &&
+          entity.price &&
+          entity.amount &&
+          entity.feeAmountChf == null
+        ) {
+          try {
+            await this.calculateSpreadFee(entity);
+          } catch (e) {
+            this.logger.warn(`Failed to calculate spread fee for Scrypt trade ${entity.externalId}:`, e);
+          }
         }
-      }
 
-      if (entity.amount && !entity.amountChf) {
-        const currencyName = entity.type === ExchangeTxType.TRADE ? entity.symbol.split('/')[0] : entity.currency;
+        if (entity.feeAmount && !entity.feeAmountChf) {
+          if (entity.feeCurrency === 'CHF') {
+            entity.feeAmountChf = entity.feeAmount;
+          } else {
+            const feeAsset =
+              (await this.fiatService.getFiatByName(entity.feeCurrency)) ??
+              (await this.assetService.getAssetByQuery({
+                blockchain: undefined,
+                type: undefined,
+                name: entity.feeCurrency,
+              }));
+            if (!feeAsset) throw new Error(`Unknown fee currency ${entity.feeCurrency}`);
 
-        if (currencyName === 'CHF') {
-          entity.amountChf = entity.amount;
-        } else {
-          const currency =
-            (await this.fiatService.getFiatByName(currencyName)) ??
-            (await this.assetService.getAssetByQuery({
-              blockchain: undefined,
-              type: undefined,
-              name: currencyName,
-            }));
-          if (!currency) throw new Error(`Unknown currency ${currencyName}`);
+            const price = await this.pricingService.getPrice(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
 
-          const priceChf = await this.pricingService.getPrice(currency, PriceCurrency.CHF, PriceValidity.ANY);
-
-          entity.amountChf = priceChf.convert(entity.amount, Config.defaultVolumeDecimal);
+            entity.feeAmountChf = price.convert(entity.feeAmount, Config.defaultVolumeDecimal);
+          }
         }
-      }
 
-      await this.exchangeTxRepo.save(entity);
+        if (entity.amount && !entity.amountChf) {
+          const currencyName = entity.type === ExchangeTxType.TRADE ? entity.symbol.split('/')[0] : entity.currency;
+
+          if (currencyName === 'CHF') {
+            entity.amountChf = entity.amount;
+          } else {
+            const currency =
+              (await this.fiatService.getFiatByName(currencyName)) ??
+              (await this.assetService.getAssetByQuery({
+                blockchain: undefined,
+                type: undefined,
+                name: currencyName,
+              }));
+            if (!currency) throw new Error(`Unknown currency ${currencyName}`);
+
+            const priceChf = await this.pricingService.getPrice(currency, PriceCurrency.CHF, PriceValidity.ANY);
+
+            entity.amountChf = priceChf.convert(entity.amount, Config.defaultVolumeDecimal);
+          }
+        }
+
+        await this.exchangeTxRepo.save(entity);
+      } catch (e) {
+        // one failing record (e.g. unique-index race with the event-driven Scrypt path, or a pricing
+        // failure) must not abort the rest of the run — the record is retried on the next sync
+        this.logger.warn(
+          `Failed to sync exchange tx ${transaction.exchange}/${transaction.type}/${transaction.externalId}:`,
+          e,
+        );
+      }
     }
   }
 
