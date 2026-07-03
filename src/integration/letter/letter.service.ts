@@ -33,6 +33,10 @@ interface BalanceResponse {
 export class LetterService {
   constructor(private readonly http: HttpService) {}
 
+  get isConfigured(): boolean {
+    return !!(Config.letter.url && Config.letter.auth.username && Config.letter.auth.apikey);
+  }
+
   async sendLetter(sendLetterDTO: SendLetterDto): Promise<boolean> {
     return this.http
       .post<LetterResponse>(`${Config.letter.url}/setJob`, {
@@ -52,7 +56,7 @@ export class LetterService {
   }
 
   async getBalance(): Promise<number> {
-    if (!Config.letter.url || !Config.letter.auth) return 0;
+    if (!this.isConfigured) return 0;
 
     return this.http
       .post<BalanceResponse>(`${Config.letter.url}/getBalance`, { auth: Config.letter.auth })

@@ -106,6 +106,10 @@ export class IbanService {
 
   constructor(private readonly http: HttpService) {}
 
+  get isConfigured(): boolean {
+    return !!(Config.sepaTools.auth.username && Config.sepaTools.auth.password);
+  }
+
   async getIbanInfos(iban: string): Promise<IbanDetailsDto> {
     const url = `${this.baseUrl}/validate_iban/${iban}`;
 
