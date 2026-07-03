@@ -51,6 +51,7 @@ export class BankTxReturnNotificationService {
             context: MailContext.BANK_TX_RETURN,
             input: {
               userData: entity.userData,
+              wallet: entity.wallet,
               title: `${MailTranslationKey.FIAT_CHARGEBACK}.title`,
               salutation: { key: `${MailTranslationKey.FIAT_CHARGEBACK}.salutation` },
               texts: [

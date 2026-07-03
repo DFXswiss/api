@@ -219,12 +219,16 @@ export class TfaService {
     try {
       const tag = context === MailContext.VERIFICATION_MAIL ? 'default' : 'email';
 
+      // brand by the receiving account's own wallet; explicit wallet bypasses the account-history override
+      const wallet = userData.wallet ?? (await this.userDataService.getUserData(userData.id, { wallet: true }))?.wallet;
+
       if (userData.mail)
         await this.notificationService.sendMail({
           type: MailType.USER_V2,
           context,
           input: {
             userData: userData,
+            wallet,
             title: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.title`,
             salutation: {
               key: `${MailTranslationKey.VERIFICATION_CODE}.${tag}.salutation`,

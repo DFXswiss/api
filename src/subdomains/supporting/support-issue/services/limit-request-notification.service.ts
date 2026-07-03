@@ -55,6 +55,8 @@ export class LimitRequestNotificationService {
             context: MailContext.LIMIT_REQUEST,
             input: {
               userData: entity.userData,
+              // brand by the issue source; explicit wallet bypasses the account-history override
+              wallet: entity.supportIssue.wallet,
               title: `${MailTranslationKey.LIMIT_REQUEST}.title`,
               prefix: [
                 {

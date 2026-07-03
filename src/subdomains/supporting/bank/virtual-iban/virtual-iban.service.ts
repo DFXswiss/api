@@ -92,7 +92,7 @@ export class VirtualIbanService {
   async getByIban(iban: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOneCached(iban, {
       where: { iban },
-      relations: { userData: true, bank: true, buy: true },
+      relations: { userData: { wallet: true }, bank: true, buy: true },
     });
   }
 

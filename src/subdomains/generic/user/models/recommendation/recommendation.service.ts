@@ -381,11 +381,17 @@ export class RecommendationService {
   private async sendInvitationMail(entity: Recommendation): Promise<void> {
     try {
       if (entity.recommended.mail) {
+        // brand by the receiving account's own wallet; explicit wallet bypasses the account-history override
+        const wallet =
+          entity.recommended.wallet ??
+          (await this.userDataService.getUserData(entity.recommended.id, { wallet: true }))?.wallet;
+
         await this.notificationService.sendMail({
           type: MailType.USER_V2,
           context: MailContext.RECOMMENDATION_MAIL,
           input: {
             userData: entity.recommended,
+            wallet,
             title: `${MailTranslationKey.RECOMMENDATION_MAIL}.title`,
             salutation: { key: `${MailTranslationKey.RECOMMENDATION_MAIL}.salutation` },
             texts: [
@@ -425,11 +431,17 @@ export class RecommendationService {
   private async sendPendingConfirmationMail(entity: Recommendation): Promise<void> {
     try {
       if (entity.recommender.mail) {
+        // brand by the receiving account's own wallet; explicit wallet bypasses the account-history override
+        const wallet =
+          entity.recommender.wallet ??
+          (await this.userDataService.getUserData(entity.recommender.id, { wallet: true }))?.wallet;
+
         await this.notificationService.sendMail({
           type: MailType.USER_V2,
           context: MailContext.RECOMMENDATION_CONFIRMATION,
           input: {
             userData: entity.recommender,
+            wallet,
             title: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.title`,
             salutation: { key: `${MailTranslationKey.RECOMMENDATION_CONFIRMATION}.salutation` },
             texts: [

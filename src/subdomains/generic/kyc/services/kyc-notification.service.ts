@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -11,6 +11,8 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { In, IsNull, LessThan, MoreThanOrEqual, Not } from 'typeorm';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { KycLevel, UserDataStatus } from '../../user/models/user-data/user-data.enum';
+import { UserDataService } from '../../user/models/user-data/user-data.service';
+import { Wallet } from '../../user/models/wallet/wallet.entity';
 import { WebhookService } from '../../user/services/webhook/webhook.service';
 import { KycStepName } from '../enums/kyc-step-name.enum';
 import { ReviewStatus } from '../enums/review-status.enum';
@@ -24,6 +26,7 @@ export class KycNotificationService {
     private readonly kycStepRepo: KycStepRepository,
     private readonly notificationService: NotificationService,
     private readonly webhookService: WebhookService,
+    @Inject(forwardRef(() => UserDataService)) private readonly userDataService: UserDataService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.KYC_MAIL, timeout: 1800 })
@@ -66,6 +69,7 @@ export class KycNotificationService {
         context: MailContext.KYC_REMINDER,
         input: {
           userData,
+          wallet: await this.getAccountWallet(userData),
           title: `${MailTranslationKey.KYC_REMINDER}.title`,
           salutation: { key: `${MailTranslationKey.KYC_REMINDER}.salutation` },
           texts: [
@@ -97,6 +101,7 @@ export class KycNotificationService {
           context: MailContext.KYC_FAILED,
           input: {
             userData,
+            wallet: await this.getAccountWallet(userData),
             title: `${MailTranslationKey.KYC_FAILED}.title`,
             salutation: { key: `${MailTranslationKey.KYC_FAILED}.salutation`, params: { stepName } },
             texts: [
@@ -138,6 +143,7 @@ export class KycNotificationService {
           context: MailContext.KYC_MISSING_DATA,
           input: {
             userData,
+            wallet: await this.getAccountWallet(userData),
             title: `${MailTranslationKey.KYC_MISSING_DATA}.title`,
             salutation: { key: `${MailTranslationKey.KYC_MISSING_DATA}.salutation`, params: { stepName } },
             texts: [
@@ -174,6 +180,7 @@ export class KycNotificationService {
             context: MailContext.KYC_CHANGED,
             input: {
               userData,
+              wallet: await this.getAccountWallet(userData),
               title: `${MailTranslationKey.KYC_SUCCESS}.title`,
               salutation: { key: `${MailTranslationKey.KYC_SUCCESS}.salutation` },
               texts: [
@@ -203,6 +210,7 @@ export class KycNotificationService {
           context: MailContext.KYC_PAYMENT_DATA,
           input: {
             userData,
+            wallet: await this.getAccountWallet(userData),
             title: `${MailTranslationKey.KYC_PAYMENT_DATA}.title`,
             salutation: { key: `${MailTranslationKey.KYC_PAYMENT_DATA}.salutation` },
             texts: [
@@ -219,5 +227,10 @@ export class KycNotificationService {
     } catch (e) {
       this.logger.error(`Failed to send kyc payment data mail for user data ${userData.id}:`, e);
     }
+  }
+
+  // brand by the receiving account's own wallet; explicit wallet bypasses the account-history override
+  private async getAccountWallet(userData: UserData): Promise<Wallet | undefined> {
+    return userData.wallet ?? (await this.userDataService.getUserData(userData.id, { wallet: true }))?.wallet;
   }
 }
