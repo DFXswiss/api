@@ -7,7 +7,7 @@ import {
   ScorechainObjectType,
   toScorechainBlockchain,
 } from '../../dto/scorechain.dto';
-import { ScorechainScreening } from '../../entities/scorechain-screening.entity';
+import { ScorechainScreening, ScorechainScreeningContext } from '../../entities/scorechain-screening.entity';
 import { ScorechainObjectNotFoundException } from '../../exceptions/scorechain-object-not-found.exception';
 import { ScorechainScreeningRepository } from '../../repositories/scorechain-screening.repository';
 import { ScorechainScreeningService } from '../scorechain-screening.service';
@@ -84,9 +84,9 @@ describe('ScorechainScreeningService', () => {
       expect(service.isHighRisk(result)).toBe(true); // low score = risky
     });
 
-    it('treats a no-coverage response (hasResult=false, default lowestScore=100) as high-risk, not a pass', async () => {
-      // Scorechain returns lowestScore=100 even when it has no data for the object; the gate must
-      // not read that as clean.
+    it('passes a fresh withdrawal address with no coverage (no data is not a risk signal)', async () => {
+      // Scorechain returns lowestScore=100 even when it has no data for the object. For a withdrawal
+      // to a fresh destination address, no coverage is the normal case, not a risk signal.
       scorechain.scoringAnalysis.mockResolvedValue({
         data: { id: 'x', lowestScore: 100, analysis: { assigned: { hasResult: false, result: null } } },
         signatureValid: true,
@@ -96,6 +96,18 @@ describe('ScorechainScreeningService', () => {
 
       expect(scorechain.scoringAnalysis).toHaveBeenCalled();
       expect(result.riskScore).toBeUndefined();
+      expect(result.severity).toBe('NoCoverage');
+      expect(service.isHighRisk(result)).toBe(false);
+    });
+
+    it('flags a no-coverage deposit transaction (fail-closed — an unanalysable incoming tx)', async () => {
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: { id: 'x', lowestScore: 100, analysis: { incoming: { hasResult: false, result: null } } },
+        signatureValid: true,
+      });
+
+      const result = await service.screenDepositTransaction(Blockchain.ETHEREUM, 'txhash');
+
       expect(result.severity).toBe('NoCoverage');
       expect(service.isHighRisk(result)).toBe(true);
     });
@@ -186,14 +198,14 @@ describe('ScorechainScreeningService', () => {
       new ConfigService();
     });
 
-    it('records a not-found object (404) as a NotFound verdict without throwing, treated as high-risk', async () => {
+    it('records a not-found withdrawal address as a NotFound verdict without throwing, and passes it', async () => {
       scorechain.scoringAnalysis.mockRejectedValue(new ScorechainObjectNotFoundException('/scoringAnalysis'));
 
       const result = await service.screenWithdrawalAddress(Blockchain.BITCOIN, 'bc1qfresh');
 
       expect(result.severity).toBe('NotFound');
       expect(result.signatureValid).toBe(false);
-      expect(service.isHighRisk(result)).toBe(true);
+      expect(service.isHighRisk(result)).toBe(false);
       expect(repo.save).toHaveBeenCalled();
     });
 
@@ -238,6 +250,32 @@ describe('ScorechainScreeningService', () => {
 
     it('passes a high score (safe)', () => {
       expect(service.isHighRisk(make({ signatureValid: true, riskScore: 90 }))).toBe(false);
+    });
+
+    it('passes a withdrawal to a no-coverage / not-found address (no data is not a risk signal)', () => {
+      const w = ScorechainScreeningContext.WITHDRAWAL;
+      expect(service.isHighRisk(make({ context: w, signatureValid: true, severity: 'NoCoverage' }))).toBe(false);
+      expect(service.isHighRisk(make({ context: w, signatureValid: false, severity: 'NotFound' }))).toBe(false);
+    });
+
+    it('fails a withdrawal no-coverage response closed when its signature did not verify', () => {
+      const unsigned = make({
+        context: ScorechainScreeningContext.WITHDRAWAL,
+        signatureValid: false,
+        severity: 'NoCoverage',
+      });
+      expect(service.isHighRisk(unsigned)).toBe(true);
+    });
+
+    it('still flags a withdrawal with an actual low score', () => {
+      const risky = make({ context: ScorechainScreeningContext.WITHDRAWAL, signatureValid: true, riskScore: 40 });
+      expect(service.isHighRisk(risky)).toBe(true);
+    });
+
+    it('keeps deposits fail-closed on no coverage / not found', () => {
+      const d = ScorechainScreeningContext.DEPOSIT;
+      expect(service.isHighRisk(make({ context: d, signatureValid: true, severity: 'NoCoverage' }))).toBe(true);
+      expect(service.isHighRisk(make({ context: d, signatureValid: false, severity: 'NotFound' }))).toBe(true);
     });
   });
 });

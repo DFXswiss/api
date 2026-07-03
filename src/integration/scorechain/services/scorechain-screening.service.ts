@@ -73,9 +73,25 @@ export class ScorechainScreeningService {
 
   // Advisory decision (spec §8): a screening is "high risk" → route the tx to manual review.
   // Scorechain scores run 1-100 where LOW = riskier (1=Critical … 100=No risk), so a score
-  // BELOW the configured threshold is high risk. Fail-closed: an invalid signature, a missing
-  // score, or an unscreenable chain is always treated as high risk (never a silent pass).
+  // BELOW the configured threshold is high risk. Fail-closed: an invalid signature or a missing
+  // score is treated as high risk (never a silent pass) — except for a withdrawal to an address
+  // Scorechain has no data on (see below).
   isHighRisk(screening: ScorechainScreening): boolean {
+    // A withdrawal targets the customer's destination address, which is almost always fresh (no
+    // on-chain history), so "no coverage / not found" is the expected normal case, not a risk signal —
+    // flagging it would route essentially every withdrawal to manual review. Only an actual score gates
+    // a withdrawal. Deposits stay fail-closed: an unanalysable incoming tx can mask a dirty source.
+    // NoCoverage is a signed 200 response, so trust it only if the signature verified — an unverifiable
+    // reply (missing/misparsed pinned key or a tampered response) still fails closed. NotFound is an
+    // inherently unsigned 404.
+    if (
+      screening.context === ScorechainScreeningContext.WITHDRAWAL &&
+      ((screening.severity === ScorechainNoCoverageSeverity && screening.signatureValid) ||
+        screening.severity === ScorechainNotFoundSeverity)
+    ) {
+      return false;
+    }
+
     if (!screening.signatureValid) return true;
     if (screening.riskScore == null) return true;
     return screening.riskScore < Config.scorechain.riskThreshold;
@@ -104,11 +120,12 @@ export class ScorechainScreeningService {
       });
 
       // Scorechain returns lowestScore=100 (No risk) even when it holds NO data for the object
-      // (every analysis section reports hasResult=false). A score without any backing analysis is
-      // meaningless, so treat "no coverage" as unscreenable → high risk, never as a clean pass.
+      // (every analysis section reports hasResult=false). A score without backing analysis is
+      // meaningless: record it as NoCoverage and let isHighRisk decide by context (fail-closed high
+      // risk for deposits; a pass for a fresh withdrawal address).
       if (!this.hasCoverage(data)) {
         this.logger.warn(
-          `Scorechain returned no coverage for ${params.objectType} ${params.objectId} on ${params.blockchain} — treated as high risk (not a pass)`,
+          `Scorechain returned no coverage for ${params.objectType} ${params.objectId} on ${params.blockchain}`,
         );
         return await this.save(params, { signatureValid, severity: ScorechainNoCoverageSeverity, raw: data });
       }
@@ -123,13 +140,11 @@ export class ScorechainScreeningService {
     } catch (e) {
       // Scorechain has no record of the object — e.g. a withdrawal target address that has never
       // appeared on-chain (404). This is an expected outcome, not a provider outage: record it as a
-      // NotFound verdict (fail-closed → high risk via isHighRisk) instead of throwing. Same routing
-      // (manual review), but observable as a WARN with an audit row instead of a recurring ERROR,
-      // and accounted for like the other non-scored outcomes.
+      // NotFound verdict instead of throwing. isHighRisk then decides by context (fail-closed high risk
+      // for deposits; a pass for a fresh withdrawal address). Observable as a WARN + audit row instead
+      // of a recurring ERROR, and excluded from the billable quota.
       if (e instanceof ScorechainObjectNotFoundException) {
-        this.logger.warn(
-          `Scorechain has no record of ${params.objectType} ${params.objectId} on ${params.blockchain} — treated as high risk (not a pass)`,
-        );
+        this.logger.warn(`Scorechain has no record of ${params.objectType} ${params.objectId} on ${params.blockchain}`);
         return this.save(params, { signatureValid: false, severity: ScorechainNotFoundSeverity });
       }
       throw e;
