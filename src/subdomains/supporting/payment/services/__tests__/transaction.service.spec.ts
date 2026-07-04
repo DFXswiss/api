@@ -73,8 +73,11 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
     jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
 
-    // only a non-AML field changes
-    await service.update(99, Object.assign(new UpdateTransactionDto(), { assets: 'BTC-EUR' }));
+    // Only a non-AML field changes. Pass a partial with just that field (as production does — the
+    // ValidationPipe uses exposeUnsetFields:false, so absent fields never reach updateInternal); a
+    // `new UpdateTransactionDto()` would carry every field as an own `undefined` (target es2023 defines
+    // class fields) and wipe amlCheck via updateInternal's Object.assign, which does not happen in prod.
+    await service.update(99, { assets: 'BTC-EUR' } as UpdateTransactionDto);
 
     expect(transactionAmlCheckService.create).not.toHaveBeenCalled();
   });
@@ -89,7 +92,8 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
     jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
 
-    await service.update(99, Object.assign(new UpdateTransactionDto(), { amlType: 'BuyFiat', highRisk: true }));
+    // Partial with only the fields the admin actually changed (see the note above on exposeUnsetFields).
+    await service.update(99, { amlType: 'BuyFiat', highRisk: true } as UpdateTransactionDto);
 
     expect(transactionAmlCheckService.create).not.toHaveBeenCalled();
   });
