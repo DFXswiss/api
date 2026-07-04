@@ -7,6 +7,8 @@ import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
+import { Price } from 'src/subdomains/supporting/pricing/domain/entities/price';
+import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { createCustomCryptoInput } from '../../../../../entities/__mocks__/crypto-input.entity.mock';
 import { CryptoInput, PayInAction, PayInStatus } from '../../../../../entities/crypto-input.entity';
 import { PayInRepository } from '../../../../../repositories/payin.repository';
@@ -344,6 +346,9 @@ describe('UTXO strategy return path (bitcoin-based)', () => {
 
     strategy = new TestBitcoinBasedStrategy(payInService, createMock<PayInRepository>());
     (strategy as any).assetService = createMock();
+    // updatePayInWithSendData prices the forward fee into CHF, so the pricing service must be mocked for the forward path to run through
+    (strategy as any).pricingService = createMock<PricingService>();
+    jest.spyOn((strategy as any).pricingService, 'getPrice').mockResolvedValue(Price.create('native', 'CHF', 1));
     jest.spyOn(strategy as any, 'getEstimatedForwardFee').mockResolvedValue(fee);
   }
 
@@ -401,6 +406,9 @@ describe('UTXO strategy return path (bitcoin-based)', () => {
 
     expect(payInService.sendTransfer).toHaveBeenCalledWith(payIn, 0.1);
     expect(payIn.returnAmount).toBeUndefined();
+    // forward path must run to completion (no swallowed pricing error): output recorded, status forwarded
+    expect(payIn.outTxId).toBe('BTC_TX');
+    expect(payIn.status).toBe(PayInStatus.FORWARDED);
   });
 });
 
@@ -611,6 +619,59 @@ describe.each(perPayInReturnStrategies)('per-pay-in strategy return path ($name)
 
     expect(strategy.sentAmounts).toEqual([2]);
     expect(payIn.returnAmount).toBeUndefined();
+  });
+});
+
+// --- ZERO LIVE-FEE GUARD (SHARED doSend: TOKEN vs COIN) --- //
+
+// FIX A: on the shared per-pay-in doSend a token return fails closed on a zero live-fee estimate,
+// while the coin variant (protected by reverse-gas / fee-from-amount) is unaffected
+describe('per-pay-in strategy zero live-fee guard', () => {
+  const zeroFee = { feeNativeAsset: 0, feeInputAsset: 0, maxFeeInputAsset: 0 };
+
+  function configure(strategy: RecordingStrategy): RecordingStrategy {
+    (strategy as any).assetService = createMock();
+    jest.spyOn(strategy as any, 'getEstimatedForwardFee').mockResolvedValue(zeroFee);
+    return strategy;
+  }
+
+  function returnPayIn(): CryptoInput {
+    return createCustomCryptoInput({
+      amount: 1,
+      chargebackAmount: 1,
+      action: PayInAction.RETURN,
+      status: PayInStatus.TO_RETURN,
+      destinationAddress: BlockchainAddress.create('dest', Blockchain.INTERNET_COMPUTER),
+    });
+  }
+
+  it('token strategy fails closed and stays TO_RETURN when the live fee estimate is zero', async () => {
+    const strategy = configure(
+      new TestIcpTokenStrategy(createMock<PayInInternetComputerService>(), createMock<PayInRepository>()),
+    );
+    const payIn = returnPayIn();
+
+    await strategy.doSend([payIn], SendType.RETURN);
+    await strategy.doSend([payIn], SendType.RETURN);
+
+    expect(strategy.sentAmounts).toHaveLength(0);
+    expect(payIn.returnAmount).toBeUndefined();
+    expect(payIn.status).toBe(PayInStatus.TO_RETURN);
+  });
+
+  it('coin strategy on the same shared doSend still returns the full amount when the live fee estimate is zero', async () => {
+    const strategy = configure(
+      new TestIcpCoinStrategy(createMock<PayInInternetComputerService>(), createMock<PayInRepository>()),
+    );
+    const payIn = returnPayIn();
+
+    await strategy.doSend([payIn], SendType.RETURN);
+    await strategy.doSend([payIn], SendType.RETURN);
+
+    // zero fee → nothing withheld → the full authorized amount is returned unchanged
+    expect(strategy.sentAmounts).toEqual([1]);
+    expect(payIn.returnAmount).toBe(1);
+    expect(payIn.status).toBe(PayInStatus.RETURNED);
   });
 });
 
