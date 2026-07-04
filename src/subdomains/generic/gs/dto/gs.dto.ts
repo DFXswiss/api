@@ -563,7 +563,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'accountIndex', 'address', 'blockchains'],
   },
   deposit_route: {
-    // Physical single table for the Buy/Sell/Swap/Staking route STI hierarchy (@ChildEntity of
+    // Physical single table for the Sell/Swap/Staking route STI hierarchy (@ChildEntity of
     // DepositRoute, discriminated by `type`). There are no physical `sell`/`swap`/`staking` tables —
     // query a subtype here with a `type` filter. No iban.
     columns: ['id', 'created', 'updated', 'active', 'type', 'volume'],
