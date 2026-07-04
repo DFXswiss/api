@@ -276,9 +276,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'chargebackCryptoTxId',
       'chargebackDate',
       'chargebackReferenceAmount',
-      // Included for AML/Scorechain forensics — holds the AmlError code list ('ScorechainHighRisk'
-      // etc.). See the header note; exposed only on the AML tables buy_crypto / buy_fiat.
-      'comment',
+      'comment', // AML error-code list (incl. 'ScorechainHighRisk') — see header note
       'cryptoRouteId',
       'highRisk',
       'inputAmount',
