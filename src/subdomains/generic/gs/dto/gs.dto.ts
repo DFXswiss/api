@@ -341,6 +341,10 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     ],
   },
   buy_fiat: {
+    // No `status` — buy_fiat has no physical `status` column (unlike buy_crypto). Its
+    // transaction state is computed in the history mapper (getTransactionStateDetails), never
+    // stored, so listing `status` here made /gs/debug emit SQL that errors ("Query execution
+    // failed") against a non-existent column. The stored, queryable status is `amlCheck`.
     columns: [
       'id',
       'created',
@@ -394,7 +398,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'refFactor',
       'refProvision',
       'sellId',
-      'status',
       'totalFeeAmount',
       'totalFeeAmountChf',
       'usedPartnerRef',
