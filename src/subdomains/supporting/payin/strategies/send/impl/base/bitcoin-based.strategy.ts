@@ -1,7 +1,9 @@
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
+import { Util } from 'src/shared/utils/util';
 import { PayInBitcoinBasedService } from 'src/subdomains/supporting/payin/services/base/payin-bitcoin-based.service';
 import { FeeLimitExceededException } from 'src/subdomains/supporting/payment/exceptions/fee-limit-exceeded.exception';
 import { CryptoInput, PayInConfirmationType } from '../../../../entities/crypto-input.entity';
@@ -50,9 +52,38 @@ export abstract class BitcoinBasedStrategy extends SendStrategy {
           payIn.destinationAddress.address,
         );
 
-        CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
+        let amount: number;
 
-        const { outTxId, feeAmount } = await this.payInService.sendTransfer(payIn);
+        if (type === SendType.RETURN) {
+          // Bitcoin/Firo are fee-from-output: the client deducts the single network fee from the output.
+          // Cap at the authorized amount WITHOUT pre-deducting the fee here, so the fee is only taken once (by the client).
+          amount = Math.min(payIn.chargebackAmount, payIn.amount);
+
+          // economic guard: skip when the buffered live fee estimate would consume the whole return
+          const estimatedNet = CryptoInput.calcReturnSendAmount(
+            amount,
+            payIn.chargebackAmount,
+            fee,
+            Config.blockchainReturnFeeBuffer,
+            12,
+          );
+
+          if (!CryptoInput.isReturnEconomic(estimatedNet)) {
+            this.logger.info(
+              `Uneconomic return for ${this.blockchain} input ${payIn.id}: estimated fee exceeds authorized amount`,
+            );
+            continue;
+          }
+        } else {
+          CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
+          amount = payIn.sendingAmount;
+        }
+
+        const { outTxId, feeAmount } = await this.payInService.sendTransfer(payIn, amount);
+
+        // record the real net output actually sent on-chain (input asset), after the single network fee
+        if (type === SendType.RETURN) payIn.returnAmount = Util.round(amount - feeAmount, 12);
+
         await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
 
         await this.payInRepo.save(payIn);

@@ -31,9 +31,9 @@ export class PayInMoneroService extends PayInBitcoinBasedService {
     return this.client.getTransfers(MoneroTransactionType.in, startBlockHeight);
   }
 
-  async sendTransfer(payIn: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
+  async sendTransfer(payIn: CryptoInput, amount: number): Promise<{ outTxId: string; feeAmount: number }> {
     return this.client
-      .sendTransfer(payIn.destinationAddress.address, payIn.sendingAmount)
+      .sendTransfer(payIn.destinationAddress.address, amount)
       .then((r) => ({ outTxId: r.txid, feeAmount: r.fee }));
   }
 }

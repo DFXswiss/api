@@ -66,7 +66,26 @@ export abstract class InternetComputerStrategy extends SendStrategy {
             payIn.destinationAddress.address,
           );
 
-          CryptoInput.verifyForwardFee(feeInputAsset, payIn.maxForwardFee, maxFeeInputAsset, payIn.amount);
+          if (type === SendType.RETURN) {
+            const sent = CryptoInput.calcReturnSendAmount(
+              payIn.amount,
+              payIn.chargebackAmount,
+              feeInputAsset,
+              Config.blockchainReturnFeeBuffer,
+              12,
+            );
+
+            if (!CryptoInput.isReturnEconomic(sent)) {
+              this.logger.info(
+                `Uneconomic return for ${this.blockchain} input ${payIn.id}: estimated fee exceeds authorized amount`,
+              );
+              continue;
+            }
+
+            payIn.returnAmount = sent;
+          } else {
+            CryptoInput.verifyForwardFee(feeInputAsset, payIn.maxForwardFee, maxFeeInputAsset, payIn.amount);
+          }
 
           await this.prepareSend(payIn, feeNativeAsset);
 

@@ -66,7 +66,26 @@ export abstract class EvmStrategy extends SendStrategy {
             this.getForwardAddress().address,
           );
 
-          CryptoInput.verifyForwardFee(feeInputAsset, blockchainFee, maxFeeInputAsset, totalAmount);
+          if (type === SendType.RETURN) {
+            const sent = CryptoInput.calcReturnSendAmount(
+              this.getTotalGroupAmount(payInGroup, SendType.FORWARD),
+              totalAmount,
+              feeInputAsset,
+              Config.blockchainReturnFeeBuffer,
+              12,
+            );
+
+            if (!CryptoInput.isReturnEconomic(sent)) {
+              this.logger.info(
+                `Uneconomic return for ${this.blockchain} input(s) ${this.getPayInsIdentityKey(
+                  payInGroup,
+                )}: estimated fee exceeds authorized amount`,
+              );
+              continue;
+            }
+          } else {
+            CryptoInput.verifyForwardFee(feeInputAsset, blockchainFee, maxFeeInputAsset, totalAmount);
+          }
 
           /**
            * @note

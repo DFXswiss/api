@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -45,15 +46,30 @@ export class LightningStrategy extends SendStrategy {
         try {
           this.designateSend(payIn, type);
 
-          const { feeInputAsset: fee, maxFeeInputAsset: maxFee } = await this.getEstimatedForwardFee(
+          const { feeInputAsset: fee } = await this.getEstimatedForwardFee(
             payIn.asset,
             payIn.amount,
             payIn.destinationAddress.address,
           );
 
-          CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
+          const amount = CryptoInput.calcReturnSendAmount(
+            payIn.amount,
+            payIn.chargebackAmount,
+            fee,
+            Config.blockchainReturnFeeBuffer,
+            12,
+          );
 
-          const { outTxId, feeAmount } = await this.lightningService.sendTransfer(payIn);
+          if (!CryptoInput.isReturnEconomic(amount)) {
+            this.logger.info(
+              `Uneconomic return for Lightning input ${payIn.id}: estimated fee exceeds authorized amount`,
+            );
+            continue;
+          }
+
+          payIn.returnAmount = amount;
+
+          const { outTxId, feeAmount } = await this.lightningService.sendTransfer(payIn, amount);
           await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
 
           await this.payInRepo.save(payIn);

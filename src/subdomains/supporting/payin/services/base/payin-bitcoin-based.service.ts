@@ -8,5 +8,5 @@ export interface UnconfirmedPayInFilterResult {
 export abstract class PayInBitcoinBasedService {
   abstract checkHealthOrThrow();
   abstract getBlockHeight(): Promise<number>;
-  abstract sendTransfer(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }>;
+  abstract sendTransfer(input: CryptoInput, amount: number): Promise<{ outTxId: string; feeAmount: number }>;
 }

@@ -34,6 +34,7 @@ export class BuyCryptoRegistrationService {
       try {
         await this.buyCryptoRepo.update(entity.id, {
           chargebackCryptoTxId: entity.cryptoInput.returnTxId,
+          chargebackAmount: entity.cryptoInput.returnAmount ?? entity.chargebackAmount,
           isComplete: true,
         });
       } catch (e) {

@@ -1,3 +1,4 @@
+import { Config } from 'src/config/config';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { LogLevel } from 'src/shared/services/dfx-logger';
 import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -32,15 +33,28 @@ export abstract class ZanoStrategy extends BitcoinBasedStrategy {
         try {
           this.designateSend(payIn, type);
 
-          const { feeInputAsset: fee, maxFeeInputAsset: maxFee } = await this.getEstimatedForwardFee(
+          const { feeInputAsset: fee } = await this.getEstimatedForwardFee(
             payIn.asset,
             payIn.amount,
             payIn.destinationAddress.address,
           );
 
-          CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
+          const amount = CryptoInput.calcReturnSendAmount(
+            payIn.amount,
+            payIn.chargebackAmount,
+            fee,
+            Config.blockchainReturnFeeBuffer,
+            12,
+          );
 
-          const { outTxId, feeAmount } = await this.payInZanoService.sendTransfer(payIn);
+          if (!CryptoInput.isReturnEconomic(amount)) {
+            this.logger.info(`Uneconomic return for Zano input ${payIn.id}: estimated fee exceeds authorized amount`);
+            continue;
+          }
+
+          payIn.returnAmount = amount;
+
+          const { outTxId, feeAmount } = await this.payInZanoService.sendTransfer(payIn, amount);
           await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
 
           await this.payInRepo.save(payIn);

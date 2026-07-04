@@ -55,8 +55,8 @@ export class InternetComputerTokenStrategy extends InternetComputerStrategy {
     return BlockchainAddress.create(this.payInInternetComputerService.getWalletAddress(), this.blockchain);
   }
 
-  protected async sendTransfer(payIn: CryptoInput, _type: SendType): Promise<string> {
-    const amount = await this.calcSendingAmount(payIn);
+  protected async sendTransfer(payIn: CryptoInput, type: SendType): Promise<string> {
+    const amount = type === SendType.RETURN ? payIn.sendingAmount : await this.calcSendingAmount(payIn);
 
     return this.payInInternetComputerService.sendTokenFromDepositWallet(
       payIn.route.deposit.accountIndex,

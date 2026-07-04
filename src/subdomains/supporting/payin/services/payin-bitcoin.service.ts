@@ -93,11 +93,11 @@ export class PayInBitcoinService extends PayInBitcoinBasedService {
     return this.client.getTx(outTxId);
   }
 
-  async sendTransfer(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
+  async sendTransfer(input: CryptoInput, amount: number): Promise<{ outTxId: string; feeAmount: number }> {
     return this.client.send(
       input.destinationAddress.address,
       input.inTxId,
-      input.sendingAmount,
+      amount,
       input.txSequence,
       await this.feeService.getSendFeeRate(),
     );

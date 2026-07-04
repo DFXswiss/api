@@ -2,6 +2,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { Util } from 'src/shared/utils/util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { PaymentLinkPayment } from 'src/subdomains/core/payment-link/entities/payment-link-payment.entity';
@@ -104,6 +105,9 @@ export class CryptoInput extends IEntity {
   chargebackAmount?: number;
 
   @Column({ type: 'float', nullable: true })
+  returnAmount?: number; // real net amount sent on-chain for a return (input asset)
+
+  @Column({ type: 'float', nullable: true })
   forwardFeeAmount?: number;
 
   @Column({ type: 'float', nullable: true })
@@ -188,6 +192,52 @@ export class CryptoInput extends IEntity {
         `Forward fee is too high (estimated ${estimatedFee}, max. ${maxApplicableFee})`,
       );
     }
+  }
+
+  // --- RETURN FEE CALCULATION --- //
+
+  // buffered gas cost for a return, based on the higher of the fresh and the estimated gas cost
+  static effectiveReturnGasCost(freshGas: number, estimatedGas: number, buffer: number, decimals: number): number {
+    return Util.round(Math.max(freshGas, estimatedGas) * buffer, decimals);
+  }
+
+  // net amount to send for a return: capped at the authorized amount and at gross minus the buffered live fee
+  static calcReturnSendAmount(
+    grossAmount: number,
+    authorizedAmount: number,
+    feeInInputAsset: number,
+    buffer: number,
+    decimals: number,
+  ): number {
+    if (grossAmount == null) throw new Error('Gross amount is required to calculate the return send amount');
+    if (feeInInputAsset == null) throw new Error('Fee in input asset is required to calculate the return send amount');
+
+    const maxSendable = grossAmount - feeInInputAsset * buffer;
+
+    return Util.round(Math.max(Math.min(authorizedAmount, maxSendable), 0), decimals);
+  }
+
+  // split a total return amount across grouped pay-ins proportionally to their authorized share (sum stays exact)
+  static distributeReturnAmount(totalSendAmount: number, authorizedAmounts: number[], decimals: number): number[] {
+    const totalAuthorized = Util.sum(authorizedAmounts);
+
+    if (totalAuthorized === 0) return authorizedAmounts.map(() => 0);
+
+    const rawAmounts = authorizedAmounts.map((a) => Util.round((totalSendAmount * a) / totalAuthorized, decimals));
+    const remainder = Util.round(totalSendAmount - Util.sum(rawAmounts), decimals);
+
+    const largestIndex = authorizedAmounts.reduce(
+      (maxIndex, a, i) => (a > authorizedAmounts[maxIndex] ? i : maxIndex),
+      0,
+    );
+    rawAmounts[largestIndex] = Util.round(rawAmounts[largestIndex] + remainder, decimals);
+
+    return rawAmounts;
+  }
+
+  // a return is only worth sending when a positive net amount remains after the fee
+  static isReturnEconomic(sentAmount: number): boolean {
+    return sentAmount > 0;
   }
 
   //*** PUBLIC API ***//
@@ -303,12 +353,16 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  return(returnTxId: string, returnFeeAmount?: number): this {
+  return(returnTxId: string, returnFeeAmount?: number, sentAmount?: number): this {
     this.returnTxId = returnTxId;
     this.status = PayInStatus.RETURNED;
 
     if (returnFeeAmount != null) {
       this.forwardFeeAmount = returnFeeAmount;
+    }
+
+    if (sentAmount != null) {
+      this.returnAmount = sentAmount;
     }
 
     return this;
@@ -326,7 +380,7 @@ export class CryptoInput extends IEntity {
   }
 
   get sendingAmount(): number {
-    return this.action === PayInAction.RETURN ? this.chargebackAmount : this.amount;
+    return this.action === PayInAction.RETURN ? (this.returnAmount ?? this.chargebackAmount) : this.amount;
   }
 
   get maxForwardFee(): number {

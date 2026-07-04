@@ -69,6 +69,8 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
    * Dispatch token transfer via EIP-7702 delegation (single TX)
    */
   private async dispatchViaDelegation(payInGroup: SendGroup, type: SendType): Promise<void> {
+    if (type === SendType.RETURN) return this.dispatchReturnViaDelegation(payInGroup);
+
     const { account, destinationAddress, asset } = payInGroup;
     const amount = this.getTotalGroupAmount(payInGroup, type);
 
@@ -81,6 +83,61 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
     // Update pay-ins with transaction data (fee is paid by relayer, not deducted from amount)
     for (const payIn of payInGroup.payIns) {
       const updatedPayIn = await this.updatePayInWithSendData(payIn, type, txHash);
+      if (updatedPayIn) {
+        await this.payInRepo.save(updatedPayIn);
+      }
+    }
+  }
+
+  /**
+   * Dispatch a return via EIP-7702 delegation, withholding the live fee so the retained token covers the relayer gas
+   */
+  private async dispatchReturnViaDelegation(payInGroup: SendGroup): Promise<void> {
+    const { account, destinationAddress, asset } = payInGroup;
+
+    const grossAmount = Util.sumObjValue<CryptoInput>(payInGroup.payIns, 'amount');
+    const authorizedAmount = Util.sumObjValue<CryptoInput>(payInGroup.payIns, 'chargebackAmount');
+
+    const { feeInputAsset } = await this.getEstimatedForwardFee(asset, authorizedAmount, destinationAddress);
+
+    // fail-closed: without a positive live fee estimate the withheld amount would be 0 and DFX would carry the gas
+    if (feeInputAsset <= 0)
+      throw new FeeLimitExceededException(
+        `No live fee estimate for ${this.blockchain} token return; refusing to send without gas coverage`,
+      );
+
+    const total = CryptoInput.calcReturnSendAmount(
+      grossAmount,
+      authorizedAmount,
+      feeInputAsset,
+      Config.blockchainReturnFeeBuffer,
+      12,
+    );
+
+    if (!CryptoInput.isReturnEconomic(total)) {
+      this.logger.info(
+        `Uneconomic return for ${this.blockchain} input(s) ${this.getPayInsIdentityKey(
+          payInGroup,
+        )} via delegation: estimated fee exceeds authorized amount`,
+      );
+      return;
+    }
+
+    const returnAmounts = CryptoInput.distributeReturnAmount(
+      total,
+      payInGroup.payIns.map((p) => p.chargebackAmount),
+      12,
+    );
+
+    this.logger.verbose(
+      `Returning ${total} ${asset.name} from ${payInGroup.sourceAddress} to ${destinationAddress} via EIP-7702 delegation`,
+    );
+
+    const txHash = await this.delegationService.transferTokenViaDelegation(account, asset, destinationAddress, total);
+
+    for (const [i, payIn] of payInGroup.payIns.entries()) {
+      payIn.returnAmount = returnAmounts[i];
+      const updatedPayIn = await this.updatePayInWithSendData(payIn, SendType.RETURN, txHash);
       if (updatedPayIn) {
         await this.payInRepo.save(updatedPayIn);
       }
@@ -119,8 +176,10 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
     }
   }
 
-  protected dispatchSend(payInGroup: SendGroup, type: SendType): Promise<string> {
+  protected async dispatchSend(payInGroup: SendGroup, type: SendType): Promise<string> {
     const { account, destinationAddress, asset } = payInGroup;
+
+    if (type === SendType.RETURN) return this.dispatchReturn(payInGroup);
 
     return this.payInEvmService.sendToken(
       account,
@@ -128,5 +187,40 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
       asset,
       this.getTotalGroupAmount(payInGroup, type),
     );
+  }
+
+  private async dispatchReturn(payInGroup: SendGroup): Promise<string> {
+    const { account, destinationAddress, asset } = payInGroup;
+
+    const grossAmount = Util.sumObjValue<CryptoInput>(payInGroup.payIns, 'amount');
+    const authorizedAmount = Util.sumObjValue<CryptoInput>(payInGroup.payIns, 'chargebackAmount');
+
+    const { feeInputAsset } = await this.getEstimatedForwardFee(asset, authorizedAmount, destinationAddress);
+
+    // fail-closed: without a positive live fee estimate the withheld amount would be 0 and DFX would carry the gas
+    if (feeInputAsset <= 0)
+      throw new FeeLimitExceededException(
+        `No live fee estimate for ${this.blockchain} token return; refusing to send without gas coverage`,
+      );
+
+    const total = CryptoInput.calcReturnSendAmount(
+      grossAmount,
+      authorizedAmount,
+      feeInputAsset,
+      Config.blockchainReturnFeeBuffer,
+      12,
+    );
+
+    if (!CryptoInput.isReturnEconomic(total))
+      throw new FeeLimitExceededException('Uneconomic return: estimated fee exceeds returnable amount');
+
+    const returnAmounts = CryptoInput.distributeReturnAmount(
+      total,
+      payInGroup.payIns.map((p) => p.chargebackAmount),
+      12,
+    );
+    payInGroup.payIns.forEach((payIn, i) => (payIn.returnAmount = returnAmounts[i]));
+
+    return this.payInEvmService.sendToken(account, destinationAddress, asset, total);
   }
 }

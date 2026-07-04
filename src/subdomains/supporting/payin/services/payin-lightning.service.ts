@@ -19,8 +19,8 @@ export class PayInLightningService {
     if (!isHealthy) throw new Error('Lightning node is unhealthy');
   }
 
-  async sendTransfer(payIn: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
-    const outTxId = await this.service.sendTransfer(payIn.destinationAddress.address, payIn.sendingAmount);
+  async sendTransfer(payIn: CryptoInput, amount: number): Promise<{ outTxId: string; feeAmount: number }> {
+    const outTxId = await this.service.sendTransfer(payIn.destinationAddress.address, amount);
     const [isComplete, feeAmount] = await this.service.getTransferCompletionData(outTxId);
     if (!isComplete) this.logger.error(`Lightning transfer for pay-in ${payIn.id} was not complete`);
 
