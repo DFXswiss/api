@@ -34,9 +34,11 @@ import { SupportLogService } from 'src/subdomains/supporting/support-issue/servi
 import { Between, FindOptionsRelations, In, IsNull, MoreThan } from 'typeorm';
 import { FiatOutputService } from '../../../../supporting/fiat-output/fiat-output.service';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
+import { AmlSourceType } from '../../../aml/entities/transaction-aml-check.entity';
 import { canManualPass, ManualPassBlacklistErrors } from '../../../aml/enums/aml-error.enum';
 import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
+import { TransactionAmlCheckService } from '../../../aml/services/transaction-aml-check.service';
 import { BuyCryptoService } from '../../../buy-crypto/process/services/buy-crypto.service';
 import { PaymentStatus } from '../../../history/dto/history.dto';
 import { CryptoInputRefund, RefundInternalDto } from '../../../history/dto/refund-internal.dto';
@@ -84,6 +86,7 @@ export class BuyFiatService implements OnModuleInit {
     private readonly scorechainScreeningService: ScorechainScreeningService,
     @Inject(forwardRef(() => ScorechainDocumentService))
     private readonly scorechainDocumentService: ScorechainDocumentService,
+    private readonly transactionAmlCheckService: TransactionAmlCheckService,
   ) {}
 
   onModuleInit() {
@@ -100,7 +103,7 @@ export class BuyFiatService implements OnModuleInit {
     });
 
     for (const entity of entities) {
-      await this.resetAmlCheckInternal(entity);
+      await this.resetAmlCheckInternal(entity, AmlSourceType.PHONE_CALL_RESET);
     }
   }
 
@@ -159,7 +162,7 @@ export class BuyFiatService implements OnModuleInit {
     return entity;
   }
 
-  async update(id: number, dto: UpdateBuyFiatDto): Promise<BuyFiat> {
+  async update(id: number, dto: UpdateBuyFiatDto, amlSource: AmlSourceType): Promise<BuyFiat> {
     let entity = await this.buyFiatRepo.findOne({
       where: { id },
       relations: {
@@ -235,10 +238,13 @@ export class BuyFiatService implements OnModuleInit {
     };
 
     const amlCheckBefore = entity.amlCheck;
+    const amlReasonBefore = entity.amlReason;
 
     entity = await this.buyFiatRepo.save(
       Object.assign(new BuyFiat(), { ...update, ...Util.removeNullFields(entity), ...forceUpdate }),
     );
+
+    await this.transactionAmlCheckService.createFromEntity(entity, 'BuyFiat', amlSource, amlCheckBefore, amlReasonBefore);
 
     if (forceUpdate.amlCheck || (!amlCheckBefore && update.amlCheck)) {
       if (update.amlCheck === CheckStatus.PASS) await this.buyFiatNotificationService.paymentProcessing(entity);
@@ -403,6 +409,9 @@ export class BuyFiatService implements OnModuleInit {
       await this.returnCrypto(buyFiat, buyFiat.cryptoInput, returnAddress, chargebackAmount);
     }
 
+    const previousAmlCheck = buyFiat.amlCheck;
+    const previousAmlReason = buyFiat.amlReason;
+
     await this.buyFiatRepo.update(
       ...buyFiat.chargebackFillUp(
         refundUser.address ?? buyFiat.chargebackAddress,
@@ -414,6 +423,14 @@ export class BuyFiatService implements OnModuleInit {
         dto.chargebackAllowedBy,
         blockchainFee,
       ),
+    );
+
+    await this.transactionAmlCheckService.createFromEntity(
+      buyFiat,
+      'BuyFiat',
+      AmlSourceType.CHARGEBACK,
+      previousAmlCheck,
+      previousAmlReason,
     );
   }
 
@@ -430,7 +447,7 @@ export class BuyFiatService implements OnModuleInit {
     });
     if (!entity) throw new NotFoundException('BuyFiat not found');
 
-    await this.resetAmlCheckInternal(entity);
+    await this.resetAmlCheckInternal(entity, AmlSourceType.MANUAL_RESET);
   }
 
   // Manual re-trigger of the Scorechain on-chain screening for an existing buy-fiat (sell): screens
@@ -458,12 +475,15 @@ export class BuyFiatService implements OnModuleInit {
     return screening;
   }
 
-  async resetAmlCheckInternal(entity: BuyFiat): Promise<void> {
+  async resetAmlCheckInternal(entity: BuyFiat, source: AmlSourceType): Promise<void> {
     if (entity.isComplete || entity.fiatOutput?.isComplete || entity.chargebackAllowedDate)
       throw new BadRequestException('BuyFiat is already complete');
     if (!entity.amlCheck) throw new BadRequestException('BuyFiat amlcheck is not set');
 
     const fiatOutputId = entity.fiatOutput?.id;
+
+    const previousAmlCheck = entity.amlCheck;
+    const previousAmlReason = entity.amlReason;
 
     const resetDetails = {
       buyFiatId: entity.id,
@@ -477,6 +497,13 @@ export class BuyFiatService implements OnModuleInit {
     };
 
     await this.buyFiatRepo.update(...entity.resetAmlCheck());
+    await this.transactionAmlCheckService.createFromEntity(
+      entity,
+      'BuyFiat',
+      source,
+      previousAmlCheck,
+      previousAmlReason,
+    );
     if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
 
     if (entity.transaction.userData) {
@@ -502,12 +529,16 @@ export class BuyFiatService implements OnModuleInit {
         throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
     }
 
-    return this.update(id, {
-      amlCheck: dto.amlCheck,
-      amlResponsible: dto.responsible,
-      amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
-      priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
-    } as UpdateBuyFiatDto);
+    return this.update(
+      id,
+      {
+        amlCheck: dto.amlCheck,
+        amlResponsible: dto.responsible,
+        amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
+        priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
+      } as UpdateBuyFiatDto,
+      AmlSourceType.MANUAL_PASS,
+    );
   }
 
   async updateVolumes(start = 1, end = 100000): Promise<void> {

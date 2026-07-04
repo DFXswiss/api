@@ -7,7 +7,10 @@ import { ScorechainScreeningService } from 'src/integration/scorechain/services/
 import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
@@ -66,6 +69,7 @@ describe('BuyFiatService', () => {
   let payoutService: PayoutService;
   let scorechainScreeningService: ScorechainScreeningService;
   let scorechainDocumentService: ScorechainDocumentService;
+  let transactionAmlCheckService: TransactionAmlCheckService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -90,6 +94,7 @@ describe('BuyFiatService', () => {
     payoutService = createMock<PayoutService>();
     scorechainScreeningService = createMock<ScorechainScreeningService>();
     scorechainDocumentService = createMock<ScorechainDocumentService>();
+    transactionAmlCheckService = createMock<TransactionAmlCheckService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -117,6 +122,7 @@ describe('BuyFiatService', () => {
         { provide: PayoutService, useValue: payoutService },
         { provide: ScorechainScreeningService, useValue: scorechainScreeningService },
         { provide: ScorechainDocumentService, useValue: scorechainDocumentService },
+        { provide: TransactionAmlCheckService, useValue: transactionAmlCheckService },
       ],
     }).compile();
 
@@ -281,6 +287,23 @@ describe('BuyFiatService', () => {
 
       await expect(service.retriggerScorechain(7)).rejects.toThrow(BadRequestException);
       expect(scorechainScreeningService.rescreenDepositTransaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('amlCheck audit trail', () => {
+    it('records a MANUAL_RESET history row (previous verdict → null) when resetAmlCheckInternal clears the check', async () => {
+      const entity = createCustomBuyFiat({ id: 5, amlCheck: CheckStatus.PENDING, amlReason: null });
+
+      await service.resetAmlCheckInternal(entity, AmlSourceType.MANUAL_RESET);
+
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledTimes(1);
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 5, amlCheck: null }),
+        'BuyFiat',
+        AmlSourceType.MANUAL_RESET,
+        CheckStatus.PENDING,
+        null,
+      );
     });
   });
 });

@@ -9,9 +9,11 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import * as processServiceModule from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
+import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -44,6 +46,7 @@ describe('BuyCryptoPreparationService', () => {
   let transactionService: TransactionService;
   let scorechainScreeningService: ScorechainScreeningService;
   let scorechainDocumentService: ScorechainDocumentService;
+  let transactionAmlCheckService: TransactionAmlCheckService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -61,6 +64,7 @@ describe('BuyCryptoPreparationService', () => {
     transactionService = createMock<TransactionService>();
     scorechainScreeningService = createMock<ScorechainScreeningService>();
     scorechainDocumentService = createMock<ScorechainDocumentService>();
+    transactionAmlCheckService = createMock<TransactionAmlCheckService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -81,6 +85,7 @@ describe('BuyCryptoPreparationService', () => {
         { provide: TransactionService, useValue: transactionService },
         { provide: ScorechainScreeningService, useValue: scorechainScreeningService },
         { provide: ScorechainDocumentService, useValue: scorechainDocumentService },
+        { provide: TransactionAmlCheckService, useValue: transactionAmlCheckService },
       ],
     }).compile();
 
@@ -428,6 +433,43 @@ describe('BuyCryptoPreparationService', () => {
       expect(entity.amlCheckAndFillUp).toHaveBeenCalledTimes(1); // normal path computes the verdict
       expect(amlService.postProcessing).toHaveBeenCalledTimes(1);
       expect(buyCryptoRepo.update).toHaveBeenCalledWith(1, { amlPostProcessed: true });
+    });
+  });
+
+  describe('doAmlCheck — amlCheck audit trail', () => {
+    it('records an AML_CHECK_CRON history row with the correct entity / source / previous verdict when the cron changes it', async () => {
+      const entity = createCustomBuyCrypto({ id: 1, amlCheck: null, cryptoInput: undefined, bankTx: undefined });
+      arrangeAmlCheck(entity);
+      jest.spyOn(entity, 'amlCheckAndFillUp').mockImplementation((async () => {
+        entity.amlCheck = CheckStatus.PASS;
+        return [entity.id, { amlCheck: CheckStatus.PASS }];
+      }) as any);
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+
+      await service.doAmlCheck();
+
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledTimes(1);
+      const [entityArg, entityType, source, previousAmlCheck] = (
+        transactionAmlCheckService.createFromEntity as jest.Mock
+      ).mock.calls[0];
+      expect(entityArg).toEqual(expect.objectContaining({ id: 1, amlCheck: CheckStatus.PASS }));
+      expect(entityType).toBe('BuyCrypto');
+      expect(source).toBe(AmlSourceType.AML_CHECK_CRON);
+      expect(previousAmlCheck).toBeNull();
+    });
+
+    it('does NOT record a history row when the guarded update is not applied (affected 0)', async () => {
+      const entity = createCustomBuyCrypto({ id: 1, amlCheck: null, cryptoInput: undefined, bankTx: undefined });
+      arrangeAmlCheck(entity);
+      jest.spyOn(entity, 'amlCheckAndFillUp').mockImplementation((async () => {
+        entity.amlCheck = CheckStatus.PASS; // a verdict was computed locally...
+        return [entity.id, { amlCheck: CheckStatus.PASS }];
+      }) as any);
+      jest.spyOn(buyCryptoRepo, 'update').mockResolvedValue({ affected: 0 } as any); // ...but the guard rejects it
+
+      await service.doAmlCheck();
+
+      expect(transactionAmlCheckService.createFromEntity).not.toHaveBeenCalled();
     });
   });
 });

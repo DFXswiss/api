@@ -1,6 +1,8 @@
 import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
+import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
+import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { BuyCryptoStatus } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
@@ -26,6 +28,7 @@ export class TransactionService {
     private readonly specialExternalAccountService: SpecialExternalAccountService,
     @Inject(forwardRef(() => BuyCryptoRepository))
     private readonly buyCryptoRepo: BuyCryptoRepository,
+    private readonly transactionAmlCheckService: TransactionAmlCheckService,
   ) {}
 
   async create(dto: CreateTransactionDto): Promise<Transaction | undefined> {
@@ -43,6 +46,12 @@ export class TransactionService {
       bankTx: true,
     });
     if (!entity) throw new Error('Transaction not found');
+
+    // The admin door can write Transaction.amlCheck directly (unreconciled with the concrete
+    // BuyCrypto/BuyFiat). Capture the pre-update verdict so we record a TX_ADMIN audit row only when the
+    // amlCheck itself actually changes. amlType is intentionally not a trigger — the audit table has no
+    // amlType column, so an amlType-only edit must not produce a no-op-looking row.
+    const amlCheckBefore = entity.amlCheck;
 
     if (dto.userData) {
       dto.userData = await this.userDataService.getUserData(dto.userData.id);
@@ -68,7 +77,21 @@ export class TransactionService {
       }
     }
 
-    return this.updateInternal(entity, dto);
+    const result = await this.updateInternal(entity, dto);
+
+    if (result.amlCheck !== amlCheckBefore) {
+      await this.transactionAmlCheckService.create({
+        transaction: result,
+        entityType: 'Transaction',
+        entityId: result.id,
+        source: AmlSourceType.TX_ADMIN,
+        previousAmlCheck: amlCheckBefore,
+        amlCheck: result.amlCheck,
+        highRisk: result.highRisk,
+      });
+    }
+
+    return result;
   }
 
   async updateInternal(

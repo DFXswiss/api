@@ -7,8 +7,10 @@ import { CountryService } from 'src/shared/models/country/country.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
+import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
 import { BlockAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { CustodyOrderStatus } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
@@ -56,6 +58,7 @@ export class BuyFiatPreparationService {
     private readonly scorechainScreeningService: ScorechainScreeningService,
     @Inject(forwardRef(() => ScorechainDocumentService))
     private readonly scorechainDocumentService: ScorechainDocumentService,
+    private readonly transactionAmlCheckService: TransactionAmlCheckService,
   ) {}
 
   // Scorechain on-chain screening for the sell/BuyFiat AML gate: screens the incoming crypto deposit
@@ -126,6 +129,7 @@ export class BuyFiatPreparationService {
         if (!entity.cryptoInput.isConfirmed) continue;
 
         const amlCheckBefore = entity.amlCheck;
+        const amlReasonBefore = entity.amlReason;
 
         const inputReferenceCurrency = entity.cryptoInput.asset;
 
@@ -209,6 +213,14 @@ export class BuyFiatPreparationService {
         );
         if (!affected) continue;
 
+        await this.transactionAmlCheckService.createFromEntity(
+          entity,
+          'BuyFiat',
+          AmlSourceType.AML_CHECK_CRON,
+          amlCheckBefore,
+          amlReasonBefore,
+        );
+
         await this.amlService.postProcessing(entity, last30dVolume);
 
         // postProcessing's compliance side-effects completed → mark the verdict fully handled so the
@@ -271,8 +283,19 @@ export class BuyFiatPreparationService {
           entity.user,
         );
 
+        const amlCheckBefore = entity.amlCheck;
+        const amlReasonBefore = entity.amlReason;
+
         await this.buyFiatRepo.update(
           ...entity.setFeeAndFiatReference(fee, eurPrice.convert(fee.min, 2), chfPrice.convert(fee.total, 2)),
+        );
+
+        await this.transactionAmlCheckService.createFromEntity(
+          entity,
+          'BuyFiat',
+          AmlSourceType.FEE_TOO_HIGH,
+          amlCheckBefore,
+          amlReasonBefore,
         );
 
         if (entity.feeAmountChf != null) {
@@ -345,6 +368,9 @@ export class BuyFiatPreparationService {
           conversionPrice.price,
         );
 
+        const amlCheckBefore = entity.amlCheck;
+        const amlReasonBefore = entity.amlReason;
+
         await this.buyFiatRepo.update(
           ...entity.setPaymentLinkPayment(
             eurPrice.convert(entity.inputAmount, 2),
@@ -357,6 +383,14 @@ export class BuyFiatPreparationService {
             paymentLinkFee,
             [priceStep],
           ),
+        );
+
+        await this.transactionAmlCheckService.createFromEntity(
+          entity,
+          'BuyFiat',
+          AmlSourceType.FEE_TOO_HIGH,
+          amlCheckBefore,
+          amlReasonBefore,
         );
 
         if (entity.feeAmountChf != null) {
