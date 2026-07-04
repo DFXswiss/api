@@ -729,8 +729,7 @@ export class BuyCryptoService implements OnModuleInit {
     const blockchain = entity.outputAsset?.blockchain;
     const address = entity.targetAddress;
     if (!blockchain || !address) throw new BadRequestException('BuyCrypto has no output address to screen');
-    if (!toScorechainBlockchain(blockchain))
-      throw new BadRequestException(`Scorechain does not support ${blockchain}`);
+    if (!toScorechainBlockchain(blockchain)) throw new BadRequestException(`Scorechain does not support ${blockchain}`);
 
     return this.scorechainScreeningService.rescreenWithdrawalAddress(blockchain, address);
   }
