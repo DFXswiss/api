@@ -357,7 +357,12 @@ describe('BuyCryptoService', () => {
     // back to the persisted verdict before recording history, otherwise the trail gets a phantom
     // "PENDING → null (verdict cleared)" row for an edit that never touched the verdict.
     it('does NOT emit a phantom verdict-cleared row when a non-AML admin update omits amlCheck', async () => {
-      const entity = createCustomBuyCrypto({ id: 11, amlCheck: CheckStatus.PENDING, amlReason: null, isComplete: false });
+      const entity = createCustomBuyCrypto({
+        id: 11,
+        amlCheck: CheckStatus.PENDING,
+        amlReason: null,
+        isComplete: false,
+      });
       jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
       jest.spyOn(buyCryptoRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyCrypto(), dto));
       // save returns exactly what it is handed, so forceUpdate's amlCheck=undefined clobber survives and the
