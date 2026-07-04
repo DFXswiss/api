@@ -33,6 +33,7 @@ import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
 import { BuyFiat } from '../buy-fiat.entity';
+import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 import { BuyFiatRepository } from '../buy-fiat.repository';
 import { BuyFiatNotificationService } from '../services/buy-fiat-notification.service';
 import { BuyFiatService } from '../services/buy-fiat.service';
@@ -301,6 +302,34 @@ describe('BuyFiatService', () => {
         expect.objectContaining({ id: 5, amlCheck: null }),
         'BuyFiat',
         AmlSourceType.MANUAL_RESET,
+        CheckStatus.PENDING,
+        null,
+      );
+    });
+
+    // Regression: an admin PUT that omits amlCheck makes `forceUpdate` inject amlCheck/amlReason: undefined,
+    // which save() drops — leaving the in-memory entity with amlCheck=undefined. update() must coalesce it
+    // back to the persisted verdict before recording history, otherwise the trail gets a phantom
+    // "PENDING → null (verdict cleared)" row for an edit that never touched the verdict.
+    it('does NOT emit a phantom verdict-cleared row when a non-AML admin update omits amlCheck', async () => {
+      const entity = createCustomBuyFiat({ id: 12, amlCheck: CheckStatus.PENDING, amlReason: null, isComplete: false });
+      jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
+      jest.spyOn(buyFiatRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyFiat(), dto));
+      // save returns exactly what it is handed, so forceUpdate's amlCheck=undefined clobber survives and the
+      // test actually exercises update()'s in-memory coalesce (not a DB round-trip that would refill it).
+      jest.spyOn(buyFiatRepo, 'save').mockImplementation(async (e) => e as BuyFiat);
+
+      await service.update(
+        12,
+        Object.assign(new UpdateBuyFiatDto(), { recipientMail: 'gs@example.com' }),
+        AmlSourceType.MANUAL_UPDATE,
+      );
+
+      // the entity handed to the audit trail carries the persisted (unchanged) PENDING verdict, NOT undefined
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
+        expect.objectContaining({ amlCheck: CheckStatus.PENDING }),
+        'BuyFiat',
+        AmlSourceType.MANUAL_UPDATE,
         CheckStatus.PENDING,
         null,
       );

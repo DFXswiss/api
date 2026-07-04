@@ -35,6 +35,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { BuyRepository } from '../../../routes/buy/buy.repository';
 import { BuyService } from '../../../routes/buy/buy.service';
 import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-history.dto.mock';
+import { UpdateBuyCryptoDto } from '../../dto/update-buy-crypto.dto';
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
@@ -346,6 +347,34 @@ describe('BuyCryptoService', () => {
         expect.objectContaining({ id: 7, amlCheck: null }),
         'BuyCrypto',
         AmlSourceType.MANUAL_RESET,
+        CheckStatus.PENDING,
+        null,
+      );
+    });
+
+    // Regression: an admin PUT that omits amlCheck makes `forceUpdate` inject amlCheck/amlReason: undefined,
+    // which save() drops — leaving the in-memory entity with amlCheck=undefined. update() must coalesce it
+    // back to the persisted verdict before recording history, otherwise the trail gets a phantom
+    // "PENDING → null (verdict cleared)" row for an edit that never touched the verdict.
+    it('does NOT emit a phantom verdict-cleared row when a non-AML admin update omits amlCheck', async () => {
+      const entity = createCustomBuyCrypto({ id: 11, amlCheck: CheckStatus.PENDING, amlReason: null, isComplete: false });
+      jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
+      jest.spyOn(buyCryptoRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyCrypto(), dto));
+      // save returns exactly what it is handed, so forceUpdate's amlCheck=undefined clobber survives and the
+      // test actually exercises update()'s in-memory coalesce (not a DB round-trip that would refill it).
+      jest.spyOn(buyCryptoRepo, 'save').mockImplementation(async (e) => e as BuyCrypto);
+
+      await service.update(
+        11,
+        Object.assign(new UpdateBuyCryptoDto(), { recipientMail: 'gs@example.com' }),
+        AmlSourceType.MANUAL_UPDATE,
+      );
+
+      // the entity handed to the audit trail carries the persisted (unchanged) PENDING verdict, NOT undefined
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
+        expect.objectContaining({ amlCheck: CheckStatus.PENDING }),
+        'BuyCrypto',
+        AmlSourceType.MANUAL_UPDATE,
         CheckStatus.PENDING,
         null,
       );
