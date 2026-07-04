@@ -1,6 +1,10 @@
 import { createMock } from '@golevelup/ts-jest';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
+import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
+import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -71,6 +75,7 @@ describe('BuyCryptoService', () => {
   let transactionHelper: TransactionHelper;
   let custodyOrderService: CustodyOrderService;
   let userDataService: UserDataService;
+  let scorechainScreeningService: ScorechainScreeningService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -98,6 +103,7 @@ describe('BuyCryptoService', () => {
     transactionHelper = createMock<TransactionHelper>();
     custodyOrderService = createMock<CustodyOrderService>();
     userDataService = createMock<UserDataService>();
+    scorechainScreeningService = createMock<ScorechainScreeningService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -128,6 +134,7 @@ describe('BuyCryptoService', () => {
         { provide: TransactionHelper, useValue: transactionHelper },
         { provide: CustodyOrderService, useValue: custodyOrderService },
         { provide: UserDataService, useValue: userDataService },
+        { provide: ScorechainScreeningService, useValue: scorechainScreeningService },
       ],
     }).compile();
 
@@ -252,5 +259,42 @@ describe('BuyCryptoService', () => {
         ...txCrypto,
       }),
     ]);
+  });
+
+  describe('retriggerScorechain', () => {
+    it('re-screens the target address on the output blockchain via a fresh (cache-bypassing) call', async () => {
+      const entity = {
+        id: 42,
+        outputAsset: { blockchain: Blockchain.ETHEREUM },
+        targetAddress: '0xabc',
+      } as unknown as BuyCrypto;
+      jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
+      const screening = new ScorechainScreening();
+      jest.spyOn(scorechainScreeningService, 'rescreenWithdrawalAddress').mockResolvedValue(screening);
+
+      const result = await service.retriggerScorechain(42);
+
+      expect(scorechainScreeningService.rescreenWithdrawalAddress).toHaveBeenCalledWith(Blockchain.ETHEREUM, '0xabc');
+      expect(result).toBe(screening);
+    });
+
+    it('throws NotFoundException when the buy-crypto does not exist', async () => {
+      jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(null);
+
+      await expect(service.retriggerScorechain(1)).rejects.toThrow(NotFoundException);
+      expect(scorechainScreeningService.rescreenWithdrawalAddress).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException for an output chain Scorechain does not support', async () => {
+      const entity = {
+        id: 7,
+        outputAsset: { blockchain: Blockchain.MONERO },
+        targetAddress: 'monero-address',
+      } as unknown as BuyCrypto;
+      jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
+
+      await expect(service.retriggerScorechain(7)).rejects.toThrow(BadRequestException);
+      expect(scorechainScreeningService.rescreenWithdrawalAddress).not.toHaveBeenCalled();
+    });
   });
 });

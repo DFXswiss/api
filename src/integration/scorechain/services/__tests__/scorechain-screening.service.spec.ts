@@ -130,6 +130,29 @@ describe('ScorechainScreeningService', () => {
       expect(scorechain.scoringAnalysis).not.toHaveBeenCalled();
     });
 
+    it('rescreenWithdrawalAddress bypasses the cache and calls the API even when a cached verdict exists', async () => {
+      const cached = Object.assign(new ScorechainScreening(), { riskScore: 1, signatureValid: true });
+      repo.findOne.mockResolvedValue(cached);
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: { id: 'x', lowestScore: 85, analysis: { assigned: { hasResult: true, result: { score: 85 } } } },
+        signatureValid: true,
+      });
+
+      const result = await service.rescreenWithdrawalAddress(Blockchain.ETHEREUM, '0xabc');
+
+      expect(repo.findOne).not.toHaveBeenCalled();
+      expect(scorechain.scoringAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          objectType: ScorechainObjectType.ADDRESS,
+          analysisType: ScorechainAnalysisType.OUTGOING,
+          blockchain: ScorechainBlockchain.ETHEREUM,
+          objectId: '0xabc',
+        }),
+      );
+      expect(result.riskScore).toBe(85);
+      expect(result.context).toBe(ScorechainScreeningContext.WITHDRAWAL);
+    });
+
     it('reuses a TRANSACTION verdict with no time bound (screened at most once) but expires ADDRESS verdicts after a short TTL', async () => {
       scorechain.scoringAnalysis.mockResolvedValue({
         data: {
