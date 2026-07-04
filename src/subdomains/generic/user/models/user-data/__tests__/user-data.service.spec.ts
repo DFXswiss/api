@@ -32,6 +32,12 @@ import { UserDataRepository } from '../user-data.repository';
 import { UserDataService } from '../user-data.service';
 import { UserRepository } from '../../user/user.repository';
 
+// Config is only initialized at app bootstrap; provide the kycHash format used by getByKycHashOrThrow
+jest.mock('src/config/config', () => ({
+  ...jest.requireActual('src/config/config'),
+  Config: { formats: { kycHash: /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i } },
+}));
+
 describe('UserDataService', () => {
   let service: UserDataService;
   let userDataRepo: jest.Mocked<UserDataRepository>;
@@ -116,6 +122,54 @@ describe('UserDataService', () => {
       await expect(service.checkMail(userData, 'samuel.kullmann@startmail.com')).rejects.toBeInstanceOf(
         ConflictException,
       );
+    });
+
+    it('redirects a merged account to the master code instead of raising a conflict (prod retry storm)', async () => {
+      const userData = Object.assign(new UserData(), {
+        id: 397899,
+        status: UserDataStatus.MERGED,
+        firstname: 'Merged into 398950',
+      });
+      const master = Object.assign(new UserData(), { id: 398950, kycHash: 'F1D96261-F27E-4772-B2E1-47B356F4D7A5' });
+
+      userDataRepo.findOne.mockResolvedValue(master);
+
+      await expect(service.checkMail(userData, 'a@b.com')).rejects.toMatchObject({
+        status: 401,
+        response: expect.objectContaining({ switchToCode: master.kycHash }),
+      });
+      // never reaches the conflict path: no mail lookup, no merge request, no ContactData step failure
+      expect(userDataRepo.find).not.toHaveBeenCalled();
+    });
+
+    it('rejects a merged account with an unresolvable master as bad request', async () => {
+      const userData = Object.assign(new UserData(), {
+        id: 397899,
+        status: UserDataStatus.MERGED,
+        firstname: 'no master reference',
+      });
+
+      await expect(service.checkMail(userData, 'a@b.com')).rejects.toMatchObject({ status: 400 });
+      expect(userDataRepo.find).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getByKycHashOrThrow', () => {
+    it('still redirects merged accounts with the master code after the throwMergedError extraction', async () => {
+      const kycHash = 'A1B96261-F27E-4772-B2E1-47B356F4D7A5';
+      const merged = Object.assign(new UserData(), {
+        id: 397899,
+        status: UserDataStatus.MERGED,
+        firstname: 'Merged into 398950',
+      });
+      const master = Object.assign(new UserData(), { id: 398950, kycHash: 'F1D96261-F27E-4772-B2E1-47B356F4D7A5' });
+
+      userDataRepo.findOne.mockResolvedValueOnce(merged).mockResolvedValueOnce(master);
+
+      await expect(service.getByKycHashOrThrow(kycHash)).rejects.toMatchObject({
+        status: 401,
+        response: expect.objectContaining({ switchToCode: master.kycHash }),
+      });
     });
   });
 
