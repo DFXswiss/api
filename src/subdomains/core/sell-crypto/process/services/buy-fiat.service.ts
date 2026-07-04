@@ -244,7 +244,13 @@ export class BuyFiatService implements OnModuleInit {
       Object.assign(new BuyFiat(), { ...update, ...Util.removeNullFields(entity), ...forceUpdate }),
     );
 
-    await this.transactionAmlCheckService.createFromEntity(entity, 'BuyFiat', amlSource, amlCheckBefore, amlReasonBefore);
+    await this.transactionAmlCheckService.createFromEntity(
+      entity,
+      'BuyFiat',
+      amlSource,
+      amlCheckBefore,
+      amlReasonBefore,
+    );
 
     if (forceUpdate.amlCheck || (!amlCheckBefore && update.amlCheck)) {
       if (update.amlCheck === CheckStatus.PASS) await this.buyFiatNotificationService.paymentProcessing(entity);
