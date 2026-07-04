@@ -1,9 +1,21 @@
 import { Injectable } from '@nestjs/common';
-import { Transaction, WithdrawalResponse, xt } from 'ccxt';
+import { Market, Transaction, WithdrawalResponse, xt } from 'ccxt';
 import { GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { ExchangeService } from './exchange.service';
+
+// ccxt's xt.loadMarkets() fetches the spot AND the swap/future market catalogs
+// (fetchMarkets = fetchSpotMarkets + fetchSwapAndFutureMarkets). DFX uses XT
+// spot-only (spot pricing + spot balances); the futures catalog is served from
+// dapi.xt.com, which is unreachable from prod egress, so every fetchBalance()
+// balance poll aborts on the futures market fetch. Skip it so loadMarkets and
+// fetchBalance rely on spot markets only — XT-spot stays fully functional.
+class XtSpotOnly extends xt {
+  async fetchSwapAndFutureMarkets(): Promise<Market[]> {
+    return [];
+  }
+}
 
 @Injectable()
 export class XtService extends ExchangeService {
@@ -52,7 +64,7 @@ export class XtService extends ExchangeService {
   };
 
   constructor() {
-    super(xt, GetConfig().xt);
+    super(XtSpotOnly, GetConfig().xt);
   }
 
   async getDeposits(token: string, since?: Date, chain?: string): Promise<Transaction[]> {
