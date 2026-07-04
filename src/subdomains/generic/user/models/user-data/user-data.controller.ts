@@ -20,7 +20,6 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { Util } from 'src/shared/utils/util';
-import { TfaGuard } from 'src/subdomains/generic/kyc/guards/tfa.guard';
 import { KycDocumentService } from 'src/subdomains/generic/kyc/services/integration/kyc-document.service';
 import { KycLogService } from 'src/subdomains/generic/kyc/services/kyc-log.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
