@@ -383,6 +383,12 @@ export class BuyCryptoService implements OnModuleInit {
       }),
     );
 
+    // `forceUpdate` injects amlCheck/amlReason: undefined when the admin PUT omits them; save() skips
+    // undefined, so the DB keeps the prior verdict. Restore the in-memory values to what was persisted so
+    // the audit trail records the true (unchanged) state instead of a phantom "verdict cleared" transition.
+    entity.amlCheck = entity.amlCheck ?? amlCheckBefore;
+    entity.amlReason = entity.amlReason ?? amlReasonBefore;
+
     await this.transactionAmlCheckService.createFromEntity(
       entity,
       'BuyCrypto',

@@ -47,11 +47,14 @@ export class TransactionService {
     });
     if (!entity) throw new Error('Transaction not found');
 
-    // The admin door can write Transaction.amlCheck directly (unreconciled with the concrete
-    // BuyCrypto/BuyFiat). Capture the pre-update verdict so we record a TX_ADMIN audit row only when the
-    // amlCheck itself actually changes. amlType is intentionally not a trigger — the audit table has no
-    // amlType column, so an amlType-only edit must not produce a no-op-looking row.
+    // The admin door can write Transaction.amlCheck / amlType / highRisk directly (unreconciled with the
+    // concrete BuyCrypto/BuyFiat). Derive the audit row from `dto` (the intent), not the saved entity:
+    // updateInternal's Object.assign can leave the entity's amlCheck as `undefined` for a non-amlCheck
+    // edit (target es2023 defines optional DTO fields as own `undefined`) while the DB keeps the prior
+    // verdict (save skips undefined) — reading the entity would emit a phantom "verdict cleared" row.
+    // amlType is not stored, so an amlType-only edit records nothing.
     const amlCheckBefore = entity.amlCheck;
+    const highRiskBefore = entity.highRisk;
 
     if (dto.userData) {
       dto.userData = await this.userDataService.getUserData(dto.userData.id);
@@ -79,15 +82,15 @@ export class TransactionService {
 
     const result = await this.updateInternal(entity, dto);
 
-    if (result.amlCheck !== amlCheckBefore) {
+    if (dto.amlCheck !== undefined && dto.amlCheck !== amlCheckBefore) {
       await this.transactionAmlCheckService.create({
         transaction: result,
         entityType: 'Transaction',
         entityId: result.id,
         source: AmlSourceType.TX_ADMIN,
         previousAmlCheck: amlCheckBefore,
-        amlCheck: result.amlCheck,
-        highRisk: result.highRisk,
+        amlCheck: dto.amlCheck,
+        highRisk: dto.highRisk ?? highRiskBefore,
       });
     }
 

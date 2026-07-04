@@ -64,6 +64,7 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
         source: AmlSourceType.TX_ADMIN,
         previousAmlCheck: CheckStatus.PENDING,
         amlCheck: CheckStatus.PASS,
+        highRisk: false,
       }),
     );
   });
@@ -73,11 +74,11 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
     jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
 
-    // Only a non-AML field changes. Pass a partial with just that field (as production does — the
-    // ValidationPipe uses exposeUnsetFields:false, so absent fields never reach updateInternal); a
-    // `new UpdateTransactionDto()` would carry every field as an own `undefined` (target es2023 defines
-    // class fields) and wipe amlCheck via updateInternal's Object.assign, which does not happen in prod.
-    await service.update(99, { assets: 'BTC-EUR' } as UpdateTransactionDto);
+    // A non-AML admin edit. new UpdateTransactionDto() carries every optional field as an own `undefined`
+    // (target es2023), so updateInternal's Object.assign clobbers the entity's amlCheck to undefined while
+    // the DB keeps the prior verdict (save skips undefined). The gate keys on dto.amlCheck (the intent),
+    // not the clobbered entity, so no phantom "verdict cleared" row is written.
+    await service.update(99, Object.assign(new UpdateTransactionDto(), { assets: 'BTC-EUR' }));
 
     expect(transactionAmlCheckService.create).not.toHaveBeenCalled();
   });
@@ -92,8 +93,8 @@ describe('TransactionService (admin door — amlCheck audit trail)', () => {
     jest.spyOn(repo, 'findOne').mockResolvedValue(entity);
     jest.spyOn(repo, 'save').mockImplementation(async (e) => e as Transaction);
 
-    // Partial with only the fields the admin actually changed (see the note above on exposeUnsetFields).
-    await service.update(99, { amlType: 'BuyFiat', highRisk: true } as UpdateTransactionDto);
+    // amlType/highRisk change but amlCheck does not — gate keys on dto.amlCheck (undefined here), so no row.
+    await service.update(99, Object.assign(new UpdateTransactionDto(), { amlType: 'BuyFiat', highRisk: true }));
 
     expect(transactionAmlCheckService.create).not.toHaveBeenCalled();
   });
