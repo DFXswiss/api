@@ -29,8 +29,11 @@ export const DebugMaxResults = 10000;
 //   - PII: names, addresses, phone, mail, birthday, nationality/country FKs on user_data,
 //     organization PII, IBANs, BICs, account numbers.
 //   - Secrets: apiKey, apiKeyCT, apiUrl, totpSecret, signature, kycHash, uid, pdfUrl.
-//   - Free-form text: comment, label, internalAmlNote, txInfo, raw, data, message (except
-//     log.message which is the whole point of the endpoint).
+//   - Free-form text: label, internalAmlNote, txInfo, raw, data, message (except log.message
+//     which is the whole point of the endpoint). `comment` is a deliberate exception: it is
+//     exposed ONLY on buy_crypto / buy_fiat, where it stores the ';'-joined AmlError code list
+//     (e.g. 'ScorechainHighRisk') needed for AML/Scorechain forensics on this admin-only DEBUG
+//     endpoint. It can also carry admin-entered notes, so it stays excluded on every other table.
 //   - Card data, IP addresses, recipient mails on transaction-like tables.
 //
 // Include: IDs (own + FK), timestamps, status / enum discriminators, numeric amounts,
@@ -273,6 +276,9 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'chargebackCryptoTxId',
       'chargebackDate',
       'chargebackReferenceAmount',
+      // Included for AML/Scorechain forensics — holds the AmlError code list ('ScorechainHighRisk'
+      // etc.). See the header note; exposed only on the AML tables buy_crypto / buy_fiat.
+      'comment',
       'cryptoRouteId',
       'highRisk',
       'inputAmount',
@@ -369,6 +375,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'chargebackAsset',
       'chargebackDate',
       'chargebackReferenceAmount',
+      'comment', // AML error-code list (incl. 'ScorechainHighRisk') — see header note
       'fiatOutputId',
       'highRisk',
       'inputAmount',
@@ -1055,6 +1062,26 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   },
   sanction: {
     columns: ['id', 'created', 'updated', 'address', 'currency'],
+  },
+  // Scorechain on-chain AML screening results. Keyed by the screened blockchain object
+  // (`objectId` = on-chain tx id / address, public-by-nature) + `blockchain`, not by a tx FK —
+  // correlate to a buy_crypto / buy_fiat via its inTxId / output address. Lower `riskScore` =
+  // higher risk (1 = Critical … 100 = None). No `riskIndicators` / `rawResponse` (free-form
+  // provider JSON).
+  scorechain_screening: {
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'analysisType',
+      'blockchain',
+      'context',
+      'objectId',
+      'objectType',
+      'riskScore',
+      'severity',
+      'signatureValid',
+    ],
   },
   sell: {
     // No iban.
