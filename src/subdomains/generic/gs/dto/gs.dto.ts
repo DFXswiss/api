@@ -563,7 +563,9 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'accountIndex', 'address', 'blockchains'],
   },
   deposit_route: {
-    // No iban.
+    // Physical single table for the Sell/Swap/Staking route STI hierarchy (@ChildEntity of
+    // DepositRoute, discriminated by `type`). There are no physical `sell`/`swap`/`staking` tables —
+    // query a subtype here with a `type` filter. No iban.
     columns: ['id', 'created', 'updated', 'active', 'type', 'volume'],
   },
   exchange_tx: {
@@ -789,7 +791,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'previousActionId',
       'status',
       'type',
-      'uniqueId',
     ],
   },
   liquidity_management_rule: {
@@ -1022,7 +1023,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'liquidityPipelineId',
       'mailSendDate',
       'outputAmount',
-      'outputAsset',
+      'outputAssetId',
       'outputDate',
       'outputReferenceAmount',
       'outputReferenceAsset',
@@ -1031,28 +1032,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'targetBlockchain',
       'txId',
       'userId',
-    ],
-  },
-  reward: {
-    // No recipientMail.
-    columns: [
-      'id',
-      'created',
-      'updated',
-      'amountInChf',
-      'amountInEur',
-      'inputAmount',
-      'inputAsset',
-      'inputReferenceAmount',
-      'inputReferenceAsset',
-      'mailSendDate',
-      'outputAmount',
-      'outputAsset',
-      'outputAssetId',
-      'outputDate',
-      'outputReferenceAmount',
-      'outputReferenceAsset',
-      'txId',
     ],
   },
   route: {
@@ -1064,8 +1043,10 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   // Scorechain on-chain AML screening results. Keyed by the screened blockchain object
   // (`objectId` = on-chain tx id / address, public-by-nature) + `blockchain`, not by a tx FK —
   // correlate to a buy_crypto / buy_fiat via its inTxId / output address. Lower `riskScore` =
-  // higher risk (1 = Critical … 100 = None). No `riskIndicators` / `rawResponse` (free-form
-  // provider JSON).
+  // higher risk (1 = Critical … 100 = None). `riskIndicators` (the provider's per-analysis risk
+  // breakdown = the "why" behind the score) and `rawResponse` (full provider payload) are the
+  // free-form JSON columns; exposed here for AML/Scorechain forensics on this admin-only DEBUG
+  // endpoint (Scorechain screens on-chain objects — an address / tx — not customer PII).
   scorechain_screening: {
     columns: [
       'id',
@@ -1076,24 +1057,11 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'context',
       'objectId',
       'objectType',
+      'rawResponse',
+      'riskIndicators',
       'riskScore',
       'severity',
       'signatureValid',
-    ],
-  },
-  sell: {
-    // No iban.
-    columns: [
-      'id',
-      'created',
-      'updated',
-      'active',
-      'annualVolume',
-      'bankDataId',
-      'fiatId',
-      'monthlyVolume',
-      'type',
-      'volume',
     ],
   },
   setting: {
@@ -1120,9 +1088,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   special_external_account: {
     columns: ['id', 'created', 'updated'],
   },
-  staking: {
-    columns: ['id', 'created', 'updated'],
-  },
   staking_ref_reward: {
     // No recipientMail.
     columns: [
@@ -1137,7 +1102,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'inputReferenceAsset',
       'mailSendDate',
       'outputAmount',
-      'outputAsset',
+      'outputAssetId',
       'outputDate',
       'outputReferenceAmount',
       'outputReferenceAsset',
@@ -1164,7 +1129,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'internalId',
       'mailSendDate',
       'outputAmount',
-      'outputAsset',
+      'outputAssetId',
       'outputDate',
       'outputReferenceAmount',
       'outputReferenceAsset',
@@ -1208,20 +1173,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   support_note: {
     // No content / subject / authorMail.
     columns: ['id', 'created', 'updated', 'authorId', 'department', 'userDataId'],
-  },
-  swap: {
-    columns: [
-      'id',
-      'created',
-      'updated',
-      'active',
-      'annualVolume',
-      'assetId',
-      'monthlyVolume',
-      'targetDepositId',
-      'type',
-      'volume',
-    ],
   },
   system_state_snapshot: {
     // `data` is a JSON dump of subsystem metrics — internal observability values only.
