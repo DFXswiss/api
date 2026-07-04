@@ -384,10 +384,11 @@ export class BuyCryptoService implements OnModuleInit {
     );
 
     // `forceUpdate` injects amlCheck/amlReason: undefined when the admin PUT omits them; save() skips
-    // undefined, so the DB keeps the prior verdict. Restore the in-memory values to what was persisted so
-    // the audit trail records the true (unchanged) state instead of a phantom "verdict cleared" transition.
-    entity.amlCheck = entity.amlCheck ?? amlCheckBefore;
-    entity.amlReason = entity.amlReason ?? amlReasonBefore;
+    // undefined, so the DB keeps the prior verdict. Restore ONLY the undefined-clobber to the persisted
+    // value (=== undefined, not ??): this avoids a phantom "verdict cleared" row for an omitted field
+    // while still recording an explicit `null` verdict clear that save() actually persisted.
+    entity.amlCheck = entity.amlCheck === undefined ? amlCheckBefore : entity.amlCheck;
+    entity.amlReason = entity.amlReason === undefined ? amlReasonBefore : entity.amlReason;
 
     await this.transactionAmlCheckService.createFromEntity(
       entity,

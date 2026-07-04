@@ -33,8 +33,8 @@ import { SellRepository } from '../../route/sell.repository';
 import { SellService } from '../../route/sell.service';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
 import { BuyFiat } from '../buy-fiat.entity';
-import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 import { BuyFiatRepository } from '../buy-fiat.repository';
+import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 import { BuyFiatNotificationService } from '../services/buy-fiat-notification.service';
 import { BuyFiatService } from '../services/buy-fiat.service';
 
@@ -328,6 +328,27 @@ describe('BuyFiatService', () => {
       // the entity handed to the audit trail carries the persisted (unchanged) PENDING verdict, NOT undefined
       expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
         expect.objectContaining({ amlCheck: CheckStatus.PENDING }),
+        'BuyFiat',
+        AmlSourceType.MANUAL_UPDATE,
+        CheckStatus.PENDING,
+        null,
+      );
+    });
+
+    // Companion: an admin PUT that EXPLICITLY sets amlCheck: null is a genuine verdict clear that save()
+    // persists. The coalesce only restores an OMITTED field (undefined), so an explicit null must still
+    // reach the audit trail as null rather than being coalesced back to the prior verdict.
+    it('records a verdict-cleared row when an admin update explicitly sets amlCheck: null', async () => {
+      const entity = createCustomBuyFiat({ id: 14, amlCheck: CheckStatus.PENDING, amlReason: null, isComplete: false });
+      jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
+      jest.spyOn(buyFiatRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyFiat(), dto));
+      jest.spyOn(buyFiatRepo, 'save').mockImplementation(async (e) => e as BuyFiat);
+
+      await service.update(14, Object.assign(new UpdateBuyFiatDto(), { amlCheck: null }), AmlSourceType.MANUAL_UPDATE);
+
+      // the explicit null verdict change survives the coalesce and is handed to the audit trail as null
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
+        expect.objectContaining({ amlCheck: null }),
         'BuyFiat',
         AmlSourceType.MANUAL_UPDATE,
         CheckStatus.PENDING,

@@ -384,5 +384,35 @@ describe('BuyCryptoService', () => {
         null,
       );
     });
+
+    // Companion: an admin PUT that EXPLICITLY sets amlCheck: null is a genuine verdict clear that save()
+    // persists. The coalesce only restores an OMITTED field (undefined), so an explicit null must still
+    // reach the audit trail as null rather than being coalesced back to the prior verdict.
+    it('records a verdict-cleared row when an admin update explicitly sets amlCheck: null', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 13,
+        amlCheck: CheckStatus.PENDING,
+        amlReason: null,
+        isComplete: false,
+      });
+      jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
+      jest.spyOn(buyCryptoRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyCrypto(), dto));
+      jest.spyOn(buyCryptoRepo, 'save').mockImplementation(async (e) => e as BuyCrypto);
+
+      await service.update(
+        13,
+        Object.assign(new UpdateBuyCryptoDto(), { amlCheck: null }),
+        AmlSourceType.MANUAL_UPDATE,
+      );
+
+      // the explicit null verdict change survives the coalesce and is handed to the audit trail as null
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
+        expect.objectContaining({ amlCheck: null }),
+        'BuyCrypto',
+        AmlSourceType.MANUAL_UPDATE,
+        CheckStatus.PENDING,
+        null,
+      );
+    });
   });
 });
