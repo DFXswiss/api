@@ -563,7 +563,9 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
     columns: ['id', 'created', 'updated', 'accountIndex', 'address', 'blockchains'],
   },
   deposit_route: {
-    // No iban.
+    // Physical single table for the Buy/Sell/Swap/Staking route STI hierarchy (@ChildEntity of
+    // DepositRoute, discriminated by `type`). There are no physical `sell`/`swap`/`staking` tables —
+    // query a subtype here with a `type` filter. No iban.
     columns: ['id', 'created', 'updated', 'active', 'type', 'volume'],
   },
   exchange_tx: {
@@ -789,7 +791,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'previousActionId',
       'status',
       'type',
-      'uniqueId',
     ],
   },
   liquidity_management_rule: {
@@ -1022,7 +1023,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'liquidityPipelineId',
       'mailSendDate',
       'outputAmount',
-      'outputAsset',
+      'outputAssetId',
       'outputDate',
       'outputReferenceAmount',
       'outputReferenceAsset',
@@ -1031,28 +1032,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'targetBlockchain',
       'txId',
       'userId',
-    ],
-  },
-  reward: {
-    // No recipientMail.
-    columns: [
-      'id',
-      'created',
-      'updated',
-      'amountInChf',
-      'amountInEur',
-      'inputAmount',
-      'inputAsset',
-      'inputReferenceAmount',
-      'inputReferenceAsset',
-      'mailSendDate',
-      'outputAmount',
-      'outputAsset',
-      'outputAssetId',
-      'outputDate',
-      'outputReferenceAmount',
-      'outputReferenceAsset',
-      'txId',
     ],
   },
   route: {
@@ -1081,21 +1060,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'signatureValid',
     ],
   },
-  sell: {
-    // No iban.
-    columns: [
-      'id',
-      'created',
-      'updated',
-      'active',
-      'annualVolume',
-      'bankDataId',
-      'fiatId',
-      'monthlyVolume',
-      'type',
-      'volume',
-    ],
-  },
   setting: {
     // `key` is included so a debug investigation can locate a specific setting row by name.
     // `value` is excluded — settings can hold credentials, exchange API config, etc.
@@ -1120,9 +1084,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   special_external_account: {
     columns: ['id', 'created', 'updated'],
   },
-  staking: {
-    columns: ['id', 'created', 'updated'],
-  },
   staking_ref_reward: {
     // No recipientMail.
     columns: [
@@ -1137,7 +1098,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'inputReferenceAsset',
       'mailSendDate',
       'outputAmount',
-      'outputAsset',
+      'outputAssetId',
       'outputDate',
       'outputReferenceAmount',
       'outputReferenceAsset',
@@ -1164,7 +1125,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'internalId',
       'mailSendDate',
       'outputAmount',
-      'outputAsset',
+      'outputAssetId',
       'outputDate',
       'outputReferenceAmount',
       'outputReferenceAsset',
@@ -1208,20 +1169,6 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   support_note: {
     // No content / subject / authorMail.
     columns: ['id', 'created', 'updated', 'authorId', 'department', 'userDataId'],
-  },
-  swap: {
-    columns: [
-      'id',
-      'created',
-      'updated',
-      'active',
-      'annualVolume',
-      'assetId',
-      'monthlyVolume',
-      'targetDepositId',
-      'type',
-      'volume',
-    ],
   },
   system_state_snapshot: {
     // `data` is a JSON dump of subsystem metrics — internal observability values only.
