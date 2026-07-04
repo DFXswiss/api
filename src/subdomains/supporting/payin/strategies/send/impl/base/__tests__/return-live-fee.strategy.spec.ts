@@ -184,7 +184,7 @@ describe('EvmTokenStrategy return path', () => {
     expect(a.returnAmount).toBeUndefined();
   });
 
-  // FIX 2: token returns must fail closed when the live fee estimate is missing (would otherwise send ungedeckt)
+  // token returns must fail closed when the live fee estimate is missing (would otherwise send an uncovered amount)
   it('fails closed on the legacy token transfer when the live fee estimate is zero', async () => {
     jest
       .spyOn(strategy as any, 'getEstimatedForwardFee')
@@ -624,7 +624,7 @@ describe.each(perPayInReturnStrategies)('per-pay-in strategy return path ($name)
 
 // --- ZERO LIVE-FEE GUARD (SHARED doSend: TOKEN vs COIN) --- //
 
-// FIX A: on the shared per-pay-in doSend a token return fails closed on a zero live-fee estimate,
+// on the shared per-pay-in doSend a token return fails closed on a zero live-fee estimate,
 // while the coin variant (protected by reverse-gas / fee-from-amount) is unaffected
 describe('per-pay-in strategy zero live-fee guard', () => {
   const zeroFee = { feeNativeAsset: 0, feeInputAsset: 0, maxFeeInputAsset: 0 };
@@ -761,6 +761,25 @@ describe.each(utxoReturnStrategies)('return-only strategy return path ($name)', 
 
   it('does not send when the return is uneconomic', async () => {
     build(0.2);
+
+    const payIn = createCustomCryptoInput({
+      amount: 0.1,
+      chargebackAmount: 0.1,
+      action: PayInAction.RETURN,
+      status: PayInStatus.TO_RETURN,
+      destinationAddress: BlockchainAddress.create('dest', blockchain),
+    });
+
+    await strategy.doSend([payIn], SendType.RETURN);
+
+    expect(service.sendTransfer).not.toHaveBeenCalled();
+    expect(payIn.returnAmount).toBeUndefined();
+    expect(payIn.status).toBe(PayInStatus.TO_RETURN);
+  });
+
+  it('fails closed and stays TO_RETURN when the live fee estimate is zero', async () => {
+    // fee-on-top from the shared node balance: without a live fee estimate DFX would carry the network fee
+    build(0);
 
     const payIn = createCustomCryptoInput({
       amount: 0.1,

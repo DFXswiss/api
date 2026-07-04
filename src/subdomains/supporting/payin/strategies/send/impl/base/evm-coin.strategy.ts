@@ -61,7 +61,7 @@ export abstract class EvmCoinStrategy extends EvmStrategy {
 
     // use fresh gas cost (not cached estimate) to avoid value + gas > balance
     const freshGasCost = await this.payInEvmService.getGasCostForCoinTransaction();
-    const gasCost = CryptoInput.effectiveReturnGasCost(
+    const gasCost = CryptoInput.calcEffectiveReturnGasCost(
       freshGasCost,
       estimatedNativeFee,
       Config.blockchainReturnFeeBuffer,

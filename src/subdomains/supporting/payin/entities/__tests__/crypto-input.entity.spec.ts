@@ -60,26 +60,26 @@ describe('CryptoInput return-fee logic', () => {
     });
   });
 
-  describe('#effectiveReturnGasCost(...)', () => {
+  describe('#calcEffectiveReturnGasCost(...)', () => {
     it('uses the fresh gas cost when it is higher', () => {
-      expect(CryptoInput.effectiveReturnGasCost(10, 5, 1.05, 12)).toBe(10.5);
+      expect(CryptoInput.calcEffectiveReturnGasCost(10, 5, 1.05, 12)).toBe(10.5);
     });
 
     it('uses the estimated gas cost when it is higher', () => {
-      expect(CryptoInput.effectiveReturnGasCost(5, 10, 1.05, 12)).toBe(10.5);
+      expect(CryptoInput.calcEffectiveReturnGasCost(5, 10, 1.05, 12)).toBe(10.5);
     });
 
     it('is stable when fresh and estimated are equal', () => {
-      expect(CryptoInput.effectiveReturnGasCost(10, 10, 1.05, 12)).toBe(10.5);
+      expect(CryptoInput.calcEffectiveReturnGasCost(10, 10, 1.05, 12)).toBe(10.5);
     });
 
     it('applies no premium when the buffer is 1', () => {
-      expect(CryptoInput.effectiveReturnGasCost(10, 5, 1, 12)).toBe(10);
+      expect(CryptoInput.calcEffectiveReturnGasCost(10, 5, 1, 12)).toBe(10);
     });
 
     it('rounds the result to the given decimals', () => {
       // max(1/3, 0) * 1 = 0.3333...; rounded to 4 decimals = 0.3333
-      expect(CryptoInput.effectiveReturnGasCost(1 / 3, 0, 1, 4)).toBe(0.3333);
+      expect(CryptoInput.calcEffectiveReturnGasCost(1 / 3, 0, 1, 4)).toBe(0.3333);
     });
   });
 
@@ -154,18 +154,17 @@ describe('CryptoInput return-fee logic', () => {
   });
 
   describe('#return(...)', () => {
-    it('sets tx id, status, fee and returned amount', () => {
+    it('sets tx id, status and fee', () => {
       const entity = Object.assign(new CryptoInput(), { action: PayInAction.RETURN });
 
-      entity.return('RETURN_TX', 0.5, 98.5);
+      entity.return('RETURN_TX', 0.5);
 
       expect(entity.returnTxId).toBe('RETURN_TX');
       expect(entity.status).toBe(PayInStatus.RETURNED);
       expect(entity.forwardFeeAmount).toBe(0.5);
-      expect(entity.returnAmount).toBe(98.5);
     });
 
-    it('does not overwrite fee or returned amount when they are not provided', () => {
+    it('leaves the return amount untouched and does not overwrite the fee when it is not provided', () => {
       const entity = Object.assign(new CryptoInput(), {
         action: PayInAction.RETURN,
         forwardFeeAmount: 1,

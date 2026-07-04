@@ -53,6 +53,12 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
             payIn.destinationAddress.address,
           );
 
+          // fail-closed: the fee is paid on top from the shared node balance, so a zero live fee estimate would make DFX carry the network fee
+          if (fee <= 0)
+            throw new FeeLimitExceededException(
+              `No live fee estimate for ${this.blockchain} return; refusing to send without gas coverage`,
+            );
+
           const amount = CryptoInput.calcReturnSendAmount(
             payIn.amount,
             payIn.chargebackAmount,

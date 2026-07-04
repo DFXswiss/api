@@ -197,7 +197,7 @@ export class CryptoInput extends IEntity {
   // --- RETURN FEE CALCULATION --- //
 
   // buffered gas cost for a return, based on the higher of the fresh and the estimated gas cost
-  static effectiveReturnGasCost(freshGas: number, estimatedGas: number, buffer: number, decimals: number): number {
+  static calcEffectiveReturnGasCost(freshGas: number, estimatedGas: number, buffer: number, decimals: number): number {
     return Util.round(Math.max(freshGas, estimatedGas) * buffer, decimals);
   }
 
@@ -353,16 +353,12 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  return(returnTxId: string, returnFeeAmount?: number, sentAmount?: number): this {
+  return(returnTxId: string, returnFeeAmount?: number): this {
     this.returnTxId = returnTxId;
     this.status = PayInStatus.RETURNED;
 
     if (returnFeeAmount != null) {
       this.forwardFeeAmount = returnFeeAmount;
-    }
-
-    if (sentAmount != null) {
-      this.returnAmount = sentAmount;
     }
 
     return this;
