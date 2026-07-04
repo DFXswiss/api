@@ -823,7 +823,7 @@ export class UserData extends IEntity {
     return this.getStepsWith(stepName).some((s) => s.isDone);
   }
 
-  checkIfMergePossibleWith(slave: UserData): void {
+  checkIfMergePossibleWith(slave: UserData, verifiedNameCheck = true): void {
     if (!this.isDfxUser) throw new BadRequestException(`Invalid KYC type`);
 
     if (this.hasRole(UserRole.COMPLIANCE) || slave.hasRole(UserRole.COMPLIANCE))
@@ -835,7 +835,12 @@ export class UserData extends IEntity {
     if ([this.status, slave.status].includes(UserDataStatus.MERGED))
       throw new BadRequestException('Master or slave is already merged');
 
-    if (this.verifiedName && slave.verifiedName && !Util.isSameName(this.verifiedName, slave.verifiedName))
+    if (
+      verifiedNameCheck &&
+      this.verifiedName &&
+      slave.verifiedName &&
+      !Util.isSameName(this.verifiedName, slave.verifiedName)
+    )
       throw new BadRequestException('Verified name mismatch');
 
     if (this.isBlocked || slave.isBlocked) throw new BadRequestException('Master or slave is blocked');
