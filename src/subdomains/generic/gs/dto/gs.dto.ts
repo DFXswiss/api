@@ -1043,8 +1043,10 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   // Scorechain on-chain AML screening results. Keyed by the screened blockchain object
   // (`objectId` = on-chain tx id / address, public-by-nature) + `blockchain`, not by a tx FK —
   // correlate to a buy_crypto / buy_fiat via its inTxId / output address. Lower `riskScore` =
-  // higher risk (1 = Critical … 100 = None). No `riskIndicators` / `rawResponse` (free-form
-  // provider JSON).
+  // higher risk (1 = Critical … 100 = None). `riskIndicators` (the provider's per-analysis risk
+  // breakdown = the "why" behind the score) and `rawResponse` (full provider payload) are the
+  // free-form JSON columns; exposed here for AML/Scorechain forensics on this admin-only DEBUG
+  // endpoint (Scorechain screens on-chain objects — an address / tx — not customer PII).
   scorechain_screening: {
     columns: [
       'id',
@@ -1055,6 +1057,8 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'context',
       'objectId',
       'objectType',
+      'rawResponse',
+      'riskIndicators',
       'riskScore',
       'severity',
       'signatureValid',
