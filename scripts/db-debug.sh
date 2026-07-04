@@ -73,7 +73,7 @@
 #     Posts an arbitrary DebugQueryDto. Accepts inline JSON, @file, or - to read the DTO from stdin.
 #     The DTO is validated as well-formed JSON (jq) before the request; malformed JSON fails loudly.
 #       ./scripts/db-debug.sh --query '{"table":"asset","select":[{"kind":"column","column":"name"}],"limit":5}'
-#       ./scripts/db-debug.sh --query @/tmp/q.json
+#       ./scripts/db-debug.sh --query @/tmp/query.json
 #       echo '{"table":"asset","select":[{"kind":"column","column":"id"}],"limit":1}' | ./scripts/db-debug.sh --query -
 #
 # Financial balance semantics (read before interpreting --balance / --anomalies / --stats):

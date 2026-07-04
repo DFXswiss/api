@@ -1182,8 +1182,7 @@ them on pull. They follow the open [Agent Skills](https://agentskills.io) `SKILL
 
 - **Enable:** point your agent at the `skills/` directory — most agents discover skills from a
   skills folder, so symlink or copy `skills/<name>/` into your agent's skills directory, or set the
-  path in your agent's config. Per-developer agent config stays local (`.claude/` and `CLAUDE.md`
-  are git-ignored).
+  path in your agent's config. Per-developer agent config stays local and git-ignored.
 - **Keep them portable:** limit `SKILL.md` frontmatter to the portable core (`name`,
   `description`), reference scripts by repository-relative path (e.g. `scripts/foo.sh`), and avoid
   tool-specific syntax in the body.
@@ -1191,4 +1190,4 @@ them on pull. They follow the open [Agent Skills](https://agentskills.io) `SKILL
 Current skills:
 
 - `skills/db-debug/` — read-only database debugging via `scripts/db-debug.sh` (the `/gs/debug`
-  endpoint); SELECT-only.
+  endpoint); read-only, structured queries only.
