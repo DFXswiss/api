@@ -10,6 +10,8 @@
 #   ./scripts/db-debug.sh --asset-history Yapeal/EUR 10      # Show asset balance history
 #   ./scripts/db-debug.sh --referral-chain <userDataId>      # Show referral chain
 #   ./scripts/db-debug.sh --referral-tree <userDataId>       # Show referral tree
+#   ./scripts/db-debug.sh --get <table> [cols] [limit]       # Ad-hoc: fetch cols from any allowlisted table
+#   ./scripts/db-debug.sh --query '<json>|@file|-'           # Ad-hoc: POST an arbitrary structured DTO
 #
 # Environment:
 #   Uses the central .env file. Required variables:
@@ -61,6 +63,19 @@
 #   Updating the allowlist: every migration that adds, renames, or removes a column on a
 #   debuggable table must update DebugAllowedColumns to match.
 #
+# Ad-hoc query modes (query any allowlisted table without a canned mode):
+#   --get <table> [col1,col2,...] [limit]
+#     Convenience wrapper: builds {table, select:[{kind:"column",column:...}], limit} and posts it.
+#     Columns default to id,created,updated; limit defaults to 100.
+#       ./scripts/db-debug.sh --get user_data
+#       ./scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50
+#   --query '<json>' | --query @path/to/query.json | --query -
+#     Posts an arbitrary DebugQueryDto. Accepts inline JSON, @file, or - to read the DTO from stdin.
+#     The DTO is validated as well-formed JSON (jq) before the request; malformed JSON fails loudly.
+#       ./scripts/db-debug.sh --query '{"table":"asset","select":[{"kind":"column","column":"name"}],"limit":5}'
+#       ./scripts/db-debug.sh --query @/tmp/q.json
+#       echo '{"table":"asset","select":[{"kind":"column","column":"id"}],"limit":1}' | ./scripts/db-debug.sh --query -
+#
 # Financial balance semantics (read before interpreting --balance / --anomalies / --stats):
 #   These query the FinancialDataLog, which records the whole book valued in CHF. In the
 #   balancesTotal object: totalBalanceChf = plusBalanceChf - minusBalanceChf, where plus =
@@ -102,6 +117,10 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "                                Show complete referral chain for user"
   echo "  -T, --referral-tree <userDataId>"
   echo "                                Show complete referral tree (all branches)"
+  echo "  -g, --get <table> [cols] [N]  Ad-hoc: fetch cols (default id,created,updated) from any"
+  echo "                                allowlisted table (default limit: 100)"
+  echo "  -q, --query <json|@file|->    Ad-hoc: POST an arbitrary structured DTO (inline JSON,"
+  echo "                                @file, or - to read the DTO from stdin)"
   echo ""
   echo "Examples:"
   echo "  ./scripts/db-debug.sh --anomalies 50"
@@ -111,6 +130,11 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   echo "  ./scripts/db-debug.sh --asset-history MaerkiBaumann/CHF 10"
   echo "  ./scripts/db-debug.sh --referral-chain 370625"
   echo "  ./scripts/db-debug.sh --referral-tree 370625"
+  echo "  ./scripts/db-debug.sh --get user_data"
+  echo "  ./scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50"
+  echo "  ./scripts/db-debug.sh --query '{\"table\":\"asset\",\"select\":[{\"kind\":\"column\",\"column\":\"name\"}],\"limit\":5}'"
+  echo "  ./scripts/db-debug.sh --query @/tmp/query.json"
+  echo "  cat query.json | ./scripts/db-debug.sh --query -"
   echo ""
   echo "Direct API example (structured JSON, no raw SQL):"
   echo "  curl -X POST \$API_URL/gs/debug \\"
@@ -279,6 +303,58 @@ case "${1:-}" in
     fi
     REFERRAL_TREE_MODE="1"
     TARGET_USER_ID="$2"
+    ;;
+  -g|--get)
+    if [ -z "${2:-}" ]; then
+      echo "Error: --get requires a table name"
+      echo "Usage: ./scripts/db-debug.sh --get <table> [col1,col2,...] [limit]"
+      echo ""
+      echo "Examples:"
+      echo "  ./scripts/db-debug.sh --get user_data"
+      echo "  ./scripts/db-debug.sh --get buy_crypto id,created,amountInEur 50"
+      exit 1
+    fi
+    GET_TABLE="$2"
+    GET_COLUMNS="${3:-id,created,updated}"
+    GET_LIMIT="${4:-100}"
+    # Split the comma list into a select array (trim per-segment whitespace, drop empties).
+    GET_SELECT=$(printf '%s' "$GET_COLUMNS" | jq -R \
+      'split(",") | map(gsub("^ +| +$"; "")) | map(select(length > 0)) | map({kind: "column", column: .})')
+    PAYLOAD=$(jq -n \
+      --arg table "$GET_TABLE" \
+      --argjson select "$GET_SELECT" \
+      --argjson limit "$GET_LIMIT" \
+      '{table: $table, select: $select, limit: $limit}')
+    DESCRIPTION="ad-hoc get (table $GET_TABLE, columns $GET_COLUMNS, limit $GET_LIMIT)"
+    OUTPUT_MODE="objects"
+    ;;
+  -q|--query)
+    if [ -z "${2:-}" ]; then
+      echo "Error: --query requires a JSON DTO, @file, or - (read DTO from stdin)"
+      echo "Usage: ./scripts/db-debug.sh --query '<json>' | --query @path/to/query.json | --query -"
+      exit 1
+    fi
+    QUERY_ARG="$2"
+    if [ "$QUERY_ARG" = "-" ]; then
+      RAW_QUERY=$(cat)
+    elif [ "${QUERY_ARG:0:1}" = "@" ]; then
+      QUERY_FILE="${QUERY_ARG:1}"
+      if [ ! -f "$QUERY_FILE" ]; then
+        echo "Error: --query file not found: $QUERY_FILE"
+        exit 1
+      fi
+      RAW_QUERY=$(cat "$QUERY_FILE")
+    else
+      RAW_QUERY="$QUERY_ARG"
+    fi
+    # Fail loudly (non-zero) if the DTO is not well-formed JSON, before touching the endpoint.
+    if ! printf '%s' "$RAW_QUERY" | jq empty 2>/dev/null; then
+      echo "Error: --query payload is not valid JSON"
+      exit 1
+    fi
+    PAYLOAD=$(printf '%s' "$RAW_QUERY" | jq -c .)
+    DESCRIPTION="ad-hoc structured query"
+    OUTPUT_MODE="objects"
     ;;
   "")
     PAYLOAD=$(payload_default)
