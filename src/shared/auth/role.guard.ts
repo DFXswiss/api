@@ -53,14 +53,21 @@ export function hasRoleAccess(entryRole: UserRole, userRole: UserRole | undefine
 }
 
 class RoleGuardClass implements CanActivate {
-  constructor(private readonly entryRole: UserRole) {}
+  private readonly entryRoles: UserRole[];
+
+  constructor(...entryRoles: UserRole[]) {
+    this.entryRoles = entryRoles;
+  }
 
   canActivate(context: ExecutionContext): boolean {
     const userRole = context.switchToHttp().getRequest().user?.role;
-    return hasRoleAccess(this.entryRole, userRole);
+    return this.entryRoles.some((entryRole) => hasRoleAccess(entryRole, userRole));
   }
 }
 
-export function RoleGuard(entryRole: UserRole): RoleGuardClass {
-  return new RoleGuardClass(entryRole);
+// Accepts one or more entry roles; access is granted when the caller satisfies ANY of them (each
+// via the `additionalRoles` hierarchy in `hasRoleAccess`). A single role keeps the prior behavior;
+// pass multiple independent roles to OR them (e.g. `RoleGuard(UserRole.COMPLIANCE, UserRole.DEBUG)`).
+export function RoleGuard(...entryRoles: UserRole[]): RoleGuardClass {
+  return new RoleGuardClass(...entryRoles);
 }
