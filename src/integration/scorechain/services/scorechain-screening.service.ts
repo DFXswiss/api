@@ -14,7 +14,7 @@ import {
 import {
   ScorechainScreening,
   ScorechainScreeningContext,
-  ScorechainScreeningTrigger,
+  ScorechainScreeningTriggerType,
 } from '../entities/scorechain-screening.entity';
 import { ScorechainObjectNotFoundException } from '../exceptions/scorechain-object-not-found.exception';
 import { ScorechainScreeningRepository } from '../repositories/scorechain-screening.repository';
@@ -26,7 +26,7 @@ interface ScreenParams {
   blockchain: Blockchain;
   analysisType: ScorechainAnalysisType;
   context: ScorechainScreeningContext;
-  trigger: ScorechainScreeningTrigger;
+  triggerType: ScorechainScreeningTriggerType;
 }
 
 export const ScorechainNotSupportedSeverity = 'NotSupported';
@@ -52,7 +52,7 @@ export class ScorechainScreeningService {
       blockchain,
       analysisType: ScorechainAnalysisType.INCOMING,
       context: ScorechainScreeningContext.DEPOSIT,
-      trigger: ScorechainScreeningTrigger.AUTOMATIC,
+      triggerType: ScorechainScreeningTriggerType.AUTOMATIC,
     });
   }
 
@@ -64,7 +64,7 @@ export class ScorechainScreeningService {
       blockchain,
       analysisType: ScorechainAnalysisType.OUTGOING,
       context: ScorechainScreeningContext.WITHDRAWAL,
-      trigger: ScorechainScreeningTrigger.AUTOMATIC,
+      triggerType: ScorechainScreeningTriggerType.AUTOMATIC,
     });
   }
 
@@ -78,7 +78,7 @@ export class ScorechainScreeningService {
       blockchain,
       analysisType: ScorechainAnalysisType.OUTGOING,
       context: ScorechainScreeningContext.WITHDRAWAL,
-      trigger: ScorechainScreeningTrigger.MANUAL,
+      triggerType: ScorechainScreeningTriggerType.MANUAL,
     });
   }
 
@@ -95,7 +95,7 @@ export class ScorechainScreeningService {
       blockchain,
       analysisType,
       context: ScorechainScreeningContext.MANUAL,
-      trigger: ScorechainScreeningTrigger.MANUAL,
+      triggerType: ScorechainScreeningTriggerType.MANUAL,
     });
   }
 
@@ -250,7 +250,7 @@ export class ScorechainScreeningService {
       blockchain: params.blockchain,
       analysisType: params.analysisType,
       context: params.context,
-      triggerType: params.trigger,
+      triggerType: params.triggerType,
       signatureValid: result.signatureValid,
       riskScore: result.riskScore,
       severity: result.severity,
