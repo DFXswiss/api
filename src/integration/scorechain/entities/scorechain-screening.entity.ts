@@ -8,6 +8,13 @@ export enum ScorechainScreeningContext {
   MANUAL = 'Manual',
 }
 
+// What triggered the screening: the automated AML gate (cron) vs. a manual/admin request.
+// Independent of `context` (Deposit/Withdrawal/Manual), which describes the screening's scope.
+export enum ScorechainScreeningTrigger {
+  AUTOMATIC = 'Automatic',
+  MANUAL = 'Manual',
+}
+
 @Entity()
 export class ScorechainScreening extends IEntity {
   @Column({ length: 256 })
@@ -24,6 +31,9 @@ export class ScorechainScreening extends IEntity {
 
   @Column({ length: 256 })
   context: ScorechainScreeningContext;
+
+  @Column({ length: 256 })
+  triggerType: ScorechainScreeningTrigger;
 
   @Column({ type: 'float', nullable: true })
   riskScore?: number;

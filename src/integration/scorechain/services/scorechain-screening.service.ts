@@ -11,7 +11,11 @@ import {
   severityFromScore,
   toScorechainBlockchain,
 } from '../dto/scorechain.dto';
-import { ScorechainScreening, ScorechainScreeningContext } from '../entities/scorechain-screening.entity';
+import {
+  ScorechainScreening,
+  ScorechainScreeningContext,
+  ScorechainScreeningTrigger,
+} from '../entities/scorechain-screening.entity';
 import { ScorechainObjectNotFoundException } from '../exceptions/scorechain-object-not-found.exception';
 import { ScorechainScreeningRepository } from '../repositories/scorechain-screening.repository';
 import { ScorechainService } from './scorechain.service';
@@ -22,6 +26,7 @@ interface ScreenParams {
   blockchain: Blockchain;
   analysisType: ScorechainAnalysisType;
   context: ScorechainScreeningContext;
+  trigger: ScorechainScreeningTrigger;
 }
 
 export const ScorechainNotSupportedSeverity = 'NotSupported';
@@ -47,6 +52,7 @@ export class ScorechainScreeningService {
       blockchain,
       analysisType: ScorechainAnalysisType.INCOMING,
       context: ScorechainScreeningContext.DEPOSIT,
+      trigger: ScorechainScreeningTrigger.AUTOMATIC,
     });
   }
 
@@ -58,6 +64,7 @@ export class ScorechainScreeningService {
       blockchain,
       analysisType: ScorechainAnalysisType.OUTGOING,
       context: ScorechainScreeningContext.WITHDRAWAL,
+      trigger: ScorechainScreeningTrigger.AUTOMATIC,
     });
   }
 
@@ -71,6 +78,7 @@ export class ScorechainScreeningService {
       blockchain,
       analysisType: ScorechainAnalysisType.OUTGOING,
       context: ScorechainScreeningContext.WITHDRAWAL,
+      trigger: ScorechainScreeningTrigger.MANUAL,
     });
   }
 
@@ -81,7 +89,14 @@ export class ScorechainScreeningService {
     objectType: ScorechainObjectType,
     analysisType = ScorechainAnalysisType.ASSIGNED,
   ): Promise<ScorechainScreening> {
-    return this.screen({ objectType, objectId, blockchain, analysisType, context: ScorechainScreeningContext.MANUAL });
+    return this.screen({
+      objectType,
+      objectId,
+      blockchain,
+      analysisType,
+      context: ScorechainScreeningContext.MANUAL,
+      trigger: ScorechainScreeningTrigger.MANUAL,
+    });
   }
 
   // Advisory decision (spec §8): a screening is "high risk" → route the tx to manual review.
@@ -235,6 +250,7 @@ export class ScorechainScreeningService {
       blockchain: params.blockchain,
       analysisType: params.analysisType,
       context: params.context,
+      triggerType: params.trigger,
       signatureValid: result.signatureValid,
       riskScore: result.riskScore,
       severity: result.severity,

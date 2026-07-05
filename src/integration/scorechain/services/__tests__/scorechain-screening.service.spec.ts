@@ -7,7 +7,11 @@ import {
   ScorechainObjectType,
   toScorechainBlockchain,
 } from '../../dto/scorechain.dto';
-import { ScorechainScreening, ScorechainScreeningContext } from '../../entities/scorechain-screening.entity';
+import {
+  ScorechainScreening,
+  ScorechainScreeningContext,
+  ScorechainScreeningTrigger,
+} from '../../entities/scorechain-screening.entity';
 import { ScorechainObjectNotFoundException } from '../../exceptions/scorechain-object-not-found.exception';
 import { ScorechainScreeningRepository } from '../../repositories/scorechain-screening.repository';
 import { ScorechainScreeningService } from '../scorechain-screening.service';
@@ -69,6 +73,7 @@ describe('ScorechainScreeningService', () => {
         }),
       );
       expect(result.riskScore).toBe(85);
+      expect(result.triggerType).toBe(ScorechainScreeningTrigger.AUTOMATIC);
       expect(service.isHighRisk(result)).toBe(false); // high score = safe
     });
 
@@ -151,6 +156,7 @@ describe('ScorechainScreeningService', () => {
       );
       expect(result.riskScore).toBe(85);
       expect(result.context).toBe(ScorechainScreeningContext.WITHDRAWAL);
+      expect(result.triggerType).toBe(ScorechainScreeningTrigger.MANUAL);
     });
 
     it('reuses a TRANSACTION verdict with no time bound (screened at most once) but expires ADDRESS verdicts after a short TTL', async () => {
