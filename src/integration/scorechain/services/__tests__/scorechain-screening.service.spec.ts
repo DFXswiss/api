@@ -7,7 +7,11 @@ import {
   ScorechainObjectType,
   toScorechainBlockchain,
 } from '../../dto/scorechain.dto';
-import { ScorechainScreening, ScorechainScreeningContext } from '../../entities/scorechain-screening.entity';
+import {
+  ScorechainScreening,
+  ScorechainScreeningContext,
+  ScorechainScreeningTriggerType,
+} from '../../entities/scorechain-screening.entity';
 import { ScorechainObjectNotFoundException } from '../../exceptions/scorechain-object-not-found.exception';
 import { ScorechainScreeningRepository } from '../../repositories/scorechain-screening.repository';
 import { ScorechainScreeningService } from '../scorechain-screening.service';
@@ -69,6 +73,7 @@ describe('ScorechainScreeningService', () => {
         }),
       );
       expect(result.riskScore).toBe(85);
+      expect(result.triggerType).toBe(ScorechainScreeningTriggerType.AUTOMATIC);
       expect(service.isHighRisk(result)).toBe(false); // high score = safe
     });
 
@@ -128,6 +133,30 @@ describe('ScorechainScreeningService', () => {
 
       expect(result).toBe(cached);
       expect(scorechain.scoringAnalysis).not.toHaveBeenCalled();
+    });
+
+    it('rescreenWithdrawalAddress bypasses the cache and calls the API even when a cached verdict exists', async () => {
+      const cached = Object.assign(new ScorechainScreening(), { riskScore: 1, signatureValid: true });
+      repo.findOne.mockResolvedValue(cached);
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: { id: 'x', lowestScore: 85, analysis: { assigned: { hasResult: true, result: { score: 85 } } } },
+        signatureValid: true,
+      });
+
+      const result = await service.rescreenWithdrawalAddress(Blockchain.ETHEREUM, '0xabc');
+
+      expect(repo.findOne).not.toHaveBeenCalled();
+      expect(scorechain.scoringAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          objectType: ScorechainObjectType.ADDRESS,
+          analysisType: ScorechainAnalysisType.OUTGOING,
+          blockchain: ScorechainBlockchain.ETHEREUM,
+          objectId: '0xabc',
+        }),
+      );
+      expect(result.riskScore).toBe(85);
+      expect(result.context).toBe(ScorechainScreeningContext.WITHDRAWAL);
+      expect(result.triggerType).toBe(ScorechainScreeningTriggerType.MANUAL);
     });
 
     it('reuses a TRANSACTION verdict with no time bound (screened at most once) but expires ADDRESS verdicts after a short TTL', async () => {

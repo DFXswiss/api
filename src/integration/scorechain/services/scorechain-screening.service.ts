@@ -11,7 +11,11 @@ import {
   severityFromScore,
   toScorechainBlockchain,
 } from '../dto/scorechain.dto';
-import { ScorechainScreening, ScorechainScreeningContext } from '../entities/scorechain-screening.entity';
+import {
+  ScorechainScreening,
+  ScorechainScreeningContext,
+  ScorechainScreeningTriggerType,
+} from '../entities/scorechain-screening.entity';
 import { ScorechainObjectNotFoundException } from '../exceptions/scorechain-object-not-found.exception';
 import { ScorechainScreeningRepository } from '../repositories/scorechain-screening.repository';
 import { ScorechainService } from './scorechain.service';
@@ -22,6 +26,7 @@ interface ScreenParams {
   blockchain: Blockchain;
   analysisType: ScorechainAnalysisType;
   context: ScorechainScreeningContext;
+  triggerType: ScorechainScreeningTriggerType;
 }
 
 export const ScorechainNotSupportedSeverity = 'NotSupported';
@@ -47,6 +52,7 @@ export class ScorechainScreeningService {
       blockchain,
       analysisType: ScorechainAnalysisType.INCOMING,
       context: ScorechainScreeningContext.DEPOSIT,
+      triggerType: ScorechainScreeningTriggerType.AUTOMATIC,
     });
   }
 
@@ -58,6 +64,21 @@ export class ScorechainScreeningService {
       blockchain,
       analysisType: ScorechainAnalysisType.OUTGOING,
       context: ScorechainScreeningContext.WITHDRAWAL,
+      triggerType: ScorechainScreeningTriggerType.AUTOMATIC,
+    });
+  }
+
+  // Manual on-demand re-screen of a withdrawal/target address (e.g. re-running the check for an
+  // existing buy-crypto). Always reaches the provider again, bypassing the address cache window that
+  // screen() honours — the point of a re-trigger is a fresh verdict.
+  async rescreenWithdrawalAddress(blockchain: Blockchain, address: string): Promise<ScorechainScreening> {
+    return this.performScreening({
+      objectType: ScorechainObjectType.ADDRESS,
+      objectId: address,
+      blockchain,
+      analysisType: ScorechainAnalysisType.OUTGOING,
+      context: ScorechainScreeningContext.WITHDRAWAL,
+      triggerType: ScorechainScreeningTriggerType.MANUAL,
     });
   }
 
@@ -68,7 +89,14 @@ export class ScorechainScreeningService {
     objectType: ScorechainObjectType,
     analysisType = ScorechainAnalysisType.ASSIGNED,
   ): Promise<ScorechainScreening> {
-    return this.screen({ objectType, objectId, blockchain, analysisType, context: ScorechainScreeningContext.MANUAL });
+    return this.screen({
+      objectType,
+      objectId,
+      blockchain,
+      analysisType,
+      context: ScorechainScreeningContext.MANUAL,
+      triggerType: ScorechainScreeningTriggerType.MANUAL,
+    });
   }
 
   // Advisory decision (spec §8): a screening is "high risk" → route the tx to manual review.
@@ -103,6 +131,13 @@ export class ScorechainScreeningService {
     const cached = await this.getCached(params);
     if (cached) return cached;
 
+    return this.performScreening(params);
+  }
+
+  // Runs the actual provider call and persists the verdict, WITHOUT consulting the cache. Shared by
+  // the cached screen() path and by the manual re-trigger (rescreenWithdrawalAddress), which must
+  // always reach the provider again regardless of a recent cached verdict.
+  private async performScreening(params: ScreenParams): Promise<ScorechainScreening> {
     const scBlockchain = toScorechainBlockchain(params.blockchain);
     if (!scBlockchain) {
       this.logger.warn(`Scorechain does not support ${params.blockchain} — screening skipped (not a pass)`);
@@ -215,6 +250,7 @@ export class ScorechainScreeningService {
       blockchain: params.blockchain,
       analysisType: params.analysisType,
       context: params.context,
+      triggerType: params.triggerType,
       signatureValid: result.signatureValid,
       riskScore: result.riskScore,
       severity: result.severity,

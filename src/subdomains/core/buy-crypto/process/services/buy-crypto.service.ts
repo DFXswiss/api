@@ -10,6 +10,9 @@ import {
 import { Config } from 'src/config/config';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
+import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
+import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
+import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { TransactionStatus } from 'src/integration/sift/dto/sift.dto';
 import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -107,6 +110,7 @@ export class BuyCryptoService implements OnModuleInit {
     private readonly transactionHelper: TransactionHelper,
     private readonly custodyOrderService: CustodyOrderService,
     private readonly userDataService: UserDataService,
+    private readonly scorechainScreeningService: ScorechainScreeningService,
   ) {}
 
   onModuleInit() {
@@ -710,6 +714,24 @@ export class BuyCryptoService implements OnModuleInit {
     if (!entity) throw new NotFoundException('BuyCrypto not found');
 
     await this.resetAmlCheckInternal(entity);
+  }
+
+  // Manual re-trigger of the Scorechain on-chain screening for an existing buy-crypto: screens the
+  // known target address on the output blockchain (exactly what the automated withdrawal gate uses),
+  // bypassing the cache so the provider is queried again. Measure-only — does not touch amlCheck/status.
+  async retriggerScorechain(id: number): Promise<ScorechainScreening> {
+    const entity = await this.buyCryptoRepo.findOne({
+      where: { id },
+      relations: { buy: true, cryptoRoute: true, transaction: { user: true } },
+    });
+    if (!entity) throw new NotFoundException('BuyCrypto not found');
+
+    const blockchain = entity.outputAsset?.blockchain;
+    const address = entity.targetAddress;
+    if (!blockchain || !address) throw new BadRequestException('BuyCrypto has no output address to screen');
+    if (!toScorechainBlockchain(blockchain)) throw new BadRequestException(`Scorechain does not support ${blockchain}`);
+
+    return this.scorechainScreeningService.rescreenWithdrawalAddress(blockchain, address);
   }
 
   async resetAmlCheckInternal(entity: BuyCrypto): Promise<void> {

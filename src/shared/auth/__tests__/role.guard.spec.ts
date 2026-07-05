@@ -1,4 +1,5 @@
-import { hasRoleAccess } from '../role.guard';
+import { ExecutionContext } from '@nestjs/common';
+import { hasRoleAccess, RoleGuard } from '../role.guard';
 import { UserRole } from '../user-role.enum';
 
 // Pins the hierarchy checks previously encoded in ad-hoc constants
@@ -49,5 +50,31 @@ describe('hasRoleAccess', () => {
   it('returns false for a missing userRole (undefined)', () => {
     expect(hasRoleAccess(UserRole.ADMIN, undefined)).toBe(false);
     expect(hasRoleAccess(UserRole.SUPPORT, undefined)).toBe(false);
+  });
+});
+
+describe('RoleGuard (multi-role access)', () => {
+  function contextFor(role?: UserRole): ExecutionContext {
+    return {
+      switchToHttp: () => ({ getRequest: () => ({ user: role ? { role } : undefined }) }),
+    } as unknown as ExecutionContext;
+  }
+
+  it('grants access to the single entry role and its super-roles, denies others', () => {
+    expect(RoleGuard(UserRole.COMPLIANCE).canActivate(contextFor(UserRole.COMPLIANCE))).toBe(true);
+    expect(RoleGuard(UserRole.COMPLIANCE).canActivate(contextFor(UserRole.ADMIN))).toBe(true);
+    expect(RoleGuard(UserRole.COMPLIANCE).canActivate(contextFor(UserRole.DEBUG))).toBe(false);
+  });
+
+  it('grants access when the caller satisfies ANY of several entry roles (COMPLIANCE or DEBUG)', () => {
+    const guard = RoleGuard(UserRole.COMPLIANCE, UserRole.DEBUG);
+    expect(guard.canActivate(contextFor(UserRole.COMPLIANCE))).toBe(true);
+    expect(guard.canActivate(contextFor(UserRole.DEBUG))).toBe(true);
+    expect(guard.canActivate(contextFor(UserRole.ADMIN))).toBe(true); // super-role of both
+  });
+
+  it('denies a caller who satisfies none of the entry roles', () => {
+    expect(RoleGuard(UserRole.COMPLIANCE, UserRole.DEBUG).canActivate(contextFor(UserRole.SUPPORT))).toBe(false);
+    expect(RoleGuard(UserRole.COMPLIANCE, UserRole.DEBUG).canActivate(contextFor(undefined))).toBe(false);
   });
 });

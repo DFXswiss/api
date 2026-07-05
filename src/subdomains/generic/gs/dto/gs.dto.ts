@@ -1062,6 +1062,7 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'riskScore',
       'severity',
       'signatureValid',
+      'triggerType',
     ],
   },
   setting: {
