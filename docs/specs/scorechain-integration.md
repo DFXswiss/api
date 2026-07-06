@@ -96,7 +96,8 @@ specification, then a single implementation PR (see §11).
 - `scoringAnalysis` returns `{ id, lowestScore, analysis, request }` — the risk value is
   **`lowestScore` (1–100)** where **LOW = riskier**: `1` Critical, `2–29` High, `30–69`
   Medium, `70–99` Low, `100` No risk. The manual-review gate therefore triggers when
-  `lowestScore < SCORECHAIN_RISK_THRESHOLD` (default 70).
+  `lowestScore < SCORECHAIN_RISK_THRESHOLD` — a required env var with **no code default**; the
+  value is provided by the deployment environment.
 
 ### Supported blockchains (relevant subset for DFX)
 BITCOIN, ETHEREUM, ARBITRUMONE, BASE, OPTIMISM, POLYGON, BSC, SOLANA, TRON, LITECOIN,

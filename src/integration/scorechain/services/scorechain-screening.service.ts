@@ -136,7 +136,12 @@ export class ScorechainScreeningService {
 
     if (!screening.signatureValid) return true;
     if (screening.riskScore == null) return true;
-    return screening.riskScore < Config.scorechain.riskThreshold;
+    // No code default for the threshold (only the SCORECHAIN_RISK_THRESHOLD env var provides it). A missing/invalid
+    // value must not silently disable the gate — `riskScore < undefined/NaN` is always false — so
+    // refuse to screen; the caller's catch routes this to manual review (fail-closed + loud).
+    const threshold = Config.scorechain.riskThreshold;
+    if (threshold == null || Number.isNaN(threshold)) throw new Error('SCORECHAIN_RISK_THRESHOLD is not configured');
+    return screening.riskScore < threshold;
   }
 
   // --- CORE --- //

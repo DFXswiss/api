@@ -28,7 +28,14 @@ describe('ScorechainScreeningService', () => {
   };
 
   beforeAll(() => {
+    // riskThreshold has no code default (it comes only from the env var); set it explicitly so
+    // the isHighRisk score-vs-threshold tests below are deterministic. 70 keeps the assertions valid.
+    process.env.SCORECHAIN_RISK_THRESHOLD = '70';
     new ConfigService();
+  });
+
+  afterAll(() => {
+    delete process.env.SCORECHAIN_RISK_THRESHOLD;
   });
 
   beforeEach(() => {

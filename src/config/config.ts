@@ -1128,7 +1128,9 @@ export class Configuration {
     // and isHighRisk() routes every signed screen to high risk (a not-found withdrawal — an unsigned
     // 404 — still passes).
     publicKey: process.env.SCORECHAIN_PUBLIC_KEY?.split('<br>').join('\n'),
-    riskThreshold: +(process.env.SCORECHAIN_RISK_THRESHOLD ?? 70),
+    // No code default — the value comes solely from the SCORECHAIN_RISK_THRESHOLD env var. Unset =>
+    // undefined; isHighRisk then fails loud (fail-closed to manual review) instead of defaulting.
+    riskThreshold: process.env.SCORECHAIN_RISK_THRESHOLD ? +process.env.SCORECHAIN_RISK_THRESHOLD : undefined,
     // ADDRESS/WALLET risk is mutable — an address can be flagged after a clean screen — so a clean
     // verdict expires after this TTL and is re-screened. A TRANSACTION verdict is keyed by an
     // immutable tx hash and is reused with no time bound, so a given tx is screened at most once.
