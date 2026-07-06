@@ -1,11 +1,16 @@
 import { createMock } from '@golevelup/ts-jest';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
+import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
+import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -59,6 +64,8 @@ describe('BuyFiatService', () => {
   let custodyOrderService: CustodyOrderService;
   let supportLogService: SupportLogService;
   let payoutService: PayoutService;
+  let scorechainScreeningService: ScorechainScreeningService;
+  let scorechainDocumentService: ScorechainDocumentService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -81,6 +88,8 @@ describe('BuyFiatService', () => {
     custodyOrderService = createMock<CustodyOrderService>();
     supportLogService = createMock<SupportLogService>();
     payoutService = createMock<PayoutService>();
+    scorechainScreeningService = createMock<ScorechainScreeningService>();
+    scorechainDocumentService = createMock<ScorechainDocumentService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -106,6 +115,8 @@ describe('BuyFiatService', () => {
         { provide: CustodyOrderService, useValue: custodyOrderService },
         { provide: SupportLogService, useValue: supportLogService },
         { provide: PayoutService, useValue: payoutService },
+        { provide: ScorechainScreeningService, useValue: scorechainScreeningService },
+        { provide: ScorechainDocumentService, useValue: scorechainDocumentService },
       ],
     }).compile();
 
@@ -210,5 +221,66 @@ describe('BuyFiatService', () => {
         outputAsset: txSmallAmount.outputAsset.name,
       }),
     ]);
+  });
+
+  describe('retriggerScorechain', () => {
+    it('re-screens the incoming deposit tx on the input blockchain via a fresh (cache-bypassing) call', async () => {
+      const entity = {
+        id: 42,
+        cryptoInput: { asset: { blockchain: Blockchain.ETHEREUM }, inTxId: 'txhash' },
+      } as unknown as BuyFiat;
+      jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
+      const screening = new ScorechainScreening();
+      jest.spyOn(scorechainScreeningService, 'rescreenDepositTransaction').mockResolvedValue(screening);
+
+      const result = await service.retriggerScorechain(42);
+
+      expect(scorechainScreeningService.rescreenDepositTransaction).toHaveBeenCalledWith(Blockchain.ETHEREUM, 'txhash');
+      expect(result).toBe(screening);
+      expect(scorechainDocumentService.createScreeningReport).not.toHaveBeenCalled(); // no userData / not newly screened
+    });
+
+    it('stores a compliance report when the fresh screening is tied to a customer', async () => {
+      const userData = { id: 5 } as any;
+      const entity = {
+        id: 42,
+        cryptoInput: { asset: { blockchain: Blockchain.ETHEREUM }, inTxId: 'txhash' },
+        userData,
+      } as unknown as BuyFiat;
+      jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
+      const screening = Object.assign(new ScorechainScreening(), { isNewlyScreened: true });
+      jest.spyOn(scorechainScreeningService, 'rescreenDepositTransaction').mockResolvedValue(screening);
+
+      const result = await service.retriggerScorechain(42);
+
+      expect(scorechainDocumentService.createScreeningReport).toHaveBeenCalledWith(userData, screening);
+      expect(result).toBe(screening);
+    });
+
+    it('throws NotFoundException when the buy-fiat does not exist', async () => {
+      jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(null);
+
+      await expect(service.retriggerScorechain(1)).rejects.toThrow(NotFoundException);
+      expect(scorechainScreeningService.rescreenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when the buy-fiat has no deposit transaction to screen', async () => {
+      const entity = { id: 7, cryptoInput: { asset: { blockchain: Blockchain.ETHEREUM } } } as unknown as BuyFiat;
+      jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
+
+      await expect(service.retriggerScorechain(7)).rejects.toThrow(BadRequestException);
+      expect(scorechainScreeningService.rescreenDepositTransaction).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException for an input chain Scorechain does not support', async () => {
+      const entity = {
+        id: 7,
+        cryptoInput: { asset: { blockchain: Blockchain.MONERO }, inTxId: 'monero-txhash' },
+      } as unknown as BuyFiat;
+      jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
+
+      await expect(service.retriggerScorechain(7)).rejects.toThrow(BadRequestException);
+      expect(scorechainScreeningService.rescreenDepositTransaction).not.toHaveBeenCalled();
+    });
   });
 });
