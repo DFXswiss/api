@@ -36,6 +36,7 @@ import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionDetailsDto } from 'src/subdomains/core/statistic/dto/statistic.dto';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
+import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
@@ -111,6 +112,8 @@ export class BuyCryptoService implements OnModuleInit {
     private readonly custodyOrderService: CustodyOrderService,
     private readonly userDataService: UserDataService,
     private readonly scorechainScreeningService: ScorechainScreeningService,
+    @Inject(forwardRef(() => ScorechainDocumentService))
+    private readonly scorechainDocumentService: ScorechainDocumentService,
   ) {}
 
   onModuleInit() {
@@ -722,7 +725,7 @@ export class BuyCryptoService implements OnModuleInit {
   async retriggerScorechain(id: number): Promise<ScorechainScreening> {
     const entity = await this.buyCryptoRepo.findOne({
       where: { id },
-      relations: { buy: true, cryptoRoute: true, transaction: { user: true } },
+      relations: { buy: true, cryptoRoute: true, transaction: { user: true, userData: true } },
     });
     if (!entity) throw new NotFoundException('BuyCrypto not found');
 
@@ -731,7 +734,14 @@ export class BuyCryptoService implements OnModuleInit {
     if (!blockchain || !address) throw new BadRequestException('BuyCrypto has no output address to screen');
     if (!toScorechainBlockchain(blockchain)) throw new BadRequestException(`Scorechain does not support ${blockchain}`);
 
-    return this.scorechainScreeningService.rescreenWithdrawalAddress(blockchain, address);
+    const screening = await this.scorechainScreeningService.rescreenWithdrawalAddress(blockchain, address);
+
+    // A re-trigger always reaches the provider (fresh verdict), so store the compliance report.
+    // createScreeningReport never throws (it swallows+logs), so it cannot break the re-trigger.
+    if (screening.isNewlyScreened && entity.userData)
+      await this.scorechainDocumentService.createScreeningReport(entity.userData, screening);
+
+    return screening;
   }
 
   async resetAmlCheckInternal(entity: BuyCrypto): Promise<void> {

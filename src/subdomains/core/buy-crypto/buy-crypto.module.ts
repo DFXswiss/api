@@ -4,6 +4,7 @@ import { IntegrationModule } from 'src/integration/integration.module';
 import { SiftModule } from 'src/integration/sift/sift.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { SwapRepository } from 'src/subdomains/core/buy-crypto/routes/swap/swap.repository';
+import { KycModule } from 'src/subdomains/generic/kyc/kyc.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
 import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
@@ -73,6 +74,7 @@ import { SwapService } from './routes/swap/swap.service';
     forwardRef(() => TransactionUtilModule),
     forwardRef(() => RouteModule),
     forwardRef(() => CustodyModule),
+    forwardRef(() => KycModule),
   ],
   controllers: [BuyCryptoController, BuyController, CryptoRouteController, SwapController],
   providers: [

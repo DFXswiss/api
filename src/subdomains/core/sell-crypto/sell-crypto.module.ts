@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { BlockchainModule } from 'src/integration/blockchain/blockchain.module';
 import { ScorechainModule } from 'src/integration/scorechain/scorechain.module';
 import { SharedModule } from 'src/shared/shared.module';
+import { KycModule } from 'src/subdomains/generic/kyc/kyc.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
 import { AddressPoolModule } from 'src/subdomains/supporting/address-pool/address-pool.module';
 import { BankTxModule } from 'src/subdomains/supporting/bank-tx/bank-tx.module';
@@ -56,6 +57,7 @@ import { SellService } from './route/sell.service';
     RouteModule,
     forwardRef(() => CustodyModule),
     SupportIssueModule,
+    forwardRef(() => KycModule),
   ],
   controllers: [BuyFiatController, SellController],
   providers: [

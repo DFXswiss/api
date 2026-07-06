@@ -16,6 +16,7 @@ import { CustodyOrderService } from 'src/subdomains/core/custody/services/custod
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
+import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
@@ -76,6 +77,7 @@ describe('BuyCryptoService', () => {
   let custodyOrderService: CustodyOrderService;
   let userDataService: UserDataService;
   let scorechainScreeningService: ScorechainScreeningService;
+  let scorechainDocumentService: ScorechainDocumentService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -104,6 +106,7 @@ describe('BuyCryptoService', () => {
     custodyOrderService = createMock<CustodyOrderService>();
     userDataService = createMock<UserDataService>();
     scorechainScreeningService = createMock<ScorechainScreeningService>();
+    scorechainDocumentService = createMock<ScorechainDocumentService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -135,6 +138,7 @@ describe('BuyCryptoService', () => {
         { provide: CustodyOrderService, useValue: custodyOrderService },
         { provide: UserDataService, useValue: userDataService },
         { provide: ScorechainScreeningService, useValue: scorechainScreeningService },
+        { provide: ScorechainDocumentService, useValue: scorechainDocumentService },
       ],
     }).compile();
 
@@ -275,6 +279,25 @@ describe('BuyCryptoService', () => {
       const result = await service.retriggerScorechain(42);
 
       expect(scorechainScreeningService.rescreenWithdrawalAddress).toHaveBeenCalledWith(Blockchain.ETHEREUM, '0xabc');
+      expect(result).toBe(screening);
+      expect(scorechainDocumentService.createScreeningReport).not.toHaveBeenCalled(); // no userData / not newly screened
+    });
+
+    it('stores a compliance report when the fresh screening is tied to a customer', async () => {
+      const userData = { id: 5 } as any;
+      const entity = {
+        id: 42,
+        outputAsset: { blockchain: Blockchain.ETHEREUM },
+        targetAddress: '0xabc',
+        userData,
+      } as unknown as BuyCrypto;
+      jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
+      const screening = Object.assign(new ScorechainScreening(), { isNewlyScreened: true });
+      jest.spyOn(scorechainScreeningService, 'rescreenWithdrawalAddress').mockResolvedValue(screening);
+
+      const result = await service.retriggerScorechain(42);
+
+      expect(scorechainDocumentService.createScreeningReport).toHaveBeenCalledWith(userData, screening);
       expect(result).toBe(screening);
     });
 
