@@ -136,8 +136,16 @@ export class ScorechainScreeningService {
 
   // Runs the actual provider call and persists the verdict, WITHOUT consulting the cache. Shared by
   // the cached screen() path and by the manual re-trigger (rescreenWithdrawalAddress), which must
-  // always reach the provider again regardless of a recent cached verdict.
+  // always reach the provider again regardless of a recent cached verdict. Marks the returned entity
+  // as freshly screened on EVERY branch (a live provider call, never a cache hit) so callers can
+  // trigger the one-off screening-report PDF; the cached screen() path leaves the flag falsy.
   private async performScreening(params: ScreenParams): Promise<ScorechainScreening> {
+    const screening = await this.executeScreening(params);
+    screening.isNewlyScreened = true;
+    return screening;
+  }
+
+  private async executeScreening(params: ScreenParams): Promise<ScorechainScreening> {
     const scBlockchain = toScorechainBlockchain(params.blockchain);
     if (!scBlockchain) {
       this.logger.warn(`Scorechain does not support ${params.blockchain} — screening skipped (not a pass)`);

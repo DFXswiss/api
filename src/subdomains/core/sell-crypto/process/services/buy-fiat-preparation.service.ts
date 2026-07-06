@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { isBankHoliday } from 'src/config/bank-holiday.config';
 import { Config } from 'src/config/config';
 import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
@@ -13,6 +13,7 @@ import { CustodyOrderStatus } from 'src/subdomains/core/custody/enums/custody';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { PayoutFrequency } from 'src/subdomains/core/payment-link/entities/payment-link.config';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
+import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
@@ -53,6 +54,8 @@ export class BuyFiatPreparationService {
     private readonly transactionService: TransactionService,
     private readonly custodyOrderService: CustodyOrderService,
     private readonly scorechainScreeningService: ScorechainScreeningService,
+    @Inject(forwardRef(() => ScorechainDocumentService))
+    private readonly scorechainDocumentService: ScorechainDocumentService,
   ) {}
 
   // Scorechain on-chain screening for the sell/BuyFiat AML gate: screens the incoming crypto deposit
@@ -70,6 +73,12 @@ export class BuyFiatPreparationService {
 
     try {
       const screening = await this.scorechainScreeningService.screenDepositTransaction(blockchain, txHash);
+
+      // Persist a compliance report for every fresh (non-cached) screening tied to a customer.
+      // createScreeningReport never throws (it swallows+logs), so it cannot affect the AML verdict.
+      if (screening.isNewlyScreened && entity.userData)
+        await this.scorechainDocumentService.createScreeningReport(entity.userData, screening);
+
       return this.scorechainScreeningService.isHighRisk(screening);
     } catch (e) {
       // Fail-closed to manual review: a provider/transport error or a reached monthly quota must not

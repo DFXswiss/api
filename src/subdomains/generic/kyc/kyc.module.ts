@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScorechainModule } from 'src/integration/scorechain/scorechain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
@@ -36,6 +37,7 @@ import { KycLogService } from './services/kyc-log.service';
 import { KycNotificationService } from './services/kyc-notification.service';
 import { KycService } from './services/kyc.service';
 import { NameCheckService } from './services/name-check.service';
+import { ScorechainDocumentService } from './services/scorechain-document.service';
 import { TfaService } from './services/tfa.service';
 
 @Module({
@@ -53,6 +55,7 @@ import { TfaService } from './services/tfa.service';
     ]),
     SharedModule,
     NotificationModule,
+    ScorechainModule,
     forwardRef(() => UserModule),
     forwardRef(() => BuyCryptoModule),
     forwardRef(() => SellCryptoModule),
@@ -79,6 +82,7 @@ import { TfaService } from './services/tfa.service';
     KycNotificationService,
     KycClientService,
     SumsubService,
+    ScorechainDocumentService,
   ],
   exports: [
     KycDocumentService,
@@ -89,6 +93,7 @@ import { TfaService } from './services/tfa.service';
     KycNotificationService,
     KycService,
     KycFileService,
+    ScorechainDocumentService,
   ],
 })
 export class KycModule {}

@@ -133,6 +133,18 @@ describe('ScorechainScreeningService', () => {
 
       expect(result).toBe(cached);
       expect(scorechain.scoringAnalysis).not.toHaveBeenCalled();
+      expect(result.isNewlyScreened).toBeFalsy(); // a cache hit is not a fresh screening
+    });
+
+    it('marks a freshly-performed screening as newly screened (cache misses)', async () => {
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: { id: 'x', lowestScore: 85, analysis: { assigned: { hasResult: true, result: { score: 85 } } } },
+        signatureValid: true,
+      });
+
+      const result = await service.screenWithdrawalAddress(Blockchain.ETHEREUM, '0xabc');
+
+      expect(result.isNewlyScreened).toBe(true);
     });
 
     it('rescreenWithdrawalAddress bypasses the cache and calls the API even when a cached verdict exists', async () => {
