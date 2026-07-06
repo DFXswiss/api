@@ -9,6 +9,7 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
+import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -36,6 +37,7 @@ describe('BuyFiatPreparationService', () => {
   let transactionService: TransactionService;
   let custodyOrderService: CustodyOrderService;
   let scorechainScreeningService: ScorechainScreeningService;
+  let scorechainDocumentService: ScorechainDocumentService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -50,6 +52,7 @@ describe('BuyFiatPreparationService', () => {
     transactionService = createMock<TransactionService>();
     custodyOrderService = createMock<CustodyOrderService>();
     scorechainScreeningService = createMock<ScorechainScreeningService>();
+    scorechainDocumentService = createMock<ScorechainDocumentService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -67,6 +70,7 @@ describe('BuyFiatPreparationService', () => {
         { provide: TransactionService, useValue: transactionService },
         { provide: CustodyOrderService, useValue: custodyOrderService },
         { provide: ScorechainScreeningService, useValue: scorechainScreeningService },
+        { provide: ScorechainDocumentService, useValue: scorechainDocumentService },
       ],
     }).compile();
 
@@ -178,6 +182,33 @@ describe('BuyFiatPreparationService', () => {
         .mockRejectedValue(new Error('scorechain unavailable'));
 
       await expect(call(entity)).resolves.toBe(true);
+    });
+
+    it('stores a compliance report for a freshly-screened deposit tied to a customer', async () => {
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      const screening = { isNewlyScreened: true } as any;
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue(screening);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(false);
+
+      await call(entity);
+
+      expect(scorechainDocumentService.createScreeningReport).toHaveBeenCalledWith(entity.userData, screening);
+    });
+
+    it('does NOT store a report for a cache-hit screening (isNewlyScreened falsy)', async () => {
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest
+        .spyOn(scorechainScreeningService, 'screenDepositTransaction')
+        .mockResolvedValue({ isNewlyScreened: false } as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(false);
+
+      await call(entity);
+
+      expect(scorechainDocumentService.createScreeningReport).not.toHaveBeenCalled();
     });
   });
 

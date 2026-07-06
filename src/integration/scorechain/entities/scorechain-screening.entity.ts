@@ -50,6 +50,10 @@ export class ScorechainScreening extends IEntity {
   @Column({ type: 'text', nullable: true })
   rawResponse?: string; // JSON string
 
+  // TRANSIENT (never persisted): set to true only for a freshly-performed screening (a live provider
+  // call), left falsy for a cache hit. Signals callers to generate the one-off screening-report PDF.
+  isNewlyScreened?: boolean;
+
   // --- JSON GETTERS / SETTERS (canonical DFX pattern, never expose raw string) --- //
 
   get riskIndicatorData(): unknown {

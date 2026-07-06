@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
@@ -14,6 +14,7 @@ import { AmountType, Util } from 'src/shared/utils/util';
 import { BlockAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
+import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -57,6 +58,8 @@ export class BuyCryptoPreparationService {
     private readonly virtualIbanService: VirtualIbanService,
     private readonly transactionService: TransactionService,
     private readonly scorechainScreeningService: ScorechainScreeningService,
+    @Inject(forwardRef(() => ScorechainDocumentService))
+    private readonly scorechainDocumentService: ScorechainDocumentService,
   ) {}
 
   // Scorechain on-chain screening for the AML gate. BuyCrypto withdrawal (fiat-funded) screens the
@@ -80,6 +83,11 @@ export class BuyCryptoPreparationService {
       const screening = isDeposit
         ? await this.scorechainScreeningService.screenDepositTransaction(blockchain, objectId)
         : await this.scorechainScreeningService.screenWithdrawalAddress(blockchain, objectId);
+
+      // Persist a compliance report for every fresh (non-cached) screening tied to a customer.
+      // createScreeningReport never throws (it swallows+logs), so it cannot affect the AML verdict.
+      if (screening.isNewlyScreened && entity.userData)
+        await this.scorechainDocumentService.createScreeningReport(entity.userData, screening);
 
       return this.scorechainScreeningService.isHighRisk(screening);
     } catch (e) {
