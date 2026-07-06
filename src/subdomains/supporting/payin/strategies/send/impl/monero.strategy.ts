@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -46,15 +47,34 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
         try {
           this.designateSend(payIn, type);
 
-          const { feeInputAsset: fee, maxFeeInputAsset: maxFee } = await this.getEstimatedForwardFee(
+          const { feeInputAsset: fee } = await this.getEstimatedForwardFee(
             payIn.asset,
             payIn.amount,
             payIn.destinationAddress.address,
           );
 
-          CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
+          // fail-closed: the fee is paid on top from the shared node balance, so a zero live fee estimate would make DFX carry the network fee
+          if (fee <= 0)
+            throw new FeeLimitExceededException(
+              `No live fee estimate for ${this.blockchain} return; refusing to send without gas coverage`,
+            );
 
-          const { outTxId, feeAmount } = await this.moneroService.sendTransfer(payIn);
+          const amount = CryptoInput.calcReturnSendAmount(
+            payIn.amount,
+            payIn.chargebackAmount,
+            fee,
+            Config.blockchainReturnFeeBuffer,
+            12,
+          );
+
+          if (!CryptoInput.isReturnEconomic(amount)) {
+            this.logger.info(`Uneconomic return for Monero input ${payIn.id}: estimated fee exceeds authorized amount`);
+            continue;
+          }
+
+          payIn.returnAmount = amount;
+
+          const { outTxId, feeAmount } = await this.moneroService.sendTransfer(payIn, amount);
           await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
 
           await this.payInRepo.save(payIn);

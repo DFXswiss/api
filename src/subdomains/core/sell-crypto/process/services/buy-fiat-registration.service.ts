@@ -47,7 +47,14 @@ export class BuyFiatRegistrationService {
         const txId = await this.getReturnTxId(entity);
         if (!txId) continue;
 
-        await this.buyFiatRepo.update(entity.id, { chargebackTxId: txId, isComplete: true });
+        // reflect the real on-chain returned amount (falls back to the authorized amount for payout returns)
+        entity.chargebackAmount = entity.cryptoInput.returnAmount ?? entity.chargebackAmount;
+
+        await this.buyFiatRepo.update(entity.id, {
+          chargebackTxId: txId,
+          chargebackAmount: entity.chargebackAmount,
+          isComplete: true,
+        });
         await this.buyFiatService.triggerWebhook(entity);
       } catch (e) {
         this.logger.error(`Error during buyFiat returnTxId sync (${entity.id}):`, e);

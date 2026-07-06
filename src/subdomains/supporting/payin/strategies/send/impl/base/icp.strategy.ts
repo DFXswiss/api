@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { LogLevel } from 'src/shared/services/dfx-logger';
 import {
   CryptoInput,
@@ -66,7 +67,32 @@ export abstract class InternetComputerStrategy extends SendStrategy {
             payIn.destinationAddress.address,
           );
 
-          CryptoInput.verifyForwardFee(feeInputAsset, payIn.maxForwardFee, maxFeeInputAsset, payIn.amount);
+          if (type === SendType.RETURN) {
+            // fail-closed: a token return without a positive live fee estimate would send the full amount uncovered and DFX would carry the gas
+            if (this.assetType === AssetType.TOKEN && feeInputAsset <= 0)
+              throw new FeeLimitExceededException(
+                `No live fee estimate for ${this.blockchain} token return; refusing to send without gas coverage`,
+              );
+
+            const sent = CryptoInput.calcReturnSendAmount(
+              payIn.amount,
+              payIn.chargebackAmount,
+              feeInputAsset,
+              Config.blockchainReturnFeeBuffer,
+              12,
+            );
+
+            if (!CryptoInput.isReturnEconomic(sent)) {
+              this.logger.info(
+                `Uneconomic return for ${this.blockchain} input ${payIn.id}: estimated fee exceeds authorized amount`,
+              );
+              continue;
+            }
+
+            payIn.returnAmount = sent;
+          } else {
+            CryptoInput.verifyForwardFee(feeInputAsset, payIn.maxForwardFee, maxFeeInputAsset, payIn.amount);
+          }
 
           await this.prepareSend(payIn, feeNativeAsset);
 

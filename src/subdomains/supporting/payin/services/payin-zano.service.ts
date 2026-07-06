@@ -33,13 +33,13 @@ export class PayInZanoService extends PayInBitcoinBasedService {
     return this.zanoService.getTransactionHistory(startBlockHeight);
   }
 
-  async sendTransfer(payIn: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
+  async sendTransfer(payIn: CryptoInput, amount: number): Promise<{ outTxId: string; feeAmount: number }> {
     const asset = payIn.asset;
 
     const sendResult =
       asset.type === AssetType.COIN
-        ? await this.zanoService.sendCoin(payIn.destinationAddress.address, payIn.sendingAmount)
-        : await this.zanoService.sendToken(payIn.destinationAddress.address, payIn.sendingAmount, asset);
+        ? await this.zanoService.sendCoin(payIn.destinationAddress.address, amount)
+        : await this.zanoService.sendToken(payIn.destinationAddress.address, amount, asset);
 
     return { outTxId: sendResult.txId, feeAmount: sendResult.fee };
   }

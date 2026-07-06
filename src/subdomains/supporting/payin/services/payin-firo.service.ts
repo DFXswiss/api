@@ -89,15 +89,9 @@ export class PayInFiroService extends PayInBitcoinBasedService {
     return this.client.getTx(outTxId);
   }
 
-  async sendTransfer(input: CryptoInput): Promise<{ outTxId: string; feeAmount: number }> {
+  async sendTransfer(input: CryptoInput, amount: number): Promise<{ outTxId: string; feeAmount: number }> {
     const feeRate = await this.feeService.getSendFeeRate();
-    return this.client.send(
-      input.destinationAddress.address,
-      input.inTxId,
-      input.sendingAmount,
-      input.txSequence,
-      feeRate,
-    );
+    return this.client.send(input.destinationAddress.address, input.inTxId, amount, input.txSequence, feeRate);
   }
 
   async filterUnconfirmedPayInsForForward(payIns: CryptoInput[]): Promise<UnconfirmedPayInFilterResult> {

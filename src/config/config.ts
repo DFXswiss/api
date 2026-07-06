@@ -123,6 +123,7 @@ export class Configuration {
   allowedBorderRegions = ['CH', 'DE']; // aml & kyc
   maxBlockchainFee = 50; // CHF
   blockchainFeeBuffer = 1.2;
+  blockchainReturnFeeBuffer = 1.05; // buffer factor
   networkStartFee = 0.5; // CHF
   networkStartBalanceLimit = 0.00001;
   networkStartBlockchains = [

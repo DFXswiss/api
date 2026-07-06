@@ -91,6 +91,10 @@ export class FiroClient extends BitcoinBasedClient {
 
   // Firo does not have the 'send' RPC (Bitcoin Core 0.21+).
   // Uses explicit input to ensure only the specified UTXO is spent (forwarding from deposit addresses).
+  // createrawtransaction has no automatic change: whatever of the input is not sent to an output is left
+  // as miner fee. To mirror Bitcoin Core's auto-change, the input value beyond the output and the network
+  // fee is returned to the DFX liquidity address. Without this, a partial return (amount < input value)
+  // would burn the difference (input value − amount) as miner fee instead of returning it to DFX.
   async send(
     addressTo: string,
     txId: string,
@@ -101,7 +105,19 @@ export class FiroClient extends BitcoinBasedClient {
     const feeAmount = (feeRate * Config.blockchain.firo.transparentTxSize) / 1e8;
     const sendAmount = this.roundAmount(amount - feeAmount);
 
-    const outTxId = await this.buildSignAndBroadcast([{ txid: txId, vout }], { [addressTo]: sendAmount });
+    const outputs: Record<string, number> = { [addressTo]: sendAmount };
+
+    // read the true value of the UTXO being spent, so the change equals the real remainder
+    const inputTx = await this.getRawTx(txId);
+    if (!inputTx) throw new Error(`Failed to load input transaction ${txId} for Firo send`);
+
+    // input − (output + fee) = input − ((amount − fee) + fee) = input − amount
+    const change = this.roundAmount(inputTx.vout[vout].value - amount);
+    if (change > 0.00001) {
+      outputs[this.walletAddress] = this.roundAmount((outputs[this.walletAddress] ?? 0) + change);
+    }
+
+    const outTxId = await this.buildSignAndBroadcast([{ txid: txId, vout }], outputs);
 
     return { outTxId, feeAmount };
   }
