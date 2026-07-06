@@ -1,7 +1,9 @@
 import { Type } from 'class-transformer';
-import { IsBoolean, IsDate, IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsBoolean, IsDate, IsEnum, IsObject, IsOptional, IsString, ValidateNested } from 'class-validator';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { EntityDto } from 'src/shared/dto/entity.dto';
 import { Moderator } from '../../user-data/user-data.enum';
+import { Wallet } from '../../wallet/wallet.entity';
 import { UserAddressType, UserStatus, WalletType } from '../user.enum';
 
 export class UpdateUserInternalDto {
@@ -45,4 +47,10 @@ export class UpdateUserInternalDto {
   @IsOptional()
   @IsEnum(Moderator)
   moderator?: Moderator;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  wallet?: Wallet;
 }

@@ -19,6 +19,7 @@ import { Util } from 'src/shared/utils/util';
 import { IsOptionalButNotNull } from 'src/shared/validators/is-not-null.validator';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AccountOpenerAuthorization, Organization } from '../../organization/organization.entity';
+import { Wallet } from '../../wallet/wallet.entity';
 import { AccountType } from '../account-type.enum';
 import { DfxPhoneTransform, IsDfxPhone } from '../is-dfx-phone.validator';
 import { KycIdentificationType } from '../kyc-identification-type.enum';
@@ -337,4 +338,10 @@ export class UpdateUserDataDto {
   @IsOptional()
   @IsString()
   phoneCallExternalAccountCheckValue?: string;
+
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => EntityDto)
+  wallet?: Wallet;
 }

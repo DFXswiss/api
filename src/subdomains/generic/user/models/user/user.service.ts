@@ -478,6 +478,11 @@ export class UserService {
       await this.userDataService.updateUserDataInternal(user.userData, { moderator: update.moderator });
     }
 
+    if (update.wallet) {
+      user.wallet = await this.walletService.getByIdOrName(update.wallet.id);
+      if (!user.wallet) throw new BadRequestException('Wallet not found');
+    }
+
     return this.userRepo.save({ ...user, ...update });
   }
 
