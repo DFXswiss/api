@@ -51,6 +51,9 @@ export class ScorechainPdfService {
 
         pdf.on('data', (chunk) => chunks.push(chunk));
         pdf.on('end', () => resolve(Buffer.concat(chunks)));
+        // Reject on an async stream error too — otherwise the promise would hang forever and stall
+        // the awaiting AML flow (the try/catch below only covers synchronous throws).
+        pdf.on('error', reject);
 
         PdfUtil.drawLogo(pdf, PdfBrand.DFX, LogoSize.SMALL);
         this.drawHeader(pdf, screening);
