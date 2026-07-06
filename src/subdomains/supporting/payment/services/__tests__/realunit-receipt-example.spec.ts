@@ -88,7 +88,6 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       true,
       PdfBrand.REALUNIT,
       'DE',
-      BUYER_WALLET,
     );
 
     expectValidPdf(pdf);
@@ -105,7 +104,6 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       true,
       PdfBrand.REALUNIT,
       'EN',
-      BUYER_WALLET,
     );
 
     expectValidPdf(pdf);
@@ -124,7 +122,6 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       'CHF',
       PdfBrand.REALUNIT,
       'DE',
-      BUYER_WALLET,
     );
 
     expectValidPdf(pdf);
@@ -143,7 +140,6 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       'CHF',
       PdfBrand.REALUNIT,
       'EN',
-      BUYER_WALLET,
     );
 
     expectValidPdf(pdf);

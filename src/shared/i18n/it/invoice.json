@@ -49,8 +49,6 @@
     "fees_free": "senza spese",
     "details_title": "Dettagli della transazione",
     "buyer_label": "Acquirente / Titolare",
-    "wallet_label": "Indirizzo del portafoglio",
-    "tx_hash_label": "Hash della transazione",
     "receipt_total_label": "Totale della ricevuta",
     "transaction_type_label": "Tipo di transazione",
     "type_buy": "Acquisto",
