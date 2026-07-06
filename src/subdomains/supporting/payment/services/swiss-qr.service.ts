@@ -39,7 +39,6 @@ interface SwissQRBillTableData {
   date: Date;
   unitPrice?: number;
   txHash?: string;
-  walletAddress?: string;
   buyerName?: string;
 }
 
@@ -133,7 +132,6 @@ export class SwissQRService {
     isIncoming: boolean,
     brand: PdfBrand = PdfBrand.REALUNIT,
     languageOverride?: string,
-    walletAddress?: string,
   ): Promise<string> {
     const debtor = this.getDebtor(userData);
     const language = languageOverride ?? this.getLanguage(userData);
@@ -142,7 +140,7 @@ export class SwissQRService {
 
     const tableData: SwissQRBillTableData = {
       title: this.translate('invoice.receipt_title', language.toLowerCase(), {
-        invoiceId: this.shortenTxHash(historyEvent.txHash),
+        invoiceId: this.receiptId([historyEvent.txHash]),
       }),
       quantity: tokenAmount,
       description: {
@@ -153,8 +151,6 @@ export class SwissQRService {
       fiatAmount,
       date: historyEvent.timestamp,
       unitPrice: fiatPrice,
-      txHash: historyEvent.txHash,
-      walletAddress,
       buyerName: userData.completeName,
     };
 
@@ -188,7 +184,6 @@ export class SwissQRService {
     currency: 'CHF' | 'EUR',
     brand: PdfBrand = PdfBrand.REALUNIT,
     languageOverride?: string,
-    walletAddress?: string,
   ): Promise<string> {
     if (receipts.length === 0) throw new Error('At least one transaction is required');
 
@@ -203,7 +198,7 @@ export class SwissQRService {
 
       const tableData: SwissQRBillTableData = {
         title: this.translate('invoice.receipt_title', language.toLowerCase(), {
-          invoiceId: this.shortenTxHash(historyEvent.txHash),
+          invoiceId: this.receiptId([historyEvent.txHash]),
         }),
         quantity: tokenAmount,
         description: {
@@ -227,20 +222,7 @@ export class SwissQRService {
       currency,
     };
 
-    return this.generateMultiPdfInvoice(
-      tableDataWithType,
-      language,
-      billData,
-      brand,
-      true,
-      walletAddress,
-      userData.completeName,
-    );
-  }
-
-  private shortenTxHash(txHash: string): string {
-    if (txHash.length <= 16) return txHash;
-    return `${txHash.slice(0, 8)}...${txHash.slice(-8)}`;
+    return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand, true, userData.completeName);
   }
 
   // Format an execution timestamp in the Swiss time zone (DST-safe) for RealUnit receipts
@@ -472,18 +454,9 @@ export class SwissQRService {
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
 
-    // RealUnit details section (buyer, wallet, tx hash)
-    if (isRealUnit && (tableData.txHash || tableData.walletAddress || tableData.buyerName)) {
-      this.drawReceiptDetails(
-        pdf,
-        {
-          transactionType,
-          buyerName: tableData.buyerName,
-          walletAddress: tableData.walletAddress,
-          txHash: tableData.txHash,
-        },
-        lang,
-      );
+    // RealUnit details section (buyer)
+    if (isRealUnit) {
+      this.drawReceiptDetails(pdf, { transactionType, buyerName: tableData.buyerName }, lang);
     }
 
     // QR-Bill (Swiss/LI IBAN) or GiroCode (other IBANs)
@@ -542,7 +515,7 @@ export class SwissQRService {
 
   private drawReceiptDetails(
     pdf: typeof PDFDocument.prototype,
-    receipt: { transactionType?: TransactionType; buyerName?: string; walletAddress?: string; txHash?: string },
+    receipt: { transactionType?: TransactionType; buyerName?: string },
     lang: string,
   ): void {
     const labelX = mm2pt(20);
@@ -568,23 +541,8 @@ export class SwissQRService {
       });
     }
 
-    if (receipt.walletAddress) {
-      details.push({
-        label: this.translate('invoice.realunit_receipt.wallet_label', lang),
-        value: receipt.walletAddress,
-      });
-    }
-
-    if (receipt.txHash) {
-      details.push({
-        label: this.translate('invoice.realunit_receipt.tx_hash_label', lang),
-        value: receipt.txHash,
-      });
-    }
-
     // Start a new page if title + all detail rows would not fit on the current page.
-    // Long values (wallet, tx hash) wrap to a second line, so reserve up to two lines per
-    // detail plus a safety margin — overestimate on purpose so nothing gets cut off.
+    // Reserve up to two lines per detail plus a safety margin so nothing gets cut off.
     const estimatedHeight = 15 + 22 + details.length * 26 + 10;
     if (pdf.y + estimatedHeight > pdf.page.height - pdf.page.margins.bottom) pdf.addPage();
 
@@ -594,7 +552,7 @@ export class SwissQRService {
     pdf.fontSize(10);
     let currentY = pdf.y + 8;
     for (const { label, value } of details) {
-      // width must sit on the first (label) segment of the continued chain to wrap long values (wallet/tx hash)
+      // width must sit on the first (label) segment of the continued chain to wrap long values (e.g. buyer name)
       pdf.font('Helvetica-Bold').text(`${label}:`, labelX, currentY, { continued: true, width: mm2pt(150) });
       pdf.font('Helvetica').text(`  ${value}`);
       currentY = pdf.y + 4;
@@ -607,7 +565,6 @@ export class SwissQRService {
     billData: QrBillData,
     brand: PdfBrand = PdfBrand.DFX,
     skipTermsAndConditions = false,
-    walletAddress?: string,
     buyerName?: string,
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
@@ -618,7 +575,7 @@ export class SwissQRService {
     PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
     this.drawSenderAddress(pdf, brand);
     this.drawDebtorAddress(pdf, billData.debtor);
-    const receiptId = this.buildMultiReceiptId(tableDataWithType);
+    const receiptId = this.receiptId(tableDataWithType.map((t) => t.data.txHash));
     this.drawTitle(pdf, this.translate('invoice.multi_receipt_title', lang, { invoiceId: receiptId }));
 
     // Issue date (generation timestamp) top-right, formatted in the Swiss time zone
@@ -713,18 +670,6 @@ export class SwissQRService {
       return { columns: cols, height: 25, padding: 5 };
     };
 
-    // Full on-chain tx hash per position (verifiable reference), rendered as a slim full-width row
-    const buildTxHashRow = (txHash: string): PDFRow => ({
-      columns: [
-        {
-          text: `${this.translate('invoice.realunit_receipt.tx_hash_label', lang)}: ${txHash}`,
-          fontSize: 8,
-          width: mm2pt(170),
-        },
-      ],
-      padding: [0, 5, 5, 5],
-    });
-
     const buildFeesRow = (): PDFRow => {
       const cols: PDFColumn[] = [
         emptyCol(qtyWidth),
@@ -762,7 +707,6 @@ export class SwissQRService {
       rows.push(buildTableHeader());
       for (const { data, type } of txs) {
         rows.push(buildDataRow(data, type));
-        if (isRealUnit && data.txHash) rows.push(buildTxHashRow(data.txHash));
       }
       rows.push(buildSubtotalRow(total));
       if (isRealUnit) rows.push(buildFeesRow());
@@ -780,8 +724,8 @@ export class SwissQRService {
     table.attachTo(pdf);
 
     // RealUnit details section
-    if (isRealUnit && (walletAddress || buyerName)) {
-      this.drawReceiptDetails(pdf, { buyerName, walletAddress }, lang);
+    if (isRealUnit && buyerName) {
+      this.drawReceiptDetails(pdf, { buyerName }, lang);
     }
 
     pdf.end();
@@ -789,14 +733,12 @@ export class SwissQRService {
     return promise;
   }
 
-  // Deterministic receipt number for the collective receipt, derived from its transaction hashes
-  // (same set of transactions → same number; no persisted counter exists for on-demand receipts).
-  private buildMultiReceiptId(tableDataWithType: { data: SwissQRBillTableData; type: TransactionType }[]): string {
-    const txHashes = tableDataWithType
-      .map((t) => t.data.txHash)
-      .filter((h): h is string => h != null)
-      .sort();
-    return Util.createHash(txHashes.join('-')).slice(0, 8).toUpperCase();
+  // Deterministic, non-reversible receipt number derived from the transaction hash(es).
+  // Same set of transactions → same number; no persisted counter exists for on-demand receipts.
+  // The hashes are only folded into the number, never printed on the receipt.
+  private receiptId(txHashes: (string | undefined)[]): string {
+    const sorted = txHashes.filter((h): h is string => h != null).sort();
+    return Util.createHash(sorted.join('-')).slice(0, 8).toUpperCase();
   }
 
   private createPdfWithBase64Promise(): { pdf: typeof PDFDocument.prototype; promise: Promise<string> } {
