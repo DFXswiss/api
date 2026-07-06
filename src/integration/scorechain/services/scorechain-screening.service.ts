@@ -149,8 +149,9 @@ export class ScorechainScreeningService {
   }
 
   // Runs the actual provider call and persists the verdict, WITHOUT consulting the cache. Shared by
-  // the cached screen() path and by the manual re-trigger (rescreenWithdrawalAddress), which must
-  // always reach the provider again regardless of a recent cached verdict. Marks the returned entity
+  // the cached screen() path and by the manual re-triggers (rescreenWithdrawalAddress /
+  // rescreenDepositTransaction), which must always reach the provider again regardless of a recent
+  // cached verdict. Marks the returned entity
   // as freshly screened on EVERY branch (a live provider call, never a cache hit) so callers can
   // trigger the one-off screening-report PDF; the cached screen() path leaves the flag falsy.
   private async performScreening(params: ScreenParams): Promise<ScorechainScreening> {
