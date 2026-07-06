@@ -474,7 +474,16 @@ export class SwissQRService {
 
     // RealUnit details section (buyer, wallet, tx hash)
     if (isRealUnit && (tableData.txHash || tableData.walletAddress || tableData.buyerName)) {
-      this.drawReceiptDetails(pdf, tableData, lang);
+      this.drawReceiptDetails(
+        pdf,
+        {
+          transactionType,
+          buyerName: tableData.buyerName,
+          walletAddress: tableData.walletAddress,
+          txHash: tableData.txHash,
+        },
+        lang,
+      );
     }
 
     // QR-Bill (Swiss/LI IBAN) or GiroCode (other IBANs)
@@ -533,12 +542,24 @@ export class SwissQRService {
 
   private drawReceiptDetails(
     pdf: typeof PDFDocument.prototype,
-    receipt: { buyerName?: string; walletAddress?: string; txHash?: string },
+    receipt: { transactionType?: TransactionType; buyerName?: string; walletAddress?: string; txHash?: string },
     lang: string,
   ): void {
     const labelX = mm2pt(20);
 
     const details: { label: string; value: string }[] = [];
+
+    if (receipt.transactionType) {
+      const typeKey = receipt.transactionType.toLowerCase();
+      details.push({
+        label: this.translate('invoice.realunit_receipt.transaction_type_label', lang),
+        value: this.translate(`invoice.realunit_receipt.type_${typeKey}`, lang),
+      });
+      details.push({
+        label: this.translate('invoice.realunit_receipt.payment_method_label', lang),
+        value: this.translate(`invoice.realunit_receipt.payment_method_${typeKey}`, lang),
+      });
+    }
 
     if (receipt.buyerName) {
       details.push({
@@ -597,7 +618,15 @@ export class SwissQRService {
     PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
     this.drawSenderAddress(pdf, brand);
     this.drawDebtorAddress(pdf, billData.debtor);
-    this.drawTitle(pdf, this.translate('invoice.multi_receipt_title', lang));
+    const receiptId = this.buildMultiReceiptId(tableDataWithType);
+    this.drawTitle(pdf, this.translate('invoice.multi_receipt_title', lang, { invoiceId: receiptId }));
+
+    // Issue date (generation timestamp) top-right, formatted in the Swiss time zone
+    if (isRealUnit) {
+      pdf.fontSize(11).font('Helvetica');
+      const creditorCity = Config.blockchain.realunit.address.city;
+      pdf.text(`${creditorCity}, ${this.formatChDateTime(new Date())}`, { align: 'right', width: mm2pt(170) });
+    }
 
     const buyTransactions = tableDataWithType.filter((t) => t.type === TransactionType.BUY);
     const sellTransactions = tableDataWithType.filter((t) => t.type === TransactionType.SELL);
@@ -710,6 +739,20 @@ export class SwissQRService {
       return { columns: cols, padding: 5 };
     };
 
+    const buildPaymentMethodRow = (sectionKey: string): PDFRow => ({
+      columns: [
+        {
+          text: `${this.translate('invoice.realunit_receipt.payment_method_label', lang)}: ${this.translate(
+            `invoice.realunit_receipt.payment_method_${sectionKey}`,
+            lang,
+          )}`,
+          fontName: 'Helvetica-Bold',
+          width: mm2pt(170),
+        },
+      ],
+      padding: [0, 5, 5, 5],
+    });
+
     const pushSection = (
       sectionKey: string,
       txs: { data: SwissQRBillTableData; type: TransactionType }[],
@@ -723,6 +766,7 @@ export class SwissQRService {
       }
       rows.push(buildSubtotalRow(total));
       if (isRealUnit) rows.push(buildFeesRow());
+      if (isRealUnit) rows.push(buildPaymentMethodRow(sectionKey));
     };
 
     if (buyTransactions.length > 0) pushSection('buy', buyTransactions, buyTotal);
@@ -743,6 +787,16 @@ export class SwissQRService {
     pdf.end();
 
     return promise;
+  }
+
+  // Deterministic receipt number for the collective receipt, derived from its transaction hashes
+  // (same set of transactions → same number; no persisted counter exists for on-demand receipts).
+  private buildMultiReceiptId(tableDataWithType: { data: SwissQRBillTableData; type: TransactionType }[]): string {
+    const txHashes = tableDataWithType
+      .map((t) => t.data.txHash)
+      .filter((h): h is string => h != null)
+      .sort();
+    return Util.createHash(txHashes.join('-')).slice(0, 8).toUpperCase();
   }
 
   private createPdfWithBase64Promise(): { pdf: typeof PDFDocument.prototype; promise: Promise<string> } {

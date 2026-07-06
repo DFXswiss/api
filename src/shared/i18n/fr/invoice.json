@@ -2,7 +2,7 @@
   "title": "Facture No. {invoiceId}",
   "credit_title": "Crédit No. {invoiceId}",
   "receipt_title": "Confirmation de Transaction No. {invoiceId}",
-  "multi_receipt_title": "Historique des transactions",
+  "multi_receipt_title": "Historique des transactions No. {invoiceId}",
   "section": {
     "buy": "Achats",
     "sell": "Ventes"
@@ -51,6 +51,12 @@
     "buyer_label": "Acheteur / Détenteur",
     "wallet_label": "Adresse du portefeuille",
     "tx_hash_label": "Hash de transaction",
-    "receipt_total_label": "Total du reçu"
+    "receipt_total_label": "Total du reçu",
+    "transaction_type_label": "Type de transaction",
+    "type_buy": "Achat",
+    "type_sell": "Vente",
+    "payment_method_label": "Mode de paiement",
+    "payment_method_buy": "Virement bancaire",
+    "payment_method_sell": "Versement sur compte bancaire"
   }
 }

@@ -2,7 +2,7 @@
   "title": "Rechnung Nr. {invoiceId}",
   "credit_title": "Gutschrift Nr. {invoiceId}",
   "receipt_title": "Transaktionsbestätigung Nr. {invoiceId}",
-  "multi_receipt_title": "Transaktionshistorie",
+  "multi_receipt_title": "Transaktionshistorie Nr. {invoiceId}",
   "section": {
     "buy": "Käufe",
     "sell": "Verkäufe"
@@ -51,6 +51,12 @@
     "buyer_label": "Käufer / Inhaber",
     "wallet_label": "Wallet-Adresse",
     "tx_hash_label": "Transaktions-Hash",
-    "receipt_total_label": "Total"
+    "receipt_total_label": "Total",
+    "transaction_type_label": "Transaktionsart",
+    "type_buy": "Kauf",
+    "type_sell": "Verkauf",
+    "payment_method_label": "Zahlungsweg",
+    "payment_method_buy": "Banküberweisung",
+    "payment_method_sell": "Auszahlung auf Bankkonto"
   }
 }
