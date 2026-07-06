@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
+import { ScorechainObjectType } from '../dto/scorechain.dto';
 import { ScorechainScreening } from '../entities/scorechain-screening.entity';
 
 // Parsed shape of ScorechainScreening.riskIndicatorData (the persisted `analysis` object). Kept
@@ -77,7 +78,15 @@ export class ScorechainPdfService {
     pdf.fontSize(11).font('Helvetica').fillColor('#707070');
     const contentWidth = width - MARGIN_X * 2;
     let y = 105;
-    pdf.text(`Address: ${screening.objectId}`, MARGIN_X, y, { width: contentWidth });
+    // objectId is a wallet address for ADDRESS screenings but an on-chain tx hash for TRANSACTION
+    // (deposit) screenings — label it accordingly so the compliance document is not mislabelled.
+    const objectLabel =
+      screening.objectType === ScorechainObjectType.TRANSACTION
+        ? 'Transaction'
+        : screening.objectType === ScorechainObjectType.WALLET
+          ? 'Wallet'
+          : 'Address';
+    pdf.text(`${objectLabel}: ${screening.objectId}`, MARGIN_X, y, { width: contentWidth });
     y += 18;
     pdf.text(`Blockchain: ${screening.blockchain}`, MARGIN_X, y, { width: contentWidth });
     y += 18;

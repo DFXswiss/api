@@ -1,5 +1,8 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
+import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
+import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
@@ -8,6 +11,7 @@ import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { BuyFiatExtended } from 'src/subdomains/core/history/mappers/transaction-dto.mapper';
 import { TransactionUtilService } from 'src/subdomains/core/transaction/transaction-util.service';
+import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { BankDataType } from 'src/subdomains/generic/user/models/bank-data/bank-data.entity';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { CreateBankDataDto } from 'src/subdomains/generic/user/models/bank-data/dto/create-bank-data.dto';
@@ -77,6 +81,9 @@ export class BuyFiatService implements OnModuleInit {
     private readonly supportLogService: SupportLogService,
     private readonly payoutService: PayoutService,
     private readonly userDataService: UserDataService,
+    private readonly scorechainScreeningService: ScorechainScreeningService,
+    @Inject(forwardRef(() => ScorechainDocumentService))
+    private readonly scorechainDocumentService: ScorechainDocumentService,
   ) {}
 
   onModuleInit() {
@@ -424,6 +431,31 @@ export class BuyFiatService implements OnModuleInit {
     if (!entity) throw new NotFoundException('BuyFiat not found');
 
     await this.resetAmlCheckInternal(entity);
+  }
+
+  // Manual re-trigger of the Scorechain on-chain screening for an existing buy-fiat (sell): screens
+  // the known incoming deposit transaction (exactly what the automated deposit gate uses), bypassing
+  // the cache so the provider is queried again. Measure-only — does not touch amlCheck/status.
+  async retriggerScorechain(id: number): Promise<ScorechainScreening> {
+    const entity = await this.buyFiatRepo.findOne({
+      where: { id },
+      relations: { cryptoInput: { asset: true }, transaction: { userData: true } },
+    });
+    if (!entity) throw new NotFoundException('BuyFiat not found');
+
+    const blockchain = entity.cryptoInput?.asset?.blockchain;
+    const txHash = entity.cryptoInput?.inTxId;
+    if (!blockchain || !txHash) throw new BadRequestException('BuyFiat has no deposit transaction to screen');
+    if (!toScorechainBlockchain(blockchain)) throw new BadRequestException(`Scorechain does not support ${blockchain}`);
+
+    const screening = await this.scorechainScreeningService.rescreenDepositTransaction(blockchain, txHash);
+
+    // A re-trigger always reaches the provider (fresh verdict), so store the compliance report.
+    // createScreeningReport never throws (it swallows+logs), so it cannot break the re-trigger.
+    if (screening.isNewlyScreened && entity.userData)
+      await this.scorechainDocumentService.createScreeningReport(entity.userData, screening);
+
+    return screening;
   }
 
   async resetAmlCheckInternal(entity: BuyFiat): Promise<void> {

@@ -171,6 +171,28 @@ describe('ScorechainScreeningService', () => {
       expect(result.triggerType).toBe(ScorechainScreeningTriggerType.MANUAL);
     });
 
+    it('rescreenDepositTransaction screens the incoming tx (TRANSACTION, INCOMING, DEPOSIT, MANUAL) and marks it newly screened', async () => {
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: { id: 'x', lowestScore: 85, analysis: { incoming: { hasResult: true, result: { score: 85 } } } },
+        signatureValid: true,
+      });
+
+      const result = await service.rescreenDepositTransaction(Blockchain.ETHEREUM, 'txhash');
+
+      expect(repo.findOne).not.toHaveBeenCalled();
+      expect(scorechain.scoringAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          objectType: ScorechainObjectType.TRANSACTION,
+          analysisType: ScorechainAnalysisType.INCOMING,
+          blockchain: ScorechainBlockchain.ETHEREUM,
+          objectId: 'txhash',
+        }),
+      );
+      expect(result.context).toBe(ScorechainScreeningContext.DEPOSIT);
+      expect(result.triggerType).toBe(ScorechainScreeningTriggerType.MANUAL);
+      expect(result.isNewlyScreened).toBe(true);
+    });
+
     it('reuses a TRANSACTION verdict with no time bound (screened at most once) but expires ADDRESS verdicts after a short TTL', async () => {
       scorechain.scoringAnalysis.mockResolvedValue({
         data: {

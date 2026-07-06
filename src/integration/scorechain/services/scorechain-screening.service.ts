@@ -82,6 +82,20 @@ export class ScorechainScreeningService {
     });
   }
 
+  // Manual on-demand re-screen of a deposit transaction (e.g. re-running the check for an existing
+  // sell / buy-fiat). Always reaches the provider again, bypassing the cache — the point of a
+  // re-trigger is a fresh verdict.
+  async rescreenDepositTransaction(blockchain: Blockchain, txHash: string): Promise<ScorechainScreening> {
+    return this.performScreening({
+      objectType: ScorechainObjectType.TRANSACTION,
+      objectId: txHash,
+      blockchain,
+      analysisType: ScorechainAnalysisType.INCOMING,
+      context: ScorechainScreeningContext.DEPOSIT,
+      triggerType: ScorechainScreeningTriggerType.MANUAL,
+    });
+  }
+
   // Manual/admin on-demand scoring.
   async screenManual(
     blockchain: Blockchain,
@@ -135,8 +149,9 @@ export class ScorechainScreeningService {
   }
 
   // Runs the actual provider call and persists the verdict, WITHOUT consulting the cache. Shared by
-  // the cached screen() path and by the manual re-trigger (rescreenWithdrawalAddress), which must
-  // always reach the provider again regardless of a recent cached verdict. Marks the returned entity
+  // the cached screen() path and by the manual re-triggers (rescreenWithdrawalAddress /
+  // rescreenDepositTransaction), which must always reach the provider again regardless of a recent
+  // cached verdict. Marks the returned entity
   // as freshly screened on EVERY branch (a live provider call, never a cache hit) so callers can
   // trigger the one-off screening-report PDF; the cached screen() path leaves the flag falsy.
   private async performScreening(params: ScreenParams): Promise<ScorechainScreening> {
