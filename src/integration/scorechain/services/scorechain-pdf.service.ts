@@ -108,11 +108,7 @@ export class ScorechainPdfService {
     y += 18;
     pdf.text(`Severity: ${screening.severity ?? 'n/a'}`, MARGIN_X, y);
     y += 18;
-    pdf.text(
-      `Proof-of-authenticity ${screening.signatureValid ? 'verified' : 'NOT verified'}`,
-      MARGIN_X,
-      y,
-    );
+    pdf.text(`Proof-of-authenticity ${screening.signatureValid ? 'verified' : 'NOT verified'}`, MARGIN_X, y);
     y += 24;
 
     pdf
@@ -146,11 +142,7 @@ export class ScorechainPdfService {
     }
   }
 
-  private drawSection(
-    pdf: InstanceType<typeof PDFDocument>,
-    label: string,
-    section: ScorechainAnalysisSection,
-  ): void {
+  private drawSection(pdf: InstanceType<typeof PDFDocument>, label: string, section: ScorechainAnalysisSection): void {
     const { width } = pdf.page;
     const tableWidth = width - MARGIN_X * 2;
     const cols = [
@@ -166,11 +158,7 @@ export class ScorechainPdfService {
     pdf.fontSize(12).font('Helvetica-Bold').fillColor('#072440');
     const score = section.result?.score;
     const severity = section.result?.severity;
-    pdf.text(
-      `${label}${score == null ? '' : ` — score ${score}`}${severity ? ` (${severity})` : ''}`,
-      MARGIN_X,
-      y,
-    );
+    pdf.text(`${label}${score == null ? '' : ` — score ${score}`}${severity ? ` (${severity})` : ''}`, MARGIN_X, y);
     y += 20;
 
     // header row
