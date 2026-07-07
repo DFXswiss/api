@@ -4,7 +4,7 @@
 // (2025-12-23), so accounts created earlier hold mixed-case mails. After the MSSQL->PostgreSQL
 // cutover (PR #3620, 2026-05-22) the duplicate-detection lookup `getUsersByMail` (exact `mail = ?`)
 // became case-sensitive and stopped matching those mixed-case rows, allowing duplicate accounts
-// for the same address (e.g. `Samuel.kullmann@...` vs `samuel.kullmann@...`).
+// for the same address (e.g. `John.Smith@...` vs `john.smith@...`).
 //
 // This migration lowercases the legacy data so it is consistent with the now case-insensitive
 // lookup. The index is intentionally NON-unique here: case-collision duplicates still exist and
