@@ -7,7 +7,10 @@ import { ScorechainScreeningService } from 'src/integration/scorechain/services/
 import { createDefaultFiat } from 'src/shared/models/fiat/__mocks__/fiat.entity.mock';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
@@ -31,6 +34,7 @@ import { SellService } from '../../route/sell.service';
 import { createCustomBuyFiat } from '../__mocks__/buy-fiat.entity.mock';
 import { BuyFiat } from '../buy-fiat.entity';
 import { BuyFiatRepository } from '../buy-fiat.repository';
+import { UpdateBuyFiatDto } from '../dto/update-buy-fiat.dto';
 import { BuyFiatNotificationService } from '../services/buy-fiat-notification.service';
 import { BuyFiatService } from '../services/buy-fiat.service';
 
@@ -66,6 +70,7 @@ describe('BuyFiatService', () => {
   let payoutService: PayoutService;
   let scorechainScreeningService: ScorechainScreeningService;
   let scorechainDocumentService: ScorechainDocumentService;
+  let transactionAmlCheckService: TransactionAmlCheckService;
 
   beforeEach(async () => {
     buyFiatRepo = createMock<BuyFiatRepository>();
@@ -90,6 +95,7 @@ describe('BuyFiatService', () => {
     payoutService = createMock<PayoutService>();
     scorechainScreeningService = createMock<ScorechainScreeningService>();
     scorechainDocumentService = createMock<ScorechainDocumentService>();
+    transactionAmlCheckService = createMock<TransactionAmlCheckService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -117,6 +123,7 @@ describe('BuyFiatService', () => {
         { provide: PayoutService, useValue: payoutService },
         { provide: ScorechainScreeningService, useValue: scorechainScreeningService },
         { provide: ScorechainDocumentService, useValue: scorechainDocumentService },
+        { provide: TransactionAmlCheckService, useValue: transactionAmlCheckService },
       ],
     }).compile();
 
@@ -281,6 +288,72 @@ describe('BuyFiatService', () => {
 
       await expect(service.retriggerScorechain(7)).rejects.toThrow(BadRequestException);
       expect(scorechainScreeningService.rescreenDepositTransaction).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('amlCheck audit trail', () => {
+    it('records a MANUAL_RESET history row (previous verdict → null) when resetAmlCheckInternal clears the check', async () => {
+      const entity = createCustomBuyFiat({ id: 5, amlCheck: CheckStatus.PENDING, amlReason: null });
+
+      await service.resetAmlCheckInternal(entity, AmlSourceType.MANUAL_RESET);
+
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledTimes(1);
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 5, amlCheck: null }),
+        'BuyFiat',
+        AmlSourceType.MANUAL_RESET,
+        CheckStatus.PENDING,
+        null,
+      );
+    });
+
+    // Regression: an admin PUT that omits amlCheck makes `forceUpdate` inject amlCheck/amlReason: undefined,
+    // which save() drops — leaving the in-memory entity with amlCheck=undefined. update() must coalesce it
+    // back to the persisted verdict before recording history, otherwise the trail gets a phantom
+    // "PENDING → null (verdict cleared)" row for an edit that never touched the verdict.
+    it('does NOT emit a phantom verdict-cleared row when a non-AML admin update omits amlCheck', async () => {
+      const entity = createCustomBuyFiat({ id: 12, amlCheck: CheckStatus.PENDING, amlReason: null, isComplete: false });
+      jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
+      jest.spyOn(buyFiatRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyFiat(), dto));
+      // save returns exactly what it is handed, so forceUpdate's amlCheck=undefined clobber survives and the
+      // test actually exercises update()'s in-memory coalesce (not a DB round-trip that would refill it).
+      jest.spyOn(buyFiatRepo, 'save').mockImplementation(async (e) => e as BuyFiat);
+
+      await service.update(
+        12,
+        Object.assign(new UpdateBuyFiatDto(), { recipientMail: 'gs@example.com' }),
+        AmlSourceType.MANUAL_UPDATE,
+      );
+
+      // the entity handed to the audit trail carries the persisted (unchanged) PENDING verdict, NOT undefined
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
+        expect.objectContaining({ amlCheck: CheckStatus.PENDING }),
+        'BuyFiat',
+        AmlSourceType.MANUAL_UPDATE,
+        CheckStatus.PENDING,
+        null,
+      );
+    });
+
+    // Companion: an admin PUT that EXPLICITLY sets amlCheck: null is a genuine verdict clear that save()
+    // persists. The coalesce only restores an OMITTED field (undefined), so an explicit null must still
+    // reach the audit trail as null rather than being coalesced back to the prior verdict.
+    it('records a verdict-cleared row when an admin update explicitly sets amlCheck: null', async () => {
+      const entity = createCustomBuyFiat({ id: 14, amlCheck: CheckStatus.PENDING, amlReason: null, isComplete: false });
+      jest.spyOn(buyFiatRepo, 'findOne').mockResolvedValue(entity);
+      jest.spyOn(buyFiatRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyFiat(), dto));
+      jest.spyOn(buyFiatRepo, 'save').mockImplementation(async (e) => e as BuyFiat);
+
+      await service.update(14, Object.assign(new UpdateBuyFiatDto(), { amlCheck: null }), AmlSourceType.MANUAL_UPDATE);
+
+      // the explicit null verdict change survives the coalesce and is handed to the audit trail as null
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
+        expect.objectContaining({ amlCheck: null }),
+        'BuyFiat',
+        AmlSourceType.MANUAL_UPDATE,
+        CheckStatus.PENDING,
+        null,
+      );
     });
   });
 });

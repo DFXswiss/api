@@ -1,5 +1,6 @@
 import { Config } from 'src/config/config';
 import { IEntity, UpdateResult } from 'src/shared/models/entity';
+import { TransactionAmlCheck } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { CustodyOrder } from 'src/subdomains/core/custody/entities/custody-order.entity';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
@@ -86,6 +87,9 @@ export class Transaction extends IEntity {
 
   @OneToMany(() => TransactionRiskAssessment, (t) => t.transaction)
   riskAssessments: TransactionRiskAssessment[];
+
+  @OneToMany(() => TransactionAmlCheck, (a) => a.transaction)
+  amlChecks: TransactionAmlCheck[];
 
   // Mail
   @Column({ length: 256, nullable: true })

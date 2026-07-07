@@ -317,6 +317,9 @@ describe('GsService', () => {
         ['transaction_risk_assessment', 'summary'],
         ['transaction_risk_assessment', 'result'],
         ['transaction_risk_assessment', 'pdf'],
+        // transaction_aml_check — amlResponsible can name a compliance officer; comment is free-form
+        ['transaction_aml_check', 'amlResponsible'],
+        ['transaction_aml_check', 'comment'],
         ['support_issue', 'name'],
         ['support_issue', 'information'],
         ['support_issue', 'uid'],
