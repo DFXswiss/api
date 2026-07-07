@@ -18,6 +18,7 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -61,9 +62,11 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { Between, FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
 import { ManualAmlCheckDto } from '../../../aml/dto/manual-aml-check.dto';
+import { AmlSourceType } from '../../../aml/entities/transaction-aml-check.entity';
 import { canManualPass, ManualPassBlacklistErrors } from '../../../aml/enums/aml-error.enum';
 import { AmlReason, PhoneAmlReasons } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
+import { TransactionAmlCheckService } from '../../../aml/services/transaction-aml-check.service';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyRepository } from '../../routes/buy/buy.repository';
 import { BuyService } from '../../routes/buy/buy.service';
@@ -76,6 +79,8 @@ import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoService implements OnModuleInit {
+  private readonly logger = new DfxLogger(BuyCryptoService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyRepo: BuyRepository,
@@ -114,10 +119,15 @@ export class BuyCryptoService implements OnModuleInit {
     private readonly scorechainScreeningService: ScorechainScreeningService,
     @Inject(forwardRef(() => ScorechainDocumentService))
     private readonly scorechainDocumentService: ScorechainDocumentService,
+    private readonly transactionAmlCheckService: TransactionAmlCheckService,
   ) {}
 
   onModuleInit() {
-    this.userDataService.phoneCallCompletedObservable.subscribe((userData) => this.checkAmlResetTx(userData));
+    this.userDataService.phoneCallCompletedObservable.subscribe((userData) =>
+      // fire-and-forget: never let a rejection escape this subscriber (an unhandled rejection would crash
+      // the process). checkAmlResetTx's own DB writes / the fail-open audit write stay contained here.
+      this.checkAmlResetTx(userData).catch((e) => this.logger.error('checkAmlResetTx failed:', e)),
+    );
   }
 
   async checkAmlResetTx(userData: UserData): Promise<void> {
@@ -130,7 +140,7 @@ export class BuyCryptoService implements OnModuleInit {
     });
 
     for (const entity of entities) {
-      await this.resetAmlCheckInternal(entity);
+      await this.resetAmlCheckInternal(entity, AmlSourceType.PHONE_CALL_RESET);
     }
   }
 
@@ -257,7 +267,7 @@ export class BuyCryptoService implements OnModuleInit {
     );
   }
 
-  async update(id: number, dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
+  async update(id: number, dto: UpdateBuyCryptoDto, amlSource: AmlSourceType): Promise<BuyCrypto> {
     let entity = await this.buyCryptoRepo.findOne({
       where: { id },
       relations: {
@@ -369,6 +379,7 @@ export class BuyCryptoService implements OnModuleInit {
     };
 
     const amlCheckBefore = entity.amlCheck;
+    const amlReasonBefore = entity.amlReason;
 
     entity = await this.buyCryptoRepo.save(
       Object.assign(new BuyCrypto(), {
@@ -377,6 +388,21 @@ export class BuyCryptoService implements OnModuleInit {
         ...forceUpdate,
         fee: entity.fee,
       }),
+    );
+
+    // `forceUpdate` injects amlCheck/amlReason: undefined when the admin PUT omits them; save() skips
+    // undefined, so the DB keeps the prior verdict. Restore ONLY the undefined-clobber to the persisted
+    // value (=== undefined, not ??): this avoids a phantom "verdict cleared" row for an omitted field
+    // while still recording an explicit `null` verdict clear that save() actually persisted.
+    entity.amlCheck = entity.amlCheck === undefined ? amlCheckBefore : entity.amlCheck;
+    entity.amlReason = entity.amlReason === undefined ? amlReasonBefore : entity.amlReason;
+
+    await this.transactionAmlCheckService.createFromEntity(
+      entity,
+      'BuyCrypto',
+      amlSource,
+      amlCheckBefore,
+      amlReasonBefore,
     );
 
     if (forceUpdate.amlCheck || (!amlCheckBefore && update.amlCheck)) {
@@ -525,6 +551,9 @@ export class BuyCryptoService implements OnModuleInit {
       await this.checkoutTxService.paymentRefunded(buyCrypto.checkoutTx.id);
     }
 
+    const previousAmlCheck = buyCrypto.amlCheck;
+    const previousAmlReason = buyCrypto.amlReason;
+
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
         undefined,
@@ -537,6 +566,14 @@ export class BuyCryptoService implements OnModuleInit {
         undefined,
         dto.chargebackRemittanceInfo?.reference,
       ),
+    );
+
+    await this.transactionAmlCheckService.createFromEntity(
+      buyCrypto,
+      'BuyCrypto',
+      AmlSourceType.CHARGEBACK,
+      previousAmlCheck,
+      previousAmlReason,
     );
   }
 
@@ -565,6 +602,9 @@ export class BuyCryptoService implements OnModuleInit {
       );
     }
 
+    const previousAmlCheck = buyCrypto.amlCheck;
+    const previousAmlReason = buyCrypto.amlReason;
+
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
         refundUser.address ?? buyCrypto.chargebackIban,
@@ -578,6 +618,14 @@ export class BuyCryptoService implements OnModuleInit {
         undefined,
         blockchainFee,
       ),
+    );
+
+    await this.transactionAmlCheckService.createFromEntity(
+      buyCrypto,
+      'BuyCrypto',
+      AmlSourceType.CHARGEBACK,
+      previousAmlCheck,
+      previousAmlReason,
     );
   }
 
@@ -623,6 +671,9 @@ export class BuyCryptoService implements OnModuleInit {
         },
       );
 
+    const previousAmlCheck = buyCrypto.amlCheck;
+    const previousAmlReason = buyCrypto.amlReason;
+
     await this.buyCryptoRepo.update(
       ...buyCrypto.chargebackFillUp(
         chargebackIban,
@@ -637,6 +688,14 @@ export class BuyCryptoService implements OnModuleInit {
         undefined,
         creditorData,
       ),
+    );
+
+    await this.transactionAmlCheckService.createFromEntity(
+      buyCrypto,
+      'BuyCrypto',
+      AmlSourceType.CHARGEBACK,
+      previousAmlCheck,
+      previousAmlReason,
     );
   }
 
@@ -716,7 +775,7 @@ export class BuyCryptoService implements OnModuleInit {
     const entity = await this.buyCryptoRepo.findOne({ where: { id }, relations: { chargebackOutput: true } });
     if (!entity) throw new NotFoundException('BuyCrypto not found');
 
-    await this.resetAmlCheckInternal(entity);
+    await this.resetAmlCheckInternal(entity, AmlSourceType.MANUAL_RESET);
   }
 
   // Manual re-trigger of the Scorechain on-chain screening for an existing buy-crypto: screens the
@@ -744,7 +803,7 @@ export class BuyCryptoService implements OnModuleInit {
     return screening;
   }
 
-  async resetAmlCheckInternal(entity: BuyCrypto): Promise<void> {
+  async resetAmlCheckInternal(entity: BuyCrypto, source: AmlSourceType): Promise<void> {
     if (entity.isComplete || entity.batch || entity.chargebackOutput?.isComplete || entity.chargebackAllowedDate)
       throw new BadRequestException('BuyCrypto is already complete or payout initiated');
     if (!entity.amlCheck) throw new BadRequestException('BuyCrypto AML check is not set');
@@ -752,7 +811,17 @@ export class BuyCryptoService implements OnModuleInit {
     const fee = entity.fee;
     const fiatOutputId = entity.chargebackOutput?.id;
 
+    const previousAmlCheck = entity.amlCheck;
+    const previousAmlReason = entity.amlReason;
+
     await this.buyCryptoRepo.update(...entity.resetAmlCheck());
+    await this.transactionAmlCheckService.createFromEntity(
+      entity,
+      'BuyCrypto',
+      source,
+      previousAmlCheck,
+      previousAmlReason,
+    );
     if (fee) await this.buyCryptoRepo.deleteFee(fee);
     if (fiatOutputId) await this.fiatOutputService.delete(fiatOutputId);
   }
@@ -771,12 +840,16 @@ export class BuyCryptoService implements OnModuleInit {
         throw new BadRequestException('Manual pass only allowed when all errors are phone-related');
     }
 
-    return this.update(id, {
-      amlCheck: dto.amlCheck,
-      amlResponsible: dto.responsible,
-      amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
-      priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
-    } as UpdateBuyCryptoDto);
+    return this.update(
+      id,
+      {
+        amlCheck: dto.amlCheck,
+        amlResponsible: dto.responsible,
+        amlReason: dto.amlCheck === CheckStatus.PASS ? AmlReason.NA : dto.amlReason,
+        priceDefinitionAllowedDate: dto.amlCheck === CheckStatus.PASS ? new Date() : undefined,
+      } as UpdateBuyCryptoDto,
+      AmlSourceType.MANUAL_PASS,
+    );
   }
 
   async getUserVolume(

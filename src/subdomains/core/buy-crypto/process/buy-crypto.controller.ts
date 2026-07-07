@@ -7,6 +7,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundInternalDto } from '../../history/dto/refund-internal.dto';
 import { ManualAmlCheckDto } from '../../aml/dto/manual-aml-check.dto';
+import { AmlSourceType } from '../../aml/entities/transaction-aml-check.entity';
 import { UpdateBuyCryptoDto } from './dto/update-buy-crypto.dto';
 import { BuyCrypto } from './entities/buy-crypto.entity';
 import { BuyCryptoWebhookService } from './services/buy-crypto-webhook.service';
@@ -57,7 +58,7 @@ export class BuyCryptoController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async update(@Param('id') id: string, @Body() dto: UpdateBuyCryptoDto): Promise<BuyCrypto> {
-    return this.buyCryptoService.update(+id, dto);
+    return this.buyCryptoService.update(+id, dto, AmlSourceType.MANUAL_UPDATE);
   }
 
   @Delete(':id/amlCheck')

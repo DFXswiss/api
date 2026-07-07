@@ -4,8 +4,12 @@ import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/_
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { createCustomBuy } from 'src/subdomains/core/buy-crypto/routes/buy/__mocks__/buy.entity.mock';
 import { LiquidityManagementService } from 'src/subdomains/core/liquidity-management/services/liquidity-management.service';
+import { RiskStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { CheckLiquidityResult } from 'src/subdomains/supporting/dex/interfaces';
 import { DexService } from 'src/subdomains/supporting/dex/services/dex.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -38,6 +42,7 @@ describe('BuyCryptoBatchService', () => {
   let buyCryptoNotificationService: BuyCryptoNotificationService;
   let liquidityManagementService: LiquidityManagementService;
   let feeService: FeeService;
+  let transactionAmlCheckService: TransactionAmlCheckService;
 
   /*** Spies ***/
 
@@ -204,6 +209,26 @@ describe('BuyCryptoBatchService', () => {
     });
   });
 
+  describe('risk-block reset — amlCheck audit trail', () => {
+    it('records a RISK_BLOCK_RESET history row (previous verdict captured) for a risk-blocked tx', async () => {
+      const entity = createCustomBuyCrypto({ id: 2, amlCheck: CheckStatus.PASS });
+      entity.transaction.userData.riskStatus = RiskStatus.BLOCKED;
+
+      jest.spyOn(buyCryptoRepo, 'find').mockResolvedValue([entity]);
+
+      await service.batchAndOptimizeTransactions();
+
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledTimes(1);
+      const [entityArg, entityType, source, previousAmlCheck] = (
+        transactionAmlCheckService.createFromEntity as jest.Mock
+      ).mock.calls[0];
+      expect(entityArg).toEqual(expect.objectContaining({ id: 2 }));
+      expect(entityType).toBe('BuyCrypto');
+      expect(source).toBe(AmlSourceType.RISK_BLOCK_RESET);
+      expect(previousAmlCheck).toBe(CheckStatus.PASS);
+    });
+  });
+
   // --- HELPER FUNCTIONS --- //
 
   async function setupMocks() {
@@ -218,6 +243,7 @@ describe('BuyCryptoBatchService', () => {
     buyCryptoNotificationService = mock<BuyCryptoNotificationService>();
     liquidityManagementService = mock<LiquidityManagementService>();
     feeService = mock<FeeService>();
+    transactionAmlCheckService = mock<TransactionAmlCheckService>();
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -233,6 +259,7 @@ describe('BuyCryptoBatchService', () => {
         { provide: BuyCryptoNotificationService, useValue: buyCryptoNotificationService },
         { provide: LiquidityManagementService, useValue: liquidityManagementService },
         { provide: FeeService, useValue: feeService },
+        { provide: TransactionAmlCheckService, useValue: transactionAmlCheckService },
         TestUtil.provideConfig(),
       ],
     }).compile();

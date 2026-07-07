@@ -10,7 +10,10 @@ import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entit
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
+import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
+import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
 import { createCustomHistory } from 'src/subdomains/core/history/dto/__mocks__/history.dto.mock';
@@ -32,6 +35,7 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { BuyRepository } from '../../../routes/buy/buy.repository';
 import { BuyService } from '../../../routes/buy/buy.service';
 import { createCustomBuyHistory } from '../../../routes/buy/dto/__mocks__/buy-history.dto.mock';
+import { UpdateBuyCryptoDto } from '../../dto/update-buy-crypto.dto';
 import { createCustomBuyCrypto } from '../../entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto } from '../../entities/buy-crypto.entity';
 import { BuyCryptoRepository } from '../../repositories/buy-crypto.repository';
@@ -78,6 +82,7 @@ describe('BuyCryptoService', () => {
   let userDataService: UserDataService;
   let scorechainScreeningService: ScorechainScreeningService;
   let scorechainDocumentService: ScorechainDocumentService;
+  let transactionAmlCheckService: TransactionAmlCheckService;
 
   beforeEach(async () => {
     buyCryptoRepo = createMock<BuyCryptoRepository>();
@@ -107,6 +112,7 @@ describe('BuyCryptoService', () => {
     userDataService = createMock<UserDataService>();
     scorechainScreeningService = createMock<ScorechainScreeningService>();
     scorechainDocumentService = createMock<ScorechainDocumentService>();
+    transactionAmlCheckService = createMock<TransactionAmlCheckService>();
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [TestSharedModule],
@@ -139,6 +145,7 @@ describe('BuyCryptoService', () => {
         { provide: UserDataService, useValue: userDataService },
         { provide: ScorechainScreeningService, useValue: scorechainScreeningService },
         { provide: ScorechainDocumentService, useValue: scorechainDocumentService },
+        { provide: TransactionAmlCheckService, useValue: transactionAmlCheckService },
       ],
     }).compile();
 
@@ -318,6 +325,94 @@ describe('BuyCryptoService', () => {
 
       await expect(service.retriggerScorechain(7)).rejects.toThrow(BadRequestException);
       expect(scorechainScreeningService.rescreenWithdrawalAddress).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('amlCheck audit trail', () => {
+    it('records a MANUAL_RESET history row (previous verdict → null) when resetAmlCheckInternal clears the check', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 7,
+        amlCheck: CheckStatus.PENDING,
+        amlReason: null,
+        batch: null,
+        chargebackOutput: undefined,
+        chargebackAllowedDate: undefined,
+        isComplete: false,
+      });
+
+      await service.resetAmlCheckInternal(entity, AmlSourceType.MANUAL_RESET);
+
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledTimes(1);
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
+        expect.objectContaining({ id: 7, amlCheck: null }),
+        'BuyCrypto',
+        AmlSourceType.MANUAL_RESET,
+        CheckStatus.PENDING,
+        null,
+      );
+    });
+
+    // Regression: an admin PUT that omits amlCheck makes `forceUpdate` inject amlCheck/amlReason: undefined,
+    // which save() drops — leaving the in-memory entity with amlCheck=undefined. update() must coalesce it
+    // back to the persisted verdict before recording history, otherwise the trail gets a phantom
+    // "PENDING → null (verdict cleared)" row for an edit that never touched the verdict.
+    it('does NOT emit a phantom verdict-cleared row when a non-AML admin update omits amlCheck', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 11,
+        amlCheck: CheckStatus.PENDING,
+        amlReason: null,
+        isComplete: false,
+      });
+      jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
+      jest.spyOn(buyCryptoRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyCrypto(), dto));
+      // save returns exactly what it is handed, so forceUpdate's amlCheck=undefined clobber survives and the
+      // test actually exercises update()'s in-memory coalesce (not a DB round-trip that would refill it).
+      jest.spyOn(buyCryptoRepo, 'save').mockImplementation(async (e) => e as BuyCrypto);
+
+      await service.update(
+        11,
+        Object.assign(new UpdateBuyCryptoDto(), { recipientMail: 'gs@example.com' }),
+        AmlSourceType.MANUAL_UPDATE,
+      );
+
+      // the entity handed to the audit trail carries the persisted (unchanged) PENDING verdict, NOT undefined
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
+        expect.objectContaining({ amlCheck: CheckStatus.PENDING }),
+        'BuyCrypto',
+        AmlSourceType.MANUAL_UPDATE,
+        CheckStatus.PENDING,
+        null,
+      );
+    });
+
+    // Companion: an admin PUT that EXPLICITLY sets amlCheck: null is a genuine verdict clear that save()
+    // persists. The coalesce only restores an OMITTED field (undefined), so an explicit null must still
+    // reach the audit trail as null rather than being coalesced back to the prior verdict.
+    it('records a verdict-cleared row when an admin update explicitly sets amlCheck: null', async () => {
+      const entity = createCustomBuyCrypto({
+        id: 13,
+        amlCheck: CheckStatus.PENDING,
+        amlReason: null,
+        isComplete: false,
+      });
+      jest.spyOn(buyCryptoRepo, 'findOne').mockResolvedValue(entity);
+      jest.spyOn(buyCryptoRepo, 'create').mockImplementation((dto: any) => Object.assign(new BuyCrypto(), dto));
+      jest.spyOn(buyCryptoRepo, 'save').mockImplementation(async (e) => e as BuyCrypto);
+
+      await service.update(
+        13,
+        Object.assign(new UpdateBuyCryptoDto(), { amlCheck: null }),
+        AmlSourceType.MANUAL_UPDATE,
+      );
+
+      // the explicit null verdict change survives the coalesce and is handed to the audit trail as null
+      expect(transactionAmlCheckService.createFromEntity).toHaveBeenCalledWith(
+        expect.objectContaining({ amlCheck: null }),
+        'BuyCrypto',
+        AmlSourceType.MANUAL_UPDATE,
+        CheckStatus.PENDING,
+        null,
+      );
     });
   });
 });

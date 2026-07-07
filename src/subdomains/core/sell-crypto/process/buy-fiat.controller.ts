@@ -6,6 +6,7 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { RefundInternalDto } from '../../history/dto/refund-internal.dto';
+import { AmlSourceType } from '../../aml/entities/transaction-aml-check.entity';
 import { BuyFiat } from './buy-fiat.entity';
 import { ManualAmlCheckDto } from '../../aml/dto/manual-aml-check.dto';
 import { UpdateBuyFiatDto } from './dto/update-buy-fiat.dto';
@@ -53,7 +54,7 @@ export class BuyFiatController {
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async update(@Param('id') id: string, @Body() dto: UpdateBuyFiatDto): Promise<BuyFiat> {
-    return this.buyFiatService.update(+id, dto);
+    return this.buyFiatService.update(+id, dto, AmlSourceType.MANUAL_UPDATE);
   }
 
   @Delete(':id/amlCheck')

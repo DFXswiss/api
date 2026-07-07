@@ -3,6 +3,10 @@ export const GsRestrictedMarker = '[RESTRICTED]';
 // db endpoint
 export const GsRestrictedColumns: Record<string, string[]> = {
   asset: ['ikna'],
+  // PII / free-form on the amlCheck audit trail: `amlResponsible` can name a real compliance officer
+  // and `comment` is the internal joined-AmlError / manual-note text. Neither is in the
+  // `transaction_aml_check` `DebugAllowedColumns` allowlist (the startup invariant below forbids overlap).
+  transaction_aml_check: ['amlResponsible', 'comment'],
 };
 
 // Prefix of the verbose audit message emitted by `gs.service.executeDebugQuery`
@@ -1286,6 +1290,26 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
       'totalFee',
       'type',
       'userId',
+    ],
+  },
+  transaction_aml_check: {
+    // No `amlResponsible` (can name a real compliance officer) / `comment` (free-form internal
+    // AmlError names / manual note) — both are in `GsRestrictedColumns` and MUST NOT be allowlisted
+    // here, since /gs/debug applies no role masking. Lifecycle metadata + enum discriminators are safe.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'entityType',
+      'entityId',
+      'source',
+      'previousAmlCheck',
+      'amlCheck',
+      'previousAmlReason',
+      'amlReason',
+      'priceDefinitionAllowedDate',
+      'highRisk',
+      'transactionId',
     ],
   },
   transaction_risk_assessment: {

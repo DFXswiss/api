@@ -2,10 +2,11 @@
   "title": "Invoice No. {invoiceId}",
   "credit_title": "Credit No. {invoiceId}",
   "receipt_title": "Transaction Confirmation No. {invoiceId}",
-  "multi_receipt_title": "Transaction History",
+  "multi_receipt_title": "Transaction History No. {invoiceId}",
   "section": {
     "buy": "Purchases",
-    "sell": "Sales"
+    "sell": "Sales",
+    "transfer": "Transfers"
   },
   "table": {
     "headers": {
@@ -49,8 +50,13 @@
     "fees_free": "fee-free",
     "details_title": "Transaction Details",
     "buyer_label": "Buyer / Holder",
-    "wallet_label": "Wallet address",
-    "tx_hash_label": "Transaction hash",
-    "receipt_total_label": "Receipt Total"
+    "receipt_total_label": "Receipt Total",
+    "transaction_type_label": "Transaction type",
+    "type_buy": "Purchase",
+    "type_sell": "Sale",
+    "type_transfer": "Transfer",
+    "payment_method_label": "Payment method",
+    "payment_method_bank": "Bank transfer",
+    "payment_method_on_chain": "Settled on-chain (ZCHF)"
   }
 }

@@ -95,6 +95,7 @@ export enum Process {
   GUARANTEED_PRICE = 'GuaranteedPrice',
   GS_DEBUG = 'GsDebug',
   GS_DB = 'GsDb',
+  TRANSACTION_AML_CHECK_LOG = 'TransactionAmlCheckLog',
 }
 
 const safetyProcesses: Process[] = [

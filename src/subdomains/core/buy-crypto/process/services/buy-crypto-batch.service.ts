@@ -5,6 +5,8 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
+import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
+import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementPipeline } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-pipeline.entity';
 import { LiquidityManagementRuleStatus } from 'src/subdomains/core/liquidity-management/enums';
@@ -42,6 +44,7 @@ export class BuyCryptoBatchService {
     private readonly payoutService: PayoutService,
     private readonly buyCryptoNotificationService: BuyCryptoNotificationService,
     private readonly liquidityService: LiquidityManagementService,
+    private readonly transactionAmlCheckService: TransactionAmlCheckService,
   ) {}
 
   async batchAndOptimizeTransactions(): Promise<void> {
@@ -88,7 +91,16 @@ export class BuyCryptoBatchService {
 
       const riskyTxs = txWithAssets.filter((t) => t.userData.isRiskBlocked || t.userData.isRiskBuyCryptoBlocked);
       for (const riskyTx of riskyTxs) {
+        const previousAmlCheck = riskyTx.amlCheck;
+        const previousAmlReason = riskyTx.amlReason;
         await this.buyCryptoRepo.update(...riskyTx.resetAmlCheck());
+        await this.transactionAmlCheckService.createFromEntity(
+          riskyTx,
+          'BuyCrypto',
+          AmlSourceType.RISK_BLOCK_RESET,
+          previousAmlCheck,
+          previousAmlReason,
+        );
       }
 
       const filteredTx = txWithAssets.filter(

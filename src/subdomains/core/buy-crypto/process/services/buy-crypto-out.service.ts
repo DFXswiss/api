@@ -16,7 +16,9 @@ import { PayoutRequest } from 'src/subdomains/supporting/payout/interfaces';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PriceValidity, PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { In } from 'typeorm';
+import { AmlSourceType } from '../../../aml/entities/transaction-aml-check.entity';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
+import { TransactionAmlCheckService } from '../../../aml/services/transaction-aml-check.service';
 import { UserStatus } from '../../../../generic/user/models/user/user.enum';
 import { BuyCryptoBatch, BuyCryptoBatchStatus } from '../entities/buy-crypto-batch.entity';
 import { BuyCrypto, BuyCryptoStatus } from '../entities/buy-crypto.entity';
@@ -43,6 +45,7 @@ export class BuyCryptoOutService {
     private readonly custodyOrderService: CustodyOrderService,
     private readonly feeService: FeeService,
     private readonly transactionService: TransactionService,
+    private readonly transactionAmlCheckService: TransactionAmlCheckService,
   ) {}
 
   async payoutTransactions(): Promise<void> {
@@ -87,8 +90,17 @@ export class BuyCryptoOutService {
             const reason = this.getBlockedAmlReason(transaction);
             this.logger.warn(`Stopping payout for transaction ${transaction.id}: ${reason}`);
 
+            const previousAmlCheck = transaction.amlCheck;
+            const previousAmlReason = transaction.amlReason;
             transaction.stop(reason);
             await this.buyCryptoRepo.save(transaction);
+            await this.transactionAmlCheckService.createFromEntity(
+              transaction,
+              'BuyCrypto',
+              AmlSourceType.BLOCKED_STOP,
+              previousAmlCheck,
+              previousAmlReason,
+            );
             continue;
           }
 
@@ -188,8 +200,17 @@ export class BuyCryptoOutService {
         const reason = this.getBlockedAmlReason(tx);
         this.logger.warn(`Stopping transaction ${tx.id} in batch ${batch.id}: ${reason}`);
 
+        const previousAmlCheck = tx.amlCheck;
+        const previousAmlReason = tx.amlReason;
         tx.stop(reason);
         await this.buyCryptoRepo.save(tx);
+        await this.transactionAmlCheckService.createFromEntity(
+          tx,
+          'BuyCrypto',
+          AmlSourceType.BLOCKED_STOP,
+          previousAmlCheck,
+          previousAmlReason,
+        );
         continue;
       }
 

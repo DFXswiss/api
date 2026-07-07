@@ -11,8 +11,10 @@ import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
+import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
 import { BlockAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
+import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -60,6 +62,7 @@ export class BuyCryptoPreparationService {
     private readonly scorechainScreeningService: ScorechainScreeningService,
     @Inject(forwardRef(() => ScorechainDocumentService))
     private readonly scorechainDocumentService: ScorechainDocumentService,
+    private readonly transactionAmlCheckService: TransactionAmlCheckService,
   ) {}
 
   // Scorechain on-chain screening for the AML gate. BuyCrypto withdrawal (fiat-funded) screens the
@@ -139,6 +142,7 @@ export class BuyCryptoPreparationService {
         if (entity.cryptoInput && !entity.cryptoInput.isConfirmed) continue;
 
         const amlCheckBefore = entity.amlCheck;
+        const amlReasonBefore = entity.amlReason;
         const isFirstRun = entity.amlCheck == null;
 
         const inputCurrency = entity.cryptoInput?.asset ?? (await this.fiatService.getFiatByName(entity.inputAsset));
@@ -256,6 +260,14 @@ export class BuyCryptoPreparationService {
         );
         if (!affected) continue;
 
+        await this.transactionAmlCheckService.createFromEntity(
+          entity,
+          'BuyCrypto',
+          AmlSourceType.AML_CHECK_CRON,
+          amlCheckBefore,
+          amlReasonBefore,
+        );
+
         await this.amlService.postProcessing(entity, last30dVolume, isFirstRun);
 
         // postProcessing's compliance side-effects completed → mark the verdict fully handled so the
@@ -363,12 +375,23 @@ export class BuyCryptoPreparationService {
         const feeConstraints = entity.fee ?? (await this.buyCryptoRepo.saveFee(BuyCryptoFee.create(entity)));
         await this.buyCryptoRepo.updateFee(feeConstraints.id, { allowedTotalFeeAmount: maxNetworkFeeInOutAsset });
 
+        const amlCheckBefore = entity.amlCheck;
+        const amlReasonBefore = entity.amlReason;
+
         await this.buyCryptoRepo.update(
           ...entity.setFeeAndFiatReference(
             fee,
             isFiat(inputReferenceCurrency) ? fee.min : referenceEurPrice.convert(fee.min, 2),
             referenceChfPrice.convert(fee.total, 2),
           ),
+        );
+
+        await this.transactionAmlCheckService.createFromEntity(
+          entity,
+          'BuyCrypto',
+          AmlSourceType.FEE_TOO_HIGH,
+          amlCheckBefore,
+          amlReasonBefore,
         );
 
         if (entity.feeAmountChf != null) {
@@ -482,6 +505,9 @@ export class BuyCryptoPreparationService {
         const feeConstraints = entity.fee ?? (await this.buyCryptoRepo.saveFee(BuyCryptoFee.create(entity)));
         await this.buyCryptoRepo.updateFee(feeConstraints.id, { allowedTotalFeeAmount: maxNetworkFeeInOutAsset });
 
+        const amlCheckBefore = entity.amlCheck;
+        const amlReasonBefore = entity.amlReason;
+
         await this.buyCryptoRepo.update(
           ...entity.setPaymentLinkPayment(
             eurPrice.convert(entity.inputAmount, 2),
@@ -494,6 +520,14 @@ export class BuyCryptoPreparationService {
             paymentLinkFee,
             [conversionStep, outputStep],
           ),
+        );
+
+        await this.transactionAmlCheckService.createFromEntity(
+          entity,
+          'BuyCrypto',
+          AmlSourceType.FEE_TOO_HIGH,
+          amlCheckBefore,
+          amlReasonBefore,
         );
 
         if (entity.feeAmountChf != null) {
