@@ -1,4 +1,13 @@
-import { ArgumentsHost, BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
+import {
+  ArgumentsHost,
+  BadRequestException,
+  ForbiddenException,
+  HttpException,
+  HttpStatus,
+  InternalServerErrorException,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { ApiExceptionFilter } from 'src/shared/filters/exception.filter';
 
 describe('ApiExceptionFilter', () => {
@@ -26,11 +35,10 @@ describe('ApiExceptionFilter', () => {
     status = jest.fn(() => ({ json }));
   });
 
-  it('logs a 4xx at WARN with method, route, status and the rejection reason', () => {
-    const response = { status };
+  it('logs a 400 at WARN with method, route, status and the rejection reason', () => {
     filter.catch(
       new BadRequestException("Support ticket source could not be resolved: missing or unknown 'x-client' header"),
-      host(req(), response),
+      host(req(), { status }),
     );
 
     expect(error).not.toHaveBeenCalled();
@@ -59,9 +67,16 @@ describe('ApiExceptionFilter', () => {
     expect(msg).toContain('amount must be positive; asset must be a string');
   });
 
+  it('also logs 422 (Unprocessable Entity) at WARN', () => {
+    filter.catch(new HttpException('bad entity', HttpStatus.UNPROCESSABLE_ENTITY), host(req(), { status }));
+
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0][0]).toContain('422');
+  });
+
   it('masks the route and strips the query string in the log', () => {
     filter.catch(
-      new NotFoundException('nope'),
+      new BadRequestException('bad'),
       host(req({ originalUrl: '/v1/user/me?token=supersecret' }), { status }),
     );
 
@@ -71,9 +86,23 @@ describe('ApiExceptionFilter', () => {
     expect(msg).not.toContain('token');
   });
 
+  it('does NOT log routine client errors (401/403/404/429) — they are already in the access log', () => {
+    const routine = [
+      new UnauthorizedException(),
+      new ForbiddenException(),
+      new NotFoundException(),
+      new HttpException('slow down', HttpStatus.TOO_MANY_REQUESTS),
+    ];
+    for (const exception of routine) filter.catch(exception, host(req(), { status }));
+
+    expect(warn).not.toHaveBeenCalled();
+    expect(error).not.toHaveBeenCalled();
+    // but each response is still sent
+    expect(status).toHaveBeenCalledTimes(routine.length);
+  });
+
   it('logs a 5xx at ERROR (with the exception) and not at WARN', () => {
-    const exception = new InternalServerErrorException('boom');
-    filter.catch(exception, host(req(), { status }));
+    filter.catch(new InternalServerErrorException('boom'), host(req(), { status }));
 
     expect(warn).not.toHaveBeenCalled();
     expect(error).toHaveBeenCalledTimes(1);
