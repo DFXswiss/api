@@ -25,16 +25,54 @@ jobs:
 
       - name: Block changes to existing migrations
         run: |
+          # The default shell for `run` is `bash -e {0}` (no pipefail), so a producer failure inside a
+          # pipeline would be masked. Enable pipefail so the migration diff must succeed or the step aborts.
+          set -eo pipefail
           git fetch origin ${{ github.base_ref }} --depth=100
-          # Protect immutable schema migrations only; the seed script/data may change freely.
-          CHANGED=$(git diff --name-status origin/${{ github.base_ref }}...HEAD -- migration/ ':(exclude)migration/seed/' \
-                    | awk '$1 ~ /^[MDR]/ {print}')
-          if [ -n "$CHANGED" ]; then
-            echo "::error::Existing migrations must not be modified, renamed or deleted."
+          BASE="origin/${{ github.base_ref }}"
+          # Protect immutable schema migrations: renames, deletes, type changes and any executable-content
+          # change to an existing migration stay blocked; the seed script/data may change freely. Whole-line
+          # `//` comment edits to an existing migration are allowed, because the migration is identified
+          # by its class name and stripping full-line comments cannot alter executable behaviour.
+          # Caveat: the one known theoretical exception is a line inside a multi-line template literal that
+          # begins with `//` -- it would be stripped as if it were a comment. No migration contains such a
+          # line (SQL string content never starts a line with `//`), and planting one would require landing
+          # a new migration first.
+          # Capture the diff up front: under `set -eo pipefail` a git failure (e.g. a merge base beyond the
+          # --depth=100 shallow boundary) aborts the step here instead of feeding the loop zero lines and
+          # silently reporting success (fail closed).
+          CHANGED=$(git diff --name-status "$BASE"...HEAD -- migration/ ':(exclude)migration/seed/' \
+                    | awk '$1 ~ /^[MDRT]/ {print}')
+          BLOCKED=""
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            status="${line%%$'\t'*}"
+            case "$status" in
+              M)
+                # M lines carry exactly one path (everything after the first tab).
+                file="${line#*$'\t'}"
+                # Strip only whole lines whose first non-whitespace character is `//`; a trailing `//`
+                # inside an SQL string literal (e.g. a URL) is preserved. If the base and HEAD versions
+                # are byte-identical once such comment lines are removed, the edit is comment-only.
+                if diff -q \
+                     <(git show "$BASE:$file" 2>/dev/null | grep -vE '^[[:space:]]*//' || true) \
+                     <(git show "HEAD:$file" 2>/dev/null | grep -vE '^[[:space:]]*//' || true) \
+                     >/dev/null; then
+                  echo "::notice::Allowing comment-only change to $file"
+                else
+                  BLOCKED="$BLOCKED"$'\n'"$line"
+                fi
+                ;;
+              *)
+                BLOCKED="$BLOCKED"$'\n'"$line"
+                ;;
+            esac
+          done <<< "$CHANGED"
+          if [ -n "$BLOCKED" ]; then
+            echo "::error::Existing migrations must not be modified, renamed, type-changed or deleted."
+            echo "$BLOCKED"
             echo ""
-            echo "$CHANGED"
-            echo ""
-            echo "If a migration is wrong, add a follow-up migration instead of editing the old one."
+            echo "Only whole-line comment changes are allowed; if a migration is wrong, add a follow-up migration instead of editing the old one."
             exit 1
           fi
-          echo "No existing migrations were modified."
+          echo "No blocking migration changes found."
