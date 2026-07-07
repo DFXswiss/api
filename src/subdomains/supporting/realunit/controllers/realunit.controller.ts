@@ -168,9 +168,14 @@ export class RealUnitController {
     const tokenBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
       ? Blockchain.SEPOLIA
       : Blockchain.ETHEREUM;
+
+    // A RealUnit portfolio statement is a share-register document: it must list only the RealUnit
+    // token, never other assets (e.g. a ZCHF dust balance) that happen to sit on the same address.
+    const realuAsset = await this.realunitService.getRealuAsset();
     const pdfData = await this.balancePdfService.generateBalancePdf(
       { ...dto, blockchain: tokenBlockchain },
       PdfBrand.REALUNIT,
+      (asset) => asset.id === realuAsset.id,
     );
     return { pdfData };
   }

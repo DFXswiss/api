@@ -14,5 +14,6 @@
   },
   "total_value": "Valore totale",
   "incomplete_data": "* Alcuni asset non hanno dati storici sui prezzi disponibili (n/a)",
-  "generated_by": "Generato da DFX"
+  "generated_by": "Generato da DFX",
+  "generated_by_realunit": "Generato da RealUnit Schweiz AG"
 }
