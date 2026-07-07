@@ -252,34 +252,20 @@ export class SwissQRService {
     return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand, true, userData.completeName);
   }
 
-  // Format an execution timestamp in the Swiss time zone (DST-safe) for RealUnit receipts
-  private formatChDateParts(date: Date): { day: number; month: number; year: number; hour: string; minute: string } {
+  // Format an execution date (date only, no time) in the Swiss time zone (DST-safe) for RealUnit receipts
+  private formatChDate(date: Date): string {
     const parts = new Intl.DateTimeFormat('en-GB', {
       timeZone: 'Europe/Zurich',
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      hourCycle: 'h23',
     }).formatToParts(date);
     const get = (type: string): string => {
       const part = parts.find((p) => p.type === type)?.value;
       if (part == null) throw new Error(`Missing date part "${type}" while formatting receipt date`);
       return part;
     };
-    return {
-      day: Number(get('day')),
-      month: Number(get('month')),
-      year: Number(get('year')),
-      hour: get('hour'),
-      minute: get('minute'),
-    };
-  }
-
-  private formatChDateTime(date: Date): string {
-    const p = this.formatChDateParts(date);
-    return `${p.day}.${p.month}.${p.year} ${p.hour}:${p.minute}`;
+    return `${Number(get('day'))}.${Number(get('month'))}.${get('year')}`;
   }
 
   private async generatePdfInvoice(
@@ -305,13 +291,13 @@ export class SwissQRService {
     this.drawDebtorAddress(pdf, billData.debtor, debtorName);
     this.drawTitle(pdf, tableData.title);
 
-    // Date (+ time for RealUnit, formatted in Swiss time zone)
+    // Date (date only, no time) for RealUnit, formatted in the Swiss time zone
     const d = tableData.date;
     pdf.fontSize(11);
     pdf.font('Helvetica');
     if (isRealUnit) {
       const creditorCity = Config.blockchain.realunit.address.city;
-      pdf.text(`${creditorCity}, ${this.formatChDateTime(d)}`, {
+      pdf.text(`${creditorCity}, ${this.formatChDate(d)}`, {
         align: 'right',
         width: mm2pt(170),
       });
@@ -631,11 +617,11 @@ export class SwissQRService {
     const receiptId = this.receiptId(tableDataWithType.map((t) => t.data.txHash));
     this.drawTitle(pdf, this.translate('invoice.multi_receipt_title', lang, { invoiceId: receiptId }));
 
-    // Issue date (generation timestamp) top-right, formatted in the Swiss time zone
+    // Issue date (date only, no time) top-right, formatted in the Swiss time zone
     if (isRealUnit) {
       pdf.fontSize(11).font('Helvetica');
       const creditorCity = Config.blockchain.realunit.address.city;
-      pdf.text(`${creditorCity}, ${this.formatChDateTime(new Date())}`, { align: 'right', width: mm2pt(170) });
+      pdf.text(`${creditorCity}, ${this.formatChDate(new Date())}`, { align: 'right', width: mm2pt(170) });
     }
 
     // Recognized trades keep their buy/sell section (with fee + payment-method rows); unrecognized
@@ -690,7 +676,7 @@ export class SwissQRService {
     const buildDataRow = (tableData: SwissQRBillTableData, txType: TransactionType): PDFRow => {
       const txDate = tableData.date;
       const formattedDate = isRealUnit
-        ? this.formatChDateTime(txDate)
+        ? this.formatChDate(txDate)
         : `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()}`;
 
       const descKey = isRealUnit

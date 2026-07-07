@@ -129,6 +129,11 @@ function expectNoWalletOrTxHash(text: string): void {
   }
 }
 
+// RealUnit documents carry the calendar date only — never a clock time (no HH:mm anywhere).
+function expectNoClockTime(text: string): void {
+  expect(text).not.toMatch(/\b\d{1,2}:\d{2}\b/);
+}
+
 function writeExample(name: string, base64: string): void {
   if (process.env.GENERATE_RECEIPT_EXAMPLES !== 'true') return;
   fs.mkdirSync(OUTPUT_DIR, { recursive: true });
@@ -168,6 +173,8 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     expect(text).toContain(DE_RECEIPT.type_buy); // Kauf
     expect(text).toContain(DE_RECEIPT.payment_method_bank); // Banküberweisung
     expect(text).not.toContain(DE_RECEIPT.payment_method_on_chain);
+    expect(text).toContain('28.10.2025'); // execution date, no time
+    expectNoClockTime(text);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-confirmation-de.pdf', pdf);
   });
@@ -206,6 +213,8 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     expect(text).toContain(DE_RECEIPT.type_sell); // Verkauf
     expect(text).toContain(DE_RECEIPT.payment_method_on_chain); // On-Chain abgewickelt (ZCHF)
     expect(text).not.toContain(DE_RECEIPT.payment_method_bank);
+    expect(text).toContain('10.1.2026'); // execution date, no time
+    expectNoClockTime(text);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-confirmation-sale-de.pdf', pdf);
   });
@@ -232,6 +241,8 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     expect(text).not.toContain(DE_RECEIPT.payment_method_on_chain);
     expect(text).not.toContain(DE_RECEIPT.type_buy);
     expect(text).not.toContain(DE_RECEIPT.type_sell);
+    expect(text).toContain('1.2.2026'); // execution date, no time
+    expectNoClockTime(text);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-transfer-de.pdf', pdf);
   });
@@ -260,6 +271,9 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     expect(text).toContain(DE.section.transfer); // Übertragungen
     expect(text).toContain(DE_RECEIPT.payment_method_bank); // Banküberweisung (buy section)
     expect(text).toContain(DE_RECEIPT.payment_method_on_chain); // on-chain (sell section)
+    expect(text).toContain('28.10.2025'); // per-row execution date, no time
+    expect(text).toContain('10.1.2026');
+    expectNoClockTime(text);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-history-de.pdf', pdf);
   });
