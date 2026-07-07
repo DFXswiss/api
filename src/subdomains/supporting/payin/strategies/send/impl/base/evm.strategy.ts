@@ -114,9 +114,12 @@ export abstract class EvmStrategy extends SendStrategy {
       } catch (e) {
         if (direction === PayInConfirmationType.OUTPUT && e.message.includes('has failed')) {
           await this.resetForward(payIn, 'failed:', e);
-        } else if (direction === PayInConfirmationType.INPUT && e.code === ethers.errors.INVALID_ARGUMENT) {
+        } else if (
+          direction === PayInConfirmationType.INPUT &&
+          (e.code === ethers.errors.INVALID_ARGUMENT || e.message.includes('has failed'))
+        ) {
           this.logger.error(
-            `Invalid input TX ${payIn.inTxId} of ${this.blockchain} pay-in ${payIn.id}, marking as failed:`,
+            `Permanent error on input TX ${payIn.inTxId} of ${this.blockchain} pay-in ${payIn.id}, marking as failed:`,
             e,
           );
           await this.payInRepo.update(...payIn.fail());

@@ -100,6 +100,18 @@ describe('EvmStrategy', () => {
       expect(payInRepo.update).toHaveBeenCalledWith(1, { status: PayInStatus.FAILED });
     });
 
+    it('marks the pay-in as failed on a reverted input TX', async () => {
+      const payIn = createCustomCryptoInput({ id: 1, status: PayInStatus.ACKNOWLEDGED });
+      jest
+        .spyOn(payInEvmService, 'checkTransactionCompletion')
+        .mockRejectedValue(new Error('Transaction 0x1234 has failed'));
+
+      await strategy.checkConfirmations([payIn], PayInConfirmationType.INPUT);
+
+      expect(payIn.status).toBe(PayInStatus.FAILED);
+      expect(payInRepo.update).toHaveBeenCalledWith(1, { status: PayInStatus.FAILED });
+    });
+
     it('keeps the pay-in unchanged on a transient input error', async () => {
       const payIn = createCustomCryptoInput({ id: 1, status: PayInStatus.ACKNOWLEDGED });
       jest
