@@ -24,6 +24,9 @@ import { RealUnitComplianceDtoMapper } from './dto/realunit-compliance-dto.mappe
 import { RealUnitCustomerDetailDto, RealUnitCustomerListDto, RealUnitKycFileDto } from './dto/realunit-compliance.dto';
 import { RealUnitScopeService } from './realunit-scope.service';
 
+// Postgres integer upper bound: larger numeric keys cannot be an id and would fail the DB query
+const MaxDbId = 2147483647;
+
 // KYC file types a RealUnit staff member may see/download for their own customers: only customer-provided documents.
 // DFX-generated AML work products (NAME_CHECK), compliance notes (USER_NOTES, TRANSACTION_NOTES) and the catch-all
 // ADDITIONAL_DOCUMENTS bucket are intentionally excluded. Using enum members (not string literals) makes a future
@@ -167,7 +170,7 @@ export class RealUnitComplianceService {
     if (key.includes('@')) return this.userDataService.getUsersByMail(key, false);
     if (Config.formats.phone.test(key)) return this.userDataService.getUsersByPhone(key);
 
-    if (Config.formats.number.test(key)) {
+    if (Config.formats.number.test(key) && +key <= MaxDbId) {
       const userData = await this.userDataService.getUserData(+key);
       return userData ? [userData] : [];
     }

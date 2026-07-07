@@ -1,5 +1,6 @@
 import { NotFoundException } from '@nestjs/common';
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
+import { Configuration, ConfigService } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
@@ -132,6 +133,18 @@ describe('RealUnitComplianceService', () => {
 
       await expect(service.searchCustomers()).resolves.toEqual([]);
       expect(userDataService.getUserDataByIds).not.toHaveBeenCalled();
+    });
+
+    it('never queries by id for a numeric key above the integer range', async () => {
+      new ConfigService(new Configuration()); // initializes the global Config used by resolveUserDatas
+
+      scopeService.getCustomerIds.mockResolvedValue([1]);
+      userDataService.getUsersByName.mockResolvedValue([]);
+
+      await expect(service.searchCustomers('99999999999')).resolves.toEqual([]);
+
+      expect(userDataService.getUserData).not.toHaveBeenCalled();
+      expect(userDataService.getUsersByName).toHaveBeenCalledWith('99999999999');
     });
   });
 
