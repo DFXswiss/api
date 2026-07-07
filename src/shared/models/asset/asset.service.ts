@@ -261,7 +261,6 @@ export class AssetService {
     });
   }
 
-
   async getSolanaCoin(): Promise<Asset> {
     return this.getAssetByQuery({
       name: 'SOL',
