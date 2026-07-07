@@ -29,6 +29,9 @@ const OUTPUT_DIR = path.join(process.cwd(), 'docs/examples/realunit-receipt');
 const REALU_ASSET = { name: 'REALU', description: 'RealUnit Shares', blockchain: 'Ethereum' } as Asset;
 const BUYER_WALLET = '0x1f9840a85d5aF5bf1D1762F925BDADdC4201F984';
 const ZERO = '0x0000000000000000000000000000000000000000';
+// An ordinary counterparty wallet — neither the mint/zero address nor the Brokerbot contract, so a
+// transfer to/from it is NOT a trade and must render the neutral "Transfer" layout.
+const OTHER_WALLET = '0x00000000219ab540356cBB839Cbe05303d7705Fa';
 
 const buyer = {
   completeName: 'Max Mustermann',
@@ -37,6 +40,7 @@ const buyer = {
   address: { street: 'Musterstrasse', houseNumber: '12', zip: '8002', city: 'Zürich', country: { symbol: 'CH' } },
 } as unknown as UserData;
 
+// Trade event: buy is minted from the zero address, sell is sent to the zero/burn address.
 function event(value: string, txHash: string, isoDate: string, incoming = true): HistoryEventDto {
   return {
     timestamp: new Date(isoDate),
@@ -46,9 +50,20 @@ function event(value: string, txHash: string, isoDate: string, incoming = true):
   } as HistoryEventDto;
 }
 
+// Plain wallet-to-wallet transfer (no fiat leg): received from an ordinary wallet.
+function transferEvent(value: string, txHash: string, isoDate: string): HistoryEventDto {
+  return {
+    timestamp: new Date(isoDate),
+    eventType: HistoryEventType.TRANSFER,
+    txHash,
+    transfer: { from: OTHER_WALLET, to: BUYER_WALLET, value },
+  } as HistoryEventDto;
+}
+
 const TX1 = '0xab12cd34ef567890ab12cd34ef567890ab12cd34ef567890ab12cd34ef561234';
 const TX2 = '0x77aa88bb99cc00dd11ee22ff33445566778899aabbccddeeff0011223344abcd';
 const TX3 = '0x55ffee44dd33cc22bb11aa00998877665544332211ffeeddccbbaa9988776655';
+const TX4 = '0x1122334455667788990011223344556677889900112233445566778899001122';
 
 function expectValidPdf(base64: string): Buffer {
   const buf = Buffer.from(base64, 'base64');
@@ -110,12 +125,45 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     writeExample('transaction-confirmation-en.pdf', pdf);
   });
 
+  it('renders the sale confirmation (DE)', async () => {
+    const pdf = await service.createTxFromBlockchainReceipt(
+      event('50', TX3, '2026-01-10T16:45:00Z', false),
+      buyer,
+      REALU_ASSET,
+      1.34,
+      'CHF',
+      false,
+      PdfBrand.REALUNIT,
+      'DE',
+    );
+
+    expectValidPdf(pdf);
+    writeExample('transaction-confirmation-sale-de.pdf', pdf);
+  });
+
+  it('renders a plain transfer without a purchase/payment claim (DE)', async () => {
+    const pdf = await service.createTxFromBlockchainReceipt(
+      transferEvent('30', TX4, '2026-02-01T10:00:00Z'),
+      buyer,
+      REALU_ASSET,
+      1.36,
+      'CHF',
+      true,
+      PdfBrand.REALUNIT,
+      'DE',
+    );
+
+    expectValidPdf(pdf);
+    writeExample('transaction-transfer-de.pdf', pdf);
+  });
+
   it('renders the transaction history (DE)', async () => {
     const pdf = await service.createTxFromBlockchainMultiReceipt(
       [
         { historyEvent: event('100', TX1, '2025-10-28T13:30:00Z'), fiatPrice: 1.29, isIncoming: true },
         { historyEvent: event('250', TX2, '2025-11-15T09:05:00Z'), fiatPrice: 1.31, isIncoming: true },
         { historyEvent: event('50', TX3, '2026-01-10T16:45:00Z', false), fiatPrice: 1.34, isIncoming: false },
+        { historyEvent: transferEvent('30', TX4, '2026-02-01T10:00:00Z'), fiatPrice: 1.36, isIncoming: true },
       ],
       buyer,
       REALU_ASSET,
@@ -134,6 +182,7 @@ describe('SwissQRService — RealUnit receipt examples', () => {
         { historyEvent: event('100', TX1, '2025-10-28T13:30:00Z'), fiatPrice: 1.29, isIncoming: true },
         { historyEvent: event('250', TX2, '2025-11-15T09:05:00Z'), fiatPrice: 1.31, isIncoming: true },
         { historyEvent: event('50', TX3, '2026-01-10T16:45:00Z', false), fiatPrice: 1.34, isIncoming: false },
+        { historyEvent: transferEvent('30', TX4, '2026-02-01T10:00:00Z'), fiatPrice: 1.36, isIncoming: true },
       ],
       buyer,
       REALU_ASSET,
@@ -144,5 +193,43 @@ describe('SwissQRService — RealUnit receipt examples', () => {
 
     expectValidPdf(pdf);
     writeExample('transaction-history-en.pdf', pdf);
+  });
+
+  // Guards against a missing/typo'd i18n key silently printing the raw key on a customer tax
+  // document: every receipt label must exist in every supported language.
+  it('has every receipt i18n key in all supported languages', () => {
+    const receiptKeys = [
+      'realunit_receipt.buy_description',
+      'realunit_receipt.sell_description',
+      'realunit_receipt.unit_price_label',
+      'realunit_receipt.fees_label',
+      'realunit_receipt.fees_free',
+      'realunit_receipt.details_title',
+      'realunit_receipt.buyer_label',
+      'realunit_receipt.receipt_total_label',
+      'realunit_receipt.transaction_type_label',
+      'realunit_receipt.type_buy',
+      'realunit_receipt.type_sell',
+      'realunit_receipt.type_transfer',
+      'realunit_receipt.payment_method_label',
+      'realunit_receipt.payment_method_buy',
+      'realunit_receipt.payment_method_sell',
+      'section.buy',
+      'section.sell',
+      'section.transfer',
+    ];
+
+    const missing: string[] = [];
+    for (const lang of ['de', 'en', 'fr', 'it']) {
+      const invoice = JSON.parse(
+        fs.readFileSync(path.join(process.cwd(), 'src/shared/i18n', lang, 'invoice.json'), 'utf8'),
+      );
+      for (const key of receiptKeys) {
+        const value = key.split('.').reduce<any>((node, part) => node?.[part], invoice);
+        if (typeof value !== 'string' || value.length === 0) missing.push(`${lang}: invoice.${key}`);
+      }
+    }
+
+    expect(missing).toEqual([]);
   });
 });
