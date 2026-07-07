@@ -509,6 +509,8 @@ export class KycService {
   }
 
   async failContactStepForMail(userData: UserData, mail: string, error: string): Promise<void> {
+    if (userData.status === UserDataStatus.MERGED) return;
+
     try {
       const user = await this.getUser(userData.kycHash);
       const pendingStep = user.getStepsWith(KycStepName.CONTACT_DATA).find((s) => s.isInProgress);

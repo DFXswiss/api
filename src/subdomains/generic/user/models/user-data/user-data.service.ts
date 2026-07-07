@@ -173,25 +173,27 @@ export class UserDataService {
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
     if (!Config.formats.kycHash.test(kycHash)) throw new UnauthorizedException('Invalid KYC hash');
 
-    let user = await this.userDataRepo.findOne({ where: { kycHash: Equal(kycHash) }, relations });
+    const user = await this.userDataRepo.findOne({ where: { kycHash: Equal(kycHash) }, relations });
     if (!user) throw new NotFoundException('User not found');
 
-    if (user.status === UserDataStatus.MERGED) {
-      user = await this.getMasterUser(user);
-      if (user) {
-        const payload: MergedDto = {
-          error: 'Unauthorized',
-          message: 'User is merged',
-          statusCode: 401,
-          switchToCode: user.kycHash,
-        };
-        throw new UnauthorizedException(payload);
-      } else {
-        throw new BadRequestException('User is merged');
-      }
-    }
+    await this.throwIfMerged(user);
 
     return user;
+  }
+
+  private async throwIfMerged(userData: UserData): Promise<void> {
+    if (userData.status !== UserDataStatus.MERGED) return;
+
+    const master = await this.getMasterUser(userData);
+    if (!master) throw new BadRequestException('User is merged');
+
+    const payload: MergedDto = {
+      error: 'Unauthorized',
+      message: 'User is merged',
+      statusCode: 401,
+      switchToCode: master.kycHash,
+    };
+    throw new UnauthorizedException(payload);
   }
 
   async getDifferentUserWithSameIdentDoc(userDataId: number, identDocumentId: string): Promise<UserData> {
@@ -741,6 +743,8 @@ export class UserDataService {
   // --- MAIL UPDATE --- //
 
   async updateUserMail(userData: UserData, dto: UpdateUserMailDto, ip: string): Promise<UpdateMailStatus> {
+    await this.throwIfMerged(userData);
+
     if (userData.mail == null) {
       await this.trySetUserMail(userData, dto.mail);
       return UpdateMailStatus.Ok;

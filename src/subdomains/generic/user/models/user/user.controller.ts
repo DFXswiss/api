@@ -23,6 +23,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import { AllowTfaPending } from 'src/shared/auth/allow-tfa-pending.decorator';
@@ -34,6 +35,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
@@ -267,6 +269,10 @@ export class UserV2Controller {
   @ApiAcceptedResponse({ description: 'Verification code sent' })
   @ApiForbiddenResponse({ description: 'Missing 2FA' })
   @ApiConflictResponse({ description: 'Account already exists' })
+  @ApiUnauthorizedResponse({
+    description: 'User is merged, switch to the KYC code provided in the response',
+    type: MergedDto,
+  })
   async updateUserMail(
     @GetJwt() jwt: JwtPayload,
     @Body() newMail: UpdateUserMailDto,

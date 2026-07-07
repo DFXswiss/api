@@ -1,6 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import { FindOperator, IsNull, Not } from 'typeorm';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { CountryService } from 'src/shared/models/country/country.service';
@@ -29,7 +29,8 @@ import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enu
 import { UserData } from '../user-data.entity';
 import { KycType, UserDataStatus } from '../user-data.enum';
 import { UserDataRepository } from '../user-data.repository';
-import { UserDataService } from '../user-data.service';
+import { MergedPrefix, UserDataService } from '../user-data.service';
+import { UpdateMailStatus } from '../../user/dto/verify-mail.dto';
 import { UserRepository } from '../../user/user.repository';
 
 describe('UserDataService', () => {
@@ -116,6 +117,54 @@ describe('UserDataService', () => {
       await expect(service.checkMail(userData, 'samuel.kullmann@startmail.com')).rejects.toBeInstanceOf(
         ConflictException,
       );
+    });
+  });
+
+  describe('updateUserMail', () => {
+    it('returns the merged redirect (401 + master switchToCode) for a merged account without touching the mail-conflict path', async () => {
+      const master = Object.assign(new UserData(), {
+        id: 200,
+        kycHash: 'MASTERHASH',
+        status: UserDataStatus.ACTIVE,
+      });
+      const userData = Object.assign(new UserData(), {
+        id: 100,
+        status: UserDataStatus.MERGED,
+        firstname: `${MergedPrefix}${master.id}`,
+      });
+
+      userDataRepo.findOne.mockResolvedValue(master); // master lookup for switchToCode
+
+      const error = await service
+        .updateUserMail(userData, { mail: 'new@mail.com' }, '1.2.3.4')
+        .catch((e: UnauthorizedException) => e);
+
+      expect(error).toBeInstanceOf(UnauthorizedException);
+      expect((error as UnauthorizedException).getResponse()).toMatchObject({
+        message: 'User is merged',
+        statusCode: 401,
+        switchToCode: master.kycHash,
+      });
+      // the merged guard short-circuits before the mail-conflict lookup and the mail write
+      expect(userDataRepo.find).not.toHaveBeenCalled();
+      expect(userDataRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('proceeds through the normal mail-set path for a non-merged account', async () => {
+      const userData = Object.assign(new UserData(), {
+        id: 100,
+        status: UserDataStatus.ACTIVE,
+        mail: null,
+        users: [],
+      });
+
+      userDataRepo.find.mockResolvedValue([]); // no mail conflict
+      userDataRepo.update.mockResolvedValue(undefined);
+
+      const result = await service.updateUserMail(userData, { mail: 'new@mail.com' }, '1.2.3.4');
+
+      expect(result).toBe(UpdateMailStatus.Ok);
+      expect(userDataRepo.update).toHaveBeenCalledWith(userData.id, { mail: 'new@mail.com' });
     });
   });
 
