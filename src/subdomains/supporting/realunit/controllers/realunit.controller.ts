@@ -180,7 +180,8 @@ export class RealUnitController {
   })
   @ApiOkResponse({ type: PdfDto, description: 'Portfolio statement PDF (base64 encoded)' })
   @ApiBadRequestResponse({
-    description: 'No official RealUnit tax value for the selected reference date, or the date is invalid (must be in the past).',
+    description:
+      'No official RealUnit tax value for the selected reference date, or the date is invalid (must be in the past).',
   })
   @ApiForbiddenResponse({ description: 'The queried wallet does not belong to the caller' })
   async getBalancePdf(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBalancePdfDto): Promise<PdfDto> {
