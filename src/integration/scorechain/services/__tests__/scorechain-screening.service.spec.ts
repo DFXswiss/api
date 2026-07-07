@@ -28,7 +28,14 @@ describe('ScorechainScreeningService', () => {
   };
 
   beforeAll(() => {
+    // riskThreshold has no code default (it comes only from the env var); set it explicitly so
+    // the isHighRisk score-vs-threshold tests below are deterministic. 70 keeps the assertions valid.
+    process.env.SCORECHAIN_RISK_THRESHOLD = '70';
     new ConfigService();
+  });
+
+  afterAll(() => {
+    delete process.env.SCORECHAIN_RISK_THRESHOLD;
   });
 
   beforeEach(() => {
@@ -169,6 +176,28 @@ describe('ScorechainScreeningService', () => {
       expect(result.riskScore).toBe(85);
       expect(result.context).toBe(ScorechainScreeningContext.WITHDRAWAL);
       expect(result.triggerType).toBe(ScorechainScreeningTriggerType.MANUAL);
+    });
+
+    it('rescreenDepositTransaction screens the incoming tx (TRANSACTION, INCOMING, DEPOSIT, MANUAL) and marks it newly screened', async () => {
+      scorechain.scoringAnalysis.mockResolvedValue({
+        data: { id: 'x', lowestScore: 85, analysis: { incoming: { hasResult: true, result: { score: 85 } } } },
+        signatureValid: true,
+      });
+
+      const result = await service.rescreenDepositTransaction(Blockchain.ETHEREUM, 'txhash');
+
+      expect(repo.findOne).not.toHaveBeenCalled();
+      expect(scorechain.scoringAnalysis).toHaveBeenCalledWith(
+        expect.objectContaining({
+          objectType: ScorechainObjectType.TRANSACTION,
+          analysisType: ScorechainAnalysisType.INCOMING,
+          blockchain: ScorechainBlockchain.ETHEREUM,
+          objectId: 'txhash',
+        }),
+      );
+      expect(result.context).toBe(ScorechainScreeningContext.DEPOSIT);
+      expect(result.triggerType).toBe(ScorechainScreeningTriggerType.MANUAL);
+      expect(result.isNewlyScreened).toBe(true);
     });
 
     it('reuses a TRANSACTION verdict with no time bound (screened at most once) but expires ADDRESS verdicts after a short TTL', async () => {

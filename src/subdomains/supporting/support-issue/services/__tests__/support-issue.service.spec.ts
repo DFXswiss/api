@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
@@ -33,6 +33,10 @@ import { SupportDocumentService } from 'src/subdomains/supporting/support-issue/
 import { SupportIssueNotificationService } from 'src/subdomains/supporting/support-issue/services/support-issue-notification.service';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { SupportLogService } from 'src/subdomains/supporting/support-issue/services/support-log.service';
+import { REALUNIT_WALLET_NAME } from 'src/subdomains/supporting/notification/realunit-mail-rules';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
+import { CreateSupportIssueDto } from 'src/subdomains/supporting/support-issue/dto/create-support-issue.dto';
+import { SupportIssueDto } from 'src/subdomains/supporting/support-issue/dto/support-issue.dto';
 
 describe('SupportIssueService.getSupportIssueList', () => {
   let service: SupportIssueService;
@@ -608,5 +612,83 @@ describe('SupportIssueService.getIssueMessages', () => {
     expect(findByArg.id.value).toBe(10); // MoreThan(10)
     expect(result).toHaveLength(2);
     expect(result[0]).toMatchObject({ id: 11, author: 'Customer', message: 'msg 11' });
+  });
+});
+
+describe('SupportIssueService.resolveSourceWallet (X-Client mail branding)', () => {
+  let service: SupportIssueService;
+  let walletService: DeepMocked<WalletService>;
+  let userDataService: DeepMocked<UserDataService>;
+
+  const dfxDefault = { id: 1, name: 'DFX' } as Wallet;
+  const realUnit = { id: 2, name: REALUNIT_WALLET_NAME } as Wallet;
+
+  // resolveSourceWallet is private; exercise it directly to isolate the branding decision.
+  const resolve = (client?: string): Promise<Wallet> =>
+    (service as unknown as { resolveSourceWallet(client?: string): Promise<Wallet> }).resolveSourceWallet(client);
+
+  beforeEach(() => {
+    walletService = createMock<WalletService>();
+    walletService.getDefault.mockResolvedValue(dfxDefault);
+    walletService.getByIdOrName.mockResolvedValue(realUnit);
+    userDataService = createMock<UserDataService>();
+
+    service = new SupportIssueService(
+      createMock<SupportIssueRepository>(),
+      createMock<TransactionService>(),
+      createMock<SupportDocumentService>(),
+      userDataService,
+      createMock<SupportMessageRepository>(),
+      createMock<SupportIssueNotificationService>(),
+      createMock<LimitRequestService>(),
+      createMock<TransactionRequestService>(),
+      createMock<SupportLogService>(),
+      createMock<BankDataService>(),
+      createMock<SettingService>(),
+      walletService,
+    );
+  });
+
+  it('brands the realunit-app client with the RealUnit wallet', async () => {
+    await expect(resolve('realunit-app')).resolves.toBe(realUnit);
+    expect(walletService.getByIdOrName).toHaveBeenCalledWith(undefined, REALUNIT_WALLET_NAME);
+    expect(walletService.getDefault).not.toHaveBeenCalled();
+  });
+
+  // A missing/unknown header must NOT reject the request - it defaults to DFX. This is the behavior the
+  // DFX web app, third-party widget integrators and older bundles rely on (none of them send X-Client).
+  it.each([
+    ['a missing header', undefined],
+    ['an empty header', ''],
+    ['the dfx-services client', 'dfx-services'],
+    ['an unknown client', 'some-other-app'],
+  ])('defaults to the DFX wallet for %s', async (_label, client) => {
+    await expect(resolve(client as string | undefined)).resolves.toBe(dfxDefault);
+    expect(walletService.getByIdOrName).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when the RealUnit source resolves but its wallet is missing', async () => {
+    walletService.getByIdOrName.mockResolvedValue(null as unknown as Wallet);
+    await expect(resolve('realunit-app')).rejects.toBeInstanceOf(ServiceUnavailableException);
+  });
+
+  // End-to-end regression for the production outage: the DFX web app POSTs /support/issue with no
+  // X-Client header. createIssue must route through to ticket creation (no BadRequestException) and
+  // brand the ticket with the DFX default wallet.
+  it('creates a ticket with DFX branding when the request carries no X-Client header', async () => {
+    const userData = { id: 42, mail: 'willi@example.com' } as UserData;
+    userDataService.getUserData.mockResolvedValue(userData);
+
+    const created = { uid: 'issue-1' } as SupportIssueDto;
+    const createIssueInternal = jest.spyOn(service, 'createIssueInternal').mockResolvedValue(created);
+
+    const dto = { type: SupportIssueType.GENERIC_ISSUE, reason: SupportIssueReason.OTHER } as CreateSupportIssueDto;
+
+    // no client argument == the missing X-Client header on the real request
+    await expect(service.createIssue(42, dto)).resolves.toBe(created);
+
+    // routed to creation with the DFX default wallet (not RealUnit, and never rejected)
+    expect(createIssueInternal).toHaveBeenCalledWith(userData, dto, dfxDefault);
+    expect(walletService.getByIdOrName).not.toHaveBeenCalled();
   });
 });

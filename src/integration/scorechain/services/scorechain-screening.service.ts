@@ -82,6 +82,20 @@ export class ScorechainScreeningService {
     });
   }
 
+  // Manual on-demand re-screen of a deposit transaction (e.g. re-running the check for an existing
+  // sell / buy-fiat). Always reaches the provider again, bypassing the cache — the point of a
+  // re-trigger is a fresh verdict.
+  async rescreenDepositTransaction(blockchain: Blockchain, txHash: string): Promise<ScorechainScreening> {
+    return this.performScreening({
+      objectType: ScorechainObjectType.TRANSACTION,
+      objectId: txHash,
+      blockchain,
+      analysisType: ScorechainAnalysisType.INCOMING,
+      context: ScorechainScreeningContext.DEPOSIT,
+      triggerType: ScorechainScreeningTriggerType.MANUAL,
+    });
+  }
+
   // Manual/admin on-demand scoring.
   async screenManual(
     blockchain: Blockchain,
@@ -122,7 +136,12 @@ export class ScorechainScreeningService {
 
     if (!screening.signatureValid) return true;
     if (screening.riskScore == null) return true;
-    return screening.riskScore < Config.scorechain.riskThreshold;
+    // No code default for the threshold (only the SCORECHAIN_RISK_THRESHOLD env var provides it). A missing/invalid
+    // value must not silently disable the gate — `riskScore < undefined/NaN` is always false — so
+    // refuse to screen; the caller's catch routes this to manual review (fail-closed + loud).
+    const threshold = Config.scorechain.riskThreshold;
+    if (threshold == null || Number.isNaN(threshold)) throw new Error('SCORECHAIN_RISK_THRESHOLD is not configured');
+    return screening.riskScore < threshold;
   }
 
   // --- CORE --- //
@@ -135,8 +154,9 @@ export class ScorechainScreeningService {
   }
 
   // Runs the actual provider call and persists the verdict, WITHOUT consulting the cache. Shared by
-  // the cached screen() path and by the manual re-trigger (rescreenWithdrawalAddress), which must
-  // always reach the provider again regardless of a recent cached verdict. Marks the returned entity
+  // the cached screen() path and by the manual re-triggers (rescreenWithdrawalAddress /
+  // rescreenDepositTransaction), which must always reach the provider again regardless of a recent
+  // cached verdict. Marks the returned entity
   // as freshly screened on EVERY branch (a live provider call, never a cache hit) so callers can
   // trigger the one-off screening-report PDF; the cached screen() path leaves the flag falsy.
   private async performScreening(params: ScreenParams): Promise<ScorechainScreening> {

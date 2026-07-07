@@ -1,6 +1,7 @@
 import { Body, Controller, Delete, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -69,5 +70,13 @@ export class BuyFiatController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE), UserActiveGuard())
   async manualPassAmlCheck(@Param('id') id: string, @Body() dto: ManualAmlCheckDto): Promise<BuyFiat> {
     return this.buyFiatService.manualPassAmlCheck(+id, dto);
+  }
+
+  @Post(':id/scorechain')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE, UserRole.DEBUG), UserActiveGuard())
+  async retriggerScorechain(@Param('id') id: string): Promise<ScorechainScreening> {
+    return this.buyFiatService.retriggerScorechain(+id);
   }
 }
