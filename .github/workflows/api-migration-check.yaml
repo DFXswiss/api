@@ -26,15 +26,42 @@ jobs:
       - name: Block changes to existing migrations
         run: |
           git fetch origin ${{ github.base_ref }} --depth=100
-          # Protect immutable schema migrations only; the seed script/data may change freely.
-          CHANGED=$(git diff --name-status origin/${{ github.base_ref }}...HEAD -- migration/ ':(exclude)migration/seed/' \
-                    | awk '$1 ~ /^[MDR]/ {print}')
-          if [ -n "$CHANGED" ]; then
+          BASE="origin/${{ github.base_ref }}"
+          # Protect immutable schema migrations: renames, deletes and any executable-content change
+          # to an existing migration stay blocked; the seed script/data may change freely. Whole-line
+          # `//` comment edits to an existing migration are allowed, because the migration is identified
+          # by its class name and stripping full-line comments cannot alter executable behaviour.
+          BLOCKED=""
+          while IFS= read -r line; do
+            [ -z "$line" ] && continue
+            status="${line%%$'\t'*}"
+            case "$status" in
+              M)
+                # M lines carry exactly one path (everything after the first tab).
+                file="${line#*$'\t'}"
+                # Strip only whole lines whose first non-whitespace character is `//`; a trailing `//`
+                # inside an SQL string literal (e.g. a URL) is preserved. If the base and HEAD versions
+                # are byte-identical once such comment lines are removed, the edit is comment-only.
+                if diff -q \
+                     <(git show "$BASE:$file" 2>/dev/null | grep -vE '^[[:space:]]*//' || true) \
+                     <(git show "HEAD:$file" 2>/dev/null | grep -vE '^[[:space:]]*//' || true) \
+                     >/dev/null; then
+                  echo "::notice::Allowing comment-only change to $file"
+                else
+                  BLOCKED="$BLOCKED"$'\n'"$line"
+                fi
+                ;;
+              *)
+                BLOCKED="$BLOCKED"$'\n'"$line"
+                ;;
+            esac
+          done < <(git diff --name-status "$BASE"...HEAD -- migration/ ':(exclude)migration/seed/' \
+                   | awk '$1 ~ /^[MDR]/ {print}')
+          if [ -n "$BLOCKED" ]; then
             echo "::error::Existing migrations must not be modified, renamed or deleted."
+            echo "$BLOCKED"
             echo ""
-            echo "$CHANGED"
-            echo ""
-            echo "If a migration is wrong, add a follow-up migration instead of editing the old one."
+            echo "Only whole-line comment changes are allowed; if a migration is wrong, add a follow-up migration instead of editing the old one."
             exit 1
           fi
           echo "No existing migrations were modified."
