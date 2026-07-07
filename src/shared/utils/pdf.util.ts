@@ -2,6 +2,7 @@ import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Util } from 'src/shared/utils/util';
 import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { mm2pt } from 'swissqrbill/utils';
@@ -179,7 +180,6 @@ export class PdfUtil {
     currency: PriceCurrency,
     language: PdfLanguage,
     i18n: I18nService,
-    brand: PdfBrand = PdfBrand.DFX,
   ): void {
     const marginX = 50;
     const { width } = pdf.page;
@@ -201,20 +201,7 @@ export class PdfUtil {
 
     y += 20;
     pdf.fontSize(8).font('Helvetica').fillColor('#999999');
-    // RealUnit documents show the date only, in the Swiss time zone (consistent with the receipts);
-    // DFX keeps the full generation timestamp.
-    const generatedAt =
-      brand === PdfBrand.REALUNIT
-        ? new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Europe/Zurich',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-          }).format(new Date())
-        : new Date().toISOString();
-    // RealUnit statements attribute generation to the issuer, not to DFX.
-    const generatedByKey = brand === PdfBrand.REALUNIT ? 'balance.generated_by_realunit' : 'balance.generated_by';
-    pdf.text(`${this.translate(generatedByKey, language, i18n)} - ${generatedAt}`, marginX, y);
+    pdf.text(`${this.translate('balance.generated_by', language, i18n)} - ${new Date().toISOString()}`, marginX, y);
   }
 
   static translate(key: string, language: PdfLanguage, i18n: I18nService, args?: any): string {
@@ -229,6 +216,13 @@ export class PdfUtil {
     if (value == null) return 'n/a';
     const symbol = currency === PriceCurrency.CHF ? 'CHF' : currency === PriceCurrency.EUR ? '€' : '$';
     return `${symbol} ${value.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  // The RealUnit portfolio statement never prints the raw wallet address; it references it by a short,
+  // non-reversible hash instead. The address is lower-cased before hashing so the same wallet always
+  // yields the same reference regardless of checksum casing.
+  static walletReference(address: string): string {
+    return Util.createHash(address.toLowerCase()).slice(0, 6).toUpperCase();
   }
 
   static sortBalancesByValue(balances: BalanceEntry[]): BalanceEntry[] {

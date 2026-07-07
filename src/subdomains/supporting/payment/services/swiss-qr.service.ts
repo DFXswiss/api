@@ -5,10 +5,11 @@ import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
+import { BalanceEntry, LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { HistoryEventDto, TransferDto } from 'src/subdomains/supporting/realunit/dto/realunit.dto';
 import { PDFColumn, PDFRow, SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
@@ -252,6 +253,150 @@ export class SwissQRService {
     return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand, true);
   }
 
+  // --- REALUNIT PORTFOLIO STATEMENT --- //
+
+  // Renders the RealUnit portfolio/tax statement ("Vermögensübersicht") in the same letter design as the
+  // transaction receipts: RealUnit letterhead + logo, holder recipient block, title, "<city>, <date>",
+  // a dark-header balance table, and a details section with the issuer attribution. The priced balances
+  // come from BalancePdfService.getBalanceData, so the figures match the technical DFX report exactly.
+  async createBalanceStatement(
+    balances: BalanceEntry[],
+    totalValue: number,
+    userData: UserData,
+    currency: PriceCurrency,
+    asOfDate: Date,
+    language: string,
+    address: string,
+  ): Promise<string> {
+    // Fail-closed: a tax statement must never show "n/a" or a zeroed total for a holding that could not be
+    // priced (e.g. a reference year without an official RealUnit tax value). Refuse rather than issue a
+    // misleading document.
+    if (balances.some((b) => b.value == null)) {
+      throw new BadRequestException('No official RealUnit tax value is available for the selected reference date.');
+    }
+
+    const { pdf, promise } = this.createPdfWithBase64Promise();
+    const lang = language.toLowerCase();
+    const city = Config.blockchain.realunit.address.city;
+
+    PdfUtil.drawLogo(pdf, PdfBrand.REALUNIT, LogoSize.LARGE);
+    this.drawSenderAddress(pdf, PdfBrand.REALUNIT);
+    // Degrade to name-only for an incomplete profile (getDebtor returns undefined), never hard-error.
+    this.drawDebtorAddress(pdf, this.getDebtor(userData), userData.completeName);
+    this.drawTitle(pdf, this.translate('balance.statement.title', lang));
+
+    // Place + reference date (date only, no time), formatted in the Swiss time zone (mirrors the receipts).
+    pdf.fontSize(11).font('Helvetica');
+    pdf.text(`${city}, ${this.formatChDate(asOfDate)}`, { align: 'right', width: mm2pt(170) });
+
+    // Dark-header balance table (Vermögenswert / Bestand / Preis / Wert). Each row keeps the value column
+    // flexible (no width) so it fills the row to the full 170 mm, while its left edge stays anchored at the
+    // fixed 55+30+35 mm columns — matching the width-anchored value column in the total row below.
+    const rows: PDFRow[] = [
+      {
+        backgroundColor: '#4A4D51',
+        columns: [
+          { text: this.translate('balance.table.headers.asset', lang), width: mm2pt(55) },
+          { text: this.translate('balance.table.headers.balance', lang), width: mm2pt(30) },
+          { text: this.translate('balance.table.headers.price', lang, { currency }), width: mm2pt(35) },
+          { text: this.translate('balance.table.headers.value', lang, { currency }) },
+        ],
+        fontName: 'Helvetica-Bold',
+        height: 20,
+        padding: 5,
+        textColor: '#fff',
+        verticalAlign: 'center',
+      },
+    ];
+
+    if (balances.length === 0) {
+      rows.push({
+        columns: [{ text: this.translate('balance.table.no_assets', lang), width: mm2pt(170) }],
+        padding: 5,
+      });
+    } else {
+      for (const entry of balances) {
+        rows.push({
+          columns: [
+            { text: entry.asset.name, width: mm2pt(55) },
+            { text: PdfUtil.formatNumber(entry.balance, 8), width: mm2pt(30) },
+            { text: PdfUtil.formatCurrency(entry.price, currency), width: mm2pt(35) },
+            { text: PdfUtil.formatCurrency(entry.value, currency) },
+          ],
+          padding: 5,
+        });
+      }
+    }
+
+    rows.push({
+      columns: [
+        { text: '', width: mm2pt(55) },
+        { text: this.translate('balance.total_value', lang), fontName: 'Helvetica-Bold' },
+        { text: PdfUtil.formatCurrency(totalValue, currency), fontName: 'Helvetica-Bold', width: mm2pt(50) },
+      ],
+      height: 30,
+      padding: 5,
+    });
+
+    const table = new Table({ rows, width: mm2pt(170) });
+    table.attachTo(pdf);
+
+    // Details section (holder, reference date, wallet reference, total value) + issuer attribution.
+    const details: { label: string; value: string }[] = [];
+    if (userData.completeName) {
+      details.push({ label: this.translate('balance.statement.holder_label', lang), value: userData.completeName });
+    }
+    details.push(
+      { label: this.translate('balance.statement.reference_date_label', lang), value: this.formatChDate(asOfDate) },
+      {
+        label: this.translate('balance.statement.wallet_reference_label', lang),
+        value: PdfUtil.walletReference(address),
+      },
+      { label: this.translate('balance.total_value', lang), value: PdfUtil.formatCurrency(totalValue, currency) },
+    );
+
+    this.drawStatementDetails(
+      pdf,
+      this.translate('balance.statement.details_title', lang),
+      details,
+      this.translate('balance.generated_by_realunit', lang),
+    );
+
+    pdf.end();
+
+    return promise;
+  }
+
+  private drawStatementDetails(
+    pdf: typeof PDFDocument.prototype,
+    title: string,
+    details: { label: string; value: string }[],
+    issuer: string,
+  ): void {
+    const labelX = mm2pt(20);
+
+    // Start a new page if the title + all detail rows + the issuer line would not fit on the current page.
+    const estimatedHeight = 15 + 22 + details.length * 26 + 30;
+    if (pdf.y + estimatedHeight > pdf.page.height - pdf.page.margins.bottom) pdf.addPage();
+
+    pdf.font('Helvetica-Bold').fontSize(11).fillColor('black');
+    pdf.text(title, labelX, pdf.y + 15);
+
+    pdf.fontSize(10);
+    let currentY = pdf.y + 8;
+    for (const { label, value } of details) {
+      // width must sit on the first (label) segment of the continued chain to wrap long values (e.g. holder name)
+      pdf.font('Helvetica-Bold').text(`${label}:`, labelX, currentY, { continued: true, width: mm2pt(150) });
+      pdf.font('Helvetica').text(`  ${value}`);
+      currentY = pdf.y + 4;
+    }
+
+    // Issuer attribution (muted), matching the RealUnit statement footer wording.
+    pdf.font('Helvetica').fontSize(9).fillColor('#707070');
+    pdf.text(issuer, labelX, currentY + 8);
+    pdf.fillColor('black');
+  }
+
   // Format an execution date (date only, no time) in the Swiss time zone (DST-safe) for RealUnit receipts
   private formatChDate(date: Date): string {
     const parts = new Intl.DateTimeFormat('en-GB', {
@@ -266,6 +411,24 @@ export class SwissQRService {
       return part;
     };
     return `${get('day')}.${get('month')}.${get('year')}`;
+  }
+
+  // Normalize an instant to the Swiss calendar day it falls on (as noon UTC), so the tax-value year
+  // (date.getUTCFullYear) and the printed reference date (formatChDate, Europe/Zurich) can never
+  // disagree across a UTC/CET year boundary.
+  static toSwissReferenceDate(date: Date): Date {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Zurich',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const get = (type: string): string => {
+      const value = parts.find((p) => p.type === type)?.value;
+      if (value == null) throw new Error(`Missing date part "${type}" while normalizing the reference date`);
+      return value;
+    };
+    return new Date(`${get('year')}-${get('month')}-${get('day')}T12:00:00.000Z`);
   }
 
   private async generatePdfInvoice(
