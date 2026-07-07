@@ -7,7 +7,6 @@ import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricin
 import { mm2pt } from 'swissqrbill/utils';
 import { dfxLogoBall1, dfxLogoBall2, dfxLogoText } from './logos/dfx-logo';
 import { realunitLogoFullBase64 } from './logos/realunit-logo-full';
-import { Util } from './util';
 
 export interface GiroCodeData {
   name: string;
@@ -202,9 +201,20 @@ export class PdfUtil {
 
     y += 20;
     pdf.fontSize(8).font('Helvetica').fillColor('#999999');
-    // RealUnit documents show the date only (no time); DFX keeps the full generation timestamp.
-    const generatedAt = brand === PdfBrand.REALUNIT ? Util.isoDate(new Date()) : new Date().toISOString();
-    pdf.text(`${this.translate('balance.generated_by', language, i18n)} - ${generatedAt}`, marginX, y);
+    // RealUnit documents show the date only, in the Swiss time zone (consistent with the receipts);
+    // DFX keeps the full generation timestamp.
+    const generatedAt =
+      brand === PdfBrand.REALUNIT
+        ? new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Europe/Zurich',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit',
+          }).format(new Date())
+        : new Date().toISOString();
+    // RealUnit statements attribute generation to the issuer, not to DFX.
+    const generatedByKey = brand === PdfBrand.REALUNIT ? 'balance.generated_by_realunit' : 'balance.generated_by';
+    pdf.text(`${this.translate(generatedByKey, language, i18n)} - ${generatedAt}`, marginX, y);
   }
 
   static translate(key: string, language: PdfLanguage, i18n: I18nService, args?: any): string {
