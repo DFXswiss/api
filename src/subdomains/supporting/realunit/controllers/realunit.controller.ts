@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   ForbiddenException,
@@ -194,10 +195,11 @@ export class RealUnitController {
       ? Blockchain.SEPOLIA
       : Blockchain.ETHEREUM;
 
-    // Normalize the reference date to its Swiss calendar day once, so the tax-value year (UTC) and the
-    // printed reference date (Europe/Zurich) can never disagree across a UTC/CET year boundary. Cap it at
-    // the current instant so a same-day (past) request is not pushed into the future by the noon pinning.
-    const referenceDate = new Date(Math.min(SwissQRService.toSwissReferenceDate(dto.date).getTime(), Date.now()));
+    // Value and print the statement on the same Swiss calendar day, so the tax-value year (UTC) and the
+    // printed reference date (Europe/Zurich) can never diverge. A future/boundary reference date is rejected
+    // fail-closed — a tax statement is only issued for a past year-end.
+    const referenceDate = SwissQRService.toSwissReferenceDate(dto.date);
+    if (referenceDate.getTime() > Date.now()) throw new BadRequestException('The reference date must be in the past');
 
     const user = await this.userService.getUser(jwt.user, { userData: true });
 
