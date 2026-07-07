@@ -17,6 +17,13 @@ module.exports = class DeactivateCitreaTestnetAssets1783428526141 {
       WHERE "assetId" IN (SELECT "id" FROM "asset" WHERE "blockchain" = 'CitreaTestnet')
     `);
 
+    await queryRunner.query(`
+      UPDATE "liquidity_management_rule"
+      SET "status" = 'Disabled'
+      WHERE "targetAssetId" IN (SELECT "id" FROM "asset" WHERE "blockchain" = 'CitreaTestnet')
+        AND "status" != 'Disabled'
+    `);
+
     if (parseInt(count) === 0) return;
 
     await queryRunner.query(`
