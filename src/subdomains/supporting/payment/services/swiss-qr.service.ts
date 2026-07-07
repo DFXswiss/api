@@ -291,7 +291,9 @@ export class SwissQRService {
     brand: PdfBrand = PdfBrand.DFX,
     debtorName?: string,
     skipTermsAndConditions = false,
-    settlement: ReceiptSettlement = ReceiptSettlement.BANK,
+    // Fail-closed default: never claim a bank settlement the caller did not explicitly assert. Only
+    // the RealUnit path reads this (DFX callers omit it and are unaffected).
+    settlement: ReceiptSettlement = ReceiptSettlement.NONE,
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
     const isRealUnit = brand === PdfBrand.REALUNIT;
