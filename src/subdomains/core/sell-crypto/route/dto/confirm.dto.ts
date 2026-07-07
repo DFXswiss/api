@@ -57,9 +57,12 @@ export class ConfirmDto {
   @IsString()
   signedTxHex?: string;
 
-  @ApiPropertyOptional({ description: 'Transaction hash of a user-sent transaction (plain transfer or EIP-5792)' })
+  @ApiPropertyOptional({
+    description: 'On-chain transaction hash of a user-sent transaction (EIP-5792 bundle IDs are not accepted)',
+  })
   @IsOptional()
   @IsString()
+  @Matches(/^0x[a-fA-F0-9]{64}$/, { message: 'Invalid transaction hash format' })
   txHash?: string;
 
   @ApiPropertyOptional({ description: 'EIP-7702 authorization signed by user', type: Eip7702AuthorizationDto })

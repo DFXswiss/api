@@ -196,7 +196,7 @@ export class SellController {
       'Confirms a sell transaction using one of the following methods: ' +
       '1) Permit signature (ERC-2612) - backend executes transfer, ' +
       '2) Signed transaction hex - user broadcasts, ' +
-      '3) Transaction hash (EIP-5792) - wallet_sendCalls result, ' +
+      '3) Transaction hash - on-chain hash of a user-sent transaction (EIP-5792 bundle IDs are not accepted), ' +
       '4) EIP-7702 authorization - gasless transfer via Pimlico paymaster.',
   })
   @ApiOkResponse({ type: TransactionDto })

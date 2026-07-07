@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { Config } from 'src/config/config';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -113,6 +114,12 @@ export abstract class EvmStrategy extends SendStrategy {
       } catch (e) {
         if (direction === PayInConfirmationType.OUTPUT && e.message.includes('has failed')) {
           await this.resetForward(payIn, 'failed:', e);
+        } else if (direction === PayInConfirmationType.INPUT && e.code === ethers.errors.INVALID_ARGUMENT) {
+          this.logger.error(
+            `Invalid input TX ${payIn.inTxId} of ${this.blockchain} pay-in ${payIn.id}, marking as failed:`,
+            e,
+          );
+          await this.payInRepo.update(...payIn.fail());
         } else {
           this.logger.error(`Failed to check confirmations of ${this.blockchain} pay-in ${payIn.id}:`, e);
         }
