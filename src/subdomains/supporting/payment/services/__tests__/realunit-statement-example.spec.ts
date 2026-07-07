@@ -162,6 +162,14 @@ describe('SwissQRService — RealUnit portfolio statement example', () => {
     ).rejects.toThrow(BadRequestException);
   });
 
+  it('normalizes a UTC/CET year-boundary instant to its Swiss calendar day', () => {
+    // 2024-12-31 23:30 UTC is already 2025-01-01 in Europe/Zurich (CET). The normalized reference date
+    // must fall on 2025-01-01 so the tax-value year (UTC) and the printed Swiss day stay consistent.
+    const reference = SwissQRService.toSwissReferenceDate(new Date('2024-12-31T23:30:00Z'));
+    expect(reference.getUTCFullYear()).toBe(2025);
+    expect(reference.toISOString().slice(0, 10)).toBe('2025-01-01');
+  });
+
   // Guards against a missing/typo'd i18n key silently printing the raw key on a customer tax document:
   // every statement label must exist in every supported language.
   it('has every statement i18n key in all supported languages', () => {

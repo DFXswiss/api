@@ -413,6 +413,24 @@ export class SwissQRService {
     return `${get('day')}.${get('month')}.${get('year')}`;
   }
 
+  // Normalize an instant to the Swiss calendar day it falls on (as noon UTC), so the tax-value year
+  // (date.getUTCFullYear) and the printed reference date (formatChDate, Europe/Zurich) can never
+  // disagree across a UTC/CET year boundary.
+  static toSwissReferenceDate(date: Date): Date {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      timeZone: 'Europe/Zurich',
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).formatToParts(date);
+    const get = (type: string): string => {
+      const value = parts.find((p) => p.type === type)?.value;
+      if (value == null) throw new Error(`Missing date part "${type}" while normalizing the reference date`);
+      return value;
+    };
+    return new Date(`${get('year')}-${get('month')}-${get('day')}T12:00:00.000Z`);
+  }
+
   private async generatePdfInvoice(
     tableData: SwissQRBillTableData,
     language: string,

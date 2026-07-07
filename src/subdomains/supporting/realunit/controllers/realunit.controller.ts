@@ -194,13 +194,17 @@ export class RealUnitController {
       ? Blockchain.SEPOLIA
       : Blockchain.ETHEREUM;
 
+    // Normalize the reference date to its Swiss calendar day once, so the tax-value year (UTC) and the
+    // printed reference date (Europe/Zurich) can never disagree across a UTC/CET year boundary.
+    const referenceDate = SwissQRService.toSwissReferenceDate(dto.date);
+
     const user = await this.userService.getUser(jwt.user, { userData: true });
 
     // A RealUnit portfolio statement is a share-register document: it must list only the RealUnit
     // token, never other assets (e.g. a ZCHF dust balance) that happen to sit on the same address.
     const realuAsset = await this.realunitService.getRealuAsset();
     const { balances, totalValue } = await this.balancePdfService.getBalanceData(
-      { ...dto, blockchain: tokenBlockchain },
+      { ...dto, blockchain: tokenBlockchain, date: referenceDate },
       (asset) => asset.id === realuAsset.id,
     );
 
@@ -209,7 +213,7 @@ export class RealUnitController {
       totalValue,
       user.userData,
       dto.currency,
-      dto.date,
+      referenceDate,
       dto.language ?? PdfLanguage.EN,
       dto.address,
     );
