@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
+import { Config } from 'src/config/config';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -26,16 +27,9 @@ const SUPPORTED_BLOCKCHAINS: Blockchain[] = [
   Blockchain.GNOSIS,
 ];
 
-// Official yearly wealth-tax values (CHF) for the RealUnit share token (REALU), as published by the
-// issuer. RealUnit shares are reported at this tax value instead of the market price. Extend the map
-// once the value for a new tax year is published.
+// RealUnit shares (REALU) are reported at the official yearly tax value (Config.realunit.taxValuesChf),
+// not at the market price.
 const REALU_ASSET_NAME = 'REALU';
-const REALU_TAX_VALUE_CHF: Record<number, number> = {
-  2022: 1.08,
-  2023: 1.04,
-  2024: 1.13,
-  2025: 1.37,
-};
 
 @Injectable()
 export class BalancePdfService {
@@ -152,7 +146,7 @@ export class BalancePdfService {
     // RealUnit shares are valued at the official yearly tax value (CHF), not the market price
     if (asset.name === REALU_ASSET_NAME && currency === PriceCurrency.CHF) {
       const year = date.getUTCFullYear();
-      const taxValue = REALU_TAX_VALUE_CHF[year];
+      const taxValue = Config.realunit.taxValuesChf[year];
       if (taxValue == null) {
         this.logger.warn(`No official ${REALU_ASSET_NAME} tax value configured for year ${year}`);
         return undefined;
