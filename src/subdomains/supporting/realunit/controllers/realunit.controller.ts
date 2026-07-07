@@ -195,8 +195,9 @@ export class RealUnitController {
       : Blockchain.ETHEREUM;
 
     // Normalize the reference date to its Swiss calendar day once, so the tax-value year (UTC) and the
-    // printed reference date (Europe/Zurich) can never disagree across a UTC/CET year boundary.
-    const referenceDate = SwissQRService.toSwissReferenceDate(dto.date);
+    // printed reference date (Europe/Zurich) can never disagree across a UTC/CET year boundary. Cap it at
+    // the current instant so a same-day (past) request is not pushed into the future by the noon pinning.
+    const referenceDate = new Date(Math.min(SwissQRService.toSwissReferenceDate(dto.date).getTime(), Date.now()));
 
     const user = await this.userService.getUser(jwt.user, { userData: true });
 
