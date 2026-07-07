@@ -176,12 +176,14 @@ export class UserDataService {
     const user = await this.userDataRepo.findOne({ where: { kycHash: Equal(kycHash) }, relations });
     if (!user) throw new NotFoundException('User not found');
 
-    if (user.status === UserDataStatus.MERGED) await this.throwMergedError(user);
+    await this.throwIfMerged(user);
 
     return user;
   }
 
-  private async throwMergedError(userData: UserData): Promise<never> {
+  private async throwIfMerged(userData: UserData): Promise<void> {
+    if (userData.status !== UserDataStatus.MERGED) return;
+
     const master = await this.getMasterUser(userData);
     if (master) {
       const payload: MergedDto = {
@@ -791,7 +793,7 @@ export class UserDataService {
 
   async checkMail(userData: UserData, mail: string): Promise<void> {
     // stale sessions on a merged account should switch to the master's code instead of retrying (JWT routes have no merged check)
-    if (userData.status === UserDataStatus.MERGED) await this.throwMergedError(userData);
+    await this.throwIfMerged(userData);
 
     const mailUsers = await this.getUsersByMail(mail).then((l) => AccountMergeService.masterFirst(l));
     const conflictUsers = mailUsers.filter((u) => u.id !== userData.id);
