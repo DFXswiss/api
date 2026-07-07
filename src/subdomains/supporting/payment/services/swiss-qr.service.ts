@@ -255,7 +255,7 @@ export class SwissQRService {
 
   // Renders the RealUnit portfolio/tax statement ("Vermögensübersicht") in the same letter design as the
   // transaction receipts: RealUnit letterhead + logo, holder recipient block, title, "<city>, <date>",
-  // a dark-header balance table, and a details section with the issuer attribution. The priced balances
+  // a dark-header balance table, and a details section with the wallet reference. The priced balances
   // come from BalancePdfService.getBalanceData, so the figures match the technical DFX report exactly.
   async createBalanceStatement(
     balances: BalanceEntry[],
