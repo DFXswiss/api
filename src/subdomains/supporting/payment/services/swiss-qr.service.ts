@@ -723,6 +723,7 @@ export class SwissQRService {
           text: `${billData.currency} ${total.toFixed(2)}`,
           width: mm2pt(30),
           fontName: 'Helvetica-Bold',
+          align: 'right',
         });
         return { columns: cols, height: 25, padding: 5 };
       };
