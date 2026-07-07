@@ -6,7 +6,7 @@ import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-bal
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { mm2pt } from 'swissqrbill/utils';
 import { dfxLogoBall1, dfxLogoBall2, dfxLogoText } from './logos/dfx-logo';
-import { realunitLogoColor, realunitLogoPath } from './logos/realunit-logo';
+import { realunitLogoFullBase64 } from './logos/realunit-logo-full';
 
 export interface GiroCodeData {
   name: string;
@@ -45,24 +45,19 @@ export class PdfUtil {
     brand: PdfBrand = PdfBrand.DFX,
     size: LogoSize = LogoSize.SMALL,
   ): void {
+    // RealUnit uses its full company logo (icon + wordmark) top-right at a fixed size on every receipt
+    if (brand === PdfBrand.REALUNIT) {
+      this.drawRealUnitFullLogo(pdf);
+      return;
+    }
+
     const { x, y, scale } = this.getLogoConfig(size);
 
     pdf.save();
     pdf.translate(x, y);
     pdf.scale(scale);
-
-    if (brand === PdfBrand.REALUNIT) {
-      this.drawRealUnitLogoPath(pdf);
-    } else {
-      this.drawDfxLogoPath(pdf);
-    }
-
+    this.drawDfxLogoPath(pdf);
     pdf.restore();
-
-    // Extra vertical offset for RealUnit small logo
-    if (brand === PdfBrand.REALUNIT && size === LogoSize.SMALL) {
-      pdf.translate(0, 30);
-    }
   }
 
   private static getLogoConfig(size: LogoSize): { x: number; y: number; scale: number } {
@@ -72,8 +67,13 @@ export class PdfUtil {
     return { x: 50, y: 30, scale: 0.12 };
   }
 
-  private static drawRealUnitLogoPath(pdf: InstanceType<typeof PDFDocument>): void {
-    pdf.path(realunitLogoPath).fill(realunitLogoColor);
+  // Full RealUnit logo (raster PNG) placed top-right, right-aligned to the 190 mm content edge
+  private static drawRealUnitFullLogo(pdf: InstanceType<typeof PDFDocument>): void {
+    const logoWidth = 45; // mm
+    const rightEdge = 190; // mm — receipt content edge (20 mm margin + 170 mm width)
+    const top = 14; // mm
+    const logo = Buffer.from(realunitLogoFullBase64, 'base64');
+    pdf.image(logo, mm2pt(rightEdge - logoWidth), mm2pt(top), { width: mm2pt(logoWidth) });
   }
 
   private static drawDfxLogoPath(pdf: InstanceType<typeof PDFDocument>): void {

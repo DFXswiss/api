@@ -201,7 +201,6 @@ export class RealUnitController {
       isIncoming,
       PdfBrand.REALUNIT,
       dto.language,
-      jwt.address,
     );
 
     return { pdfData };
@@ -244,7 +243,6 @@ export class RealUnitController {
       currency,
       PdfBrand.REALUNIT,
       dto.language,
-      jwt.address,
     );
 
     return { pdfData };
