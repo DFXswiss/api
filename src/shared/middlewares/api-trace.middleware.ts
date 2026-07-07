@@ -29,7 +29,7 @@ const REDACT_BUDGET = 2 * MAX_PART; // per section: bounds the compute, not just
 const REDACTED = '***';
 const TRUNCATED = '<…truncated…>';
 
-function maskValue(s: string): string {
+export function maskValue(s: string): string {
   return s.replace(WALLET_ADDRESS, '0x…').replace(EMAIL, REDACTED).replace(IPV4, REDACTED);
 }
 
