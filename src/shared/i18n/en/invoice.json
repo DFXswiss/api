@@ -44,7 +44,6 @@
     "fees_label": "Fees",
     "fees_free": "fee-free",
     "details_title": "Transaction Details",
-    "buyer_label": "Buyer / Holder",
     "receipt_total_label": "Receipt Total",
     "transaction_type_label": "Transaction type",
     "type_buy": "Purchase",

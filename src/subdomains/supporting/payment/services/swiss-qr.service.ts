@@ -63,7 +63,6 @@ interface SwissQRBillTableData {
   date: Date;
   unitPrice?: number;
   txHash?: string;
-  buyerName?: string;
 }
 
 @Injectable()
@@ -175,7 +174,6 @@ export class SwissQRService {
       fiatAmount,
       date: historyEvent.timestamp,
       unitPrice: fiatPrice,
-      buyerName: userData.completeName,
     };
 
     const billData: QrBillData = {
@@ -634,9 +632,9 @@ export class SwissQRService {
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
 
-    // RealUnit details section (buyer)
+    // RealUnit transaction details section
     if (isRealUnit) {
-      this.drawReceiptDetails(pdf, { transactionType, settlement, buyerName: tableData.buyerName }, lang);
+      this.drawReceiptDetails(pdf, { transactionType, settlement }, lang);
     }
 
     // QR-Bill (Swiss/LI IBAN) or GiroCode (other IBANs)
@@ -710,7 +708,7 @@ export class SwissQRService {
 
   private drawReceiptDetails(
     pdf: typeof PDFDocument.prototype,
-    receipt: { transactionType?: TransactionType; settlement?: ReceiptSettlement; buyerName?: string },
+    receipt: { transactionType?: TransactionType; settlement?: ReceiptSettlement },
     lang: string,
   ): void {
     const labelX = mm2pt(20);
@@ -736,13 +734,6 @@ export class SwissQRService {
       }
     }
 
-    if (receipt.buyerName) {
-      details.push({
-        label: this.translate('invoice.realunit_receipt.buyer_label', lang),
-        value: receipt.buyerName,
-      });
-    }
-
     // Start a new page if title + all detail rows would not fit on the current page.
     // Reserve up to two lines per detail plus a safety margin so nothing gets cut off.
     const estimatedHeight = 15 + 22 + details.length * 26 + 10;
@@ -754,7 +745,7 @@ export class SwissQRService {
     pdf.fontSize(10);
     let currentY = pdf.y + 8;
     for (const { label, value } of details) {
-      // width must sit on the first (label) segment of the continued chain to wrap long values (e.g. buyer name)
+      // width must sit on the first (label) segment of the continued chain to wrap long values
       pdf.font('Helvetica-Bold').text(`${label}:`, labelX, currentY, { continued: true, width: mm2pt(150) });
       pdf.font('Helvetica').text(`  ${value}`);
       currentY = pdf.y + 4;

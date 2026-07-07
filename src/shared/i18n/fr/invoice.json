@@ -44,7 +44,6 @@
     "fees_label": "Frais",
     "fees_free": "sans frais",
     "details_title": "Détails de la transaction",
-    "buyer_label": "Acheteur / Détenteur",
     "receipt_total_label": "Total du reçu",
     "transaction_type_label": "Type de transaction",
     "type_buy": "Achat",
