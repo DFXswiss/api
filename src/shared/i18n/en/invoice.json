@@ -2,12 +2,7 @@
   "title": "Invoice No. {invoiceId}",
   "credit_title": "Credit No. {invoiceId}",
   "receipt_title": "Transaction Confirmation No. {invoiceId}",
-  "multi_receipt_title": "Transaction History No. {invoiceId}",
-  "section": {
-    "buy": "Purchases",
-    "sell": "Sales",
-    "transfer": "Transfers"
-  },
+  "multi_receipt_title": "Transaction History",
   "table": {
     "headers": {
       "quantity": "Quantity",
