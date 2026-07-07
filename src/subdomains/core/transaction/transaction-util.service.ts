@@ -223,10 +223,13 @@ export class TransactionUtilService {
     if (!asset) throw new BadRequestException('Asset not found');
 
     const client = this.blockchainRegistry.getEvmClient(asset.blockchain);
+
+    // The transaction was already sent by the client, verify it exists on-chain before tracking it
+    const transaction = await client.getTx(txHash);
+    if (!transaction) throw new BadRequestException('Transaction not found');
+
     const blockHeight = await client.getCurrentBlock();
 
-    // The transaction was already sent by the client
-    // We just need to create a PayIn record to track it
     return this.payInService.createPayIn(
       request.user.address,
       route.deposit.address,

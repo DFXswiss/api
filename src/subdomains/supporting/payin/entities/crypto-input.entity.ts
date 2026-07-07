@@ -289,6 +289,14 @@ export class CryptoInput extends IEntity {
     return [this.id, update];
   }
 
+  fail(): UpdateResult<CryptoInput> {
+    const update: Partial<CryptoInput> = { status: PayInStatus.FAILED };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   confirmationTxId(direction: PayInConfirmationType): string {
     return direction === PayInConfirmationType.INPUT
       ? this.inTxId
