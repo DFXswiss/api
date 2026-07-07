@@ -3,11 +3,6 @@
   "credit_title": "Gutschrift Nr. {invoiceId}",
   "receipt_title": "Transaktionsbestätigung Nr. {invoiceId}",
   "multi_receipt_title": "Transaktionshistorie",
-  "section": {
-    "buy": "Käufe",
-    "sell": "Verkäufe",
-    "transfer": "Übertragungen"
-  },
   "table": {
     "headers": {
       "quantity": "Menge",

@@ -286,9 +286,6 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       'realunit_receipt.payment_method_label',
       'realunit_receipt.payment_method_bank',
       'realunit_receipt.payment_method_on_chain',
-      'section.buy',
-      'section.sell',
-      'section.transfer',
     ];
 
     const missing: string[] = [];
