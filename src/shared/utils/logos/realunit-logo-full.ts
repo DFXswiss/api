@@ -1,5 +1,5 @@
 // Full RealUnit company logo: hexagon icon + 'RealUnit SCHWEIZ AG' wordmark.
-// Official asset provided by RealUnit (dani.stuessi@realunit.ch), converted to a baseline PNG and
+// Official asset provided by RealUnit, converted to a baseline PNG and
 // base64-embedded so it ships with the compiled bundle — no runtime file/asset lookup needed
 // (nest-cli only copies .hbs and i18n assets to dist). Decoded once via Buffer.from for pdfkit.
 export const realunitLogoFullBase64 =
