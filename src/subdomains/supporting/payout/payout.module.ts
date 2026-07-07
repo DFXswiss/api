@@ -16,7 +16,6 @@ import { PayoutBitcoinService } from './services/payout-bitcoin.service';
 import { PayoutBscService } from './services/payout-bsc.service';
 import { PayoutCardanoService } from './services/payout-cardano.service';
 import { PayoutInternetComputerService } from './services/payout-icp.service';
-import { PayoutCitreaTestnetService } from './services/payout-citrea-testnet.service';
 import { PayoutCitreaService } from './services/payout-citrea.service';
 import { PayoutEthereumService } from './services/payout-ethereum.service';
 import { PayoutFiroService } from './services/payout-firo.service';
@@ -47,8 +46,6 @@ import { CardanoTokenStrategy as CardanoTokenStrategyPO } from './strategies/pay
 import { InternetComputerCoinStrategy as InternetComputerCoinStrategyPO } from './strategies/payout/impl/icp-coin.strategy';
 import { InternetComputerTokenStrategy as InternetComputerTokenStrategyPO } from './strategies/payout/impl/icp-token.strategy';
 import { CitreaCoinStrategy as CitreaCoinStrategyPO } from './strategies/payout/impl/citrea-coin.strategy';
-import { CitreaTestnetCoinStrategy as CitreaTestnetCoinStrategyPO } from './strategies/payout/impl/citrea-testnet-coin.strategy';
-import { CitreaTestnetTokenStrategy as CitreaTestnetTokenStrategyPO } from './strategies/payout/impl/citrea-testnet-token.strategy';
 import { CitreaTokenStrategy as CitreaTokenStrategyPO } from './strategies/payout/impl/citrea-token.strategy';
 import { EthereumCoinStrategy as EthereumCoinStrategyPO } from './strategies/payout/impl/ethereum-coin.strategy';
 import { EthereumTokenStrategy as EthereumTokenStrategyPO } from './strategies/payout/impl/ethereum-token.strategy';
@@ -79,7 +76,6 @@ import { BitcoinStrategy as BitcoinStrategyPR } from './strategies/prepare/impl/
 import { BscStrategy as BscStrategyPR } from './strategies/prepare/impl/bsc.strategy';
 import { CardanoStrategy as CardanoStrategyPR } from './strategies/prepare/impl/cardano.strategy';
 import { InternetComputerStrategy as InternetComputerStrategyPR } from './strategies/prepare/impl/icp.strategy';
-import { CitreaTestnetStrategy as CitreaTestnetStrategyPR } from './strategies/prepare/impl/citrea-testnet.strategy';
 import { CitreaStrategy as CitreaStrategyPR } from './strategies/prepare/impl/citrea.strategy';
 import { EthereumStrategy as EthereumStrategyPR } from './strategies/prepare/impl/ethereum.strategy';
 import { FiroStrategy as FiroStrategyPR } from './strategies/prepare/impl/firo.strategy';
@@ -130,7 +126,6 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     PayoutCardanoService,
     PayoutInternetComputerService,
     PayoutCitreaService,
-    PayoutCitreaTestnetService,
     PayoutBitcoinTestnet4Service,
     PayoutStrategyRegistry,
     PrepareStrategyRegistry,
@@ -188,9 +183,6 @@ import { ZanoStrategy as ZanoStrategyPR } from './strategies/prepare/impl/zano.s
     CitreaStrategyPR,
     CitreaCoinStrategyPO,
     CitreaTokenStrategyPO,
-    CitreaTestnetStrategyPR,
-    CitreaTestnetCoinStrategyPO,
-    CitreaTestnetTokenStrategyPO,
     BitcoinTestnet4StrategyPR,
     BitcoinTestnet4StrategyPO,
   ],

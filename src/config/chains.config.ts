@@ -57,7 +57,7 @@ export const EVM_CHAINS = {
   },
   citreaTestnet: {
     chainId: 5115,
-    gatewayUrl: 'https://rpc.testnet.citreascan.com',
+    gatewayUrl: 'https://rpc.testnet.citrea.xyz',
     swapContractAddress: '0x26C106BC45E0dd599cbDD871605497B2Fc87c185',
     swapFactoryAddress: '0xdd6Db52dB41CE2C03002bB1adFdCC8E91C594238',
     quoteContractAddress: '0x719a4C7B49E5361a39Dc83c23b353CA220D9B99d',

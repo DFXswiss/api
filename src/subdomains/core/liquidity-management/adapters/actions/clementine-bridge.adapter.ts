@@ -1,11 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { GetConfig } from 'src/config/config';
-import { BitcoinTestnet4Service } from 'src/integration/blockchain/bitcoin-testnet4/bitcoin-testnet4.service';
-import { BitcoinTestnet4FeeService } from 'src/integration/blockchain/bitcoin-testnet4/services/bitcoin-testnet4-fee.service';
 import { BitcoinBasedClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-based-client';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
-import { CitreaTestnetService } from 'src/integration/blockchain/citrea-testnet/citrea-testnet.service';
 import { CitreaClient } from 'src/integration/blockchain/citrea/citrea-client';
 import { CitreaService } from 'src/integration/blockchain/citrea/citrea.service';
 import {
@@ -108,29 +105,25 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
   constructor(
     clementineService: ClementineService,
     bitcoinService: BitcoinService,
-    bitcoinTestnet4Service: BitcoinTestnet4Service,
     citreaService: CitreaService,
-    citreaTestnetService: CitreaTestnetService,
     private readonly assetService: AssetService,
     private readonly bitcoinFeeService: BitcoinFeeService,
-    private readonly bitcoinTestnet4FeeService: BitcoinTestnet4FeeService,
     private readonly settingService: SettingService,
   ) {
     super(LiquidityManagementSystem.CLEMENTINE_BRIDGE);
 
     const config = GetConfig().blockchain.clementine;
     this.network = config.network;
+    // TESTNET4 mode was removed with the Citrea testnet sunset
+    if (this.network !== ClementineNetwork.BITCOIN)
+      throw new Error(`Clementine bridge only supports ${ClementineNetwork.BITCOIN}`);
     this.recoveryTaprootAddress = config.recoveryTaprootAddress;
     this.signerAddress = config.signerAddress;
     this.expectedCliVersion = config.expectedVersion;
 
     this.clementineClient = clementineService.getDefaultClient();
-    this.bitcoinClient = this.isTestnet
-      ? bitcoinTestnet4Service.getDefaultClient()
-      : bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
-    this.citreaClient = this.isTestnet
-      ? citreaTestnetService.getDefaultClient<CitreaClient>()
-      : citreaService.getDefaultClient<CitreaClient>();
+    this.bitcoinClient = bitcoinService.getDefaultClient(BitcoinNodeType.BTC_OUTPUT);
+    this.citreaClient = citreaService.getDefaultClient<CitreaClient>();
 
     this.commands.set(ClementineBridgeCommands.DEPOSIT, this.deposit.bind(this));
     this.commands.set(ClementineBridgeCommands.WITHDRAW, this.withdraw.bind(this));
@@ -832,28 +825,20 @@ export class ClementineBridgeAdapter extends LiquidityActionAdapter {
 
   //*** NETWORK HELPERS ***//
 
-  private get isTestnet(): boolean {
-    return this.network === ClementineNetwork.TESTNET4;
-  }
-
   private get citreaPrivateKey(): string {
-    return this.isTestnet
-      ? GetConfig().blockchain.citreaTestnet.citreaTestnetWalletPrivateKey
-      : GetConfig().blockchain.citrea.citreaWalletPrivateKey;
+    return GetConfig().blockchain.citrea.citreaWalletPrivateKey;
   }
 
   private get citreaBlockchain(): Blockchain {
-    return this.isTestnet ? Blockchain.CITREA_TESTNET : Blockchain.CITREA;
+    return Blockchain.CITREA;
   }
 
   private getBtcAsset(): Promise<Asset> {
-    return this.isTestnet ? this.assetService.getBitcoinTestnet4Coin() : this.assetService.getBtcCoin();
+    return this.assetService.getBtcCoin();
   }
 
   private getFeeRate(): Promise<number> {
-    return this.isTestnet
-      ? this.bitcoinTestnet4FeeService.getRecommendedFeeRate()
-      : this.bitcoinFeeService.getRecommendedFeeRate();
+    return this.bitcoinFeeService.getRecommendedFeeRate();
   }
 
   /**

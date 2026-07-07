@@ -303,7 +303,6 @@ async function seedDepositAddresses(adminSeed, count) {
     'Base',
     'Gnosis',
     'Haqq',
-    'CitreaTestnet',
   ];
   const blockchainsStr = evmBlockchains.join(';');
 
@@ -374,7 +373,6 @@ async function main() {
     'POLYGON_WALLET_PRIVATE_KEY',
     'GNOSIS_WALLET_PRIVATE_KEY',
     'CITREA_WALLET_PRIVATE_KEY',
-    'CITREA_TESTNET_WALLET_PRIVATE_KEY',
   ];
 
   let generatedCount = 0;
@@ -411,7 +409,6 @@ async function main() {
     'POLYGON_WALLET_ADDRESS',
     'GNOSIS_WALLET_ADDRESS',
     'CITREA_WALLET_ADDRESS',
-    'CITREA_TESTNET_WALLET_ADDRESS',
   ];
 
   for (const addressName of addressesToGenerate) {
