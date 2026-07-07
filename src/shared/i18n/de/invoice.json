@@ -2,12 +2,7 @@
   "title": "Rechnung Nr. {invoiceId}",
   "credit_title": "Gutschrift Nr. {invoiceId}",
   "receipt_title": "Transaktionsbestätigung Nr. {invoiceId}",
-  "multi_receipt_title": "Transaktionshistorie Nr. {invoiceId}",
-  "section": {
-    "buy": "Käufe",
-    "sell": "Verkäufe",
-    "transfer": "Übertragungen"
-  },
+  "multi_receipt_title": "Transaktionshistorie",
   "table": {
     "headers": {
       "quantity": "Menge",
@@ -49,7 +44,6 @@
     "fees_label": "Spesen",
     "fees_free": "spesenfrei",
     "details_title": "Transaktionsdetails",
-    "buyer_label": "Käufer / Inhaber",
     "receipt_total_label": "Total",
     "transaction_type_label": "Transaktionsart",
     "type_buy": "Kauf",

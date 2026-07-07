@@ -2,12 +2,7 @@
   "title": "Facture No. {invoiceId}",
   "credit_title": "Crédit No. {invoiceId}",
   "receipt_title": "Confirmation de Transaction No. {invoiceId}",
-  "multi_receipt_title": "Historique des transactions No. {invoiceId}",
-  "section": {
-    "buy": "Achats",
-    "sell": "Ventes",
-    "transfer": "Transferts"
-  },
+  "multi_receipt_title": "Historique des transactions",
   "table": {
     "headers": {
       "quantity": "Quantité",
@@ -49,7 +44,6 @@
     "fees_label": "Frais",
     "fees_free": "sans frais",
     "details_title": "Détails de la transaction",
-    "buyer_label": "Acheteur / Détenteur",
     "receipt_total_label": "Total du reçu",
     "transaction_type_label": "Type de transaction",
     "type_buy": "Achat",

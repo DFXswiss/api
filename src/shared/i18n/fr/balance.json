@@ -12,8 +12,12 @@
     },
     "no_assets": "Aucun actif trouvé pour cette adresse."
   },
+  "statement": {
+    "title": "Relevé de patrimoine",
+    "details_title": "Détails du relevé",
+    "wallet_reference_label": "Référence du portefeuille"
+  },
   "total_value": "Valeur totale",
   "incomplete_data": "* Certains actifs n'ont pas de données de prix historiques disponibles (n/a)",
-  "generated_by": "Généré par DFX",
-  "generated_by_realunit": "Généré par RealUnit Schweiz AG"
+  "generated_by": "Généré par DFX"
 }

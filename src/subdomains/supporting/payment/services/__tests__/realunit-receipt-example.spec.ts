@@ -173,10 +173,26 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     expect(text).toContain(DE_RECEIPT.type_sell); // Verkauf
     expect(text).toContain(DE_RECEIPT.payment_method_on_chain); // On-Chain abgewickelt (ZCHF)
     expect(text).not.toContain(DE_RECEIPT.payment_method_bank);
-    expect(text).toContain('10.1.2026'); // execution date, no time
+    expect(text).toContain('10.01.2026'); // execution date, no time
     expectNoClockTime(text);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-confirmation-sale-de.pdf', pdf);
+  });
+
+  it('renders the sale confirmation (EN)', async () => {
+    const pdf = await service.createTxFromBlockchainReceipt(
+      event('50', TX3, '2026-01-10T16:45:00Z', false),
+      buyer,
+      REALU_ASSET,
+      1.34,
+      'CHF',
+      false,
+      PdfBrand.REALUNIT,
+      'EN',
+    );
+
+    expectValidPdf(pdf);
+    writeExample('transaction-confirmation-sale-en.pdf', pdf);
   });
 
   it('renders a plain transfer without a purchase/payment claim (DE)', async () => {
@@ -201,10 +217,26 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     expect(text).not.toContain(DE_RECEIPT.payment_method_on_chain);
     expect(text).not.toContain(DE_RECEIPT.type_buy);
     expect(text).not.toContain(DE_RECEIPT.type_sell);
-    expect(text).toContain('1.2.2026'); // execution date, no time
+    expect(text).toContain('01.02.2026'); // execution date, no time
     expectNoClockTime(text);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-transfer-de.pdf', pdf);
+  });
+
+  it('renders a plain transfer without a purchase/payment claim (EN)', async () => {
+    const pdf = await service.createTxFromBlockchainReceipt(
+      transferEvent('30', TX4, '2026-02-01T10:00:00Z'),
+      buyer,
+      REALU_ASSET,
+      1.36,
+      'CHF',
+      true,
+      PdfBrand.REALUNIT,
+      'EN',
+    );
+
+    expectValidPdf(pdf);
+    writeExample('transaction-transfer-en.pdf', pdf);
   });
 
   it('renders the transaction history (DE)', async () => {
@@ -224,15 +256,25 @@ describe('SwissQRService — RealUnit receipt examples', () => {
 
     expectValidPdf(pdf);
     const text = extractPdfText(pdf);
-    // Mixed history: the buy section claims bank settlement, the sell section on-chain, and the plain
-    // transfer lands in its own neutral section — each per-section claim stays correct.
-    expect(text).toContain(DE.section.buy); // Käufe
-    expect(text).toContain(DE.section.sell); // Verkäufe
-    expect(text).toContain(DE.section.transfer); // Übertragungen
-    expect(text).toContain(DE_RECEIPT.payment_method_bank); // Banküberweisung (buy section)
-    expect(text).toContain(DE_RECEIPT.payment_method_on_chain); // on-chain (sell section)
+    // Single flat chronological table: the description column is reduced to the trade direction
+    // (Kauf/Verkauf), with a plain wallet-to-wallet transfer labelled "Übertragung". No section headers,
+    // no long share description, and no per-section subtotal / fee / payment-method rows — those
+    // settlement details stay on the individual single receipts.
+    expect(text).toContain(DE_RECEIPT.type_buy); // Kauf
+    expect(text).toContain(DE_RECEIPT.type_sell); // Verkauf
+    expect(text).toContain(DE_RECEIPT.type_transfer); // Übertragung
+    // One single table: the column-header block renders exactly once (previously once per buy/sell/
+    // transfer section), so the "Käufe/Verkäufe/Übertragungen" section headers are gone.
+    expect(text.match(new RegExp(DE.table.headers.description, 'g'))?.length).toBe(1); // "Beschreibung"
+    expect(text).not.toContain('ISIN'); // long RealUnit share description dropped from the rows
+    expect(text).not.toContain(DE_RECEIPT.fees_label); // no fee rows
+    expect(text).not.toContain(DE_RECEIPT.payment_method_label); // no payment-method rows
+    expect(text).not.toContain(DE_RECEIPT.payment_method_bank);
+    expect(text).not.toContain(DE_RECEIPT.payment_method_on_chain);
     expect(text).toContain('28.10.2025'); // per-row execution date, no time
-    expect(text).toContain('10.1.2026');
+    expect(text).toContain('15.11.2025');
+    expect(text).toContain('10.01.2026');
+    expect(text).toContain('01.02.2026');
     expectNoClockTime(text);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-history-de.pdf', pdf);
@@ -267,7 +309,6 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       'realunit_receipt.fees_label',
       'realunit_receipt.fees_free',
       'realunit_receipt.details_title',
-      'realunit_receipt.buyer_label',
       'realunit_receipt.receipt_total_label',
       'realunit_receipt.transaction_type_label',
       'realunit_receipt.type_buy',
@@ -276,9 +317,6 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       'realunit_receipt.payment_method_label',
       'realunit_receipt.payment_method_bank',
       'realunit_receipt.payment_method_on_chain',
-      'section.buy',
-      'section.sell',
-      'section.transfer',
     ];
 
     const missing: string[] = [];
