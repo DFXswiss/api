@@ -15,10 +15,12 @@ const REALU = { id: 1, name: 'REALU', type: AssetType.TOKEN, chainId: '0xrealu',
 const ZCHF = { id: 2, name: 'ZCHF', type: AssetType.TOKEN, chainId: '0xzchf', decimals: 18 } as unknown as Asset;
 const NATIVE = { id: 3, name: 'ETHER', type: AssetType.COIN, decimals: 18 } as unknown as Asset;
 
-describe('BalancePdfService — RealUnit portfolio statement', () => {
-  let text: string;
+// Mocked local-DB market price (CHF); the official RealUnit tax value must take precedence over it.
+const MARKET_PRICE_CHF = 1.36;
 
-  beforeAll(async () => {
+describe('BalancePdfService — RealUnit portfolio statement', () => {
+  // Renders the RealUnit statement for a wallet holding a single REALU share and returns the PDF text.
+  async function renderStatement(date: Date): Promise<string> {
     // Populate the global `Config` singleton (normally wired up at app bootstrap) so i18n config resolves.
     new ConfigService();
 
@@ -38,7 +40,7 @@ describe('BalancePdfService — RealUnit portfolio statement', () => {
     };
     const assetService = { getAllBlockchainAssets: jest.fn().mockResolvedValue([REALU, ZCHF, NATIVE]) };
     const assetPrices = {
-      getAssetPriceForDate: jest.fn().mockResolvedValue({ priceChf: 1.36, priceEur: 1.4, priceUsd: 1.5 }),
+      getAssetPriceForDate: jest.fn().mockResolvedValue({ priceChf: MARKET_PRICE_CHF, priceEur: 1.4, priceUsd: 1.5 }),
     };
     const coinGecko = { getHistoricalPriceForAsset: jest.fn().mockResolvedValue(undefined) };
 
@@ -54,12 +56,19 @@ describe('BalancePdfService — RealUnit portfolio statement', () => {
       address: ADDRESS,
       blockchain: Blockchain.ETHEREUM,
       currency: PriceCurrency.CHF,
-      date: new Date('2026-07-01T00:00:00Z'),
+      date,
       language: PdfLanguage.DE,
     } as GetBalancePdfDto;
 
     const pdf = await service.generateBalancePdf(dto, PdfBrand.REALUNIT, (asset) => asset.id === REALU.id);
-    text = extractPdfText(pdf);
+    return extractPdfText(pdf);
+  }
+
+  let text: string;
+
+  // Reference date within a configured tax year (2025 -> CHF 1.37).
+  beforeAll(async () => {
+    text = await renderStatement(new Date('2025-12-31T00:00:00Z'));
   });
 
   it('lists only REALU, never a ZCHF dust balance or any other asset', () => {
@@ -83,5 +92,17 @@ describe('BalancePdfService — RealUnit portfolio statement', () => {
   it('attributes generation to the RealUnit issuer, not to DFX', () => {
     expect(text).toContain('RealUnit Schweiz AG');
     expect(text).not.toContain('DFX');
+  });
+
+  it('values REALU at the official yearly tax value, overriding the market price', () => {
+    // 2025 tax value is CHF 1.37 and must take precedence over the mocked local-DB market price (1.36).
+    expect(text).toContain('1.37');
+    expect(text).not.toContain(MARKET_PRICE_CHF.toString());
+  });
+
+  it('renders no value — never the market price — for a year without a configured tax value', async () => {
+    const uncovered = await renderStatement(new Date('2020-12-31T00:00:00Z'));
+    expect(uncovered).toContain('REALU');
+    expect(uncovered).not.toContain(MARKET_PRICE_CHF.toString());
   });
 });
