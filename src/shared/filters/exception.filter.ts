@@ -1,6 +1,6 @@
 import { ArgumentsHost, Catch, ExceptionFilter, HttpException, HttpStatus } from '@nestjs/common';
 import { Request } from 'express';
-import { maskUrl } from 'src/shared/middlewares/api-trace.middleware';
+import { maskUrl, maskValue } from 'src/shared/middlewares/api-trace.middleware';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 
 @Catch()
@@ -11,6 +11,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
   // the morgan access log and their reason adds nothing, so they are not
   // re-logged here — that would just flood the logs and bury the signal.
   private static readonly WARN_CLIENT_ERRORS: number[] = [HttpStatus.BAD_REQUEST, HttpStatus.UNPROCESSABLE_ENTITY];
+
+  // Cap the (masked) reason: exception messages can embed user-supplied free text.
+  private static readonly REASON_MAX_LENGTH = 500;
 
   private readonly logger = new DfxLogger(ApiExceptionFilter);
 
@@ -29,7 +32,10 @@ export class ApiExceptionFilter implements ExceptionFilter {
       // that surfaces as a 4xx (a valid request the server wrongly rejects) is
       // visible in the logs instead of leaving only a bare morgan status line with
       // no reason (the #4105 support-ticket outage was silent for exactly this).
-      this.logger.warn(`${status} on ${target}: ${this.getReason(exception)}`);
+      // The reason is masked to the same PII standard as the rest of the logs and
+      // length-capped, because it can embed user-supplied values.
+      const reason = maskValue(this.getReason(exception)).slice(0, ApiExceptionFilter.REASON_MAX_LENGTH);
+      this.logger.warn(`${status} on ${target}: ${reason}`);
     }
 
     try {
@@ -54,9 +60,9 @@ export class ApiExceptionFilter implements ExceptionFilter {
       const res = exception.getResponse();
       if (typeof res === 'string') return res;
 
-      const message = (res as { message?: string | string[] }).message;
+      const message = (res as { message?: unknown }).message;
       if (Array.isArray(message)) return message.join('; ');
-      if (message) return message;
+      if (typeof message === 'string') return message;
     }
 
     return exception.message;

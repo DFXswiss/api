@@ -86,6 +86,17 @@ describe('ApiExceptionFilter', () => {
     expect(msg).not.toContain('token');
   });
 
+  it('masks PII (wallet address, email) in the rejection reason', () => {
+    filter.catch(
+      new BadRequestException('Invalid address 0x1234567890abcdef1234567890abcdef12345678 for user foo@bar.com'),
+      host(req(), { status }),
+    );
+
+    const msg = warn.mock.calls[0][0] as string;
+    expect(msg).not.toContain('0x1234567890abcdef1234567890abcdef12345678');
+    expect(msg).not.toContain('foo@bar.com');
+  });
+
   it('does NOT log routine client errors (401/403/404/429) — they are already in the access log', () => {
     const routine = [
       new UnauthorizedException(),
