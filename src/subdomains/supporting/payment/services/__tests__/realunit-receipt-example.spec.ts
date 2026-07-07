@@ -309,7 +309,6 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       'realunit_receipt.fees_label',
       'realunit_receipt.fees_free',
       'realunit_receipt.details_title',
-      'realunit_receipt.buyer_label',
       'realunit_receipt.receipt_total_label',
       'realunit_receipt.transaction_type_label',
       'realunit_receipt.type_buy',
