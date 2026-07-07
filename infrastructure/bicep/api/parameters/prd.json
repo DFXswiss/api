@@ -263,24 +263,6 @@
     "gasPrice": {
       "value": "100"
     },
-    "citreaTestnetWalletAddress": {
-      "value": "xxx"
-    },
-    "citreaTestnetWalletPrivateKey": {
-      "value": "xxx"
-    },
-    "citreaTestnetGatewayUrl": {
-      "value": "https://rpc.testnet.citreascan.com"
-    },
-    "citreaTestnetApiKey": {
-      "value": "100"
-    },
-    "citreaTestnetChainId": {
-      "value": "5115"
-    },
-    "goldskySubgraphUrl": {
-      "value": "https://api.goldsky.com/api/public/project_xyz/subgraphs/citrea-transfers/1.0.0/gn"
-    },
     "bscSwapContractAddress": {
       "value": "0x10ED43C718714eb63d5aA57B78B54704E256024E"
     },
