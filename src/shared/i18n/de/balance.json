@@ -13,6 +13,7 @@
     "no_assets": "Keine Vermögenswerte für diese Adresse gefunden."
   },
   "statement": {
+    "title": "Vermögensübersicht",
     "details_title": "Details zur Vermögensübersicht",
     "holder_label": "Inhaber",
     "reference_date_label": "Stichtag",

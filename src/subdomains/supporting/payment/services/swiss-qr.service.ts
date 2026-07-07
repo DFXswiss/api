@@ -283,7 +283,7 @@ export class SwissQRService {
     this.drawSenderAddress(pdf, PdfBrand.REALUNIT);
     // Degrade to name-only for an incomplete profile (getDebtor returns undefined), never hard-error.
     this.drawDebtorAddress(pdf, this.getDebtor(userData), userData.completeName);
-    this.drawTitle(pdf, this.translate('balance.title', lang));
+    this.drawTitle(pdf, this.translate('balance.statement.title', lang));
 
     // Place + reference date (date only, no time), formatted in the Swiss time zone (mirrors the receipts).
     pdf.fontSize(11).font('Helvetica');

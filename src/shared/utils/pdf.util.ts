@@ -219,9 +219,10 @@ export class PdfUtil {
   }
 
   // The RealUnit portfolio statement never prints the raw wallet address; it references it by a short,
-  // non-reversible hash instead.
+  // non-reversible hash instead. The address is lower-cased before hashing so the same wallet always
+  // yields the same reference regardless of checksum casing.
   static walletReference(address: string): string {
-    return Util.createHash(address).slice(0, 6).toUpperCase();
+    return Util.createHash(address.toLowerCase()).slice(0, 6).toUpperCase();
   }
 
   static sortBalancesByValue(balances: BalanceEntry[]): BalanceEntry[] {

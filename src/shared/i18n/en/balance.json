@@ -13,6 +13,7 @@
     "no_assets": "No assets found for this address."
   },
   "statement": {
+    "title": "Portfolio Statement",
     "details_title": "Statement details",
     "holder_label": "Holder",
     "reference_date_label": "Reference date",

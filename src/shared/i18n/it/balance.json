@@ -13,6 +13,7 @@
     "no_assets": "Nessun asset trovato per questo indirizzo."
   },
   "statement": {
+    "title": "Prospetto patrimoniale",
     "details_title": "Dettagli del rendiconto",
     "holder_label": "Titolare",
     "reference_date_label": "Data di riferimento",

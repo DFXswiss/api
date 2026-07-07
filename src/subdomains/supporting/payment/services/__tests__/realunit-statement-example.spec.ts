@@ -99,8 +99,8 @@ describe('SwissQRService — RealUnit portfolio statement example', () => {
     expectValidPdf(pdf);
     const text = extractPdfText(pdf);
 
-    // Title reuses the balance.title key ("Vermögensübersicht"), no document number.
-    expect(text).toContain(DE_BALANCE.title);
+    // Statement-specific title (DE: "Vermögensübersicht"), no document number.
+    expect(text).toContain(DE_BALANCE.statement.title);
     expect(text).toContain('REALU');
     // Holder identity from userData, printed in the recipient block and the details section.
     expect(text).toContain('Max Mustermann');
@@ -166,12 +166,12 @@ describe('SwissQRService — RealUnit portfolio statement example', () => {
   // every statement label must exist in every supported language.
   it('has every statement i18n key in all supported languages', () => {
     const statementKeys = [
-      'title',
       'table.headers.asset',
       'table.headers.balance',
       'table.headers.price',
       'table.headers.value',
       'table.no_assets',
+      'statement.title',
       'statement.details_title',
       'statement.holder_label',
       'statement.reference_date_label',

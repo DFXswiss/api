@@ -179,6 +179,9 @@ export class RealUnitController {
       'Generates a RealUnit portfolio statement ("Vermögensübersicht") for the connected wallet, in the same letter design as the transaction receipts. The queried wallet must belong to the caller.',
   })
   @ApiOkResponse({ type: PdfDto, description: 'Portfolio statement PDF (base64 encoded)' })
+  @ApiBadRequestResponse({
+    description: 'No official RealUnit tax value for the selected reference date, or the date is invalid (must be in the past).',
+  })
   @ApiForbiddenResponse({ description: 'The queried wallet does not belong to the caller' })
   async getBalancePdf(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBalancePdfDto): Promise<PdfDto> {
     // Fail-closed: a statement carries the holder's identity, so it may only be issued for the caller's
