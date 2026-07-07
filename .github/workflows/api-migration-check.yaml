@@ -75,4 +75,4 @@ jobs:
             echo "Only whole-line comment changes are allowed; if a migration is wrong, add a follow-up migration instead of editing the old one."
             exit 1
           fi
-          echo "No existing migrations were modified."
+          echo "No blocking migration changes found."
