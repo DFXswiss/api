@@ -303,7 +303,10 @@ export class SwissQRService {
     ];
 
     if (balances.length === 0) {
-      rows.push({ columns: [{ text: this.translate('balance.table.no_assets', lang), width: mm2pt(170) }], padding: 5 });
+      rows.push({
+        columns: [{ text: this.translate('balance.table.no_assets', lang), width: mm2pt(170) }],
+        padding: 5,
+      });
     } else {
       for (const entry of balances) {
         rows.push({
@@ -338,7 +341,10 @@ export class SwissQRService {
     }
     details.push(
       { label: this.translate('balance.statement.reference_date_label', lang), value: this.formatChDate(asOfDate) },
-      { label: this.translate('balance.statement.wallet_reference_label', lang), value: PdfUtil.walletReference(address) },
+      {
+        label: this.translate('balance.statement.wallet_reference_label', lang),
+        value: PdfUtil.walletReference(address),
+      },
       { label: this.translate('balance.total_value', lang), value: PdfUtil.formatCurrency(totalValue, currency) },
     );
 
