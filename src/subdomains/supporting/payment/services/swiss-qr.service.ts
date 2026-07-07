@@ -249,7 +249,7 @@ export class SwissQRService {
       currency,
     };
 
-    return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand, true, userData.completeName);
+    return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand, true);
   }
 
   // Format an execution date (date only, no time) in the Swiss time zone (DST-safe) for RealUnit receipts
@@ -265,7 +265,7 @@ export class SwissQRService {
       if (part == null) throw new Error(`Missing date part "${type}" while formatting receipt date`);
       return part;
     };
-    return `${Number(get('day'))}.${Number(get('month'))}.${get('year')}`;
+    return `${get('day')}.${get('month')}.${get('year')}`;
   }
 
   private async generatePdfInvoice(
@@ -604,7 +604,6 @@ export class SwissQRService {
     billData: QrBillData,
     brand: PdfBrand = PdfBrand.DFX,
     skipTermsAndConditions = false,
-    buyerName?: string,
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
     const isRealUnit = brand === PdfBrand.REALUNIT;
@@ -614,8 +613,7 @@ export class SwissQRService {
     PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
     this.drawSenderAddress(pdf, brand);
     this.drawDebtorAddress(pdf, billData.debtor);
-    const receiptId = this.receiptId(tableDataWithType.map((t) => t.data.txHash));
-    this.drawTitle(pdf, this.translate('invoice.multi_receipt_title', lang, { invoiceId: receiptId }));
+    this.drawTitle(pdf, this.translate('invoice.multi_receipt_title', lang));
 
     // Issue date (date only, no time) top-right, formatted in the Swiss time zone
     if (isRealUnit) {
@@ -638,7 +636,7 @@ export class SwissQRService {
       }
       cols.push(
         { text: this.translate('invoice.table.headers.date', lang), width: mm2pt(25) },
-        { text: this.translate('invoice.table.headers.total', lang), width: mm2pt(30) },
+        { text: this.translate('invoice.table.headers.total', lang), width: mm2pt(30), align: 'right' },
       );
       return {
         backgroundColor: '#4A4D51',
@@ -657,10 +655,7 @@ export class SwissQRService {
         ? this.formatChDate(txDate)
         : `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()}`;
 
-      const cols: PDFColumn[] = [
-        { text: `${tableData.quantity}`, width: mm2pt(qtyWidth) },
-        { text: description },
-      ];
+      const cols: PDFColumn[] = [{ text: `${tableData.quantity}`, width: mm2pt(qtyWidth) }, { text: description }];
       if (hasUnitPrice) {
         cols.push({
           text: tableData.unitPrice != null ? `${billData.currency} ${tableData.unitPrice.toFixed(2)}` : '',
@@ -669,7 +664,7 @@ export class SwissQRService {
       }
       cols.push(
         { text: formattedDate, width: mm2pt(25) },
-        { text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`, width: mm2pt(30) },
+        { text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`, width: mm2pt(30), align: 'right' },
       );
       return { columns: cols, padding: 5 };
     };
@@ -756,11 +751,6 @@ export class SwissQRService {
 
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
-
-    // RealUnit details section
-    if (isRealUnit && buyerName) {
-      this.drawReceiptDetails(pdf, { buyerName }, lang);
-    }
 
     pdf.end();
 

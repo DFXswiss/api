@@ -173,7 +173,7 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     expect(text).toContain(DE_RECEIPT.type_sell); // Verkauf
     expect(text).toContain(DE_RECEIPT.payment_method_on_chain); // On-Chain abgewickelt (ZCHF)
     expect(text).not.toContain(DE_RECEIPT.payment_method_bank);
-    expect(text).toContain('10.1.2026'); // execution date, no time
+    expect(text).toContain('10.01.2026'); // execution date, no time
     expectNoClockTime(text);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-confirmation-sale-de.pdf', pdf);
@@ -201,7 +201,7 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     expect(text).not.toContain(DE_RECEIPT.payment_method_on_chain);
     expect(text).not.toContain(DE_RECEIPT.type_buy);
     expect(text).not.toContain(DE_RECEIPT.type_sell);
-    expect(text).toContain('1.2.2026'); // execution date, no time
+    expect(text).toContain('01.02.2026'); // execution date, no time
     expectNoClockTime(text);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-transfer-de.pdf', pdf);
@@ -231,18 +231,18 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     expect(text).toContain(DE_RECEIPT.type_buy); // Kauf
     expect(text).toContain(DE_RECEIPT.type_sell); // Verkauf
     expect(text).toContain(DE_RECEIPT.type_transfer); // Übertragung
-    expect(text).not.toContain(DE.section.buy); // no "Käufe" section header
-    expect(text).not.toContain(DE.section.sell); // no "Verkäufe" section header
-    expect(text).not.toContain(DE.section.transfer); // no "Übertragungen" section header
-    expect(text).not.toContain('ISIN'); // long share description dropped
+    // One single table: the column-header block renders exactly once (previously once per buy/sell/
+    // transfer section), so the "Käufe/Verkäufe/Übertragungen" section headers are gone.
+    expect(text.match(new RegExp(DE.table.headers.description, 'g'))?.length).toBe(1); // "Beschreibung"
+    expect(text).not.toContain('ISIN'); // long RealUnit share description dropped from the rows
     expect(text).not.toContain(DE_RECEIPT.fees_label); // no fee rows
     expect(text).not.toContain(DE_RECEIPT.payment_method_label); // no payment-method rows
     expect(text).not.toContain(DE_RECEIPT.payment_method_bank);
     expect(text).not.toContain(DE_RECEIPT.payment_method_on_chain);
     expect(text).toContain('28.10.2025'); // per-row execution date, no time
     expect(text).toContain('15.11.2025');
-    expect(text).toContain('10.1.2026');
-    expect(text).toContain('1.2.2026');
+    expect(text).toContain('10.01.2026');
+    expect(text).toContain('01.02.2026');
     expectNoClockTime(text);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-history-de.pdf', pdf);
