@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
+import { Config } from 'src/config/config';
 import { AlchemyService } from 'src/integration/alchemy/services/alchemy.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
@@ -25,6 +26,10 @@ const SUPPORTED_BLOCKCHAINS: Blockchain[] = [
   Blockchain.BASE,
   Blockchain.GNOSIS,
 ];
+
+// RealUnit shares (REALU) are reported at the official yearly tax value (Config.blockchain.realunit.taxValuesChf),
+// not at the market price.
+const REALU_ASSET_NAME = 'REALU';
 
 @Injectable()
 export class BalancePdfService {
@@ -138,6 +143,17 @@ export class BalancePdfService {
   }
 
   private async getHistoricalPrice(asset: Asset, date: Date, currency: PriceCurrency): Promise<number | undefined> {
+    // RealUnit shares are valued at the official yearly tax value (CHF), not the market price
+    if (asset.name === REALU_ASSET_NAME && currency === PriceCurrency.CHF) {
+      const year = date.getUTCFullYear();
+      const taxValue = Config.blockchain.realunit.taxValuesChf[year];
+      if (taxValue == null) {
+        this.logger.warn(`No official ${REALU_ASSET_NAME} tax value configured for year ${year}`);
+        return undefined;
+      }
+      return taxValue;
+    }
+
     // First, check local database for historical price
     const localPrice = await this.assetPricesService.getAssetPriceForDate(asset.id, date);
     if (localPrice) {

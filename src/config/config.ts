@@ -1086,6 +1086,14 @@ export class Configuration {
         city: process.env.REALUNIT_ADDRESS_CITY ?? 'Baar',
         country: process.env.REALUNIT_ADDRESS_COUNTRY ?? 'Switzerland',
       },
+      // Official yearly wealth-tax values (CHF) for the RealUnit share (REALU), as published by the
+      // issuer. Extend when a new tax year's value is published.
+      taxValuesChf: {
+        2022: 1.08,
+        2023: 1.04,
+        2024: 1.13,
+        2025: 1.37,
+      } as Record<number, number>,
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,
