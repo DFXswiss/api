@@ -27,7 +27,7 @@ const SUPPORTED_BLOCKCHAINS: Blockchain[] = [
   Blockchain.GNOSIS,
 ];
 
-// RealUnit shares (REALU) are reported at the official yearly tax value (Config.realunit.taxValuesChf),
+// RealUnit shares (REALU) are reported at the official yearly tax value (Config.blockchain.realunit.taxValuesChf),
 // not at the market price.
 const REALU_ASSET_NAME = 'REALU';
 
@@ -146,7 +146,7 @@ export class BalancePdfService {
     // RealUnit shares are valued at the official yearly tax value (CHF), not the market price
     if (asset.name === REALU_ASSET_NAME && currency === PriceCurrency.CHF) {
       const year = date.getUTCFullYear();
-      const taxValue = Config.realunit.taxValuesChf[year];
+      const taxValue = Config.blockchain.realunit.taxValuesChf[year];
       if (taxValue == null) {
         this.logger.warn(`No official ${REALU_ASSET_NAME} tax value configured for year ${year}`);
         return undefined;
