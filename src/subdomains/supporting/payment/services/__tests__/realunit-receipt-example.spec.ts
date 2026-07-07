@@ -179,6 +179,22 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     writeExample('transaction-confirmation-sale-de.pdf', pdf);
   });
 
+  it('renders the sale confirmation (EN)', async () => {
+    const pdf = await service.createTxFromBlockchainReceipt(
+      event('50', TX3, '2026-01-10T16:45:00Z', false),
+      buyer,
+      REALU_ASSET,
+      1.34,
+      'CHF',
+      false,
+      PdfBrand.REALUNIT,
+      'EN',
+    );
+
+    expectValidPdf(pdf);
+    writeExample('transaction-confirmation-sale-en.pdf', pdf);
+  });
+
   it('renders a plain transfer without a purchase/payment claim (DE)', async () => {
     const pdf = await service.createTxFromBlockchainReceipt(
       transferEvent('30', TX4, '2026-02-01T10:00:00Z'),
@@ -205,6 +221,22 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     expectNoClockTime(text);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-transfer-de.pdf', pdf);
+  });
+
+  it('renders a plain transfer without a purchase/payment claim (EN)', async () => {
+    const pdf = await service.createTxFromBlockchainReceipt(
+      transferEvent('30', TX4, '2026-02-01T10:00:00Z'),
+      buyer,
+      REALU_ASSET,
+      1.36,
+      'CHF',
+      true,
+      PdfBrand.REALUNIT,
+      'EN',
+    );
+
+    expectValidPdf(pdf);
+    writeExample('transaction-transfer-en.pdf', pdf);
   });
 
   it('renders the transaction history (DE)', async () => {
