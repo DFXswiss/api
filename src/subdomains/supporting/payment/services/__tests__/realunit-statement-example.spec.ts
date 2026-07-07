@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import * as fs from 'fs';
 import { I18nModule, I18nService } from 'nestjs-i18n';
@@ -150,6 +151,15 @@ describe('SwissQRService — RealUnit portfolio statement example', () => {
     expect(text).toContain('Erika Muster');
     expect(text).toContain('RealUnit Schweiz AG');
     expectNoClockTime(text);
+  });
+
+  it('refuses to issue a statement when a holding cannot be priced (fail-closed)', async () => {
+    // A reference year without a configured official RealUnit tax value leaves the holding unpriced
+    // (value undefined). The statement must be rejected, never rendered with "n/a" and a zeroed total.
+    const unpriced: BalanceEntry[] = [{ asset: REALU_ASSET, balance: 1234, price: undefined, value: undefined }];
+    await expect(
+      service.createBalanceStatement(unpriced, 0, holder, PriceCurrency.CHF, AS_OF, 'DE', ADDRESS),
+    ).rejects.toThrow(BadRequestException);
   });
 
   // Guards against a missing/typo'd i18n key silently printing the raw key on a customer tax document:

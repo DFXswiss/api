@@ -180,7 +180,6 @@ export class PdfUtil {
     currency: PriceCurrency,
     language: PdfLanguage,
     i18n: I18nService,
-    brand: PdfBrand = PdfBrand.DFX,
   ): void {
     const marginX = 50;
     const { width } = pdf.page;
@@ -202,20 +201,7 @@ export class PdfUtil {
 
     y += 20;
     pdf.fontSize(8).font('Helvetica').fillColor('#999999');
-    // RealUnit documents show the date only, in the Swiss time zone (consistent with the receipts);
-    // DFX keeps the full generation timestamp.
-    const generatedAt =
-      brand === PdfBrand.REALUNIT
-        ? new Intl.DateTimeFormat('en-CA', {
-            timeZone: 'Europe/Zurich',
-            year: 'numeric',
-            month: '2-digit',
-            day: '2-digit',
-          }).format(new Date())
-        : new Date().toISOString();
-    // RealUnit statements attribute generation to the issuer, not to DFX.
-    const generatedByKey = brand === PdfBrand.REALUNIT ? 'balance.generated_by_realunit' : 'balance.generated_by';
-    pdf.text(`${this.translate(generatedByKey, language, i18n)} - ${generatedAt}`, marginX, y);
+    pdf.text(`${this.translate('balance.generated_by', language, i18n)} - ${new Date().toISOString()}`, marginX, y);
   }
 
   static translate(key: string, language: PdfLanguage, i18n: I18nService, args?: any): string {
@@ -232,8 +218,8 @@ export class PdfUtil {
     return `${symbol} ${value.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
-  // RealUnit documents never print the raw wallet address; they reference it by a short,
-  // non-reversible hash instead (privacy rule shared by the balance header and the portfolio statement).
+  // The RealUnit portfolio statement never prints the raw wallet address; it references it by a short,
+  // non-reversible hash instead.
   static walletReference(address: string): string {
     return Util.createHash(address).slice(0, 6).toUpperCase();
   }

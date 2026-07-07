@@ -206,9 +206,9 @@ export class BalancePdfService {
         });
 
         PdfUtil.drawLogo(pdf, brand, LogoSize.SMALL);
-        this.drawHeader(pdf, dto, language, brand);
+        this.drawHeader(pdf, dto, language);
         PdfUtil.drawTable(pdf, balances, dto.currency, language, this.i18n);
-        PdfUtil.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language, this.i18n, brand);
+        PdfUtil.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language, this.i18n);
 
         pdf.end();
       } catch (e) {
@@ -217,12 +217,7 @@ export class BalancePdfService {
     });
   }
 
-  private drawHeader(
-    pdf: InstanceType<typeof PDFDocument>,
-    dto: GetBalancePdfDto,
-    language: PdfLanguage,
-    brand: PdfBrand = PdfBrand.DFX,
-  ): void {
+  private drawHeader(pdf: InstanceType<typeof PDFDocument>, dto: GetBalancePdfDto, language: PdfLanguage): void {
     const { width } = pdf.page;
     const marginX = 50;
 
@@ -235,9 +230,7 @@ export class BalancePdfService {
 
     pdf.text(`${PdfUtil.translate('balance.blockchain', language, this.i18n)}: ${dto.blockchain}`, marginX, 123);
 
-    // RealUnit statements never print the raw wallet address; show a short, non-reversible hash of it.
-    const addressDisplay = brand === PdfBrand.REALUNIT ? PdfUtil.walletReference(dto.address) : dto.address;
-    pdf.text(`${PdfUtil.translate('balance.address', language, this.i18n)}: ${addressDisplay}`, marginX, 141, {
+    pdf.text(`${PdfUtil.translate('balance.address', language, this.i18n)}: ${dto.address}`, marginX, 141, {
       width: width - marginX * 2,
     });
 

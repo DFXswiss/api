@@ -268,6 +268,13 @@ export class SwissQRService {
     language: string,
     address: string,
   ): Promise<string> {
+    // Fail-closed: a tax statement must never show "n/a" or a zeroed total for a holding that could not be
+    // priced (e.g. a reference year without an official RealUnit tax value). Refuse rather than issue a
+    // misleading document.
+    if (balances.some((b) => b.value == null)) {
+      throw new BadRequestException('No official RealUnit tax value is available for the selected reference date.');
+    }
+
     const { pdf, promise } = this.createPdfWithBase64Promise();
     const lang = language.toLowerCase();
     const city = Config.blockchain.realunit.address.city;
