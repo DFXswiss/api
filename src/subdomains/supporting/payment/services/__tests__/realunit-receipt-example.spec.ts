@@ -111,7 +111,7 @@ function extractPdfText(base64: string): string {
     }
     if (!content.includes('BT')) continue;
 
-    const tjArray = /\[((?:<[0-9A-Fa-f]*>|[^\]])*)\]\s*TJ/g;
+    const tjArray = /\[([^\]]*)\]\s*TJ/g;
     let match: RegExpExecArray | null;
     while ((match = tjArray.exec(content))) {
       const hexParts = match[1].match(/<([0-9A-Fa-f]*)>/g) ?? [];
