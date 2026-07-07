@@ -42,7 +42,11 @@ export class BalancePdfService {
     return SUPPORTED_BLOCKCHAINS;
   }
 
-  async generateBalancePdf(dto: GetBalancePdfDto, brand: PdfBrand = PdfBrand.DFX): Promise<string> {
+  async generateBalancePdf(
+    dto: GetBalancePdfDto,
+    brand: PdfBrand = PdfBrand.DFX,
+    assetFilter?: (asset: Asset) => boolean,
+  ): Promise<string> {
     if (!SUPPORTED_BLOCKCHAINS.includes(dto.blockchain)) {
       throw new BadRequestException(
         `Blockchain ${dto.blockchain} is not supported. Supported blockchains: ${SUPPORTED_BLOCKCHAINS.join(', ')}`,
@@ -53,7 +57,7 @@ export class BalancePdfService {
       throw new BadRequestException('Date must be in the past');
     }
 
-    const balances = await this.getBalancesForAddress(dto.address, dto.blockchain, dto.currency, dto.date);
+    const balances = await this.getBalancesForAddress(dto.address, dto.blockchain, dto.currency, dto.date, assetFilter);
     const totalValue = balances.reduce((sum, b) => sum + (b.value ?? 0), 0);
     const hasIncompleteData = balances.some((b) => b.value == null);
 
@@ -65,10 +69,12 @@ export class BalancePdfService {
     blockchain: Blockchain,
     currency: PriceCurrency,
     date: Date,
+    assetFilter?: (asset: Asset) => boolean,
   ): Promise<BalanceEntry[]> {
     const chainId = EvmUtil.getChainId(blockchain);
     const allAssets = await this.assetService.getAllBlockchainAssets([blockchain]);
-    const assets = allAssets.filter((a) => [AssetType.COIN, AssetType.TOKEN].includes(a.type));
+    let assets = allAssets.filter((a) => [AssetType.COIN, AssetType.TOKEN].includes(a.type));
+    if (assetFilter) assets = assets.filter(assetFilter);
     const balances: BalanceEntry[] = [];
 
     // Find block number for the target date
@@ -170,9 +176,9 @@ export class BalancePdfService {
         });
 
         PdfUtil.drawLogo(pdf, brand, LogoSize.SMALL);
-        this.drawHeader(pdf, dto, language);
+        this.drawHeader(pdf, dto, language, brand);
         PdfUtil.drawTable(pdf, balances, dto.currency, language, this.i18n);
-        PdfUtil.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language, this.i18n);
+        PdfUtil.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language, this.i18n, brand);
 
         pdf.end();
       } catch (e) {
@@ -181,7 +187,12 @@ export class BalancePdfService {
     });
   }
 
-  private drawHeader(pdf: InstanceType<typeof PDFDocument>, dto: GetBalancePdfDto, language: PdfLanguage): void {
+  private drawHeader(
+    pdf: InstanceType<typeof PDFDocument>,
+    dto: GetBalancePdfDto,
+    language: PdfLanguage,
+    brand: PdfBrand = PdfBrand.DFX,
+  ): void {
     const { width } = pdf.page;
     const marginX = 50;
 
@@ -194,7 +205,10 @@ export class BalancePdfService {
 
     pdf.text(`${PdfUtil.translate('balance.blockchain', language, this.i18n)}: ${dto.blockchain}`, marginX, 123);
 
-    pdf.text(`${PdfUtil.translate('balance.address', language, this.i18n)}: ${dto.address}`, marginX, 141, {
+    // RealUnit statements never print the raw wallet address; show a short, non-reversible hash of it.
+    const addressDisplay =
+      brand === PdfBrand.REALUNIT ? Util.createHash(dto.address).slice(0, 6).toUpperCase() : dto.address;
+    pdf.text(`${PdfUtil.translate('balance.address', language, this.i18n)}: ${addressDisplay}`, marginX, 141, {
       width: width - marginX * 2,
     });
 

@@ -85,14 +85,14 @@ describe('UserDataService', () => {
     it('matches case-insensitively via LOWER(mail) and passes a lowercased parameter', async () => {
       userDataRepo.find.mockResolvedValue([]);
 
-      await service.getUsersByMail('Samuel.Kullmann@Startmail.com');
+      await service.getUsersByMail('John.Smith@Example.com');
 
       const where = userDataRepo.find.mock.calls[0][0].where as { mail: FindOperator<string> };
       expect(where.mail).toBeInstanceOf(FindOperator);
       expect(where.mail.type).toBe('raw');
       // `getSql` is a getter returning the SQL generator; invoke it with the column alias
       expect(where.mail.getSql?.('"UserData"."mail"')).toBe('LOWER("UserData"."mail") = :mail');
-      expect(where.mail.objectLiteralParameters).toEqual({ mail: 'samuel.kullmann@startmail.com' });
+      expect(where.mail.objectLiteralParameters).toEqual({ mail: 'john.smith@example.com' });
     });
 
     it('omits the status filter when onlyValidUser is false', async () => {
@@ -113,9 +113,7 @@ describe('UserDataService', () => {
       // getUsersByMail() resolves to the case-variant conflicting account
       userDataRepo.find.mockResolvedValue([conflictUser]);
 
-      await expect(service.checkMail(userData, 'samuel.kullmann@startmail.com')).rejects.toBeInstanceOf(
-        ConflictException,
-      );
+      await expect(service.checkMail(userData, 'john.smith@example.com')).rejects.toBeInstanceOf(ConflictException);
     });
   });
 

@@ -9,7 +9,6 @@ import { BitcoinNodeType, BitcoinService } from '../../bitcoin/services/bitcoin.
 import { BscService } from '../../bsc/bsc.service';
 import { CardanoClient } from '../../cardano/cardano-client';
 import { CardanoService } from '../../cardano/services/cardano.service';
-import { CitreaTestnetService } from '../../citrea-testnet/citrea-testnet.service';
 import { CitreaService } from '../../citrea/citrea.service';
 import { EthereumService } from '../../ethereum/ethereum.service';
 import { FiroClient } from '../../firo/firo-client';
@@ -101,7 +100,6 @@ export class BlockchainRegistryService {
     private readonly cardanoService: CardanoService,
     private readonly internetComputerService: InternetComputerService,
     private readonly citreaService: CitreaService,
-    private readonly citreaTestnetService: CitreaTestnetService,
     private readonly bitcoinTestnet4Service: BitcoinTestnet4Service,
   ) {}
 
@@ -179,8 +177,6 @@ export class BlockchainRegistryService {
         return this.internetComputerService;
       case Blockchain.CITREA:
         return this.citreaService;
-      case Blockchain.CITREA_TESTNET:
-        return this.citreaTestnetService;
 
       default:
         throw new Error(`No service found for blockchain ${blockchain}`);
