@@ -47,6 +47,26 @@ describe('hasRoleAccess', () => {
     });
   });
 
+  describe('entry role: REALUNIT (COMPLIANCE ranks above REALUNIT)', () => {
+    it.each([
+      [UserRole.REALUNIT, true],
+      [UserRole.COMPLIANCE, true],
+      [UserRole.ADMIN, true],
+      [UserRole.SUPER_ADMIN, true],
+      [UserRole.SUPPORT, false],
+      [UserRole.USER, false],
+      [UserRole.DEBUG, false],
+    ])('%s → %s', (role, expected) => {
+      expect(hasRoleAccess(UserRole.REALUNIT, role)).toBe(expected);
+    });
+
+    it('is one-directional: REALUNIT does not gain COMPLIANCE/ADMIN/DEBUG gates', () => {
+      expect(hasRoleAccess(UserRole.COMPLIANCE, UserRole.REALUNIT)).toBe(false);
+      expect(hasRoleAccess(UserRole.ADMIN, UserRole.REALUNIT)).toBe(false);
+      expect(hasRoleAccess(UserRole.DEBUG, UserRole.REALUNIT)).toBe(false);
+    });
+  });
+
   it('returns false for a missing userRole (undefined)', () => {
     expect(hasRoleAccess(UserRole.ADMIN, undefined)).toBe(false);
     expect(hasRoleAccess(UserRole.SUPPORT, undefined)).toBe(false);
