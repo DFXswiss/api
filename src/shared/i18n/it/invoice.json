@@ -5,7 +5,8 @@
   "multi_receipt_title": "Storico delle transazioni No. {invoiceId}",
   "section": {
     "buy": "Acquisti",
-    "sell": "Vendite"
+    "sell": "Vendite",
+    "transfer": "Trasferimenti"
   },
   "table": {
     "headers": {
@@ -53,6 +54,7 @@
     "transaction_type_label": "Tipo di transazione",
     "type_buy": "Acquisto",
     "type_sell": "Vendita",
+    "type_transfer": "Trasferimento",
     "payment_method_label": "Modalità di pagamento",
     "payment_method_buy": "Bonifico bancario",
     "payment_method_sell": "Versamento su conto bancario"

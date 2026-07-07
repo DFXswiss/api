@@ -9,7 +9,7 @@ import { LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { HistoryEventDto } from 'src/subdomains/supporting/realunit/dto/realunit.dto';
+import { HistoryEventDto, TransferDto } from 'src/subdomains/supporting/realunit/dto/realunit.dto';
 import { PDFColumn, PDFRow, SwissQRBill, Table } from 'swissqrbill/pdf';
 import { SwissQRCode } from 'swissqrbill/svg';
 import { Creditor, Debtor, Data as QrBillData } from 'swissqrbill/types';
@@ -18,6 +18,9 @@ import { TxStatementDetails, TxStatementType } from '../dto/transaction-helper/t
 import { TransactionType } from '../dto/transaction.dto';
 import { TransactionRequest } from '../entities/transaction-request.entity';
 import { Transaction } from '../entities/transaction.entity';
+
+// Mint/burn counterparty on an ERC20 transfer — a RealUnit share allocation (buy) is minted from here.
+const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
 enum SupportedInvoiceLanguage {
   DE = 'DE',
@@ -161,6 +164,7 @@ export class SwissQRService {
     };
 
     const transactionType = isIncoming ? TransactionType.BUY : TransactionType.SELL;
+    const isTrade = this.isRealUnitTrade(historyEvent.transfer, isIncoming);
     return this.generatePdfInvoice(
       tableData,
       language,
@@ -170,6 +174,7 @@ export class SwissQRService {
       brand,
       userData.completeName,
       true,
+      isTrade,
     );
   }
 
@@ -190,7 +195,7 @@ export class SwissQRService {
     const debtor = this.getDebtor(userData);
     const language = languageOverride ?? this.getLanguage(userData);
 
-    const tableDataWithType: { data: SwissQRBillTableData; type: TransactionType }[] = [];
+    const tableDataWithType: { data: SwissQRBillTableData; type: TransactionType; isTrade: boolean }[] = [];
 
     for (const { historyEvent, fiatPrice, isIncoming } of receipts) {
       const tokenAmount = Number(historyEvent.transfer.value);
@@ -213,7 +218,8 @@ export class SwissQRService {
       };
 
       const transactionType = isIncoming ? TransactionType.BUY : TransactionType.SELL;
-      tableDataWithType.push({ data: tableData, type: transactionType });
+      const isTrade = this.isRealUnitTrade(historyEvent.transfer, isIncoming);
+      tableDataWithType.push({ data: tableData, type: transactionType, isTrade });
     }
 
     const billData: QrBillData = {
@@ -264,6 +270,7 @@ export class SwissQRService {
     brand: PdfBrand = PdfBrand.DFX,
     debtorName?: string,
     skipTermsAndConditions = false,
+    isRecognizedTrade = true,
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
     const isRealUnit = brand === PdfBrand.REALUNIT;
@@ -456,7 +463,7 @@ export class SwissQRService {
 
     // RealUnit details section (buyer)
     if (isRealUnit) {
-      this.drawReceiptDetails(pdf, { transactionType, buyerName: tableData.buyerName }, lang);
+      this.drawReceiptDetails(pdf, { transactionType, isRecognizedTrade, buyerName: tableData.buyerName }, lang);
     }
 
     // QR-Bill (Swiss/LI IBAN) or GiroCode (other IBANs)
@@ -513,9 +520,20 @@ export class SwissQRService {
     return promise;
   }
 
+  // A blockchain transfer is only treated as an actual RealUnit trade (i.e. a purchase/sale with a
+  // fiat leg) when the counterparty is a known trade venue: the mint/zero address (share allocation
+  // for buys) or the configured Brokerbot contract (on-chain sell). Plain wallet-to-wallet transfers
+  // (gifts, moves between the user's own wallets) have no fiat leg, so the receipt must not claim a
+  // purchase/sale or a bank payment method for them.
+  private isRealUnitTrade(transfer: TransferDto, isIncoming: boolean): boolean {
+    const counterparty = isIncoming ? transfer.from : transfer.to;
+    const tradeVenues = [ZERO_ADDRESS, Config.blockchain.realunit.brokerbotAddress];
+    return tradeVenues.some((address) => Util.equalsIgnoreCase(counterparty, address));
+  }
+
   private drawReceiptDetails(
     pdf: typeof PDFDocument.prototype,
-    receipt: { transactionType?: TransactionType; buyerName?: string },
+    receipt: { transactionType?: TransactionType; isRecognizedTrade?: boolean; buyerName?: string },
     lang: string,
   ): void {
     const labelX = mm2pt(20);
@@ -523,15 +541,24 @@ export class SwissQRService {
     const details: { label: string; value: string }[] = [];
 
     if (receipt.transactionType) {
-      const typeKey = receipt.transactionType.toLowerCase();
+      // For unrecognized transfers, state a neutral "Transfer" type and omit the payment-method line
+      // rather than asserting a purchase/sale that was settled via bank.
+      const typeValueKey = receipt.isRecognizedTrade
+        ? `type_${receipt.transactionType.toLowerCase()}`
+        : 'type_transfer';
       details.push({
         label: this.translate('invoice.realunit_receipt.transaction_type_label', lang),
-        value: this.translate(`invoice.realunit_receipt.type_${typeKey}`, lang),
+        value: this.translate(`invoice.realunit_receipt.${typeValueKey}`, lang),
       });
-      details.push({
-        label: this.translate('invoice.realunit_receipt.payment_method_label', lang),
-        value: this.translate(`invoice.realunit_receipt.payment_method_${typeKey}`, lang),
-      });
+      if (receipt.isRecognizedTrade) {
+        details.push({
+          label: this.translate('invoice.realunit_receipt.payment_method_label', lang),
+          value: this.translate(
+            `invoice.realunit_receipt.payment_method_${receipt.transactionType.toLowerCase()}`,
+            lang,
+          ),
+        });
+      }
     }
 
     if (receipt.buyerName) {
@@ -560,7 +587,7 @@ export class SwissQRService {
   }
 
   private generateMultiPdfInvoice(
-    tableDataWithType: { data: SwissQRBillTableData; type: TransactionType }[],
+    tableDataWithType: { data: SwissQRBillTableData; type: TransactionType; isTrade: boolean }[],
     language: string,
     billData: QrBillData,
     brand: PdfBrand = PdfBrand.DFX,
@@ -585,10 +612,14 @@ export class SwissQRService {
       pdf.text(`${creditorCity}, ${this.formatChDateTime(new Date())}`, { align: 'right', width: mm2pt(170) });
     }
 
-    const buyTransactions = tableDataWithType.filter((t) => t.type === TransactionType.BUY);
-    const sellTransactions = tableDataWithType.filter((t) => t.type === TransactionType.SELL);
+    // Recognized trades keep their buy/sell section (with fee + payment-method rows); unrecognized
+    // transfers (no fiat leg) go into a neutral transfers section that makes no payment claim.
+    const buyTransactions = tableDataWithType.filter((t) => t.isTrade && t.type === TransactionType.BUY);
+    const sellTransactions = tableDataWithType.filter((t) => t.isTrade && t.type === TransactionType.SELL);
+    const transferTransactions = tableDataWithType.filter((t) => !t.isTrade);
     const buyTotal = buyTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
     const sellTotal = sellTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
+    const transferTotal = transferTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
 
     const rows: PDFRow[] = [];
     const qtyWidth = hasUnitPrice ? 20 : 30;
@@ -700,8 +731,9 @@ export class SwissQRService {
 
     const pushSection = (
       sectionKey: string,
-      txs: { data: SwissQRBillTableData; type: TransactionType }[],
+      txs: { data: SwissQRBillTableData; type: TransactionType; isTrade: boolean }[],
       total: number,
+      isTradeSection: boolean,
     ): void => {
       rows.push(buildSectionHeader(sectionKey));
       rows.push(buildTableHeader());
@@ -709,12 +741,15 @@ export class SwissQRService {
         rows.push(buildDataRow(data, type));
       }
       rows.push(buildSubtotalRow(total));
-      if (isRealUnit) rows.push(buildFeesRow());
-      if (isRealUnit) rows.push(buildPaymentMethodRow(sectionKey));
+      if (isRealUnit && isTradeSection) {
+        rows.push(buildFeesRow());
+        rows.push(buildPaymentMethodRow(sectionKey));
+      }
     };
 
-    if (buyTransactions.length > 0) pushSection('buy', buyTransactions, buyTotal);
-    if (sellTransactions.length > 0) pushSection('sell', sellTransactions, sellTotal);
+    if (buyTransactions.length > 0) pushSection('buy', buyTransactions, buyTotal, true);
+    if (sellTransactions.length > 0) pushSection('sell', sellTransactions, sellTotal, true);
+    if (transferTransactions.length > 0) pushSection('transfer', transferTransactions, transferTotal, false);
 
     if (!skipTermsAndConditions) {
       rows.push({ columns: [this.getTermsAndConditions(lang)] });

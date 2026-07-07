@@ -5,7 +5,8 @@
   "multi_receipt_title": "Transaction History No. {invoiceId}",
   "section": {
     "buy": "Purchases",
-    "sell": "Sales"
+    "sell": "Sales",
+    "transfer": "Transfers"
   },
   "table": {
     "headers": {
@@ -53,6 +54,7 @@
     "transaction_type_label": "Transaction type",
     "type_buy": "Purchase",
     "type_sell": "Sale",
+    "type_transfer": "Transfer",
     "payment_method_label": "Payment method",
     "payment_method_buy": "Bank transfer",
     "payment_method_sell": "Payout to bank account"

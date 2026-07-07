@@ -5,7 +5,8 @@
   "multi_receipt_title": "Historique des transactions No. {invoiceId}",
   "section": {
     "buy": "Achats",
-    "sell": "Ventes"
+    "sell": "Ventes",
+    "transfer": "Transferts"
   },
   "table": {
     "headers": {
@@ -53,6 +54,7 @@
     "transaction_type_label": "Type de transaction",
     "type_buy": "Achat",
     "type_sell": "Vente",
+    "type_transfer": "Transfert",
     "payment_method_label": "Mode de paiement",
     "payment_method_buy": "Virement bancaire",
     "payment_method_sell": "Versement sur compte bancaire"
