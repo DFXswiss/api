@@ -1,14 +1,9 @@
-import { Test } from '@nestjs/testing';
-import { I18nModule, I18nService } from 'nestjs-i18n';
-import { ConfigService, GetConfig } from 'src/config/config';
+import { ConfigService } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
-import { extractPdfText } from 'src/shared/utils/__tests__/pdf-text.util';
-import { PdfBrand } from 'src/shared/utils/pdf.util';
-import { Util } from 'src/shared/utils/util';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { GetBalancePdfDto, PdfLanguage } from '../../dto/input/get-balance-pdf.dto';
-import { BalancePdfService } from '../balance-pdf.service';
+import { BalanceData, BalancePdfService } from '../balance-pdf.service';
 
 const ADDRESS = '0x1234567890abcdef1234567890abcdef12345678';
 const REALU = { id: 1, name: 'REALU', type: AssetType.TOKEN, chainId: '0xrealu', decimals: 18 } as unknown as Asset;
@@ -18,24 +13,23 @@ const NATIVE = { id: 3, name: 'ETHER', type: AssetType.COIN, decimals: 18 } as u
 // Mocked local-DB market price (CHF); the official RealUnit tax value must take precedence over it.
 const MARKET_PRICE_CHF = 1.36;
 
-describe('BalancePdfService — RealUnit portfolio statement', () => {
-  // Renders the RealUnit statement for a wallet holding a single REALU share and returns the PDF text.
-  async function renderStatement(date: Date): Promise<string> {
-    // Populate the global `Config` singleton (normally wired up at app bootstrap) so i18n config resolves.
+// The RealUnit portfolio statement is now rendered by SwissQRService.createBalanceStatement (see
+// swiss-qr.service and the realunit-statement-example spec for the letter-layout assertions). This
+// suite covers the shared data source both the DFX report and the RealUnit statement are built from:
+// BalancePdfService.getBalanceData.
+describe('BalancePdfService — getBalanceData (RealUnit share register)', () => {
+  // Computes the priced balances for a wallet holding a single REALU share, filtered to REALU only.
+  async function getData(date: Date): Promise<BalanceData> {
+    // Populate the global `Config` singleton (normally wired up at app bootstrap) so the tax values resolve.
     new ConfigService();
-
-    const i18nConfig = GetConfig().i18n;
-    const module = await Test.createTestingModule({
-      imports: [I18nModule.forRoot({ ...i18nConfig, loaderOptions: { ...i18nConfig.loaderOptions, watch: false } })],
-    }).compile();
 
     const alchemy = {
       findBlockByTimestamp: jest.fn().mockResolvedValue(1),
-      // The native coin also reports a non-zero balance, so an ETHER row would render if the id filter
+      // The native coin also reports a non-zero balance, so an ETHER entry would appear if the id filter
       // failed to drop the native coin — the assertion below then genuinely verifies its exclusion.
       getNativeCoinBalance: jest.fn().mockResolvedValue('1000000000000000000'),
       // Every token reports a non-zero balance; only assets that survive the REALU filter are ever
-      // queried, so a rendered ZCHF row would prove the filter failed.
+      // queried, so a ZCHF entry would prove the filter failed.
       getTokenBalanceAtBlock: jest.fn().mockResolvedValue('1000000000000000000'),
     };
     const assetService = { getAllBlockchainAssets: jest.fn().mockResolvedValue([REALU, ZCHF, NATIVE]) };
@@ -49,7 +43,7 @@ describe('BalancePdfService — RealUnit portfolio statement', () => {
       assetService as never,
       assetPrices as never,
       coinGecko as never,
-      module.get(I18nService),
+      {} as never, // i18n is only used for rendering, never for getBalanceData
     );
 
     const dto = {
@@ -60,49 +54,37 @@ describe('BalancePdfService — RealUnit portfolio statement', () => {
       language: PdfLanguage.DE,
     } as GetBalancePdfDto;
 
-    const pdf = await service.generateBalancePdf(dto, PdfBrand.REALUNIT, (asset) => asset.id === REALU.id);
-    return extractPdfText(pdf);
+    return service.getBalanceData(dto, (asset) => asset.id === REALU.id);
   }
 
-  let text: string;
-
-  // Reference date within a configured tax year (2025 -> CHF 1.37).
-  beforeAll(async () => {
-    text = await renderStatement(new Date('2025-12-31T00:00:00Z'));
+  it('includes only REALU, never a ZCHF dust balance or the native coin', async () => {
+    const { balances } = await getData(new Date('2025-12-31T00:00:00Z'));
+    const names = balances.map((b) => b.asset.name);
+    expect(names).toContain('REALU');
+    expect(names).not.toContain('ZCHF');
+    expect(names).not.toContain('ETHER');
   });
 
-  it('lists only REALU, never a ZCHF dust balance or any other asset', () => {
-    expect(text).toContain('REALU');
-    expect(text).not.toContain('ZCHF');
-    expect(text).not.toContain('ETHER');
-  });
-
-  it('shows a short, non-reversible hash of the address instead of the raw wallet address', () => {
-    const expectedHash = Util.createHash(ADDRESS).slice(0, 6).toUpperCase();
-    expect(expectedHash).toHaveLength(6);
-    expect(text).toContain(expectedHash);
-    expect(text.toLowerCase()).not.toContain(ADDRESS.toLowerCase());
-  });
-
-  it('shows the date without a clock time', () => {
-    expect(text).not.toMatch(/\b\d{1,2}:\d{2}\b/); // no HH:mm anywhere
-    expect(text).not.toMatch(/T\d{2}:\d{2}/); // no ISO timestamp in the "generated by" footer
-  });
-
-  it('attributes generation to the RealUnit issuer, not to DFX', () => {
-    expect(text).toContain('RealUnit Schweiz AG');
-    expect(text).not.toContain('DFX');
-  });
-
-  it('values REALU at the official yearly tax value, overriding the market price', () => {
+  it('values REALU at the official yearly tax value, overriding the market price', async () => {
     // 2025 tax value is CHF 1.37 and must take precedence over the mocked local-DB market price (1.36).
-    expect(text).toContain('1.37');
-    expect(text).not.toContain(MARKET_PRICE_CHF.toString());
+    const { balances, totalValue, hasIncompleteData } = await getData(new Date('2025-12-31T00:00:00Z'));
+    const realu = balances.find((b) => b.asset.name === 'REALU');
+    expect(realu?.price).toBe(1.37);
+    expect(realu?.price).not.toBe(MARKET_PRICE_CHF);
+    // one share held (1e18 wei / 1e18) → value equals the unit price
+    expect(realu?.value).toBe(1.37);
+    expect(totalValue).toBe(1.37);
+    expect(hasIncompleteData).toBe(false);
   });
 
-  it('renders no value — never the market price — for a year without a configured tax value', async () => {
-    const uncovered = await renderStatement(new Date('2020-12-31T00:00:00Z'));
-    expect(uncovered).toContain('REALU');
-    expect(uncovered).not.toContain(MARKET_PRICE_CHF.toString());
+  it('reports incomplete data (no value) for a year without a configured tax value', async () => {
+    const { balances, totalValue, hasIncompleteData } = await getData(new Date('2020-12-31T00:00:00Z'));
+    const realu = balances.find((b) => b.asset.name === 'REALU');
+    expect(realu).toBeDefined();
+    // never falls back to the market price for an uncovered year
+    expect(realu?.price).toBeUndefined();
+    expect(realu?.value).toBeUndefined();
+    expect(hasIncompleteData).toBe(true);
+    expect(totalValue).toBe(0);
   });
 });

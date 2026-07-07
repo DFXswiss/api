@@ -12,6 +12,12 @@
     },
     "no_assets": "Nessun asset trovato per questo indirizzo."
   },
+  "statement": {
+    "details_title": "Dettagli del rendiconto",
+    "holder_label": "Titolare",
+    "reference_date_label": "Data di riferimento",
+    "wallet_reference_label": "Riferimento del portafoglio"
+  },
   "total_value": "Valore totale",
   "incomplete_data": "* Alcuni asset non hanno dati storici sui prezzi disponibili (n/a)",
   "generated_by": "Generato da DFX",

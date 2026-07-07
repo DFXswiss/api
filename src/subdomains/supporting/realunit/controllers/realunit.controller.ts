@@ -1,4 +1,16 @@
-import { Body, Controller, Get, HttpStatus, Param, Post, Put, Query, Res, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  ForbiddenException,
+  Get,
+  HttpStatus,
+  Param,
+  Post,
+  Put,
+  Query,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import {
   ApiAcceptedResponse,
@@ -6,6 +18,7 @@ import {
   ApiBearerAuth,
   ApiConflictResponse,
   ApiExcludeEndpoint,
+  ApiForbiddenResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -35,6 +48,7 @@ import { PdfBrand } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { PdfDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/pdf.dto';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { PdfLanguage } from '../../balance/dto/input/get-balance-pdf.dto';
 import { BalancePdfService } from '../../balance/services/balance-pdf.service';
 import { SwissQRService } from '../../payment/services/swiss-qr.service';
 import { PriceCurrency, PricingService } from '../../pricing/services/pricing.service';
@@ -160,23 +174,42 @@ export class RealUnitController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
   @ApiOperation({
-    summary: 'Get balance report PDF',
-    description: 'Generates a PDF balance report for a specific address on Ethereum blockchain',
+    summary: 'Get RealUnit portfolio statement PDF',
+    description:
+      'Generates a RealUnit portfolio statement ("Vermögensübersicht") for the connected wallet, in the same letter design as the transaction receipts. The queried wallet must belong to the caller.',
   })
-  @ApiOkResponse({ type: PdfDto, description: 'Balance PDF report (base64 encoded)' })
-  async getBalancePdf(@Body() dto: RealUnitBalancePdfDto): Promise<PdfDto> {
+  @ApiOkResponse({ type: PdfDto, description: 'Portfolio statement PDF (base64 encoded)' })
+  @ApiForbiddenResponse({ description: 'The queried wallet does not belong to the caller' })
+  async getBalancePdf(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBalancePdfDto): Promise<PdfDto> {
+    // Fail-closed: a statement carries the holder's identity, so it may only be issued for the caller's
+    // own wallet — never for an arbitrary address supplied in the body.
+    if (!Util.equalsIgnoreCase(dto.address, jwt.address))
+      throw new ForbiddenException('A statement can only be requested for your own wallet');
+
     const tokenBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
       ? Blockchain.SEPOLIA
       : Blockchain.ETHEREUM;
 
+    const user = await this.userService.getUser(jwt.user, { userData: true });
+
     // A RealUnit portfolio statement is a share-register document: it must list only the RealUnit
     // token, never other assets (e.g. a ZCHF dust balance) that happen to sit on the same address.
     const realuAsset = await this.realunitService.getRealuAsset();
-    const pdfData = await this.balancePdfService.generateBalancePdf(
+    const { balances, totalValue } = await this.balancePdfService.getBalanceData(
       { ...dto, blockchain: tokenBlockchain },
-      PdfBrand.REALUNIT,
       (asset) => asset.id === realuAsset.id,
     );
+
+    const pdfData = await this.swissQrService.createBalanceStatement(
+      balances,
+      totalValue,
+      user.userData,
+      dto.currency,
+      dto.date,
+      dto.language ?? PdfLanguage.EN,
+      dto.address,
+    );
+
     return { pdfData };
   }
 

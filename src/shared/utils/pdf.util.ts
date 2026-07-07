@@ -2,6 +2,7 @@ import { I18nService } from 'nestjs-i18n';
 import PDFDocument from 'pdfkit';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Util } from 'src/shared/utils/util';
 import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { mm2pt } from 'swissqrbill/utils';
@@ -229,6 +230,12 @@ export class PdfUtil {
     if (value == null) return 'n/a';
     const symbol = currency === PriceCurrency.CHF ? 'CHF' : currency === PriceCurrency.EUR ? '€' : '$';
     return `${symbol} ${value.toLocaleString('de-CH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }
+
+  // RealUnit documents never print the raw wallet address; they reference it by a short,
+  // non-reversible hash instead (privacy rule shared by the balance header and the portfolio statement).
+  static walletReference(address: string): string {
+    return Util.createHash(address).slice(0, 6).toUpperCase();
   }
 
   static sortBalancesByValue(balances: BalanceEntry[]): BalanceEntry[] {

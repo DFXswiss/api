@@ -31,6 +31,12 @@ const SUPPORTED_BLOCKCHAINS: Blockchain[] = [
 // not at the market price.
 const REALU_ASSET_NAME = 'REALU';
 
+export interface BalanceData {
+  balances: BalanceEntry[];
+  totalValue: number;
+  hasIncompleteData: boolean;
+}
+
 @Injectable()
 export class BalancePdfService {
   private readonly logger = new DfxLogger(BalancePdfService);
@@ -47,11 +53,9 @@ export class BalancePdfService {
     return SUPPORTED_BLOCKCHAINS;
   }
 
-  async generateBalancePdf(
-    dto: GetBalancePdfDto,
-    brand: PdfBrand = PdfBrand.DFX,
-    assetFilter?: (asset: Asset) => boolean,
-  ): Promise<string> {
+  // Computes the priced balances without rendering, so callers that need a different layout (e.g. the
+  // RealUnit portfolio statement) can reuse the exact same data the DFX report is built from.
+  async getBalanceData(dto: GetBalancePdfDto, assetFilter?: (asset: Asset) => boolean): Promise<BalanceData> {
     if (!SUPPORTED_BLOCKCHAINS.includes(dto.blockchain)) {
       throw new BadRequestException(
         `Blockchain ${dto.blockchain} is not supported. Supported blockchains: ${SUPPORTED_BLOCKCHAINS.join(', ')}`,
@@ -65,6 +69,16 @@ export class BalancePdfService {
     const balances = await this.getBalancesForAddress(dto.address, dto.blockchain, dto.currency, dto.date, assetFilter);
     const totalValue = balances.reduce((sum, b) => sum + (b.value ?? 0), 0);
     const hasIncompleteData = balances.some((b) => b.value == null);
+
+    return { balances, totalValue, hasIncompleteData };
+  }
+
+  async generateBalancePdf(
+    dto: GetBalancePdfDto,
+    brand: PdfBrand = PdfBrand.DFX,
+    assetFilter?: (asset: Asset) => boolean,
+  ): Promise<string> {
+    const { balances, totalValue, hasIncompleteData } = await this.getBalanceData(dto, assetFilter);
 
     return this.createPdf(balances, totalValue, hasIncompleteData, dto, brand);
   }
@@ -222,8 +236,7 @@ export class BalancePdfService {
     pdf.text(`${PdfUtil.translate('balance.blockchain', language, this.i18n)}: ${dto.blockchain}`, marginX, 123);
 
     // RealUnit statements never print the raw wallet address; show a short, non-reversible hash of it.
-    const addressDisplay =
-      brand === PdfBrand.REALUNIT ? Util.createHash(dto.address).slice(0, 6).toUpperCase() : dto.address;
+    const addressDisplay = brand === PdfBrand.REALUNIT ? PdfUtil.walletReference(dto.address) : dto.address;
     pdf.text(`${PdfUtil.translate('balance.address', language, this.i18n)}: ${addressDisplay}`, marginX, 141, {
       width: width - marginX * 2,
     });
