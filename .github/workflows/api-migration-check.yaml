@@ -30,8 +30,8 @@ jobs:
           set -eo pipefail
           git fetch origin ${{ github.base_ref }} --depth=100
           BASE="origin/${{ github.base_ref }}"
-          # Protect immutable schema migrations: renames, deletes and any executable-content change
-          # to an existing migration stay blocked; the seed script/data may change freely. Whole-line
+          # Protect immutable schema migrations: renames, deletes, type changes and any executable-content
+          # change to an existing migration stay blocked; the seed script/data may change freely. Whole-line
           # `//` comment edits to an existing migration are allowed, because the migration is identified
           # by its class name and stripping full-line comments cannot alter executable behaviour.
           # Caveat: the one known theoretical exception is a line inside a multi-line template literal that
@@ -42,7 +42,7 @@ jobs:
           # --depth=100 shallow boundary) aborts the step here instead of feeding the loop zero lines and
           # silently reporting success (fail closed).
           CHANGED=$(git diff --name-status "$BASE"...HEAD -- migration/ ':(exclude)migration/seed/' \
-                    | awk '$1 ~ /^[MDR]/ {print}')
+                    | awk '$1 ~ /^[MDRT]/ {print}')
           BLOCKED=""
           while IFS= read -r line; do
             [ -z "$line" ] && continue
@@ -69,7 +69,7 @@ jobs:
             esac
           done <<< "$CHANGED"
           if [ -n "$BLOCKED" ]; then
-            echo "::error::Existing migrations must not be modified, renamed or deleted."
+            echo "::error::Existing migrations must not be modified, renamed, type-changed or deleted."
             echo "$BLOCKED"
             echo ""
             echo "Only whole-line comment changes are allowed; if a migration is wrong, add a follow-up migration instead of editing the old one."
