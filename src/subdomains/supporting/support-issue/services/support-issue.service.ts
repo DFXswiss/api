@@ -12,7 +12,7 @@ import { UserRole } from 'src/shared/auth/user-role.enum';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { SupportClerkAccountDto } from 'src/shared/models/setting/dto/support-clerk-account.dto';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { CLIENT_HEADER, resolveClientSource } from 'src/shared/utils/request-client';
+import { resolveClientSource } from 'src/shared/utils/request-client';
 import { Util } from 'src/shared/utils/util';
 import { REALUNIT_WALLET_NAME } from 'src/subdomains/supporting/notification/realunit-mail-rules';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
@@ -316,17 +316,14 @@ export class SupportIssueService {
     return this.createIssueInternal(userData, dto, sourceWallet);
   }
 
-  // App the ticket is opened from, resolved EXACTLY from the per-request X-Client header (never from the
-  // user's persisted wallet). Fail closed: an unknown or missing client is rejected instead of being
-  // guessed into a brand - every ticket-creating app must identify itself (realunit-app, dfx-services).
+  // Mail-branding wallet for the app the ticket is opened from, from the per-request X-Client header
+  // (never from the user's persisted wallet). Product decision (#3937): DFX is the default brand and only
+  // the realunit-app client is RealUnit-branded; every other value - including a missing or unknown header
+  // - defaults to DFX. The header is an advisory, client-supplied branding signal that grants no access
+  // and gates nothing, so it must never reject a request: failing closed here would break every client
+  // that does not send it (the DFX web app, third-party widget integrators, older bundles).
   private async resolveSourceWallet(client?: string): Promise<Wallet> {
-    const source = resolveClientSource(client);
-    if (!source)
-      throw new BadRequestException(
-        `Support ticket source could not be resolved: missing or unknown '${CLIENT_HEADER}' header`,
-      );
-
-    if (source === 'RealUnit') {
+    if (resolveClientSource(client) === 'RealUnit') {
       const wallet = await this.walletService.getByIdOrName(undefined, REALUNIT_WALLET_NAME);
       // Fail closed: without the RealUnit wallet the ticket cannot be attributed exactly, and rendering
       // it as DFX would be a wrong brand, not a fallback.
