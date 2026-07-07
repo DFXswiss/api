@@ -40,13 +40,16 @@ const buyer = {
   address: { street: 'Musterstrasse', houseNumber: '12', zip: '8002', city: 'Zürich', country: { symbol: 'CH' } },
 } as unknown as UserData;
 
-// Trade event: buy is minted from the zero address, sell is sent to the zero/burn address.
+// Trade event: a buy is minted from the zero address; a sell is a REALU swap sent to the on-chain
+// Brokerbot contract (both DFX-mediated and direct sells settle REALU<->ZCHF via the Brokerbot, so the
+// sell receipt states an on-chain settlement rather than a bank payout).
 function event(value: string, txHash: string, isoDate: string, incoming = true): HistoryEventDto {
+  const brokerbot = GetConfig().blockchain.realunit.brokerbotAddress;
   return {
     timestamp: new Date(isoDate),
     eventType: HistoryEventType.TRANSFER,
     txHash,
-    transfer: { from: incoming ? ZERO : BUYER_WALLET, to: incoming ? BUYER_WALLET : ZERO, value },
+    transfer: { from: incoming ? ZERO : BUYER_WALLET, to: incoming ? BUYER_WALLET : brokerbot, value },
   } as HistoryEventDto;
 }
 
@@ -212,8 +215,8 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       'realunit_receipt.type_sell',
       'realunit_receipt.type_transfer',
       'realunit_receipt.payment_method_label',
-      'realunit_receipt.payment_method_buy',
-      'realunit_receipt.payment_method_sell',
+      'realunit_receipt.payment_method_bank',
+      'realunit_receipt.payment_method_on_chain',
       'section.buy',
       'section.sell',
       'section.transfer',

@@ -56,7 +56,7 @@
     "type_sell": "Vendita",
     "type_transfer": "Trasferimento",
     "payment_method_label": "Modalità di pagamento",
-    "payment_method_buy": "Bonifico bancario",
-    "payment_method_sell": "Versamento su conto bancario"
+    "payment_method_bank": "Bonifico bancario",
+    "payment_method_on_chain": "Regolato on-chain (ZCHF)"
   }
 }

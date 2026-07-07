@@ -22,6 +22,26 @@ import { Transaction } from '../entities/transaction.entity';
 // Mint/burn counterparty on an ERC20 transfer — a RealUnit share allocation (buy) is minted from here.
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000';
 
+// How a RealUnit transfer settled, inferred from the on-chain counterparty alone (receipts are built
+// from blockchain history, with no link to a DFX fiat transaction):
+// - BANK: a DFX buy — shares are minted from the zero address after the user's bank payment. Only the
+//   incoming mint is unambiguously bank-settled (direct on-chain buys arrive FROM the Brokerbot).
+// - ON_CHAIN: a direct/DFX Brokerbot trade — REALU and ZCHF are exchanged on-chain, with no bank leg
+//   on this event (a later off-ramp of the ZCHF proceeds would be a separate transaction).
+// - NONE: a plain wallet-to-wallet transfer (gift, self-transfer) — no fiat leg at all.
+enum ReceiptSettlement {
+  BANK = 'Bank',
+  ON_CHAIN = 'OnChain',
+  NONE = 'None',
+}
+
+// i18n key for the payment-method value per settlement; NONE makes no payment claim.
+const RECEIPT_PAYMENT_METHOD_KEY: { [settlement in ReceiptSettlement]: string | undefined } = {
+  [ReceiptSettlement.BANK]: 'invoice.realunit_receipt.payment_method_bank',
+  [ReceiptSettlement.ON_CHAIN]: 'invoice.realunit_receipt.payment_method_on_chain',
+  [ReceiptSettlement.NONE]: undefined,
+};
+
 enum SupportedInvoiceLanguage {
   DE = 'DE',
   EN = 'EN',
@@ -164,7 +184,7 @@ export class SwissQRService {
     };
 
     const transactionType = isIncoming ? TransactionType.BUY : TransactionType.SELL;
-    const isTrade = this.isRealUnitTrade(historyEvent.transfer, isIncoming);
+    const settlement = this.getReceiptSettlement(historyEvent.transfer, isIncoming);
     return this.generatePdfInvoice(
       tableData,
       language,
@@ -174,7 +194,7 @@ export class SwissQRService {
       brand,
       userData.completeName,
       true,
-      isTrade,
+      settlement,
     );
   }
 
@@ -195,7 +215,8 @@ export class SwissQRService {
     const debtor = this.getDebtor(userData);
     const language = languageOverride ?? this.getLanguage(userData);
 
-    const tableDataWithType: { data: SwissQRBillTableData; type: TransactionType; isTrade: boolean }[] = [];
+    const tableDataWithType: { data: SwissQRBillTableData; type: TransactionType; settlement: ReceiptSettlement }[] =
+      [];
 
     for (const { historyEvent, fiatPrice, isIncoming } of receipts) {
       const tokenAmount = Number(historyEvent.transfer.value);
@@ -218,8 +239,8 @@ export class SwissQRService {
       };
 
       const transactionType = isIncoming ? TransactionType.BUY : TransactionType.SELL;
-      const isTrade = this.isRealUnitTrade(historyEvent.transfer, isIncoming);
-      tableDataWithType.push({ data: tableData, type: transactionType, isTrade });
+      const settlement = this.getReceiptSettlement(historyEvent.transfer, isIncoming);
+      tableDataWithType.push({ data: tableData, type: transactionType, settlement });
     }
 
     const billData: QrBillData = {
@@ -270,10 +291,11 @@ export class SwissQRService {
     brand: PdfBrand = PdfBrand.DFX,
     debtorName?: string,
     skipTermsAndConditions = false,
-    isRecognizedTrade = true,
+    settlement: ReceiptSettlement = ReceiptSettlement.BANK,
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
     const isRealUnit = brand === PdfBrand.REALUNIT;
+    const isRecognizedTrade = settlement !== ReceiptSettlement.NONE;
     const lang = language.toLowerCase();
 
     PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
@@ -382,8 +404,8 @@ export class SwissQRService {
       },
     ];
 
-    // Fees row for RealUnit
-    if (isRealUnit) {
+    // Fees row for RealUnit trades (plain transfers make no fee claim, matching the collective receipt)
+    if (isRealUnit && isRecognizedTrade) {
       rows.push({
         columns: [
           emptyCol(qtyEmptyWidth),
@@ -463,7 +485,7 @@ export class SwissQRService {
 
     // RealUnit details section (buyer)
     if (isRealUnit) {
-      this.drawReceiptDetails(pdf, { transactionType, isRecognizedTrade, buyerName: tableData.buyerName }, lang);
+      this.drawReceiptDetails(pdf, { transactionType, settlement, buyerName: tableData.buyerName }, lang);
     }
 
     // QR-Bill (Swiss/LI IBAN) or GiroCode (other IBANs)
@@ -520,20 +542,24 @@ export class SwissQRService {
     return promise;
   }
 
-  // A blockchain transfer is only treated as an actual RealUnit trade (i.e. a purchase/sale with a
-  // fiat leg) when the counterparty is a known trade venue: the mint/zero address (share allocation
-  // for buys) or the configured Brokerbot contract (on-chain sell). Plain wallet-to-wallet transfers
-  // (gifts, moves between the user's own wallets) have no fiat leg, so the receipt must not claim a
-  // purchase/sale or a bank payment method for them.
-  private isRealUnitTrade(transfer: TransferDto, isIncoming: boolean): boolean {
+  // Classifies how a RealUnit transfer settled, from the on-chain counterparty alone. Receipts are
+  // built from blockchain history with no link to a DFX fiat transaction, so the payment method can
+  // only be asserted when the counterparty proves it: an incoming mint (zero address) is a DFX buy
+  // settled by bank; a Brokerbot counterparty is a direct on-chain REALU<->ZCHF trade (a DFX sell also
+  // swaps via the Brokerbot, and any later bank payout is a separate off-chain event). Anything else
+  // is a plain wallet-to-wallet transfer with no fiat leg, which claims neither a purchase/sale nor a
+  // payment method.
+  private getReceiptSettlement(transfer: TransferDto, isIncoming: boolean): ReceiptSettlement {
     const counterparty = isIncoming ? transfer.from : transfer.to;
-    const tradeVenues = [ZERO_ADDRESS, Config.blockchain.realunit.brokerbotAddress];
-    return tradeVenues.some((address) => Util.equalsIgnoreCase(counterparty, address));
+    if (isIncoming && Util.equalsIgnoreCase(counterparty, ZERO_ADDRESS)) return ReceiptSettlement.BANK;
+    if (Util.equalsIgnoreCase(counterparty, Config.blockchain.realunit.brokerbotAddress))
+      return ReceiptSettlement.ON_CHAIN;
+    return ReceiptSettlement.NONE;
   }
 
   private drawReceiptDetails(
     pdf: typeof PDFDocument.prototype,
-    receipt: { transactionType?: TransactionType; isRecognizedTrade?: boolean; buyerName?: string },
+    receipt: { transactionType?: TransactionType; settlement?: ReceiptSettlement; buyerName?: string },
     lang: string,
   ): void {
     const labelX = mm2pt(20);
@@ -541,22 +567,20 @@ export class SwissQRService {
     const details: { label: string; value: string }[] = [];
 
     if (receipt.transactionType) {
-      // For unrecognized transfers, state a neutral "Transfer" type and omit the payment-method line
-      // rather than asserting a purchase/sale that was settled via bank.
-      const typeValueKey = receipt.isRecognizedTrade
-        ? `type_${receipt.transactionType.toLowerCase()}`
-        : 'type_transfer';
+      // Plain transfers (no fiat leg) state a neutral "Transfer" type and omit the payment-method line
+      // rather than asserting a purchase/sale. Recognized trades show their settlement — bank for a DFX
+      // buy, on-chain for a Brokerbot trade.
+      const isTrade = receipt.settlement != null && receipt.settlement !== ReceiptSettlement.NONE;
+      const typeValueKey = isTrade ? `type_${receipt.transactionType.toLowerCase()}` : 'type_transfer';
       details.push({
         label: this.translate('invoice.realunit_receipt.transaction_type_label', lang),
         value: this.translate(`invoice.realunit_receipt.${typeValueKey}`, lang),
       });
-      if (receipt.isRecognizedTrade) {
+      const paymentMethodKey = receipt.settlement && RECEIPT_PAYMENT_METHOD_KEY[receipt.settlement];
+      if (paymentMethodKey) {
         details.push({
           label: this.translate('invoice.realunit_receipt.payment_method_label', lang),
-          value: this.translate(
-            `invoice.realunit_receipt.payment_method_${receipt.transactionType.toLowerCase()}`,
-            lang,
-          ),
+          value: this.translate(paymentMethodKey, lang),
         });
       }
     }
@@ -587,7 +611,7 @@ export class SwissQRService {
   }
 
   private generateMultiPdfInvoice(
-    tableDataWithType: { data: SwissQRBillTableData; type: TransactionType; isTrade: boolean }[],
+    tableDataWithType: { data: SwissQRBillTableData; type: TransactionType; settlement: ReceiptSettlement }[],
     language: string,
     billData: QrBillData,
     brand: PdfBrand = PdfBrand.DFX,
@@ -614,9 +638,10 @@ export class SwissQRService {
 
     // Recognized trades keep their buy/sell section (with fee + payment-method rows); unrecognized
     // transfers (no fiat leg) go into a neutral transfers section that makes no payment claim.
-    const buyTransactions = tableDataWithType.filter((t) => t.isTrade && t.type === TransactionType.BUY);
-    const sellTransactions = tableDataWithType.filter((t) => t.isTrade && t.type === TransactionType.SELL);
-    const transferTransactions = tableDataWithType.filter((t) => !t.isTrade);
+    const isTrade = (t: { settlement: ReceiptSettlement }): boolean => t.settlement !== ReceiptSettlement.NONE;
+    const buyTransactions = tableDataWithType.filter((t) => isTrade(t) && t.type === TransactionType.BUY);
+    const sellTransactions = tableDataWithType.filter((t) => isTrade(t) && t.type === TransactionType.SELL);
+    const transferTransactions = tableDataWithType.filter((t) => !isTrade(t));
     const buyTotal = buyTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
     const sellTotal = sellTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
     const transferTotal = transferTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
@@ -715,11 +740,11 @@ export class SwissQRService {
       return { columns: cols, padding: 5 };
     };
 
-    const buildPaymentMethodRow = (sectionKey: string): PDFRow => ({
+    const buildPaymentMethodRow = (paymentMethodKey: string): PDFRow => ({
       columns: [
         {
           text: `${this.translate('invoice.realunit_receipt.payment_method_label', lang)}: ${this.translate(
-            `invoice.realunit_receipt.payment_method_${sectionKey}`,
+            paymentMethodKey,
             lang,
           )}`,
           fontName: 'Helvetica-Bold',
@@ -731,7 +756,7 @@ export class SwissQRService {
 
     const pushSection = (
       sectionKey: string,
-      txs: { data: SwissQRBillTableData; type: TransactionType; isTrade: boolean }[],
+      txs: { data: SwissQRBillTableData; type: TransactionType; settlement: ReceiptSettlement }[],
       total: number,
       isTradeSection: boolean,
     ): void => {
@@ -743,7 +768,11 @@ export class SwissQRService {
       rows.push(buildSubtotalRow(total));
       if (isRealUnit && isTradeSection) {
         rows.push(buildFeesRow());
-        rows.push(buildPaymentMethodRow(sectionKey));
+        // Only claim a payment method when every trade in the section settled the same way; a mixed
+        // section (e.g. a bank-settled DFX buy alongside a direct on-chain buy) makes no blanket claim.
+        const settlements = new Set(txs.map((t) => t.settlement));
+        const paymentMethodKey = settlements.size === 1 ? RECEIPT_PAYMENT_METHOD_KEY[[...settlements][0]] : undefined;
+        if (paymentMethodKey) rows.push(buildPaymentMethodRow(paymentMethodKey));
       }
     };
 

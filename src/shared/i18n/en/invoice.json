@@ -56,7 +56,7 @@
     "type_sell": "Sale",
     "type_transfer": "Transfer",
     "payment_method_label": "Payment method",
-    "payment_method_buy": "Bank transfer",
-    "payment_method_sell": "Payout to bank account"
+    "payment_method_bank": "Bank transfer",
+    "payment_method_on_chain": "Settled on-chain (ZCHF)"
   }
 }

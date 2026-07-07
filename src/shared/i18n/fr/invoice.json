@@ -56,7 +56,7 @@
     "type_sell": "Vente",
     "type_transfer": "Transfert",
     "payment_method_label": "Mode de paiement",
-    "payment_method_buy": "Virement bancaire",
-    "payment_method_sell": "Versement sur compte bancaire"
+    "payment_method_bank": "Virement bancaire",
+    "payment_method_on_chain": "Réglé on-chain (ZCHF)"
   }
 }

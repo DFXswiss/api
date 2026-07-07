@@ -56,7 +56,7 @@
     "type_sell": "Verkauf",
     "type_transfer": "Übertragung",
     "payment_method_label": "Zahlungsweg",
-    "payment_method_buy": "Banküberweisung",
-    "payment_method_sell": "Auszahlung auf Bankkonto"
+    "payment_method_bank": "Banküberweisung",
+    "payment_method_on_chain": "On-Chain abgewickelt (ZCHF)"
   }
 }
