@@ -26,6 +26,17 @@ const SUPPORTED_BLOCKCHAINS: Blockchain[] = [
   Blockchain.GNOSIS,
 ];
 
+// Official yearly wealth-tax values (CHF) for the RealUnit share token (REALU), as published by the
+// issuer. RealUnit shares are reported at this tax value instead of the market price. Extend the map
+// once the value for a new tax year is published.
+const REALU_ASSET_NAME = 'REALU';
+const REALU_TAX_VALUE_CHF: Record<number, number> = {
+  2022: 1.08,
+  2023: 1.04,
+  2024: 1.13,
+  2025: 1.37,
+};
+
 @Injectable()
 export class BalancePdfService {
   private readonly logger = new DfxLogger(BalancePdfService);
@@ -138,6 +149,17 @@ export class BalancePdfService {
   }
 
   private async getHistoricalPrice(asset: Asset, date: Date, currency: PriceCurrency): Promise<number | undefined> {
+    // RealUnit shares are valued at the official yearly tax value (CHF), not the market price
+    if (asset.name === REALU_ASSET_NAME && currency === PriceCurrency.CHF) {
+      const year = date.getUTCFullYear();
+      const taxValue = REALU_TAX_VALUE_CHF[year];
+      if (taxValue == null) {
+        this.logger.warn(`No official ${REALU_ASSET_NAME} tax value configured for year ${year}`);
+        return undefined;
+      }
+      return taxValue;
+    }
+
     // First, check local database for historical price
     const localPrice = await this.assetPricesService.getAssetPriceForDate(asset.id, date);
     if (localPrice) {
