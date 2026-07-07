@@ -895,14 +895,10 @@ export class Configuration {
       citreaApiKey: process.env.CITREA_API_KEY,
       blockscoutApiUrl: process.env.CITREA_BLOCKSCOUT_API_URL,
     },
+    // sunset chain (2026-07): passive metadata only, kept for historical rows
     citreaTestnet: {
       ...EVM_CHAINS.citreaTestnet,
-      citreaTestnetGatewayUrl: EVM_CHAINS.citreaTestnet.gatewayUrl,
       citreaTestnetChainId: EVM_CHAINS.citreaTestnet.chainId,
-      citreaTestnetWalletAddress: process.env.CITREA_TESTNET_WALLET_ADDRESS,
-      citreaTestnetWalletPrivateKey: process.env.CITREA_TESTNET_WALLET_PRIVATE_KEY,
-      citreaTestnetApiKey: process.env.CITREA_TESTNET_API_KEY,
-      blockscoutApiUrl: process.env.CITREA_TESTNET_BLOCKSCOUT_API_URL,
     },
     clementine: {
       network: (process.env.CLEMENTINE_NETWORK as ClementineNetwork) ?? ClementineNetwork.BITCOIN,

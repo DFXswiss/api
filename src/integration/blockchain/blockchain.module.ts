@@ -11,7 +11,6 @@ import { BaseModule } from './base/base.module';
 import { BoltzModule } from './boltz/boltz.module';
 import { BscModule } from './bsc/bsc.module';
 import { CardanoModule } from './cardano/cardano.module';
-import { CitreaTestnetModule } from './citrea-testnet/citrea-testnet.module';
 import { CitreaModule } from './citrea/citrea.module';
 import { ClementineModule } from './clementine/clementine.module';
 import { DEuroModule } from './deuro/deuro.module';
@@ -70,7 +69,6 @@ import { ZanoModule } from './zano/zano.module';
     CardanoModule,
     InternetComputerModule,
     CitreaModule,
-    CitreaTestnetModule,
     ClementineModule,
     BoltzModule,
     RealUnitBlockchainModule,
@@ -105,7 +103,6 @@ import { ZanoModule } from './zano/zano.module';
     CardanoModule,
     InternetComputerModule,
     CitreaModule,
-    CitreaTestnetModule,
     ClementineModule,
     BoltzModule,
     CryptoService,
