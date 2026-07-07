@@ -1,9 +1,4 @@
-import {
-  ArgumentsHost,
-  BadRequestException,
-  InternalServerErrorException,
-  NotFoundException,
-} from '@nestjs/common';
+import { ArgumentsHost, BadRequestException, InternalServerErrorException, NotFoundException } from '@nestjs/common';
 import { ApiExceptionFilter } from 'src/shared/filters/exception.filter';
 
 describe('ApiExceptionFilter', () => {
@@ -14,9 +9,13 @@ describe('ApiExceptionFilter', () => {
   let status: jest.Mock;
 
   const host = (request: unknown, response: unknown): ArgumentsHost =>
-    ({ switchToHttp: () => ({ getRequest: () => request, getResponse: () => response }) } as unknown as ArgumentsHost);
+    ({ switchToHttp: () => ({ getRequest: () => request, getResponse: () => response }) }) as unknown as ArgumentsHost;
 
-  const req = (overrides: Record<string, unknown> = {}) => ({ method: 'POST', originalUrl: '/v1/support/issue', ...overrides });
+  const req = (overrides: Record<string, unknown> = {}) => ({
+    method: 'POST',
+    originalUrl: '/v1/support/issue',
+    ...overrides,
+  });
 
   beforeEach(() => {
     filter = new ApiExceptionFilter();
@@ -48,7 +47,11 @@ describe('ApiExceptionFilter', () => {
 
   it('flattens a class-validator message array into the reason', () => {
     filter.catch(
-      new BadRequestException({ statusCode: 400, message: ['amount must be positive', 'asset must be a string'], error: 'Bad Request' }),
+      new BadRequestException({
+        statusCode: 400,
+        message: ['amount must be positive', 'asset must be a string'],
+        error: 'Bad Request',
+      }),
       host(req(), { status }),
     );
 
@@ -57,7 +60,10 @@ describe('ApiExceptionFilter', () => {
   });
 
   it('masks the route and strips the query string in the log', () => {
-    filter.catch(new NotFoundException('nope'), host(req({ originalUrl: '/v1/user/me?token=supersecret' }), { status }));
+    filter.catch(
+      new NotFoundException('nope'),
+      host(req({ originalUrl: '/v1/user/me?token=supersecret' }), { status }),
+    );
 
     const msg = warn.mock.calls[0][0] as string;
     expect(msg).toContain('/v1/user/me');
