@@ -224,15 +224,25 @@ describe('SwissQRService — RealUnit receipt examples', () => {
 
     expectValidPdf(pdf);
     const text = extractPdfText(pdf);
-    // Mixed history: the buy section claims bank settlement, the sell section on-chain, and the plain
-    // transfer lands in its own neutral section — each per-section claim stays correct.
-    expect(text).toContain(DE.section.buy); // Käufe
-    expect(text).toContain(DE.section.sell); // Verkäufe
-    expect(text).toContain(DE.section.transfer); // Übertragungen
-    expect(text).toContain(DE_RECEIPT.payment_method_bank); // Banküberweisung (buy section)
-    expect(text).toContain(DE_RECEIPT.payment_method_on_chain); // on-chain (sell section)
+    // Single flat chronological table: the description column is reduced to the trade direction
+    // (Kauf/Verkauf), with a plain wallet-to-wallet transfer labelled "Übertragung". No section headers,
+    // no long share description, and no per-section subtotal / fee / payment-method rows — those
+    // settlement details stay on the individual single receipts.
+    expect(text).toContain(DE_RECEIPT.type_buy); // Kauf
+    expect(text).toContain(DE_RECEIPT.type_sell); // Verkauf
+    expect(text).toContain(DE_RECEIPT.type_transfer); // Übertragung
+    expect(text).not.toContain(DE.section.buy); // no "Käufe" section header
+    expect(text).not.toContain(DE.section.sell); // no "Verkäufe" section header
+    expect(text).not.toContain(DE.section.transfer); // no "Übertragungen" section header
+    expect(text).not.toContain('ISIN'); // long share description dropped
+    expect(text).not.toContain(DE_RECEIPT.fees_label); // no fee rows
+    expect(text).not.toContain(DE_RECEIPT.payment_method_label); // no payment-method rows
+    expect(text).not.toContain(DE_RECEIPT.payment_method_bank);
+    expect(text).not.toContain(DE_RECEIPT.payment_method_on_chain);
     expect(text).toContain('28.10.2025'); // per-row execution date, no time
+    expect(text).toContain('15.11.2025');
     expect(text).toContain('10.1.2026');
+    expect(text).toContain('1.2.2026');
     expectNoClockTime(text);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-history-de.pdf', pdf);

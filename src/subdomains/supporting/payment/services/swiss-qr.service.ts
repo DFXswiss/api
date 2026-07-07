@@ -624,31 +624,9 @@ export class SwissQRService {
       pdf.text(`${creditorCity}, ${this.formatChDate(new Date())}`, { align: 'right', width: mm2pt(170) });
     }
 
-    // Recognized trades keep their buy/sell section (with fee + payment-method rows); unrecognized
-    // transfers (no fiat leg) go into a neutral transfers section that makes no payment claim.
-    const isTrade = (t: { settlement: ReceiptSettlement }): boolean => t.settlement !== ReceiptSettlement.NONE;
-    const buyTransactions = tableDataWithType.filter((t) => isTrade(t) && t.type === TransactionType.BUY);
-    const sellTransactions = tableDataWithType.filter((t) => isTrade(t) && t.type === TransactionType.SELL);
-    const transferTransactions = tableDataWithType.filter((t) => !isTrade(t));
-    const buyTotal = buyTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
-    const sellTotal = sellTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
-    const transferTotal = transferTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
-
     const rows: PDFRow[] = [];
     const qtyWidth = hasUnitPrice ? 20 : 30;
     const emptyCol = (w: number): PDFColumn => ({ text: '', width: mm2pt(w) });
-
-    const buildSectionHeader = (sectionKey: string): PDFRow => ({
-      columns: [
-        {
-          text: this.translate(`invoice.section.${sectionKey}`, lang),
-          fontName: 'Helvetica-Bold',
-          fontSize: 12,
-        },
-      ],
-      height: 30,
-      padding: [15, 5, 5, 5],
-    });
 
     const buildTableHeader = (): PDFRow => {
       const cols: PDFColumn[] = [
@@ -673,19 +651,15 @@ export class SwissQRService {
       };
     };
 
-    const buildDataRow = (tableData: SwissQRBillTableData, txType: TransactionType): PDFRow => {
+    const buildDataRow = (tableData: SwissQRBillTableData, description: string): PDFRow => {
       const txDate = tableData.date;
       const formattedDate = isRealUnit
         ? this.formatChDate(txDate)
         : `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()}`;
 
-      const descKey = isRealUnit
-        ? `invoice.realunit_receipt.${txType.toLowerCase()}_description`
-        : `invoice.table.position_row.${txType.toLowerCase()}_description`;
-
       const cols: PDFColumn[] = [
         { text: `${tableData.quantity}`, width: mm2pt(qtyWidth) },
-        { text: this.translate(descKey, lang, tableData.description) },
+        { text: description },
       ];
       if (hasUnitPrice) {
         cols.push({
@@ -700,73 +674,81 @@ export class SwissQRService {
       return { columns: cols, padding: 5 };
     };
 
-    const buildSubtotalRow = (total: number): PDFRow => {
-      const cols: PDFColumn[] = [
-        emptyCol(qtyWidth),
-        { text: this.translate('invoice.table.total_row.total_label', lang), fontName: 'Helvetica-Bold' },
-      ];
-      if (hasUnitPrice) cols.push(emptyCol(25));
-      cols.push(emptyCol(25), {
-        text: `${billData.currency} ${total.toFixed(2)}`,
-        width: mm2pt(30),
-        fontName: 'Helvetica-Bold',
-      });
-      return { columns: cols, height: 25, padding: 5 };
-    };
+    if (isRealUnit) {
+      // One flat transaction history: every trade in a single chronological table. The description column
+      // is reduced to the trade direction (Kauf/Verkauf) — the RealUnit share is implicit on a RealUnit
+      // document. Unrecognized transfers (no fiat leg) stay labelled "Übertragung" so no trade is claimed.
+      // No section headers, per-section subtotals, fee or payment-method rows: the collective history is a
+      // plain overview; those settlement details live on the individual single receipts.
+      const rowDescription = (txType: TransactionType, settlement: ReceiptSettlement): string =>
+        this.translate(
+          settlement !== ReceiptSettlement.NONE
+            ? `invoice.realunit_receipt.type_${txType.toLowerCase()}`
+            : 'invoice.realunit_receipt.type_transfer',
+          lang,
+        );
 
-    const buildFeesRow = (): PDFRow => {
-      const cols: PDFColumn[] = [
-        emptyCol(qtyWidth),
-        { text: this.translate('invoice.realunit_receipt.fees_label', lang), fontName: 'Helvetica-Bold' },
-      ];
-      if (hasUnitPrice) cols.push(emptyCol(25));
-      cols.push(emptyCol(25), {
-        text: this.translate('invoice.realunit_receipt.fees_free', lang),
-        width: mm2pt(30),
-        fontName: 'Helvetica-Bold',
-      });
-      return { columns: cols, padding: 5 };
-    };
-
-    const buildPaymentMethodRow = (paymentMethodKey: string): PDFRow => ({
-      columns: [
-        {
-          text: `${this.translate('invoice.realunit_receipt.payment_method_label', lang)}: ${this.translate(
-            paymentMethodKey,
-            lang,
-          )}`,
-          fontName: 'Helvetica-Bold',
-          width: mm2pt(170),
-        },
-      ],
-      padding: [0, 5, 5, 5],
-    });
-
-    const pushSection = (
-      sectionKey: string,
-      txs: { data: SwissQRBillTableData; type: TransactionType; settlement: ReceiptSettlement }[],
-      total: number,
-      isTradeSection: boolean,
-    ): void => {
-      rows.push(buildSectionHeader(sectionKey));
+      const sortedByDate = [...tableDataWithType].sort((a, b) => a.data.date.getTime() - b.data.date.getTime());
       rows.push(buildTableHeader());
-      for (const { data, type } of txs) {
-        rows.push(buildDataRow(data, type));
+      for (const { data, type, settlement } of sortedByDate) {
+        rows.push(buildDataRow(data, rowDescription(type, settlement)));
       }
-      rows.push(buildSubtotalRow(total));
-      if (isRealUnit && isTradeSection) {
-        rows.push(buildFeesRow());
-        // Only claim a payment method when every trade in the section settled the same way; a mixed
-        // section (e.g. a bank-settled DFX buy alongside a direct on-chain buy) makes no blanket claim.
-        const settlements = new Set(txs.map((t) => t.settlement));
-        const paymentMethodKey = settlements.size === 1 ? RECEIPT_PAYMENT_METHOD_KEY[[...settlements][0]] : undefined;
-        if (paymentMethodKey) rows.push(buildPaymentMethodRow(paymentMethodKey));
-      }
-    };
+    } else {
+      // Non-RealUnit multi-receipt: keep the sectioned buy/sell/transfer layout with per-section subtotals.
+      const isTrade = (t: { settlement: ReceiptSettlement }): boolean => t.settlement !== ReceiptSettlement.NONE;
+      const buyTransactions = tableDataWithType.filter((t) => isTrade(t) && t.type === TransactionType.BUY);
+      const sellTransactions = tableDataWithType.filter((t) => isTrade(t) && t.type === TransactionType.SELL);
+      const transferTransactions = tableDataWithType.filter((t) => !isTrade(t));
+      const buyTotal = buyTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
+      const sellTotal = sellTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
+      const transferTotal = transferTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
 
-    if (buyTransactions.length > 0) pushSection('buy', buyTransactions, buyTotal, true);
-    if (sellTransactions.length > 0) pushSection('sell', sellTransactions, sellTotal, true);
-    if (transferTransactions.length > 0) pushSection('transfer', transferTransactions, transferTotal, false);
+      const buildSectionHeader = (sectionKey: string): PDFRow => ({
+        columns: [
+          {
+            text: this.translate(`invoice.section.${sectionKey}`, lang),
+            fontName: 'Helvetica-Bold',
+            fontSize: 12,
+          },
+        ],
+        height: 30,
+        padding: [15, 5, 5, 5],
+      });
+
+      const positionDescription = (txType: TransactionType, description: SwissQRBillTableData['description']): string =>
+        this.translate(`invoice.table.position_row.${txType.toLowerCase()}_description`, lang, description);
+
+      const buildSubtotalRow = (total: number): PDFRow => {
+        const cols: PDFColumn[] = [
+          emptyCol(qtyWidth),
+          { text: this.translate('invoice.table.total_row.total_label', lang), fontName: 'Helvetica-Bold' },
+        ];
+        if (hasUnitPrice) cols.push(emptyCol(25));
+        cols.push(emptyCol(25), {
+          text: `${billData.currency} ${total.toFixed(2)}`,
+          width: mm2pt(30),
+          fontName: 'Helvetica-Bold',
+        });
+        return { columns: cols, height: 25, padding: 5 };
+      };
+
+      const pushSection = (
+        sectionKey: string,
+        txs: { data: SwissQRBillTableData; type: TransactionType; settlement: ReceiptSettlement }[],
+        total: number,
+      ): void => {
+        rows.push(buildSectionHeader(sectionKey));
+        rows.push(buildTableHeader());
+        for (const { data, type } of txs) {
+          rows.push(buildDataRow(data, positionDescription(type, data.description)));
+        }
+        rows.push(buildSubtotalRow(total));
+      };
+
+      if (buyTransactions.length > 0) pushSection('buy', buyTransactions, buyTotal);
+      if (sellTransactions.length > 0) pushSection('sell', sellTransactions, sellTotal);
+      if (transferTransactions.length > 0) pushSection('transfer', transferTransactions, transferTotal);
+    }
 
     if (!skipTermsAndConditions) {
       rows.push({ columns: [this.getTermsAndConditions(lang)] });
