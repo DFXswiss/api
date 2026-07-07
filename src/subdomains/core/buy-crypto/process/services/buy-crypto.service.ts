@@ -18,6 +18,7 @@ import { SiftService } from 'src/integration/sift/services/sift.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -78,6 +79,8 @@ import { BuyCryptoWebhookService } from './buy-crypto-webhook.service';
 
 @Injectable()
 export class BuyCryptoService implements OnModuleInit {
+  private readonly logger = new DfxLogger(BuyCryptoService);
+
   constructor(
     private readonly buyCryptoRepo: BuyCryptoRepository,
     private readonly buyRepo: BuyRepository,
@@ -120,7 +123,11 @@ export class BuyCryptoService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.userDataService.phoneCallCompletedObservable.subscribe((userData) => this.checkAmlResetTx(userData));
+    this.userDataService.phoneCallCompletedObservable.subscribe((userData) =>
+      // fire-and-forget: never let a rejection escape this subscriber (an unhandled rejection would crash
+      // the process). checkAmlResetTx's own DB writes / the fail-open audit write stay contained here.
+      this.checkAmlResetTx(userData).catch((e) => this.logger.error('checkAmlResetTx failed:', e)),
+    );
   }
 
   async checkAmlResetTx(userData: UserData): Promise<void> {

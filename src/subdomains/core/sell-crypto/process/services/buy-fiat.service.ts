@@ -5,6 +5,7 @@ import { ScorechainScreening } from 'src/integration/scorechain/entities/scorech
 import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
@@ -54,6 +55,8 @@ import { BuyFiatNotificationService } from './buy-fiat-notification.service';
 
 @Injectable()
 export class BuyFiatService implements OnModuleInit {
+  private readonly logger = new DfxLogger(BuyFiatService);
+
   constructor(
     private readonly buyFiatRepo: BuyFiatRepository,
     @Inject(forwardRef(() => BuyCryptoService))
@@ -90,7 +93,11 @@ export class BuyFiatService implements OnModuleInit {
   ) {}
 
   onModuleInit() {
-    this.userDataService.phoneCallCompletedObservable.subscribe((userData) => this.checkAmlResetTx(userData));
+    this.userDataService.phoneCallCompletedObservable.subscribe((userData) =>
+      // fire-and-forget: never let a rejection escape this subscriber (an unhandled rejection would crash
+      // the process). checkAmlResetTx's own DB writes / the fail-open audit write stay contained here.
+      this.checkAmlResetTx(userData).catch((e) => this.logger.error('checkAmlResetTx failed:', e)),
+    );
   }
 
   async checkAmlResetTx(userData: UserData): Promise<void> {
