@@ -339,26 +339,16 @@ export class SwissQRService {
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
 
-    // Details section (holder, reference date, wallet reference, total value) + issuer attribution.
-    const details: { label: string; value: string }[] = [];
-    if (userData.completeName) {
-      details.push({ label: this.translate('balance.statement.holder_label', lang), value: userData.completeName });
-    }
-    details.push(
-      { label: this.translate('balance.statement.reference_date_label', lang), value: this.formatChDate(asOfDate) },
+    // Details section (wallet reference only). Holder, reference date and total value are not repeated
+    // here — they already appear in the recipient address block, the date header and the table total row.
+    const details = [
       {
         label: this.translate('balance.statement.wallet_reference_label', lang),
         value: PdfUtil.walletReference(address),
       },
-      { label: this.translate('balance.total_value', lang), value: PdfUtil.formatCurrency(totalValue, currency) },
-    );
+    ];
 
-    this.drawStatementDetails(
-      pdf,
-      this.translate('balance.statement.details_title', lang),
-      details,
-      this.translate('balance.generated_by_realunit', lang),
-    );
+    this.drawStatementDetails(pdf, this.translate('balance.statement.details_title', lang), details);
 
     pdf.end();
 
@@ -369,12 +359,11 @@ export class SwissQRService {
     pdf: typeof PDFDocument.prototype,
     title: string,
     details: { label: string; value: string }[],
-    issuer: string,
   ): void {
     const labelX = mm2pt(20);
 
-    // Start a new page if the title + all detail rows + the issuer line would not fit on the current page.
-    const estimatedHeight = 15 + 22 + details.length * 26 + 30;
+    // Start a new page if the title + all detail rows would not fit on the current page.
+    const estimatedHeight = 15 + 22 + details.length * 26;
     if (pdf.y + estimatedHeight > pdf.page.height - pdf.page.margins.bottom) pdf.addPage();
 
     pdf.font('Helvetica-Bold').fontSize(11).fillColor('black');
@@ -383,16 +372,11 @@ export class SwissQRService {
     pdf.fontSize(10);
     let currentY = pdf.y + 8;
     for (const { label, value } of details) {
-      // width must sit on the first (label) segment of the continued chain to wrap long values (e.g. holder name)
+      // width must sit on the first (label) segment of the continued chain to wrap long values
       pdf.font('Helvetica-Bold').text(`${label}:`, labelX, currentY, { continued: true, width: mm2pt(150) });
       pdf.font('Helvetica').text(`  ${value}`);
       currentY = pdf.y + 4;
     }
-
-    // Issuer attribution (muted), matching the RealUnit statement footer wording.
-    pdf.font('Helvetica').fontSize(9).fillColor('#707070');
-    pdf.text(issuer, labelX, currentY + 8);
-    pdf.fillColor('black');
   }
 
   // Format an execution date (date only, no time) in the Swiss time zone (DST-safe) for RealUnit receipts
