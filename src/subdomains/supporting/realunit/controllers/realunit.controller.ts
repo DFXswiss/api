@@ -55,6 +55,10 @@ import { SwissQRService } from '../../payment/services/swiss-qr.service';
 import { PriceCurrency, PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAdminQueryDto, RealUnitQuoteDto, RealUnitTransactionDto } from '../dto/realunit-admin.dto';
 import {
+  RealUnitConfirmAktionariatDto,
+  RealUnitConfirmAktionariatQueryDto,
+} from '../dto/realunit-confirm-aktionariat.dto';
+import {
   RealUnitBalancePdfDto,
   RealUnitMultiReceiptPdfDto,
   RealUnitSingleReceiptPdfDto,
@@ -781,6 +785,25 @@ export class RealUnitController {
         ? HttpStatus.CREATED
         : HttpStatus.ACCEPTED;
     res.status(statusCode).json(response);
+  }
+
+  // --- Aktionariat Confirmation Endpoint (public) ---
+
+  @Get('confirm-aktionariat')
+  @ApiOperation({
+    summary: 'Confirm an Aktionariat email connection',
+    description:
+      'Public endpoint called from realunit.app/confirm-aktionariat when the user opens the email link. ' +
+      'Server-side confirms the connection at Aktionariat using the provided code (which acts as the auth ' +
+      'token) and documents the outcome per RealUnit-registered wallet. Returns the mapped state: ' +
+      '`confirmed` (Aktionariat accepted), `invalid` (link invalid/expired), or `unavailable` (Aktionariat ' +
+      'unreachable — retry later).',
+  })
+  @ApiOkResponse({ type: RealUnitConfirmAktionariatDto })
+  async confirmAktionariat(
+    @Query() query: RealUnitConfirmAktionariatQueryDto,
+  ): Promise<RealUnitConfirmAktionariatDto> {
+    return this.realunitService.confirmAktionariat(query);
   }
 
   // --- Admin Endpoints ---

@@ -33,20 +33,26 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
+import { RealUnitAktionariatConfirmationStatus } from '../dto/realunit-confirm-aktionariat.dto';
 import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
 import { PriceInvalidException } from '../../pricing/domain/exceptions/price-invalid.exception';
 import { RealUnitDevService } from '../realunit-dev.service';
+import { RealUnitAddressConfirmationRepository } from '../repositories/realunit-address-confirmation.repository';
 import { PriceSourceUnavailableException } from '../exceptions/price-source-unavailable.exception';
 import { RealUnitService } from '../realunit.service';
 
 let mockEnvironment = 'loc';
+let mockAktionariatUrl: string | undefined = 'https://mock-aktionariat.example.com';
 
 jest.mock('src/config/config', () => ({
   get Config() {
     return {
       environment: mockEnvironment,
       blockchain: {
-        realunit: { api: { url: 'https://mock-api.example.com', key: 'mock-key' } },
+        realunit: {
+          api: { url: 'https://mock-api.example.com', key: 'mock-key' },
+          aktionariatUrl: mockAktionariatUrl,
+        },
       },
     };
   },
@@ -124,6 +130,9 @@ describe('RealUnitService', () => {
   let sellService: jest.Mocked<SellService>;
   let userService: jest.Mocked<UserService>;
   let kycService: jest.Mocked<KycService>;
+  let userDataService: jest.Mocked<UserDataService>;
+  let httpService: jest.Mocked<HttpService>;
+  let addressConfirmationRepo: jest.Mocked<RealUnitAddressConfirmationRepository>;
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -162,7 +171,7 @@ describe('RealUnitService', () => {
             getBrokerbotSellPrice: jest.fn(),
           },
         },
-        { provide: UserDataService, useValue: {} },
+        { provide: UserDataService, useValue: { getUsersByMail: jest.fn() } },
         {
           provide: UserService,
           useValue: {
@@ -178,7 +187,7 @@ describe('RealUnitService', () => {
         },
         { provide: CountryService, useValue: {} },
         { provide: LanguageService, useValue: {} },
-        { provide: HttpService, useValue: { post: jest.fn() } },
+        { provide: HttpService, useValue: { post: jest.fn(), getRaw: jest.fn() } },
         { provide: FiatService, useValue: {} },
         { provide: BuyService, useValue: {} },
         {
@@ -209,6 +218,14 @@ describe('RealUnitService', () => {
         { provide: FaucetRequestService, useValue: {} },
         { provide: EthereumService, useValue: {} },
         { provide: SepoliaService, useValue: {} },
+        {
+          provide: RealUnitAddressConfirmationRepository,
+          useValue: {
+            findOne: jest.fn(),
+            create: jest.fn((partial) => ({ ...partial })),
+            save: jest.fn((entity) => entity),
+          },
+        },
       ],
     }).compile();
 
@@ -220,6 +237,9 @@ describe('RealUnitService', () => {
     sellService = module.get(SellService);
     userService = module.get(UserService);
     kycService = module.get(KycService);
+    userDataService = module.get(UserDataService);
+    httpService = module.get(HttpService);
+    addressConfirmationRepo = module.get(RealUnitAddressConfirmationRepository);
   });
 
   afterEach(() => {
@@ -983,6 +1003,159 @@ describe('RealUnitService', () => {
       expect(variables).toEqual({ id: '0xabc' });
       expect(query).toContain('$id');
       expect(query).not.toContain('0xAbC');
+    });
+  });
+
+  describe('confirmAktionariat', () => {
+    const email = 'user@example.com';
+    const code = 'CONFIRM-CODE';
+    const user = 'aktionariat-user-1';
+    const walletA = '0xAAA0000000000000000000000000000000000001';
+    const walletB = '0xbbb0000000000000000000000000000000000002';
+
+    // Fake UserData exposing only the getStepsWith() shape the flow consumes. `undefined` entries
+    // model a REALUNIT_REGISTRATION step whose result carries no walletAddress.
+    const buildUserData = (walletAddresses: (string | undefined)[]) =>
+      ({
+        getStepsWith: () => walletAddresses.map((walletAddress) => ({ getResult: () => ({ walletAddress }) })),
+      }) as any;
+
+    afterEach(() => {
+      mockEnvironment = 'loc';
+      mockAktionariatUrl = 'https://mock-aktionariat.example.com';
+    });
+
+    it('returns confirmed via the deterministic DEV/LOC mock and stores a new record', async () => {
+      userDataService.getUsersByMail.mockResolvedValue([buildUserData([walletA])]);
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
+      expect(result.confirmedAddresses).toEqual([walletA]);
+      expect(result.confirmedDate).toBeInstanceOf(Date);
+      expect(httpService.getRaw).not.toHaveBeenCalled();
+      expect(addressConfirmationRepo.create).toHaveBeenCalledWith({ walletAddress: walletA });
+      expect(addressConfirmationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ walletAddress: walletA, email, aktionariatUser: user, aktionariatCode: code }),
+      );
+    });
+
+    it('de-duplicates wallets across users case-insensitively and persists each once', async () => {
+      userDataService.getUsersByMail.mockResolvedValue([
+        buildUserData([walletA, undefined]),
+        buildUserData([walletA.toLowerCase(), walletB]),
+      ]);
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.confirmedAddresses).toEqual([walletA, walletB]);
+      expect(addressConfirmationRepo.save).toHaveBeenCalledTimes(2);
+    });
+
+    it('warns and persists nothing when no RealUnit registration wallet exists', async () => {
+      userDataService.getUsersByMail.mockResolvedValue([]);
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
+      expect(result.confirmedAddresses).toEqual([]);
+      expect(addressConfirmationRepo.save).not.toHaveBeenCalled();
+      expect((service as any).logger.warn).toHaveBeenCalled();
+    });
+
+    it('masks an email without an @ sign without crashing', async () => {
+      userDataService.getUsersByMail.mockResolvedValue([]);
+
+      const result = await service.confirmAktionariat({ email: 'no-at-sign', code, user });
+
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
+    });
+
+    it('calls the real Aktionariat endpoint and maps a 2xx to confirmed', async () => {
+      mockEnvironment = 'prd';
+      userDataService.getUsersByMail.mockResolvedValue([buildUserData([walletA])]);
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      httpService.getRaw.mockResolvedValue({ status: 200, data: { status: 200, message: 'ok' } } as any);
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
+      const calledUrl = httpService.getRaw.mock.calls[0][0] as string;
+      expect(calledUrl).toContain('https://mock-aktionariat.example.com/confirmconnection');
+      expect(calledUrl).toContain(`code=${encodeURIComponent(code)}`);
+    });
+
+    it('maps a 4xx (403 Code not found) to invalid and updates the existing record without clearing confirmedDate', async () => {
+      mockEnvironment = 'prd';
+      const priorDate = new Date('2026-01-01T00:00:00.000Z');
+      userDataService.getUsersByMail.mockResolvedValue([buildUserData([walletA])]);
+      addressConfirmationRepo.findOne.mockResolvedValue({ walletAddress: walletA, confirmedDate: priorDate } as any);
+      httpService.getRaw.mockRejectedValue({
+        response: { status: 403, data: { status: 403, message: 'Code not found' } },
+      });
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.INVALID);
+      expect(result.confirmedAddresses).toEqual([]);
+      expect(result.confirmedDate).toBeUndefined();
+      expect(addressConfirmationRepo.create).not.toHaveBeenCalled();
+      expect(addressConfirmationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ walletAddress: walletA, confirmedDate: priorDate, responseStatus: 403 }),
+      );
+      expect((service as any).logger.error).toHaveBeenCalled();
+    });
+
+    it('maps a 5xx to unavailable (string error body)', async () => {
+      mockEnvironment = 'prd';
+      userDataService.getUsersByMail.mockResolvedValue([buildUserData([walletA])]);
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      httpService.getRaw.mockRejectedValue({ response: { status: 503, data: 'Service Unavailable' } });
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.UNAVAILABLE);
+      expect(result.confirmedAddresses).toEqual([]);
+      expect(addressConfirmationRepo.save).toHaveBeenCalledWith(expect.objectContaining({ responseStatus: 503 }));
+    });
+
+    it('maps a network/timeout error (Error with message) to unavailable', async () => {
+      mockEnvironment = 'prd';
+      userDataService.getUsersByMail.mockResolvedValue([buildUserData([walletA])]);
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      httpService.getRaw.mockRejectedValue(new Error('timeout of 30000ms exceeded'));
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.UNAVAILABLE);
+      expect(addressConfirmationRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({ walletAddress: walletA, responseStatus: undefined }),
+      );
+    });
+
+    it('maps an error with neither response nor message to unavailable', async () => {
+      mockEnvironment = 'prd';
+      userDataService.getUsersByMail.mockResolvedValue([buildUserData([walletA])]);
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      httpService.getRaw.mockRejectedValue({});
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.UNAVAILABLE);
+      expect((service as any).logger.error).toHaveBeenCalled();
+    });
+
+    it('throws when AKTIONARIAT_URL is not configured outside DEV/LOC', async () => {
+      mockEnvironment = 'prd';
+      mockAktionariatUrl = undefined;
+      userDataService.getUsersByMail.mockResolvedValue([]);
+
+      await expect(service.confirmAktionariat({ email, code, user })).rejects.toThrow(
+        'Aktionariat URL is not configured',
+      );
+      expect(httpService.getRaw).not.toHaveBeenCalled();
     });
   });
 });

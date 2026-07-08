@@ -76,6 +76,11 @@ import {
   TokenInfoClientResponse,
 } from './dto/client.dto';
 import { RealUnitQuoteDto, RealUnitTransactionDto } from './dto/realunit-admin.dto';
+import {
+  RealUnitAktionariatConfirmationStatus,
+  RealUnitConfirmAktionariatDto,
+  RealUnitConfirmAktionariatQueryDto,
+} from './dto/realunit-confirm-aktionariat.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
   AktionariatRegistrationDto,
@@ -111,6 +116,7 @@ import { PriceInvalidException } from '../pricing/domain/exceptions/price-invali
 import { KycLevelRequiredException, RegistrationRequiredException } from './exceptions/buy-exceptions';
 import { PriceSourceUnavailableException } from './exceptions/price-source-unavailable.exception';
 import { RealUnitDevService } from './realunit-dev.service';
+import { RealUnitAddressConfirmationRepository } from './repositories/realunit-address-confirmation.repository';
 import { accountHistoryQuery, accountSummaryQuery, holdersQuery, tokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
 
@@ -203,6 +209,7 @@ export class RealUnitService {
     private readonly swissQrService: SwissQRService,
     private readonly feeService: FeeService,
     private readonly faucetRequestService: FaucetRequestService,
+    private readonly addressConfirmationRepo: RealUnitAddressConfirmationRepository,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -1571,5 +1578,159 @@ export class RealUnitService {
     await this.transactionRequestService.complete(request.id);
 
     return { txHash };
+  }
+
+  // --- AKTIONARIAT CONFIRMATION (public) --- //
+
+  /**
+   * Confirms an Aktionariat email connection from the public confirm-aktionariat endpoint. The
+   * `code` is the authentication token; no api-key is sent. The Aktionariat response is mapped to
+   * three states (confirmed / invalid / unavailable) and the outcome is documented per registered
+   * wallet address.
+   *
+   * ASSUMPTION: the Aktionariat confirmation is keyed on the email and therefore applies to ALL
+   * wallets that were RealUnit-registered under that email (REALUNIT_REGISTRATION KYC steps).
+   * The whole flow is logged, treating the email as personal data (masked in logs).
+   */
+  async confirmAktionariat(dto: RealUnitConfirmAktionariatQueryDto): Promise<RealUnitConfirmAktionariatDto> {
+    const { email, code, user } = dto;
+    const maskedEmail = this.maskEmail(email);
+
+    this.logger.info(`Aktionariat confirmation requested (user: ${user}, email: ${maskedEmail})`);
+
+    const walletAddresses = await this.getRegisteredWalletAddresses(email);
+    if (walletAddresses.length) {
+      this.logger.info(
+        `Resolved ${walletAddresses.length} RealUnit wallet(s) for ${maskedEmail}: ${walletAddresses.join(', ')}`,
+      );
+    } else {
+      this.logger.warn(`No RealUnit registration wallet found for ${maskedEmail}`);
+    }
+
+    const { httpStatus, responseBody } = await this.callAktionariatConfirm(email, code, user);
+    const status = this.mapConfirmationStatus(httpStatus);
+
+    this.logger.info(
+      `Aktionariat confirmation for ${maskedEmail} mapped to '${status}' (httpStatus: ${httpStatus ?? 'none'})`,
+    );
+
+    const confirmed = status === RealUnitAktionariatConfirmationStatus.CONFIRMED;
+    const confirmedDate = confirmed ? new Date() : undefined;
+
+    for (const walletAddress of walletAddresses) {
+      await this.persistAddressConfirmation({
+        walletAddress,
+        email,
+        aktionariatUser: user,
+        aktionariatCode: code,
+        httpStatus,
+        responseBody,
+        confirmedDate,
+      });
+    }
+
+    return {
+      status,
+      confirmedAddresses: confirmed ? walletAddresses : [],
+      confirmedDate,
+    };
+  }
+
+  private async getRegisteredWalletAddresses(email: string): Promise<string[]> {
+    const userDataList = await this.userDataService.getUsersByMail(email, true, { kycSteps: true });
+
+    // De-duplicate case-insensitively while keeping the first-seen (checksummed) casing.
+    const addresses = new Map<string, string>();
+    for (const userData of userDataList) {
+      for (const step of userData.getStepsWith(KycStepName.REALUNIT_REGISTRATION)) {
+        const walletAddress = step.getResult<AktionariatRegistrationDto>()?.walletAddress;
+        if (walletAddress && !addresses.has(walletAddress.toLowerCase()))
+          addresses.set(walletAddress.toLowerCase(), walletAddress);
+      }
+    }
+
+    return Array.from(addresses.values());
+  }
+
+  private async callAktionariatConfirm(
+    email: string,
+    code: string,
+    user: string,
+  ): Promise<{ httpStatus?: number; responseBody: unknown }> {
+    // Deterministic mock: never reach the real Aktionariat API from a local/dev environment.
+    if ([Environment.DEV, Environment.LOC].includes(Config.environment)) {
+      this.logger.info('Aktionariat confirmation mocked (DEV/LOC environment)');
+      return { httpStatus: 200, responseBody: { status: 200, message: 'DEV mock confirmation', mock: true } };
+    }
+
+    const baseUrl = Config.blockchain.realunit.aktionariatUrl;
+    if (!baseUrl) throw new Error('Aktionariat URL is not configured');
+
+    const endpoint = `${baseUrl}/confirmconnection`;
+    const url = `${endpoint}?email=${encodeURIComponent(email)}&code=${encodeURIComponent(
+      code,
+    )}&user=${encodeURIComponent(user)}`;
+
+    try {
+      const response = await this.http.getRaw<{ status: number; message: string }>(url);
+      // The code is an auth secret carried in the query string; only the bare endpoint is logged.
+      this.logger.info(`Aktionariat confirmation call to ${endpoint} returned status ${response.status}`);
+      return { httpStatus: response.status, responseBody: response.data };
+    } catch (error) {
+      const httpStatus = error?.response?.status;
+      const responseBody = error?.response?.data ?? error?.message ?? String(error);
+      const bodyText = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody);
+      this.logger.error(
+        `Aktionariat confirmation call to ${endpoint} failed (httpStatus: ${httpStatus ?? 'none'}): ${bodyText}`,
+      );
+      return { httpStatus, responseBody };
+    }
+  }
+
+  private mapConfirmationStatus(httpStatus?: number): RealUnitAktionariatConfirmationStatus {
+    // Fail-closed: anything that is not a clear 2xx (confirmed) or 4xx (invalid link) — including
+    // 5xx, an unexpected status class, or a network/timeout error (no status) — is treated as
+    // unavailable, i.e. an unknown confirmation state the client should retry, never a rejection.
+    if (httpStatus == null) return RealUnitAktionariatConfirmationStatus.UNAVAILABLE;
+
+    const statusClass = Math.floor(httpStatus / 100);
+    if (statusClass === 2) return RealUnitAktionariatConfirmationStatus.CONFIRMED;
+    if (statusClass === 4) return RealUnitAktionariatConfirmationStatus.INVALID;
+    return RealUnitAktionariatConfirmationStatus.UNAVAILABLE;
+  }
+
+  private async persistAddressConfirmation(data: {
+    walletAddress: string;
+    email: string;
+    aktionariatUser: string;
+    aktionariatCode: string;
+    httpStatus?: number;
+    responseBody: unknown;
+    confirmedDate?: Date;
+  }): Promise<void> {
+    const existing = await this.addressConfirmationRepo.findOne({ where: { walletAddress: data.walletAddress } });
+
+    const entity = existing ?? this.addressConfirmationRepo.create({ walletAddress: data.walletAddress });
+    entity.email = data.email;
+    entity.aktionariatUser = data.aktionariatUser;
+    entity.aktionariatCode = data.aktionariatCode;
+    entity.responseStatus = data.httpStatus;
+    entity.responseData = data.responseBody;
+    // Never clear a prior confirmation: only advance confirmedDate when this call actually confirmed.
+    if (data.confirmedDate) entity.confirmedDate = data.confirmedDate;
+
+    await this.addressConfirmationRepo.save(entity);
+
+    const action = existing ? 'Updated' : 'Created';
+    const statusText = data.httpStatus ?? 'none';
+    this.logger.info(
+      `${action} Aktionariat confirmation record for wallet ${data.walletAddress} (responseStatus: ${statusText}, confirmed: ${!!entity.confirmedDate})`,
+    );
+  }
+
+  private maskEmail(email: string): string {
+    const atIndex = email.indexOf('@');
+    if (atIndex <= 0) return '***';
+    return `${email.charAt(0)}***${email.substring(atIndex)}`;
   }
 }

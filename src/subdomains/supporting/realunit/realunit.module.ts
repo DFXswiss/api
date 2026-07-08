@@ -1,4 +1,5 @@
 import { forwardRef, Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
 import { EthereumModule } from 'src/integration/blockchain/ethereum/ethereum.module';
 import { RealUnitBlockchainModule } from 'src/integration/blockchain/realunit/realunit-blockchain.module';
 import { SepoliaModule } from 'src/integration/blockchain/sepolia/sepolia.module';
@@ -19,14 +20,17 @@ import { PricingModule } from '../pricing/pricing.module';
 import { RealUnitComplianceController } from './controllers/realunit-compliance.controller';
 import { RealUnitSupportController } from './controllers/realunit-support.controller';
 import { RealUnitController } from './controllers/realunit.controller';
+import { RealUnitAddressConfirmation } from './entities/realunit-address-confirmation.entity';
 import { RealUnitComplianceService } from './realunit-compliance.service';
 import { RealUnitDevService } from './realunit-dev.service';
 import { RealUnitJobService } from './realunit-job.service';
 import { RealUnitScopeService } from './realunit-scope.service';
 import { RealUnitService } from './realunit.service';
+import { RealUnitAddressConfirmationRepository } from './repositories/realunit-address-confirmation.repository';
 
 @Module({
   imports: [
+    TypeOrmModule.forFeature([RealUnitAddressConfirmation]),
     SharedModule,
     PricingModule,
     BalanceModule,
@@ -46,7 +50,14 @@ import { RealUnitService } from './realunit.service';
     SupportIssueModule,
   ],
   controllers: [RealUnitController, RealUnitSupportController, RealUnitComplianceController],
-  providers: [RealUnitService, RealUnitDevService, RealUnitJobService, RealUnitScopeService, RealUnitComplianceService],
+  providers: [
+    RealUnitService,
+    RealUnitDevService,
+    RealUnitJobService,
+    RealUnitScopeService,
+    RealUnitComplianceService,
+    RealUnitAddressConfirmationRepository,
+  ],
   exports: [RealUnitService, RealUnitScopeService],
 })
 export class RealUnitModule {}
