@@ -1664,7 +1664,10 @@ export class RealUnitService {
     }
 
     const baseUrl = Config.blockchain.realunit.aktionariatUrl;
-    if (!baseUrl) throw new Error('Aktionariat URL is not configured');
+    if (!baseUrl) {
+      this.logger.error('Aktionariat URL is not configured');
+      throw new Error('Aktionariat URL is not configured');
+    }
 
     const endpoint = `${baseUrl}/confirmconnection`;
     const url = `${endpoint}?email=${encodeURIComponent(email)}&code=${encodeURIComponent(
@@ -1672,7 +1675,8 @@ export class RealUnitService {
     )}&user=${encodeURIComponent(user)}`;
 
     try {
-      const response = await this.http.getRaw<{ status: number; message: string }>(url);
+      // Explicit timeout: without it a hung connection would never resolve to `unavailable`.
+      const response = await this.http.getRaw<{ status: number; message: string }>(url, { timeout: 10000 }); // ms
       // The code is an auth secret carried in the query string; only the bare endpoint is logged.
       this.logger.info(`Aktionariat confirmation call to ${endpoint} returned status ${response.status}`);
       return { httpStatus: response.status, responseBody: response.data };

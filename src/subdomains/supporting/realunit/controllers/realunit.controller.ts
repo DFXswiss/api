@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiAcceptedResponse,
   ApiBadRequestResponse,
@@ -42,6 +43,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -790,6 +792,11 @@ export class RealUnitController {
   // --- Aktionariat Confirmation Endpoint (public) ---
 
   @Get('confirm-aktionariat')
+  // Public and unauthenticated: each request runs a DB lookup on an attacker-controlled email and,
+  // in prod, an outbound call to the third-party Aktionariat API — an amplification/DoS vector.
+  // Rate-limited with the same values as the public `POST /auth/mail` endpoint.
+  @UseGuards(RateLimitGuard)
+  @Throttle(10, 60)
   @ApiOperation({
     summary: 'Confirm an Aktionariat email connection',
     description:

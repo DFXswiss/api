@@ -1085,6 +1085,8 @@ describe('RealUnitService', () => {
       const calledUrl = httpService.getRaw.mock.calls[0][0] as string;
       expect(calledUrl).toContain('https://mock-aktionariat.example.com/confirmconnection');
       expect(calledUrl).toContain(`code=${encodeURIComponent(code)}`);
+      // An explicit request timeout must be passed so a hung connection resolves to unavailable.
+      expect(httpService.getRaw).toHaveBeenCalledWith(expect.any(String), { timeout: 10000 });
     });
 
     it('maps a 4xx (403 Code not found) to invalid and updates the existing record without clearing confirmedDate', async () => {
@@ -1156,6 +1158,7 @@ describe('RealUnitService', () => {
         'Aktionariat URL is not configured',
       );
       expect(httpService.getRaw).not.toHaveBeenCalled();
+      expect((service as any).logger.error).toHaveBeenCalledWith('Aktionariat URL is not configured');
     });
   });
 });
