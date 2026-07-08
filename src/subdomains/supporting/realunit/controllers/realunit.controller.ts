@@ -13,6 +13,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiAcceptedResponse,
   ApiBadRequestResponse,
@@ -42,6 +43,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { IpGuard } from 'src/shared/auth/ip.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -54,6 +56,10 @@ import { BalancePdfService } from '../../balance/services/balance-pdf.service';
 import { SwissQRService } from '../../payment/services/swiss-qr.service';
 import { PriceCurrency, PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAdminQueryDto, RealUnitQuoteDto, RealUnitTransactionDto } from '../dto/realunit-admin.dto';
+import {
+  RealUnitConfirmAktionariatDto,
+  RealUnitConfirmAktionariatQueryDto,
+} from '../dto/realunit-confirm-aktionariat.dto';
 import {
   RealUnitBalancePdfDto,
   RealUnitMultiReceiptPdfDto,
@@ -781,6 +787,28 @@ export class RealUnitController {
         ? HttpStatus.CREATED
         : HttpStatus.ACCEPTED;
     res.status(statusCode).json(response);
+  }
+
+  // --- Aktionariat Confirmation Endpoint (public) ---
+
+  @Get('confirm-aktionariat')
+  // Public and unauthenticated: each request runs a DB lookup on an attacker-controlled email and,
+  // in prod, an outbound call to the third-party Aktionariat API — an amplification/DoS vector.
+  // Rate-limited with the same values as the public `POST /auth/mail` endpoint.
+  @UseGuards(RateLimitGuard)
+  @Throttle(10, 60)
+  @ApiOperation({
+    summary: 'Confirm an Aktionariat email connection',
+    description:
+      'Public endpoint called from realunit.app/confirm-aktionariat when the user opens the email link. ' +
+      'Server-side confirms the connection at Aktionariat using the provided code (which acts as the auth ' +
+      'token) and documents the outcome per RealUnit-registered wallet. Returns the mapped state: ' +
+      '`confirmed` (Aktionariat accepted), `invalid` (link invalid/expired), or `unavailable` (Aktionariat ' +
+      'unreachable — retry later).',
+  })
+  @ApiOkResponse({ type: RealUnitConfirmAktionariatDto })
+  async confirmAktionariat(@Query() query: RealUnitConfirmAktionariatQueryDto): Promise<RealUnitConfirmAktionariatDto> {
+    return this.realunitService.confirmAktionariat(query);
   }
 
   // --- Admin Endpoints ---

@@ -1069,6 +1069,9 @@ export class Configuration {
         url: process.env.REALUNIT_API_URL,
         key: process.env.REALUNIT_API_KEY,
       },
+      // Aktionariat REST base URL used by the public confirm-aktionariat endpoint. No default:
+      // the endpoint fails loud in non-local environments when this is not configured.
+      aktionariatUrl: process.env.AKTIONARIAT_URL,
       brokerbotAddress: [Environment.DEV, Environment.LOC].includes(this.environment)
         ? '0x39c33c2fd5b07b8e890fd2115d4adff7235fc9d2'
         : '0xCFF32C60B87296B8c0c12980De685bEd6Cb9dD6d',
