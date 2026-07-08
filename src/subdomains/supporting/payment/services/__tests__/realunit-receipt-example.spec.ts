@@ -2,13 +2,14 @@ import { Test } from '@nestjs/testing';
 import * as fs from 'fs';
 import { I18nModule, I18nService } from 'nestjs-i18n';
 import * as path from 'path';
-import PDFDocument from 'pdfkit';
 import * as zlib from 'zlib';
 import { ConfigService, GetConfig } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { BalanceEntry, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
+import { BalanceEntry, PdfBrand } from 'src/shared/utils/pdf.util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
+import { BalancePdfService } from 'src/subdomains/supporting/balance/services/balance-pdf.service';
 import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { HistoryEventType } from 'src/subdomains/supporting/realunit/dto/client.dto';
 import { HistoryEventDto } from 'src/subdomains/supporting/realunit/dto/realunit.dto';
@@ -303,19 +304,15 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     writeExample('transaction-history-en.pdf', pdf);
   });
 
-  it('renders the full REALU security details on the balance report table (DE)', async () => {
-    const pdf = new PDFDocument({ size: 'A4', margin: 50 });
-    const chunks: Buffer[] = [];
-    const rendered = new Promise<string>((resolve) => {
-      pdf.on('data', (c) => chunks.push(c));
-      pdf.on('end', () => resolve(Buffer.concat(chunks).toString('base64')));
-    });
+  it('renders the balance report as a tax report with full REALU details and movements (DE)', async () => {
+    // Real rendering path of POST /realunit/balance/pdf — only the live Alchemy/pricing lookups are
+    // replaced by fixtures, so the committed example shows exactly what the endpoint produces.
+    const balanceService = new BalancePdfService(null as never, null as never, null as never, null as never, i18n);
 
     const balances: BalanceEntry[] = [
-      { asset: REALU_ASSET, balance: 350, price: 1.36, value: 476 },
+      { asset: REALU_ASSET, balance: 330, price: 1.38, value: 455.4 },
       { asset: { name: 'ETH', blockchain: 'Ethereum' } as Asset, balance: 0.5, price: 2500, value: 1250 },
     ];
-    PdfUtil.drawTable(pdf, balances, PriceCurrency.CHF, PdfLanguage.DE, i18n, PdfBrand.REALUNIT);
 
     // Tax-voucher section: the REALU movements of the covered period, classified via the same
     // fail-closed receipt logic (mint → bank, Brokerbot → on-chain, other wallet → neutral transfer).
@@ -324,12 +321,19 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       { historyEvent: event('50', TX3, '2026-01-10T16:45:00Z', false), fiatPrice: 1.34, isIncoming: false },
       { historyEvent: transferEvent('30', TX4, '2026-02-01T10:00:00Z'), fiatPrice: 1.36, isIncoming: true },
     ]);
-    PdfUtil.drawRealuTransactionsSection(pdf, transactions, PriceCurrency.CHF, PdfLanguage.DE, i18n);
-    pdf.end();
 
-    const base64 = await rendered;
-    // Table-only render (no logo/header), so it stays below expectValidPdf's full-receipt size floor.
-    expect(Buffer.from(base64, 'base64').subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    const dto = {
+      address: BUYER_WALLET,
+      blockchain: Blockchain.ETHEREUM,
+      currency: PriceCurrency.CHF,
+      date: new Date('2026-06-30T23:59:59Z'),
+      language: PdfLanguage.DE,
+    };
+    const base64 = await (
+      balanceService as unknown as { createPdf: (...args: unknown[]) => Promise<string> }
+    ).createPdf(balances, 1705.4, false, dto, PdfBrand.REALUNIT, transactions);
+
+    expectValidPdf(base64);
     const text = extractPdfText(base64);
     // The REALU position carries the full security identification (same text as on the receipts),
     // so the balance report works as a tax document.
@@ -346,7 +350,12 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     expect(text).toContain(DE_RECEIPT.total_buy_label); // Total Käufe
     expect(text).toContain(DE_RECEIPT.total_sell_label); // Total Verkäufe
     expect(text).toContain(DE_RECEIPT.total_transfer_label); // Total Übertragungen
-    expectNoWalletOrTxHash(text);
+    // Unlike the receipts, the balance report legitimately shows the queried address in its header
+    // (it is an address-based holdings report), so only tx hashes are asserted absent here.
+    for (const tx of [TX1, TX2, TX3, TX4]) {
+      expect(text.toLowerCase()).not.toContain(tx.toLowerCase());
+    }
+    writeExample('balance-report-de.pdf', base64);
   });
 
   // Guards against a missing/typo'd i18n key silently printing the raw key on a customer tax
