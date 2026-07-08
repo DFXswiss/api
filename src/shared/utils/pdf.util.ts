@@ -198,9 +198,10 @@ export class PdfUtil {
     pdf.y = y + 10;
   }
 
-  // REALU transactions of the covered tax period, appended to the RealUnit balance report on its own
-  // page so the report works as a standalone tax voucher (holdings + movements). Layout mirrors the
-  // transaction-history receipt: chronological rows with type + payment method, then per-type totals.
+  // REALU transactions of the covered tax period, rendered below the holdings on the SAME page so
+  // the report works as a one-page tax voucher (holdings + movements; overflows to a next page only
+  // when the transaction list does not fit). Layout mirrors the transaction-history receipt:
+  // chronological rows with type + payment method, then per-type totals.
   static drawRealuTransactionsSection(
     pdf: InstanceType<typeof PDFDocument>,
     transactions: BalanceReportTransaction[],
@@ -227,17 +228,22 @@ export class PdfUtil {
         .format(d)
         .replace(/\//g, '.');
 
-    pdf.addPage();
+    // Continue on the current page; break only if even the section header would not fit anymore.
+    let y = pdf.y + 25;
+    if (y > pdf.page.height - 180) {
+      pdf.addPage();
+      y = 50;
+    }
 
-    pdf.fontSize(16).font('Helvetica-Bold').fillColor('#072440');
-    pdf.text(this.translate('invoice.realunit_receipt.history_title', language, i18n), marginX, 50);
+    pdf.fontSize(14).font('Helvetica-Bold').fillColor('#072440');
+    pdf.text(this.translate('invoice.realunit_receipt.history_title', language, i18n), marginX, y);
 
     // Covered period = first to last transaction of the report's tax period
-    pdf.fontSize(11).font('Helvetica').fillColor('#707070');
+    pdf.fontSize(10).font('Helvetica').fillColor('#707070');
     const period = `${formatChDate(sorted[0].date)} – ${formatChDate(sorted[sorted.length - 1].date)}`;
-    pdf.text(`${this.translate('invoice.realunit_receipt.period_label', language, i18n)}: ${period}`, marginX, 78);
+    pdf.text(`${this.translate('invoice.realunit_receipt.period_label', language, i18n)}: ${period}`, marginX, y + 22);
 
-    let y = 105;
+    y += 45;
     pdf.fontSize(11).font('Helvetica-Bold').fillColor('#072440');
     pdf.text(this.translate('invoice.realunit_receipt.date_label', language, i18n), marginX, y, { width: colDate });
     pdf.text(this.translate('invoice.realunit_receipt.type_column', language, i18n), marginX + colDate, y, {
@@ -333,9 +339,25 @@ export class PdfUtil {
       });
       y += 18;
     }
+
+    pdf.y = y;
   }
 
   static drawFooter(
+    pdf: InstanceType<typeof PDFDocument>,
+    totalValue: number,
+    hasIncompleteData: boolean,
+    currency: PriceCurrency,
+    language: PdfLanguage,
+    i18n: I18nService,
+  ): void {
+    this.drawTotalValue(pdf, totalValue, hasIncompleteData, currency, language, i18n);
+    this.drawGeneratedBy(pdf, language, i18n);
+  }
+
+  // Total-value block (bold total + optional incomplete-data note); separate from the generated-by
+  // line so the RealUnit report can place its transactions section in between on the same page.
+  static drawTotalValue(
     pdf: InstanceType<typeof PDFDocument>,
     totalValue: number,
     hasIncompleteData: boolean,
@@ -361,7 +383,12 @@ export class PdfUtil {
       y += 25;
     }
 
-    y += 20;
+    pdf.y = y;
+  }
+
+  static drawGeneratedBy(pdf: InstanceType<typeof PDFDocument>, language: PdfLanguage, i18n: I18nService): void {
+    const marginX = 50;
+    const y = pdf.y + 20;
     pdf.fontSize(8).font('Helvetica').fillColor('#999999');
     pdf.text(`${this.translate('balance.generated_by', language, i18n)} - ${new Date().toISOString()}`, marginX, y);
   }

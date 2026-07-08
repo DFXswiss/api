@@ -177,12 +177,15 @@ export class BalancePdfService {
         PdfUtil.drawLogo(pdf, brand, LogoSize.SMALL);
         this.drawHeader(pdf, dto, language);
         PdfUtil.drawTable(pdf, balances, dto.currency, language, this.i18n, brand);
-        PdfUtil.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language, this.i18n);
 
-        // RealUnit: the report doubles as a tax voucher, so the REALU movements of the covered
-        // period follow on their own page after the holdings.
+        // RealUnit: the report doubles as a one-page tax voucher — the REALU movements of the
+        // covered period follow right below the holdings total, with the generated-by line last.
         if (realuTransactions?.length) {
+          PdfUtil.drawTotalValue(pdf, totalValue, hasIncompleteData, dto.currency, language, this.i18n);
           PdfUtil.drawRealuTransactionsSection(pdf, realuTransactions, dto.currency, language, this.i18n);
+          PdfUtil.drawGeneratedBy(pdf, language, this.i18n);
+        } else {
+          PdfUtil.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language, this.i18n);
         }
 
         pdf.end();
