@@ -181,8 +181,15 @@ export class BankDataService {
     if (await this.bankDataRepo.existsBy({ iban: newDto.iban, type: newDto.type })) return;
 
     if (oldBankData.approved && newDto.type === BankDataType.BANK_IN) {
-      newDto.approved = oldBankData.approved;
-      newDto.status = oldBankData.status;
+      // the old approval may stem from a self-comparison (e.g. BankOut created with the userData name),
+      // so it is only inherited if the actual account holder name matches the verified name
+      const isVerifiedName =
+        newDto.name && oldBankData.userData.verifiedName
+          ? Util.isSameName(newDto.name, oldBankData.userData.verifiedName)
+          : false;
+
+      newDto.approved = isVerifiedName ? oldBankData.approved : false;
+      newDto.status = isVerifiedName ? oldBankData.status : ReviewStatus.INTERNAL_REVIEW;
 
       await this.bankDataRepo.update(oldBankData.id, {
         approved: false,
