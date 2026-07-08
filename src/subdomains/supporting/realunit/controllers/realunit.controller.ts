@@ -800,9 +800,7 @@ export class RealUnitController {
       'unreachable — retry later).',
   })
   @ApiOkResponse({ type: RealUnitConfirmAktionariatDto })
-  async confirmAktionariat(
-    @Query() query: RealUnitConfirmAktionariatQueryDto,
-  ): Promise<RealUnitConfirmAktionariatDto> {
+  async confirmAktionariat(@Query() query: RealUnitConfirmAktionariatQueryDto): Promise<RealUnitConfirmAktionariatDto> {
     return this.realunitService.confirmAktionariat(query);
   }
 
