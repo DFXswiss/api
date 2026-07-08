@@ -77,14 +77,14 @@ describe('BalancePdfService — getBalanceData (RealUnit share register)', () =>
     expect(hasIncompleteData).toBe(false);
   });
 
-  it('reports incomplete data (no value) for a year without a configured tax value', async () => {
+  it('falls back to the market price for a year without a configured tax value', async () => {
     const { balances, totalValue, hasIncompleteData } = await getData(new Date('2020-12-31T00:00:00Z'));
     const realu = balances.find((b) => b.asset.name === 'REALU');
     expect(realu).toBeDefined();
-    // never falls back to the market price for an uncovered year
-    expect(realu?.price).toBeUndefined();
-    expect(realu?.value).toBeUndefined();
-    expect(hasIncompleteData).toBe(true);
-    expect(totalValue).toBe(0);
+    // no configured tax value for 2020 → the regular market price applies
+    expect(realu?.price).toBe(MARKET_PRICE_CHF);
+    expect(realu?.value).toBe(MARKET_PRICE_CHF);
+    expect(hasIncompleteData).toBe(false);
+    expect(totalValue).toBe(MARKET_PRICE_CHF);
   });
 });
