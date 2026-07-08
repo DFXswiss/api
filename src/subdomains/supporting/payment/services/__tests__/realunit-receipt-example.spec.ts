@@ -2,11 +2,14 @@ import { Test } from '@nestjs/testing';
 import * as fs from 'fs';
 import { I18nModule, I18nService } from 'nestjs-i18n';
 import * as path from 'path';
+import PDFDocument from 'pdfkit';
 import * as zlib from 'zlib';
 import { ConfigService, GetConfig } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
-import { PdfBrand } from 'src/shared/utils/pdf.util';
+import { BalanceEntry, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
+import { PdfLanguage } from 'src/subdomains/supporting/balance/dto/input/get-balance-pdf.dto';
+import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { HistoryEventType } from 'src/subdomains/supporting/realunit/dto/client.dto';
 import { HistoryEventDto } from 'src/subdomains/supporting/realunit/dto/realunit.dto';
 import { SwissQRService } from '../swiss-qr.service';
@@ -137,6 +140,7 @@ function writeExample(name: string, base64: string): void {
 
 describe('SwissQRService — RealUnit receipt examples', () => {
   let service: SwissQRService;
+  let i18n: I18nService;
 
   beforeAll(async () => {
     // Populate the global `Config` singleton (normally wired up at app bootstrap).
@@ -147,7 +151,8 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       imports: [I18nModule.forRoot({ ...i18nConfig, loaderOptions: { ...i18nConfig.loaderOptions, watch: false } })],
     }).compile();
 
-    service = new SwissQRService({} as never, module.get(I18nService));
+    i18n = module.get(I18nService);
+    service = new SwissQRService({} as never, i18n);
   });
 
   it('renders the transaction confirmation (DE)', async () => {
@@ -253,13 +258,28 @@ describe('SwissQRService — RealUnit receipt examples', () => {
 
     expectValidPdf(pdf);
     const text = extractPdfText(pdf);
-    // Mixed history: the buy section claims bank settlement, the sell section on-chain, and the plain
-    // transfer lands in its own neutral section — each per-section claim stays correct.
-    expect(text).toContain(DE.section.buy); // Käufe
-    expect(text).toContain(DE.section.sell); // Verkäufe
-    expect(text).toContain(DE.section.transfer); // Übertragungen
-    expect(text).toContain(DE_RECEIPT.payment_method_bank); // Banküberweisung (buy section)
-    expect(text).toContain(DE_RECEIPT.payment_method_on_chain); // on-chain (sell section)
+    // One chronological table: every row states its type in the "Art" column and its settlement in
+    // the "Zahlungsweg" column (empty for a plain transfer); the summary shows per-type subtotals.
+    // The history is a statement, not a voucher — no receipt number.
+    expect(text).toContain(DE_RECEIPT.type_buy); // Kauf (Art column)
+    expect(text).toContain(DE_RECEIPT.type_sell); // Verkauf
+    expect(text).toContain(DE_RECEIPT.type_transfer); // Übertragung
+    expect(text).toContain(DE_RECEIPT.payment_method_label); // Zahlungsweg (column header)
+    expect(text).toContain(DE_RECEIPT.payment_method_bank); // Banküberweisung (buy rows)
+    expect(text).toContain(DE_RECEIPT.payment_method_on_chain_short); // On-Chain (ZCHF) (sell row)
+    expect(text).toContain(DE_RECEIPT.total_buy_label); // Total Käufe
+    expect(text).toContain(DE_RECEIPT.total_sell_label); // Total Verkäufe
+    expect(text).toContain(DE_RECEIPT.total_transfer_label); // Total Übertragungen
+    expect(text).toContain(`${DE.table.vat_row.vat_label} (0%)`); // MwSt. (0%) stated on the statement
+    expect(text).toContain('CH1137233305'); // security (ISIN) stated once at the top
+    expect(text).toContain(DE_RECEIPT.period_label); // Zeitraum
+    // Covered period = first to last transaction. The en dash between the dates is WinAnsi 0x96 and
+    // decodes to a control char (U+0096) in the extracted text, so it is matched loosely here.
+    expect(text).toMatch(/28\.10\.2025.{1,3}01\.02\.2026/);
+    expect(text).not.toContain(DE_RECEIPT.receipt_no_label); // no Beleg-Nr. on the history
+    expect(text).not.toContain('RU-'); // no receipt number anywhere on the history
+    expect(text).not.toContain(DE_RECEIPT.details_title); // no details section — holder is the addressee
+    expect(text).not.toContain(DE_RECEIPT.buyer_label);
     expectNoWalletOrTxHash(text);
     writeExample('transaction-history-de.pdf', pdf);
   });
@@ -283,12 +303,70 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     writeExample('transaction-history-en.pdf', pdf);
   });
 
+  it('renders the full REALU security details on the balance report table (DE)', async () => {
+    const pdf = new PDFDocument({ size: 'A4', margin: 50 });
+    const chunks: Buffer[] = [];
+    const rendered = new Promise<string>((resolve) => {
+      pdf.on('data', (c) => chunks.push(c));
+      pdf.on('end', () => resolve(Buffer.concat(chunks).toString('base64')));
+    });
+
+    const balances: BalanceEntry[] = [
+      { asset: REALU_ASSET, balance: 350, price: 1.36, value: 476 },
+      { asset: { name: 'ETH', blockchain: 'Ethereum' } as Asset, balance: 0.5, price: 2500, value: 1250 },
+    ];
+    PdfUtil.drawTable(pdf, balances, PriceCurrency.CHF, PdfLanguage.DE, i18n, PdfBrand.REALUNIT);
+
+    // Tax-voucher section: the REALU movements of the covered period, classified via the same
+    // fail-closed receipt logic (mint → bank, Brokerbot → on-chain, other wallet → neutral transfer).
+    const transactions = service.buildBalanceReportTransactions([
+      { historyEvent: event('100', TX1, '2025-10-28T13:30:00Z'), fiatPrice: 1.29, isIncoming: true },
+      { historyEvent: event('50', TX3, '2026-01-10T16:45:00Z', false), fiatPrice: 1.34, isIncoming: false },
+      { historyEvent: transferEvent('30', TX4, '2026-02-01T10:00:00Z'), fiatPrice: 1.36, isIncoming: true },
+    ]);
+    PdfUtil.drawRealuTransactionsSection(pdf, transactions, PriceCurrency.CHF, PdfLanguage.DE, i18n);
+    pdf.end();
+
+    const base64 = await rendered;
+    // Table-only render (no logo/header), so it stays below expectValidPdf's full-receipt size floor.
+    expect(Buffer.from(base64, 'base64').subarray(0, 5).toString('latin1')).toBe('%PDF-');
+    const text = extractPdfText(base64);
+    // The REALU position carries the full security identification (same text as on the receipts),
+    // so the balance report works as a tax document.
+    expect(text).toContain('REALU');
+    expect(text).toContain('CH1137233305'); // ISIN
+    expect(text).toContain('RealUnit Namenaktie');
+    // Transactions section: chronological rows with type + payment method and per-type totals.
+    expect(text).toContain(DE_RECEIPT.history_title); // Transaktionshistorie
+    expect(text).toContain(DE_RECEIPT.type_buy); // Kauf
+    expect(text).toContain(DE_RECEIPT.type_sell); // Verkauf
+    expect(text).toContain(DE_RECEIPT.type_transfer); // Übertragung
+    expect(text).toContain(DE_RECEIPT.payment_method_bank); // Banküberweisung
+    expect(text).toContain(DE_RECEIPT.payment_method_on_chain_short); // On-Chain (ZCHF)
+    expect(text).toContain(DE_RECEIPT.total_buy_label); // Total Käufe
+    expect(text).toContain(DE_RECEIPT.total_sell_label); // Total Verkäufe
+    expect(text).toContain(DE_RECEIPT.total_transfer_label); // Total Übertragungen
+    expectNoWalletOrTxHash(text);
+  });
+
   // Guards against a missing/typo'd i18n key silently printing the raw key on a customer tax
   // document: every receipt label must exist in every supported language.
   it('has every receipt i18n key in all supported languages', () => {
     const receiptKeys = [
       'realunit_receipt.buy_description',
       'realunit_receipt.sell_description',
+      'realunit_receipt.confirmation_title',
+      'realunit_receipt.history_title',
+      'realunit_receipt.receipt_no_label',
+      'realunit_receipt.period_label',
+      'realunit_receipt.date_label',
+      'realunit_receipt.security_label',
+      'realunit_receipt.type_column',
+      'realunit_receipt.amount_label',
+      'realunit_receipt.subtotal_label',
+      'realunit_receipt.total_buy_label',
+      'realunit_receipt.total_sell_label',
+      'realunit_receipt.total_transfer_label',
       'realunit_receipt.unit_price_label',
       'realunit_receipt.fees_label',
       'realunit_receipt.fees_free',
@@ -302,6 +380,7 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       'realunit_receipt.payment_method_label',
       'realunit_receipt.payment_method_bank',
       'realunit_receipt.payment_method_on_chain',
+      'realunit_receipt.payment_method_on_chain_short',
       'section.buy',
       'section.sell',
       'section.transfer',

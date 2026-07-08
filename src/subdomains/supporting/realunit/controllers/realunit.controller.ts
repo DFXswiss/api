@@ -168,9 +168,26 @@ export class RealUnitController {
     const tokenBlockchain = [Environment.DEV, Environment.LOC].includes(Config.environment)
       ? Blockchain.SEPOLIA
       : Blockchain.ETHEREUM;
+
+    // The report doubles as a tax voucher: alongside the holdings it lists the REALU movements of
+    // the report's tax year (Jan 1 of the report date's year up to the report date).
+    const periodFrom = new Date(Date.UTC(dto.date.getUTCFullYear(), 0, 1));
+    const events = await this.realunitService.getHistoryEventsInPeriod(dto.address, periodFrom, dto.date);
+    const realuAsset = await this.realunitService.getRealuAsset();
+
+    const receipts = await Promise.all(
+      events.map(async (event) => {
+        const price = await this.pricingService.getPriceAt(realuAsset, dto.currency, event.timestamp);
+        const isIncoming = Util.equalsIgnoreCase(event.transfer.to, dto.address);
+        return { historyEvent: event, fiatPrice: price.convert(1), isIncoming };
+      }),
+    );
+    const realuTransactions = this.swissQrService.buildBalanceReportTransactions(receipts);
+
     const pdfData = await this.balancePdfService.generateBalancePdf(
       { ...dto, blockchain: tokenBlockchain },
       PdfBrand.REALUNIT,
+      realuTransactions,
     );
     return { pdfData };
   }

@@ -7,7 +7,7 @@ import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { BalanceEntry, LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
+import { BalanceEntry, BalanceReportTransaction, LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
 import { Util } from 'src/shared/utils/util';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { CoinGeckoService } from '../../pricing/services/integration/coin-gecko.service';
@@ -42,7 +42,11 @@ export class BalancePdfService {
     return SUPPORTED_BLOCKCHAINS;
   }
 
-  async generateBalancePdf(dto: GetBalancePdfDto, brand: PdfBrand = PdfBrand.DFX): Promise<string> {
+  async generateBalancePdf(
+    dto: GetBalancePdfDto,
+    brand: PdfBrand = PdfBrand.DFX,
+    realuTransactions?: BalanceReportTransaction[],
+  ): Promise<string> {
     if (!SUPPORTED_BLOCKCHAINS.includes(dto.blockchain)) {
       throw new BadRequestException(
         `Blockchain ${dto.blockchain} is not supported. Supported blockchains: ${SUPPORTED_BLOCKCHAINS.join(', ')}`,
@@ -57,7 +61,7 @@ export class BalancePdfService {
     const totalValue = balances.reduce((sum, b) => sum + (b.value ?? 0), 0);
     const hasIncompleteData = balances.some((b) => b.value == null);
 
-    return this.createPdf(balances, totalValue, hasIncompleteData, dto, brand);
+    return this.createPdf(balances, totalValue, hasIncompleteData, dto, brand, realuTransactions);
   }
 
   private async getBalancesForAddress(
@@ -156,6 +160,7 @@ export class BalancePdfService {
     hasIncompleteData: boolean,
     dto: GetBalancePdfDto,
     brand: PdfBrand = PdfBrand.DFX,
+    realuTransactions?: BalanceReportTransaction[],
   ): Promise<string> {
     return new Promise<string>((resolve, reject) => {
       try {
@@ -171,8 +176,14 @@ export class BalancePdfService {
 
         PdfUtil.drawLogo(pdf, brand, LogoSize.SMALL);
         this.drawHeader(pdf, dto, language);
-        PdfUtil.drawTable(pdf, balances, dto.currency, language, this.i18n);
+        PdfUtil.drawTable(pdf, balances, dto.currency, language, this.i18n, brand);
         PdfUtil.drawFooter(pdf, totalValue, hasIncompleteData, dto.currency, language, this.i18n);
+
+        // RealUnit: the report doubles as a tax voucher, so the REALU movements of the covered
+        // period follow on their own page after the holdings.
+        if (realuTransactions?.length) {
+          PdfUtil.drawRealuTransactionsSection(pdf, realuTransactions, dto.currency, language, this.i18n);
+        }
 
         pdf.end();
       } catch (e) {

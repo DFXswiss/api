@@ -5,7 +5,7 @@ import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
+import { BalanceReportTransaction, LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -42,6 +42,14 @@ const RECEIPT_PAYMENT_METHOD_KEY: { [settlement in ReceiptSettlement]: string | 
   [ReceiptSettlement.NONE]: undefined,
 };
 
+// Compact variant for the history's "Zahlungsweg" column — the column header already says it is the
+// payment method, so the on-chain label drops the "settled" verb to fit the cell on one line.
+const RECEIPT_PAYMENT_METHOD_COLUMN_KEY: { [settlement in ReceiptSettlement]: string | undefined } = {
+  [ReceiptSettlement.BANK]: 'invoice.realunit_receipt.payment_method_bank',
+  [ReceiptSettlement.ON_CHAIN]: 'invoice.realunit_receipt.payment_method_on_chain_short',
+  [ReceiptSettlement.NONE]: undefined,
+};
+
 enum SupportedInvoiceLanguage {
   DE = 'DE',
   EN = 'EN',
@@ -63,6 +71,7 @@ interface SwissQRBillTableData {
   unitPrice?: number;
   txHash?: string;
   buyerName?: string;
+  receiptNo?: string;
 }
 
 @Injectable()
@@ -162,9 +171,9 @@ export class SwissQRService {
     const fiatAmount = Util.roundReadable(tokenAmount * fiatPrice, AmountType.FIAT);
 
     const tableData: SwissQRBillTableData = {
-      title: this.translate('invoice.receipt_title', language.toLowerCase(), {
-        invoiceId: this.receiptId([historyEvent.txHash]),
-      }),
+      // Plain title; the receipt number moves into a dedicated meta block (Beleg-Nr. + Datum).
+      title: this.translate('invoice.realunit_receipt.confirmation_title', language.toLowerCase()),
+      receiptNo: this.receiptId([historyEvent.txHash]),
       quantity: tokenAmount,
       description: {
         assetDescription: asset.description ?? asset.name,
@@ -249,7 +258,7 @@ export class SwissQRService {
       currency,
     };
 
-    return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand, true, userData.completeName);
+    return this.generateMultiPdfInvoice(tableDataWithType, language, billData, brand, true);
   }
 
   // Format an execution timestamp in the Swiss time zone (DST-safe) for RealUnit receipts
@@ -277,9 +286,14 @@ export class SwissQRService {
     };
   }
 
+  private formatChDate(date: Date): string {
+    const p = this.formatChDateParts(date);
+    return `${String(p.day).padStart(2, '0')}.${String(p.month).padStart(2, '0')}.${p.year}`;
+  }
+
   private formatChDateTime(date: Date): string {
     const p = this.formatChDateParts(date);
-    return `${p.day}.${p.month}.${p.year} ${p.hour}:${p.minute}`;
+    return `${this.formatChDate(date)} ${p.hour}:${p.minute}`;
   }
 
   private async generatePdfInvoice(
@@ -307,15 +321,12 @@ export class SwissQRService {
 
     // Date (+ time for RealUnit, formatted in Swiss time zone)
     const d = tableData.date;
-    pdf.fontSize(11);
-    pdf.font('Helvetica');
     if (isRealUnit) {
-      const creditorCity = Config.blockchain.realunit.address.city;
-      pdf.text(`${creditorCity}, ${this.formatChDateTime(d)}`, {
-        align: 'right',
-        width: mm2pt(170),
-      });
+      // Clean meta block (Beleg-Nr. + execution date/time) instead of a floating right-aligned date.
+      this.drawReceiptMeta(pdf, tableData.receiptNo, d, lang, true);
     } else {
+      pdf.fontSize(11);
+      pdf.font('Helvetica');
       pdf.text(`Zug ${d.getDate()}.${d.getMonth() + 1}.${d.getFullYear()}`, {
         align: 'right',
         width: mm2pt(170),
@@ -345,7 +356,9 @@ export class SwissQRService {
       });
     }
     headerColumns.push({
-      text: this.translate('invoice.table.headers.total', lang),
+      text: isRealUnit
+        ? this.translate('invoice.realunit_receipt.amount_label', lang)
+        : this.translate('invoice.table.headers.total', lang),
       width: mm2pt(30),
     });
 
@@ -392,7 +405,9 @@ export class SwissQRService {
           emptyCol(qtyEmptyWidth),
           {
             fontName: 'Helvetica-Bold',
-            text: this.translate('invoice.table.total_row.total_label', lang),
+            text: isRealUnit
+              ? this.translate('invoice.realunit_receipt.subtotal_label', lang)
+              : this.translate('invoice.table.total_row.total_label', lang),
           },
           ...(hasUnitPrice ? [emptyCol(30)] : []),
           {
@@ -419,27 +434,39 @@ export class SwissQRService {
       });
     }
 
-    // VAT rows
-    rows.push(
-      {
+    // VAT: a single line for RealUnit (rate + amount together), two rows for the DFX invoice layout.
+    if (isRealUnit) {
+      rows.push({
         columns: [
           emptyCol(qtyEmptyWidth),
-          { text: this.translate('invoice.table.vat_row.vat_label', lang) },
-          ...(hasUnitPrice ? [emptyCol(30)] : []),
-          { text: '0%', width: mm2pt(30) },
-        ],
-        padding: 5,
-      },
-      {
-        columns: [
-          emptyCol(qtyEmptyWidth),
-          { text: this.translate('invoice.table.vat_row.vat_amount_label', lang) },
+          { text: `${this.translate('invoice.table.vat_row.vat_label', lang)} (0%)` },
           ...(hasUnitPrice ? [emptyCol(30)] : []),
           { text: `${billData.currency} 0.00`, width: mm2pt(30) },
         ],
         padding: 5,
-      },
-    );
+      });
+    } else {
+      rows.push(
+        {
+          columns: [
+            emptyCol(qtyEmptyWidth),
+            { text: this.translate('invoice.table.vat_row.vat_label', lang) },
+            ...(hasUnitPrice ? [emptyCol(30)] : []),
+            { text: '0%', width: mm2pt(30) },
+          ],
+          padding: 5,
+        },
+        {
+          columns: [
+            emptyCol(qtyEmptyWidth),
+            { text: this.translate('invoice.table.vat_row.vat_amount_label', lang) },
+            ...(hasUnitPrice ? [emptyCol(30)] : []),
+            { text: `${billData.currency} 0.00`, width: mm2pt(30) },
+          ],
+          padding: 5,
+        },
+      );
+    }
 
     // Total row
     const totalLabel = isRealUnit
@@ -559,6 +586,76 @@ export class SwissQRService {
     return ReceiptSettlement.NONE;
   }
 
+  // Display-ready REALU transaction rows for the balance report's tax-voucher section — reuses the
+  // receipt classification (counterparty-based, fail-closed) so the balance report can never claim a
+  // trade or payment method the receipts would not.
+  buildBalanceReportTransactions(
+    receipts: { historyEvent: HistoryEventDto; fiatPrice: number; isIncoming: boolean }[],
+  ): BalanceReportTransaction[] {
+    return receipts
+      .map(({ historyEvent, fiatPrice, isIncoming }) => {
+        const settlement = this.getReceiptSettlement(historyEvent.transfer, isIncoming);
+        const isTrade = settlement !== ReceiptSettlement.NONE;
+        const quantity = Number(historyEvent.transfer.value);
+        return {
+          date: historyEvent.timestamp,
+          type: !isTrade ? ('transfer' as const) : isIncoming ? ('buy' as const) : ('sell' as const),
+          paymentMethodKey: RECEIPT_PAYMENT_METHOD_COLUMN_KEY[settlement],
+          quantity,
+          price: fiatPrice,
+          value: Util.roundReadable(quantity * fiatPrice, AmountType.FIAT),
+        };
+      })
+      .sort((a, b) => a.date.getTime() - b.date.getTime());
+  }
+
+  // Clean meta block under the title: Beleg-Nr. + date as aligned label/value pairs (replaces the old
+  // floating right-aligned date line).
+  private drawReceiptMeta(
+    pdf: typeof PDFDocument.prototype,
+    receiptNo: string | undefined,
+    date: Date,
+    lang: string,
+    withTime: boolean,
+    period?: { from: Date; to: Date },
+  ): void {
+    const labelX = mm2pt(20);
+    const entries: { label: string; value: string }[] = [];
+    if (receiptNo)
+      entries.push({ label: this.translate('invoice.realunit_receipt.receipt_no_label', lang), value: receiptNo });
+    entries.push({
+      label: this.translate('invoice.realunit_receipt.date_label', lang),
+      value: withTime ? this.formatChDateTime(date) : this.formatChDate(date),
+    });
+    if (period)
+      entries.push({
+        label: this.translate('invoice.realunit_receipt.period_label', lang),
+        value: `${this.formatChDate(period.from)} – ${this.formatChDate(period.to)}`,
+      });
+
+    pdf.fontSize(10);
+    let y = pdf.y + 8;
+    for (const { label, value } of entries) {
+      pdf.font('Helvetica-Bold').text(`${label}:`, labelX, y, { continued: true, width: mm2pt(170) });
+      pdf.font('Helvetica').text(`  ${value}`);
+      y = pdf.y + 3;
+    }
+  }
+
+  // States the traded security (name + ISIN) once for a statement, so the collective history does not
+  // repeat the full ISIN description on every row.
+  private drawSecurityLine(pdf: typeof PDFDocument.prototype, description: any, lang: string): void {
+    if (!description) return;
+    pdf.fontSize(10);
+    pdf
+      .font('Helvetica-Bold')
+      .text(`${this.translate('invoice.realunit_receipt.security_label', lang)}:`, mm2pt(20), pdf.y + 8, {
+        continued: true,
+        width: mm2pt(170),
+      });
+    pdf.font('Helvetica').text(`  ${this.translate('invoice.realunit_receipt.buy_description', lang, description)}`);
+  }
+
   private drawReceiptDetails(
     pdf: typeof PDFDocument.prototype,
     receipt: { transactionType?: TransactionType; settlement?: ReceiptSettlement; buyerName?: string },
@@ -618,169 +715,153 @@ export class SwissQRService {
     billData: QrBillData,
     brand: PdfBrand = PdfBrand.DFX,
     skipTermsAndConditions = false,
-    buyerName?: string,
   ): Promise<string> {
     const { pdf, promise } = this.createPdfWithBase64Promise();
     const isRealUnit = brand === PdfBrand.REALUNIT;
     const lang = language.toLowerCase();
-    const hasUnitPrice = isRealUnit && tableDataWithType.some((t) => t.data.unitPrice != null);
+    const currency = billData.currency;
+    const hasUnitPrice = tableDataWithType.some((t) => t.data.unitPrice != null);
 
     PdfUtil.drawLogo(pdf, brand, LogoSize.LARGE);
     this.drawSenderAddress(pdf, brand);
     this.drawDebtorAddress(pdf, billData.debtor);
     const receiptId = this.receiptId(tableDataWithType.map((t) => t.data.txHash));
-    this.drawTitle(pdf, this.translate('invoice.multi_receipt_title', lang, { invoiceId: receiptId }));
+    this.drawTitle(
+      pdf,
+      isRealUnit
+        ? this.translate('invoice.realunit_receipt.history_title', lang)
+        : this.translate('invoice.multi_receipt_title', lang, { invoiceId: receiptId }),
+    );
 
-    // Issue date (generation timestamp) top-right, formatted in the Swiss time zone
     if (isRealUnit) {
-      pdf.fontSize(11).font('Helvetica');
-      const creditorCity = Config.blockchain.realunit.address.city;
-      pdf.text(`${creditorCity}, ${this.formatChDateTime(new Date())}`, { align: 'right', width: mm2pt(170) });
+      // Issue date (generation timestamp) + covered period (first to last transaction) — the history
+      // is a statement, not a voucher, so it carries no receipt number. Then the security
+      // identification once for the whole statement — every row is the same RealUnit share, so the
+      // ISIN is stated here, not per row.
+      const times = tableDataWithType.map((t) => t.data.date.getTime());
+      const period = { from: new Date(Math.min(...times)), to: new Date(Math.max(...times)) };
+      this.drawReceiptMeta(pdf, undefined, new Date(), lang, true, period);
+      this.drawSecurityLine(pdf, tableDataWithType[0]?.data.description, lang);
+      // Breathing room between the security identification and the transaction table.
+      pdf.y += mm2pt(4);
     }
 
-    // Recognized trades keep their buy/sell section (with fee + payment-method rows); unrecognized
-    // transfers (no fiat leg) go into a neutral transfers section that makes no payment claim.
+    // A single chronological table (oldest first) with an explicit type column, instead of separate
+    // buy/sell/transfer sections.
     const isTrade = (t: { settlement: ReceiptSettlement }): boolean => t.settlement !== ReceiptSettlement.NONE;
-    const buyTransactions = tableDataWithType.filter((t) => isTrade(t) && t.type === TransactionType.BUY);
-    const sellTransactions = tableDataWithType.filter((t) => isTrade(t) && t.type === TransactionType.SELL);
-    const transferTransactions = tableDataWithType.filter((t) => !isTrade(t));
-    const buyTotal = buyTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
-    const sellTotal = sellTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
-    const transferTotal = transferTransactions.reduce((sum, t) => sum + t.data.fiatAmount, 0);
+    const sorted = [...tableDataWithType].sort((a, b) => a.data.date.getTime() - b.data.date.getTime());
 
-    const rows: PDFRow[] = [];
-    const qtyWidth = hasUnitPrice ? 20 : 30;
+    const dateWidth = 25;
+    const typeWidth = 26;
+    const qtyWidth = 18;
+    const priceWidth = 24;
+    const amountWidth = 28;
+    // The payment-method column carries no width so it absorbs the table's slack; the fixed amount
+    // column on the far right stays aligned across data and subtotal rows.
+    const labelSpanWidth = 170 - dateWidth - amountWidth;
     const emptyCol = (w: number): PDFColumn => ({ text: '', width: mm2pt(w) });
 
-    const buildSectionHeader = (sectionKey: string): PDFRow => ({
-      columns: [
-        {
-          text: this.translate(`invoice.section.${sectionKey}`, lang),
-          fontName: 'Helvetica-Bold',
-          fontSize: 12,
-        },
-      ],
-      height: 30,
-      padding: [15, 5, 5, 5],
-    });
+    const headerCols: PDFColumn[] = [
+      { text: this.translate('invoice.realunit_receipt.date_label', lang), width: mm2pt(dateWidth) },
+      { text: this.translate('invoice.realunit_receipt.type_column', lang), width: mm2pt(typeWidth) },
+      { text: this.translate('invoice.realunit_receipt.payment_method_label', lang) },
+      { text: this.translate('invoice.table.headers.quantity', lang), width: mm2pt(qtyWidth) },
+    ];
+    if (hasUnitPrice)
+      headerCols.push({
+        text: this.translate('invoice.realunit_receipt.unit_price_label', lang),
+        width: mm2pt(priceWidth),
+      });
+    headerCols.push({ text: this.translate('invoice.realunit_receipt.amount_label', lang), width: mm2pt(amountWidth) });
 
-    const buildTableHeader = (): PDFRow => {
-      const cols: PDFColumn[] = [
-        { text: this.translate('invoice.table.headers.quantity', lang), width: mm2pt(qtyWidth) },
-        { text: this.translate('invoice.table.headers.description', lang) },
-      ];
-      if (hasUnitPrice) {
-        cols.push({ text: this.translate('invoice.realunit_receipt.unit_price_label', lang), width: mm2pt(25) });
-      }
-      cols.push(
-        { text: this.translate('invoice.table.headers.date', lang), width: mm2pt(25) },
-        { text: this.translate('invoice.table.headers.total', lang), width: mm2pt(30) },
-      );
-      return {
+    const rows: PDFRow[] = [
+      {
         backgroundColor: '#4A4D51',
-        columns: cols,
+        columns: headerCols,
         fontName: 'Helvetica-Bold',
         height: 20,
         padding: 5,
         textColor: '#fff',
         verticalAlign: 'center',
-      };
-    };
+      },
+    ];
 
-    const buildDataRow = (tableData: SwissQRBillTableData, txType: TransactionType): PDFRow => {
-      const txDate = tableData.date;
-      const formattedDate = isRealUnit
-        ? this.formatChDateTime(txDate)
-        : `${txDate.getDate()}.${txDate.getMonth() + 1}.${txDate.getFullYear()}`;
-
-      const descKey = isRealUnit
-        ? `invoice.realunit_receipt.${txType.toLowerCase()}_description`
-        : `invoice.table.position_row.${txType.toLowerCase()}_description`;
-
+    for (const t of sorted) {
+      const typeKey = isTrade(t) ? `type_${t.type.toLowerCase()}` : 'type_transfer';
+      // Per-row settlement: bank-settled buy → bank transfer, Brokerbot trade → on-chain (ZCHF); a
+      // plain transfer has no fiat leg, so its payment-method cell stays empty (no payment claim).
+      const paymentMethodKey = RECEIPT_PAYMENT_METHOD_COLUMN_KEY[t.settlement];
       const cols: PDFColumn[] = [
-        { text: `${tableData.quantity}`, width: mm2pt(qtyWidth) },
-        { text: this.translate(descKey, lang, tableData.description) },
+        { text: this.formatChDate(t.data.date), width: mm2pt(dateWidth) },
+        { text: this.translate(`invoice.realunit_receipt.${typeKey}`, lang), width: mm2pt(typeWidth) },
+        { text: paymentMethodKey ? this.translate(paymentMethodKey, lang) : '' },
+        { text: `${t.data.quantity}`, width: mm2pt(qtyWidth) },
       ];
-      if (hasUnitPrice) {
+      if (hasUnitPrice)
         cols.push({
-          text: tableData.unitPrice != null ? `${billData.currency} ${tableData.unitPrice.toFixed(2)}` : '',
-          width: mm2pt(25),
+          text: t.data.unitPrice != null ? `${currency} ${t.data.unitPrice.toFixed(2)}` : '',
+          width: mm2pt(priceWidth),
         });
-      }
-      cols.push(
-        { text: formattedDate, width: mm2pt(25) },
-        { text: `${billData.currency} ${tableData.fiatAmount.toFixed(2)}`, width: mm2pt(30) },
-      );
-      return { columns: cols, padding: 5 };
-    };
+      cols.push({ text: `${currency} ${t.data.fiatAmount.toFixed(2)}`, width: mm2pt(amountWidth) });
+      rows.push({ columns: cols, padding: 5 });
+    }
 
-    const buildSubtotalRow = (total: number): PDFRow => {
-      const cols: PDFColumn[] = [
-        emptyCol(qtyWidth),
-        { text: this.translate('invoice.table.total_row.total_label', lang), fontName: 'Helvetica-Bold' },
-      ];
-      if (hasUnitPrice) cols.push(emptyCol(25));
-      cols.push(emptyCol(25), {
-        text: `${billData.currency} ${total.toFixed(2)}`,
-        width: mm2pt(30),
-        fontName: 'Helvetica-Bold',
+    // Per-type subtotals — a single mixed grand total across buys, sells and transfers would be
+    // meaningless, so each type is summed separately (and only printed when it has entries).
+    const subtotalGroups: {
+      predicate: (t: { type: TransactionType; settlement: ReceiptSettlement }) => boolean;
+      labelKey: string;
+    }[] = [
+      {
+        predicate: (t) => isTrade(t) && t.type === TransactionType.BUY,
+        labelKey: 'invoice.realunit_receipt.total_buy_label',
+      },
+      {
+        predicate: (t) => isTrade(t) && t.type === TransactionType.SELL,
+        labelKey: 'invoice.realunit_receipt.total_sell_label',
+      },
+      { predicate: (t) => !isTrade(t), labelKey: 'invoice.realunit_receipt.total_transfer_label' },
+    ];
+
+    let firstSubtotal = true;
+    for (const group of subtotalGroups) {
+      const items = sorted.filter(group.predicate);
+      if (items.length === 0) continue;
+      const total = items.reduce((sum, t) => sum + t.data.fiatAmount, 0);
+      rows.push({
+        columns: [
+          emptyCol(dateWidth),
+          { text: this.translate(group.labelKey, lang), fontName: 'Helvetica-Bold', width: mm2pt(labelSpanWidth) },
+          { text: `${currency} ${total.toFixed(2)}`, fontName: 'Helvetica-Bold', width: mm2pt(amountWidth) },
+        ],
+        // Extra top padding on the first subtotal to set the summary block off from the last table row.
+        padding: firstSubtotal ? [15, 5, 5, 5] : 5,
       });
-      return { columns: cols, height: 25, padding: 5 };
-    };
+      firstSubtotal = false;
+    }
 
-    const buildFeesRow = (): PDFRow => {
-      const cols: PDFColumn[] = [
-        emptyCol(qtyWidth),
-        { text: this.translate('invoice.realunit_receipt.fees_label', lang), fontName: 'Helvetica-Bold' },
-      ];
-      if (hasUnitPrice) cols.push(emptyCol(25));
-      cols.push(emptyCol(25), {
-        text: this.translate('invoice.realunit_receipt.fees_free', lang),
-        width: mm2pt(30),
-        fontName: 'Helvetica-Bold',
-      });
-      return { columns: cols, padding: 5 };
-    };
-
-    const buildPaymentMethodRow = (paymentMethodKey: string): PDFRow => ({
+    // All RealUnit trades are fee-free — stated once for the whole statement.
+    rows.push({
       columns: [
-        {
-          text: `${this.translate('invoice.realunit_receipt.payment_method_label', lang)}: ${this.translate(
-            paymentMethodKey,
-            lang,
-          )}`,
-          fontName: 'Helvetica-Bold',
-          width: mm2pt(170),
-        },
+        emptyCol(dateWidth),
+        { text: this.translate('invoice.realunit_receipt.fees_label', lang), width: mm2pt(labelSpanWidth) },
+        { text: this.translate('invoice.realunit_receipt.fees_free', lang), width: mm2pt(amountWidth) },
       ],
-      padding: [0, 5, 5, 5],
+      padding: 5,
     });
 
-    const pushSection = (
-      sectionKey: string,
-      txs: { data: SwissQRBillTableData; type: TransactionType; settlement: ReceiptSettlement }[],
-      total: number,
-      isTradeSection: boolean,
-    ): void => {
-      rows.push(buildSectionHeader(sectionKey));
-      rows.push(buildTableHeader());
-      for (const { data, type } of txs) {
-        rows.push(buildDataRow(data, type));
-      }
-      rows.push(buildSubtotalRow(total));
-      if (isRealUnit && isTradeSection) {
-        rows.push(buildFeesRow());
-        // Only claim a payment method when every trade in the section settled the same way; a mixed
-        // section (e.g. a bank-settled DFX buy alongside a direct on-chain buy) makes no blanket claim.
-        const settlements = new Set(txs.map((t) => t.settlement));
-        const paymentMethodKey = settlements.size === 1 ? RECEIPT_PAYMENT_METHOD_KEY[[...settlements][0]] : undefined;
-        if (paymentMethodKey) rows.push(buildPaymentMethodRow(paymentMethodKey));
-      }
-    };
-
-    if (buyTransactions.length > 0) pushSection('buy', buyTransactions, buyTotal, true);
-    if (sellTransactions.length > 0) pushSection('sell', sellTransactions, sellTotal, true);
-    if (transferTransactions.length > 0) pushSection('transfer', transferTransactions, transferTotal, false);
+    // VAT statement for the whole statement — same single line as on the single receipt.
+    rows.push({
+      columns: [
+        emptyCol(dateWidth),
+        {
+          text: `${this.translate('invoice.table.vat_row.vat_label', lang)} (0%)`,
+          width: mm2pt(labelSpanWidth),
+        },
+        { text: `${currency} 0.00`, width: mm2pt(amountWidth) },
+      ],
+      padding: 5,
+    });
 
     if (!skipTermsAndConditions) {
       rows.push({ columns: [this.getTermsAndConditions(lang)] });
@@ -789,11 +870,6 @@ export class SwissQRService {
     const table = new Table({ rows, width: mm2pt(170) });
     table.attachTo(pdf);
 
-    // RealUnit details section
-    if (isRealUnit && buyerName) {
-      this.drawReceiptDetails(pdf, { buyerName }, lang);
-    }
-
     pdf.end();
 
     return promise;
@@ -801,10 +877,11 @@ export class SwissQRService {
 
   // Deterministic, non-reversible receipt number derived from the transaction hash(es).
   // Same set of transactions → same number; no persisted counter exists for on-demand receipts.
-  // The hashes are only folded into the number, never printed on the receipt.
+  // The hashes are only folded into the number, never printed on the receipt. The `RU-` prefix makes
+  // the value read as a deliberately assigned document number rather than a random hash fragment.
   private receiptId(txHashes: (string | undefined)[]): string {
     const sorted = txHashes.filter((h): h is string => h != null).sort();
-    return Util.createHash(sorted.join('-')).slice(0, 8).toUpperCase();
+    return `RU-${Util.createHash(sorted.join('-')).slice(0, 8).toUpperCase()}`;
   }
 
   private createPdfWithBase64Promise(): { pdf: typeof PDFDocument.prototype; promise: Promise<string> } {
