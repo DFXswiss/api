@@ -112,6 +112,27 @@ describe('RealUnitComplianceService', () => {
       await expect(service.searchCustomers('a@b.ch')).resolves.toEqual([]);
       expect(userDataService.getUsersByMail).not.toHaveBeenCalled();
     });
+
+    it('lists the complete tenant scope (sorted by id) when no key is given', async () => {
+      const memberA = Object.assign(new UserData(), { id: 2, mail: 'a@b.ch' });
+      const memberB = Object.assign(new UserData(), { id: 1, mail: 'b@b.ch' });
+
+      scopeService.getCustomerIds.mockResolvedValue([1, 2]);
+      userDataService.getUserDataByIds.mockResolvedValue([memberA, memberB]);
+
+      const result = await service.searchCustomers();
+
+      expect(userDataService.getUserDataByIds).toHaveBeenCalledWith([1, 2]);
+      expect(result.map((u) => u.id)).toEqual([1, 2]);
+      expect(result[0]).not.toHaveProperty('bankTx');
+    });
+
+    it('returns an empty list (fail-closed) without a key when there are no RealUnit customers', async () => {
+      scopeService.getCustomerIds.mockResolvedValue([]);
+
+      await expect(service.searchCustomers()).resolves.toEqual([]);
+      expect(userDataService.getUserDataByIds).not.toHaveBeenCalled();
+    });
   });
 
   describe('downloadCustomerFile', () => {
