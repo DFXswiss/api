@@ -1,9 +1,12 @@
 import { addressExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { Util } from 'src/shared/utils/util';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import {
   BuySupportInfo,
   SellSupportInfo,
@@ -17,6 +20,7 @@ import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import {
+  RealUnitChecksDto,
   RealUnitCustomerDetailDto,
   RealUnitCustomerListDto,
   RealUnitDossierBankDataDto,
@@ -81,6 +85,8 @@ export class RealUnitComplianceDtoMapper {
       highRisk: userData.highRisk,
       pep: userData.pep,
 
+      checks: RealUnitComplianceDtoMapper.toChecksDto(slices),
+
       kycFiles: slices.kycFiles.map(RealUnitComplianceDtoMapper.toKycFileDto),
       kycSteps: slices.kycSteps.map(RealUnitComplianceDtoMapper.toKycStepDto),
       transactions: slices.transactions.map(RealUnitComplianceDtoMapper.toTransactionDto),
@@ -91,6 +97,42 @@ export class RealUnitComplianceDtoMapper {
       virtualIbans: slices.virtualIbans.map(RealUnitComplianceDtoMapper.toVirtualIbanDto),
       supportIssues: slices.supportIssues.map(RealUnitComplianceDtoMapper.toSupportIssueDto),
     };
+  }
+
+  // --- MANDATORY CHECKS --- //
+
+  // Resolves the check evidence api-side so the dashboard renders it 1:1: ident = latest Ident step (Sumsub) plus
+  // the latest Identification file as downloadable evidence; nameCheck = latest Dilisense NAME_CHECK file. Expects
+  // the already-filtered dossier slices, so only allowlisted files can ever become evidence.
+  private static toChecksDto(slices: RealUnitDossierSlices): RealUnitChecksDto {
+    const identStep = Util.maxObj(
+      slices.kycSteps.filter((s) => s.name === KycStepName.IDENT),
+      'sequenceNumber',
+    );
+    const identFile = RealUnitComplianceDtoMapper.latestFileOfType(slices.kycFiles, FileType.IDENTIFICATION);
+    const nameCheckFile = RealUnitComplianceDtoMapper.latestFileOfType(slices.kycFiles, FileType.NAME_CHECK);
+
+    return {
+      identCheck:
+        identStep || identFile
+          ? {
+              status: identStep?.status,
+              date: identStep?.created ?? identFile?.created,
+              fileUid: identFile?.uid,
+              fileName: identFile?.name,
+            }
+          : undefined,
+      nameCheck: nameCheckFile
+        ? { date: nameCheckFile.created, fileUid: nameCheckFile.uid, fileName: nameCheckFile.name }
+        : undefined,
+    };
+  }
+
+  private static latestFileOfType(files: KycFile[], type: FileType): KycFile | undefined {
+    return Util.maxObj(
+      files.filter((f) => f.type === type),
+      'created',
+    );
   }
 
   // --- KYC FILES --- //

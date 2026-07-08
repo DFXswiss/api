@@ -114,6 +114,23 @@ export class RealUnitDossierSupportIssueDto {
   created: Date;
 }
 
+// One resolved check evidence: the api decides which step/file counts as the evidence (api = decision authority),
+// the dashboard renders it 1:1. `status` is only set for step-backed checks (ident); `fileUid`/`fileName` point at
+// the downloadable evidence when one exists.
+export class RealUnitCheckEvidenceDto {
+  status?: string;
+  date: Date;
+  fileUid?: string;
+  fileName?: string;
+}
+
+// The mandatory checks of the RealUnit dossier. An absent member means the check is missing — the dashboard must
+// render that as a compliance finding, never hide the row.
+export class RealUnitChecksDto {
+  identCheck?: RealUnitCheckEvidenceDto;
+  nameCheck?: RealUnitCheckEvidenceDto;
+}
+
 export class RealUnitCustomerDetailDto {
   // --- Identity / PII (RealUnit is the responsible financial intermediary for its own customers) --- //
   id: number;
@@ -140,6 +157,9 @@ export class RealUnitCustomerDetailDto {
   kycType?: KycType;
   highRisk?: boolean;
   pep?: boolean;
+
+  // --- Mandatory checks, resolved by the api (absent member = check missing) --- //
+  checks: RealUnitChecksDto;
 
   // --- Customer-scoped slices (reduced, AML work products structurally omitted) --- //
   kycFiles: RealUnitKycFileDto[];

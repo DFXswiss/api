@@ -97,9 +97,10 @@ describe('RealUnitComplianceService', () => {
       scopeService.assertCustomer.mockResolvedValue(undefined);
       userDataService.getUserData.mockResolvedValue(Object.assign(new UserData(), { id: 1 }));
       kycFileService.getUserDataKycFiles.mockResolvedValue([
-        newFile({ id: 1, uid: 'kyc_ident', type: FileType.IDENTIFICATION, name: 'id.pdf' }),
-        newFile({ id: 2, uid: 'kyc_nc', type: FileType.NAME_CHECK, name: 'nc.pdf' }),
-        newFile({ id: 3, uid: 'kyc_note', type: FileType.USER_NOTES, name: 'note.pdf' }),
+        newFile({ id: 1, uid: 'kyc_ident', type: FileType.IDENTIFICATION, name: 'id.pdf', created: new Date('2025-01-01') }),
+        newFile({ id: 2, uid: 'kyc_nc_old', type: FileType.NAME_CHECK, name: 'nc-old.pdf', created: new Date('2025-05-08') }),
+        newFile({ id: 3, uid: 'kyc_nc', type: FileType.NAME_CHECK, name: 'nc.pdf', created: new Date('2025-05-13') }),
+        newFile({ id: 4, uid: 'kyc_note', type: FileType.USER_NOTES, name: 'note.pdf', created: new Date('2025-06-01') }),
       ]);
       kycService.getStepsByUserData.mockResolvedValue([]);
       transactionService.getTransactionsByUserDataId.mockResolvedValue([
@@ -118,7 +119,32 @@ describe('RealUnitComplianceService', () => {
       const dossier = await service.getReducedDossier(1);
 
       expect(dossier.transactions.map((t) => t.id)).toEqual([1, 2]);
-      expect(dossier.kycFiles.map((f) => f.uid)).toEqual(['kyc_ident', 'kyc_nc']);
+      expect(dossier.kycFiles.map((f) => f.uid)).toEqual(['kyc_ident', 'kyc_nc_old', 'kyc_nc']);
+      expect(dossier.checks.identCheck).toMatchObject({ fileUid: 'kyc_ident', fileName: 'id.pdf' });
+      expect(dossier.checks.nameCheck).toMatchObject({
+        fileUid: 'kyc_nc',
+        fileName: 'nc.pdf',
+        date: new Date('2025-05-13'),
+      });
+    });
+
+    it('reports both checks as missing when no ident step and no evidence files exist', async () => {
+      scopeService.assertCustomer.mockResolvedValue(undefined);
+      userDataService.getUserData.mockResolvedValue(Object.assign(new UserData(), { id: 1 }));
+      kycFileService.getUserDataKycFiles.mockResolvedValue([]);
+      kycService.getStepsByUserData.mockResolvedValue([]);
+      transactionService.getTransactionsByUserDataId.mockResolvedValue([]);
+      bankDataService.getBankDatasByUserData.mockResolvedValue([]);
+      buyService.getUserDataBuys.mockResolvedValue([]);
+      sellService.getSellsByUserDataId.mockResolvedValue([]);
+      swapService.getSwapsByUserDataId.mockResolvedValue([]);
+      virtualIbanService.getVirtualIbansForAccount.mockResolvedValue([]);
+      supportIssueService.getIssueEntities.mockResolvedValue([]);
+
+      const dossier = await service.getReducedDossier(1);
+
+      expect(dossier.checks.identCheck).toBeUndefined();
+      expect(dossier.checks.nameCheck).toBeUndefined();
     });
   });
 
