@@ -18,6 +18,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { RealUnitComplianceDtoMapper } from './dto/realunit-compliance-dto.mapper';
@@ -27,12 +28,14 @@ import { RealUnitScopeService } from './realunit-scope.service';
 // Postgres integer upper bound: larger numeric keys cannot be an id and would fail the DB query
 const MaxDbId = 2147483647;
 
-// KYC file types a RealUnit staff member may see/download for their own customers: only customer-provided documents.
-// DFX-generated AML work products (NAME_CHECK), compliance notes (USER_NOTES, TRANSACTION_NOTES) and the catch-all
-// ADDITIONAL_DOCUMENTS bucket are intentionally excluded. Using enum members (not string literals) makes a future
-// FileType rename a compile error rather than a silent hole.
+// KYC file types a RealUnit staff member may see/download for their own customers: customer-provided documents
+// plus the two mandatory check evidences (ident check via IDENTIFICATION, Dilisense name check via NAME_CHECK).
+// Compliance notes (USER_NOTES, TRANSACTION_NOTES) and the catch-all ADDITIONAL_DOCUMENTS bucket are intentionally
+// excluded. Using enum members (not string literals) makes a future FileType rename a compile error rather than a
+// silent hole.
 export const REALUNIT_DOWNLOADABLE_FILE_TYPES: FileType[] = [
   FileType.IDENTIFICATION,
+  FileType.NAME_CHECK,
   FileType.USER_INFORMATION,
   FileType.RESIDENCE_PERMIT,
   FileType.STOCK_REGISTER,
@@ -43,6 +46,10 @@ export const REALUNIT_DOWNLOADABLE_FILE_TYPES: FileType[] = [
   FileType.ADDRESS_CHANGE,
   FileType.NAME_CHANGE,
 ];
+
+// Assets whose transactions are visible in the RealUnit dossier. RealUnit staff must see the customer's REALU and
+// ZCHF transactions; any other DFX business of the same account (BTC, ETH, ...) stays hidden.
+export const REALUNIT_VISIBLE_TX_ASSETS: string[] = ['REALU', 'ZCHF'];
 
 // Read-only RealUnit compliance dashboard. Every method is strictly tenant-scoped and fail-closed: a non-member id
 // is indistinguishable from a missing resource (404), and no DFX-internal / AML work product is ever reachable. It
@@ -119,7 +126,7 @@ export class RealUnitComplianceService {
     return RealUnitComplianceDtoMapper.toCustomerDetailDto(userData, {
       kycFiles: this.filterDownloadableFiles(kycFiles),
       kycSteps,
-      transactions,
+      transactions: this.filterVisibleTransactions(transactions),
       bankDatas,
       buyRoutes,
       sellRoutes,
@@ -182,5 +189,15 @@ export class RealUnitComplianceService {
 
   private filterDownloadableFiles(files: KycFile[]): KycFile[] {
     return files.filter((f) => REALUNIT_DOWNLOADABLE_FILE_TYPES.includes(f.type));
+  }
+
+  // Same asset accessors as RealUnitComplianceDtoMapper.toTransactionDto, so filter and rendering cannot diverge.
+  private filterVisibleTransactions(transactions: Transaction[]): Transaction[] {
+    return transactions.filter((tx) =>
+      [
+        tx.buyCrypto?.inputAsset ?? tx.buyFiat?.inputAsset,
+        tx.buyCrypto?.outputAsset?.name ?? tx.buyFiat?.outputAsset?.name,
+      ].some((asset) => asset && REALUNIT_VISIBLE_TX_ASSETS.includes(asset)),
+    );
   }
 }

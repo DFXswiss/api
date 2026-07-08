@@ -17,6 +17,7 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { RealUnitComplianceService } from 'src/subdomains/supporting/realunit/realunit-compliance.service';
@@ -43,6 +44,10 @@ describe('RealUnitComplianceService', () => {
 
   function newFile(values: Partial<KycFile>): KycFile {
     return Object.assign(new KycFile(), values);
+  }
+
+  function newTx(values: Partial<Transaction>): Transaction {
+    return Object.assign(new Transaction(), values);
   }
 
   beforeEach(() => {
@@ -86,6 +91,34 @@ describe('RealUnitComplianceService', () => {
       expect(userDataService.getUserData).not.toHaveBeenCalled();
       expect(transactionService.getTransactionsByUserDataId).not.toHaveBeenCalled();
       expect(kycFileService.getUserDataKycFiles).not.toHaveBeenCalled();
+    });
+
+    it('keeps only REALU/ZCHF transactions and exposes ident + name-check evidence but no notes', async () => {
+      scopeService.assertCustomer.mockResolvedValue(undefined);
+      userDataService.getUserData.mockResolvedValue(Object.assign(new UserData(), { id: 1 }));
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({ id: 1, uid: 'kyc_ident', type: FileType.IDENTIFICATION, name: 'id.pdf' }),
+        newFile({ id: 2, uid: 'kyc_nc', type: FileType.NAME_CHECK, name: 'nc.pdf' }),
+        newFile({ id: 3, uid: 'kyc_note', type: FileType.USER_NOTES, name: 'note.pdf' }),
+      ]);
+      kycService.getStepsByUserData.mockResolvedValue([]);
+      transactionService.getTransactionsByUserDataId.mockResolvedValue([
+        newTx({ id: 1, buyCrypto: { inputAsset: 'CHF', outputAsset: { name: 'REALU' } } as any }),
+        newTx({ id: 2, buyFiat: { inputAsset: 'ZCHF', outputAsset: { name: 'CHF' } } as any }),
+        newTx({ id: 3, buyCrypto: { inputAsset: 'CHF', outputAsset: { name: 'BTC' } } as any }),
+        newTx({ id: 4 }),
+      ]);
+      bankDataService.getBankDatasByUserData.mockResolvedValue([]);
+      buyService.getUserDataBuys.mockResolvedValue([]);
+      sellService.getSellsByUserDataId.mockResolvedValue([]);
+      swapService.getSwapsByUserDataId.mockResolvedValue([]);
+      virtualIbanService.getVirtualIbansForAccount.mockResolvedValue([]);
+      supportIssueService.getIssueEntities.mockResolvedValue([]);
+
+      const dossier = await service.getReducedDossier(1);
+
+      expect(dossier.transactions.map((t) => t.id)).toEqual([1, 2]);
+      expect(dossier.kycFiles.map((f) => f.uid)).toEqual(['kyc_ident', 'kyc_nc']);
     });
   });
 
@@ -152,7 +185,7 @@ describe('RealUnitComplianceService', () => {
     it('rejects a disallowed FileType with NotFound and writes no audit log', async () => {
       scopeService.assertCustomer.mockResolvedValue(undefined);
       kycFileService.getKycFile.mockResolvedValue(
-        newFile({ id: 10, uid: 'kyc_1', type: FileType.NAME_CHECK, name: 'nc.pdf', userData: { id: 1 } as UserData }),
+        newFile({ id: 10, uid: 'kyc_1', type: FileType.USER_NOTES, name: 'note.pdf', userData: { id: 1 } as UserData }),
       );
 
       await expect(service.downloadCustomerFile(1, 'kyc_1', jwt)).rejects.toBeInstanceOf(NotFoundException);
