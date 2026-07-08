@@ -39,19 +39,6 @@ export interface BalanceEntry {
   value: number | undefined;
 }
 
-// One REALU transaction on the RealUnit balance report (tax voucher): display-ready row built by
-// SwissQRService.buildBalanceReportTransactions so the trade classification (buy/sell/transfer +
-// settlement) lives in exactly one place.
-export interface BalanceReportTransaction {
-  date: Date;
-  type: 'buy' | 'sell' | 'transfer';
-  // i18n key for the "Zahlungsweg" column; absent for a plain transfer (no payment claim)
-  paymentMethodKey?: string;
-  quantity: number;
-  price: number;
-  value: number;
-}
-
 export class PdfUtil {
   static drawLogo(
     pdf: InstanceType<typeof PDFDocument>,
@@ -198,166 +185,7 @@ export class PdfUtil {
     pdf.y = y + 10;
   }
 
-  // REALU transactions of the covered tax period, rendered below the holdings on the SAME page so
-  // the report works as a one-page tax voucher (holdings + movements; overflows to a next page only
-  // when the transaction list does not fit). Layout mirrors the transaction-history receipt:
-  // chronological rows with type + payment method, then per-type totals.
-  static drawRealuTransactionsSection(
-    pdf: InstanceType<typeof PDFDocument>,
-    transactions: BalanceReportTransaction[],
-    currency: PriceCurrency,
-    language: PdfLanguage,
-    i18n: I18nService,
-  ): void {
-    if (transactions.length === 0) return;
-
-    const marginX = 50;
-    const { width } = pdf.page;
-    const tableWidth = width - marginX * 2;
-
-    const colDate = 65;
-    const colType = 70;
-    const colPayment = 115;
-    const colQty = 60;
-    const colPrice = 90;
-    const colValue = tableWidth - colDate - colType - colPayment - colQty - colPrice;
-
-    const sorted = [...transactions].sort((a, b) => a.date.getTime() - b.date.getTime());
-    const formatChDate = (d: Date): string =>
-      new Intl.DateTimeFormat('de-CH', { timeZone: 'Europe/Zurich', day: '2-digit', month: '2-digit', year: 'numeric' })
-        .format(d)
-        .replace(/\//g, '.');
-
-    // Continue on the current page; break only if even the section header would not fit anymore.
-    let y = pdf.y + 25;
-    if (y > pdf.page.height - 180) {
-      pdf.addPage();
-      y = 50;
-    }
-
-    pdf.fontSize(14).font('Helvetica-Bold').fillColor('#072440');
-    pdf.text(this.translate('invoice.realunit_receipt.history_title', language, i18n), marginX, y);
-
-    // Covered period = first to last transaction of the report's tax period
-    pdf.fontSize(10).font('Helvetica').fillColor('#707070');
-    const period = `${formatChDate(sorted[0].date)} – ${formatChDate(sorted[sorted.length - 1].date)}`;
-    pdf.text(`${this.translate('invoice.realunit_receipt.period_label', language, i18n)}: ${period}`, marginX, y + 22);
-
-    y += 45;
-    pdf.fontSize(11).font('Helvetica-Bold').fillColor('#072440');
-    pdf.text(this.translate('invoice.realunit_receipt.date_label', language, i18n), marginX, y, { width: colDate });
-    pdf.text(this.translate('invoice.realunit_receipt.type_column', language, i18n), marginX + colDate, y, {
-      width: colType,
-    });
-    pdf.text(
-      this.translate('invoice.realunit_receipt.payment_method_label', language, i18n),
-      marginX + colDate + colType,
-      y,
-      { width: colPayment },
-    );
-    pdf.text(
-      this.translate('invoice.table.headers.quantity', language, i18n),
-      marginX + colDate + colType + colPayment,
-      y,
-      { width: colQty },
-    );
-    pdf.text(
-      this.translate('invoice.realunit_receipt.unit_price_label', language, i18n),
-      marginX + colDate + colType + colPayment + colQty,
-      y,
-      { width: colPrice },
-    );
-    pdf.text(
-      this.translate('invoice.realunit_receipt.amount_label', language, i18n),
-      marginX + colDate + colType + colPayment + colQty + colPrice,
-      y,
-      { width: colValue, align: 'right' },
-    );
-
-    y += 20;
-    pdf
-      .moveTo(marginX, y)
-      .lineTo(width - marginX, y)
-      .stroke('#CCCCCC');
-    y += 10;
-
-    pdf.fontSize(10).font('Helvetica').fillColor('#333333');
-    for (const tx of sorted) {
-      if (y > pdf.page.height - 100) {
-        pdf.addPage();
-        y = 50;
-      }
-
-      pdf.text(formatChDate(tx.date), marginX, y, { width: colDate });
-      pdf.text(this.translate(`invoice.realunit_receipt.type_${tx.type}`, language, i18n), marginX + colDate, y, {
-        width: colType,
-      });
-      pdf.text(
-        tx.paymentMethodKey ? this.translate(tx.paymentMethodKey, language, i18n) : '',
-        marginX + colDate + colType,
-        y,
-        { width: colPayment },
-      );
-      pdf.text(this.formatNumber(tx.quantity, 8), marginX + colDate + colType + colPayment, y, { width: colQty });
-      pdf.text(this.formatCurrency(tx.price, currency), marginX + colDate + colType + colPayment + colQty, y, {
-        width: colPrice,
-      });
-      pdf.text(
-        this.formatCurrency(tx.value, currency),
-        marginX + colDate + colType + colPayment + colQty + colPrice,
-        y,
-        { width: colValue, align: 'right' },
-      );
-
-      y += 20;
-    }
-
-    pdf
-      .moveTo(marginX, y)
-      .lineTo(width - marginX, y)
-      .stroke('#CCCCCC');
-    y += 10;
-
-    // Per-type totals — a mixed grand total across buys, sells and transfers would be meaningless
-    for (const type of ['buy', 'sell', 'transfer'] as const) {
-      const items = sorted.filter((t) => t.type === type);
-      if (items.length === 0) continue;
-      const total = items.reduce((sum, t) => sum + t.value, 0);
-
-      if (y > pdf.page.height - 100) {
-        pdf.addPage();
-        y = 50;
-      }
-
-      pdf.fontSize(10).font('Helvetica-Bold').fillColor('#072440');
-      pdf.text(this.translate(`invoice.realunit_receipt.total_${type}_label`, language, i18n), marginX, y, {
-        width: tableWidth - colValue - 10,
-      });
-      pdf.text(this.formatCurrency(total, currency), width - marginX - colValue, y, {
-        width: colValue,
-        align: 'right',
-      });
-      y += 18;
-    }
-
-    pdf.y = y;
-  }
-
   static drawFooter(
-    pdf: InstanceType<typeof PDFDocument>,
-    totalValue: number,
-    hasIncompleteData: boolean,
-    currency: PriceCurrency,
-    language: PdfLanguage,
-    i18n: I18nService,
-  ): void {
-    this.drawTotalValue(pdf, totalValue, hasIncompleteData, currency, language, i18n);
-    this.drawGeneratedBy(pdf, language, i18n);
-  }
-
-  // Total-value block (bold total + optional incomplete-data note); separate from the generated-by
-  // line so the RealUnit report can place its transactions section in between on the same page.
-  static drawTotalValue(
     pdf: InstanceType<typeof PDFDocument>,
     totalValue: number,
     hasIncompleteData: boolean,
@@ -383,12 +211,7 @@ export class PdfUtil {
       y += 25;
     }
 
-    pdf.y = y;
-  }
-
-  static drawGeneratedBy(pdf: InstanceType<typeof PDFDocument>, language: PdfLanguage, i18n: I18nService): void {
-    const marginX = 50;
-    const y = pdf.y + 20;
+    y += 20;
     pdf.fontSize(8).font('Helvetica').fillColor('#999999');
     pdf.text(`${this.translate('balance.generated_by', language, i18n)} - ${new Date().toISOString()}`, marginX, y);
   }

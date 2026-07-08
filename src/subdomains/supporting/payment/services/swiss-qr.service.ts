@@ -5,7 +5,7 @@ import * as QRCode from 'qrcode';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
-import { BalanceReportTransaction, LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
+import { LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { BankInfoDto } from 'src/subdomains/core/buy-crypto/routes/buy/dto/buy-payment-info.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
@@ -584,29 +584,6 @@ export class SwissQRService {
     if (Util.equalsIgnoreCase(counterparty, Config.blockchain.realunit.brokerbotAddress))
       return ReceiptSettlement.ON_CHAIN;
     return ReceiptSettlement.NONE;
-  }
-
-  // Display-ready REALU transaction rows for the balance report's tax-voucher section — reuses the
-  // receipt classification (counterparty-based, fail-closed) so the balance report can never claim a
-  // trade or payment method the receipts would not.
-  buildBalanceReportTransactions(
-    receipts: { historyEvent: HistoryEventDto; fiatPrice: number; isIncoming: boolean }[],
-  ): BalanceReportTransaction[] {
-    return receipts
-      .map(({ historyEvent, fiatPrice, isIncoming }) => {
-        const settlement = this.getReceiptSettlement(historyEvent.transfer, isIncoming);
-        const isTrade = settlement !== ReceiptSettlement.NONE;
-        const quantity = Number(historyEvent.transfer.value);
-        return {
-          date: historyEvent.timestamp,
-          type: !isTrade ? ('transfer' as const) : isIncoming ? ('buy' as const) : ('sell' as const),
-          paymentMethodKey: RECEIPT_PAYMENT_METHOD_COLUMN_KEY[settlement],
-          quantity,
-          price: fiatPrice,
-          value: Util.roundReadable(quantity * fiatPrice, AmountType.FIAT),
-        };
-      })
-      .sort((a, b) => a.date.getTime() - b.date.getTime());
   }
 
   // Clean meta block under the title: Beleg-Nr. + date as aligned label/value pairs (replaces the old

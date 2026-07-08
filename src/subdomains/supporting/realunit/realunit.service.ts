@@ -264,28 +264,6 @@ export class RealUnitService {
     throw new NotFoundException('Transaction not found in account history');
   }
 
-  // All transfer events of the address within [from, to] — pages through the full account history,
-  // like getHistoryEventsByTxHashes, since the graph guarantees no timestamp ordering contract.
-  async getHistoryEventsInPeriod(address: string, from: Date, to: Date): Promise<HistoryEventDto[]> {
-    const events: HistoryEventDto[] = [];
-    let cursor: string | undefined;
-
-    while (true) {
-      const history = await this.getAccountHistory(address, 100, undefined, cursor);
-
-      for (const event of history.history) {
-        if (event.eventType === HistoryEventType.TRANSFER && event.timestamp >= from && event.timestamp <= to) {
-          events.push(event);
-        }
-      }
-
-      if (!history.pageInfo.hasNextPage) break;
-      cursor = history.pageInfo.endCursor;
-    }
-
-    return events;
-  }
-
   async getHistoryEventsByTxHashes(address: string, txHashes: string[]): Promise<HistoryEventDto[]> {
     const normalizedHashes = new Set(txHashes.map((h) => h.toLowerCase()));
     const foundEvents: HistoryEventDto[] = [];

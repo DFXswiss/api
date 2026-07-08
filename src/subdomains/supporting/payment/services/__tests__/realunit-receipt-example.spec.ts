@@ -304,7 +304,7 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     writeExample('transaction-history-en.pdf', pdf);
   });
 
-  it('renders the balance report as a tax report with full REALU details and movements (DE)', async () => {
+  it('renders the balance report with the full REALU security details (DE)', async () => {
     // Real rendering path of POST /realunit/balance/pdf — only the live Alchemy/pricing lookups are
     // replaced by fixtures, so the committed example shows exactly what the endpoint produces.
     const balanceService = new BalancePdfService(null as never, null as never, null as never, null as never, i18n);
@@ -313,14 +313,6 @@ describe('SwissQRService — RealUnit receipt examples', () => {
       { asset: REALU_ASSET, balance: 330, price: 1.38, value: 455.4 },
       { asset: { name: 'ETH', blockchain: 'Ethereum' } as Asset, balance: 0.5, price: 2500, value: 1250 },
     ];
-
-    // Tax-voucher section: the REALU movements of the covered period, classified via the same
-    // fail-closed receipt logic (mint → bank, Brokerbot → on-chain, other wallet → neutral transfer).
-    const transactions = service.buildBalanceReportTransactions([
-      { historyEvent: event('100', TX1, '2025-10-28T13:30:00Z'), fiatPrice: 1.29, isIncoming: true },
-      { historyEvent: event('50', TX3, '2026-01-10T16:45:00Z', false), fiatPrice: 1.34, isIncoming: false },
-      { historyEvent: transferEvent('30', TX4, '2026-02-01T10:00:00Z'), fiatPrice: 1.36, isIncoming: true },
-    ]);
 
     const dto = {
       address: BUYER_WALLET,
@@ -331,30 +323,15 @@ describe('SwissQRService — RealUnit receipt examples', () => {
     };
     const base64 = await (
       balanceService as unknown as { createPdf: (...args: unknown[]) => Promise<string> }
-    ).createPdf(balances, 1705.4, false, dto, PdfBrand.REALUNIT, transactions);
+    ).createPdf(balances, 1705.4, false, dto, PdfBrand.REALUNIT);
 
     expectValidPdf(base64);
     const text = extractPdfText(base64);
     // The REALU position carries the full security identification (same text as on the receipts),
-    // so the balance report works as a tax document.
+    // so the balance report works as a tax document. Everything else stays the standard report.
     expect(text).toContain('REALU');
     expect(text).toContain('CH1137233305'); // ISIN
     expect(text).toContain('RealUnit Namenaktie');
-    // Transactions section: chronological rows with type + payment method and per-type totals.
-    expect(text).toContain(DE_RECEIPT.history_title); // Transaktionshistorie
-    expect(text).toContain(DE_RECEIPT.type_buy); // Kauf
-    expect(text).toContain(DE_RECEIPT.type_sell); // Verkauf
-    expect(text).toContain(DE_RECEIPT.type_transfer); // Übertragung
-    expect(text).toContain(DE_RECEIPT.payment_method_bank); // Banküberweisung
-    expect(text).toContain(DE_RECEIPT.payment_method_on_chain_short); // On-Chain (ZCHF)
-    expect(text).toContain(DE_RECEIPT.total_buy_label); // Total Käufe
-    expect(text).toContain(DE_RECEIPT.total_sell_label); // Total Verkäufe
-    expect(text).toContain(DE_RECEIPT.total_transfer_label); // Total Übertragungen
-    // Unlike the receipts, the balance report legitimately shows the queried address in its header
-    // (it is an address-based holdings report), so only tx hashes are asserted absent here.
-    for (const tx of [TX1, TX2, TX3, TX4]) {
-      expect(text.toLowerCase()).not.toContain(tx.toLowerCase());
-    }
     writeExample('balance-report-de.pdf', base64);
   });
 
