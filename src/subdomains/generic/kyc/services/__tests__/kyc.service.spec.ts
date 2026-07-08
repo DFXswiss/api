@@ -8,11 +8,14 @@ import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { RiskStatus, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
 import { UserDataService } from '../../../user/models/user-data/user-data.service';
 import { UserStatus } from '../../../user/models/user/user.enum';
-import { FileType } from '../../dto/kyc-file.dto';
+import { IdentDocument } from '../../dto/ident.dto';
+import { FileType, KycFileBlob } from '../../dto/kyc-file.dto';
 import { KycFile } from '../../entities/kyc-file.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
+import { ContentType } from '../../enums/content-type.enum';
 import { KycStepName } from '../../enums/kyc-step-name.enum';
 import { KycDocumentService } from '../integration/kyc-document.service';
+import { SumsubService } from '../integration/sum-sub.service';
 import { KycFileService } from '../kyc-file.service';
 import { KycLogService } from '../kyc-log.service';
 import { KycService } from '../kyc.service';
@@ -215,5 +218,76 @@ describe('KycService getFileByUid protected-file access', () => {
       expect(tfaService.check).not.toHaveBeenCalled();
       expect(documentService.downloadFile).toHaveBeenCalled();
     });
+  });
+});
+
+// downloadMedia is hit on every Sumsub MEDIA webhook, including redeliveries of the same event.
+// It must skip a document that was already stored (matched like syncIdentFilesInternal: type,
+// transactionId substring, contentType), otherwise a redelivery redundantly re-writes the same
+// deterministically-named blob.
+describe('KycService downloadMedia', () => {
+  let service: KycService;
+  let documentService: jest.Mocked<KycDocumentService>;
+  let sumsubService: jest.Mocked<SumsubService>;
+
+  const transactionId = 'TXN-123';
+
+  const kycStep = createMock<KycStep>({ transactionId });
+  const user = createMock<UserData>({ id: 42 });
+
+  const existingFile = (overrides: Partial<KycFileBlob> = {}): KycFileBlob =>
+    createMock<KycFileBlob>({
+      type: FileType.IDENTIFICATION,
+      name: `user/42/identification/${transactionId}-video`,
+      contentType: ContentType.MP4,
+      ...overrides,
+    });
+
+  const identDocument = (overrides: Partial<IdentDocument> = {}): IdentDocument => ({
+    name: `${transactionId}-video`,
+    content: Buffer.from('x'),
+    contentType: ContentType.MP4,
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    documentService = createMock<KycDocumentService>();
+    sumsubService = createMock<SumsubService>();
+
+    // downloadMedia only touches these deps; avoid wiring all constructor deps
+    service = Object.create(KycService.prototype);
+    (service as any).documentService = documentService;
+    (service as any).sumsubService = sumsubService;
+  });
+
+  it('skips a document that is already stored, without uploading', async () => {
+    documentService.listUserFiles.mockResolvedValue([existingFile()]);
+    sumsubService.getMedia.mockResolvedValue([identDocument()]);
+
+    await (service as any).downloadMedia(user, kycStep, true);
+
+    expect(documentService.listUserFiles).toHaveBeenCalledWith(user.id);
+    expect(documentService.uploadFile).not.toHaveBeenCalled();
+  });
+
+  it('uploads a document that is genuinely missing', async () => {
+    const missing = identDocument();
+    documentService.listUserFiles.mockResolvedValue([existingFile({ contentType: ContentType.JSON })]);
+    sumsubService.getMedia.mockResolvedValue([missing]);
+
+    await (service as any).downloadMedia(user, kycStep, true);
+
+    expect(documentService.uploadFile).toHaveBeenCalledTimes(1);
+    expect(documentService.uploadFile).toHaveBeenCalledWith(
+      user,
+      FileType.IDENTIFICATION,
+      missing.name,
+      missing.content,
+      missing.contentType,
+      true,
+      true,
+      kycStep,
+      undefined,
+    );
   });
 });

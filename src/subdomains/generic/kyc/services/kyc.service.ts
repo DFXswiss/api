@@ -1837,8 +1837,20 @@ export class KycService {
   }
 
   private async downloadMedia(user: UserData, kycStep: KycStep, isValid: boolean) {
+    const userFiles = await this.documentService.listUserFiles(user.id);
     const documents = await this.sumsubService.getMedia(kycStep);
-    await this.storeDocuments(documents, user, kycStep, isValid);
+
+    const missingDocuments = documents.filter(
+      (d) =>
+        !userFiles.some(
+          (f) =>
+            f.type === FileType.IDENTIFICATION &&
+            f.name.includes(kycStep.transactionId) &&
+            f.contentType === d.contentType,
+        ),
+    );
+
+    await this.storeDocuments(missingDocuments, user, kycStep, isValid);
   }
 
   async syncIdentFiles(stepId: number): Promise<void> {
