@@ -97,10 +97,28 @@ describe('RealUnitComplianceService', () => {
       scopeService.assertCustomer.mockResolvedValue(undefined);
       userDataService.getUserData.mockResolvedValue(Object.assign(new UserData(), { id: 1 }));
       kycFileService.getUserDataKycFiles.mockResolvedValue([
-        newFile({ id: 1, uid: 'kyc_ident', type: FileType.IDENTIFICATION, name: 'id.pdf', created: new Date('2025-01-01') }),
-        newFile({ id: 2, uid: 'kyc_nc_old', type: FileType.NAME_CHECK, name: 'nc-old.pdf', created: new Date('2025-05-08') }),
+        newFile({
+          id: 1,
+          uid: 'kyc_ident',
+          type: FileType.IDENTIFICATION,
+          name: 'id.pdf',
+          created: new Date('2025-01-01'),
+        }),
+        newFile({
+          id: 2,
+          uid: 'kyc_nc_old',
+          type: FileType.NAME_CHECK,
+          name: 'nc-old.pdf',
+          created: new Date('2025-05-08'),
+        }),
         newFile({ id: 3, uid: 'kyc_nc', type: FileType.NAME_CHECK, name: 'nc.pdf', created: new Date('2025-05-13') }),
-        newFile({ id: 4, uid: 'kyc_note', type: FileType.USER_NOTES, name: 'note.pdf', created: new Date('2025-06-01') }),
+        newFile({
+          id: 4,
+          uid: 'kyc_note',
+          type: FileType.USER_NOTES,
+          name: 'note.pdf',
+          created: new Date('2025-06-01'),
+        }),
       ]);
       kycService.getStepsByUserData.mockResolvedValue([]);
       transactionService.getTransactionsByUserDataId.mockResolvedValue([
