@@ -267,10 +267,10 @@ export class SwissQRService {
     address: string,
   ): Promise<string> {
     // Fail-closed: a tax statement must never show "n/a" or a zeroed total for a holding that could not be
-    // priced (e.g. a reference year without an official RealUnit tax value). Refuse rather than issue a
-    // misleading document.
+    // priced at all (neither an official tax value nor a market price for the reference date). Refuse
+    // rather than issue a misleading document.
     if (balances.some((b) => b.value == null)) {
-      throw new BadRequestException('No official RealUnit tax value is available for the selected reference date.');
+      throw new BadRequestException('The RealUnit holding could not be priced for the selected reference date.');
     }
 
     const { pdf, promise } = this.createPdfWithBase64Promise();
