@@ -1,4 +1,4 @@
-import { IsNotEmpty } from 'class-validator';
+import { IsOptional, IsString } from 'class-validator';
 import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import {
   BuySupportInfo,
@@ -20,8 +20,9 @@ import { KycLevel, KycStatus, KycType } from 'src/subdomains/generic/user/models
 // reduced-compliance-scope decision (2026-07-03).
 
 export class RealUnitCustomerSearchQuery {
-  @IsNotEmpty()
-  key: string;
+  @IsOptional()
+  @IsString()
+  key?: string;
 }
 
 export class RealUnitCustomerListDto {
