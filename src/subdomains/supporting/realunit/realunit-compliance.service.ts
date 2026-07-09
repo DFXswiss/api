@@ -1,4 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
+import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -186,6 +187,50 @@ export class RealUnitComplianceService {
 
     return [];
   }
+
+  // --- FULL DOSSIER --- //
+
+  // Bundles every allowlisted file of the customer into one ZIP, grouped by file type. Same tenant and allowlist
+  // boundaries as the single-file download; the export is recorded with one aggregated audit-log entry. A blob
+  // missing in storage does not abort the export — it is listed in MISSING_FILES.txt instead.
+  async downloadCustomerDossier(id: number, jwt: JwtPayload): Promise<Buffer> {
+    await this.scopeService.assertCustomer(id); // fail-closed 404
+
+    const userData = await this.userDataService.getUserData(id);
+    if (!userData) throw new NotFoundException('Not found');
+
+    const files = await this.kycFileService.getUserDataKycFiles(id).then((f) => this.filterDownloadableFiles(f));
+    if (!files.length) throw new NotFoundException('Not found');
+
+    const zip = new JSZip();
+    const missing: string[] = [];
+
+    for (const file of files) {
+      try {
+        const blob = await this.kycDocumentService.downloadFile(FileCategory.USER, id, file.type, file.name);
+        const path = zip.file(`${file.type}/${file.name}`)
+          ? `${file.type}/${file.id}_${file.name}`
+          : `${file.type}/${file.name}`;
+        zip.file(path, blob.data);
+      } catch (e) {
+        this.logger.warn(`Dossier export: file ${file.id} of customer ${id} not downloadable:`, e);
+        missing.push(`${file.type}/${file.name} (ID: ${file.id})`);
+      }
+    }
+
+    if (missing.length) zip.file('MISSING_FILES.txt', missing.join('\n'));
+
+    // Mandatory regulatory audit trail: one aggregated entry recording the full export.
+    const log = `RealUnit staff ${jwt.account} is downloading the full dossier of customer ${id} (${
+      files.length
+    } files: ${files.map((f) => f.id).join(', ')})`;
+    this.logger.verbose(`RealUnit staff ${jwt.account} downloading full dossier of customer ${id}`);
+    await this.kycLogService.createKycFileLog(log, userData);
+
+    return zip.generateAsync({ type: 'nodebuffer' });
+  }
+
+  // --- HELPER METHODS --- //
 
   private filterDownloadableFiles(files: KycFile[]): KycFile[] {
     return files.filter((f) => REALUNIT_DOWNLOADABLE_FILE_TYPES.includes(f.type));

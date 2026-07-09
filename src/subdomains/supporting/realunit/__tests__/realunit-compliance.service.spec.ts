@@ -298,4 +298,61 @@ describe('RealUnitComplianceService', () => {
       expect(kycFileService.getKycFile).not.toHaveBeenCalled();
     });
   });
+
+  describe('downloadCustomerDossier', () => {
+    const blob: BlobContent = {
+      data: Buffer.from('content'),
+      contentType: 'application/pdf',
+      created: new Date(),
+      updated: new Date(),
+      metadata: {},
+    };
+
+    it('zips only allowlisted files and records one aggregated audit log', async () => {
+      const userData = Object.assign(new UserData(), { id: 1 });
+      scopeService.assertCustomer.mockResolvedValue(undefined);
+      userDataService.getUserData.mockResolvedValue(userData);
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({ id: 1, uid: 'kyc_ident', type: FileType.IDENTIFICATION, name: 'id.pdf' }),
+        newFile({ id: 2, uid: 'kyc_nc', type: FileType.NAME_CHECK, name: 'nc.pdf' }),
+        newFile({ id: 3, uid: 'kyc_note', type: FileType.USER_NOTES, name: 'note.pdf' }),
+      ]);
+      kycDocumentService.downloadFile.mockResolvedValue(blob);
+
+      const zipContent = await service.downloadCustomerDossier(1, jwt);
+
+      expect(Buffer.isBuffer(zipContent)).toBe(true);
+      expect(kycDocumentService.downloadFile).toHaveBeenCalledTimes(2);
+      expect(kycDocumentService.downloadFile).not.toHaveBeenCalledWith(
+        FileCategory.USER,
+        1,
+        FileType.USER_NOTES,
+        'note.pdf',
+      );
+      expect(kycLogService.createKycFileLog).toHaveBeenCalledTimes(1);
+      expect(kycLogService.createKycFileLog).toHaveBeenCalledWith(expect.stringContaining('42'), userData);
+    });
+
+    it('throws NotFound and writes no audit log when no allowlisted files exist', async () => {
+      scopeService.assertCustomer.mockResolvedValue(undefined);
+      userDataService.getUserData.mockResolvedValue(Object.assign(new UserData(), { id: 1 }));
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({ id: 3, uid: 'kyc_note', type: FileType.USER_NOTES, name: 'note.pdf' }),
+      ]);
+
+      await expect(service.downloadCustomerDossier(1, jwt)).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(kycDocumentService.downloadFile).not.toHaveBeenCalled();
+      expect(kycLogService.createKycFileLog).not.toHaveBeenCalled();
+    });
+
+    it('asserts membership before loading any data (fail-closed for a non-member id)', async () => {
+      scopeService.assertCustomer.mockRejectedValue(new NotFoundException('Not found'));
+
+      await expect(service.downloadCustomerDossier(2, jwt)).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(kycFileService.getUserDataKycFiles).not.toHaveBeenCalled();
+      expect(kycDocumentService.downloadFile).not.toHaveBeenCalled();
+    });
+  });
 });

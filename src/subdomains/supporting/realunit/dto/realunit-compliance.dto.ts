@@ -115,10 +115,11 @@ export class RealUnitDossierSupportIssueDto {
 }
 
 // One resolved check evidence: the api decides which step/file counts as the evidence (api = decision authority),
-// the dashboard renders it 1:1. `status` is only set for step-backed checks (ident); `fileUid`/`fileName` point at
-// the downloadable evidence when one exists.
+// the dashboard renders it 1:1. `status`/`type` are only set for step-backed checks (ident; type = KycStepType,
+// e.g. SumsubAuto/SumsubVideo/Video/Manual); `fileUid`/`fileName` point at the downloadable evidence when one exists.
 export class RealUnitCheckEvidenceDto {
   status?: string;
+  type?: string;
   date: Date;
   fileUid?: string;
   fileName?: string;

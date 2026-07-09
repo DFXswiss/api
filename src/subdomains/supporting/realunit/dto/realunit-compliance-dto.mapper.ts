@@ -117,6 +117,7 @@ export class RealUnitComplianceDtoMapper {
         identStep || identFile
           ? {
               status: identStep?.status,
+              type: identStep?.type,
               date: identStep?.created ?? identFile?.created,
               fileUid: identFile?.uid,
               fileName: identFile?.name,
