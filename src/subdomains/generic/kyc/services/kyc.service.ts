@@ -67,7 +67,7 @@ import {
 } from '../dto/input/kyc-data.dto';
 import { KycFinancialInData, KycFinancialResponse } from '../dto/input/kyc-financial-in.dto';
 import { KycError, KycStepIgnoringErrors } from '../dto/kyc-error.enum';
-import { FileSubType, FileType, KycFileDataDto } from '../dto/kyc-file.dto';
+import { FileSubType, FileType, KycFileBlob, KycFileDataDto } from '../dto/kyc-file.dto';
 import { KycFileMapper } from '../dto/mapper/kyc-file.mapper';
 import { KycInfoMapper } from '../dto/mapper/kyc-info.mapper';
 import { KycStepMapper } from '../dto/mapper/kyc-step.mapper';
@@ -1832,23 +1832,19 @@ export class KycService {
   }
 
   private async downloadIdentDocuments(user: UserData, kycStep: KycStep, isValid: boolean) {
+    const userFiles = await this.documentService.listUserFiles(user.id);
     const documents = await this.sumsubService.getDocuments(kycStep);
-    await this.storeDocuments(documents, user, kycStep, isValid);
+
+    const missingDocuments = this.filterMissingDocuments(documents, userFiles, kycStep);
+
+    await this.storeDocuments(missingDocuments, user, kycStep, isValid);
   }
 
   private async downloadMedia(user: UserData, kycStep: KycStep, isValid: boolean) {
     const userFiles = await this.documentService.listUserFiles(user.id);
     const documents = await this.sumsubService.getMedia(kycStep);
 
-    const missingDocuments = documents.filter(
-      (d) =>
-        !userFiles.some(
-          (f) =>
-            f.type === FileType.IDENTIFICATION &&
-            f.name.includes(kycStep.transactionId) &&
-            f.contentType === d.contentType,
-        ),
-    );
+    const missingDocuments = this.filterMissingDocuments(documents, userFiles, kycStep);
 
     await this.storeDocuments(missingDocuments, user, kycStep, isValid);
   }
@@ -1871,16 +1867,34 @@ export class KycService {
       documents.push(...(await this.sumsubService.getMedia(kycStep)));
     }
 
-    const missingDocuments = documents.filter(
-      (d) =>
-        !userFiles.some(
-          (f) =>
-            f.type === FileType.IDENTIFICATION &&
-            f.name.includes(kycStep.transactionId) &&
-            f.contentType === d.contentType,
-        ),
-    );
+    const missingDocuments = this.filterMissingDocuments(documents, userFiles, kycStep);
     await this.storeDocuments(missingDocuments, kycStep.userData, kycStep, true);
+  }
+
+  // Sumsub MEDIA webhooks are at-least-once and fire once per video composition, so downloadMedia /
+  // syncIdentFilesInternal re-run for the same ident. Keep only the documents that are not stored yet,
+  // matched on the stable, content-identifying part of the blob name: everything after the leading,
+  // dash-free timestamp produced by SumsubService.fileName (i.e. `<transactionId>-<mediaId>.<ext>`).
+  // A redelivery of the same composition shares that suffix and is skipped; a genuinely new
+  // composition carries a different mediaId, hence a different suffix, and is uploaded rather than
+  // silently dropped (fail-closed: an undeterminable suffix falls back to the full name and uploads).
+  private filterMissingDocuments(
+    documents: IdentDocument[],
+    userFiles: KycFileBlob[],
+    kycStep: KycStep,
+  ): IdentDocument[] {
+    const missingDocuments = documents.filter((d) => {
+      const stableSuffix = d.name.substring(d.name.indexOf('-') + 1);
+      return !userFiles.some(
+        (f) => f.type === FileType.IDENTIFICATION && f.contentType === d.contentType && f.name.endsWith(stableSuffix),
+      );
+    });
+
+    const skippedCount = documents.length - missingDocuments.length;
+    if (skippedCount > 0)
+      this.logger.verbose(`Skipped ${skippedCount} already-stored ident document(s) for KYC step: ${kycStep.id}`);
+
+    return missingDocuments;
   }
 
   private async storeDocuments(

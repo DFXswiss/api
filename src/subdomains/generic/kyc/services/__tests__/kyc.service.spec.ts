@@ -3,6 +3,7 @@ import { ForbiddenException } from '@nestjs/common';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { RiskStatus, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
@@ -221,30 +222,40 @@ describe('KycService getFileByUid protected-file access', () => {
   });
 });
 
-// downloadMedia is hit on every Sumsub MEDIA webhook, including redeliveries of the same event.
-// It must skip a document that was already stored (matched like syncIdentFilesInternal: type,
-// transactionId substring, contentType), otherwise a redelivery redundantly re-writes the same
-// deterministically-named blob.
+// downloadMedia is hit on every Sumsub MEDIA webhook, and Sumsub fires one MEDIA event per video
+// composition and redelivers events at least once. A redelivery of the same composition must be
+// skipped, but a genuinely new composition (same transaction, different mediaId) must still be
+// uploaded. Documents are matched on the stable name suffix (`<transactionId>-<mediaId>.<ext>`,
+// everything after SumsubService.fileName's dash-free timestamp prefix), which differs per mediaId.
 describe('KycService downloadMedia', () => {
   let service: KycService;
   let documentService: jest.Mocked<KycDocumentService>;
   let sumsubService: jest.Mocked<SumsubService>;
 
-  const transactionId = 'TXN-123';
+  const transactionId = 'kyc-video-42-0-abc123';
 
   const kycStep = createMock<KycStep>({ transactionId });
   const user = createMock<UserData>({ id: 42 });
 
-  const existingFile = (overrides: Partial<KycFileBlob> = {}): KycFileBlob =>
+  // as listed by listUserFiles: the blob name after the `user/<id>/<type>/` prefix is stripped,
+  // i.e. the deterministic SumsubService.fileName `<timestamp>-<transactionId>-<mediaId>.<ext>`.
+  const storedName = (mediaId: string, timestamp = '20260708_101500'): string =>
+    `${timestamp}-${transactionId}-${mediaId}.mp4`;
+
+  // a fresh download re-runs SumsubService.fileName, so the timestamp prefix differs from the stored copy
+  const downloadName = (mediaId: string, timestamp = '20260709_120000'): string =>
+    `${timestamp}-${transactionId}-${mediaId}.mp4`;
+
+  const existingFile = (name: string, overrides: Partial<KycFileBlob> = {}): KycFileBlob =>
     createMock<KycFileBlob>({
       type: FileType.IDENTIFICATION,
-      name: `user/42/identification/${transactionId}-video`,
+      name,
       contentType: ContentType.MP4,
       ...overrides,
     });
 
-  const identDocument = (overrides: Partial<IdentDocument> = {}): IdentDocument => ({
-    name: `${transactionId}-video`,
+  const identDocument = (name: string, overrides: Partial<IdentDocument> = {}): IdentDocument => ({
+    name,
     content: Buffer.from('x'),
     contentType: ContentType.MP4,
     ...overrides,
@@ -258,11 +269,12 @@ describe('KycService downloadMedia', () => {
     service = Object.create(KycService.prototype);
     (service as any).documentService = documentService;
     (service as any).sumsubService = sumsubService;
+    (service as any).logger = createMock<DfxLogger>();
   });
 
-  it('skips a document that is already stored, without uploading', async () => {
-    documentService.listUserFiles.mockResolvedValue([existingFile()]);
-    sumsubService.getMedia.mockResolvedValue([identDocument()]);
+  it('skips a redelivered composition (same mediaId) without uploading', async () => {
+    documentService.listUserFiles.mockResolvedValue([existingFile(storedName('media1'))]);
+    sumsubService.getMedia.mockResolvedValue([identDocument(downloadName('media1'))]);
 
     await (service as any).downloadMedia(user, kycStep, true);
 
@@ -270,10 +282,10 @@ describe('KycService downloadMedia', () => {
     expect(documentService.uploadFile).not.toHaveBeenCalled();
   });
 
-  it('uploads a document that is genuinely missing', async () => {
-    const missing = identDocument();
-    documentService.listUserFiles.mockResolvedValue([existingFile({ contentType: ContentType.JSON })]);
-    sumsubService.getMedia.mockResolvedValue([missing]);
+  it('uploads a genuinely new composition (different mediaId) even when another recording exists', async () => {
+    const newComposition = identDocument(downloadName('media2'));
+    documentService.listUserFiles.mockResolvedValue([existingFile(storedName('media1'))]);
+    sumsubService.getMedia.mockResolvedValue([newComposition]);
 
     await (service as any).downloadMedia(user, kycStep, true);
 
@@ -281,11 +293,90 @@ describe('KycService downloadMedia', () => {
     expect(documentService.uploadFile).toHaveBeenCalledWith(
       user,
       FileType.IDENTIFICATION,
-      missing.name,
-      missing.content,
-      missing.contentType,
+      newComposition.name,
+      newComposition.content,
+      newComposition.contentType,
       true,
       true,
+      kycStep,
+      undefined,
+    );
+  });
+});
+
+// downloadIdentDocuments runs on every ident SUCCESS/FAIL webhook (redelivered at least once) and
+// stores the report/document media. Like downloadMedia it must skip documents that are already
+// stored - including invalid ones written under the `fail/` name prefix - while still uploading a
+// genuinely new document (different image id, hence a different stable name suffix).
+describe('KycService downloadIdentDocuments', () => {
+  let service: KycService;
+  let documentService: jest.Mocked<KycDocumentService>;
+  let sumsubService: jest.Mocked<SumsubService>;
+
+  const transactionId = 'kyc-ident-42-0-abc123';
+
+  const kycStep = createMock<KycStep>({ transactionId });
+  const user = createMock<UserData>({ id: 42 });
+
+  // invalid documents are stored under a `fail/` prefix; the match must ignore that prefix
+  const storedName = (imageId: string, prefix = 'fail/', timestamp = '20260708_101500'): string =>
+    `${prefix}${timestamp}-${transactionId}-${imageId}.png`;
+
+  const downloadName = (imageId: string, timestamp = '20260709_120000'): string =>
+    `${timestamp}-${transactionId}-${imageId}.png`;
+
+  const existingFile = (name: string, overrides: Partial<KycFileBlob> = {}): KycFileBlob =>
+    createMock<KycFileBlob>({
+      type: FileType.IDENTIFICATION,
+      name,
+      contentType: ContentType.PNG,
+      ...overrides,
+    });
+
+  const identDocument = (name: string, overrides: Partial<IdentDocument> = {}): IdentDocument => ({
+    name,
+    content: Buffer.from('x'),
+    contentType: ContentType.PNG,
+    ...overrides,
+  });
+
+  beforeEach(() => {
+    documentService = createMock<KycDocumentService>();
+    sumsubService = createMock<SumsubService>();
+
+    // downloadIdentDocuments only touches these deps; avoid wiring all constructor deps
+    service = Object.create(KycService.prototype);
+    (service as any).documentService = documentService;
+    (service as any).sumsubService = sumsubService;
+    (service as any).logger = createMock<DfxLogger>();
+  });
+
+  it('skips a redelivered document already stored under the fail/ prefix, without uploading', async () => {
+    documentService.listUserFiles.mockResolvedValue([existingFile(storedName('img1'))]);
+    sumsubService.getDocuments.mockResolvedValue([identDocument(downloadName('img1'))]);
+
+    await (service as any).downloadIdentDocuments(user, kycStep, false);
+
+    expect(documentService.listUserFiles).toHaveBeenCalledWith(user.id);
+    expect(documentService.uploadFile).not.toHaveBeenCalled();
+  });
+
+  it('uploads a genuinely new document (different image id) even when another document exists', async () => {
+    const newDocument = identDocument(downloadName('img2'));
+    documentService.listUserFiles.mockResolvedValue([existingFile(storedName('img1'))]);
+    sumsubService.getDocuments.mockResolvedValue([newDocument]);
+
+    await (service as any).downloadIdentDocuments(user, kycStep, false);
+
+    expect(documentService.uploadFile).toHaveBeenCalledTimes(1);
+    expect(documentService.uploadFile).toHaveBeenCalledWith(
+      user,
+      FileType.IDENTIFICATION,
+      `fail/${newDocument.name}`,
+      newDocument.content,
+      newDocument.contentType,
+      true,
+      false,
       kycStep,
       undefined,
     );
