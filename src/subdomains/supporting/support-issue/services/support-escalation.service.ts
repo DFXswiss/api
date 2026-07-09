@@ -183,6 +183,11 @@ export class SupportEscalationService {
   }
 
   async getBoundChatId(): Promise<string | undefined> {
+    // A deployment-pinned chat id (SUPPORT_ESCALATION_CHAT_ID) is authoritative and wins over the
+    // runtime DB binding, so the escalation target is versioned/reviewed config rather than a manual
+    // getUpdates bind. When it is unset, the DB binding (POST escalation/telegram-bind) still applies.
+    const pinned = Config.support.escalation.chatId;
+    if (pinned) return pinned;
     return this.settingService.get(CHAT_ID_KEY);
   }
 
