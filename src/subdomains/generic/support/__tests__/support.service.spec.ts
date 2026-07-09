@@ -1,14 +1,21 @@
 import { createMock } from '@golevelup/ts-jest';
+import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Config } from 'src/config/config';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
+import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
+import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
+import { KycService } from '../../kyc/services/kyc.service';
 import { Recommendation } from '../../user/models/recommendation/recommendation.entity';
 import { RecommendationService } from '../../user/models/recommendation/recommendation.service';
 import { UserData } from '../../user/models/user-data/user-data.entity';
 import { UserDataService } from '../../user/models/user-data/user-data.service';
 import { User } from '../../user/models/user/user.entity';
 import { UserService } from '../../user/models/user/user.service';
-import { RecommendationGraphEdgeKind } from '../dto/user-data-support.dto';
+import { ComplianceSearchType, RecommendationGraphEdgeKind } from '../dto/user-data-support.dto';
 import { SupportService } from '../support.service';
 
 // --- entity builders --- //
@@ -57,6 +64,12 @@ describe('SupportService', () => {
   let userService: UserService;
   let recommendationService: RecommendationService;
   let userDataService: UserDataService;
+  let bankTxService: BankTxService;
+  let kycService: KycService;
+  let recallService: RecallService;
+  let buyCryptoService: BuyCryptoService;
+  let buyFiatService: BuyFiatService;
+  let payInService: PayInService;
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
@@ -69,6 +82,12 @@ describe('SupportService', () => {
     userService = module.get(UserService);
     recommendationService = module.get(RecommendationService);
     userDataService = module.get(UserDataService);
+    bankTxService = module.get(BankTxService);
+    kycService = module.get(KycService);
+    recallService = module.get(RecallService);
+    buyCryptoService = module.get(BuyCryptoService);
+    buyFiatService = module.get(BuyFiatService);
+    payInService = module.get(PayInService);
   });
 
   // by default a node returns a UserData entity from getUserDataByIds for every requested id
@@ -568,6 +587,32 @@ describe('SupportService', () => {
       const recEdges = graph.edges.filter((e) => e.kind === RecommendationGraphEdgeKind.RECOMMENDATION);
       expect(recEdges).toHaveLength(1);
       expect(recEdges[0].recommendedId).toBe(201);
+    });
+  });
+
+  describe('searchUserDataByKey', () => {
+    it('looks up user data by id for a numeric key within the integer range', async () => {
+      jest.spyOn(userDataService, 'getUserData').mockResolvedValue(createUserData(123));
+      jest.spyOn(kycService, 'getDfxApprovalSteps').mockResolvedValue([]);
+      jest.spyOn(recallService, 'getByBankTxIds').mockResolvedValue([]);
+
+      const result = await service.searchUserDataByKey({ key: '123' });
+
+      expect(userDataService.getUserData).toHaveBeenCalledWith(123);
+      expect(result.type).toBe(ComplianceSearchType.USER_DATA_ID);
+      expect(result.userDatas.map((u) => u.id)).toEqual([123]);
+    });
+
+    it('never queries by id for a numeric key above the integer range', async () => {
+      jest.spyOn(buyCryptoService, 'getBuyCryptoByKeys').mockResolvedValue(undefined);
+      jest.spyOn(buyFiatService, 'getBuyFiatByKey').mockResolvedValue(undefined);
+      jest.spyOn(payInService, 'getCryptoInputByKeys').mockResolvedValue(undefined);
+      jest.spyOn(userDataService, 'getUsersByName').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getBankTxsByName').mockResolvedValue([]);
+
+      await expect(service.searchUserDataByKey({ key: '99999999999' })).rejects.toBeInstanceOf(NotFoundException);
+
+      expect(userDataService.getUserData).not.toHaveBeenCalled();
     });
   });
 });
