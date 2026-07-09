@@ -66,13 +66,15 @@ export class RealUnitComplianceService {
 
   // --- CUSTOMER SEARCH --- //
 
-  async searchCustomers(key: string): Promise<RealUnitCustomerListDto[]> {
-    if (!key) return [];
-
+  // Without a key this lists the complete tenant scope, so the dashboard can show all RealUnit customers upfront.
+  // The scope stays the sole membership definition; a key only narrows it down.
+  async searchCustomers(key?: string): Promise<RealUnitCustomerListDto[]> {
     const customerIds = new Set(await this.scopeService.getCustomerIds());
     if (!customerIds.size) return []; // fail-closed: no RealUnit customers ⇒ empty result
 
-    const resolved = await this.resolveUserDatas(key);
+    const resolved = key
+      ? await this.resolveUserDatas(key)
+      : await this.userDataService.getUserDataByIds([...customerIds]);
     const members = Util.toUniqueList(
       resolved.filter((u) => customerIds.has(u.id)),
       'id',
