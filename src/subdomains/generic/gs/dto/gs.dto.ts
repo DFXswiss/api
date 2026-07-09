@@ -573,8 +573,22 @@ export const DebugAllowedColumns: Record<string, DebugTableSpec> = {
   deposit_route: {
     // Physical single table for the Sell/Swap/Staking route STI hierarchy (@ChildEntity of
     // DepositRoute, discriminated by `type`). There are no physical `sell`/`swap`/`staking` tables —
-    // query a subtype here with a `type` filter. No iban.
-    columns: ['id', 'created', 'updated', 'active', 'type', 'volume'],
+    // query a subtype here with a `type` filter (Swap discriminator is 'Crypto'). Subtype columns:
+    // bankDataId/fiatId are Sell, assetId/targetDepositId are Swap. No iban.
+    columns: [
+      'id',
+      'created',
+      'updated',
+      'active',
+      'annualVolume',
+      'assetId',
+      'bankDataId',
+      'fiatId',
+      'monthlyVolume',
+      'targetDepositId',
+      'type',
+      'volume',
+    ],
   },
   exchange_tx: {
     // Exchange-side trade/withdrawal records. All fields are operational metadata sent to /
