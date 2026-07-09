@@ -7,6 +7,7 @@ import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
 import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import {
   BuySupportInfo,
   SellSupportInfo,
@@ -101,14 +102,20 @@ export class RealUnitComplianceDtoMapper {
 
   // --- MANDATORY CHECKS --- //
 
-  // Resolves the check evidence api-side so the dashboard renders it 1:1: ident = latest Ident step (Sumsub) plus
+  // Resolves the check evidence api-side so the dashboard renders it 1:1: ident = the relevant Ident step plus
   // the latest Identification file as downloadable evidence; nameCheck = latest Dilisense NAME_CHECK file. Expects
   // the already-filtered dossier slices, so only allowlisted files can ever become evidence.
+  //
+  // Ident-step selection mirrors KycInfoMapper.sortSteps semantics: canceled steps never count, a completed ident
+  // wins over any later attempt, and steps are never compared by sequenceNumber across types (it is only monotonic
+  // within one (name, type) group). Otherwise an AML-triggered follow-up video ident (InProgress/Failed) would be
+  // reported as the mandatory ident check of an already fully identified customer.
   private static toChecksDto(slices: RealUnitDossierSlices): RealUnitChecksDto {
-    const identStep = Util.maxObj(
-      slices.kycSteps.filter((s) => s.name === KycStepName.IDENT),
-      'sequenceNumber',
+    const identSteps = slices.kycSteps.filter(
+      (s) => s.name === KycStepName.IDENT && s.status !== ReviewStatus.CANCELED,
     );
+    const completedIdentSteps = identSteps.filter((s) => s.isCompleted);
+    const identStep = Util.maxObj(completedIdentSteps.length ? completedIdentSteps : identSteps, 'created');
     const identFile = RealUnitComplianceDtoMapper.latestFileOfType(slices.kycFiles, FileType.IDENTIFICATION);
     const nameCheckFile = RealUnitComplianceDtoMapper.latestFileOfType(slices.kycFiles, FileType.NAME_CHECK);
 

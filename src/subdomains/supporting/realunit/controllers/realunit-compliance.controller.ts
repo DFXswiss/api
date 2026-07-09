@@ -1,5 +1,6 @@
 import { Controller, Get, Param, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Response } from 'express';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -56,7 +57,7 @@ export class RealUnitComplianceController {
   async downloadCustomerDossier(
     @GetJwt() jwt: JwtPayload,
     @Param('id') id: string,
-    @Res({ passthrough: true }) res,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<StreamableFile> {
     const zipContent = await this.complianceService.downloadCustomerDossier(+id, jwt);
 

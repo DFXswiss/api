@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import JSZip from 'jszip';
 import { Config } from 'src/config/config';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
@@ -19,7 +19,6 @@ import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/ba
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
-import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { RealUnitComplianceDtoMapper } from './dto/realunit-compliance-dto.mapper';
@@ -115,7 +114,8 @@ export class RealUnitComplianceService {
     ] = await Promise.all([
       this.kycFileService.getUserDataKycFiles(id),
       this.kycService.getStepsByUserData(id),
-      this.transactionService.getTransactionsByUserDataId(id),
+      // asset filter runs in SQL so the take-limit applies to REALU/ZCHF rows, not to "newest 100 of anything"
+      this.transactionService.getTransactionsByUserDataId(id, REALUNIT_VISIBLE_TX_ASSETS),
       this.bankDataService.getBankDatasByUserData(id),
       this.buyService.getUserDataBuys(id),
       this.sellService.getSellsByUserDataId(id),
@@ -127,7 +127,7 @@ export class RealUnitComplianceService {
     return RealUnitComplianceDtoMapper.toCustomerDetailDto(userData, {
       kycFiles: this.filterDownloadableFiles(kycFiles),
       kycSteps,
-      transactions: this.filterVisibleTransactions(transactions),
+      transactions,
       bankDatas,
       buyRoutes,
       sellRoutes,
@@ -169,6 +169,59 @@ export class RealUnitComplianceService {
     return KycFileMapper.mapKycFile(kycFile, blob);
   }
 
+  // --- FULL DOSSIER --- //
+
+  // Bundles every allowlisted file of the customer into one ZIP, grouped by file type. Same tenant and allowlist
+  // boundaries as the single-file download. A file that cannot be fetched does not abort the export — it is listed
+  // in MISSING_FILES.txt — but if NOTHING could be fetched the request fails instead of returning an empty ZIP.
+  // The audit log records exported and missing file ids separately.
+  async downloadCustomerDossier(id: number, jwt: JwtPayload): Promise<Buffer> {
+    await this.scopeService.assertCustomer(id); // fail-closed 404
+
+    const userData = await this.userDataService.getUserData(id);
+    if (!userData) throw new NotFoundException('Not found');
+
+    const files = await this.kycFileService.getUserDataKycFiles(id).then((f) => this.filterDownloadableFiles(f));
+    if (!files.length) throw new NotFoundException('Not found');
+
+    const zip = new JSZip();
+    const exported: number[] = [];
+    const missing: KycFile[] = [];
+
+    for (const file of files) {
+      try {
+        const blob = await this.kycDocumentService.downloadFile(FileCategory.USER, id, file.type, file.name);
+        // file.name may end with a raw customer upload name — sanitize the entry path (zip-slip)
+        const baseName = `${file.type}/${this.sanitizePathComponent(file.name)}`;
+        zip.file(
+          zip.file(baseName) ? `${file.type}/${file.id}_${this.sanitizePathComponent(file.name)}` : baseName,
+          blob.data,
+        );
+        exported.push(file.id);
+      } catch (e) {
+        this.logger.warn(`Dossier export: file ${file.id} of customer ${id} not downloadable:`, e);
+        missing.push(file);
+      }
+    }
+
+    if (!exported.length) throw new ServiceUnavailableException('Dossier export failed: no file could be fetched');
+
+    if (missing.length)
+      zip.file(
+        'MISSING_FILES.txt',
+        missing.map((f) => `${f.type}/${this.sanitizePathComponent(f.name)} (ID: ${f.id})`).join('\n'),
+      );
+
+    // Mandatory regulatory audit trail: one aggregated entry recording what was actually exported.
+    const log = `RealUnit staff ${jwt.account} is downloading the full dossier of customer ${id} (exported files: ${exported.join(
+      ', ',
+    )}${missing.length ? `; not fetchable: ${missing.map((f) => f.id).join(', ')}` : ''})`;
+    this.logger.verbose(`RealUnit staff ${jwt.account} downloading full dossier of customer ${id}`);
+    await this.kycLogService.createKycFileLog(log, userData);
+
+    return zip.generateAsync({ type: 'nodebuffer' });
+  }
+
   // --- HELPER METHODS --- //
 
   // A focused, RealUnit-safe equivalent of the compliance key resolver: it never runs the unscoped cross-customer
@@ -188,61 +241,12 @@ export class RealUnitComplianceService {
     return [];
   }
 
-  // --- FULL DOSSIER --- //
-
-  // Bundles every allowlisted file of the customer into one ZIP, grouped by file type. Same tenant and allowlist
-  // boundaries as the single-file download; the export is recorded with one aggregated audit-log entry. A blob
-  // missing in storage does not abort the export — it is listed in MISSING_FILES.txt instead.
-  async downloadCustomerDossier(id: number, jwt: JwtPayload): Promise<Buffer> {
-    await this.scopeService.assertCustomer(id); // fail-closed 404
-
-    const userData = await this.userDataService.getUserData(id);
-    if (!userData) throw new NotFoundException('Not found');
-
-    const files = await this.kycFileService.getUserDataKycFiles(id).then((f) => this.filterDownloadableFiles(f));
-    if (!files.length) throw new NotFoundException('Not found');
-
-    const zip = new JSZip();
-    const missing: string[] = [];
-
-    for (const file of files) {
-      try {
-        const blob = await this.kycDocumentService.downloadFile(FileCategory.USER, id, file.type, file.name);
-        const path = zip.file(`${file.type}/${file.name}`)
-          ? `${file.type}/${file.id}_${file.name}`
-          : `${file.type}/${file.name}`;
-        zip.file(path, blob.data);
-      } catch (e) {
-        this.logger.warn(`Dossier export: file ${file.id} of customer ${id} not downloadable:`, e);
-        missing.push(`${file.type}/${file.name} (ID: ${file.id})`);
-      }
-    }
-
-    if (missing.length) zip.file('MISSING_FILES.txt', missing.join('\n'));
-
-    // Mandatory regulatory audit trail: one aggregated entry recording the full export.
-    const log = `RealUnit staff ${jwt.account} is downloading the full dossier of customer ${id} (${
-      files.length
-    } files: ${files.map((f) => f.id).join(', ')})`;
-    this.logger.verbose(`RealUnit staff ${jwt.account} downloading full dossier of customer ${id}`);
-    await this.kycLogService.createKycFileLog(log, userData);
-
-    return zip.generateAsync({ type: 'nodebuffer' });
-  }
-
-  // --- HELPER METHODS --- //
-
   private filterDownloadableFiles(files: KycFile[]): KycFile[] {
     return files.filter((f) => REALUNIT_DOWNLOADABLE_FILE_TYPES.includes(f.type));
   }
 
-  // Same asset accessors as RealUnitComplianceDtoMapper.toTransactionDto, so filter and rendering cannot diverge.
-  private filterVisibleTransactions(transactions: Transaction[]): Transaction[] {
-    return transactions.filter((tx) =>
-      [
-        tx.buyCrypto?.inputAsset ?? tx.buyFiat?.inputAsset,
-        tx.buyCrypto?.outputAsset?.name ?? tx.buyFiat?.outputAsset?.name,
-      ].some((asset) => asset && REALUNIT_VISIBLE_TX_ASSETS.includes(asset)),
-    );
+  // ZIP entry paths must not carry traversal payloads from customer-influenced file names.
+  private sanitizePathComponent(name: string): string {
+    return name.replace(/[\\/]/g, '_').replace(/\.\.+/g, '_');
   }
 }
