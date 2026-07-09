@@ -181,21 +181,25 @@ export class BankDataService {
     if (await this.bankDataRepo.existsBy({ iban: newDto.iban, type: newDto.type })) return;
 
     if (oldBankData.approved && newDto.type === BankDataType.BANK_IN) {
-      // the old approval may stem from a self-comparison (e.g. BankOut created with the userData name),
-      // so it is only inherited if the actual account holder name matches the verified name
+      // only inherit the approval if the account holder matches the verified name
       const isVerifiedName =
         newDto.name && oldBankData.userData.verifiedName
           ? Util.isSameName(newDto.name, oldBankData.userData.verifiedName)
           : false;
 
-      newDto.approved = isVerifiedName ? oldBankData.approved : false;
-      newDto.status = isVerifiedName ? oldBankData.status : ReviewStatus.INTERNAL_REVIEW;
+      if (isVerifiedName) {
+        newDto.approved = oldBankData.approved;
+        newDto.status = oldBankData.status;
 
-      await this.bankDataRepo.update(oldBankData.id, {
-        approved: false,
-        status: ReviewStatus.FAILED,
-        comment: `${oldBankData.comment};${BankDataVerificationError.REPLACED}`,
-      });
+        await this.bankDataRepo.update(oldBankData.id, {
+          approved: false,
+          status: ReviewStatus.FAILED,
+          comment: `${oldBankData.comment};${BankDataVerificationError.REPLACED}`,
+        });
+      } else {
+        newDto.approved = false;
+        newDto.status = ReviewStatus.INTERNAL_REVIEW;
+      }
     } else {
       newDto.approved = false;
       newDto.status = oldBankData.approved ? ReviewStatus.FAILED : ReviewStatus.INTERNAL_REVIEW;
@@ -328,6 +332,7 @@ export class BankDataService {
     preferredType?: BankDataType,
     relations: FindOptionsRelations<BankData> = { userData: true },
     includeTypeUserSearch = false,
+    strictPreferredType = false,
   ): Promise<BankData> {
     if (!iban) return undefined;
 
@@ -338,6 +343,7 @@ export class BankDataService {
 
     return (
       (preferredType && bankDatas.find((b) => b.type === preferredType && b.approved)) ??
+      (strictPreferredType && preferredType ? bankDatas.find((b) => b.type === preferredType) : undefined) ??
       bankDatas.find((b) => b.approved) ??
       (preferredType && bankDatas.find((b) => b.type === preferredType)) ??
       bankDatas[0]

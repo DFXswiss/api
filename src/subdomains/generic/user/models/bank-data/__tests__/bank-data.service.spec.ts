@@ -88,7 +88,7 @@ describe('BankDataService', () => {
       });
     });
 
-    it('does not inherit the approval if the account holder does not match the verified name', async () => {
+    it('does not inherit the approval and keeps the old bankData if the account holder does not match the verified name', async () => {
       const userData = buildUserData('Wilhelm Walter Moser');
       const oldBankData = buildBankOut(userData);
 
@@ -96,6 +96,7 @@ describe('BankDataService', () => {
 
       expect(result.approved).toBe(false);
       expect(result.status).toBe(ReviewStatus.INTERNAL_REVIEW);
+      expect(bankDataRepo.update).not.toHaveBeenCalled();
     });
 
     it('does not inherit the approval if the verified name is missing', async () => {
@@ -107,6 +108,64 @@ describe('BankDataService', () => {
 
       expect(result.approved).toBe(false);
       expect(result.status).toBe(ReviewStatus.INTERNAL_REVIEW);
+      expect(bankDataRepo.update).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getVerifiedBankDataWithIban', () => {
+    const buildRows = (): BankData[] => {
+      const userData = buildUserData('Wilhelm Walter Moser');
+      const bankOut = buildBankOut(userData);
+      const bankIn = Object.assign(new BankData(), {
+        id: 11,
+        iban: 'AT634477014807580000',
+        type: BankDataType.BANK_IN,
+        name: 'Verband LebensRaum',
+        approved: false,
+        status: ReviewStatus.INTERNAL_REVIEW,
+        userData,
+      });
+      return [bankOut, bankIn];
+    };
+
+    it('returns the approved bankData of another type by default', async () => {
+      bankDataRepo.find = jest.fn().mockResolvedValue(buildRows());
+
+      const result = await service.getVerifiedBankDataWithIban('AT634477014807580000', 1, BankDataType.BANK_IN);
+
+      expect(result.type).toBe(BankDataType.BANK_OUT);
+    });
+
+    it('returns the unapproved bankData of the preferred type in strict mode', async () => {
+      bankDataRepo.find = jest.fn().mockResolvedValue(buildRows());
+
+      const result = await service.getVerifiedBankDataWithIban(
+        'AT634477014807580000',
+        1,
+        BankDataType.BANK_IN,
+        { userData: true },
+        false,
+        true,
+      );
+
+      expect(result.type).toBe(BankDataType.BANK_IN);
+      expect(result.approved).toBe(false);
+    });
+
+    it('falls back to the approved bankData in strict mode if no bankData of the preferred type exists', async () => {
+      const rows = buildRows().filter((b) => b.type !== BankDataType.BANK_IN);
+      bankDataRepo.find = jest.fn().mockResolvedValue(rows);
+
+      const result = await service.getVerifiedBankDataWithIban(
+        'AT634477014807580000',
+        1,
+        BankDataType.BANK_IN,
+        { userData: true },
+        false,
+        true,
+      );
+
+      expect(result.type).toBe(BankDataType.BANK_OUT);
     });
   });
 });
