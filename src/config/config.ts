@@ -578,6 +578,10 @@ export class Configuration {
     issueOnHoldExpiry: 14, //days
     escalation: {
       telegramBotToken: process.env.SUPPORT_TELEGRAM_BOT_TOKEN,
+      // Escalation target group. A Telegram chat id is non-secret config (useless without the bot
+      // token), so the deployment environment can pin it; when set it takes precedence over the
+      // runtime bind — a versioned/reviewed target instead of a manual getUpdates binding.
+      chatId: process.env.SUPPORT_ESCALATION_CHAT_ID,
       slaHours: 24, // customer waiting longer than this escalates
     },
   };

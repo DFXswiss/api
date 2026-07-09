@@ -82,6 +82,36 @@ describe('SupportEscalationService.bindGroupChat', () => {
   });
 });
 
+// Guards the chat-id precedence: a deployment-pinned SUPPORT_ESCALATION_CHAT_ID must win over the
+// runtime DB binding, so the escalation target is versioned config rather than manual runtime state.
+describe('SupportEscalationService.getBoundChatId', () => {
+  let settingService: DeepMocked<SettingService>;
+  let service: SupportEscalationService;
+
+  beforeEach(() => {
+    settingService = createMock<SettingService>();
+    service = new SupportEscalationService(
+      createMock<HttpService>(),
+      settingService,
+      createMock<SupportIssueRepository>(),
+      createMock<SupportMessageRepository>(),
+    );
+    settingService.get.mockResolvedValue('555'); // a DB binding exists
+  });
+
+  it('prefers the deployment-pinned chatId over the DB binding', async () => {
+    (ConfigModule as Record<string, unknown>).Config = { support: { escalation: { chatId: '-100999' } } };
+    expect(await service.getBoundChatId()).toBe('-100999');
+    expect(settingService.get).not.toHaveBeenCalled();
+  });
+
+  it('falls back to the DB binding when no chatId is pinned', async () => {
+    (ConfigModule as Record<string, unknown>).Config = { support: { escalation: {} } };
+    expect(await service.getBoundChatId()).toBe('555');
+    expect(settingService.get).toHaveBeenCalledWith('supportEscalationChatId');
+  });
+});
+
 // Guards the escalation detection: a ticket escalates once the customer wrote last and has waited past the
 // SLA, and is then de-duplicated per waiting cycle so the group is not spammed every cron run.
 describe('SupportEscalationService.checkEscalations', () => {
