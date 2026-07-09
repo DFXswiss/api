@@ -45,6 +45,7 @@ export class LiquidityManagementService {
     if (DisabledProcess(Process.LIQUIDITY_MANAGEMENT)) return;
 
     for (const rule of rules) {
+      if (rule.status === LiquidityManagementRuleStatus.INACTIVE) continue;
       await this.verifyRule(rule, balances);
     }
   }
