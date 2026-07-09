@@ -386,6 +386,15 @@ export class Util {
     return date.toISOString().split('T')[0];
   }
 
+  static isoDateInTimeZone(timeZone: string, date = new Date()): string {
+    return new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    }).format(date);
+  }
+
   static isoDateTime(date: Date): string {
     return date.toISOString().split('.')[0].replace(/:/g, '-').replace(/T/g, '_');
   }

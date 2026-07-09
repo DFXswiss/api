@@ -476,7 +476,8 @@ export class FiatOutputJobService {
           clientId: +recipient.olkyPayerId,
           comment: remittanceInfo,
           currencyCode: entity.currency,
-          executionDate: Util.isoDate(new Date()),
+          // Olky rejects execution dates in the past on its local (CET/CEST) calendar
+          executionDate: Util.isoDateInTimeZone('Europe/Luxembourg'),
           externalId: `${entity.id}`,
           nominalAmount: Math.round(entity.amount * 100), // Convert to cents
           packageNumber: `${entity.id}`,
