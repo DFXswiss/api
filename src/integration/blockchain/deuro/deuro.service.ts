@@ -62,8 +62,8 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.DEURO_LOG_INFO })
   async processLogInfo(): Promise<void> {
-    if (!Config.blockchain.deuro.graphUrl) {
-      this.logger.warn('DEuro graphUrl not configured - skipping processLogInfo');
+    if (!Config.blockchain.deuro.graphUrl || !Config.blockchain.deuro.apiUrl) {
+      this.logger.warn('DEuro graphUrl/apiUrl not configured - skipping processLogInfo');
       return;
     }
 
@@ -171,6 +171,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
       return depsResult;
     } catch (e) {
       this.logger.error(`Error while getting pool shares ${deps?.id ?? 0}`, e);
+      throw e;
     }
   }
 
@@ -231,6 +232,11 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
       const eurTokenPrice =
         (await this.getCoinGeckoPrice(eurTokenContract.address)) ?? (await this.getBridgePriceFallback());
 
+      if (!eurTokenPrice) {
+        this.logger.warn(`Skipping bridge TVL for ${eurTokenContract.address}: no EUR token price available`);
+        continue;
+      }
+
       const minted = await bridgeContract.minted();
       const mintedValue = EvmUtil.fromWeiAmount(minted);
 
@@ -240,12 +246,12 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
     return tvl;
   }
 
-  private async getBridgePriceFallback(): Promise<number> {
+  private async getBridgePriceFallback(): Promise<number | undefined> {
     const eurcContract = this.deuroClient.getBridgeEURCContract();
     const eurcTokenAddress = await eurcContract.eur();
     const eurcTokenContract = this.deuroClient.getErc20Contract(eurcTokenAddress);
 
-    return this.getCoinGeckoPrice(eurcTokenContract.address) ?? 0;
+    return this.getCoinGeckoPrice(eurcTokenContract.address);
   }
 
   async getSavingsLogInfo(): Promise<DEuroSavingsLogDto> {

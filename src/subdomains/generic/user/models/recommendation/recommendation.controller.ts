@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -29,16 +29,16 @@ export class RecommendationController {
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  async confirmRecommendation(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
-    await this.recommendationService.confirmRecommendation(jwt.account, +id, true);
+  async confirmRecommendation(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<void> {
+    await this.recommendationService.confirmRecommendation(jwt.account, id, true);
   }
 
   @Put(':id/reject')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
-  async rejectRecommendation(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
-    await this.recommendationService.confirmRecommendation(jwt.account, +id, false);
+  async rejectRecommendation(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<void> {
+    await this.recommendationService.confirmRecommendation(jwt.account, id, false);
   }
 
   @Post()

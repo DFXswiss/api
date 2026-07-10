@@ -3,6 +3,7 @@ import { Contract, ethers } from 'ethers';
 import { gql, request } from 'graphql-request';
 import { Config } from 'src/config/config';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { EvmClient } from '../shared/evm/evm-client';
 import { EvmUtil } from '../shared/evm/evm.util';
 import { JuiceEquityGraphDto, JuicePositionGraphDto, JuiceSavingsInfoDto } from './dto/juice.dto';
@@ -57,47 +58,39 @@ const poolShareQuery = gql`
 `;
 
 export class JuiceClient {
+  private readonly logger = new DfxLogger(JuiceClient);
+
   constructor(private readonly evmClient: EvmClient) {}
 
   async getPositionV2s(): Promise<JuicePositionGraphDto[]> {
     const graphUrl = Config.blockchain.juice.graphUrl;
     if (!graphUrl) return [];
 
-    let gqlResult = await request<{ positionV2s: { items: [JuicePositionGraphDto]; pageInfo: GraphQLPageInfo } }>(
-      graphUrl,
-      positionV2sQuery,
-      { after: null },
-    );
+    const positionV2s: JuicePositionGraphDto[] = [];
+    const seen = new Set<string>();
+    let after: string | null = null;
+    const MAX_PAGES = 100;
 
-    const positionV2s: JuicePositionGraphDto[] = gqlResult.positionV2s.items;
-
-    while (gqlResult.positionV2s.pageInfo.hasNextPage) {
-      gqlResult = await request<{ positionV2s: { items: [JuicePositionGraphDto]; pageInfo: GraphQLPageInfo } }>(
-        graphUrl,
-        positionV2sQuery,
-        { after: gqlResult.positionV2s.pageInfo.endCursor },
-      );
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const gqlResult = await request<{
+        positionV2s: { items: [JuicePositionGraphDto]; pageInfo: GraphQLPageInfo };
+      }>(graphUrl, positionV2sQuery, { after });
 
       positionV2s.push(...gqlResult.positionV2s.items);
+
+      const { hasNextPage, endCursor } = gqlResult.positionV2s.pageInfo;
+      if (!hasNextPage || !endCursor || seen.has(endCursor)) return positionV2s;
+
+      seen.add(endCursor);
+      after = endCursor;
     }
 
+    this.logger.warn(`getPositionV2s reached the ${MAX_PAGES}-page limit; result may be incomplete`);
     return positionV2s;
   }
 
   async getSavingsInfo(): Promise<JuiceSavingsInfoDto> {
-    const apiUrl = Config.blockchain.juice.apiUrl;
-    if (!apiUrl) {
-      return {
-        totalSaved: 0,
-        totalWithdrawn: 0,
-        totalBalance: 0,
-        totalInterest: 0,
-        rate: 0,
-        ratioOfSupply: 0,
-      };
-    }
-
-    const url = `${apiUrl}/savings/core/info`;
+    const url = `${Config.blockchain.juice.apiUrl}/savings/core/info`;
     return this.evmClient.http.get<JuiceSavingsInfoDto>(url);
   }
 

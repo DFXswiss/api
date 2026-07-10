@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseIntPipe, Post, Put, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeEndpoint, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
@@ -54,10 +54,10 @@ export class BankAccountController {
   @ApiOkResponse({ type: BankAccountDto })
   async updateBankAccount(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: UpdateBankAccountDto,
   ): Promise<BankAccountDto> {
-    return this.bankDataService.updateUserBankData(+id, jwt.account, dto).then((b) => this.toDto(b));
+    return this.bankDataService.updateUserBankData(id, jwt.account, dto).then((b) => this.toDto(b));
   }
 
   // --- IBAN --- //

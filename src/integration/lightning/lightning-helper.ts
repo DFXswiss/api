@@ -100,7 +100,7 @@ export class LightningHelper {
   }
 
   static createLnurlMetadata(memo: string): string {
-    return `[["text/plain", "${memo}"]]`;
+    return JSON.stringify([['text/plain', memo]]);
   }
 
   // --- SIGNATURE VERIFICATION --- //

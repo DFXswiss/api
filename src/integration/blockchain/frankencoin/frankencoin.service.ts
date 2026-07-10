@@ -183,6 +183,7 @@ export class FrankencoinService extends FrankencoinBasedService implements OnMod
       return fpsResult;
     } catch (e) {
       this.logger.error(`Error while getting pool shares`, e);
+      throw e;
     }
   }
 

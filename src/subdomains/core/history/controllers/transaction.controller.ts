@@ -7,6 +7,7 @@ import {
   Get,
   NotFoundException,
   Param,
+  ParseIntPipe,
   Put,
   Query,
   Res,
@@ -283,14 +284,14 @@ export class TransactionController {
   @ApiExcludeEndpoint()
   async setTransactionTarget(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
-    @Query('buyId') buyId: string,
+    @Param('id', ParseIntPipe) id: number,
+    @Query('buyId', ParseIntPipe) buyId: number,
   ): Promise<void> {
-    const transaction = await this.transactionService.getTransactionById(+id, { bankTx: true });
+    const transaction = await this.transactionService.getTransactionById(id, { bankTx: true });
     if (!transaction.bankTx) throw new NotFoundException('Transaction not found');
     if (!BankTxTypeUnassigned(transaction.bankTx.type)) throw new ConflictException('Transaction already assigned');
 
-    const buy = await this.buyService.get(jwt.account, +buyId);
+    const buy = await this.buyService.get(jwt.account, buyId);
     if (!buy) throw new NotFoundException('Buy not found');
 
     const txOwner = await this.bankTxService.getUserDataForBankTx(transaction.bankTx, jwt.account, false);
@@ -307,8 +308,8 @@ export class TransactionController {
     UserActiveGuard([UserStatus.BLOCKED, UserStatus.DELETED], [UserDataStatus.BLOCKED]),
   )
   @ApiOkResponse({ type: RefundDataDto })
-  async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<RefundDataDto> {
-    const transaction = await this.transactionService.getTransactionById(+id, {
+  async getTransactionRefund(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<RefundDataDto> {
+    const transaction = await this.transactionService.getTransactionById(id, {
       bankTx: { bankTxReturn: true },
       cryptoInput: true,
       checkoutTx: true,
@@ -394,10 +395,10 @@ export class TransactionController {
   @ApiOkResponse()
   async setTransactionRefundTarget(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: TransactionRefundDto,
   ): Promise<void> {
-    const transaction = await this.transactionService.getTransactionById(+id, {
+    const transaction = await this.transactionService.getTransactionById(id, {
       bankTxReturn: { bankTx: true, chargebackOutput: true },
       userData: true,
       user: { wallet: true },
@@ -723,7 +724,11 @@ export class TransactionController {
     };
 
     let tx: Transaction | TransactionRequest;
-    if (id) tx = await this.transactionService.getTransactionById(+id, baseRelations);
+    if (id) {
+      const transactionId = +id;
+      if (!Number.isInteger(transactionId)) throw new BadRequestException('id must be an integer');
+      tx = await this.transactionService.getTransactionById(transactionId, baseRelations);
+    }
 
     const uidParam = uid ?? orderUid;
     if (uidParam) {
@@ -733,10 +738,13 @@ export class TransactionController {
           (await this.transactionRequestService.getTransactionRequestByUid(uidParam, { user: { userData: true } })));
     }
 
-    if (orderId)
+    if (orderId) {
+      const requestId = +orderId;
+      if (!Number.isInteger(requestId)) throw new BadRequestException('order-id must be an integer');
       tx =
-        (await this.transactionService.getTransactionByRequestId(+orderId, baseRelations)) ??
-        (await this.transactionRequestService.getTransactionRequest(+orderId, { user: { userData: true } }));
+        (await this.transactionService.getTransactionByRequestId(requestId, baseRelations)) ??
+        (await this.transactionRequestService.getTransactionRequest(requestId, { user: { userData: true } }));
+    }
 
     if (externalId && accountId)
       tx = await this.transactionService.getTransactionByExternalId(externalId, accountId, baseRelations);
