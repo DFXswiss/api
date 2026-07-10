@@ -203,7 +203,7 @@ export class UserDataService {
   }
 
   private async getMasterUser(user: UserData): Promise<UserData | undefined> {
-    const masterUserId = +user.firstname.replace(MergedPrefix, '');
+    const masterUserId = +user.firstname?.replace(MergedPrefix, '');
     if (!isNaN(masterUserId)) return this.getUserData(masterUserId);
   }
 

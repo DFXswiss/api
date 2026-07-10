@@ -145,6 +145,10 @@ export class UserController {
   @ApiCreatedResponse({ type: UserDetailDto })
   @ApiBadRequestResponse({ description: 'KYC already started' })
   @ApiConflictResponse({ description: 'Account already exists' })
+  @ApiUnauthorizedResponse({
+    description: 'User is merged, switch to the KYC code provided in the response',
+    type: MergedDto,
+  })
   async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycInputDataDto): Promise<UserDetailDto> {
     return this.userService.updateUserData(jwt.user, data);
   }

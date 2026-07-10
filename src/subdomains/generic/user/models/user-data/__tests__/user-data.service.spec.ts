@@ -153,6 +153,17 @@ describe('UserDataService', () => {
       await expect(service.checkMail(userData, 'a@b.com')).rejects.toMatchObject({ status: 400 });
       expect(userDataRepo.find).not.toHaveBeenCalled();
     });
+
+    it('rejects a merged account with a null firstname as bad request (no TypeError from .replace)', async () => {
+      const userData = Object.assign(new UserData(), {
+        id: 1,
+        status: UserDataStatus.MERGED,
+        firstname: null,
+      });
+
+      await expect(service.checkMail(userData, 'a@b.com')).rejects.toMatchObject({ status: 400 });
+      expect(userDataRepo.find).not.toHaveBeenCalled();
+    });
   });
 
   describe('getByKycHashOrThrow', () => {
