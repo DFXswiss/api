@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsDate, IsEnum, IsNotEmpty, IsOptional, IsString, IsUrl, ValidateIf } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
+import { IsSsrfSafeUrl } from 'src/shared/validators/is-ssrf-safe-url.validator';
 import { PaymentStandard } from '../enums';
 
 export class CreateInvoicePaymentDto {
@@ -113,9 +114,11 @@ export class CreateInvoicePaymentDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsUrl()
+  @IsSsrfSafeUrl()
   webhookUrl?: string;
 
   @IsOptional()
   @IsUrl()
+  @IsSsrfSafeUrl()
   w?: string;
 }
