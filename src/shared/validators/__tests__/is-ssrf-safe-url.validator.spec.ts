@@ -80,8 +80,24 @@ describe('isSsrfSafeUrl', () => {
     expect(isSsrfSafeUrl('http://[::ffff:169.254.169.254]/x')).toBe(false);
   });
 
+  it('rejects an IPv4-compatible IPv6 loopback address', () => {
+    // ::127.0.0.1 normalizes to ::7f00:1 (no ::ffff: prefix) and must still be decoded to 127.0.0.1
+    expect(isSsrfSafeUrl('http://[::127.0.0.1]/x')).toBe(false);
+    expect(isSsrfSafeUrl('http://[::7f00:1]/x')).toBe(false);
+  });
+
+  it('accepts an IPv4-mapped IPv6 public address', () => {
+    // decoding embedded IPv4 must not over-block: 8.8.8.8 mapped is public
+    expect(isSsrfSafeUrl('http://[::ffff:8.8.8.8]/x')).toBe(true);
+  });
+
   it('rejects the literal hostname localhost', () => {
     expect(isSsrfSafeUrl('http://localhost:3000')).toBe(false);
+  });
+
+  it('rejects the localhost FQDN root (trailing dot)', () => {
+    expect(isSsrfSafeUrl('http://localhost./x')).toBe(false);
+    expect(isSsrfSafeUrl('http://localhost.:3000')).toBe(false);
   });
 
   it('rejects a non-http(s) scheme', () => {

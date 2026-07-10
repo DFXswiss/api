@@ -49,12 +49,13 @@ export class PaymentWebhookService {
           'Content-Type': 'application/json',
         },
       });
-
-      await this.onSendSuccess(paymentLink);
     } catch (e) {
       await this.onSendFailure(paymentLink);
       throw e;
     }
+
+    // outside the try: a persistence error here must not be misattributed as a webhook delivery failure
+    await this.onSendSuccess(paymentLink);
   }
 
   private async onSendSuccess(paymentLink: PaymentLink): Promise<void> {

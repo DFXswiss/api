@@ -26,13 +26,12 @@ const DISALLOWED_IPV4_RANGES = [
 
 const DISALLOWED_IPV6_RANGES = [/^::1$/, /^::$/, /^fc/i, /^fd/i, /^fe[89ab]/i, /^ff/i];
 
-// URL parsing normalizes IPv4-mapped IPv6 addresses (e.g. ::ffff:127.0.0.1) into pure hex groups
-// (::ffff:7f00:1); extract the embedded IPv4 address from either serialization.
-function ipv4MappedToV4(ipv6: string): string | null {
-  const dotted = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ipv6);
-  if (dotted) return dotted[1];
-
-  const hex = /^(?:0:0:0:0:0:ffff|::ffff):([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(ipv6);
+// URL parsing normalizes any IPv4-in-IPv6 literal into compressed hex groups, e.g.
+// ::ffff:127.0.0.1 (IPv4-mapped) -> ::ffff:7f00:1 and ::127.0.0.1 (IPv4-compatible) -> ::7f00:1.
+// Decode the embedded IPv4 from both the mapped (::ffff:) and compatible (::) prefixes so the IPv4
+// blocklist covers either serialization; ::1 (one group) and :: fall through to the IPv6 ranges.
+function embeddedIPv4(ipv6: string): string | null {
+  const hex = /^::(?:ffff:)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i.exec(ipv6);
   if (!hex) return null;
 
   const hi = parseInt(hex[1], 16);
@@ -46,7 +45,7 @@ function isDisallowedIp(hostname: string): boolean {
 
   if (ipVersion === 4) return DISALLOWED_IPV4_RANGES.some((range) => range.test(unwrapped));
   if (ipVersion === 6) {
-    const mappedV4 = ipv4MappedToV4(unwrapped);
+    const mappedV4 = embeddedIPv4(unwrapped);
     if (mappedV4) return DISALLOWED_IPV4_RANGES.some((range) => range.test(mappedV4));
     return DISALLOWED_IPV6_RANGES.some((range) => range.test(unwrapped));
   }
@@ -65,9 +64,13 @@ export function isSsrfSafeUrl(value: unknown): boolean {
   }
 
   if (!ALLOWED_PROTOCOLS.includes(url.protocol)) return false;
-  if (DISALLOWED_HOSTNAMES.includes(url.hostname)) return false;
 
-  return !isDisallowedIp(url.hostname);
+  // a trailing dot (FQDN root, e.g. "localhost.") resolves to the same host but is not string-equal,
+  // so strip it before matching named hosts and IP literals
+  const hostname = url.hostname.replace(/\.$/, '');
+  if (DISALLOWED_HOSTNAMES.includes(hostname)) return false;
+
+  return !isDisallowedIp(hostname);
 }
 
 // Registration-time check on merchant-supplied callback URLs (e.g. PaymentLink.webhookUrl). Not a
