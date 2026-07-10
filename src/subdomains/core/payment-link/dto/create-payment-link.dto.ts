@@ -2,6 +2,7 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import { IsEnum, IsInt, IsOptional, IsString, IsUrl, ValidateNested } from 'class-validator';
 import { Util } from 'src/shared/utils/util';
+import { IsSsrfSafeUrl } from 'src/shared/validators/is-ssrf-safe-url.validator';
 import { PaymentLinkMode } from '../enums';
 import { CreatePaymentLinkPaymentDto } from './create-payment-link-payment.dto';
 import { UpdatePaymentLinkConfigDto } from './payment-link-config.dto';
@@ -41,6 +42,7 @@ export class CreatePaymentLinkDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsUrl()
+  @IsSsrfSafeUrl()
   webhookUrl?: string;
 
   @ApiPropertyOptional({ type: CreatePaymentLinkPaymentDto })

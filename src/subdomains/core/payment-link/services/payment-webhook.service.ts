@@ -6,6 +6,7 @@ import { QueueHandler } from 'src/shared/utils/queue-handler';
 import { Util } from 'src/shared/utils/util';
 import { PaymentLinkDtoMapper } from '../dto/payment-link-dto.mapper';
 import { PaymentLink } from '../entities/payment-link.entity';
+import { PaymentLinkRepository } from '../repositories/payment-link.repository';
 
 @Injectable()
 export class PaymentWebhookService {
@@ -13,7 +14,10 @@ export class PaymentWebhookService {
 
   private readonly webhookSendQueue: QueueHandler;
 
-  constructor(private readonly http: HttpService) {
+  constructor(
+    private readonly http: HttpService,
+    private readonly paymentLinkRepo: PaymentLinkRepository,
+  ) {
     this.webhookSendQueue = QueueHandler.createParallelQueueHandler(10);
   }
 
@@ -26,21 +30,46 @@ export class PaymentWebhookService {
   }
 
   private async doSendWebhook(paymentLink: PaymentLink) {
+    if (!paymentLink.webhookUrl) return;
+
+    // half-open during cooldown: every event still gets a single attempt (no retry storm), so a
+    // recovered endpoint resumes immediately instead of dropping notifications for the rest of the window
+    const isProbe = paymentLink.isWebhookInCooldown;
+
     const dto = PaymentLinkDtoMapper.toLinkDto(paymentLink);
+    const payload = JSON.stringify(dto);
+    const signature = this.createSignature(payload);
 
-    if (dto.webhookUrl) {
-      const payload = JSON.stringify(dto);
-      const signature = this.createSignature(payload);
-
+    try {
       await this.http.post(dto.webhookUrl, dto, {
         retryDelay: 5000,
-        tryCount: 12,
+        tryCount: isProbe ? 1 : 12,
         headers: {
           'X-Payload-Signature': signature,
           'Content-Type': 'application/json',
         },
       });
+    } catch (e) {
+      await this.onSendFailure(paymentLink);
+      throw e;
     }
+
+    // outside the try: a persistence error here must not be misattributed as a webhook delivery failure
+    await this.onSendSuccess(paymentLink);
+  }
+
+  private async onSendSuccess(paymentLink: PaymentLink): Promise<void> {
+    if (!paymentLink.webhookFailCount) return;
+
+    await this.paymentLinkRepo.update(...paymentLink.webhookSucceeded());
+  }
+
+  private async onSendFailure(paymentLink: PaymentLink): Promise<void> {
+    const [id, update] = paymentLink.webhookFailed();
+
+    // atomic increment: parallel events for the same link must not collapse N failures into one;
+    // quoted explicitly so the fragment does not depend on TypeORM's property-name-to-column rewriting
+    await this.paymentLinkRepo.update(id, { ...update, webhookFailCount: () => '"webhookFailCount" + 1' });
   }
 
   private createSignature(payload: string): string {

@@ -712,6 +712,8 @@ export class Configuration {
 
     webhookPublicKey: process.env.PAYMENT_WEBHOOK_PUBLIC_KEY?.split('<br>').join('\n'),
     webhookPrivateKey: process.env.PAYMENT_WEBHOOK_PRIVATE_KEY?.split('<br>').join('\n'),
+    webhookFailureThreshold: 3,
+    webhookFailureCooldown: 3600, // sec
 
     binancePayPublic: process.env.BINANCEPAY_PUBLIC_KEY,
     binancePaySecret: process.env.BINANCEPAY_SECRET_KEY,

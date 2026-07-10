@@ -12,6 +12,7 @@ import { PaymentLinkPayment } from './entities/payment-link-payment.entity';
 import { PaymentQuote } from './entities/payment-quote.entity';
 import { PaymentActivationRepository } from './repositories/payment-activation.repository';
 import { PaymentLinkPaymentRepository } from './repositories/payment-link-payment.repository';
+import { PaymentLinkRepository } from './repositories/payment-link.repository';
 import { PaymentQuoteRepository } from './repositories/payment-quote.repository';
 import { C2BPaymentLinkService } from './services/c2b-payment-link.service';
 import { PaymentActivationService } from './services/payment-activation.service';
@@ -35,6 +36,7 @@ import { PaymentWebhookService } from './services/payment-webhook.service';
   controllers: [],
   providers: [
     PaymentLinkPaymentRepository,
+    PaymentLinkRepository,
     PaymentQuoteRepository,
     PaymentActivationRepository,
     PaymentLinkPaymentService,
