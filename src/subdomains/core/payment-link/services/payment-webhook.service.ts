@@ -66,8 +66,9 @@ export class PaymentWebhookService {
   private async onSendFailure(paymentLink: PaymentLink): Promise<void> {
     const [id, update] = paymentLink.webhookFailed();
 
-    // atomic increment: parallel events for the same link must not collapse N failures into one
-    await this.paymentLinkRepo.update(id, { ...update, webhookFailCount: () => 'webhookFailCount + 1' });
+    // atomic increment: parallel events for the same link must not collapse N failures into one;
+    // quoted explicitly so the fragment does not depend on TypeORM's property-name-to-column rewriting
+    await this.paymentLinkRepo.update(id, { ...update, webhookFailCount: () => '"webhookFailCount" + 1' });
   }
 
   private createSignature(payload: string): string {
