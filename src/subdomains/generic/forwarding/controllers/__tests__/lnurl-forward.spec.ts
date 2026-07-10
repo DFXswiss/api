@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { mock } from 'jest-mock-extended';
@@ -134,6 +134,25 @@ describe('LnurlForward', () => {
       const result = await lnurlwForward.lnUrlWCallbackForward('ABC123', {});
 
       expect(result).toEqual({ status: 'OK' });
+    });
+  });
+
+  describe('LNbits 404 mapping', () => {
+    it('maps an LNbits 404 to NotFoundException', async () => {
+      jest.spyOn(httpServiceMock, 'get').mockRejectedValue({ response: { status: 404 } });
+
+      await expect(lnurlpForward.lnUrlPForward('ABC123', undefined)).rejects.toThrow(NotFoundException);
+      await expect(lnurlpForward.lnUrlPCallbackForward('ABC123', {})).rejects.toThrow(NotFoundException);
+      await expect(lnurlwForward.lnUrlWForward('ABC123')).rejects.toThrow(NotFoundException);
+      await expect(lnurlwForward.lnUrlWCallbackForward('ABC123', {})).rejects.toThrow(NotFoundException);
+    });
+
+    it('re-throws non-404 errors unchanged', async () => {
+      const error = { response: { status: 502 } };
+      jest.spyOn(httpServiceMock, 'get').mockRejectedValue(error);
+
+      await expect(lnurlpForward.lnUrlPForward('ABC123', undefined)).rejects.toBe(error);
+      await expect(lnurlwForward.lnUrlWForward('ABC123')).rejects.toBe(error);
     });
   });
 
