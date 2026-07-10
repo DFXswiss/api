@@ -53,6 +53,8 @@ import { KycLevel, ServiceProvider } from 'src/subdomains/generic/user/models/us
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
+import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import {
@@ -121,6 +123,7 @@ import {
 } from './exceptions/buy-exceptions';
 import { PriceSourceUnavailableException } from './exceptions/price-source-unavailable.exception';
 import { RealUnitDevService } from './realunit-dev.service';
+import { AktionariatRegistrationRepository } from './repositories/aktionariat-registration.repository';
 import { RealUnitAddressConfirmationRepository } from './repositories/realunit-address-confirmation.repository';
 import { accountHistoryQuery, accountSummaryQuery, holdersQuery, tokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
@@ -215,6 +218,8 @@ export class RealUnitService {
     private readonly feeService: FeeService,
     private readonly faucetRequestService: FaucetRequestService,
     private readonly addressConfirmationRepo: RealUnitAddressConfirmationRepository,
+    private readonly aktionariatRegistrationRepo: AktionariatRegistrationRepository,
+    private readonly logService: LogService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -1163,26 +1168,34 @@ export class RealUnitService {
 
   private async forwardRegistration(kycStep: KycStep, dto: RealUnitRegistrationDto): Promise<boolean> {
     const { api } = Config.blockchain.realunit;
+    const skipForward = [Environment.DEV, Environment.LOC].includes(Config.environment);
+
+    // forward only Aktionariat fields (exclude kycData to avoid signature verification issues).
+    // Aktionariat re-verifies the EIP-712 signature against this payload, so send back the exact
+    // representation that was signed — raw UTF-8 (legacy software wallets) or BitBox-safe ASCII
+    // (current app / BitBox). Forwarding the wrong variant fails as "Invalid signature". The
+    // UTF-8 originals stay on user_data for PDF/mail. Built up-front so the exact forwarded payload
+    // is available to both the persistence path and the audit log (success and error branches alike).
+    const signedMessage = this.resolveSignedRegistrationMessage(dto) ?? this.buildRegistrationMessage(dto, false);
+    const payload: AktionariatRegistrationDto = {
+      ...signedMessage,
+      signature: dto.signature,
+      lang: dto.lang,
+      countryAndTINs: dto.countryAndTINs,
+    };
+
+    let registerResponse: Record<string, unknown> | undefined;
 
     try {
-      // forward only Aktionariat fields (exclude kycData to avoid signature verification issues).
-      // Aktionariat re-verifies the EIP-712 signature against this payload, so send back the exact
-      // representation that was signed — raw UTF-8 (legacy software wallets) or BitBox-safe ASCII
-      // (current app / BitBox). Forwarding the wrong variant fails as "Invalid signature". The
-      // UTF-8 originals stay on user_data for PDF/mail.
-      const signedMessage = this.resolveSignedRegistrationMessage(dto) ?? this.buildRegistrationMessage(dto, false);
-      const payload: AktionariatRegistrationDto = {
-        ...signedMessage,
-        signature: dto.signature,
-        lang: dto.lang,
-        countryAndTINs: dto.countryAndTINs,
-      };
-
-      if (![Environment.DEV, Environment.LOC].includes(Config.environment)) {
-        await this.http.post(`${api.url}/registerUser`, payload, {
+      if (!skipForward) {
+        registerResponse = await this.http.post<Record<string, unknown>>(`${api.url}/registerUser`, payload, {
           headers: { 'x-api-key': api.key },
         });
       }
+
+      // Persist the queryable, per-wallet registration. Fail-closed: a write failure throws into the
+      // catch below and routes the step to manual review, exactly like an Aktionariat forwarding error.
+      await this.persistAktionariatRegistration(dto, payload);
 
       await this.kycService.saveKycStepUpdate(kycStep.complete());
 
@@ -1191,6 +1204,13 @@ export class RealUnitService {
         await this.userDataService.updateUserDataInternal(kycStep.userData, { kycLevel: KycLevel.LEVEL_20 });
       }
 
+      await this.logAktionariatRegistration(
+        LogSeverity.INFO,
+        dto.walletAddress,
+        payload,
+        skipForward ? 'skipped (DEV/LOC)' : registerResponse,
+      );
+
       return true;
     } catch (error) {
       const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
@@ -1198,8 +1218,66 @@ export class RealUnitService {
       this.logger.error(
         `Failed to forward RealUnit registration to Aktionariat for KYC step ${kycStep.id}: ${message}`,
       );
+
+      await this.logAktionariatRegistration(
+        LogSeverity.ERROR,
+        dto.walletAddress,
+        payload,
+        skipForward ? 'skipped (DEV/LOC)' : registerResponse,
+        message,
+      );
+
       await this.kycService.saveKycStepUpdate(kycStep.manualReview(message));
       return false;
+    }
+  }
+
+  // Persist the queryable, per-wallet Aktionariat registration record. Resolves the exact wallet-user
+  // that owns the signed address (per-wallet registration); fail-closed — an unresolved user throws so
+  // the caller routes the step to manual review rather than silently dropping the record.
+  private async persistAktionariatRegistration(
+    dto: RealUnitRegistrationDto,
+    payload: AktionariatRegistrationDto,
+  ): Promise<void> {
+    const user = await this.userService.getUserByAddress(dto.walletAddress);
+    if (!user) throw new Error(`No user found for RealUnit wallet ${dto.walletAddress}`);
+
+    const registration = this.aktionariatRegistrationRepo.create({
+      user,
+      walletAddress: dto.walletAddress,
+      email: dto.email,
+      registrationDate: dto.registrationDate,
+      signature: dto.signature,
+      forwardedToAktionariatDate: new Date(),
+      active: true,
+    });
+    registration.signedPayloadData = payload;
+
+    await this.aktionariatRegistrationRepo.save(registration);
+  }
+
+  // Audit-only mirror of the full Aktionariat communication into the generic Log table. Best-effort:
+  // a logging failure must never fail the registration, but it is surfaced loudly (never swallowed).
+  private async logAktionariatRegistration(
+    severity: LogSeverity,
+    walletAddress: string,
+    request: AktionariatRegistrationDto,
+    response: unknown,
+    error?: string,
+  ): Promise<void> {
+    try {
+      await this.logService.create({
+        system: 'RealUnit',
+        subsystem: 'Aktionariat',
+        severity,
+        message: JSON.stringify({ action: 'registerUser', walletAddress, request, response, error }),
+        category: walletAddress,
+        valid: null,
+      });
+    } catch (e) {
+      this.logger.error(
+        `Failed to write Aktionariat communication log for wallet ${walletAddress}: ${e?.message || e}`,
+      );
     }
   }
 

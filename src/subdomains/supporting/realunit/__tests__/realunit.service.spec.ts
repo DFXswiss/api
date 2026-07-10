@@ -33,12 +33,15 @@ import {
 } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
+import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAktionariatConfirmationStatus } from '../dto/realunit-confirm-aktionariat.dto';
 import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
 import { PriceInvalidException } from '../../pricing/domain/exceptions/price-invalid.exception';
 import { RealUnitDevService } from '../realunit-dev.service';
+import { AktionariatRegistrationRepository } from '../repositories/aktionariat-registration.repository';
 import { RealUnitAddressConfirmationRepository } from '../repositories/realunit-address-confirmation.repository';
 import { PriceSourceUnavailableException } from '../exceptions/price-source-unavailable.exception';
 import { RealUnitService } from '../realunit.service';
@@ -145,6 +148,8 @@ describe('RealUnitService', () => {
   let userDataService: jest.Mocked<UserDataService>;
   let httpService: jest.Mocked<HttpService>;
   let addressConfirmationRepo: jest.Mocked<RealUnitAddressConfirmationRepository>;
+  let aktionariatRegistrationRepo: jest.Mocked<AktionariatRegistrationRepository>;
+  let logService: jest.Mocked<LogService>;
   let fiatService: jest.Mocked<FiatService>;
   let buyService: jest.Mocked<BuyService>;
 
@@ -186,7 +191,10 @@ describe('RealUnitService', () => {
             requestPaymentInstructions: jest.fn(),
           },
         },
-        { provide: UserDataService, useValue: { getUsersByMail: jest.fn() } },
+        {
+          provide: UserDataService,
+          useValue: { getUsersByMail: jest.fn(), updateUserDataInternal: jest.fn() },
+        },
         {
           provide: UserService,
           useValue: {
@@ -242,6 +250,19 @@ describe('RealUnitService', () => {
             save: jest.fn((entity) => entity),
           },
         },
+        {
+          provide: AktionariatRegistrationRepository,
+          useValue: {
+            create: jest.fn((partial) => ({ ...partial })),
+            save: jest.fn((entity) => entity),
+          },
+        },
+        {
+          provide: LogService,
+          useValue: {
+            create: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -256,6 +277,8 @@ describe('RealUnitService', () => {
     userDataService = module.get(UserDataService);
     httpService = module.get(HttpService);
     addressConfirmationRepo = module.get(RealUnitAddressConfirmationRepository);
+    aktionariatRegistrationRepo = module.get(AktionariatRegistrationRepository);
+    logService = module.get(LogService);
     fiatService = module.get(FiatService);
     buyService = module.get(BuyService);
   });
@@ -1062,6 +1085,8 @@ describe('RealUnitService', () => {
 
     beforeEach(() => {
       mockEnvironment = 'prd';
+      // Registration resolves the exact wallet-user for the per-wallet AktionariatRegistration FK.
+      userService.getUserByAddress.mockResolvedValue({ id: 1 } as any);
     });
 
     afterEach(() => {
@@ -1121,6 +1146,133 @@ describe('RealUnitService', () => {
       const dto = buildDto(utf8Fields(hardwareWallet.address), signature);
 
       expect((service as any).resolveSignedRegistrationMessage(dto)).toBeUndefined();
+    });
+
+    it('persists the per-wallet registration and writes an INFO audit log on success', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 42 } as any);
+      httpService.post.mockResolvedValue({ aktionariatId: 'ak-1' } as any);
+
+      const step = fakeKycStep();
+      const ok = await (service as any).forwardRegistration(step, dto);
+
+      expect(ok).toBe(true);
+      expect(userService.getUserByAddress).toHaveBeenCalledWith(wallet);
+
+      const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
+      expect(created).toMatchObject({
+        user: { id: 42 },
+        walletAddress: wallet,
+        email: dto.email,
+        registrationDate: dto.registrationDate,
+        signature: dto.signature,
+        active: true,
+      });
+      expect(created.forwardedToAktionariatDate).toBeInstanceOf(Date);
+      expect(aktionariatRegistrationRepo.save).toHaveBeenCalledTimes(1);
+      // the exact forwarded payload is attached for an idempotent re-forward
+      const saved = (aktionariatRegistrationRepo.save as jest.Mock).mock.calls[0][0];
+      expect(saved.signedPayloadData.walletAddress).toBe(wallet);
+      expect(step.complete).toHaveBeenCalledTimes(1);
+
+      expect(logService.create).toHaveBeenCalledTimes(1);
+      const log = (logService.create as jest.Mock).mock.calls[0][0];
+      expect(log).toMatchObject({
+        system: 'RealUnit',
+        subsystem: 'Aktionariat',
+        severity: LogSeverity.INFO,
+        category: wallet,
+      });
+      const logMessage = JSON.parse(log.message);
+      expect(logMessage.action).toBe('registerUser');
+      expect(logMessage.request.walletAddress).toBe(wallet);
+      expect(logMessage.response).toEqual({ aktionariatId: 'ak-1' });
+    });
+
+    it('persists the registration in DEV/LOC without calling Aktionariat and logs the response as skipped', async () => {
+      mockEnvironment = 'loc';
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+
+      const step = fakeKycStep();
+      const ok = await (service as any).forwardRegistration(step, dto);
+
+      expect(ok).toBe(true);
+      expect(httpService.post).not.toHaveBeenCalled();
+      expect(aktionariatRegistrationRepo.save).toHaveBeenCalledTimes(1);
+      const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
+      expect(created.forwardedToAktionariatDate).toBeInstanceOf(Date);
+      expect(step.complete).toHaveBeenCalledTimes(1);
+
+      const log = (logService.create as jest.Mock).mock.calls[0][0];
+      expect(log.severity).toBe(LogSeverity.INFO);
+      expect(JSON.parse(log.message).response).toBe('skipped (DEV/LOC)');
+    });
+
+    it('fails closed to manual review when the wallet-user cannot be resolved', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue(undefined as any);
+      httpService.post.mockResolvedValue({} as any);
+
+      const step = fakeKycStep();
+      const ok = await (service as any).forwardRegistration(step, dto);
+
+      expect(ok).toBe(false);
+      expect(aktionariatRegistrationRepo.save).not.toHaveBeenCalled();
+      expect(step.complete).not.toHaveBeenCalled();
+      expect(step.manualReview).toHaveBeenCalledTimes(1);
+      expect(logService.create).toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
+    });
+
+    it('fails closed to manual review when the registration row cannot be saved', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+      aktionariatRegistrationRepo.save.mockRejectedValue(new Error('db down'));
+
+      const step = fakeKycStep();
+      const ok = await (service as any).forwardRegistration(step, dto);
+
+      expect(ok).toBe(false);
+      expect(step.complete).not.toHaveBeenCalled();
+      expect(step.manualReview).toHaveBeenCalledWith('db down');
+    });
+
+    it('lifts the wallet-user to KYC level 20 on first registration', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+
+      const step = { ...fakeKycStep(), userData: { kycLevel: 10 } };
+      const ok = await (service as any).forwardRegistration(step, dto);
+
+      expect(ok).toBe(true);
+      expect(userDataService.updateUserDataInternal).toHaveBeenCalledTimes(1);
+      const [, update] = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[0];
+      expect(update.kycLevel).toBe(20);
+    });
+
+    it('keeps a successful registration even when the audit log write fails', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+      logService.create.mockRejectedValue(new Error('log down'));
+
+      const step = fakeKycStep();
+      const ok = await (service as any).forwardRegistration(step, dto);
+
+      expect(ok).toBe(true);
+      expect(aktionariatRegistrationRepo.save).toHaveBeenCalledTimes(1);
+      expect(step.complete).toHaveBeenCalledTimes(1);
+      expect(step.manualReview).not.toHaveBeenCalled();
     });
   });
 
