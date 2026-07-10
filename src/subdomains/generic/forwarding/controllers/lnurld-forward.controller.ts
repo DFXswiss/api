@@ -1,8 +1,8 @@
 import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { LnurlwInvoiceDto, LnurlWithdrawRequestDto } from 'src/integration/lightning/dto/lnurlw.dto';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { LnUrlForwardService } from '../services/lnurl-forward.service';
 
 @ApiTags('LNURL')

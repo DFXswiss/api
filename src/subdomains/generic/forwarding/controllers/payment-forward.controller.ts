@@ -1,8 +1,8 @@
 import { BadRequestException, Controller, Get, Query, UseGuards, Version, VERSION_NEUTRAL } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Throttle } from '@nestjs/throttler';
-import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { LnUrlForwardService } from '../services/lnurl-forward.service';
 
 @ApiTags('Payment Link')

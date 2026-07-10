@@ -12,6 +12,7 @@ import { LightningService } from '../../../../../integration/lightning/services/
 import { createCustomLnurlpLRequest } from '../../dto/__mocks__/lnurlp.dto.mock';
 import { createCustomLnurlwRequest } from '../../dto/__mocks__/lnurlw.dto.mock';
 import { LnUrlForwardService } from '../../services/lnurl-forward.service';
+import { LnurldForwardController } from '../lnurld-forward.controller';
 import { LnUrlPForwardController } from '../lnurlp-forward.controller';
 import { LnUrlWForwardController } from '../lnurlw-forward.controller';
 
@@ -21,6 +22,7 @@ describe('LnurlForward', () => {
   let paymentLinkPaymentServiceMock: PaymentLinkPaymentService;
   let paymentQuoteServiceMock: PaymentQuoteService;
   let paymentActivationServiceMock: PaymentActivationService;
+  let lnurldForward: LnurldForwardController;
   let lnurlpForward: LnUrlPForwardController;
   let lnurlwForward: LnUrlWForwardController;
 
@@ -56,9 +58,10 @@ describe('LnurlForward', () => {
         LightningService,
         LnUrlForwardService,
       ],
-      controllers: [LnUrlPForwardController, LnUrlWForwardController],
+      controllers: [LnurldForwardController, LnUrlPForwardController, LnUrlWForwardController],
     }).compile();
 
+    lnurldForward = module.get<LnurldForwardController>(LnurldForwardController);
     lnurlpForward = module.get<LnUrlPForwardController>(LnUrlPForwardController);
     lnurlwForward = module.get<LnUrlWForwardController>(LnUrlWForwardController);
   });
@@ -145,6 +148,8 @@ describe('LnurlForward', () => {
       await expect(lnurlpForward.lnUrlPCallbackForward('ABC123', {})).rejects.toThrow(NotFoundException);
       await expect(lnurlwForward.lnUrlWForward('ABC123')).rejects.toThrow(NotFoundException);
       await expect(lnurlwForward.lnUrlWCallbackForward('ABC123', {})).rejects.toThrow(NotFoundException);
+      await expect(lnurldForward.lnurldForward('ABC123', {})).rejects.toThrow(NotFoundException);
+      await expect(lnurldForward.lnurldCallbackForward('ABC123', 'ABC123', {})).rejects.toThrow(NotFoundException);
     });
 
     it('re-throws non-404 errors unchanged', async () => {
