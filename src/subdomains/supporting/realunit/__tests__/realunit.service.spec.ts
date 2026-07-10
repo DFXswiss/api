@@ -24,13 +24,13 @@ import { AccountMergeService } from 'src/subdomains/generic/user/models/account-
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import {
   TransactionRequestStatus,
   TransactionRequestType,
 } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
-import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
@@ -558,6 +558,19 @@ describe('RealUnitService', () => {
       mockEnvironment = 'loc';
     });
 
+    it('maps the Aktionariat minimum-purchase rejection to 400 with code AmountTooLow', async () => {
+      const upstreamMessage = 'Purchases by bank transfer require a minimum nominal amount.';
+      blockchainService.requestPaymentInstructions.mockRejectedValue(
+        aktionariatError(400, { status: 400, message: upstreamMessage }),
+      );
+
+      const error = await service.confirmBuy(42, 1).catch((e) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.getResponse()).toEqual({ code: QuoteError.AMOUNT_TOO_LOW, message: upstreamMessage });
+      expect(transactionRequestService.confirmTransactionRequest).not.toHaveBeenCalled();
+    });
+
     it('maps the Aktionariat missing-primary-email rejection to 400 with code PrimaryEmailRequired', async () => {
       const upstreamMessage = 'User must have a primary email';
       blockchainService.requestPaymentInstructions.mockRejectedValue(
@@ -576,10 +589,6 @@ describe('RealUnitService', () => {
       ['403', aktionariatError(403, { status: 403, message: 'Forbidden' })],
       ['429', aktionariatError(429, { status: 429, message: 'Too many requests' })],
       ['400 with another message', aktionariatError(400, { status: 400, message: 'User has no primary email.' })],
-      [
-        '400 minimum-purchase message',
-        aktionariatError(400, { status: 400, message: 'Purchases by bank transfer require a minimum nominal amount.' }),
-      ],
       ['400 without a message', aktionariatError(400, {})],
       ['500', aktionariatError(500, { status: 500, message: 'Internal server error' })],
       ['network error without response', new Error('connect ETIMEDOUT')],

@@ -10,6 +10,15 @@ export class PrimaryEmailRequiredException extends BadRequestException {
   }
 }
 
+export class AmountTooLowException extends BadRequestException {
+  constructor(message: string) {
+    super({
+      code: QuoteError.AMOUNT_TOO_LOW,
+      message,
+    });
+  }
+}
+
 export class RegistrationRequiredException extends ForbiddenException {
   constructor(message = 'RealUnit registration required', context?: string) {
     super({

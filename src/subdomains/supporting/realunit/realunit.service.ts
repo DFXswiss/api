@@ -114,6 +114,7 @@ import {
 } from './dto/realunit.dto';
 import { PriceInvalidException } from '../pricing/domain/exceptions/price-invalid.exception';
 import {
+  AmountTooLowException,
   KycLevelRequiredException,
   PrimaryEmailRequiredException,
   RegistrationRequiredException,
@@ -646,6 +647,15 @@ export class RealUnitService {
       const upstreamMessage = error?.response?.data?.message;
       const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
       const logMessage = `Failed to request payment instructions from Aktionariat for request ${requestId} (currency: ${fiat.name}, shares: ${Math.floor(request.estimatedAmount)}, price: ${Math.round(request.amount * 100)}): ${message}`;
+
+      const isMinimumPurchaseRejection =
+        error?.response?.status === 400 &&
+        typeof upstreamMessage === 'string' &&
+        upstreamMessage.includes('Purchases by bank transfer require a minimum');
+      if (isMinimumPurchaseRejection) {
+        this.logger.warn(logMessage);
+        throw new AmountTooLowException(upstreamMessage);
+      }
 
       const isPrimaryEmailMissing =
         error?.response?.status === 400 &&
