@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import { Configuration, ConfigService } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
@@ -32,7 +32,6 @@ import {
   REALUNIT_VISIBLE_TX_ASSETS,
   RealUnitComplianceService,
 } from 'src/subdomains/supporting/realunit/realunit-compliance.service';
-import { ServiceUnavailableException } from '@nestjs/common';
 import { RealUnitScopeService } from 'src/subdomains/supporting/realunit/realunit-scope.service';
 
 describe('RealUnitComplianceService', () => {
