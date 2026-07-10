@@ -570,7 +570,7 @@ export class RealUnitController {
   @ApiOperation({
     summary: 'Get payment info for RealUnit buy',
     description:
-      'Returns personal IBAN and payment details for purchasing REALU tokens. Requires KYC Level 30 and RealUnit registration.',
+      'Returns personal IBAN and payment details for purchasing REALU tokens. Requires KYC Level 30 and RealUnit registration. Pre-tap prerequisite state travels in the response: `isValid: false` with `error: PrimaryEmailRequired` signals a missing primary email — the client must register one via `POST /v1/realunit/register/email` before calling `PUT /v1/realunit/buy/:id/confirm`.',
   })
   @ApiOkResponse({ type: RealUnitPaymentInfoDto })
   @ApiBadRequestResponse({ description: 'KYC Level 30 required, registration missing, or address not on allowlist' })
@@ -582,7 +582,16 @@ export class RealUnitController {
   @Put('buy/:id/confirm')
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), IpGuard)
+  @ApiOperation({
+    summary: 'Confirm RealUnit buy order',
+    description:
+      'Requests the payment instructions from Aktionariat and confirms the buy order. The pre-tap prerequisite state (e.g. missing primary email) is exposed via `PUT /v1/realunit/buy` in `isValid`/`error`; this endpoint only re-checks it as a fail-closed backstop.',
+  })
   @ApiOkResponse({ type: RealUnitBuyConfirmDto, description: 'Payment confirmed' })
+  @ApiBadRequestResponse({
+    description:
+      'Fail-closed backstop for prerequisite failures raced between payment-info and confirm — e.g. a missing primary email is returned as `{ code: PrimaryEmailRequired }`. The pre-tap state is exposed via `PUT /v1/realunit/buy` (`isValid`/`error`).',
+  })
   async confirmBuy(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<RealUnitBuyConfirmDto> {
     return this.realunitService.confirmBuy(jwt.user, +id);
   }

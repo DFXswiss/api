@@ -116,6 +116,7 @@ import { PriceInvalidException } from '../pricing/domain/exceptions/price-invali
 import {
   AmountTooLowException,
   KycLevelRequiredException,
+  PrimaryEmailRequiredException,
   RegistrationRequiredException,
 } from './exceptions/buy-exceptions';
 import { PriceSourceUnavailableException } from './exceptions/price-source-unavailable.exception';
@@ -528,7 +529,17 @@ export class RealUnitService {
       }),
     );
 
-    // 5. Override recipient info with RealUnit company address
+    // 5. Primary-email pre-tap gate: Aktionariat rejects the buy confirm when the user has no primary
+    // email. Surface it here as a pre-tap signal (isValid/error) so the client can route to the mail
+    // capture before tapping confirm, instead of bouncing off the reactive 400 in confirmBuy (which
+    // stays as a fail-closed backstop for the case the email disappears after this call). An existing
+    // quote error takes precedence — it may be a harder block (country/nationality/AML/limit) that no
+    // amount of email capture can resolve, so the mail gate only fills the error when none is present.
+    const hasPrimaryEmail = !!userData.mail;
+    const isValid = buyPaymentInfo.isValid && hasPrimaryEmail;
+    const error = buyPaymentInfo.error ?? (hasPrimaryEmail ? undefined : QuoteError.PRIMARY_EMAIL_REQUIRED);
+
+    // 6. Override recipient info with RealUnit company address
     const { bank: realunitBank, address: realunitAddress } = GetConfig().blockchain.realunit;
     const iban = currencyName === 'EUR' ? realunitBank.ibanEur : realunitBank.iban;
     const response: RealUnitPaymentInfoDto = {
@@ -560,7 +571,7 @@ export class RealUnitService {
       priceSteps: buyPaymentInfo.priceSteps,
       // RealUnit specific
       estimatedAmount: buyPaymentInfo.estimatedAmount,
-      paymentRequest: buyPaymentInfo.isValid
+      paymentRequest: isValid
         ? this.generatePaymentRequest(
             currencyName,
             buyPaymentInfo.amount,
@@ -571,8 +582,8 @@ export class RealUnitService {
           )
         : undefined,
       remittanceInfo: buy.active ? buy.bankUsage : undefined,
-      isValid: buyPaymentInfo.isValid,
-      error: buyPaymentInfo.error,
+      isValid,
+      error,
     };
 
     return response;
@@ -644,6 +655,15 @@ export class RealUnitService {
       if (isMinimumPurchaseRejection) {
         this.logger.warn(logMessage);
         throw new AmountTooLowException(upstreamMessage);
+      }
+
+      const isPrimaryEmailMissing =
+        error?.response?.status === 400 &&
+        typeof upstreamMessage === 'string' &&
+        upstreamMessage.includes('User must have a primary email');
+      if (isPrimaryEmailMissing) {
+        this.logger.warn(logMessage);
+        throw new PrimaryEmailRequiredException(upstreamMessage);
       }
 
       this.logger.error(logMessage);
