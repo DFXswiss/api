@@ -23,6 +23,7 @@ import {
   ApiOkResponse,
   ApiOperation,
   ApiTags,
+  ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
 import { Response } from 'express';
 import { AllowTfaPending } from 'src/shared/auth/allow-tfa-pending.decorator';
@@ -34,6 +35,7 @@ import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { HistoryFilter, HistoryFilterKey } from 'src/subdomains/core/history/dto/history-filter.dto';
 import { KycInputDataDto } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
+import { MergedDto } from 'src/subdomains/generic/kyc/dto/output/kyc-merged.dto';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { AuthService } from '../auth/auth.service';
 import { AuthResponseDto } from '../auth/dto/auth-response.dto';
@@ -143,6 +145,10 @@ export class UserController {
   @ApiCreatedResponse({ type: UserDetailDto })
   @ApiBadRequestResponse({ description: 'KYC already started' })
   @ApiConflictResponse({ description: 'Account already exists' })
+  @ApiUnauthorizedResponse({
+    description: 'User is merged, switch to the KYC code provided in the response',
+    type: MergedDto,
+  })
   async updateKycData(@GetJwt() jwt: JwtPayload, @Body() data: KycInputDataDto): Promise<UserDetailDto> {
     return this.userService.updateUserData(jwt.user, data);
   }
@@ -267,6 +273,10 @@ export class UserV2Controller {
   @ApiAcceptedResponse({ description: 'Verification code sent' })
   @ApiForbiddenResponse({ description: 'Missing 2FA' })
   @ApiConflictResponse({ description: 'Account already exists' })
+  @ApiUnauthorizedResponse({
+    description: 'User is merged, switch to the KYC code provided in the response',
+    type: MergedDto,
+  })
   async updateUserMail(
     @GetJwt() jwt: JwtPayload,
     @Body() newMail: UpdateUserMailDto,
@@ -287,6 +297,10 @@ export class UserV2Controller {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiCreatedResponse({ description: 'Email verification successful' })
   @ApiForbiddenResponse({ description: 'Invalid or expired mail verification token' })
+  @ApiUnauthorizedResponse({
+    description: 'User is merged, switch to the KYC code provided in the response',
+    type: MergedDto,
+  })
   async verifyMail(@GetJwt() jwt: JwtPayload, @Body() dto: VerifyMailDto): Promise<UserV2Dto> {
     return this.userService.verifyMail(jwt.account, dto.token, jwt.user);
   }
