@@ -13,6 +13,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
+import { isSsrfSafeUrl } from 'src/shared/validators/is-ssrf-safe-url.validator';
 import { C2BPaymentLinkService } from 'src/subdomains/core/payment-link/services/c2b-payment-link.service';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
@@ -215,6 +216,8 @@ export class PaymentLinkService {
   }
 
   private async createForRoute(route: DepositRoute, dto: CreatePaymentLinkDto): Promise<PaymentLink> {
+    this.checkWebhookUrl(dto.webhookUrl);
+
     const paymentLink = this.paymentLinkRepo.create({
       route,
       externalId: dto.externalId,
@@ -236,6 +239,12 @@ export class PaymentLinkService {
       paymentLink.payments.push(await this.paymentLinkPaymentService.createPayment(paymentLink, dto.payment));
 
     return paymentLink;
+  }
+
+  // covers every path that sets PaymentLink.webhookUrl, independent of DTO validation
+  private checkWebhookUrl(webhookUrl?: string): void {
+    if (webhookUrl && !isSsrfSafeUrl(webhookUrl))
+      throw new BadRequestException('webhookUrl must be a public http(s) URL');
   }
 
   async createPayRequestWithCompletionCheck(
@@ -392,6 +401,10 @@ export class PaymentLinkService {
     const { status, mode, label, webhookUrl, config } = dto;
     if (status === PaymentLinkStatus.UNASSIGNED) throw new BadRequestException('Cannot update status to unassigned');
     if (mode === PaymentLinkMode.SINGLE) throw new BadRequestException('Cannot update mode to single');
+    this.checkWebhookUrl(webhookUrl);
+
+    // a new webhook target deserves a fresh attempt, independent of the old one's failure history
+    const webhookUrlChanged = webhookUrl !== undefined && webhookUrl !== paymentLink.webhookUrl;
 
     const updatePaymentLink: Partial<PaymentLink> = {
       status,
@@ -399,6 +412,7 @@ export class PaymentLinkService {
       label,
       webhookUrl,
       config: JSON.stringify(config),
+      ...(webhookUrlChanged ? { webhookFailCount: 0, webhookLastFailedAt: null } : {}),
     };
 
     await this.updatePaymentLinkInternal(paymentLink, updatePaymentLink);
