@@ -75,47 +75,89 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     await insertStep(
       'RealUnitRegistration',
       'Completed',
-      blob({ email: 'a@example.com', walletAddress: ADDR.a, signature: '0xsigA', registrationDate: '2026-05-01', kycData: personalKyc }),
+      blob({
+        email: 'a@example.com',
+        walletAddress: ADDR.a,
+        signature: '0xsigA',
+        registrationDate: '2026-05-01',
+        kycData: personalKyc,
+      }),
       '2026-05-01T10:00:00Z',
     );
     // 2) Re-registration for the same wallet -> supersede: older + newer completed step
     await insertStep(
       'RealUnitRegistration',
       'Completed',
-      blob({ email: 'b@example.com', walletAddress: ADDR.b, signature: '0xsigB_old', registrationDate: '2026-04-01', kycData: personalKyc }),
+      blob({
+        email: 'b@example.com',
+        walletAddress: ADDR.b,
+        signature: '0xsigB_old',
+        registrationDate: '2026-04-01',
+        kycData: personalKyc,
+      }),
       '2026-04-01T10:00:00Z',
     );
     await insertStep(
       'RealUnitRegistration',
       'Completed',
-      blob({ email: 'b@example.com', walletAddress: ADDR.b, signature: '0xsigB_new', registrationDate: '2026-06-01', kycData: personalKyc }),
+      blob({
+        email: 'b@example.com',
+        walletAddress: ADDR.b,
+        signature: '0xsigB_new',
+        registrationDate: '2026-06-01',
+        kycData: personalKyc,
+      }),
       '2026-06-01T10:00:00Z',
     );
     // 3) Failed step -> migrated but never active
     await insertStep(
       'RealUnitRegistration',
       'Failed',
-      blob({ email: 'c@example.com', walletAddress: ADDR.c, signature: '0xsigC', registrationDate: '2026-05-02', kycData: personalKyc }),
+      blob({
+        email: 'c@example.com',
+        walletAddress: ADDR.c,
+        signature: '0xsigC',
+        registrationDate: '2026-05-02',
+        kycData: personalKyc,
+      }),
       '2026-05-02T10:00:00Z',
     );
     // 4+5) Two different wallets registered under the SAME email (multi-wallet confirm resolution)
     await insertStep(
       'RealUnitRegistration',
       'Completed',
-      blob({ email: 'shared@example.com', walletAddress: ADDR.d, signature: '0xsigD', registrationDate: '2026-05-03', kycData: personalKyc }),
+      blob({
+        email: 'shared@example.com',
+        walletAddress: ADDR.d,
+        signature: '0xsigD',
+        registrationDate: '2026-05-03',
+        kycData: personalKyc,
+      }),
       '2026-05-03T10:00:00Z',
     );
     await insertStep(
       'RealUnitRegistration',
       'Completed',
-      blob({ email: 'shared@example.com', walletAddress: ADDR.e, signature: '0xsigE', registrationDate: '2026-05-04', kycData: personalKyc }),
+      blob({
+        email: 'shared@example.com',
+        walletAddress: ADDR.e,
+        signature: '0xsigE',
+        registrationDate: '2026-05-04',
+        kycData: personalKyc,
+      }),
       '2026-05-04T10:00:00Z',
     );
     // 6) CORPORATION registration -> kycData preserved with organization fields
     await insertStep(
       'RealUnitRegistration',
       'Completed',
-      blob({ email: 'f@example.com', walletAddress: ADDR.f, signature: '0xsigF', registrationDate: '2026-05-05', kycData: orgKyc }),
+      blob({
+        email: 'f@example.com',
+        walletAddress: ADDR.f,
+        signature: '0xsigF',
+        registrationDate: '2026-05-05',
+        kycData: orgKyc,
+      }),
       '2026-05-05T10:00:00Z',
     );
     // 7) Blob without a walletAddress -> not resolvable, counted, never inserted
@@ -129,7 +171,13 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     await insertStep(
       'RealUnitRegistration',
       'Completed',
-      blob({ email: 'h@example.com', walletAddress: ADDR.ghost, signature: '0xsigH', registrationDate: '2026-05-07', kycData: personalKyc }),
+      blob({
+        email: 'h@example.com',
+        walletAddress: ADDR.ghost,
+        signature: '0xsigH',
+        registrationDate: '2026-05-07',
+        kycData: personalKyc,
+      }),
       '2026-05-07T10:00:00Z',
     );
     // 9) Unrelated step -> must be ignored by the name filter
@@ -139,20 +187,38 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     await insertStep(
       'RealUnitRegistration',
       'Completed',
-      blob({ email: 'g@example.com', walletAddress: ADDR.g, signature: '0xsigG_ok', registrationDate: '2026-03-01', kycData: personalKyc }),
+      blob({
+        email: 'g@example.com',
+        walletAddress: ADDR.g,
+        signature: '0xsigG_ok',
+        registrationDate: '2026-03-01',
+        kycData: personalKyc,
+      }),
       '2026-03-01T10:00:00Z',
     );
     await insertStep(
       'RealUnitRegistration',
       'Failed',
-      blob({ email: 'g@example.com', walletAddress: ADDR.g, signature: '0xsigG_fail', registrationDate: '2026-07-01', kycData: personalKyc }),
+      blob({
+        email: 'g@example.com',
+        walletAddress: ADDR.g,
+        signature: '0xsigG_fail',
+        registrationDate: '2026-07-01',
+        kycData: personalKyc,
+      }),
       '2026-07-01T10:00:00Z',
     );
     // 10b) Non-terminal, non-completed step (InternalReview) -> status maps to ManualReview, active
     await insertStep(
       'RealUnitRegistration',
       'InternalReview',
-      blob({ email: 'h@example.com', walletAddress: ADDR.h, signature: '0xsigH_ir', registrationDate: '2026-05-09', kycData: personalKyc }),
+      blob({
+        email: 'h@example.com',
+        walletAddress: ADDR.h,
+        signature: '0xsigH_ir',
+        registrationDate: '2026-05-09',
+        kycData: personalKyc,
+      }),
       '2026-05-09T10:00:00Z',
     );
   });
@@ -249,9 +315,11 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
   it('lowercases the queryable walletAddress but keeps the exact signed casing in signedPayload', async () => {
     await runUp();
 
-    const row = (await rows(
-      `SELECT "walletAddress", "signedPayload", "kycData", "status", "forwardedToAktionariatDate" FROM "aktionariat_registration" WHERE "userId" = 1`,
-    ))[0];
+    const row = (
+      await rows(
+        `SELECT "walletAddress", "signedPayload", "kycData", "status", "forwardedToAktionariatDate" FROM "aktionariat_registration" WHERE "userId" = 1`,
+      )
+    )[0];
 
     expect(row.walletAddress).toBe(ADDR.a.toLowerCase());
     const signed = JSON.parse(row.signedPayload);
@@ -264,10 +332,14 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
   it('preserves kycData (Personal and Organization) split out into its own column', async () => {
     await runUp();
 
-    const aKyc = JSON.parse((await rows(`SELECT "kycData" FROM "aktionariat_registration" WHERE "userId" = 1`))[0].kycData);
+    const aKyc = JSON.parse(
+      (await rows(`SELECT "kycData" FROM "aktionariat_registration" WHERE "userId" = 1`))[0].kycData,
+    );
     expect(aKyc).toEqual(personalKyc);
 
-    const fKyc = JSON.parse((await rows(`SELECT "kycData" FROM "aktionariat_registration" WHERE "userId" = 6`))[0].kycData);
+    const fKyc = JSON.parse(
+      (await rows(`SELECT "kycData" FROM "aktionariat_registration" WHERE "userId" = 6`))[0].kycData,
+    );
     expect(fKyc).toEqual(orgKyc);
     expect(fKyc.accountType).toBe('Organization');
   });

@@ -1229,7 +1229,9 @@ export class RealUnitService {
     } catch (error) {
       const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
 
-      this.logger.error(`Failed to forward RealUnit registration to Aktionariat for wallet ${dto.walletAddress}: ${message}`);
+      this.logger.error(
+        `Failed to forward RealUnit registration to Aktionariat for wallet ${dto.walletAddress}: ${message}`,
+      );
 
       await this.logAktionariatRegistration(
         LogSeverity.ERROR,

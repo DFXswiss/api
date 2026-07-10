@@ -580,16 +580,18 @@ describe('RealUnitService', () => {
     it('rejects the sell with RegistrationRequiredException when the wallet is not RealUnit-registered', async () => {
       jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(false);
 
-      await expect(service.getSellPaymentInfo(buildUser(KycLevel.LEVEL_30), { amount: 1 } as any)).rejects.toBeInstanceOf(
-        RegistrationRequiredException,
-      );
+      await expect(
+        service.getSellPaymentInfo(buildUser(KycLevel.LEVEL_30), { amount: 1 } as any),
+      ).rejects.toBeInstanceOf(RegistrationRequiredException);
     });
 
     it('passes the registration gate when registered (the next KYC-level gate rejects, not the registration one)', async () => {
       jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
 
       // KYC level below 30 makes the very next gate throw — proving the registration gate was passed
-      const error = await service.getSellPaymentInfo(buildUser(KycLevel.LEVEL_10), { amount: 1 } as any).catch((e) => e);
+      const error = await service
+        .getSellPaymentInfo(buildUser(KycLevel.LEVEL_10), { amount: 1 } as any)
+        .catch((e) => e);
 
       expect(error).toBeInstanceOf(KycLevelRequiredException);
       expect(error).not.toBeInstanceOf(RegistrationRequiredException);
@@ -829,7 +831,9 @@ describe('RealUnitService', () => {
     };
 
     it('returns ALREADY_REGISTERED without persisting a new registration when signature matches a completed registration', async () => {
-      mockCurrentWalletRegistration(buildRegistration({ signature: matchingSignature, status: ReviewStatus.COMPLETED }));
+      mockCurrentWalletRegistration(
+        buildRegistration({ signature: matchingSignature, status: ReviewStatus.COMPLETED }),
+      );
 
       const status = await service.completeRegistrationForWalletAddress(userDataId, dto);
 
@@ -1571,7 +1575,9 @@ describe('RealUnitService', () => {
       userService.getUserByAddress.mockResolvedValue({
         userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', firstname: 'Max' },
       } as any);
-      jest.spyOn(service as any, 'findRegistration').mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
+      jest
+        .spyOn(service as any, 'findRegistration')
+        .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
       jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(false);
 
       await expect(service.completeRegistration(1, dto)).rejects.toThrow(BadRequestException);
@@ -1581,7 +1587,9 @@ describe('RealUnitService', () => {
       userService.getUserByAddress.mockResolvedValue({
         userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', firstname: 'Max' },
       } as any);
-      jest.spyOn(service as any, 'findRegistration').mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
+      jest
+        .spyOn(service as any, 'findRegistration')
+        .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
       jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(true);
       const forwardSpy = jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
 
@@ -1603,7 +1611,9 @@ describe('RealUnitService', () => {
       };
       const userData: any = { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', firstname: null };
       userService.getUserByAddress.mockResolvedValue({ userData } as any);
-      jest.spyOn(service as any, 'findRegistration').mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
+      jest
+        .spyOn(service as any, 'findRegistration')
+        .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
       (service as any).countryService.getCountryWithSymbol.mockResolvedValue({ id: 1, symbol: 'CH' });
       (service as any).languageService.getLanguageBySymbol.mockResolvedValue({ id: 1, symbol: 'DE' });
       const forwardSpy = jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
@@ -1624,7 +1634,9 @@ describe('RealUnitService', () => {
       userService.getUserByAddress.mockResolvedValue({
         userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', firstname: 'Max' },
       } as any);
-      jest.spyOn(service as any, 'findRegistration').mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
+      jest
+        .spyOn(service as any, 'findRegistration')
+        .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
       jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(true);
       jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(false);
 
