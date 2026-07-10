@@ -21,6 +21,7 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
@@ -69,6 +70,14 @@ jest.mock('src/config/config', () => ({
         brokerbotAddress: '0xBrokerbotAddress',
         graphUrl: 'https://mock-ponder.example.com',
         api: { url: 'https://mock-api.example.com', key: 'mock-key' },
+        bank: {
+          recipient: 'RealUnit AG',
+          iban: 'CH0000000000000000000',
+          ibanEur: 'CH1111111111111111111',
+          bic: 'MOCKCHZZ',
+          name: 'Mock Bank',
+        },
+        address: { street: 'Bahnhofstrasse', number: '1', zip: '8000', city: 'Zurich', country: 'CH' },
       },
       ethereum: { ethChainId: 1 },
       sepolia: { sepoliaChainId: 11155111 },
@@ -137,6 +146,7 @@ describe('RealUnitService', () => {
   let httpService: jest.Mocked<HttpService>;
   let addressConfirmationRepo: jest.Mocked<RealUnitAddressConfirmationRepository>;
   let fiatService: jest.Mocked<FiatService>;
+  let buyService: jest.Mocked<BuyService>;
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -193,8 +203,8 @@ describe('RealUnitService', () => {
         { provide: CountryService, useValue: {} },
         { provide: LanguageService, useValue: {} },
         { provide: HttpService, useValue: { post: jest.fn(), getRaw: jest.fn() } },
-        { provide: FiatService, useValue: { getFiat: jest.fn() } },
-        { provide: BuyService, useValue: {} },
+        { provide: FiatService, useValue: { getFiat: jest.fn(), getFiatByName: jest.fn() } },
+        { provide: BuyService, useValue: { createBuy: jest.fn(), toPaymentInfoDto: jest.fn() } },
         {
           provide: SellService,
           useValue: {
@@ -247,6 +257,7 @@ describe('RealUnitService', () => {
     httpService = module.get(HttpService);
     addressConfirmationRepo = module.get(RealUnitAddressConfirmationRepository);
     fiatService = module.get(FiatService);
+    buyService = module.get(BuyService);
   });
 
   afterEach(() => {
@@ -438,6 +449,87 @@ describe('RealUnitService', () => {
       assetService.getAssetByQuery.mockResolvedValue(realuAsset);
 
       await expect(service.confirmSell(42, 1, {})).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getPaymentInfo (primary-email pre-tap gate)', () => {
+    const buildBuyPaymentInfo = (overrides: Partial<any> = {}): any => ({
+      id: 10,
+      routeId: 20,
+      timestamp: new Date(),
+      amount: 100,
+      currency: { name: 'CHF' },
+      fees: {},
+      minVolume: 1,
+      maxVolume: 1000,
+      minVolumeTarget: 1,
+      maxVolumeTarget: 1000,
+      exchangeRate: 1,
+      rate: 1,
+      priceSteps: [],
+      estimatedAmount: 99,
+      isValid: true,
+      error: undefined,
+      ...overrides,
+    });
+
+    const buildUser = (mail?: string): any => ({
+      id: 42,
+      address: '0xUserAddress',
+      userData: { mail, kycLevel: KycLevel.LEVEL_30 },
+    });
+
+    beforeEach(() => {
+      jest.spyOn(service, 'hasRegistrationForWallet').mockReturnValue(true);
+      jest.spyOn(service, 'getRealuAsset').mockResolvedValue(realuAsset);
+      jest.spyOn(service as any, 'generatePaymentRequest').mockReturnValue('MOCK-QR');
+      fiatService.getFiatByName.mockResolvedValue({ name: 'CHF' } as any);
+      buyService.createBuy.mockResolvedValue({ bankUsage: 'MOCK-USAGE', active: true } as any);
+    });
+
+    it('surfaces a missing primary email as isValid:false with error PrimaryEmailRequired and no payment request', async () => {
+      buyService.toPaymentInfoDto.mockResolvedValue(buildBuyPaymentInfo({ isValid: true, error: undefined }));
+
+      const result = await service.getPaymentInfo(buildUser(undefined), { amount: 100 });
+
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.PRIMARY_EMAIL_REQUIRED);
+      expect(result.paymentRequest).toBeUndefined();
+      expect((service as any).generatePaymentRequest).not.toHaveBeenCalled();
+    });
+
+    it('leaves a valid quote untouched when the user has a primary email', async () => {
+      buyService.toPaymentInfoDto.mockResolvedValue(buildBuyPaymentInfo({ isValid: true, error: undefined }));
+
+      const result = await service.getPaymentInfo(buildUser('max@example.com'), { amount: 100 });
+
+      expect(result.isValid).toBe(true);
+      expect(result.error).toBeUndefined();
+      expect(result.paymentRequest).toBe('MOCK-QR');
+    });
+
+    it('passes a pre-existing quote error through unchanged when the user has a primary email', async () => {
+      buyService.toPaymentInfoDto.mockResolvedValue(
+        buildBuyPaymentInfo({ isValid: false, error: QuoteError.AMOUNT_TOO_LOW }),
+      );
+
+      const result = await service.getPaymentInfo(buildUser('max@example.com'), { amount: 100 });
+
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.AMOUNT_TOO_LOW);
+      expect(result.paymentRequest).toBeUndefined();
+    });
+
+    it('prefers a harder pre-existing quote error over the missing-primary-email signal', async () => {
+      buyService.toPaymentInfoDto.mockResolvedValue(
+        buildBuyPaymentInfo({ isValid: false, error: QuoteError.AMOUNT_TOO_LOW }),
+      );
+
+      const result = await service.getPaymentInfo(buildUser(undefined), { amount: 100 });
+
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.AMOUNT_TOO_LOW);
+      expect(result.paymentRequest).toBeUndefined();
     });
   });
 
