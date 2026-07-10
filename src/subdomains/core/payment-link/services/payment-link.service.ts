@@ -393,12 +393,16 @@ export class PaymentLinkService {
     if (status === PaymentLinkStatus.UNASSIGNED) throw new BadRequestException('Cannot update status to unassigned');
     if (mode === PaymentLinkMode.SINGLE) throw new BadRequestException('Cannot update mode to single');
 
+    // a new webhook target deserves a fresh attempt, independent of the old one's failure history
+    const webhookUrlChanged = webhookUrl !== undefined && webhookUrl !== paymentLink.webhookUrl;
+
     const updatePaymentLink: Partial<PaymentLink> = {
       status,
       mode,
       label,
       webhookUrl,
       config: JSON.stringify(config),
+      ...(webhookUrlChanged ? { webhookFailCount: 0, webhookLastFailedAt: null } : {}),
     };
 
     await this.updatePaymentLinkInternal(paymentLink, updatePaymentLink);

@@ -41,6 +41,12 @@ export class PaymentLink extends IEntity {
   @Column({ type: 'text', nullable: true })
   webhookUrl?: string;
 
+  @Column({ type: 'int', default: 0 })
+  webhookFailCount: number;
+
+  @Column({ type: 'timestamp', nullable: true })
+  webhookLastFailedAt?: Date;
+
   @Column({ length: 256, nullable: true })
   regionManager?: string;
 
