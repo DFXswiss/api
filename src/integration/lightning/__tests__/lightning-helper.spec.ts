@@ -78,7 +78,7 @@ describe('LightningHelper', () => {
       expect(decodedLnurl).toEqual('https://test.dfx.api:12345/v0.1/lnurlw/ABC12345');
     });
 
-    it('createLnurlMetadata escapes special characters into valid JSON', () => {
+    it('createLnurlMetadata', () => {
       const memo = 'a "quoted" memo, a \\ backslash and a\nnewline';
       const metadata = LightningHelper.createLnurlMetadata(memo);
 
