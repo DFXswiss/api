@@ -41,6 +41,7 @@ import { RealUnitAktionariatConfirmationStatus } from '../dto/realunit-confirm-a
 import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
 import { PriceInvalidException } from '../../pricing/domain/exceptions/price-invalid.exception';
 import { RealUnitDevService } from '../realunit-dev.service';
+import { AktionariatRegistration } from '../entities/aktionariat-registration.entity';
 import { AktionariatRegistrationRepository } from '../repositories/aktionariat-registration.repository';
 import { RealUnitAddressConfirmationRepository } from '../repositories/realunit-address-confirmation.repository';
 import { PriceSourceUnavailableException } from '../exceptions/price-source-unavailable.exception';
@@ -149,6 +150,8 @@ describe('RealUnitService', () => {
   let httpService: jest.Mocked<HttpService>;
   let addressConfirmationRepo: jest.Mocked<RealUnitAddressConfirmationRepository>;
   let aktionariatRegistrationRepo: jest.Mocked<AktionariatRegistrationRepository>;
+  let aktionariatManager: { transaction: jest.Mock };
+  let aktionariatTxManager: { update: jest.Mock; save: jest.Mock };
   let logService: jest.Mocked<LogService>;
   let fiatService: jest.Mocked<FiatService>;
   let buyService: jest.Mocked<BuyService>;
@@ -172,6 +175,16 @@ describe('RealUnitService', () => {
   });
 
   beforeEach(async () => {
+    // Mock the per-wallet persistence transaction: repo.manager.transaction() runs its callback with a
+    // distinct transactional EntityManager, so the tests prove the deactivate (update) + insert (save)
+    // go through that transactional manager rather than the repository outside the transaction.
+    aktionariatTxManager = {
+      update: jest.fn(),
+      save: jest.fn((entity) => entity),
+    };
+    aktionariatManager = {
+      transaction: jest.fn(async (cb: any) => cb(aktionariatTxManager)),
+    };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RealUnitService,
@@ -255,6 +268,7 @@ describe('RealUnitService', () => {
           useValue: {
             create: jest.fn((partial) => ({ ...partial })),
             save: jest.fn((entity) => entity),
+            manager: aktionariatManager,
           },
         },
         {
@@ -1164,16 +1178,17 @@ describe('RealUnitService', () => {
       const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
       expect(created).toMatchObject({
         user: { id: 42 },
-        walletAddress: wallet,
+        // queryable column is canonically lowercased for the exact-match confirm lookup
+        walletAddress: wallet.toLowerCase(),
         email: dto.email,
         registrationDate: dto.registrationDate,
         signature: dto.signature,
         active: true,
       });
       expect(created.forwardedToAktionariatDate).toBeInstanceOf(Date);
-      expect(aktionariatRegistrationRepo.save).toHaveBeenCalledTimes(1);
-      // the exact forwarded payload is attached for an idempotent re-forward
-      const saved = (aktionariatRegistrationRepo.save as jest.Mock).mock.calls[0][0];
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
+      // the exact forwarded payload is attached for an idempotent re-forward and keeps the signed casing
+      const saved = (aktionariatTxManager.save as jest.Mock).mock.calls[0][0];
       expect(saved.signedPayloadData.walletAddress).toBe(wallet);
       expect(step.complete).toHaveBeenCalledTimes(1);
 
@@ -1202,7 +1217,7 @@ describe('RealUnitService', () => {
 
       expect(ok).toBe(true);
       expect(httpService.post).not.toHaveBeenCalled();
-      expect(aktionariatRegistrationRepo.save).toHaveBeenCalledTimes(1);
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
       const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
       expect(created.forwardedToAktionariatDate).toBeInstanceOf(Date);
       expect(step.complete).toHaveBeenCalledTimes(1);
@@ -1223,7 +1238,9 @@ describe('RealUnitService', () => {
       const ok = await (service as any).forwardRegistration(step, dto);
 
       expect(ok).toBe(false);
-      expect(aktionariatRegistrationRepo.save).not.toHaveBeenCalled();
+      // unresolved user throws before the persistence transaction even starts
+      expect(aktionariatManager.transaction).not.toHaveBeenCalled();
+      expect(aktionariatTxManager.save).not.toHaveBeenCalled();
       expect(step.complete).not.toHaveBeenCalled();
       expect(step.manualReview).toHaveBeenCalledTimes(1);
       expect(logService.create).toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
@@ -1234,7 +1251,7 @@ describe('RealUnitService', () => {
       const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
       const dto = buildDto(utf8Fields(wallet), signature);
       httpService.post.mockResolvedValue({} as any);
-      aktionariatRegistrationRepo.save.mockRejectedValue(new Error('db down'));
+      aktionariatTxManager.save.mockRejectedValue(new Error('db down'));
 
       const step = fakeKycStep();
       const ok = await (service as any).forwardRegistration(step, dto);
@@ -1270,9 +1287,41 @@ describe('RealUnitService', () => {
       const ok = await (service as any).forwardRegistration(step, dto);
 
       expect(ok).toBe(true);
-      expect(aktionariatRegistrationRepo.save).toHaveBeenCalledTimes(1);
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
       expect(step.complete).toHaveBeenCalledTimes(1);
       expect(step.manualReview).not.toHaveBeenCalled();
+    });
+
+    it('supersedes a prior active registration (deactivate + re-insert) without a unique violation', async () => {
+      const wallet = softwareWallet.address; // EIP-55 mixed-case address from the client
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 7 } as any);
+      httpService.post.mockResolvedValue({} as any);
+
+      const step = fakeKycStep();
+      const ok = await (service as any).forwardRegistration(step, dto);
+
+      expect(ok).toBe(true);
+      // prior active rows for this wallet-user are deactivated (kept as history) before the insert
+      expect(aktionariatTxManager.update).toHaveBeenCalledWith(
+        AktionariatRegistration,
+        { user: { id: 7 }, active: true },
+        { active: false },
+      );
+      const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
+      // queryable column is canonically lowercased, but the signed payload keeps the exact signed
+      // (mixed-case) address — lowercasing the payload would break EIP-712 signature recovery.
+      expect(created.walletAddress).toBe(wallet.toLowerCase());
+      expect(created.active).toBe(true);
+      const saved = (aktionariatTxManager.save as jest.Mock).mock.calls[0][0];
+      expect(saved.signedPayloadData.walletAddress).toBe(wallet);
+      // deactivate must run before the insert (atomic supersede — no unique-index clash, no manualReview)
+      const updateOrder = (aktionariatTxManager.update as jest.Mock).mock.invocationCallOrder[0];
+      const saveOrder = (aktionariatTxManager.save as jest.Mock).mock.invocationCallOrder[0];
+      expect(updateOrder).toBeLessThan(saveOrder);
+      expect(step.manualReview).not.toHaveBeenCalled();
+      expect(step.complete).toHaveBeenCalledTimes(1);
     });
   });
 

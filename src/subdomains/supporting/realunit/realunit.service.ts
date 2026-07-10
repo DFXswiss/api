@@ -123,6 +123,7 @@ import {
 } from './exceptions/buy-exceptions';
 import { PriceSourceUnavailableException } from './exceptions/price-source-unavailable.exception';
 import { RealUnitDevService } from './realunit-dev.service';
+import { AktionariatRegistration } from './entities/aktionariat-registration.entity';
 import { AktionariatRegistrationRepository } from './repositories/aktionariat-registration.repository';
 import { RealUnitAddressConfirmationRepository } from './repositories/realunit-address-confirmation.repository';
 import { accountHistoryQuery, accountSummaryQuery, holdersQuery, tokenInfoQuery } from './utils/queries';
@@ -991,6 +992,9 @@ export class RealUnitService {
     const dto = kycStep.getResult<RealUnitRegistrationDto>();
     if (!dto) throw new BadRequestException('No registration data found');
 
+    // This admin retry re-runs the full forwardRegistration, so on a partial prior success it re-POSTs
+    // registerUser to Aktionariat. Left as-is in this phase; the per-wallet persistence below is
+    // idempotent — it supersedes the prior active row rather than colliding with it.
     const success = await this.forwardRegistration(kycStep, dto);
     if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
@@ -1242,18 +1246,27 @@ export class RealUnitService {
     const user = await this.userService.getUserByAddress(dto.walletAddress);
     if (!user) throw new Error(`No user found for RealUnit wallet ${dto.walletAddress}`);
 
-    const registration = this.aktionariatRegistrationRepo.create({
-      user,
-      walletAddress: dto.walletAddress,
-      email: dto.email,
-      registrationDate: dto.registrationDate,
-      signature: dto.signature,
-      forwardedToAktionariatDate: new Date(),
-      active: true,
-    });
-    registration.signedPayloadData = payload;
+    // Deactivate any prior active registration for this wallet-user, then insert the new one — atomic
+    // so the partial unique index ("userId") WHERE active = true always holds and a re-registration or
+    // admin retry supersedes (rather than collides with) the existing active row. The superseded row is
+    // kept as history (active = false), never deleted. The queryable walletAddress column is canonically
+    // lowercased for the exact-match confirm lookup; signedPayloadData keeps the exact signed casing.
+    await this.aktionariatRegistrationRepo.manager.transaction(async (manager) => {
+      await manager.update(AktionariatRegistration, { user: { id: user.id }, active: true }, { active: false });
 
-    await this.aktionariatRegistrationRepo.save(registration);
+      const registration = this.aktionariatRegistrationRepo.create({
+        user,
+        walletAddress: dto.walletAddress.toLowerCase(),
+        email: dto.email,
+        registrationDate: dto.registrationDate,
+        signature: dto.signature,
+        forwardedToAktionariatDate: new Date(),
+        active: true,
+      });
+      registration.signedPayloadData = payload;
+
+      await manager.save(registration);
+    });
   }
 
   // Audit-only mirror of the full Aktionariat communication into the generic Log table. Best-effort:
