@@ -1462,6 +1462,65 @@ describe('RealUnitService', () => {
       const saveOrder = (aktionariatTxManager.save as jest.Mock).mock.invocationCallOrder[0];
       expect(updateOrder).toBeLessThan(saveOrder);
     });
+
+    it('falls back to the raw (non-transliterated) message when the signature cannot be resolved', async () => {
+      // resolveSignedRegistrationMessage returns undefined -> the `?? buildRegistrationMessage(dto, false)`
+      // fallback builds the forwarded payload from the raw UTF-8 fields.
+      const wallet = softwareWallet.address;
+      const dto = buildDto(utf8Fields(wallet), '0xdeadbeef');
+      jest.spyOn(service as any, 'resolveSignedRegistrationMessage').mockReturnValue(undefined);
+      httpService.post.mockResolvedValue({} as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      const payload = forwardedPayload();
+      expect(payload.name).toBe('Erika Müller'); // raw UTF-8, not transliterated
+      expect(payload.addressCity).toBe('Zürich');
+    });
+
+    it('reports the DEV/LOC skipped response on the error path (not registerResponse) when persistence fails', async () => {
+      mockEnvironment = 'loc';
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      aktionariatTxManager.save.mockRejectedValue(new Error('db down'));
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(false);
+      expect(httpService.post).not.toHaveBeenCalled();
+      const errorLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.ERROR)[0];
+      expect(JSON.parse(errorLog.message).response).toBe('skipped (DEV/LOC)');
+    });
+
+    it('logs the raw thrown value when the manual-review persist fails without a message', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+      aktionariatTxManager.save
+        .mockRejectedValueOnce(new Error('completed persist down')) // COMPLETED persist -> outer catch
+        .mockRejectedValueOnce('manual-review string failure'); // MANUAL_REVIEW persist -> nested catch, no .message
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(false);
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(2);
+      expect((service as any).logger.error).toHaveBeenCalled();
+    });
+
+    it('keeps a successful registration when the audit log write rejects without a message', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+      logService.create.mockRejectedValue('log string failure'); // no .message -> hits the `|| e` side
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+    });
   });
 
   describe('forwardRegistrationToAktionariat (admin re-forward by registration id)', () => {
@@ -1773,6 +1832,17 @@ describe('RealUnitService', () => {
 
       expect(result.confirmedAddresses).toEqual([walletA, walletB]);
       expect(addressConfirmationRepo.save).toHaveBeenCalledTimes(2);
+    });
+
+    it('looks wallets up by a case-insensitive LOWER(email) predicate (Raw SQL generator)', async () => {
+      mockRegisteredWallets([walletA]);
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+
+      await service.confirmAktionariat({ email: 'MiXeD@example.com', code, user });
+
+      // the email filter is a TypeORM Raw operator; execute its SQL generator to prove the predicate
+      const op = (aktionariatRegistrationRepo.find as jest.Mock).mock.calls[0][0].where.email;
+      expect(op.getSql('reg.email')).toBe('LOWER(reg.email) = :email');
     });
 
     it('returns the exact signed (mixed-case) address, not the lowercase column', async () => {
