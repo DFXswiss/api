@@ -185,6 +185,7 @@ export class RealUnitComplianceService {
     if (!files.length) throw new NotFoundException('Not found');
 
     const zip = new JSZip();
+    const usedPaths = new Set<string>();
     const exported: number[] = [];
     const missing: KycFile[] = [];
 
@@ -192,11 +193,16 @@ export class RealUnitComplianceService {
       try {
         const blob = await this.kycDocumentService.downloadFile(FileCategory.USER, id, file.type, file.name);
         // file.name may end with a raw customer upload name — sanitize the entry path (zip-slip)
-        const baseName = `${file.type}/${this.sanitizePathComponent(file.name)}`;
-        zip.file(
-          zip.file(baseName) ? `${file.type}/${file.id}_${this.sanitizePathComponent(file.name)}` : baseName,
-          blob.data,
-        );
+        const sanitized = this.sanitizePathComponent(file.name);
+        // Ensure a unique ZIP entry path so no file silently overwrites another — otherwise the audit trail below
+        // would record a file as exported that is absent from the bundle. The unique file.id prefix resolves any
+        // base-name collision; the counter guards the pathological case of the id-prefixed form colliding too.
+        let entryName = `${file.type}/${sanitized}`;
+        for (let n = 0; usedPaths.has(entryName); n++) {
+          entryName = n === 0 ? `${file.type}/${file.id}_${sanitized}` : `${file.type}/${file.id}_${n}_${sanitized}`;
+        }
+        usedPaths.add(entryName);
+        zip.file(entryName, blob.data);
         exported.push(file.id);
       } catch (e) {
         this.logger.warn(`Dossier export: file ${file.id} of customer ${id} not downloadable:`, e);

@@ -198,6 +198,47 @@ describe('RealUnitComplianceService', () => {
       });
     });
 
+    it('combines the completed ident step with the latest identification file as evidence', async () => {
+      mockDossierDefaults();
+      kycService.getStepsByUserData.mockResolvedValue([
+        newStep({
+          name: KycStepName.IDENT,
+          type: KycStepType.SUMSUB_AUTO,
+          status: ReviewStatus.COMPLETED,
+          sequenceNumber: 0,
+          created: new Date('2025-01-01'),
+        }),
+      ]);
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({
+          id: 1,
+          uid: 'kyc_ident_old',
+          type: FileType.IDENTIFICATION,
+          name: 'id-old.pdf',
+          created: new Date('2025-01-02'),
+        }),
+        newFile({
+          id: 2,
+          uid: 'kyc_ident',
+          type: FileType.IDENTIFICATION,
+          name: 'id.pdf',
+          created: new Date('2025-01-05'),
+        }),
+      ]);
+
+      const dossier = await service.getReducedDossier(1);
+
+      // the normal state of an identified customer: status/type/date come from the step (date precedence: the
+      // step wins over the newer file), while fileUid/fileName point at the newest identification file — together.
+      expect(dossier.checks.identCheck).toMatchObject({
+        status: ReviewStatus.COMPLETED,
+        type: KycStepType.SUMSUB_AUTO,
+        date: new Date('2025-01-01'),
+        fileUid: 'kyc_ident',
+        fileName: 'id.pdf',
+      });
+    });
+
     it('ignores canceled ident steps and falls back to the latest remaining attempt', async () => {
       mockDossierDefaults();
       kycService.getStepsByUserData.mockResolvedValue([
@@ -487,6 +528,34 @@ describe('RealUnitComplianceService', () => {
         expect(entry).not.toContain('..');
         expect(entry.split('/')).toHaveLength(2); // exactly type/name, no traversal
       }
+    });
+
+    it('keeps every file when a collision fallback path itself collides, and the audit log matches the ZIP', async () => {
+      const userData = Object.assign(new UserData(), { id: 1 });
+      scopeService.assertCustomer.mockResolvedValue(undefined);
+      userDataService.getUserData.mockResolvedValue(userData);
+      // B's base name collides with A, and the "<id>_" fallback for B then collides with C's real name. The
+      // fallback must escalate again instead of overwriting C — otherwise C is dropped from the ZIP while the
+      // audit log still lists it as exported.
+      kycFileService.getUserDataKycFiles.mockResolvedValue([
+        newFile({ id: 5, uid: 'kyc_a', type: FileType.IDENTIFICATION, name: 'id.pdf' }),
+        newFile({ id: 99, uid: 'kyc_c', type: FileType.IDENTIFICATION, name: '6_id.pdf' }),
+        newFile({ id: 6, uid: 'kyc_b', type: FileType.IDENTIFICATION, name: 'id.pdf' }),
+      ]);
+      kycDocumentService.downloadFile.mockResolvedValue(blob);
+
+      const entries = await zipEntries(await service.downloadCustomerDossier(1, jwt));
+
+      // all three files survive as distinct entries — none is silently overwritten
+      expect(entries).toHaveLength(3);
+      expect(new Set(entries).size).toBe(3);
+      expect(entries).toContain('Identification/id.pdf'); // A
+      expect(entries).toContain('Identification/6_id.pdf'); // C, kept
+      // the audit trail must not claim more exported files than the ZIP actually contains
+      expect(kycLogService.createKycFileLog).toHaveBeenCalledWith(
+        expect.stringContaining('exported files: 5, 99, 6'),
+        userData,
+      );
     });
 
     it('throws NotFound and writes no audit log when no allowlisted files exist', async () => {
