@@ -575,7 +575,7 @@ export class RealUnitController {
   @ApiOkResponse({ type: RealUnitPaymentInfoDto })
   @ApiBadRequestResponse({ description: 'KYC Level 30 required, registration missing, or address not on allowlist' })
   async getPaymentInfo(@GetJwt() jwt: JwtPayload, @Body() dto: RealUnitBuyDto): Promise<RealUnitPaymentInfoDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
+    const user = await this.userService.getUser(jwt.user, { userData: { country: true } });
     return this.realunitService.getPaymentInfo(user, dto);
   }
 
@@ -612,7 +612,7 @@ export class RealUnitController {
     @GetJwt() jwt: JwtPayload,
     @Body() dto: RealUnitSellDto,
   ): Promise<RealUnitSellPaymentInfoDto> {
-    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true, country: true } });
+    const user = await this.userService.getUser(jwt.user, { userData: { country: true } });
     return this.realunitService.getSellPaymentInfo(user, dto);
   }
 
@@ -683,7 +683,7 @@ export class RealUnitController {
   @ApiOkResponse({ type: RealUnitRegistrationInfoDto })
   async getRegistrationInfo(@GetJwt() jwt: JwtPayload): Promise<RealUnitRegistrationInfoDto> {
     const user = await this.userService.getUser(jwt.user, {
-      userData: { kycSteps: true, country: true, nationality: true, organizationCountry: true, language: true },
+      userData: { country: true, nationality: true, organizationCountry: true, language: true },
     });
     return this.realunitService.getRegistrationInfo(user.userData, jwt.address);
   }
@@ -700,7 +700,7 @@ export class RealUnitController {
   @ApiOkResponse({ type: RealUnitRegistrationInfoDto })
   async getWalletStatus(@GetJwt() jwt: JwtPayload): Promise<RealUnitRegistrationInfoDto> {
     const user = await this.userService.getUser(jwt.user, {
-      userData: { kycSteps: true, country: true, nationality: true, organizationCountry: true, language: true },
+      userData: { country: true, nationality: true, organizationCountry: true, language: true },
     });
     return this.realunitService.getRegistrationInfo(user.userData, jwt.address);
   }
@@ -716,7 +716,7 @@ export class RealUnitController {
   })
   @ApiOkResponse({ type: Boolean })
   async isRegistered(@GetJwt() jwt: JwtPayload): Promise<boolean> {
-    const user = await this.userService.getUser(jwt.user, { userData: { kycSteps: true } });
+    const user = await this.userService.getUser(jwt.user, { userData: true });
     return this.realunitService.hasRegistrationForWallet(user.userData, jwt.address);
   }
 
@@ -853,11 +853,12 @@ export class RealUnitController {
     await this.realunitService.confirmPaymentReceived(+id);
   }
 
-  @Put('admin/registration/:kycStepId/forward')
+  @Put('admin/registration/:id/forward')
   @ApiBearerAuth()
   @ApiExcludeEndpoint()
+  @ApiParam({ name: 'id', description: 'RealUnit registration ID' })
   @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
-  async forwardRegistration(@Param('kycStepId') kycStepId: string): Promise<void> {
-    await this.realunitService.forwardRegistrationToAktionariat(+kycStepId);
+  async forwardRegistration(@Param('id') id: string): Promise<void> {
+    await this.realunitService.forwardRegistrationToAktionariat(+id);
   }
 }

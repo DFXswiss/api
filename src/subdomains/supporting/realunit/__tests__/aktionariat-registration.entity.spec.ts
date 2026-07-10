@@ -60,6 +60,29 @@ describe('AktionariatRegistration', () => {
     expect(entity.signedPayload).toBeNull();
   });
 
+  it('round-trips kycData through the kycDataObj getter/setter', () => {
+    const entity = new AktionariatRegistration();
+    const kycData = { accountType: 'Personal', firstName: 'Erika', lastName: 'Müller' } as any;
+    entity.kycDataObj = kycData;
+    expect(entity.kycData).toBe(JSON.stringify(kycData));
+    expect(entity.kycDataObj).toEqual(kycData);
+  });
+
+  it('returns undefined from the kycDataObj getter when no kycData is stored', () => {
+    const entity = new AktionariatRegistration();
+    expect(entity.kycDataObj).toBeUndefined();
+  });
+
+  it('clears the kycData column when the kycDataObj setter receives null or undefined', () => {
+    const entity = new AktionariatRegistration();
+    entity.kycData = '{"a":1}';
+    entity.kycDataObj = null;
+    expect(entity.kycData).toBeNull();
+    entity.kycData = '{"a":1}';
+    entity.kycDataObj = undefined;
+    expect(entity.kycData).toBeNull();
+  });
+
   it('declares a required ManyToOne relation to User (one FK per wallet)', () => {
     const relation = getMetadataArgsStorage().relations.find(
       (r) => r.target === AktionariatRegistration && r.propertyName === 'user',
