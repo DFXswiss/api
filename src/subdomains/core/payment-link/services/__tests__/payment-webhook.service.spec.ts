@@ -53,23 +53,33 @@ describe('PaymentWebhookService', () => {
     service = module.get<PaymentWebhookService>(PaymentWebhookService);
   });
 
-  it('sends on every event while under the failure threshold', async () => {
+  it('sends with full retries while under the failure threshold', async () => {
     const link = createPaymentLinkMock({ webhookFailCount: 2 });
 
     await service['doSendWebhook'](link);
 
     expect(httpService.post).toHaveBeenCalledTimes(1);
+    expect(httpService.post).toHaveBeenCalledWith(WEBHOOK_URL, expect.anything(), {
+      retryDelay: 5000,
+      tryCount: 12,
+      headers: expect.anything(),
+    });
   });
 
-  it('skips sending once the threshold is reached and the cooldown has not elapsed', async () => {
+  it('sends a single-attempt probe once the threshold is reached and the cooldown has not elapsed', async () => {
     const link = createPaymentLinkMock({ webhookFailCount: 3, webhookLastFailedAt: new Date() });
 
     await service['doSendWebhook'](link);
 
-    expect(httpService.post).not.toHaveBeenCalled();
+    expect(httpService.post).toHaveBeenCalledTimes(1);
+    expect(httpService.post).toHaveBeenCalledWith(WEBHOOK_URL, expect.anything(), {
+      retryDelay: 5000,
+      tryCount: 1,
+      headers: expect.anything(),
+    });
   });
 
-  it('attempts again once the cooldown has elapsed', async () => {
+  it('resumes full retries once the cooldown has elapsed', async () => {
     const link = createPaymentLinkMock({
       webhookFailCount: 3,
       webhookLastFailedAt: Util.secondsBefore(ConfigModule.Config.payment.webhookFailureCooldown + 60),
@@ -77,7 +87,21 @@ describe('PaymentWebhookService', () => {
 
     await service['doSendWebhook'](link);
 
-    expect(httpService.post).toHaveBeenCalledTimes(1);
+    expect(httpService.post).toHaveBeenCalledWith(
+      WEBHOOK_URL,
+      expect.anything(),
+      expect.objectContaining({ tryCount: 12 }),
+    );
+  });
+
+  it('resets the failure counter when a probe during cooldown succeeds', async () => {
+    httpService.post.mockResolvedValueOnce(undefined);
+    const link = createPaymentLinkMock({ webhookFailCount: 5, webhookLastFailedAt: new Date() });
+
+    await service['doSendWebhook'](link);
+
+    expect(link.webhookFailCount).toBe(0);
+    expect(paymentLinkRepo.update).toHaveBeenCalledWith(link.id, { webhookFailCount: 0, webhookLastFailedAt: null });
   });
 
   it('resets the failure counter on a successful send', async () => {
@@ -100,7 +124,7 @@ describe('PaymentWebhookService', () => {
     expect(paymentLinkRepo.update).not.toHaveBeenCalled();
   });
 
-  it('increments the failure counter and rethrows on a failed send', async () => {
+  it('increments the failure counter atomically and rethrows on a failed send', async () => {
     httpService.post.mockRejectedValueOnce(new Error('connect ECONNREFUSED 0.0.0.0:9999'));
     const link = createPaymentLinkMock({ webhookFailCount: 0 });
 
@@ -108,9 +132,12 @@ describe('PaymentWebhookService', () => {
 
     expect(link.webhookFailCount).toBe(1);
     expect(paymentLinkRepo.update).toHaveBeenCalledWith(link.id, {
-      webhookFailCount: 1,
+      webhookFailCount: expect.any(Function),
       webhookLastFailedAt: expect.any(Date),
     });
+
+    const update = paymentLinkRepo.update.mock.calls[0][1] as { webhookFailCount: () => string };
+    expect(update.webhookFailCount()).toBe('webhookFailCount + 1');
   });
 
   it('does not send when no webhookUrl is set', async () => {

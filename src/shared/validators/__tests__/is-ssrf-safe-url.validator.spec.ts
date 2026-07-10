@@ -37,6 +37,20 @@ describe('isSsrfSafeUrl', () => {
     expect(isSsrfSafeUrl('http://169.254.169.254/latest/meta-data')).toBe(false);
   });
 
+  it('rejects CGNAT range 100.64.0.0/10', () => {
+    expect(isSsrfSafeUrl('http://100.64.0.1/x')).toBe(false);
+    expect(isSsrfSafeUrl('http://100.127.255.254/x')).toBe(false);
+  });
+
+  it('accepts public addresses just outside the 100.64.0.0/10 range', () => {
+    expect(isSsrfSafeUrl('http://100.63.255.255/x')).toBe(true);
+    expect(isSsrfSafeUrl('http://100.128.0.1/x')).toBe(true);
+  });
+
+  it('rejects the whole 0.0.0.0/8 range', () => {
+    expect(isSsrfSafeUrl('http://0.1.2.3/x')).toBe(false);
+  });
+
   it('rejects multicast addresses', () => {
     expect(isSsrfSafeUrl('http://224.0.0.1')).toBe(false);
   });
@@ -53,8 +67,17 @@ describe('isSsrfSafeUrl', () => {
     expect(isSsrfSafeUrl('http://[fe80::1]/x')).toBe(false);
   });
 
+  it('rejects IPv6 unique-local addresses', () => {
+    expect(isSsrfSafeUrl('http://[fc00::1]/x')).toBe(false);
+    expect(isSsrfSafeUrl('http://[fd12:3456:789a::1]/x')).toBe(false);
+  });
+
   it('rejects an IPv4-mapped IPv6 loopback address', () => {
     expect(isSsrfSafeUrl('http://[::ffff:127.0.0.1]/x')).toBe(false);
+  });
+
+  it('rejects the IPv4-mapped IPv6 cloud metadata address', () => {
+    expect(isSsrfSafeUrl('http://[::ffff:169.254.169.254]/x')).toBe(false);
   });
 
   it('rejects the literal hostname localhost', () => {

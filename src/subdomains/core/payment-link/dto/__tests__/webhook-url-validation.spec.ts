@@ -1,5 +1,6 @@
-import { plainToInstance } from 'class-transformer';
+import { ClassConstructor, plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
+import { CreateInvoicePaymentDto } from '../create-invoice-payment.dto';
 import { CreatePaymentLinkDto } from '../create-payment-link.dto';
 import { UpdatePaymentLinkDto } from '../update-payment-link.dto';
 
@@ -7,9 +8,10 @@ import { UpdatePaymentLinkDto } from '../update-payment-link.dto';
 // merchant registers. @IsUrl() alone accepts private/loopback/link-local targets (e.g.
 // http://0.0.0.0:9999, the cloud metadata address), so registration-time validation must also
 // reject those.
-describe.each([
+describe.each<[string, ClassConstructor<object>]>([
   ['CreatePaymentLinkDto', CreatePaymentLinkDto],
   ['UpdatePaymentLinkDto', UpdatePaymentLinkDto],
+  ['CreateInvoicePaymentDto', CreateInvoicePaymentDto],
 ])('%s.webhookUrl SSRF validation', (_, DtoClass) => {
   const validateWebhookUrl = async (webhookUrl: unknown) => {
     const instance = plainToInstance(DtoClass, { webhookUrl });
@@ -59,5 +61,14 @@ describe.each([
 
   it('accepts an omitted value', async () => {
     expect(await validateWebhookUrl(undefined)).toBeUndefined();
+  });
+});
+
+describe('CreateInvoicePaymentDto.w alias SSRF validation', () => {
+  it('rejects an internal target on the w alias', async () => {
+    const instance = plainToInstance(CreateInvoicePaymentDto, { w: 'http://169.254.169.254/x' });
+    const errors = await validate(instance);
+    const error = errors.find((e) => e.property === 'w');
+    expect(error?.constraints).toHaveProperty('IsSsrfSafeUrl');
   });
 });

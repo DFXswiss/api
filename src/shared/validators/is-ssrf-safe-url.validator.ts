@@ -11,14 +11,15 @@ const ALLOWED_PROTOCOLS = ['http:', 'https:'];
 
 const DISALLOWED_HOSTNAMES = ['localhost'];
 
-// loopback, private, link-local (incl. 169.254.169.254 cloud metadata), unspecified, multicast, reserved
+// loopback, private, CGNAT, link-local (incl. 169.254.169.254 cloud metadata), unspecified, multicast, reserved
 const DISALLOWED_IPV4_RANGES = [
   /^127\./,
   /^10\./,
   /^172\.(1[6-9]|2\d|3[01])\./,
   /^192\.168\./,
+  /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./, // CGNAT 100.64.0.0/10 (RFC 6598)
   /^169\.254\./,
-  /^0\.0\.0\.0$/,
+  /^0\./, // "this network" 0.0.0.0/8
   /^(22[4-9]|23\d)\./, // multicast 224.0.0.0/4-239.255.255.255
   /^(24\d|25[0-5])\./, // reserved 240.0.0.0/4 + broadcast
 ];

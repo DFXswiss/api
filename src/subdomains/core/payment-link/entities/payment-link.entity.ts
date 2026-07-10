@@ -1,5 +1,6 @@
 import { merge } from 'lodash';
-import { IEntity } from 'src/shared/models/entity';
+import { Config } from 'src/config/config';
+import { IEntity, UpdateResult } from 'src/shared/models/entity';
 import { Util } from 'src/shared/utils/util';
 import { DepositRoute } from 'src/subdomains/supporting/address-pool/route/deposit-route.entity';
 import { Column, Entity, Index, ManyToOne, OneToMany } from 'typeorm';
@@ -118,5 +119,30 @@ export class PaymentLink extends IEntity {
 
   getMatchingStandard(param?: PaymentStandard): PaymentStandard {
     return this.configObj.standards.includes(param) ? param : this.defaultStandard;
+  }
+
+  get isWebhookInCooldown(): boolean {
+    if (this.webhookFailCount < Config.payment.webhookFailureThreshold) return false;
+
+    return Util.secondsDiff(this.webhookLastFailedAt, new Date()) < Config.payment.webhookFailureCooldown;
+  }
+
+  webhookSucceeded(): UpdateResult<PaymentLink> {
+    const update: Partial<PaymentLink> = { webhookFailCount: 0, webhookLastFailedAt: null };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
+  webhookFailed(): UpdateResult<PaymentLink> {
+    const update: Partial<PaymentLink> = {
+      webhookFailCount: this.webhookFailCount + 1,
+      webhookLastFailedAt: new Date(),
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
   }
 }
