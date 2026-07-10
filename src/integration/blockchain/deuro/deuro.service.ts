@@ -171,6 +171,7 @@ export class DEuroService extends FrankencoinBasedService implements OnModuleIni
       return depsResult;
     } catch (e) {
       this.logger.error(`Error while getting pool shares ${deps?.id ?? 0}`, e);
+      // fail-closed: rethrow so the cron skips this sample instead of persisting a log with undefined poolShares
       throw e;
     }
   }
