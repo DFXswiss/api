@@ -13,6 +13,7 @@ export enum QuoteError {
   IBAN_CURRENCY_MISMATCH = 'IbanCurrencyMismatch',
   RECOMMENDATION_REQUIRED = 'RecommendationRequired',
   EMAIL_REQUIRED = 'EmailRequired',
+  PRIMARY_EMAIL_REQUIRED = 'PrimaryEmailRequired',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
   ASSET_UNSUPPORTED = 'AssetUnsupported',
   CURRENCY_UNSUPPORTED = 'CurrencyUnsupported',

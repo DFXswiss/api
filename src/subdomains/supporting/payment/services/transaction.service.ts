@@ -169,9 +169,21 @@ export class TransactionService {
     return this.repo.findBy({ uid: IsNull(), created: LessThanOrEqual(filterDate) });
   }
 
-  async getTransactionsByUserDataId(userDataId: number): Promise<Transaction[]> {
+  // Optional `assets` narrows to transactions whose input or output asset matches — in SQL, so the take-limit
+  // applies to the matching rows (an in-memory post-filter would silently truncate to "matches among the newest
+  // 100 of anything").
+  async getTransactionsByUserDataId(userDataId: number, assets?: string[]): Promise<Transaction[]> {
+    const base = { userData: { id: userDataId } };
+
     return this.repo.find({
-      where: { userData: { id: userDataId } },
+      where: assets
+        ? [
+            { ...base, buyCrypto: { inputAsset: In(assets) } },
+            { ...base, buyCrypto: { outputAsset: { name: In(assets) } } },
+            { ...base, buyFiat: { inputAsset: In(assets) } },
+            { ...base, buyFiat: { outputAsset: { name: In(assets) } } },
+          ]
+        : base,
       relations: {
         buyCrypto: { cryptoInput: true, outputAsset: true, bankData: true },
         buyFiat: { cryptoInput: true, outputAsset: true, bankData: true },

@@ -1,11 +1,13 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, Res, StreamableFile, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
+import { Response } from 'express';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { Util } from 'src/shared/utils/util';
 import { KycFileDataDto } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import {
   RealUnitCustomerDetailDto,
@@ -46,6 +48,25 @@ export class RealUnitComplianceController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
   async getCustomerFiles(@Param('id') id: string): Promise<RealUnitKycFileDto[]> {
     return this.complianceService.listCustomerFiles(+id);
+  }
+
+  @Get('customers/:id/dossier')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.REALUNIT), UserActiveGuard())
+  async downloadCustomerDossier(
+    @GetJwt() jwt: JwtPayload,
+    @Param('id') id: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const zipContent = await this.complianceService.downloadCustomerDossier(+id, jwt);
+
+    res.set({
+      'Content-Type': 'application/zip',
+      'Content-Disposition': `attachment; filename="RealUnit_dossier_${+id}_${Util.filenameDate()}.zip"`,
+    });
+
+    return new StreamableFile(zipContent);
   }
 
   @Get('customers/:id/files/:uid')

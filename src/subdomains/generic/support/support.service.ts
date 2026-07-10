@@ -133,6 +133,9 @@ const RECOMMENDATION_GRAPH_PAGE_SIZE = 25;
 
 const CallQueueItemsLimit = 200;
 
+// Postgres integer upper bound: larger numeric keys cannot be an id and would fail the DB query
+const MaxDbId = 2147483647;
+
 const PendingReviewBankDataName = 'BankData';
 
 const CallQueueTxReasonMap: Partial<Record<CallQueue, AmlReason>> = {
@@ -1180,7 +1183,7 @@ export class SupportService {
   }
 
   private async getUniqueUserDataByKey(key: string): Promise<UserDataComplianceSearchTypePair> {
-    if (Config.formats.number.test(key)) {
+    if (Config.formats.number.test(key) && +key <= MaxDbId) {
       const userData = await this.userDataService.getUserData(+key);
       if (userData) return { type: ComplianceSearchType.USER_DATA_ID, userData };
     }

@@ -124,6 +124,6 @@ describe('TransactionController', () => {
     jest.spyOn(transactionUtilService, 'validateChargebackIban').mockResolvedValue(true);
     jest.spyOn(bankService, 'getBankByIban').mockResolvedValue(createDefaultBank());
 
-    await expect(controller.getTransactionRefund(jwt, '1')).resolves.toBeDefined();
+    await expect(controller.getTransactionRefund(jwt, 1)).resolves.toBeDefined();
   });
 });

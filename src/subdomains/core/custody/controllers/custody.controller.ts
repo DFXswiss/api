@@ -1,4 +1,15 @@
-import { Body, Controller, Get, NotFoundException, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  NotFoundException,
+  Param,
+  ParseIntPipe,
+  Post,
+  Put,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiCreatedResponse, ApiExcludeController, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { RealIP } from 'src/shared/auth/real-ip.decorator';
@@ -88,8 +99,8 @@ export class CustodyController {
   @ApiBearerAuth()
   @UseGuards(AuthGuard(), RoleGuard(UserRole.CUSTODY), UserActiveGuard())
   @ApiCreatedResponse()
-  async confirmOrder(@GetJwt() jwt: JwtPayload, @Param('id') id: string): Promise<void> {
-    await this.custodyOrderService.confirmOrder(jwt.user, +id);
+  async confirmOrder(@GetJwt() jwt: JwtPayload, @Param('id', ParseIntPipe) id: number): Promise<void> {
+    await this.custodyOrderService.confirmOrder(jwt.user, id);
   }
 }
 

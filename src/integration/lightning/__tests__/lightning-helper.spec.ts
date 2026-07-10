@@ -77,6 +77,14 @@ describe('LightningHelper', () => {
 
       expect(decodedLnurl).toEqual('https://test.dfx.api:12345/v0.1/lnurlw/ABC12345');
     });
+
+    it('createLnurlMetadata', () => {
+      const memo = 'a "quoted" memo, a \\ backslash and a\nnewline';
+      const metadata = LightningHelper.createLnurlMetadata(memo);
+
+      // must be valid JSON that round-trips to the original memo — plain string interpolation would break on the quote
+      expect(JSON.parse(metadata)).toEqual([['text/plain', memo]]);
+    });
   });
 
   describe('Signature', () => {

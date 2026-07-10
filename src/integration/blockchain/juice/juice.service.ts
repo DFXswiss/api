@@ -63,8 +63,8 @@ export class JuiceService extends FrankencoinBasedService implements OnModuleIni
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.JUICE_LOG_INFO })
   async processLogInfo(): Promise<void> {
-    if (!Config.blockchain.juice.graphUrl) {
-      this.logger.warn('Juice graphUrl not configured - skipping processLogInfo');
+    if (!Config.blockchain.juice.graphUrl || !Config.blockchain.juice.apiUrl) {
+      this.logger.warn('Juice graphUrl/apiUrl not configured - skipping processLogInfo');
       return;
     }
 
@@ -170,6 +170,8 @@ export class JuiceService extends FrankencoinBasedService implements OnModuleIni
       return juiceResult;
     } catch (e) {
       this.logger.error(`Error while getting pool shares ${juice?.id ?? 0}`, e);
+      // fail-closed: rethrow so the cron skips this sample instead of persisting a log with undefined poolShares
+      throw e;
     }
   }
 

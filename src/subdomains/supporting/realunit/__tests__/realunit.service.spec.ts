@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Wallet } from 'ethers';
 import { verifyTypedData } from 'ethers/lib/utils';
@@ -21,8 +21,10 @@ import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.servic
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
+import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import {
@@ -48,6 +50,7 @@ jest.mock('src/config/config', () => ({
   get Config() {
     return {
       environment: mockEnvironment,
+      txRequestWaitingExpiryDays: 7,
       blockchain: {
         realunit: {
           api: { url: 'https://mock-api.example.com', key: 'mock-key' },
@@ -67,6 +70,14 @@ jest.mock('src/config/config', () => ({
         brokerbotAddress: '0xBrokerbotAddress',
         graphUrl: 'https://mock-ponder.example.com',
         api: { url: 'https://mock-api.example.com', key: 'mock-key' },
+        bank: {
+          recipient: 'RealUnit AG',
+          iban: 'CH0000000000000000000',
+          ibanEur: 'CH1111111111111111111',
+          bic: 'MOCKCHZZ',
+          name: 'Mock Bank',
+        },
+        address: { street: 'Bahnhofstrasse', number: '1', zip: '8000', city: 'Zurich', country: 'CH' },
       },
       ethereum: { ethChainId: 1 },
       sepolia: { sepoliaChainId: 11155111 },
@@ -112,6 +123,7 @@ jest.mock('src/shared/utils/util', () => ({
     createUid: jest.fn().mockReturnValue('MOCK-UID'),
     equalsIgnoreCase: (a?: string, b?: string) => a?.toLowerCase() === b?.toLowerCase(),
     isoDate: (date: Date) => date.toISOString().split('T')[0],
+    daysDiff: jest.fn().mockReturnValue(0),
   },
 }));
 
@@ -133,6 +145,8 @@ describe('RealUnitService', () => {
   let userDataService: jest.Mocked<UserDataService>;
   let httpService: jest.Mocked<HttpService>;
   let addressConfirmationRepo: jest.Mocked<RealUnitAddressConfirmationRepository>;
+  let fiatService: jest.Mocked<FiatService>;
+  let buyService: jest.Mocked<BuyService>;
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -169,6 +183,7 @@ describe('RealUnitService', () => {
           useValue: {
             getBrokerbotInfo: jest.fn(),
             getBrokerbotSellPrice: jest.fn(),
+            requestPaymentInstructions: jest.fn(),
           },
         },
         { provide: UserDataService, useValue: { getUsersByMail: jest.fn() } },
@@ -188,8 +203,8 @@ describe('RealUnitService', () => {
         { provide: CountryService, useValue: {} },
         { provide: LanguageService, useValue: {} },
         { provide: HttpService, useValue: { post: jest.fn(), getRaw: jest.fn() } },
-        { provide: FiatService, useValue: {} },
-        { provide: BuyService, useValue: {} },
+        { provide: FiatService, useValue: { getFiat: jest.fn(), getFiatByName: jest.fn() } },
+        { provide: BuyService, useValue: { createBuy: jest.fn(), toPaymentInfoDto: jest.fn() } },
         {
           provide: SellService,
           useValue: {
@@ -208,6 +223,7 @@ describe('RealUnitService', () => {
             getOrThrow: jest.fn(),
             getTransactionRequest: jest.fn(),
             complete: jest.fn(),
+            confirmTransactionRequest: jest.fn(),
           },
         },
         { provide: TransactionService, useValue: {} },
@@ -240,6 +256,8 @@ describe('RealUnitService', () => {
     userDataService = module.get(UserDataService);
     httpService = module.get(HttpService);
     addressConfirmationRepo = module.get(RealUnitAddressConfirmationRepository);
+    fiatService = module.get(FiatService);
+    buyService = module.get(BuyService);
   });
 
   afterEach(() => {
@@ -431,6 +449,184 @@ describe('RealUnitService', () => {
       assetService.getAssetByQuery.mockResolvedValue(realuAsset);
 
       await expect(service.confirmSell(42, 1, {})).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('getPaymentInfo (primary-email pre-tap gate)', () => {
+    const buildBuyPaymentInfo = (overrides: Partial<any> = {}): any => ({
+      id: 10,
+      routeId: 20,
+      timestamp: new Date(),
+      amount: 100,
+      currency: { name: 'CHF' },
+      fees: {},
+      minVolume: 1,
+      maxVolume: 1000,
+      minVolumeTarget: 1,
+      maxVolumeTarget: 1000,
+      exchangeRate: 1,
+      rate: 1,
+      priceSteps: [],
+      estimatedAmount: 99,
+      isValid: true,
+      error: undefined,
+      ...overrides,
+    });
+
+    const buildUser = (mail?: string): any => ({
+      id: 42,
+      address: '0xUserAddress',
+      userData: { mail, kycLevel: KycLevel.LEVEL_30 },
+    });
+
+    beforeEach(() => {
+      jest.spyOn(service, 'hasRegistrationForWallet').mockReturnValue(true);
+      jest.spyOn(service, 'getRealuAsset').mockResolvedValue(realuAsset);
+      jest.spyOn(service as any, 'generatePaymentRequest').mockReturnValue('MOCK-QR');
+      fiatService.getFiatByName.mockResolvedValue({ name: 'CHF' } as any);
+      buyService.createBuy.mockResolvedValue({ bankUsage: 'MOCK-USAGE', active: true } as any);
+    });
+
+    it('surfaces a missing primary email as isValid:false with error PrimaryEmailRequired and no payment request', async () => {
+      buyService.toPaymentInfoDto.mockResolvedValue(buildBuyPaymentInfo({ isValid: true, error: undefined }));
+
+      const result = await service.getPaymentInfo(buildUser(undefined), { amount: 100 });
+
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.PRIMARY_EMAIL_REQUIRED);
+      expect(result.paymentRequest).toBeUndefined();
+      expect((service as any).generatePaymentRequest).not.toHaveBeenCalled();
+    });
+
+    it('leaves a valid quote untouched when the user has a primary email', async () => {
+      buyService.toPaymentInfoDto.mockResolvedValue(buildBuyPaymentInfo({ isValid: true, error: undefined }));
+
+      const result = await service.getPaymentInfo(buildUser('max@example.com'), { amount: 100 });
+
+      expect(result.isValid).toBe(true);
+      expect(result.error).toBeUndefined();
+      expect(result.paymentRequest).toBe('MOCK-QR');
+    });
+
+    it('passes a pre-existing quote error through unchanged when the user has a primary email', async () => {
+      buyService.toPaymentInfoDto.mockResolvedValue(
+        buildBuyPaymentInfo({ isValid: false, error: QuoteError.AMOUNT_TOO_LOW }),
+      );
+
+      const result = await service.getPaymentInfo(buildUser('max@example.com'), { amount: 100 });
+
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.AMOUNT_TOO_LOW);
+      expect(result.paymentRequest).toBeUndefined();
+    });
+
+    it('prefers a harder pre-existing quote error over the missing-primary-email signal', async () => {
+      buyService.toPaymentInfoDto.mockResolvedValue(
+        buildBuyPaymentInfo({ isValid: false, error: QuoteError.AMOUNT_TOO_LOW }),
+      );
+
+      const result = await service.getPaymentInfo(buildUser(undefined), { amount: 100 });
+
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.AMOUNT_TOO_LOW);
+      expect(result.paymentRequest).toBeUndefined();
+    });
+  });
+
+  describe('confirmBuy (Aktionariat error mapping)', () => {
+    const buyRequest = {
+      id: 1,
+      isValid: true,
+      status: TransactionRequestStatus.CREATED,
+      created: new Date(),
+      sourceId: 3,
+      amount: 11,
+      estimatedAmount: 7,
+      user: { id: 42, address: '0xUserAddress' },
+    };
+
+    const aktionariatError = (status: number, data: any) => ({ response: { status, data } });
+
+    beforeEach(() => {
+      // PRD path: DEV/LOC mock Aktionariat, so the error mapping is only reachable in PRD
+      mockEnvironment = 'prd';
+      transactionRequestService.getOrThrow.mockResolvedValue(buyRequest as any);
+      fiatService.getFiat.mockResolvedValue({ name: 'CHF' } as any);
+    });
+
+    afterEach(() => {
+      mockEnvironment = 'loc';
+    });
+
+    it('maps the Aktionariat minimum-purchase rejection to 400 with code AmountTooLow', async () => {
+      const upstreamMessage = 'Purchases by bank transfer require a minimum nominal amount.';
+      blockchainService.requestPaymentInstructions.mockRejectedValue(
+        aktionariatError(400, { status: 400, message: upstreamMessage }),
+      );
+
+      const error = await service.confirmBuy(42, 1).catch((e) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.getResponse()).toEqual({ code: QuoteError.AMOUNT_TOO_LOW, message: upstreamMessage });
+      expect(transactionRequestService.confirmTransactionRequest).not.toHaveBeenCalled();
+    });
+
+    it('maps the Aktionariat missing-primary-email rejection to 400 with code PrimaryEmailRequired', async () => {
+      const upstreamMessage = 'User must have a primary email';
+      blockchainService.requestPaymentInstructions.mockRejectedValue(
+        aktionariatError(400, { status: 400, message: upstreamMessage }),
+      );
+
+      const error = await service.confirmBuy(42, 1).catch((e) => e);
+
+      expect(error).toBeInstanceOf(BadRequestException);
+      expect(error.getResponse()).toEqual({ code: QuoteError.PRIMARY_EMAIL_REQUIRED, message: upstreamMessage });
+      expect(transactionRequestService.confirmTransactionRequest).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      ['401', aktionariatError(401, { status: 401, message: 'Invalid API key' })],
+      ['403', aktionariatError(403, { status: 403, message: 'Forbidden' })],
+      ['429', aktionariatError(429, { status: 429, message: 'Too many requests' })],
+      ['400 with another message', aktionariatError(400, { status: 400, message: 'User has no primary email.' })],
+      ['400 without a message', aktionariatError(400, {})],
+      ['500', aktionariatError(500, { status: 500, message: 'Internal server error' })],
+      ['network error without response', new Error('connect ETIMEDOUT')],
+    ])('keeps an Aktionariat %s as ServiceUnavailableException', async (_, aktionariatFailure) => {
+      blockchainService.requestPaymentInstructions.mockRejectedValue(aktionariatFailure);
+
+      const error = await service.confirmBuy(42, 1).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ServiceUnavailableException);
+      expect(transactionRequestService.confirmTransactionRequest).not.toHaveBeenCalled();
+    });
+
+    it('keeps a 400 with an array message as ServiceUnavailableException', async () => {
+      blockchainService.requestPaymentInstructions.mockRejectedValue(
+        aktionariatError(400, { status: 400, message: ['User must have a primary email'] }),
+      );
+
+      const error = await service.confirmBuy(42, 1).catch((e) => e);
+
+      expect(error).toBeInstanceOf(ServiceUnavailableException);
+    });
+
+    it('confirms the request and returns the reference on success', async () => {
+      blockchainService.requestPaymentInstructions.mockResolvedValue({ reference: 'REF-123' });
+
+      const result = await service.confirmBuy(42, 1);
+
+      expect(result.reference).toBe('REF-123');
+      expect(blockchainService.requestPaymentInstructions).toHaveBeenCalledWith({
+        currency: 'CHF',
+        address: '0xUserAddress',
+        shares: 7,
+        price: 1100,
+      });
+      expect(transactionRequestService.confirmTransactionRequest).toHaveBeenCalledWith(
+        buyRequest,
+        JSON.stringify({ reference: 'REF-123' }),
+      );
     });
   });
 

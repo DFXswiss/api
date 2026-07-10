@@ -112,7 +112,9 @@ export class WebhookService {
     });
     if (exists) return;
 
-    const entity = this.webhookRepo.create(dto);
+    // no repo.create: TypeORM's plain-object transformer recurses through the relation graph without a
+    // cycle guard and overflows the stack on circular entities (e.g. userData.kycSteps[i].userData === userData)
+    const entity = Object.assign(new Webhook(), dto);
 
     // try to send the webhook
     const result = await this.webhookNotificationService.triggerWebhook(entity);

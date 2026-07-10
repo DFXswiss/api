@@ -1,9 +1,13 @@
 import { addressExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { Util } from 'src/shared/utils/util';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
+import { FileType } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { KycFile } from 'src/subdomains/generic/kyc/entities/kyc-file.entity';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
+import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import {
   BuySupportInfo,
   SellSupportInfo,
@@ -17,6 +21,7 @@ import { VirtualIban } from 'src/subdomains/supporting/bank/virtual-iban/virtual
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SupportIssue } from 'src/subdomains/supporting/support-issue/entities/support-issue.entity';
 import {
+  RealUnitChecksDto,
   RealUnitCustomerDetailDto,
   RealUnitCustomerListDto,
   RealUnitDossierBankDataDto,
@@ -81,6 +86,8 @@ export class RealUnitComplianceDtoMapper {
       highRisk: userData.highRisk,
       pep: userData.pep,
 
+      checks: RealUnitComplianceDtoMapper.toChecksDto(slices),
+
       kycFiles: slices.kycFiles.map(RealUnitComplianceDtoMapper.toKycFileDto),
       kycSteps: slices.kycSteps.map(RealUnitComplianceDtoMapper.toKycStepDto),
       transactions: slices.transactions.map(RealUnitComplianceDtoMapper.toTransactionDto),
@@ -91,6 +98,49 @@ export class RealUnitComplianceDtoMapper {
       virtualIbans: slices.virtualIbans.map(RealUnitComplianceDtoMapper.toVirtualIbanDto),
       supportIssues: slices.supportIssues.map(RealUnitComplianceDtoMapper.toSupportIssueDto),
     };
+  }
+
+  // --- MANDATORY CHECKS --- //
+
+  // Resolves the check evidence api-side so the dashboard renders it 1:1: ident = the relevant Ident step plus
+  // the latest Identification file as downloadable evidence; nameCheck = latest Dilisense NAME_CHECK file. Expects
+  // the already-filtered dossier slices, so only allowlisted files can ever become evidence.
+  //
+  // Ident-step selection mirrors KycInfoMapper.sortSteps semantics: canceled steps never count, a completed ident
+  // wins over any later attempt, and steps are never compared by sequenceNumber across types (it is only monotonic
+  // within one (name, type) group). Otherwise an AML-triggered follow-up video ident (InProgress/Failed) would be
+  // reported as the mandatory ident check of an already fully identified customer.
+  private static toChecksDto(slices: RealUnitDossierSlices): RealUnitChecksDto {
+    const identSteps = slices.kycSteps.filter(
+      (s) => s.name === KycStepName.IDENT && s.status !== ReviewStatus.CANCELED,
+    );
+    const completedIdentSteps = identSteps.filter((s) => s.isCompleted);
+    const identStep = Util.maxObj(completedIdentSteps.length ? completedIdentSteps : identSteps, 'created');
+    const identFile = RealUnitComplianceDtoMapper.latestFileOfType(slices.kycFiles, FileType.IDENTIFICATION);
+    const nameCheckFile = RealUnitComplianceDtoMapper.latestFileOfType(slices.kycFiles, FileType.NAME_CHECK);
+
+    return {
+      identCheck:
+        identStep || identFile
+          ? {
+              status: identStep?.status,
+              type: identStep?.type,
+              date: identStep?.created ?? identFile?.created,
+              fileUid: identFile?.uid,
+              fileName: identFile?.name,
+            }
+          : undefined,
+      nameCheck: nameCheckFile
+        ? { date: nameCheckFile.created, fileUid: nameCheckFile.uid, fileName: nameCheckFile.name }
+        : undefined,
+    };
+  }
+
+  private static latestFileOfType(files: KycFile[], type: FileType): KycFile | undefined {
+    return Util.maxObj(
+      files.filter((f) => f.type === type),
+      'created',
+    );
   }
 
   // --- KYC FILES --- //

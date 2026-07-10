@@ -1,4 +1,23 @@
-import { ForbiddenException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException } from '@nestjs/common';
+import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
+
+export class PrimaryEmailRequiredException extends BadRequestException {
+  constructor(message: string) {
+    super({
+      code: QuoteError.PRIMARY_EMAIL_REQUIRED,
+      message,
+    });
+  }
+}
+
+export class AmountTooLowException extends BadRequestException {
+  constructor(message: string) {
+    super({
+      code: QuoteError.AMOUNT_TOO_LOW,
+      message,
+    });
+  }
+}
 
 export class RegistrationRequiredException extends ForbiddenException {
   constructor(message = 'RealUnit registration required', context?: string) {
