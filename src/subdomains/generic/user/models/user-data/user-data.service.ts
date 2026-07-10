@@ -173,25 +173,29 @@ export class UserDataService {
   async getByKycHashOrThrow(kycHash: string, relations?: FindOptionsRelations<UserData>): Promise<UserData> {
     if (!Config.formats.kycHash.test(kycHash)) throw new UnauthorizedException('Invalid KYC hash');
 
-    let user = await this.userDataRepo.findOne({ where: { kycHash: Equal(kycHash) }, relations });
+    const user = await this.userDataRepo.findOne({ where: { kycHash: Equal(kycHash) }, relations });
     if (!user) throw new NotFoundException('User not found');
 
-    if (user.status === UserDataStatus.MERGED) {
-      user = await this.getMasterUser(user);
-      if (user) {
-        const payload: MergedDto = {
-          error: 'Unauthorized',
-          message: 'User is merged',
-          statusCode: 401,
-          switchToCode: user.kycHash,
-        };
-        throw new UnauthorizedException(payload);
-      } else {
-        throw new BadRequestException('User is merged');
-      }
-    }
+    await this.throwIfMerged(user);
 
     return user;
+  }
+
+  private async throwIfMerged(userData: UserData): Promise<void> {
+    if (userData.status !== UserDataStatus.MERGED) return;
+
+    const master = await this.getMasterUser(userData);
+    if (master) {
+      const payload: MergedDto = {
+        error: 'Unauthorized',
+        message: 'User is merged',
+        statusCode: 401,
+        switchToCode: master.kycHash,
+      };
+      throw new UnauthorizedException(payload);
+    }
+
+    throw new BadRequestException('User is merged');
   }
 
   async getDifferentUserWithSameIdentDoc(userDataId: number, identDocumentId: string): Promise<UserData> {
@@ -199,7 +203,7 @@ export class UserDataService {
   }
 
   private async getMasterUser(user: UserData): Promise<UserData | undefined> {
-    const masterUserId = +user.firstname.replace(MergedPrefix, '');
+    const masterUserId = +user.firstname?.replace(MergedPrefix, '');
     if (!isNaN(masterUserId)) return this.getUserData(masterUserId);
   }
 
@@ -788,6 +792,9 @@ export class UserDataService {
   }
 
   async checkMail(userData: UserData, mail: string): Promise<void> {
+    // stale sessions on a merged account should switch to the master's code instead of retrying (JWT routes have no merged check)
+    await this.throwIfMerged(userData);
+
     const mailUsers = await this.getUsersByMail(mail).then((l) => AccountMergeService.masterFirst(l));
     const conflictUsers = mailUsers.filter((u) => u.id !== userData.id);
     if (!conflictUsers.length) return;
