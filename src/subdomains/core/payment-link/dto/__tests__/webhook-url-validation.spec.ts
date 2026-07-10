@@ -11,7 +11,6 @@ import { UpdatePaymentLinkDto } from '../update-payment-link.dto';
 describe.each([
   ['CreatePaymentLinkDto', CreatePaymentLinkDto],
   ['UpdatePaymentLinkDto', UpdatePaymentLinkDto],
-  ['CreateInvoicePaymentDto', CreateInvoicePaymentDto],
 ])('%s.webhookUrl SSRF validation', (_, DtoClass) => {
   const validateWebhookUrl = async (webhookUrl: unknown) => {
     const instance = plainToInstance(DtoClass, { webhookUrl });
@@ -64,28 +63,28 @@ describe.each([
   });
 });
 
-// CreateInvoicePaymentDto also exposes the same webhook target via the short `w` alias, which reaches
-// the identical sink and must be guarded too.
-describe('CreateInvoicePaymentDto.w (webhookUrl alias) SSRF validation', () => {
-  const validateW = async (w: unknown) => {
-    const instance = plainToInstance(CreateInvoicePaymentDto, { w });
+// CreateInvoicePaymentDto feeds the same persisted webhookUrl sink via the unauthenticated
+// GET /paymentLink/payment, through both `webhookUrl` and its short `w` alias — both must be guarded.
+describe.each([['webhookUrl'], ['w']])('CreateInvoicePaymentDto.%s SSRF validation', (field) => {
+  const validateField = async (value: unknown) => {
+    const instance = plainToInstance(CreateInvoicePaymentDto, { [field]: value });
     const errors = await validate(instance);
-    return errors.find((e) => e.property === 'w');
+    return errors.find((e) => e.property === field);
   };
 
   it('accepts a public https URL', async () => {
-    expect(await validateW('https://merchant.example.com/webhook')).toBeUndefined();
+    expect(await validateField('https://merchant.example.com/webhook')).toBeUndefined();
   });
 
-  it('rejects a private/loopback target', async () => {
-    const metadata = await validateW('http://169.254.169.254/latest/meta-data');
+  it('rejects a private/loopback/metadata target', async () => {
+    const metadata = await validateField('http://169.254.169.254/latest/meta-data');
     expect(metadata?.constraints).toHaveProperty('IsSsrfSafeUrl');
 
-    const loopback = await validateW('http://127.0.0.1/x');
+    const loopback = await validateField('http://127.0.0.1/x');
     expect(loopback?.constraints).toHaveProperty('IsSsrfSafeUrl');
   });
 
   it('accepts an omitted value', async () => {
-    expect(await validateW(undefined)).toBeUndefined();
+    expect(await validateField(undefined)).toBeUndefined();
   });
 });
