@@ -1,5 +1,6 @@
 import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { mock } from 'jest-mock-extended';
 import { HttpService } from 'src/shared/services/http.service';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -44,7 +45,7 @@ describe('LnurlForward', () => {
     paymentActivationServiceMock = mock<PaymentActivationService>();
 
     const module: TestingModule = await Test.createTestingModule({
-      imports: [],
+      imports: [ThrottlerModule.forRoot()],
       providers: [
         TestUtil.provideConfig(config),
         { provide: HttpService, useValue: httpServiceMock },

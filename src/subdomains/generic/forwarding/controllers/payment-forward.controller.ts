@@ -1,5 +1,7 @@
-import { BadRequestException, Controller, Get, Query, Version, VERSION_NEUTRAL } from '@nestjs/common';
+import { BadRequestException, Controller, Get, Query, UseGuards, Version, VERSION_NEUTRAL } from '@nestjs/common';
 import { ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
+import { Throttle } from '@nestjs/throttler';
+import { RateLimitGuard } from 'src/shared/auth/rate-limit.guard';
 import { LightningHelper } from 'src/integration/lightning/lightning-helper';
 import { LnUrlForwardService } from '../services/lnurl-forward.service';
 
@@ -11,6 +13,8 @@ export class PaymentForwardController {
   @Get('pl')
   @Version(VERSION_NEUTRAL)
   @ApiExcludeEndpoint()
+  @UseGuards(RateLimitGuard)
+  @Throttle(100, 60)
   async lnUrlPForward(@Query() params: any): Promise<any> {
     const lnurl = params.lightning;
     if (!lnurl) throw new BadRequestException('Missing lightning parameter');

@@ -1,7 +1,8 @@
+import { NotFoundException } from '@nestjs/common';
 import { randomBytes } from 'crypto';
 import { Agent } from 'https';
 import { Config } from 'src/config/config';
-import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
+import { HttpError, HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { LnBitsWalletDto, LnBitsWalletPaymentDto, LnBitsWalletPaymentParamsDto } from './dto/lnbits.dto';
 import {
@@ -211,12 +212,16 @@ export class LightningClient implements CoinOnly {
   // --- LNURLp REWRITE --- //
   async getLnurlpPaymentRequest(linkId: string): Promise<LnurlPayRequestDto> {
     const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlpUrl}/${linkId}`;
-    return this.http.get(lnBitsUrl, this.httpLnBitsConfig());
+    return this.http
+      .get<LnurlPayRequestDto>(lnBitsUrl, this.httpLnBitsConfig())
+      .catch((e: HttpError) => this.mapLnUrlNotFound(e));
   }
 
   async getLnurlpInvoice(linkId: string, params: any): Promise<LnurlpInvoiceDto> {
     const lnBitsCallbackUrl = `${Config.blockchain.lightning.lnbits.lnurlpApiUrl}/lnurl/cb/${linkId}`;
-    return this.http.get<LnurlpInvoiceDto>(lnBitsCallbackUrl, this.httpLnBitsConfig(params));
+    return this.http
+      .get<LnurlpInvoiceDto>(lnBitsCallbackUrl, this.httpLnBitsConfig(params))
+      .catch((e: HttpError) => this.mapLnUrlNotFound(e));
   }
 
   // --- LNURLp LINKS --- //
@@ -281,14 +286,18 @@ export class LightningClient implements CoinOnly {
     const { unique_hash } = await this.getLnurlwLink(linkId);
 
     const lnBitsUrl = `${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/lnurl/${unique_hash}`;
-    return this.http.get(lnBitsUrl, this.httpLnBitsConfig());
+    return this.http
+      .get<LnurlWithdrawRequestDto>(lnBitsUrl, this.httpLnBitsConfig())
+      .catch((e: HttpError) => this.mapLnUrlNotFound(e));
   }
 
   async sendLnurlwInvoice(linkId: string, params: any): Promise<LnurlwInvoiceDto> {
     const { unique_hash } = await this.getLnurlwLink(linkId);
 
     const lnBitsCallbackUrl = `${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/lnurl/cb/${unique_hash}`;
-    return this.http.get<LnurlwInvoiceDto>(lnBitsCallbackUrl, this.httpLnBitsConfig(params));
+    return this.http
+      .get<LnurlwInvoiceDto>(lnBitsCallbackUrl, this.httpLnBitsConfig(params))
+      .catch((e: HttpError) => this.mapLnUrlNotFound(e));
   }
 
   // --- LNURLw LINKS --- //
@@ -300,10 +309,9 @@ export class LightningClient implements CoinOnly {
   }
 
   async getLnurlwLink(linkId: string): Promise<LnurlwLinkDto> {
-    return this.http.get<LnurlwLinkDto>(
-      `${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/links/${linkId}`,
-      this.httpLnBitsConfig(),
-    );
+    return this.http
+      .get<LnurlwLinkDto>(`${Config.blockchain.lightning.lnbits.lnurlwApiUrl}/links/${linkId}`, this.httpLnBitsConfig())
+      .catch((e: HttpError) => this.mapLnUrlNotFound(e));
   }
 
   async addLnurlwLink(description: string, amount: number): Promise<LnurlwLinkDto> {
@@ -340,12 +348,16 @@ export class LightningClient implements CoinOnly {
 
   async getLnurlDevice(id: string, params: any): Promise<LnurlWithdrawRequestDto> {
     const url = `${this.getDeviceUrl()}/${id}`;
-    return this.http.get(url, this.httpLnBitsConfig(params));
+    return this.http
+      .get<LnurlWithdrawRequestDto>(url, this.httpLnBitsConfig(params))
+      .catch((e: HttpError) => this.mapLnUrlNotFound(e));
   }
 
   async getLnurlDeviceCallback(id: string, variable: string, params: any): Promise<LnurlwInvoiceDto> {
     const url = `${this.getDeviceUrl()}/cb/${id}/${variable}`;
-    return this.http.get(url, this.httpLnBitsConfig(params));
+    return this.http
+      .get<LnurlwInvoiceDto>(url, this.httpLnBitsConfig(params))
+      .catch((e: HttpError) => this.mapLnUrlNotFound(e));
   }
 
   private getDeviceUrl(): string {
@@ -354,6 +366,13 @@ export class LightningClient implements CoinOnly {
   }
 
   // --- HELPER METHODS --- //
+  // LNbits 404s on an unknown/expired link id — surface that as a 404, not the raw Axios
+  // error (which the global exception filter would otherwise log and return as a 500).
+  private mapLnUrlNotFound(e: HttpError): never {
+    if (e.response?.status === 404) throw new NotFoundException('LNURL link not found');
+    throw e;
+  }
+
   private httpLnBitsConfig(params?: any): HttpRequestConfig {
     return {
       httpsAgent: this.tlsAgent,
