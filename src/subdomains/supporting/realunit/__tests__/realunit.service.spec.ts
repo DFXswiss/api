@@ -39,7 +39,10 @@ import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { FindOperator } from 'typeorm';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
-import { RealUnitAktionariatConfirmationStatus } from '../dto/realunit-confirm-aktionariat.dto';
+import {
+  RealUnitAktionariatConfirmationStatus,
+  RealUnitConfirmAktionariatEventPhase,
+} from '../dto/realunit-confirm-aktionariat.dto';
 import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
 import { PriceInvalidException } from '../../pricing/domain/exceptions/price-invalid.exception';
 import { RealUnitDevService } from '../realunit-dev.service';
@@ -154,6 +157,8 @@ describe('RealUnitService', () => {
   let aktionariatRegistrationRepo: jest.Mocked<AktionariatRegistrationRepository>;
   let aktionariatManager: { transaction: jest.Mock };
   let aktionariatTxManager: { update: jest.Mock; save: jest.Mock; query: jest.Mock; findOne: jest.Mock };
+  let addressConfirmationManager: { transaction: jest.Mock };
+  let addressConfirmationTxManager: { save: jest.Mock; query: jest.Mock; findOne: jest.Mock };
   let logService: jest.Mocked<LogService>;
   let fiatService: jest.Mocked<FiatService>;
   let buyService: jest.Mocked<BuyService>;
@@ -188,6 +193,16 @@ describe('RealUnitService', () => {
     };
     aktionariatManager = {
       transaction: jest.fn(async (cb: any) => cb(aktionariatTxManager)),
+    };
+    // The confirmation upsert runs inside repo.manager.transaction(): its lock/read/write go through a
+    // distinct transactional EntityManager, mirrored here so the tests exercise the advisory-locked path.
+    addressConfirmationTxManager = {
+      save: jest.fn((entity) => entity),
+      query: jest.fn(),
+      findOne: jest.fn(),
+    };
+    addressConfirmationManager = {
+      transaction: jest.fn(async (cb: any) => cb(addressConfirmationTxManager)),
     };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -259,6 +274,7 @@ describe('RealUnitService', () => {
             findOne: jest.fn(),
             create: jest.fn((partial) => ({ ...partial })),
             save: jest.fn((entity) => entity),
+            manager: addressConfirmationManager,
           },
         },
         {
@@ -1010,10 +1026,16 @@ describe('RealUnitService', () => {
       };
     }
 
-    function buildRegistrationForWallet(registrationWalletAddress: string, opts: { status?: ReviewStatus } = {}): any {
+    function buildRegistrationForWallet(
+      registrationWalletAddress: string,
+      opts: { status?: ReviewStatus; requiresEmailConfirmation?: boolean } = {},
+    ): any {
       return {
         id: 1,
         status: opts.status ?? ReviewStatus.COMPLETED,
+        // the queryable column is canonically lowercased; the read-back bridges the confirmation on it
+        walletAddress: registrationWalletAddress.toLowerCase(),
+        requiresEmailConfirmation: opts.requiresEmailConfirmation ?? true,
         // findRegistration/toRegistrationDto read the parsed getters directly off the entity
         signedPayloadData: {
           email: 'signed@example.com',
@@ -1128,6 +1150,61 @@ describe('RealUnitService', () => {
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.userData!.lang).toBe('EN');
+    });
+
+    it('reports emailConfirmed=true and the confirmedDate when a confirmation row exists for the wallet', async () => {
+      const userData = buildVerifiedUserData();
+      const confirmedDate = new Date('2026-06-01T00:00:00.000Z');
+      aktionariatRegistrationRepo.findOne.mockResolvedValueOnce(
+        buildRegistrationForWallet(walletAddress, { requiresEmailConfirmation: true }),
+      );
+      addressConfirmationRepo.findOne.mockResolvedValue({ confirmedDate } as any);
+
+      const status = await service.getRegistrationInfo(userData, walletAddress);
+
+      expect(status.emailConfirmed).toBe(true);
+      expect(status.confirmedDate).toBe(confirmedDate);
+      // the read-back bridges on the lowercased wallet address (single exact-match indexed lookup)
+      const where = (addressConfirmationRepo.findOne as jest.Mock).mock.calls[0][0].where;
+      expect(where.walletAddress).toBe(walletAddress.toLowerCase());
+    });
+
+    it('reports emailConfirmed=true with no confirmedDate for a grandfathered registration (requiresEmailConfirmation=false)', async () => {
+      const userData = buildVerifiedUserData();
+      aktionariatRegistrationRepo.findOne.mockResolvedValueOnce(
+        buildRegistrationForWallet(walletAddress, { requiresEmailConfirmation: false }),
+      );
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+
+      const status = await service.getRegistrationInfo(userData, walletAddress);
+
+      expect(status.emailConfirmed).toBe(true);
+      expect(status.confirmedDate).toBeUndefined();
+    });
+
+    it('reports emailConfirmed=false for a new registration still awaiting confirmation', async () => {
+      const userData = buildVerifiedUserData();
+      aktionariatRegistrationRepo.findOne.mockResolvedValueOnce(
+        buildRegistrationForWallet(walletAddress, { requiresEmailConfirmation: true }),
+      );
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+
+      const status = await service.getRegistrationInfo(userData, walletAddress);
+
+      expect(status.emailConfirmed).toBe(false);
+      expect(status.confirmedDate).toBeUndefined();
+    });
+
+    it('omits emailConfirmed/confirmedDate and skips the confirmation lookup when the wallet is not registered', async () => {
+      const userData = buildVerifiedUserData();
+      aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);
+
+      const status = await service.getRegistrationInfo(userData, walletAddress);
+
+      expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
+      expect(status.emailConfirmed).toBeUndefined();
+      expect(status.confirmedDate).toBeUndefined();
+      expect(addressConfirmationRepo.findOne).not.toHaveBeenCalled();
     });
   });
 
@@ -2121,7 +2198,7 @@ describe('RealUnitService', () => {
 
     it('returns confirmed via the deterministic DEV/LOC mock and stores a new record', async () => {
       mockRegisteredWallets([walletA]);
-      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
 
       const result = await service.confirmAktionariat({ email, code, user });
 
@@ -2130,7 +2207,7 @@ describe('RealUnitService', () => {
       expect(result.confirmedDate).toBeInstanceOf(Date);
       expect(httpService.getRaw).not.toHaveBeenCalled();
       expect(addressConfirmationRepo.create).toHaveBeenCalledWith({ walletAddress: walletA });
-      expect(addressConfirmationRepo.save).toHaveBeenCalledWith(
+      expect(addressConfirmationTxManager.save).toHaveBeenCalledWith(
         expect.objectContaining({ walletAddress: walletA, email, aktionariatUser: user, aktionariatCode: code }),
       );
     });
@@ -2138,12 +2215,12 @@ describe('RealUnitService', () => {
     it('de-duplicates repeated wallets (historical + active rows) and persists each once', async () => {
       // the same wallet appears in several rows (re-registration history); de-dup keeps one per address
       mockRegisteredWallets([walletA, walletA, walletB]);
-      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
 
       const result = await service.confirmAktionariat({ email, code, user });
 
       expect(result.confirmedAddresses).toEqual([walletA, walletB]);
-      expect(addressConfirmationRepo.save).toHaveBeenCalledTimes(2);
+      expect(addressConfirmationTxManager.save).toHaveBeenCalledTimes(2);
     });
 
     it('de-duplicates the same wallet case-insensitively and keeps the first-seen (signed) casing', async () => {
@@ -2155,18 +2232,19 @@ describe('RealUnitService', () => {
         { walletAddress: lower, signedPayloadData: { walletAddress: lower } },
         { walletAddress: lower, signedPayloadData: undefined }, // fallback to lowercased column
       ] as any);
-      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
 
       const result = await service.confirmAktionariat({ email, code, user });
 
       expect(result.confirmedAddresses).toEqual([checksummed]);
-      expect(addressConfirmationRepo.save).toHaveBeenCalledTimes(1);
-      expect(addressConfirmationRepo.create).toHaveBeenCalledWith({ walletAddress: checksummed });
+      expect(addressConfirmationTxManager.save).toHaveBeenCalledTimes(1);
+      // the response keeps the first-seen signed casing, but the persisted row is canonically lowercased
+      expect(addressConfirmationRepo.create).toHaveBeenCalledWith({ walletAddress: lower });
     });
 
     it('looks wallets up by a case-insensitive LOWER(email) predicate (Raw SQL generator)', async () => {
       mockRegisteredWallets([walletA]);
-      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
 
       await service.confirmAktionariat({ email: 'MiXeD@example.com', code, user });
 
@@ -2181,7 +2259,7 @@ describe('RealUnitService', () => {
         { walletAddress: checksummed.toLowerCase(), signedPayloadData: { walletAddress: checksummed } },
         { walletAddress: '0xdef0000000000000000000000000000000000010', signedPayloadData: undefined }, // fallback path
       ] as any);
-      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
 
       const result = await service.confirmAktionariat({ email, code, user });
 
@@ -2195,7 +2273,7 @@ describe('RealUnitService', () => {
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
       expect(result.confirmedAddresses).toEqual([]);
-      expect(addressConfirmationRepo.save).not.toHaveBeenCalled();
+      expect(addressConfirmationTxManager.save).not.toHaveBeenCalled();
       expect((service as any).logger.warn).toHaveBeenCalled();
     });
 
@@ -2210,7 +2288,7 @@ describe('RealUnitService', () => {
     it('calls the real Aktionariat endpoint and maps a 2xx to confirmed', async () => {
       mockEnvironment = 'prd';
       mockRegisteredWallets([walletA]);
-      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
       httpService.getRaw.mockResolvedValue({ status: 200, data: { status: 200, message: 'ok' } } as any);
 
       const result = await service.confirmAktionariat({ email, code, user });
@@ -2227,7 +2305,10 @@ describe('RealUnitService', () => {
       mockEnvironment = 'prd';
       const priorDate = new Date('2026-01-01T00:00:00.000Z');
       mockRegisteredWallets([walletA]);
-      addressConfirmationRepo.findOne.mockResolvedValue({ walletAddress: walletA, confirmedDate: priorDate } as any);
+      addressConfirmationTxManager.findOne.mockResolvedValue({
+        walletAddress: walletA,
+        confirmedDate: priorDate,
+      } as any);
       httpService.getRaw.mockRejectedValue({
         response: { status: 403, data: { status: 403, message: 'Code not found' } },
       });
@@ -2238,7 +2319,7 @@ describe('RealUnitService', () => {
       expect(result.confirmedAddresses).toEqual([]);
       expect(result.confirmedDate).toBeUndefined();
       expect(addressConfirmationRepo.create).not.toHaveBeenCalled();
-      expect(addressConfirmationRepo.save).toHaveBeenCalledWith(
+      expect(addressConfirmationTxManager.save).toHaveBeenCalledWith(
         expect.objectContaining({ walletAddress: walletA, confirmedDate: priorDate, responseStatus: 403 }),
       );
       expect((service as any).logger.error).toHaveBeenCalled();
@@ -2247,26 +2328,26 @@ describe('RealUnitService', () => {
     it('maps a 5xx to unavailable (string error body)', async () => {
       mockEnvironment = 'prd';
       mockRegisteredWallets([walletA]);
-      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
       httpService.getRaw.mockRejectedValue({ response: { status: 503, data: 'Service Unavailable' } });
 
       const result = await service.confirmAktionariat({ email, code, user });
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.UNAVAILABLE);
       expect(result.confirmedAddresses).toEqual([]);
-      expect(addressConfirmationRepo.save).toHaveBeenCalledWith(expect.objectContaining({ responseStatus: 503 }));
+      expect(addressConfirmationTxManager.save).toHaveBeenCalledWith(expect.objectContaining({ responseStatus: 503 }));
     });
 
     it('maps a network/timeout error (Error with message) to unavailable', async () => {
       mockEnvironment = 'prd';
       mockRegisteredWallets([walletA]);
-      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
       httpService.getRaw.mockRejectedValue(new Error('timeout of 30000ms exceeded'));
 
       const result = await service.confirmAktionariat({ email, code, user });
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.UNAVAILABLE);
-      expect(addressConfirmationRepo.save).toHaveBeenCalledWith(
+      expect(addressConfirmationTxManager.save).toHaveBeenCalledWith(
         expect.objectContaining({ walletAddress: walletA, responseStatus: undefined }),
       );
     });
@@ -2274,7 +2355,7 @@ describe('RealUnitService', () => {
     it('maps an error with neither response nor message to unavailable', async () => {
       mockEnvironment = 'prd';
       mockRegisteredWallets([walletA]);
-      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
       httpService.getRaw.mockRejectedValue({});
 
       const result = await service.confirmAktionariat({ email, code, user });
@@ -2293,6 +2374,209 @@ describe('RealUnitService', () => {
       );
       expect(httpService.getRaw).not.toHaveBeenCalled();
       expect((service as any).logger.error).toHaveBeenCalledWith('Aktionariat URL is not configured');
+    });
+
+    it('preserves the 2xx response body shape ({ status, confirmedAddresses, confirmedDate }) the web depends on', async () => {
+      mockRegisteredWallets([walletA]);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(Object.keys(result).sort()).toEqual(['confirmedAddresses', 'confirmedDate', 'status']);
+      expect(Object.values(RealUnitAktionariatConfirmationStatus)).toContain(result.status);
+    });
+
+    it('writes a full ServerCall DB audit row per wallet on a confirmed call', async () => {
+      mockEnvironment = 'prd';
+      mockRegisteredWallets([walletA]);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
+      httpService.getRaw.mockResolvedValue({ status: 200, data: { aktionariatConfirmed: true } } as any);
+
+      await service.confirmAktionariat({ email, code, user });
+
+      const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
+      expect(audit).toMatchObject({
+        system: 'Aktionariat',
+        subsystem: 'Confirmation',
+        category: 'ServerCall',
+        severity: LogSeverity.INFO,
+      });
+      const msg = JSON.parse(audit.message);
+      expect(msg.action).toBe('confirmConnection');
+      expect(msg.email).toBe(email);
+      expect(msg.code).toBe(code);
+      expect(msg.walletAddress).toBe(walletA);
+      expect(msg.response).toEqual({ aktionariatConfirmed: true });
+      expect(msg.error).toBeUndefined();
+    });
+
+    it('records the full Aktionariat error body in the DB audit but keeps the Loki line redacted', async () => {
+      mockEnvironment = 'prd';
+      const leakedEmail = 'leaked-user@example.com';
+      mockRegisteredWallets([walletA]);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
+      const errorBody = { status: 403, message: `E-Mail ${leakedEmail} not confirmed` };
+      httpService.getRaw.mockRejectedValue({ response: { status: 403, data: errorBody } });
+
+      await service.confirmAktionariat({ email, code, user });
+
+      // DB log is the PII audit store: it carries the FULL error body and is tagged INVALID->WARNING
+      const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
+      expect(audit.severity).toBe(LogSeverity.WARNING);
+      const msg = JSON.parse(audit.message);
+      expect(msg.error).toEqual(errorBody);
+      expect(msg.response).toBeUndefined();
+      expect(audit.message).toContain(leakedEmail);
+
+      // Loki stays PII-free: the leaked email must never reach this.logger.error
+      const lokiText = (service as any).logger.error.mock.calls.flat().join(' ');
+      expect(lokiText).toContain('status=403');
+      expect(lokiText).not.toContain(leakedEmail);
+    });
+
+    it('tags an unavailable (5xx) confirmation audit row as ERROR', async () => {
+      mockEnvironment = 'prd';
+      mockRegisteredWallets([walletA]);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
+      httpService.getRaw.mockRejectedValue({ response: { status: 503, data: 'Service Unavailable' } });
+
+      await service.confirmAktionariat({ email, code, user });
+
+      const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
+      expect(audit.severity).toBe(LogSeverity.ERROR);
+    });
+
+    it('serialises the confirmation upsert with a per-wallet advisory lock', async () => {
+      mockRegisteredWallets([walletA]);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
+
+      await service.confirmAktionariat({ email, code, user });
+
+      expect(addressConfirmationManager.transaction).toHaveBeenCalledTimes(1);
+      expect(addressConfirmationTxManager.query).toHaveBeenCalledWith(
+        'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+        ['real_unit_address_confirmation', walletA],
+      );
+    });
+
+    it('lowercases the wallet on write while the response keeps the signed (mixed-case) address', async () => {
+      const checksummed = '0xAbC0000000000000000000000000000000000009';
+      aktionariatRegistrationRepo.find.mockResolvedValue([
+        { walletAddress: checksummed.toLowerCase(), signedPayloadData: { walletAddress: checksummed } },
+      ] as any);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      // response shape unchanged: still the signed mixed-case address
+      expect(result.confirmedAddresses).toEqual([checksummed]);
+      // persisted row + advisory lock use the lowercased address
+      expect(addressConfirmationRepo.create).toHaveBeenCalledWith({ walletAddress: checksummed.toLowerCase() });
+      expect(addressConfirmationTxManager.query).toHaveBeenCalledWith(
+        'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+        ['real_unit_address_confirmation', checksummed.toLowerCase()],
+      );
+    });
+
+    it('treats a concurrent unique_violation on the confirmation upsert as an idempotent no-op', async () => {
+      mockRegisteredWallets([walletA]);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
+      addressConfirmationTxManager.save.mockRejectedValue({ code: '23505' });
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
+      expect((service as any).logger.info).toHaveBeenCalledWith(
+        expect.stringContaining('concurrency collision resolved as idempotent'),
+      );
+    });
+
+    it('rethrows a non-unique persistence error from the confirmation upsert', async () => {
+      mockRegisteredWallets([walletA]);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
+      addressConfirmationTxManager.save.mockRejectedValue(new Error('db down'));
+
+      await expect(service.confirmAktionariat({ email, code, user })).rejects.toThrow('db down');
+    });
+
+    it('does not fail the confirmation when the DB audit log write throws (best-effort, Error)', async () => {
+      mockRegisteredWallets([walletA]);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
+      logService.create.mockRejectedValue(new Error('log down'));
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
+      expect((service as any).logger.error).toHaveBeenCalled();
+    });
+
+    it('does not fail the confirmation when the DB audit log write rejects with a non-Error (|| fallback)', async () => {
+      mockRegisteredWallets([walletA]);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
+      logService.create.mockRejectedValue('log string failure');
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
+    });
+  });
+
+  describe('logConfirmAktionariatClientEvent (durable web client-event sink)', () => {
+    it('writes one ClientEvent DB log row carrying the validated body', async () => {
+      await service.logConfirmAktionariatClientEvent({
+        phase: RealUnitConfirmAktionariatEventPhase.RESULT_CONFIRMED,
+        email: 'user@example.com',
+        code: 'CONFIRM-CODE',
+        user: 'aktionariat-user-1',
+        detail: 'ok',
+      } as any);
+
+      expect(logService.create).toHaveBeenCalledTimes(1);
+      const log = (logService.create as jest.Mock).mock.calls[0][0];
+      expect(log).toMatchObject({
+        system: 'Aktionariat',
+        subsystem: 'Confirmation',
+        category: 'ClientEvent',
+        severity: LogSeverity.INFO,
+      });
+      expect(JSON.parse(log.message)).toEqual({
+        phase: 'resultConfirmed',
+        email: 'user@example.com',
+        code: 'CONFIRM-CODE',
+        user: 'aktionariat-user-1',
+        detail: 'ok',
+      });
+    });
+
+    it('tags a requestError phase at ERROR severity', async () => {
+      await service.logConfirmAktionariatClientEvent({
+        phase: RealUnitConfirmAktionariatEventPhase.REQUEST_ERROR,
+      } as any);
+
+      const log = (logService.create as jest.Mock).mock.calls[0][0];
+      expect(log.severity).toBe(LogSeverity.ERROR);
+      expect(JSON.parse(log.message)).toEqual({ phase: 'requestError' });
+    });
+
+    it('never throws when the DB log write fails (best-effort, Error)', async () => {
+      logService.create.mockRejectedValue(new Error('log down'));
+
+      await expect(
+        service.logConfirmAktionariatClientEvent({
+          phase: RealUnitConfirmAktionariatEventPhase.PAGE_LOADED,
+        } as any),
+      ).resolves.toBeUndefined();
+      expect((service as any).logger.error).toHaveBeenCalled();
+    });
+
+    it('swallows a non-Error log failure via the || fallback', async () => {
+      logService.create.mockRejectedValue('log string failure');
+
+      await expect(
+        service.logConfirmAktionariatClientEvent({
+          phase: RealUnitConfirmAktionariatEventPhase.PAGE_LOADED,
+        } as any),
+      ).resolves.toBeUndefined();
     });
   });
 });

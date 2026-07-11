@@ -259,6 +259,23 @@ export class RealUnitRegistrationInfoDto {
 
   @ApiPropertyOptional({ type: RealUnitUserDataDto, description: 'User data if available' })
   userData?: RealUnitUserDataDto;
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    nullable: true,
+    description:
+      'Whether the RealUnit registration email for this wallet has been confirmed at Aktionariat. `true` for a ' +
+      'grandfathered registration (predates the confirmation gate) or once a confirmation has been recorded; ' +
+      '`false` for a new registration still awaiting confirmation. Absent when the wallet is not registered. ' +
+      'Additive and nullable: older clients ignore it, newer clients render the confirm step from it.',
+  })
+  emailConfirmed?: boolean;
+
+  @ApiPropertyOptional({
+    type: Date,
+    description: 'When the wallet was confirmed at Aktionariat. Present only once a confirmation has been recorded.',
+  })
+  confirmedDate?: Date;
 }
 
 export class RealUnitRegisterWalletDto {

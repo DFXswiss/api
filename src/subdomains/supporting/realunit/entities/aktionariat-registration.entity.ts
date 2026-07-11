@@ -50,6 +50,13 @@ export class AktionariatRegistration extends IEntity {
   @Column({ default: true })
   active: boolean;
 
+  // Whether this registration is gated on an Aktionariat email confirmation before it counts as confirmed.
+  // New registrations default to true (Aktionariat sends the confirmation email on a successful forward);
+  // the read-back reports emailConfirmed only once a matching confirmation is recorded. The completion
+  // migration grandfathers every pre-existing row to false so historical users are never locked out.
+  @Column({ default: true })
+  requiresEmailConfirmation: boolean;
+
   // --- JSON GETTERS / SETTERS (canonical DFX pattern, never expose the raw string) --- //
 
   get signedPayloadData(): AktionariatRegistrationDto | undefined {

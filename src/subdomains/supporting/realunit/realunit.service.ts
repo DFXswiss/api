@@ -65,7 +65,7 @@ import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
-import { EntityManager, FindOptionsRelations, In, Not, Raw } from 'typeorm';
+import { EntityManager, FindOptionsRelations, In, IsNull, Not, Raw } from 'typeorm';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
 import {
@@ -79,6 +79,8 @@ import { RealUnitQuoteDto, RealUnitTransactionDto } from './dto/realunit-admin.d
 import {
   RealUnitAktionariatConfirmationStatus,
   RealUnitConfirmAktionariatDto,
+  RealUnitConfirmAktionariatEventDto,
+  RealUnitConfirmAktionariatEventPhase,
   RealUnitConfirmAktionariatQueryDto,
 } from './dto/realunit-confirm-aktionariat.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
@@ -120,6 +122,7 @@ import {
   RegistrationRequiredException,
 } from './exceptions/buy-exceptions';
 import { AktionariatRegistration } from './entities/aktionariat-registration.entity';
+import { RealUnitAddressConfirmation } from './entities/realunit-address-confirmation.entity';
 import { PriceSourceUnavailableException } from './exceptions/price-source-unavailable.exception';
 import { RealUnitDevService } from './realunit-dev.service';
 import { AktionariatRegistrationRepository } from './repositories/aktionariat-registration.repository';
@@ -780,10 +783,13 @@ export class RealUnitService {
       const state = isForCurrentWallet
         ? RealUnitRegistrationState.ALREADY_REGISTERED
         : RealUnitRegistrationState.ADD_WALLET;
+      const { emailConfirmed, confirmedDate } = await this.resolveEmailConfirmation(registration);
       return {
         isRegistered: state === RealUnitRegistrationState.ALREADY_REGISTERED,
         state,
         userData: registrationUserData,
+        emailConfirmed,
+        confirmedDate,
       };
     }
 
@@ -1024,6 +1030,24 @@ export class RealUnitService {
     });
 
     return { registration: otherWallet, isForCurrentWallet: false };
+  }
+
+  // Read-back of the per-wallet email-confirmation state for the registration-info endpoint. A registration
+  // counts as confirmed when it is grandfathered (requiresEmailConfirmation === false — pre-existing rows the
+  // completion migration exempted) OR a confirmation row with a confirmedDate latch exists for this wallet.
+  // The confirmation table stores walletAddress canonically lowercased and UNIQUE, matching the lowercased
+  // registration column, so this is a single exact-match indexed lookup (no N+1, no LOWER() scan).
+  private async resolveEmailConfirmation(
+    registration: AktionariatRegistration,
+  ): Promise<{ emailConfirmed: boolean; confirmedDate?: Date }> {
+    const confirmation = await this.addressConfirmationRepo.findOne({
+      where: { walletAddress: registration.walletAddress.toLowerCase(), confirmedDate: Not(IsNull()) },
+      select: { id: true, confirmedDate: true },
+    });
+
+    const confirmedDate = confirmation?.confirmedDate ?? undefined;
+    const emailConfirmed = registration.requiresEmailConfirmation === false || confirmedDate != null;
+    return { emailConfirmed, confirmedDate };
   }
 
   // Reconstructs the full RealUnitRegistrationDto (signed Aktionariat fields + kycData) from a stored
@@ -1366,6 +1390,9 @@ export class RealUnitService {
       status,
       forwardedToAktionariatDate: forwardedToAktionariatDate ?? undefined,
       active: true,
+      // New registrations are gated on the Aktionariat confirmation email (sent on a successful forward).
+      // Only the completion migration clears this, and only for rows that predate the gate.
+      requiresEmailConfirmation: true,
     });
     registration.signedPayloadData = payload;
     registration.kycDataObj = dto.kycData;
@@ -1876,7 +1903,7 @@ export class RealUnitService {
       this.logger.warn(`No RealUnit registration wallet found for ${maskedEmail}`);
     }
 
-    const { httpStatus, responseBody } = await this.callAktionariatConfirm(email, code, user);
+    const { httpStatus, responseBody, error } = await this.callAktionariatConfirm(email, code, user);
     const status = this.mapConfirmationStatus(httpStatus);
 
     this.logger.info(
@@ -1885,6 +1912,14 @@ export class RealUnitService {
 
     const confirmed = status === RealUnitAktionariatConfirmationStatus.CONFIRMED;
     const confirmedDate = confirmed ? new Date() : undefined;
+    // Severity of the DB audit row: a confirmed call is INFO, an invalid/expired link is a benign WARNING,
+    // an unavailable Aktionariat is an ERROR (a system fault to alert on).
+    const logSeverity =
+      status === RealUnitAktionariatConfirmationStatus.CONFIRMED
+        ? LogSeverity.INFO
+        : status === RealUnitAktionariatConfirmationStatus.INVALID
+          ? LogSeverity.WARNING
+          : LogSeverity.ERROR;
 
     for (const walletAddress of walletAddresses) {
       await this.persistAddressConfirmation({
@@ -1895,6 +1930,16 @@ export class RealUnitService {
         httpStatus,
         responseBody,
         confirmedDate,
+      });
+      // Append the FULL communication to the DB `log` audit store — one row per wallet. `response` is the
+      // successful body (undefined on error), `error` the full error body (undefined on success), mirroring
+      // the registration audit. Best-effort: it must never fail the confirmation.
+      await this.logAktionariatConfirmation(logSeverity, {
+        email,
+        code,
+        walletAddress,
+        response: error == null ? responseBody : undefined,
+        error,
       });
     }
 
@@ -1933,7 +1978,7 @@ export class RealUnitService {
     email: string,
     code: string,
     user: string,
-  ): Promise<{ httpStatus?: number; responseBody: unknown }> {
+  ): Promise<{ httpStatus?: number; responseBody: unknown; error?: unknown }> {
     // Deterministic mock: never reach the real Aktionariat API from a local/dev environment.
     if ([Environment.DEV, Environment.LOC].includes(Config.environment)) {
       this.logger.info('Aktionariat confirmation mocked (DEV/LOC environment)');
@@ -1960,11 +2005,15 @@ export class RealUnitService {
     } catch (error) {
       const httpStatus = error?.response?.status;
       const responseBody = error?.response?.data ?? error?.message ?? String(error);
-      const bodyText = typeof responseBody === 'string' ? responseBody : JSON.stringify(responseBody);
+      // Loki is the PII-free channel: log only the redacted status/type summary here (an Aktionariat error
+      // body may echo the submitted email). The FULL body still reaches the DB `log` audit store, via the
+      // returned raw error passed through describeError.
       this.logger.error(
-        `Aktionariat confirmation call to ${endpoint} failed (httpStatus: ${httpStatus ?? 'none'}): ${bodyText}`,
+        `Aktionariat confirmation call to ${endpoint} failed (httpStatus: ${httpStatus ?? 'none'}): ${this.summarizeError(
+          error,
+        )}`,
       );
-      return { httpStatus, responseBody };
+      return { httpStatus, responseBody, error };
     }
   }
 
@@ -1989,24 +2038,107 @@ export class RealUnitService {
     responseBody: unknown;
     confirmedDate?: Date;
   }): Promise<void> {
-    const existing = await this.addressConfirmationRepo.findOne({ where: { walletAddress: data.walletAddress } });
+    // Store the wallet canonically lowercased: matches the lowercased registration bridge (so the read-back
+    // exact-matches) and the UNIQUE index (so the upsert cannot fan out into duplicate rows).
+    const walletAddress = data.walletAddress.toLowerCase();
 
-    const entity = existing ?? this.addressConfirmationRepo.create({ walletAddress: data.walletAddress });
-    entity.email = data.email;
-    entity.aktionariatUser = data.aktionariatUser;
-    entity.aktionariatCode = data.aktionariatCode;
-    entity.responseStatus = data.httpStatus;
-    entity.responseData = data.responseBody;
-    // Never clear a prior confirmation: only advance confirmedDate when this call actually confirmed.
-    if (data.confirmedDate) entity.confirmedDate = data.confirmedDate;
+    try {
+      await this.addressConfirmationRepo.manager.transaction(async (manager) => {
+        // Serialise the per-wallet upsert cluster-wide (auto-released at txn end) so two concurrent confirm
+        // calls for the same wallet cannot both insert; paired with the UNIQUE(walletAddress) index.
+        await manager.query('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [
+          'real_unit_address_confirmation',
+          walletAddress,
+        ]);
 
-    await this.addressConfirmationRepo.save(entity);
+        const existing = await manager.findOne(RealUnitAddressConfirmation, { where: { walletAddress } });
+        const entity: RealUnitAddressConfirmation = existing ?? this.addressConfirmationRepo.create({ walletAddress });
+        entity.email = data.email;
+        entity.aktionariatUser = data.aktionariatUser;
+        entity.aktionariatCode = data.aktionariatCode;
+        entity.responseStatus = data.httpStatus;
+        entity.responseData = data.responseBody;
+        // confirmedDate is a monotonic latch: only advance it on an actual confirmation, never clear it.
+        if (data.confirmedDate) entity.confirmedDate = data.confirmedDate;
 
-    const action = existing ? 'Updated' : 'Created';
-    const statusText = data.httpStatus ?? 'none';
-    this.logger.info(
-      `${action} Aktionariat confirmation record for wallet ${data.walletAddress} (responseStatus: ${statusText}, confirmed: ${!!entity.confirmedDate})`,
-    );
+        await manager.save(entity);
+
+        const action = existing ? 'Updated' : 'Created';
+        const statusText = data.httpStatus ?? 'none';
+        this.logger.info(
+          `${action} Aktionariat confirmation record for wallet ${walletAddress} (responseStatus: ${statusText}, confirmed: ${!!entity.confirmedDate})`,
+        );
+      });
+    } catch (error) {
+      // A unique_violation (23505) means a concurrent confirm inserted the row first. The latch is monotonic
+      // and every attempt converges on the same current state, so this is an idempotent no-op, not a failure.
+      if (this.isUniqueViolation(error)) {
+        this.logger.info(
+          `RealUnit address confirmation concurrency collision resolved as idempotent for wallet ${walletAddress}`,
+        );
+        return;
+      }
+      throw error;
+    }
+  }
+
+  // Audit mirror of a single Aktionariat confirm-connection call into the DB `log` table (the DESIGNATED PII
+  // audit store, own access-control/retention — UNLIKE Loki, the PII-free channel of the this.logger.* lines).
+  // Records the FULL communication (email, code, wallet, response, error body) as one append-only row per
+  // wallet, for a complete replayable trail. Best-effort: a logging failure must never fail the confirmation,
+  // but it is surfaced loudly (never swallowed).
+  private async logAktionariatConfirmation(
+    severity: LogSeverity,
+    data: { email: string; code: string; walletAddress: string; response: unknown; error?: unknown },
+  ): Promise<void> {
+    try {
+      await this.logService.create({
+        system: 'Aktionariat',
+        subsystem: 'Confirmation',
+        category: 'ServerCall',
+        severity,
+        message: JSON.stringify({
+          action: 'confirmConnection',
+          email: data.email,
+          code: data.code,
+          walletAddress: data.walletAddress,
+          response: data.response,
+          error: this.describeError(data.error),
+        }),
+        valid: null,
+      });
+    } catch (e) {
+      this.logger.error(
+        `Failed to write Aktionariat confirmation log for wallet ${data.walletAddress}: ${e?.message || e}`,
+      );
+    }
+  }
+
+  // Durable sink for the realunit.app confirm page's client-side lifecycle events. The static web (strict CSP:
+  // connect-src 'self' + the DFX API) has no other durable log transport, so it POSTs each stage here and this
+  // writes ONE DB `log` row (category ClientEvent). The DB log is the PII audit store, so the user's own
+  // email/code carried in the event are acceptable to persist. Best-effort: a logging failure must never fail
+  // the (fire-and-forget) client call, but it is surfaced loudly.
+  async logConfirmAktionariatClientEvent(dto: RealUnitConfirmAktionariatEventDto): Promise<void> {
+    try {
+      await this.logService.create({
+        system: 'Aktionariat',
+        subsystem: 'Confirmation',
+        category: 'ClientEvent',
+        severity:
+          dto.phase === RealUnitConfirmAktionariatEventPhase.REQUEST_ERROR ? LogSeverity.ERROR : LogSeverity.INFO,
+        message: JSON.stringify({
+          phase: dto.phase,
+          email: dto.email,
+          code: dto.code,
+          user: dto.user,
+          detail: dto.detail,
+        }),
+        valid: null,
+      });
+    } catch (e) {
+      this.logger.error(`Failed to write RealUnit confirm client event (${dto.phase}): ${e?.message || e}`);
+    }
   }
 
   private maskEmail(email: string): string {

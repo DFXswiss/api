@@ -2,12 +2,14 @@ import { RealUnitController } from '../controllers/realunit.controller';
 import {
   RealUnitAktionariatConfirmationStatus,
   RealUnitConfirmAktionariatDto,
+  RealUnitConfirmAktionariatEventDto,
+  RealUnitConfirmAktionariatEventPhase,
   RealUnitConfirmAktionariatQueryDto,
 } from '../dto/realunit-confirm-aktionariat.dto';
 
 describe('RealUnitController - confirmAktionariat', () => {
   let controller: RealUnitController;
-  const realunitService = { confirmAktionariat: jest.fn() };
+  const realunitService = { confirmAktionariat: jest.fn(), logConfirmAktionariatClientEvent: jest.fn() };
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -31,5 +33,17 @@ describe('RealUnitController - confirmAktionariat', () => {
 
     await expect(controller.confirmAktionariat(query)).resolves.toBe(response);
     expect(realunitService.confirmAktionariat).toHaveBeenCalledWith(query);
+  });
+
+  it('delegates a validated client event to the service and resolves void (204)', async () => {
+    const dto: RealUnitConfirmAktionariatEventDto = {
+      phase: RealUnitConfirmAktionariatEventPhase.RESULT_UNAVAILABLE,
+      email: 'user@example.com',
+      detail: 'network timeout',
+    };
+    realunitService.logConfirmAktionariatClientEvent.mockResolvedValue(undefined);
+
+    await expect(controller.logConfirmAktionariatEvent(dto)).resolves.toBeUndefined();
+    expect(realunitService.logConfirmAktionariatClientEvent).toHaveBeenCalledWith(dto);
   });
 });
