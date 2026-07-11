@@ -320,6 +320,70 @@ export class TransactionDtoMapper {
     return refRewards.map(TransactionDtoMapper.mapReferralReward);
   }
 
+  /**
+   * Public status payload for unauthenticated `GET /transaction/single` (capability UID/CKO link).
+   * Keeps fields needed for the status UI (state, amounts, explorer links) and strips
+   * private banking/compliance/fee-detail data that is not on-chain public information.
+   */
+  static toPublicDto(dto: TransactionDto | UnassignedTransactionDto): TransactionDto | UnassignedTransactionDto {
+    const base: UnassignedTransactionDto = {
+      id: dto.id,
+      uid: dto.uid,
+      orderUid: dto.orderUid,
+      type: dto.type,
+      state: dto.state,
+      inputAmount: dto.inputAmount,
+      inputAsset: dto.inputAsset,
+      inputAssetId: dto.inputAssetId,
+      inputChainId: dto.inputChainId,
+      inputBlockchain: dto.inputBlockchain,
+      inputEvmChainId: dto.inputEvmChainId,
+      inputPaymentMethod: dto.inputPaymentMethod,
+      inputTxId: dto.inputTxId,
+      inputTxUrl: dto.inputTxUrl,
+      // depositAddress, chargebackTarget/IBAN, chargeback remittance — not public
+      depositAddress: undefined,
+      chargebackTarget: undefined,
+      chargebackAmount: dto.chargebackAmount != null ? dto.chargebackAmount : undefined,
+      chargebackAsset: dto.chargebackAsset,
+      chargebackAssetId: dto.chargebackAssetId,
+      chargebackTxId: undefined,
+      chargebackTxUrl: undefined,
+      chargebackDate: dto.chargebackDate,
+      date: dto.date,
+    };
+
+    if (!('reason' in dto) && !('outputAmount' in dto) && !('fees' in dto)) {
+      return Object.assign(new UnassignedTransactionDto(), base);
+    }
+
+    const full = dto as TransactionDto;
+    const publicFull: TransactionDto = {
+      ...base,
+      reason: full.reason,
+      exchangeRate: full.exchangeRate,
+      rate: full.rate,
+      outputAmount: full.outputAmount,
+      outputAsset: full.outputAsset,
+      outputAssetId: full.outputAssetId,
+      outputChainId: full.outputChainId,
+      outputBlockchain: full.outputBlockchain,
+      outputEvmChainId: full.outputEvmChainId,
+      outputPaymentMethod: full.outputPaymentMethod,
+      outputTxId: full.outputTxId,
+      outputTxUrl: full.outputTxUrl,
+      outputDate: full.outputDate,
+      priceSteps: undefined,
+      feeAmount: undefined,
+      feeAsset: undefined,
+      fees: undefined,
+      externalTransactionId: undefined,
+      networkStartTx: undefined,
+    };
+
+    return Object.assign(new TransactionDto(), publicFull);
+  }
+
   // UnassignedTx
   static mapUnassignedTransaction(tx: BankTx, currency: Fiat, bankTxReturn?: BankTxReturn): UnassignedTransactionDto {
     return {

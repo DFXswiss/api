@@ -23,20 +23,20 @@ import { CheckStatus } from '../../aml/enums/check-status.enum';
 import { createCustomBuyCrypto } from '../../buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
 import { BuyCryptoWebhookService } from '../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyService } from '../../buy-crypto/routes/buy/buy.service';
-import { RefRewardService } from '../../referral/reward/services/ref-reward.service';
 import { BuyFiatService } from '../../sell-crypto/process/services/buy-fiat.service';
 import { TransactionUtilService } from '../../transaction/transaction-util.service';
 import { TransactionController } from '../controllers/transaction.controller';
+import { HistoryAccessService } from '../services/history-access.service';
 import { HistoryService } from '../services/history.service';
 
 describe('TransactionController', () => {
   let controller: TransactionController;
 
   let historyService: HistoryService;
+  let historyAccessService: HistoryAccessService;
   let transactionService: TransactionService;
   let buyCryptoWebhookService: BuyCryptoWebhookService;
   let buyFiatService: BuyFiatService;
-  let refRewardService: RefRewardService;
   let bankDataService: BankDataService;
   let bankTxService: BankTxService;
   let fiatService: FiatService;
@@ -53,10 +53,10 @@ describe('TransactionController', () => {
 
   beforeEach(async () => {
     historyService = createMock<HistoryService>();
+    historyAccessService = createMock<HistoryAccessService>();
     transactionService = createMock<TransactionService>();
     buyCryptoWebhookService = createMock<BuyCryptoWebhookService>();
     buyFiatService = createMock<BuyFiatService>();
-    refRewardService = createMock<RefRewardService>();
     bankDataService = createMock<BankDataService>();
     bankTxService = createMock<BankTxService>();
     fiatService = createMock<FiatService>();
@@ -76,10 +76,10 @@ describe('TransactionController', () => {
       providers: [
         TransactionController,
         { provide: HistoryService, useValue: historyService },
+        { provide: HistoryAccessService, useValue: historyAccessService },
         { provide: TransactionService, useValue: transactionService },
         { provide: BuyCryptoWebhookService, useValue: buyCryptoWebhookService },
         { provide: BuyFiatService, useValue: buyFiatService },
-        { provide: RefRewardService, useValue: refRewardService },
         { provide: BankDataService, useValue: bankDataService },
         { provide: BankTxService, useValue: bankTxService },
         { provide: FiatService, useValue: fiatService },
