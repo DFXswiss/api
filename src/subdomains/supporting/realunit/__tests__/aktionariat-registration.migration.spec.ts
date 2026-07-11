@@ -20,6 +20,8 @@ const ADDR = {
   f: '0xFFffFFffFFffFFffFFffFFffFFffFFffFFffFF06',
   g: '0x7777777777777777777777777777777777777707', // older Completed + newer Failed
   h: '0x8888888888888888888888888888888888888808', // InternalReview -> ManualReview
+  i: '0x1010101010101010101010101010101010101009', // Canceled only -> terminal, never active
+  j: '0x2020202020202020202020202020202020202010', // older InternalReview + newer Canceled
   ghost: '0x9999999999999999999999999999999999999999', // no matching "user" row
 };
 
@@ -58,8 +60,8 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
 
     // users (one wallet-User per registered address; note: no user for ADDR.ghost)
     await qr.query(
-      `INSERT INTO "user" ("id", "address") VALUES (1,$1),(2,$2),(3,$3),(4,$4),(5,$5),(6,$6),(7,$7),(8,$8)`,
-      [ADDR.a, ADDR.b, ADDR.c, ADDR.d, ADDR.e, ADDR.f, ADDR.g, ADDR.h],
+      `INSERT INTO "user" ("id", "address") VALUES (1,$1),(2,$2),(3,$3),(4,$4),(5,$5),(6,$6),(7,$7),(8,$8),(9,$9),(10,$10)`,
+      [ADDR.a, ADDR.b, ADDR.c, ADDR.d, ADDR.e, ADDR.f, ADDR.g, ADDR.h, ADDR.i, ADDR.j],
     );
 
     // kyc_steps — the seed scenarios
@@ -221,6 +223,45 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
       }),
       '2026-05-09T10:00:00Z',
     );
+    // 11) Canceled step on its own wallet-user -> migrated, status kept 'Canceled', never active
+    await insertStep(
+      'RealUnitRegistration',
+      'Canceled',
+      blob({
+        email: 'i@example.com',
+        walletAddress: ADDR.i,
+        signature: '0xsigI',
+        registrationDate: '2026-05-10',
+        kycData: personalKyc,
+      }),
+      '2026-05-10T10:00:00Z',
+    );
+    // 12) Older InternalReview (non-terminal) + newer Canceled on the SAME wallet-user -> the InternalReview
+    // (mapped to ManualReview) stays active; the terminal Canceled is ranked last and never active.
+    await insertStep(
+      'RealUnitRegistration',
+      'InternalReview',
+      blob({
+        email: 'j@example.com',
+        walletAddress: ADDR.j,
+        signature: '0xsigJ_ir',
+        registrationDate: '2026-03-10',
+        kycData: personalKyc,
+      }),
+      '2026-03-10T10:00:00Z',
+    );
+    await insertStep(
+      'RealUnitRegistration',
+      'Canceled',
+      blob({
+        email: 'j@example.com',
+        walletAddress: ADDR.j,
+        signature: '0xsigJ_cancel',
+        registrationDate: '2026-07-10',
+        kycData: personalKyc,
+      }),
+      '2026-07-10T10:00:00Z',
+    );
   });
 
   afterEach(async () => {
@@ -238,9 +279,9 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     await runUp();
 
     const total = await count(`SELECT count(*) FROM "aktionariat_registration"`);
-    // resolvable: S1, S2a, S2b, S3, S4, S5, S6, G_ok, G_fail, H_ir (10);
+    // resolvable: S1, S2a, S2b, S3, S4, S5, S6, G_ok, G_fail, H_ir, I, J_ir, J_cancel (13);
     // skipped: S7 (no wallet), S8 (no user).
-    expect(total).toBe(10);
+    expect(total).toBe(13);
   });
 
   it('reconciles source, inserted and every non-resolvable remainder (nothing silently dropped)', async () => {
@@ -255,10 +296,10 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     );
     const inserted = await count(`SELECT count(*) FROM "aktionariat_registration"`);
 
-    expect(sourceTotal).toBe(12); // 11 with-wallet (incl. ghost) + 1 no-wallet
-    expect(sourceWithWallet).toBe(11);
-    expect(sourceWithRequired).toBe(11); // every with-wallet blob also carries the required fields
-    expect(inserted).toBe(10);
+    expect(sourceTotal).toBe(15); // 14 with-wallet (incl. ghost) + 1 no-wallet
+    expect(sourceWithWallet).toBe(14);
+    expect(sourceWithRequired).toBe(14); // every with-wallet blob also carries the required fields
+    expect(inserted).toBe(13);
     expect(sourceWithWallet - sourceWithRequired).toBe(0); // field missing
     expect(sourceWithRequired - inserted).toBe(1); // ADDR.ghost: complete blob but no user
     expect(sourceTotal - sourceWithWallet).toBe(1); // blob without a walletAddress
@@ -267,9 +308,9 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
   it('keeps a single active row per wallet-user and supersedes the older re-registration', async () => {
     await runUp();
 
-    // active: A, B(new), D, E, F, G(older Completed), H(InternalReview->ManualReview); inactive: B(old), C, G(Failed)
+    // active: A, B(new), D, E, F, G(older Completed), H(InternalReview->ManualReview); inactive: B(old), C, G(Failed); user 9 (Canceled) has none; user 10 (InternalReview->ManualReview) active
     const active = await count(`SELECT count(*) FROM "aktionariat_registration" WHERE "active" = true`);
-    expect(active).toBe(7);
+    expect(active).toBe(8);
 
     // user 2 (wallet B) has exactly one active row, and it is the newer signature
     const bRows = await rows(
@@ -310,6 +351,25 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     const hRow = (await rows(`SELECT "status", "active" FROM "aktionariat_registration" WHERE "userId" = 8`))[0];
     expect(hRow.status).toBe('ManualReview');
     expect(hRow.active).toBe(true);
+  });
+
+  it('keeps a Canceled step terminal (migrated, never active) and never lets it win the ranking', async () => {
+    await runUp();
+
+    // user 9: a lone Canceled step is migrated with its status kept, but is never active
+    const iRow = (await rows(`SELECT "status", "active" FROM "aktionariat_registration" WHERE "userId" = 9`))[0];
+    expect(iRow.status).toBe('Canceled');
+    expect(iRow.active).toBe(false);
+
+    // user 10: older InternalReview + newer Canceled -> the non-terminal InternalReview (->ManualReview)
+    // stays active, the terminal Canceled is ranked last and inactive (mirrors the Failed scenario)
+    const jRows = await rows(`SELECT "status", "active" FROM "aktionariat_registration" WHERE "userId" = 10`);
+    expect(jRows).toHaveLength(2);
+    const jActive = jRows.filter((r) => r.active);
+    expect(jActive).toHaveLength(1);
+    expect(jActive[0].status).toBe('ManualReview');
+    const jCanceled = jRows.find((r) => r.status === 'Canceled');
+    expect(jCanceled.active).toBe(false);
   });
 
   it('lowercases the queryable walletAddress but keeps the exact signed casing in signedPayload', async () => {

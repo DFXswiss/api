@@ -36,6 +36,7 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
+import { FindOperator } from 'typeorm';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAktionariatConfirmationStatus } from '../dto/realunit-confirm-aktionariat.dto';
@@ -152,7 +153,7 @@ describe('RealUnitService', () => {
   let addressConfirmationRepo: jest.Mocked<RealUnitAddressConfirmationRepository>;
   let aktionariatRegistrationRepo: jest.Mocked<AktionariatRegistrationRepository>;
   let aktionariatManager: { transaction: jest.Mock };
-  let aktionariatTxManager: { update: jest.Mock; save: jest.Mock };
+  let aktionariatTxManager: { update: jest.Mock; save: jest.Mock; query: jest.Mock; findOne: jest.Mock };
   let logService: jest.Mocked<LogService>;
   let fiatService: jest.Mocked<FiatService>;
   let buyService: jest.Mocked<BuyService>;
@@ -182,6 +183,8 @@ describe('RealUnitService', () => {
     aktionariatTxManager = {
       update: jest.fn(),
       save: jest.fn((entity) => entity),
+      query: jest.fn(),
+      findOne: jest.fn(),
     };
     aktionariatManager = {
       transaction: jest.fn(async (cb: any) => cb(aktionariatTxManager)),
@@ -611,6 +614,21 @@ describe('RealUnitService', () => {
       aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);
 
       await expect(service.hasRegistrationForWallet(userData, '0xabc')).resolves.toBe(false);
+    });
+
+    it('queries only active, non-terminal registrations for the current wallet (fail-closed gate)', async () => {
+      aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);
+
+      await service.hasRegistrationForWallet(userData, '0xAbC');
+
+      const where = (aktionariatRegistrationRepo.findOne as jest.Mock).mock.calls[0][0].where;
+      expect(where.active).toBe(true);
+      expect(where.walletAddress).toBe('0xabc');
+      // the compliance gate must exclude terminal FAILED/CANCELED rows: status = Not(In([FAILED, CANCELED]))
+      expect(where.status).toBeInstanceOf(FindOperator);
+      expect(where.status.type).toBe('not');
+      expect(where.status.child.type).toBe('in');
+      expect(where.status.child.value).toEqual([ReviewStatus.FAILED, ReviewStatus.CANCELED]);
     });
   });
 
@@ -1142,6 +1160,47 @@ describe('RealUnitService', () => {
     });
   });
 
+  describe('isPersonalDataMatching (KYC prefill match gate)', () => {
+    // fully aligned userData/dto pair (ASCII only, so transliteration is a no-op on both sides)
+    const matchingUserData = (): any => ({
+      firstname: 'Erika',
+      surname: 'Mueller',
+      phone: '+41790000000',
+      accountType: 'Personal',
+      street: 'Bahnhofstrasse',
+      houseNumber: '1',
+      location: 'Zurich',
+      zip: '8001',
+      country: { id: 10 },
+      nationality: { symbol: 'CH' },
+      birthday: new Date('1990-01-01T00:00:00.000Z'),
+    });
+
+    const matchingDto = (): any => ({
+      nationality: 'CH',
+      birthday: '1990-01-01',
+      kycData: {
+        firstName: 'Erika',
+        lastName: 'Mueller',
+        phone: '+41790000000',
+        accountType: 'Personal',
+        address: { street: 'Bahnhofstrasse', houseNumber: '1', city: 'Zurich', zip: '8001', country: { id: 10 } },
+      },
+    });
+
+    it('returns true when every personal-data field (including the birthday) matches', () => {
+      const ok = (service as any).isPersonalDataMatching(matchingUserData(), matchingDto());
+      expect(ok).toBe(true);
+    });
+
+    it('returns false when only the birthday differs (last field checked)', () => {
+      const dto = matchingDto();
+      dto.birthday = '1991-02-02';
+      const ok = (service as any).isPersonalDataMatching(matchingUserData(), dto);
+      expect(ok).toBe(false);
+    });
+  });
+
   describe('forwardRegistration (forwards the signed representation to Aktionariat)', () => {
     // Hardhat test accounts — synthetic keys, never real user wallets.
     const softwareWallet = new Wallet('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
@@ -1335,7 +1394,12 @@ describe('RealUnitService', () => {
       expect(logMessage.requestFields).toContain('walletAddress');
       expect(logMessage.requestFields).toContain('name');
       expect(logMessage.request).toBeUndefined();
-      expect(logMessage.response).toEqual({ aktionariatId: 'ak-1' });
+      // P2: only the response field NAMES are logged, never the raw body (which echoes email/name)
+      expect(logMessage.response).toEqual({ fields: ['aktionariatId'] });
+
+      // the forward is bounded (it runs inside the advisory-locked transaction)
+      const postConfig = (httpService.post as jest.Mock).mock.calls[0][2];
+      expect(postConfig.timeout).toBe(30000);
     });
 
     it('persists the registration in DEV/LOC without calling Aktionariat and logs the response as skipped', async () => {
@@ -1392,19 +1456,121 @@ describe('RealUnitService', () => {
       expect(logService.create).toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
     });
 
-    it('returns false without masking the forward error when even the manual-review persist fails', async () => {
+    it('rolls back and returns false (nothing half-written) when the registration persist fails', async () => {
       const wallet = softwareWallet.address;
       const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
       const dto = buildDto(utf8Fields(wallet), signature);
       httpService.post.mockResolvedValue({} as any);
-      // both the COMPLETED persist and the MANUAL_REVIEW persist hit the failing save
+      // the COMPLETED persist fails inside the transaction -> the whole transaction rolls back
       aktionariatTxManager.save.mockRejectedValue(new Error('db down'));
 
       const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
 
       expect(ok).toBe(false);
-      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(2);
+      // single persist attempt: on a rollback we do NOT fall back to a second MANUAL_REVIEW write
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
       expect(logService.create).toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
+    });
+
+    it('re-checks idempotency inside a per-wallet-user advisory lock and does not forward again', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 55 } as any);
+      // a concurrent/earlier caller already registered this wallet (active, non-terminal)
+      aktionariatTxManager.findOne.mockResolvedValue({ id: 9, status: ReviewStatus.COMPLETED });
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      // advisory lock taken on the wallet-user before anything else
+      expect(aktionariatTxManager.query).toHaveBeenCalledWith(expect.stringContaining('pg_advisory_xact_lock'), [
+        'aktionariat_registration',
+        55,
+      ]);
+      // idempotent: no second forward, no write
+      expect(httpService.post).not.toHaveBeenCalled();
+      expect(aktionariatTxManager.save).not.toHaveBeenCalled();
+    });
+
+    it('short-circuits only a COMPLETED prior registration, so an admin re-forward of a MANUAL_REVIEW row still forwards', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 55 } as any);
+      aktionariatTxManager.findOne.mockResolvedValue(undefined);
+      httpService.post.mockResolvedValue({} as any);
+
+      await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      // the in-lock re-check must match ONLY a genuinely COMPLETED row (a plain enum, not Not(In([...]))),
+      // otherwise a MANUAL_REVIEW row would be mistaken for "already registered" and the admin re-forward
+      // (the sole remediation path for a failed forward) would become a silent no-op.
+      const where = (aktionariatTxManager.findOne as jest.Mock).mock.calls[0][1].where;
+      expect(where.active).toBe(true);
+      expect(where.walletAddress).toBe(wallet.toLowerCase());
+      expect(where.status).toBe(ReviewStatus.COMPLETED);
+    });
+
+    it('treats a unique-index violation on persist as an idempotent success (concurrent completion)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 7 } as any);
+      httpService.post.mockResolvedValue({} as any);
+      // a concurrent caller committed the active row first -> our insert violates the partial unique index
+      aktionariatTxManager.save.mockRejectedValue({ code: '23505' });
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      // the collision is NOT recorded as a failure
+      expect(logService.create).not.toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
+    });
+
+    it('redacts the Aktionariat error body to status/type only in the audit log (no PII)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      const leaked = 'leaked.person@example.com';
+      httpService.post.mockRejectedValue({
+        name: 'ConflictException',
+        response: { status: 409, data: { message: `E-Mail ${leaked} already registered` } },
+      });
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(false);
+      const errorLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.ERROR)[0];
+      const msg = JSON.parse(errorLog.message);
+      expect(msg.error).toBe('status=409 type=ConflictException');
+      expect(errorLog.message).not.toContain(leaked); // raw body never mirrored into the Log table
+    });
+
+    it('summarises an array Aktionariat response to its length only in the audit log (no raw items)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue([{ a: 1 }, { b: 2 }] as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      const infoLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.INFO)[0];
+      expect(JSON.parse(infoLog.message).response).toEqual({ length: 2 });
+    });
+
+    it('summarises a primitive Aktionariat response to its type only in the audit log', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue(42 as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      const infoLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.INFO)[0];
+      expect(JSON.parse(infoLog.message).response).toBe('number');
     });
 
     it('lifts the wallet-user to KYC level 20 on first registration', async () => {
@@ -1479,7 +1645,7 @@ describe('RealUnitService', () => {
       expect(payload.addressCity).toBe('Zürich');
     });
 
-    it('reports the DEV/LOC skipped response on the error path (not registerResponse) when persistence fails', async () => {
+    it('rolls back in DEV/LOC (no forward) when the persist fails and surfaces the DB error non-PII', async () => {
       mockEnvironment = 'loc';
       const wallet = softwareWallet.address;
       const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
@@ -1490,24 +1656,30 @@ describe('RealUnitService', () => {
 
       expect(ok).toBe(false);
       expect(httpService.post).not.toHaveBeenCalled();
+      // single persist attempt: the transaction rolls back, no MANUAL_REVIEW fallback write
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
       const errorLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.ERROR)[0];
-      expect(JSON.parse(errorLog.message).response).toBe('skipped (DEV/LOC)');
+      // the persist-failure path carries no registerResponse; the DB error is summarised (message only, non-PII)
+      expect(JSON.parse(errorLog.message).response).toBeUndefined();
+      expect(JSON.parse(errorLog.message).error).toBe('db down');
     });
 
-    it('logs the raw thrown value when the manual-review persist fails without a message', async () => {
+    it('rolls back and surfaces a raw string persist error when the forward and the manual-review persist both fail', async () => {
       const wallet = softwareWallet.address;
       const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
       const dto = buildDto(utf8Fields(wallet), signature);
-      httpService.post.mockResolvedValue({} as any);
-      aktionariatTxManager.save
-        .mockRejectedValueOnce(new Error('completed persist down')) // COMPLETED persist -> outer catch
-        .mockRejectedValueOnce('manual-review string failure'); // MANUAL_REVIEW persist -> nested catch, no .message
+      httpService.post.mockRejectedValue(new Error('aktionariat down')); // forward fails -> MANUAL_REVIEW persist attempt
+      aktionariatTxManager.save.mockRejectedValue('manual-review string failure'); // that persist also fails (raw string, no .message)
 
       const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
 
       expect(ok).toBe(false);
-      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(2);
+      // the transaction rolled back after a single (failed) persist attempt
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
       expect((service as any).logger.error).toHaveBeenCalled();
+      const errorLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.ERROR)[0];
+      // a raw string throw is surfaced verbatim (no .message to read)
+      expect(JSON.parse(errorLog.message).error).toBe('manual-review string failure');
     });
 
     it('keeps a successful registration when the audit log write rejects without a message', async () => {
