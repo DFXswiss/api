@@ -706,19 +706,6 @@ export class TransactionController {
     return Util.secondsDiff(refundData.expiryDate) <= 0;
   }
 
-  /**
-   * @deprecated Prefer {@link getHistoryDataForSubject} after HistoryAccessService resolution.
-   */
-  private async getHistoryData<T extends ExportType>(
-    query: HistoryQueryUser,
-    exportType: T,
-    res: any,
-  ): Promise<HistoryDto<T>[] | StreamableFile> {
-    const tx = await this.historyService.getHistory(query, exportType);
-    if (query.format === ExportFormat.CSV) this.setCsvResult(res, exportType);
-    return tx;
-  }
-
   public async getHistoryDataForSubject<T extends ExportType>(
     subject: HistorySubject,
     query: HistoryQuery,

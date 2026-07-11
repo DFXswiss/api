@@ -2,7 +2,6 @@ import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 import { createMock } from '@golevelup/ts-jest';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { BuyCryptoWebhookService } from '../../../buy-crypto/process/services/buy-crypto-webhook.service';
 import { BuyFiatService } from '../../../sell-crypto/process/services/buy-fiat.service';
@@ -12,14 +11,11 @@ import { ExportType, HistoryService } from '../history.service';
 
 describe('HistoryService auth-facing methods', () => {
   let service: HistoryService;
-  let userService: jest.Mocked<UserService>;
   let transactionService: jest.Mocked<TransactionService>;
 
   beforeEach(() => {
-    userService = createMock<UserService>();
     transactionService = createMock<TransactionService>();
     service = new HistoryService(
-      userService,
       createMock<BuyCryptoWebhookService>(),
       createMock<BuyFiatService>(),
       createMock<StakingService>(),
@@ -70,7 +66,6 @@ describe('HistoryService auth-facing methods', () => {
     await expect(service.getHistory({ userAddress: '0x1' }, ExportType.COMPACT)).rejects.toBeInstanceOf(
       UnauthorizedException,
     );
-    expect(userService.getUserByAddress).not.toHaveBeenCalled();
   });
 
   it('getCsvHistory always throws UnauthorizedException', async () => {

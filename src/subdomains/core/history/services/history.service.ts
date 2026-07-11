@@ -3,7 +3,6 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Util } from 'src/shared/utils/util';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
-import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { Readable } from 'stream';
 import { TransactionDto } from '../../../supporting/payment/dto/transaction.dto';
@@ -38,7 +37,6 @@ export enum ExportType {
 @Injectable()
 export class HistoryService {
   constructor(
-    private readonly userService: UserService,
     private readonly buyCryptoWebhookService: BuyCryptoWebhookService,
     private readonly buyFiatService: BuyFiatService,
     private readonly stakingService: StakingService,
