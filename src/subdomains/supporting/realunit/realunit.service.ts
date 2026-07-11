@@ -1041,11 +1041,11 @@ export class RealUnitService {
    * status without inserting a new registration row or re-forwarding. Different signature for the
    * same wallet stays a hard error: it means a fresh sign was produced over conflicting data.
    */
-  private idempotentRegistrationResult(
+  private async idempotentRegistrationResult(
     userData: UserData,
     registration: AktionariatRegistration,
     incomingSignature: string,
-  ): RealUnitRegistrationStatus {
+  ): Promise<RealUnitRegistrationStatus> {
     if (!Util.equalsIgnoreCase(registration.signature, incomingSignature)) {
       throw new BadRequestException('RealUnit registration already exists for this wallet with a different signature');
     }
@@ -1062,6 +1062,12 @@ export class RealUnitService {
       registration.status === ReviewStatus.COMPLETED
         ? RealUnitRegistrationStatus.ALREADY_REGISTERED
         : RealUnitRegistrationStatus.FORWARDING_FAILED;
+
+    // Self-heal the best-effort KYC level-20 lift on the idempotent COMPLETED retry (see
+    // ensureRegistrationKycLevel): the prior forward completed the registration, so re-assert the lift
+    // here in case it did not land the first time. Monotonic and best-effort — never lowers the level,
+    // never fails the retry.
+    if (registration.status === ReviewStatus.COMPLETED) await this.ensureRegistrationKycLevel(userData);
 
     this.logger.info(
       `RealUnit registration idempotent retry for userData ${userData.id}, registration ${registration.id} → ${status}`,
@@ -1172,18 +1178,18 @@ export class RealUnitService {
     return true;
   }
 
-  // Forwards a RealUnit registration to Aktionariat and persists the queryable, per-wallet registration
-  // row — the single source of truth — in BOTH outcomes: COMPLETED on success (with the forwarded date),
+  // Forwards a RealUnit registration to Aktionariat and persists the queryable, per-wallet registration row
+  // — the single source of truth — in BOTH outcomes: COMPLETED on success (with the forwarded date),
   // MANUAL_REVIEW when the forward fails, so the failure exists as a record an admin can re-forward. No
-  // REALUNIT_REGISTRATION kyc_step is created anymore; KYC level 20 is set directly on user_data.
+  // REALUNIT_REGISTRATION kyc_step is created anymore; KYC level 20 is lifted best-effort (self-healing).
   //
-  // The idempotency re-check, the forward and the persist all run under a per-wallet-user Postgres
-  // advisory lock inside one transaction. The lock is cluster-wide (serialises across API instances) and
-  // auto-released at transaction end, so a concurrent double-submit for the same wallet cannot both POST
-  // to Aktionariat, nor race on the partial unique index: the second caller waits, then observes the
-  // first caller's committed registration and returns the idempotent success WITHOUT forwarding again.
-  // The partial unique index stays as the DB-level backstop. Holding the transaction across the forward
-  // is acceptable for this rare, human-initiated flow.
+  // The Aktionariat POST runs OUTSIDE any DB transaction, so no pooled connection is held across the (up to
+  // 30s) external call. Aktionariat's registerUser is an upsert (register == update), so if a transient DB
+  // failure rolls back the persist after a successful POST, the client retry harmlessly re-POSTs (an update,
+  // never a duplicate) and then persists — self-healing, no durable intent row needed. Concurrency is still
+  // serialised on the wallet-user by a short per-persist advisory lock plus the partial unique index: two
+  // concurrent callers may both (harmlessly) POST, but only one COMPLETED row is written; the second observes
+  // it and returns the idempotent success.
   private async forwardRegistration(userData: UserData, dto: RealUnitRegistrationDto): Promise<boolean> {
     const { api } = Config.blockchain.realunit;
     const skipForward = [Environment.DEV, Environment.LOC].includes(Config.environment);
@@ -1214,91 +1220,111 @@ export class RealUnitService {
 
     const walletAddress = dto.walletAddress.toLowerCase();
 
-    let result: { outcome: 'completed' | 'idempotent' | 'forward-failed'; response?: unknown; error?: unknown };
+    // 1) Forward to Aktionariat OUTSIDE any DB transaction — no pooled connection is held across the call.
+    let registerResponse: Record<string, unknown> | undefined;
+    let forwardError: unknown;
+    if (!skipForward) {
+      try {
+        registerResponse = await this.http.post<Record<string, unknown>>(`${api.url}/registerUser`, payload, {
+          headers: { 'x-api-key': api.key },
+          timeout: 30000, // ms — bound the call so a hung Aktionariat cannot stall the request indefinitely.
+        });
+      } catch (error) {
+        forwardError = error;
+      }
+    }
 
+    // 2) Persist the outcome in a short advisory-locked transaction (no external I/O inside it).
+    let outcome: 'completed' | 'forward-failed' | 'idempotent';
     try {
-      result = await this.aktionariatRegistrationRepo.manager.transaction(async (manager) => {
-        // Serialise every registration write for this wallet-user (cluster-wide, auto-released at txn end).
+      outcome = await this.aktionariatRegistrationRepo.manager.transaction(async (manager) => {
+        // Serialise the persist for this wallet-user (cluster-wide, auto-released at txn end).
         await manager.query('SELECT pg_advisory_xact_lock(hashtext($1), $2)', ['aktionariat_registration', user.id]);
 
-        // Idempotency re-check INSIDE the lock: only a genuinely COMPLETED prior forward short-circuits
-        // (e.g. a concurrent first caller that already registered this wallet). A MANUAL_REVIEW row must
-        // NOT match — it means the forward failed and is awaiting the admin re-forward, which re-runs this
-        // method and has to actually re-POST and supersede it. This mirrors idempotentRegistrationResult's
-        // "only COMPLETED is terminal success" semantics.
+        // A concurrent caller may have already completed this wallet (both harmlessly POSTed). If so, do not
+        // overwrite the COMPLETED row — return the idempotent success.
         const existing = await manager.findOne(AktionariatRegistration, {
-          where: {
-            user: { id: user.id },
-            walletAddress,
-            active: true,
-            status: ReviewStatus.COMPLETED,
-          },
+          where: { user: { id: user.id }, walletAddress, active: true, status: ReviewStatus.COMPLETED },
         });
-        if (existing) return { outcome: 'idempotent' as const };
+        if (existing) return 'idempotent';
 
-        let registerResponse: Record<string, unknown> | undefined;
-        try {
-          if (!skipForward) {
-            registerResponse = await this.http.post<Record<string, unknown>>(`${api.url}/registerUser`, payload, {
-              headers: { 'x-api-key': api.key },
-              // Bound the call: it runs inside the advisory-locked transaction, so a hung Aktionariat must
-              // not hold the lock/connection indefinitely. Generous so a slow-but-successful forward is not
-              // mislabelled as failed (same rationale as the getRaw timeout below).
-              timeout: 30000, // ms
-            });
-          }
-        } catch (error) {
-          // The forward itself failed (Aktionariat rejected / network). The DB is healthy, so record the
-          // attempt as MANUAL_REVIEW in the same transaction — it exists as a row an admin can re-forward
-          // and it blocks a client retry from re-POSTing (findRegistration surfaces it as FORWARDING_FAILED).
+        if (forwardError) {
+          // The forward failed — record the attempt as MANUAL_REVIEW so it exists as a row an admin can
+          // re-forward and a client retry is surfaced as FORWARDING_FAILED.
           await this.persistAktionariatRegistration(manager, user, dto, payload, ReviewStatus.MANUAL_REVIEW, null);
-          return { outcome: 'forward-failed' as const, response: registerResponse, error };
+          return 'forward-failed';
         }
 
         await this.persistAktionariatRegistration(manager, user, dto, payload, ReviewStatus.COMPLETED, new Date());
-        return { outcome: 'completed' as const, response: skipForward ? 'skipped (DEV/LOC)' : registerResponse };
+        return 'completed';
       });
     } catch (error) {
-      // A unique-index violation means a concurrent caller committed the active row first (defence in depth
-      // beyond the advisory lock) → the registration IS in place, so surface it as idempotent success. Any
-      // other error is a genuine persist failure: the transaction rolled back, nothing was written → fail closed.
+      // A unique-index violation means a concurrent caller committed the active COMPLETED row first → the
+      // registration IS in place (or, given the upsert, will be on their forward) → idempotent success.
       if (this.isUniqueViolation(error)) {
         this.logger.info(
           `RealUnit registration concurrency collision resolved as idempotent for wallet ${dto.walletAddress}`,
         );
+        await this.ensureRegistrationKycLevel(userData);
         return true;
       }
+      // Any other persist error rolled the persist back. The registration was NOT recorded; return failure.
+      // Harmless under the upsert property: the client retry re-POSTs (an update) and persists then.
       this.logger.error(
         `Failed to persist RealUnit registration for wallet ${dto.walletAddress}: ${this.summarizeError(error)}`,
       );
-      await this.logAktionariatRegistration(LogSeverity.ERROR, dto.walletAddress, payload, undefined, error);
+      await this.logAktionariatRegistration(
+        LogSeverity.ERROR,
+        dto.walletAddress,
+        payload,
+        registerResponse,
+        forwardError ?? error,
+      );
       return false;
     }
 
-    if (result.outcome === 'idempotent') return true;
-
-    if (result.outcome === 'forward-failed') {
+    if (outcome === 'forward-failed') {
       this.logger.error(
         `Failed to forward RealUnit registration to Aktionariat for wallet ${dto.walletAddress}: ${this.summarizeError(
-          result.error,
+          forwardError,
         )}`,
       );
       await this.logAktionariatRegistration(
         LogSeverity.ERROR,
         dto.walletAddress,
         payload,
-        result.response,
-        result.error,
+        registerResponse,
+        forwardError,
       );
       return false;
     }
 
-    // completed: lift KYC level and write the INFO audit log outside the lock's critical section.
-    if (userData.kycLevel < KycLevel.LEVEL_20) {
-      await this.userDataService.updateUserDataInternal(userData, { kycLevel: KycLevel.LEVEL_20 });
-    }
-    await this.logAktionariatRegistration(LogSeverity.INFO, dto.walletAddress, payload, result.response);
+    // completed or idempotent: lift KYC level (best-effort, self-healing) and write the INFO audit log.
+    await this.ensureRegistrationKycLevel(userData);
+    await this.logAktionariatRegistration(
+      LogSeverity.INFO,
+      dto.walletAddress,
+      payload,
+      skipForward ? 'skipped (DEV/LOC)' : registerResponse,
+    );
     return true;
+  }
+
+  // Best-effort KYC level-20 lift for a completed RealUnit registration. Runs AFTER the COMPLETED row is
+  // durably persisted, so a transient failure here must not turn a durable registration into a 500 — it is
+  // logged and self-heals on the next completeRegistration idempotent retry, which re-asserts it. Monotonic:
+  // updateUserDataInternal never lowers kycLevel. Not folded into the persist transaction on purpose:
+  // updateUserDataInternal runs its own repository and fires KYC-changed notifications (side-effects that
+  // must not run inside, nor be rolled back with, the registration persist).
+  private async ensureRegistrationKycLevel(userData: UserData): Promise<void> {
+    if (userData.kycLevel >= KycLevel.LEVEL_20) return;
+    try {
+      await this.userDataService.updateUserDataInternal(userData, { kycLevel: KycLevel.LEVEL_20 });
+    } catch (e) {
+      this.logger.error(
+        `Failed to lift KYC level for RealUnit registration (userData ${userData.id}); will self-heal on retry: ${e?.message || e}`,
+      );
+    }
   }
 
   // Persist the queryable, per-wallet Aktionariat registration record for the resolved wallet-user within
@@ -1367,12 +1393,16 @@ export class RealUnitService {
     }
   }
 
-  // Non-PII summary of the Aktionariat response for the audit log: strings (e.g. the DEV/LOC marker) pass
-  // through, objects are reduced to their field NAMES (never the values, which echo email/name), arrays to
-  // their length, primitives to their type. Mirrors the request-field-name reduction.
+  // Non-PII summary of the Aktionariat response for the audit log: only the internal DEV/LOC marker passes
+  // through verbatim (any other string body could echo submitted email/name, so it is reduced to a
+  // {type,length} shape); objects are reduced to their field NAMES (never the values, which echo
+  // email/name), arrays to their length, primitives to their type. Mirrors the request-field-name reduction.
   private summarizeResponse(response: unknown): unknown {
     if (response == null) return undefined;
-    if (typeof response === 'string') return response;
+    // Only the internal DEV/LOC marker is a safe string to log verbatim; any other string body could echo
+    // submitted PII (email/name), so reduce it to a non-PII shape.
+    if (typeof response === 'string')
+      return response === 'skipped (DEV/LOC)' ? response : { type: 'string', length: response.length };
     if (Array.isArray(response)) return { length: response.length };
     if (typeof response === 'object') return { fields: Object.keys(response as Record<string, unknown>) };
     return typeof response;
