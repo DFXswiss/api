@@ -511,8 +511,9 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
 
     const reconciliation = notices.find((n) => n.includes('backfill reconciliation'));
     expect(reconciliation).toBeDefined();
-    expect(reconciliation).toContain('invalid json blob=1'); // the corrupt blob added above
-    expect(reconciliation).toContain('inserted=13'); // baseline unchanged; the corrupt blob never inserts
+    // assert including the trailing delimiter, so e.g. 'blob=15' can never satisfy 'blob=1'
+    expect(reconciliation).toContain('invalid json blob=1,'); // the corrupt blob added above
+    expect(reconciliation).toContain('inserted=13,'); // baseline unchanged; the corrupt blob never inserts
 
     const sourceTotal = await count(`SELECT count(*) FROM "kyc_step" WHERE "name" = 'RealUnitRegistration'`);
     const invalidJson = await count(
