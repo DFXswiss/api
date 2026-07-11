@@ -10,6 +10,7 @@ import { FaucetRequestModule } from 'src/subdomains/core/faucet-request/faucet-r
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { KycModule } from 'src/subdomains/generic/kyc/kyc.module';
 import { UserModule } from 'src/subdomains/generic/user/user.module';
+import { LogModule } from 'src/subdomains/supporting/log/log.module';
 import { SupportIssueModule } from 'src/subdomains/supporting/support-issue/support-issue.module';
 import { BalanceModule } from '../balance/balance.module';
 import { BankTxModule } from '../bank-tx/bank-tx.module';
@@ -20,18 +21,21 @@ import { PricingModule } from '../pricing/pricing.module';
 import { RealUnitComplianceController } from './controllers/realunit-compliance.controller';
 import { RealUnitSupportController } from './controllers/realunit-support.controller';
 import { RealUnitController } from './controllers/realunit.controller';
+import { AktionariatRegistration } from './entities/aktionariat-registration.entity';
 import { RealUnitAddressConfirmation } from './entities/realunit-address-confirmation.entity';
 import { RealUnitComplianceService } from './realunit-compliance.service';
 import { RealUnitDevService } from './realunit-dev.service';
 import { RealUnitJobService } from './realunit-job.service';
 import { RealUnitScopeService } from './realunit-scope.service';
 import { RealUnitService } from './realunit.service';
+import { AktionariatRegistrationRepository } from './repositories/aktionariat-registration.repository';
 import { RealUnitAddressConfirmationRepository } from './repositories/realunit-address-confirmation.repository';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([RealUnitAddressConfirmation]),
+    TypeOrmModule.forFeature([RealUnitAddressConfirmation, AktionariatRegistration]),
     SharedModule,
+    LogModule,
     PricingModule,
     BalanceModule,
     RealUnitBlockchainModule,
@@ -57,6 +61,7 @@ import { RealUnitAddressConfirmationRepository } from './repositories/realunit-a
     RealUnitScopeService,
     RealUnitComplianceService,
     RealUnitAddressConfirmationRepository,
+    AktionariatRegistrationRepository,
   ],
   exports: [RealUnitService, RealUnitScopeService],
 })

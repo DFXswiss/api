@@ -19,6 +19,7 @@ import { LanguageService } from 'src/shared/models/language/language.service';
 import { HttpService } from 'src/shared/services/http.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
+import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
@@ -33,14 +34,20 @@ import {
 } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
+import { LogService } from 'src/subdomains/supporting/log/log.service';
+import { FindOperator } from 'typeorm';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAktionariatConfirmationStatus } from '../dto/realunit-confirm-aktionariat.dto';
 import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
 import { PriceInvalidException } from '../../pricing/domain/exceptions/price-invalid.exception';
 import { RealUnitDevService } from '../realunit-dev.service';
+import { AktionariatRegistration } from '../entities/aktionariat-registration.entity';
+import { AktionariatRegistrationRepository } from '../repositories/aktionariat-registration.repository';
 import { RealUnitAddressConfirmationRepository } from '../repositories/realunit-address-confirmation.repository';
 import { PriceSourceUnavailableException } from '../exceptions/price-source-unavailable.exception';
+import { KycLevelRequiredException, RegistrationRequiredException } from '../exceptions/buy-exceptions';
 import { RealUnitService } from '../realunit.service';
 
 let mockEnvironment = 'loc';
@@ -141,10 +148,13 @@ describe('RealUnitService', () => {
   let transactionRequestService: jest.Mocked<TransactionRequestService>;
   let sellService: jest.Mocked<SellService>;
   let userService: jest.Mocked<UserService>;
-  let kycService: jest.Mocked<KycService>;
   let userDataService: jest.Mocked<UserDataService>;
   let httpService: jest.Mocked<HttpService>;
   let addressConfirmationRepo: jest.Mocked<RealUnitAddressConfirmationRepository>;
+  let aktionariatRegistrationRepo: jest.Mocked<AktionariatRegistrationRepository>;
+  let aktionariatManager: { transaction: jest.Mock };
+  let aktionariatTxManager: { update: jest.Mock; save: jest.Mock; query: jest.Mock; findOne: jest.Mock };
+  let logService: jest.Mocked<LogService>;
   let fiatService: jest.Mocked<FiatService>;
   let buyService: jest.Mocked<BuyService>;
 
@@ -167,6 +177,18 @@ describe('RealUnitService', () => {
   });
 
   beforeEach(async () => {
+    // Mock the per-wallet persistence transaction: repo.manager.transaction() runs its callback with a
+    // distinct transactional EntityManager, so the tests prove the deactivate (update) + insert (save)
+    // go through that transactional manager rather than the repository outside the transaction.
+    aktionariatTxManager = {
+      update: jest.fn(),
+      save: jest.fn((entity) => entity),
+      query: jest.fn(),
+      findOne: jest.fn(),
+    };
+    aktionariatManager = {
+      transaction: jest.fn(async (cb: any) => cb(aktionariatTxManager)),
+    };
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         RealUnitService,
@@ -186,22 +208,19 @@ describe('RealUnitService', () => {
             requestPaymentInstructions: jest.fn(),
           },
         },
-        { provide: UserDataService, useValue: { getUsersByMail: jest.fn() } },
+        {
+          provide: UserDataService,
+          useValue: { updateUserDataInternal: jest.fn(), updatePersonalData: jest.fn() },
+        },
         {
           provide: UserService,
           useValue: {
             getUserByAddress: jest.fn(),
           },
         },
-        {
-          provide: KycService,
-          useValue: {
-            createCustomKycStep: jest.fn(),
-            saveKycStepUpdate: jest.fn(),
-          },
-        },
-        { provide: CountryService, useValue: {} },
-        { provide: LanguageService, useValue: {} },
+        { provide: KycService, useValue: {} },
+        { provide: CountryService, useValue: { getCountryWithSymbol: jest.fn() } },
+        { provide: LanguageService, useValue: { getLanguageBySymbol: jest.fn() } },
         { provide: HttpService, useValue: { post: jest.fn(), getRaw: jest.fn() } },
         { provide: FiatService, useValue: { getFiat: jest.fn(), getFiatByName: jest.fn() } },
         { provide: BuyService, useValue: { createBuy: jest.fn(), toPaymentInfoDto: jest.fn() } },
@@ -242,6 +261,22 @@ describe('RealUnitService', () => {
             save: jest.fn((entity) => entity),
           },
         },
+        {
+          provide: AktionariatRegistrationRepository,
+          useValue: {
+            create: jest.fn((partial) => ({ ...partial })),
+            save: jest.fn((entity) => entity),
+            findOne: jest.fn(),
+            find: jest.fn(),
+            manager: aktionariatManager,
+          },
+        },
+        {
+          provide: LogService,
+          useValue: {
+            create: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -252,10 +287,11 @@ describe('RealUnitService', () => {
     transactionRequestService = module.get(TransactionRequestService);
     sellService = module.get(SellService);
     userService = module.get(UserService);
-    kycService = module.get(KycService);
     userDataService = module.get(UserDataService);
     httpService = module.get(HttpService);
     addressConfirmationRepo = module.get(RealUnitAddressConfirmationRepository);
+    aktionariatRegistrationRepo = module.get(AktionariatRegistrationRepository);
+    logService = module.get(LogService);
     fiatService = module.get(FiatService);
     buyService = module.get(BuyService);
   });
@@ -480,7 +516,7 @@ describe('RealUnitService', () => {
     });
 
     beforeEach(() => {
-      jest.spyOn(service, 'hasRegistrationForWallet').mockReturnValue(true);
+      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
       jest.spyOn(service, 'getRealuAsset').mockResolvedValue(realuAsset);
       jest.spyOn(service as any, 'generatePaymentRequest').mockReturnValue('MOCK-QR');
       fiatService.getFiatByName.mockResolvedValue({ name: 'CHF' } as any);
@@ -530,6 +566,69 @@ describe('RealUnitService', () => {
       expect(result.isValid).toBe(false);
       expect(result.error).toBe(QuoteError.AMOUNT_TOO_LOW);
       expect(result.paymentRequest).toBeUndefined();
+    });
+
+    it('rejects the buy with RegistrationRequiredException when the wallet is not RealUnit-registered', async () => {
+      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(false);
+
+      await expect(service.getPaymentInfo(buildUser('max@example.com'), { amount: 100 })).rejects.toBeInstanceOf(
+        RegistrationRequiredException,
+      );
+    });
+  });
+
+  describe('getSellPaymentInfo (registration gate)', () => {
+    const buildUser = (kycLevel: KycLevel): any => ({ id: 42, address: '0xUserAddress', userData: { kycLevel } });
+
+    it('rejects the sell with RegistrationRequiredException when the wallet is not RealUnit-registered', async () => {
+      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(false);
+
+      await expect(
+        service.getSellPaymentInfo(buildUser(KycLevel.LEVEL_30), { amount: 1 } as any),
+      ).rejects.toBeInstanceOf(RegistrationRequiredException);
+    });
+
+    it('passes the registration gate when registered (the next KYC-level gate rejects, not the registration one)', async () => {
+      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
+
+      // KYC level below 30 makes the very next gate throw — proving the registration gate was passed
+      const error = await service
+        .getSellPaymentInfo(buildUser(KycLevel.LEVEL_10), { amount: 1 } as any)
+        .catch((e) => e);
+
+      expect(error).toBeInstanceOf(KycLevelRequiredException);
+      expect(error).not.toBeInstanceOf(RegistrationRequiredException);
+    });
+  });
+
+  describe('hasRegistrationForWallet (delegates to findRegistration)', () => {
+    const userData = { id: 1 } as any;
+
+    it('returns true for an active non-terminal registration on the current wallet', async () => {
+      aktionariatRegistrationRepo.findOne.mockResolvedValueOnce({ id: 1, status: ReviewStatus.COMPLETED } as any);
+
+      await expect(service.hasRegistrationForWallet(userData, '0xabc')).resolves.toBe(true);
+    });
+
+    it('returns false when no registration row exists for the wallet', async () => {
+      aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);
+
+      await expect(service.hasRegistrationForWallet(userData, '0xabc')).resolves.toBe(false);
+    });
+
+    it('queries only active, non-terminal registrations for the current wallet (fail-closed gate)', async () => {
+      aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);
+
+      await service.hasRegistrationForWallet(userData, '0xAbC');
+
+      const where = (aktionariatRegistrationRepo.findOne as jest.Mock).mock.calls[0][0].where;
+      expect(where.active).toBe(true);
+      expect(where.walletAddress).toBe('0xabc');
+      // the compliance gate must exclude terminal FAILED/CANCELED rows: status = Not(In([FAILED, CANCELED]))
+      expect(where.status).toBeInstanceOf(FindOperator);
+      expect(where.status.type).toBe('not');
+      expect(where.status.child.type).toBe('in');
+      expect(where.status.child.value).toEqual([ReviewStatus.FAILED, ReviewStatus.CANCELED]);
     });
   });
 
@@ -728,26 +827,19 @@ describe('RealUnitService', () => {
     const matchingSignature = '0xSIGNATURE_MATCHING';
     const registrationDate = '2026-05-21';
 
-    function buildExistingStep(opts: { signature: string; isCompleted: boolean }): any {
+    function buildRegistration(opts: { signature: string; status: ReviewStatus }): any {
       return {
-        getResult: () => ({
-          signature: opts.signature,
-          walletAddress,
-          registrationDate,
-        }),
-        isCompleted: opts.isCompleted,
-        isFailed: false,
-        isCanceled: false,
-        result: 'non-empty',
+        id: 1,
+        signature: opts.signature,
+        status: opts.status,
+        walletAddress: walletAddress.toLowerCase(),
       };
     }
 
-    function mockUserWithSteps(steps: any[]): void {
-      const userData = {
-        id: userDataId,
-        getStepsWith: jest.fn().mockReturnValue(steps),
-      };
-      userService.getUserByAddress.mockResolvedValue({ userData } as any);
+    // findRegistration's first lookup (current wallet) returns the active row for this address.
+    function mockCurrentWalletRegistration(registration: any): void {
+      userService.getUserByAddress.mockResolvedValue({ userData: { id: userDataId } } as any);
+      aktionariatRegistrationRepo.findOne.mockResolvedValueOnce(registration);
     }
 
     const dto = {
@@ -756,29 +848,32 @@ describe('RealUnitService', () => {
       registrationDate,
     };
 
-    it('returns ALREADY_REGISTERED without creating a new KycStep when signature matches a completed registration', async () => {
-      const existingStep = buildExistingStep({ signature: matchingSignature, isCompleted: true });
-      mockUserWithSteps([existingStep]);
+    it('returns ALREADY_REGISTERED without persisting a new registration when signature matches a completed registration', async () => {
+      mockCurrentWalletRegistration(
+        buildRegistration({ signature: matchingSignature, status: ReviewStatus.COMPLETED }),
+      );
 
       const status = await service.completeRegistrationForWalletAddress(userDataId, dto);
 
       expect(status).toBe(RealUnitRegistrationStatus.ALREADY_REGISTERED);
-      expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
+      expect(aktionariatRegistrationRepo.save).not.toHaveBeenCalled();
     });
 
     it('returns FORWARDING_FAILED when signature matches but the existing registration is not completed', async () => {
-      const existingStep = buildExistingStep({ signature: matchingSignature, isCompleted: false });
-      mockUserWithSteps([existingStep]);
+      mockCurrentWalletRegistration(
+        buildRegistration({ signature: matchingSignature, status: ReviewStatus.MANUAL_REVIEW }),
+      );
 
       const status = await service.completeRegistrationForWalletAddress(userDataId, dto);
 
       expect(status).toBe(RealUnitRegistrationStatus.FORWARDING_FAILED);
-      expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
+      expect(aktionariatRegistrationRepo.save).not.toHaveBeenCalled();
     });
 
     it('matches signatures case-insensitively (stored upper-case, incoming lower-case)', async () => {
-      const existingStep = buildExistingStep({ signature: matchingSignature.toUpperCase(), isCompleted: true });
-      mockUserWithSteps([existingStep]);
+      mockCurrentWalletRegistration(
+        buildRegistration({ signature: matchingSignature.toUpperCase(), status: ReviewStatus.COMPLETED }),
+      );
 
       const status = await service.completeRegistrationForWalletAddress(userDataId, {
         ...dto,
@@ -786,15 +881,100 @@ describe('RealUnitService', () => {
       });
 
       expect(status).toBe(RealUnitRegistrationStatus.ALREADY_REGISTERED);
-      expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
     });
 
     it('throws BadRequestException when an existing registration for the same wallet has a different signature', async () => {
-      const existingStep = buildExistingStep({ signature: '0xDIFFERENT_SIGNATURE', isCompleted: true });
-      mockUserWithSteps([existingStep]);
+      mockCurrentWalletRegistration(
+        buildRegistration({ signature: '0xDIFFERENT_SIGNATURE', status: ReviewStatus.COMPLETED }),
+      );
 
       await expect(service.completeRegistrationForWalletAddress(userDataId, dto)).rejects.toThrow(BadRequestException);
-      expect(kycService.createCustomKycStep).not.toHaveBeenCalled();
+    });
+
+    it('throws NotFoundException when the wallet does not belong to any user', async () => {
+      userService.getUserByAddress.mockResolvedValue(undefined as any);
+
+      await expect(service.completeRegistrationForWalletAddress(userDataId, dto)).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when the wallet belongs to a different account', async () => {
+      userService.getUserByAddress.mockResolvedValue({ userData: { id: 999 } } as any);
+
+      await expect(service.completeRegistrationForWalletAddress(userDataId, dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when no registration exists to derive the wallet from', async () => {
+      userService.getUserByAddress.mockResolvedValue({ userData: { id: userDataId } } as any);
+      // both findRegistration lookups (current + other wallet) resolve to nothing
+      aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);
+
+      await expect(service.completeRegistrationForWalletAddress(userDataId, dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the derived registration has no signed payload', async () => {
+      userService.getUserByAddress.mockResolvedValue({ userData: { id: userDataId } } as any);
+      // current-wallet miss, other-wallet hit but with no reconstructable payload
+      aktionariatRegistrationRepo.findOne
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ id: 2, status: ReviewStatus.COMPLETED, signedPayloadData: undefined } as any);
+
+      await expect(service.completeRegistrationForWalletAddress(userDataId, dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('reconstructs a prior registration and forwards it for the new wallet (add-wallet), returning COMPLETED', async () => {
+      userService.getUserByAddress.mockResolvedValue({ userData: { id: userDataId } } as any);
+      aktionariatRegistrationRepo.findOne.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+        id: 2,
+        status: ReviewStatus.COMPLETED,
+        signedPayloadData: {
+          email: 'e@example.com',
+          name: 'Name',
+          walletAddress: '0xother',
+          signature: '0xold',
+          registrationDate: '2026-01-01',
+        },
+        kycDataObj: { accountType: 'Personal' },
+      } as any);
+      jest.spyOn(service as any, 'verifyRealUnitRegistrationSignature').mockReturnValue(true);
+      const forwardSpy = jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
+
+      const status = await service.completeRegistrationForWalletAddress(userDataId, dto);
+
+      expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
+      // the re-forward carries the NEW wallet/signature/date over the reconstructed account data
+      expect(forwardSpy).toHaveBeenCalledWith(
+        { id: userDataId },
+        expect.objectContaining({ walletAddress, signature: matchingSignature, registrationDate }),
+      );
+    });
+
+    it('returns FORWARDING_FAILED when the re-forward for the new wallet fails', async () => {
+      userService.getUserByAddress.mockResolvedValue({ userData: { id: userDataId } } as any);
+      aktionariatRegistrationRepo.findOne.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+        id: 2,
+        status: ReviewStatus.COMPLETED,
+        signedPayloadData: { walletAddress: '0xother', signature: '0xold', registrationDate: '2026-01-01' },
+        kycDataObj: { accountType: 'Personal' },
+      } as any);
+      jest.spyOn(service as any, 'verifyRealUnitRegistrationSignature').mockReturnValue(true);
+      jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(false);
+
+      const status = await service.completeRegistrationForWalletAddress(userDataId, dto);
+
+      expect(status).toBe(RealUnitRegistrationStatus.FORWARDING_FAILED);
+    });
+
+    it('throws BadRequestException when the derived signature is invalid for the new wallet', async () => {
+      userService.getUserByAddress.mockResolvedValue({ userData: { id: userDataId } } as any);
+      aktionariatRegistrationRepo.findOne.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+        id: 2,
+        status: ReviewStatus.COMPLETED,
+        signedPayloadData: { walletAddress: '0xother', signature: '0xold', registrationDate: '2026-01-01' },
+        kycDataObj: undefined,
+      } as any);
+      jest.spyOn(service as any, 'verifyRealUnitRegistrationSignature').mockReturnValue(false);
+
+      await expect(service.completeRegistrationForWalletAddress(userDataId, dto)).rejects.toThrow(BadRequestException);
     });
   });
 
@@ -827,13 +1007,15 @@ describe('RealUnitService', () => {
         get naturalPersonName() {
           return [this.firstname, this.surname].filter((n) => n).join(' ');
         },
-        getStepsWith: jest.fn().mockReturnValue([]),
       };
     }
 
-    function buildStepForWallet(stepWalletAddress: string, opts: { isCompleted?: boolean } = {}): any {
+    function buildRegistrationForWallet(registrationWalletAddress: string, opts: { status?: ReviewStatus } = {}): any {
       return {
-        getResult: () => ({
+        id: 1,
+        status: opts.status ?? ReviewStatus.COMPLETED,
+        // findRegistration/toRegistrationDto read the parsed getters directly off the entity
+        signedPayloadData: {
           email: 'signed@example.com',
           name: 'Signed Name',
           type: 'HUMAN',
@@ -847,47 +1029,50 @@ describe('RealUnitService', () => {
           swissTaxResidence: true,
           lang: 'DE',
           signature: '0xSig',
-          walletAddress: stepWalletAddress,
+          walletAddress: registrationWalletAddress,
           registrationDate: '2026-05-21',
-        }),
-        isFailed: false,
-        isCanceled: false,
-        isCompleted: opts.isCompleted ?? true,
-        result: 'non-empty',
+        },
+        kycDataObj: { accountType: 'Personal', firstName: 'Signed', lastName: 'Name' },
       };
     }
 
-    it('returns state=ALREADY_REGISTERED when a non-failed step for the current wallet exists', () => {
+    it('returns state=ALREADY_REGISTERED when an active registration for the current wallet exists', async () => {
       const userData = buildVerifiedUserData();
-      userData.getStepsWith.mockReturnValue([buildStepForWallet(walletAddress)]);
+      aktionariatRegistrationRepo.findOne.mockResolvedValueOnce(buildRegistrationForWallet(walletAddress));
 
-      const status = service.getRegistrationInfo(userData, walletAddress);
+      const status = await service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.ALREADY_REGISTERED);
       expect(status.isRegistered).toBe(true);
       expect(status.userData).toBeDefined();
       expect(status.userData!.email).toBe('signed@example.com');
       expect(status.userData!.name).toBe('Signed Name');
+      // ADD_WALLET pre-fill carries the stored kycData
+      expect(status.userData!.kycData.firstName).toBe('Signed');
     });
 
-    it('returns state=ADD_WALLET when a step exists for a different wallet but not the current one', () => {
+    it('returns state=ADD_WALLET when a completed registration exists for a different wallet but not the current one', async () => {
       const userData = buildVerifiedUserData();
-      userData.getStepsWith.mockReturnValue([buildStepForWallet(otherWalletAddress, { isCompleted: true })]);
+      // current-wallet lookup misses, other-wallet lookup hits
+      aktionariatRegistrationRepo.findOne
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(buildRegistrationForWallet(otherWalletAddress));
 
-      const status = service.getRegistrationInfo(userData, walletAddress);
+      const status = await service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.ADD_WALLET);
       expect(status.isRegistered).toBe(false);
       expect(status.userData).toBeDefined();
-      // userData comes from the existing signed step, not from KYC fallback
+      // userData comes from the existing signed registration, not from KYC fallback
       expect(status.userData!.email).toBe('signed@example.com');
       expect(status.userData!.name).toBe('Signed Name');
     });
 
-    it('returns state=NEW_REGISTRATION when no step exists but userData has firstname/surname', () => {
+    it('returns state=NEW_REGISTRATION when no registration exists but userData has firstname/surname', async () => {
       const userData = buildVerifiedUserData();
+      aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);
 
-      const status = service.getRegistrationInfo(userData, walletAddress);
+      const status = await service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.isRegistered).toBe(false);
@@ -907,36 +1092,39 @@ describe('RealUnitService', () => {
       expect(status.userData!.kycData.lastName).toBe('Mustermann');
     });
 
-    it('returns state=NEW_REGISTRATION with no userData when no step exists and no KYC data is present (first-time user gets an empty form)', () => {
+    it('returns state=NEW_REGISTRATION with no userData when no registration exists and no KYC data is present (first-time user gets an empty form)', async () => {
       const userData = {
+        id: 1,
         firstname: null,
         surname: null,
-        getStepsWith: jest.fn().mockReturnValue([]),
       } as any;
+      aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);
 
-      const status = service.getRegistrationInfo(userData, walletAddress);
+      const status = await service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.isRegistered).toBe(false);
       expect(status.userData).toBeUndefined();
     });
 
-    it('defaults swissTaxResidence to false in NEW_REGISTRATION when the residence country is not CH', () => {
+    it('defaults swissTaxResidence to false in NEW_REGISTRATION when the residence country is not CH', async () => {
       const userData = buildVerifiedUserData();
       userData.country = { id: 2, symbol: 'DE' };
+      aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);
 
-      const status = service.getRegistrationInfo(userData, walletAddress);
+      const status = await service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.userData!.swissTaxResidence).toBe(false);
       expect(status.userData!.addressCountry).toBe('DE');
     });
 
-    it('falls back to EN in NEW_REGISTRATION when the user language is not one of the RealUnit-supported codes', () => {
+    it('falls back to EN in NEW_REGISTRATION when the user language is not one of the RealUnit-supported codes', async () => {
       const userData = buildVerifiedUserData();
       userData.language = { symbol: 'ES' };
+      aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);
 
-      const status = service.getRegistrationInfo(userData, walletAddress);
+      const status = await service.getRegistrationInfo(userData, walletAddress);
 
       expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
       expect(status.userData!.lang).toBe('EN');
@@ -969,6 +1157,47 @@ describe('RealUnitService', () => {
 
     it('returns the result unchanged on success', async () => {
       await expect((service as any).withPriceSourceGuard(() => Promise.resolve('ok'))).resolves.toBe('ok');
+    });
+  });
+
+  describe('isPersonalDataMatching (KYC prefill match gate)', () => {
+    // fully aligned userData/dto pair (ASCII only, so transliteration is a no-op on both sides)
+    const matchingUserData = (): any => ({
+      firstname: 'Erika',
+      surname: 'Mueller',
+      phone: '+41790000000',
+      accountType: 'Personal',
+      street: 'Bahnhofstrasse',
+      houseNumber: '1',
+      location: 'Zurich',
+      zip: '8001',
+      country: { id: 10 },
+      nationality: { symbol: 'CH' },
+      birthday: new Date('1990-01-01T00:00:00.000Z'),
+    });
+
+    const matchingDto = (): any => ({
+      nationality: 'CH',
+      birthday: '1990-01-01',
+      kycData: {
+        firstName: 'Erika',
+        lastName: 'Mueller',
+        phone: '+41790000000',
+        accountType: 'Personal',
+        address: { street: 'Bahnhofstrasse', houseNumber: '1', city: 'Zurich', zip: '8001', country: { id: 10 } },
+      },
+    });
+
+    it('returns true when every personal-data field (including the birthday) matches', () => {
+      const ok = (service as any).isPersonalDataMatching(matchingUserData(), matchingDto());
+      expect(ok).toBe(true);
+    });
+
+    it('returns false when only the birthday differs (last field checked)', () => {
+      const dto = matchingDto();
+      dto.birthday = '1991-02-02';
+      const ok = (service as any).isPersonalDataMatching(matchingUserData(), dto);
+      expect(ok).toBe(false);
     });
   });
 
@@ -1028,12 +1257,8 @@ describe('RealUnitService', () => {
       kycData: {},
     });
 
-    const fakeKycStep = (): any => ({
-      id: 1,
-      userData: { kycLevel: 999 },
-      complete: jest.fn().mockReturnValue([1, {}]),
-      manualReview: jest.fn().mockReturnValue([1, {}]),
-    });
+    // forwardRegistration now operates on userData + dto (no KYC step); a high kycLevel skips the level-20 lift.
+    const fakeUserData = (kycLevel = 999): any => ({ id: 1, kycLevel });
 
     const forwardedPayload = (): any => ((service as any).http.post as jest.Mock).mock.calls[0][1];
 
@@ -1062,6 +1287,8 @@ describe('RealUnitService', () => {
 
     beforeEach(() => {
       mockEnvironment = 'prd';
+      // Registration resolves the exact wallet-user for the per-wallet AktionariatRegistration FK.
+      userService.getUserByAddress.mockResolvedValue({ id: 1 } as any);
     });
 
     afterEach(() => {
@@ -1076,7 +1303,7 @@ describe('RealUnitService', () => {
       const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
       const dto = buildDto(utf8Fields(wallet), signature);
 
-      const ok = await (service as any).forwardRegistration(fakeKycStep(), dto);
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
 
       expect(ok).toBe(true);
       const payload = forwardedPayload();
@@ -1092,7 +1319,7 @@ describe('RealUnitService', () => {
       // dto carries the UTF-8 originals as stored; only the signature is over ASCII.
       const dto = buildDto(utf8Fields(wallet), signature);
 
-      const ok = await (service as any).forwardRegistration(fakeKycStep(), dto);
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
 
       expect(ok).toBe(true);
       const payload = forwardedPayload();
@@ -1106,7 +1333,7 @@ describe('RealUnitService', () => {
       const signature = await hardwareWallet._signTypedData(domain, types, asciiFields(wallet));
       const dto = buildDto(utf8Fields(wallet), signature);
 
-      const ok = await (service as any).forwardRegistration(fakeKycStep(), dto);
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
 
       expect(ok).toBe(true);
       const [url, payload] = ((service as any).http.post as jest.Mock).mock.calls[0];
@@ -1121,6 +1348,663 @@ describe('RealUnitService', () => {
       const dto = buildDto(utf8Fields(hardwareWallet.address), signature);
 
       expect((service as any).resolveSignedRegistrationMessage(dto)).toBeUndefined();
+    });
+
+    it('persists the per-wallet registration and writes an INFO audit log on success', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 42 } as any);
+      httpService.post.mockResolvedValue({ aktionariatId: 'ak-1' } as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      expect(userService.getUserByAddress).toHaveBeenCalledWith(wallet);
+
+      const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
+      expect(created).toMatchObject({
+        user: { id: 42 },
+        // queryable column is canonically lowercased for the exact-match confirm lookup
+        walletAddress: wallet.toLowerCase(),
+        email: dto.email,
+        registrationDate: dto.registrationDate,
+        signature: dto.signature,
+        // success persists the row as COMPLETED (the single source of truth), no KYC step
+        status: ReviewStatus.COMPLETED,
+        active: true,
+      });
+      expect(created.forwardedToAktionariatDate).toBeInstanceOf(Date);
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
+      // the exact forwarded payload is attached for an idempotent re-forward and keeps the signed casing
+      const saved = (aktionariatTxManager.save as jest.Mock).mock.calls[0][0];
+      expect(saved.signedPayloadData.walletAddress).toBe(wallet);
+
+      expect(logService.create).toHaveBeenCalledTimes(1);
+      const log = (logService.create as jest.Mock).mock.calls[0][0];
+      expect(log).toMatchObject({
+        system: 'RealUnit',
+        subsystem: 'Aktionariat',
+        severity: LogSeverity.INFO,
+        category: wallet,
+      });
+      const logMessage = JSON.parse(log.message);
+      expect(logMessage.action).toBe('registerUser');
+      // PII trim: only the request field NAMES are logged, never the personal-data values
+      expect(logMessage.requestFields).toContain('walletAddress');
+      expect(logMessage.requestFields).toContain('name');
+      expect(logMessage.request).toBeUndefined();
+      // P2: only the response field NAMES are logged, never the raw body (which echoes email/name)
+      expect(logMessage.response).toEqual({ fields: ['aktionariatId'] });
+
+      // the forward is bounded (it runs inside the advisory-locked transaction)
+      const postConfig = (httpService.post as jest.Mock).mock.calls[0][2];
+      expect(postConfig.timeout).toBe(30000);
+    });
+
+    it('persists the registration in DEV/LOC without calling Aktionariat and logs the response as skipped', async () => {
+      mockEnvironment = 'loc';
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      expect(httpService.post).not.toHaveBeenCalled();
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
+      const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
+      expect(created.forwardedToAktionariatDate).toBeInstanceOf(Date);
+      expect(created.status).toBe(ReviewStatus.COMPLETED);
+
+      const log = (logService.create as jest.Mock).mock.calls[0][0];
+      expect(log.severity).toBe(LogSeverity.INFO);
+      expect(JSON.parse(log.message).response).toBe('skipped (DEV/LOC)');
+    });
+
+    it('fails closed (no persistence) when the wallet-user cannot be resolved', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue(undefined as any);
+      httpService.post.mockResolvedValue({} as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(false);
+      // an unresolved wallet-user has no FK to persist against — never forward, never touch the table
+      expect(httpService.post).not.toHaveBeenCalled();
+      expect(aktionariatManager.transaction).not.toHaveBeenCalled();
+      expect(aktionariatTxManager.save).not.toHaveBeenCalled();
+      expect(logService.create).toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
+    });
+
+    it('records the failed forward as a MANUAL_REVIEW row (persist in both branches)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockRejectedValue({ response: { data: { message: 'aktionariat rejected' } } });
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(false);
+      // the failed attempt is still persisted, as MANUAL_REVIEW with no forwarded date
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
+      const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
+      expect(created.status).toBe(ReviewStatus.MANUAL_REVIEW);
+      expect(created.forwardedToAktionariatDate).toBeUndefined();
+      expect(logService.create).toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
+    });
+
+    it('rolls back and returns false (nothing half-written) when the registration persist fails', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+      // the COMPLETED persist fails inside the transaction -> the whole transaction rolls back
+      aktionariatTxManager.save.mockRejectedValue(new Error('db down'));
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(false);
+      // single persist attempt: on a rollback we do NOT fall back to a second MANUAL_REVIEW write
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
+      expect(logService.create).toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
+    });
+
+    it('re-checks idempotency inside a per-wallet-user advisory lock and does not persist again', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 55 } as any);
+      httpService.post.mockResolvedValue({} as any);
+      // a concurrent/earlier caller already registered this wallet (active COMPLETED, same signature)
+      aktionariatTxManager.findOne.mockResolvedValue({
+        id: 9,
+        status: ReviewStatus.COMPLETED,
+        signature,
+      });
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      // advisory lock taken on the wallet-user inside the persist transaction
+      expect(aktionariatTxManager.query).toHaveBeenCalledWith(expect.stringContaining('pg_advisory_xact_lock'), [
+        'aktionariat_registration',
+        55,
+      ]);
+      // the POST now runs OUTSIDE the txn and is harmless under Aktionariat's upsert; the in-lock recheck
+      // only prevents a duplicate PERSIST when a concurrent caller has already completed the wallet
+      expect(aktionariatTxManager.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects an in-lock COMPLETED short-circuit when the incoming signature differs', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 55 } as any);
+      httpService.post.mockResolvedValue({} as any);
+      // concurrent path: active COMPLETED for this wallet was written under a different signature
+      aktionariatTxManager.findOne.mockResolvedValue({
+        id: 9,
+        status: ReviewStatus.COMPLETED,
+        signature: '0xdifferentpriorregistration',
+      });
+
+      // POST may already have run (outside the txn); the lock path must still fail closed on signature
+      await expect((service as any).forwardRegistration(fakeUserData(), dto)).rejects.toThrow(BadRequestException);
+      expect(aktionariatTxManager.save).not.toHaveBeenCalled();
+    });
+
+    it('short-circuits only a COMPLETED prior registration, so an admin re-forward of a MANUAL_REVIEW row still forwards', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 55 } as any);
+      aktionariatTxManager.findOne.mockResolvedValue(undefined);
+      httpService.post.mockResolvedValue({} as any);
+
+      await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      // the in-lock re-check must match ONLY a genuinely COMPLETED row (a plain enum, not Not(In([...]))),
+      // otherwise a MANUAL_REVIEW row would be mistaken for "already registered" and the admin re-forward
+      // (the sole remediation path for a failed forward) would become a silent no-op.
+      const where = (aktionariatTxManager.findOne as jest.Mock).mock.calls[0][1].where;
+      expect(where.active).toBe(true);
+      expect(where.walletAddress).toBe(wallet.toLowerCase());
+      expect(where.status).toBe(ReviewStatus.COMPLETED);
+    });
+
+    it('treats a unique-index violation on persist as an idempotent success (concurrent completion)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 7 } as any);
+      httpService.post.mockResolvedValue({} as any);
+      // a concurrent caller committed the active row first -> our insert violates the partial unique index
+      aktionariatTxManager.save.mockRejectedValue({ code: '23505' });
+      const ensureSpy = jest.spyOn(service as any, 'ensureRegistrationKycLevel');
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(10), dto);
+
+      expect(ok).toBe(true);
+      // the collision is NOT recorded as a failure
+      expect(logService.create).not.toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
+      // the idempotent-collision path still (best-effort) lifts the KYC level
+      expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
+    });
+
+    it('redacts the Aktionariat error body to status/type only in the audit log (no PII)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      const leaked = 'leaked.person@example.com';
+      httpService.post.mockRejectedValue({
+        name: 'ConflictException',
+        response: { status: 409, data: { message: `E-Mail ${leaked} already registered` } },
+      });
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(false);
+      const errorLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.ERROR)[0];
+      const msg = JSON.parse(errorLog.message);
+      expect(msg.error).toBe('status=409 type=ConflictException');
+      expect(errorLog.message).not.toContain(leaked); // raw body never mirrored into the Log table
+    });
+
+    it('summarises an array Aktionariat response to its length only in the audit log (no raw items)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue([{ a: 1 }, { b: 2 }] as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      const infoLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.INFO)[0];
+      expect(JSON.parse(infoLog.message).response).toEqual({ length: 2 });
+    });
+
+    it('summarises a primitive Aktionariat response to its type only in the audit log', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue(42 as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      const infoLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.INFO)[0];
+      expect(JSON.parse(infoLog.message).response).toBe('number');
+    });
+
+    it('lifts the wallet-user to KYC level 20 on first registration', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(10), dto);
+
+      expect(ok).toBe(true);
+      expect(userDataService.updateUserDataInternal).toHaveBeenCalledTimes(1);
+      const [, update] = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[0];
+      expect(update.kycLevel).toBe(20);
+    });
+
+    it('keeps a successful registration even when the audit log write fails', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+      logService.create.mockRejectedValue(new Error('log down'));
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
+    });
+
+    it('supersedes a prior active registration (deactivate + re-insert) without a unique violation', async () => {
+      const wallet = softwareWallet.address; // EIP-55 mixed-case address from the client
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 7 } as any);
+      httpService.post.mockResolvedValue({} as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      // prior active rows for this wallet-user are deactivated (kept as history) before the insert
+      expect(aktionariatTxManager.update).toHaveBeenCalledWith(
+        AktionariatRegistration,
+        { user: { id: 7 }, active: true },
+        { active: false },
+      );
+      const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
+      // queryable column is canonically lowercased, but the signed payload keeps the exact signed
+      // (mixed-case) address — lowercasing the payload would break EIP-712 signature recovery.
+      expect(created.walletAddress).toBe(wallet.toLowerCase());
+      expect(created.active).toBe(true);
+      const saved = (aktionariatTxManager.save as jest.Mock).mock.calls[0][0];
+      expect(saved.signedPayloadData.walletAddress).toBe(wallet);
+      // deactivate must run before the insert (atomic supersede — no unique-index clash)
+      const updateOrder = (aktionariatTxManager.update as jest.Mock).mock.invocationCallOrder[0];
+      const saveOrder = (aktionariatTxManager.save as jest.Mock).mock.invocationCallOrder[0];
+      expect(updateOrder).toBeLessThan(saveOrder);
+    });
+
+    it('falls back to the raw (non-transliterated) message when the signature cannot be resolved', async () => {
+      // resolveSignedRegistrationMessage returns undefined -> the `?? buildRegistrationMessage(dto, false)`
+      // fallback builds the forwarded payload from the raw UTF-8 fields.
+      const wallet = softwareWallet.address;
+      const dto = buildDto(utf8Fields(wallet), '0xdeadbeef');
+      jest.spyOn(service as any, 'resolveSignedRegistrationMessage').mockReturnValue(undefined);
+      httpService.post.mockResolvedValue({} as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      const payload = forwardedPayload();
+      expect(payload.name).toBe('Erika Müller'); // raw UTF-8, not transliterated
+      expect(payload.addressCity).toBe('Zürich');
+    });
+
+    it('rolls back in DEV/LOC (no forward) when the persist fails and surfaces the DB error non-PII', async () => {
+      mockEnvironment = 'loc';
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      aktionariatTxManager.save.mockRejectedValue(new Error('db down'));
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(false);
+      expect(httpService.post).not.toHaveBeenCalled();
+      // single persist attempt: the transaction rolls back, no MANUAL_REVIEW fallback write
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
+      const errorLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.ERROR)[0];
+      // the persist-failure path carries no registerResponse; the DB error is summarised (message only, non-PII)
+      expect(JSON.parse(errorLog.message).response).toBeUndefined();
+      expect(JSON.parse(errorLog.message).error).toBe('db down');
+    });
+
+    it('surfaces the forward root cause in the audit log (and the raw-string persist error to the app log) when both fail', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockRejectedValue(new Error('aktionariat down')); // forward fails -> MANUAL_REVIEW persist attempt
+      aktionariatTxManager.save.mockRejectedValue('manual-review string failure'); // that persist also fails (raw string, no .message)
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(false);
+      // the transaction rolled back after a single (failed) persist attempt
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
+      // the raw-string persist error is surfaced to the app log (no .message to read)
+      expect((service as any).logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('manual-review string failure'),
+      );
+      const errorLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.ERROR)[0];
+      // the audit log keeps the forward root cause (forwardError ?? error prefers the original forward error)
+      expect(JSON.parse(errorLog.message).error).toBe('aktionariat down');
+    });
+
+    it('keeps a successful registration when the audit log write rejects without a message', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+      logService.create.mockRejectedValue('log string failure'); // no .message -> hits the `|| e` side
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+    });
+
+    it('forwards to Aktionariat BEFORE opening the persist transaction (the POST is not held inside the txn)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      // N2: the external POST must run outside/before the persist transaction, so no pooled connection is
+      // pinned across the (up to 30s) call.
+      const postOrder = (httpService.post as jest.Mock).mock.invocationCallOrder[0];
+      const txnOrder = (aktionariatManager.transaction as jest.Mock).mock.invocationCallOrder[0];
+      expect(postOrder).toBeLessThan(txnOrder);
+    });
+
+    it('skips the KYC level-20 lift when the wallet-user is already at level 20 or above', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(KycLevel.LEVEL_20), dto);
+
+      expect(ok).toBe(true);
+      expect(userDataService.updateUserDataInternal).not.toHaveBeenCalled();
+    });
+
+    it('keeps the durable registration when the best-effort KYC lift rejects (self-heals on retry)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+      userDataService.updateUserDataInternal.mockRejectedValue(new Error('kyc write down'));
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(10), dto);
+
+      // the COMPLETED persist already committed, so a failed lift must not fail the registration
+      expect(ok).toBe(true);
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
+      expect((service as any).logger.error).toHaveBeenCalledWith(expect.stringContaining('will self-heal on retry'));
+    });
+
+    it('keeps the registration when the KYC lift rejects without a message', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+      userDataService.updateUserDataInternal.mockRejectedValue('kyc string failure'); // no .message -> hits the `|| e` side
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(10), dto);
+
+      expect(ok).toBe(true);
+      expect((service as any).logger.error).toHaveBeenCalledWith(expect.stringContaining('kyc string failure'));
+    });
+  });
+
+  describe('idempotentRegistrationResult (self-heals the KYC lift on the COMPLETED retry)', () => {
+    it('re-asserts the best-effort KYC lift for a COMPLETED registration', async () => {
+      const ensureSpy = jest.spyOn(service as any, 'ensureRegistrationKycLevel').mockResolvedValue(undefined);
+      const userData = { id: 1, kycLevel: KycLevel.LEVEL_10 } as any;
+      const registration = { id: 2, signature: '0xsig', status: ReviewStatus.COMPLETED } as any;
+
+      const status = await (service as any).idempotentRegistrationResult(userData, registration, '0xsig');
+
+      expect(status).toBe(RealUnitRegistrationStatus.ALREADY_REGISTERED);
+      expect(ensureSpy).toHaveBeenCalledWith(userData);
+    });
+
+    it('does NOT re-assert the KYC lift for a non-COMPLETED (MANUAL_REVIEW) registration', async () => {
+      const ensureSpy = jest.spyOn(service as any, 'ensureRegistrationKycLevel').mockResolvedValue(undefined);
+      const userData = { id: 1, kycLevel: KycLevel.LEVEL_10 } as any;
+      const registration = { id: 2, signature: '0xsig', status: ReviewStatus.MANUAL_REVIEW } as any;
+
+      const status = await (service as any).idempotentRegistrationResult(userData, registration, '0xsig');
+
+      expect(status).toBe(RealUnitRegistrationStatus.FORWARDING_FAILED);
+      expect(ensureSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('summarizeResponse (PII-safe audit summary)', () => {
+    it('passes the internal DEV/LOC marker through verbatim', () => {
+      expect((service as any).summarizeResponse('skipped (DEV/LOC)')).toBe('skipped (DEV/LOC)');
+    });
+
+    it('reduces any other string body to a non-PII {type,length} shape (never echoes it)', () => {
+      const leaky = 'user erika.mueller@example.com already registered';
+      expect((service as any).summarizeResponse(leaky)).toEqual({ type: 'string', length: leaky.length });
+    });
+
+    it('reduces an object to its field names, an array to its length and a primitive to its type', () => {
+      expect((service as any).summarizeResponse({ email: 'x', name: 'y' })).toEqual({ fields: ['email', 'name'] });
+      expect((service as any).summarizeResponse([1, 2, 3])).toEqual({ length: 3 });
+      expect((service as any).summarizeResponse(7)).toBe('number');
+    });
+
+    it('returns undefined for a null or undefined response', () => {
+      expect((service as any).summarizeResponse(null)).toBeUndefined();
+      expect((service as any).summarizeResponse(undefined)).toBeUndefined();
+    });
+  });
+
+  describe('forwardRegistrationToAktionariat (admin re-forward by registration id)', () => {
+    it('throws NotFoundException when the registration id does not exist', async () => {
+      aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);
+
+      await expect(service.forwardRegistrationToAktionariat(123)).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when the registration is not in MANUAL_REVIEW', async () => {
+      aktionariatRegistrationRepo.findOne.mockResolvedValue({ id: 1, status: ReviewStatus.COMPLETED } as any);
+
+      await expect(service.forwardRegistrationToAktionariat(1)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the stored signed payload is missing', async () => {
+      aktionariatRegistrationRepo.findOne.mockResolvedValue({
+        id: 1,
+        status: ReviewStatus.MANUAL_REVIEW,
+        signedPayloadData: undefined,
+        user: { userData: { id: 9 } },
+      } as any);
+
+      await expect(service.forwardRegistrationToAktionariat(1)).rejects.toThrow(BadRequestException);
+    });
+
+    it('re-forwards a MANUAL_REVIEW registration and resolves on success', async () => {
+      const forwardSpy = jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
+      aktionariatRegistrationRepo.findOne.mockResolvedValue({
+        id: 5,
+        status: ReviewStatus.MANUAL_REVIEW,
+        signedPayloadData: { walletAddress: '0xabc', signature: '0xsig', email: 'e@example.com' },
+        kycDataObj: { accountType: 'Personal' },
+        user: { userData: { id: 9, kycLevel: 20 } },
+      } as any);
+
+      await expect(service.forwardRegistrationToAktionariat(5)).resolves.toBeUndefined();
+      expect(forwardSpy).toHaveBeenCalledWith(
+        { id: 9, kycLevel: 20 },
+        expect.objectContaining({ walletAddress: '0xabc', kycData: { accountType: 'Personal' } }),
+      );
+    });
+
+    it('throws BadRequestException when the re-forward fails', async () => {
+      jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(false);
+      aktionariatRegistrationRepo.findOne.mockResolvedValue({
+        id: 5,
+        status: ReviewStatus.MANUAL_REVIEW,
+        signedPayloadData: { walletAddress: '0xabc', signature: '0xsig' },
+        kycDataObj: undefined,
+        user: { userData: { id: 9 } },
+      } as any);
+
+      await expect(service.forwardRegistrationToAktionariat(5)).rejects.toThrow(BadRequestException);
+    });
+  });
+
+  describe('completeRegistration (orchestration)', () => {
+    const dto: any = { walletAddress: '0xabc', signature: '0xsig', email: 'max@example.com', kycData: {} };
+
+    beforeEach(() => {
+      // the EIP-712 signature checks are exercised in their own describe; here we drive the orchestration
+      jest.spyOn(service as any, 'validateRegistrationDto').mockResolvedValue(undefined);
+    });
+
+    it('throws NotFoundException when the wallet has no user', async () => {
+      userService.getUserByAddress.mockResolvedValue(undefined as any);
+
+      await expect(service.completeRegistration(1, dto)).rejects.toThrow(NotFoundException);
+    });
+
+    it('throws BadRequestException when the wallet belongs to a different account', async () => {
+      userService.getUserByAddress.mockResolvedValue({
+        userData: { id: 2, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com' },
+      } as any);
+
+      await expect(service.completeRegistration(1, dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when email registration is incomplete', async () => {
+      userService.getUserByAddress.mockResolvedValue({
+        userData: { id: 1, kycLevel: 0, mail: null },
+      } as any);
+
+      await expect(service.completeRegistration(1, dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the submitted email does not match the registered one', async () => {
+      userService.getUserByAddress.mockResolvedValue({
+        userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'other@example.com' },
+      } as any);
+
+      await expect(service.completeRegistration(1, dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('returns the idempotent result for an existing current-wallet registration', async () => {
+      userService.getUserByAddress.mockResolvedValue({
+        userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com' },
+      } as any);
+      jest.spyOn(service as any, 'findRegistration').mockResolvedValue({
+        registration: { id: 3, signature: '0xsig', status: ReviewStatus.COMPLETED },
+        isForCurrentWallet: true,
+      });
+
+      const status = await service.completeRegistration(1, dto);
+
+      expect(status).toBe(RealUnitRegistrationStatus.ALREADY_REGISTERED);
+    });
+
+    it('throws BadRequestException when existing personal data does not match', async () => {
+      userService.getUserByAddress.mockResolvedValue({
+        userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', firstname: 'Max' },
+      } as any);
+      jest
+        .spyOn(service as any, 'findRegistration')
+        .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
+      jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(false);
+
+      await expect(service.completeRegistration(1, dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('forwards without re-saving matching personal data and returns COMPLETED', async () => {
+      userService.getUserByAddress.mockResolvedValue({
+        userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', firstname: 'Max' },
+      } as any);
+      jest
+        .spyOn(service as any, 'findRegistration')
+        .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
+      jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(true);
+      const forwardSpy = jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
+
+      const status = await service.completeRegistration(1, dto);
+
+      expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
+      expect(forwardSpy).toHaveBeenCalled();
+    });
+
+    it('persists personal data for a first-time customer (no existing firstname) before forwarding', async () => {
+      const richDto: any = {
+        walletAddress: '0xabc',
+        signature: '0xsig',
+        email: 'max@example.com',
+        kycData: { accountType: 'Personal' },
+        nationality: 'CH',
+        birthday: '1990-01-01',
+        lang: 'DE',
+      };
+      const userData: any = { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', firstname: null };
+      userService.getUserByAddress.mockResolvedValue({ userData } as any);
+      jest
+        .spyOn(service as any, 'findRegistration')
+        .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
+      (service as any).countryService.getCountryWithSymbol.mockResolvedValue({ id: 1, symbol: 'CH' });
+      (service as any).languageService.getLanguageBySymbol.mockResolvedValue({ id: 1, symbol: 'DE' });
+      const forwardSpy = jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
+
+      const status = await service.completeRegistration(1, richDto);
+
+      expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
+      // first-time customer -> KYC personal data is written before the forward
+      expect(userDataService.updatePersonalData).toHaveBeenCalledWith(userData, richDto.kycData);
+      const [, update] = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[0];
+      expect(update.nationality).toEqual({ id: 1, symbol: 'CH' });
+      expect(update.birthday).toEqual(new Date('1990-01-01'));
+      expect(update.language).toEqual({ id: 1, symbol: 'DE' });
+      expect(forwardSpy).toHaveBeenCalled();
+    });
+
+    it('returns FORWARDING_FAILED when the forward fails', async () => {
+      userService.getUserByAddress.mockResolvedValue({
+        userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', firstname: 'Max' },
+      } as any);
+      jest
+        .spyOn(service as any, 'findRegistration')
+        .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
+      jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(true);
+      jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(false);
+
+      const status = await service.completeRegistration(1, dto);
+
+      expect(status).toBe(RealUnitRegistrationStatus.FORWARDING_FAILED);
     });
   });
 
@@ -1206,15 +2090,20 @@ describe('RealUnitService', () => {
     const email = 'user@example.com';
     const code = 'CONFIRM-CODE';
     const user = 'aktionariat-user-1';
-    const walletA = '0xAAA0000000000000000000000000000000000001';
+    // Stored addresses are canonically lowercase (the walletAddress column), which the confirm flow
+    // returns and persists verbatim for the exact-match lookup.
+    const walletA = '0xaaa0000000000000000000000000000000000001';
     const walletB = '0xbbb0000000000000000000000000000000000002';
 
-    // Fake UserData exposing only the getStepsWith() shape the flow consumes. `undefined` entries
-    // model a REALUNIT_REGISTRATION step whose result carries no walletAddress.
-    const buildUserData = (walletAddresses: (string | undefined)[]) =>
-      ({
-        getStepsWith: () => walletAddresses.map((walletAddress) => ({ getResult: () => ({ walletAddress }) })),
-      }) as any;
+    // getRegisteredWalletAddresses reads the registration table by email and returns the exact signed
+    // (mixed-case) address from signedPayloadData; each row also carries the lowercase column as fallback.
+    const mockRegisteredWallets = (walletAddresses: string[]) =>
+      aktionariatRegistrationRepo.find.mockResolvedValue(
+        walletAddresses.map((walletAddress) => ({
+          walletAddress: walletAddress.toLowerCase(),
+          signedPayloadData: { walletAddress },
+        })) as any,
+      );
 
     afterEach(() => {
       mockEnvironment = 'loc';
@@ -1222,7 +2111,7 @@ describe('RealUnitService', () => {
     });
 
     it('returns confirmed via the deterministic DEV/LOC mock and stores a new record', async () => {
-      userDataService.getUsersByMail.mockResolvedValue([buildUserData([walletA])]);
+      mockRegisteredWallets([walletA]);
       addressConfirmationRepo.findOne.mockResolvedValue(undefined);
 
       const result = await service.confirmAktionariat({ email, code, user });
@@ -1237,11 +2126,9 @@ describe('RealUnitService', () => {
       );
     });
 
-    it('de-duplicates wallets across users case-insensitively and persists each once', async () => {
-      userDataService.getUsersByMail.mockResolvedValue([
-        buildUserData([walletA, undefined]),
-        buildUserData([walletA.toLowerCase(), walletB]),
-      ]);
+    it('de-duplicates repeated wallets (historical + active rows) and persists each once', async () => {
+      // the same wallet appears in several rows (re-registration history); de-dup keeps one per address
+      mockRegisteredWallets([walletA, walletA, walletB]);
       addressConfirmationRepo.findOne.mockResolvedValue(undefined);
 
       const result = await service.confirmAktionariat({ email, code, user });
@@ -1250,8 +2137,50 @@ describe('RealUnitService', () => {
       expect(addressConfirmationRepo.save).toHaveBeenCalledTimes(2);
     });
 
+    it('de-duplicates the same wallet case-insensitively and keeps the first-seen (signed) casing', async () => {
+      // historical mixed casing / signed payload vs lowercased column must not yield two confirm rows
+      const checksummed = '0xAaA0000000000000000000000000000000000001';
+      const lower = checksummed.toLowerCase();
+      aktionariatRegistrationRepo.find.mockResolvedValue([
+        { walletAddress: lower, signedPayloadData: { walletAddress: checksummed } },
+        { walletAddress: lower, signedPayloadData: { walletAddress: lower } },
+        { walletAddress: lower, signedPayloadData: undefined }, // fallback to lowercased column
+      ] as any);
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.confirmedAddresses).toEqual([checksummed]);
+      expect(addressConfirmationRepo.save).toHaveBeenCalledTimes(1);
+      expect(addressConfirmationRepo.create).toHaveBeenCalledWith({ walletAddress: checksummed });
+    });
+
+    it('looks wallets up by a case-insensitive LOWER(email) predicate (Raw SQL generator)', async () => {
+      mockRegisteredWallets([walletA]);
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+
+      await service.confirmAktionariat({ email: 'MiXeD@example.com', code, user });
+
+      // the email filter is a TypeORM Raw operator; execute its SQL generator to prove the predicate
+      const op = (aktionariatRegistrationRepo.find as jest.Mock).mock.calls[0][0].where.email;
+      expect(op.getSql('reg.email')).toBe('LOWER(reg.email) = :email');
+    });
+
+    it('returns the exact signed (mixed-case) address, not the lowercase column', async () => {
+      const checksummed = '0xAbC0000000000000000000000000000000000009';
+      aktionariatRegistrationRepo.find.mockResolvedValue([
+        { walletAddress: checksummed.toLowerCase(), signedPayloadData: { walletAddress: checksummed } },
+        { walletAddress: '0xdef0000000000000000000000000000000000010', signedPayloadData: undefined }, // fallback path
+      ] as any);
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.confirmedAddresses).toEqual([checksummed, '0xdef0000000000000000000000000000000000010']);
+    });
+
     it('warns and persists nothing when no RealUnit registration wallet exists', async () => {
-      userDataService.getUsersByMail.mockResolvedValue([]);
+      mockRegisteredWallets([]);
 
       const result = await service.confirmAktionariat({ email, code, user });
 
@@ -1262,7 +2191,7 @@ describe('RealUnitService', () => {
     });
 
     it('masks an email without an @ sign without crashing', async () => {
-      userDataService.getUsersByMail.mockResolvedValue([]);
+      mockRegisteredWallets([]);
 
       const result = await service.confirmAktionariat({ email: 'no-at-sign', code, user });
 
@@ -1271,7 +2200,7 @@ describe('RealUnitService', () => {
 
     it('calls the real Aktionariat endpoint and maps a 2xx to confirmed', async () => {
       mockEnvironment = 'prd';
-      userDataService.getUsersByMail.mockResolvedValue([buildUserData([walletA])]);
+      mockRegisteredWallets([walletA]);
       addressConfirmationRepo.findOne.mockResolvedValue(undefined);
       httpService.getRaw.mockResolvedValue({ status: 200, data: { status: 200, message: 'ok' } } as any);
 
@@ -1288,7 +2217,7 @@ describe('RealUnitService', () => {
     it('maps a 4xx (403 Code not found) to invalid and updates the existing record without clearing confirmedDate', async () => {
       mockEnvironment = 'prd';
       const priorDate = new Date('2026-01-01T00:00:00.000Z');
-      userDataService.getUsersByMail.mockResolvedValue([buildUserData([walletA])]);
+      mockRegisteredWallets([walletA]);
       addressConfirmationRepo.findOne.mockResolvedValue({ walletAddress: walletA, confirmedDate: priorDate } as any);
       httpService.getRaw.mockRejectedValue({
         response: { status: 403, data: { status: 403, message: 'Code not found' } },
@@ -1308,7 +2237,7 @@ describe('RealUnitService', () => {
 
     it('maps a 5xx to unavailable (string error body)', async () => {
       mockEnvironment = 'prd';
-      userDataService.getUsersByMail.mockResolvedValue([buildUserData([walletA])]);
+      mockRegisteredWallets([walletA]);
       addressConfirmationRepo.findOne.mockResolvedValue(undefined);
       httpService.getRaw.mockRejectedValue({ response: { status: 503, data: 'Service Unavailable' } });
 
@@ -1321,7 +2250,7 @@ describe('RealUnitService', () => {
 
     it('maps a network/timeout error (Error with message) to unavailable', async () => {
       mockEnvironment = 'prd';
-      userDataService.getUsersByMail.mockResolvedValue([buildUserData([walletA])]);
+      mockRegisteredWallets([walletA]);
       addressConfirmationRepo.findOne.mockResolvedValue(undefined);
       httpService.getRaw.mockRejectedValue(new Error('timeout of 30000ms exceeded'));
 
@@ -1335,7 +2264,7 @@ describe('RealUnitService', () => {
 
     it('maps an error with neither response nor message to unavailable', async () => {
       mockEnvironment = 'prd';
-      userDataService.getUsersByMail.mockResolvedValue([buildUserData([walletA])]);
+      mockRegisteredWallets([walletA]);
       addressConfirmationRepo.findOne.mockResolvedValue(undefined);
       httpService.getRaw.mockRejectedValue({});
 
@@ -1348,7 +2277,7 @@ describe('RealUnitService', () => {
     it('throws when AKTIONARIAT_URL is not configured outside DEV/LOC', async () => {
       mockEnvironment = 'prd';
       mockAktionariatUrl = undefined;
-      userDataService.getUsersByMail.mockResolvedValue([]);
+      mockRegisteredWallets([]);
 
       await expect(service.confirmAktionariat({ email, code, user })).rejects.toThrow(
         'Aktionariat URL is not configured',

@@ -41,8 +41,6 @@ import { Util } from 'src/shared/utils/util';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
-import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
-import { KycStepName } from 'src/subdomains/generic/kyc/enums/kyc-step-name.enum';
 import { KycContext } from 'src/subdomains/generic/kyc/enums/kyc.enum';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
@@ -53,6 +51,8 @@ import { KycLevel, ServiceProvider } from 'src/subdomains/generic/user/models/us
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
+import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
 import {
@@ -65,7 +65,7 @@ import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
-import { FindOptionsRelations } from 'typeorm';
+import { EntityManager, FindOptionsRelations, In, Not, Raw } from 'typeorm';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
 import {
@@ -119,8 +119,10 @@ import {
   PrimaryEmailRequiredException,
   RegistrationRequiredException,
 } from './exceptions/buy-exceptions';
+import { AktionariatRegistration } from './entities/aktionariat-registration.entity';
 import { PriceSourceUnavailableException } from './exceptions/price-source-unavailable.exception';
 import { RealUnitDevService } from './realunit-dev.service';
+import { AktionariatRegistrationRepository } from './repositories/aktionariat-registration.repository';
 import { RealUnitAddressConfirmationRepository } from './repositories/realunit-address-confirmation.repository';
 import { accountHistoryQuery, accountSummaryQuery, holdersQuery, tokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
@@ -215,6 +217,8 @@ export class RealUnitService {
     private readonly feeService: FeeService,
     private readonly faucetRequestService: FaucetRequestService,
     private readonly addressConfirmationRepo: RealUnitAddressConfirmationRepository,
+    private readonly aktionariatRegistrationRepo: AktionariatRegistrationRepository,
+    private readonly logService: LogService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -497,7 +501,7 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    if (!this.hasRegistrationForWallet(userData, user.address)) {
+    if (!(await this.hasRegistrationForWallet(userData, user.address))) {
       throw new RegistrationRequiredException(undefined, KycContext.REALUNIT_BUY);
     }
 
@@ -678,8 +682,8 @@ export class RealUnitService {
 
   // --- Registration Methods ---
 
-  hasRegistrationForWallet(userData: UserData, walletAddress: string): boolean {
-    return this.findRegistrationStep(userData, walletAddress).isForCurrentWallet;
+  async hasRegistrationForWallet(userData: UserData, walletAddress: string): Promise<boolean> {
+    return (await this.findRegistration(userData, walletAddress)).isForCurrentWallet;
   }
 
   async registerEmail(userDataId: number, dto: RealUnitEmailRegistrationDto): Promise<RealUnitEmailRegistrationStatus> {
@@ -716,7 +720,7 @@ export class RealUnitService {
     // get and validate user
     const userData = await this.userService
       .getUserByAddress(dto.walletAddress, {
-        userData: { kycSteps: true, users: true, country: true, organizationCountry: true },
+        userData: { users: true, country: true, organizationCountry: true },
       })
       .then((u) => u?.userData);
 
@@ -730,9 +734,12 @@ export class RealUnitService {
       throw new BadRequestException('Email does not match registered email');
     }
 
-    const { step: existingStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
+    const { registration: existingRegistration, isForCurrentWallet } = await this.findRegistration(
+      userData,
+      dto.walletAddress,
+    );
     if (isForCurrentWallet) {
-      return this.idempotentRegistrationResult(userData, existingStep!, dto.signature);
+      return this.idempotentRegistrationResult(userData, existingRegistration!, dto.signature);
     }
 
     // validate personal data
@@ -752,16 +759,8 @@ export class RealUnitService {
       });
     }
 
-    // store data with internal review
-    const kycStep = await this.kycService.createCustomKycStep(
-      userData,
-      KycStepName.REALUNIT_REGISTRATION,
-      ReviewStatus.INTERNAL_REVIEW,
-      dto,
-    );
-
-    // forward to Aktionariat
-    const success = await this.forwardRegistration(kycStep, dto);
+    // forward to Aktionariat (persists the single-source-of-truth registration row in both branches)
+    const success = await this.forwardRegistration(userData, dto);
     if (!success) return RealUnitRegistrationStatus.FORWARDING_FAILED;
 
     return RealUnitRegistrationStatus.COMPLETED;
@@ -769,26 +768,26 @@ export class RealUnitService {
 
   // --- Wallet Methods ---
 
-  getRegistrationInfo(userData: UserData, walletAddress: string): RealUnitRegistrationInfoDto {
-    const { step, isForCurrentWallet } = this.findRegistrationStep(userData, walletAddress);
+  async getRegistrationInfo(userData: UserData, walletAddress: string): Promise<RealUnitRegistrationInfoDto> {
+    const { registration, isForCurrentWallet } = await this.findRegistration(userData, walletAddress);
 
     // Dispatch to one of three states so the client can route to the right UX without inferring
-    // it locally. Order matters: a registration step for the current wallet (ALREADY_REGISTERED)
-    // wins over any other signal; a step for a different wallet drives the one-tap Add-Wallet
+    // it locally. Order matters: a registration for the current wallet (ALREADY_REGISTERED)
+    // wins over any other signal; a registration for a different wallet drives the one-tap Add-Wallet
     // flow (ADD_WALLET); otherwise this wallet still needs a fresh registration (NEW_REGISTRATION).
-    if (step) {
-      const stepUserData = this.toUserDataDto(step);
+    if (registration) {
+      const registrationUserData = this.toUserDataDto(registration);
       const state = isForCurrentWallet
         ? RealUnitRegistrationState.ALREADY_REGISTERED
         : RealUnitRegistrationState.ADD_WALLET;
       return {
         isRegistered: state === RealUnitRegistrationState.ALREADY_REGISTERED,
         state,
-        userData: stepUserData,
+        userData: registrationUserData,
       };
     }
 
-    // No step exists: this wallet needs a fresh RealUnit registration. Pre-fill the form from
+    // No registration exists: this wallet needs a fresh RealUnit registration. Pre-fill the form from
     // existing DFX KYC data when we have verified personal data (firstname/surname present);
     // otherwise return NEW_REGISTRATION without `userData` so the client renders an empty form and
     // collects every field manually. `completeRegistration` accepts and persists manually-entered
@@ -807,24 +806,24 @@ export class RealUnitService {
   ): Promise<RealUnitRegistrationStatus> {
     const userData = await this.userService
       .getUserByAddress(dto.walletAddress, {
-        userData: { kycSteps: true, users: true, country: true },
+        userData: { users: true, country: true },
       })
       .then((u) => u?.userData);
 
     if (!userData) throw new NotFoundException('User not found');
     if (userData.id !== userDataId) throw new BadRequestException('Wallet address does not belong to user');
 
-    const { step: registrationStep, isForCurrentWallet } = this.findRegistrationStep(userData, dto.walletAddress);
+    const { registration, isForCurrentWallet } = await this.findRegistration(userData, dto.walletAddress);
 
     if (isForCurrentWallet) {
-      return this.idempotentRegistrationResult(userData, registrationStep!, dto.signature);
+      return this.idempotentRegistrationResult(userData, registration!, dto.signature);
     }
 
-    if (!registrationStep) {
+    if (!registration) {
       throw new BadRequestException('No RealUnit registration found');
     }
 
-    const registrationData = registrationStep.getResult<RealUnitRegistrationDto>();
+    const registrationData = this.toRegistrationDto(registration);
     if (!registrationData) {
       throw new BadRequestException('Invalid registration data');
     }
@@ -842,14 +841,7 @@ export class RealUnitService {
       throw new BadRequestException('Invalid signature');
     }
 
-    const kycStep = await this.kycService.createCustomKycStep(
-      userData,
-      KycStepName.REALUNIT_REGISTRATION,
-      ReviewStatus.INTERNAL_REVIEW,
-      fullDto,
-    );
-
-    const success = await this.forwardRegistration(kycStep, fullDto);
+    const success = await this.forwardRegistration(userData, fullDto);
 
     return success ? RealUnitRegistrationStatus.COMPLETED : RealUnitRegistrationStatus.FORWARDING_FAILED;
   }
@@ -973,99 +965,124 @@ export class RealUnitService {
     return undefined;
   }
 
-  async forwardRegistrationToAktionariat(kycStepId: number): Promise<void> {
-    const kycStep = await this.kycService.getKycStepById(kycStepId);
-    if (!kycStep) throw new NotFoundException('KYC step not found');
-    if (kycStep.name !== KycStepName.REALUNIT_REGISTRATION) {
-      throw new BadRequestException('KYC step is not a RealUnit registration');
-    }
-    if (kycStep.status !== ReviewStatus.MANUAL_REVIEW) {
-      throw new BadRequestException('KYC step is not in MANUAL_REVIEW status');
+  async forwardRegistrationToAktionariat(id: number): Promise<void> {
+    const registration = await this.aktionariatRegistrationRepo.findOne({
+      where: { id },
+      relations: { user: { userData: true } },
+    });
+    if (!registration) throw new NotFoundException('RealUnit registration not found');
+    if (registration.status !== ReviewStatus.MANUAL_REVIEW) {
+      throw new BadRequestException('RealUnit registration is not in MANUAL_REVIEW status');
     }
 
-    const dto = kycStep.getResult<RealUnitRegistrationDto>();
+    const dto = this.toRegistrationDto(registration);
     if (!dto) throw new BadRequestException('No registration data found');
 
-    const success = await this.forwardRegistration(kycStep, dto);
+    // This admin retry re-runs the full forwardRegistration, so on a partial prior success it re-POSTs
+    // registerUser to Aktionariat. Left as-is in this phase; the per-wallet persistence is idempotent —
+    // it supersedes the prior active row rather than colliding with it.
+    const success = await this.forwardRegistration(registration.user.userData, dto);
     if (!success) throw new BadRequestException('Failed to forward registration to Aktionariat');
   }
 
   /**
-   * Finds a registration step for the user.
-   * First tries to find a registration for the current wallet.
-   * If not found, falls back to finding a registration from another wallet (for account merge scenarios).
+   * Finds a RealUnit registration for the given account (userData) and wallet, reading the queryable
+   * aktionariat_registration table (the single source of truth). First the current wallet: the account's
+   * ACTIVE row for this exact address, excluding the terminal FAILED/CANCELED states (mirrors the former
+   * `!isFailed && !isCanceled` step filter). Otherwise the newest COMPLETED row for a *different* wallet
+   * of the same account, which drives the one-tap Add-Wallet / account-merge flow.
    */
-  private findRegistrationStep(
+  private async findRegistration(
     userData: UserData,
     walletAddress: string,
-  ): { step: KycStep | undefined; isForCurrentWallet: boolean } {
-    const allSteps = userData.getStepsWith(KycStepName.REALUNIT_REGISTRATION);
+  ): Promise<{ registration: AktionariatRegistration | undefined; isForCurrentWallet: boolean }> {
+    const address = walletAddress.toLowerCase();
 
-    // First: look for registration for the current wallet (non-failed, non-canceled)
-    const currentWalletStep = allSteps
-      .filter((s) => !(s.isFailed || s.isCanceled))
-      .find((s) => {
-        const result = s.getResult<AktionariatRegistrationDto>();
-        return result?.walletAddress && Util.equalsIgnoreCase(result.walletAddress, walletAddress);
-      });
+    const currentWallet = await this.aktionariatRegistrationRepo.findOne({
+      where: {
+        user: { userData: { id: userData.id } },
+        walletAddress: address,
+        active: true,
+        status: Not(In([ReviewStatus.FAILED, ReviewStatus.CANCELED])),
+      },
+      relations: { user: true },
+      order: { created: 'DESC' },
+    });
 
-    if (currentWalletStep) {
-      return { step: currentWalletStep, isForCurrentWallet: true };
+    if (currentWallet) {
+      return { registration: currentWallet, isForCurrentWallet: true };
     }
 
-    // Second: look for registration from another wallet (for account merge)
-    const otherWalletStep = allSteps
-      .filter((s) => (s.isCompleted || s.isCanceled) && s.result)
-      .find((s) => {
-        const result = s.getResult<AktionariatRegistrationDto>();
-        return result?.walletAddress && !Util.equalsIgnoreCase(result.walletAddress, walletAddress);
-      });
+    const otherWallet = await this.aktionariatRegistrationRepo.findOne({
+      where: {
+        user: { userData: { id: userData.id } },
+        walletAddress: Not(address),
+        status: ReviewStatus.COMPLETED,
+      },
+      relations: { user: true },
+      order: { created: 'DESC' },
+    });
 
-    return { step: otherWalletStep, isForCurrentWallet: false };
+    return { registration: otherWallet, isForCurrentWallet: false };
+  }
+
+  // Reconstructs the full RealUnitRegistrationDto (signed Aktionariat fields + kycData) from a stored
+  // registration — the inverse of how forwardRegistration splits the DTO into signedPayload + kycData.
+  private toRegistrationDto(registration: AktionariatRegistration): RealUnitRegistrationDto | undefined {
+    const signed = registration.signedPayloadData;
+    if (!signed) return undefined;
+
+    return { ...signed, kycData: registration.kycDataObj } as RealUnitRegistrationDto;
   }
 
   /**
    * Idempotent fallback for repeated register/wallet calls (e.g. client retry after a lost
    * response). Same wallet + same EIP-712 signature → return the existing registration's
-   * status without creating a new KycStep or re-forwarding. Different signature for the same
-   * wallet stays a hard error: it means a fresh sign was produced over conflicting data.
+   * status without inserting a new registration row or re-forwarding. Different signature for the
+   * same wallet stays a hard error: it means a fresh sign was produced over conflicting data.
    */
-  private idempotentRegistrationResult(
+  private async idempotentRegistrationResult(
     userData: UserData,
-    step: KycStep,
+    registration: AktionariatRegistration,
     incomingSignature: string,
-  ): RealUnitRegistrationStatus {
-    const existingData = step.getResult<RealUnitRegistrationDto>();
-    if (!Util.equalsIgnoreCase(existingData?.signature, incomingSignature)) {
+  ): Promise<RealUnitRegistrationStatus> {
+    if (!Util.equalsIgnoreCase(registration.signature, incomingSignature)) {
       throw new BadRequestException('RealUnit registration already exists for this wallet with a different signature');
     }
 
-    // Under the normal REALUNIT_REGISTRATION flow the step is in INTERNAL_REVIEW (created,
-    // forward not run yet), MANUAL_REVIEW (forward failed, awaiting admin retry), or COMPLETED
-    // (forward succeeded). findRegistrationStep filters out FAILED and CANCELED, but admin
-    // overrides via kyc-admin.updateKycStep can leave other non-failed/non-canceled statuses
-    // (e.g. ON_HOLD, OUTDATED) reachable here. Only COMPLETED is a terminal success; every
-    // other reachable status falls through to FORWARDING_FAILED, which surfaces the same retry
-    // path the client would have seen on the original call.
-    // Surface ALREADY_REGISTERED (not COMPLETED) on the idempotent path so
-    // clients can distinguish "registration just completed in this call"
-    // from "registration was already in place". The wallet-app uses this
-    // to skip the post-registration onboarding screens on retry.
-    const status = step.isCompleted
-      ? RealUnitRegistrationStatus.ALREADY_REGISTERED
-      : RealUnitRegistrationStatus.FORWARDING_FAILED;
+    // The active row reached here is in MANUAL_REVIEW (forward failed, awaiting admin retry) or
+    // COMPLETED (forward succeeded) under the normal flow; findRegistration already filters out the
+    // terminal FAILED/CANCELED states. Only COMPLETED is a terminal success; every other reachable
+    // status falls through to FORWARDING_FAILED, which surfaces the same retry path the client would
+    // have seen on the original call.
+    // Surface ALREADY_REGISTERED (not COMPLETED) on the idempotent path so clients can distinguish
+    // "registration just completed in this call" from "registration was already in place". The
+    // wallet-app uses this to skip the post-registration onboarding screens on retry.
+    const status =
+      registration.status === ReviewStatus.COMPLETED
+        ? RealUnitRegistrationStatus.ALREADY_REGISTERED
+        : RealUnitRegistrationStatus.FORWARDING_FAILED;
+
+    // Self-heal the best-effort KYC level-20 lift on the idempotent COMPLETED retry (see
+    // ensureRegistrationKycLevel): the prior forward completed the registration, so re-assert the lift
+    // here in case it did not land the first time. Monotonic and best-effort — never lowers the level,
+    // never fails the retry.
+    if (registration.status === ReviewStatus.COMPLETED) await this.ensureRegistrationKycLevel(userData);
 
     this.logger.info(
-      `RealUnit registration idempotent retry for userData ${userData.id}, kycStep ${step.id} → ${status}`,
+      `RealUnit registration idempotent retry for userData ${userData.id}, registration ${registration.id} → ${status}`,
     );
 
     return status;
   }
 
-  private toUserDataDto(step: KycStep | undefined): RealUnitUserDataDto | undefined {
-    if (!step) return undefined;
-
-    const registrationData = step.getResult<RealUnitRegistrationDto>();
+  // Prefill for ADD_WALLET / ALREADY_REGISTERED is reconstructed from the SIGNED payload on purpose: for
+  // BitBox / current-app signers the signed name is the transliterated ASCII variant, and the value must
+  // round-trip through EIP-712 re-verification on re-forward. The UTF-8 originals are preserved in kycData
+  // (firstName/lastName), which the client uses for exact display; the top-level `name` intentionally
+  // mirrors the signed representation.
+  private toUserDataDto(registration: AktionariatRegistration | undefined): RealUnitUserDataDto | undefined {
+    const registrationData = registration && this.toRegistrationDto(registration);
     if (!registrationData) return undefined;
 
     const { signature: _sig, walletAddress: _wallet, registrationDate: _date, ...userDataDto } = registrationData;
@@ -1161,46 +1178,264 @@ export class RealUnitService {
     return true;
   }
 
-  private async forwardRegistration(kycStep: KycStep, dto: RealUnitRegistrationDto): Promise<boolean> {
+  // Forwards a RealUnit registration to Aktionariat and persists the queryable, per-wallet registration row
+  // — the single source of truth — in BOTH outcomes: COMPLETED on success (with the forwarded date),
+  // MANUAL_REVIEW when the forward fails, so the failure exists as a record an admin can re-forward. No
+  // REALUNIT_REGISTRATION kyc_step is created anymore; KYC level 20 is lifted best-effort (self-healing).
+  //
+  // The Aktionariat POST runs OUTSIDE any DB transaction, so no pooled connection is held across the (up to
+  // 30s) external call. Aktionariat's registerUser is an upsert (register == update), so if a transient DB
+  // failure rolls back the persist after a successful POST, the client retry harmlessly re-POSTs (an update,
+  // never a duplicate) and then persists — self-healing, no durable intent row needed. Concurrency is still
+  // serialised on the wallet-user by a short per-persist advisory lock plus the partial unique index: two
+  // concurrent callers may both (harmlessly) POST, but only one COMPLETED row is written; the second observes
+  // it and returns the idempotent success.
+  private async forwardRegistration(userData: UserData, dto: RealUnitRegistrationDto): Promise<boolean> {
     const { api } = Config.blockchain.realunit;
+    const skipForward = [Environment.DEV, Environment.LOC].includes(Config.environment);
 
-    try {
-      // forward only Aktionariat fields (exclude kycData to avoid signature verification issues).
-      // Aktionariat re-verifies the EIP-712 signature against this payload, so send back the exact
-      // representation that was signed — raw UTF-8 (legacy software wallets) or BitBox-safe ASCII
-      // (current app / BitBox). Forwarding the wrong variant fails as "Invalid signature". The
-      // UTF-8 originals stay on user_data for PDF/mail.
-      const signedMessage = this.resolveSignedRegistrationMessage(dto) ?? this.buildRegistrationMessage(dto, false);
-      const payload: AktionariatRegistrationDto = {
-        ...signedMessage,
-        signature: dto.signature,
-        lang: dto.lang,
-        countryAndTINs: dto.countryAndTINs,
-      };
+    // forward only Aktionariat fields (exclude kycData to avoid signature verification issues).
+    // Aktionariat re-verifies the EIP-712 signature against this payload, so send back the exact
+    // representation that was signed — raw UTF-8 (legacy software wallets) or BitBox-safe ASCII
+    // (current app / BitBox). Forwarding the wrong variant fails as "Invalid signature". The
+    // UTF-8 originals stay on user_data for PDF/mail.
+    const signedMessage = this.resolveSignedRegistrationMessage(dto) ?? this.buildRegistrationMessage(dto, false);
+    const payload: AktionariatRegistrationDto = {
+      ...signedMessage,
+      signature: dto.signature,
+      lang: dto.lang,
+      countryAndTINs: dto.countryAndTINs,
+    };
 
-      if (![Environment.DEV, Environment.LOC].includes(Config.environment)) {
-        await this.http.post(`${api.url}/registerUser`, payload, {
-          headers: { 'x-api-key': api.key },
-        });
-      }
-
-      await this.kycService.saveKycStepUpdate(kycStep.complete());
-
-      // Set KYC Level 20 if not already higher (same as NATIONALITY_DATA step)
-      if (kycStep.userData.kycLevel < KycLevel.LEVEL_20) {
-        await this.userDataService.updateUserDataInternal(kycStep.userData, { kycLevel: KycLevel.LEVEL_20 });
-      }
-
-      return true;
-    } catch (error) {
-      const message = error?.response?.data ? JSON.stringify(error.response.data) : error?.message || error;
-
-      this.logger.error(
-        `Failed to forward RealUnit registration to Aktionariat for KYC step ${kycStep.id}: ${message}`,
-      );
-      await this.kycService.saveKycStepUpdate(kycStep.manualReview(message));
+    // Resolve the exact wallet-user that owns the signed address (per-wallet FK). Fail closed: without it
+    // the queryable record cannot be written, so surface it as a (logged) failure rather than silently
+    // dropping the registration.
+    const user = await this.userService.getUserByAddress(dto.walletAddress);
+    if (!user) {
+      const message = `No user found for RealUnit wallet ${dto.walletAddress}`;
+      this.logger.error(`Failed to forward RealUnit registration to Aktionariat: ${message}`);
+      await this.logAktionariatRegistration(LogSeverity.ERROR, dto.walletAddress, payload, undefined, message);
       return false;
     }
+
+    const walletAddress = dto.walletAddress.toLowerCase();
+
+    // 1) Forward to Aktionariat OUTSIDE any DB transaction — no pooled connection is held across the call.
+    let registerResponse: Record<string, unknown> | undefined;
+    let forwardError: unknown;
+    if (!skipForward) {
+      try {
+        registerResponse = await this.http.post<Record<string, unknown>>(`${api.url}/registerUser`, payload, {
+          headers: { 'x-api-key': api.key },
+          timeout: 30000, // ms — bound the call so a hung Aktionariat cannot stall the request indefinitely.
+        });
+      } catch (error) {
+        forwardError = error;
+      }
+    }
+
+    // 2) Persist the outcome in a short advisory-locked transaction (no external I/O inside it).
+    let outcome: 'completed' | 'forward-failed' | 'idempotent';
+    try {
+      outcome = await this.aktionariatRegistrationRepo.manager.transaction(async (manager) => {
+        // Serialise the persist for this wallet-user (cluster-wide, auto-released at txn end).
+        await manager.query('SELECT pg_advisory_xact_lock(hashtext($1), $2)', ['aktionariat_registration', user.id]);
+
+        // A concurrent caller may have already completed this wallet (both harmlessly POSTed). If so, do not
+        // overwrite the COMPLETED row — return the idempotent success.
+        const existing = await manager.findOne(AktionariatRegistration, {
+          where: { user: { id: user.id }, walletAddress, active: true, status: ReviewStatus.COMPLETED },
+        });
+        // Same-wallet + same signature → idempotent success (matches idempotentRegistrationResult).
+        // A different signature for an already COMPLETED wallet is a hard error: without this check a
+        // concurrent double-submit that both passed the outer findRegistration could return success for a
+        // conflicting re-sign while the first caller's COMPLETED row stays in place.
+        if (existing) {
+          if (!Util.equalsIgnoreCase(existing.signature, dto.signature)) {
+            throw new BadRequestException(
+              'RealUnit registration already exists for this wallet with a different signature',
+            );
+          }
+          return 'idempotent';
+        }
+
+        if (forwardError) {
+          // The forward failed — record the attempt as MANUAL_REVIEW so it exists as a row an admin can
+          // re-forward and a client retry is surfaced as FORWARDING_FAILED.
+          await this.persistAktionariatRegistration(manager, user, dto, payload, ReviewStatus.MANUAL_REVIEW, null);
+          return 'forward-failed';
+        }
+
+        await this.persistAktionariatRegistration(manager, user, dto, payload, ReviewStatus.COMPLETED, new Date());
+        return 'completed';
+      });
+    } catch (error) {
+      // A unique-index violation means a concurrent caller committed the active COMPLETED row first → the
+      // registration IS in place (or, given the upsert, will be on their forward) → idempotent success.
+      if (this.isUniqueViolation(error)) {
+        this.logger.info(
+          `RealUnit registration concurrency collision resolved as idempotent for wallet ${dto.walletAddress}`,
+        );
+        await this.ensureRegistrationKycLevel(userData);
+        return true;
+      }
+      // Signature mismatch on an already COMPLETED row must surface as 400, not as a soft forward failure.
+      if (error instanceof BadRequestException) throw error;
+      // Any other persist error rolled the persist back. The registration was NOT recorded; return failure.
+      // Harmless under the upsert property: the client retry re-POSTs (an update) and persists then.
+      this.logger.error(
+        `Failed to persist RealUnit registration for wallet ${dto.walletAddress}: ${this.summarizeError(error)}`,
+      );
+      await this.logAktionariatRegistration(
+        LogSeverity.ERROR,
+        dto.walletAddress,
+        payload,
+        registerResponse,
+        forwardError ?? error,
+      );
+      return false;
+    }
+
+    if (outcome === 'forward-failed') {
+      this.logger.error(
+        `Failed to forward RealUnit registration to Aktionariat for wallet ${dto.walletAddress}: ${this.summarizeError(
+          forwardError,
+        )}`,
+      );
+      await this.logAktionariatRegistration(
+        LogSeverity.ERROR,
+        dto.walletAddress,
+        payload,
+        registerResponse,
+        forwardError,
+      );
+      return false;
+    }
+
+    // completed or idempotent: lift KYC level (best-effort, self-healing) and write the INFO audit log.
+    await this.ensureRegistrationKycLevel(userData);
+    await this.logAktionariatRegistration(
+      LogSeverity.INFO,
+      dto.walletAddress,
+      payload,
+      skipForward ? 'skipped (DEV/LOC)' : registerResponse,
+    );
+    return true;
+  }
+
+  // Best-effort KYC level-20 lift for a completed RealUnit registration. Runs AFTER the COMPLETED row is
+  // durably persisted, so a transient failure here must not turn a durable registration into a 500 — it is
+  // logged and self-heals on the next completeRegistration idempotent retry, which re-asserts it. Monotonic:
+  // updateUserDataInternal never lowers kycLevel. Not folded into the persist transaction on purpose:
+  // updateUserDataInternal runs its own repository and fires KYC-changed notifications (side-effects that
+  // must not run inside, nor be rolled back with, the registration persist).
+  private async ensureRegistrationKycLevel(userData: UserData): Promise<void> {
+    if (userData.kycLevel >= KycLevel.LEVEL_20) return;
+    try {
+      await this.userDataService.updateUserDataInternal(userData, { kycLevel: KycLevel.LEVEL_20 });
+    } catch (e) {
+      this.logger.error(
+        `Failed to lift KYC level for RealUnit registration (userData ${userData.id}); will self-heal on retry: ${e?.message || e}`,
+      );
+    }
+  }
+
+  // Persist the queryable, per-wallet Aktionariat registration record for the resolved wallet-user within
+  // the caller's transaction (the caller holds the per-wallet-user advisory lock). Deactivate any prior
+  // active registration for this wallet-user, then insert the new one — so the partial unique index
+  // ("userId") WHERE active = true always holds and a re-registration or admin retry supersedes (rather
+  // than collides with) the existing active row. The superseded row is kept as history (active = false),
+  // never deleted. The queryable walletAddress column is canonically lowercased for the exact-match confirm
+  // lookup; signedPayloadData keeps the exact signed casing.
+  private async persistAktionariatRegistration(
+    manager: EntityManager,
+    user: User,
+    dto: RealUnitRegistrationDto,
+    payload: AktionariatRegistrationDto,
+    status: ReviewStatus,
+    forwardedToAktionariatDate: Date | null,
+  ): Promise<void> {
+    await manager.update(AktionariatRegistration, { user: { id: user.id }, active: true }, { active: false });
+
+    const registration = this.aktionariatRegistrationRepo.create({
+      user,
+      walletAddress: dto.walletAddress.toLowerCase(),
+      email: dto.email,
+      registrationDate: dto.registrationDate,
+      signature: dto.signature,
+      status,
+      forwardedToAktionariatDate: forwardedToAktionariatDate ?? undefined,
+      active: true,
+    });
+    registration.signedPayloadData = payload;
+    registration.kycDataObj = dto.kycData;
+
+    await manager.save(registration);
+  }
+
+  // Audit-only mirror of the Aktionariat communication into the generic Log table. PII-reduced: only the
+  // request field *names* are logged, plus NON-PII summaries of the Aktionariat response/error — never the
+  // raw bodies, which echo the submitted email/name. Best-effort: a logging failure must never fail the
+  // registration, but it is surfaced loudly (never swallowed).
+  private async logAktionariatRegistration(
+    severity: LogSeverity,
+    walletAddress: string,
+    request: AktionariatRegistrationDto,
+    response: unknown,
+    error?: unknown,
+  ): Promise<void> {
+    try {
+      await this.logService.create({
+        system: 'RealUnit',
+        subsystem: 'Aktionariat',
+        severity,
+        message: JSON.stringify({
+          action: 'registerUser',
+          walletAddress,
+          requestFields: Object.keys(request),
+          response: this.summarizeResponse(response),
+          error: this.summarizeError(error),
+        }),
+        category: walletAddress,
+        valid: null,
+      });
+    } catch (e) {
+      this.logger.error(
+        `Failed to write Aktionariat communication log for wallet ${walletAddress}: ${e?.message || e}`,
+      );
+    }
+  }
+
+  // Non-PII summary of the Aktionariat response for the audit log: only the internal DEV/LOC marker passes
+  // through verbatim (any other string body could echo submitted email/name, so it is reduced to a
+  // {type,length} shape); objects are reduced to their field NAMES (never the values, which echo
+  // email/name), arrays to their length, primitives to their type. Mirrors the request-field-name reduction.
+  private summarizeResponse(response: unknown): unknown {
+    if (response == null) return undefined;
+    // Only the internal DEV/LOC marker is a safe string to log verbatim; any other string body could echo
+    // submitted PII (email/name), so reduce it to a non-PII shape.
+    if (typeof response === 'string')
+      return response === 'skipped (DEV/LOC)' ? response : { type: 'string', length: response.length };
+    if (Array.isArray(response)) return { length: response.length };
+    if (typeof response === 'object') return { fields: Object.keys(response as Record<string, unknown>) };
+    return typeof response;
+  }
+
+  // Non-PII summary of a forward/persist error for the audit and app logs. An HTTP error from Aktionariat
+  // may echo the submitted email/name in its body, so only the status and error type are kept; other errors
+  // (network / DB, no submitted PII) use their message.
+  private summarizeError(error: unknown): string | undefined {
+    if (error == null) return undefined;
+    const e = error as any;
+    if (e.response)
+      return `status=${e.response.status ?? 'unknown'} type=${e.name ?? e.constructor?.name ?? 'HttpError'}`;
+    if (typeof error === 'string') return error;
+    return e.message ?? String(error);
+  }
+
+  // Postgres unique_violation (SQLSTATE 23505): a concurrent caller already committed the active row.
+  private isUniqueViolation(error: unknown): boolean {
+    return (error as any)?.code === '23505';
   }
 
   // --- Sell Payment Info Methods ---
@@ -1210,7 +1445,7 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    if (!this.hasRegistrationForWallet(userData, user.address)) {
+    if (!(await this.hasRegistrationForWallet(userData, user.address))) {
       throw new RegistrationRequiredException(undefined, KycContext.REALUNIT_SELL);
     }
 
@@ -1671,18 +1906,26 @@ export class RealUnitService {
   }
 
   private async getRegisteredWalletAddresses(email: string): Promise<string[]> {
-    const userDataList = await this.userDataService.getUsersByMail(email, true, { kycSteps: true });
+    // Query the queryable registration table by email (the confirm link is keyed on the email), across
+    // ALL wallets ever registered under it — active and historical rows alike. Return the exact signed
+    // (checksummed, mixed-case) address from signedPayload so the confirm flow keeps its historical
+    // casing; realunit_address_confirmation stays untouched. Fall back to the queryable lowercase column
+    // only if a row has no signed payload.
+    // De-duplicate case-insensitively (historical rows / mixed client casing can differ only in letter
+    // case) while keeping the first-seen form — prefer the signed payload's casing over the lowercased
+    // column so confirm rows stay stable.
+    const registrations = await this.aktionariatRegistrationRepo.find({
+      where: { email: Raw((alias) => `LOWER(${alias}) = :email`, { email: email.toLowerCase() }) },
+      select: { id: true, signedPayload: true, walletAddress: true },
+    });
 
-    // De-duplicate case-insensitively while keeping the first-seen (checksummed) casing.
     const addresses = new Map<string, string>();
-    for (const userData of userDataList) {
-      for (const step of userData.getStepsWith(KycStepName.REALUNIT_REGISTRATION)) {
-        const walletAddress = step.getResult<AktionariatRegistrationDto>()?.walletAddress;
-        if (walletAddress && !addresses.has(walletAddress.toLowerCase()))
-          addresses.set(walletAddress.toLowerCase(), walletAddress);
-      }
+    for (const registration of registrations) {
+      const walletAddress = registration.signedPayloadData?.walletAddress ?? registration.walletAddress;
+      if (!walletAddress) continue;
+      const key = walletAddress.toLowerCase();
+      if (!addresses.has(key)) addresses.set(key, walletAddress);
     }
-
     return Array.from(addresses.values());
   }
 

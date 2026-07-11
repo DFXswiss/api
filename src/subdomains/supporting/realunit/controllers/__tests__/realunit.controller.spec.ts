@@ -81,3 +81,92 @@ describe('RealUnitController — getBalancePdf', () => {
     expect(dateForValuation.getTime()).toBe(expectedRef.getTime());
   });
 });
+
+// Delegation coverage for the registration / buy-sell-gate handlers: they load the user with exactly the
+// relations they need (the dead kycSteps join was removed) and forward to the service. Pure stubs, no DB.
+describe('RealUnitController — registration & gate handler delegation', () => {
+  const JWT = { user: 7, address: '0xWalletAddress' } as JwtPayload;
+  const user = { id: 7, userData: { id: 70 } };
+
+  let realunitService: {
+    getPaymentInfo: jest.Mock;
+    getSellPaymentInfo: jest.Mock;
+    getRegistrationInfo: jest.Mock;
+    hasRegistrationForWallet: jest.Mock;
+    forwardRegistrationToAktionariat: jest.Mock;
+  };
+  let getUser: jest.Mock;
+  let controller: RealUnitController;
+
+  beforeEach(() => {
+    getUser = jest.fn().mockResolvedValue(user);
+    realunitService = {
+      getPaymentInfo: jest.fn().mockResolvedValue('buy-info'),
+      getSellPaymentInfo: jest.fn().mockResolvedValue('sell-info'),
+      getRegistrationInfo: jest.fn().mockResolvedValue('reg-info'),
+      hasRegistrationForWallet: jest.fn().mockResolvedValue(true),
+      forwardRegistrationToAktionariat: jest.fn().mockResolvedValue(undefined),
+    };
+    controller = new RealUnitController(
+      realunitService as never, // realunitService
+      {} as never, // balancePdfService
+      { getUser } as never, // userService
+      {} as never, // swissQrService
+      {} as never, // pricingService
+    );
+  });
+
+  it('getPaymentInfo loads the user (country relation only) and delegates to the service', async () => {
+    const dto = { amount: 100 } as never;
+
+    const res = await controller.getPaymentInfo(JWT, dto);
+
+    expect(res).toBe('buy-info');
+    expect(getUser).toHaveBeenCalledWith(7, { userData: { country: true } });
+    expect(realunitService.getPaymentInfo).toHaveBeenCalledWith(user, dto);
+  });
+
+  it('getSellPaymentInfo loads the user (country relation only) and delegates to the service', async () => {
+    const dto = { amount: 1 } as never;
+
+    const res = await controller.getSellPaymentInfo(JWT, dto);
+
+    expect(res).toBe('sell-info');
+    expect(getUser).toHaveBeenCalledWith(7, { userData: { country: true } });
+    expect(realunitService.getSellPaymentInfo).toHaveBeenCalledWith(user, dto);
+  });
+
+  it('getRegistrationInfo loads the display relations (no kycSteps) and delegates userData + address', async () => {
+    const res = await controller.getRegistrationInfo(JWT);
+
+    expect(res).toBe('reg-info');
+    expect(getUser).toHaveBeenCalledWith(7, {
+      userData: { country: true, nationality: true, organizationCountry: true, language: true },
+    });
+    expect(realunitService.getRegistrationInfo).toHaveBeenCalledWith(user.userData, JWT.address);
+  });
+
+  it('getWalletStatus delegates exactly like getRegistrationInfo (deprecated mirror)', async () => {
+    const res = await controller.getWalletStatus(JWT);
+
+    expect(res).toBe('reg-info');
+    expect(getUser).toHaveBeenCalledWith(7, {
+      userData: { country: true, nationality: true, organizationCountry: true, language: true },
+    });
+    expect(realunitService.getRegistrationInfo).toHaveBeenCalledWith(user.userData, JWT.address);
+  });
+
+  it('isRegistered loads only userData and delegates to hasRegistrationForWallet', async () => {
+    const res = await controller.isRegistered(JWT);
+
+    expect(res).toBe(true);
+    expect(getUser).toHaveBeenCalledWith(7, { userData: true });
+    expect(realunitService.hasRegistrationForWallet).toHaveBeenCalledWith(user.userData, JWT.address);
+  });
+
+  it('admin forwardRegistration coerces the :id path string to a number', async () => {
+    await controller.forwardRegistration('42');
+
+    expect(realunitService.forwardRegistrationToAktionariat).toHaveBeenCalledWith(42);
+  });
+});
