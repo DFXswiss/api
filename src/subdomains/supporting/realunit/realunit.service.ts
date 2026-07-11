@@ -1386,8 +1386,8 @@ export class RealUnitService {
   ): Promise<void> {
     try {
       await this.logService.create({
-        system: 'RealUnit',
-        subsystem: 'Aktionariat',
+        system: 'Aktionariat',
+        subsystem: 'Registration',
         severity,
         message: JSON.stringify({
           action: 'registerUser',
