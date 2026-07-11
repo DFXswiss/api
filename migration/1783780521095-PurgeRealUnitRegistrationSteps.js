@@ -14,7 +14,7 @@
  * legacy step whose data is *verifiably* present in the new table. Fail-safe: anything not provably
  * migrated (or still externally referenced) is KEPT and counted — never silently dropped, never crashed on.
  *
- * WHY the fence: `kyc_step` holds hundreds of foreign step types whose `result` is not valid JSON. AND
+ * WHY the fence: `kyc_step` holds hundreds of foreign steps (other step types) whose `result` is not valid JSON. AND
  * predicate order is not guaranteed, so an unfenced `result::jsonb` can be reordered ahead of the name
  * filter and crash this boot-blocking migration. Every cast therefore lives ONLY in the SELECT list of the
  * `steps AS MATERIALIZED` CTE, whose WHERE carries exactly the cast-free predicates
@@ -67,10 +67,12 @@ module.exports = class PurgeRealUnitRegistrationSteps1783780521095 {
         // than hanging boot.
         await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
-        // Single PL/pgSQL block so the classification, the log preservation, the delete and every counter
-        // share one snapshot: the data-modifying CTE classifies behind the fence, preserves comments and
-        // deletes in ONE statement (deleted = deletable by construction), then the reconciliation asserts
-        // the partition identity and logs the counters. RAISE EXCEPTION here rolls back the whole migration.
+        // Single PL/pgSQL block, one transaction: the data-modifying CTE classifies behind the fence,
+        // preserves comments and deletes in ONE statement — one snapshot, so deleted = deletable by
+        // construction. The pre-counts are separate statements (each with its own READ COMMITTED
+        // snapshot); the reconciliation therefore asserts the partition identity, so any concurrent
+        // drift between the pre-counts and the delete trips the check and RAISE EXCEPTION rolls the
+        // whole migration back.
         await queryRunner.query(`
             DO $$
             DECLARE
@@ -87,8 +89,8 @@ module.exports = class PurgeRealUnitRegistrationSteps1783780521095 {
                 remaining_after integer;
                 partition_sum integer;
             BEGIN
-                -- Cast-free pre-delete counts. pg_input_is_valid takes text, so neither statement casts
-                -- result::jsonb; both must run BEFORE the delete, which reduces the source set.
+                -- Cast-free pre-delete counts. pg_input_is_valid takes text, so none of these statements
+                -- casts result::jsonb; all three must run BEFORE the delete, which reduces the source set.
                 SELECT count(*) INTO source_total
                     FROM "kyc_step" WHERE "name" = 'RealUnitRegistration';
                 SELECT count(*) INTO invalid_json

@@ -232,6 +232,90 @@ describeDb('PurgeRealUnitRegistrationSteps migration (real Postgres purge)', () 
     expect(notice).toContain('deleted=0,');
   });
 
+  it("scopes the match to the step's own account: an identical wallet+signature in another account is kept", async () => {
+    // account 1: user with a mixed-case address + complete step (signature S) -> migrated by the backfill
+    // (registration row carries the lowercased wallet). InitialSchema's user.address UNIQUE is on the
+    // exact string, so a cross-account lower(address) collision is constructible with different casings.
+    const mixedAddr = '0xAbCdAbCdAbCdAbCdAbCdAbCdAbCdAbCdAbCdAb01';
+    await insertUser(1, mixedAddr, 1);
+    await insertStep(
+      'RealUnitRegistration',
+      'Completed',
+      blob({
+        email: 'a@example.com',
+        walletAddress: mixedAddr,
+        signature: '0xsigS',
+        registrationDate: '2026-05-01',
+        kycData: personalKyc,
+      }),
+      '2026-05-01T10:00:00Z',
+      1,
+    );
+    // account 2: complete step with the SAME lowercase wallet and SAME signature S, but NO user row in
+    // account 2 -> never migrated. An EXISTS without the account scope (u."userDataId" = s."userDataId")
+    // would match account 1's registration via wallet+signature and wrongly delete this step too.
+    await insertStep(
+      'RealUnitRegistration',
+      'Completed',
+      blob({
+        email: 'b@example.com',
+        walletAddress: mixedAddr.toLowerCase(),
+        signature: '0xsigS',
+        registrationDate: '2026-05-01',
+        kycData: personalKyc,
+      }),
+      '2026-05-02T10:00:00Z',
+      2,
+    );
+
+    await runBackfill();
+    expect(await count(`SELECT count(*) FROM "aktionariat_registration"`)).toBe(1); // account 1 only
+
+    const notice = purgeNotice(await captureNotices(runPurge));
+
+    // account 1's migrated step is purged; account 2's un-migrated twin survives in its own account
+    const remaining = await rows(`SELECT "userDataId" FROM "kyc_step" WHERE "name" = 'RealUnitRegistration'`);
+    expect(remaining).toHaveLength(1);
+    expect(Number(remaining[0].userDataId)).toBe(2);
+    expect(notice).toContain('deleted=1,');
+    expect(notice).toContain('unresolved_or_mismatched=1,');
+  });
+
+  it('keeps a step whose exact signature is not in the registration table (post-cutover re-registration)', async () => {
+    await runBackfill(); // empty source: creates an empty aktionariat_registration
+
+    // The purge ships in a later release than the backfill: by then the wallet may have re-registered
+    // through the NEW flow, so the account's registration row carries a DIFFERENT signature (S2). The
+    // legacy step's blob (S1) is then NOT verifiably migrated and must be kept; a signature-less EXISTS
+    // (wallet + account only) would wrongly delete it.
+    const address = addrOf(1);
+    await insertUser(1, address, 1);
+    await insertStep(
+      'RealUnitRegistration',
+      'Completed',
+      blob({
+        email: 'a@example.com',
+        walletAddress: address,
+        signature: '0xsigS1',
+        registrationDate: '2026-05-01',
+        kycData: personalKyc,
+      }),
+      '2026-05-01T10:00:00Z',
+      1,
+    );
+    await qr.query(
+      `INSERT INTO "aktionariat_registration" ("walletAddress","email","registrationDate","signature","status","active","userId") VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+      [address, 'a@example.com', '2026-06-01', '0xsigS2', 'Completed', true, 1],
+    );
+
+    const notice = purgeNotice(await captureNotices(runPurge));
+
+    // same account + same wallet, but the step's exact signature S1 is nowhere in the new table -> kept
+    expect(await count(`SELECT count(*) FROM "kyc_step" WHERE "name" = 'RealUnitRegistration'`)).toBe(1);
+    expect(notice).toContain('unresolved_or_mismatched=1,');
+    expect(notice).toContain('deleted=0,');
+  });
+
   it('keeps FK-referenced steps and never cascade-deletes their kyc_log audit rows', async () => {
     const s1 = await seedRegistered(1);
     const s2 = await seedRegistered(2);
