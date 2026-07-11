@@ -21,9 +21,10 @@
  *  - `status` mapped: Completed -> COMPLETED; Failed/Canceled kept (terminal, inactive); every other
  *    non-terminal state (e.g. InternalReview) -> ManualReview, so it is admin-re-forwardable and never
  *    stuck between "not COMPLETED" and "not MANUAL_REVIEW".
- *  - `userId` via a de-duplicated join on "user" (lowest id per lower(address)) constrained to the step's
- *    own account (kyc_step."userDataId" = user."userDataId"), so a non-unique address column cannot fan the
- *    row out and an address shared across accounts never attributes the registration to the wrong account.
+ *  - `userId` via a de-duplicated join on "user" (lowest id per "userDataId" + lower(address)) constrained
+ *    to the step's own account (kyc_step."userDataId" = user."userDataId"), so a non-unique address column
+ *    cannot fan the row out and an address shared across accounts never attributes the registration to the
+ *    wrong account.
  *  - `active` = the most recent NON-TERMINAL step per wallet-user (terminal Failed/Canceled sorted last
  *    in the ranking), guaranteeing <= 1 active row and no partial-unique-index clash. A wallet-user whose
  *    steps are all terminal keeps no active row; failed/canceled steps are migrated but never active.
@@ -141,8 +142,8 @@ module.exports = class AddAktionariatRegistration1783704351182 {
                 field_missing integer;
                 blob_without_wallet integer;
             BEGIN
-                -- cast-free counts: the total and the new invalid-JSON rejection class (foreign/corrupt
-                -- blobs). pg_input_is_valid takes text, so neither statement casts result::jsonb.
+                -- cast-free counts: the total and the invalid-JSON rejection class (corrupt blobs).
+                -- pg_input_is_valid takes text, so neither statement casts result::jsonb.
                 SELECT count(*) INTO source_total
                     FROM "kyc_step" WHERE "name" = 'RealUnitRegistration';
                 SELECT count(*) INTO invalid_json
@@ -171,10 +172,10 @@ module.exports = class AddAktionariatRegistration1783704351182 {
                 FROM steps;
                 SELECT count(*) INTO inserted_count FROM "aktionariat_registration";
                 field_missing := source_with_wallet - source_with_required; -- wallet present but a NOT NULL field missing
-                unresolved_user := source_with_required - inserted_count;    -- complete blob but no "user" for the address within the step's own account
+                unresolved_user := source_with_required - inserted_count; -- complete blob but no "user" for the address within the step's own account
                 -- partition identity (every source step lands in exactly one bucket):
                 -- source_total = invalid_json + blob_without_wallet + field_missing + unresolved_user + inserted.
-                -- NULL-result rows carry no wallet and fold into blob_without_wallet, as before.
+                -- NULL-result rows carry no wallet and fold into blob_without_wallet.
                 blob_without_wallet := source_total - invalid_json - source_with_wallet; -- no walletAddress at all (incl. NULL result)
                 RAISE NOTICE 'AktionariatRegistration backfill reconciliation: source RealUnitRegistration steps=%, invalid json blob=%, with walletAddress=%, with required fields=%, inserted=%, unresolved user (no user)=%, field missing=%, blob without walletAddress=%',
                     source_total, invalid_json, source_with_wallet, source_with_required, inserted_count, unresolved_user, field_missing, blob_without_wallet;

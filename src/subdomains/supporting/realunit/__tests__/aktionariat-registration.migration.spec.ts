@@ -30,6 +30,14 @@ const blob = (fields: Record<string, unknown>): string => JSON.stringify(fields)
 const personalKyc = { accountType: 'Personal', firstName: 'Erika', lastName: 'Müller' };
 const orgKyc = { accountType: 'Organization', organizationName: 'RealUnit AG' };
 
+// minimal structural view of the underlying pg client — just enough to observe RAISE NOTICE output
+// (TypeORM types QueryRunner.connect() as Promise<any>, so the cast pins a safe surface)
+type NoticeListener = (msg: { message?: string }) => void;
+interface NoticeEmitter {
+  on(event: 'notice', listener: NoticeListener): void;
+  removeListener(event: 'notice', listener: NoticeListener): void;
+}
+
 describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () => {
   let dataSource: DataSource;
   let qr: QueryRunner;
@@ -44,6 +52,13 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
   afterAll(async () => {
     if (dataSource?.isInitialized) await dataSource.destroy();
   });
+
+  // inserts a kyc_step; userDataId is the owning account and must match the resolved user's
+  const insertStep = (name: string, status: string, result: string | null, created: string, userDataId: number) =>
+    qr.query(
+      `INSERT INTO "kyc_step" ("name","status","result","created","updated","userDataId") VALUES ($1,$2,$3,$4,$4,$5)`,
+      [name, status, result, created, userDataId],
+    );
 
   beforeEach(async () => {
     qr = dataSource.createQueryRunner();
@@ -68,13 +83,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
       [ADDR.a, ADDR.b, ADDR.c, ADDR.d, ADDR.e, ADDR.f, ADDR.g, ADDR.h, ADDR.i, ADDR.j],
     );
 
-    // kyc_steps — the seed scenarios; userDataId is the owning account and must match the resolved user's
-    const insertStep = (name: string, status: string, result: string | null, created: string, userDataId: number) =>
-      qr.query(
-        `INSERT INTO "kyc_step" ("name","status","result","created","updated","userDataId") VALUES ($1,$2,$3,$4,$4,$5)`,
-        [name, status, result, created, userDataId],
-      );
-
+    // kyc_steps — the seed scenarios
     // 1) Normal completed registration (Personal), mixed-case wallet
     await insertStep(
       'RealUnitRegistration',
@@ -434,14 +443,8 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     // A foreign step whose result is not valid JSON must never reach the jsonb cast (the resolution join
     // would otherwise cast every scanned row), and a NULL-result RealUnitRegistration step must be filtered
     // out too. Neither may crash the boot-blocking migration.
-    await qr.query(
-      `INSERT INTO "kyc_step" ("name","status","result","created","updated","userDataId") VALUES ($1,$2,$3,$4,$4,$5)`,
-      ['NationalityData', 'Completed', 'this-is-not-json', '2026-08-02T10:00:00Z', 1],
-    );
-    await qr.query(
-      `INSERT INTO "kyc_step" ("name","status","result","created","updated","userDataId") VALUES ($1,$2,$3,$4,$4,$5)`,
-      ['RealUnitRegistration', 'Completed', null, '2026-08-03T10:00:00Z', 2],
-    );
+    await insertStep('NationalityData', 'Completed', 'this-is-not-json', '2026-08-02T10:00:00Z', 1);
+    await insertStep('RealUnitRegistration', 'Completed', null, '2026-08-03T10:00:00Z', 2);
 
     await expect(runUp()).resolves.toBeUndefined();
 
@@ -452,10 +455,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
 
   it('skips a RealUnitRegistration step with an invalid-JSON result and still migrates its valid siblings', async () => {
     // a corrupt (unparseable) blob on a RealUnitRegistration step: filtered by pg_input_is_valid, never cast
-    await qr.query(
-      `INSERT INTO "kyc_step" ("name","status","result","created","updated","userDataId") VALUES ($1,$2,$3,$4,$4,$5)`,
-      ['RealUnitRegistration', 'Completed', '{"walletAddress": ', '2026-08-04T10:00:00Z', 3],
-    );
+    await insertStep('RealUnitRegistration', 'Completed', '{"walletAddress": ', '2026-08-04T10:00:00Z', 3);
 
     await expect(runUp()).resolves.toBeUndefined();
 
@@ -470,21 +470,18 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     // land on user 12, proving the join is constrained by "userDataId", not just lower(address).
     const sharedAddr = '0xABCabcABCabcABCabcABCabcABCabcABCabcAB11';
     await qr.query(`INSERT INTO "user" ("id","address","userDataId") VALUES (11,$1,100),(12,$1,200)`, [sharedAddr]);
-    await qr.query(
-      `INSERT INTO "kyc_step" ("name","status","result","created","updated","userDataId") VALUES ($1,$2,$3,$4,$4,$5)`,
-      [
-        'RealUnitRegistration',
-        'Completed',
-        blob({
-          email: 'shared-account@example.com',
-          walletAddress: sharedAddr,
-          signature: '0xsigShared',
-          registrationDate: '2026-08-05',
-          kycData: personalKyc,
-        }),
-        '2026-08-05T10:00:00Z',
-        200,
-      ],
+    await insertStep(
+      'RealUnitRegistration',
+      'Completed',
+      blob({
+        email: 'shared-account@example.com',
+        walletAddress: sharedAddr,
+        signature: '0xsigShared',
+        registrationDate: '2026-08-05',
+        kycData: personalKyc,
+      }),
+      '2026-08-05T10:00:00Z',
+      200,
     );
 
     await runUp();
@@ -498,12 +495,24 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
 
   it('counts an invalid-JSON blob as its own rejection class and keeps the reconciliation identity', async () => {
     // one corrupt RealUnitRegistration blob -> counted as invalid json, excluded from the backfill
-    await qr.query(
-      `INSERT INTO "kyc_step" ("name","status","result","created","updated","userDataId") VALUES ($1,$2,$3,$4,$4,$5)`,
-      ['RealUnitRegistration', 'Completed', 'not-json-at-all', '2026-08-06T10:00:00Z', 4],
-    );
+    await insertStep('RealUnitRegistration', 'Completed', 'not-json-at-all', '2026-08-06T10:00:00Z', 4);
 
-    await runUp();
+    // observe the DO block's RAISE NOTICE on the underlying pg client, so the test fails if the
+    // reconciliation counter is wrong or removed (not just the re-implemented counting below)
+    const client = (await qr.connect()) as NoticeEmitter;
+    const notices: string[] = [];
+    const onNotice: NoticeListener = (msg) => notices.push(msg.message ?? '');
+    client.on('notice', onNotice);
+    try {
+      await runUp();
+    } finally {
+      client.removeListener('notice', onNotice);
+    }
+
+    const reconciliation = notices.find((n) => n.includes('backfill reconciliation'));
+    expect(reconciliation).toBeDefined();
+    expect(reconciliation).toContain('invalid json blob=1'); // the corrupt blob added above
+    expect(reconciliation).toContain('inserted=13'); // baseline unchanged; the corrupt blob never inserts
 
     const sourceTotal = await count(`SELECT count(*) FROM "kyc_step" WHERE "name" = 'RealUnitRegistration'`);
     const invalidJson = await count(
@@ -518,8 +527,9 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     );
     const inserted = await count(`SELECT count(*) FROM "aktionariat_registration"`);
 
-    expect(invalidJson).toBe(1); // the corrupt blob added above
-    expect(inserted).toBe(13); // baseline unchanged; the corrupt blob never inserts
+    // the re-implemented counts must agree with the logged reconciliation values
+    expect(invalidJson).toBe(1);
+    expect(inserted).toBe(13);
 
     const fieldMissing = withWallet - withRequired;
     const unresolvedUser = withRequired - inserted;
