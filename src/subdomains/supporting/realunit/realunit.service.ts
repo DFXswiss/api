@@ -1408,12 +1408,13 @@ export class RealUnitService {
   }
 
   // Full, JSON-serialisable error content for the DB log (the PII audit store): the Aktionariat HTTP error
-  // body when present (the useful, complete part), else a string as-is, else an Error's name+message, else
-  // the raw value. Not for Loki — the this.logger.* lines use summarizeError (redacted) instead.
+  // body when it carries content (the useful, complete part) — an empty or null body falls through so the
+  // error identity is not lost — else a string as-is, else an Error's name+message, else the raw value.
+  // Not for Loki — the this.logger.* lines use summarizeError (redacted) instead.
   private describeError(error: unknown): unknown {
     if (error == null) return undefined;
     const e = error as any;
-    if (e.response?.data !== undefined) return e.response.data;
+    if (e.response?.data != null && e.response.data !== '') return e.response.data;
     if (typeof error === 'string') return error;
     if (error instanceof Error) return { name: error.name, message: error.message };
     return error;

@@ -1794,6 +1794,14 @@ describe('RealUnitService', () => {
       expect((service as any).describeError(error)).toEqual(body);
     });
 
+    it('prefers the HTTP error body over the Error identity for a real Error carrying a response (Axios shape)', () => {
+      const body = { message: 'E-Mail erika.mueller@example.com already registered' };
+      const error = Object.assign(new Error('Request failed with status code 409'), {
+        response: { status: 409, data: body },
+      });
+      expect((service as any).describeError(error)).toEqual(body);
+    });
+
     it('returns a string error as-is', () => {
       expect((service as any).describeError('No user found for RealUnit wallet 0xabc')).toBe(
         'No user found for RealUnit wallet 0xabc',
@@ -1802,6 +1810,19 @@ describe('RealUnitService', () => {
 
     it("returns an Error's name and message", () => {
       expect((service as any).describeError(new TypeError('boom'))).toEqual({ name: 'TypeError', message: 'boom' });
+    });
+
+    it('falls back to the Error identity when the HTTP error body is null or empty', () => {
+      const nullBody = Object.assign(new Error('boom'), {
+        name: 'InternalServerError',
+        response: { status: 500, data: null },
+      });
+      expect((service as any).describeError(nullBody)).toEqual({ name: 'InternalServerError', message: 'boom' });
+      const emptyBody = Object.assign(new Error('boom'), {
+        name: 'BadGateway',
+        response: { status: 502, data: '' },
+      });
+      expect((service as any).describeError(emptyBody)).toEqual({ name: 'BadGateway', message: 'boom' });
     });
 
     it('returns a raw non-Error, non-body value unchanged', () => {
