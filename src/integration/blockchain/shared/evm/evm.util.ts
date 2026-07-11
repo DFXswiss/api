@@ -10,6 +10,8 @@ import { Blockchain } from '../enums/blockchain.enum';
 import ERC20_ABI from './abi/erc20.abi.json';
 import { WalletAccount } from './domain/wallet-account';
 
+const ERC6492_DETECTION_SUFFIX = '6492649264926492649264926492649264926492649264926492649264926492';
+
 // Viem chain configuration mapping
 const VIEM_CHAIN_CONFIG: Partial<Record<Blockchain, { chain: Chain; configKey: string; prefix: string }>> = {
   [Blockchain.ETHEREUM]: { chain: mainnet, configKey: 'ethereum', prefix: 'eth' },
@@ -90,6 +92,10 @@ export class EvmUtil {
 
   static poolFeeFactor(amount: FeeAmount): number {
     return amount / 1000000;
+  }
+
+  static hasErc6492MagicSuffix(signature: string): boolean {
+    return Boolean(signature) && signature.toLowerCase().endsWith(ERC6492_DETECTION_SUFFIX);
   }
 
   static getPaymentRequest(address: string, asset: Asset, amount: number): string | undefined {

@@ -76,4 +76,36 @@ describe('EvmUtil', () => {
       expect(result).toBe(100);
     });
   });
+
+  describe('hasErc6492MagicSuffix', () => {
+    const magicSuffix = '6492649264926492649264926492649264926492649264926492649264926492';
+
+    it('detects 6492-wrapped signature', () => {
+      const sig = '0x' + 'ab'.repeat(200) + magicSuffix;
+      expect(EvmUtil.hasErc6492MagicSuffix(sig)).toBe(true);
+    });
+
+    it('is case-insensitive', () => {
+      const sig = '0x' + 'AB'.repeat(200) + magicSuffix.toUpperCase();
+      expect(EvmUtil.hasErc6492MagicSuffix(sig)).toBe(true);
+    });
+
+    it('returns false for plain ECDSA signature (65 bytes)', () => {
+      const sig = '0x' + 'ab'.repeat(65);
+      expect(EvmUtil.hasErc6492MagicSuffix(sig)).toBe(false);
+    });
+
+    it('returns false for empty string', () => {
+      expect(EvmUtil.hasErc6492MagicSuffix('')).toBe(false);
+    });
+
+    it('returns false for signature shorter than the suffix', () => {
+      expect(EvmUtil.hasErc6492MagicSuffix('0x6492')).toBe(false);
+    });
+
+    it('returns false when suffix is in the middle, not at the end', () => {
+      const sig = '0x' + magicSuffix + 'ab'.repeat(40);
+      expect(EvmUtil.hasErc6492MagicSuffix(sig)).toBe(false);
+    });
+  });
 });
