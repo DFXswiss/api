@@ -1911,7 +1911,10 @@ export class RealUnitService {
     );
 
     const confirmed = status === RealUnitAktionariatConfirmationStatus.CONFIRMED;
-    const confirmedDate = confirmed ? new Date() : undefined;
+    // Transient timestamp of THIS confirming call. It becomes the stored latch only on a wallet's FIRST
+    // confirmation (see persistAddressConfirmation); it stays undefined on a non-confirming attempt so the
+    // latch is never advanced or cleared.
+    const attemptDate = confirmed ? new Date() : undefined;
     // Severity of the DB audit row: a confirmed call is INFO, an invalid/expired link is a benign WARNING,
     // an unavailable Aktionariat is an ERROR (a system fault to alert on).
     const logSeverity =
@@ -1921,16 +1924,20 @@ export class RealUnitService {
           ? LogSeverity.WARNING
           : LogSeverity.ERROR;
 
+    // The 2xx response must surface the PERSISTED first-confirmation date (the latch), never this call's
+    // transient attempt time. Keep the first persisted date we observe (all of an email's wallets share this call).
+    let confirmedDate: Date | undefined;
     for (const walletAddress of walletAddresses) {
-      await this.persistAddressConfirmation({
+      const persistedDate = await this.persistAddressConfirmation({
         walletAddress,
         email,
         aktionariatUser: user,
         aktionariatCode: code,
         httpStatus,
         responseBody,
-        confirmedDate,
+        confirmedDate: attemptDate,
       });
+      confirmedDate ??= persistedDate;
       // Append the FULL communication to the DB `log` audit store — one row per wallet. `response` is the
       // successful body (undefined on error), `error` the full error body (undefined on success), mirroring
       // the registration audit. Best-effort: it must never fail the confirmation.
@@ -1946,7 +1953,7 @@ export class RealUnitService {
     return {
       status,
       confirmedAddresses: confirmed ? walletAddresses : [],
-      confirmedDate,
+      confirmedDate: confirmed ? confirmedDate : undefined,
     };
   }
 
@@ -2037,13 +2044,13 @@ export class RealUnitService {
     httpStatus?: number;
     responseBody: unknown;
     confirmedDate?: Date;
-  }): Promise<void> {
+  }): Promise<Date | undefined> {
     // Store the wallet canonically lowercased: matches the lowercased registration bridge (so the read-back
     // exact-matches) and the UNIQUE index (so the upsert cannot fan out into duplicate rows).
     const walletAddress = data.walletAddress.toLowerCase();
 
     try {
-      await this.addressConfirmationRepo.manager.transaction(async (manager) => {
+      return await this.addressConfirmationRepo.manager.transaction(async (manager) => {
         // Serialise the per-wallet upsert cluster-wide (auto-released at txn end) so two concurrent confirm
         // calls for the same wallet cannot both insert; paired with the UNIQUE(walletAddress) index.
         await manager.query('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [
@@ -2058,8 +2065,9 @@ export class RealUnitService {
         entity.aktionariatCode = data.aktionariatCode;
         entity.responseStatus = data.httpStatus;
         entity.responseData = data.responseBody;
-        // confirmedDate is a monotonic latch: only advance it on an actual confirmation, never clear it.
-        if (data.confirmedDate) entity.confirmedDate = data.confirmedDate;
+        // confirmedDate is a first-confirmation latch: set only on the FIRST confirmation, never advanced or
+        // regressed (a later confirming call keeps the original date; a non-confirming attempt never clears it).
+        if (data.confirmedDate && entity.confirmedDate == null) entity.confirmedDate = data.confirmedDate;
 
         await manager.save(entity);
 
@@ -2068,6 +2076,9 @@ export class RealUnitService {
         this.logger.info(
           `${action} Aktionariat confirmation record for wallet ${walletAddress} (responseStatus: ${statusText}, confirmed: ${!!entity.confirmedDate})`,
         );
+
+        // Return the PERSISTED latch so the caller's 2xx response reflects the stored first-confirmation date.
+        return entity.confirmedDate;
       });
     } catch (error) {
       // A unique_violation (23505) means a concurrent confirm inserted the row first. The latch is monotonic
@@ -2076,7 +2087,9 @@ export class RealUnitService {
         this.logger.info(
           `RealUnit address confirmation concurrency collision resolved as idempotent for wallet ${walletAddress}`,
         );
-        return;
+        // A concurrent confirm won the insert; the row now exists. Surface this attempt's date so a confirmed
+        // response still carries a timestamp (the stored latch is the earliest of the racing calls regardless).
+        return data.confirmedDate;
       }
       throw error;
     }
@@ -2104,6 +2117,10 @@ export class RealUnitService {
           walletAddress: data.walletAddress,
           response: data.response,
           error: this.describeError(data.error),
+          // Uniqueness marker so LogService.create() never dedups two byte-identical consecutive audit rows
+          // (e.g. an identical same-wallet re-confirm): EVERY confirm-flow call must produce its own row.
+          loggedAt: new Date().toISOString(),
+          logNonce: Util.randomString(8),
         }),
         valid: null,
       });
@@ -2133,6 +2150,10 @@ export class RealUnitService {
           code: dto.code,
           user: dto.user,
           detail: dto.detail,
+          // Uniqueness marker so LogService.create() never dedups two byte-identical consecutive client events
+          // (e.g. two param-less pageLoaded/missingParams events): EVERY reported stage must be logged.
+          loggedAt: new Date().toISOString(),
+          logNonce: Util.randomString(8),
         }),
         valid: null,
       });

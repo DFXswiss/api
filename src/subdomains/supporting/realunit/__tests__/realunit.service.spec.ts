@@ -134,6 +134,12 @@ jest.mock('src/shared/utils/util', () => ({
     equalsIgnoreCase: (a?: string, b?: string) => a?.toLowerCase() === b?.toLowerCase(),
     isoDate: (date: Date) => date.toISOString().split('T')[0],
     daysDiff: jest.fn().mockReturnValue(0),
+    // The service stamps a per-write uniqueness nonce into every audit message; return a distinct value on
+    // each call so two byte-identical events serialise to different messages (mirrors the real randomness).
+    randomString: (() => {
+      let sequence = 0;
+      return () => `MOCK-NONCE-${sequence++}`;
+    })(),
   },
 }));
 
@@ -2325,6 +2331,26 @@ describe('RealUnitService', () => {
       expect((service as any).logger.error).toHaveBeenCalled();
     });
 
+    it('keeps the FIRST confirmedDate on a re-confirm and returns the stored (not transient) date', async () => {
+      // The wallet was already confirmed earlier; the row carries that first confirmation date.
+      const firstDate = new Date('2026-05-01T00:00:00.000Z');
+      mockRegisteredWallets([walletA]);
+      addressConfirmationTxManager.findOne.mockResolvedValue({
+        walletAddress: walletA,
+        confirmedDate: firstDate,
+      } as any);
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
+      // the latch is never advanced: the saved row keeps the first date, not this later re-confirm time
+      expect(addressConfirmationTxManager.save).toHaveBeenCalledWith(
+        expect.objectContaining({ walletAddress: walletA, confirmedDate: firstDate }),
+      );
+      // the 2xx response surfaces the PERSISTED first date, never a transient new Date()
+      expect(result.confirmedDate).toBe(firstDate);
+    });
+
     it('maps a 5xx to unavailable (string error body)', async () => {
       mockEnvironment = 'prd';
       mockRegisteredWallets([walletA]);
@@ -2408,6 +2434,8 @@ describe('RealUnitService', () => {
       expect(msg.walletAddress).toBe(walletA);
       expect(msg.response).toEqual({ aktionariatConfirmed: true });
       expect(msg.error).toBeUndefined();
+      // a uniqueness marker rides in every audit message so LogService.create() never dedups two identical rows
+      expect(msg.loggedAt).toEqual(expect.any(String));
     });
 
     it('records the full Aktionariat error body in the DB audit but keeps the Loki line redacted', async () => {
@@ -2539,7 +2567,7 @@ describe('RealUnitService', () => {
         category: 'ClientEvent',
         severity: LogSeverity.INFO,
       });
-      expect(JSON.parse(log.message)).toEqual({
+      expect(JSON.parse(log.message)).toMatchObject({
         phase: 'resultConfirmed',
         email: 'user@example.com',
         code: 'CONFIRM-CODE',
@@ -2555,7 +2583,7 @@ describe('RealUnitService', () => {
 
       const log = (logService.create as jest.Mock).mock.calls[0][0];
       expect(log.severity).toBe(LogSeverity.ERROR);
-      expect(JSON.parse(log.message)).toEqual({ phase: 'requestError' });
+      expect(JSON.parse(log.message)).toMatchObject({ phase: 'requestError' });
     });
 
     it('never throws when the DB log write fails (best-effort, Error)', async () => {
@@ -2577,6 +2605,21 @@ describe('RealUnitService', () => {
           phase: RealUnitConfirmAktionariatEventPhase.PAGE_LOADED,
         } as any),
       ).resolves.toBeUndefined();
+    });
+
+    it('writes a UNIQUE message for two byte-identical client events so LogService dedup cannot collapse them', async () => {
+      const event = { phase: RealUnitConfirmAktionariatEventPhase.PAGE_LOADED } as any;
+
+      await service.logConfirmAktionariatClientEvent(event);
+      await service.logConfirmAktionariatClientEvent(event);
+
+      const [firstMessage, secondMessage] = (logService.create as jest.Mock).mock.calls.map((call) => call[0].message);
+      // byte-identical inputs, yet the loggedAt/logNonce marker makes the two payloads differ, so LogService.create
+      // (which drops a row whose message equals the latest existing one) can never silently swallow a confirm event
+      expect(firstMessage).not.toBe(secondMessage);
+      expect(JSON.parse(firstMessage).loggedAt).toEqual(expect.any(String));
+      expect(JSON.parse(firstMessage).logNonce).toEqual(expect.any(String));
+      expect(JSON.parse(secondMessage).logNonce).toEqual(expect.any(String));
     });
   });
 });
