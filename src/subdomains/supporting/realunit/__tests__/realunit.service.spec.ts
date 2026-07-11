@@ -1472,24 +1472,25 @@ describe('RealUnitService', () => {
       expect(logService.create).toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
     });
 
-    it('re-checks idempotency inside a per-wallet-user advisory lock and does not forward again', async () => {
+    it('re-checks idempotency inside a per-wallet-user advisory lock and does not persist again', async () => {
       const wallet = softwareWallet.address;
       const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
       const dto = buildDto(utf8Fields(wallet), signature);
       userService.getUserByAddress.mockResolvedValue({ id: 55 } as any);
-      // a concurrent/earlier caller already registered this wallet (active, non-terminal)
+      httpService.post.mockResolvedValue({} as any);
+      // a concurrent/earlier caller already registered this wallet (active, COMPLETED)
       aktionariatTxManager.findOne.mockResolvedValue({ id: 9, status: ReviewStatus.COMPLETED });
 
       const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
 
       expect(ok).toBe(true);
-      // advisory lock taken on the wallet-user before anything else
+      // advisory lock taken on the wallet-user inside the persist transaction
       expect(aktionariatTxManager.query).toHaveBeenCalledWith(expect.stringContaining('pg_advisory_xact_lock'), [
         'aktionariat_registration',
         55,
       ]);
-      // idempotent: no second forward, no write
-      expect(httpService.post).not.toHaveBeenCalled();
+      // the POST now runs OUTSIDE the txn and is harmless under Aktionariat's upsert; the in-lock recheck
+      // only prevents a duplicate PERSIST when a concurrent caller has already completed the wallet
       expect(aktionariatTxManager.save).not.toHaveBeenCalled();
     });
 
@@ -1520,12 +1521,15 @@ describe('RealUnitService', () => {
       httpService.post.mockResolvedValue({} as any);
       // a concurrent caller committed the active row first -> our insert violates the partial unique index
       aktionariatTxManager.save.mockRejectedValue({ code: '23505' });
+      const ensureSpy = jest.spyOn(service as any, 'ensureRegistrationKycLevel');
 
-      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+      const ok = await (service as any).forwardRegistration(fakeUserData(10), dto);
 
       expect(ok).toBe(true);
       // the collision is NOT recorded as a failure
       expect(logService.create).not.toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
+      // the idempotent-collision path still (best-effort) lifts the KYC level
+      expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
     });
 
     it('redacts the Aktionariat error body to status/type only in the audit log (no PII)', async () => {
@@ -1664,7 +1668,7 @@ describe('RealUnitService', () => {
       expect(JSON.parse(errorLog.message).error).toBe('db down');
     });
 
-    it('rolls back and surfaces a raw string persist error when the forward and the manual-review persist both fail', async () => {
+    it('surfaces the forward root cause in the audit log (and the raw-string persist error to the app log) when both fail', async () => {
       const wallet = softwareWallet.address;
       const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
       const dto = buildDto(utf8Fields(wallet), signature);
@@ -1676,10 +1680,13 @@ describe('RealUnitService', () => {
       expect(ok).toBe(false);
       // the transaction rolled back after a single (failed) persist attempt
       expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
-      expect((service as any).logger.error).toHaveBeenCalled();
+      // the raw-string persist error is surfaced to the app log (no .message to read)
+      expect((service as any).logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('manual-review string failure'),
+      );
       const errorLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.ERROR)[0];
-      // a raw string throw is surfaced verbatim (no .message to read)
-      expect(JSON.parse(errorLog.message).error).toBe('manual-review string failure');
+      // the audit log keeps the forward root cause (forwardError ?? error prefers the original forward error)
+      expect(JSON.parse(errorLog.message).error).toBe('aktionariat down');
     });
 
     it('keeps a successful registration when the audit log write rejects without a message', async () => {
@@ -1692,6 +1699,108 @@ describe('RealUnitService', () => {
       const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
 
       expect(ok).toBe(true);
+    });
+
+    it('forwards to Aktionariat BEFORE opening the persist transaction (the POST is not held inside the txn)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(true);
+      // N2: the external POST must run outside/before the persist transaction, so no pooled connection is
+      // pinned across the (up to 30s) call.
+      const postOrder = (httpService.post as jest.Mock).mock.invocationCallOrder[0];
+      const txnOrder = (aktionariatManager.transaction as jest.Mock).mock.invocationCallOrder[0];
+      expect(postOrder).toBeLessThan(txnOrder);
+    });
+
+    it('skips the KYC level-20 lift when the wallet-user is already at level 20 or above', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(KycLevel.LEVEL_20), dto);
+
+      expect(ok).toBe(true);
+      expect(userDataService.updateUserDataInternal).not.toHaveBeenCalled();
+    });
+
+    it('keeps the durable registration when the best-effort KYC lift rejects (self-heals on retry)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+      userDataService.updateUserDataInternal.mockRejectedValue(new Error('kyc write down'));
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(10), dto);
+
+      // the COMPLETED persist already committed, so a failed lift must not fail the registration
+      expect(ok).toBe(true);
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
+      expect((service as any).logger.error).toHaveBeenCalledWith(expect.stringContaining('will self-heal on retry'));
+    });
+
+    it('keeps the registration when the KYC lift rejects without a message', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+      userDataService.updateUserDataInternal.mockRejectedValue('kyc string failure'); // no .message -> hits the `|| e` side
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(10), dto);
+
+      expect(ok).toBe(true);
+      expect((service as any).logger.error).toHaveBeenCalledWith(expect.stringContaining('kyc string failure'));
+    });
+  });
+
+  describe('idempotentRegistrationResult (self-heals the KYC lift on the COMPLETED retry)', () => {
+    it('re-asserts the best-effort KYC lift for a COMPLETED registration', async () => {
+      const ensureSpy = jest.spyOn(service as any, 'ensureRegistrationKycLevel').mockResolvedValue(undefined);
+      const userData = { id: 1, kycLevel: KycLevel.LEVEL_10 } as any;
+      const registration = { id: 2, signature: '0xsig', status: ReviewStatus.COMPLETED } as any;
+
+      const status = await (service as any).idempotentRegistrationResult(userData, registration, '0xsig');
+
+      expect(status).toBe(RealUnitRegistrationStatus.ALREADY_REGISTERED);
+      expect(ensureSpy).toHaveBeenCalledWith(userData);
+    });
+
+    it('does NOT re-assert the KYC lift for a non-COMPLETED (MANUAL_REVIEW) registration', async () => {
+      const ensureSpy = jest.spyOn(service as any, 'ensureRegistrationKycLevel').mockResolvedValue(undefined);
+      const userData = { id: 1, kycLevel: KycLevel.LEVEL_10 } as any;
+      const registration = { id: 2, signature: '0xsig', status: ReviewStatus.MANUAL_REVIEW } as any;
+
+      const status = await (service as any).idempotentRegistrationResult(userData, registration, '0xsig');
+
+      expect(status).toBe(RealUnitRegistrationStatus.FORWARDING_FAILED);
+      expect(ensureSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('summarizeResponse (PII-safe audit summary)', () => {
+    it('passes the internal DEV/LOC marker through verbatim', () => {
+      expect((service as any).summarizeResponse('skipped (DEV/LOC)')).toBe('skipped (DEV/LOC)');
+    });
+
+    it('reduces any other string body to a non-PII {type,length} shape (never echoes it)', () => {
+      const leaky = 'user erika.mueller@example.com already registered';
+      expect((service as any).summarizeResponse(leaky)).toEqual({ type: 'string', length: leaky.length });
+    });
+
+    it('reduces an object to its field names, an array to its length and a primitive to its type', () => {
+      expect((service as any).summarizeResponse({ email: 'x', name: 'y' })).toEqual({ fields: ['email', 'name'] });
+      expect((service as any).summarizeResponse([1, 2, 3])).toEqual({ length: 3 });
+      expect((service as any).summarizeResponse(7)).toBe('number');
+    });
+
+    it('returns undefined for a null or undefined response', () => {
+      expect((service as any).summarizeResponse(null)).toBeUndefined();
+      expect((service as any).summarizeResponse(undefined)).toBeUndefined();
     });
   });
 
