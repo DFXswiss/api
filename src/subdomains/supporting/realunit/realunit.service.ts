@@ -1246,7 +1246,18 @@ export class RealUnitService {
         const existing = await manager.findOne(AktionariatRegistration, {
           where: { user: { id: user.id }, walletAddress, active: true, status: ReviewStatus.COMPLETED },
         });
-        if (existing) return 'idempotent';
+        // Same-wallet + same signature → idempotent success (matches idempotentRegistrationResult).
+        // A different signature for an already COMPLETED wallet is a hard error: without this check a
+        // concurrent double-submit that both passed the outer findRegistration could return success for a
+        // conflicting re-sign while the first caller's COMPLETED row stays in place.
+        if (existing) {
+          if (!Util.equalsIgnoreCase(existing.signature, dto.signature)) {
+            throw new BadRequestException(
+              'RealUnit registration already exists for this wallet with a different signature',
+            );
+          }
+          return 'idempotent';
+        }
 
         if (forwardError) {
           // The forward failed — record the attempt as MANUAL_REVIEW so it exists as a row an admin can
@@ -1268,6 +1279,8 @@ export class RealUnitService {
         await this.ensureRegistrationKycLevel(userData);
         return true;
       }
+      // Signature mismatch on an already COMPLETED row must surface as 400, not as a soft forward failure.
+      if (error instanceof BadRequestException) throw error;
       // Any other persist error rolled the persist back. The registration was NOT recorded; return failure.
       // Harmless under the upsert property: the client retry re-POSTs (an update) and persists then.
       this.logger.error(
@@ -1898,12 +1911,22 @@ export class RealUnitService {
     // (checksummed, mixed-case) address from signedPayload so the confirm flow keeps its historical
     // casing; realunit_address_confirmation stays untouched. Fall back to the queryable lowercase column
     // only if a row has no signed payload.
+    // De-duplicate case-insensitively (historical rows / mixed client casing can differ only in letter
+    // case) while keeping the first-seen form — prefer the signed payload's casing over the lowercased
+    // column so confirm rows stay stable.
     const registrations = await this.aktionariatRegistrationRepo.find({
       where: { email: Raw((alias) => `LOWER(${alias}) = :email`, { email: email.toLowerCase() }) },
       select: { id: true, signedPayload: true, walletAddress: true },
     });
 
-    return Array.from(new Set(registrations.map((r) => r.signedPayloadData?.walletAddress ?? r.walletAddress)));
+    const addresses = new Map<string, string>();
+    for (const registration of registrations) {
+      const walletAddress = registration.signedPayloadData?.walletAddress ?? registration.walletAddress;
+      if (!walletAddress) continue;
+      const key = walletAddress.toLowerCase();
+      if (!addresses.has(key)) addresses.set(key, walletAddress);
+    }
+    return Array.from(addresses.values());
   }
 
   private async callAktionariatConfirm(
