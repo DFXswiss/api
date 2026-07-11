@@ -1373,10 +1373,11 @@ export class RealUnitService {
     await manager.save(registration);
   }
 
-  // Audit-only mirror of the Aktionariat communication into the generic Log table. PII-reduced: only the
-  // request field *names* are logged, plus NON-PII summaries of the Aktionariat response/error — never the
-  // raw bodies, which echo the submitted email/name. Best-effort: a logging failure must never fail the
-  // registration, but it is surfaced loudly (never swallowed).
+  // Audit mirror of the Aktionariat communication into the DB `log` table. The DB log is the DESIGNATED
+  // PII audit store (its own access-control/retention), UNLIKE Loki (the PII-free channel used by the
+  // this.logger.* lines), so it records the FULL communication — the exact sent payload, the full
+  // Aktionariat response, and the full error body — for a complete, replayable audit trail. Best-effort:
+  // a logging failure must never fail the registration, but it is surfaced loudly (never swallowed).
   private async logAktionariatRegistration(
     severity: LogSeverity,
     walletAddress: string,
@@ -1392,9 +1393,9 @@ export class RealUnitService {
         message: JSON.stringify({
           action: 'registerUser',
           walletAddress,
-          requestFields: Object.keys(request),
-          response: this.summarizeResponse(response),
-          error: this.summarizeError(error),
+          request,
+          response,
+          error: this.describeError(error),
         }),
         category: walletAddress,
         valid: null,
@@ -1406,24 +1407,22 @@ export class RealUnitService {
     }
   }
 
-  // Non-PII summary of the Aktionariat response for the audit log: only the internal DEV/LOC marker passes
-  // through verbatim (any other string body could echo submitted email/name, so it is reduced to a
-  // {type,length} shape); objects are reduced to their field NAMES (never the values, which echo
-  // email/name), arrays to their length, primitives to their type. Mirrors the request-field-name reduction.
-  private summarizeResponse(response: unknown): unknown {
-    if (response == null) return undefined;
-    // Only the internal DEV/LOC marker is a safe string to log verbatim; any other string body could echo
-    // submitted PII (email/name), so reduce it to a non-PII shape.
-    if (typeof response === 'string')
-      return response === 'skipped (DEV/LOC)' ? response : { type: 'string', length: response.length };
-    if (Array.isArray(response)) return { length: response.length };
-    if (typeof response === 'object') return { fields: Object.keys(response as Record<string, unknown>) };
-    return typeof response;
+  // Full, JSON-serialisable error content for the DB log (the PII audit store): the Aktionariat HTTP error
+  // body when present (the useful, complete part), else a string as-is, else an Error's name+message, else
+  // the raw value. Not for Loki — the this.logger.* lines use summarizeError (redacted) instead.
+  private describeError(error: unknown): unknown {
+    if (error == null) return undefined;
+    const e = error as any;
+    if (e.response?.data !== undefined) return e.response.data;
+    if (typeof error === 'string') return error;
+    if (error instanceof Error) return { name: error.name, message: error.message };
+    return error;
   }
 
-  // Non-PII summary of a forward/persist error for the audit and app logs. An HTTP error from Aktionariat
-  // may echo the submitted email/name in its body, so only the status and error type are kept; other errors
-  // (network / DB, no submitted PII) use their message.
+  // Redacted summary of a forward/persist error for the Loki app-log (this.logger.*); the DB log stores the
+  // full error via describeError. An HTTP error from Aktionariat may echo the submitted email/name in its
+  // body, so only the status and error type are kept; other errors (network / DB, no submitted PII) use
+  // their message.
   private summarizeError(error: unknown): string | undefined {
     if (error == null) return undefined;
     const e = error as any;
