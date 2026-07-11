@@ -1383,8 +1383,8 @@ describe('RealUnitService', () => {
       expect(logService.create).toHaveBeenCalledTimes(1);
       const log = (logService.create as jest.Mock).mock.calls[0][0];
       expect(log).toMatchObject({
-        system: 'RealUnit',
-        subsystem: 'Aktionariat',
+        system: 'Aktionariat',
+        subsystem: 'Registration',
         severity: LogSeverity.INFO,
         category: wallet,
       });
