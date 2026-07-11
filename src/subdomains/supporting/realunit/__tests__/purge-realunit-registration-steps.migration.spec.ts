@@ -284,10 +284,11 @@ describeDb('PurgeRealUnitRegistrationSteps migration (real Postgres purge)', () 
   it('keeps a step whose exact signature is not in the registration table (post-cutover re-registration)', async () => {
     await runBackfill(); // empty source: creates an empty aktionariat_registration
 
-    // The purge ships in a later release than the backfill: by then the wallet may have re-registered
-    // through the NEW flow, so the account's registration row carries a DIFFERENT signature (S2). The
-    // legacy step's blob (S1) is then NOT verifiably migrated and must be kept; a signature-less EXISTS
-    // (wallet + account only) would wrongly delete it.
+    // Both the backfill and the runtime supersede KEEP historical rows, so a re-registration alone can
+    // never un-verify a migrated step. But a step the backfill could not migrate (no user in the account
+    // yet) whose account later registers through the NEW flow leaves only a registration whose signature
+    // (S2) differs from the legacy blob's (S1): the step is NOT verifiably migrated and must be kept — a
+    // signature-less EXISTS (wallet + account only) would wrongly delete it.
     const address = addrOf(1);
     await insertUser(1, address, 1);
     await insertStep(
