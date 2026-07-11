@@ -1478,8 +1478,12 @@ describe('RealUnitService', () => {
       const dto = buildDto(utf8Fields(wallet), signature);
       userService.getUserByAddress.mockResolvedValue({ id: 55 } as any);
       httpService.post.mockResolvedValue({} as any);
-      // a concurrent/earlier caller already registered this wallet (active, COMPLETED)
-      aktionariatTxManager.findOne.mockResolvedValue({ id: 9, status: ReviewStatus.COMPLETED });
+      // a concurrent/earlier caller already registered this wallet (active COMPLETED, same signature)
+      aktionariatTxManager.findOne.mockResolvedValue({
+        id: 9,
+        status: ReviewStatus.COMPLETED,
+        signature,
+      });
 
       const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
 
@@ -1491,6 +1495,24 @@ describe('RealUnitService', () => {
       ]);
       // the POST now runs OUTSIDE the txn and is harmless under Aktionariat's upsert; the in-lock recheck
       // only prevents a duplicate PERSIST when a concurrent caller has already completed the wallet
+      expect(aktionariatTxManager.save).not.toHaveBeenCalled();
+    });
+
+    it('rejects an in-lock COMPLETED short-circuit when the incoming signature differs', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 55 } as any);
+      httpService.post.mockResolvedValue({} as any);
+      // concurrent path: active COMPLETED for this wallet was written under a different signature
+      aktionariatTxManager.findOne.mockResolvedValue({
+        id: 9,
+        status: ReviewStatus.COMPLETED,
+        signature: '0xdifferentpriorregistration',
+      });
+
+      // POST may already have run (outside the txn); the lock path must still fail closed on signature
+      await expect((service as any).forwardRegistration(fakeUserData(), dto)).rejects.toThrow(BadRequestException);
       expect(aktionariatTxManager.save).not.toHaveBeenCalled();
     });
 
@@ -2113,6 +2135,24 @@ describe('RealUnitService', () => {
 
       expect(result.confirmedAddresses).toEqual([walletA, walletB]);
       expect(addressConfirmationRepo.save).toHaveBeenCalledTimes(2);
+    });
+
+    it('de-duplicates the same wallet case-insensitively and keeps the first-seen (signed) casing', async () => {
+      // historical mixed casing / signed payload vs lowercased column must not yield two confirm rows
+      const checksummed = '0xAaA0000000000000000000000000000000000001';
+      const lower = checksummed.toLowerCase();
+      aktionariatRegistrationRepo.find.mockResolvedValue([
+        { walletAddress: lower, signedPayloadData: { walletAddress: checksummed } },
+        { walletAddress: lower, signedPayloadData: { walletAddress: lower } },
+        { walletAddress: lower, signedPayloadData: undefined }, // fallback to lowercased column
+      ] as any);
+      addressConfirmationRepo.findOne.mockResolvedValue(undefined);
+
+      const result = await service.confirmAktionariat({ email, code, user });
+
+      expect(result.confirmedAddresses).toEqual([checksummed]);
+      expect(addressConfirmationRepo.save).toHaveBeenCalledTimes(1);
+      expect(addressConfirmationRepo.create).toHaveBeenCalledWith({ walletAddress: checksummed });
     });
 
     it('looks wallets up by a case-insensitive LOWER(email) predicate (Raw SQL generator)', async () => {
