@@ -21,17 +21,23 @@
  *  - `status` mapped: Completed -> COMPLETED; Failed/Canceled kept (terminal, inactive); every other
  *    non-terminal state (e.g. InternalReview) -> ManualReview, so it is admin-re-forwardable and never
  *    stuck between "not COMPLETED" and "not MANUAL_REVIEW".
- *  - `userId` via a de-duplicated join on "user" (lowest id per lower(address)) so a non-unique
- *    address column cannot fan the row out.
+ *  - `userId` via a de-duplicated join on "user" (lowest id per "userDataId" + lower(address)) constrained
+ *    to the step's own account (kyc_step."userDataId" = user."userDataId"), so a non-unique address column
+ *    cannot fan the row out and an address shared across accounts never attributes the registration to the
+ *    wrong account.
  *  - `active` = the most recent NON-TERMINAL step per wallet-user (terminal Failed/Canceled sorted last
  *    in the ranking), guaranteeing <= 1 active row and no partial-unique-index clash. A wallet-user whose
  *    steps are all terminal keeps no active row; failed/canceled steps are migrated but never active.
  *  - `forwardedToAktionariatDate` = kyc_step.updated for COMPLETED steps, else null.
+ *  - Source rows are pre-filtered to valid JSON behind a MATERIALIZED fence — `result::jsonb` appears
+ *    ONLY in the fenced CTE's SELECT list, never beside another predicate. AND-predicate order is not
+ *    guaranteed and kyc_step holds foreign step types whose result is not valid JSON, so an unfenced cast
+ *    could be reordered ahead of the name filter and crash the boot-blocking migration.
  *  - Only structurally complete blobs are migrated (walletAddress + email + registrationDate + signature
  *    all present, all NOT NULL columns); a defective blob is steered out and counted, never crashes the
  *    boot-blocking migration.
- *  - Reconciliation counts are logged via RAISE NOTICE (source / with wallet / with required fields /
- *    inserted / unresolved user / field missing / blob without wallet) — nothing is silently dropped.
+ *  - Reconciliation counts are logged via RAISE NOTICE (source / invalid json / with wallet / with required
+ *    fields / inserted / unresolved user / field missing / blob without wallet) — nothing is silently dropped.
  *
  * @class
  * @implements {MigrationInterface}
@@ -56,6 +62,19 @@ module.exports = class AddAktionariatRegistration1783704351182 {
 
         // --- Backfill from existing RealUnitRegistration kyc_steps (single source of truth cutover) ---
         await queryRunner.query(`
+            WITH steps AS MATERIALIZED (
+                -- Pre-filter to valid-JSON RealUnitRegistration steps behind a materialization fence.
+                -- result::jsonb lives ONLY in this SELECT list (the target list runs after the WHERE
+                -- qualifiers), never beside another predicate whose evaluation order is not guaranteed;
+                -- AS MATERIALIZED then stops the consumer's ->> guards/join from being pushed down onto a
+                -- not-yet-validated row. Foreign kyc_step types carry non-JSON result, so this fence is
+                -- what keeps the boot-blocking migration from crashing on an out-of-order cast.
+                SELECT ks.id, ks.status, ks.created, ks.updated, ks."userDataId", ks.result::jsonb AS blob
+                FROM "kyc_step" ks
+                WHERE ks."name" = 'RealUnitRegistration'
+                  AND ks.result IS NOT NULL
+                  AND pg_input_is_valid(ks.result, 'jsonb')
+            )
             INSERT INTO "aktionariat_registration"
                 ("walletAddress", "email", "registrationDate", "signature", "signedPayload", "kycData",
                  "status", "forwardedToAktionariatDate", "active", "userId", "created", "updated")
@@ -82,28 +101,31 @@ module.exports = class AddAktionariatRegistration1783704351182 {
                 src.updated
             FROM (
                 SELECT
-                    ks.status AS status,
-                    ks.created AS created,
-                    ks.updated AS updated,
-                    ks.result::jsonb AS blob,
+                    s.status AS status,
+                    s.created AS created,
+                    s.updated AS updated,
+                    s.blob AS blob,
                     u.id AS user_id,
                     ROW_NUMBER() OVER (
                         PARTITION BY u.id
-                        ORDER BY (CASE WHEN ks.status IN ('Failed', 'Canceled') THEN 1 ELSE 0 END) ASC,
-                                 ks.created DESC, ks.id DESC
+                        ORDER BY (CASE WHEN s.status IN ('Failed', 'Canceled') THEN 1 ELSE 0 END) ASC,
+                                 s.created DESC, s.id DESC
                     ) AS rn
-                FROM "kyc_step" ks
+                FROM steps s
+                -- resolve the wallet owner within the step's OWN account: an address shared across
+                -- accounts (same lower(address) under different "userDataId") must never attribute the
+                -- registration to the wrong account, and the DISTINCT ON still de-dupes intra-account
                 JOIN (
-                    SELECT DISTINCT ON (lower("address")) id, lower("address") AS laddr
+                    SELECT DISTINCT ON ("userDataId", lower("address")) id, "userDataId", lower("address") AS laddr
                     FROM "user"
-                    ORDER BY lower("address"), id
-                ) u ON u.laddr = lower(ks.result::jsonb ->> 'walletAddress')
-                WHERE ks."name" = 'RealUnitRegistration'
-                  AND ks.result IS NOT NULL
-                  AND (ks.result::jsonb ->> 'walletAddress') IS NOT NULL
-                  AND (ks.result::jsonb ->> 'email') IS NOT NULL
-                  AND (ks.result::jsonb ->> 'registrationDate') IS NOT NULL
-                  AND (ks.result::jsonb ->> 'signature') IS NOT NULL
+                    ORDER BY "userDataId", lower("address"), id
+                ) u ON u.laddr = lower(s.blob ->> 'walletAddress') AND u."userDataId" = s."userDataId"
+                -- every ->> below runs on already-valid JSON (fenced CTE); a scalar blob (e.g. "null")
+                -- yields NULL and is dropped by the walletAddress guard, matching the reconciliation counters
+                WHERE (s.blob ->> 'walletAddress') IS NOT NULL
+                  AND (s.blob ->> 'email') IS NOT NULL
+                  AND (s.blob ->> 'registrationDate') IS NOT NULL
+                  AND (s.blob ->> 'signature') IS NOT NULL
             ) src
         `);
 
@@ -112,6 +134,7 @@ module.exports = class AddAktionariatRegistration1783704351182 {
             DO $$
             DECLARE
                 source_total integer;
+                invalid_json integer;
                 source_with_wallet integer;
                 source_with_required integer;
                 inserted_count integer;
@@ -119,27 +142,43 @@ module.exports = class AddAktionariatRegistration1783704351182 {
                 field_missing integer;
                 blob_without_wallet integer;
             BEGIN
+                -- cast-free counts: the total and the invalid-JSON rejection class (corrupt blobs).
+                -- pg_input_is_valid takes text, so neither statement casts result::jsonb.
                 SELECT count(*) INTO source_total
                     FROM "kyc_step" WHERE "name" = 'RealUnitRegistration';
-                SELECT count(*) INTO source_with_wallet
+                SELECT count(*) INTO invalid_json
                     FROM "kyc_step"
                     WHERE "name" = 'RealUnitRegistration'
                       AND result IS NOT NULL
-                      AND (result::jsonb ->> 'walletAddress') IS NOT NULL;
-                SELECT count(*) INTO source_with_required
-                    FROM "kyc_step"
-                    WHERE "name" = 'RealUnitRegistration'
-                      AND result IS NOT NULL
-                      AND (result::jsonb ->> 'walletAddress') IS NOT NULL
-                      AND (result::jsonb ->> 'email') IS NOT NULL
-                      AND (result::jsonb ->> 'registrationDate') IS NOT NULL
-                      AND (result::jsonb ->> 'signature') IS NOT NULL;
+                      AND NOT pg_input_is_valid(result, 'jsonb');
+                -- wallet/required counts run every ->> on already-valid JSON only, behind the same
+                -- MATERIALIZED fence as the backfill, so no cast can be reordered ahead of the pre-filter
+                WITH steps AS MATERIALIZED (
+                    SELECT ks.result::jsonb AS blob
+                    FROM "kyc_step" ks
+                    WHERE ks."name" = 'RealUnitRegistration'
+                      AND ks.result IS NOT NULL
+                      AND pg_input_is_valid(ks.result, 'jsonb')
+                )
+                SELECT
+                    count(*) FILTER (WHERE blob ->> 'walletAddress' IS NOT NULL),
+                    count(*) FILTER (
+                        WHERE blob ->> 'walletAddress' IS NOT NULL
+                          AND blob ->> 'email' IS NOT NULL
+                          AND blob ->> 'registrationDate' IS NOT NULL
+                          AND blob ->> 'signature' IS NOT NULL
+                    )
+                INTO source_with_wallet, source_with_required
+                FROM steps;
                 SELECT count(*) INTO inserted_count FROM "aktionariat_registration";
                 field_missing := source_with_wallet - source_with_required; -- wallet present but a NOT NULL field missing
-                unresolved_user := source_with_required - inserted_count;    -- complete blob but no matching "user"
-                blob_without_wallet := source_total - source_with_wallet;    -- no walletAddress at all
-                RAISE NOTICE 'AktionariatRegistration backfill reconciliation: source RealUnitRegistration steps=%, with walletAddress=%, with required fields=%, inserted=%, unresolved user (no user)=%, field missing=%, blob without walletAddress=%',
-                    source_total, source_with_wallet, source_with_required, inserted_count, unresolved_user, field_missing, blob_without_wallet;
+                unresolved_user := source_with_required - inserted_count; -- complete blob but no "user" for the address within the step's own account
+                -- partition identity (every source step lands in exactly one bucket):
+                -- source_total = invalid_json + blob_without_wallet + field_missing + unresolved_user + inserted.
+                -- NULL-result rows carry no wallet and fold into blob_without_wallet.
+                blob_without_wallet := source_total - invalid_json - source_with_wallet; -- no walletAddress at all (incl. NULL result)
+                RAISE NOTICE 'AktionariatRegistration backfill reconciliation: source RealUnitRegistration steps=%, invalid json blob=%, with walletAddress=%, with required fields=%, inserted=%, unresolved user (no user)=%, field missing=%, blob without walletAddress=%',
+                    source_total, invalid_json, source_with_wallet, source_with_required, inserted_count, unresolved_user, field_missing, blob_without_wallet;
             END $$;
         `);
     }

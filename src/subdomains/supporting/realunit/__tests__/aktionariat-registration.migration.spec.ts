@@ -30,6 +30,14 @@ const blob = (fields: Record<string, unknown>): string => JSON.stringify(fields)
 const personalKyc = { accountType: 'Personal', firstName: 'Erika', lastName: 'Müller' };
 const orgKyc = { accountType: 'Organization', organizationName: 'RealUnit AG' };
 
+// minimal structural view of the underlying pg client — just enough to observe RAISE NOTICE output
+// (TypeORM types QueryRunner.connect() as Promise<any>, so the cast pins a safe surface)
+type NoticeListener = (msg: { message?: string }) => void;
+interface NoticeEmitter {
+  on(event: 'notice', listener: NoticeListener): void;
+  removeListener(event: 'notice', listener: NoticeListener): void;
+}
+
 describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () => {
   let dataSource: DataSource;
   let qr: QueryRunner;
@@ -45,6 +53,13 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     if (dataSource?.isInitialized) await dataSource.destroy();
   });
 
+  // inserts a kyc_step; userDataId is the owning account and must match the resolved user's
+  const insertStep = (name: string, status: string, result: string | null, created: string, userDataId: number) =>
+    qr.query(
+      `INSERT INTO "kyc_step" ("name","status","result","created","updated","userDataId") VALUES ($1,$2,$3,$4,$4,$5)`,
+      [name, status, result, created, userDataId],
+    );
+
   beforeEach(async () => {
     qr = dataSource.createQueryRunner();
     await qr.connect();
@@ -53,26 +68,22 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     await qr.query(`DROP TABLE IF EXISTS "aktionariat_registration" CASCADE`);
     await qr.query(`DROP TABLE IF EXISTS "kyc_step" CASCADE`);
     await qr.query(`DROP TABLE IF EXISTS "user" CASCADE`);
-    await qr.query(`CREATE TABLE "user" ("id" SERIAL PRIMARY KEY, "address" character varying(256) NOT NULL)`);
+    await qr.query(
+      `CREATE TABLE "user" ("id" SERIAL PRIMARY KEY, "address" character varying(256) NOT NULL, "userDataId" integer)`,
+    );
     await qr.query(
       `CREATE TABLE "kyc_step" ("id" SERIAL PRIMARY KEY, "name" character varying NOT NULL, "status" character varying NOT NULL, "result" text, "created" TIMESTAMP NOT NULL DEFAULT now(), "updated" TIMESTAMP NOT NULL DEFAULT now(), "userDataId" integer)`,
     );
 
-    // users (one wallet-User per registered address; note: no user for ADDR.ghost)
+    // users (one wallet-User per registered address; note: no user for ADDR.ghost). Each user carries its
+    // own account id ("userDataId"), 1:1 with the wallet-user here, so the account-scoped resolution join
+    // matches every seeded step.
     await qr.query(
-      `INSERT INTO "user" ("id", "address") VALUES (1,$1),(2,$2),(3,$3),(4,$4),(5,$5),(6,$6),(7,$7),(8,$8),(9,$9),(10,$10)`,
+      `INSERT INTO "user" ("id", "address", "userDataId") VALUES (1,$1,1),(2,$2,2),(3,$3,3),(4,$4,4),(5,$5,5),(6,$6,6),(7,$7,7),(8,$8,8),(9,$9,9),(10,$10,10)`,
       [ADDR.a, ADDR.b, ADDR.c, ADDR.d, ADDR.e, ADDR.f, ADDR.g, ADDR.h, ADDR.i, ADDR.j],
     );
 
     // kyc_steps — the seed scenarios
-    const insertStep = (name: string, status: string, result: string | null, created: string) =>
-      qr.query(`INSERT INTO "kyc_step" ("name","status","result","created","updated") VALUES ($1,$2,$3,$4,$4)`, [
-        name,
-        status,
-        result,
-        created,
-      ]);
-
     // 1) Normal completed registration (Personal), mixed-case wallet
     await insertStep(
       'RealUnitRegistration',
@@ -85,6 +96,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-05-01T10:00:00Z',
+      1,
     );
     // 2) Re-registration for the same wallet -> supersede: older + newer completed step
     await insertStep(
@@ -98,6 +110,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-04-01T10:00:00Z',
+      2,
     );
     await insertStep(
       'RealUnitRegistration',
@@ -110,6 +123,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-06-01T10:00:00Z',
+      2,
     );
     // 3) Failed step -> migrated but never active
     await insertStep(
@@ -123,6 +137,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-05-02T10:00:00Z',
+      3,
     );
     // 4+5) Two different wallets registered under the SAME email (multi-wallet confirm resolution)
     await insertStep(
@@ -136,6 +151,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-05-03T10:00:00Z',
+      4,
     );
     await insertStep(
       'RealUnitRegistration',
@@ -148,6 +164,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-05-04T10:00:00Z',
+      5,
     );
     // 6) CORPORATION registration -> kycData preserved with organization fields
     await insertStep(
@@ -161,6 +178,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: orgKyc,
       }),
       '2026-05-05T10:00:00Z',
+      6,
     );
     // 7) Blob without a walletAddress -> not resolvable, counted, never inserted
     await insertStep(
@@ -168,6 +186,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
       'Completed',
       blob({ email: 'g@example.com', signature: '0xsigG', registrationDate: '2026-05-06', kycData: personalKyc }),
       '2026-05-06T10:00:00Z',
+      7,
     );
     // 8) Wallet with no matching "user" row -> not resolvable, counted, never inserted
     await insertStep(
@@ -181,9 +200,10 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-05-07T10:00:00Z',
+      8,
     );
     // 9) Unrelated step -> must be ignored by the name filter
-    await insertStep('ContactData', 'Completed', blob({ mail: 'noise@example.com' }), '2026-05-08T10:00:00Z');
+    await insertStep('ContactData', 'Completed', blob({ mail: 'noise@example.com' }), '2026-05-08T10:00:00Z', 1);
     // 10a) Older COMPLETED + newer FAILED on the SAME wallet-user -> the COMPLETED must stay active
     // (terminal steps are ranked last), never leaving the user with no active row.
     await insertStep(
@@ -197,6 +217,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-03-01T10:00:00Z',
+      7,
     );
     await insertStep(
       'RealUnitRegistration',
@@ -209,6 +230,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-07-01T10:00:00Z',
+      7,
     );
     // 10b) Non-terminal, non-completed step (InternalReview) -> status maps to ManualReview, active
     await insertStep(
@@ -222,6 +244,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-05-09T10:00:00Z',
+      8,
     );
     // 11) Canceled step on its own wallet-user -> migrated, status kept 'Canceled', never active
     await insertStep(
@@ -235,6 +258,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-05-10T10:00:00Z',
+      9,
     );
     // 12) Older InternalReview (non-terminal) + newer Canceled on the SAME wallet-user -> the InternalReview
     // (mapped to ManualReview) stays active; the terminal Canceled is ranked last and never active.
@@ -249,6 +273,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-03-10T10:00:00Z',
+      10,
     );
     await insertStep(
       'RealUnitRegistration',
@@ -261,6 +286,7 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
         kycData: personalKyc,
       }),
       '2026-07-10T10:00:00Z',
+      10,
     );
   });
 
@@ -411,6 +437,106 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
       `SELECT "walletAddress" FROM "aktionariat_registration" WHERE LOWER("email") = 'shared@example.com' ORDER BY "walletAddress"`,
     );
     expect(shared.map((r) => r.walletAddress)).toEqual([ADDR.d.toLowerCase(), ADDR.e.toLowerCase()]);
+  });
+
+  it('completes when a foreign invalid-JSON step and a NULL-result registration are present (crash-vector guard)', async () => {
+    // A foreign step whose result is not valid JSON must never reach the jsonb cast (the resolution join
+    // would otherwise cast every scanned row), and a NULL-result RealUnitRegistration step must be filtered
+    // out too. Neither may crash the boot-blocking migration.
+    await insertStep('NationalityData', 'Completed', 'this-is-not-json', '2026-08-02T10:00:00Z', 1);
+    await insertStep('RealUnitRegistration', 'Completed', null, '2026-08-03T10:00:00Z', 2);
+
+    await expect(runUp()).resolves.toBeUndefined();
+
+    // baseline stays intact; neither the foreign nor the NULL-result row produces a registration
+    const total = await count(`SELECT count(*) FROM "aktionariat_registration"`);
+    expect(total).toBe(13);
+  });
+
+  it('skips a RealUnitRegistration step with an invalid-JSON result and still migrates its valid siblings', async () => {
+    // a corrupt (unparseable) blob on a RealUnitRegistration step: filtered by pg_input_is_valid, never cast
+    await insertStep('RealUnitRegistration', 'Completed', '{"walletAddress": ', '2026-08-04T10:00:00Z', 3);
+
+    await expect(runUp()).resolves.toBeUndefined();
+
+    // the corrupt blob is steered out; every valid sibling still migrates
+    const total = await count(`SELECT count(*) FROM "aktionariat_registration"`);
+    expect(total).toBe(13);
+  });
+
+  it('attributes a shared address to the account that owns the step, not the lowest user id', async () => {
+    // The same lowercased address exists under two accounts; the LOWER user id (11) belongs to the WRONG
+    // account, the step belongs to the higher-id user's account (200 -> user 12). The registration must
+    // land on user 12, proving the join is constrained by "userDataId", not just lower(address).
+    const sharedAddr = '0xABCabcABCabcABCabcABCabcABCabcABCabcAB11';
+    await qr.query(`INSERT INTO "user" ("id","address","userDataId") VALUES (11,$1,100),(12,$1,200)`, [sharedAddr]);
+    await insertStep(
+      'RealUnitRegistration',
+      'Completed',
+      blob({
+        email: 'shared-account@example.com',
+        walletAddress: sharedAddr,
+        signature: '0xsigShared',
+        registrationDate: '2026-08-05',
+        kycData: personalKyc,
+      }),
+      '2026-08-05T10:00:00Z',
+      200,
+    );
+
+    await runUp();
+
+    const resolved = await rows(`SELECT "userId" FROM "aktionariat_registration" WHERE "walletAddress" = $1`, [
+      sharedAddr.toLowerCase(),
+    ]);
+    expect(resolved).toHaveLength(1);
+    expect(resolved[0].userId).toBe(12); // step's account (200 -> user 12), never the lowest id (11)
+  });
+
+  it('counts an invalid-JSON blob as its own rejection class and keeps the reconciliation identity', async () => {
+    // one corrupt RealUnitRegistration blob -> counted as invalid json, excluded from the backfill
+    await insertStep('RealUnitRegistration', 'Completed', 'not-json-at-all', '2026-08-06T10:00:00Z', 4);
+
+    // observe the DO block's RAISE NOTICE on the underlying pg client, so the test fails if the
+    // reconciliation counter is wrong or removed (not just the re-implemented counting below)
+    const client = (await qr.connect()) as NoticeEmitter;
+    const notices: string[] = [];
+    const onNotice: NoticeListener = (msg) => notices.push(msg.message ?? '');
+    client.on('notice', onNotice);
+    try {
+      await runUp();
+    } finally {
+      client.removeListener('notice', onNotice);
+    }
+
+    const reconciliation = notices.find((n) => n.includes('backfill reconciliation'));
+    expect(reconciliation).toBeDefined();
+    // assert including the trailing delimiter, so e.g. 'blob=15' can never satisfy 'blob=1'
+    expect(reconciliation).toContain('invalid json blob=1,'); // the corrupt blob added above
+    expect(reconciliation).toContain('inserted=13,'); // baseline unchanged; the corrupt blob never inserts
+
+    const sourceTotal = await count(`SELECT count(*) FROM "kyc_step" WHERE "name" = 'RealUnitRegistration'`);
+    const invalidJson = await count(
+      `SELECT count(*) FROM "kyc_step" WHERE "name" = 'RealUnitRegistration' AND result IS NOT NULL AND NOT pg_input_is_valid(result, 'jsonb')`,
+    );
+    // cast-safe wallet/required counts behind the same MATERIALIZED fence the migration uses
+    const withWallet = await count(
+      `WITH steps AS MATERIALIZED (SELECT result::jsonb AS blob FROM "kyc_step" WHERE "name" = 'RealUnitRegistration' AND result IS NOT NULL AND pg_input_is_valid(result, 'jsonb')) SELECT count(*) FROM steps WHERE blob ->> 'walletAddress' IS NOT NULL`,
+    );
+    const withRequired = await count(
+      `WITH steps AS MATERIALIZED (SELECT result::jsonb AS blob FROM "kyc_step" WHERE "name" = 'RealUnitRegistration' AND result IS NOT NULL AND pg_input_is_valid(result, 'jsonb')) SELECT count(*) FROM steps WHERE blob ->> 'walletAddress' IS NOT NULL AND blob ->> 'email' IS NOT NULL AND blob ->> 'registrationDate' IS NOT NULL AND blob ->> 'signature' IS NOT NULL`,
+    );
+    const inserted = await count(`SELECT count(*) FROM "aktionariat_registration"`);
+
+    // the re-implemented counts must agree with the logged reconciliation values
+    expect(invalidJson).toBe(1);
+    expect(inserted).toBe(13);
+
+    const fieldMissing = withWallet - withRequired;
+    const unresolvedUser = withRequired - inserted;
+    const blobWithoutWallet = sourceTotal - invalidJson - withWallet;
+    // full partition: every source step falls into exactly one bucket
+    expect(invalidJson + blobWithoutWallet + fieldMissing + unresolvedUser + inserted).toBe(sourceTotal);
   });
 
   it('down() drops the table cleanly', async () => {
