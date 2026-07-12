@@ -4,7 +4,6 @@ import {
   Controller,
   ForbiddenException,
   Get,
-  HttpCode,
   HttpStatus,
   Param,
   ParseIntPipe,
@@ -23,7 +22,6 @@ import {
   ApiConflictResponse,
   ApiExcludeEndpoint,
   ApiForbiddenResponse,
-  ApiNoContentResponse,
   ApiOkResponse,
   ApiOperation,
   ApiParam,
@@ -61,7 +59,6 @@ import { PriceCurrency, PricingService } from '../../pricing/services/pricing.se
 import { RealUnitAdminQueryDto, RealUnitQuoteDto, RealUnitTransactionDto } from '../dto/realunit-admin.dto';
 import {
   RealUnitConfirmAktionariatDto,
-  RealUnitConfirmAktionariatEventDto,
   RealUnitConfirmAktionariatQueryDto,
 } from '../dto/realunit-confirm-aktionariat.dto';
 import {
@@ -822,26 +819,6 @@ export class RealUnitController {
   @ApiOkResponse({ type: RealUnitConfirmAktionariatDto })
   async confirmAktionariat(@Query() query: RealUnitConfirmAktionariatQueryDto): Promise<RealUnitConfirmAktionariatDto> {
     return this.realunitService.confirmAktionariat(query);
-  }
-
-  @Post('confirm-aktionariat/event')
-  @HttpCode(HttpStatus.NO_CONTENT)
-  // Public and unauthenticated, like the confirm endpoint above: the static realunit.app confirm page (strict
-  // CSP, no other durable log transport) is the only caller. Reuse the same RateLimitGuard — its tracker
-  // buckets IPv6 by /64 and IPv4 by /24, so this abuse surface cannot be amplified per-address. A slightly
-  // higher window than the confirm GET absorbs the several lifecycle events emitted per confirmation flow.
-  @UseGuards(RateLimitGuard)
-  @Throttle(30, 60)
-  @ApiOperation({
-    summary: 'Record a client-side confirm-aktionariat lifecycle event',
-    description:
-      'Public, durable-logging sink for the realunit.app/confirm-aktionariat page. The static web has no other ' +
-      'log transport (strict CSP), so it POSTs each lifecycle stage here and the API writes one audit row. ' +
-      'Returns 204 No Content; the client fires it best-effort and ignores the response.',
-  })
-  @ApiNoContentResponse({ description: 'Event recorded.' })
-  async logConfirmAktionariatEvent(@Body() dto: RealUnitConfirmAktionariatEventDto): Promise<void> {
-    await this.realunitService.logConfirmAktionariatClientEvent(dto);
   }
 
   // --- Admin Endpoints ---

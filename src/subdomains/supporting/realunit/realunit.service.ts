@@ -79,8 +79,6 @@ import { RealUnitQuoteDto, RealUnitTransactionDto } from './dto/realunit-admin.d
 import {
   RealUnitAktionariatConfirmationStatus,
   RealUnitConfirmAktionariatDto,
-  RealUnitConfirmAktionariatEventDto,
-  RealUnitConfirmAktionariatEventPhase,
   RealUnitConfirmAktionariatQueryDto,
 } from './dto/realunit-confirm-aktionariat.dto';
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
@@ -2128,37 +2126,6 @@ export class RealUnitService {
       this.logger.error(
         `Failed to write Aktionariat confirmation log for wallet ${data.walletAddress}: ${e?.message || e}`,
       );
-    }
-  }
-
-  // Durable sink for the realunit.app confirm page's client-side lifecycle events. The static web (strict CSP:
-  // connect-src 'self' + the DFX API) has no other durable log transport, so it POSTs each stage here and this
-  // writes ONE DB `log` row (category ClientEvent). The DB log is the PII audit store, so the user's own
-  // email/code carried in the event are acceptable to persist. Best-effort: a logging failure must never fail
-  // the (fire-and-forget) client call, but it is surfaced loudly.
-  async logConfirmAktionariatClientEvent(dto: RealUnitConfirmAktionariatEventDto): Promise<void> {
-    try {
-      await this.logService.create({
-        system: 'Aktionariat',
-        subsystem: 'Confirmation',
-        category: 'ClientEvent',
-        severity:
-          dto.phase === RealUnitConfirmAktionariatEventPhase.REQUEST_ERROR ? LogSeverity.ERROR : LogSeverity.INFO,
-        message: JSON.stringify({
-          phase: dto.phase,
-          email: dto.email,
-          code: dto.code,
-          user: dto.user,
-          detail: dto.detail,
-          // Uniqueness marker so LogService.create() never dedups two byte-identical consecutive client events
-          // (e.g. two param-less pageLoaded/missingParams events): EVERY reported stage must be logged.
-          loggedAt: new Date().toISOString(),
-          logNonce: Util.randomString(8),
-        }),
-        valid: null,
-      });
-    } catch (e) {
-      this.logger.error(`Failed to write RealUnit confirm client event (${dto.phase}): ${e?.message || e}`);
     }
   }
 

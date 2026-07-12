@@ -39,10 +39,7 @@ import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { FindOperator } from 'typeorm';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
-import {
-  RealUnitAktionariatConfirmationStatus,
-  RealUnitConfirmAktionariatEventPhase,
-} from '../dto/realunit-confirm-aktionariat.dto';
+import { RealUnitAktionariatConfirmationStatus } from '../dto/realunit-confirm-aktionariat.dto';
 import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
 import { PriceInvalidException } from '../../pricing/domain/exceptions/price-invalid.exception';
 import { RealUnitDevService } from '../realunit-dev.service';
@@ -2436,6 +2433,28 @@ describe('RealUnitService', () => {
       expect(msg.error).toBeUndefined();
       // a uniqueness marker rides in every audit message so LogService.create() never dedups two identical rows
       expect(msg.loggedAt).toEqual(expect.any(String));
+      expect(msg.logNonce).toEqual(expect.any(String));
+    });
+
+    it('writes a UNIQUE ServerCall message for two byte-identical re-confirms so LogService dedup cannot collapse them', async () => {
+      // Two identical same-wallet re-confirms: without a per-write uniqueness marker LogService.create (which
+      // drops a row whose message equals the latest existing one) would silently collapse the second audit row.
+      mockRegisteredWallets([walletA]);
+      addressConfirmationTxManager.findOne.mockResolvedValue(undefined);
+
+      await service.confirmAktionariat({ email, code, user });
+      await service.confirmAktionariat({ email, code, user });
+
+      const serverCallMessages = (logService.create as jest.Mock).mock.calls
+        .map((call) => call[0])
+        .filter((entry) => entry.category === 'ServerCall')
+        .map((entry) => entry.message);
+      expect(serverCallMessages).toHaveLength(2);
+      const [first, second] = serverCallMessages;
+      // the loggedAt/logNonce marker makes the two byte-identical audit payloads differ
+      expect(first).not.toBe(second);
+      expect(JSON.parse(first).logNonce).toEqual(expect.any(String));
+      expect(JSON.parse(second).logNonce).toEqual(expect.any(String));
     });
 
     it('records the full Aktionariat error body in the DB audit but keeps the Loki line redacted', async () => {
@@ -2546,80 +2565,6 @@ describe('RealUnitService', () => {
       const result = await service.confirmAktionariat({ email, code, user });
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
-    });
-  });
-
-  describe('logConfirmAktionariatClientEvent (durable web client-event sink)', () => {
-    it('writes one ClientEvent DB log row carrying the validated body', async () => {
-      await service.logConfirmAktionariatClientEvent({
-        phase: RealUnitConfirmAktionariatEventPhase.RESULT_CONFIRMED,
-        email: 'user@example.com',
-        code: 'CONFIRM-CODE',
-        user: 'aktionariat-user-1',
-        detail: 'ok',
-      } as any);
-
-      expect(logService.create).toHaveBeenCalledTimes(1);
-      const log = (logService.create as jest.Mock).mock.calls[0][0];
-      expect(log).toMatchObject({
-        system: 'Aktionariat',
-        subsystem: 'Confirmation',
-        category: 'ClientEvent',
-        severity: LogSeverity.INFO,
-      });
-      expect(JSON.parse(log.message)).toMatchObject({
-        phase: 'resultConfirmed',
-        email: 'user@example.com',
-        code: 'CONFIRM-CODE',
-        user: 'aktionariat-user-1',
-        detail: 'ok',
-      });
-    });
-
-    it('tags a requestError phase at ERROR severity', async () => {
-      await service.logConfirmAktionariatClientEvent({
-        phase: RealUnitConfirmAktionariatEventPhase.REQUEST_ERROR,
-      } as any);
-
-      const log = (logService.create as jest.Mock).mock.calls[0][0];
-      expect(log.severity).toBe(LogSeverity.ERROR);
-      expect(JSON.parse(log.message)).toMatchObject({ phase: 'requestError' });
-    });
-
-    it('never throws when the DB log write fails (best-effort, Error)', async () => {
-      logService.create.mockRejectedValue(new Error('log down'));
-
-      await expect(
-        service.logConfirmAktionariatClientEvent({
-          phase: RealUnitConfirmAktionariatEventPhase.PAGE_LOADED,
-        } as any),
-      ).resolves.toBeUndefined();
-      expect((service as any).logger.error).toHaveBeenCalled();
-    });
-
-    it('swallows a non-Error log failure via the || fallback', async () => {
-      logService.create.mockRejectedValue('log string failure');
-
-      await expect(
-        service.logConfirmAktionariatClientEvent({
-          phase: RealUnitConfirmAktionariatEventPhase.PAGE_LOADED,
-        } as any),
-      ).resolves.toBeUndefined();
-    });
-
-    it('writes a UNIQUE message for two byte-identical client events so LogService dedup cannot collapse them', async () => {
-      const event = { phase: RealUnitConfirmAktionariatEventPhase.PAGE_LOADED } as any;
-
-      await service.logConfirmAktionariatClientEvent(event);
-      await service.logConfirmAktionariatClientEvent(event);
-
-      const [firstMessage, secondMessage] = (logService.create as jest.Mock).mock.calls.map((call) => call[0].message);
-      // byte-identical inputs, yet the loggedAt/logNonce marker makes the two payloads differ, so LogService.create
-      // (which drops a row whose message equals the latest existing one) can never silently swallow a confirm event
-      expect(firstMessage).not.toBe(secondMessage);
-      expect(JSON.parse(firstMessage).loggedAt).toEqual(expect.any(String));
-      expect(JSON.parse(firstMessage).logNonce).toEqual(expect.any(String));
-      expect(JSON.parse(secondMessage).logNonce).toEqual(expect.any(String));
     });
   });
 });
