@@ -94,6 +94,7 @@ import {
   RealUnitEmailRegistrationStatus,
   RealUnitLanguage,
   RealUnitRegisterWalletDto,
+  RealUnitRegistrationDateDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationInfoDto,
   RealUnitRegistrationState,
@@ -773,6 +774,16 @@ export class RealUnitService {
 
   // --- Wallet Methods ---
 
+  // The `registrationDate` field is part of the EIP-712 signed registration
+  // envelope and is validated server-side (see validateRegistrationDto). The
+  // client must therefore sign the date the server considers "today" rather
+  // than deriving it from its own local clock — a device in a timezone ahead
+  // of UTC would otherwise sign tomorrow's date and be rejected. The client
+  // fetches this immediately before signing so it is always the server truth.
+  getRegistrationDate(): RealUnitRegistrationDateDto {
+    return { date: Util.isoDate(new Date()) };
+  }
+
   async getRegistrationInfo(userData: UserData, walletAddress: string): Promise<RealUnitRegistrationInfoDto> {
     const { registration, isForCurrentWallet } = await this.findRegistration(userData, walletAddress);
 
@@ -864,9 +875,14 @@ export class RealUnitService {
       throw new BadRequestException('Invalid signature');
     }
 
-    // registration date validation - must be today
+    // Registration date validation. The client obtains this date from
+    // GET /realunit/register/date (server truth) and signs it, so it can never
+    // run ahead of the server. We accept today OR yesterday (UTC) to tolerate
+    // the client fetch-sign-submit round-trip straddling a UTC midnight
+    // boundary; anything else is stale or forged and is rejected fail-closed.
     const now = new Date();
-    if (dto.registrationDate !== Util.isoDate(now)) {
+    const acceptedDates = [Util.isoDate(now), Util.isoDate(Util.daysBefore(1, now))];
+    if (!acceptedDates.includes(dto.registrationDate)) {
       throw new BadRequestException('Registration date must be today');
     }
 

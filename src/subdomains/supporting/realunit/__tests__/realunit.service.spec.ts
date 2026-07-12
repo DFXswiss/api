@@ -990,6 +990,13 @@ describe('RealUnitService', () => {
     });
   });
 
+  describe('getRegistrationDate', () => {
+    it("returns the server's current date (UTC) in yyyy-mm-dd format", () => {
+      const expected = new Date().toISOString().split('T')[0];
+      expect(service.getRegistrationDate()).toEqual({ date: expected });
+    });
+  });
+
   describe('getRegistrationInfo', () => {
     const walletAddress = '0x2222222222222222222222222222222222222222';
     const otherWalletAddress = '0x3333333333333333333333333333333333333333';
@@ -2794,8 +2801,13 @@ describe('RealUnitService', () => {
       ],
     };
 
-    // The service compares registrationDate against Util.isoDate(new Date()); mirror that here.
-    const todayIso = new Date().toISOString().split('T')[0];
+    // The service accepts registrationDate === today OR yesterday (UTC); mirror that here
+    // (UTC, date-only) so the fixtures track the wall clock.
+    const isoDay = (offsetDays: number): string =>
+      new Date(Date.now() + offsetDays * 86_400_000).toISOString().split('T')[0];
+    const todayIso = isoDay(0);
+    const yesterdayIso = isoDay(-1);
+    const tomorrowIso = isoDay(1);
 
     const humanFields = (overrides: Record<string, unknown> = {}): any => ({
       email: 'erika@example.com',
@@ -2859,7 +2871,22 @@ describe('RealUnitService', () => {
       await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
     });
 
-    it('throws BadRequestException when the registration date is not today', async () => {
+    it('resolves when the registration date is today', async () => {
+      const dto = await buildDto(humanFields({ registrationDate: todayIso }), humanKyc());
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('resolves when the registration date is yesterday (UTC midnight round-trip tolerance)', async () => {
+      const dto = await buildDto(humanFields({ registrationDate: yesterdayIso }), humanKyc());
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('throws BadRequestException when the registration date is in the future (tomorrow)', async () => {
+      const dto = await buildDto(humanFields({ registrationDate: tomorrowIso }), humanKyc());
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the registration date is older than yesterday', async () => {
       const dto = await buildDto(humanFields({ registrationDate: '2020-01-01' }), humanKyc());
       await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
     });
