@@ -14,15 +14,17 @@ const SCHEMA = 'mig_confirm_flow';
 // skipped run (CI, no DB) never pulls the .js through the TS transform.
 let CompleteRealUnitConfirmFlow: new () => { up(qr: QueryRunner): Promise<void>; down(qr: QueryRunner): Promise<void> };
 
-// The original (non-unique) index name the base table-creation migration used, reused (now UNIQUE) here.
+// The original (non-unique) index name the base table-creation migration used; down() recreates it.
 const INDEX = 'IDX_cafb2b15fa9268c44081bba054';
 
-// Mixed-case EIP-55 addresses as they may arrive from the client; the migration lowercases the queryable
-// column. ADDR_B is seeded twice, differing only in case, to exercise the case-collision merge.
-const ADDR_A = '0xAAaaAAaaAAaaAAaaAAaaAAaaAAaaAAaaAAaaAA01';
-const ADDR_B_UPPER = '0xBBbbBBbbBBbbBBbbBBbbBBbbBBbbBBbbBBbbBB02';
-const ADDR_B_LOWER = ADDR_B_UPPER.toLowerCase();
-const ADDR_C_LOWER = '0xcccccccccccccccccccccccccccccccccccccc03'; // already lowercase, no collision
+// Mixed-case EIP-55 addresses as they are stored in the confirmation table; the registration column is
+// canonically lowercased, so the migration must bridge the confirmed state via LOWER() on both sides.
+const ADDR_A_CHECKSUM = '0xAAaaAAaaAAaaAAaaAAaaAAaaAAaaAAaaAAaaAA01';
+const ADDR_A_LOWER = ADDR_A_CHECKSUM.toLowerCase();
+const ADDR_B_LOWER = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb02';
+const ADDR_C_CHECKSUM = '0xCCccCCccCCccCCccCCccCCccCCccCCccCCccCC03';
+
+const CONFIRMED_DATE = '2026-02-01T10:00:00Z';
 
 type NoticeListener = (msg: { message?: string }) => void;
 interface NoticeEmitter {
@@ -62,34 +64,62 @@ describeDb('CompleteRealUnitConfirmFlow migration (real Postgres)', () => {
 
     await qr.query(`DROP TABLE IF EXISTS "aktionariat_registration" CASCADE`);
     await qr.query(`DROP TABLE IF EXISTS "real_unit_address_confirmation" CASCADE`);
+    await qr.query(`DROP TABLE IF EXISTS "log" CASCADE`);
 
-    // Minimal prerequisite tables (only the columns the migration touches). requiresEmailConfirmation is
-    // deliberately absent — the migration adds it.
-    await qr.query(`CREATE TABLE "aktionariat_registration" ("id" SERIAL PRIMARY KEY)`);
-    await qr.query(`INSERT INTO "aktionariat_registration" DEFAULT VALUES`);
-    await qr.query(`INSERT INTO "aktionariat_registration" DEFAULT VALUES`);
-    await qr.query(`INSERT INTO "aktionariat_registration" DEFAULT VALUES`);
-
+    // Minimal prerequisite registration table (only the columns the migration touches). confirmedDate and
+    // requiresEmailConfirmation are deliberately absent — the migration adds them. The registration column is
+    // canonically lowercased.
     await qr.query(
-      `CREATE TABLE "real_unit_address_confirmation" ("id" SERIAL PRIMARY KEY, "walletAddress" character varying(256) NOT NULL, "confirmedDate" TIMESTAMP, "created" TIMESTAMP NOT NULL DEFAULT now())`,
+      `CREATE TABLE "aktionariat_registration" ("id" SERIAL PRIMARY KEY, "walletAddress" character varying(256) NOT NULL, "email" character varying(256) NOT NULL, "active" boolean NOT NULL DEFAULT true)`,
     );
-    // the original non-unique index the migration converts to UNIQUE
+    const insertRegistration = (walletAddress: string, email: string, active: boolean) =>
+      qr.query(`INSERT INTO "aktionariat_registration" ("walletAddress", "email", "active") VALUES ($1,$2,$3)`, [
+        walletAddress,
+        email,
+        active,
+      ]);
+    // R1: active, wallet A — the confirmed one, must receive the bridged confirmedDate.
+    await insertRegistration(ADDR_A_LOWER, 'user@example.com', true);
+    // R2: active, wallet B — never confirmed, must stay null.
+    await insertRegistration(ADDR_B_LOWER, 'user@example.com', true);
+    // R3: INACTIVE, wallet A (historical/superseded) — must NOT receive the bridged date (active=true only).
+    await insertRegistration(ADDR_A_LOWER, 'user@example.com', false);
+
+    // Minimal prerequisite confirmation table (mixed-case wallets, as in prod) — the migration bridges then
+    // drops it.
+    await qr.query(
+      `CREATE TABLE "real_unit_address_confirmation" ("id" SERIAL PRIMARY KEY, "walletAddress" character varying(256) NOT NULL, "email" character varying(256) NOT NULL, "aktionariatUser" character varying(256) NOT NULL, "aktionariatCode" character varying(256) NOT NULL, "confirmedDate" TIMESTAMP, "responseStatus" integer, "response" text, "created" TIMESTAMP NOT NULL DEFAULT now())`,
+    );
     await qr.query(`CREATE INDEX "${INDEX}" ON "real_unit_address_confirmation" ("walletAddress")`);
-
-    const insertConfirmation = (walletAddress: string, confirmedDate: string | null, created: string) =>
+    const insertConfirmation = (
+      walletAddress: string,
+      confirmedDate: string | null,
+      responseStatus: number,
+      response: string,
+    ) =>
       qr.query(
-        `INSERT INTO "real_unit_address_confirmation" ("walletAddress", "confirmedDate", "created") VALUES ($1,$2,$3)`,
-        [walletAddress, confirmedDate, created],
+        `INSERT INTO "real_unit_address_confirmation" ("walletAddress", "email", "aktionariatUser", "aktionariatCode", "confirmedDate", "responseStatus", "response") VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [
+          walletAddress,
+          'user@example.com',
+          'aktionariat-user-1',
+          'CONFIRM-CODE',
+          confirmedDate,
+          responseStatus,
+          response,
+        ],
       );
+    // C1: confirmed (2xx), mixed-case wallet A — bridges onto R1 and is preserved to the DB log as Info.
+    await insertConfirmation(ADDR_A_CHECKSUM, CONFIRMED_DATE, 200, '{"status":200,"message":"ok"}');
+    // C2: unconfirmed invalid (4xx), mixed-case wallet C with NO matching registration — not bridged, but
+    // still preserved to the DB log (as Warning).
+    await insertConfirmation(ADDR_C_CHECKSUM, null, 403, '{"status":403,"message":"Code not found"}');
 
-    // 1) plain mixed-case row, confirmed
-    await insertConfirmation(ADDR_A, '2026-02-01T10:00:00Z', '2026-02-01T10:00:00Z');
-    // 2) case-collision pair on ADDR_B: the confirmed (latch) row is older, the unconfirmed variant newer.
-    //    The merge must keep the confirmed row and delete the case-variant.
-    await insertConfirmation(ADDR_B_UPPER, '2026-01-01T10:00:00Z', '2026-01-01T10:00:00Z'); // latch, kept
-    await insertConfirmation(ADDR_B_LOWER, null, '2026-03-01T10:00:00Z'); // newer, deleted
-    // 3) already-lowercase row, unconfirmed
-    await insertConfirmation(ADDR_C_LOWER, null, '2026-02-05T10:00:00Z');
+    // Minimal prerequisite DB `log` table (the columns the preservation INSERT targets; id/created/updated
+    // default). Mirrors the Log entity so the runtime shape is exercised.
+    await qr.query(
+      `CREATE TABLE "log" ("id" SERIAL PRIMARY KEY, "updated" TIMESTAMP NOT NULL DEFAULT now(), "created" TIMESTAMP NOT NULL DEFAULT now(), "system" character varying(256) NOT NULL, "subsystem" character varying(256) NOT NULL, "severity" character varying(256) NOT NULL, "message" text NOT NULL, "category" character varying(256), "valid" boolean)`,
+    );
   });
 
   afterEach(async () => {
@@ -101,7 +131,7 @@ describeDb('CompleteRealUnitConfirmFlow migration (real Postgres)', () => {
   const rows = (sql: string, params: any[] = []): Promise<any[]> => qr.query(sql, params);
   const count = async (sql: string, params: any[] = []): Promise<number> => Number((await rows(sql, params))[0].count);
 
-  it('adds requiresEmailConfirmation (default true) and grandfathers every existing registration to false', async () => {
+  it('adds confirmedDate + requiresEmailConfirmation (default true) and grandfathers every existing registration to false', async () => {
     await runUp();
 
     const def = (
@@ -112,6 +142,13 @@ describeDb('CompleteRealUnitConfirmFlow migration (real Postgres)', () => {
     )[0];
     expect(def.column_default).toBe('true');
 
+    const confirmedDateCol = await count(
+      `SELECT count(*) FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'aktionariat_registration' AND column_name = 'confirmedDate'`,
+      [SCHEMA],
+    );
+    expect(confirmedDateCol).toBe(1);
+
+    // all three pre-existing rows grandfathered
     expect(
       await count(`SELECT count(*) FROM "aktionariat_registration" WHERE "requiresEmailConfirmation" = false`),
     ).toBe(3);
@@ -120,53 +157,82 @@ describeDb('CompleteRealUnitConfirmFlow migration (real Postgres)', () => {
     ).toBe(0);
 
     // a NEW row still defaults to true (only pre-existing rows were grandfathered)
-    await qr.query(`INSERT INTO "aktionariat_registration" DEFAULT VALUES`);
+    await qr.query(
+      `INSERT INTO "aktionariat_registration" ("walletAddress", "email", "active") VALUES ('0xnew', 'new@example.com', true)`,
+    );
     expect(
       await count(`SELECT count(*) FROM "aktionariat_registration" WHERE "requiresEmailConfirmation" = true`),
     ).toBe(1);
   });
 
-  it('merges the case-collision keeping the confirmedDate latch, then lowercases every walletAddress', async () => {
+  it('bridges confirmedDate onto the ACTIVE registration via LOWER (mixed-case confirmation → lowercase registration)', async () => {
     await runUp();
 
-    // total drops from 4 to 3 (the case-variant duplicate is deleted)
-    expect(await count(`SELECT count(*) FROM "real_unit_address_confirmation"`)).toBe(3);
+    // R1 (active, wallet A) received the confirmed date from the mixed-case confirmation. Compare the exact
+    // value IN SQL against the seeded timestamp literal — the column is `timestamp without time zone`, so the
+    // node-pg driver would otherwise localise it on read and make an ISO-string compare timezone-fragile.
+    const active = await rows(
+      `SELECT "confirmedDate" IS NOT NULL AS is_set, "confirmedDate" = TIMESTAMP '2026-02-01 10:00:00' AS matches FROM "aktionariat_registration" WHERE "walletAddress" = $1 AND "active" = true`,
+      [ADDR_A_LOWER],
+    );
+    expect(active).toHaveLength(1);
+    expect(active[0].is_set).toBe(true);
+    expect(active[0].matches).toBe(true);
 
-    // every walletAddress is lowercase
-    expect(
-      await count(
-        `SELECT count(*) FROM "real_unit_address_confirmation" WHERE "walletAddress" <> lower("walletAddress")`,
-      ),
-    ).toBe(0);
+    // R3 (INACTIVE, wallet A) was NOT touched — the bridge only latches the active registration
+    const inactive = await rows(
+      `SELECT "confirmedDate" FROM "aktionariat_registration" WHERE "walletAddress" = $1 AND "active" = false`,
+      [ADDR_A_LOWER],
+    );
+    expect(inactive).toHaveLength(1);
+    expect(inactive[0].confirmedDate).toBeNull();
 
-    // Only one ADDR_B row survives, and it is the confirmed (latch-bearing) variant — the unconfirmed
-    // case-variant (confirmedDate IS NULL) was the one deleted. (IS NOT NULL keeps this timezone-agnostic;
-    // the column is `timestamp without time zone`.)
-    const bRows = await rows(
-      `SELECT ("confirmedDate" IS NOT NULL) AS confirmed FROM "real_unit_address_confirmation" WHERE "walletAddress" = $1`,
+    // R2 (active, wallet B) was never confirmed → stays null
+    const unconfirmed = await rows(
+      `SELECT "confirmedDate" FROM "aktionariat_registration" WHERE "walletAddress" = $1`,
       [ADDR_B_LOWER],
     );
-    expect(bRows).toHaveLength(1);
-    expect(bRows[0].confirmed).toBe(true);
+    expect(unconfirmed).toHaveLength(1);
+    expect(unconfirmed[0].confirmedDate).toBeNull();
   });
 
-  it('replaces the non-unique walletAddress index with a UNIQUE one under the same name', async () => {
+  it('preserves every confirmation as an Aktionariat/Confirmation DB-log row (severity mapped from responseStatus)', async () => {
     await runUp();
 
-    const idx = (
-      await rows(`SELECT indexdef FROM pg_indexes WHERE schemaname = $1 AND indexname = $2`, [SCHEMA, INDEX])
-    )[0];
-    expect(idx.indexdef).toContain('UNIQUE');
+    const logs = await rows(
+      `SELECT "system", "subsystem", "category", "severity", "message" FROM "log" WHERE "system" = 'Aktionariat' AND "subsystem" = 'Confirmation' ORDER BY "id"`,
+    );
+    // one row per existing confirmation (both C1 and C2 preserved, even the unconfirmed one)
+    expect(logs).toHaveLength(2);
+    for (const log of logs) {
+      expect(log.category).toBe('ServerCall');
+      const msg = JSON.parse(log.message);
+      expect(msg.action).toBe('confirmConnection');
+      expect(msg.migratedFrom).toBe('real_unit_address_confirmation');
+    }
 
-    // the UNIQUE index is enforced: a second row with the same lowercased wallet is rejected
-    await expect(
-      qr.query(`INSERT INTO "real_unit_address_confirmation" ("walletAddress", "created") VALUES ($1, now())`, [
-        ADDR_A.toLowerCase(),
-      ]),
-    ).rejects.toThrow();
+    // the confirmed 2xx confirmation is preserved as Info and carries its wallet/response
+    const confirmed = logs.find((l) => JSON.parse(l.message).walletAddress === ADDR_A_CHECKSUM);
+    expect(confirmed.severity).toBe('Info');
+    expect(JSON.parse(confirmed.message).email).toBe('user@example.com');
+    expect(JSON.parse(confirmed.message).responseStatus).toBe(200);
+
+    // the invalid 4xx confirmation is preserved as Warning
+    const invalid = logs.find((l) => JSON.parse(l.message).walletAddress === ADDR_C_CHECKSUM);
+    expect(invalid.severity).toBe('Warning');
   });
 
-  it('logs a reconciliation NOTICE with the grandfather, collision, delete and lowercase counts', async () => {
+  it('drops the real_unit_address_confirmation table', async () => {
+    await runUp();
+
+    const table = await count(
+      `SELECT count(*) FROM information_schema.tables WHERE table_schema = $1 AND table_name = 'real_unit_address_confirmation'`,
+      [SCHEMA],
+    );
+    expect(table).toBe(0);
+  });
+
+  it('logs a reconciliation NOTICE with the grandfather, bridge and preserve counts', async () => {
     const client = (await qr.connect()) as unknown as NoticeEmitter;
     const notices: string[] = [];
     const onNotice: NoticeListener = (msg) => notices.push(msg.message ?? '');
@@ -177,28 +243,50 @@ describeDb('CompleteRealUnitConfirmFlow migration (real Postgres)', () => {
       client.removeListener('notice', onNotice);
     }
 
-    const reconciliation = notices.find((n) => n.includes('CompleteRealUnitConfirmFlow reconciliation'));
+    const reconciliation = notices.find((n) => n.includes('CompleteRealUnitConfirmFlow consolidation'));
     expect(reconciliation).toBeDefined();
     expect(reconciliation).toContain('grandfathered registrations=3,');
-    expect(reconciliation).toContain('confirmation case-collision groups=1,');
-    expect(reconciliation).toContain('duplicate confirmation rows deleted=1,');
-    // ADDR_A and the kept ADDR_B latch row were mixed-case; ADDR_C was already lowercase
-    expect(reconciliation).toContain('confirmation rows lowercased=2');
+    // only C1 matches an active registration with a confirmedDate
+    expect(reconciliation).toContain('confirmedDate bridged onto registrations=1,');
+    // both confirmations preserved to the DB log
+    expect(reconciliation).toContain('confirmations preserved to DB log=2');
   });
 
-  it('down() drops the column and restores a non-unique walletAddress index', async () => {
+  it('down() recreates the confirmation table (non-unique index), reconstructs the confirmed rows, and drops the added columns', async () => {
     await runUp();
     await runDown();
 
-    const col = await count(
-      `SELECT count(*) FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'aktionariat_registration' AND column_name = 'requiresEmailConfirmation'`,
-      [SCHEMA],
-    );
-    expect(col).toBe(0);
+    // the added registration columns are gone
+    expect(
+      await count(
+        `SELECT count(*) FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'aktionariat_registration' AND column_name IN ('confirmedDate', 'requiresEmailConfirmation')`,
+        [SCHEMA],
+      ),
+    ).toBe(0);
 
+    // the table is back with a NON-unique walletAddress index
     const idx = (
       await rows(`SELECT indexdef FROM pg_indexes WHERE schemaname = $1 AND indexname = $2`, [SCHEMA, INDEX])
     )[0];
     expect(idx.indexdef).not.toContain('UNIQUE');
+
+    // exactly the confirmed wallet is reconstructed (from the ACTIVE registration's confirmedDate), lowercased
+    const reconstructed = await rows(
+      `SELECT "walletAddress", "confirmedDate", "aktionariatUser" FROM "real_unit_address_confirmation"`,
+    );
+    expect(reconstructed).toHaveLength(1);
+    expect(reconstructed[0].walletAddress).toBe(ADDR_A_LOWER);
+    expect(reconstructed[0].confirmedDate).toBeInstanceOf(Date);
+    // the non-derivable columns get empty-string placeholders
+    expect(reconstructed[0].aktionariatUser).toBe('');
+  });
+
+  it('leaves the preserved DB-log audit rows in place after a down() rollback (durable audit trail)', async () => {
+    await runUp();
+    await runDown();
+
+    expect(
+      await count(`SELECT count(*) FROM "log" WHERE "system" = 'Aktionariat' AND "subsystem" = 'Confirmation'`),
+    ).toBe(2);
   });
 });

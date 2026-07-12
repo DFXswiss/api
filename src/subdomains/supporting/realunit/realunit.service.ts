@@ -65,7 +65,7 @@ import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { transliterate } from 'transliteration';
-import { EntityManager, FindOptionsRelations, In, IsNull, Not, Raw } from 'typeorm';
+import { EntityManager, FindOptionsRelations, In, Not, Raw } from 'typeorm';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
 import {
@@ -120,11 +120,9 @@ import {
   RegistrationRequiredException,
 } from './exceptions/buy-exceptions';
 import { AktionariatRegistration } from './entities/aktionariat-registration.entity';
-import { RealUnitAddressConfirmation } from './entities/realunit-address-confirmation.entity';
 import { PriceSourceUnavailableException } from './exceptions/price-source-unavailable.exception';
 import { RealUnitDevService } from './realunit-dev.service';
 import { AktionariatRegistrationRepository } from './repositories/aktionariat-registration.repository';
-import { RealUnitAddressConfirmationRepository } from './repositories/realunit-address-confirmation.repository';
 import { accountHistoryQuery, accountSummaryQuery, holdersQuery, tokenInfoQuery } from './utils/queries';
 import { TimeseriesUtils } from './utils/timeseries-utils';
 
@@ -217,7 +215,6 @@ export class RealUnitService {
     private readonly swissQrService: SwissQRService,
     private readonly feeService: FeeService,
     private readonly faucetRequestService: FaucetRequestService,
-    private readonly addressConfirmationRepo: RealUnitAddressConfirmationRepository,
     private readonly aktionariatRegistrationRepo: AktionariatRegistrationRepository,
     private readonly logService: LogService,
   ) {
@@ -781,7 +778,7 @@ export class RealUnitService {
       const state = isForCurrentWallet
         ? RealUnitRegistrationState.ALREADY_REGISTERED
         : RealUnitRegistrationState.ADD_WALLET;
-      const { emailConfirmed, confirmedDate } = await this.resolveEmailConfirmation(registration);
+      const { emailConfirmed, confirmedDate } = this.resolveEmailConfirmation(registration);
       return {
         isRegistered: state === RealUnitRegistrationState.ALREADY_REGISTERED,
         state,
@@ -1033,20 +1030,16 @@ export class RealUnitService {
     return { registration: otherWallet, isForCurrentWallet: false };
   }
 
-  // Read-back of the per-wallet email-confirmation state for the registration-info endpoint. A registration
-  // counts as confirmed when it is grandfathered (requiresEmailConfirmation === false — pre-existing rows the
-  // completion migration exempted) OR a confirmation row with a confirmedDate latch exists for this wallet.
-  // The confirmation table stores walletAddress canonically lowercased and UNIQUE, matching the lowercased
-  // registration column, so this is a single exact-match indexed lookup (no N+1, no LOWER() scan).
-  private async resolveEmailConfirmation(
-    registration: AktionariatRegistration,
-  ): Promise<{ emailConfirmed: boolean; confirmedDate?: Date }> {
-    const confirmation = await this.addressConfirmationRepo.findOne({
-      where: { walletAddress: registration.walletAddress.toLowerCase(), confirmedDate: Not(IsNull()) },
-      select: { id: true, confirmedDate: true },
-    });
-
-    const confirmedDate = confirmation?.confirmedDate ?? undefined;
+  // Read-back of the per-wallet email-confirmation state for the registration-info endpoint. Both fields live
+  // ON the registration row already loaded (single source of truth — no separate table, no join): a
+  // registration counts as confirmed when it is grandfathered (requiresEmailConfirmation === false —
+  // pre-existing rows the completion migration exempted) OR its first-confirmation latch (confirmedDate) is
+  // set. confirmedDate is surfaced as-is.
+  private resolveEmailConfirmation(registration: AktionariatRegistration): {
+    emailConfirmed: boolean;
+    confirmedDate?: Date;
+  } {
+    const confirmedDate = registration.confirmedDate ?? undefined;
     const emailConfirmed = registration.requiresEmailConfirmation === false || confirmedDate != null;
     return { emailConfirmed, confirmedDate };
   }
@@ -1915,10 +1908,6 @@ export class RealUnitService {
     );
 
     const confirmed = status === RealUnitAktionariatConfirmationStatus.CONFIRMED;
-    // Transient timestamp of THIS confirming call. It becomes the stored latch only on a wallet's FIRST
-    // confirmation (see persistAddressConfirmation); it stays undefined on a non-confirming attempt so the
-    // latch is never advanced or cleared.
-    const attemptDate = confirmed ? new Date() : undefined;
     // Severity of the DB audit row: a confirmed call is INFO, an invalid/expired link is a benign WARNING,
     // an unavailable Aktionariat is an ERROR (a system fault to alert on).
     const logSeverity =
@@ -1928,30 +1917,30 @@ export class RealUnitService {
           ? LogSeverity.WARNING
           : LogSeverity.ERROR;
 
-    // The 2xx response must surface the PERSISTED first-confirmation date (the latch), never this call's
-    // transient attempt time. Keep the first persisted date we observe (all of an email's wallets share this call).
+    // Audit the WHOLE call exactly ONCE — BEFORE touching any registration and OUTSIDE any wallet loop — so a
+    // 0-match call (email resolved to zero wallets) is still fully and durably recorded in the DB `log`, the
+    // designated PII audit store. `response` is the successful body (undefined on error), `error` the full
+    // error body (undefined on success). Best-effort: a logging failure must never fail the confirmation.
+    await this.logAktionariatConfirmation(logSeverity, {
+      email,
+      code,
+      user,
+      walletAddresses,
+      response: error == null ? responseBody : undefined,
+      error,
+    });
+
+    // On a confirming (2xx) call, latch the first-confirmation date onto each resolved wallet's active
+    // registration. The 2xx response must surface the PERSISTED first-confirmation date (the latch), never
+    // this call's transient attempt time; keep the first persisted date we observe (all of an email's wallets
+    // share this call).
     let confirmedDate: Date | undefined;
-    for (const walletAddress of walletAddresses) {
-      const persistedDate = await this.persistAddressConfirmation({
-        walletAddress,
-        email,
-        aktionariatUser: user,
-        aktionariatCode: code,
-        httpStatus,
-        responseBody,
-        confirmedDate: attemptDate,
-      });
-      confirmedDate ??= persistedDate;
-      // Append the FULL communication to the DB `log` audit store — one row per wallet. `response` is the
-      // successful body (undefined on error), `error` the full error body (undefined on success), mirroring
-      // the registration audit. Best-effort: it must never fail the confirmation.
-      await this.logAktionariatConfirmation(logSeverity, {
-        email,
-        code,
-        walletAddress,
-        response: error == null ? responseBody : undefined,
-        error,
-      });
+    if (confirmed) {
+      const attemptDate = new Date();
+      for (const walletAddress of walletAddresses) {
+        const persistedDate = await this.applyRegistrationConfirmation(walletAddress, attemptDate);
+        confirmedDate ??= persistedDate;
+      }
     }
 
     return {
@@ -2040,73 +2029,51 @@ export class RealUnitService {
     return RealUnitAktionariatConfirmationStatus.UNAVAILABLE;
   }
 
-  private async persistAddressConfirmation(data: {
-    walletAddress: string;
-    email: string;
-    aktionariatUser: string;
-    aktionariatCode: string;
-    httpStatus?: number;
-    responseBody: unknown;
-    confirmedDate?: Date;
-  }): Promise<Date | undefined> {
-    // Store the wallet canonically lowercased: matches the lowercased registration bridge (so the read-back
-    // exact-matches) and the UNIQUE index (so the upsert cannot fan out into duplicate rows).
-    const walletAddress = data.walletAddress.toLowerCase();
+  // Latch the first-confirmation date onto a wallet's ACTIVE registration — the single source of truth for the
+  // confirmed state (read back directly by resolveEmailConfirmation, no separate table, no join). Runs in a
+  // short advisory-locked transaction (serialised per wallet cluster-wide, auto-released at txn end) so two
+  // concurrent confirms for the same wallet cannot both write. Sets confirmedDate ONLY if still null
+  // (first-wins latch: a later confirming call keeps the original date, never advances or clears it) and
+  // returns the stored (first) confirmedDate. In prod a resolved wallet always has exactly one active
+  // registration; if none matches this is a safe no-op — the call is still fully recorded in the DB `log`
+  // audit written once per call above.
+  private async applyRegistrationConfirmation(walletAddress: string, confirmedDate: Date): Promise<Date | undefined> {
+    // The registration's queryable walletAddress column is canonically lowercased; match it exactly.
+    const lowerAddress = walletAddress.toLowerCase();
 
-    try {
-      return await this.addressConfirmationRepo.manager.transaction(async (manager) => {
-        // Serialise the per-wallet upsert cluster-wide (auto-released at txn end) so two concurrent confirm
-        // calls for the same wallet cannot both insert; paired with the UNIQUE(walletAddress) index.
-        await manager.query('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [
-          'real_unit_address_confirmation',
-          walletAddress,
-        ]);
+    return this.aktionariatRegistrationRepo.manager.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))', [
+        'aktionariat_registration',
+        lowerAddress,
+      ]);
 
-        const existing = await manager.findOne(RealUnitAddressConfirmation, { where: { walletAddress } });
-        const entity: RealUnitAddressConfirmation = existing ?? this.addressConfirmationRepo.create({ walletAddress });
-        entity.email = data.email;
-        entity.aktionariatUser = data.aktionariatUser;
-        entity.aktionariatCode = data.aktionariatCode;
-        entity.responseStatus = data.httpStatus;
-        entity.responseData = data.responseBody;
-        // confirmedDate is a first-confirmation latch: set only on the FIRST confirmation, never advanced or
-        // regressed (a later confirming call keeps the original date; a non-confirming attempt never clears it).
-        if (data.confirmedDate && entity.confirmedDate == null) entity.confirmedDate = data.confirmedDate;
-
-        await manager.save(entity);
-
-        const action = existing ? 'Updated' : 'Created';
-        const statusText = data.httpStatus ?? 'none';
-        this.logger.info(
-          `${action} Aktionariat confirmation record for wallet ${walletAddress} (responseStatus: ${statusText}, confirmed: ${!!entity.confirmedDate})`,
-        );
-
-        // Return the PERSISTED latch so the caller's 2xx response reflects the stored first-confirmation date.
-        return entity.confirmedDate;
+      const registration = await manager.findOne(AktionariatRegistration, {
+        where: { walletAddress: lowerAddress, active: true },
       });
-    } catch (error) {
-      // A unique_violation (23505) means a concurrent confirm inserted the row first. The latch is monotonic
-      // and every attempt converges on the same current state, so this is an idempotent no-op, not a failure.
-      if (this.isUniqueViolation(error)) {
-        this.logger.info(
-          `RealUnit address confirmation concurrency collision resolved as idempotent for wallet ${walletAddress}`,
-        );
-        // A concurrent confirm won the insert; the row now exists. Surface this attempt's date so a confirmed
-        // response still carries a timestamp (the stored latch is the earliest of the racing calls regardless).
-        return data.confirmedDate;
+      if (!registration) {
+        this.logger.warn(`No active RealUnit registration to confirm for wallet ${lowerAddress}`);
+        return undefined;
       }
-      throw error;
-    }
+
+      // First-confirmation latch: set only on the FIRST confirmation, never advanced or regressed.
+      if (registration.confirmedDate == null) {
+        registration.confirmedDate = confirmedDate;
+        await manager.save(registration);
+      }
+
+      // Return the PERSISTED latch so the caller's 2xx response reflects the stored first-confirmation date.
+      return registration.confirmedDate;
+    });
   }
 
-  // Audit mirror of a single Aktionariat confirm-connection call into the DB `log` table (the DESIGNATED PII
-  // audit store, own access-control/retention — UNLIKE Loki, the PII-free channel of the this.logger.* lines).
-  // Records the FULL communication (email, code, wallet, response, error body) as one append-only row per
-  // wallet, for a complete replayable trail. Best-effort: a logging failure must never fail the confirmation,
-  // but it is surfaced loudly (never swallowed).
+  // Audit mirror of an Aktionariat confirm-connection call into the DB `log` table (the DESIGNATED PII audit
+  // store, own access-control/retention — UNLIKE Loki, the PII-free channel of the this.logger.* lines).
+  // Records the FULL communication (email, code, aktionariat user, resolved wallets, response, error body) as
+  // ONE append-only row per CALL — fired once for the whole call, even a 0-match one, so no confirmation is
+  // ever lost. Best-effort: a logging failure must never fail the confirmation, but it is surfaced loudly.
   private async logAktionariatConfirmation(
     severity: LogSeverity,
-    data: { email: string; code: string; walletAddress: string; response: unknown; error?: unknown },
+    data: { email: string; code: string; user: string; walletAddresses: string[]; response: unknown; error?: unknown },
   ): Promise<void> {
     try {
       await this.logService.create({
@@ -2118,19 +2085,21 @@ export class RealUnitService {
           action: 'confirmConnection',
           email: data.email,
           code: data.code,
-          walletAddress: data.walletAddress,
+          user: data.user,
+          walletAddresses: data.walletAddresses,
           response: data.response,
           error: this.describeError(data.error),
           // Uniqueness marker so LogService.create() never dedups two byte-identical consecutive audit rows
-          // (e.g. an identical same-wallet re-confirm): EVERY confirm-flow call must produce its own row.
+          // (e.g. an identical same-email re-confirm): EVERY confirm-flow call must produce its own row.
           loggedAt: new Date().toISOString(),
           logNonce: Util.randomString(8),
         }),
         valid: null,
       });
     } catch (e) {
+      // Loki is PII-free: only the masked email reaches this.logger.error.
       this.logger.error(
-        `Failed to write Aktionariat confirmation log for wallet ${data.walletAddress}: ${e?.message || e}`,
+        `Failed to write Aktionariat confirmation log for ${this.maskEmail(data.email)}: ${e?.message || e}`,
       );
     }
   }

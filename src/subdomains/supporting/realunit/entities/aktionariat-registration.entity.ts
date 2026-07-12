@@ -57,6 +57,15 @@ export class AktionariatRegistration extends IEntity {
   @Column({ default: true })
   requiresEmailConfirmation: boolean;
 
+  // First-confirmation latch and single source of truth for the customer-facing confirmed state: set on the
+  // FIRST Aktionariat 2xx confirm for this wallet and never advanced or regressed afterwards. Drives the
+  // authenticated read-back's emailConfirmed (a non-null latch OR a grandfathered requiresEmailConfirmation
+  // === false counts as confirmed). Null until the wallet is confirmed. The full, append-only history of
+  // every confirm call — including 0-match ones — lives in the DB `log` table (system Aktionariat / subsystem
+  // Confirmation), not here.
+  @Column({ type: 'timestamp', nullable: true })
+  confirmedDate?: Date;
+
   // --- JSON GETTERS / SETTERS (canonical DFX pattern, never expose the raw string) --- //
 
   get signedPayloadData(): AktionariatRegistrationDto | undefined {
