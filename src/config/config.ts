@@ -23,6 +23,7 @@ import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-d
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
+import { RealUnitLegalAgreement } from 'src/subdomains/supporting/realunit/enums/realunit-legal-agreement.enum';
 import { LoggerOptions } from 'typeorm';
 import { EVM_CHAINS } from './chains.config';
 
@@ -1110,6 +1111,18 @@ export class Configuration {
         2024: 1.13,
         2025: 1.37,
       } as Record<number, number>,
+      // Current version (format YYYYMMDD) of each RealUnit legal agreement the user must accept. Acceptances are
+      // stored per version (real_unit_legal_acceptance), so bumping an entry here to the day the document changed
+      // reports every user who only accepted an older version as needing re-acceptance — no migration required.
+      // `satisfies` keeps the literal versions while enforcing that every agreement has an entry at compile time.
+      legalVersions: {
+        [RealUnitLegalAgreement.RESIDENCE_CONFIRMATION]: '20260712',
+        [RealUnitLegalAgreement.TAX_DOMICILE_SELF_CERTIFICATION]: '20260712',
+        [RealUnitLegalAgreement.REALUNIT_PRIVACY_POLICY]: '20260712',
+        [RealUnitLegalAgreement.REALUNIT_REGISTRATION_AGREEMENT]: '20260712',
+        [RealUnitLegalAgreement.AKTIONARIAT_TERMS_OF_SERVICE]: '20260712',
+        [RealUnitLegalAgreement.DFX_TERMS_AND_CONDITIONS]: '20260712',
+      } satisfies Record<RealUnitLegalAgreement, string>,
     },
     ebel2x: {
       contractAddress: process.env.EBEL2X_CONTRACT_ADDRESS,

@@ -19,19 +19,23 @@ import { PaymentModule } from '../payment/payment.module';
 import { TransactionModule } from '../payment/transaction.module';
 import { PricingModule } from '../pricing/pricing.module';
 import { RealUnitComplianceController } from './controllers/realunit-compliance.controller';
+import { RealUnitLegalController } from './controllers/realunit-legal.controller';
 import { RealUnitSupportController } from './controllers/realunit-support.controller';
 import { RealUnitController } from './controllers/realunit.controller';
 import { AktionariatRegistration } from './entities/aktionariat-registration.entity';
+import { RealUnitLegalAcceptance } from './entities/realunit-legal-acceptance.entity';
 import { RealUnitComplianceService } from './realunit-compliance.service';
 import { RealUnitDevService } from './realunit-dev.service';
 import { RealUnitJobService } from './realunit-job.service';
+import { RealUnitLegalService } from './realunit-legal.service';
 import { RealUnitScopeService } from './realunit-scope.service';
 import { RealUnitService } from './realunit.service';
 import { AktionariatRegistrationRepository } from './repositories/aktionariat-registration.repository';
+import { RealUnitLegalAcceptanceRepository } from './repositories/realunit-legal-acceptance.repository';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([AktionariatRegistration]),
+    TypeOrmModule.forFeature([AktionariatRegistration, RealUnitLegalAcceptance]),
     SharedModule,
     LogModule,
     PricingModule,
@@ -51,14 +55,16 @@ import { AktionariatRegistrationRepository } from './repositories/aktionariat-re
     FaucetRequestModule,
     SupportIssueModule,
   ],
-  controllers: [RealUnitController, RealUnitSupportController, RealUnitComplianceController],
+  controllers: [RealUnitController, RealUnitSupportController, RealUnitComplianceController, RealUnitLegalController],
   providers: [
     RealUnitService,
     RealUnitDevService,
     RealUnitJobService,
     RealUnitScopeService,
     RealUnitComplianceService,
+    RealUnitLegalService,
     AktionariatRegistrationRepository,
+    RealUnitLegalAcceptanceRepository,
   ],
   exports: [RealUnitService, RealUnitScopeService],
 })
