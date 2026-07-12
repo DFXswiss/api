@@ -1390,12 +1390,14 @@ describe('RealUnitService', () => {
       });
       const logMessage = JSON.parse(log.message);
       expect(logMessage.action).toBe('registerUser');
-      // PII trim: only the request field NAMES are logged, never the personal-data values
-      expect(logMessage.requestFields).toContain('walletAddress');
-      expect(logMessage.requestFields).toContain('name');
-      expect(logMessage.request).toBeUndefined();
-      // P2: only the response field NAMES are logged, never the raw body (which echoes email/name)
-      expect(logMessage.response).toEqual({ fields: ['aktionariatId'] });
+      // DB log is the DESIGNATED PII audit store: it now records the FULL sent payload (actual values),
+      // not just the request field names
+      expect(logMessage.request).toEqual(forwardedPayload());
+      expect(logMessage.request.email).toBe(dto.email);
+      expect(logMessage.request.name).toBe('Erika Müller');
+      expect(logMessage.request.walletAddress).toBe(wallet);
+      // and the FULL Aktionariat response body, not a field-name summary
+      expect(logMessage.response).toEqual({ aktionariatId: 'ak-1' });
 
       // the forward is bounded (it runs inside the advisory-locked transaction)
       const postConfig = (httpService.post as jest.Mock).mock.calls[0][2];
@@ -1554,49 +1556,30 @@ describe('RealUnitService', () => {
       expect(ensureSpy).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
     });
 
-    it('redacts the Aktionariat error body to status/type only in the audit log (no PII)', async () => {
+    it('writes the full Aktionariat error body to the DB log but keeps the Loki line redacted', async () => {
       const wallet = softwareWallet.address;
       const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
       const dto = buildDto(utf8Fields(wallet), signature);
       const leaked = 'leaked.person@example.com';
+      const errorBody = { message: `E-Mail ${leaked} already registered` };
       httpService.post.mockRejectedValue({
         name: 'ConflictException',
-        response: { status: 409, data: { message: `E-Mail ${leaked} already registered` } },
+        response: { status: 409, data: errorBody },
       });
 
       const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
 
       expect(ok).toBe(false);
+      // DB log is the DESIGNATED PII audit store: it now carries the FULL Aktionariat error body verbatim
       const errorLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.ERROR)[0];
-      const msg = JSON.parse(errorLog.message);
-      expect(msg.error).toBe('status=409 type=ConflictException');
-      expect(errorLog.message).not.toContain(leaked); // raw body never mirrored into the Log table
-    });
-
-    it('summarises an array Aktionariat response to its length only in the audit log (no raw items)', async () => {
-      const wallet = softwareWallet.address;
-      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
-      const dto = buildDto(utf8Fields(wallet), signature);
-      httpService.post.mockResolvedValue([{ a: 1 }, { b: 2 }] as any);
-
-      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
-
-      expect(ok).toBe(true);
-      const infoLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.INFO)[0];
-      expect(JSON.parse(infoLog.message).response).toEqual({ length: 2 });
-    });
-
-    it('summarises a primitive Aktionariat response to its type only in the audit log', async () => {
-      const wallet = softwareWallet.address;
-      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
-      const dto = buildDto(utf8Fields(wallet), signature);
-      httpService.post.mockResolvedValue(42 as any);
-
-      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
-
-      expect(ok).toBe(true);
-      const infoLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.INFO)[0];
-      expect(JSON.parse(infoLog.message).response).toBe('number');
+      expect(JSON.parse(errorLog.message).error).toEqual(errorBody);
+      expect(errorLog.message).toContain(leaked); // the full body IS present in the PII audit store (by design)
+      // Loki (this.logger.error) stays redacted: status/type only, never the leaked email
+      const lokiLine = ((service as any).logger.error as jest.Mock).mock.calls
+        .map((c) => String(c[0]))
+        .find((m) => m.includes('Failed to forward RealUnit registration to Aktionariat'));
+      expect(lokiLine).toContain('status=409 type=ConflictException');
+      expect(lokiLine).not.toContain(leaked);
     });
 
     it('lifts the wallet-user to KYC level 20 on first registration', async () => {
@@ -1685,9 +1668,9 @@ describe('RealUnitService', () => {
       // single persist attempt: the transaction rolls back, no MANUAL_REVIEW fallback write
       expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
       const errorLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.ERROR)[0];
-      // the persist-failure path carries no registerResponse; the DB error is summarised (message only, non-PII)
+      // the persist-failure path carries no registerResponse; the DB log records the full Error body (name+message)
       expect(JSON.parse(errorLog.message).response).toBeUndefined();
-      expect(JSON.parse(errorLog.message).error).toBe('db down');
+      expect(JSON.parse(errorLog.message).error).toEqual({ name: 'Error', message: 'db down' });
     });
 
     it('surfaces the forward root cause in the audit log (and the raw-string persist error to the app log) when both fail', async () => {
@@ -1708,7 +1691,7 @@ describe('RealUnitService', () => {
       );
       const errorLog = (logService.create as jest.Mock).mock.calls.find((c) => c[0].severity === LogSeverity.ERROR)[0];
       // the audit log keeps the forward root cause (forwardError ?? error prefers the original forward error)
-      expect(JSON.parse(errorLog.message).error).toBe('aktionariat down');
+      expect(JSON.parse(errorLog.message).error).toEqual({ name: 'Error', message: 'aktionariat down' });
     });
 
     it('keeps a successful registration when the audit log write rejects without a message', async () => {
@@ -1804,25 +1787,51 @@ describe('RealUnitService', () => {
     });
   });
 
-  describe('summarizeResponse (PII-safe audit summary)', () => {
-    it('passes the internal DEV/LOC marker through verbatim', () => {
-      expect((service as any).summarizeResponse('skipped (DEV/LOC)')).toBe('skipped (DEV/LOC)');
+  describe('describeError (full error body for the PII audit DB log)', () => {
+    it('returns the Aktionariat HTTP error body verbatim when present (the useful, complete part)', () => {
+      const body = { message: 'E-Mail erika.mueller@example.com already registered' };
+      const error = { name: 'ConflictException', response: { status: 409, data: body } };
+      expect((service as any).describeError(error)).toEqual(body);
     });
 
-    it('reduces any other string body to a non-PII {type,length} shape (never echoes it)', () => {
-      const leaky = 'user erika.mueller@example.com already registered';
-      expect((service as any).summarizeResponse(leaky)).toEqual({ type: 'string', length: leaky.length });
+    it('prefers the HTTP error body over the Error identity for a real Error carrying a response (Axios shape)', () => {
+      const body = { message: 'E-Mail erika.mueller@example.com already registered' };
+      const error = Object.assign(new Error('Request failed with status code 409'), {
+        response: { status: 409, data: body },
+      });
+      expect((service as any).describeError(error)).toEqual(body);
     });
 
-    it('reduces an object to its field names, an array to its length and a primitive to its type', () => {
-      expect((service as any).summarizeResponse({ email: 'x', name: 'y' })).toEqual({ fields: ['email', 'name'] });
-      expect((service as any).summarizeResponse([1, 2, 3])).toEqual({ length: 3 });
-      expect((service as any).summarizeResponse(7)).toBe('number');
+    it('returns a string error as-is', () => {
+      expect((service as any).describeError('No user found for RealUnit wallet 0xabc')).toBe(
+        'No user found for RealUnit wallet 0xabc',
+      );
     });
 
-    it('returns undefined for a null or undefined response', () => {
-      expect((service as any).summarizeResponse(null)).toBeUndefined();
-      expect((service as any).summarizeResponse(undefined)).toBeUndefined();
+    it("returns an Error's name and message", () => {
+      expect((service as any).describeError(new TypeError('boom'))).toEqual({ name: 'TypeError', message: 'boom' });
+    });
+
+    it('falls back to the Error identity when the HTTP error body is null or empty', () => {
+      const nullBody = Object.assign(new Error('boom'), {
+        name: 'InternalServerError',
+        response: { status: 500, data: null },
+      });
+      expect((service as any).describeError(nullBody)).toEqual({ name: 'InternalServerError', message: 'boom' });
+      const emptyBody = Object.assign(new Error('boom'), {
+        name: 'BadGateway',
+        response: { status: 502, data: '' },
+      });
+      expect((service as any).describeError(emptyBody)).toEqual({ name: 'BadGateway', message: 'boom' });
+    });
+
+    it('returns a raw non-Error, non-body value unchanged', () => {
+      expect((service as any).describeError({ code: 'ETIMEDOUT' })).toEqual({ code: 'ETIMEDOUT' });
+    });
+
+    it('returns undefined for a null or undefined error', () => {
+      expect((service as any).describeError(null)).toBeUndefined();
+      expect((service as any).describeError(undefined)).toBeUndefined();
     });
   });
 
