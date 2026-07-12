@@ -718,7 +718,7 @@ export class RealUnitController {
     description:
       "Returns the server's current registration date (UTC). The client must sign this exact value into the " +
       'EIP-712 registration envelope submitted to POST /register/complete and POST /register/wallet, rather than ' +
-      'deriving the date from its own clock — a device in a timezone ahead of UTC would otherwise sign tomorrow\'s ' +
+      "deriving the date from its own clock — a device in a timezone ahead of UTC would otherwise sign tomorrow's " +
       'date and be rejected. Fetch this immediately before signing.',
   })
   @ApiOkResponse({ type: RealUnitRegistrationDateDto })

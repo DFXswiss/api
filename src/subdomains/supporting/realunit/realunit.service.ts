@@ -864,9 +864,25 @@ export class RealUnitService {
       throw new BadRequestException('Invalid signature');
     }
 
+    this.validateRegistrationDate(fullDto.registrationDate);
+
     const success = await this.forwardRegistration(userData, fullDto);
 
     return success ? RealUnitRegistrationStatus.COMPLETED : RealUnitRegistrationStatus.FORWARDING_FAILED;
+  }
+
+  // The client obtains registrationDate from GET /realunit/register/date (server
+  // truth) and signs it, so it can never run ahead of the server. We accept today
+  // OR yesterday (UTC) to tolerate the client fetch-sign-submit round-trip
+  // straddling a UTC midnight boundary; anything else is stale or forged and is
+  // rejected fail-closed. Shared by both registration paths (register/complete and
+  // register/wallet) so the signed-date freshness check stays symmetric.
+  private validateRegistrationDate(registrationDate: string): void {
+    const now = new Date();
+    const acceptedDates = [Util.isoDate(now), Util.isoDate(Util.daysBefore(1, now))];
+    if (!acceptedDates.includes(registrationDate)) {
+      throw new BadRequestException('Registration date must be today or yesterday (UTC)');
+    }
   }
 
   private async validateRegistrationDto(dto: RealUnitRegistrationDto): Promise<void> {
@@ -875,18 +891,10 @@ export class RealUnitService {
       throw new BadRequestException('Invalid signature');
     }
 
-    // Registration date validation. The client obtains this date from
-    // GET /realunit/register/date (server truth) and signs it, so it can never
-    // run ahead of the server. We accept today OR yesterday (UTC) to tolerate
-    // the client fetch-sign-submit round-trip straddling a UTC midnight
-    // boundary; anything else is stale or forged and is rejected fail-closed.
-    const now = new Date();
-    const acceptedDates = [Util.isoDate(now), Util.isoDate(Util.daysBefore(1, now))];
-    if (!acceptedDates.includes(dto.registrationDate)) {
-      throw new BadRequestException('Registration date must be today');
-    }
+    this.validateRegistrationDate(dto.registrationDate);
 
     // birthday validation - must be valid date, not in future, not older than 140 years
+    const now = new Date();
     const birthday = new Date(dto.birthday);
     if (isNaN(birthday.getTime())) throw new BadRequestException('Invalid birthday date');
     if (birthday > now) throw new BadRequestException('Birthday cannot be in the future');
