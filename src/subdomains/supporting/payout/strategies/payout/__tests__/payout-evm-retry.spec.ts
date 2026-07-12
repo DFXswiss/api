@@ -1,5 +1,5 @@
 import { mock } from 'jest-mock-extended';
-import { ConfigService } from 'src/config/config';
+import { Config, ConfigService } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
@@ -24,6 +24,7 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
     let pricingService: PricingService;
     let dispatchFn: jest.Mock;
     let repoSaveSpy: jest.SpyInstance;
+    let convertFn: jest.Mock;
 
     beforeEach(() => {
       new ConfigService(); // sets the module-level Config (Config.defaultVolumeDecimal used by recordPayoutFee)
@@ -41,7 +42,8 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       // pricingService is an @Inject() readonly property on PayoutStrategy; there is no DI in the
       // unit test, so define it directly on the instance.
       Object.defineProperty(strategy, 'pricingService', { value: pricingService, configurable: true });
-      jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: () => 42 } as any);
+      convertFn = jest.fn().mockReturnValue(42);
+      jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: convertFn } as any);
     });
 
     afterEach(() => {
@@ -62,6 +64,7 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       expect(payoutEvmService.getPayoutCompletionData).toHaveBeenCalledWith('TX_OK');
       expect(pricingService.getPrice).toHaveBeenCalledWith(expect.any(Asset), PriceCurrency.CHF, PriceValidity.ANY);
       expect(completeSpy).toHaveBeenCalledTimes(1);
+      expect(convertFn).toHaveBeenCalledWith(0.001, Config.defaultVolumeDecimal);
       expect(recordFeeSpy).toHaveBeenCalledTimes(1);
       expect(recordFeeSpy).toHaveBeenCalledWith(expect.any(Asset), 0.001, 42);
       expect(order.status).toBe(PayoutOrderStatus.COMPLETE);
@@ -162,6 +165,26 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
       expect(order.payoutTxId).toBe('TX_PENDING');
       expect(repoSaveSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('EvmStrategy #canRetryFailedPayout(...)', () => {
+    let strategy: EvmStrategyWrapper;
+
+    beforeEach(() => {
+      const payoutEvmService = mock<PayoutEvmService>();
+      const payoutOrderRepo = mock<PayoutOrderRepository>();
+      strategy = new EvmStrategyWrapper(payoutEvmService, payoutOrderRepo, jest.fn());
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('returns false when the order has no payoutTxId (nothing broadcast yet, nothing to retry)', async () => {
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: null });
+
+      await expect(strategy.canRetryFailedPayout(order)).resolves.toBe(false);
     });
   });
 });
