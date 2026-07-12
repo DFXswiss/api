@@ -1184,12 +1184,12 @@ export class RealUnitService {
   // REALUNIT_REGISTRATION kyc_step is created anymore; KYC level 20 is lifted best-effort (self-healing).
   //
   // The Aktionariat POST runs OUTSIDE any DB transaction, so no pooled connection is held across the (up to
-  // 30s) external call. Aktionariat's registerUser is an upsert (register == update), so if a transient DB
-  // failure rolls back the persist after a successful POST, the client retry harmlessly re-POSTs (an update,
-  // never a duplicate) and then persists — self-healing, no durable intent row needed. Concurrency is still
-  // serialised on the wallet-user by a short per-persist advisory lock plus the partial unique index: two
-  // concurrent callers may both (harmlessly) POST, but only one COMPLETED row is written; the second observes
-  // it and returns the idempotent success.
+  // 30s) external call. Aktionariat's registerUser is idempotent — an upsert keyed on the wallet (register ==
+  // update), confirmed with Aktionariat — so if a transient DB failure rolls back the persist after a
+  // successful POST, the client retry harmlessly re-POSTs (an update, never a duplicate) and then persists —
+  // self-healing, no durable intent row needed. Concurrency is still serialised on the wallet-user by a short
+  // per-persist advisory lock plus the partial unique index: two concurrent callers may both (harmlessly)
+  // POST, but only one COMPLETED row is written; the second observes it and returns the idempotent success.
   private async forwardRegistration(userData: UserData, dto: RealUnitRegistrationDto): Promise<boolean> {
     const { api } = Config.blockchain.realunit;
     const skipForward = [Environment.DEV, Environment.LOC].includes(Config.environment);
@@ -1221,6 +1221,8 @@ export class RealUnitService {
     const walletAddress = dto.walletAddress.toLowerCase();
 
     // 1) Forward to Aktionariat OUTSIDE any DB transaction — no pooled connection is held across the call.
+    //    Re-POST is safe: registerUser is an idempotent upsert (confirmed with Aktionariat), so a retry
+    //    updates rather than duplicates the share-register registration.
     let registerResponse: Record<string, unknown> | undefined;
     let forwardError: unknown;
     if (!skipForward) {
