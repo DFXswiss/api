@@ -6,4 +6,3 @@ EOF
 
 docker compose -f docker-compose-bitcoin.yml up -d
 docker compose -f docker-compose-monero.yml up -d
-docker compose -f docker-compose-frankencoin.yml up -d

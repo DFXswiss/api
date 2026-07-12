@@ -22,18 +22,16 @@ import { RealUnitComplianceController } from './controllers/realunit-compliance.
 import { RealUnitSupportController } from './controllers/realunit-support.controller';
 import { RealUnitController } from './controllers/realunit.controller';
 import { AktionariatRegistration } from './entities/aktionariat-registration.entity';
-import { RealUnitAddressConfirmation } from './entities/realunit-address-confirmation.entity';
 import { RealUnitComplianceService } from './realunit-compliance.service';
 import { RealUnitDevService } from './realunit-dev.service';
 import { RealUnitJobService } from './realunit-job.service';
 import { RealUnitScopeService } from './realunit-scope.service';
 import { RealUnitService } from './realunit.service';
 import { AktionariatRegistrationRepository } from './repositories/aktionariat-registration.repository';
-import { RealUnitAddressConfirmationRepository } from './repositories/realunit-address-confirmation.repository';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([RealUnitAddressConfirmation, AktionariatRegistration]),
+    TypeOrmModule.forFeature([AktionariatRegistration]),
     SharedModule,
     LogModule,
     PricingModule,
@@ -60,7 +58,6 @@ import { RealUnitAddressConfirmationRepository } from './repositories/realunit-a
     RealUnitJobService,
     RealUnitScopeService,
     RealUnitComplianceService,
-    RealUnitAddressConfirmationRepository,
     AktionariatRegistrationRepository,
   ],
   exports: [RealUnitService, RealUnitScopeService],

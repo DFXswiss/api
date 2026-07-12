@@ -23,22 +23,7 @@
 
 Container Apps are:
 
-- fcp: Frankencoin Ponder
-- dep: dEuro Ponder
-- dea: dEuro API
-- ded: dEuro dApp
-
-## Front Door Setup
-
-1. Run script `manualFrontdoorSetup.sh` with the first parameter `[fcp|dep|ded|dea]` and the second parameter `[loc|dev|prd]`
-
-- Setup of a new endpoint
-- Setup of a new origin group
-- Setup of a new origin
-- Setup of a new route
-
-### Note:
-
-After the first setup, a private endpoint is created. This endpoint can be found in the network part of the container apps environment and `must be approved manually`.
-
-The firewall policies are initial in `detection` mode. After manually checking that the rules are all working, the mode must be manually set to `prevention`.
+- btcd: Bitcoin Core node (loc)
+- liqd: Liquid (elementsd) node (loc)
+- zanod: Zano node (loc)
+- zanolw: Zano light wallet (loc)
