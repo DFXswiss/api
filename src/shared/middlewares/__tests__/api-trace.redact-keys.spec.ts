@@ -23,6 +23,7 @@ const SAFE_KEYS = new Set([
   'eventType',
   'accountType',
   'isRegistered',
+  'manualReview',
   'isValid',
   'error',
   'reference',
