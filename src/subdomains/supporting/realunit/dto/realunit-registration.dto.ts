@@ -38,6 +38,16 @@ export class RealUnitRegistrationResponseDto {
   status: RealUnitRegistrationStatus;
 }
 
+export class RealUnitRegistrationDateDto {
+  @ApiProperty({
+    description:
+      "The server's current registration date in yyyy-mm-dd format (UTC). The client must sign this exact value " +
+      'into the EIP-712 registration envelope instead of deriving the date from its own clock, so a device in a ' +
+      'timezone ahead of UTC does not sign a date the server rejects.',
+  })
+  date: string;
+}
+
 export enum RealUnitEmailRegistrationStatus {
   EMAIL_REGISTERED = 'email_registered',
   MERGE_REQUESTED = 'merge_requested',
@@ -150,7 +160,11 @@ export class AktionariatRegistrationDto {
   @IsBoolean()
   swissTaxResidence: boolean;
 
-  @ApiProperty({ description: 'Registration date in yyyy-mm-dd format' })
+  @ApiProperty({
+    description:
+      'Registration date in yyyy-mm-dd format. Obtain it from GET /realunit/register/date and sign it; the ' +
+      'server accepts today or yesterday (UTC).',
+  })
   @IsNotEmpty()
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'registrationDate must be in yyyy-mm-dd format' })
@@ -301,7 +315,11 @@ export class RealUnitRegisterWalletDto {
   @IsString()
   signature: string;
 
-  @ApiProperty({ description: 'Registration date in yyyy-mm-dd format (must be today)' })
+  @ApiProperty({
+    description:
+      'Registration date in yyyy-mm-dd format. Obtain it from GET /realunit/register/date and sign it; the ' +
+      'server accepts today or yesterday (UTC).',
+  })
   @IsNotEmpty()
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'registrationDate must be in yyyy-mm-dd format' })

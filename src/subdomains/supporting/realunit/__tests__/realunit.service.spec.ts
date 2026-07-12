@@ -138,6 +138,7 @@ jest.mock('src/shared/utils/util', () => ({
     createUid: jest.fn().mockReturnValue('MOCK-UID'),
     equalsIgnoreCase: (a?: string, b?: string) => a?.toLowerCase() === b?.toLowerCase(),
     isoDate: (date: Date) => date.toISOString().split('T')[0],
+    daysBefore: (days: number, from?: Date) => new Date((from ?? new Date()).getTime() - days * 86_400_000),
     daysDiff: jest.fn().mockReturnValue(0),
     // The service stamps a per-write uniqueness nonce into every audit message; return a distinct value on
     // each call so two byte-identical events serialise to different messages (mirrors the real randomness).
@@ -837,7 +838,9 @@ describe('RealUnitService', () => {
     const walletAddress = '0x1111111111111111111111111111111111111111';
     const userDataId = 42;
     const matchingSignature = '0xSIGNATURE_MATCHING';
-    const registrationDate = '2026-05-21';
+    // Server-truth "today" (UTC): the add-wallet path now validates the signed
+    // registrationDate the same way register/complete does.
+    const registrationDate = new Date().toISOString().split('T')[0];
 
     function buildRegistration(opts: { signature: string; status: ReviewStatus }): any {
       return {
@@ -987,6 +990,31 @@ describe('RealUnitService', () => {
       jest.spyOn(service as any, 'verifyRealUnitRegistrationSignature').mockReturnValue(false);
 
       await expect(service.completeRegistrationForWalletAddress(userDataId, dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the add-wallet registration date is stale (older than yesterday)', async () => {
+      userService.getUserByAddress.mockResolvedValue({ userData: { id: userDataId } } as any);
+      aktionariatRegistrationRepo.findOne.mockResolvedValueOnce(undefined).mockResolvedValueOnce({
+        id: 2,
+        status: ReviewStatus.COMPLETED,
+        signedPayloadData: { walletAddress: '0xother', signature: '0xold', registrationDate: '2026-01-01' },
+        kycDataObj: { accountType: 'Personal' },
+      } as any);
+      // Signature passes; the stale date must still be rejected symmetrically.
+      jest.spyOn(service as any, 'verifyRealUnitRegistrationSignature').mockReturnValue(true);
+      const forwardSpy = jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
+
+      await expect(
+        service.completeRegistrationForWalletAddress(userDataId, { ...dto, registrationDate: '2020-01-01' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(forwardSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getRegistrationDate', () => {
+    it("returns the server's current date (UTC) in yyyy-mm-dd format", () => {
+      const expected = new Date().toISOString().split('T')[0];
+      expect(service.getRegistrationDate()).toEqual({ date: expected });
     });
   });
 
@@ -2794,8 +2822,13 @@ describe('RealUnitService', () => {
       ],
     };
 
-    // The service compares registrationDate against Util.isoDate(new Date()); mirror that here.
-    const todayIso = new Date().toISOString().split('T')[0];
+    // The service accepts registrationDate === today OR yesterday (UTC); mirror that here
+    // (UTC, date-only) so the fixtures track the wall clock.
+    const isoDay = (offsetDays: number): string =>
+      new Date(Date.now() + offsetDays * 86_400_000).toISOString().split('T')[0];
+    const todayIso = isoDay(0);
+    const yesterdayIso = isoDay(-1);
+    const tomorrowIso = isoDay(1);
 
     const humanFields = (overrides: Record<string, unknown> = {}): any => ({
       email: 'erika@example.com',
@@ -2859,7 +2892,22 @@ describe('RealUnitService', () => {
       await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
     });
 
-    it('throws BadRequestException when the registration date is not today', async () => {
+    it('resolves when the registration date is today', async () => {
+      const dto = await buildDto(humanFields({ registrationDate: todayIso }), humanKyc());
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('resolves when the registration date is yesterday (UTC midnight round-trip tolerance)', async () => {
+      const dto = await buildDto(humanFields({ registrationDate: yesterdayIso }), humanKyc());
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('throws BadRequestException when the registration date is in the future (tomorrow)', async () => {
+      const dto = await buildDto(humanFields({ registrationDate: tomorrowIso }), humanKyc());
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the registration date is older than yesterday', async () => {
       const dto = await buildDto(humanFields({ registrationDate: '2020-01-01' }), humanKyc());
       await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
     });
