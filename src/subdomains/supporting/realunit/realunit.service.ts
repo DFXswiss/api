@@ -990,7 +990,10 @@ export class RealUnitService {
    * aktionariat_registration table (the single source of truth). First the current wallet: the account's
    * ACTIVE row for this exact address, excluding the terminal FAILED/CANCELED states (mirrors the former
    * `!isFailed && !isCanceled` step filter). Otherwise the newest COMPLETED row for a *different* wallet
-   * of the same account, which drives the one-tap Add-Wallet / account-merge flow.
+   * of the same account, which drives the one-tap Add-Wallet flow. Only COMPLETED other-wallet rows count
+   * here — deliberately narrower than the legacy step lookup, which also accepted merge-CANCELED steps.
+   * That workaround is now obsolete: a registration hangs on its wallet-user FK and moves to the master
+   * account on an account merge, so a merged account's COMPLETED registrations stay directly findable.
    */
   private async findRegistration(
     userData: UserData,
@@ -1860,8 +1863,9 @@ export class RealUnitService {
    * wallet address.
    *
    * ASSUMPTION: the Aktionariat confirmation is keyed on the email and therefore applies to ALL
-   * wallets that were RealUnit-registered under that email (REALUNIT_REGISTRATION KYC steps).
-   * The whole flow is logged, treating the email as personal data (masked in logs).
+   * wallets that were RealUnit-registered under that email (the aktionariat_registration rows resolved by
+   * email, both active and historical). The whole flow is logged, treating the email as personal data
+   * (masked in logs).
    */
   async confirmAktionariat(dto: RealUnitConfirmAktionariatQueryDto): Promise<RealUnitConfirmAktionariatDto> {
     const { email, code, user } = dto;
