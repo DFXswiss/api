@@ -7,8 +7,8 @@ import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { AcceptRealUnitLegalDto, RealUnitLegalInfoDto } from '../dto/real-unit-legal.dto';
-import { RealUnitLegalService } from '../real-unit-legal.service';
+import { AcceptRealUnitLegalDto, RealUnitLegalInfoDto } from '../dto/realunit-legal.dto';
+import { RealUnitLegalService } from '../realunit-legal.service';
 
 @ApiTags('Realunit')
 @Controller('realunit/legal')

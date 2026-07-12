@@ -3,10 +3,10 @@ import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
-import { RealUnitLegalController } from '../controllers/real-unit-legal.controller';
-import { AcceptRealUnitLegalDto, RealUnitLegalInfoDto } from '../dto/real-unit-legal.dto';
-import { RealUnitLegalAgreement } from '../enums/real-unit-legal-agreement.enum';
-import { RealUnitLegalService } from '../real-unit-legal.service';
+import { RealUnitLegalController } from '../controllers/realunit-legal.controller';
+import { AcceptRealUnitLegalDto, RealUnitLegalInfoDto } from '../dto/realunit-legal.dto';
+import { RealUnitLegalAgreement } from '../enums/realunit-legal-agreement.enum';
+import { RealUnitLegalService } from '../realunit-legal.service';
 
 describe('RealUnitLegalController', () => {
   let controller: RealUnitLegalController;

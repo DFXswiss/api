@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { RealUnitLegalDtoMapper } from './dto/real-unit-legal-dto.mapper';
-import { RealUnitLegalInfoDto } from './dto/real-unit-legal.dto';
-import { RealUnitLegalAcceptance } from './entities/real-unit-legal-acceptance.entity';
-import { RealUnitLegalAgreement } from './enums/real-unit-legal-agreement.enum';
-import { RealUnitLegalAcceptanceRepository } from './repositories/real-unit-legal-acceptance.repository';
+import { RealUnitLegalDtoMapper } from './dto/realunit-legal-dto.mapper';
+import { RealUnitLegalInfoDto } from './dto/realunit-legal.dto';
+import { RealUnitLegalAcceptance } from './entities/realunit-legal-acceptance.entity';
+import { RealUnitLegalAgreement } from './enums/realunit-legal-agreement.enum';
+import { RealUnitLegalAcceptanceRepository } from './repositories/realunit-legal-acceptance.repository';
 
 @Injectable()
 export class RealUnitLegalService {

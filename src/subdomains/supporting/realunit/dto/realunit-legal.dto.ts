@@ -1,6 +1,6 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { ArrayNotEmpty, IsArray, IsEnum } from 'class-validator';
-import { RealUnitLegalAgreement } from '../enums/real-unit-legal-agreement.enum';
+import { RealUnitLegalAgreement } from '../enums/realunit-legal-agreement.enum';
 
 export class RealUnitLegalAgreementStatusDto {
   @ApiProperty({ enum: RealUnitLegalAgreement })

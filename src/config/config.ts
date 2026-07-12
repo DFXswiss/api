@@ -23,7 +23,7 @@ import { KycIdentificationType } from 'src/subdomains/generic/user/models/user-d
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { LegalEntity } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { MailOptions } from 'src/subdomains/supporting/notification/services/mail.service';
-import { RealUnitLegalAgreement } from 'src/subdomains/supporting/realunit/enums/real-unit-legal-agreement.enum';
+import { RealUnitLegalAgreement } from 'src/subdomains/supporting/realunit/enums/realunit-legal-agreement.enum';
 import { LoggerOptions } from 'typeorm';
 import { EVM_CHAINS } from './chains.config';
 

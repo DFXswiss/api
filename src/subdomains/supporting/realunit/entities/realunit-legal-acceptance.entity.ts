@@ -1,7 +1,7 @@
 import { Column, Entity, Index, ManyToOne } from 'typeorm';
 import { IEntity } from 'src/shared/models/entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { RealUnitLegalAgreement } from '../enums/real-unit-legal-agreement.enum';
+import { RealUnitLegalAgreement } from '../enums/realunit-legal-agreement.enum';
 
 // Versioned, append-only record of a user's acceptance of a single RealUnit legal agreement. One row per
 // accepted version — the unique index over (userData, agreement, version) keeps the full acceptance history

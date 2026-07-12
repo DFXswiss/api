@@ -1,6 +1,6 @@
 import { getMetadataArgsStorage } from 'typeorm';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { RealUnitLegalAcceptance } from '../entities/real-unit-legal-acceptance.entity';
+import { RealUnitLegalAcceptance } from '../entities/realunit-legal-acceptance.entity';
 
 describe('RealUnitLegalAcceptance', () => {
   it('isVersion returns true only for the stored version', () => {

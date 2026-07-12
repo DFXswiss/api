@@ -1,10 +1,10 @@
 import { createMock, DeepMocked } from '@golevelup/ts-jest';
 import * as ConfigModule from 'src/config/config';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
-import { RealUnitLegalAcceptance } from '../entities/real-unit-legal-acceptance.entity';
-import { RealUnitLegalAgreement } from '../enums/real-unit-legal-agreement.enum';
-import { RealUnitLegalService } from '../real-unit-legal.service';
-import { RealUnitLegalAcceptanceRepository } from '../repositories/real-unit-legal-acceptance.repository';
+import { RealUnitLegalAcceptance } from '../entities/realunit-legal-acceptance.entity';
+import { RealUnitLegalAgreement } from '../enums/realunit-legal-agreement.enum';
+import { RealUnitLegalService } from '../realunit-legal.service';
+import { RealUnitLegalAcceptanceRepository } from '../repositories/realunit-legal-acceptance.repository';
 
 describe('RealUnitLegalService', () => {
   let service: RealUnitLegalService;

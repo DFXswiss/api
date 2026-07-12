@@ -1,7 +1,7 @@
 import { Config } from 'src/config/config';
-import { RealUnitLegalAcceptance } from '../entities/real-unit-legal-acceptance.entity';
-import { RealUnitLegalAgreement } from '../enums/real-unit-legal-agreement.enum';
-import { RealUnitLegalAgreementStatusDto, RealUnitLegalInfoDto } from './real-unit-legal.dto';
+import { RealUnitLegalAcceptance } from '../entities/realunit-legal-acceptance.entity';
+import { RealUnitLegalAgreement } from '../enums/realunit-legal-agreement.enum';
+import { RealUnitLegalAgreementStatusDto, RealUnitLegalInfoDto } from './realunit-legal.dto';
 
 export class RealUnitLegalDtoMapper {
   // Maps the user's latest acceptance row per agreement (those without any row are simply absent from the
