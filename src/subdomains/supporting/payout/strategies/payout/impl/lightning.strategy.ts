@@ -39,14 +39,7 @@ export class LightningStrategy extends PayoutStrategy {
     if (await this.isHealthy()) {
       for (const order of orders) {
         try {
-          // Persist the designation BEFORE broadcasting (fail-closed, mirrors the Bitcoin path):
-          // a reboot between broadcast and save must not leave the order re-selectable by the 30s
-          // cron, which would double-pay. The guard keeps the TX_SPEEDUP/expired-retry path
-          // (payoutTxId already set) untouched so nonce-reuse semantics stay intact.
-          if (!order.payoutTxId) {
-            order.designatePayout();
-            await this.payoutOrderRepo.save(order);
-          }
+          await this.designateBeforeBroadcast(order, this.payoutOrderRepo);
 
           const address = order.destinationAddress;
           const amount = order.amount;
@@ -54,10 +47,7 @@ export class LightningStrategy extends PayoutStrategy {
           const txId = await this.payoutLightningService.sendPayment(address, amount);
           await this.finishDoPayout(order, txId);
         } catch (e) {
-          // Fail-closed: only log. The order stays PAYOUT_DESIGNATED so processFailedOrders moves
-          // it to PayoutUncertain for manual investigation. Never rollback here — after
-          // sendPayment throws it is not provable that the broadcast was suppressed, and a wrong
-          // auto-retry would double-pay.
+          // Fail-closed: leave the order PAYOUT_DESIGNATED for processFailedOrders; never rollback — a re-broadcast could double-pay.
           this.logger.error(`Error while executing Lightning payout order ${order.id}:`, e);
         }
       }

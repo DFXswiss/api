@@ -120,6 +120,12 @@ export class PayoutService {
 
     const strategy = this.payoutStrategyRegistry.getPayoutStrategy(order.asset);
 
+    // Speedup reuses the pending tx's nonce to replace it; only EVM implements that (and only while
+    // TX_SPEEDUP is enabled). On any other chain doPayout would broadcast a second, independent
+    // transaction while the original stays valid — a double payout. Reject rather than risk it.
+    if (!strategy.supportsSpeedup || DisabledProcess(Process.TX_SPEEDUP))
+      throw new BadRequestException(`Payout order ${id} does not support transaction speedup`);
+
     await strategy.doPayout([order]);
   }
 
