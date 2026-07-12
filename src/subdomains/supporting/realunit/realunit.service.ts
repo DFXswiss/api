@@ -1885,7 +1885,10 @@ export class RealUnitService {
    * email, both active and historical). The whole flow is logged, treating the email as personal data
    * (masked in logs).
    */
-  async confirmAktionariat(dto: RealUnitConfirmAktionariatQueryDto): Promise<RealUnitConfirmAktionariatDto> {
+  async confirmAktionariat(
+    dto: RealUnitConfirmAktionariatQueryDto,
+    rawRequest: { url: string; query: Record<string, unknown> },
+  ): Promise<RealUnitConfirmAktionariatDto> {
     const { email, code, user } = dto;
     const maskedEmail = this.maskEmail(email);
 
@@ -1926,6 +1929,7 @@ export class RealUnitService {
       code,
       user,
       walletAddresses,
+      rawRequest,
       response: error == null ? responseBody : undefined,
       error,
     });
@@ -2073,7 +2077,15 @@ export class RealUnitService {
   // ever lost. Best-effort: a logging failure must never fail the confirmation, but it is surfaced loudly.
   private async logAktionariatConfirmation(
     severity: LogSeverity,
-    data: { email: string; code: string; user: string; walletAddresses: string[]; response: unknown; error?: unknown },
+    data: {
+      email: string;
+      code: string;
+      user: string;
+      walletAddresses: string[];
+      rawRequest: { url: string; query: Record<string, unknown> };
+      response: unknown;
+      error?: unknown;
+    },
   ): Promise<void> {
     try {
       await this.logService.create({
@@ -2087,6 +2099,12 @@ export class RealUnitService {
           code: data.code,
           user: data.user,
           walletAddresses: data.walletAddresses,
+          // The COMPLETE raw incoming confirm request: the full URL and EVERY query param (including any the DTO
+          // does not model and thus strips, e.g. a wallet address / per-registration id the mail link may
+          // carry). Captured verbatim so the per-address decision can be made from the audit data alone; the
+          // typed email/code/user above stay the authoritative matching inputs. This is a PII field, hence the
+          // DB `log` store (never the redacted Loki channel).
+          rawRequest: data.rawRequest,
           response: data.response,
           error: this.describeError(data.error),
           // Uniqueness marker so LogService.create() never dedups two byte-identical consecutive audit rows

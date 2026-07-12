@@ -2197,6 +2197,13 @@ describe('RealUnitService', () => {
     const email = 'user@example.com';
     const code = 'CONFIRM-CODE';
     const user = 'aktionariat-user-1';
+    // The controller forwards the untouched incoming request (full URL + every query param) so the audit can
+    // record params the DTO strips. A generic value for the calls that don't assert on it; the raw-request
+    // logging tests below build their own with extra params.
+    const rawRequest = {
+      url: `/v1/realunit/confirm-aktionariat?email=${email}&code=${code}&user=${user}`,
+      query: { email, code, user } as Record<string, unknown>,
+    };
     // Registration walletAddress columns are canonically lowercase; the confirm flow returns the signed
     // (mixed-case) address but latches the confirmed state onto the lowercased registration row.
     const walletA = '0xaaa0000000000000000000000000000000000001';
@@ -2227,7 +2234,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       mockActiveRegistration();
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
       expect(result.confirmedAddresses).toEqual([walletA]);
@@ -2243,7 +2250,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA, walletA, walletB]);
       mockActiveRegistration();
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.confirmedAddresses).toEqual([walletA, walletB]);
       // one advisory-locked latch transaction per distinct wallet
@@ -2262,7 +2269,7 @@ describe('RealUnitService', () => {
       ] as any);
       mockActiveRegistration();
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.confirmedAddresses).toEqual([checksummed]);
       expect(aktionariatManager.transaction).toHaveBeenCalledTimes(1);
@@ -2272,7 +2279,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       mockActiveRegistration();
 
-      await service.confirmAktionariat({ email: 'MiXeD@example.com', code, user });
+      await service.confirmAktionariat({ email: 'MiXeD@example.com', code, user }, rawRequest);
 
       // the email filter is a TypeORM Raw operator; execute its SQL generator to prove the predicate
       const op = (aktionariatRegistrationRepo.find as jest.Mock).mock.calls[0][0].where.email;
@@ -2287,7 +2294,7 @@ describe('RealUnitService', () => {
       ] as any);
       mockActiveRegistration();
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.confirmedAddresses).toEqual([checksummed, '0xdef0000000000000000000000000000000000010']);
     });
@@ -2298,7 +2305,7 @@ describe('RealUnitService', () => {
     it('durably audits a 0-match call (zero wallets): exactly ONE DB-log row, no registration touched, no throw', async () => {
       mockRegisteredWallets([]);
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       // the call still resolves (the code was valid at Aktionariat) and returns an empty confirmed list
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
@@ -2322,7 +2329,7 @@ describe('RealUnitService', () => {
     it('masks an email without an @ sign without crashing', async () => {
       mockRegisteredWallets([]);
 
-      const result = await service.confirmAktionariat({ email: 'no-at-sign', code, user });
+      const result = await service.confirmAktionariat({ email: 'no-at-sign', code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
     });
@@ -2333,7 +2340,7 @@ describe('RealUnitService', () => {
       mockActiveRegistration();
       httpService.getRaw.mockResolvedValue({ status: 200, data: { status: 200, message: 'ok' } } as any);
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
       const calledUrl = httpService.getRaw.mock.calls[0][0] as string;
@@ -2350,7 +2357,7 @@ describe('RealUnitService', () => {
         response: { status: 403, data: { status: 403, message: 'Code not found' } },
       });
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.INVALID);
       expect(result.confirmedAddresses).toEqual([]);
@@ -2367,7 +2374,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       mockActiveRegistration(firstDate);
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
       // the latch is never advanced: with confirmedDate already set, no save is issued
@@ -2380,7 +2387,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       aktionariatTxManager.findOne.mockResolvedValue(undefined); // no active registration row
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
       expect(result.confirmedAddresses).toEqual([walletA]);
@@ -2401,7 +2408,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       httpService.getRaw.mockRejectedValue({ response: { status: 503, data: 'Service Unavailable' } });
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.UNAVAILABLE);
       expect(result.confirmedAddresses).toEqual([]);
@@ -2413,7 +2420,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       httpService.getRaw.mockRejectedValue(new Error('timeout of 30000ms exceeded'));
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.UNAVAILABLE);
       expect(aktionariatTxManager.save).not.toHaveBeenCalled();
@@ -2424,7 +2431,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       httpService.getRaw.mockRejectedValue({});
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.UNAVAILABLE);
       expect((service as any).logger.error).toHaveBeenCalled();
@@ -2435,7 +2442,7 @@ describe('RealUnitService', () => {
       mockAktionariatUrl = undefined;
       mockRegisteredWallets([]);
 
-      await expect(service.confirmAktionariat({ email, code, user })).rejects.toThrow(
+      await expect(service.confirmAktionariat({ email, code, user }, rawRequest)).rejects.toThrow(
         'Aktionariat URL is not configured',
       );
       expect(httpService.getRaw).not.toHaveBeenCalled();
@@ -2446,7 +2453,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       mockActiveRegistration();
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(Object.keys(result).sort()).toEqual(['confirmedAddresses', 'confirmedDate', 'status']);
       expect(Object.values(RealUnitAktionariatConfirmationStatus)).toContain(result.status);
@@ -2458,7 +2465,7 @@ describe('RealUnitService', () => {
       mockActiveRegistration();
       httpService.getRaw.mockResolvedValue({ status: 200, data: { aktionariatConfirmed: true } } as any);
 
-      await service.confirmAktionariat({ email, code, user });
+      await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       const audits = (logService.create as jest.Mock).mock.calls
         .map((c) => c[0])
@@ -2490,8 +2497,8 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       mockActiveRegistration();
 
-      await service.confirmAktionariat({ email, code, user });
-      await service.confirmAktionariat({ email, code, user });
+      await service.confirmAktionariat({ email, code, user }, rawRequest);
+      await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       const serverCallMessages = (logService.create as jest.Mock).mock.calls
         .map((call) => call[0])
@@ -2512,7 +2519,7 @@ describe('RealUnitService', () => {
       const errorBody = { status: 403, message: `E-Mail ${leakedEmail} not confirmed` };
       httpService.getRaw.mockRejectedValue({ response: { status: 403, data: errorBody } });
 
-      await service.confirmAktionariat({ email, code, user });
+      await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       // DB log is the PII audit store: it carries the FULL error body and is tagged INVALID->WARNING
       const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
@@ -2533,7 +2540,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       httpService.getRaw.mockRejectedValue({ response: { status: 503, data: 'Service Unavailable' } });
 
-      await service.confirmAktionariat({ email, code, user });
+      await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
       expect(audit.severity).toBe(LogSeverity.ERROR);
@@ -2543,7 +2550,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       mockActiveRegistration();
 
-      await service.confirmAktionariat({ email, code, user });
+      await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(aktionariatManager.transaction).toHaveBeenCalledTimes(1);
       expect(aktionariatTxManager.query).toHaveBeenCalledWith(
@@ -2559,7 +2566,7 @@ describe('RealUnitService', () => {
       ] as any);
       mockActiveRegistration();
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       // response shape unchanged: still the signed mixed-case address
       expect(result.confirmedAddresses).toEqual([checksummed]);
@@ -2577,7 +2584,7 @@ describe('RealUnitService', () => {
       aktionariatTxManager.findOne.mockResolvedValue({ active: true, confirmedDate: null });
       aktionariatTxManager.save.mockRejectedValue(new Error('db down'));
 
-      await expect(service.confirmAktionariat({ email, code, user })).rejects.toThrow('db down');
+      await expect(service.confirmAktionariat({ email, code, user }, rawRequest)).rejects.toThrow('db down');
     });
 
     it('does not fail the confirmation when the DB audit log write throws (best-effort, Error)', async () => {
@@ -2585,7 +2592,7 @@ describe('RealUnitService', () => {
       mockActiveRegistration();
       logService.create.mockRejectedValue(new Error('log down'));
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
       expect((service as any).logger.error).toHaveBeenCalled();
@@ -2596,9 +2603,56 @@ describe('RealUnitService', () => {
       mockActiveRegistration();
       logService.create.mockRejectedValue('log string failure');
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
+    });
+
+    it('captures the COMPLETE raw request (full URL + every query param, including extras the DTO strips) in the DB audit', async () => {
+      mockRegisteredWallets([walletA]);
+      mockActiveRegistration();
+      const raw = {
+        url:
+          '/v1/realunit/confirm-aktionariat?email=user@example.com&code=CONFIRM-CODE' +
+          '&user=aktionariat-user-1&address=0xABC&foo=bar',
+        query: { email, code, user, address: '0xABC', foo: 'bar' } as Record<string, unknown>,
+      };
+
+      await service.confirmAktionariat({ email, code, user }, raw);
+
+      const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
+      const msg = JSON.parse(audit.message);
+      // The full URL and the untouched query — including the address/foo params the typed DTO discards — are
+      // recorded verbatim in the DB `log` PII store, so a per-address decision is derivable from the audit alone.
+      expect(msg.rawRequest.url).toBe(raw.url);
+      expect(msg.rawRequest.query).toEqual({ email, code, user, address: '0xABC', foo: 'bar' });
+    });
+
+    it('never leaks the raw request query (extra mail-link params) into the redacted Loki lines', async () => {
+      mockEnvironment = 'prd';
+      mockRegisteredWallets([walletA]);
+      mockActiveRegistration();
+      httpService.getRaw.mockResolvedValue({ status: 200, data: { status: 200, message: 'ok' } } as any);
+      const secretAddress = '0xDEADBEEFcafe';
+      const raw = {
+        url: `/v1/realunit/confirm-aktionariat?email=user@example.com&code=CONFIRM-CODE&user=aktionariat-user-1&address=${secretAddress}`,
+        query: { email, code, user, address: secretAddress } as Record<string, unknown>,
+      };
+
+      await service.confirmAktionariat({ email, code, user }, raw);
+
+      // The DB audit carries the full raw request (the PII store)...
+      const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
+      expect(JSON.parse(audit.message).rawRequest.query.address).toBe(secretAddress);
+      // ...but the Loki channel (this.logger.*) must never see the raw query.
+      const lokiText = [
+        ...(service as any).logger.info.mock.calls,
+        ...(service as any).logger.warn.mock.calls,
+        ...(service as any).logger.error.mock.calls,
+      ]
+        .flat()
+        .join(' ');
+      expect(lokiText).not.toContain(secretAddress);
     });
   });
 });
