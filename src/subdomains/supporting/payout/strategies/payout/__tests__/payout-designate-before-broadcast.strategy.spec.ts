@@ -43,8 +43,8 @@ describe('Payout designate-before-broadcast', () => {
       expect(statusAtFirstSave).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
       expect(order.payoutTxId).toBe('TX_NEW');
-      expect(dispatchFn).toBeCalledTimes(1);
-      expect(repoSaveSpy).toBeCalledTimes(2); // designate + pending
+      expect(dispatchFn).toHaveBeenCalledTimes(1);
+      expect(repoSaveSpy).toHaveBeenCalledTimes(2); // designate + pending
     });
 
     it('leaves the order PAYOUT_DESIGNATED (no txId, no rollback) when the broadcast throws', async () => {
@@ -56,9 +56,9 @@ describe('Payout designate-before-broadcast', () => {
 
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
       expect(order.payoutTxId).toBeNull();
-      expect(dispatchFn).toBeCalledTimes(1); // no second broadcast
-      expect(rollbackSpy).not.toBeCalled(); // fail-closed: never auto-rollback after broadcast
-      expect(repoSaveSpy).toBeCalledTimes(1); // only the pre-broadcast designate save
+      expect(dispatchFn).toHaveBeenCalledTimes(1); // no second broadcast
+      expect(rollbackSpy).not.toHaveBeenCalled(); // fail-closed: never auto-rollback after broadcast
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // only the pre-broadcast designate save
     });
 
     it('does NOT re-designate when payoutTxId is already set (TX_SPEEDUP/expired-retry path)', async () => {
@@ -68,11 +68,11 @@ describe('Payout designate-before-broadcast', () => {
 
       await strategy.doPayout([order]);
 
-      expect(designateSpy).not.toBeCalled();
+      expect(designateSpy).not.toHaveBeenCalled();
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
       expect(order.payoutTxId).toBe('NEW_TX');
-      expect(dispatchFn).toBeCalledTimes(1);
-      expect(repoSaveSpy).toBeCalledTimes(1); // only the pending save, no extra designate save
+      expect(dispatchFn).toHaveBeenCalledTimes(1);
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // only the pending save, no extra designate save
     });
   });
 
@@ -110,8 +110,8 @@ describe('Payout designate-before-broadcast', () => {
       expect(statusAtFirstSave).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
       expect(order.payoutTxId).toBe('ARK_TX');
-      expect(sendTransactionSpy).toBeCalledTimes(1);
-      expect(repoSaveSpy).toBeCalledTimes(2);
+      expect(sendTransactionSpy).toHaveBeenCalledTimes(1);
+      expect(repoSaveSpy).toHaveBeenCalledTimes(2);
     });
 
     it('leaves the order PAYOUT_DESIGNATED when the broadcast throws', async () => {
@@ -122,8 +122,8 @@ describe('Payout designate-before-broadcast', () => {
 
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
       expect(order.payoutTxId).toBeNull();
-      expect(sendTransactionSpy).toBeCalledTimes(1);
-      expect(repoSaveSpy).toBeCalledTimes(1);
+      expect(sendTransactionSpy).toHaveBeenCalledTimes(1);
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1);
     });
   });
 });

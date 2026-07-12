@@ -57,7 +57,7 @@ describe('PayoutService', () => {
       jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
 
       await expect(service.speedupTransaction(order.id)).rejects.toThrow(BadRequestException);
-      expect(doPayoutSpy).not.toBeCalled();
+      expect(doPayoutSpy).not.toHaveBeenCalled();
     });
 
     it('accelerates an already-broadcast (PAYOUT_PENDING) order on a speedup-capable (EVM) strategy', async () => {
@@ -70,7 +70,7 @@ describe('PayoutService', () => {
 
       await service.speedupTransaction(order.id);
 
-      expect(doPayoutSpy).toBeCalledWith([order]);
+      expect(doPayoutSpy).toHaveBeenCalledWith([order]);
     });
 
     it('rejects a speedup on a chain without replacement semantics (supportsSpeedup=false) and never broadcasts', async () => {
@@ -83,7 +83,7 @@ describe('PayoutService', () => {
       jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
 
       await expect(service.speedupTransaction(order.id)).rejects.toThrow(BadRequestException);
-      expect(doPayoutSpy).not.toBeCalled();
+      expect(doPayoutSpy).not.toHaveBeenCalled();
     });
 
     it('rejects a speedup when TX_SPEEDUP is disabled, even on a speedup-capable strategy', async () => {
@@ -96,7 +96,7 @@ describe('PayoutService', () => {
       jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
 
       await expect(service.speedupTransaction(order.id)).rejects.toThrow(BadRequestException);
-      expect(doPayoutSpy).not.toBeCalled();
+      expect(doPayoutSpy).not.toHaveBeenCalled();
     });
   });
 });
