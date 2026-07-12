@@ -160,7 +160,11 @@ export class AktionariatRegistrationDto {
   @IsBoolean()
   swissTaxResidence: boolean;
 
-  @ApiProperty({ description: 'Registration date in yyyy-mm-dd format' })
+  @ApiProperty({
+    description:
+      'Registration date in yyyy-mm-dd format. Obtain it from GET /realunit/register/date and sign it; the ' +
+      'server accepts today or yesterday (UTC).',
+  })
   @IsNotEmpty()
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/, { message: 'registrationDate must be in yyyy-mm-dd format' })

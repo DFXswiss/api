@@ -712,7 +712,11 @@ export class RealUnitController {
 
   @Get('register/date')
   @ApiBearerAuth()
-  @UseGuards(AuthGuard(), RoleGuard(UserRole.USER), UserActiveGuard())
+  // ACCOUNT (not USER) to match the endpoints this date feeds — register/complete
+  // and register/wallet are ACCOUNT-guarded, so any token that can register must
+  // also be able to fetch the date to sign. ACCOUNT admits USER via the role
+  // hierarchy, so this only widens access, never narrows it.
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
   @ApiOperation({
     summary: 'Get the registration date to sign',
     description:
