@@ -12,6 +12,7 @@ import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wall
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { Process } from 'src/shared/services/process.service';
+import { TypeOrmLogger } from 'src/shared/services/typeorm-logger';
 import { PaymentStandard } from 'src/subdomains/core/payment-link/enums';
 import { KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { ContentType } from 'src/subdomains/generic/kyc/enums/content-type.enum';
@@ -229,7 +230,13 @@ export class Configuration {
     migrations: ['migration/*.js'],
     connectTimeoutMS: 30000,
     poolSize: +(process.env.SQL_POOL_MAX ?? 10),
-    logging: process.env.SQL_LOGGING as LoggerOptions,
+    // TypeORM uses a provided logger instance directly and would ignore the `logging` option, which is
+    // why TypeOrmLogger receives the SQL_LOGGING options itself: query/schema logging stays env-driven
+    // while pg NOTICEs (migration counters) always surface to stdout/Loki.
+    logger: new TypeOrmLogger(process.env.SQL_LOGGING as LoggerOptions),
+    // Forward pg NOTICE/NOTIFY to the logger; boot-blocking migrations emit reconciliation counters via
+    // RAISE NOTICE that would otherwise be discarded (see TypeOrmLogger).
+    logNotifications: true,
     ssl:
       process.env.SQL_SSL === 'false'
         ? false
