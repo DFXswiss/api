@@ -51,6 +51,7 @@ import { KycLevel, ServiceProvider } from 'src/subdomains/generic/user/models/us
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { Wallet } from 'src/subdomains/generic/user/models/wallet/wallet.entity';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { CryptoPaymentMethod, FiatPaymentMethod } from 'src/subdomains/supporting/payment/dto/payment-method.enum';
@@ -64,6 +65,11 @@ import { FeeService } from 'src/subdomains/supporting/payment/services/fee.servi
 import { SwissQRService } from 'src/subdomains/supporting/payment/services/swiss-qr.service';
 import { TransactionRequestService } from 'src/subdomains/supporting/payment/services/transaction-request.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
+import { CreateSupportIssueDto } from 'src/subdomains/supporting/support-issue/dto/create-support-issue.dto';
+import { CustomerAuthor } from 'src/subdomains/supporting/support-issue/entities/support-message.entity';
+import { Department } from 'src/subdomains/supporting/support-issue/enums/department.enum';
+import { SupportIssueReason, SupportIssueType } from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
+import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { transliterate } from 'transliteration';
 import { EntityManager, FindOptionsRelations, In, Not, Raw } from 'typeorm';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
@@ -217,6 +223,7 @@ export class RealUnitService {
     private readonly faucetRequestService: FaucetRequestService,
     private readonly aktionariatRegistrationRepo: AktionariatRegistrationRepository,
     private readonly logService: LogService,
+    private readonly supportIssueService: SupportIssueService,
   ) {
     this.ponderUrl = GetConfig().blockchain.realunit.graphUrl;
   }
@@ -785,6 +792,10 @@ export class RealUnitService {
         userData: registrationUserData,
         emailConfirmed,
         confirmedDate,
+        // Surface a stuck (forward-failed) registration for the current wallet so the app can render a
+        // "manual review" screen instead of treating ALREADY_REGISTERED as a completed registration. Only
+        // meaningful for the current wallet; an ADD_WALLET other-wallet row is always COMPLETED, so leave it absent.
+        manualReview: isForCurrentWallet ? registration.status === ReviewStatus.MANUAL_REVIEW : undefined,
       };
     }
 
@@ -1227,8 +1238,9 @@ export class RealUnitService {
 
     // Resolve the exact wallet-user that owns the signed address (per-wallet FK). Fail closed: without it
     // the queryable record cannot be written, so surface it as a (logged) failure rather than silently
-    // dropping the registration.
-    const user = await this.userService.getUserByAddress(dto.walletAddress);
+    // dropping the registration. The wallet relation is the source-app attribution for the forward-failure
+    // support ticket (RealUnit-branded for a RealUnit wallet).
+    const user = await this.userService.getUserByAddress(dto.walletAddress, { wallet: true });
     if (!user) {
       const message = `No user found for RealUnit wallet ${dto.walletAddress}`;
       this.logger.error(`Failed to forward RealUnit registration to Aktionariat: ${message}`);
@@ -1329,6 +1341,8 @@ export class RealUnitService {
         registerResponse,
         forwardError,
       );
+      // The MANUAL_REVIEW row is committed above; surface the stuck onboarding to staff for a manual re-forward.
+      await this.openForwardFailureSupportIssue(userData, user.wallet, dto.walletAddress);
       return false;
     }
 
@@ -1386,9 +1400,11 @@ export class RealUnitService {
       status,
       forwardedToAktionariatDate: forwardedToAktionariatDate ?? undefined,
       active: true,
-      // New registrations are gated on the Aktionariat confirmation email (sent on a successful forward).
-      // Only the completion migration clears this, and only for rows that predate the gate.
-      requiresEmailConfirmation: true,
+      // Only a COMPLETED registration is gated on the Aktionariat confirmation email (sent on a successful
+      // forward). A MANUAL_REVIEW row's forward failed, so no confirmation mail was ever sent — gating it
+      // would dead-end the flow on a mail that never arrives. (The completion migration clears this for rows
+      // that predate the gate.)
+      requiresEmailConfirmation: status === ReviewStatus.COMPLETED,
     });
     registration.signedPayloadData = payload;
     registration.kycDataObj = dto.kycData;
@@ -1426,6 +1442,34 @@ export class RealUnitService {
     } catch (e) {
       this.logger.error(
         `Failed to write Aktionariat communication log for wallet ${walletAddress}: ${e?.message || e}`,
+      );
+    }
+  }
+
+  // Best-effort: open (or dedup into) a support ticket when a RealUnit registration fails to forward to
+  // Aktionariat and is parked as MANUAL_REVIEW — so the stuck onboarding surfaces to staff for a manual
+  // re-forward instead of only living in a log line. createIssueInternal dedups on (userData, type, reason),
+  // so a client/admin retry appends to the same ticket rather than spamming new ones. Never fails or rolls
+  // back the (already committed) registration persist: a ticket failure is logged and swallowed, exactly like
+  // the audit-log best-effort above.
+  private async openForwardFailureSupportIssue(
+    userData: UserData,
+    sourceWallet: Wallet,
+    walletAddress: string,
+  ): Promise<void> {
+    try {
+      const dto: CreateSupportIssueDto = {
+        type: SupportIssueType.KYC_ISSUE,
+        reason: SupportIssueReason.AKTIONARIAT_FORWARDING_FAILED,
+        department: Department.SUPPORT,
+        name: 'RealUnit Aktionariat registration - forwarding failed',
+        author: CustomerAuthor,
+        message: `RealUnit Aktionariat registration forwarding failed for wallet ${walletAddress}. The registration is stored as MANUAL_REVIEW and needs a manual re-forward to Aktionariat.`,
+      };
+      await this.supportIssueService.createIssueInternal(userData, dto, sourceWallet);
+    } catch (e) {
+      this.logger.error(
+        `Failed to open support ticket for RealUnit registration forward failure (wallet ${walletAddress}): ${e?.message || e}`,
       );
     }
   }

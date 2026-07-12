@@ -38,6 +38,9 @@ export enum SupportIssueReason {
   NAME_CHANGED = 'NameChanged',
   ADDRESS_CHANGED = 'AddressChanged',
   CIVIL_STATUS_CHANGED = 'CivilStatusChanged',
+
+  // kyc issue
+  AKTIONARIAT_FORWARDING_FAILED = 'AktionariatForwardingFailed',
 }
 
 export enum SupportIssueState {
