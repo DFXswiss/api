@@ -31,12 +31,13 @@ describeDb('TypeOrmLogger boot-path (real Postgres RAISE NOTICE -> DfxLogger)', 
   let infoSpy: jest.SpyInstance;
 
   beforeAll(async () => {
-    // WHY schema isolation: parallel jest workers share the one MIGRATION_TEST_PG database, so the
-    // unqualified `migrations` metadata table that migrationsRun creates would race with the other
-    // real-PG migration specs on the pg catalog. The postgres driver's `schema` option only qualifies
-    // table names (it never runs CREATE SCHEMA and never sets search_path), so a throwaway default-schema
-    // connection creates the isolated schema first; the boot-shaped DataSource then sets `schema` so its
-    // migrations table lands inside it.
+    // WHY schema isolation: (a) rerun idempotency — migrationsRun records the probe in the `migrations`
+    // metadata table, so a persistent public.migrations would mark it as executed and the NOTICE would
+    // never re-fire on a second run against the same MIGRATION_TEST_PG; dropping and recreating the schema
+    // resets that record every run. (b) The catalog assertion below needs a clean scope this suite owns.
+    // The postgres driver's `schema` option only qualifies table names (it never runs CREATE SCHEMA and
+    // never sets search_path), so a throwaway default-schema connection creates the isolated schema first;
+    // the boot-shaped DataSource then sets `schema` so its migrations table lands inside it.
     schemaSetup = new DataSource({ type: 'postgres', url: PG_URL });
     await schemaSetup.initialize();
     await schemaSetup.query(`DROP SCHEMA IF EXISTS ${SCHEMA} CASCADE`);

@@ -230,10 +230,9 @@ export class Configuration {
     migrations: ['migration/*.js'],
     connectTimeoutMS: 30000,
     poolSize: +(process.env.SQL_POOL_MAX ?? 10),
-    logging: process.env.SQL_LOGGING as LoggerOptions,
-    // A provided `logger` instance is used directly by TypeORM and the `logging` option above is not
-    // consulted for it, so TypeOrmLogger receives the SQL_LOGGING options itself to keep query/schema
-    // logging env-driven while always surfacing pg NOTICEs (migration counters) to stdout/Loki.
+    // TypeORM uses a provided logger instance directly and would ignore the `logging` option, which is
+    // why TypeOrmLogger receives the SQL_LOGGING options itself: query/schema logging stays env-driven
+    // while pg NOTICEs (migration counters) always surface to stdout/Loki.
     logger: new TypeOrmLogger(process.env.SQL_LOGGING as LoggerOptions),
     // Forward pg NOTICE/NOTIFY to the logger; boot-blocking migrations emit reconciliation counters via
     // RAISE NOTICE that would otherwise be discarded (see TypeOrmLogger).
