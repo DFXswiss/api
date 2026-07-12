@@ -1835,6 +1835,52 @@ describe('RealUnitService', () => {
     });
   });
 
+  describe('summarizeError (redacted error summary for the Loki app-log)', () => {
+    it('keeps only status and error type for an HTTP error (never the PII-carrying body or message)', () => {
+      // Axios-shaped: a real HTTP error always carries a message too — the response arm must win over
+      // it, otherwise the PII-carrying message would leak into the redacted Loki summary.
+      const error = Object.assign(new Error('Conflict: leaked@example.com'), {
+        name: 'ConflictException',
+        response: { status: 409, data: { message: 'leaked@example.com' } },
+      });
+      expect((service as any).summarizeError(error)).toBe('status=409 type=ConflictException');
+    });
+
+    it('falls back to the constructor name when a plain-object HTTP error carries no name', () => {
+      expect((service as any).summarizeError({ response: { status: 500 } })).toBe('status=500 type=Object');
+    });
+
+    it("falls back to 'HttpError' when the HTTP error has neither a name nor a reachable constructor", () => {
+      const error = Object.assign(Object.create(null), { response: { status: 502 } });
+      expect((service as any).summarizeError(error)).toBe('status=502 type=HttpError');
+    });
+
+    it("reports the status as 'unknown' when the HTTP error carries no status", () => {
+      const error = Object.assign(Object.create(null), { response: {} });
+      expect((service as any).summarizeError(error)).toBe('status=unknown type=HttpError');
+    });
+
+    it('returns a string error as-is', () => {
+      expect((service as any).summarizeError('No user found for RealUnit wallet 0xabc')).toBe(
+        'No user found for RealUnit wallet 0xabc',
+      );
+    });
+
+    it('uses the plain message for a non-HTTP error (network/DB, no submitted PII)', () => {
+      expect((service as any).summarizeError(new Error('db down'))).toBe('db down');
+    });
+
+    it('stringifies a non-HTTP error that has no message', () => {
+      expect((service as any).summarizeError(42)).toBe('42');
+      expect((service as any).summarizeError({})).toBe('[object Object]');
+    });
+
+    it('returns undefined for a null or undefined error', () => {
+      expect((service as any).summarizeError(null)).toBeUndefined();
+      expect((service as any).summarizeError(undefined)).toBeUndefined();
+    });
+  });
+
   describe('forwardRegistrationToAktionariat (admin re-forward by registration id)', () => {
     it('throws NotFoundException when the registration id does not exist', async () => {
       aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);

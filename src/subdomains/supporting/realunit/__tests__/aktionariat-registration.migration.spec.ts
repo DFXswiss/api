@@ -543,8 +543,10 @@ describeDb('AddAktionariatRegistration migration (real Postgres backfill)', () =
     await runUp();
     await runDown();
 
+    // scope to this suite's schema: the purge-migration suite creates the same-named table in its own
+    // isolated schema on a parallel jest worker, and an unscoped catalog query would see it (flaky CI)
     const exists = await count(
-      `SELECT count(*) FROM information_schema.tables WHERE table_name = 'aktionariat_registration'`,
+      `SELECT count(*) FROM information_schema.tables WHERE table_name = 'aktionariat_registration' AND table_schema = 'public'`,
     );
     expect(exists).toBe(0);
   });
