@@ -61,6 +61,7 @@ const SAFE_KEYS = new Set([
   'timestamp',
   'outputDate',
   'registrationDate',
+  'confirmedDate',
   'lastUpdated',
   'timeFrame',
   'language',
