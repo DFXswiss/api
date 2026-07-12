@@ -78,9 +78,10 @@ describe('RealUnitLegalService', () => {
     });
 
     it('aggregates allAccepted=true only when every agreement is on its current version, filtering per agreement in SQL', async () => {
-      const all = Object.fromEntries(
-        Object.values(RealUnitLegalAgreement).map((a) => [a, currentVersion]),
-      ) as Record<RealUnitLegalAgreement, string>;
+      const all = Object.fromEntries(Object.values(RealUnitLegalAgreement).map((a) => [a, currentVersion])) as Record<
+        RealUnitLegalAgreement,
+        string
+      >;
       mockLatestAcceptances(all);
 
       const info = await service.getLegalInfo(userData);
