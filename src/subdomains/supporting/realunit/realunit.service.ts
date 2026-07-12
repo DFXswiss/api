@@ -1184,12 +1184,12 @@ export class RealUnitService {
   // REALUNIT_REGISTRATION kyc_step is created anymore; KYC level 20 is lifted best-effort (self-healing).
   //
   // The Aktionariat POST runs OUTSIDE any DB transaction, so no pooled connection is held across the (up to
-  // 30s) external call. Aktionariat's registerUser is an upsert (register == update), so if a transient DB
-  // failure rolls back the persist after a successful POST, the client retry harmlessly re-POSTs (an update,
-  // never a duplicate) and then persists — self-healing, no durable intent row needed. Concurrency is still
-  // serialised on the wallet-user by a short per-persist advisory lock plus the partial unique index: two
-  // concurrent callers may both (harmlessly) POST, but only one COMPLETED row is written; the second observes
-  // it and returns the idempotent success.
+  // 30s) external call. Aktionariat's registerUser is idempotent — an upsert keyed on the wallet (register ==
+  // update), confirmed with Aktionariat — so if a transient DB failure rolls back the persist after a
+  // successful POST, the client retry harmlessly re-POSTs (an update, never a duplicate) and then persists —
+  // self-healing, no durable intent row needed. Concurrency is still serialised on the wallet-user by a short
+  // per-persist advisory lock plus the partial unique index: two concurrent callers may both (harmlessly)
+  // POST, but only one COMPLETED row is written; the second observes it and returns the idempotent success.
   private async forwardRegistration(userData: UserData, dto: RealUnitRegistrationDto): Promise<boolean> {
     const { api } = Config.blockchain.realunit;
     const skipForward = [Environment.DEV, Environment.LOC].includes(Config.environment);
@@ -1221,6 +1221,8 @@ export class RealUnitService {
     const walletAddress = dto.walletAddress.toLowerCase();
 
     // 1) Forward to Aktionariat OUTSIDE any DB transaction — no pooled connection is held across the call.
+    //    Re-POST is safe: registerUser is an idempotent upsert (confirmed with Aktionariat), so a retry
+    //    updates rather than duplicates the share-register registration.
     let registerResponse: Record<string, unknown> | undefined;
     let forwardError: unknown;
     if (!skipForward) {
@@ -1373,10 +1375,11 @@ export class RealUnitService {
     await manager.save(registration);
   }
 
-  // Audit-only mirror of the Aktionariat communication into the generic Log table. PII-reduced: only the
-  // request field *names* are logged, plus NON-PII summaries of the Aktionariat response/error — never the
-  // raw bodies, which echo the submitted email/name. Best-effort: a logging failure must never fail the
-  // registration, but it is surfaced loudly (never swallowed).
+  // Audit mirror of the Aktionariat communication into the DB `log` table. The DB log is the DESIGNATED
+  // PII audit store (its own access-control/retention), UNLIKE Loki (the PII-free channel used by the
+  // this.logger.* lines), so it records the FULL communication — the exact sent payload, the full
+  // Aktionariat response, and the full error body — for a complete, replayable audit trail. Best-effort:
+  // a logging failure must never fail the registration, but it is surfaced loudly (never swallowed).
   private async logAktionariatRegistration(
     severity: LogSeverity,
     walletAddress: string,
@@ -1392,9 +1395,9 @@ export class RealUnitService {
         message: JSON.stringify({
           action: 'registerUser',
           walletAddress,
-          requestFields: Object.keys(request),
-          response: this.summarizeResponse(response),
-          error: this.summarizeError(error),
+          request,
+          response,
+          error: this.describeError(error),
         }),
         category: walletAddress,
         valid: null,
@@ -1406,24 +1409,23 @@ export class RealUnitService {
     }
   }
 
-  // Non-PII summary of the Aktionariat response for the audit log: only the internal DEV/LOC marker passes
-  // through verbatim (any other string body could echo submitted email/name, so it is reduced to a
-  // {type,length} shape); objects are reduced to their field NAMES (never the values, which echo
-  // email/name), arrays to their length, primitives to their type. Mirrors the request-field-name reduction.
-  private summarizeResponse(response: unknown): unknown {
-    if (response == null) return undefined;
-    // Only the internal DEV/LOC marker is a safe string to log verbatim; any other string body could echo
-    // submitted PII (email/name), so reduce it to a non-PII shape.
-    if (typeof response === 'string')
-      return response === 'skipped (DEV/LOC)' ? response : { type: 'string', length: response.length };
-    if (Array.isArray(response)) return { length: response.length };
-    if (typeof response === 'object') return { fields: Object.keys(response as Record<string, unknown>) };
-    return typeof response;
+  // Full, JSON-serialisable error content for the DB log (the PII audit store): the Aktionariat HTTP error
+  // body when it carries content (the useful, complete part) — an empty or null body falls through so the
+  // error identity is not lost — else a string as-is, else an Error's name+message, else the raw value.
+  // Not for Loki — the this.logger.* lines use summarizeError (redacted) instead.
+  private describeError(error: unknown): unknown {
+    if (error == null) return undefined;
+    const e = error as any;
+    if (e.response?.data != null && e.response.data !== '') return e.response.data;
+    if (typeof error === 'string') return error;
+    if (error instanceof Error) return { name: error.name, message: error.message };
+    return error;
   }
 
-  // Non-PII summary of a forward/persist error for the audit and app logs. An HTTP error from Aktionariat
-  // may echo the submitted email/name in its body, so only the status and error type are kept; other errors
-  // (network / DB, no submitted PII) use their message.
+  // Redacted summary of a forward/persist error for the Loki app-log (this.logger.*); the DB log stores the
+  // full error via describeError. An HTTP error from Aktionariat may echo the submitted email/name in its
+  // body, so only the status and error type are kept; other errors (network / DB, no submitted PII) use
+  // their message.
   private summarizeError(error: unknown): string | undefined {
     if (error == null) return undefined;
     const e = error as any;
