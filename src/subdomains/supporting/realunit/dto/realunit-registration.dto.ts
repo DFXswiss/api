@@ -276,6 +276,17 @@ export class RealUnitRegistrationInfoDto {
     description: 'When the wallet was confirmed at Aktionariat. Present only once a confirmation has been recorded.',
   })
   confirmedDate?: Date;
+
+  @ApiPropertyOptional({
+    type: Boolean,
+    nullable: true,
+    description:
+      "Whether this wallet's RealUnit registration is stuck in manual review — the Aktionariat forward failed " +
+      'and it awaits a manual re-forward by staff. `true` only for the current wallet (state `AlreadyRegistered`) ' +
+      'when the registration is in manual review; `false`/absent otherwise. Additive and nullable: older clients ' +
+      'ignore it, newer clients render a "registration under manual review" screen.',
+  })
+  manualReview?: boolean;
 }
 
 export class RealUnitRegisterWalletDto {

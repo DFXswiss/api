@@ -37,6 +37,8 @@ import { TransactionRequestService } from 'src/subdomains/supporting/payment/ser
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
+import { SupportIssueReason, SupportIssueType } from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
+import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { FindOperator } from 'typeorm';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
@@ -168,6 +170,7 @@ describe('RealUnitService', () => {
   let logService: jest.Mocked<LogService>;
   let fiatService: jest.Mocked<FiatService>;
   let buyService: jest.Mocked<BuyService>;
+  let supportIssueService: jest.Mocked<SupportIssueService>;
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -280,6 +283,12 @@ describe('RealUnitService', () => {
             create: jest.fn(),
           },
         },
+        {
+          provide: SupportIssueService,
+          useValue: {
+            createIssueInternal: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -296,6 +305,7 @@ describe('RealUnitService', () => {
     logService = module.get(LogService);
     fiatService = module.get(FiatService);
     buyService = module.get(BuyService);
+    supportIssueService = module.get(SupportIssueService);
   });
 
   afterEach(() => {
@@ -1188,6 +1198,53 @@ describe('RealUnitService', () => {
       expect(status.emailConfirmed).toBeUndefined();
       expect(status.confirmedDate).toBeUndefined();
     });
+
+    it('reports manualReview=true for a current-wallet registration stuck in MANUAL_REVIEW (forward failed)', async () => {
+      const userData = buildVerifiedUserData();
+      aktionariatRegistrationRepo.findOne.mockResolvedValueOnce(
+        buildRegistrationForWallet(walletAddress, { status: ReviewStatus.MANUAL_REVIEW }),
+      );
+
+      const status = await service.getRegistrationInfo(userData, walletAddress);
+
+      // state stays ALREADY_REGISTERED for backward compatibility; the new flag distinguishes the stuck case
+      expect(status.state).toBe(RealUnitRegistrationState.ALREADY_REGISTERED);
+      expect(status.manualReview).toBe(true);
+    });
+
+    it('reports manualReview=false for a COMPLETED current-wallet registration', async () => {
+      const userData = buildVerifiedUserData();
+      aktionariatRegistrationRepo.findOne.mockResolvedValueOnce(
+        buildRegistrationForWallet(walletAddress, { status: ReviewStatus.COMPLETED }),
+      );
+
+      const status = await service.getRegistrationInfo(userData, walletAddress);
+
+      expect(status.state).toBe(RealUnitRegistrationState.ALREADY_REGISTERED);
+      expect(status.manualReview).toBe(false);
+    });
+
+    it('omits manualReview for an ADD_WALLET (other-wallet) registration', async () => {
+      const userData = buildVerifiedUserData();
+      aktionariatRegistrationRepo.findOne
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce(buildRegistrationForWallet(otherWalletAddress, { status: ReviewStatus.COMPLETED }));
+
+      const status = await service.getRegistrationInfo(userData, walletAddress);
+
+      expect(status.state).toBe(RealUnitRegistrationState.ADD_WALLET);
+      expect(status.manualReview).toBeUndefined();
+    });
+
+    it('omits manualReview for a NEW_REGISTRATION (no registration row)', async () => {
+      const userData = buildVerifiedUserData();
+      aktionariatRegistrationRepo.findOne.mockResolvedValue(undefined);
+
+      const status = await service.getRegistrationInfo(userData, walletAddress);
+
+      expect(status.state).toBe(RealUnitRegistrationState.NEW_REGISTRATION);
+      expect(status.manualReview).toBeUndefined();
+    });
   });
 
   describe('withPriceSourceGuard (Aktionariat price source)', () => {
@@ -1419,7 +1476,8 @@ describe('RealUnitService', () => {
       const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
 
       expect(ok).toBe(true);
-      expect(userService.getUserByAddress).toHaveBeenCalledWith(wallet);
+      // the wallet relation is loaded for the (unused on success) forward-failure ticket source attribution
+      expect(userService.getUserByAddress).toHaveBeenCalledWith(wallet, { wallet: true });
 
       const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
       expect(created).toMatchObject({
@@ -1433,6 +1491,10 @@ describe('RealUnitService', () => {
         status: ReviewStatus.COMPLETED,
         active: true,
       });
+      // a COMPLETED registration is gated on the Aktionariat confirmation mail
+      expect(created.requiresEmailConfirmation).toBe(true);
+      // success never opens a forward-failure support ticket
+      expect(supportIssueService.createIssueInternal).not.toHaveBeenCalled();
       expect(created.forwardedToAktionariatDate).toBeInstanceOf(Date);
       expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
       // the exact forwarded payload is attached for an idempotent re-forward and keeps the signed casing
@@ -1514,7 +1576,52 @@ describe('RealUnitService', () => {
       const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
       expect(created.status).toBe(ReviewStatus.MANUAL_REVIEW);
       expect(created.forwardedToAktionariatDate).toBeUndefined();
+      // a MANUAL_REVIEW row is NOT gated on a confirmation mail (none was ever sent) — no confirm dead-end
+      expect(created.requiresEmailConfirmation).toBe(false);
       expect(logService.create).toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
+    });
+
+    it('opens a support ticket for the parked MANUAL_REVIEW registration (KYC_ISSUE/Other, wallet in the message)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      const sourceWallet = { id: 7, name: 'RealUnit' };
+      // the wallet-user's wallet is the source-app attribution passed to the ticket
+      userService.getUserByAddress.mockResolvedValue({ id: 42, wallet: sourceWallet } as any);
+      httpService.post.mockRejectedValue({ response: { data: { message: 'aktionariat rejected' } } });
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(false);
+      expect(supportIssueService.createIssueInternal).toHaveBeenCalledTimes(1);
+      const [ticketUserData, ticketDto, ticketWallet] = (supportIssueService.createIssueInternal as jest.Mock).mock
+        .calls[0];
+      expect(ticketUserData).toMatchObject({ id: 1 });
+      expect(ticketDto).toMatchObject({
+        type: SupportIssueType.KYC_ISSUE,
+        reason: SupportIssueReason.AKTIONARIAT_FORWARDING_FAILED,
+      });
+      expect(ticketDto.message).toContain(wallet);
+      // the source-app attribution is the wallet-user's wallet
+      expect(ticketWallet).toBe(sourceWallet);
+    });
+
+    it('keeps the parked MANUAL_REVIEW registration even when opening the support ticket throws (best-effort)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 42, wallet: { id: 7 } } as any);
+      httpService.post.mockRejectedValue({ response: { data: { message: 'aktionariat rejected' } } });
+      supportIssueService.createIssueInternal.mockRejectedValue(new Error('ticket boom'));
+
+      // the ticket failure must not rethrow: forwardRegistration still resolves to false
+      const ok = await (service as any).forwardRegistration(fakeUserData(), dto);
+
+      expect(ok).toBe(false);
+      // the MANUAL_REVIEW row is still committed (the ticket is opened after the persist, best-effort)
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(1);
+      const created = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls[0][0];
+      expect(created.status).toBe(ReviewStatus.MANUAL_REVIEW);
     });
 
     it('rolls back and returns false (nothing half-written) when the registration persist fails', async () => {
