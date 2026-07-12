@@ -1597,7 +1597,10 @@ describe('RealUnitService', () => {
       const [ticketUserData, ticketDto, ticketWallet] = (supportIssueService.createIssueInternal as jest.Mock).mock
         .calls[0];
       expect(ticketUserData).toMatchObject({ id: 1 });
-      expect(ticketDto).toMatchObject({ type: SupportIssueType.KYC_ISSUE, reason: SupportIssueReason.OTHER });
+      expect(ticketDto).toMatchObject({
+        type: SupportIssueType.KYC_ISSUE,
+        reason: SupportIssueReason.AKTIONARIAT_FORWARDING_FAILED,
+      });
       expect(ticketDto.message).toContain(wallet);
       // the source-app attribution is the wallet-user's wallet
       expect(ticketWallet).toBe(sourceWallet);

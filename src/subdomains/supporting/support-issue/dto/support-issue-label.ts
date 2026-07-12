@@ -23,4 +23,5 @@ export const SupportIssueReasonLabelMap: Record<SupportIssueReason, string> = {
   [SupportIssueReason.NAME_CHANGED]: 'Name geändert',
   [SupportIssueReason.ADDRESS_CHANGED]: 'Adresse geändert',
   [SupportIssueReason.CIVIL_STATUS_CHANGED]: 'Zivilstand geändert',
+  [SupportIssueReason.AKTIONARIAT_FORWARDING_FAILED]: 'RealUnit-Registrierung: Weiterleitung fehlgeschlagen',
 };

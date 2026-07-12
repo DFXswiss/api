@@ -1460,7 +1460,7 @@ export class RealUnitService {
     try {
       const dto: CreateSupportIssueDto = {
         type: SupportIssueType.KYC_ISSUE,
-        reason: SupportIssueReason.OTHER,
+        reason: SupportIssueReason.AKTIONARIAT_FORWARDING_FAILED,
         department: Department.SUPPORT,
         name: 'RealUnit Aktionariat registration - forwarding failed',
         author: CustomerAuthor,
