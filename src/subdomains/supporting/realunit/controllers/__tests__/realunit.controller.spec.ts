@@ -93,6 +93,7 @@ describe('RealUnitController — registration & gate handler delegation', () => 
     getPaymentInfo: jest.Mock;
     getSellPaymentInfo: jest.Mock;
     getRegistrationInfo: jest.Mock;
+    getRegistrationDate: jest.Mock;
     hasRegistrationForWallet: jest.Mock;
     forwardRegistrationToAktionariat: jest.Mock;
   };
@@ -105,6 +106,7 @@ describe('RealUnitController — registration & gate handler delegation', () => 
       getPaymentInfo: jest.fn().mockResolvedValue('buy-info'),
       getSellPaymentInfo: jest.fn().mockResolvedValue('sell-info'),
       getRegistrationInfo: jest.fn().mockResolvedValue('reg-info'),
+      getRegistrationDate: jest.fn().mockReturnValue({ date: '2026-07-13' }),
       hasRegistrationForWallet: jest.fn().mockResolvedValue(true),
       forwardRegistrationToAktionariat: jest.fn().mockResolvedValue(undefined),
     };
@@ -163,6 +165,14 @@ describe('RealUnitController — registration & gate handler delegation', () => 
     expect(res).toBe(true);
     expect(getUser).toHaveBeenCalledWith(7, { userData: true });
     expect(realunitService.hasRegistrationForWallet).toHaveBeenCalledWith(user.userData, JWT.address);
+  });
+
+  it('getRegistrationDate delegates to the service without touching the DB', () => {
+    const res = controller.getRegistrationDate();
+
+    expect(res).toEqual({ date: '2026-07-13' });
+    expect(realunitService.getRegistrationDate).toHaveBeenCalledWith();
+    expect(getUser).not.toHaveBeenCalled();
   });
 
   it('admin forwardRegistration coerces the :id path string to a number', async () => {

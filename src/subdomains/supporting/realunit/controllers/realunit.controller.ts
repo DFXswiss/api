@@ -72,6 +72,7 @@ import {
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationResponseDto,
   RealUnitRegisterWalletDto,
+  RealUnitRegistrationDateDto,
   RealUnitRegistrationDto,
   RealUnitRegistrationInfoDto,
   RealUnitRegistrationResponseDto,
@@ -708,6 +709,26 @@ export class RealUnitController {
   }
 
   // --- Registration Endpoints ---
+
+  @Get('register/date')
+  @ApiBearerAuth()
+  // ACCOUNT (not USER) to match the endpoints this date feeds — register/complete
+  // and register/wallet are ACCOUNT-guarded, so any token that can register must
+  // also be able to fetch the date to sign. ACCOUNT admits USER via the role
+  // hierarchy, so this only widens access, never narrows it.
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ACCOUNT), UserActiveGuard())
+  @ApiOperation({
+    summary: 'Get the registration date to sign',
+    description:
+      "Returns the server's current registration date (UTC). The client must sign this exact value into the " +
+      'EIP-712 registration envelope submitted to POST /register/complete and POST /register/wallet, rather than ' +
+      "deriving the date from its own clock — a device in a timezone ahead of UTC would otherwise sign tomorrow's " +
+      'date and be rejected. Fetch this immediately before signing.',
+  })
+  @ApiOkResponse({ type: RealUnitRegistrationDateDto })
+  getRegistrationDate(): RealUnitRegistrationDateDto {
+    return this.realunitService.getRegistrationDate();
+  }
 
   @Get('register/status')
   @ApiBearerAuth()
