@@ -110,6 +110,14 @@ export class PayoutService {
     const order = await this.payoutOrderRepo.findOneBy({ id });
     if (!order) throw new NotFoundException('Payout order not found');
 
+    // Only an already-broadcast order (payoutTxId set) may be sped up. Any other status would
+    // enter doPayout without a payoutTxId, trip the designate-before-broadcast guard and trigger
+    // a fresh broadcast — a double-payout risk on an order the operator only meant to accelerate.
+    if (order.status !== PayoutOrderStatus.PAYOUT_PENDING)
+      throw new BadRequestException(
+        `Payout order ${id} cannot be sped up in status ${order.status}, expected ${PayoutOrderStatus.PAYOUT_PENDING}`,
+      );
+
     const strategy = this.payoutStrategyRegistry.getPayoutStrategy(order.asset);
 
     await strategy.doPayout([order]);
