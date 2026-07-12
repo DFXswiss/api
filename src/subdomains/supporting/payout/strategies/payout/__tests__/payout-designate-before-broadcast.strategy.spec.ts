@@ -6,28 +6,39 @@ import { createCustomPayoutOrder } from '../../../entities/__mocks__/payout-orde
 import { PayoutOrder, PayoutOrderStatus } from '../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutArkadeService } from '../../../services/payout-arkade.service';
+import { PayoutCardanoService } from '../../../services/payout-cardano.service';
 import { PayoutEvmService } from '../../../services/payout-evm.service';
+import { PayoutInternetComputerService } from '../../../services/payout-icp.service';
+import { PayoutLightningService } from '../../../services/payout-lightning.service';
+import { PayoutSolanaService } from '../../../services/payout-solana.service';
+import { PayoutSparkService } from '../../../services/payout-spark.service';
+import { PayoutTronService } from '../../../services/payout-tron.service';
 import { ArkadeStrategy } from '../impl/arkade.strategy';
 import { EvmStrategy } from '../impl/base/evm.strategy';
+import { CardanoCoinStrategy } from '../impl/cardano-coin.strategy';
+import { InternetComputerCoinStrategy } from '../impl/icp-coin.strategy';
+import { LightningStrategy } from '../impl/lightning.strategy';
+import { SolanaCoinStrategy } from '../impl/solana-coin.strategy';
+import { SparkStrategy } from '../impl/spark.strategy';
+import { TronCoinStrategy } from '../impl/tron-coin.strategy';
 
-describe('Payout designate-before-broadcast', () => {
-  describe('EvmStrategy #doPayout(...)', () => {
-    let strategy: EvmStrategyWrapper;
-    let payoutEvmService: PayoutEvmService;
-    let payoutOrderRepo: PayoutOrderRepository;
-    let dispatchFn: jest.Mock;
-    let repoSaveSpy: jest.SpyInstance;
+// Fixture returned by every per-strategy setup function below: a strategy instance whose
+// broadcast sink (dispatchPayout/sendTransaction/sendPayment) and persistence sink
+// (payoutOrderRepo.save) are individually spy-able, so the shared variant suite can drive and
+// assert designate-before-broadcast behavior identically across all eight strategies.
+interface DesignateBeforeBroadcastFixture {
+  doPayout: (orders: PayoutOrder[]) => Promise<void>;
+  dispatchSpy: jest.SpyInstance;
+  repoSaveSpy: jest.SpyInstance;
+}
 
-    beforeEach(() => {
-      payoutEvmService = mock<PayoutEvmService>();
-      payoutOrderRepo = mock<PayoutOrderRepository>();
-      dispatchFn = jest.fn();
-      repoSaveSpy = jest.spyOn(payoutOrderRepo, 'save').mockImplementation(async (o) => o as PayoutOrder);
-
-      strategy = new EvmStrategyWrapper(payoutEvmService, payoutOrderRepo, dispatchFn);
-    });
-
-    it('designates and persists BEFORE broadcasting so the order is not re-selectable on reboot', async () => {
+// Shared table of the four designate-before-broadcast variants, run identically against every
+// strategy's fixture. Kept as real, individually-named it() blocks (not a silent for-loop) so a
+// failure in one strategy/variant combination is reported on its own line.
+function runDesignateBeforeBroadcastSuite(strategyName: string, setup: () => DesignateBeforeBroadcastFixture): void {
+  describe(`${strategyName} #doPayout(...)`, () => {
+    it('designates and persists BEFORE broadcasting, then reaches PAYOUT_PENDING with the new txId', async () => {
+      const { doPayout, dispatchSpy, repoSaveSpy } = setup();
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
 
       // capture the persisted status at the moment of the first (pre-broadcast) save
@@ -36,94 +47,196 @@ describe('Payout designate-before-broadcast', () => {
         statusAtFirstSave = o.status;
         return o;
       });
-      dispatchFn.mockResolvedValue('TX_NEW');
+      dispatchSpy.mockResolvedValue('TX_NEW');
 
-      await strategy.doPayout([order]);
+      await doPayout([order]);
 
       expect(statusAtFirstSave).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
       expect(order.payoutTxId).toBe('TX_NEW');
-      expect(dispatchFn).toHaveBeenCalledTimes(1);
+      expect(dispatchSpy).toHaveBeenCalledTimes(1);
       expect(repoSaveSpy).toHaveBeenCalledTimes(2); // designate + pending
     });
 
     it('leaves the order PAYOUT_DESIGNATED (no txId, no rollback) when the broadcast throws', async () => {
+      const { doPayout, dispatchSpy, repoSaveSpy } = setup();
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
       const rollbackSpy = jest.spyOn(order, 'rollbackPayoutDesignation');
-      dispatchFn.mockRejectedValue(new Error('RPC broadcast failed'));
+      dispatchSpy.mockRejectedValue(new Error('broadcast failed'));
 
-      await strategy.doPayout([order]);
+      await doPayout([order]);
 
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
       expect(order.payoutTxId).toBeNull();
-      expect(dispatchFn).toHaveBeenCalledTimes(1); // no second broadcast
+      expect(dispatchSpy).toHaveBeenCalledTimes(1); // no second broadcast
       expect(rollbackSpy).not.toHaveBeenCalled(); // fail-closed: never auto-rollback after broadcast
       expect(repoSaveSpy).toHaveBeenCalledTimes(1); // only the pre-broadcast designate save
     });
 
-    it('does NOT re-designate when payoutTxId is already set (TX_SPEEDUP/expired-retry path)', async () => {
+    it('does NOT re-designate when payoutTxId is already set (speedup/expired-retry path)', async () => {
+      const { doPayout, dispatchSpy, repoSaveSpy } = setup();
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'OLD_TX' });
       const designateSpy = jest.spyOn(order, 'designatePayout');
-      dispatchFn.mockResolvedValue('NEW_TX');
+      dispatchSpy.mockResolvedValue('NEW_TX');
 
-      await strategy.doPayout([order]);
+      await doPayout([order]);
 
       expect(designateSpy).not.toHaveBeenCalled();
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
       expect(order.payoutTxId).toBe('NEW_TX');
-      expect(dispatchFn).toHaveBeenCalledTimes(1);
+      expect(dispatchSpy).toHaveBeenCalledTimes(1);
       expect(repoSaveSpy).toHaveBeenCalledTimes(1); // only the pending save, no extra designate save
     });
-  });
 
-  describe('ArkadeStrategy #doPayout(...)', () => {
-    let strategy: ArkadeStrategy;
-    let arkadeService: PayoutArkadeService;
-    let payoutOrderRepo: PayoutOrderRepository;
-    let assetService: AssetService;
-    let sendTransactionSpy: jest.SpyInstance;
-    let repoSaveSpy: jest.SpyInstance;
-
-    beforeEach(() => {
-      arkadeService = mock<PayoutArkadeService>();
-      payoutOrderRepo = mock<PayoutOrderRepository>();
-      assetService = mock<AssetService>();
-
-      sendTransactionSpy = jest.spyOn(arkadeService, 'sendTransaction');
-      repoSaveSpy = jest.spyOn(payoutOrderRepo, 'save').mockImplementation(async (o) => o as PayoutOrder);
-
-      strategy = new ArkadeStrategy(arkadeService, payoutOrderRepo, assetService);
-    });
-
-    it('designates before broadcasting and reaches PAYOUT_PENDING on success', async () => {
+    it('never broadcasts when the pre-broadcast designate save throws', async () => {
+      const { doPayout, dispatchSpy, repoSaveSpy } = setup();
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
+      repoSaveSpy.mockRejectedValueOnce(new Error('DB unavailable'));
 
-      let statusAtFirstSave: PayoutOrderStatus | undefined;
-      repoSaveSpy.mockImplementationOnce(async (o: PayoutOrder) => {
-        statusAtFirstSave = o.status;
-        return o;
-      });
-      sendTransactionSpy.mockResolvedValue('ARK_TX');
+      // doPayout must swallow the error (fail-closed logging), never let it escape
+      await expect(doPayout([order])).resolves.toBeUndefined();
 
-      await strategy.doPayout([order]);
-
-      expect(statusAtFirstSave).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
-      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
-      expect(order.payoutTxId).toBe('ARK_TX');
-      expect(sendTransactionSpy).toHaveBeenCalledTimes(1);
-      expect(repoSaveSpy).toHaveBeenCalledTimes(2);
-    });
-
-    it('leaves the order PAYOUT_DESIGNATED when the broadcast throws', async () => {
-      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
-      sendTransactionSpy.mockRejectedValue(new Error('Arkade send failed'));
-
-      await strategy.doPayout([order]);
-
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1);
+      expect(dispatchSpy).not.toHaveBeenCalled(); // broadcast is never reached
+      // order.designatePayout() already ran synchronously before the rejected save, so the
+      // in-memory object is PAYOUT_DESIGNATED even though nothing was ever persisted - it never
+      // advances to PAYOUT_PENDING/txId, which is what matters for not being double-broadcast.
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
       expect(order.payoutTxId).toBeNull();
-      expect(sendTransactionSpy).toHaveBeenCalledTimes(1);
-      expect(repoSaveSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+}
+
+function repoSaveEcho(payoutOrderRepo: PayoutOrderRepository): jest.SpyInstance {
+  return jest.spyOn(payoutOrderRepo, 'save').mockImplementation(async (o) => o as PayoutOrder);
+}
+
+function setupEvm(): DesignateBeforeBroadcastFixture {
+  const payoutEvmService = mock<PayoutEvmService>();
+  const payoutOrderRepo = mock<PayoutOrderRepository>();
+  const dispatchFn = jest.fn();
+  const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
+
+  const strategy = new EvmStrategyWrapper(payoutEvmService, payoutOrderRepo, dispatchFn);
+
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy: dispatchFn, repoSaveSpy };
+}
+
+function setupSolana(): DesignateBeforeBroadcastFixture {
+  const solanaService = mock<PayoutSolanaService>();
+  const assetService = mock<AssetService>();
+  const payoutOrderRepo = mock<PayoutOrderRepository>();
+  const dispatchSpy = jest.spyOn(solanaService, 'sendNativeCoin');
+  const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
+
+  const strategy = new SolanaCoinStrategy(solanaService, assetService, payoutOrderRepo);
+
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+}
+
+function setupTron(): DesignateBeforeBroadcastFixture {
+  const tronService = mock<PayoutTronService>();
+  const assetService = mock<AssetService>();
+  const payoutOrderRepo = mock<PayoutOrderRepository>();
+  const dispatchSpy = jest.spyOn(tronService, 'sendNativeCoin');
+  const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
+
+  const strategy = new TronCoinStrategy(tronService, assetService, payoutOrderRepo);
+
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+}
+
+function setupCardano(): DesignateBeforeBroadcastFixture {
+  const cardanoService = mock<PayoutCardanoService>();
+  const assetService = mock<AssetService>();
+  const payoutOrderRepo = mock<PayoutOrderRepository>();
+  const dispatchSpy = jest.spyOn(cardanoService, 'sendNativeCoin');
+  const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
+
+  const strategy = new CardanoCoinStrategy(cardanoService, assetService, payoutOrderRepo);
+
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+}
+
+function setupIcp(): DesignateBeforeBroadcastFixture {
+  const internetComputerService = mock<PayoutInternetComputerService>();
+  const assetService = mock<AssetService>();
+  const payoutOrderRepo = mock<PayoutOrderRepository>();
+  const dispatchSpy = jest.spyOn(internetComputerService, 'sendNativeCoin');
+  const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
+
+  const strategy = new InternetComputerCoinStrategy(internetComputerService, assetService, payoutOrderRepo);
+
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+}
+
+function setupArkade(): DesignateBeforeBroadcastFixture {
+  const arkadeService = mock<PayoutArkadeService>();
+  const payoutOrderRepo = mock<PayoutOrderRepository>();
+  const assetService = mock<AssetService>();
+  const dispatchSpy = jest.spyOn(arkadeService, 'sendTransaction');
+  const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
+
+  const strategy = new ArkadeStrategy(arkadeService, payoutOrderRepo, assetService);
+
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+}
+
+function setupSpark(): DesignateBeforeBroadcastFixture {
+  const sparkService = mock<PayoutSparkService>();
+  const payoutOrderRepo = mock<PayoutOrderRepository>();
+  const assetService = mock<AssetService>();
+  const dispatchSpy = jest.spyOn(sparkService, 'sendTransaction');
+  const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
+
+  const strategy = new SparkStrategy(sparkService, payoutOrderRepo, assetService);
+
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+}
+
+function setupLightning(): DesignateBeforeBroadcastFixture {
+  const assetService = mock<AssetService>();
+  const payoutLightningService = mock<PayoutLightningService>();
+  const payoutOrderRepo = mock<PayoutOrderRepository>();
+  jest.spyOn(payoutLightningService, 'isHealthy').mockResolvedValue(true);
+  const dispatchSpy = jest.spyOn(payoutLightningService, 'sendPayment');
+  const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
+
+  const strategy = new LightningStrategy(assetService, payoutLightningService, payoutOrderRepo);
+
+  return { doPayout: (orders) => strategy.doPayout(orders), dispatchSpy, repoSaveSpy };
+}
+
+describe('Payout designate-before-broadcast', () => {
+  runDesignateBeforeBroadcastSuite('EvmStrategy', setupEvm);
+  runDesignateBeforeBroadcastSuite('SolanaStrategy (SolanaCoinStrategy)', setupSolana);
+  runDesignateBeforeBroadcastSuite('TronStrategy (TronCoinStrategy)', setupTron);
+  runDesignateBeforeBroadcastSuite('CardanoStrategy (CardanoCoinStrategy)', setupCardano);
+  runDesignateBeforeBroadcastSuite('IcpStrategy (InternetComputerCoinStrategy)', setupIcp);
+  runDesignateBeforeBroadcastSuite('ArkadeStrategy', setupArkade);
+  runDesignateBeforeBroadcastSuite('SparkStrategy', setupSpark);
+  runDesignateBeforeBroadcastSuite('LightningStrategy', setupLightning);
+
+  describe('LightningStrategy #doPayout(...) — health gate', () => {
+    it('designates nothing, broadcasts nothing and saves nothing when isHealthy() is false', async () => {
+      const assetService = mock<AssetService>();
+      const payoutLightningService = mock<PayoutLightningService>();
+      const payoutOrderRepo = mock<PayoutOrderRepository>();
+      jest.spyOn(payoutLightningService, 'isHealthy').mockResolvedValue(false);
+      const sendPaymentSpy = jest.spyOn(payoutLightningService, 'sendPayment');
+      const repoSaveSpy = repoSaveEcho(payoutOrderRepo);
+
+      const strategy = new LightningStrategy(assetService, payoutLightningService, payoutOrderRepo);
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
+      const designateSpy = jest.spyOn(order, 'designatePayout');
+
+      await strategy.doPayout([order]);
+
+      expect(designateSpy).not.toHaveBeenCalled();
+      expect(sendPaymentSpy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+      expect(order.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+      expect(order.payoutTxId).toBeNull();
     });
   });
 });
