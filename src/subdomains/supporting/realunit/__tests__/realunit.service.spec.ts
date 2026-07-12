@@ -22,7 +22,8 @@ import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service'
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
 import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { AccountMergeService } from 'src/subdomains/generic/user/models/account-merge/account-merge.service';
-import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
+import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
+import { KycLevel, ServiceProvider } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { QuoteError } from 'src/subdomains/supporting/payment/dto/transaction-helper/quote-error.enum';
@@ -40,7 +41,13 @@ import { FindOperator } from 'typeorm';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAktionariatConfirmationStatus } from '../dto/realunit-confirm-aktionariat.dto';
-import { RealUnitRegistrationState, RealUnitRegistrationStatus } from '../dto/realunit-registration.dto';
+import {
+  RealUnitEmailRegistrationStatus,
+  RealUnitLanguage,
+  RealUnitRegistrationState,
+  RealUnitRegistrationStatus,
+  RealUnitUserType,
+} from '../dto/realunit-registration.dto';
 import { PriceInvalidException } from '../../pricing/domain/exceptions/price-invalid.exception';
 import { RealUnitDevService } from '../realunit-dev.service';
 import { AktionariatRegistration } from '../entities/aktionariat-registration.entity';
@@ -2197,6 +2204,13 @@ describe('RealUnitService', () => {
     const email = 'user@example.com';
     const code = 'CONFIRM-CODE';
     const user = 'aktionariat-user-1';
+    // The controller forwards the untouched incoming request (full URL + every query param) so the audit can
+    // record params the DTO strips. A generic value for the calls that don't assert on it; the raw-request
+    // logging tests below build their own with extra params.
+    const rawRequest = {
+      url: `/v1/realunit/confirm-aktionariat?email=${email}&code=${code}&user=${user}`,
+      query: { email, code, user } as Record<string, unknown>,
+    };
     // Registration walletAddress columns are canonically lowercase; the confirm flow returns the signed
     // (mixed-case) address but latches the confirmed state onto the lowercased registration row.
     const walletA = '0xaaa0000000000000000000000000000000000001';
@@ -2227,7 +2241,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       mockActiveRegistration();
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
       expect(result.confirmedAddresses).toEqual([walletA]);
@@ -2243,7 +2257,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA, walletA, walletB]);
       mockActiveRegistration();
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.confirmedAddresses).toEqual([walletA, walletB]);
       // one advisory-locked latch transaction per distinct wallet
@@ -2262,7 +2276,7 @@ describe('RealUnitService', () => {
       ] as any);
       mockActiveRegistration();
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.confirmedAddresses).toEqual([checksummed]);
       expect(aktionariatManager.transaction).toHaveBeenCalledTimes(1);
@@ -2272,7 +2286,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       mockActiveRegistration();
 
-      await service.confirmAktionariat({ email: 'MiXeD@example.com', code, user });
+      await service.confirmAktionariat({ email: 'MiXeD@example.com', code, user }, rawRequest);
 
       // the email filter is a TypeORM Raw operator; execute its SQL generator to prove the predicate
       const op = (aktionariatRegistrationRepo.find as jest.Mock).mock.calls[0][0].where.email;
@@ -2287,7 +2301,7 @@ describe('RealUnitService', () => {
       ] as any);
       mockActiveRegistration();
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.confirmedAddresses).toEqual([checksummed, '0xdef0000000000000000000000000000000000010']);
     });
@@ -2298,7 +2312,7 @@ describe('RealUnitService', () => {
     it('durably audits a 0-match call (zero wallets): exactly ONE DB-log row, no registration touched, no throw', async () => {
       mockRegisteredWallets([]);
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       // the call still resolves (the code was valid at Aktionariat) and returns an empty confirmed list
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
@@ -2322,7 +2336,7 @@ describe('RealUnitService', () => {
     it('masks an email without an @ sign without crashing', async () => {
       mockRegisteredWallets([]);
 
-      const result = await service.confirmAktionariat({ email: 'no-at-sign', code, user });
+      const result = await service.confirmAktionariat({ email: 'no-at-sign', code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
     });
@@ -2333,7 +2347,7 @@ describe('RealUnitService', () => {
       mockActiveRegistration();
       httpService.getRaw.mockResolvedValue({ status: 200, data: { status: 200, message: 'ok' } } as any);
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
       const calledUrl = httpService.getRaw.mock.calls[0][0] as string;
@@ -2350,7 +2364,7 @@ describe('RealUnitService', () => {
         response: { status: 403, data: { status: 403, message: 'Code not found' } },
       });
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.INVALID);
       expect(result.confirmedAddresses).toEqual([]);
@@ -2367,7 +2381,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       mockActiveRegistration(firstDate);
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
       // the latch is never advanced: with confirmedDate already set, no save is issued
@@ -2380,7 +2394,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       aktionariatTxManager.findOne.mockResolvedValue(undefined); // no active registration row
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
       expect(result.confirmedAddresses).toEqual([walletA]);
@@ -2401,7 +2415,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       httpService.getRaw.mockRejectedValue({ response: { status: 503, data: 'Service Unavailable' } });
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.UNAVAILABLE);
       expect(result.confirmedAddresses).toEqual([]);
@@ -2413,7 +2427,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       httpService.getRaw.mockRejectedValue(new Error('timeout of 30000ms exceeded'));
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.UNAVAILABLE);
       expect(aktionariatTxManager.save).not.toHaveBeenCalled();
@@ -2424,7 +2438,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       httpService.getRaw.mockRejectedValue({});
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.UNAVAILABLE);
       expect((service as any).logger.error).toHaveBeenCalled();
@@ -2435,7 +2449,7 @@ describe('RealUnitService', () => {
       mockAktionariatUrl = undefined;
       mockRegisteredWallets([]);
 
-      await expect(service.confirmAktionariat({ email, code, user })).rejects.toThrow(
+      await expect(service.confirmAktionariat({ email, code, user }, rawRequest)).rejects.toThrow(
         'Aktionariat URL is not configured',
       );
       expect(httpService.getRaw).not.toHaveBeenCalled();
@@ -2446,7 +2460,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       mockActiveRegistration();
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(Object.keys(result).sort()).toEqual(['confirmedAddresses', 'confirmedDate', 'status']);
       expect(Object.values(RealUnitAktionariatConfirmationStatus)).toContain(result.status);
@@ -2458,7 +2472,7 @@ describe('RealUnitService', () => {
       mockActiveRegistration();
       httpService.getRaw.mockResolvedValue({ status: 200, data: { aktionariatConfirmed: true } } as any);
 
-      await service.confirmAktionariat({ email, code, user });
+      await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       const audits = (logService.create as jest.Mock).mock.calls
         .map((c) => c[0])
@@ -2490,8 +2504,8 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       mockActiveRegistration();
 
-      await service.confirmAktionariat({ email, code, user });
-      await service.confirmAktionariat({ email, code, user });
+      await service.confirmAktionariat({ email, code, user }, rawRequest);
+      await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       const serverCallMessages = (logService.create as jest.Mock).mock.calls
         .map((call) => call[0])
@@ -2512,7 +2526,7 @@ describe('RealUnitService', () => {
       const errorBody = { status: 403, message: `E-Mail ${leakedEmail} not confirmed` };
       httpService.getRaw.mockRejectedValue({ response: { status: 403, data: errorBody } });
 
-      await service.confirmAktionariat({ email, code, user });
+      await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       // DB log is the PII audit store: it carries the FULL error body and is tagged INVALID->WARNING
       const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
@@ -2533,7 +2547,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       httpService.getRaw.mockRejectedValue({ response: { status: 503, data: 'Service Unavailable' } });
 
-      await service.confirmAktionariat({ email, code, user });
+      await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
       expect(audit.severity).toBe(LogSeverity.ERROR);
@@ -2543,7 +2557,7 @@ describe('RealUnitService', () => {
       mockRegisteredWallets([walletA]);
       mockActiveRegistration();
 
-      await service.confirmAktionariat({ email, code, user });
+      await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(aktionariatManager.transaction).toHaveBeenCalledTimes(1);
       expect(aktionariatTxManager.query).toHaveBeenCalledWith(
@@ -2559,7 +2573,7 @@ describe('RealUnitService', () => {
       ] as any);
       mockActiveRegistration();
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       // response shape unchanged: still the signed mixed-case address
       expect(result.confirmedAddresses).toEqual([checksummed]);
@@ -2577,7 +2591,7 @@ describe('RealUnitService', () => {
       aktionariatTxManager.findOne.mockResolvedValue({ active: true, confirmedDate: null });
       aktionariatTxManager.save.mockRejectedValue(new Error('db down'));
 
-      await expect(service.confirmAktionariat({ email, code, user })).rejects.toThrow('db down');
+      await expect(service.confirmAktionariat({ email, code, user }, rawRequest)).rejects.toThrow('db down');
     });
 
     it('does not fail the confirmation when the DB audit log write throws (best-effort, Error)', async () => {
@@ -2585,7 +2599,7 @@ describe('RealUnitService', () => {
       mockActiveRegistration();
       logService.create.mockRejectedValue(new Error('log down'));
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
       expect((service as any).logger.error).toHaveBeenCalled();
@@ -2596,9 +2610,588 @@ describe('RealUnitService', () => {
       mockActiveRegistration();
       logService.create.mockRejectedValue('log string failure');
 
-      const result = await service.confirmAktionariat({ email, code, user });
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
       expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
+    });
+
+    it('captures the COMPLETE raw request (full URL + every query param, including extras the DTO strips) in the DB audit', async () => {
+      mockRegisteredWallets([walletA]);
+      mockActiveRegistration();
+      const raw = {
+        url:
+          '/v1/realunit/confirm-aktionariat?email=user@example.com&code=CONFIRM-CODE' +
+          '&user=aktionariat-user-1&address=0xABC&foo=bar',
+        query: { email, code, user, address: '0xABC', foo: 'bar' } as Record<string, unknown>,
+      };
+
+      await service.confirmAktionariat({ email, code, user }, raw);
+
+      const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
+      const msg = JSON.parse(audit.message);
+      // The full URL and the untouched query — including the address/foo params the typed DTO discards — are
+      // recorded verbatim in the DB `log` PII store, so a per-address decision is derivable from the audit alone.
+      expect(msg.rawRequest.url).toBe(raw.url);
+      expect(msg.rawRequest.query).toEqual({ email, code, user, address: '0xABC', foo: 'bar' });
+    });
+
+    it('never leaks the raw request query (extra mail-link params) into the redacted Loki lines', async () => {
+      mockEnvironment = 'prd';
+      mockRegisteredWallets([walletA]);
+      mockActiveRegistration();
+      httpService.getRaw.mockResolvedValue({ status: 200, data: { status: 200, message: 'ok' } } as any);
+      const secretAddress = '0xDEADBEEFcafe';
+      const raw = {
+        url: `/v1/realunit/confirm-aktionariat?email=user@example.com&code=CONFIRM-CODE&user=aktionariat-user-1&address=${secretAddress}`,
+        query: { email, code, user, address: secretAddress } as Record<string, unknown>,
+      };
+
+      await service.confirmAktionariat({ email, code, user }, raw);
+
+      // The DB audit carries the full raw request (the PII store)...
+      const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
+      expect(JSON.parse(audit.message).rawRequest.query.address).toBe(secretAddress);
+      // ...but the Loki channel (this.logger.*) must never see the raw query.
+      const lokiText = [
+        ...(service as any).logger.info.mock.calls,
+        ...(service as any).logger.warn.mock.calls,
+        ...(service as any).logger.error.mock.calls,
+      ]
+        .flat()
+        .join(' ');
+      expect(lokiText).not.toContain(secretAddress);
+    });
+  });
+
+  describe('validateRegistrationDto (real EIP-712 verification + field matching)', () => {
+    // Hardhat test accounts — synthetic keys, never real user wallets.
+    const wallet = new Wallet('0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d');
+    const otherWallet = new Wallet('0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a');
+
+    const domain = { name: 'RealUnitUser', version: '1' };
+    const types = {
+      RealUnitUser: [
+        { name: 'email', type: 'string' },
+        { name: 'name', type: 'string' },
+        { name: 'type', type: 'string' },
+        { name: 'phoneNumber', type: 'string' },
+        { name: 'birthday', type: 'string' },
+        { name: 'nationality', type: 'string' },
+        { name: 'addressStreet', type: 'string' },
+        { name: 'addressPostalCode', type: 'string' },
+        { name: 'addressCity', type: 'string' },
+        { name: 'addressCountry', type: 'string' },
+        { name: 'swissTaxResidence', type: 'bool' },
+        { name: 'registrationDate', type: 'string' },
+        { name: 'walletAddress', type: 'address' },
+      ],
+    };
+
+    // The service compares registrationDate against Util.isoDate(new Date()); mirror that here.
+    const todayIso = new Date().toISOString().split('T')[0];
+
+    const humanFields = (overrides: Record<string, unknown> = {}): any => ({
+      email: 'erika@example.com',
+      name: 'Erika Mueller',
+      type: RealUnitUserType.HUMAN,
+      phoneNumber: '+41790000000',
+      birthday: '1990-01-01',
+      nationality: 'CH',
+      addressStreet: 'Bahnhofstrasse 1',
+      addressPostalCode: '8001',
+      addressCity: 'Zurich',
+      addressCountry: 'CH',
+      swissTaxResidence: true,
+      registrationDate: todayIso,
+      walletAddress: wallet.address,
+      ...overrides,
+    });
+
+    const orgFields = (overrides: Record<string, unknown> = {}): any =>
+      humanFields({
+        name: 'ACME AG',
+        type: RealUnitUserType.CORPORATION,
+        addressStreet: 'Industriestrasse 5',
+        addressPostalCode: '8005',
+        addressCity: 'Zurich',
+        addressCountry: 'CH',
+        ...overrides,
+      });
+
+    const humanKyc = (): any => ({
+      accountType: AccountType.PERSONAL,
+      firstName: 'Erika',
+      lastName: 'Mueller',
+      address: { street: 'Bahnhofstrasse', houseNumber: '1' },
+    });
+
+    const orgKyc = (): any => ({
+      accountType: AccountType.ORGANIZATION,
+      organizationName: 'ACME AG',
+      organizationAddress: {
+        street: 'Industriestrasse',
+        houseNumber: '5',
+        zip: '8005',
+        city: 'Zurich',
+        country: { id: 42 },
+      },
+    });
+
+    const buildDto = async (fields: any, kycData: any, signer = wallet): Promise<any> => {
+      const signature = await signer._signTypedData(domain, types, fields);
+      return { ...fields, signature, lang: 'DE', kycData };
+    };
+
+    beforeEach(() => {
+      (service as any).countryService.getCountry = jest.fn().mockResolvedValue({ symbol: 'CH' });
+    });
+
+    it('throws BadRequestException when the signature does not belong to the claimed wallet', async () => {
+      // valid signature, but produced by a different wallet than the claimed walletAddress
+      const dto = await buildDto(humanFields(), humanKyc(), otherWallet);
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the registration date is not today', async () => {
+      const dto = await buildDto(humanFields({ registrationDate: '2020-01-01' }), humanKyc());
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException on an unparseable birthday', async () => {
+      const dto = await buildDto(humanFields({ birthday: 'not-a-date' }), humanKyc());
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the birthday is in the future', async () => {
+      const dto = await buildDto(humanFields({ birthday: '2999-01-01' }), humanKyc());
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the birthday is more than 140 years ago', async () => {
+      const dto = await buildDto(humanFields({ birthday: '1800-01-01' }), humanKyc());
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when an ORGANIZATION account is not typed CORPORATION', async () => {
+      const dto = await buildDto(orgFields({ type: RealUnitUserType.HUMAN }), orgKyc());
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the organization name does not match the signed name', async () => {
+      const kyc = orgKyc();
+      kyc.organizationName = 'Other AG';
+      const dto = await buildDto(orgFields(), kyc);
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the organization street+houseNumber does not match', async () => {
+      const kyc = orgKyc();
+      kyc.organizationAddress.street = 'Wrongstrasse';
+      const dto = await buildDto(orgFields(), kyc);
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the organization zip does not match', async () => {
+      const kyc = orgKyc();
+      kyc.organizationAddress.zip = '0000';
+      const dto = await buildDto(orgFields(), kyc);
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the organization city does not match', async () => {
+      const kyc = orgKyc();
+      kyc.organizationAddress.city = 'Wrongtown';
+      const dto = await buildDto(orgFields(), kyc);
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the organization country does not match the signed country', async () => {
+      (service as any).countryService.getCountry.mockResolvedValue({ symbol: 'DE' });
+      const dto = await buildDto(orgFields(), orgKyc());
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('passes for a valid ORGANIZATION registration (all fields match)', async () => {
+      const dto = await buildDto(orgFields(), orgKyc());
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('passes for a valid ORGANIZATION registration without an org house number (street only)', async () => {
+      const kyc = orgKyc();
+      kyc.organizationAddress = { street: 'Industriestrasse 5', zip: '8005', city: 'Zurich', country: { id: 42 } };
+      const dto = await buildDto(orgFields(), kyc);
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('throws BadRequestException when a HUMAN account is not typed HUMAN', async () => {
+      const dto = await buildDto(humanFields({ type: RealUnitUserType.CORPORATION }), humanKyc());
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the personal name does not match the signed name', async () => {
+      const kyc = humanKyc();
+      kyc.firstName = 'Wrong';
+      const dto = await buildDto(humanFields(), kyc);
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws BadRequestException when the personal street does not match', async () => {
+      const kyc = humanKyc();
+      kyc.address.street = 'Wrongstrasse';
+      const dto = await buildDto(humanFields(), kyc);
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+    });
+
+    it('passes for a valid HUMAN registration (all fields match)', async () => {
+      const dto = await buildDto(humanFields(), humanKyc());
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('passes for a valid HUMAN registration without a house number (street only)', async () => {
+      const kyc = humanKyc();
+      kyc.address = { street: 'Bahnhofstrasse 1' };
+      const dto = await buildDto(humanFields(), kyc);
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('resolveSignedRegistrationMessage normalizes a signature that lacks the 0x prefix', async () => {
+      const fields = humanFields();
+      const signature = await wallet._signTypedData(domain, types, fields);
+      const dto = { ...fields, signature: signature.slice(2), lang: 'DE', kycData: {} };
+      const message = (service as any).resolveSignedRegistrationMessage(dto);
+      expect(message).toBeDefined();
+      expect(message.walletAddress).toBe(wallet.address);
+    });
+  });
+
+  describe('registerEmail (email registration step)', () => {
+    const dto: any = { email: 'user@example.com' };
+    let getActiveUserData: jest.Mock;
+    let trySetUserMail: jest.Mock;
+    let addServiceProvider: jest.Mock;
+    let initializeProcess: jest.Mock;
+
+    beforeEach(() => {
+      getActiveUserData = jest.fn();
+      trySetUserMail = jest.fn();
+      addServiceProvider = jest.fn();
+      initializeProcess = jest.fn();
+      (service as any).userDataService.getActiveUserData = getActiveUserData;
+      (service as any).userDataService.trySetUserMail = trySetUserMail;
+      (service as any).userDataService.addServiceProvider = addServiceProvider;
+      (service as any).kycService.initializeProcess = initializeProcess;
+    });
+
+    it('registers the email, initializes KYC and marks the RealUnit service provider (happy path)', async () => {
+      const userData = { mail: null, kycLevel: 0 };
+      getActiveUserData.mockResolvedValue(userData);
+
+      const status = await service.registerEmail(1, dto);
+
+      expect(status).toBe(RealUnitEmailRegistrationStatus.EMAIL_REGISTERED);
+      expect(trySetUserMail).toHaveBeenCalledWith(userData, 'user@example.com');
+      expect(initializeProcess).toHaveBeenCalledWith(userData);
+      expect(addServiceProvider).toHaveBeenCalledWith(userData, ServiceProvider.REALUNIT);
+    });
+
+    it('skips KYC initialization when the user is already at KYC level 10 or above', async () => {
+      const userData = { mail: null, kycLevel: KycLevel.LEVEL_10 };
+      getActiveUserData.mockResolvedValue(userData);
+
+      const status = await service.registerEmail(1, dto);
+
+      expect(status).toBe(RealUnitEmailRegistrationStatus.EMAIL_REGISTERED);
+      expect(initializeProcess).not.toHaveBeenCalled();
+      expect(addServiceProvider).toHaveBeenCalledWith(userData, ServiceProvider.REALUNIT);
+    });
+
+    it('returns MERGE_REQUESTED when setting the mail triggers an account merge request', async () => {
+      getActiveUserData.mockResolvedValue({ mail: null, kycLevel: 0 });
+      trySetUserMail.mockRejectedValue(new ConflictException('account merge request sent'));
+
+      const status = await service.registerEmail(1, dto);
+
+      expect(status).toBe(RealUnitEmailRegistrationStatus.MERGE_REQUESTED);
+      expect(addServiceProvider).not.toHaveBeenCalled();
+    });
+
+    it('rethrows a ConflictException that is not a merge request', async () => {
+      getActiveUserData.mockResolvedValue({ mail: null, kycLevel: 0 });
+      trySetUserMail.mockRejectedValue(new ConflictException('Account already exists'));
+
+      await expect(service.registerEmail(1, dto)).rejects.toThrow(ConflictException);
+      expect(addServiceProvider).not.toHaveBeenCalled();
+    });
+
+    it('rethrows a non-Conflict error from setting the mail', async () => {
+      getActiveUserData.mockResolvedValue({ mail: null, kycLevel: 0 });
+      trySetUserMail.mockRejectedValue(new Error('database unavailable'));
+
+      await expect(service.registerEmail(1, dto)).rejects.toThrow('database unavailable');
+    });
+
+    it('accepts a matching already-verified email without re-setting the mail', async () => {
+      const userData = { mail: 'user@example.com', kycLevel: KycLevel.LEVEL_10 };
+      getActiveUserData.mockResolvedValue(userData);
+
+      const status = await service.registerEmail(1, dto);
+
+      expect(status).toBe(RealUnitEmailRegistrationStatus.EMAIL_REGISTERED);
+      expect(trySetUserMail).not.toHaveBeenCalled();
+      expect(addServiceProvider).toHaveBeenCalledWith(userData, ServiceProvider.REALUNIT);
+    });
+
+    it('throws BadRequestException when the submitted email does not match the verified email', async () => {
+      getActiveUserData.mockResolvedValue({ mail: 'other@example.com', kycLevel: KycLevel.LEVEL_10 });
+
+      await expect(service.registerEmail(1, dto)).rejects.toThrow(BadRequestException);
+      expect(trySetUserMail).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('completeRegistration — first-time customer with tax-residence TINs (countryAndTINs persistence)', () => {
+    beforeEach(() => {
+      jest.spyOn(service as any, 'validateRegistrationDto').mockResolvedValue(undefined);
+      jest
+        .spyOn(service as any, 'findRegistration')
+        .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
+      jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
+    });
+
+    it('serializes the provided countryAndTINs into the tin field before forwarding', async () => {
+      const dto: any = {
+        walletAddress: '0xabc',
+        signature: '0xsig',
+        email: 'max@example.com',
+        kycData: { accountType: 'Personal' },
+        nationality: 'CH',
+        birthday: '1990-01-01',
+        lang: 'DE',
+        countryAndTINs: [{ country: 'DE', tin: '12345' }],
+      };
+      const userData: any = { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', firstname: null };
+      userService.getUserByAddress.mockResolvedValue({ userData } as any);
+      (service as any).countryService.getCountryWithSymbol.mockResolvedValue({ id: 1, symbol: 'CH' });
+      (service as any).languageService.getLanguageBySymbol.mockResolvedValue({ id: 1, symbol: 'DE' });
+
+      const status = await service.completeRegistration(1, dto);
+
+      expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
+      const [, update] = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[0];
+      expect(update.tin).toBe(JSON.stringify([{ country: 'DE', tin: '12345' }]));
+    });
+  });
+
+  describe('toUserDataDto (returns undefined without registration data)', () => {
+    it('returns undefined when there is no registration', () => {
+      expect((service as any).toUserDataDto(undefined)).toBeUndefined();
+    });
+
+    it('returns undefined when the registration has no signed payload', () => {
+      expect((service as any).toUserDataDto({ signedPayloadData: undefined })).toBeUndefined();
+    });
+  });
+
+  describe('toUserDataDtoFromUserData (nullish fallbacks + organization prefill)', () => {
+    it('maps a fully populated organization user (set side of every fallback + org address branch)', () => {
+      const userData: any = {
+        firstname: 'Erika',
+        surname: 'Mueller',
+        mail: 'erika@example.com',
+        naturalPersonName: 'Erika Mueller',
+        phone: '+41790000000',
+        birthday: new Date('1990-01-01T00:00:00.000Z'),
+        nationality: { symbol: 'CH' },
+        street: 'Bahnhofstrasse',
+        houseNumber: '1',
+        location: 'Zurich',
+        zip: '8001',
+        country: { symbol: 'CH' },
+        language: { symbol: 'de' },
+        accountType: AccountType.ORGANIZATION,
+        tin: JSON.stringify([{ country: 'DE', tin: '12345' }]),
+        organizationName: 'ACME AG',
+        organizationStreet: 'Industriestrasse',
+        organizationHouseNumber: '5',
+        organizationLocation: 'Zug',
+        organizationZip: '6300',
+        organizationCountry: { symbol: 'CH', id: 3 },
+      };
+
+      const dto = (service as any).toUserDataDtoFromUserData(userData);
+
+      expect(dto.email).toBe('erika@example.com');
+      expect(dto.name).toBe('Erika Mueller');
+      expect(dto.phoneNumber).toBe('+41790000000');
+      expect(dto.birthday).toBe('1990-01-01');
+      expect(dto.nationality).toBe('CH');
+      expect(dto.addressStreet).toBe('Bahnhofstrasse 1');
+      expect(dto.addressPostalCode).toBe('8001');
+      expect(dto.addressCity).toBe('Zurich');
+      expect(dto.addressCountry).toBe('CH');
+      expect(dto.swissTaxResidence).toBe(true);
+      expect(dto.lang).toBe(RealUnitLanguage.DE);
+      expect(dto.countryAndTINs).toEqual([{ country: 'DE', tin: '12345' }]);
+      expect(dto.kycData.accountType).toBe(AccountType.ORGANIZATION);
+      expect(dto.kycData.organizationName).toBe('ACME AG');
+      expect(dto.kycData.organizationAddress).toEqual({
+        street: 'Industriestrasse',
+        houseNumber: '5',
+        city: 'Zug',
+        zip: '6300',
+        country: { symbol: 'CH', id: 3 },
+      });
+    });
+
+    it('falls back to empty strings/defaults when the optional fields are absent (null side)', () => {
+      const userData: any = { firstname: 'Solo', surname: null };
+
+      const dto = (service as any).toUserDataDtoFromUserData(userData);
+
+      expect(dto.email).toBe('');
+      expect(dto.name).toBe('');
+      expect(dto.phoneNumber).toBe('');
+      expect(dto.birthday).toBe('');
+      expect(dto.nationality).toBe('');
+      expect(dto.addressStreet).toBe('');
+      expect(dto.addressPostalCode).toBe('');
+      expect(dto.addressCity).toBe('');
+      expect(dto.addressCountry).toBe('');
+      expect(dto.swissTaxResidence).toBe(false);
+      expect(dto.lang).toBe(RealUnitLanguage.EN);
+      expect(dto.countryAndTINs).toBeUndefined();
+      expect(dto.kycData.accountType).toBe(AccountType.PERSONAL);
+      expect(dto.kycData.firstName).toBe('Solo');
+      expect(dto.kycData.lastName).toBe('');
+      expect(dto.kycData.organizationName).toBeUndefined();
+      expect(dto.kycData.organizationAddress).toBeUndefined();
+    });
+
+    it('builds the organization address with empty inner fields when the org detail columns are null', () => {
+      const userData: any = { firstname: null, surname: 'OnlySurname', organizationCountry: { symbol: 'CH', id: 7 } };
+
+      const dto = (service as any).toUserDataDtoFromUserData(userData);
+
+      expect(dto.kycData.firstName).toBe('');
+      expect(dto.kycData.lastName).toBe('OnlySurname');
+      expect(dto.kycData.organizationName).toBeUndefined();
+      expect(dto.kycData.organizationAddress).toEqual({
+        street: '',
+        houseNumber: undefined,
+        city: '',
+        zip: '',
+        country: { symbol: 'CH', id: 7 },
+      });
+    });
+  });
+
+  describe('isPersonalDataMatching (organization account branch)', () => {
+    const orgUserData = (): any => ({
+      firstname: 'Erika',
+      surname: 'Mueller',
+      phone: '+41790000000',
+      accountType: AccountType.ORGANIZATION,
+      street: 'Bahnhofstrasse',
+      houseNumber: '1',
+      location: 'Zurich',
+      zip: '8001',
+      country: { id: 10 },
+      nationality: { symbol: 'CH' },
+      birthday: new Date('1990-01-01T00:00:00.000Z'),
+      organizationName: 'ACME AG',
+      organizationStreet: 'Industriestrasse',
+      organizationHouseNumber: '5',
+      organizationLocation: 'Zug',
+      organizationZip: '6300',
+      organizationCountry: { id: 20 },
+    });
+
+    const orgDto = (): any => ({
+      nationality: 'CH',
+      birthday: '1990-01-01',
+      kycData: {
+        firstName: 'Erika',
+        lastName: 'Mueller',
+        phone: '+41790000000',
+        accountType: AccountType.ORGANIZATION,
+        address: { street: 'Bahnhofstrasse', houseNumber: '1', city: 'Zurich', zip: '8001', country: { id: 10 } },
+        organizationName: 'ACME AG',
+        organizationAddress: {
+          street: 'Industriestrasse',
+          houseNumber: '5',
+          city: 'Zug',
+          zip: '6300',
+          country: { id: 20 },
+        },
+      },
+    });
+
+    it('returns true when all organization fields match', () => {
+      expect((service as any).isPersonalDataMatching(orgUserData(), orgDto())).toBe(true);
+    });
+
+    it('returns false when the organization name differs', () => {
+      const dto = orgDto();
+      dto.kycData.organizationName = 'Other AG';
+      expect((service as any).isPersonalDataMatching(orgUserData(), dto)).toBe(false);
+    });
+
+    it('returns false when the organization street differs', () => {
+      const dto = orgDto();
+      dto.kycData.organizationAddress.street = 'Wrongstrasse';
+      expect((service as any).isPersonalDataMatching(orgUserData(), dto)).toBe(false);
+    });
+
+    it('returns false when the organization house number differs', () => {
+      const dto = orgDto();
+      dto.kycData.organizationAddress.houseNumber = '9';
+      expect((service as any).isPersonalDataMatching(orgUserData(), dto)).toBe(false);
+    });
+
+    it('returns false when the organization city differs', () => {
+      const dto = orgDto();
+      dto.kycData.organizationAddress.city = 'Wrongtown';
+      expect((service as any).isPersonalDataMatching(orgUserData(), dto)).toBe(false);
+    });
+
+    it('returns false when the organization zip differs', () => {
+      const dto = orgDto();
+      dto.kycData.organizationAddress.zip = '0000';
+      expect((service as any).isPersonalDataMatching(orgUserData(), dto)).toBe(false);
+    });
+
+    it('returns false when the organization country differs', () => {
+      const dto = orgDto();
+      dto.kycData.organizationAddress.country = { id: 99 };
+      expect((service as any).isPersonalDataMatching(orgUserData(), dto)).toBe(false);
+    });
+
+    it('returns true when neither side carries organization detail (null org fields match via ?? null)', () => {
+      const userData = orgUserData();
+      userData.organizationName = null;
+      userData.organizationStreet = null;
+      userData.organizationHouseNumber = null;
+      userData.organizationLocation = null;
+      userData.organizationZip = null;
+      userData.organizationCountry = null;
+      const dto = orgDto();
+      dto.kycData.organizationName = undefined;
+      dto.kycData.organizationAddress = undefined;
+      expect((service as any).isPersonalDataMatching(userData, dto)).toBe(true);
+    });
+  });
+
+  describe('getRegisteredWalletAddresses (skips rows without a resolvable wallet address)', () => {
+    it('skips a row whose signed payload and column both lack a wallet address', async () => {
+      const validAddress = '0xAbCdef0000000000000000000000000000000001';
+      aktionariatRegistrationRepo.find.mockResolvedValue([
+        { signedPayloadData: undefined, walletAddress: null },
+        { signedPayloadData: { walletAddress: validAddress }, walletAddress: null },
+      ] as any);
+
+      const result = await (service as any).getRegisteredWalletAddresses('user@example.com');
+
+      expect(result).toEqual([validAddress]);
     });
   });
 });

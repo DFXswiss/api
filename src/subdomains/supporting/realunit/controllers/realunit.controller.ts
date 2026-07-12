@@ -10,6 +10,7 @@ import {
   Post,
   Put,
   Query,
+  Req,
   Res,
   UseGuards,
 } from '@nestjs/common';
@@ -28,7 +29,7 @@ import {
   ApiQuery,
   ApiTags,
 } from '@nestjs/swagger';
-import { Response } from 'express';
+import { Request, Response } from 'express';
 import { Config, Environment } from 'src/config/config';
 import {
   BrokerbotBuyPriceDto,
@@ -817,8 +818,16 @@ export class RealUnitController {
       'unreachable — retry later).',
   })
   @ApiOkResponse({ type: RealUnitConfirmAktionariatDto })
-  async confirmAktionariat(@Query() query: RealUnitConfirmAktionariatQueryDto): Promise<RealUnitConfirmAktionariatDto> {
-    return this.realunitService.confirmAktionariat(query);
+  async confirmAktionariat(
+    @Query() query: RealUnitConfirmAktionariatQueryDto,
+    @Req() req: Request,
+  ): Promise<RealUnitConfirmAktionariatDto> {
+    // Capture the COMPLETE raw incoming request (every query param + the full URL) alongside the typed
+    // email/code/user. The global ValidationPipe (whitelist: true) strips any extra param from the DTO, so the
+    // raw query is the only place a mail-link param the DTO does not model (e.g. a wallet address / connection
+    // id) survives — it is forwarded to the service purely to be audited in the DB `log` PII store. Headers are
+    // intentionally not captured (they may carry auth/cookies). This adds no matching/validation behaviour.
+    return this.realunitService.confirmAktionariat(query, { url: req.originalUrl, query: req.query });
   }
 
   // --- Admin Endpoints ---
