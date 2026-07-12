@@ -1836,8 +1836,13 @@ describe('RealUnitService', () => {
   });
 
   describe('summarizeError (redacted error summary for the Loki app-log)', () => {
-    it('keeps only status and error type for an HTTP error (never the PII-carrying body)', () => {
-      const error = { name: 'ConflictException', response: { status: 409, data: { message: 'leaked@example.com' } } };
+    it('keeps only status and error type for an HTTP error (never the PII-carrying body or message)', () => {
+      // Axios-shaped: a real HTTP error always carries a message too — the response arm must win over
+      // it, otherwise the PII-carrying message would leak into the redacted Loki summary.
+      const error = Object.assign(new Error('Conflict: leaked@example.com'), {
+        name: 'ConflictException',
+        response: { status: 409, data: { message: 'leaked@example.com' } },
+      });
       expect((service as any).summarizeError(error)).toBe('status=409 type=ConflictException');
     });
 
