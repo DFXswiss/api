@@ -123,6 +123,32 @@ describe('PayoutLightningService', () => {
       await expect(service.sendPayment('ADDR_01', 0.001)).resolves.toBe('TX_ID_01');
       expect(sendTransferSpy).toHaveBeenCalledWith('ADDR_01', 0.001);
     });
+
+    it('returns the tx id for a keysend (LN_NID) with a non-empty payment hash', async () => {
+      sendTransferSpy.mockResolvedValue('TX_ID_KEYSEND');
+
+      await expect(service.sendPayment('LNNID03aabbccddeeff', 0.001)).resolves.toBe('TX_ID_KEYSEND');
+    });
+
+    it('wraps a keysend (LN_NID) empty payment hash fail-closed, since a re-broadcast has no dedup', async () => {
+      sendTransferSpy.mockResolvedValue('');
+
+      let error: unknown;
+      try {
+        await service.sendPayment('LNNID03aabbccddeeff', 0.001);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(PayoutBroadcastException);
+      expect((error as PayoutBroadcastException).message).toBe('Lightning keysend returned an empty payment hash');
+    });
+
+    it('returns an empty payment hash unchanged for a non-keysend (invoice payment_hash dedup covers a retry)', async () => {
+      sendTransferSpy.mockResolvedValue('');
+
+      await expect(service.sendPayment('ADDR_01', 0.001)).resolves.toBe('');
+    });
   });
 
   describe('isHealthy()', () => {

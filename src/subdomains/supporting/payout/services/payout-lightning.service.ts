@@ -28,17 +28,24 @@ export class PayoutLightningService {
   }
 
   async sendPayment(address: string, amount: number): Promise<string> {
-    try {
-      return await this.lightningService.sendTransfer(address, amount);
-    } catch (e) {
-      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+    // A keysend (LN_NID) payment carries no invoice payment_hash, so LND cannot deduplicate a
+    // re-broadcast - a self-healing retry could double-pay. Unlike an invoice payment (LN_URL /
+    // LND_HUB), we therefore treat every keysend outcome that is not a confirmed send as ambiguous
+    // (fail-closed): keep the order PAYOUT_DESIGNATED for escalation instead of rolling it back.
+    const isKeysend = address.startsWith(LightningAddressType.LN_NID);
 
-      // A keysend (LN_NID) payment carries no invoice payment_hash, so LND cannot deduplicate a
-      // re-broadcast - a self-healing retry could double-pay. Unlike an invoice payment (LN_URL /
-      // LND_HUB), we therefore treat every keysend failure as ambiguous (fail-closed): keep the
-      // order PAYOUT_DESIGNATED for escalation instead of rolling it back for retry.
-      if (address.startsWith(LightningAddressType.LN_NID))
-        throw new PayoutBroadcastException(e instanceof Error ? e.message : String(e), { cause: e });
+    try {
+      const txId = await this.lightningService.sendTransfer(address, amount);
+
+      // An empty payment hash (e.g. a blank base64 hash) is returned without throwing; for a keysend
+      // it would otherwise roll the order back and re-broadcast, so treat it as a broadcast error.
+      if (isKeysend && !txId) throw new PayoutBroadcastException('Lightning keysend returned an empty payment hash');
+
+      return txId;
+    } catch (e) {
+      if (e instanceof PayoutBroadcastException) throw e;
+      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+      if (isKeysend) throw new PayoutBroadcastException(e instanceof Error ? e.message : String(e), { cause: e });
 
       throw e;
     }
