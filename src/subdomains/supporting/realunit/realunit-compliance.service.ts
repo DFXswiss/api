@@ -276,17 +276,27 @@ export class RealUnitComplianceService {
       ]);
 
       const balances = new Map<number, number>(userDataIds.map((id) => [id, 0]));
+      const unresolved = new Set<number>();
       for (const user of users) {
         const raw = user.address && holderBalances.get(user.address.toLowerCase());
         if (!raw) continue;
 
-        // A single malformed indexer balance must not blank the whole batch: skip it, keep the rest.
-        const shares = this.toShareCount(raw, realuAsset.decimals);
-        if (shares === undefined) continue;
-
         const userDataId = user.userData.id;
+
+        // A single malformed indexer balance must not blank the whole batch — but it must not be masked as an
+        // authoritative 0 / undercount either. Any unparsable address makes a member's total unknowable, so fail
+        // closed for THAT member (-> undefined) while the rest stay correct.
+        const shares = this.toShareCount(raw, realuAsset.decimals);
+        if (shares === undefined) {
+          unresolved.add(userDataId);
+          continue;
+        }
+
         balances.set(userDataId, (balances.get(userDataId) ?? 0) + shares);
       }
+
+      // Order-safe: drop poisoned members only at the end, so a later valid address cannot re-add one.
+      for (const id of unresolved) balances.delete(id);
 
       return balances;
     } catch (e) {

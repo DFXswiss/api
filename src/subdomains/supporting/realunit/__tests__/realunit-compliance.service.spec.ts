@@ -397,7 +397,31 @@ describe('RealUnitComplianceService', () => {
       expect(result[0].balance).toBeUndefined();
     });
 
-    it('skips a single unparsable holder balance and still sums the remaining addresses', async () => {
+    it('marks the member with an unparsable holder balance as unknown and leaves the others correct', async () => {
+      scopeService.getCustomerIds.mockResolvedValue([1, 2]);
+      userDataService.getUserDataByIds.mockResolvedValue([
+        Object.assign(new UserData(), { id: 1 }),
+        Object.assign(new UserData(), { id: 2 }),
+      ]);
+      userService.getUsersByUserDataIds.mockResolvedValue([
+        Object.assign(new User(), { address: '0xabc', userData: { id: 1 } as UserData }),
+        Object.assign(new User(), { address: '0xdef', userData: { id: 2 } as UserData }),
+      ]);
+      realUnitService.getHolders.mockResolvedValue({
+        holders: [
+          { address: '0xabc', balance: 'not-a-number' }, // member 1: unresolvable -> undefined, not a false 0
+          { address: '0xdef', balance: '50' }, // member 2: unaffected by the poisoned record
+        ],
+        pageInfo: { hasNextPage: false },
+      } as HoldersDto);
+
+      const result = await service.searchCustomers();
+
+      expect(result.find((u) => u.id === 1)?.balance).toBeUndefined();
+      expect(result.find((u) => u.id === 2)?.balance).toBe(50);
+    });
+
+    it('reports the balance as unknown when any of a member address balances is unparsable (no partial sum)', async () => {
       scopeService.getCustomerIds.mockResolvedValue([1]);
       userDataService.getUserDataByIds.mockResolvedValue([Object.assign(new UserData(), { id: 1 })]);
       userService.getUsersByUserDataIds.mockResolvedValue([
@@ -406,15 +430,31 @@ describe('RealUnitComplianceService', () => {
       ]);
       realUnitService.getHolders.mockResolvedValue({
         holders: [
-          { address: '0xabc', balance: 'not-a-number' }, // malformed -> skipped, must not blank the batch
-          { address: '0xdef', balance: '50' },
+          { address: '0xabc', balance: '50' }, // valid first...
+          { address: '0xdef', balance: 'not-a-number' }, // ...then malformed -> whole member unknown, not 50
         ],
         pageInfo: { hasNextPage: false },
       } as HoldersDto);
 
       const result = await service.searchCustomers();
 
-      expect(result[0].balance).toBe(50);
+      expect(result[0].balance).toBeUndefined();
+    });
+
+    it('reports the balance as unknown when the holder pagination exceeds the page cap', async () => {
+      scopeService.getCustomerIds.mockResolvedValue([1]);
+      userDataService.getUserDataByIds.mockResolvedValue([Object.assign(new UserData(), { id: 1 })]);
+      userService.getUsersByUserDataIds.mockResolvedValue([
+        Object.assign(new User(), { address: '0xabc', userData: { id: 1 } as UserData }),
+      ]);
+      let cursor = 0;
+      realUnitService.getHolders.mockImplementation(
+        async () => ({ holders: [], pageInfo: { hasNextPage: true, endCursor: `cursor-${cursor++}` } } as HoldersDto),
+      );
+
+      const result = await service.searchCustomers();
+
+      expect(result[0].balance).toBeUndefined();
     });
 
     it('reports the balance as unknown (undefined) when the indexer signals another page without a cursor', async () => {
