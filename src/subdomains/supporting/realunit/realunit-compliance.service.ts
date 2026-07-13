@@ -276,13 +276,32 @@ export class RealUnitComplianceService {
       ]);
 
       const balances = new Map<number, number>(userDataIds.map((id) => [id, 0]));
+      const unresolved = new Set<number>();
       for (const user of users) {
-        const raw = user.address && holderBalances.get(user.address.toLowerCase());
-        if (!raw) continue;
+        if (!user.address) continue;
+
+        // "Address absent from the holder set" is a genuine 0 (already pre-seeded). An address that IS present but
+        // carries an unusable balance (e.g. '' from a resyncing indexer) must flow through toShareCount and fail
+        // closed below — not be swallowed here as a false 0 by a truthiness check.
+        const raw = holderBalances.get(user.address.toLowerCase());
+        if (raw === undefined) continue;
 
         const userDataId = user.userData.id;
-        balances.set(userDataId, (balances.get(userDataId) ?? 0) + EvmUtil.fromWeiAmount(raw, realuAsset.decimals));
+
+        // A single malformed indexer balance must not blank the whole batch — but it must not be masked as an
+        // authoritative 0 / undercount either. Any unparsable address makes a member's total unknowable, so fail
+        // closed for THAT member (-> undefined) while the rest stay correct.
+        const shares = this.toShareCount(raw, realuAsset.decimals);
+        if (shares === undefined) {
+          unresolved.add(userDataId);
+          continue;
+        }
+
+        balances.set(userDataId, (balances.get(userDataId) ?? 0) + shares);
       }
+
+      // Order-safe: drop poisoned members only at the end, so a later valid address cannot re-add one.
+      for (const id of unresolved) balances.delete(id);
 
       return balances;
     } catch (e) {
@@ -291,16 +310,49 @@ export class RealUnitComplianceService {
     }
   }
 
+  private toShareCount(rawWei: string, decimals: number): number | undefined {
+    try {
+      return EvmUtil.fromWeiAmount(rawWei, decimals);
+    } catch (e) {
+      this.logger.warn(`Ignoring unparsable REALU holder balance "${rawWei}":`, e);
+      return undefined;
+    }
+  }
+
   private async getHolderBalances(): Promise<Map<string, string>> {
     return this.holderBalanceCache.get('holders', async () => {
       const map = new Map<string, string>();
+      const seenCursors = new Set<string>();
+      const maxPages = 100;
 
       let after: string | undefined;
-      do {
+      let complete = false;
+      for (let i = 0; i < maxPages; i++) {
         const page = await this.realUnitService.getHolders(1000, undefined, after);
         for (const holder of page.holders) map.set(holder.address.toLowerCase(), holder.balance);
-        after = page.pageInfo?.hasNextPage ? page.pageInfo.endCursor : undefined;
-      } while (after);
+
+        if (!page.pageInfo?.hasNextPage) {
+          complete = true;
+          break;
+        }
+
+        // A next page without a fresh cursor would silently truncate the sweep and cache the partial set as if
+        // complete (undercounting real holders). The sibling clients (deuro/juice) return the partial set here;
+        // balance correctness requires failing closed instead, so the dashboard shows "unknown", not an undercount.
+        const endCursor = page.pageInfo.endCursor;
+        if (!endCursor || seenCursors.has(endCursor)) throw new Error('RealUnit holder pagination stalled');
+        seenCursors.add(endCursor);
+        after = endCursor;
+      }
+
+      // Never cache a partial sweep as authoritative: exhausting the page cap means the full holder set could
+      // not be read, so treat it as unresolved rather than undercounting.
+      if (!complete) throw new Error(`RealUnit holder pagination exceeded ${maxPages} pages`);
+
+      // An empty holder set means the indexer could not answer (a resyncing / cold-starting Ponder returns HTTP
+      // 200 with no accounts): treat it as unresolved rather than caching an authoritative zero — that would
+      // render real shareholders as a definitive 0 for the whole 5-minute cache window.
+      if (!map.size) throw new Error('RealUnit indexer returned no holders');
 
       return map;
     });

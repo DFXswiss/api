@@ -1,9 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { BaseFeePriority } from 'src/integration/blockchain/monero/dto/monero.dto';
+import { BaseFeePriority, MoneroTransferDto } from 'src/integration/blockchain/monero/dto/monero.dto';
 import { MoneroClient } from 'src/integration/blockchain/monero/monero-client';
 import { MoneroHelper } from 'src/integration/blockchain/monero/monero-helper';
 import { MoneroService } from 'src/integration/blockchain/monero/services/monero.service';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
+import { PayoutBroadcastException } from '../exceptions/payout-broadcast.exception';
 import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
 
 @Injectable()
@@ -25,7 +27,13 @@ export class PayoutMoneroService extends PayoutBitcoinBasedService {
   }
 
   async sendToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
-    const transfer = await this.client.sendTransfers(payout);
+    let transfer: MoneroTransferDto;
+    try {
+      transfer = await this.client.sendTransfers(payout);
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+      throw e;
+    }
 
     if (!transfer) {
       throw new Error(`Error while sending payment by Monero ${payout.map((p) => p.addressTo)}`);

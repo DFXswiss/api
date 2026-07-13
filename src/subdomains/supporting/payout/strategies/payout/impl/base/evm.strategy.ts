@@ -26,6 +26,10 @@ export abstract class EvmStrategy extends PayoutStrategy {
   protected abstract dispatchPayout(order: PayoutOrder): Promise<string>;
   protected abstract getCurrentGasForTransaction(token?: Asset): Promise<number>;
 
+  override get supportsSpeedup(): boolean {
+    return true;
+  }
+
   async estimateFee(asset: Asset): Promise<FeeResult> {
     const gasPerTransaction = await this.txFees.get(asset.id.toString(), () => this.getCurrentGasForTransaction(asset));
 
@@ -39,12 +43,17 @@ export abstract class EvmStrategy extends PayoutStrategy {
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
       try {
+        await this.designateBeforeBroadcast(order, this.payoutOrderRepo);
+
         const txId = await this.dispatchPayout(order);
+        order.resetPayoutRetry();
         order.pendingPayout(txId);
 
         await this.payoutOrderRepo.save(order);
       } catch (e) {
         this.logger.error(`Error while executing EVM payout order ${order.id}:`, e);
+
+        await this.handleBroadcastError(order, e, this.payoutOrderRepo);
       }
     }
   }
