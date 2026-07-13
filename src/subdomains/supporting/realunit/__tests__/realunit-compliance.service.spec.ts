@@ -447,14 +447,39 @@ describe('RealUnitComplianceService', () => {
       userService.getUsersByUserDataIds.mockResolvedValue([
         Object.assign(new User(), { address: '0xabc', userData: { id: 1 } as UserData }),
       ]);
+      // Non-empty foreign holders on every page: the map is never empty, so the undefined result is produced by
+      // the page-cap guard alone (not by the empty-sweep guard) — removing `if (!complete) throw` would resolve
+      // the member to 0 and fail this test.
       let cursor = 0;
       realUnitService.getHolders.mockImplementation(
-        async () => ({ holders: [], pageInfo: { hasNextPage: true, endCursor: `cursor-${cursor++}` } } as HoldersDto),
+        async () =>
+          ({
+            holders: [{ address: `0xf00${cursor}`, balance: '1' }],
+            pageInfo: { hasNextPage: true, endCursor: `cursor-${cursor++}` },
+          } as HoldersDto),
       );
 
       const result = await service.searchCustomers();
 
       expect(result[0].balance).toBeUndefined();
+    });
+
+    it('detects a stalled indexer that repeats the same pagination cursor (on the second page)', async () => {
+      scopeService.getCustomerIds.mockResolvedValue([1]);
+      userDataService.getUserDataByIds.mockResolvedValue([Object.assign(new UserData(), { id: 1 })]);
+      userService.getUsersByUserDataIds.mockResolvedValue([
+        Object.assign(new User(), { address: '0xabc', userData: { id: 1 } as UserData }),
+      ]);
+      realUnitService.getHolders.mockResolvedValue({
+        holders: [{ address: '0xfff', balance: '1' }],
+        pageInfo: { hasNextPage: true, endCursor: 'stuck' }, // same cursor every call
+      } as HoldersDto);
+
+      const result = await service.searchCustomers();
+
+      expect(result[0].balance).toBeUndefined();
+      // The repeated-cursor guard must catch it on page 2, not only after the 100-page cap.
+      expect(realUnitService.getHolders).toHaveBeenCalledTimes(2);
     });
 
     it('reports the balance as unknown (undefined) when the indexer signals another page without a cursor', async () => {
