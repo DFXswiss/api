@@ -2208,6 +2208,13 @@ describe('RealUnitService', () => {
 
       expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
       expect(forwardSpy).toHaveBeenCalled();
+      // Personal KYC fields stay untouched when they already match, but tax residences/TINs are
+      // always written (null when none were submitted — Swiss-only or empty).
+      expect(userDataService.updatePersonalData).not.toHaveBeenCalled();
+      expect(userDataService.updateUserDataInternal).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({ tin: null }),
+      );
     });
 
     it('persists personal data for a first-time customer (no existing firstname) before forwarding', async () => {
@@ -3009,6 +3016,133 @@ describe('RealUnitService', () => {
       await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
     });
 
+    // --- Tax residence must cover the residence (address) country ---
+    // countryAndTINs is NOT part of the EIP-712 envelope — attach it AFTER signing.
+    //
+    // Scenario matrix (service-level validateRegistrationDto):
+    //   S1 CH + swissTaxResidence, countryAndTINs undefined/empty → PASS
+    //   S2 DE + DE TIN                                         → PASS
+    //   S3 CH + swissTaxResidence + additional FR TIN          → PASS
+    //   S4 DE + swissTaxResidence + DE TIN                     → PASS
+    //   S5 DE + multi (DE, FR, US) TINs                        → PASS
+    //   N1 DE + swissTaxResidence, no countryAndTINs           → reject (must include DE)
+    //   N2 DE + only FR TIN                                    → reject
+    //   N3 CH + !swissTaxResidence + only FR                   → reject (CH not covered)
+    //   N4 duplicate countries in countryAndTINs               → reject
+
+    const attachTins = (dto: any, countryAndTINs: { country: string; tin: string }[] | undefined) => {
+      dto.countryAndTINs = countryAndTINs;
+      return dto;
+    };
+
+    it('S1: passes when CH residence is covered by swissTaxResidence alone (countryAndTINs undefined)', async () => {
+      const dto = await buildDto(humanFields({ addressCountry: 'CH', swissTaxResidence: true }), humanKyc());
+      // no countryAndTINs attached
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('S1: passes when CH residence is covered by swissTaxResidence alone (countryAndTINs empty)', async () => {
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'CH', swissTaxResidence: true }), humanKyc()),
+        [],
+      );
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('S2: passes when a DE residence is covered by a DE countryAndTINs entry', async () => {
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'DE', swissTaxResidence: false }), humanKyc()),
+        [{ country: 'DE', tin: 'DE123456789' }],
+      );
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('S3: passes when a CH residence is covered and an additional FR tax country is declared', async () => {
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'CH', swissTaxResidence: true }), humanKyc()),
+        [{ country: 'FR', tin: 'FR111111111' }],
+      );
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('S4: passes when a DE residence is covered by DE TIN even with swissTaxResidence true', async () => {
+      // Living in DE requires DE among tax residences; swissTaxResidence alone does NOT cover DE.
+      // With both flags set correctly (swiss + DE TIN) the registration is valid.
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'DE', swissTaxResidence: true }), humanKyc()),
+        [{ country: 'DE', tin: 'DE123456789' }],
+      );
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('S5: passes when a DE residence is covered and multiple additional tax countries are declared', async () => {
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'DE', swissTaxResidence: false }), humanKyc()),
+        [
+          { country: 'DE', tin: 'DE123456789' },
+          { country: 'FR', tin: 'FR111111111' },
+          { country: 'US', tin: 'US999999999' },
+        ],
+      );
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('passes when a DE residence is covered and an additional AT tax country is declared (extra multi-residency)', async () => {
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'DE', swissTaxResidence: true }), humanKyc()),
+        [
+          { country: 'DE', tin: 'DE123456789' },
+          { country: 'AT', tin: 'AT987654321' },
+        ],
+      );
+      await expect((service as any).validateRegistrationDto(dto)).resolves.toBeUndefined();
+    });
+
+    it('N1: throws when a DE residence has only swissTaxResidence and no DE countryAndTINs entry', async () => {
+      const dto = await buildDto(humanFields({ addressCountry: 'DE', swissTaxResidence: true }), humanKyc());
+      // countryAndTINs intentionally omitted — DE address must still appear among tax residences
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(
+        /Tax residence must include the residence country \(DE\)/,
+      );
+    });
+
+    it('N2: throws when a DE residence is missing from the declared tax residences (only FR)', async () => {
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'DE', swissTaxResidence: false }), humanKyc()),
+        [{ country: 'FR', tin: 'FR111111111' }],
+      );
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(
+        /Tax residence must include the residence country \(DE\)/,
+      );
+    });
+
+    it('N3: throws when a CH residence is not covered (swissTaxResidence false, only FR)', async () => {
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'CH', swissTaxResidence: false }), humanKyc()),
+        [{ country: 'FR', tin: 'FR111111111' }],
+      );
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(
+        /Tax residence must include the residence country \(CH\)/,
+      );
+    });
+
+    it('N4: throws when countryAndTINs contains duplicate countries', async () => {
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'DE', swissTaxResidence: false }), humanKyc()),
+        [
+          { country: 'DE', tin: 'DE111' },
+          { country: 'DE', tin: 'DE222' },
+        ],
+      );
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(BadRequestException);
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(
+        /countryAndTINs must not contain duplicate countries/,
+      );
+    });
+
     it('resolveSignedRegistrationMessage normalizes a signature that lacks the 0x prefix', async () => {
       const fields = humanFields();
       const signature = await wallet._signTypedData(domain, types, fields);
@@ -3104,36 +3238,187 @@ describe('RealUnitService', () => {
     });
   });
 
-  describe('completeRegistration — first-time customer with tax-residence TINs (countryAndTINs persistence)', () => {
+  describe('completeRegistration — tax-residence TINs (countryAndTINs persistence on user_data.tin)', () => {
+    // Persistence matrix for user_data.tin after completeRegistration:
+    //   S1 CH + swissTaxResidence, countryAndTINs undefined/empty → tin null
+    //   S2 DE + [{DE, tin}]                                       → JSON of DE
+    //   S3 CH + swissTaxResidence + [{FR, tin}]                   → JSON of FR
+    //   S4 DE + swissTaxResidence + [{DE, tin}]                   → JSON of DE
+    //   S5 DE + [{DE},{FR},{US}]                                  → JSON of all three
+    // Covered for BOTH first-time (firstname null) AND existing personal data paths.
+    // validateRegistrationDto is mocked here — tax-residence rule coverage lives in its own describe.
+
+    const TIN_DE = { country: 'DE', tin: 'DE123456789' };
+    const TIN_FR = { country: 'FR', tin: 'FR111111111' };
+    const TIN_US = { country: 'US', tin: 'US999999999' };
+
+    type TinScenario = {
+      id: string;
+      addressCountry: string;
+      swissTaxResidence: boolean;
+      countryAndTINs: { country: string; tin: string }[] | undefined | [];
+      expectedTin: string | null;
+    };
+
+    const tinScenarios: TinScenario[] = [
+      {
+        id: 'S1',
+        addressCountry: 'CH',
+        swissTaxResidence: true,
+        countryAndTINs: undefined,
+        expectedTin: null,
+      },
+      {
+        id: 'S1-empty',
+        addressCountry: 'CH',
+        swissTaxResidence: true,
+        countryAndTINs: [],
+        expectedTin: null,
+      },
+      {
+        id: 'S2',
+        addressCountry: 'DE',
+        swissTaxResidence: false,
+        countryAndTINs: [TIN_DE],
+        expectedTin: JSON.stringify([TIN_DE]),
+      },
+      {
+        id: 'S3',
+        addressCountry: 'CH',
+        swissTaxResidence: true,
+        countryAndTINs: [TIN_FR],
+        expectedTin: JSON.stringify([TIN_FR]),
+      },
+      {
+        id: 'S4',
+        addressCountry: 'DE',
+        swissTaxResidence: true,
+        countryAndTINs: [TIN_DE],
+        expectedTin: JSON.stringify([TIN_DE]),
+      },
+      {
+        id: 'S5',
+        addressCountry: 'DE',
+        swissTaxResidence: false,
+        countryAndTINs: [TIN_DE, TIN_FR, TIN_US],
+        expectedTin: JSON.stringify([TIN_DE, TIN_FR, TIN_US]),
+      },
+    ];
+
+    let forwardSpy: jest.SpyInstance;
+
     beforeEach(() => {
       jest.spyOn(service as any, 'validateRegistrationDto').mockResolvedValue(undefined);
       jest
         .spyOn(service as any, 'findRegistration')
         .mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
-      jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
+      forwardSpy = jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
+      (service as any).countryService.getCountryWithSymbol.mockResolvedValue({ id: 1, symbol: 'CH' });
+      (service as any).languageService.getLanguageBySymbol.mockResolvedValue({ id: 1, symbol: 'DE' });
     });
 
-    it('serializes the provided countryAndTINs into the tin field before forwarding', async () => {
+    const buildDto = (scenario: TinScenario): any => ({
+      walletAddress: '0xabc',
+      signature: '0xsig',
+      email: 'max@example.com',
+      kycData: { accountType: 'Personal' },
+      nationality: scenario.addressCountry,
+      birthday: '1990-01-01',
+      lang: 'DE',
+      addressCountry: scenario.addressCountry,
+      swissTaxResidence: scenario.swissTaxResidence,
+      countryAndTINs: scenario.countryAndTINs,
+    });
+
+    describe.each(tinScenarios)(
+      '$id first-time customer (firstname null) — addressCountry=$addressCountry swissTaxResidence=$swissTaxResidence',
+      (scenario) => {
+        it(`persists tin=${scenario.expectedTin === null ? 'null' : 'JSON'} , forwards, and returns COMPLETED`, async () => {
+          const dto = buildDto(scenario);
+          const userData: any = {
+            id: 1,
+            kycLevel: KycLevel.LEVEL_10,
+            mail: 'max@example.com',
+            firstname: null,
+          };
+          userService.getUserByAddress.mockResolvedValue({ userData } as any);
+
+          const status = await service.completeRegistration(1, dto);
+
+          expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
+          expect(userDataService.updatePersonalData).toHaveBeenCalledWith(userData, dto.kycData);
+          expect(userDataService.updateUserDataInternal).toHaveBeenCalledTimes(1);
+          const [, update] = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[0];
+          expect(update.tin).toBe(scenario.expectedTin);
+          expect(forwardSpy).toHaveBeenCalledWith(userData, dto);
+          expect(forwardSpy).toHaveBeenCalledTimes(1);
+        });
+      },
+    );
+
+    describe.each(tinScenarios)(
+      '$id existing personal data (firstname set + isPersonalDataMatching) — addressCountry=$addressCountry',
+      (scenario) => {
+        it(`persists tin=${scenario.expectedTin === null ? 'null' : 'JSON'} only, forwards, and returns COMPLETED`, async () => {
+          const dto = buildDto(scenario);
+          const userData: any = {
+            id: 1,
+            kycLevel: KycLevel.LEVEL_10,
+            mail: 'max@example.com',
+            firstname: 'Max',
+            // stale TIN must be overwritten (including cleared to null for Swiss-only)
+            tin: JSON.stringify([{ country: 'XX', tin: 'stale' }]),
+          };
+          userService.getUserByAddress.mockResolvedValue({ userData } as any);
+          jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(true);
+
+          const status = await service.completeRegistration(1, dto);
+
+          expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
+          expect(userDataService.updatePersonalData).not.toHaveBeenCalled();
+          expect(userDataService.updateUserDataInternal).toHaveBeenCalledTimes(1);
+          const [, update] = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[0];
+          // existing path only updates tin — no nationality/birthday/language rewrite
+          expect(update).toEqual({ tin: scenario.expectedTin });
+          expect(forwardSpy).toHaveBeenCalledWith(userData, dto);
+          expect(forwardSpy).toHaveBeenCalledTimes(1);
+        });
+      },
+    );
+
+    it('still persists multi-country TINs (DE+AT) for an existing customer (regression)', async () => {
+      const countryAndTINs = [
+        { country: 'DE', tin: 'DE123456789' },
+        { country: 'AT', tin: 'AT987654321' },
+      ];
       const dto: any = {
         walletAddress: '0xabc',
         signature: '0xsig',
         email: 'max@example.com',
         kycData: { accountType: 'Personal' },
-        nationality: 'CH',
+        nationality: 'DE',
         birthday: '1990-01-01',
         lang: 'DE',
-        countryAndTINs: [{ country: 'DE', tin: '12345' }],
+        addressCountry: 'DE',
+        swissTaxResidence: false,
+        countryAndTINs,
       };
-      const userData: any = { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', firstname: null };
+      const userData: any = {
+        id: 1,
+        kycLevel: KycLevel.LEVEL_10,
+        mail: 'max@example.com',
+        firstname: 'Max',
+      };
       userService.getUserByAddress.mockResolvedValue({ userData } as any);
-      (service as any).countryService.getCountryWithSymbol.mockResolvedValue({ id: 1, symbol: 'CH' });
-      (service as any).languageService.getLanguageBySymbol.mockResolvedValue({ id: 1, symbol: 'DE' });
+      jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(true);
 
       const status = await service.completeRegistration(1, dto);
 
       expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
+      expect(userDataService.updatePersonalData).not.toHaveBeenCalled();
       const [, update] = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[0];
-      expect(update.tin).toBe(JSON.stringify([{ country: 'DE', tin: '12345' }]));
+      expect(update).toEqual({ tin: JSON.stringify(countryAndTINs) });
+      expect(forwardSpy).toHaveBeenCalledWith(userData, dto);
     });
   });
 

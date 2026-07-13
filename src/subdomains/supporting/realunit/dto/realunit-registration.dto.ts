@@ -186,7 +186,13 @@ export class AktionariatRegistrationDto {
   @IsEnum(RealUnitLanguage)
   lang: RealUnitLanguage;
 
-  @ApiPropertyOptional({ type: [CountryAndTin], description: 'Required if swissTaxResidence is false' })
+  @ApiPropertyOptional({
+    type: [CountryAndTin],
+    description:
+      'Tax residences with TINs for non-CH countries. Required when swissTaxResidence is false. ' +
+      'The residence country (addressCountry) must be covered by the declared tax residences: ' +
+      'CH via swissTaxResidence=true, any other country via an entry here. Additional tax countries are allowed.',
+  })
   @ValidateIf((o: AktionariatRegistrationDto) => !o.swissTaxResidence)
   @IsNotEmpty({ message: 'countryAndTINs is required when swissTaxResidence is false' })
   @IsArray()
