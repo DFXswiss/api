@@ -1,8 +1,11 @@
 import { createMock } from '@golevelup/ts-jest';
 import { ForbiddenException } from '@nestjs/common';
+import { Configuration, ConfigService } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
+import { Country } from 'src/shared/models/country/country.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
@@ -15,6 +18,8 @@ import { KycFile } from '../../entities/kyc-file.entity';
 import { KycStep } from '../../entities/kyc-step.entity';
 import { ContentType } from '../../enums/content-type.enum';
 import { KycStepName } from '../../enums/kyc-step-name.enum';
+import { ReviewStatus } from '../../enums/review-status.enum';
+import { KycStepRepository } from '../../repositories/kyc-step.repository';
 import { KycDocumentService } from '../integration/kyc-document.service';
 import { SumsubService } from '../integration/sum-sub.service';
 import { KycFileService } from '../kyc-file.service';
@@ -380,5 +385,103 @@ describe('KycService downloadIdentDocuments', () => {
       kycStep,
       undefined,
     );
+  });
+});
+
+// initiateStep auto-satisfies the NationalityData step from the account's already-known nationality
+// (captured e.g. during RealUnit registration) so the user is not asked for it a second time - but
+// only for the clean case (allowed, non-residence-permit nationality, no step errors), which is
+// completed in-memory. A residence-permit or disallowed nationality, a merged/blocked account, a
+// missing nationality, or a repeat attempt (preventDirectEvaluation) is deliberately left
+// IN_PROGRESS, so the user goes through the normal nationality step that routes it to the correct
+// internal/manual review and pulls in the residence-permit follow-up step. Never a blind complete.
+describe('KycService initiateStep NATIONALITY_DATA auto-complete', () => {
+  let service: KycService;
+  let kycStepRepo: jest.Mocked<KycStepRepository>;
+
+  const userWithNationality = (nationality?: Country, overrides: Partial<UserData> = {}): UserData =>
+    createCustomUserData({ kycHash: 'hash', kycSteps: [], nationality, ...overrides });
+
+  const initiateNationalityStep = (user: UserData, preventDirectEvaluation = false): Promise<KycStep> =>
+    (service as any).initiateStep(user, KycStepName.NATIONALITY_DATA, undefined, preventDirectEvaluation);
+
+  // the NATIONALITY_DATA branch reads Config.kyc.residencePermitCountries; initialize the global
+  // Config (a module-level `let` that is undefined until a ConfigService is constructed)
+  beforeAll(() => {
+    new ConfigService(new Configuration());
+  });
+
+  beforeEach(() => {
+    kycStepRepo = createMock<KycStepRepository>();
+    // save returns the (mutated) step, mirroring the real repo, so initiateStep's return is that step
+    (kycStepRepo.save as jest.Mock).mockImplementation(async (step) => step);
+
+    // initiateStep's NATIONALITY_DATA path only touches the repo (via the final save) and the pure
+    // getNationalityErrors helper; avoid wiring all constructor deps
+    service = Object.create(KycService.prototype);
+    (service as any).kycStepRepo = kycStepRepo;
+  });
+
+  it('completes the step in-memory from an allowed nationality and stores it as the result', async () => {
+    const nationality = createCustomCountry({ symbol: 'DE', nationalityEnable: true });
+    const user = userWithNationality(nationality);
+
+    const step = await initiateNationalityStep(user);
+
+    expect(step.status).toBe(ReviewStatus.COMPLETED);
+    expect(step.getResult()).toMatchObject({ nationality: { id: nationality.id, symbol: 'DE' } });
+    // only the final persist runs
+    expect(kycStepRepo.save).toHaveBeenCalledTimes(1);
+  });
+
+  it('leaves a residence-permit nationality IN_PROGRESS for the normal step', async () => {
+    const nationality = createCustomCountry({ symbol: 'RU', nationalityEnable: true });
+    const user = userWithNationality(nationality);
+
+    const step = await initiateNationalityStep(user);
+
+    expect(step.status).toBe(ReviewStatus.IN_PROGRESS);
+    expect(step.result).toBeUndefined();
+  });
+
+  it('leaves a disallowed nationality IN_PROGRESS for the normal step', async () => {
+    const nationality = createCustomCountry({ symbol: 'DE', nationalityEnable: false });
+    const user = userWithNationality(nationality);
+
+    const step = await initiateNationalityStep(user);
+
+    expect(step.status).toBe(ReviewStatus.IN_PROGRESS);
+    expect(step.result).toBeUndefined();
+  });
+
+  it('leaves the step IN_PROGRESS when the account has no known nationality', async () => {
+    const user = userWithNationality(undefined);
+
+    const step = await initiateNationalityStep(user);
+
+    expect(step.status).toBe(ReviewStatus.IN_PROGRESS);
+    expect(step.result).toBeUndefined();
+  });
+
+  it('leaves the step IN_PROGRESS on a repeat attempt (preventDirectEvaluation)', async () => {
+    const nationality = createCustomCountry({ symbol: 'DE', nationalityEnable: true });
+    const user = userWithNationality(nationality);
+
+    const step = await initiateNationalityStep(user, true);
+
+    expect(step.status).toBe(ReviewStatus.IN_PROGRESS);
+    expect(step.result).toBeUndefined();
+  });
+
+  // fail-closed: a merged (or blocked) account yields step errors from getNationalityErrors, so even
+  // an allowed nationality must not be auto-completed
+  it('leaves an allowed nationality IN_PROGRESS when the account is merged (fail-closed)', async () => {
+    const nationality = createCustomCountry({ symbol: 'DE', nationalityEnable: true });
+    const user = userWithNationality(nationality, { status: UserDataStatus.MERGED });
+
+    const step = await initiateNationalityStep(user);
+
+    expect(step.status).toBe(ReviewStatus.IN_PROGRESS);
+    expect(step.result).toBeUndefined();
   });
 });
