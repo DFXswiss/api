@@ -321,6 +321,18 @@ describe('FiatOutputFrickService', () => {
     });
   });
 
+  it('records a generic status error message when the status request rejects with a non-Error value', async () => {
+    jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+    jest.spyOn(frickService, 'getPaymentOrder').mockRejectedValue('synthetic non-error rejection');
+    jest
+      .spyOn(fiatOutputRepo, 'find')
+      .mockResolvedValue([createCustomFiatOutput({ id: 42, frickTxId: 'DFX-FO-42', isComplete: false })]);
+
+    await service.checkFrickOrderStatus();
+
+    expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, { frickError: 'FRICK status error: unknown error' });
+  });
+
   it('does not use a lone house number as the creditor address', async () => {
     Config.bank.frick.payoutEnabled = true;
     Config.bank.frick.approveWithoutTan = false;
@@ -345,6 +357,33 @@ describe('FiatOutputFrickService', () => {
 
     expect(frickService.createPaymentOrder).toHaveBeenCalledWith(
       expect.objectContaining({ creditor: expect.objectContaining({ address: undefined }) }),
+    );
+  });
+
+  it('joins the street address and house number as the creditor address', async () => {
+    Config.bank.frick.payoutEnabled = true;
+    Config.bank.frick.approveWithoutTan = false;
+    jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+    jest.spyOn(frickService, 'createPaymentOrder').mockResolvedValue(order);
+    jest.spyOn(frickService, 'getSafeOrderId').mockReturnValue('4242');
+    jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+      createCustomFiatOutput({
+        id: 42,
+        amount: 10,
+        currency: 'EUR',
+        accountIban: 'SYNTHETIC-DEBTOR',
+        name: 'Synthetic Recipient',
+        iban: 'SYNTHETIC-CREDITOR',
+        address: 'Synthetic Street',
+        houseNumber: '12',
+        bank: createCustomBank({ name: IbanBankName.FRICK }),
+      }),
+    ]);
+
+    await service.transmitPayments();
+
+    expect(frickService.createPaymentOrder).toHaveBeenCalledWith(
+      expect.objectContaining({ creditor: expect.objectContaining({ address: 'Synthetic Street 12' }) }),
     );
   });
 
@@ -381,6 +420,19 @@ describe('FiatOutputFrickService', () => {
     expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, {
       frickError: 'FRICK error: synthetic transmission failure',
     });
+  });
+
+  it('records a generic transmission error message when order creation rejects with a non-Error value', async () => {
+    Config.bank.frick.payoutEnabled = true;
+    jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+    jest.spyOn(frickService, 'createPaymentOrder').mockRejectedValue('synthetic non-error rejection');
+    jest
+      .spyOn(fiatOutputRepo, 'find')
+      .mockResolvedValue([createCustomFiatOutput({ id: 42, bank: createCustomBank({ name: IbanBankName.FRICK }) })]);
+
+    await service.transmitPayments();
+
+    expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, { frickError: 'FRICK error: unknown error' });
   });
 
   it('does not recreate a rejected order and records the terminal state', async () => {
