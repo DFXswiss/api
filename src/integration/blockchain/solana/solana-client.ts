@@ -133,6 +133,9 @@ export class SolanaClient extends BlockchainClient {
     // ambiguous (skipPreflight means the node may have accepted and relayed the tx before erroring).
     const result = await this.sendSignedTransaction(hexTransaction);
     if (result.error) throw new TxBroadcastError(result.error.message, { cause: result.error });
+    // A JSON-RPC response with HTTP 200 can still omit the hash (falsy result.error) - fail-closed
+    // explicitly instead of relying on pendingPayout(undefined) to reject implicitly downstream.
+    if (!result.hash) throw new TxBroadcastError('Broadcast returned an empty tx hash', { cause: result });
 
     return result.hash;
   }

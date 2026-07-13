@@ -43,6 +43,43 @@ describe('SolanaClient - broadcast boundary', () => {
       expect(sendSignedTransaction).toHaveBeenCalledWith('deadbeef');
     });
 
+    it('wraps a missing tx hash (HTTP 200, no result.error) into a TxBroadcastError (fail-closed: request already sent)', async () => {
+      const result = { hash: undefined };
+      const sendSignedTransaction = jest.fn().mockResolvedValue(result);
+      const client = createClientStub(sendSignedTransaction);
+      const wallet = { signTransaction: jest.fn() };
+      const transaction = createTransactionStub();
+
+      let error: unknown;
+      try {
+        await proto.sendTransaction.call(client, wallet, transaction);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('Broadcast returned an empty tx hash');
+      expect((error as TxBroadcastError).cause).toBe(result);
+    });
+
+    it('wraps an empty-string tx hash (HTTP 200, no result.error) into a TxBroadcastError (fail-closed: request already sent)', async () => {
+      const result = { hash: '' };
+      const sendSignedTransaction = jest.fn().mockResolvedValue(result);
+      const client = createClientStub(sendSignedTransaction);
+      const wallet = { signTransaction: jest.fn() };
+      const transaction = createTransactionStub();
+
+      let error: unknown;
+      try {
+        await proto.sendTransaction.call(client, wallet, transaction);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('Broadcast returned an empty tx hash');
+    });
+
     it('wraps an RPC error returned by sendSignedTransaction into a TxBroadcastError (fail-closed: request already sent)', async () => {
       const rpcError = { code: -32002, message: 'Transaction simulation failed' };
       const sendSignedTransaction = jest.fn().mockResolvedValue({ error: rpcError });

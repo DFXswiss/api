@@ -37,9 +37,9 @@ interface DesignateBeforeBroadcastFixture {
 interface DesignateBeforeBroadcastOptions {
   // Error thrown by dispatchPayout to simulate a broadcast-time failure. Plain Error by default
   // (matches every strategy that still has the old, undifferentiated fail-closed catch). EVM,
-  // Cardano and Solana now map a real send failure to PayoutBroadcastException (see
-  // payout-evm/cardano/solana.service.ts + evm/cardano/solana-client.ts), so their fixtures must
-  // throw that type here to stay representative.
+  // Cardano, Solana, ICP and Lightning now map a real send failure to PayoutBroadcastException (see
+  // payout-evm/cardano/solana/icp/lightning.service.ts + evm/cardano/solana/icp-client.ts and
+  // lightning-client.ts), so their fixtures must throw that type here to stay representative.
   broadcastError?: Error;
   // PayoutStrategy#handleBroadcastError (see payout.strategy.ts, exercised via EvmStrategy /
   // CardanoStrategy / SolanaStrategy #doPayout) treats any non-PayoutBroadcastException
@@ -258,10 +258,16 @@ describe('Payout designate-before-broadcast', () => {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
     designateSaveFailureRollsBack: true,
   });
-  runDesignateBeforeBroadcastSuite('IcpStrategy (InternetComputerCoinStrategy)', setupIcp);
+  runDesignateBeforeBroadcastSuite('IcpStrategy (InternetComputerCoinStrategy)', setupIcp, {
+    broadcastError: new PayoutBroadcastException('broadcast failed'),
+    designateSaveFailureRollsBack: true,
+  });
   runDesignateBeforeBroadcastSuite('ArkadeStrategy', setupArkade);
   runDesignateBeforeBroadcastSuite('SparkStrategy', setupSpark);
-  runDesignateBeforeBroadcastSuite('LightningStrategy', setupLightning);
+  runDesignateBeforeBroadcastSuite('LightningStrategy', setupLightning, {
+    broadcastError: new PayoutBroadcastException('broadcast failed'),
+    designateSaveFailureRollsBack: true,
+  });
 
   describe('LightningStrategy #doPayout(...) — health gate', () => {
     it('designates nothing, broadcasts nothing and saves nothing when isHealthy() is false', async () => {

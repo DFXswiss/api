@@ -47,8 +47,9 @@ export class LightningStrategy extends PayoutStrategy {
           const txId = await this.payoutLightningService.sendPayment(address, amount);
           await this.finishDoPayout(order, txId);
         } catch (e) {
-          // Fail-closed: leave the order PAYOUT_DESIGNATED for processFailedOrders; never rollback — a re-broadcast could double-pay.
           this.logger.error(`Error while executing Lightning payout order ${order.id}:`, e);
+
+          await this.handleBroadcastError(order, e, this.payoutOrderRepo);
         }
       }
     }
