@@ -14,6 +14,7 @@
 
 import { mock } from 'jest-mock-extended';
 import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
+import { LndRouteDto } from 'src/integration/lightning/dto/lnd.dto';
 import { LightningClient } from 'src/integration/lightning/lightning-client';
 import { LightningService } from 'src/integration/lightning/services/lightning.service';
 import { PayoutBroadcastException } from '../../exceptions/payout-broadcast.exception';
@@ -21,12 +22,14 @@ import { PayoutLightningService } from '../payout-lightning.service';
 
 describe('PayoutLightningService', () => {
   let lightningService: LightningService;
+  let client: LightningClient;
   let service: PayoutLightningService;
   let sendTransferSpy: jest.SpyInstance;
 
   beforeEach(() => {
     lightningService = mock<LightningService>();
-    jest.spyOn(lightningService, 'getDefaultClient').mockReturnValue(mock<LightningClient>());
+    client = mock<LightningClient>();
+    jest.spyOn(lightningService, 'getDefaultClient').mockReturnValue(client);
     sendTransferSpy = jest.spyOn(lightningService, 'sendTransfer');
 
     service = new PayoutLightningService(lightningService);
@@ -119,6 +122,50 @@ describe('PayoutLightningService', () => {
 
       await expect(service.sendPayment('ADDR_01', 0.001)).resolves.toBe('TX_ID_01');
       expect(sendTransferSpy).toHaveBeenCalledWith('ADDR_01', 0.001);
+    });
+  });
+
+  describe('isHealthy()', () => {
+    it('delegates to the default client', async () => {
+      const isHealthySpy = jest.spyOn(client, 'isHealthy').mockResolvedValue(true);
+
+      await expect(service.isHealthy()).resolves.toBe(true);
+      expect(isHealthySpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getEstimatedFee(...)', () => {
+    const route = (totalFeesMsat: number): LndRouteDto => ({
+      total_fees_msat: totalFeesMsat,
+      total_amt_msat: totalFeesMsat + 1000,
+      hops: [{ chan_id: '1', amt_to_forward_msat: 1000, fee_msat: totalFeesMsat, pub_key: 'HOP_PK' }],
+    });
+
+    it('resolves the public key, queries routes and returns the most expensive route fee in BTC', async () => {
+      const getPublicKeySpy = jest.spyOn(lightningService, 'getPublicKeyOfAddress').mockResolvedValue('PUBKEY_01');
+      const getRoutesSpy = jest.spyOn(client, 'getLndRoutes').mockResolvedValue([route(1000), route(2000)]);
+
+      // max(1000, 2000, 0) msat = 2000 msat = 2 sat = 0.00000002 BTC
+      await expect(service.getEstimatedFee('addr@dfx.swiss', 0.001)).resolves.toBe(0.00000002);
+      expect(getPublicKeySpy).toHaveBeenCalledWith('addr@dfx.swiss');
+      expect(getRoutesSpy).toHaveBeenCalledWith('PUBKEY_01', 0.001);
+    });
+
+    it('returns 0 when no route is available (Math.max seed)', async () => {
+      jest.spyOn(lightningService, 'getPublicKeyOfAddress').mockResolvedValue('PUBKEY_01');
+      jest.spyOn(client, 'getLndRoutes').mockResolvedValue([]);
+
+      await expect(service.getEstimatedFee('addr@dfx.swiss', 0.001)).resolves.toBe(0);
+    });
+  });
+
+  describe('getPayoutCompletionData(...)', () => {
+    it('delegates to the shared lightning service', async () => {
+      const completionSpy = jest.spyOn(lightningService, 'getTransferCompletionData');
+      completionSpy.mockResolvedValue([true, 0.00000002]);
+
+      await expect(service.getPayoutCompletionData('TX_ID_01')).resolves.toEqual([true, 0.00000002]);
+      expect(completionSpy).toHaveBeenCalledWith('TX_ID_01');
     });
   });
 });

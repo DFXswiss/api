@@ -112,4 +112,44 @@ describe('PayoutCardanoService', () => {
       expect(sendTokenFromDexSpy).toHaveBeenCalledWith('ADDR_01', asset, 2.5);
     });
   });
+
+  describe('getPayoutCompletionData(...)', () => {
+    it('returns [true, actualFee] and reads the actual fee once the tx is complete', async () => {
+      const isTxCompleteSpy = jest.spyOn(cardanoService, 'isTxComplete').mockResolvedValue(true);
+      const getTxActualFeeSpy = jest.spyOn(cardanoService, 'getTxActualFee').mockResolvedValue(0.17);
+
+      await expect(service.getPayoutCompletionData('TX_HASH_01')).resolves.toEqual([true, 0.17]);
+      expect(isTxCompleteSpy).toHaveBeenCalledWith('TX_HASH_01');
+      expect(getTxActualFeeSpy).toHaveBeenCalledWith('TX_HASH_01');
+    });
+
+    it('returns [false, 0] and never reads the fee while the tx is not complete', async () => {
+      const isTxCompleteSpy = jest.spyOn(cardanoService, 'isTxComplete').mockResolvedValue(false);
+      const getTxActualFeeSpy = jest.spyOn(cardanoService, 'getTxActualFee');
+
+      await expect(service.getPayoutCompletionData('TX_HASH_01')).resolves.toEqual([false, 0]);
+      expect(isTxCompleteSpy).toHaveBeenCalledWith('TX_HASH_01');
+      expect(getTxActualFeeSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getCurrentGasForCoinTransaction()', () => {
+    it('delegates to the shared service', async () => {
+      const gasSpy = jest.spyOn(cardanoService, 'getCurrentGasCostForCoinTransaction').mockResolvedValue(1.23);
+
+      await expect(service.getCurrentGasForCoinTransaction()).resolves.toBe(1.23);
+      expect(gasSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getCurrentGasForTokenTransaction(...)', () => {
+    const asset = createDefaultAsset();
+
+    it('delegates to the shared service, forwarding the token', async () => {
+      const gasSpy = jest.spyOn(cardanoService, 'getCurrentGasCostForTokenTransaction').mockResolvedValue(2.34);
+
+      await expect(service.getCurrentGasForTokenTransaction(asset)).resolves.toBe(2.34);
+      expect(gasSpy).toHaveBeenCalledWith(asset);
+    });
+  });
 });

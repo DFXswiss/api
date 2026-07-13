@@ -195,4 +195,68 @@ describe('PayoutBitcoinService', () => {
       expect(sendManySpy).not.toHaveBeenCalled();
     });
   });
+
+  describe('isHealthy()', () => {
+    it('returns true when the node reports info', async () => {
+      (mockClient.getInfo as jest.Mock).mockResolvedValueOnce({ blocks: 800000 });
+
+      await expect(service.isHealthy()).resolves.toBe(true);
+      expect(mockClient.getInfo).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns false when the node reports no info', async () => {
+      (mockClient.getInfo as jest.Mock).mockResolvedValueOnce(null);
+
+      await expect(service.isHealthy()).resolves.toBe(false);
+    });
+
+    it('returns false (never throws) when the info call rejects', async () => {
+      (mockClient.getInfo as jest.Mock).mockRejectedValueOnce(new Error('node unreachable'));
+
+      await expect(service.isHealthy()).resolves.toBe(false);
+    });
+  });
+
+  describe('getPayoutCompletionData()', () => {
+    it('returns [true, negated fee] once the tx is found (Bitcoin Core reports outgoing fees as negative)', async () => {
+      mockClient.getTx.mockResolvedValueOnce({
+        txid: 'TX_HASH_01',
+        confirmations: 3,
+        time: 0,
+        amount: 0.5,
+        fee: -0.0002,
+      });
+
+      const result = await service.getPayoutCompletionData(PayoutOrderContext.BUY_CRYPTO, 'TX_HASH_01');
+
+      expect(result).toEqual([true, 0.0002]);
+      expect(mockClient.getTx).toHaveBeenCalledWith('TX_HASH_01');
+    });
+
+    it('defaults the fee to 0 for a found tx that carries no fee field', async () => {
+      mockClient.getTx.mockResolvedValueOnce({ txid: 'TX_HASH_01', confirmations: 3, time: 0, amount: 0.5 });
+
+      const result = await service.getPayoutCompletionData(PayoutOrderContext.BUY_CRYPTO, 'TX_HASH_01');
+
+      expect(result[0]).toBe(true);
+      expect(result[1]).toBe(-0); // -(undefined ?? 0)
+    });
+
+    it('returns [false, 0] while the tx is not yet in the wallet', async () => {
+      mockClient.getTx.mockResolvedValueOnce(null);
+
+      const result = await service.getPayoutCompletionData(PayoutOrderContext.BUY_CRYPTO, 'TX_HASH_01');
+
+      expect(result).toEqual([false, 0]);
+    });
+  });
+
+  describe('getCurrentFeeRate()', () => {
+    it('delegates to the fee service', async () => {
+      mockFeeService.getSendFeeRate.mockResolvedValueOnce(7);
+
+      await expect(service.getCurrentFeeRate()).resolves.toBe(7);
+      expect(mockFeeService.getSendFeeRate).toHaveBeenCalledTimes(1);
+    });
+  });
 });

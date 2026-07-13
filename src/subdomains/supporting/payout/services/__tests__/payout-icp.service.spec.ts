@@ -115,4 +115,64 @@ describe('PayoutInternetComputerService', () => {
       expect(sendTokenFromDexSpy).toHaveBeenCalledWith('ADDR_01', asset, 2.5);
     });
   });
+
+  describe('getPayoutCompletionData(...)', () => {
+    it('returns [false, 0] and reads no fee while the tx is not complete', async () => {
+      jest.spyOn(client, 'isTxComplete').mockResolvedValue(false);
+      const getTxActualFeeSpy = jest.spyOn(client, 'getTxActualFee');
+      const tokenGasSpy = jest.spyOn(client, 'getCurrentGasCostForTokenTransaction');
+
+      await expect(service.getPayoutCompletionData('TX_HASH_01')).resolves.toEqual([false, 0]);
+      expect(getTxActualFeeSpy).not.toHaveBeenCalled();
+      expect(tokenGasSpy).not.toHaveBeenCalled();
+    });
+
+    it('reads the reverse-gas-model token cost (not the on-chain fee) for a complete token payout', async () => {
+      const token = createDefaultAsset();
+      jest.spyOn(client, 'isTxComplete').mockResolvedValue(true);
+      const tokenGasSpy = jest.spyOn(client, 'getCurrentGasCostForTokenTransaction').mockResolvedValue(0.0002);
+      const getTxActualFeeSpy = jest.spyOn(client, 'getTxActualFee');
+
+      await expect(service.getPayoutCompletionData('TX_HASH_01', token)).resolves.toEqual([true, 0.0002]);
+      expect(tokenGasSpy).toHaveBeenCalledWith(token);
+      expect(getTxActualFeeSpy).not.toHaveBeenCalled();
+    });
+
+    it('reads the actual on-chain fee for a complete coin payout (no token)', async () => {
+      jest.spyOn(client, 'isTxComplete').mockResolvedValue(true);
+      const getTxActualFeeSpy = jest.spyOn(client, 'getTxActualFee').mockResolvedValue(0.0001);
+
+      await expect(service.getPayoutCompletionData('TX_HASH_01')).resolves.toEqual([true, 0.0001]);
+      expect(getTxActualFeeSpy).toHaveBeenCalledWith('TX_HASH_01');
+    });
+
+    it('falls back to the coin gas cost when the primary fee lookup throws', async () => {
+      jest.spyOn(client, 'isTxComplete').mockResolvedValue(true);
+      jest.spyOn(client, 'getTxActualFee').mockRejectedValue(new Error('ledger query failed'));
+      const coinGasSpy = jest.spyOn(client, 'getCurrentGasCostForCoinTransaction').mockResolvedValue(0.00005);
+
+      await expect(service.getPayoutCompletionData('TX_HASH_01')).resolves.toEqual([true, 0.00005]);
+      expect(coinGasSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getCurrentGasForCoinTransaction()', () => {
+    it('delegates to the default client', async () => {
+      const gasSpy = jest.spyOn(client, 'getCurrentGasCostForCoinTransaction').mockResolvedValue(0.0001);
+
+      await expect(service.getCurrentGasForCoinTransaction()).resolves.toBe(0.0001);
+      expect(gasSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getCurrentGasForTokenTransaction(...)', () => {
+    const asset = createDefaultAsset();
+
+    it('delegates to the default client, forwarding the token', async () => {
+      const gasSpy = jest.spyOn(client, 'getCurrentGasCostForTokenTransaction').mockResolvedValue(0.0002);
+
+      await expect(service.getCurrentGasForTokenTransaction(asset)).resolves.toBe(0.0002);
+      expect(gasSpy).toHaveBeenCalledWith(asset);
+    });
+  });
 });

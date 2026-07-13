@@ -130,4 +130,99 @@ describe('PayoutFiroService', () => {
       expect(error).not.toBeInstanceOf(PayoutBroadcastException);
     });
   });
+
+  describe('isHealthy()', () => {
+    it('returns true when the node reports info', async () => {
+      (mockClient.getInfo as jest.Mock).mockResolvedValueOnce({ blocks: 500000 });
+
+      await expect(service.isHealthy()).resolves.toBe(true);
+      expect(mockClient.getInfo).toHaveBeenCalledTimes(1);
+    });
+
+    it('returns false when the node reports no info', async () => {
+      (mockClient.getInfo as jest.Mock).mockResolvedValueOnce(null);
+
+      await expect(service.isHealthy()).resolves.toBe(false);
+    });
+
+    it('returns false (never throws) when the info call rejects', async () => {
+      (mockClient.getInfo as jest.Mock).mockRejectedValueOnce(new Error('node unreachable'));
+
+      await expect(service.isHealthy()).resolves.toBe(false);
+    });
+  });
+
+  describe('getPayoutCompletionData()', () => {
+    it('returns [true, negated fee] once the tx is mined (has blockhash and confirmations)', async () => {
+      mockClient.getTx.mockResolvedValueOnce({
+        txid: 'TX_HASH_01',
+        blockhash: 'BLOCK_HASH_01',
+        confirmations: 6,
+        time: 0,
+        amount: 0.5,
+        fee: -0.001,
+      });
+
+      const result = await service.getPayoutCompletionData(PayoutOrderContext.BUY_CRYPTO, 'TX_HASH_01');
+
+      expect(result).toEqual([true, 0.001]);
+      expect(mockClient.getTx).toHaveBeenCalledWith('TX_HASH_01');
+    });
+
+    it('defaults the fee to 0 for a mined tx that carries no fee field', async () => {
+      mockClient.getTx.mockResolvedValueOnce({
+        txid: 'TX_HASH_01',
+        blockhash: 'BLOCK_HASH_01',
+        confirmations: 6,
+        time: 0,
+        amount: 0.5,
+      });
+
+      const result = await service.getPayoutCompletionData(PayoutOrderContext.BUY_CRYPTO, 'TX_HASH_01');
+
+      expect(result[0]).toBe(true);
+      expect(result[1]).toBe(-0); // -(undefined ?? 0)
+    });
+
+    it('treats a tx with zero confirmations as not complete', async () => {
+      mockClient.getTx.mockResolvedValueOnce({
+        txid: 'TX_HASH_01',
+        blockhash: 'BLOCK_HASH_01',
+        confirmations: 0,
+        time: 0,
+        amount: 0.5,
+        fee: -0.001,
+      });
+
+      const result = await service.getPayoutCompletionData(PayoutOrderContext.BUY_CRYPTO, 'TX_HASH_01');
+
+      expect(result[0]).toBe(false);
+      expect(result[1]).toBe(0);
+    });
+
+    it('treats an unmined tx (no blockhash) as not complete', async () => {
+      mockClient.getTx.mockResolvedValueOnce({ txid: 'TX_HASH_01', confirmations: 6, time: 0, amount: 0.5 });
+
+      const result = await service.getPayoutCompletionData(PayoutOrderContext.BUY_CRYPTO, 'TX_HASH_01');
+
+      expect(result[0]).toBeUndefined();
+      expect(result[1]).toBe(0);
+    });
+
+    it('treats a missing tx as not complete', async () => {
+      mockClient.getTx.mockResolvedValueOnce(null);
+
+      const result = await service.getPayoutCompletionData(PayoutOrderContext.BUY_CRYPTO, 'TX_HASH_01');
+
+      expect(result[0]).toBeNull();
+      expect(result[1]).toBe(0);
+    });
+  });
+
+  describe('getCurrentFeeRate()', () => {
+    it('delegates to the fee service', async () => {
+      await expect(service.getCurrentFeeRate()).resolves.toBe(10);
+      expect(mockFeeService.getSendFeeRate).toHaveBeenCalledTimes(1);
+    });
+  });
 });

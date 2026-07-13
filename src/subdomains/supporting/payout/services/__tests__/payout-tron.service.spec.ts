@@ -112,4 +112,44 @@ describe('PayoutTronService', () => {
       expect(sendTokenFromDexSpy).toHaveBeenCalledWith('ADDR_01', asset, 2.5);
     });
   });
+
+  describe('getPayoutCompletionData(...)', () => {
+    it('returns [true, actualFee] and reads the actual fee once the tx is complete', async () => {
+      const isTxCompleteSpy = jest.spyOn(tronService, 'isTxComplete').mockResolvedValue(true);
+      const getTxActualFeeSpy = jest.spyOn(tronService, 'getTxActualFee').mockResolvedValue(1.1);
+
+      await expect(service.getPayoutCompletionData('TX_HASH_01')).resolves.toEqual([true, 1.1]);
+      expect(isTxCompleteSpy).toHaveBeenCalledWith('TX_HASH_01');
+      expect(getTxActualFeeSpy).toHaveBeenCalledWith('TX_HASH_01');
+    });
+
+    it('returns [false, 0] and never reads the fee while the tx is not complete', async () => {
+      const isTxCompleteSpy = jest.spyOn(tronService, 'isTxComplete').mockResolvedValue(false);
+      const getTxActualFeeSpy = jest.spyOn(tronService, 'getTxActualFee');
+
+      await expect(service.getPayoutCompletionData('TX_HASH_01')).resolves.toEqual([false, 0]);
+      expect(isTxCompleteSpy).toHaveBeenCalledWith('TX_HASH_01');
+      expect(getTxActualFeeSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getCurrentGasForCoinTransaction()', () => {
+    it('delegates to the shared service', async () => {
+      const gasSpy = jest.spyOn(tronService, 'getCurrentGasCostForCoinTransaction').mockResolvedValue(1.5);
+
+      await expect(service.getCurrentGasForCoinTransaction()).resolves.toBe(1.5);
+      expect(gasSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('getCurrentGasForTokenTransaction(...)', () => {
+    const asset = createDefaultAsset();
+
+    it('delegates to the shared service, forwarding the token', async () => {
+      const gasSpy = jest.spyOn(tronService, 'getCurrentGasCostForTokenTransaction').mockResolvedValue(2.7);
+
+      await expect(service.getCurrentGasForTokenTransaction(asset)).resolves.toBe(2.7);
+      expect(gasSpy).toHaveBeenCalledWith(asset);
+    });
+  });
 });
