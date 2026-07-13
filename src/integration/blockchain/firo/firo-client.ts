@@ -3,6 +3,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { BitcoinBasedClient, TestMempoolResult } from '../bitcoin/node/bitcoin-based-client';
 import { UTXO } from '../bitcoin/node/dto/bitcoin-transaction.dto';
 import { Block, NodeClientConfig } from '../bitcoin/node/node-client';
+import { TxBroadcastError } from '../shared/errors/tx-broadcast.error';
 import { FiroRawTransaction } from './rpc';
 
 /**
@@ -189,7 +190,13 @@ export class FiroClient extends BitcoinBasedClient {
       throw new Error('Failed to sign Firo transaction');
     }
 
-    return this.callNode(() => this.rpc.call<string>('sendrawtransaction', [signedResult.hex]), true);
+    // Broadcast boundary: sendrawtransaction is the actual network relay - everything above
+    // (createrawtransaction/signrawtransaction) is local/pre-broadcast and stays a plain Error.
+    try {
+      return await this.callNode(() => this.rpc.call<string>('sendrawtransaction', [signedResult.hex]), true);
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   // Delegates to sendMany which uses manual coin selection from the liquidity and payment addresses.
@@ -240,11 +247,21 @@ export class FiroClient extends BitcoinBasedClient {
       };
     }
 
-    const mintTxIds = await this.callNode(
-      () => this.rpc.call<string[]>('mintspark', [sparkAddresses, false, fromAddresses]),
-      true,
-    );
+    // Broadcast boundary: mintspark builds, signs and broadcasts atomically in one node-side
+    // call (like Bitcoin Core's `send`) - a failure here is at-or-after the broadcast.
+    let mintTxIds: string[];
+    try {
+      mintTxIds = await this.callNode(
+        () => this.rpc.call<string[]>('mintspark', [sparkAddresses, false, fromAddresses]),
+        true,
+      );
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
 
+    // The RPC call itself succeeded (no network ambiguity) but returned no txid - the node is
+    // explicitly telling us nothing was minted, so this is a provable pre-broadcast-equivalent
+    // failure and stays a plain Error (self-heal / rollback is safe, nothing was sent).
     if (!mintTxIds?.length) {
       throw new Error('mintspark returned no transaction IDs');
     }

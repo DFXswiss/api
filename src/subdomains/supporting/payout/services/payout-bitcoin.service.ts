@@ -2,9 +2,11 @@ import { Injectable } from '@nestjs/common';
 import { BitcoinClient } from 'src/integration/blockchain/bitcoin/node/bitcoin-client';
 import { BitcoinFeeService } from 'src/integration/blockchain/bitcoin/services/bitcoin-fee.service';
 import { BitcoinNodeType, BitcoinService } from 'src/integration/blockchain/bitcoin/services/bitcoin.service';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { Util } from 'src/shared/utils/util';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
 import { InvalidPayoutAmountException } from '../exceptions/invalid-payout-amount.exception';
+import { PayoutBroadcastException } from '../exceptions/payout-broadcast.exception';
 import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
 
 // Bitcoin Core's send/sendmany RPC parses amount fields with ParseFixedPoint(decimals=8)
@@ -38,7 +40,12 @@ export class PayoutBitcoinService extends PayoutBitcoinBasedService {
     const sanitizedPayout = this.sanitizePayoutAmounts(payout);
     const feeRate = Util.round(await this.getCurrentFeeRate(), BTC_FEE_RATE_DECIMALS);
 
-    return this.client.sendMany(sanitizedPayout, feeRate);
+    try {
+      return await this.client.sendMany(sanitizedPayout, feeRate);
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+      throw e;
+    }
   }
 
   async getPayoutCompletionData(_context: any, payoutTxId: string): Promise<[boolean, number]> {

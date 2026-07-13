@@ -8,10 +8,11 @@ import {
   createCustomPayoutOrder,
   createDefaultPayoutOrder,
 } from '../../../entities/__mocks__/payout-order.entity.mock';
-import { PayoutOrder, PayoutOrderStatus } from '../../../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../../entities/payout-order.entity';
+import { PayoutBroadcastException } from '../../../exceptions/payout-broadcast.exception';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutBitcoinBasedService } from '../../../services/base/payout-bitcoin-based.service';
+import { PayoutBitcoinBasedService, PayoutGroup } from '../../../services/base/payout-bitcoin-based.service';
 import { BitcoinBasedStrategy } from '../impl/base/bitcoin-based.strategy';
 
 describe('PayoutBitcoinBasedStrategy', () => {
@@ -232,6 +233,92 @@ describe('PayoutBitcoinBasedStrategy', () => {
     });
   });
 
+  describe('#send(...)', () => {
+    it('completes the payout and resets retry tracking on a successful dispatch', async () => {
+      const orders = [
+        createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null, retryCount: 2 }),
+      ];
+      strategy.dispatchPayoutImpl = () => Promise.resolve('CHAIN_TX_ID');
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders);
+
+      expect(orders[0].status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(orders[0].payoutTxId).toBe('CHAIN_TX_ID');
+      expect(orders[0].retryCount).toBe(0);
+    });
+
+    // The structural fix under test: only a PayoutBroadcastException (client reached the actual
+    // on-chain broadcast call) must stay fail-closed. This replaces the old `e.message.includes
+    // ('timeout')` string heuristic.
+    it('keeps the order PAYOUT_DESIGNATED (fail-closed) when dispatchPayout throws a PayoutBroadcastException', async () => {
+      const orders = [createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null })];
+      strategy.dispatchPayoutImpl = () => Promise.reject(new PayoutBroadcastException('node unreachable after send'));
+
+      await expect(strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders)).rejects.toBeInstanceOf(
+        PayoutBroadcastException,
+      );
+
+      expect(orders[0].status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+    });
+
+    it('rolls back to PREPARATION_CONFIRMED (self-heals) when dispatchPayout throws a plain Error', async () => {
+      const orders = [createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null })];
+      strategy.dispatchPayoutImpl = () => Promise.reject(new Error('Invalid amount'));
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders);
+
+      expect(orders[0].status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+    });
+
+    // Regression test for the removed heuristic: a pre-broadcast RPC timeout (e.g. fee
+    // estimation) is a plain Error and must now self-heal instead of incorrectly staying
+    // fail-closed just because its message happens to contain the word "timeout".
+    it('rolls back (self-heals) a pre-broadcast plain Error whose message contains "timeout"', async () => {
+      const orders = [createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null })];
+      strategy.dispatchPayoutImpl = () => Promise.reject(new Error('RPC call timeout during fee estimation'));
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders);
+
+      expect(orders[0].status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+    });
+
+    it('stays fail-closed for a PayoutBroadcastException even without the word "timeout" in the message', async () => {
+      const orders = [createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null })];
+      strategy.dispatchPayoutImpl = () => Promise.reject(new PayoutBroadcastException('connection reset'));
+
+      await expect(strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders)).rejects.toBeInstanceOf(
+        PayoutBroadcastException,
+      );
+
+      expect(orders[0].status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+    });
+
+    it('records the failure via trackPayoutFailure on both pre- and at-or-after-broadcast errors', async () => {
+      const preBroadcastOrder = createCustomPayoutOrder({
+        id: 20,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+      });
+      const postBroadcastOrder = createCustomPayoutOrder({
+        id: 21,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+      });
+
+      strategy.dispatchPayoutImpl = () => Promise.reject(new Error('pre-broadcast failure'));
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, [preBroadcastOrder]);
+      expect(preBroadcastOrder.retryCount).toBe(1);
+      expect(preBroadcastOrder.lastError).toBe('pre-broadcast failure');
+
+      strategy.dispatchPayoutImpl = () => Promise.reject(new PayoutBroadcastException('post-broadcast failure'));
+      await expect(strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, [postBroadcastOrder])).rejects.toBeInstanceOf(
+        PayoutBroadcastException,
+      );
+      expect(postBroadcastOrder.retryCount).toBe(1);
+      expect(postBroadcastOrder.lastError).toBe('post-broadcast failure');
+    });
+  });
+
   describe('#trackPayoutFailure(...)', () => {
     it('increments retryCount, persists lastError and lastAttemptDate on every order', async () => {
       const orders = [createCustomPayoutOrder({ id: 10 }), createCustomPayoutOrder({ id: 11 })];
@@ -397,8 +484,17 @@ class PayoutBitcoinBasedStrategyWrapper extends BitcoinBasedStrategy {
     throw new Error('Method not implemented.');
   }
 
-  protected async dispatchPayout(): Promise<string> {
-    return 'TX_ID_01';
+  // Overridable per-test so #send(...) tests can simulate pre-broadcast vs. at-or-after-broadcast
+  // failures without needing a real chain client.
+  dispatchPayoutImpl: (context: PayoutOrderContext, payout: PayoutGroup, token?: Asset) => Promise<string> = () =>
+    Promise.resolve('TX_ID_01');
+
+  protected async dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup, token?: Asset): Promise<string> {
+    return this.dispatchPayoutImpl(context, payout, token);
+  }
+
+  sendWrapper(context: PayoutOrderContext, orders: PayoutOrder[]) {
+    return this.send(context, orders);
   }
 
   createPayoutGroupsWrapper(orders: PayoutOrder[], maxGroupSize: number) {

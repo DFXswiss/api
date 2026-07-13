@@ -3,6 +3,7 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { BlockchainTokenBalance } from '../../shared/dto/blockchain-token-balance.dto';
 import { BlockchainSignedTransactionResponse } from '../../shared/dto/signed-transaction-reponse.dto';
+import { TxBroadcastError } from '../../shared/errors/tx-broadcast.error';
 import { CoinOnly } from '../../shared/util/blockchain-client';
 import { NodeClient, NodeClientConfig } from './node-client';
 
@@ -69,9 +70,16 @@ export abstract class BitcoinBasedClient extends NodeClient implements CoinOnly 
       ...(subtractFeeFromOutputs && { subtract_fee_from_outputs: subtractFeeFromOutputs }),
     };
 
-    const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);
-
-    return result?.txid ?? '';
+    // Broadcast boundary: Bitcoin Core's `send` RPC builds, signs and broadcasts in one atomic
+    // node-side call - there is no separate pre-broadcast step to exclude. Any failure surfacing
+    // from this call (including an HTTP-level timeout) is ambiguous: the node may already have
+    // relayed the tx before the response was lost, so it is treated as at-or-after-send.
+    try {
+      const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);
+      return result?.txid ?? '';
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   async sendManyFromAddress(
