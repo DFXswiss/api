@@ -278,8 +278,13 @@ export class RealUnitComplianceService {
       const balances = new Map<number, number>(userDataIds.map((id) => [id, 0]));
       const unresolved = new Set<number>();
       for (const user of users) {
-        const raw = user.address && holderBalances.get(user.address.toLowerCase());
-        if (!raw) continue;
+        if (!user.address) continue;
+
+        // "Address absent from the holder set" is a genuine 0 (already pre-seeded). An address that IS present but
+        // carries an unusable balance (e.g. '' from a resyncing indexer) must flow through toShareCount and fail
+        // closed below — not be swallowed here as a false 0 by a truthiness check.
+        const raw = holderBalances.get(user.address.toLowerCase());
+        if (raw === undefined) continue;
 
         const userDataId = user.userData.id;
 

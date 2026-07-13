@@ -482,6 +482,45 @@ describe('RealUnitComplianceService', () => {
       expect(realUnitService.getHolders).toHaveBeenCalledTimes(2);
     });
 
+    it('reports the balance as unknown when a holder balance is an empty string', async () => {
+      scopeService.getCustomerIds.mockResolvedValue([1]);
+      userDataService.getUserDataByIds.mockResolvedValue([Object.assign(new UserData(), { id: 1 })]);
+      userService.getUsersByUserDataIds.mockResolvedValue([
+        Object.assign(new User(), { address: '0xabc', userData: { id: 1 } as UserData }),
+      ]);
+      realUnitService.getHolders.mockResolvedValue({
+        holders: [{ address: '0xabc', balance: '' }], // present but unusable -> unresolved, not a false 0
+        pageInfo: { hasNextPage: false },
+      } as HoldersDto);
+
+      const result = await service.searchCustomers();
+
+      expect(result[0].balance).toBeUndefined();
+    });
+
+    it('aggregates a member holdings across multiple legitimately-cursored pages', async () => {
+      scopeService.getCustomerIds.mockResolvedValue([1]);
+      userDataService.getUserDataByIds.mockResolvedValue([Object.assign(new UserData(), { id: 1 })]);
+      userService.getUsersByUserDataIds.mockResolvedValue([
+        Object.assign(new User(), { address: '0xabc', userData: { id: 1 } as UserData }),
+        Object.assign(new User(), { address: '0xdef', userData: { id: 1 } as UserData }),
+      ]);
+      realUnitService.getHolders
+        .mockResolvedValueOnce({
+          holders: [{ address: '0xabc', balance: '40' }],
+          pageInfo: { hasNextPage: true, endCursor: 'p1' },
+        } as HoldersDto)
+        .mockResolvedValueOnce({
+          holders: [{ address: '0xdef', balance: '60' }], // only reachable by advancing the cursor to page 2
+          pageInfo: { hasNextPage: false },
+        } as HoldersDto);
+
+      const result = await service.searchCustomers();
+
+      expect(result[0].balance).toBe(100);
+      expect(realUnitService.getHolders).toHaveBeenCalledTimes(2);
+    });
+
     it('reports the balance as unknown (undefined) when the indexer signals another page without a cursor', async () => {
       scopeService.getCustomerIds.mockResolvedValue([1]);
       userDataService.getUserDataByIds.mockResolvedValue([Object.assign(new UserData(), { id: 1 })]);
