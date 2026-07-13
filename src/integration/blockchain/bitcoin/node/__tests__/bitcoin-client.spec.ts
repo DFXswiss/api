@@ -328,6 +328,23 @@ describe('BitcoinClient', () => {
       expect(error).toBeInstanceOf(TxBroadcastError);
       expect((error as TxBroadcastError).message).toBe('Bitcoin RPC send failed: node unreachable');
     });
+
+    it('should wrap an empty/missing txid on a resolved `send` response into a TxBroadcastError (fail-closed)', async () => {
+      const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
+
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' })); // walletpassphrase
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: { complete: true }, error: null, id: 'test' }));
+
+      let error: unknown;
+      try {
+        await client.sendMany(payload, 10);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('Bitcoin broadcast returned an empty txid');
+    });
   });
 
   // --- testMempoolAccept() Tests --- //

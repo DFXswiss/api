@@ -29,17 +29,20 @@ export class PayoutLightningService {
 
   async sendPayment(address: string, amount: number): Promise<string> {
     // A keysend (LN_NID) payment carries no invoice payment_hash, so LND cannot deduplicate a
-    // re-broadcast - a self-healing retry could double-pay. Unlike an invoice payment (LN_URL /
-    // LND_HUB), we therefore treat every keysend outcome that is not a confirmed send as ambiguous
-    // (fail-closed): keep the order PAYOUT_DESIGNATED for escalation instead of rolling it back.
+    // re-broadcast - a self-healing retry could double-pay. Every keysend outcome that is not a
+    // confirmed send is therefore treated as ambiguous (fail-closed).
+    //
+    // Invoice payouts (LN_URL / LND_HUB) still self-heal on in-band payment_error ("no route"),
+    // because that proves the payment was not routed. Empty/missing payment hashes after the send
+    // are fail-closed for ALL address types: invoice retries fetch a NEW invoice with a different
+    // payment_hash, so LND dedup of the original invoice does not protect a second payment.
     const isKeysend = address.startsWith(LightningAddressType.LN_NID);
 
     try {
       const txId = await this.lightningService.sendTransfer(address, amount);
 
-      // An empty payment hash (e.g. a blank base64 hash) is returned without throwing; for a keysend
-      // it would otherwise roll the order back and re-broadcast, so treat it as a broadcast error.
-      if (isKeysend && !txId) throw new PayoutBroadcastException('Lightning keysend returned an empty payment hash');
+      // Defence in depth: empty id after send is always ambiguous (all address types).
+      if (!txId) throw new PayoutBroadcastException('Lightning payment returned an empty payment hash');
 
       return txId;
     } catch (e) {

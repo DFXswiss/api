@@ -87,5 +87,35 @@ describe('CardanoClient - broadcast boundary', () => {
       expect(error).not.toBeInstanceOf(TxBroadcastError);
       expect(client.getBlockFrostAPI).not.toHaveBeenCalled();
     });
+
+    it('treats an empty tx hash from txSubmit as a broadcast-boundary failure (fail-closed)', async () => {
+      const txSubmit = jest.fn().mockResolvedValue('');
+      const client = createClientStub(txSubmit);
+
+      let error: unknown;
+      try {
+        await proto.sendNativeCoin.call(client, { address: 'FROM_ADDR' }, 'TO_ADDR', 1);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('Cardano broadcast returned an empty tx hash');
+    });
+
+    it('treats a null/undefined tx hash from txSubmit as a broadcast-boundary failure (fail-closed)', async () => {
+      const txSubmit = jest.fn().mockResolvedValue(undefined);
+      const client = createClientStub(txSubmit);
+
+      let error: unknown;
+      try {
+        await proto.sendNativeCoin.call(client, { address: 'FROM_ADDR' }, 'TO_ADDR', 1);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('Cardano broadcast returned an empty tx hash');
+    });
   });
 });

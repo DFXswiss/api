@@ -130,5 +130,21 @@ describe('MoneroClient - broadcast boundary', () => {
 
       expect(error).toBeInstanceOf(TxBroadcastError);
     });
+
+    it('wraps a result with an empty tx_hash into a TxBroadcastError (fail-closed: transfer may already have been relayed)', async () => {
+      mockPost.mockResolvedValueOnce({
+        result: { amount: 1500000000000, fee: 10000000000, tx_hash: '' },
+      });
+
+      let error: unknown;
+      try {
+        await client.sendTransfers(payout);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('Monero broadcast returned an empty tx hash');
+    });
   });
 });

@@ -294,6 +294,10 @@ export class ZanoClient extends BlockchainClient {
   private createSendTransferResult(payoutAmount: number, response?: any): ZanoSendTransferResultDto {
     if (!response.result?.tx_details)
       throw new TxBroadcastError(`Transfer not sent: response was ${JSON.stringify(response)}`);
+    // Empty tx_hash after a resolved transfer is ambiguous (wallet may already have relayed).
+    if (!response.result.tx_details.tx_hash) {
+      throw new TxBroadcastError('Zano broadcast returned an empty tx hash', { cause: response });
+    }
 
     return {
       txId: response.result.tx_details.tx_hash,
