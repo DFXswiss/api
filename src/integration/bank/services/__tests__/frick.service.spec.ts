@@ -556,6 +556,12 @@ describe('BankFrickService', () => {
     expect(() => service['validateCustomer']()).toThrow('Invalid Bank Frick customer configuration');
   });
 
+  it('rejects a customer number exceeding the documented 7-digit limit', () => {
+    Config.bank.frick.customer = '12345678';
+
+    expect(() => service['validateCustomer']()).toThrow('Invalid Bank Frick customer configuration');
+  });
+
   it('maps a signed camt.053 response completely into BankTx fields', async () => {
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(camt053Fixture());
 

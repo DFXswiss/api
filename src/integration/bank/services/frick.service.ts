@@ -549,9 +549,10 @@ export class BankFrickService {
 
   private validateCustomer(): string {
     const customer = Config.bank.frick.customer;
-    // Bank Frick's published schema currently says seven digits while its own examples contain eight.
-    // Restrict the path segment to digits without enforcing that contradictory length at our boundary.
-    if (typeof customer !== 'string' || !/^\d{1,16}$/.test(customer))
+    // Bank Frick's OpenAPI bounds the {customer} path segment to at most 7 digits (([0-9]{0,7})?).
+    // Enforcing that here makes a misconfigured customer fail closed at the config check instead of
+    // silently sending a path segment the API would reject.
+    if (typeof customer !== 'string' || !/^\d{1,7}$/.test(customer))
       throw new Error('Invalid Bank Frick customer configuration');
     return customer;
   }
