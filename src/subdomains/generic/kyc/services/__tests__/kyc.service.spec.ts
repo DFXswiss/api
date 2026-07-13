@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { ForbiddenException } from '@nestjs/common';
+import { Configuration, ConfigService } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
@@ -404,6 +405,12 @@ describe('KycService initiateStep NATIONALITY_DATA auto-complete', () => {
 
   const initiateNationalityStep = (user: UserData, preventDirectEvaluation = false): Promise<KycStep> =>
     (service as any).initiateStep(user, KycStepName.NATIONALITY_DATA, undefined, preventDirectEvaluation);
+
+  // the NATIONALITY_DATA branch reads Config.kyc.residencePermitCountries; initialize the global
+  // Config (a module-level `let` that is undefined until a ConfigService is constructed)
+  beforeAll(() => {
+    new ConfigService(new Configuration());
+  });
 
   beforeEach(() => {
     kycStepRepo = createMock<KycStepRepository>();
