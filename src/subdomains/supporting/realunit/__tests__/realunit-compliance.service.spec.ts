@@ -456,7 +456,7 @@ describe('RealUnitComplianceService', () => {
           ({
             holders: [{ address: `0xf00${cursor}`, balance: '1' }],
             pageInfo: { hasNextPage: true, endCursor: `cursor-${cursor++}` },
-          } as HoldersDto),
+          }) as HoldersDto,
       );
 
       const result = await service.searchCustomers();
