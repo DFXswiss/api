@@ -366,13 +366,16 @@ export class FiatOutputJobService {
     )
       return;
 
-    const entities = await this.fiatOutputRepo.findBy({
-      amount: Not(IsNull()),
-      isReadyDate: Not(IsNull()),
-      batchId: IsNull(),
-      isComplete: false,
-      bank: { name: Not(In([IbanBankName.YAPEAL, IbanBankName.OLKY, IbanBankName.FRICK])) },
-    });
+    const automatedBanks = [IbanBankName.YAPEAL, IbanBankName.OLKY, IbanBankName.FRICK];
+    const entities = (
+      await this.fiatOutputRepo.findBy({
+        amount: Not(IsNull()),
+        isReadyDate: Not(IsNull()),
+        batchId: IsNull(),
+        isComplete: false,
+        bank: { name: Not(In(automatedBanks)) },
+      })
+    ).filter((entity) => !automatedBanks.includes(entity.bank?.name));
 
     let currentBatch: FiatOutput[] = [];
     let currentBatchId = (await this.getLastBatchId()) + 1;

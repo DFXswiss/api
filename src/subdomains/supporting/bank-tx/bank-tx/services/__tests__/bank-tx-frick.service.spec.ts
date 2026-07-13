@@ -108,6 +108,51 @@ describe('BankTxService Bank Frick polling', () => {
     expect(bankService.getBanksByName).not.toHaveBeenCalled();
   });
 
+  it('stops safely when the Bank Frick registry cannot be loaded', async () => {
+    bankService.getBanksByName.mockRejectedValue(new Error('synthetic registry outage'));
+
+    await service['checkFrickTransactions']();
+
+    expect(logger.error).toHaveBeenCalledWith('Failed to load Bank Frick account registry:', expect.any(Error));
+    expect(specialAccountService.getMultiAccounts).not.toHaveBeenCalled();
+    expect(frickService.getFrickTransactions).not.toHaveBeenCalled();
+  });
+
+  it('warns and stops when no receiving Bank Frick account is registered', async () => {
+    bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-NON-RECEIVING', false)]);
+
+    await service['checkFrickTransactions']();
+
+    expect(logger.warn).toHaveBeenCalledWith(
+      'No receiving Bank Frick accounts configured - skipping transaction import',
+    );
+    expect(specialAccountService.getMultiAccounts).not.toHaveBeenCalled();
+    expect(frickService.getFrickTransactions).not.toHaveBeenCalled();
+  });
+
+  it('stops safely when special accounts cannot be loaded', async () => {
+    bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
+    specialAccountService.getMultiAccounts.mockRejectedValue(new Error('synthetic special-account outage'));
+
+    await service['checkFrickTransactions']();
+
+    expect(logger.error).toHaveBeenCalledWith(
+      'Failed to load special accounts for Bank Frick transaction import:',
+      expect.any(Error),
+    );
+    expect(frickService.getFrickTransactions).not.toHaveBeenCalled();
+  });
+
+  it.each([0, Number.NaN, 1.5])('skips a Bank Frick row with invalid id %s', async (id) => {
+    bankService.getBanksByName.mockResolvedValue([bank(id, 'SYNTHETIC-FRICK-EUR', true)]);
+
+    await service['checkFrickTransactions']();
+
+    expect(logger.error).toHaveBeenCalledWith('Failed to import Bank Frick transactions: invalid bank row id');
+    expect(frickService.getFrickTransactions).not.toHaveBeenCalled();
+    expect(settingService.set).not.toHaveBeenCalled();
+  });
+
   it('still checks Bank Frick when the Olkypay poll fails', async () => {
     const checkTransactions = jest.fn().mockRejectedValue(new Error('synthetic Olkypay outage'));
     const checkFrickTransactions = jest.fn().mockResolvedValue(undefined);

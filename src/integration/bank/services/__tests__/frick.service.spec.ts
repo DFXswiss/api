@@ -131,9 +131,27 @@ describe('BankFrickService', () => {
     expect(http.request).not.toHaveBeenCalled();
   });
 
+  it.each(['baseUrl', 'apiKey', 'privateKey', 'customer'] as const)(
+    'reports the integration unavailable when %s is missing',
+    (field) => {
+      Config.bank.frick[field] = undefined;
+
+      expect(service.isAvailable()).toBe(false);
+    },
+  );
+
   it('fails closed when a payment is attempted without the explicit payout flag', async () => {
     await expect(service.createPaymentOrder(paymentInput())).rejects.toThrow('payout is not explicitly enabled');
     await expect(service.approvePaymentWithoutTan('DFX-FO-42')).rejects.toThrow('payout is not explicitly enabled');
+    expect(http.request).not.toHaveBeenCalled();
+  });
+
+  it('fails closed when approval without TAN is not explicitly enabled', async () => {
+    Config.bank.frick.payoutEnabled = true;
+
+    await expect(service.approvePaymentWithoutTan('DFX-FO-42')).rejects.toThrow(
+      'approval without TAN is not explicitly enabled',
+    );
     expect(http.request).not.toHaveBeenCalled();
   });
 
@@ -193,6 +211,33 @@ describe('BankFrickService', () => {
     expectSignature(put.data, put.headers.Signature);
   });
 
+  it('creates an instant SEPA transaction and rejects instant CHF', () => {
+    expect(service['createTransaction']({ ...paymentInput(), instant: true })).toMatchObject({
+      type: FrickPaymentType.SEPA_INSTANT,
+      currency: 'EUR',
+    });
+    expect(service['createTransaction']({ ...paymentInput(), instant: true })).not.toHaveProperty('express');
+
+    expect(() =>
+      service['createTransaction']({
+        ...paymentInput(),
+        currency: 'CHF',
+        instant: true,
+        charge: FrickPaymentCharge.SHARED,
+        creditor: { ...paymentInput().creditor, bic: 'TESTDEFF' },
+      }),
+    ).toThrow('instant payments are only supported for EUR');
+  });
+
+  it('rejects unsupported currencies before contacting Bank Frick', async () => {
+    Config.bank.frick.payoutEnabled = true;
+
+    await expect(service.createPaymentOrder({ ...paymentInput(), currency: 'USD' as 'EUR' })).rejects.toThrow(
+      'Unsupported Bank Frick currency: USD',
+    );
+    expect(http.request).not.toHaveBeenCalled();
+  });
+
   it('rejects CHF payments without both BIC and charge before creating an order', async () => {
     Config.bank.frick.payoutEnabled = true;
     const input = { ...paymentInput(), currency: 'CHF' as const };
@@ -215,6 +260,68 @@ describe('BankFrickService', () => {
     expect(http.request).not.toHaveBeenCalled();
   });
 
+  it('normalizes every optional FOREIGN creditor field', () => {
+    const transaction = service['createTransaction']({
+      ...paymentInput(),
+      currency: 'CHF',
+      charge: FrickPaymentCharge.OUR,
+      creditor: {
+        name: ' Synthetic Recipient ',
+        iban: creditorIban.toLowerCase(),
+        bic: ' test de ff ',
+        address: ' Synthetic Street 42 ',
+        postalcode: ' 8000 ',
+        city: ' Zurich ',
+        country: ' CH ',
+        creditInstitution: ' Synthetic Bank ',
+      },
+    });
+
+    expect(transaction).toMatchObject({
+      type: FrickPaymentType.FOREIGN,
+      charge: FrickPaymentCharge.OUR,
+      creditor: {
+        name: 'Synthetic Recipient',
+        iban: creditorIban,
+        bic: 'TESTDEFF',
+        address: 'Synthetic Street 42',
+        postalcode: '8000',
+        city: 'Zurich',
+        country: 'CH',
+        creditInstitution: 'Synthetic Bank',
+      },
+    });
+  });
+
+  it.each([
+    [undefined, 'creditor is required'],
+    [{ name: 'Synthetic Recipient', iban: creditorIban, address: 'A'.repeat(71) }, 'creditor address exceeds'],
+    [{ name: 'Synthetic Recipient', iban: creditorIban, postalcode: '1'.repeat(12) }, 'creditor postal code exceeds'],
+    [{ name: 'Synthetic Recipient', iban: creditorIban, city: 'A'.repeat(71) }, 'creditor city exceeds'],
+    [{ name: 'Synthetic Recipient', iban: creditorIban, country: 'A'.repeat(71) }, 'creditor country exceeds'],
+    [{ name: 'Synthetic Recipient', iban: creditorIban, bic: 'INVALID' }, 'Invalid creditor BIC'],
+    [
+      { name: 'Synthetic Recipient', iban: creditorIban, creditInstitution: 'A'.repeat(51) },
+      'credit institution exceeds',
+    ],
+  ])('rejects malformed creditor details %#', (creditor, expectedError) => {
+    expect(() => service['validateCreditor'](creditor)).toThrow(expectedError);
+  });
+
+  it.each([Number.NaN, 0, 1_000_000_000_000, 1.001])('rejects invalid payment amount %s', (amount) => {
+    expect(() => service['validateAmount'](amount)).toThrow('Invalid Bank Frick payment amount');
+  });
+
+  it('rejects blank identifiers and invalid IBAN values', () => {
+    expect(() => service['validateString']('', 'customId', 50, true)).toThrow('Invalid Bank Frick customId');
+    expect(() => service['normalizeAndValidateIban'](undefined, 'account IBAN')).toThrow(
+      'Invalid Bank Frick account IBAN',
+    );
+    expect(() => service['normalizeAndValidateIban']('DE00INVALID', 'account IBAN')).toThrow(
+      'Invalid Bank Frick account IBAN',
+    );
+  });
+
   it('rejects an existing customId when any sent payment detail differs', async () => {
     Config.bank.frick.payoutEnabled = true;
     const input = {
@@ -235,6 +342,49 @@ describe('BankFrickService', () => {
     expect(http.request.mock.calls.some(([request]) => request.method === 'PUT')).toBe(false);
   });
 
+  it('accepts a semantically identical FOREIGN order with normalized optional fields', () => {
+    const input = {
+      ...paymentInput(),
+      currency: 'CHF' as const,
+      charge: FrickPaymentCharge.SHARED,
+      creditor: {
+        ...paymentInput().creditor,
+        bic: 'TESTDEFF',
+        address: 'Synthetic Street 42',
+        postalcode: '8000',
+        city: 'Zurich',
+        country: 'CH',
+        creditInstitution: 'Synthetic Bank',
+      },
+    };
+    const requested = service['createTransaction'](input);
+    const existing = paymentOrder({
+      type: FrickPaymentType.FOREIGN,
+      currency: 'CHF',
+      charge: FrickPaymentCharge.SHARED,
+      debitor: { iban: ` ${debtorIban.toLowerCase()} ` },
+      creditor: {
+        name: ' Synthetic Recipient ',
+        iban: ` ${creditorIban.toLowerCase()} `,
+        bic: ' test de ff ',
+        address: ' Synthetic Street 42 ',
+        postalcode: ' 8000 ',
+        city: ' Zurich ',
+        country: ' CH ',
+        creditInstitution: ' Synthetic Bank ',
+      },
+    });
+
+    expect(() => service['assertSamePayment'](existing, requested)).not.toThrow();
+  });
+
+  it('matches an idempotent order when both references are omitted', () => {
+    const requested = service['createTransaction']({ ...paymentInput(), reference: undefined });
+    const existing = paymentOrder({ reference: undefined });
+
+    expect(() => service['assertSamePayment'](existing, requested)).not.toThrow();
+  });
+
   it('approves by stable customId and never converts an order id', async () => {
     Config.bank.frick.payoutEnabled = true;
     Config.bank.frick.approveWithoutTan = true;
@@ -247,6 +397,160 @@ describe('BankFrickService', () => {
     expect(JSON.parse(approval.data)).toEqual({ customIds: ['DFX-FO-42'] });
     expect(service.getSafeOrderId(order)).toBeUndefined();
     expectSignature(approval.data, approval.headers.Signature);
+  });
+
+  it('returns a safe positive order id', () => {
+    expect(service.getSafeOrderId(paymentOrder())).toBe('4242');
+    expect(service.getSafeOrderId(paymentOrder({ orderId: 0 }))).toBeUndefined();
+  });
+
+  it('gets an existing payment order and rejects a missing one', async () => {
+    const order = paymentOrder();
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(transactionsResponse([order]));
+
+    await expect(service.getPaymentOrder('DFX-FO-42')).resolves.toEqual(order);
+
+    http = { request: jest.fn() };
+    service = new BankFrickService(http as unknown as HttpService);
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce(transactionsResponse([]))
+      .mockResolvedValueOnce(transactionsResponse([]));
+    await expect(service.getPaymentOrder('DFX-FO-42')).rejects.toThrow('payment order DFX-FO-42 not found');
+  });
+
+  it.each([
+    [{ moreResults: true, resultSetSize: 1, transactions: [paymentOrder()] }, 'Ambiguous Bank Frick payment lookup'],
+    [transactionsResponse([paymentOrder({ customId: 'OTHER' })]), 'Invalid Bank Frick payment lookup response'],
+    [transactionsResponse([paymentOrder(), paymentOrder()]), 'Duplicate Bank Frick payment orders'],
+  ])('rejects unsafe payment lookup responses %#', async (response, expectedError) => {
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);
+
+    await expect(service.getPaymentOrder('DFX-FO-42')).rejects.toThrow(expectedError);
+  });
+
+  it('rejects ambiguous or non-matching single-payment responses', () => {
+    expect(() =>
+      service['getSinglePayment']({ moreResults: true, resultSetSize: 1, transactions: [paymentOrder()] }, 'DFX-FO-42'),
+    ).toThrow('Ambiguous Bank Frick payment response');
+    expect(() => service['getSinglePayment'](transactionsResponse([]), 'DFX-FO-42')).toThrow(
+      'Invalid Bank Frick payment response',
+    );
+  });
+
+  it('validates transaction and account response envelopes and rows', () => {
+    expect(() => service['validateTransactionsResponse'](undefined)).toThrow(
+      'Invalid Bank Frick transactions response',
+    );
+    expect(() =>
+      service['validateTransactionsResponse'](transactionsResponse([{ ...paymentOrder(), state: 'UNKNOWN' as never }])),
+    ).toThrow('Invalid Bank Frick payment order response');
+    expect(() =>
+      service['validateTransactionsResponse'](transactionsResponse([paymentOrder({ orderId: -1 })])),
+    ).toThrow('Invalid Bank Frick orderId response');
+
+    expect(() => service['validateAccountsResponse'](undefined)).toThrow('Invalid Bank Frick accounts response');
+    expect(() =>
+      service['validateAccountsResponse']({
+        date: '2026-07-13',
+        moreResults: false,
+        resultSetSize: 1,
+        accounts: [{ account: 42 } as never],
+      }),
+    ).toThrow('Invalid Bank Frick account response');
+  });
+
+  it('parses signed and European-formatted response amounts and rejects unsafe values', () => {
+    expect(service['parseResponseAmount']('-12.34')).toBe(12.34);
+    expect(service['parseResponseAmount']('-1.234,56')).toBe(1234.56);
+    expect(() => service['parseResponseAmount'](undefined)).toThrow('Invalid Bank Frick payment amount response');
+    expect(() => service['parseResponseAmount']('12.345')).toThrow('Invalid Bank Frick payment amount response');
+    expect(() => service['parseResponseAmount']('9'.repeat(400))).toThrow('Invalid Bank Frick payment amount response');
+  });
+
+  it('rejects incomplete account pagination and filters accounts without an IBAN', async () => {
+    const response = accountsResponse();
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce({
+      ...response,
+      resultSetSize: 2,
+      accounts: [...response.accounts, { ...response.accounts[0], iban: undefined }],
+    });
+    await expect(service.getBalances()).resolves.toHaveLength(1);
+
+    http = { request: jest.fn() };
+    service = new BankFrickService(http as unknown as HttpService);
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce({ ...accountsResponse(), moreResults: true });
+    await expect(service.getBalances()).rejects.toThrow('Incomplete Bank Frick accounts response');
+  });
+
+  it('rejects invalid transaction dates and unsafe CAMT responses', async () => {
+    await expect(service.getFrickTransactions(new Date('invalid'), debtorIban)).rejects.toThrow(
+      'Invalid Bank Frick transaction start date',
+    );
+
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce({ not: 'xml' });
+    await expect(service.getFrickTransactions(new Date('2026-07-01'), debtorIban)).rejects.toThrow(
+      'Invalid Bank Frick camt.053 response',
+    );
+
+    http = { request: jest.fn() };
+    service = new BankFrickService(http as unknown as HttpService);
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce('   ');
+    await expect(service.getFrickTransactions(new Date('2026-07-01'), debtorIban)).resolves.toEqual([]);
+  });
+
+  it('maps debit CAMT entries as debit transactions', async () => {
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce(camt053Fixture().replace('<CdtDbtInd>CRDT</CdtDbtInd>', '<CdtDbtInd>DBIT</CdtDbtInd>'));
+
+    const [transaction] = await service.getFrickTransactions(new Date('2026-07-01'), debtorIban);
+
+    expect(transaction.creditDebitIndicator).toBe(BankTxIndicator.DEBIT);
+  });
+
+  it('accepts JWTs without exp and caches them indefinitely', async () => {
+    http.request
+      .mockResolvedValueOnce({ token: jwtWithPayload({}) })
+      .mockResolvedValueOnce(accountsResponse())
+      .mockResolvedValueOnce(accountsResponse());
+
+    await service.getBalances();
+    await service.getBalances();
+
+    expect(http.request.mock.calls.filter(([request]) => request.url.endsWith('/authorize'))).toHaveLength(1);
+  });
+
+  it.each([
+    ['missing payload', 'not-a-jwt'],
+    ['invalid expiry', jwtWithPayload({ exp: 0 })],
+    ['unsafe millisecond expiry', jwtWithPayload({ exp: Number.MAX_SAFE_INTEGER })],
+    ['malformed payload', `header.${Buffer.from('{').toString('base64url')}.signature`],
+  ])('rejects a JWT with %s', async (_case, token) => {
+    http.request.mockResolvedValueOnce({ token });
+
+    await expect(service.getBalances()).rejects.toThrow('Invalid Bank Frick JWT');
+  });
+
+  it('rejects an invalid authorization response and signing configuration', async () => {
+    http.request.mockResolvedValueOnce({ token: '' });
+    await expect(service.getBalances()).rejects.toThrow('Invalid Bank Frick authorization response');
+
+    Config.bank.frick.privateKey = 'not-a-private-key';
+    expect(() => service['sign']('synthetic body')).toThrow('Invalid Bank Frick signing configuration');
+  });
+
+  it('reports bounded transport codes without exposing upstream messages', () => {
+    expect(service['getHttpFailureReason']({ code: 'ECONNRESET', message: 'secret response body' })).toBe('ECONNRESET');
+    expect(service['getHttpFailureReason']({ response: { status: 99 }, code: 'unsafe-code' })).toBe('request failed');
+  });
+
+  it('rejects an unsafe customer path segment', () => {
+    Config.bank.frick.customer = '../customer';
+
+    expect(() => service['validateCustomer']()).toThrow('Invalid Bank Frick customer configuration');
   });
 
   it('maps a signed camt.053 response completely into BankTx fields', async () => {
@@ -339,11 +643,13 @@ describe('BankFrickService', () => {
   }
 
   function jwt(sequence = 1): string {
+    return jwtWithPayload({ exp: Math.floor(Date.now() / 1000) + 3600, sequence });
+  }
+
+  function jwtWithPayload(payload: object): string {
     const header = Buffer.from(JSON.stringify({ alg: 'none' })).toString('base64url');
-    const payload = Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600, sequence })).toString(
-      'base64url',
-    );
-    return `${header}.${payload}.synthetic-signature`;
+    const encodedPayload = Buffer.from(JSON.stringify(payload)).toString('base64url');
+    return `${header}.${encodedPayload}.synthetic-signature`;
   }
 
   function camt053Fixture(): string {

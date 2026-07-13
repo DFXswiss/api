@@ -59,8 +59,8 @@ jobs:
       - name: Build code
         run: npm run build
 
-      - name: Run tests
-        run: npm run test
+      - name: Run tests with coverage gates
+        run: npm run test:cov
         env:
           MIGRATION_TEST_PG: postgres://postgres:postgres@localhost:5432/postgres
 

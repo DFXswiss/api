@@ -67,6 +67,7 @@ describe('Iso20022Service camt.053 references', () => {
     [{ ...entry, Amt: { Value: 1.25, Ccy: 'EU' } }, 'Invalid currency'],
     [{ ...entry, CdtDbtInd: 'UNKNOWN' }, 'Invalid CdtDbtInd'],
     [{ ...entry, BookgDt: { Dt: '2026-02-31' } }, 'Invalid booking date'],
+    [{ ...entry, ValDt: { Dt: '2026-02-31' } }, 'Invalid value date'],
   ])('rejects unsafe CAMT defaults in strict mode', (malformedEntry, expectedError) => {
     expect(() => Iso20022Service.parseCamt053Json(statement(malformedEntry), 'SYNTHETIC-ACCOUNT-A', true)).toThrow(
       expectedError,
