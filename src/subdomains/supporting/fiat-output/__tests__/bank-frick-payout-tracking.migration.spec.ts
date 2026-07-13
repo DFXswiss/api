@@ -1,4 +1,5 @@
-import { DataSource, QueryRunner } from 'typeorm';
+import { DataSource, getMetadataArgsStorage, QueryRunner } from 'typeorm';
+import { FiatOutput } from '../fiat-output.entity';
 
 const PG_URL = process.env.MIGRATION_TEST_PG;
 const describeDb = PG_URL ? describe : describe.skip;
@@ -8,6 +9,24 @@ let AddBankFrickPayoutTracking: new () => {
   up(queryRunner: QueryRunner): Promise<void>;
   down(queryRunner: QueryRunner): Promise<void>;
 };
+
+describe('FiatOutput Bank Frick column metadata', () => {
+  it('keeps every tracking column aligned with the migration length', () => {
+    const trackingProperties = ['frickOrderId', 'frickTxId', 'frickOrderStatus', 'frickError'];
+    const trackingColumns = Object.fromEntries(
+      getMetadataArgsStorage()
+        .columns.filter((column) => column.target === FiatOutput && trackingProperties.includes(column.propertyName))
+        .map((column) => [column.propertyName, { length: column.options.length, nullable: column.options.nullable }]),
+    );
+
+    expect(trackingColumns).toEqual({
+      frickOrderId: { length: 256, nullable: true },
+      frickTxId: { length: 256, nullable: true },
+      frickOrderStatus: { length: 256, nullable: true },
+      frickError: { length: 256, nullable: true },
+    });
+  });
+});
 
 describeDb('AddBankFrickPayoutTracking migration (real Postgres)', () => {
   let dataSource: DataSource;
