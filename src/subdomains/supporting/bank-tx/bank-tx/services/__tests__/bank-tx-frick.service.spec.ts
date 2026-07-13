@@ -47,7 +47,10 @@ describe('BankTxService Bank Frick polling', () => {
     service = module.get(BankTxService);
   });
 
-  afterEach(() => jest.restoreAllMocks());
+  afterEach(() => {
+    jest.useRealTimers();
+    jest.restoreAllMocks();
+  });
 
   it('polls every receiving account with an account-specific watermark and loads multi-accounts once', async () => {
     bankService.getBanksByName.mockResolvedValue([
@@ -177,6 +180,84 @@ describe('BankTxService Bank Frick polling', () => {
 
     expect(frickService.getFrickTransactions).toHaveBeenCalledTimes(1);
     expect(loggerError).toHaveBeenCalledWith('Failed to check Olkypay transactions:', expect.any(Error));
+  });
+
+  describe('watermark overlap', () => {
+    const OVERLAP_DAYS = (BankTxService as unknown as { FRICK_WATERMARK_OVERLAP_DAYS: number })
+      .FRICK_WATERMARK_OVERLAP_DAYS;
+
+    function overlapOf(date: Date): Date {
+      const result = new Date(date);
+      result.setDate(result.getDate() - OVERLAP_DAYS);
+      return result;
+    }
+
+    it('sets the watermark to the newest processed booking date minus the overlap when it precedes now', async () => {
+      bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
+      const olderBookingDate = new Date('2024-01-05T00:00:00.000Z');
+      const maxBookingDate = new Date('2024-01-10T00:00:00.000Z');
+      frickService.getFrickTransactions.mockResolvedValue([
+        { accountServiceRef: 'FRICK-OLD', bookingDate: olderBookingDate },
+        { accountServiceRef: 'FRICK-NEW', bookingDate: maxBookingDate },
+      ]);
+      jest.spyOn(service, 'create').mockResolvedValue({});
+
+      await service['checkFrickTransactions']();
+
+      expect(settingService.set).toHaveBeenCalledWith('lastBankFrickDate:101', overlapOf(maxBookingDate).toISOString());
+    });
+
+    it('sets the watermark to now minus the overlap on an empty response', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
+      bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
+      frickService.getFrickTransactions.mockResolvedValue([]);
+
+      await service['checkFrickTransactions']();
+
+      expect(settingService.set).toHaveBeenCalledWith(
+        'lastBankFrickDate:101',
+        overlapOf(new Date('2024-06-15T12:00:00.000Z')).toISOString(),
+      );
+    });
+
+    it('never moves the watermark backwards when it is already ahead of the computed candidate', async () => {
+      bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
+      const aheadWatermark = new Date('2024-05-01T00:00:00.000Z');
+      settingService.get.mockResolvedValue(aheadWatermark.toISOString());
+      frickService.getFrickTransactions.mockResolvedValue([
+        { accountServiceRef: 'FRICK-OLD', bookingDate: new Date('2024-01-01T00:00:00.000Z') },
+      ]);
+      jest.spyOn(service, 'create').mockResolvedValue({});
+
+      await service['checkFrickTransactions']();
+
+      expect(settingService.set).toHaveBeenCalledWith('lastBankFrickDate:101', aheadWatermark.toISOString());
+    });
+
+    it('leaves the watermark unchanged when the statement fetch itself fails', async () => {
+      bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
+      frickService.getFrickTransactions.mockRejectedValue(new Error('synthetic outage'));
+
+      await service['checkFrickTransactions']();
+
+      expect(settingService.set).not.toHaveBeenCalled();
+      expect(loggerError).toHaveBeenCalledWith(
+        'Failed to fetch Bank Frick transactions for bank row 101:',
+        expect.any(Error),
+      );
+    });
+
+    it('leaves the watermark unchanged when an import fails with a non-conflict error', async () => {
+      bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
+      frickService.getFrickTransactions.mockResolvedValue([
+        { accountServiceRef: 'FRICK-1', bookingDate: new Date('2024-01-01T00:00:00.000Z') },
+      ]);
+      jest.spyOn(service, 'create').mockRejectedValue(new Error('synthetic persistence failure'));
+
+      await service['checkFrickTransactions']();
+
+      expect(settingService.set).not.toHaveBeenCalled();
+    });
   });
 
   function bank(id: number, iban: string, receive: boolean): Bank {
