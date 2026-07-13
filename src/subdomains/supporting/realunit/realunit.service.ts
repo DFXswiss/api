@@ -2080,11 +2080,20 @@ export class RealUnitService {
       // Loki is the PII-free channel: log only the redacted status/type summary here (an Aktionariat error
       // body may echo the submitted email). The FULL body still reaches the DB `log` audit store, via the
       // returned raw error passed through describeError.
-      this.logger.error(
-        `Aktionariat confirmation call to ${endpoint} failed (httpStatus: ${httpStatus ?? 'none'}): ${this.summarizeError(
-          error,
-        )}`,
-      );
+      const logMessage = `Aktionariat confirmation call to ${endpoint} failed (httpStatus: ${httpStatus ?? 'none'}): ${this.summarizeError(
+        error,
+      )}`;
+      // A rejected confirm link (expired code, unknown email, ...) is the handled INVALID outcome of
+      // mapConfirmationStatus — there is no API key on this call (the code is the credential), so a 4xx
+      // cannot mean broken credentials. 429 is carved back out: throttling is a systemic fault. Anything
+      // else (5xx, timeout, no status) is genuinely unavailable; both stay at error.
+      const isRejectedLink =
+        this.mapConfirmationStatus(httpStatus) === RealUnitAktionariatConfirmationStatus.INVALID && httpStatus !== 429;
+      if (isRejectedLink) {
+        this.logger.warn(logMessage);
+      } else {
+        this.logger.error(logMessage);
+      }
       return { httpStatus, responseBody, error };
     }
   }

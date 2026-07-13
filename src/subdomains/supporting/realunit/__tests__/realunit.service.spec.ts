@@ -2553,7 +2553,25 @@ describe('RealUnitService', () => {
       // a non-confirming call never touches a registration (the latch is only set on a 2xx)
       expect(aktionariatManager.transaction).not.toHaveBeenCalled();
       expect(aktionariatTxManager.save).not.toHaveBeenCalled();
+      // a 4xx is a handled rejection (mapped to INVALID above), not a fault — logged at warn
+      expect((service as any).logger.warn).toHaveBeenCalled();
+      expect((service as any).logger.error).not.toHaveBeenCalled();
+    });
+
+    it('keeps a 429 (throttling) at error — a systemic fault, not a rejected link', async () => {
+      mockEnvironment = 'prd';
+      mockRegisteredWallets([walletA]);
+      httpService.getRaw.mockRejectedValue({
+        response: { status: 429, data: { status: 429, message: 'Too many requests' } },
+      });
+
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
+
+      // the client-facing mapping still buckets it as INVALID (4xx), only the log level differs
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.INVALID);
       expect((service as any).logger.error).toHaveBeenCalled();
+      const warnText = (service as any).logger.warn.mock.calls.flat().join(' ');
+      expect(warnText).not.toContain('Aktionariat confirmation call');
     });
 
     it('keeps the FIRST confirmedDate on a re-confirm and returns the stored (not transient) date', async () => {
@@ -2717,8 +2735,8 @@ describe('RealUnitService', () => {
       expect(msg.response).toBeUndefined();
       expect(audit.message).toContain(leakedEmail);
 
-      // Loki stays PII-free: the leaked email must never reach this.logger.error
-      const lokiText = (service as any).logger.error.mock.calls.flat().join(' ');
+      // Loki stays PII-free: the leaked email must never reach this.logger.warn (a 4xx logs at warn, not error)
+      const lokiText = (service as any).logger.warn.mock.calls.flat().join(' ');
       expect(lokiText).toContain('status=403');
       expect(lokiText).not.toContain(leakedEmail);
     });
