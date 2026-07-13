@@ -3,6 +3,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FrickPaymentState } from 'src/integration/bank/dto/frick.dto';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
@@ -152,11 +153,17 @@ export class FiatOutput extends IEntity {
   @Column({ nullable: true })
   olkyOrderId?: string;
 
-  @Column({ nullable: true })
+  @Column({ length: 256, nullable: true })
   frickOrderId?: string;
 
-  @Column({ nullable: true })
+  @Column({ length: 256, nullable: true })
   frickTxId?: string;
+
+  @Column({ type: 'varchar', length: 256, nullable: true })
+  frickOrderStatus?: FrickPaymentState;
+
+  @Column({ length: 256, nullable: true })
+  frickError?: string;
 
   // --- ENTITY METHODS --- //
 

@@ -231,12 +231,13 @@ export class Iso20022Service {
         try {
           const stableReference = this.createStableCamtReference(accountIban, entry);
           const occurrence = fallbackOccurrences.get(stableReference) ?? 0;
-          fallbackOccurrences.set(stableReference, occurrence + 1);
           // Equal reference-less entries can be separate transfers. Preserve deterministic deduplication while
           // assigning each occurrence a distinct reference instead of silently collapsing a valid payment.
           const fallbackReference = occurrence === 0 ? stableReference : `${stableReference}-${occurrence + 1}`;
 
-          transactions.push(Iso20022Service.parseCamt053JsonEntry(entry, accountIban, strict, fallbackReference));
+          const transaction = Iso20022Service.parseCamt053JsonEntry(entry, accountIban, strict, fallbackReference);
+          fallbackOccurrences.set(stableReference, occurrence + 1);
+          transactions.push(transaction);
         } catch (error) {
           if (strict) throw error;
           continue;

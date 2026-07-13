@@ -46,6 +46,8 @@ export class BankFrickService {
     const customer = this.validateCustomer();
     const response = await this.callApi<FrickAccountsResponse>(`accounts/${encodeURIComponent(customer)}`);
     this.validateAccountsResponse(response);
+    // Pagination is deliberately not implemented yet. Returning only the first page would understate the customer's
+    // balances, so this integration fails closed until every result page can be fetched deterministically.
     if (response.moreResults) throw new Error('Incomplete Bank Frick accounts response');
 
     return response.accounts

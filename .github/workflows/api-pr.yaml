@@ -59,10 +59,13 @@ jobs:
       - name: Build code
         run: npm run build
 
-      - name: Run tests with coverage gates
-        run: npm run test:cov
+      - name: Run tests
+        run: npm run test
         env:
           MIGRATION_TEST_PG: postgres://postgres:postgres@localhost:5432/postgres
+
+      - name: Enforce Bank Frick coverage
+        run: npm run test:frick:cov
 
       - name: Security audit
         run: npm audit --audit-level=critical

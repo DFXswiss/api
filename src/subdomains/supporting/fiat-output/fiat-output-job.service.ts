@@ -110,12 +110,11 @@ export class FiatOutputJobService {
     if (DisabledProcess(Process.FIAT_OUTPUT_FRICK_STATUS_CHECK)) return;
     if (!this.frickService.isAvailable()) return;
 
-    const terminalInfos = FiatOutputJobService.FRICK_TERMINAL_STATES.map((state) => `FRICK order ${state}`);
     const statusRequest: FindOptionsWhere<FiatOutput> = { frickTxId: Not(IsNull()), isComplete: false };
     const entities = await this.fiatOutputRepo.find({
       where: [
-        { ...statusRequest, info: IsNull() },
-        { ...statusRequest, info: Not(In(terminalInfos)) },
+        { ...statusRequest, frickOrderStatus: IsNull() },
+        { ...statusRequest, frickOrderStatus: Not(In(FiatOutputJobService.FRICK_TERMINAL_STATES)) },
       ],
     });
 
@@ -131,12 +130,10 @@ export class FiatOutputJobService {
         if (Object.keys(updateData).length > 0) await this.fiatOutputRepo.update(entity.id, updateData);
       } catch (error) {
         this.logger.error(`Failed to check Bank Frick order status for fiat output ${entity.id}:`, error);
-        if (!entity.info || entity.info.startsWith('FRICK')) {
-          const message = error instanceof Error ? error.message : 'unknown error';
-          await this.fiatOutputRepo.update(entity.id, {
-            info: `FRICK status error: ${message}`.substring(0, 256),
-          });
-        }
+        const message = error instanceof Error ? error.message : 'unknown error';
+        await this.fiatOutputRepo.update(entity.id, {
+          frickError: `FRICK status error: ${message}`.substring(0, 256),
+        });
       }
     }
   }
@@ -283,7 +280,7 @@ export class FiatOutputJobService {
           case IbanBankName.FRICK:
             // A PREPARED Frick order can wait for manual approval for days. Keep its amount reserved until
             // reconciliation or a terminal failure state, otherwise later payouts can overdraw the account.
-            return !this.isFrickTerminalStateInfo(tx.info);
+            return !this.isFrickTerminalState(tx.frickOrderStatus);
           case IbanBankName.OLKY:
             return !tx.bankTx || tx.bankTx.created > Util.minutesBefore(5);
           default:
@@ -612,7 +609,6 @@ export class FiatOutputJobService {
           ...(safeOrderId && { frickOrderId: safeOrderId }),
           remittanceInfo,
           isTransmittedDate: new Date(),
-          ...(entity.info?.startsWith('FRICK') && { info: null }),
           ...this.getFrickStatusUpdate(order, entity),
         });
 
@@ -623,12 +619,10 @@ export class FiatOutputJobService {
         }
       } catch (error) {
         this.logger.error(`Failed to transmit Bank Frick payment for fiat output ${entity.id}:`, error);
-        if (!entity.info || entity.info.startsWith('FRICK')) {
-          const message = error instanceof Error ? error.message : 'unknown error';
-          await this.fiatOutputRepo.update(entity.id, {
-            info: `FRICK error: ${message}`.substring(0, 256),
-          });
-        }
+        const message = error instanceof Error ? error.message : 'unknown error';
+        await this.fiatOutputRepo.update(entity.id, {
+          frickError: `FRICK error: ${message}`.substring(0, 256),
+        });
       }
     }
   }
@@ -640,26 +634,28 @@ export class FiatOutputJobService {
       case FrickPaymentState.IN_PROGRESS:
       case FrickPaymentState.EXECUTED:
         return {
+          frickOrderStatus: order.state,
+          frickError: null,
           ...(!entity.isApprovedDate && { isApprovedDate: now }),
-          ...(entity.info?.startsWith('FRICK') && { info: null }),
         };
 
       case FrickPaymentState.BOOKED:
         return {
+          frickOrderStatus: order.state,
+          frickError: null,
           ...(!entity.isApprovedDate && { isApprovedDate: now }),
           ...(!entity.isConfirmedDate && { isConfirmedDate: now }),
-          ...(entity.info?.startsWith('FRICK') && { info: null }),
         };
 
       case FrickPaymentState.PREPARED:
-        return this.isFrickAutomaticApprovalEnabled() ? {} : { info: 'FRICK order PREPARED: manual approval required' };
+        return { frickOrderStatus: order.state, frickError: null };
 
       case FrickPaymentState.REJECTED:
       case FrickPaymentState.EXPIRED:
       case FrickPaymentState.DELETED:
       case FrickPaymentState.DELETION_REQUESTED:
       case FrickPaymentState.ERROR:
-        return { info: `FRICK order ${order.state}`.substring(0, 256) };
+        return { frickOrderStatus: order.state, frickError: null };
 
       default:
         throw new Error('Unsupported Bank Frick payment state');
@@ -674,8 +670,8 @@ export class FiatOutputJobService {
     );
   }
 
-  private isFrickTerminalStateInfo(info: string | undefined): boolean {
-    return FiatOutputJobService.FRICK_TERMINAL_STATES.some((state) => info === `FRICK order ${state}`);
+  private isFrickTerminalState(status: FrickPaymentState | undefined): boolean {
+    return status !== undefined && FiatOutputJobService.FRICK_TERMINAL_STATES.includes(status);
   }
 
   private async searchOutgoingBankTx(): Promise<void> {

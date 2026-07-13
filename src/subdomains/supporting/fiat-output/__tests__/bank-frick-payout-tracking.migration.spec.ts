@@ -40,7 +40,7 @@ describeDb('AddBankFrickPayoutTracking migration (real Postgres)', () => {
     if (dataSource?.isInitialized) await dataSource.destroy();
   });
 
-  it('adds both nullable tracking columns at the entity length and removes them on rollback', async () => {
+  it('adds nullable tracking columns at the entity length and removes them on rollback', async () => {
     const migration = new AddBankFrickPayoutTracking();
 
     await queryRunner.startTransaction();
@@ -49,13 +49,20 @@ describeDb('AddBankFrickPayoutTracking migration (real Postgres)', () => {
     await queryRunner.commitTransaction();
 
     expect(added).toEqual([
+      { column_name: 'frickError', data_type: 'character varying', character_maximum_length: 256, is_nullable: 'YES' },
       {
         column_name: 'frickOrderId',
         data_type: 'character varying',
-        character_maximum_length: 255,
+        character_maximum_length: 256,
         is_nullable: 'YES',
       },
-      { column_name: 'frickTxId', data_type: 'character varying', character_maximum_length: 255, is_nullable: 'YES' },
+      {
+        column_name: 'frickOrderStatus',
+        data_type: 'character varying',
+        character_maximum_length: 256,
+        is_nullable: 'YES',
+      },
+      { column_name: 'frickTxId', data_type: 'character varying', character_maximum_length: 256, is_nullable: 'YES' },
     ]);
 
     await queryRunner.startTransaction();
@@ -72,7 +79,8 @@ describeDb('AddBankFrickPayoutTracking migration (real Postgres)', () => {
     return queryRunner.query(
       `SELECT column_name, data_type, character_maximum_length, is_nullable
        FROM information_schema.columns
-       WHERE table_schema = $1 AND table_name = 'fiat_output' AND column_name IN ('frickOrderId', 'frickTxId')
+       WHERE table_schema = $1 AND table_name = 'fiat_output'
+         AND column_name IN ('frickOrderId', 'frickTxId', 'frickOrderStatus', 'frickError')
        ORDER BY column_name`,
       [SCHEMA],
     );

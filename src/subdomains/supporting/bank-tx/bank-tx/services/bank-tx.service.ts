@@ -264,7 +264,10 @@ export class BankTxService implements OnModuleInit {
           }
         }
 
-        if (transactions.length > 0 && fullyProcessed) await this.settingService.set(settingKey, newModificationTime);
+        // Advance after every fully processed response, including an empty statement, so an idle account does not
+        // request the complete epoch-to-today history forever. Entries exposed later with a booking date before this
+        // watermark require an explicit operational backfill because Bank Frick does not provide an ingestion cursor.
+        if (fullyProcessed) await this.settingService.set(settingKey, newModificationTime);
       } catch (error) {
         this.logger.error(`Failed to fetch Bank Frick transactions for bank row ${bank.id}:`, error);
       }

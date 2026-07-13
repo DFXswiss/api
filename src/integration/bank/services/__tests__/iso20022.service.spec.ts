@@ -62,6 +62,23 @@ describe('Iso20022Service camt.053 references', () => {
     );
   });
 
+  it('does not consume an occurrence suffix when a non-strict entry is discarded', () => {
+    let indicatorReads = 0;
+    const transientlyMalformedEntry = { ...entry };
+    Object.defineProperty(transientlyMalformedEntry, 'CdtDbtInd', {
+      enumerable: true,
+      get: () => (++indicatorReads === 2 ? undefined : 'CRDT'),
+    });
+
+    const result = Iso20022Service.parseCamt053Json(
+      { BkToCstmrStmt: { Stmt: { Ntry: [transientlyMalformedEntry, transientlyMalformedEntry] } } },
+      'SYNTHETIC-ACCOUNT-A',
+    );
+
+    expect(result).toHaveLength(1);
+    expect(result[0].accountServiceRef).toMatch(/^CAMT-[a-f0-9]{64}$/);
+  });
+
   it.each([
     [{ ...entry, Amt: undefined }, 'Invalid amount'],
     [{ ...entry, Amt: { Value: 1.25, Ccy: 'EU' } }, 'Invalid currency'],
