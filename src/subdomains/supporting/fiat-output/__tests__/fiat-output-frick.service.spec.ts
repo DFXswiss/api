@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { Config } from 'src/config/config';
 import { FrickPaymentCharge, FrickPaymentState, FrickPaymentType } from 'src/integration/bank/dto/frick.dto';
 import { BankFrickService } from 'src/integration/bank/services/frick.service';
+import { IbanService } from 'src/integration/bank/services/iban.service';
 import * as processServiceModule from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
@@ -18,6 +19,7 @@ describe('FiatOutputFrickService', () => {
 
   let fiatOutputRepo: FiatOutputRepository;
   let frickService: BankFrickService;
+  let ibanService: IbanService;
 
   const order = {
     orderId: 4242,
@@ -34,6 +36,7 @@ describe('FiatOutputFrickService', () => {
   beforeEach(async () => {
     fiatOutputRepo = createMock<FiatOutputRepository>();
     frickService = createMock<BankFrickService>();
+    ibanService = createMock<IbanService>();
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
 
     const module: TestingModule = await Test.createTestingModule({
@@ -42,6 +45,7 @@ describe('FiatOutputFrickService', () => {
         FiatOutputFrickService,
         { provide: FiatOutputRepository, useValue: fiatOutputRepo },
         { provide: BankFrickService, useValue: frickService },
+        { provide: IbanService, useValue: ibanService },
 
         TestUtil.provideConfig(),
       ],
@@ -75,6 +79,16 @@ describe('FiatOutputFrickService', () => {
 
     expect(fiatOutputRepo.find).not.toHaveBeenCalled();
     expect(frickService.createPaymentOrder).not.toHaveBeenCalled();
+  });
+
+  it('does not create payouts while the signed Bank Frick client is unavailable', async () => {
+    Config.bank.frick.payoutEnabled = true;
+    jest.spyOn(frickService, 'isAvailable').mockReturnValue(false);
+
+    await service.transmitPayments();
+
+    expect(service.canCreatePayments()).toBe(false);
+    expect(fiatOutputRepo.find).not.toHaveBeenCalled();
   });
 
   it('honors the dedicated status-check kill-switch', async () => {
@@ -124,7 +138,7 @@ describe('FiatOutputFrickService', () => {
     await service.transmitPayments();
 
     expect(frickService.createPaymentOrder).toHaveBeenCalledWith(
-      expect.objectContaining({ customId: 'DFX-FO-42', reference: 'Synthetic payout' }),
+      expect.objectContaining({ customId: 'DFX-FO-42', reference: 'DFX-FO-42 Synthetic payout' }),
     );
     expect(fiatOutputRepo.update).toHaveBeenNthCalledWith(
       1,
@@ -132,6 +146,7 @@ describe('FiatOutputFrickService', () => {
       expect.objectContaining({
         frickTxId: 'DFX-FO-42',
         frickOrderId: '4242',
+        remittanceInfo: 'DFX-FO-42 Synthetic payout',
         isTransmittedDate: expect.any(Date),
       }),
     );
@@ -143,6 +158,99 @@ describe('FiatOutputFrickService', () => {
       42,
       expect.objectContaining({ isApprovedDate: expect.any(Date) }),
     );
+  });
+
+  it('resolves a missing CHF creditor BIC and defaults the charge to SHA', async () => {
+    Config.bank.frick.payoutEnabled = true;
+    Config.bank.frick.approveWithoutTan = false;
+    jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+    jest.spyOn(frickService, 'createPaymentOrder').mockResolvedValue({ ...order, currency: 'CHF' });
+    jest.spyOn(frickService, 'getSafeOrderId').mockReturnValue('4242');
+    jest.spyOn(ibanService, 'getIbanInfos').mockResolvedValue({
+      result: 'passed',
+      bic_candidates: [{ bic: ' testli22xxx ' } as never],
+      all_bic_candidates: [{ bic: 'TESTLI22XXX' } as never],
+    });
+    jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+      createCustomFiatOutput({
+        id: 42,
+        amount: 10,
+        currency: 'CHF',
+        accountIban: 'SYNTHETIC-DEBTOR',
+        name: 'Synthetic Recipient',
+        iban: 'SYNTHETIC-CREDITOR',
+        bank: createCustomBank({ name: IbanBankName.FRICK }),
+      }),
+    ]);
+
+    await service.transmitPayments();
+
+    expect(ibanService.getIbanInfos).toHaveBeenCalledWith('SYNTHETIC-CREDITOR');
+    expect(frickService.createPaymentOrder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        charge: FrickPaymentCharge.SHARED,
+        creditor: expect.objectContaining({ bic: 'TESTLI22XXX' }),
+      }),
+    );
+  });
+
+  it.each([
+    [{ result: 'failed' }, 'Unable to resolve creditor BIC'],
+    [
+      {
+        result: 'passed',
+        bic_candidates: [{ bic: 'TESTLI22' }],
+        all_bic_candidates: [{ bic: 'OTHERLI2X' }],
+      },
+      'Ambiguous creditor BIC',
+    ],
+  ])('fails closed when CHF BIC resolution is not unique', async (ibanDetails, expectedError) => {
+    Config.bank.frick.payoutEnabled = true;
+    jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+    jest.spyOn(ibanService, 'getIbanInfos').mockResolvedValue(ibanDetails as never);
+    jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+      createCustomFiatOutput({
+        id: 42,
+        currency: 'CHF',
+        iban: 'SYNTHETIC-CREDITOR',
+        bank: createCustomBank({ name: IbanBankName.FRICK }),
+      }),
+    ]);
+
+    await service.transmitPayments();
+
+    expect(frickService.createPaymentOrder).not.toHaveBeenCalled();
+    expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, {
+      frickError: expect.stringContaining(expectedError),
+    });
+  });
+
+  it('fails closed when a CHF output has neither BIC nor creditor IBAN', async () => {
+    Config.bank.frick.payoutEnabled = true;
+    jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+    jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+      createCustomFiatOutput({
+        id: 42,
+        currency: 'CHF',
+        bank: createCustomBank({ name: IbanBankName.FRICK }),
+      }),
+    ]);
+
+    await service.transmitPayments();
+
+    expect(ibanService.getIbanInfos).not.toHaveBeenCalled();
+    expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, {
+      frickError: 'FRICK error: Bank Frick CHF payout requires creditor IBAN for BIC resolution',
+    });
+  });
+
+  it('always keeps the stable custom id at the start of the bounded bank reference', () => {
+    expect(service['createUniqueReference']('DFX-FO-42')).toBe('DFX-FO-42');
+    expect(service['createUniqueReference']('DFX-FO-42', ' DFX-FO-42 ')).toBe('DFX-FO-42');
+    const reference = service['createUniqueReference']('DFX-FO-42', 'x'.repeat(200));
+    expect(reference).toHaveLength(140);
+    expect(reference.startsWith('DFX-FO-42 ')).toBe(true);
+    expect(Array.from(service['createUniqueReference']('DFX-FO-42', '😀'.repeat(200)))).toHaveLength(140);
   });
 
   it.each([
@@ -217,7 +325,7 @@ describe('FiatOutputFrickService', () => {
 
     await service.checkFrickOrderStatus();
 
-    expect(frickService.approvePaymentWithoutTan).toHaveBeenCalledWith('DFX-FO-42');
+    expect(frickService.approvePaymentWithoutTan).toHaveBeenCalledWith(order);
     expect(fiatOutputRepo.update).toHaveBeenCalledWith(
       42,
       expect.objectContaining({
@@ -533,7 +641,7 @@ describe('FiatOutputFrickService', () => {
 
     await service.checkFrickOrderStatus();
 
-    expect(frickService.approvePaymentWithoutTan).toHaveBeenCalledWith('DFX-FO-42');
+    expect(frickService.approvePaymentWithoutTan).toHaveBeenCalledWith(order);
     expect(fiatOutputRepo.update).toHaveBeenCalledWith(
       42,
       expect.objectContaining({ frickOrderStatus: FrickPaymentState.BOOKED }),

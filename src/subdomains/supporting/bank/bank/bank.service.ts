@@ -52,6 +52,10 @@ export class BankService implements OnModuleInit {
     return this.bankRepo.findOneCachedBy(`send-${currency}`, { currency, send: true });
   }
 
+  async getSenderBanks(currency: string): Promise<Bank[]> {
+    return this.bankRepo.findCachedBy(`send-${currency}`, { currency, send: true });
+  }
+
   // --- BANK SELECTOR --- //
   async getBank({ currency, paymentMethod }: BankSelectorInput): Promise<Bank> {
     const fallBackCurrency = 'EUR';

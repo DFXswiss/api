@@ -396,26 +396,6 @@ export class BankTxService implements OnModuleInit {
     return query.getOne();
   }
 
-  async getBankTxByRemittanceInfo(remittanceInfo: string): Promise<BankTx> {
-    return this.bankTxRepo
-      .createQueryBuilder('bankTx')
-      .select('bankTx', 'bankTx')
-      .leftJoinAndSelect('bankTx.transaction', 'transaction')
-      .where(`REPLACE(bankTx.remittanceInfo, ' ', '') = :remittanceInfo`, {
-        remittanceInfo: remittanceInfo.replace(/ /g, ''),
-      })
-      .orderBy('bankTx.id', 'DESC')
-      .getOne();
-  }
-
-  async getBankTxByEndToEndId(endToEndId: string): Promise<BankTx> {
-    return this.bankTxRepo.findOne({
-      where: { endToEndId, creditDebitIndicator: BankTxIndicator.DEBIT },
-      relations: { transaction: true },
-      order: { id: 'DESC' },
-    });
-  }
-
   async getBankTxByTransactionId(transactionId: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
     return this.bankTxRepo.findOne({ where: { transaction: { id: transactionId } }, relations });
   }

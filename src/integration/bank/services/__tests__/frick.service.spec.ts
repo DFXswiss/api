@@ -1,4 +1,4 @@
-import { generateKeyPairSync, verify } from 'crypto';
+import { createSign, generateKeyPairSync, verify } from 'crypto';
 import * as IbanTools from 'ibantools';
 import { Config, ConfigService } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
@@ -31,6 +31,7 @@ describe('BankFrickService', () => {
       baseUrl: 'https://bank.invalid/webapi/v2/',
       apiKey: 'synthetic-api-key',
       privateKey: keys.privateKey,
+      serverPublicKey: keys.publicKey,
       customer: '0000000',
       payoutEnabled: false,
       approveWithoutTan: false,
@@ -51,6 +52,18 @@ describe('BankFrickService', () => {
     expect(authorize.headers.Authorization).toBeUndefined();
     expectSignature(authorize.data, authorize.headers.Signature);
     expect(http.request.mock.calls[1][0].url).toBe('https://bank.invalid/webapi/v2/accounts/0000000');
+
+    for (const [index, [request]] of http.request.mock.calls.entries()) {
+      const rawResponse = JSON.stringify({ syntheticResponse: index });
+      const signer = createSign('sha512');
+      signer.update(rawResponse);
+      expect(() =>
+        request.responseVerifier(rawResponse, {
+          signature: signer.sign(keys.privateKey, 'base64'),
+          algorithm: 'rsa-sha512',
+        }),
+      ).not.toThrow();
+    }
   });
 
   it('signs bodyless GET requests over the empty string and caches the JWT', async () => {
@@ -131,7 +144,7 @@ describe('BankFrickService', () => {
     expect(http.request).not.toHaveBeenCalled();
   });
 
-  it.each(['baseUrl', 'apiKey', 'privateKey', 'customer'] as const)(
+  it.each(['baseUrl', 'apiKey', 'privateKey', 'serverPublicKey', 'customer'] as const)(
     'reports the integration unavailable when %s is missing',
     (field) => {
       Config.bank.frick[field] = undefined;
@@ -140,16 +153,39 @@ describe('BankFrickService', () => {
     },
   );
 
+  it.each([
+    ['rsa-sha512', 'sha512'],
+    ['rsa-sha384', 'sha384'],
+    ['rsa-sha256', 'sha256'],
+  ] as const)('verifies exact response bytes for %s', (headerAlgorithm, hashAlgorithm) => {
+    const body = '{ "synthetic": "response bytes" }';
+    const signer = createSign(hashAlgorithm);
+    signer.update(body);
+    const signature = signer.sign(keys.privateKey, 'base64');
+
+    expect(() =>
+      service['verifyResponse'](body, { Signature: signature, Algorithm: headerAlgorithm } as never),
+    ).not.toThrow();
+  });
+
+  it.each([
+    [{}, 'Invalid Bank Frick response signature headers'],
+    [{ signature: 'not-a-signature', algorithm: 'rsa-sha512' }, 'Invalid Bank Frick response signature'],
+    [{ signature: 'irrelevant', algorithm: 'rsa-pss-sha512' }, 'Invalid Bank Frick response signature headers'],
+  ])('rejects missing, invalid or unsupported response signatures', (headers, expectedError) => {
+    expect(() => service['verifyResponse']('{"synthetic":true}', headers as never)).toThrow(expectedError);
+  });
+
   it('fails closed when a payment is attempted without the explicit payout flag', async () => {
     await expect(service.createPaymentOrder(paymentInput())).rejects.toThrow('payout is not explicitly enabled');
-    await expect(service.approvePaymentWithoutTan('DFX-FO-42')).rejects.toThrow('payout is not explicitly enabled');
+    await expect(service.approvePaymentWithoutTan(paymentOrder())).rejects.toThrow('payout is not explicitly enabled');
     expect(http.request).not.toHaveBeenCalled();
   });
 
   it('fails closed when approval without TAN is not explicitly enabled', async () => {
     Config.bank.frick.payoutEnabled = true;
 
-    await expect(service.approvePaymentWithoutTan('DFX-FO-42')).rejects.toThrow(
+    await expect(service.approvePaymentWithoutTan(paymentOrder())).rejects.toThrow(
       'approval without TAN is not explicitly enabled',
     );
     expect(http.request).not.toHaveBeenCalled();
@@ -250,6 +286,17 @@ describe('BankFrickService', () => {
 
     const inputWithBic = { ...input, creditor: { ...input.creditor, bic: 'TESTLI22' } };
     await expect(service.createPaymentOrder(inputWithBic)).rejects.toThrow('requires a valid charge');
+  });
+
+  it('rejects a non-SEPA creditor IBAN before creating an EUR order', async () => {
+    Config.bank.frick.payoutEnabled = true;
+    const input = {
+      ...paymentInput(),
+      creditor: { ...paymentInput().creditor, iban: 'BR1500000000000010932840814P2' },
+    };
+
+    await expect(service.createPaymentOrder(input)).rejects.toThrow('EUR payout requires a SEPA creditor IBAN');
+    expect(http.request).not.toHaveBeenCalled();
   });
 
   it("enforces Bank Frick's documented 35-character creditor name limit", async () => {
@@ -369,12 +416,12 @@ describe('BankFrickService', () => {
       creditor: {
         name: ' Synthetic Recipient ',
         iban: ` ${creditorIban.toLowerCase()} `,
-        bic: ' test de ff ',
+        bic: ' testdeffxxx ',
         address: ' Synthetic Street 42 ',
         postalcode: ' 8000 ',
         city: ' Zurich ',
         country: ' CH ',
-        creditInstitution: ' Synthetic Bank ',
+        creditInsitution: ' Synthetic Bank ',
       },
     });
 
@@ -388,17 +435,30 @@ describe('BankFrickService', () => {
     expect(() => service['assertSamePayment'](existing, requested)).not.toThrow();
   });
 
-  it('approves by stable customId and never converts an order id', async () => {
+  it('falls back to the documented customId selector when the JSON order id is unsafe', async () => {
     Config.bank.frick.payoutEnabled = true;
     Config.bank.frick.approveWithoutTan = true;
     const order = paymentOrder({ orderId: Number.MAX_SAFE_INTEGER + 1 });
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(transactionsResponse([order]));
 
-    await service.approvePaymentWithoutTan('DFX-FO-42');
+    await service.approvePaymentWithoutTan(order);
 
     const approval = http.request.mock.calls[1][0];
     expect(JSON.parse(approval.data)).toEqual({ customIds: ['DFX-FO-42'] });
     expect(service.getSafeOrderId(order)).toBeUndefined();
+    expectSignature(approval.data, approval.headers.Signature);
+  });
+
+  it('uses the bank order id selector when the order id is safely representable', async () => {
+    Config.bank.frick.payoutEnabled = true;
+    Config.bank.frick.approveWithoutTan = true;
+    const order = paymentOrder();
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(transactionsResponse([order]));
+
+    await service.approvePaymentWithoutTan(order);
+
+    const approval = http.request.mock.calls[1][0];
+    expect(JSON.parse(approval.data)).toEqual({ orderIds: [4242] });
     expectSignature(approval.data, approval.headers.Signature);
   });
 
@@ -528,6 +588,7 @@ describe('BankFrickService', () => {
 
   it.each([
     ['missing payload', 'not-a-jwt'],
+    ['missing signature', `${jwtWithPayload({}).split('.').slice(0, 2).join('.')}.`],
     ['invalid expiry', jwtWithPayload({ exp: 0 })],
     ['unsafe millisecond expiry', jwtWithPayload({ exp: Number.MAX_SAFE_INTEGER })],
     ['malformed payload', `header.${Buffer.from('{').toString('base64url')}.signature`],
@@ -595,6 +656,15 @@ describe('BankFrickService', () => {
     expect(camtRequest.headers.Accept).toBe('application/xml');
     expect(camtRequest.data).toBe('');
     expectSignature('', camtRequest.headers.Signature);
+  });
+
+  it('formats statement boundaries in Bank Frick local time', async () => {
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce('');
+
+    await service.getFrickTransactions(new Date('2026-07-01T22:30:00.000Z'), debtorIban);
+
+    const statementUrl = new URL(http.request.mock.calls[1][0].url);
+    expect(statementUrl.searchParams.get('fromDate')).toBe('2026-07-02');
   });
 
   function expectSignature(body: string, signature: string): void {
@@ -666,9 +736,11 @@ describe('BankFrickService', () => {
 <Document>
   <BkToCstmrStmt>
     <Stmt>
+      <Acct><Id><IBAN>${debtorIban}</IBAN></Id></Acct>
       <Ntry>
         <Amt Ccy="EUR">12.34</Amt>
         <CdtDbtInd>CRDT</CdtDbtInd>
+        <Sts>BOOK</Sts>
         <BookgDt><Dt>2026-07-02</Dt></BookgDt>
         <ValDt><Dt>2026-07-02</Dt></ValDt>
         <AcctSvcrRef>SYNTHETIC-REF-1</AcctSvcrRef>

@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { Method } from 'axios';
+import { AxiosResponse, Method } from 'axios';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { HttpService } from 'src/shared/services/http.service';
@@ -40,8 +40,8 @@ export class BankFrickService {
   constructor(private readonly http: HttpService) {}
 
   isAvailable(): boolean {
-    const { baseUrl, apiKey, privateKey, customer } = Config.bank.frick;
-    return !!(baseUrl && apiKey && privateKey && customer);
+    const { baseUrl, apiKey, privateKey, serverPublicKey, customer } = Config.bank.frick;
+    return !!(baseUrl && apiKey && privateKey && serverPublicKey && customer);
   }
 
   async getBalances(): Promise<FrickBalance[]> {
@@ -72,8 +72,10 @@ export class BankFrickService {
     const iban = this.normalizeAndValidateIban(accountIban, 'account IBAN');
     const params = new URLSearchParams({
       iban,
-      fromDate: Util.isoDate(lastModificationTime),
-      toDate: Util.isoDate(new Date()),
+      // Bank Frick applies banking dates in Liechtenstein local time. Deriving both boundaries in that zone avoids
+      // a one-day lag around CET/CEST midnight when the API host itself runs in UTC.
+      fromDate: Util.isoDateInTimeZone('Europe/Vaduz', lastModificationTime),
+      toDate: Util.isoDateInTimeZone('Europe/Vaduz'),
     });
 
     const statement = await this.callApi<string>(
@@ -116,14 +118,18 @@ export class BankFrickService {
     return payment;
   }
 
-  async approvePaymentWithoutTan(customId: string): Promise<FrickPaymentOrder> {
+  async approvePaymentWithoutTan(payment: FrickPaymentOrder): Promise<FrickPaymentOrder> {
     this.assertAvailable();
     this.assertPayoutEnabled();
     if (!Config.bank.frick.approveWithoutTan)
       throw new Error('Bank Frick approval without TAN is not explicitly enabled');
+    const customId = payment?.customId;
     this.validateString(customId, 'customId', 50, true);
 
-    const request: FrickApproveWithoutTanRequest = { customIds: [customId] };
+    const safeOrderId = this.getSafeOrderId(payment);
+    const request: FrickApproveWithoutTanRequest = safeOrderId
+      ? { orderIds: [Number(safeOrderId)] }
+      : { customIds: [customId] };
     const response = await this.callApi<FrickTransactionsResponse>('signTransactionWithoutTan', 'POST', request);
     return this.getSinglePayment(response, customId);
   }
@@ -180,6 +186,8 @@ export class BankFrickService {
     if (reference) this.validateString(reference, 'reference', 140);
 
     if (input.currency === 'EUR') {
+      if (!IbanTools.isSEPACountry(creditor.iban.substring(0, 2)))
+        throw new Error('Bank Frick EUR payout requires a SEPA creditor IBAN');
       const type = input.instant ? FrickPaymentType.SEPA_INSTANT : FrickPaymentType.SEPA;
       return {
         customId: input.customId,
@@ -388,10 +396,14 @@ export class BankFrickService {
       this.matchesSentString(existing.creditor.postalcode, requested.creditor.postalcode) &&
       this.matchesSentString(existing.creditor.city, requested.creditor.city) &&
       this.matchesSentString(existing.creditor.country, requested.creditor.country) &&
-      this.matchesSentString(existing.creditor.creditInstitution, requested.creditor.creditInstitution) &&
-      this.matchesSentString(existing.creditor.bic, requested.creditor.bic, (value) =>
-        value.replace(/\s/g, '').toUpperCase(),
-      );
+      this.matchesSentString(
+        existing.creditor.creditInstitution ?? existing.creditor.creditInsitution,
+        requested.creditor.creditInstitution,
+      ) &&
+      this.matchesSentString(existing.creditor.bic, requested.creditor.bic, (value) => {
+        const bic = value.replace(/\s/g, '').toUpperCase();
+        return bic.length === 8 ? `${bic}XXX` : bic;
+      });
 
     if (!same) throw new Error(`Bank Frick customId collision for ${requested.customId}`);
   }
@@ -445,6 +457,7 @@ export class BankFrickService {
           Signature: this.sign(bodyString),
           algorithm: 'rsa-sha512',
         },
+        responseVerifier: (rawBody, headers) => this.verifyResponse(rawBody, headers),
       });
     } catch (error) {
       if (allowUnauthorizedRetry && error?.response?.status === 401) {
@@ -495,6 +508,7 @@ export class BankFrickService {
           Signature: this.sign(bodyString),
           algorithm: 'rsa-sha512',
         },
+        responseVerifier: (rawBody, headers) => this.verifyResponse(rawBody, headers),
       });
     } catch (error) {
       throw new Error(`Bank Frick authorization failed: ${this.getHttpFailureReason(error)}`);
@@ -511,8 +525,10 @@ export class BankFrickService {
 
   private getTokenExpiry(token: string): number {
     try {
-      const payloadPart = token.split('.')[1];
-      if (!payloadPart) throw new Error('missing payload');
+      const tokenParts = token.split('.');
+      if (tokenParts.length !== 3) throw new Error('invalid JWT structure');
+      if (tokenParts.some((part) => !part)) throw new Error('empty JWT segment');
+      const payloadPart = tokenParts[1];
       const payload = JSON.parse(Buffer.from(payloadPart, 'base64url').toString('utf8')) as { exp?: unknown };
       if (payload.exp === undefined) return Number.POSITIVE_INFINITY;
       if (typeof payload.exp !== 'number' || !Number.isSafeInteger(payload.exp) || payload.exp <= 0)
@@ -530,6 +546,22 @@ export class BankFrickService {
       return Util.createSign(bodyString, Config.bank.frick.privateKey, 'sha512', 'base64');
     } catch {
       throw new Error('Invalid Bank Frick signing configuration');
+    }
+  }
+
+  private verifyResponse(rawBody: string, headers: AxiosResponse['headers']): void {
+    const signature = headers?.signature ?? headers?.Signature;
+    const algorithm = String(headers?.algorithm ?? headers?.Algorithm ?? '').toLowerCase();
+    const algorithms = { 'rsa-sha512': 'sha512', 'rsa-sha384': 'sha384', 'rsa-sha256': 'sha256' } as const;
+    const hashAlgorithm = algorithms[algorithm as keyof typeof algorithms];
+    if (typeof signature !== 'string' || !signature || !hashAlgorithm)
+      throw new Error('Invalid Bank Frick response signature headers');
+
+    try {
+      if (!Util.verifySign(rawBody, Config.bank.frick.serverPublicKey, signature, hashAlgorithm, 'base64'))
+        throw new Error('signature mismatch');
+    } catch {
+      throw new Error('Invalid Bank Frick response signature');
     }
   }
 

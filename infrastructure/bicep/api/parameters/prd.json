@@ -443,6 +443,9 @@
     "frickPrivateKey": {
       "value": "xxx"
     },
+    "frickServerPublicKey": {
+      "value": "xxx"
+    },
     "frickCustomer": {
       "value": "xxx"
     },

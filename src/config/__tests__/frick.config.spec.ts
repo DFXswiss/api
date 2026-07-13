@@ -19,16 +19,23 @@ describe('buildFrickConfig', () => {
     expect(config.customer).toBe('synthetic-customer');
   });
 
-  it('restores PEM line breaks when the private key is set', () => {
-    const config = buildFrickConfig(env({ FRICK_PRIVATE_KEY: 'synthetic-line-one<br>synthetic-line-two' }));
+  it('restores PEM line breaks when private and server public keys are set', () => {
+    const config = buildFrickConfig(
+      env({
+        FRICK_PRIVATE_KEY: 'synthetic-private-one<br>synthetic-private-two',
+        FRICK_SERVER_PUBLIC_KEY: 'synthetic-public-one<br>synthetic-public-two',
+      }),
+    );
 
-    expect(config.privateKey).toBe('synthetic-line-one\nsynthetic-line-two');
+    expect(config.privateKey).toBe('synthetic-private-one\nsynthetic-private-two');
+    expect(config.serverPublicKey).toBe('synthetic-public-one\nsynthetic-public-two');
   });
 
-  it('leaves the private key undefined when it is not set', () => {
+  it('leaves both signing keys undefined when they are not set', () => {
     const config = buildFrickConfig(env());
 
     expect(config.privateKey).toBeUndefined();
+    expect(config.serverPublicKey).toBeUndefined();
   });
 
   it.each([

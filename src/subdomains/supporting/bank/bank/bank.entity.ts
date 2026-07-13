@@ -39,6 +39,7 @@ export class Bank extends IEntity {
 
   isCountryEnabled(country: Country): boolean {
     switch (this.name) {
+      case IbanBankName.FRICK:
       case IbanBankName.YAPEAL:
       case IbanBankName.OLKY:
         return country.yapealEnable;

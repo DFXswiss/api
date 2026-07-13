@@ -15,7 +15,7 @@ describe('BankTxFrickService', () => {
   let frickTxService: BankTxFrickService;
   let frickService: jest.Mocked<Pick<BankFrickService, 'isAvailable' | 'getFrickTransactions'>>;
   let bankService: jest.Mocked<Pick<BankService, 'getBanksByName'>>;
-  let settingService: jest.Mocked<Pick<SettingService, 'get' | 'set'>>;
+  let settingService: jest.Mocked<Pick<SettingService, 'get' | 'setDateMax'>>;
   let specialAccountService: jest.Mocked<Pick<SpecialExternalAccountService, 'getMultiAccounts'>>;
   let loggerWarn: jest.SpyInstance;
   let loggerError: jest.SpyInstance;
@@ -25,7 +25,7 @@ describe('BankTxFrickService', () => {
     bankService = { getBanksByName: jest.fn() };
     settingService = {
       get: jest.fn().mockResolvedValue(new Date(0).toISOString()),
-      set: jest.fn().mockResolvedValue(undefined),
+      setDateMax: jest.fn().mockResolvedValue(undefined),
     };
     specialAccountService = { getMultiAccounts: jest.fn().mockResolvedValue([]) };
     loggerWarn = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation();
@@ -56,8 +56,8 @@ describe('BankTxFrickService', () => {
       bank(103, 'SYNTHETIC-NON-RECEIVING', false),
     ]);
     frickService.getFrickTransactions
-      .mockResolvedValueOnce([{ accountServiceRef: 'FRICK-EUR-1' }])
-      .mockResolvedValueOnce([{ accountServiceRef: 'FRICK-CHF-1' }]);
+      .mockResolvedValueOnce([{ accountServiceRef: 'FRICK-EUR-1', bookingDate: new Date('2026-07-10') }])
+      .mockResolvedValueOnce([{ accountServiceRef: 'FRICK-CHF-1', bookingDate: new Date('2026-07-11') }]);
     const createTx = jest.fn().mockResolvedValue({});
 
     await frickTxService.checkTransactions(createTx);
@@ -72,14 +72,14 @@ describe('BankTxFrickService', () => {
       'lastBankFrickDate:101',
       'lastBankFrickDate:102',
     ]);
-    expect(settingService.set.mock.calls.map((call) => call[0])).toEqual([
+    expect(settingService.setDateMax.mock.calls.map((call) => call[0])).toEqual([
       'lastBankFrickDate:101',
       'lastBankFrickDate:102',
     ]);
     expect(specialAccountService.getMultiAccounts).toHaveBeenCalledTimes(1);
   });
 
-  it('advances the watermark after an empty response but not after a fetch failure', async () => {
+  it('does not advance the watermark after an empty response or a fetch failure', async () => {
     bankService.getBanksByName.mockResolvedValue([
       bank(101, 'SYNTHETIC-FRICK-EUR', true),
       bank(102, 'SYNTHETIC-FRICK-CHF', true),
@@ -89,8 +89,7 @@ describe('BankTxFrickService', () => {
 
     await frickTxService.checkTransactions(createTx);
 
-    expect(settingService.set).toHaveBeenCalledTimes(1);
-    expect(settingService.set).toHaveBeenCalledWith('lastBankFrickDate:101', expect.any(String));
+    expect(settingService.setDateMax).not.toHaveBeenCalled();
     expect(loggerError).toHaveBeenCalledTimes(1);
   });
 
@@ -99,7 +98,9 @@ describe('BankTxFrickService', () => {
       bank(101, 'SYNTHETIC-FRICK-EUR', true),
       bank(102, 'SYNTHETIC-FRICK-CHF', true),
     ]);
-    frickService.getFrickTransactions.mockResolvedValue([{ accountServiceRef: 'SYNTHETIC-REF' }]);
+    frickService.getFrickTransactions.mockResolvedValue([
+      { accountServiceRef: 'SYNTHETIC-REF', bookingDate: new Date('2026-07-10') },
+    ]);
     const createTx = jest
       .fn()
       .mockRejectedValueOnce(new ConflictException('duplicate'))
@@ -107,8 +108,8 @@ describe('BankTxFrickService', () => {
 
     await frickTxService.checkTransactions(createTx);
 
-    expect(settingService.set).toHaveBeenCalledTimes(1);
-    expect(settingService.set).toHaveBeenCalledWith('lastBankFrickDate:101', expect.any(String));
+    expect(settingService.setDateMax).toHaveBeenCalledTimes(1);
+    expect(settingService.setDateMax).toHaveBeenCalledWith('lastBankFrickDate:101', expect.any(Date));
     expect(loggerError).toHaveBeenCalledTimes(1);
   });
 
@@ -169,7 +170,7 @@ describe('BankTxFrickService', () => {
 
     expect(loggerError).toHaveBeenCalledWith('Failed to import Bank Frick transactions: invalid bank row id');
     expect(frickService.getFrickTransactions).not.toHaveBeenCalled();
-    expect(settingService.set).not.toHaveBeenCalled();
+    expect(settingService.setDateMax).not.toHaveBeenCalled();
   });
 
   describe('watermark overlap', () => {
@@ -178,11 +179,12 @@ describe('BankTxFrickService', () => {
 
     function overlapOf(date: Date): Date {
       const result = new Date(date);
-      result.setDate(result.getDate() - OVERLAP_DAYS);
+      result.setUTCDate(result.getUTCDate() - OVERLAP_DAYS);
       return result;
     }
 
-    it('sets the watermark to the newest processed booking date minus the overlap when it precedes now', async () => {
+    it('sets the watermark to the newest processed booking date minus the overlap', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
       bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
       const olderBookingDate = new Date('2024-01-05T00:00:00.000Z');
       const maxBookingDate = new Date('2024-01-10T00:00:00.000Z');
@@ -194,10 +196,24 @@ describe('BankTxFrickService', () => {
 
       await frickTxService.checkTransactions(createTx);
 
-      expect(settingService.set).toHaveBeenCalledWith('lastBankFrickDate:101', overlapOf(maxBookingDate).toISOString());
+      expect(settingService.setDateMax).toHaveBeenCalledWith('lastBankFrickDate:101', overlapOf(maxBookingDate));
     });
 
-    it('sets the watermark to now minus the overlap on an empty response', async () => {
+    it('clamps a future booking date to wall-clock now before applying the overlap', async () => {
+      const now = new Date('2024-06-15T12:00:00.000Z');
+      jest.useFakeTimers().setSystemTime(now);
+      bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
+      frickService.getFrickTransactions.mockResolvedValue([
+        { accountServiceRef: 'FRICK-FUTURE', bookingDate: new Date('2024-06-20T00:00:00.000Z') },
+      ]);
+      const createTx = jest.fn().mockResolvedValue({});
+
+      await frickTxService.checkTransactions(createTx);
+
+      expect(settingService.setDateMax).toHaveBeenCalledWith('lastBankFrickDate:101', overlapOf(now));
+    });
+
+    it('leaves the watermark unchanged on an empty response', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
       bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
       frickService.getFrickTransactions.mockResolvedValue([]);
@@ -205,13 +221,11 @@ describe('BankTxFrickService', () => {
 
       await frickTxService.checkTransactions(createTx);
 
-      expect(settingService.set).toHaveBeenCalledWith(
-        'lastBankFrickDate:101',
-        overlapOf(new Date('2024-06-15T12:00:00.000Z')).toISOString(),
-      );
+      expect(settingService.setDateMax).not.toHaveBeenCalled();
     });
 
-    it('never moves the watermark backwards when it is already ahead of the computed candidate', async () => {
+    it('delegates monotonicity to the atomic setting update', async () => {
+      jest.useFakeTimers().setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
       bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
       const aheadWatermark = new Date('2024-05-01T00:00:00.000Z');
       settingService.get.mockResolvedValue(aheadWatermark.toISOString());
@@ -222,7 +236,27 @@ describe('BankTxFrickService', () => {
 
       await frickTxService.checkTransactions(createTx);
 
-      expect(settingService.set).toHaveBeenCalledWith('lastBankFrickDate:101', aheadWatermark.toISOString());
+      expect(settingService.setDateMax).toHaveBeenCalledWith(
+        'lastBankFrickDate:101',
+        overlapOf(new Date('2024-01-01T00:00:00.000Z')),
+      );
+    });
+
+    it('fails before importing when a parsed transaction has no valid booking date', async () => {
+      bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
+      frickService.getFrickTransactions.mockResolvedValue([
+        { accountServiceRef: 'FRICK-MALFORMED', bookingDate: undefined },
+      ]);
+      const createTx = jest.fn();
+
+      await frickTxService.checkTransactions(createTx);
+
+      expect(createTx).not.toHaveBeenCalled();
+      expect(settingService.setDateMax).not.toHaveBeenCalled();
+      expect(loggerError).toHaveBeenCalledWith(
+        'Failed to fetch Bank Frick transactions for bank row 101:',
+        expect.objectContaining({ message: 'Invalid booking date in parsed Bank Frick transaction' }),
+      );
     });
 
     it('leaves the watermark unchanged when the statement fetch itself fails', async () => {
@@ -232,7 +266,7 @@ describe('BankTxFrickService', () => {
 
       await frickTxService.checkTransactions(createTx);
 
-      expect(settingService.set).not.toHaveBeenCalled();
+      expect(settingService.setDateMax).not.toHaveBeenCalled();
       expect(loggerError).toHaveBeenCalledWith(
         'Failed to fetch Bank Frick transactions for bank row 101:',
         expect.any(Error),
@@ -248,7 +282,7 @@ describe('BankTxFrickService', () => {
 
       await frickTxService.checkTransactions(createTx);
 
-      expect(settingService.set).not.toHaveBeenCalled();
+      expect(settingService.setDateMax).not.toHaveBeenCalled();
     });
   });
 

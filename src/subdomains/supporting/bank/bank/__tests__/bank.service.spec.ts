@@ -18,8 +18,10 @@ import {
   yapealEUR,
   olkyEUR,
 } from '../__mocks__/bank.entity.mock';
+import { Bank } from '../bank.entity';
 import { BankRepository } from '../bank.repository';
 import { BankSelectorInput, BankService } from '../bank.service';
+import { IbanBankName } from '../dto/bank.dto';
 
 function createBankSelectorInput(
   currency = 'EUR',
@@ -128,5 +130,14 @@ describe('BankService', () => {
     const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT));
     expect(result.iban).toBe(yapealEUR.iban);
     expect(result.bic).toBe(yapealEUR.bic);
+  });
+});
+
+describe('Bank Frick country routing', () => {
+  const bank = Object.assign(new Bank(), { name: IbanBankName.FRICK });
+
+  it('uses the existing automated-bank country allowlist', () => {
+    expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: true }))).toBe(true);
+    expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: false }))).toBe(false);
   });
 });

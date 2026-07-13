@@ -3,6 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { FrickPaymentCharge, FrickPaymentOrder, FrickPaymentState } from 'src/integration/bank/dto/frick.dto';
 import { BankFrickService } from 'src/integration/bank/services/frick.service';
+import { IbanService } from 'src/integration/bank/services/iban.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -28,6 +29,7 @@ export class FiatOutputFrickService {
   constructor(
     private readonly fiatOutputRepo: FiatOutputRepository,
     private readonly frickService: BankFrickService,
+    private readonly ibanService: IbanService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT })
@@ -48,7 +50,7 @@ export class FiatOutputFrickService {
         let order = await this.frickService.getPaymentOrder(entity.frickTxId);
 
         if (order.state === FrickPaymentState.PREPARED && this.isFrickAutomaticApprovalEnabled()) {
-          order = await this.frickService.approvePaymentWithoutTan(entity.frickTxId);
+          order = await this.frickService.approvePaymentWithoutTan(order);
         }
 
         const updateData = this.getFrickStatusUpdate(order, entity);
@@ -64,8 +66,7 @@ export class FiatOutputFrickService {
   }
 
   async transmitPayments(): Promise<void> {
-    if (DisabledProcess(Process.FIAT_OUTPUT_FRICK_TRANSMISSION)) return;
-    if (!Config.bank.frick.payoutEnabled || !this.frickService.isAvailable()) return;
+    if (!this.canCreatePayments()) return;
 
     const entities = await this.fiatOutputRepo.find({
       where: {
@@ -80,14 +81,16 @@ export class FiatOutputFrickService {
     for (const entity of entities) {
       try {
         const customId = `DFX-FO-${entity.id}`;
-        const remittanceInfo = entity.remittanceInfo ?? `DFX Payout ${entity.id}`;
+        const remittanceInfo = this.createUniqueReference(customId, entity.remittanceInfo);
         const address = entity.address ? [entity.address, entity.houseNumber].filter(Boolean).join(' ') : undefined;
-        const charge = entity.charge
+        const creditorBic = await this.resolveCreditorBic(entity);
+        const outputCharge = entity.currency === 'CHF' ? (entity.charge ?? TransactionCharge.SHA) : entity.charge;
+        const charge = outputCharge
           ? {
               [TransactionCharge.BEN]: FrickPaymentCharge.BENEFICIARY,
               [TransactionCharge.OUR]: FrickPaymentCharge.OUR,
               [TransactionCharge.SHA]: FrickPaymentCharge.SHARED,
-            }[entity.charge]
+            }[outputCharge]
           : undefined;
 
         const order = await this.frickService.createPaymentOrder({
@@ -101,7 +104,7 @@ export class FiatOutputFrickService {
           creditor: {
             name: entity.name,
             iban: entity.iban,
-            bic: entity.bic,
+            bic: creditorBic,
             address,
             postalcode: entity.zip,
             city: entity.city,
@@ -122,7 +125,7 @@ export class FiatOutputFrickService {
         });
 
         if (this.isFrickAutomaticApprovalEnabled() && order.state === FrickPaymentState.PREPARED) {
-          const approvedOrder = await this.frickService.approvePaymentWithoutTan(customId);
+          const approvedOrder = await this.frickService.approvePaymentWithoutTan(order);
           const updateData = this.getFrickStatusUpdate(approvedOrder, entity);
           if (Object.keys(updateData).length > 0) await this.fiatOutputRepo.update(entity.id, updateData);
         }
@@ -138,6 +141,38 @@ export class FiatOutputFrickService {
 
   isFrickTerminalState(status: FrickPaymentState | undefined): boolean {
     return status !== undefined && FiatOutputFrickService.FRICK_TERMINAL_STATES.includes(status);
+  }
+
+  canCreatePayments(): boolean {
+    return (
+      !DisabledProcess(Process.FIAT_OUTPUT_FRICK_TRANSMISSION) &&
+      Config.bank.frick.payoutEnabled &&
+      this.frickService.isAvailable()
+    );
+  }
+
+  private createUniqueReference(customId: string, requestedReference?: string): string {
+    const normalizedReference = requestedReference?.trim();
+    if (!normalizedReference || normalizedReference === customId) return customId;
+    return Array.from(`${customId} ${normalizedReference}`).slice(0, 140).join('');
+  }
+
+  private async resolveCreditorBic(entity: FiatOutput): Promise<string | undefined> {
+    if (entity.currency !== 'CHF' || entity.bic) return entity.bic;
+    if (!entity.iban) throw new Error('Bank Frick CHF payout requires creditor IBAN for BIC resolution');
+
+    const details = await this.ibanService.getIbanInfos(entity.iban);
+    const candidates = [...(details.bic_candidates ?? []), ...(details.all_bic_candidates ?? [])]
+      .map(({ bic }) => bic?.replace(/\s/g, '').toUpperCase())
+      .filter((bic): bic is string => !!bic);
+    const uniqueCandidates = [...new Set(candidates)];
+    if (uniqueCandidates.length !== 1)
+      throw new Error(
+        uniqueCandidates.length === 0
+          ? 'Unable to resolve creditor BIC for Bank Frick CHF payout'
+          : 'Ambiguous creditor BIC for Bank Frick CHF payout',
+      );
+    return uniqueCandidates[0];
   }
 
   private getFrickStatusUpdate(order: FrickPaymentOrder, entity: FiatOutput): Partial<FiatOutput> {

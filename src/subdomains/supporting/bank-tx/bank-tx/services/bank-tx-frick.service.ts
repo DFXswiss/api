@@ -2,7 +2,6 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Util } from 'src/shared/utils/util';
 import { Bank } from '../../../bank/bank/bank.entity';
 import { BankService } from '../../../bank/bank/bank.service';
 import { IbanBankName } from '../../../bank/bank/dto/bank.dto';
@@ -69,14 +68,12 @@ export class BankTxFrickService {
 
       try {
         const transactions = await this.frickService.getFrickTransactions(lastModificationTime, bank.iban);
+        const bookingTimes = transactions.map((transaction) => transaction.bookingDate?.getTime());
+        if (bookingTimes.some((bookingTime) => !Number.isFinite(bookingTime)))
+          throw new Error('Invalid booking date in parsed Bank Frick transaction');
         let fullyProcessed = true;
-        let maxBookingDate: Date | undefined;
 
         for (const transaction of transactions) {
-          if (transaction.bookingDate && (!maxBookingDate || transaction.bookingDate > maxBookingDate)) {
-            maxBookingDate = transaction.bookingDate;
-          }
-
           try {
             await createTx(transaction, multiAccounts);
           } catch (error) {
@@ -87,19 +84,14 @@ export class BankTxFrickService {
           }
         }
 
-        // Advance after every fully processed response, including an empty statement, so an idle account does not
-        // request the complete epoch-to-today history forever. The new watermark is backdated by a fixed overlap
-        // (candidate = min(now, max booking date of the processed entries) - FRICK_WATERMARK_OVERLAP_DAYS) and can
-        // only ever move forward, so delayed Bank Frick reporting or a race between multiple instances polling the
-        // same account cannot silently skip entries. The resulting re-fetch of the overlap window is intentional -
-        // duplicates are absorbed by the create() dedup (ConflictException) above. Entries exposed even later than
-        // the overlap window still require an explicit operational backfill because Bank Frick does not provide an
-        // ingestion cursor.
-        if (fullyProcessed) {
-          const reference = maxBookingDate && maxBookingDate < now ? maxBookingDate : now;
-          const candidate = Util.daysBefore(BankTxFrickService.FRICK_WATERMARK_OVERLAP_DAYS, reference);
-          const newWatermark = candidate > lastModificationTime ? candidate : lastModificationTime;
-          await this.settingService.set(settingKey, newWatermark.toISOString());
+        // The issue contract deliberately advances only after a non-empty response was fully persisted. Base the
+        // candidate on the newest processed booking date (clamped to wall-clock now) and retain a fixed overlap.
+        // SettingService performs an atomic monotonic update, preventing a stale concurrent worker from moving the
+        // cursor backwards. Empty/malformed/partially persisted responses never advance it.
+        if (fullyProcessed && transactions.length > 0) {
+          const candidate = new Date(Math.min(now.getTime(), Math.max(...bookingTimes)));
+          candidate.setUTCDate(candidate.getUTCDate() - BankTxFrickService.FRICK_WATERMARK_OVERLAP_DAYS);
+          await this.settingService.setDateMax(settingKey, candidate);
         }
       } catch (error) {
         this.logger.error(`Failed to fetch Bank Frick transactions for bank row ${bank.id}:`, error);

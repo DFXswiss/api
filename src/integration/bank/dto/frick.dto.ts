@@ -64,6 +64,9 @@ export interface FrickPaymentAccount {
   country?: string;
   bic?: string;
   creditInstitution?: string;
+  // Older Bank Frick response examples use this misspelling. Never send it, but accept it when comparing a
+  // returned order with the idempotent request that created it.
+  creditInsitution?: string;
 }
 
 export interface FrickPaymentOrderInput {
@@ -114,6 +117,6 @@ export interface FrickTransactionsResponse {
   transactions: FrickPaymentOrder[];
 }
 
-export interface FrickApproveWithoutTanRequest {
-  customIds: string[];
-}
+export type FrickApproveWithoutTanRequest =
+  | { orderIds: number[]; customIds?: never }
+  | { customIds: string[]; orderIds?: never };

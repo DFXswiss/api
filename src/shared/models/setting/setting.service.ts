@@ -29,6 +29,13 @@ export class SettingService {
     await this.settingRepo.save(entity);
   }
 
+  async setDateMax(key: string, candidate: Date): Promise<void> {
+    if (!(candidate instanceof Date) || Number.isNaN(candidate.getTime()))
+      throw new BadRequestException(`Setting '${key}' requires a valid date`);
+
+    await this.settingRepo.setDateMax(key, candidate);
+  }
+
   private async validateSettingValue(key: string, value: string): Promise<void> {
     const schema = SettingSchemaRegistry[key];
     if (!schema) return;

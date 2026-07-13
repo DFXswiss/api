@@ -217,13 +217,17 @@ export class Iso20022Service {
   // --- CAMT.053 PARSING --- //
   static parseCamt053Json(camt053: any, accountIban: string, strict = false): CamtTransaction[] {
     const rawStatements = camt053?.BkToCstmrStmt?.Stmt;
-    if (!rawStatements) return [];
+    if (!rawStatements) {
+      if (strict) throw new Error('Invalid camt.053 format: missing Stmt');
+      return [];
+    }
     const statements = Array.isArray(rawStatements) ? rawStatements : [rawStatements];
 
     const transactions: CamtTransaction[] = [];
     const fallbackOccurrences = new Map<string, number>();
 
     for (const stmt of statements) {
+      if (strict) this.assertValidCamtStatement(stmt, accountIban);
       if (!stmt.Ntry) continue;
       const entries = Array.isArray(stmt.Ntry) ? stmt.Ntry : [stmt.Ntry];
 
@@ -256,8 +260,9 @@ export class Iso20022Service {
   ): CamtTransaction {
     // amount and currency
     const amtObj = entry.Amt;
-    const amount = parseFloat(amtObj?.Value || amtObj?.['#text'] || amtObj || '0');
-    const currency = amtObj?.Ccy || 'CHF';
+    const rawAmount = amtObj?.Value ?? amtObj?.['#text'] ?? amtObj;
+    const amount = strict ? this.parseStrictCamtAmount(rawAmount) : parseFloat(rawAmount || '0');
+    const currency = strict ? amtObj?.Ccy : amtObj?.Ccy || 'CHF';
     if (strict && (!Number.isFinite(amount) || amount <= 0)) throw new Error('Invalid amount in CAMT entry');
     if (strict && (typeof currency !== 'string' || !/^[A-Z]{3}$/.test(currency)))
       throw new Error('Invalid currency in CAMT entry');
@@ -269,24 +274,29 @@ export class Iso20022Service {
     const creditDebitIndicator = cdtDbtInd === 'CRDT' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT;
 
     // dates
-    const bookingDateStr = entry.BookgDt?.Dt;
-    const valueDateStr = entry.ValDt?.Dt;
+    const bookingDateStr = this.getCamtDate(entry.BookgDt);
+    const valueDateStr = this.getCamtDate(entry.ValDt);
     if (strict) this.assertValidCamtDate(bookingDateStr, 'booking');
     if (strict && valueDateStr !== undefined) this.assertValidCamtDate(valueDateStr, 'value');
     const bookingDate = bookingDateStr ? this.parseDate(bookingDateStr) : new Date();
     const valueDate = valueDateStr ? this.parseDate(valueDateStr) : bookingDate;
 
+    const status = typeof entry.Sts === 'string' ? entry.Sts : entry.Sts?.Cd;
+    if (strict && status !== CamtStatus.BOOKED) throw new Error('Invalid status in CAMT entry');
+
     // transaction details
     const entryDtls = entry.NtryDtls;
     const txDtlsArray = Array.isArray(entryDtls) ? entryDtls : entryDtls ? [entryDtls] : [];
+    if (strict && txDtlsArray.length > 1) throw new Error('Ambiguous NtryDtls in CAMT entry');
     const firstDetail = txDtlsArray[0];
     const txDtlsList = firstDetail?.TxDtls;
+    if (strict && Array.isArray(txDtlsList) && txDtlsList.length > 1) throw new Error('Ambiguous TxDtls in CAMT entry');
     const txDtls = Array.isArray(txDtlsList) ? txDtlsList[0] : txDtlsList || {};
 
     // party information - determine counterparty based on credit/debit
     const isCredit = creditDebitIndicator === BankTxIndicator.CREDIT;
     const parties = txDtls.RltdPties || {};
-    const counterparty = isCredit ? parties.Dbtr : parties.Cdtr;
+    const counterparty = this.unwrapCamtParty(isCredit ? parties.Dbtr : parties.Cdtr);
     const counterpartyAcct = isCredit ? parties.DbtrAcct : parties.CdtrAcct;
     const counterpartyAgent = isCredit ? txDtls.RltdAgts?.DbtrAgt : txDtls.RltdAgts?.CdtrAgt;
 
@@ -300,7 +310,7 @@ export class Iso20022Service {
     const country = postalAddress?.Ctry;
 
     // ultimate party info (actual sender/receiver behind intermediary banks like Wise/Revolut)
-    const ultimateParty = isCredit ? parties.UltmtDbtr : parties.UltmtCdtr;
+    const ultimateParty = this.unwrapCamtParty(isCredit ? parties.UltmtDbtr : parties.UltmtCdtr);
     const ultimateName = ultimateParty?.Nm;
     const ultimatePostalAddress = ultimateParty?.PstlAdr;
     const { addressLine1: ultimateAddressLine1, addressLine2: ultimateAddressLine2 } =
@@ -308,25 +318,21 @@ export class Iso20022Service {
     const ultimateCountry = ultimatePostalAddress?.Ctry;
 
     // remittance information
-    let remittanceInfo: string | undefined;
-    if (txDtls.RmtInf?.Ustrd) {
-      const ustrd = txDtls.RmtInf.Ustrd;
-      remittanceInfo = Array.isArray(ustrd) ? ustrd.join(' ') : ustrd;
-    } else if (txDtls.RmtInf?.Strd) {
-      remittanceInfo = txDtls.RmtInf.Strd;
-    } else if (entry.AddtlNtryInf) {
-      remittanceInfo = entry.AddtlNtryInf;
-    }
+    const remittanceInfo = this.parseCamtRemittanceInfo(txDtls.RmtInf, entry.AddtlNtryInf, strict);
 
     // reference - check transaction-level refs first (matches camt.054), then entry-level AcctSvcrRef
+    const transactionAccountServiceRef = this.parseOptionalCamtString(txDtls.Refs?.AcctSvcrRef, 'AcctSvcrRef', strict);
+    const transactionId = this.parseOptionalCamtString(txDtls.Refs?.TxId, 'TxId', strict);
+    const entryAccountServiceRef = this.parseOptionalCamtString(entry.AcctSvcrRef, 'AcctSvcrRef', strict);
+    const entryReference = this.parseOptionalCamtString(entry.NtryRef, 'NtryRef', strict);
     const accountServiceRef =
-      txDtls.Refs?.AcctSvcrRef || txDtls.Refs?.TxId || entry.AcctSvcrRef || entry.NtryRef || fallbackReference;
+      transactionAccountServiceRef || transactionId || entryAccountServiceRef || entryReference || fallbackReference;
 
     // end-to-end ID
-    const endToEndId = txDtls.Refs?.EndToEndId || '';
+    const endToEndId = this.parseOptionalCamtString(txDtls.Refs?.EndToEndId, 'EndToEndId', strict) || '';
 
     // bank transaction codes
-    const bkTxCd = txDtls.BkTxCd?.Domn;
+    const bkTxCd = (txDtls.BkTxCd ?? entry.BkTxCd)?.Domn;
     const domainCode = bkTxCd?.Cd;
     const familyCode = bkTxCd?.Fmly?.Cd;
     const subFamilyCode = bkTxCd?.Fmly?.SubFmlyCd;
@@ -364,6 +370,9 @@ export class Iso20022Service {
       ignoreAttributes: false,
       attributeNamePrefix: '',
       parseAttributeValue: true,
+      // Identifiers such as AcctSvcrRef and EndToEndId may contain only digits. Keep element text as text so
+      // parsing can never lose leading zeroes or precision before the strict CAMT validator sees it.
+      parseTagValue: false,
     });
 
     const jsonData = parser.parse(xmlData);
@@ -388,13 +397,82 @@ export class Iso20022Service {
       }, {});
   }
 
+  private static assertValidCamtStatement(statement: any, requestedAccountIban: string): void {
+    const statementIban = statement?.Acct?.Id?.IBAN;
+    if (typeof statementIban !== 'string' || !statementIban.trim())
+      throw new Error('Invalid camt.053 format: missing account IBAN');
+
+    const normalizeIban = (iban: string) => iban.replace(/\s/g, '').toUpperCase();
+    if (normalizeIban(statementIban) !== normalizeIban(requestedAccountIban))
+      throw new Error('Invalid camt.053 format: account IBAN mismatch');
+  }
+
+  private static getCamtDate(dateChoice: any): string | undefined {
+    return dateChoice?.Dt ?? dateChoice?.DtTm;
+  }
+
+  private static unwrapCamtParty(party: any): any {
+    return party?.Pty ?? party ?? {};
+  }
+
+  private static parseCamtRemittanceInfo(
+    remittance: any,
+    additionalEntryInfo: unknown,
+    strict: boolean,
+  ): string | undefined {
+    if (remittance?.Ustrd !== undefined) {
+      const values = Array.isArray(remittance.Ustrd) ? remittance.Ustrd : [remittance.Ustrd];
+      if (values.every((value) => typeof value === 'string')) {
+        const normalizedValues = values.map((value) => value.trim()).filter(Boolean);
+        if (normalizedValues.length > 0) return normalizedValues.join(' ');
+      }
+      if (strict) throw new Error('Invalid unstructured remittance information in CAMT entry');
+    }
+
+    if (remittance?.Strd !== undefined) {
+      if (typeof remittance.Strd === 'string' && remittance.Strd.trim()) return remittance.Strd.trim();
+      const structures = Array.isArray(remittance.Strd) ? remittance.Strd : [remittance.Strd];
+      const references = structures
+        .map((structure) => structure?.CdtrRefInf?.Ref)
+        .filter((reference): reference is string => typeof reference === 'string' && !!reference.trim())
+        .map((reference) => reference.trim());
+      if (references.length > 0) return references.join(' ');
+      if (strict) throw new Error('Unsupported structured remittance information in CAMT entry');
+    }
+
+    return typeof additionalEntryInfo === 'string' && additionalEntryInfo.trim()
+      ? additionalEntryInfo.trim()
+      : undefined;
+  }
+
+  private static parseStrictCamtAmount(value: unknown): number {
+    if (typeof value === 'number') return value;
+    if (typeof value !== 'string' || !/^[+-]?(?:(?:\d+(?:\.\d*)?)|(?:\.\d+))$/.test(value.trim())) return Number.NaN;
+    return Number(value.trim());
+  }
+
+  private static parseOptionalCamtString(value: unknown, field: string, strict: boolean): string | undefined {
+    if (value === undefined) return undefined;
+    if (typeof value === 'string' && value.trim()) return value.trim();
+    if (strict) throw new Error(`Invalid ${field} in CAMT entry`);
+    return undefined;
+  }
+
   private static assertValidCamtDate(value: unknown, field: string): void {
-    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value))
+    if (
+      typeof value !== 'string' ||
+      !/^\d{4}-\d{2}-\d{2}(?:(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))|(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-](?:(?:0\d|1[0-3]):[0-5]\d|14:00))?))?$/.test(
+        value,
+      )
+    )
       throw new Error(`Invalid ${field} date in CAMT entry`);
 
     const isoDate = value.substring(0, 10);
     const parsed = new Date(isoDate);
     if (Number.isNaN(parsed.getTime()) || parsed.toISOString().substring(0, 10) !== isoDate)
+      throw new Error(`Invalid ${field} date in CAMT entry`);
+
+    if (value.includes('T') && Number.isNaN(new Date(value).getTime()))
       throw new Error(`Invalid ${field} date in CAMT entry`);
   }
 
@@ -537,6 +615,13 @@ export class Iso20022Service {
   // --- XML HELPER METHODS --- //
 
   private static parseDate(dateStr: string): Date {
+    if (dateStr.includes('T')) {
+      // XML Schema permits DateTime values without a timezone. Interpret those consistently as UTC instead of
+      // letting the server's local timezone change the imported value.
+      const normalizedDateTime = /(?:Z|[+-]\d{2}:\d{2})$/.test(dateStr) ? dateStr : `${dateStr}Z`;
+      const dateTime = new Date(normalizedDateTime);
+      if (!Number.isNaN(dateTime.getTime())) return dateTime;
+    }
     const dateMatch = dateStr.match(/(\d{4}-\d{2}-\d{2})/);
     return dateMatch ? new Date(dateMatch[1]) : new Date();
   }

@@ -21,6 +21,7 @@ import { BankTxRepeatService } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.se
 import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.service';
 import { BankTx, BankTxType, BankTxTypeUnassigned } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
+import { BankTxOutgoingMatchService } from '../bank-tx/bank-tx/services/bank-tx-outgoing-match.service';
 import { Bank } from '../bank/bank/bank.entity';
 import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
@@ -44,6 +45,7 @@ export class FiatOutputJobService {
     private readonly buyFiatRepo: BuyFiatRepository,
     @Inject(forwardRef(() => BankTxService))
     private readonly bankTxService: BankTxService,
+    private readonly bankTxOutgoingMatchService: BankTxOutgoingMatchService,
     private readonly ep2ReportService: Ep2ReportService,
     private readonly bankService: BankService,
     private readonly countryService: CountryService,
@@ -126,19 +128,14 @@ export class FiatOutputJobService {
   // --- HELPER METHODS --- //
 
   private async getMatchingBankTx(entity: FiatOutput): Promise<BankTx> {
-    // Try remittanceInfo first
-    if (entity.remittanceInfo) {
-      const bankTx = await this.bankTxService.getBankTxByRemittanceInfo(entity.remittanceInfo);
-      if (bankTx) return bankTx;
-    }
-
-    // Fallback to endToEndId (used for Yapeal LiqManagement payments)
-    if (entity.endToEndId) {
-      const bankTx = await this.bankTxService.getBankTxByEndToEndId(entity.endToEndId);
-      if (bankTx) return bankTx;
-    }
-
-    return undefined;
+    return this.bankTxOutgoingMatchService.getUniqueOutgoingBankTx({
+      remittanceInfo: entity.remittanceInfo,
+      endToEndId: entity.endToEndId,
+      accountIban: entity.sourceIban,
+      amount: entity.amount,
+      currency: entity.currency,
+      earliestDate: entity.isReadyDate,
+    });
   }
 
   private async getPayoutAccount(entity: FiatOutput, country: Country): Promise<{ accountIban: string; bank: Bank }> {
@@ -149,15 +146,27 @@ export class FiatOutputJobService {
         entity.currency ?? entity.bankAccountCurrency,
       );
 
-      if (virtualIban?.bank?.send && virtualIban.bank.isCountryEnabled(country))
+      if (
+        virtualIban?.bank?.send &&
+        (virtualIban.bank.name !== IbanBankName.FRICK || !entity.isInstant || virtualIban.bank.sctInst) &&
+        virtualIban.bank.isCountryEnabled(country) &&
+        (virtualIban.bank.name !== IbanBankName.FRICK || this.frickPayoutService.canCreatePayments())
+      )
         return { accountIban: virtualIban.iban, bank: virtualIban.bank };
     }
 
     // fallback to standard bank account selection
-    const bank = await this.bankService.getSenderBank(entity.currency ?? entity.bankAccountCurrency);
-    return bank?.isCountryEnabled(country)
-      ? { accountIban: bank.iban, bank }
-      : { accountIban: undefined, bank: undefined };
+    const banks = await this.bankService.getSenderBanks(entity.currency ?? entity.bankAccountCurrency);
+    const eligibleBanks = banks.filter(
+      (candidate) =>
+        (candidate.name !== IbanBankName.FRICK || !entity.isInstant || candidate.sctInst) &&
+        candidate.isCountryEnabled(country) &&
+        (candidate.name !== IbanBankName.FRICK || this.frickPayoutService.canCreatePayments()),
+    );
+    if (eligibleBanks.length > 1 && eligibleBanks.some((candidate) => candidate.name === IbanBankName.FRICK))
+      throw new Error(`Ambiguous sender bank configuration for ${entity.currency ?? entity.bankAccountCurrency}`);
+    const bank = eligibleBanks[0];
+    return bank ? { accountIban: bank.iban, bank } : { accountIban: undefined, bank: undefined };
   }
 
   private async assignBankAccount(): Promise<void> {
@@ -249,6 +258,7 @@ export class FiatOutputJobService {
 
       for (const entity of sortedEntities.filter((e) => !e.isReadyDate)) {
         try {
+          if (entity.bank?.name === IbanBankName.FRICK && !this.frickPayoutService.canCreatePayments()) continue;
           if (
             (entity.user?.isBlockedOrDeleted || entity.userData?.isBlocked) &&
             entity.type === FiatOutputType.BUY_FIAT
@@ -518,6 +528,7 @@ export class FiatOutputJobService {
     const entities = await this.fiatOutputRepo.find({
       where: {
         amount: Not(IsNull()),
+        isReadyDate: Not(IsNull()),
         isComplete: false,
         bankTx: { id: IsNull() },
       },
@@ -526,8 +537,9 @@ export class FiatOutputJobService {
 
     for (const entity of entities) {
       try {
+        if (!entity.isReadyDate) continue;
         const bankTx = await this.getMatchingBankTx(entity);
-        if (!bankTx || (entity.isReadyDate && entity.isReadyDate > bankTx.created)) continue;
+        if (!bankTx) continue;
 
         const updateData: Partial<FiatOutput> = {
           bankTx,

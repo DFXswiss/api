@@ -240,6 +240,7 @@ param frickBaseUrl string
 param frickApiKey string
 @secure()
 param frickPrivateKey string
+param frickServerPublicKey string
 @secure()
 param frickCustomer string
 param frickPayoutEnabled string
@@ -1230,6 +1231,10 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'FRICK_PRIVATE_KEY'
           value: frickPrivateKey
+        }
+        {
+          name: 'FRICK_SERVER_PUBLIC_KEY'
+          value: frickServerPublicKey
         }
         {
           name: 'FRICK_CUSTOMER'
