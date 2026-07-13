@@ -1,5 +1,7 @@
 import { Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
 import JSZip from 'jszip';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
+import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Config } from 'src/config/config';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -18,11 +20,13 @@ import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { RealUnitComplianceDtoMapper } from './dto/realunit-compliance-dto.mapper';
 import { RealUnitCustomerDetailDto, RealUnitCustomerListDto, RealUnitKycFileDto } from './dto/realunit-compliance.dto';
+import { RealUnitService } from './realunit.service';
 import { RealUnitScopeService } from './realunit-scope.service';
 
 // Postgres integer upper bound: larger numeric keys cannot be an id and would fail the DB query
@@ -58,9 +62,14 @@ export const REALUNIT_VISIBLE_TX_ASSETS: string[] = ['REALU', 'ZCHF'];
 export class RealUnitComplianceService {
   private readonly logger = new DfxLogger(RealUnitComplianceService);
 
+  // address (lowercase) -> raw REALU balance from the ponder indexer; refreshed lazily every 5 minutes
+  private readonly holderBalanceCache = new AsyncCache<Map<string, string>>(CacheItemResetPeriod.EVERY_5_MINUTES);
+
   constructor(
     private readonly scopeService: RealUnitScopeService,
     private readonly userDataService: UserDataService,
+    private readonly userService: UserService,
+    private readonly realUnitService: RealUnitService,
     private readonly transactionService: TransactionService,
     private readonly bankDataService: BankDataService,
     private readonly buyService: BuyService,
@@ -90,7 +99,9 @@ export class RealUnitComplianceService {
       'id',
     ).sort((a, b) => a.id - b.id);
 
-    return members.map(RealUnitComplianceDtoMapper.toCustomerListDto);
+    const balances = await this.getMemberBalances(members.map((m) => m.id));
+
+    return members.map((m) => RealUnitComplianceDtoMapper.toCustomerListDto(m, balances.get(m.id)));
   }
 
   // --- REDUCED DOSSIER --- //
@@ -124,7 +135,9 @@ export class RealUnitComplianceService {
       this.supportIssueService.getIssueEntities(id),
     ]);
 
-    return RealUnitComplianceDtoMapper.toCustomerDetailDto(userData, {
+    const balance = (await this.getMemberBalances([id])).get(id);
+
+    return RealUnitComplianceDtoMapper.toCustomerDetailDto(userData, balance, {
       kycFiles: this.filterDownloadableFiles(kycFiles),
       kycSteps,
       transactions,
@@ -249,6 +262,48 @@ export class RealUnitComplianceService {
 
   private filterDownloadableFiles(files: KycFile[]): KycFile[] {
     return files.filter((f) => REALUNIT_DOWNLOADABLE_FILE_TYPES.includes(f.type));
+  }
+
+  // Current REALU holdings per customer: sum of the indexer balances over all wallet addresses of the account.
+  // Returns share counts (asset decimals applied). Fail-open to an EMPTY map when the indexer or asset lookup is
+  // unavailable — the dashboard then shows the balance as unknown instead of failing the whole customer list.
+  private async getMemberBalances(userDataIds: number[]): Promise<Map<number, number>> {
+    try {
+      const [users, holderBalances, realuAsset] = await Promise.all([
+        this.userService.getUsersByUserDataIds(userDataIds),
+        this.getHolderBalances(),
+        this.realUnitService.getRealuAsset(),
+      ]);
+
+      const balances = new Map<number, number>(userDataIds.map((id) => [id, 0]));
+      for (const user of users) {
+        const raw = user.address && holderBalances.get(user.address.toLowerCase());
+        if (!raw) continue;
+
+        const userDataId = user.userData.id;
+        balances.set(userDataId, (balances.get(userDataId) ?? 0) + EvmUtil.fromWeiAmount(raw, realuAsset.decimals));
+      }
+
+      return balances;
+    } catch (e) {
+      this.logger.warn('Could not resolve REALU balances:', e);
+      return new Map();
+    }
+  }
+
+  private async getHolderBalances(): Promise<Map<string, string>> {
+    return this.holderBalanceCache.get('holders', async () => {
+      const map = new Map<string, string>();
+
+      let after: string | undefined;
+      do {
+        const page = await this.realUnitService.getHolders(1000, undefined, after);
+        for (const holder of page.holders) map.set(holder.address.toLowerCase(), holder.balance);
+        after = page.pageInfo?.hasNextPage ? page.pageInfo.endCursor : undefined;
+      } while (after);
+
+      return map;
+    });
   }
 
   // ZIP entry paths must not carry traversal payloads from customer-influenced file names.

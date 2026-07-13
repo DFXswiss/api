@@ -88,6 +88,11 @@ export class UserService {
     return this.userRepo.find({ where: { userData: { id: userDataId } }, relations });
   }
 
+  async getUsersByUserDataIds(userDataIds: number[]): Promise<User[]> {
+    if (!userDataIds.length) return [];
+    return this.userRepo.find({ where: { userData: { id: In(userDataIds) } }, relations: { userData: true } });
+  }
+
   async getUserByAddress(address: string, relations: FindOptionsRelations<User> = {}): Promise<User> {
     return this.userRepo.findOne({ where: { address }, relations });
   }
