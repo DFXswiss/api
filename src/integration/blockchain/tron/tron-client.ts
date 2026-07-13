@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
@@ -195,8 +196,11 @@ export class TronClient extends BlockchainClient {
   private async sendNativeCoin(wallet: TronWallet, toAddress: string, amount: number): Promise<string> {
     const url = Config.blockchain.tron.tronApiUrl;
 
-    return this.http
-      .post<any>(
+    // Broadcast boundary: this gateway call signs AND broadcasts the tx atomically in a single
+    // remote call - there is no separate local pre-broadcast step to isolate, so any failure from
+    // here on is ambiguous (the tx may already be on-chain).
+    try {
+      const response = await this.http.post<any>(
         `${url}/transaction`,
         {
           fromPrivateKey: wallet.privateKey,
@@ -204,8 +208,17 @@ export class TronClient extends BlockchainClient {
           amount: amount.toString(),
         },
         this.httpConfig(),
-      )
-      .then((r) => r.txId);
+      );
+
+      // A 200 response without a txId is an in-band silent failure - treat it as ambiguous
+      // (fail-closed) rather than returning an empty id that would later roll back for re-broadcast.
+      if (!response?.txId) throw new TxBroadcastError('Tron broadcast returned an empty txId', { cause: response });
+
+      return response.txId;
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw e;
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   async sendTokenFromAccount(account: WalletAccount, toAddress: string, token: Asset, amount: number): Promise<string> {
@@ -218,12 +231,14 @@ export class TronClient extends BlockchainClient {
   }
 
   private async sendToken(wallet: TronWallet, toAddress: string, token: Asset, amount: number): Promise<string> {
+    // Pre-broadcast: local validation only, no network call - stays a plain Error.
     if (!token.decimals) throw new Error(`No decimals found in token ${token.uniqueName}`);
 
     const url = Config.blockchain.tron.tronApiUrl;
 
-    return this.http
-      .post<any>(
+    // Broadcast boundary: see sendNativeCoin.
+    try {
+      const response = await this.http.post<any>(
         `${url}/trc20/transaction`,
         {
           fromPrivateKey: wallet.privateKey,
@@ -233,8 +248,16 @@ export class TronClient extends BlockchainClient {
           feeLimit: TronUtil.fromSunAmount(Config.blockchain.tron.sendTokenFeeLimit),
         },
         this.httpConfig(),
-      )
-      .then((r) => r.txId);
+      );
+
+      // See sendNativeCoin: a 200 without a txId is an ambiguous in-band failure, not an empty success.
+      if (!response?.txId) throw new TxBroadcastError('Tron broadcast returned an empty txId', { cause: response });
+
+      return response.txId;
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw e;
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   async sendSignedTransaction(tx: string): Promise<BlockchainSignedTransactionResponse> {

@@ -37,9 +37,10 @@ interface DesignateBeforeBroadcastFixture {
 interface DesignateBeforeBroadcastOptions {
   // Error thrown by dispatchPayout to simulate a broadcast-time failure. Plain Error by default
   // (matches every strategy that still has the old, undifferentiated fail-closed catch). EVM,
-  // Cardano, Solana, ICP and Lightning now map a real send failure to PayoutBroadcastException (see
-  // payout-evm/cardano/solana/icp/lightning.service.ts + evm/cardano/solana/icp-client.ts and
-  // lightning-client.ts), so their fixtures must throw that type here to stay representative.
+  // Cardano, Solana, ICP, Lightning, Tron, Arkade and Spark now map a real send failure to
+  // PayoutBroadcastException (see payout-evm/cardano/solana/icp/lightning/tron/arkade/spark.service.ts
+  // + evm/cardano/solana/icp/tron/arkade/spark-client.ts and lightning-client.ts), so their fixtures
+  // must throw that type here to stay representative.
   broadcastError?: Error;
   // PayoutStrategy#handleBroadcastError (see payout.strategy.ts, exercised via EvmStrategy /
   // CardanoStrategy / SolanaStrategy #doPayout) treats any non-PayoutBroadcastException
@@ -253,7 +254,10 @@ describe('Payout designate-before-broadcast', () => {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
     designateSaveFailureRollsBack: true,
   });
-  runDesignateBeforeBroadcastSuite('TronStrategy (TronCoinStrategy)', setupTron);
+  runDesignateBeforeBroadcastSuite('TronStrategy (TronCoinStrategy)', setupTron, {
+    broadcastError: new PayoutBroadcastException('broadcast failed'),
+    designateSaveFailureRollsBack: true,
+  });
   runDesignateBeforeBroadcastSuite('CardanoStrategy (CardanoCoinStrategy)', setupCardano, {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
     designateSaveFailureRollsBack: true,
@@ -262,8 +266,14 @@ describe('Payout designate-before-broadcast', () => {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
     designateSaveFailureRollsBack: true,
   });
-  runDesignateBeforeBroadcastSuite('ArkadeStrategy', setupArkade);
-  runDesignateBeforeBroadcastSuite('SparkStrategy', setupSpark);
+  runDesignateBeforeBroadcastSuite('ArkadeStrategy', setupArkade, {
+    broadcastError: new PayoutBroadcastException('broadcast failed'),
+    designateSaveFailureRollsBack: true,
+  });
+  runDesignateBeforeBroadcastSuite('SparkStrategy', setupSpark, {
+    broadcastError: new PayoutBroadcastException('broadcast failed'),
+    designateSaveFailureRollsBack: true,
+  });
   runDesignateBeforeBroadcastSuite('LightningStrategy', setupLightning, {
     broadcastError: new PayoutBroadcastException('broadcast failed'),
     designateSaveFailureRollsBack: true,

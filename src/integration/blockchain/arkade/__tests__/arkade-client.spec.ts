@@ -1,4 +1,5 @@
 import { Wallet } from '@arkade-os/sdk';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { ArkadeClient } from '../arkade-client';
 
 // Mock the SDK to provide InMemory repositories
@@ -102,6 +103,100 @@ describe('ArkadeClient', () => {
         address: 'ark1destination',
         amount: 12345679, // Math.round(12345678.9)
       });
+    });
+  });
+
+  // --- SEND TRANSACTION - BROADCAST BOUNDARY --- //
+  // wallet.sendBitcoin signs AND broadcasts atomically inside the SDK, so it must never be retried by
+  // this.call()'s reconnect-and-retry (which would resend an already-broadcast tx). Any failure at or
+  // after that call is wrapped into a TxBroadcastError; wallet resolution failures never reach
+  // sendBitcoin and stay plain errors.
+
+  describe('sendTransaction - broadcast boundary', () => {
+    it('wraps a sendBitcoin failure into a TxBroadcastError, keeping message and cause', async () => {
+      const cause = new Error('unexpected rejection');
+      mockWallet.sendBitcoin.mockRejectedValue(cause);
+
+      let error: unknown;
+      try {
+        await client.sendTransaction('ark1destination', 0.5);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('unexpected rejection');
+      expect((error as TxBroadcastError).cause).toBe(cause);
+    });
+
+    it('wraps a non-Error rejection using String(e)', async () => {
+      mockWallet.sendBitcoin.mockRejectedValue('plain string rejection');
+
+      let error: unknown;
+      try {
+        await client.sendTransaction('ark1destination', 0.5);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('plain string rejection');
+    });
+
+    it('never resends when sendBitcoin fails with a connection-classified error (fail-closed, no double-send), but resets the cache so the next call reconnects', async () => {
+      mockWallet.sendBitcoin.mockRejectedValue(new Error('connection lost'));
+
+      await expect(client.sendTransaction('ark1destination', 0.5)).rejects.toBeInstanceOf(TxBroadcastError);
+      expect(mockWallet.sendBitcoin).toHaveBeenCalledTimes(1); // never resent within this call
+
+      const freshWallet = { ...mockWallet, sendBitcoin: jest.fn().mockResolvedValue('tx-fresh') };
+      jest.spyOn(Wallet, 'create').mockResolvedValue(freshWallet as any);
+
+      const result = await client.sendTransaction('ark1destination', 0.5);
+
+      expect(result).toEqual({ txid: 'tx-fresh', fee: 0 }); // next call picked up the fresh wallet
+      expect(freshWallet.sendBitcoin).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not reset the cache when sendBitcoin fails with an unrelated error', async () => {
+      mockWallet.sendBitcoin.mockRejectedValue(new Error('insufficient funds'));
+
+      await expect(client.sendTransaction('ark1destination', 0.5)).rejects.toBeInstanceOf(TxBroadcastError);
+
+      mockWallet.sendBitcoin.mockResolvedValue('tx-retry');
+      await client.sendTransaction('ark1destination', 0.5);
+
+      // still the same wallet instance from Wallet.create - no reinitialization happened
+      expect(Wallet.create).toHaveBeenCalledTimes(1);
+    });
+
+    it('propagates a wallet resolution failure as a plain (non-TxBroadcastError) error and resets the cache, never reaching sendBitcoin', async () => {
+      jest.spyOn(Wallet, 'create').mockRejectedValue(new Error('server down'));
+      const freshClient = new ArkadeClient();
+
+      let error: unknown;
+      try {
+        await freshClient.sendTransaction('ark1destination', 0.5);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(Error);
+      expect(error).not.toBeInstanceOf(TxBroadcastError);
+      expect((error as Error).message).toBe('server down');
+      expect(mockWallet.sendBitcoin).not.toHaveBeenCalled();
+
+      // reset proof: the next attempt re-initializes instead of reusing the permanently-rejected AsyncField
+      jest.spyOn(Wallet, 'create').mockResolvedValue(mockWallet as any);
+      const result = await freshClient.sendTransaction('ark1destination', 0.5);
+      expect(result).toEqual({ txid: 'tx-abc123', fee: 0 });
+    });
+
+    it('wraps an empty txid from sendBitcoin into a TxBroadcastError (fail-closed silent failure)', async () => {
+      mockWallet.sendBitcoin.mockResolvedValue('');
+
+      await expect(client.sendTransaction('ark1destination', 0.5)).rejects.toBeInstanceOf(TxBroadcastError);
+      expect(mockWallet.sendBitcoin).toHaveBeenCalledTimes(1);
     });
   });
 

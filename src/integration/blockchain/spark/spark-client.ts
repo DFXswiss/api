@@ -5,6 +5,7 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AsyncField } from 'src/shared/utils/async-field';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
+import { TxBroadcastError } from '../shared/errors/tx-broadcast.error';
 import { BlockchainClient } from '../shared/util/blockchain-client';
 
 export interface SparkTransaction {
@@ -84,18 +85,41 @@ export class SparkClient extends BlockchainClient {
   // --- TRANSACTION METHODS --- //
 
   async sendTransaction(to: string, amount: number): Promise<{ txid: string; fee: number }> {
-    return this.call(async (wallet) => {
-      const amountSats = Math.round(amount * 1e8);
+    // Pre-broadcast: resolving the wallet and syncing leaves never calls wallet.transfer, so a
+    // failure here is provably pre-broadcast - routed through this.call() so a channel-shutdown
+    // error still gets its reconnect-and-retry (safe: transfer was never reached yet).
+    const wallet = await this.call(async (w) => {
+      await this.syncLeaves(w);
+      return w;
+    });
 
-      await this.syncLeaves(wallet);
+    const amountSats = Math.round(amount * 1e8);
 
+    // Broadcast boundary: wallet.transfer signs AND sends atomically inside the SDK - there is no
+    // separate pre-broadcast step to isolate, so any failure from here on is ambiguous (the transfer
+    // may already be in-flight/settled on Spark's side). Deliberately NOT routed through
+    // this.call()'s reconnect-and-retry: that wrapper re-invokes the whole operation on a
+    // channel-shutdown error, which for a transfer would risk sending twice. Reset the cache on such
+    // an error so only the *next* call reconnects, without resending this one.
+    try {
       const result = await wallet.transfer({
         amountSats,
         receiverSparkAddress: to,
       });
 
+      // An empty transfer id from the SDK is an ambiguous silent failure - fail-closed rather than
+      // returning it and letting the empty id roll the order back for re-broadcast.
+      if (!result?.id) throw new TxBroadcastError('Spark broadcast returned an empty transfer id');
+
       return { txid: result.id, fee: 0 };
-    });
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw e;
+      if (e?.message?.includes('Channel has been shut down')) {
+        this.wallet.reset();
+        this.cachedAddress.reset();
+      }
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   async getTransaction(txId: string): Promise<SparkTransaction> {
