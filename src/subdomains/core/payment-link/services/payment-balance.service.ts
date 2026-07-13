@@ -118,6 +118,14 @@ export class PaymentBalanceService implements OnModuleInit {
         } catch (e) {
           if (!catchException) throw e;
 
+          if (this.isRpcPlanRestricted(e)) {
+            if (!this.unavailableWarningsLogged.has(chain)) {
+              this.logger.warn(`Payment balance check for ${chain} is plan-restricted by the RPC provider - skipping`);
+              this.unavailableWarningsLogged.add(chain);
+            }
+            return;
+          }
+
           this.logger.error(`Error getting payment balances for blockchain ${chain}:`, e);
         }
       }),
@@ -253,5 +261,11 @@ export class PaymentBalanceService implements OnModuleInit {
     }
 
     throw new Error(`Payment forwarding not implemented for ${chain}`);
+  }
+
+  // Some RPC providers (e.g. Tatum) gate individual methods behind a paid plan - retrying
+  // won't change the outcome until the plan is upgraded, so this shouldn't error on every poll.
+  private isRpcPlanRestricted(e: unknown): boolean {
+    return e instanceof Error && e.message.includes('available for paid plans only');
   }
 }

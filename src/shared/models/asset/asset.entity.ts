@@ -128,8 +128,13 @@ export class Asset extends IEntity {
   @ManyToOne(() => PriceRule)
   priceRule: PriceRule;
 
+  // A stored CHF price this close to zero is corrupted data (e.g. a degenerate on-chain DEX
+  // quote), not a real asset price. Treating it as unset avoids deriving a reference amount
+  // large enough to overflow on-chain swap math (uint256) on every subsequent price check.
+  private static readonly MIN_SANE_PRICE_CHF = 1e-12;
+
   get minimalPriceReferenceAmount() {
-    return this.approxPriceChf ? 1 / this.approxPriceChf : 1;
+    return this.approxPriceChf > Asset.MIN_SANE_PRICE_CHF ? 1 / this.approxPriceChf : 1;
   }
 
   get evmChainId(): number | undefined {
