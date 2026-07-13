@@ -24,14 +24,18 @@ import { KycService } from 'src/subdomains/generic/kyc/services/kyc.service';
 import { BankDataService } from 'src/subdomains/generic/user/models/bank-data/bank-data.service';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
+import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
+import { User } from 'src/subdomains/generic/user/models/user/user.entity';
 import { VirtualIbanService } from 'src/subdomains/supporting/bank/virtual-iban/virtual-iban.service';
 import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
+import { HoldersDto } from 'src/subdomains/supporting/realunit/dto/realunit.dto';
 import {
   REALUNIT_VISIBLE_TX_ASSETS,
   RealUnitComplianceService,
 } from 'src/subdomains/supporting/realunit/realunit-compliance.service';
+import { RealUnitService } from 'src/subdomains/supporting/realunit/realunit.service';
 import { RealUnitScopeService } from 'src/subdomains/supporting/realunit/realunit-scope.service';
 
 describe('RealUnitComplianceService', () => {
@@ -39,6 +43,8 @@ describe('RealUnitComplianceService', () => {
 
   let scopeService: DeepMocked<RealUnitScopeService>;
   let userDataService: DeepMocked<UserDataService>;
+  let userService: DeepMocked<UserService>;
+  let realUnitService: DeepMocked<RealUnitService>;
   let transactionService: DeepMocked<TransactionService>;
   let bankDataService: DeepMocked<BankDataService>;
   let buyService: DeepMocked<BuyService>;
@@ -65,6 +71,13 @@ describe('RealUnitComplianceService', () => {
     return Object.assign(new KycStep(), values);
   }
 
+  // Balance resolution defaults: no wallet addresses, empty holder set, share token with 0 decimals.
+  function mockEmptyBalances(): void {
+    userService.getUsersByUserDataIds.mockResolvedValue([]);
+    realUnitService.getHolders.mockResolvedValue({ holders: [], pageInfo: { hasNextPage: false } } as HoldersDto);
+    realUnitService.getRealuAsset.mockResolvedValue({ decimals: 0 } as Asset);
+  }
+
   // Baseline mocks for a dossier of an existing member with no data; tests override what they exercise.
   function mockDossierDefaults(): void {
     scopeService.assertCustomer.mockResolvedValue(undefined);
@@ -83,6 +96,9 @@ describe('RealUnitComplianceService', () => {
   beforeEach(() => {
     scopeService = createMock<RealUnitScopeService>();
     userDataService = createMock<UserDataService>();
+    userService = createMock<UserService>();
+    realUnitService = createMock<RealUnitService>();
+    mockEmptyBalances();
     transactionService = createMock<TransactionService>();
     bankDataService = createMock<BankDataService>();
     buyService = createMock<BuyService>();
@@ -98,6 +114,8 @@ describe('RealUnitComplianceService', () => {
     service = new RealUnitComplianceService(
       scopeService,
       userDataService,
+      userService,
+      realUnitService,
       transactionService,
       bankDataService,
       buyService,
@@ -312,6 +330,38 @@ describe('RealUnitComplianceService', () => {
       expect(userDataService.getUserDataByIds).toHaveBeenCalledWith([1, 2]);
       expect(result.map((u) => u.id)).toEqual([1, 2]);
       expect(result[0]).not.toHaveProperty('bankTx');
+    });
+
+    it('sums the indexer balances over all wallet addresses of a member', async () => {
+      scopeService.getCustomerIds.mockResolvedValue([1]);
+      userDataService.getUserDataByIds.mockResolvedValue([Object.assign(new UserData(), { id: 1 })]);
+      userService.getUsersByUserDataIds.mockResolvedValue([
+        Object.assign(new User(), { address: '0xAbC', userData: { id: 1 } as UserData }),
+        Object.assign(new User(), { address: '0xDeF', userData: { id: 1 } as UserData }),
+      ]);
+      realUnitService.getHolders.mockResolvedValue({
+        holders: [
+          { address: '0xabc', balance: '100' },
+          { address: '0xdef', balance: '50' },
+          { address: '0x999', balance: '7' }, // foreign holder, not one of the member's addresses
+        ],
+        pageInfo: { hasNextPage: false },
+      } as HoldersDto);
+
+      const result = await service.searchCustomers();
+
+      expect(result[0].balance).toBe(150);
+    });
+
+    it('reports the balance as unknown (undefined) when the indexer is unavailable', async () => {
+      scopeService.getCustomerIds.mockResolvedValue([1]);
+      userDataService.getUserDataByIds.mockResolvedValue([Object.assign(new UserData(), { id: 1 })]);
+      realUnitService.getHolders.mockRejectedValue(new Error('indexer down'));
+
+      const result = await service.searchCustomers();
+
+      expect(result).toHaveLength(1);
+      expect(result[0].balance).toBeUndefined();
     });
 
     it('returns an empty list (fail-closed) without a key when there are no RealUnit customers', async () => {
