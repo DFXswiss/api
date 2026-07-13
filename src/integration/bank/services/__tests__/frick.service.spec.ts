@@ -164,6 +164,7 @@ describe('BankFrickService', () => {
 
     expect(http.request.mock.calls.some(([request]) => request.method === 'PUT')).toBe(false);
     expect(http.request.mock.calls[1][0].url).toContain('transactions?customId=DFX-FO-42');
+    expect(http.request.mock.calls[1][0].url).toContain('fromDate=1970-01-01');
   });
 
   it('recovers BOOKED orders through the explicit historical lookup', async () => {
@@ -177,6 +178,8 @@ describe('BankFrickService', () => {
     await expect(service.createPaymentOrder(paymentInput())).resolves.toEqual(order);
 
     const requests = http.request.mock.calls.map(([request]) => request);
+    expect(requests[1].url).toContain('transactions?customId=DFX-FO-42');
+    expect(requests[1].url).toContain('fromDate=1970-01-01');
     expect(requests[2].url).toContain('status=BOOKED');
     expect(requests[2].url).toContain('fromDate=1970-01-01');
     expect(requests.some((request) => request.method === 'PUT')).toBe(false);

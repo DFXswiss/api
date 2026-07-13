@@ -28,6 +28,10 @@ type FrickResponseType = 'json' | 'text';
 @Injectable()
 export class BankFrickService {
   private static readonly TOKEN_REFRESH_SKEW_MS = 30_000;
+  // Bank Frick's transaction search silently limits results to a short recent window unless a fromDate
+  // is supplied. Every customId lookup must send this wide fromDate, not only the BOOKED fallback, so a
+  // stale or slow-settling order can never be missed and re-submitted as a duplicate payout.
+  private static readonly EARLIEST_FROM_DATE = '1970-01-01';
 
   private accessToken?: string;
   private tokenExpiryMs = 0;
@@ -265,14 +269,21 @@ export class BankFrickService {
   }
 
   private async getPaymentOrderOrUndefined(customId: string): Promise<FrickPaymentOrder | undefined> {
-    const active = await this.getFilteredPaymentOrder(new URLSearchParams({ customId }), customId);
+    const active = await this.getFilteredPaymentOrder(
+      new URLSearchParams({ customId, fromDate: BankFrickService.EARLIEST_FROM_DATE }),
+      customId,
+    );
     if (active) return active;
 
     // BOOKED orders are deliberately excluded from Bank Frick's default transaction search. Query them
     // explicitly as well so a process crash after a successful PUT can never make the retry create a second
-    // payout. The API also documents that a fromDate is required for reliable BOOKED lookups.
+    // payout.
     return this.getFilteredPaymentOrder(
-      new URLSearchParams({ customId, status: FrickPaymentState.BOOKED, fromDate: '1970-01-01' }),
+      new URLSearchParams({
+        customId,
+        status: FrickPaymentState.BOOKED,
+        fromDate: BankFrickService.EARLIEST_FROM_DATE,
+      }),
       customId,
     );
   }
