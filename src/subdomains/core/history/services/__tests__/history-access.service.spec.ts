@@ -1,5 +1,5 @@
-import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { createMock } from '@golevelup/ts-jest';
+import { ForbiddenException, UnauthorizedException } from '@nestjs/common';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';

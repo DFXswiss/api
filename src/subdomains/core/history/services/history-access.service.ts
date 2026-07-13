@@ -1,6 +1,6 @@
 import { ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
-import { hasRoleAccess } from 'src/shared/auth/role.guard';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
+import { hasRoleAccess } from 'src/shared/auth/role.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { UserDataService } from 'src/subdomains/generic/user/models/user-data/user-data.service';
@@ -100,7 +100,6 @@ export class HistoryAccessService {
     userAddress?: string,
   ): Promise<HistorySubject> {
     // User keys end with version digit `0` (see ApiKeyService / history.controller); account keys differ.
-    // Avoid `instanceof` so plain test doubles and TypeORM proxies both work.
     if (apiKey.endsWith('0')) {
       const user = await this.userService.checkApiKey(apiKey, apiSign, apiTimestamp);
       if (userAddress?.trim() && !this.addressesEqual(user.address, userAddress.trim())) {

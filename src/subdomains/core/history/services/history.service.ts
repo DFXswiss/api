@@ -136,8 +136,9 @@ export class HistoryService {
   }
 
   private isAccountSubject(subject: User | UserData): subject is UserData {
-    // Wallet User.address is a string; UserData.address is a postal-address object getter.
-    return typeof (subject as User).address !== 'string';
+    // instanceof, not the `address` getter — UserData.address dereferences the organization
+    // relation for ORGANIZATION / SOLE_PROPRIETORSHIP accounts and throws when it isn't loaded.
+    return subject instanceof UserData;
   }
 
   private async getHistoryTransactions(
@@ -274,7 +275,7 @@ export class HistoryService {
     query: HistoryQuery,
     exportType: T,
   ): Promise<HistoryDto<T>[]> {
-    const userIds = this.isAccountSubject(user) ? (user.users?.map((u) => u.id) ?? []) : [user.id];
+    const userIds = this.isAccountSubject(user) ? user.users.map((u) => u.id) : [user.id];
 
     const stakingInvests = await this.stakingService.getUserInvests(userIds, query.from, query.to);
     const stakingRewards = await this.stakingService.getUserStakingRewards(userIds, query.from, query.to);

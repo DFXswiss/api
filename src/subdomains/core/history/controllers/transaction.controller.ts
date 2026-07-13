@@ -710,7 +710,7 @@ export class TransactionController {
     subject: HistorySubject,
     query: HistoryQuery,
     exportType: T,
-    res: any,
+    res: Response,
   ): Promise<HistoryDto<T>[] | StreamableFile> {
     const tx = await this.historyService.getHistoryForSubject(subject, query, exportType);
     if (query.format === ExportFormat.CSV) this.setCsvResult(res, exportType);

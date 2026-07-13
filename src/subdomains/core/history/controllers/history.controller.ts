@@ -8,7 +8,6 @@ import {
   Post,
   Query,
   Res,
-  Response,
   StreamableFile,
   UseGuards,
 } from '@nestjs/common';
@@ -21,6 +20,7 @@ import {
   ApiOkResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { Response } from 'express';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -62,7 +62,7 @@ export class HistoryController {
   async getHistory(
     @GetJwt() jwt: JwtPayload,
     @Query() query: HistoryQueryUser,
-    @Response({ passthrough: true }) res,
+    @Res({ passthrough: true }) res: Response,
   ): Promise<TransactionDto[] | StreamableFile> {
     if (!query.format) query.format = ExportFormat.JSON;
     const subject = await this.historyAccessService.resolveListSubject({
@@ -127,7 +127,7 @@ export class HistoryController {
   @ApiBearerAuth()
   @ApiOkResponse({ type: StreamableFile })
   @ApiExcludeEndpoint()
-  async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res): Promise<StreamableFile> {
+  async getCsv(@Query('key') key: string, @Res({ passthrough: true }) res: Response): Promise<StreamableFile> {
     const csvFile = this.files[key];
     if (!csvFile) throw new NotFoundException('File not found');
     delete this.files[key];

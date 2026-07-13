@@ -72,6 +72,52 @@ export const KycRequiredReason = [
 
 export const LimitExceededReason = [TransactionReason.MONTHLY_LIMIT_EXCEEDED, TransactionReason.ANNUAL_LIMIT_EXCEEDED];
 
+// Fail-closed: this map is typed over every key of TransactionReason, so adding a new reason
+// without classifying it here is a compile error.
+// `false` = must never reach an unauthenticated caller on the public single-transaction lookup,
+// either because the reason itself discloses an AML suspicion, a KYC rejection or an account
+// deletion (KYC_REJECTED, FRAUD_SUSPICION, SANCTION_SUSPICION, USER_DELETED), or because
+// it belongs to the KycRequiredReason set (INSTANT_PAYMENT). Hiding a reason is only half the job:
+// the KYC_REQUIRED state is produced by nothing but that set, so the state alone would give the
+// suspicions away — TransactionDtoMapper.toPublicDto therefore masks it to CHECK_PENDING. Keeping
+// the whole set private means a visible reason can never re-identify the masked state, and the
+// reason gate still holds should the state masking ever be weakened. Keep the two in sync.
+// `true` = operational info the user can act on (limits, KYC/verification steps, asset/bank/country
+// availability, fees, a mismatching account holder), a neutral processing state, or the
+// deliberately opaque UNKNOWN bucket (AmlReason USER_BLOCKED / USER_DATA_SUSPICIOUS and friends map
+// there, see TransactionReasonMapper) — safe to disclose on a status link.
+export const PublicTransactionReasonMap: { [reason in TransactionReason]: boolean } = {
+  [TransactionReason.UNKNOWN]: true,
+  [TransactionReason.MONTHLY_LIMIT_EXCEEDED]: true,
+  [TransactionReason.ANNUAL_LIMIT_EXCEEDED]: true,
+  [TransactionReason.ACCOUNT_HOLDER_MISMATCH]: true,
+  [TransactionReason.KYC_REJECTED]: false,
+  [TransactionReason.FRAUD_SUSPICION]: false,
+  [TransactionReason.SANCTION_SUSPICION]: false,
+  [TransactionReason.MIN_DEPOSIT_NOT_REACHED]: true,
+  [TransactionReason.ASSET_NOT_AVAILABLE]: true,
+  [TransactionReason.ASSET_NOT_AVAILABLE_WITH_CHOSEN_BANK]: true,
+  [TransactionReason.STAKING_DISCONTINUED]: true,
+  [TransactionReason.BANK_NOT_ALLOWED]: true,
+  [TransactionReason.PAYMENT_ACCOUNT_NOT_ALLOWED]: true,
+  [TransactionReason.COUNTRY_NOT_ALLOWED]: true,
+  [TransactionReason.INSTANT_PAYMENT]: false,
+  [TransactionReason.FEE_TOO_HIGH]: true,
+  [TransactionReason.RECEIVER_REJECTED]: true,
+  [TransactionReason.CHF_ABROAD_NOT_ALLOWED]: true,
+  [TransactionReason.ASSET_KYC_NEEDED]: true,
+  [TransactionReason.CARD_NAME_MISMATCH]: true,
+  [TransactionReason.USER_DELETED]: false,
+  [TransactionReason.VIDEO_IDENT_NEEDED]: true,
+  [TransactionReason.MISSING_LIQUIDITY]: true,
+  [TransactionReason.KYC_DATA_NEEDED]: true,
+  [TransactionReason.BANK_TX_NEEDED]: true,
+  [TransactionReason.MERGE_INCOMPLETE]: true,
+  [TransactionReason.PHONE_VERIFICATION_NEEDED]: true,
+  [TransactionReason.BANK_RELEASE_PENDING]: true,
+  [TransactionReason.INPUT_NOT_CONFIRMED]: true,
+};
+
 export const TransactionReasonMapper: {
   [key in AmlReason]: TransactionReason;
 } = {
