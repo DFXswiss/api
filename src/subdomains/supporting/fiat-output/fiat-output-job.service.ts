@@ -38,11 +38,13 @@ import { FiatOutputRepository } from './fiat-output.repository';
 
 @Injectable()
 export class FiatOutputJobService {
+  // DELETION_REQUESTED is intentionally NOT terminal: the bank order can still be executed or fail
+  // later, so liquidity must stay reserved and the status must keep being polled until a real
+  // terminal state (or a matching debit bankTx via the isComplete path) arrives.
   private static readonly FRICK_TERMINAL_STATES = [
     FrickPaymentState.REJECTED,
     FrickPaymentState.EXPIRED,
     FrickPaymentState.DELETED,
-    FrickPaymentState.DELETION_REQUESTED,
     FrickPaymentState.ERROR,
   ];
 
@@ -648,12 +650,13 @@ export class FiatOutputJobService {
         };
 
       case FrickPaymentState.PREPARED:
+      case FrickPaymentState.DELETION_REQUESTED:
+        // Non-terminal: persist the status change only, no liquidity release, no isComplete.
         return { frickOrderStatus: order.state, frickError: null };
 
       case FrickPaymentState.REJECTED:
       case FrickPaymentState.EXPIRED:
       case FrickPaymentState.DELETED:
-      case FrickPaymentState.DELETION_REQUESTED:
       case FrickPaymentState.ERROR:
         return { frickOrderStatus: order.state, frickError: null };
 

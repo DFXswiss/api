@@ -989,7 +989,6 @@ describe('FiatOutputJobService', () => {
       FrickPaymentState.REJECTED,
       FrickPaymentState.EXPIRED,
       FrickPaymentState.DELETED,
-      FrickPaymentState.DELETION_REQUESTED,
       FrickPaymentState.ERROR,
     ])('maps terminal state %s to the dedicated order status', (state) => {
       expect(
@@ -998,6 +997,97 @@ describe('FiatOutputJobService', () => {
           createCustomFiatOutput({ id: 42, frickTxId: 'DFX-FO-42' }),
         ),
       ).toEqual({ frickOrderStatus: state, frickError: null });
+    });
+
+    it('treats DELETION_REQUESTED as a non-terminal status transition (no liquidity release, no isComplete)', () => {
+      expect(
+        service['getFrickStatusUpdate'](
+          { ...order, state: FrickPaymentState.DELETION_REQUESTED },
+          createCustomFiatOutput({ id: 42, frickTxId: 'DFX-FO-42' }),
+        ),
+      ).toEqual({ frickOrderStatus: FrickPaymentState.DELETION_REQUESTED, frickError: null });
+    });
+
+    it.each([
+      [FrickPaymentState.REJECTED, true],
+      [FrickPaymentState.EXPIRED, true],
+      [FrickPaymentState.DELETED, true],
+      [FrickPaymentState.ERROR, true],
+      [FrickPaymentState.DELETION_REQUESTED, false],
+      [FrickPaymentState.PREPARED, false],
+      [FrickPaymentState.IN_PROGRESS, false],
+      [FrickPaymentState.BOOKED, false],
+      [FrickPaymentState.EXECUTED, false],
+    ])('classifies %s as terminal=%s for liquidity release and status-poll exclusion', (state, terminal) => {
+      expect(service['isFrickTerminalState'](state)).toBe(terminal);
+    });
+
+    it('reserves liquidity for a Bank Frick order stuck in DELETION_REQUESTED', async () => {
+      const bank = createCustomBank({ name: IbanBankName.FRICK, iban: 'SYNTHETIC-FRICK-ACCOUNT' });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 5,
+          bank,
+          amount: 5000,
+          currency: 'EUR',
+          isReadyDate: new Date('2026-07-01'),
+          isTransmittedDate: new Date('2026-07-01'),
+          frickTxId: 'DFX-FO-5',
+          frickOrderStatus: FrickPaymentState.DELETION_REQUESTED,
+        }),
+        createCustomFiatOutput({
+          id: 6,
+          bank,
+          iban: 'SYNTHETIC-CREDITOR-ACCOUNT',
+          amount: 4000,
+          currency: 'EUR',
+          isReadyDate: null,
+          buyFiats: [
+            createCustomBuyFiat({
+              cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
+            }),
+          ],
+          type: FiatOutputType.BUY_FIAT,
+        }),
+      ]);
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([
+        createCustomAsset({
+          id: 1,
+          type: AssetType.CUSTODY,
+          bank,
+          name: 'EUR',
+          balance: createCustomLiquidityBalance({ amount: 9000 }),
+        }),
+      ]);
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(6, { isReadyDate: expect.any(Date) });
+    });
+
+    it('never re-approves and keeps polling an order stuck in DELETION_REQUESTED', async () => {
+      Config.bank.frick.payoutEnabled = true;
+      Config.bank.frick.approveWithoutTan = true;
+      jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+      jest
+        .spyOn(frickService, 'getPaymentOrder')
+        .mockResolvedValue({ ...order, state: FrickPaymentState.DELETION_REQUESTED });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 42,
+          frickTxId: 'DFX-FO-42',
+          isComplete: false,
+          frickOrderStatus: FrickPaymentState.DELETION_REQUESTED,
+        }),
+      ]);
+
+      await service.checkFrickOrderStatus();
+
+      expect(frickService.approvePaymentWithoutTan).not.toHaveBeenCalled();
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, {
+        frickOrderStatus: FrickPaymentState.DELETION_REQUESTED,
+        frickError: null,
+      });
     });
 
     it('rejects an unsupported Bank Frick status instead of guessing', () => {
