@@ -72,15 +72,34 @@ describe('PaymentBalanceService', () => {
         getNativeCoinBalanceForAddress: jest.fn().mockResolvedValue(1.5),
         getTokenBalances: jest.fn().mockResolvedValue([]),
       } as any);
-      service['solanaDepositAddress'] = 'DwS2fTestDepositAddress';
+      service['solanaDepositAddress'] = 'SolTestDepositAddress';
 
       const balances = await service.getPaymentBalances([solanaCoin()], true);
 
       expect(balances.get(1)).toEqual({
-        owner: 'DwS2fTestDepositAddress',
+        owner: 'SolTestDepositAddress',
         contractAddress: 'So11111111111111111111111111111111111111112',
         balance: 1.5,
       });
+    });
+
+    it('keeps a failing configured client visible as an error', async () => {
+      const warnSpy = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation(() => undefined);
+      const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation(() => undefined);
+      jest.spyOn(blockchainRegistryService, 'getClient').mockReturnValue({
+        isConfigured: true,
+        getNativeCoinBalanceForAddress: jest.fn().mockRejectedValue(new Error('getBalance rejected')),
+      } as any);
+      service['solanaDepositAddress'] = 'SolTestDepositAddress';
+
+      await expect(service.getPaymentBalances([solanaCoin()], false)).rejects.toThrow('getBalance rejected');
+
+      const balances = await service.getPaymentBalances([solanaCoin()], true);
+
+      expect(balances.size).toBe(0);
+      expect(warnSpy).not.toHaveBeenCalled();
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('Solana'), expect.any(Error));
     });
   });
 });
