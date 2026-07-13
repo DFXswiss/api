@@ -17,7 +17,8 @@ import { KycLevel, KycStatus, KycType } from 'src/subdomains/generic/user/models
 // constructed field-by-field from scratch (never the full DFX dossier minus keys), so no DFX-internal or AML
 // work-product field can ever leak by omission or drift. The nested collection DTOs below are RealUnit-specific and
 // STRUCTURALLY omit every DFX AML work product / compliance note (see the per-DTO notes) per the product owner's
-// reduced-compliance-scope decision (2026-07-03).
+// reduced-compliance-scope decision (2026-07-03) — with one deliberate exception: the two mandatory check
+// evidences (ident + Dilisense name check) are exposed per the product owner's decision of 2026-07-09.
 
 export class RealUnitCustomerSearchQuery {
   @IsOptional()
