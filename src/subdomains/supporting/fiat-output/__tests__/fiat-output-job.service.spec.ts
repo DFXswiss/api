@@ -1,5 +1,8 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Config } from 'src/config/config';
+import { FrickPaymentState, FrickPaymentType } from 'src/integration/bank/dto/frick.dto';
+import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
@@ -22,6 +25,7 @@ import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return
 import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { createCustomBank, yapealEUR } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { BankService } from '../../bank/bank/bank.service';
+import { IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { createCustomVirtualIban } from '../../bank/virtual-iban/__mocks__/virtual-iban.entity.mock';
 import { VirtualIbanService } from '../../bank/virtual-iban/virtual-iban.service';
 import { createCustomLog } from '../../log/__mocks__/log.entity.mock';
@@ -47,6 +51,7 @@ describe('FiatOutputJobService', () => {
   let bankTxRepeatService: BankTxRepeatService;
   let yapealService: YapealService;
   let olkypayService: OlkypayService;
+  let frickService: BankFrickService;
   let virtualIbanService: VirtualIbanService;
   let scryptService: ScryptService;
 
@@ -62,6 +67,7 @@ describe('FiatOutputJobService', () => {
     bankTxRepeatService = createMock<BankTxRepeatService>();
     yapealService = createMock<YapealService>();
     olkypayService = createMock<OlkypayService>();
+    frickService = createMock<BankFrickService>();
     virtualIbanService = createMock<VirtualIbanService>();
     scryptService = createMock<ScryptService>();
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
@@ -86,6 +92,7 @@ describe('FiatOutputJobService', () => {
         { provide: BankTxRepeatService, useValue: bankTxRepeatService },
         { provide: YapealService, useValue: yapealService },
         { provide: OlkypayService, useValue: olkypayService },
+        { provide: BankFrickService, useValue: frickService },
         { provide: VirtualIbanService, useValue: virtualIbanService },
         { provide: ScryptService, useValue: scryptService },
 
@@ -276,6 +283,81 @@ describe('FiatOutputJobService', () => {
       expect(updatedIds).toContain(2);
       expect(updatedIds).toContain(4);
     });
+
+    it('allows EUR transactions routed through Bank Frick to become ready', async () => {
+      const bank = createCustomBank({ name: IbanBankName.FRICK, iban: 'SYNTHETIC-FRICK-ACCOUNT' });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 5,
+          bank,
+          iban: 'SYNTHETIC-CREDITOR-ACCOUNT',
+          isReadyDate: null,
+          buyFiats: [
+            createCustomBuyFiat({
+              cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
+            }),
+          ],
+          amount: 100,
+          currency: 'EUR',
+          type: FiatOutputType.BUY_FIAT,
+        }),
+      ]);
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([
+        createCustomAsset({
+          id: 1,
+          type: AssetType.CUSTODY,
+          bank,
+          name: 'EUR',
+          balance: createCustomLiquidityBalance({ amount: 9000 }),
+        }),
+      ]);
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(5, { isReadyDate: expect.any(Date) });
+    });
+
+    it('reserves liquidity for transmitted Bank Frick orders awaiting completion', async () => {
+      const bank = createCustomBank({ name: IbanBankName.FRICK, iban: 'SYNTHETIC-FRICK-ACCOUNT' });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 5,
+          bank,
+          amount: 5000,
+          currency: 'EUR',
+          isReadyDate: new Date('2026-07-01'),
+          isTransmittedDate: new Date('2026-07-01'),
+          frickTxId: 'DFX-FO-5',
+        }),
+        createCustomFiatOutput({
+          id: 6,
+          bank,
+          iban: 'SYNTHETIC-CREDITOR-ACCOUNT',
+          amount: 4000,
+          currency: 'EUR',
+          isReadyDate: null,
+          buyFiats: [
+            createCustomBuyFiat({
+              cryptoInput: createCustomCryptoInput({ isConfirmed: true, asset: createDefaultAsset() }),
+            }),
+          ],
+          type: FiatOutputType.BUY_FIAT,
+        }),
+      ]);
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([
+        createCustomAsset({
+          id: 1,
+          type: AssetType.CUSTODY,
+          bank,
+          name: 'EUR',
+          balance: createCustomLiquidityBalance({ amount: 9000 }),
+        }),
+      ]);
+
+      await service['setReadyDate']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(6, { isReadyDate: expect.any(Date) });
+    });
   });
 
   describe('createBatches', () => {
@@ -446,6 +528,150 @@ describe('FiatOutputJobService', () => {
       await service['searchOutgoingBankTx']();
 
       expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('marks a reconciled Bank Frick payout approved and confirmed', async () => {
+      const bankTx = createCustomBankTx({ id: 400, created: new Date('2026-07-02') });
+      const fiatOutput = createCustomFiatOutput({
+        id: 4,
+        frickTxId: 'DFX-FO-4',
+        remittanceInfo: 'Synthetic Frick payout',
+        isComplete: false,
+        isReadyDate: new Date('2026-07-01'),
+      });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([fiatOutput]);
+      jest.spyOn(bankTxService, 'getBankTxByRemittanceInfo').mockResolvedValue(bankTx);
+
+      await service['searchOutgoingBankTx']();
+
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(
+        4,
+        expect.objectContaining({
+          isComplete: true,
+          isApprovedDate: bankTx.created,
+          isConfirmedDate: bankTx.created,
+        }),
+      );
+    });
+  });
+
+  describe('Bank Frick payouts', () => {
+    const order = {
+      orderId: 4242,
+      customId: 'DFX-FO-42',
+      type: FrickPaymentType.SEPA,
+      state: FrickPaymentState.PREPARED,
+      amount: 10,
+      currency: 'EUR',
+      reference: 'Synthetic payout',
+      debitor: { iban: 'SYNTHETIC-DEBTOR' },
+      creditor: { name: 'Synthetic Recipient', iban: 'SYNTHETIC-CREDITOR' },
+    };
+
+    it('keeps transmission disabled unless the explicit payout flag is true', async () => {
+      Config.bank.frick.payoutEnabled = false;
+      jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+
+      await service['transmitFrickPayments']();
+
+      expect(fiatOutputRepo.find).not.toHaveBeenCalled();
+      expect(frickService.createPaymentOrder).not.toHaveBeenCalled();
+    });
+
+    it('honors the dedicated DisabledProcess kill-switch even when payout configuration is enabled', async () => {
+      Config.bank.frick.payoutEnabled = true;
+      jest
+        .spyOn(processServiceModule, 'DisabledProcess')
+        .mockImplementation((process) => process === processServiceModule.Process.FIAT_OUTPUT_FRICK_TRANSMISSION);
+      jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+
+      await service['transmitFrickPayments']();
+
+      expect(fiatOutputRepo.find).not.toHaveBeenCalled();
+      expect(frickService.createPaymentOrder).not.toHaveBeenCalled();
+    });
+
+    it('uses a stable customId and persists it before any optional approval', async () => {
+      Config.bank.frick.payoutEnabled = true;
+      Config.bank.frick.approveWithoutTan = true;
+      jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(frickService, 'createPaymentOrder').mockResolvedValue(order);
+      jest.spyOn(frickService, 'getSafeOrderId').mockReturnValue('4242');
+      jest
+        .spyOn(frickService, 'approvePaymentWithoutTan')
+        .mockResolvedValue({ ...order, state: FrickPaymentState.IN_PROGRESS });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 42,
+          amount: 10,
+          currency: 'EUR',
+          isInstant: false,
+          accountIban: 'SYNTHETIC-DEBTOR',
+          name: 'Synthetic Recipient',
+          iban: 'SYNTHETIC-CREDITOR',
+          remittanceInfo: 'Synthetic payout',
+          bank: createCustomBank({ name: IbanBankName.FRICK }),
+        }),
+      ]);
+
+      await service['transmitFrickPayments']();
+
+      expect(frickService.createPaymentOrder).toHaveBeenCalledWith(
+        expect.objectContaining({ customId: 'DFX-FO-42', reference: 'Synthetic payout' }),
+      );
+      expect(fiatOutputRepo.update).toHaveBeenNthCalledWith(
+        1,
+        42,
+        expect.objectContaining({
+          frickTxId: 'DFX-FO-42',
+          frickOrderId: '4242',
+          isTransmittedDate: expect.any(Date),
+        }),
+      );
+      expect((fiatOutputRepo.update as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
+        (frickService.approvePaymentWithoutTan as jest.Mock).mock.invocationCallOrder[0],
+      );
+      expect(fiatOutputRepo.update).toHaveBeenNthCalledWith(
+        2,
+        42,
+        expect.objectContaining({ isApprovedDate: expect.any(Date) }),
+      );
+    });
+
+    it('polls existing orders while payout creation is disabled and leaves PREPARED manual', async () => {
+      Config.bank.frick.payoutEnabled = false;
+      Config.bank.frick.approveWithoutTan = false;
+      jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(frickService, 'getPaymentOrder').mockResolvedValue(order);
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([createCustomFiatOutput({ id: 42, frickTxId: 'DFX-FO-42', isComplete: false })]);
+
+      await service.checkFrickOrderStatus();
+
+      expect(frickService.getPaymentOrder).toHaveBeenCalledWith('DFX-FO-42');
+      expect(frickService.approvePaymentWithoutTan).not.toHaveBeenCalled();
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, {
+        info: 'FRICK order PREPARED: manual approval required',
+      });
+    });
+
+    it('does not recreate a rejected order and records the terminal state', async () => {
+      Config.bank.frick.payoutEnabled = true;
+      Config.bank.frick.approveWithoutTan = false;
+      jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(frickService, 'getPaymentOrder').mockResolvedValue({
+        ...order,
+        state: FrickPaymentState.REJECTED,
+      });
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([createCustomFiatOutput({ id: 42, frickTxId: 'DFX-FO-42', isComplete: false })]);
+
+      await service.checkFrickOrderStatus();
+
+      expect(frickService.createPaymentOrder).not.toHaveBeenCalled();
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, { info: 'FRICK order REJECTED' });
     });
   });
 });

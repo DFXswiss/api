@@ -1195,6 +1195,14 @@ export class Configuration {
         clientSecret: process.env.OLKY_CLIENT_SECRET,
       },
     },
+    frick: {
+      baseUrl: process.env.FRICK_BASE_URL,
+      apiKey: process.env.FRICK_API_KEY,
+      privateKey: process.env.FRICK_PRIVATE_KEY?.split('<br>').join('\n'),
+      customer: process.env.FRICK_CUSTOMER,
+      payoutEnabled: process.env.FRICK_PAYOUT_ENABLED === 'true',
+      approveWithoutTan: process.env.FRICK_APPROVE_WITHOUT_TAN === 'true',
+    },
     raiffeisen: {
       credentials: {
         url: process.env.RAIFFEISEN_EBICS_URL,

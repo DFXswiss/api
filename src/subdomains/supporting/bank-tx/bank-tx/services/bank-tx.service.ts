@@ -9,6 +9,7 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Observable, Subject } from 'rxjs';
+import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -39,6 +40,7 @@ import {
   Not,
 } from 'typeorm';
 import { OlkypayService } from '../../../../../integration/bank/services/olkypay.service';
+import { Bank } from '../../../bank/bank/bank.entity';
 import { BankService } from '../../../bank/bank/bank.service';
 import { VirtualIbanService } from '../../../bank/virtual-iban/virtual-iban.service';
 import { TransactionSourceType, TransactionTypeInternal } from '../../../payment/entities/transaction.entity';
@@ -90,6 +92,7 @@ export class BankTxService implements OnModuleInit {
   private readonly bankBalanceSubject: Subject<BankBalanceUpdate> = new Subject<BankBalanceUpdate>();
 
   private olkyUnavailableWarningLogged = false;
+  private frickUnavailableWarningLogged = false;
 
   constructor(
     private readonly bankTxRepo: BankTxRepository,
@@ -99,6 +102,7 @@ export class BankTxService implements OnModuleInit {
     private readonly notificationService: NotificationService,
     private readonly settingService: SettingService,
     private readonly olkyService: OlkypayService,
+    private readonly frickService: BankFrickService,
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly buyService: BuyService,
@@ -123,7 +127,16 @@ export class BankTxService implements OnModuleInit {
   // --- TRANSACTION HANDLING --- //
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })
   async checkBankTx(): Promise<void> {
-    await this.checkTransactions();
+    try {
+      await this.checkTransactions();
+    } catch (error) {
+      this.logger.error('Failed to check Olkypay transactions:', error);
+    }
+    try {
+      await this.checkFrickTransactions();
+    } catch (error) {
+      this.logger.error('Failed to check Bank Frick transactions:', error);
+    }
     await this.assignTransactions();
     await this.fillBankTx();
   }
@@ -197,6 +210,71 @@ export class BankTxService implements OnModuleInit {
     }
 
     if (olkyTransactions.length > 0) await this.settingService.set(settingKeyOlky, newModificationTime);
+  }
+
+  private async checkFrickTransactions(): Promise<void> {
+    if (!this.frickService.isAvailable()) {
+      this.warnFrickUnavailableOnce('Bank Frick service not configured - skipping transaction import');
+      return;
+    }
+
+    let banks: Bank[];
+    try {
+      banks = await this.bankService
+        .getBanksByName(IbanBankName.FRICK)
+        .then((rows) => rows.filter((bank) => bank.receive));
+    } catch (error) {
+      this.logger.error('Failed to load Bank Frick account registry:', error);
+      return;
+    }
+    if (!banks.length) {
+      this.warnFrickUnavailableOnce('No receiving Bank Frick accounts configured - skipping transaction import');
+      return;
+    }
+
+    let multiAccounts: SpecialExternalAccount[];
+    try {
+      multiAccounts = await this.specialAccountService.getMultiAccounts();
+    } catch (error) {
+      this.logger.error('Failed to load special accounts for Bank Frick transaction import:', error);
+      return;
+    }
+    for (const bank of banks) {
+      if (!Number.isSafeInteger(bank.id) || bank.id <= 0) {
+        this.logger.error('Failed to import Bank Frick transactions: invalid bank row id');
+        continue;
+      }
+
+      const settingKey = `lastBankFrickDate:${bank.id}`;
+      const lastModificationTime = new Date(await this.settingService.get(settingKey, new Date(0).toISOString()));
+      const newModificationTime = new Date().toISOString();
+
+      try {
+        const transactions = await this.frickService.getFrickTransactions(lastModificationTime, bank.iban);
+        let fullyProcessed = true;
+
+        for (const transaction of transactions) {
+          try {
+            await this.create(transaction, multiAccounts);
+          } catch (error) {
+            if (!(error instanceof ConflictException)) {
+              fullyProcessed = false;
+              this.logger.error(`Failed to import Bank Frick transaction for bank row ${bank.id}:`, error);
+            }
+          }
+        }
+
+        if (transactions.length > 0 && fullyProcessed) await this.settingService.set(settingKey, newModificationTime);
+      } catch (error) {
+        this.logger.error(`Failed to fetch Bank Frick transactions for bank row ${bank.id}:`, error);
+      }
+    }
+  }
+
+  private warnFrickUnavailableOnce(message: string): void {
+    if (this.frickUnavailableWarningLogged) return;
+    this.logger.warn(message);
+    this.frickUnavailableWarningLogged = true;
   }
 
   private async assignTransactions(): Promise<void> {

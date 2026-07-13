@@ -152,6 +152,12 @@ export class FiatOutput extends IEntity {
   @Column({ nullable: true })
   olkyOrderId?: string;
 
+  @Column({ length: 256, nullable: true })
+  frickOrderId?: string;
+
+  @Column({ length: 256, nullable: true })
+  frickTxId?: string;
+
   // --- ENTITY METHODS --- //
 
   setBatch(batchId?: number, batchAmount?: number): UpdateResult<FiatOutput> {

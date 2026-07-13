@@ -215,19 +215,22 @@ export class Iso20022Service {
   }
 
   // --- CAMT.053 PARSING --- //
-  static parseCamt053Json(camt053: any, accountIban: string): CamtTransaction[] {
-    const statements = camt053?.BkToCstmrStmt?.Stmt;
-    if (!statements || !Array.isArray(statements)) return [];
+  static parseCamt053Json(camt053: any, accountIban: string, strict = false): CamtTransaction[] {
+    const rawStatements = camt053?.BkToCstmrStmt?.Stmt;
+    if (!rawStatements) return [];
+    const statements = Array.isArray(rawStatements) ? rawStatements : [rawStatements];
 
     const transactions: CamtTransaction[] = [];
 
     for (const stmt of statements) {
-      if (!stmt.Ntry || !Array.isArray(stmt.Ntry)) continue;
+      if (!stmt.Ntry) continue;
+      const entries = Array.isArray(stmt.Ntry) ? stmt.Ntry : [stmt.Ntry];
 
-      for (const entry of stmt.Ntry) {
+      for (const entry of entries) {
         try {
-          transactions.push(Iso20022Service.parseCamt053JsonEntry(entry, accountIban));
-        } catch {
+          transactions.push(Iso20022Service.parseCamt053JsonEntry(entry, accountIban, strict));
+        } catch (error) {
+          if (strict) throw error;
           continue;
         }
       }
@@ -236,20 +239,26 @@ export class Iso20022Service {
     return transactions;
   }
 
-  private static parseCamt053JsonEntry(entry: any, accountIban: string): CamtTransaction {
+  private static parseCamt053JsonEntry(entry: any, accountIban: string, strict = false): CamtTransaction {
     // amount and currency
     const amtObj = entry.Amt;
     const amount = parseFloat(amtObj?.Value || amtObj?.['#text'] || amtObj || '0');
     const currency = amtObj?.Ccy || 'CHF';
+    if (strict && (!Number.isFinite(amount) || amount <= 0)) throw new Error('Invalid amount in CAMT entry');
+    if (strict && (typeof currency !== 'string' || !/^[A-Z]{3}$/.test(currency)))
+      throw new Error('Invalid currency in CAMT entry');
 
     // credit/debit indicator
     const cdtDbtInd = entry.CdtDbtInd;
     if (!cdtDbtInd) throw new Error('Missing CdtDbtInd in CAMT entry');
+    if (strict && !['CRDT', 'DBIT'].includes(cdtDbtInd)) throw new Error('Invalid CdtDbtInd in CAMT entry');
     const creditDebitIndicator = cdtDbtInd === 'CRDT' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT;
 
     // dates
     const bookingDateStr = entry.BookgDt?.Dt;
     const valueDateStr = entry.ValDt?.Dt;
+    if (strict) this.assertValidCamtDate(bookingDateStr, 'booking');
+    if (strict && valueDateStr !== undefined) this.assertValidCamtDate(valueDateStr, 'value');
     const bookingDate = bookingDateStr ? this.parseDate(bookingDateStr) : new Date();
     const valueDate = valueDateStr ? this.parseDate(valueDateStr) : bookingDate;
 
@@ -301,7 +310,7 @@ export class Iso20022Service {
       txDtls.Refs?.TxId ||
       entry.AcctSvcrRef ||
       entry.NtryRef ||
-      Util.createUniqueId(accountIban);
+      this.createStableCamtReference(accountIban, entry);
 
     // end-to-end ID
     const endToEndId = txDtls.Refs?.EndToEndId || '';
@@ -340,7 +349,7 @@ export class Iso20022Service {
     };
   }
 
-  static parseCamt053Xml(xmlData: string, accountIban: string): CamtTransaction[] {
+  static parseCamt053Xml(xmlData: string, accountIban: string, strict = false): CamtTransaction[] {
     const parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: '',
@@ -348,7 +357,35 @@ export class Iso20022Service {
     });
 
     const jsonData = parser.parse(xmlData);
-    return this.parseCamt053Json(jsonData.Document || jsonData, accountIban);
+    return this.parseCamt053Json(jsonData.Document || jsonData, accountIban, strict);
+  }
+
+  private static createStableCamtReference(accountIban: string, entry: unknown): string {
+    const canonicalEntry = JSON.stringify(this.canonicalize(entry));
+    return `CAMT-${Util.createHash(`${accountIban}:${canonicalEntry}`, 'sha256', 'hex')}`;
+  }
+
+  private static canonicalize(value: unknown): unknown {
+    if (Array.isArray(value)) return value.map((entry) => this.canonicalize(entry));
+    if (!value || typeof value !== 'object') return value;
+
+    return Object.keys(value)
+      .sort()
+      .reduce<Record<string, unknown>>((result, key) => {
+        const entry = (value as Record<string, unknown>)[key];
+        if (entry !== undefined) result[key] = this.canonicalize(entry);
+        return result;
+      }, {});
+  }
+
+  private static assertValidCamtDate(value: unknown, field: string): void {
+    if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}(?:T|$)/.test(value))
+      throw new Error(`Invalid ${field} date in CAMT entry`);
+
+    const isoDate = value.substring(0, 10);
+    const parsed = new Date(isoDate);
+    if (Number.isNaN(parsed.getTime()) || parsed.toISOString().substring(0, 10) !== isoDate)
+      throw new Error(`Invalid ${field} date in CAMT entry`);
   }
 
   // --- PAIN.001 GENERATION --- //

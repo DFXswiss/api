@@ -434,6 +434,24 @@
     "olkyPassword": {
       "value": "xxx"
     },
+    "frickBaseUrl": {
+      "value": "https://olb.bankfrick.li/webapi/v2"
+    },
+    "frickApiKey": {
+      "value": "xxx"
+    },
+    "frickPrivateKey": {
+      "value": "xxx"
+    },
+    "frickCustomer": {
+      "value": "xxx"
+    },
+    "frickPayoutEnabled": {
+      "value": "false"
+    },
+    "frickApproveWithoutTan": {
+      "value": "false"
+    },
     "letterUrl": {
       "value": "https://api.letterxpress.de/v1"
     },

@@ -235,6 +235,16 @@ param olkyUser string
 @secure()
 param olkyPassword string
 
+param frickBaseUrl string
+@secure()
+param frickApiKey string
+@secure()
+param frickPrivateKey string
+@secure()
+param frickCustomer string
+param frickPayoutEnabled string
+param frickApproveWithoutTan string
+
 param letterUrl string
 param letterUser string
 @secure()
@@ -1208,6 +1218,30 @@ resource apiAppService 'Microsoft.Web/sites@2018-11-01' = {
         {
           name: 'OLKY_PASSWORD'
           value: olkyPassword
+        }
+        {
+          name: 'FRICK_BASE_URL'
+          value: frickBaseUrl
+        }
+        {
+          name: 'FRICK_API_KEY'
+          value: frickApiKey
+        }
+        {
+          name: 'FRICK_PRIVATE_KEY'
+          value: frickPrivateKey
+        }
+        {
+          name: 'FRICK_CUSTOMER'
+          value: frickCustomer
+        }
+        {
+          name: 'FRICK_PAYOUT_ENABLED'
+          value: frickPayoutEnabled
+        }
+        {
+          name: 'FRICK_APPROVE_WITHOUT_TAN'
+          value: frickApproveWithoutTan
         }
         {
           name: 'COIN_GECKO_API_KEY'
