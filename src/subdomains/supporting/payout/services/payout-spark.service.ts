@@ -1,13 +1,21 @@
 import { Injectable } from '@nestjs/common';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { SparkService } from 'src/integration/blockchain/spark/spark.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { PayoutBroadcastException } from '../exceptions/payout-broadcast.exception';
 
 @Injectable()
 export class PayoutSparkService {
   constructor(private readonly sparkService: SparkService) {}
 
   async sendTransaction(address: string, amount: number): Promise<string> {
-    return this.sparkService.sendTransaction(address, amount).then((r) => r.txid);
+    try {
+      const result = await this.sparkService.sendTransaction(address, amount);
+      return result.txid;
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+      throw e;
+    }
   }
 
   async isHealthy(): Promise<boolean> {

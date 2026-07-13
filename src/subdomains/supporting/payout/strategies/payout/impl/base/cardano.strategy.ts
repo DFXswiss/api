@@ -37,12 +37,16 @@ export abstract class CardanoStrategy extends PayoutStrategy {
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
       try {
+        await this.designateBeforeBroadcast(order, this.payoutOrderRepo);
+
         const txId = await this.dispatchPayout(order);
         order.pendingPayout(txId);
 
         await this.payoutOrderRepo.save(order);
       } catch (e) {
         this.logger.error(`Error while executing Cardano payout order ${order.id}:`, e);
+
+        await this.handleBroadcastError(order, e, this.payoutOrderRepo);
       }
     }
   }

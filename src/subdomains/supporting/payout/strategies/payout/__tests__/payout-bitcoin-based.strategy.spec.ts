@@ -1,17 +1,25 @@
 import { mock } from 'jest-mock-extended';
+import { Config, ConfigService } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import * as processServiceModule from 'src/shared/services/process.service';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import {
   createCustomPayoutOrder,
   createDefaultPayoutOrder,
 } from '../../../entities/__mocks__/payout-order.entity.mock';
-import { PayoutOrder, PayoutOrderStatus } from '../../../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../../entities/payout-order.entity';
+import { PayoutBroadcastException } from '../../../exceptions/payout-broadcast.exception';
 import { FeeResult } from '../../../interfaces';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
-import { PayoutBitcoinBasedService } from '../../../services/base/payout-bitcoin-based.service';
+import { PayoutBitcoinBasedService, PayoutGroup } from '../../../services/base/payout-bitcoin-based.service';
 import { BitcoinBasedStrategy } from '../impl/base/bitcoin-based.strategy';
 
 describe('PayoutBitcoinBasedStrategy', () => {
@@ -232,6 +240,321 @@ describe('PayoutBitcoinBasedStrategy', () => {
     });
   });
 
+  describe('#send(...)', () => {
+    it('completes the payout and resets retry tracking on a successful dispatch', async () => {
+      const orders = [
+        createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null, retryCount: 2 }),
+      ];
+      strategy.dispatchPayoutImpl = () => Promise.resolve('CHAIN_TX_ID');
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders);
+
+      expect(orders[0].status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(orders[0].payoutTxId).toBe('CHAIN_TX_ID');
+      expect(orders[0].retryCount).toBe(0);
+    });
+
+    // The structural fix under test: only a PayoutBroadcastException (client reached the actual
+    // on-chain broadcast call) must stay fail-closed. This replaces the old `e.message.includes
+    // ('timeout')` string heuristic.
+    it('keeps the order PAYOUT_DESIGNATED (fail-closed) when dispatchPayout throws a PayoutBroadcastException', async () => {
+      const orders = [createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null })];
+      strategy.dispatchPayoutImpl = () => Promise.reject(new PayoutBroadcastException('node unreachable after send'));
+
+      await expect(strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders)).rejects.toBeInstanceOf(
+        PayoutBroadcastException,
+      );
+
+      expect(orders[0].status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+    });
+
+    it('rolls back to PREPARATION_CONFIRMED (self-heals) when dispatchPayout throws a plain Error', async () => {
+      const orders = [createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null })];
+      strategy.dispatchPayoutImpl = () => Promise.reject(new Error('Invalid amount'));
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders);
+
+      expect(orders[0].status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+    });
+
+    // Regression test for the removed heuristic: a pre-broadcast RPC timeout (e.g. fee
+    // estimation) is a plain Error and must now self-heal instead of incorrectly staying
+    // fail-closed just because its message happens to contain the word "timeout".
+    it('rolls back (self-heals) a pre-broadcast plain Error whose message contains "timeout"', async () => {
+      const orders = [createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null })];
+      strategy.dispatchPayoutImpl = () => Promise.reject(new Error('RPC call timeout during fee estimation'));
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders);
+
+      expect(orders[0].status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+    });
+
+    it('stays fail-closed for a PayoutBroadcastException even without the word "timeout" in the message', async () => {
+      const orders = [createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null })];
+      strategy.dispatchPayoutImpl = () => Promise.reject(new PayoutBroadcastException('connection reset'));
+
+      await expect(strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders)).rejects.toBeInstanceOf(
+        PayoutBroadcastException,
+      );
+
+      expect(orders[0].status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+    });
+
+    it('records the failure via trackPayoutFailure on both pre- and at-or-after-broadcast errors', async () => {
+      const preBroadcastOrder = createCustomPayoutOrder({
+        id: 20,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+      });
+      const postBroadcastOrder = createCustomPayoutOrder({
+        id: 21,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+      });
+
+      strategy.dispatchPayoutImpl = () => Promise.reject(new Error('pre-broadcast failure'));
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, [preBroadcastOrder]);
+      expect(preBroadcastOrder.retryCount).toBe(1);
+      expect(preBroadcastOrder.lastError).toBe('pre-broadcast failure');
+
+      strategy.dispatchPayoutImpl = () => Promise.reject(new PayoutBroadcastException('post-broadcast failure'));
+      await expect(strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, [postBroadcastOrder])).rejects.toBeInstanceOf(
+        PayoutBroadcastException,
+      );
+      expect(postBroadcastOrder.retryCount).toBe(1);
+      expect(postBroadcastOrder.lastError).toBe('post-broadcast failure');
+    });
+
+    it('throws (without persisting) when an order already has a payoutTxId and TX_SPEEDUP is enabled', async () => {
+      // speedup would reuse an existing txId; the Bitcoin path does not implement it, so it must
+      // fail-fast before touching the repo. DisabledProcess defaults to true (fail-closed) in tests,
+      // so force it false to make `!DisabledProcess(TX_SPEEDUP)` true and reach the guard.
+      const disabledSpy = jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
+      const orders = [
+        createCustomPayoutOrder({ id: 40, status: PayoutOrderStatus.PAYOUT_DESIGNATED, payoutTxId: 'EXISTING_TX' }),
+      ];
+
+      await expect(strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders)).rejects.toThrowError(
+        'Transaction speedup is not implemented for Bitcoin',
+      );
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+
+      disabledSpy.mockRestore();
+    });
+
+    it('does not trip the speedup guard when TX_SPEEDUP is disabled, even if an order has a payoutTxId', async () => {
+      // Default test env: DisabledProcess(TX_SPEEDUP) === true, so `!DisabledProcess(...)` is false and
+      // the guard is skipped; the order is dispatched through the standard path.
+      const order = createCustomPayoutOrder({
+        id: 41,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: 'PTX_EXISTING',
+      });
+      strategy.dispatchPayoutImpl = () => Promise.resolve('CHAIN_TX_ID');
+      repoSaveSpy.mockImplementation(async (o: PayoutOrder) => o as PayoutOrder);
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, [order]);
+
+      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(order.payoutTxId).toBe('CHAIN_TX_ID');
+    });
+
+    it('sends a non-recoverable error mail when persisting the paid order fails after a successful dispatch', async () => {
+      const order = createCustomPayoutOrder({
+        id: 30,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+      });
+      strategy.dispatchPayoutImpl = () => Promise.resolve('CHAIN_TX_ID');
+      // designatePayout persists PAYOUT_DESIGNATED fine; only the final PAYOUT_PENDING save fails.
+      repoSaveSpy.mockImplementation(async (o: PayoutOrder) => {
+        if (o.status === PayoutOrderStatus.PAYOUT_PENDING) throw new Error('db down');
+        return o;
+      });
+      const loggerErrorSpy = jest.spyOn((strategy as any).logger, 'error');
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, [order]);
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Error on saving payout payoutTxId to the database'),
+        expect.any(Error),
+      );
+      expect(sendErrorMailSpy).toHaveBeenCalledTimes(1);
+      expect(sendErrorMailSpy).toHaveBeenCalledWith(
+        expect.objectContaining({
+          type: 'ErrorMonitoring',
+          context: 'Payout',
+          correlationId: 'PayoutOrder&BuyCrypto&30',
+          input: expect.objectContaining({ subject: 'Payout Error', isLiqMail: true }),
+          options: { suppressRecurring: true },
+        }),
+      );
+    });
+  });
+
+  describe('#estimateBlockchainFee(...)', () => {
+    it('delegates to estimateFee(...) with the given asset', async () => {
+      const asset = createCustomAsset({ id: 7 });
+      const feeResult: FeeResult = { asset: createDefaultAsset(), amount: 0.5 };
+      strategy.estimateFeeImpl = () => Promise.resolve(feeResult);
+      const estimateFeeSpy = jest.spyOn(strategy, 'estimateFee');
+
+      const result = await strategy.estimateBlockchainFee(asset);
+
+      expect(result).toBe(feeResult);
+      expect(estimateFeeSpy).toHaveBeenCalledWith(asset);
+    });
+  });
+
+  describe('#doPayout(...)', () => {
+    it('groups orders by context and dispatches each healthy context to doPayoutForContext(...)', async () => {
+      const buyCryptoOrders = [
+        createCustomPayoutOrder({ id: 1, context: PayoutOrderContext.BUY_CRYPTO }),
+        createCustomPayoutOrder({ id: 2, context: PayoutOrderContext.BUY_CRYPTO }),
+      ];
+      const manualOrder = createCustomPayoutOrder({ id: 3, context: PayoutOrderContext.MANUAL });
+      jest.spyOn(bitcoinService, 'isHealthy').mockResolvedValue(true);
+      const doPayoutForContextSpy = jest.spyOn(strategy, 'doPayoutForContextImpl');
+
+      await strategy.doPayout([...buyCryptoOrders, manualOrder]);
+
+      expect(bitcoinService.isHealthy).toHaveBeenCalledWith(PayoutOrderContext.BUY_CRYPTO);
+      expect(bitcoinService.isHealthy).toHaveBeenCalledWith(PayoutOrderContext.MANUAL);
+      expect(doPayoutForContextSpy).toHaveBeenCalledTimes(2);
+      expect(doPayoutForContextSpy).toHaveBeenCalledWith(PayoutOrderContext.BUY_CRYPTO, buyCryptoOrders);
+      expect(doPayoutForContextSpy).toHaveBeenCalledWith(PayoutOrderContext.MANUAL, [manualOrder]);
+    });
+
+    it('skips a context whose service is unhealthy', async () => {
+      const orders = [createCustomPayoutOrder({ id: 1, context: PayoutOrderContext.BUY_CRYPTO })];
+      jest.spyOn(bitcoinService, 'isHealthy').mockResolvedValue(false);
+      const doPayoutForContextSpy = jest.spyOn(strategy, 'doPayoutForContextImpl');
+
+      await strategy.doPayout(orders);
+
+      expect(doPayoutForContextSpy).not.toHaveBeenCalled();
+    });
+
+    it('catches and logs errors without throwing', async () => {
+      const orders = [createCustomPayoutOrder({ id: 1, context: PayoutOrderContext.BUY_CRYPTO })];
+      jest.spyOn(bitcoinService, 'isHealthy').mockResolvedValue(true);
+      strategy.doPayoutForContextImpl = () => Promise.reject(new Error('context boom'));
+      const loggerErrorSpy = jest.spyOn((strategy as any).logger, 'error');
+
+      await expect(strategy.doPayout(orders)).resolves.toBeUndefined();
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith('Error while executing Bitcoin payout orders:', expect.any(Error));
+    });
+  });
+
+  describe('#checkPayoutCompletionData(...)', () => {
+    let pricingService: PricingService;
+    let convertFn: jest.Mock;
+
+    beforeEach(() => {
+      new ConfigService(); // sets the module-level Config (Config.defaultVolumeDecimal used by recordPayoutFee)
+      pricingService = mock<PricingService>();
+      Object.defineProperty(strategy, 'pricingService', { value: pricingService, configurable: true });
+      convertFn = jest.fn().mockReturnValue(0.99);
+      jest.spyOn(pricingService, 'getPrice').mockResolvedValue({ convert: convertFn } as any);
+      repoSaveSpy.mockImplementation(async (o: PayoutOrder) => o as PayoutOrder);
+    });
+
+    it('completes each order, records the proportional payout fee and persists once when the tx is complete', async () => {
+      const feeAsset = createCustomAsset({ name: 'BTC' });
+      strategy.feeAssetValue = feeAsset;
+      const order1 = createCustomPayoutOrder({
+        id: 1,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        status: PayoutOrderStatus.PAYOUT_PENDING,
+        payoutTxId: 'BTC_TX',
+        amount: 1,
+      });
+      const order2 = createCustomPayoutOrder({
+        id: 2,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        status: PayoutOrderStatus.PAYOUT_PENDING,
+        payoutTxId: 'BTC_TX',
+        amount: 3,
+      });
+      jest.spyOn(bitcoinService, 'isHealthy').mockResolvedValue(true);
+      jest.spyOn(bitcoinService, 'getPayoutCompletionData').mockResolvedValue([true, 0.0008]);
+      const complete1Spy = jest.spyOn(order1, 'complete');
+      const recordFee1Spy = jest.spyOn(order1, 'recordPayoutFee');
+      const recordFee2Spy = jest.spyOn(order2, 'recordPayoutFee');
+
+      await strategy.checkPayoutCompletionData([order1, order2]);
+
+      expect(bitcoinService.getPayoutCompletionData).toHaveBeenCalledWith(PayoutOrderContext.BUY_CRYPTO, 'BTC_TX');
+      expect(pricingService.getPrice).toHaveBeenCalledWith(feeAsset, PriceCurrency.CHF, PriceValidity.ANY);
+      expect(complete1Spy).toHaveBeenCalledTimes(1);
+      // proportional fee: totalFee 0.0008 over total amount 4 -> 0.0002 (amount 1) and 0.0006 (amount 3)
+      expect(convertFn).toHaveBeenCalledWith(0.0002, Config.defaultVolumeDecimal);
+      expect(convertFn).toHaveBeenCalledWith(0.0006, Config.defaultVolumeDecimal);
+      expect(recordFee1Spy).toHaveBeenCalledWith(feeAsset, 0.0002, 0.99);
+      expect(recordFee2Spy).toHaveBeenCalledWith(feeAsset, 0.0006, 0.99);
+      expect(order1.status).toBe(PayoutOrderStatus.COMPLETE);
+      expect(order2.status).toBe(PayoutOrderStatus.COMPLETE);
+      expect(repoSaveSpy).toHaveBeenCalledTimes(2);
+      expect(repoSaveSpy).toHaveBeenCalledWith(order1);
+      expect(repoSaveSpy).toHaveBeenCalledWith(order2);
+    });
+
+    it('leaves the order untouched when the tx is not yet complete', async () => {
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'BTC_TX_PENDING' });
+      jest.spyOn(bitcoinService, 'isHealthy').mockResolvedValue(true);
+      jest.spyOn(bitcoinService, 'getPayoutCompletionData').mockResolvedValue([false, 0]);
+      const completeSpy = jest.spyOn(order, 'complete');
+      const recordFeeSpy = jest.spyOn(order, 'recordPayoutFee');
+
+      await strategy.checkPayoutCompletionData([order]);
+
+      expect(completeSpy).not.toHaveBeenCalled();
+      expect(recordFeeSpy).not.toHaveBeenCalled();
+      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+    });
+
+    it('skips a context whose service is unhealthy', async () => {
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'BTC_TX_SKIP' });
+      jest.spyOn(bitcoinService, 'isHealthy').mockResolvedValue(false);
+
+      await strategy.checkPayoutCompletionData([order]);
+
+      expect(bitcoinService.getPayoutCompletionData).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+    });
+
+    it('swallows a per-tx error from getPayoutCompletionData and continues without persisting', async () => {
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'BTC_TX_ERR' });
+      jest.spyOn(bitcoinService, 'isHealthy').mockResolvedValue(true);
+      jest.spyOn(bitcoinService, 'getPayoutCompletionData').mockRejectedValue(new Error('rpc down'));
+      const loggerErrorSpy = jest.spyOn((strategy as any).logger, 'error');
+
+      await expect(strategy.checkPayoutCompletionData([order])).resolves.toBeUndefined();
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('Error while checking payout completion data of payout orders'),
+        expect.any(Error),
+      );
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+    });
+
+    it('swallows an error thrown while health-checking and logs it', async () => {
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'BTC_TX_HEALTH' });
+      jest.spyOn(bitcoinService, 'isHealthy').mockRejectedValue(new Error('health boom'));
+      const loggerErrorSpy = jest.spyOn((strategy as any).logger, 'error');
+
+      await expect(strategy.checkPayoutCompletionData([order])).resolves.toBeUndefined();
+
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        'Error while checking payout completion of Bitcoin payout orders:',
+        expect.any(Error),
+      );
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+    });
+  });
+
   describe('#trackPayoutFailure(...)', () => {
     it('increments retryCount, persists lastError and lastAttemptDate on every order', async () => {
       const orders = [createCustomPayoutOrder({ id: 10 }), createCustomPayoutOrder({ id: 11 })];
@@ -313,6 +636,16 @@ describe('PayoutBitcoinBasedStrategy', () => {
       expect(sendErrorMailSpy).not.toBeCalled();
     });
 
+    it('falls back to "Unknown payout error" when the error has no message', async () => {
+      const orders = [createCustomPayoutOrder({ id: 10 })];
+
+      await strategy.trackPayoutFailureWrapper(orders, null as unknown as Error);
+
+      expect(orders[0].retryCount).toBe(1);
+      expect(orders[0].lastError).toBe('Unknown payout error');
+      expect(repoSaveSpy).toBeCalledTimes(1);
+    });
+
     it('truncates very long error messages to 2048 chars', async () => {
       const longError = 'X'.repeat(5000);
       const orders = [createCustomPayoutOrder({ id: 10 })];
@@ -385,6 +718,9 @@ class PayoutBitcoinBasedStrategyWrapper extends BitcoinBasedStrategy {
     super(notificationService, payoutOrderRepo, bitcoinService);
   }
 
+  // Set per-test so #checkPayoutCompletionData(...) / #estimateFee(...) resolve a known fee asset.
+  feeAssetValue: Asset = createDefaultAsset();
+
   get blockchain(): Blockchain {
     return Blockchain.BITCOIN;
   }
@@ -393,12 +729,26 @@ class PayoutBitcoinBasedStrategyWrapper extends BitcoinBasedStrategy {
     return AssetType.COIN;
   }
 
-  protected doPayoutForContext(): Promise<void> {
-    throw new Error('Method not implemented.');
+  // Overridable per-test so #doPayout(...) tests can assert delegation / simulate a failing context
+  // without a real chain client; spied on to capture (context, group) arguments.
+  doPayoutForContextImpl: (context: PayoutOrderContext, group: PayoutOrder[]) => Promise<void> = () =>
+    Promise.resolve();
+
+  protected doPayoutForContext(context: PayoutOrderContext, group: PayoutOrder[]): Promise<void> {
+    return this.doPayoutForContextImpl(context, group);
   }
 
-  protected async dispatchPayout(): Promise<string> {
-    return 'TX_ID_01';
+  // Overridable per-test so #send(...) tests can simulate pre-broadcast vs. at-or-after-broadcast
+  // failures without needing a real chain client.
+  dispatchPayoutImpl: (context: PayoutOrderContext, payout: PayoutGroup, token?: Asset) => Promise<string> = () =>
+    Promise.resolve('TX_ID_01');
+
+  protected async dispatchPayout(context: PayoutOrderContext, payout: PayoutGroup, token?: Asset): Promise<string> {
+    return this.dispatchPayoutImpl(context, payout, token);
+  }
+
+  sendWrapper(context: PayoutOrderContext, orders: PayoutOrder[]) {
+    return this.send(context, orders);
   }
 
   createPayoutGroupsWrapper(orders: PayoutOrder[], maxGroupSize: number) {
@@ -425,11 +775,15 @@ class PayoutBitcoinBasedStrategyWrapper extends BitcoinBasedStrategy {
     return this.trackPayoutFailure(orders, error);
   }
 
-  estimateFee(): Promise<FeeResult> {
-    throw new Error('Method not implemented.');
+  // Overridable per-test; #estimateBlockchainFee(...) delegates to this via estimateFee(...).
+  estimateFeeImpl: (asset: Asset) => Promise<FeeResult> = () =>
+    Promise.resolve({ asset: this.feeAssetValue, amount: 0 });
+
+  estimateFee(asset: Asset): Promise<FeeResult> {
+    return this.estimateFeeImpl(asset);
   }
 
   protected getFeeAsset(): Promise<Asset> {
-    throw new Error('Method not implemented.');
+    return Promise.resolve(this.feeAssetValue);
   }
 }

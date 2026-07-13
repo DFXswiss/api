@@ -110,7 +110,21 @@ export class PayoutService {
     const order = await this.payoutOrderRepo.findOneBy({ id });
     if (!order) throw new NotFoundException('Payout order not found');
 
+    // Only an already-broadcast order (payoutTxId set) may be sped up. Any other status would
+    // enter doPayout without a payoutTxId, trip the designate-before-broadcast guard and trigger
+    // a fresh broadcast — a double-payout risk on an order the operator only meant to accelerate.
+    if (order.status !== PayoutOrderStatus.PAYOUT_PENDING)
+      throw new BadRequestException(
+        `Payout order ${id} cannot be sped up in status ${order.status}, expected ${PayoutOrderStatus.PAYOUT_PENDING}`,
+      );
+
     const strategy = this.payoutStrategyRegistry.getPayoutStrategy(order.asset);
+
+    // Speedup reuses the pending tx's nonce to replace it; only EVM implements that (and only while
+    // TX_SPEEDUP is enabled). On any other chain doPayout would broadcast a second, independent
+    // transaction while the original stays valid — a double payout. Reject rather than risk it.
+    if (!strategy.supportsSpeedup || DisabledProcess(Process.TX_SPEEDUP))
+      throw new BadRequestException(`Payout order ${id} does not support transaction speedup`);
 
     await strategy.doPayout([order]);
   }

@@ -5,6 +5,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { PayoutBroadcastException } from 'src/subdomains/supporting/payout/exceptions/payout-broadcast.exception';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import {
   PayoutBitcoinBasedService,
@@ -153,7 +154,12 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
 
       await this.trackPayoutFailure(orders, e);
 
-      if (e.message.includes('timeout')) throw e;
+      // A PayoutBroadcastException means the underlying client reached the actual on-chain
+      // broadcast call (tx may already be in-flight) - fail-closed, keep PAYOUT_DESIGNATED so
+      // the cron escalates to PAYOUT_UNCERTAIN instead of double-spending on rollback+retry.
+      // Any other error (including one that happens to mention "timeout") is provably
+      // pre-broadcast and safe to roll back for auto-retry.
+      if (e instanceof PayoutBroadcastException) throw e;
 
       await this.rollbackPayoutDesignation(orders);
 

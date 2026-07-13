@@ -1,17 +1,29 @@
 import { Injectable } from '@nestjs/common';
 import { CardanoService } from 'src/integration/blockchain/cardano/services/cardano.service';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { PayoutBroadcastException } from '../exceptions/payout-broadcast.exception';
 
 @Injectable()
 export class PayoutCardanoService {
   constructor(private readonly cardanoService: CardanoService) {}
 
   async sendNativeCoin(address: string, amount: number): Promise<string> {
-    return this.cardanoService.sendNativeCoinFromDex(address, amount);
+    try {
+      return await this.cardanoService.sendNativeCoinFromDex(address, amount);
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+      throw e;
+    }
   }
 
-  async sendToken(address: string, token: Asset, amount: number) {
-    return this.cardanoService.sendTokenFromDex(address, token, amount);
+  async sendToken(address: string, token: Asset, amount: number): Promise<string> {
+    try {
+      return await this.cardanoService.sendTokenFromDex(address, token, amount);
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+      throw e;
+    }
   }
 
   async getPayoutCompletionData(txHash: string): Promise<[boolean, number]> {

@@ -7,6 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
+import { TxBroadcastError } from '../shared/errors/tx-broadcast.error';
 import { BlockchainClient, CoinOnly } from '../shared/util/blockchain-client';
 import {
   AddressResultDto,
@@ -239,9 +240,14 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
     return this.sendTransfers([{ addressTo: destinationAddress, amount }]);
   }
 
+  // Broadcast boundary: the wallet RPC's 'transfer' method builds, signs and relays the tx
+  // atomically in one call - there is no separate pre-broadcast step. A failure of the HTTP call
+  // itself, an RPC-level error field, or a missing result are all ambiguous (the wallet may have
+  // already relayed before the response was lost/rejected), mirroring the Solana sendTransaction
+  // boundary (result.error / empty hash -> TxBroadcastError).
   async sendTransfers(payout: PayoutGroup): Promise<MoneroTransferDto> {
-    return this.http
-      .post<GetSendTransferResultDto>(
+    try {
+      const result = await this.http.post<GetSendTransferResultDto>(
         `${Config.blockchain.monero.rpc.url}/json_rpc`,
         {
           method: 'transfer',
@@ -252,13 +258,21 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
           },
         },
         this.httpConfig(),
-      )
-      .then((r) => this.mapSendTransfer(r));
+      );
+
+      // Response mapping stays inside the boundary: a malformed/empty body throwing while reading
+      // result.error would otherwise be a plain error and self-heal a possibly-relayed transfer.
+      return this.mapSendTransfer(result);
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw e;
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   private mapSendTransfer(sendTransferResult: GetSendTransferResultDto): MoneroTransferDto {
-    if (sendTransferResult.error) throw new Error(sendTransferResult.error.message);
-    if (!sendTransferResult.result) throw new Error('No result after send transfer');
+    if (sendTransferResult.error)
+      throw new TxBroadcastError(sendTransferResult.error.message, { cause: sendTransferResult.error });
+    if (!sendTransferResult.result) throw new TxBroadcastError('No result after send transfer');
 
     return this.convertTransferAuToXmr({
       amount: sendTransferResult.result.amount,

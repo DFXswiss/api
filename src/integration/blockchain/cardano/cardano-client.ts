@@ -19,6 +19,7 @@ import {
 } from '@emurgo/cardano-serialization-lib-nodejs';
 import blake from 'blakejs';
 import { Config } from 'src/config/config';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpRequestConfig, HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
@@ -156,7 +157,12 @@ export class CardanoClient extends BlockchainClient {
     const signedTransactionHex = await this.createSignedTransactionBlockFrost(wallet, toAddress, amount);
 
     const blockFrostApi = this.getBlockFrostAPI();
-    return blockFrostApi.txSubmit(signedTransactionHex);
+
+    try {
+      return await blockFrostApi.txSubmit(signedTransactionHex);
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   private async createSignedTransactionBlockFrost(
