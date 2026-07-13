@@ -668,6 +668,7 @@ describe('FiatOutputJobService', () => {
 
       expect(frickService.isAvailable).not.toHaveBeenCalled();
       expect(fiatOutputRepo.find).not.toHaveBeenCalled();
+      expect(frickService.approvePaymentWithoutTan).not.toHaveBeenCalled();
     });
 
     it('skips status polling while Bank Frick is unavailable', async () => {
@@ -1086,6 +1087,48 @@ describe('FiatOutputJobService', () => {
       expect(frickService.approvePaymentWithoutTan).not.toHaveBeenCalled();
       expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, {
         frickOrderStatus: FrickPaymentState.DELETION_REQUESTED,
+        frickError: null,
+      });
+    });
+
+    it('approves a PREPARED order in the status job even when the transmission process is disabled', async () => {
+      Config.bank.frick.payoutEnabled = true;
+      Config.bank.frick.approveWithoutTan = true;
+      jest
+        .spyOn(processServiceModule, 'DisabledProcess')
+        .mockImplementation((process) => process === processServiceModule.Process.FIAT_OUTPUT_FRICK_TRANSMISSION);
+      jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(frickService, 'getPaymentOrder').mockResolvedValue(order); // order.state === PREPARED
+      jest
+        .spyOn(frickService, 'approvePaymentWithoutTan')
+        .mockResolvedValue({ ...order, state: FrickPaymentState.BOOKED });
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([createCustomFiatOutput({ id: 42, frickTxId: 'DFX-FO-42', isComplete: false })]);
+
+      await service.checkFrickOrderStatus();
+
+      expect(frickService.approvePaymentWithoutTan).toHaveBeenCalledWith('DFX-FO-42');
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(
+        42,
+        expect.objectContaining({ frickOrderStatus: FrickPaymentState.BOOKED }),
+      );
+    });
+
+    it('never approves in the status job when approveWithoutTan is disabled', async () => {
+      Config.bank.frick.payoutEnabled = true;
+      Config.bank.frick.approveWithoutTan = false;
+      jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(frickService, 'getPaymentOrder').mockResolvedValue(order); // order.state === PREPARED
+      jest
+        .spyOn(fiatOutputRepo, 'find')
+        .mockResolvedValue([createCustomFiatOutput({ id: 42, frickTxId: 'DFX-FO-42', isComplete: false })]);
+
+      await service.checkFrickOrderStatus();
+
+      expect(frickService.approvePaymentWithoutTan).not.toHaveBeenCalled();
+      expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, {
+        frickOrderStatus: FrickPaymentState.PREPARED,
         frickError: null,
       });
     });

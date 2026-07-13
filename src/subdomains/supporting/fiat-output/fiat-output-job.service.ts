@@ -666,11 +666,11 @@ export class FiatOutputJobService {
   }
 
   private isFrickAutomaticApprovalEnabled(): boolean {
-    return (
-      Config.bank.frick.payoutEnabled &&
-      Config.bank.frick.approveWithoutTan &&
-      !DisabledProcess(Process.FIAT_OUTPUT_FRICK_TRANSMISSION)
-    );
+    // Process gating is the caller's responsibility: checkFrickOrderStatus runs under
+    // FIAT_OUTPUT_FRICK_STATUS_CHECK, transmitFrickPayments under FIAT_OUTPUT_FRICK_TRANSMISSION.
+    // Disabling the transmission switch must not also stop approval of already-created PREPARED
+    // orders in the status job, or their liquidity stays stranded.
+    return Config.bank.frick.payoutEnabled && Config.bank.frick.approveWithoutTan;
   }
 
   private isFrickTerminalState(status: FrickPaymentState | undefined): boolean {
