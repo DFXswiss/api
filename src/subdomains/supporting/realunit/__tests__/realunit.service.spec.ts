@@ -1668,6 +1668,30 @@ describe('RealUnitService', () => {
       expect(logService.create).toHaveBeenCalledWith(expect.objectContaining({ severity: LogSeverity.ERROR }));
     });
 
+    it('self-heals on retry: after a persist failure the client retry re-POSTs (harmless upsert) and completes', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      httpService.post.mockResolvedValue({} as any);
+      // first attempt: the POST succeeds but the COMPLETED persist fails -> the transaction rolls back, no row
+      aktionariatTxManager.save.mockRejectedValueOnce(new Error('db down'));
+
+      const first = await (service as any).forwardRegistration(fakeUserData(10), dto);
+
+      // nothing durable was written -> returns false, but the failed attempt leaves no blocking row
+      expect(first).toBe(false);
+      expect(httpService.post).toHaveBeenCalledTimes(1);
+
+      // client retry: registerUser is an idempotent upsert, so re-POSTing is harmless; the persist now succeeds
+      const second = await (service as any).forwardRegistration(fakeUserData(10), dto);
+
+      expect(second).toBe(true);
+      expect(httpService.post).toHaveBeenCalledTimes(2); // re-POSTed on the retry (no durable row short-circuited it)
+      expect(aktionariatTxManager.save).toHaveBeenCalledTimes(2);
+      const persisted = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls.at(-1)[0];
+      expect(persisted.status).toBe(ReviewStatus.COMPLETED); // the retry persists the COMPLETED registration
+    });
+
     it('re-checks idempotency inside a per-wallet-user advisory lock and does not persist again', async () => {
       const wallet = softwareWallet.address;
       const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
@@ -1692,6 +1716,25 @@ describe('RealUnitService', () => {
       // the POST now runs OUTSIDE the txn and is harmless under Aktionariat's upsert; the in-lock recheck
       // only prevents a duplicate PERSIST when a concurrent caller has already completed the wallet
       expect(aktionariatTxManager.save).not.toHaveBeenCalled();
+    });
+
+    it('lifts the KYC level on the in-lock idempotent outcome (concurrent completion of the same wallet)', async () => {
+      const wallet = softwareWallet.address;
+      const signature = await softwareWallet._signTypedData(domain, types, utf8Fields(wallet));
+      const dto = buildDto(utf8Fields(wallet), signature);
+      userService.getUserByAddress.mockResolvedValue({ id: 55 } as any);
+      httpService.post.mockResolvedValue({} as any);
+      // a concurrent caller already completed this wallet (same signature) -> our persist short-circuits idempotent
+      aktionariatTxManager.findOne.mockResolvedValue({ id: 9, status: ReviewStatus.COMPLETED, signature });
+
+      const ok = await (service as any).forwardRegistration(fakeUserData(10), dto);
+
+      expect(ok).toBe(true);
+      expect(aktionariatTxManager.save).not.toHaveBeenCalled(); // no duplicate persist on the idempotent outcome
+      // the idempotent outcome must still (best-effort) lift THIS caller's KYC level, else its buy/sell gate stays shut
+      expect(userDataService.updateUserDataInternal).toHaveBeenCalledTimes(1);
+      const [, update] = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[0];
+      expect(update.kycLevel).toBe(20);
     });
 
     it('rejects an in-lock COMPLETED short-circuit when the incoming signature differs', async () => {
