@@ -1346,6 +1346,31 @@ export class KycService {
         break;
       }
 
+      case KycStepName.NATIONALITY_DATA:
+        // Auto-satisfy the nationality step from the account's already-known
+        // nationality (e.g. captured during RealUnit registration), mirroring the
+        // CONTACT_DATA (mail) and PERSONAL_DATA (user fields) auto-completion
+        // above. Only the clean case is auto-completed (allowed, non-residence-
+        // permit nationality, no step errors); a residence-permit or disallowed
+        // nationality — or a merged/blocked account — is deliberately left
+        // IN_PROGRESS so the user goes through the normal nationality step, which
+        // routes it to the correct internal/manual review and pulls in the
+        // residence-permit follow-up step. Never a blind complete; without a known
+        // nationality or on a repeat attempt (preventDirectEvaluation) the step
+        // also stays IN_PROGRESS.
+        if (
+          user.nationality &&
+          !preventDirectEvaluation &&
+          !Config.kyc.residencePermitCountries.includes(user.nationality.symbol) &&
+          this.getNationalityErrors(kycStep, user.nationality).length === 0
+        ) {
+          // Persist the same slim { id, symbol } shape the manual nationality
+          // step stores (updateNationalityStep), not the whole Country entity —
+          // avoids freezing mutable country config into an immutable step result.
+          kycStep.complete({ nationality: { id: user.nationality.id, symbol: user.nationality.symbol } });
+        }
+        break;
+
       case KycStepName.IDENT:
         if (kycStep.isSumsub) {
           kycStep.transactionId = SumsubService.transactionId(user, kycStep);
@@ -1797,6 +1822,7 @@ export class KycService {
       users: true,
       kycSteps: { userData: true },
       wallet: true,
+      nationality: true,
     });
   }
 
