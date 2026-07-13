@@ -1,6 +1,10 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { AzureStorageService, BlobContent } from 'src/integration/infrastructure/azure-storage.service';
+import { ArchiveService } from 'src/integration/infrastructure/storage/anchoring/archive.service';
+import { sha256 } from 'src/integration/infrastructure/storage/anchoring/merkle';
+import { createStorageService } from 'src/integration/infrastructure/storage/storage.factory';
+import { BlobContent, StorageService } from 'src/integration/infrastructure/storage/storage.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FileSubType, FileType, KycFileBlob } from '../../dto/kyc-file.dto';
@@ -14,10 +18,15 @@ const KYC_CONTAINER = 'kyc';
 
 @Injectable()
 export class KycDocumentService {
-  private readonly storageService: AzureStorageService;
+  private readonly logger = new DfxLogger(KycDocumentService);
 
-  constructor(private readonly kycFileService: KycFileService) {
-    this.storageService = new AzureStorageService(KYC_CONTAINER);
+  private readonly storageService: StorageService;
+
+  constructor(
+    private readonly kycFileService: KycFileService,
+    private readonly archiveService: ArchiveService,
+  ) {
+    this.storageService = createStorageService(KYC_CONTAINER);
   }
 
   async getAllUserDocuments(userDataId: number, accountType = AccountType.PERSONAL): Promise<KycFileBlob[]> {
@@ -32,12 +41,12 @@ export class KycDocumentService {
   // (`Config.frontend.services`) while keeping the full storage path (`<container>/<blobName>`)
   // intact. The raw blob URL is `<storage-backend-host>/<container>/<blobName>`; we swap only the
   // host, so a storage-backend migration stays transparent to clients. Path segments are encoded
-  // through the same shared helper as the raw blob URL (`AzureStorageService.encodePath`), so the
+  // through the same shared helper as the raw blob URL (`StorageService.encodePath`), so the
   // URL is a true drop-in — byte-identical apart from the host by construction. The path
   // (`<scope>/<id>/<type>`) stays an intact substring, which downstream consumers rely on to extract
   // the file name (e.g. `url.split('<scope>/<id>/<type>')[1]`).
   toHostStableUrl(path: string): string {
-    return `${Config.frontend.services}/${KYC_CONTAINER}/${AzureStorageService.encodePath(path)}`;
+    return `${Config.frontend.services}/${KYC_CONTAINER}/${StorageService.encodePath(path)}`;
   }
 
   async listUserFiles(userDataId: number): Promise<KycFileBlob[]> {
@@ -110,12 +119,20 @@ export class KycDocumentService {
       kycStep,
     });
 
-    const url = await this.storageService.uploadBlob(
-      this.toFileId(FileCategory.USER, userData.id, type, name),
-      data,
-      contentType,
-      metadata,
-    );
+    const blobName = this.toFileId(FileCategory.USER, userData.id, type, name);
+
+    const url = await this.storageService.uploadBlob(blobName, data, contentType, metadata);
+
+    // GeBüV anchoring (Stage 3): record the content hash of the just-uploaded KYC document
+    // (a retention-relevant compliance bucket) so it can later be Merkle-batched and anchored.
+    // This is a best-effort side-booking: the upload above has already succeeded and must not
+    // be rolled back if hash recording fails, so failures are logged (never silently swallowed)
+    // but not rethrown.
+    try {
+      await this.archiveService.recordHash(KYC_CONTAINER, blobName, sha256(data).toString('hex'));
+    } catch (e) {
+      this.logger.error(`GeBüV anchoring failed to record hash for ${KYC_CONTAINER}/${blobName}:`, e);
+    }
 
     return { file, url };
   }

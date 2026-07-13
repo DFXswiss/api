@@ -312,6 +312,28 @@ export class Configuration {
     kycStepExpiry: 90, // days
   };
 
+  // Host-independent comparison of a stored KYC step result URL against a live blob URL.
+  // kyc_step.result persists the full blob URL captured at upload time, while a live KycFileBlob.url
+  // is regenerated from the CURRENT storage backend. After the Azure Blob -> MinIO (S3) storage
+  // cutover the two hosts differ, so the previous full-URL string equality would silently drop every
+  // pre-cutover organization document (Handelsregisterauszug / Vollmacht) from the GwG compliance ZIP
+  // — no error, just missing files. Comparing the container-relative, decoded object key instead is
+  // stable across the host swap and matches BOTH legacy Azure-host and new MinIO-host values.
+  // Inlined here (rather than importing StorageService) to avoid a config <-> storage import cycle.
+  static isSameKycBlob(storedUrl: string | undefined, liveUrl: string | undefined): boolean {
+    if (storedUrl == null || liveUrl == null) return false;
+    return Configuration.kycBlobKey(storedUrl) === Configuration.kycBlobKey(liveUrl);
+  }
+
+  // Reduce a KYC blob URL to its container-relative, percent-decoded object key (drops scheme/host
+  // and the leading `<container>/` segment), mirroring StorageService.blobName's reversal.
+  private static kycBlobKey(url: string): string {
+    const marker = 'kyc/';
+    const idx = url.indexOf(marker);
+    const rel = idx < 0 ? url : url.substring(idx + marker.length);
+    return rel.split('/').map(decodeURIComponent).join('/');
+  }
+
   fileDownloadConfig: {
     id: number;
     name: string;
@@ -499,11 +521,14 @@ export class Configuration {
             userData.kycSteps.some(
               (s) =>
                 s.isCompleted &&
-                ((s.name === KycStepName.COMMERCIAL_REGISTER && s.result === file.url) ||
+                ((s.name === KycStepName.COMMERCIAL_REGISTER && Configuration.isSameKycBlob(s.result, file.url)) ||
                   (s.name === KycStepName.LEGAL_ENTITY &&
-                    s.getResult<{ url: string; legalEntity: LegalEntity }>().url === file.url) ||
+                    Configuration.isSameKycBlob(
+                      s.getResult<{ url: string; legalEntity: LegalEntity }>().url,
+                      file.url,
+                    )) ||
                   (s.name === KycStepName.SOLE_PROPRIETORSHIP_CONFIRMATION &&
-                    s.getResult<{ url: string }>().url === file.url)),
+                    Configuration.isSameKycBlob(s.getResult<{ url: string }>().url, file.url))),
             ),
         },
       ],
@@ -516,7 +541,10 @@ export class Configuration {
         {
           prefixes: (userData: UserData) => [`user/${userData.id}/Authority`],
           filter: (file: KycFileBlob, userData: UserData) =>
-            userData.kycSteps.some((s) => s.name === KycStepName.AUTHORITY && s.isCompleted && s.result === file.url),
+            userData.kycSteps.some(
+              (s) =>
+                s.name === KycStepName.AUTHORITY && s.isCompleted && Configuration.isSameKycBlob(s.result, file.url),
+            ),
         },
       ],
     },
@@ -1252,12 +1280,17 @@ export class Configuration {
     tenantId: process.env.AZURE_TENANT_ID,
     clientId: process.env.AZURE_CLIENT_ID,
     clientSecret: process.env.AZURE_CLIENT_SECRET,
-    storage: {
-      url: process.env.AZURE_STORAGE_CONNECTION_STRING?.split(';')
-        .find((p) => p.includes('BlobEndpoint'))
-        ?.replace('BlobEndpoint=', ''),
-      connectionString: process.env.AZURE_STORAGE_CONNECTION_STRING,
-    },
+  };
+
+  // S3-compatible object storage (on-prem MinIO) — replacement for Azure Blob.
+  // Connection only; WORM/Object-Lock retention is provisioned on the bucket itself.
+  // secrets -> .env; per-env endpoint/url -> compose.
+  s3 = {
+    endpoint: process.env.S3_ENDPOINT,
+    region: process.env.S3_REGION,
+    accessKey: process.env.S3_ACCESS_KEY,
+    secretKey: process.env.S3_SECRET_KEY,
+    publicUrl: process.env.S3_PUBLIC_URL,
   };
 
   alby = {

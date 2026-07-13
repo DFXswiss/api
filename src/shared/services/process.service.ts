@@ -95,6 +95,8 @@ export enum Process {
   TRADE_APPROVAL_DATE = 'TradeApprovalDate',
   SUPPORT_BOT = 'SupportBot',
   GUARANTEED_PRICE = 'GuaranteedPrice',
+  ARCHIVE_ANCHOR = 'ArchiveAnchor',
+  ARCHIVE_UPGRADE = 'ArchiveUpgrade',
   GS_DEBUG = 'GsDebug',
   GS_DB = 'GsDb',
   TRANSACTION_AML_CHECK_LOG = 'TransactionAmlCheckLog',
