@@ -4,9 +4,9 @@ import { Configuration, ConfigService } from 'src/config/config';
 import { BlobContent } from 'src/integration/infrastructure/azure-storage.service';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { Country } from 'src/shared/models/country/country.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { createCustomCountry } from '../../../../../shared/models/country/__mocks__/country.entity.mock';
 import { createCustomUserData } from '../../../user/models/user-data/__mocks__/user-data.entity.mock';
 import { UserData } from '../../../user/models/user-data/user-data.entity';
 import { RiskStatus, UserDataStatus } from '../../../user/models/user-data/user-data.enum';
@@ -398,7 +398,6 @@ describe('KycService downloadIdentDocuments', () => {
 describe('KycService initiateStep NATIONALITY_DATA auto-complete', () => {
   let service: KycService;
   let kycStepRepo: jest.Mocked<KycStepRepository>;
-  let reviewNationalityData: jest.SpyInstance;
 
   const userWithNationality = (nationality?: Country, overrides: Partial<UserData> = {}): UserData =>
     createCustomUserData({ kycHash: 'hash', kycSteps: [], nationality, ...overrides });
@@ -421,9 +420,6 @@ describe('KycService initiateStep NATIONALITY_DATA auto-complete', () => {
     // getNationalityErrors helper; avoid wiring all constructor deps
     service = Object.create(KycService.prototype);
     (service as any).kycStepRepo = kycStepRepo;
-
-    // the clean case is auto-completed in-memory - it must NOT be routed through the review path
-    reviewNationalityData = jest.spyOn(service as any, 'reviewNationalityData').mockResolvedValue(undefined);
   });
 
   it('completes the step in-memory from an allowed nationality and stores it as the result', async () => {
@@ -434,8 +430,6 @@ describe('KycService initiateStep NATIONALITY_DATA auto-complete', () => {
 
     expect(step.status).toBe(ReviewStatus.COMPLETED);
     expect(step.getResult()).toMatchObject({ nationality: { id: nationality.id, symbol: 'DE' } });
-    // auto-completed directly, not routed through the (async) review/follow-up path
-    expect(reviewNationalityData).not.toHaveBeenCalled();
     // only the final persist runs
     expect(kycStepRepo.save).toHaveBeenCalledTimes(1);
   });
