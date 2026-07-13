@@ -54,6 +54,7 @@ Missing any of these = changes requested.
 - **Clean API** — use DTOs, never expose entities, document with ApiProperty
 - **No over-engineering** — don't build it if the existing solution works
 - **Use existing packages** — use `@dfx.swiss/*` packages instead of duplicating logic
+- **Auditable DB mutations** — no destructive overwrites; previous values must stay recoverable (see [Database / TypeORM → Auditable mutations](#auditable-mutations--no-destructive-overwrites-critical))
 
 ---
 
@@ -562,6 +563,29 @@ async process(data: OrderData): Promise<Transaction> { ... }
 ---
 
 ## Database / TypeORM
+
+### Auditable mutations — no destructive overwrites (CRITICAL)
+
+Overwriting a stored value is only allowed when the **previous** value remains
+**recoverable elsewhere in the database**. Every mutation must stay reconstructible:
+it must always be clear **when** a field changed, **from which** previous value, and
+**to which** new value.
+
+| Rule | Requirement |
+|------|-------------|
+| **No silent data loss** | If an overwrite can destroy information that is not still queryable on another durable row/event, it is a **bug**. |
+| **Event before snapshot** | Write the immutable event first (e.g. registration `signedPayload`, superseded history rows, append-only log). Only then update a denormalised “current” column. |
+| **Before → after audit** | For mutable snapshot columns, record `previous` and `next` (and identity/context) **before** the column update. If the audit write fails, do **not** change the column (fail closed). |
+| **No destructive clear** | Do not set a non-null field to `null`/empty when the new business event does not itself retain that prior payload (e.g. clearing `user_data.tin` on a Swiss-only registration that omits `countryAndTINs`). |
+
+**Allowed pattern:** dual-store current snapshot + immutable history.
+
+- **History / event of record** — append-only or supersede-with-history rows (old row stays, `active = false`, payload intact).
+- **Snapshot** — query-friendly “current” column, updated only after history is durable and only with an audit trail for the transition.
+
+**Not allowed:** in-place `UPDATE` that replaces or nulls a field when the old value exists nowhere else; “stale cleanup” that drops data without a recoverable prior record.
+
+When reviewing PRs that touch persistence, ask: *If this write runs, can an investigator still reconstruct the previous value and the change time from the DB alone?* If not, reject the change.
 
 ### Entity Patterns
 
