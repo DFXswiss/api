@@ -8,43 +8,40 @@ import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
-import { BankTxRepository } from '../../repositories/bank-tx.repository';
+import { BankTxFrickService } from '../bank-tx-frick.service';
 import { BankTxService } from '../bank-tx.service';
 
-describe('BankTxService Bank Frick polling', () => {
-  let service: BankTxService;
+describe('BankTxFrickService', () => {
+  let frickTxService: BankTxFrickService;
   let frickService: jest.Mocked<Pick<BankFrickService, 'isAvailable' | 'getFrickTransactions'>>;
-  let bankService: jest.Mocked<Pick<BankService, 'getBanksByName' | 'getBankInternal'>>;
+  let bankService: jest.Mocked<Pick<BankService, 'getBanksByName'>>;
   let settingService: jest.Mocked<Pick<SettingService, 'get' | 'set'>>;
   let specialAccountService: jest.Mocked<Pick<SpecialExternalAccountService, 'getMultiAccounts'>>;
-  let bankTxRepo: jest.Mocked<Pick<BankTxRepository, 'find'>>;
   let loggerWarn: jest.SpyInstance;
   let loggerError: jest.SpyInstance;
 
   beforeEach(async () => {
     frickService = { isAvailable: jest.fn().mockReturnValue(true), getFrickTransactions: jest.fn() };
-    bankService = { getBanksByName: jest.fn(), getBankInternal: jest.fn() };
+    bankService = { getBanksByName: jest.fn() };
     settingService = {
       get: jest.fn().mockResolvedValue(new Date(0).toISOString()),
       set: jest.fn().mockResolvedValue(undefined),
     };
     specialAccountService = { getMultiAccounts: jest.fn().mockResolvedValue([]) };
-    bankTxRepo = { find: jest.fn().mockResolvedValue([]) };
     loggerWarn = jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation();
     loggerError = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
 
-    const module: TestingModule = await Test.createTestingModule({ providers: [BankTxService] })
+    const module: TestingModule = await Test.createTestingModule({ providers: [BankTxFrickService] })
       .useMocker((token) => {
         if (token === BankFrickService) return frickService;
         if (token === BankService) return bankService;
         if (token === SettingService) return settingService;
         if (token === SpecialExternalAccountService) return specialAccountService;
-        if (token === BankTxRepository) return bankTxRepo;
         return createMock();
       })
       .compile();
 
-    service = module.get(BankTxService);
+    frickTxService = module.get(BankTxFrickService);
   });
 
   afterEach(() => {
@@ -61,9 +58,9 @@ describe('BankTxService Bank Frick polling', () => {
     frickService.getFrickTransactions
       .mockResolvedValueOnce([{ accountServiceRef: 'FRICK-EUR-1' }])
       .mockResolvedValueOnce([{ accountServiceRef: 'FRICK-CHF-1' }]);
-    jest.spyOn(service, 'create').mockResolvedValue({});
+    const createTx = jest.fn().mockResolvedValue({});
 
-    await service['checkFrickTransactions']();
+    await frickTxService.checkTransactions(createTx);
 
     expect(bankService.getBanksByName).toHaveBeenCalledWith(IbanBankName.FRICK);
     expect(frickService.getFrickTransactions).toHaveBeenCalledTimes(2);
@@ -88,9 +85,9 @@ describe('BankTxService Bank Frick polling', () => {
       bank(102, 'SYNTHETIC-FRICK-CHF', true),
     ]);
     frickService.getFrickTransactions.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('synthetic outage'));
-    jest.spyOn(service, 'create');
+    const createTx = jest.fn();
 
-    await service['checkFrickTransactions']();
+    await frickTxService.checkTransactions(createTx);
 
     expect(settingService.set).toHaveBeenCalledTimes(1);
     expect(settingService.set).toHaveBeenCalledWith('lastBankFrickDate:101', expect.any(String));
@@ -103,13 +100,12 @@ describe('BankTxService Bank Frick polling', () => {
       bank(102, 'SYNTHETIC-FRICK-CHF', true),
     ]);
     frickService.getFrickTransactions.mockResolvedValue([{ accountServiceRef: 'SYNTHETIC-REF' }]);
-    const create = jest
+    const createTx = jest
       .fn()
       .mockRejectedValueOnce(new ConflictException('duplicate'))
       .mockRejectedValueOnce(new Error('synthetic persistence failure'));
-    jest.spyOn(service, 'create').mockImplementation(create);
 
-    await service['checkFrickTransactions']();
+    await frickTxService.checkTransactions(createTx);
 
     expect(settingService.set).toHaveBeenCalledTimes(1);
     expect(settingService.set).toHaveBeenCalledWith('lastBankFrickDate:101', expect.any(String));
@@ -118,9 +114,10 @@ describe('BankTxService Bank Frick polling', () => {
 
   it('warns only once while the integration is unconfigured', async () => {
     frickService.isAvailable.mockReturnValue(false);
+    const createTx = jest.fn();
 
-    await service['checkFrickTransactions']();
-    await service['checkFrickTransactions']();
+    await frickTxService.checkTransactions(createTx);
+    await frickTxService.checkTransactions(createTx);
 
     expect(loggerWarn).toHaveBeenCalledTimes(1);
     expect(bankService.getBanksByName).not.toHaveBeenCalled();
@@ -128,8 +125,9 @@ describe('BankTxService Bank Frick polling', () => {
 
   it('stops safely when the Bank Frick registry cannot be loaded', async () => {
     bankService.getBanksByName.mockRejectedValue(new Error('synthetic registry outage'));
+    const createTx = jest.fn();
 
-    await service['checkFrickTransactions']();
+    await frickTxService.checkTransactions(createTx);
 
     expect(loggerError).toHaveBeenCalledWith('Failed to load Bank Frick account registry:', expect.any(Error));
     expect(specialAccountService.getMultiAccounts).not.toHaveBeenCalled();
@@ -138,8 +136,9 @@ describe('BankTxService Bank Frick polling', () => {
 
   it('warns and stops when no receiving Bank Frick account is registered', async () => {
     bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-NON-RECEIVING', false)]);
+    const createTx = jest.fn();
 
-    await service['checkFrickTransactions']();
+    await frickTxService.checkTransactions(createTx);
 
     expect(loggerWarn).toHaveBeenCalledWith(
       'No receiving Bank Frick accounts configured - skipping transaction import',
@@ -151,8 +150,9 @@ describe('BankTxService Bank Frick polling', () => {
   it('stops safely when special accounts cannot be loaded', async () => {
     bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
     specialAccountService.getMultiAccounts.mockRejectedValue(new Error('synthetic special-account outage'));
+    const createTx = jest.fn();
 
-    await service['checkFrickTransactions']();
+    await frickTxService.checkTransactions(createTx);
 
     expect(loggerError).toHaveBeenCalledWith(
       'Failed to load special accounts for Bank Frick transaction import:',
@@ -163,27 +163,17 @@ describe('BankTxService Bank Frick polling', () => {
 
   it.each([0, Number.NaN, 1.5])('skips a Bank Frick row with invalid id %s', async (id) => {
     bankService.getBanksByName.mockResolvedValue([bank(id, 'SYNTHETIC-FRICK-EUR', true)]);
+    const createTx = jest.fn();
 
-    await service['checkFrickTransactions']();
+    await frickTxService.checkTransactions(createTx);
 
     expect(loggerError).toHaveBeenCalledWith('Failed to import Bank Frick transactions: invalid bank row id');
     expect(frickService.getFrickTransactions).not.toHaveBeenCalled();
     expect(settingService.set).not.toHaveBeenCalled();
   });
 
-  it('still checks Bank Frick when the Olkypay poll fails', async () => {
-    bankService.getBankInternal.mockRejectedValue(new Error('synthetic Olkypay outage'));
-    bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
-    frickService.getFrickTransactions.mockResolvedValue([]);
-
-    await service.checkBankTx();
-
-    expect(frickService.getFrickTransactions).toHaveBeenCalledTimes(1);
-    expect(loggerError).toHaveBeenCalledWith('Failed to check Olkypay transactions:', expect.any(Error));
-  });
-
   describe('watermark overlap', () => {
-    const OVERLAP_DAYS = (BankTxService as unknown as { FRICK_WATERMARK_OVERLAP_DAYS: number })
+    const OVERLAP_DAYS = (BankTxFrickService as unknown as { FRICK_WATERMARK_OVERLAP_DAYS: number })
       .FRICK_WATERMARK_OVERLAP_DAYS;
 
     function overlapOf(date: Date): Date {
@@ -200,9 +190,9 @@ describe('BankTxService Bank Frick polling', () => {
         { accountServiceRef: 'FRICK-OLD', bookingDate: olderBookingDate },
         { accountServiceRef: 'FRICK-NEW', bookingDate: maxBookingDate },
       ]);
-      jest.spyOn(service, 'create').mockResolvedValue({});
+      const createTx = jest.fn().mockResolvedValue({});
 
-      await service['checkFrickTransactions']();
+      await frickTxService.checkTransactions(createTx);
 
       expect(settingService.set).toHaveBeenCalledWith('lastBankFrickDate:101', overlapOf(maxBookingDate).toISOString());
     });
@@ -211,8 +201,9 @@ describe('BankTxService Bank Frick polling', () => {
       jest.useFakeTimers().setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
       bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
       frickService.getFrickTransactions.mockResolvedValue([]);
+      const createTx = jest.fn();
 
-      await service['checkFrickTransactions']();
+      await frickTxService.checkTransactions(createTx);
 
       expect(settingService.set).toHaveBeenCalledWith(
         'lastBankFrickDate:101',
@@ -227,9 +218,9 @@ describe('BankTxService Bank Frick polling', () => {
       frickService.getFrickTransactions.mockResolvedValue([
         { accountServiceRef: 'FRICK-OLD', bookingDate: new Date('2024-01-01T00:00:00.000Z') },
       ]);
-      jest.spyOn(service, 'create').mockResolvedValue({});
+      const createTx = jest.fn().mockResolvedValue({});
 
-      await service['checkFrickTransactions']();
+      await frickTxService.checkTransactions(createTx);
 
       expect(settingService.set).toHaveBeenCalledWith('lastBankFrickDate:101', aheadWatermark.toISOString());
     });
@@ -237,8 +228,9 @@ describe('BankTxService Bank Frick polling', () => {
     it('leaves the watermark unchanged when the statement fetch itself fails', async () => {
       bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
       frickService.getFrickTransactions.mockRejectedValue(new Error('synthetic outage'));
+      const createTx = jest.fn();
 
-      await service['checkFrickTransactions']();
+      await frickTxService.checkTransactions(createTx);
 
       expect(settingService.set).not.toHaveBeenCalled();
       expect(loggerError).toHaveBeenCalledWith(
@@ -252,9 +244,9 @@ describe('BankTxService Bank Frick polling', () => {
       frickService.getFrickTransactions.mockResolvedValue([
         { accountServiceRef: 'FRICK-1', bookingDate: new Date('2024-01-01T00:00:00.000Z') },
       ]);
-      jest.spyOn(service, 'create').mockRejectedValue(new Error('synthetic persistence failure'));
+      const createTx = jest.fn().mockRejectedValue(new Error('synthetic persistence failure'));
 
-      await service['checkFrickTransactions']();
+      await frickTxService.checkTransactions(createTx);
 
       expect(settingService.set).not.toHaveBeenCalled();
     });
@@ -263,4 +255,34 @@ describe('BankTxService Bank Frick polling', () => {
   function bank(id: number, iban: string, receive: boolean): Bank {
     return { id, iban, receive } as Bank;
   }
+});
+
+describe('BankTxService Bank Frick wiring', () => {
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  it('still checks Bank Frick when the Olkypay poll fails', async () => {
+    const bankService = { getBankInternal: jest.fn().mockRejectedValue(new Error('synthetic Olkypay outage')) };
+    const frickTxServiceMock: jest.Mocked<Pick<BankTxFrickService, 'checkTransactions'>> = {
+      checkTransactions: jest.fn().mockResolvedValue(undefined),
+    };
+    const loggerError = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+
+    const module: TestingModule = await Test.createTestingModule({ providers: [BankTxService] })
+      .useMocker((token) => {
+        if (token === BankService) return bankService;
+        if (token === BankTxFrickService) return frickTxServiceMock;
+        return createMock();
+      })
+      .compile();
+
+    const service = module.get(BankTxService);
+
+    await service.checkBankTx();
+
+    expect(frickTxServiceMock.checkTransactions).toHaveBeenCalledTimes(1);
+    expect(frickTxServiceMock.checkTransactions).toHaveBeenCalledWith(expect.any(Function));
+    expect(loggerError).toHaveBeenCalledWith('Failed to check Olkypay transactions:', expect.any(Error));
+  });
 });

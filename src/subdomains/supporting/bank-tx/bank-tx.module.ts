@@ -25,6 +25,7 @@ import { BankTx } from './bank-tx/entities/bank-tx.entity';
 import { BankTxBatchRepository } from './bank-tx/repositories/bank-tx-batch.repository';
 import { BankTxRepository } from './bank-tx/repositories/bank-tx.repository';
 import { BankTxBatchService } from './bank-tx/services/bank-tx-batch.service';
+import { BankTxFrickService } from './bank-tx/services/bank-tx-frick.service';
 import { BankTxService } from './bank-tx/services/bank-tx.service';
 import { BankTransactionHandler } from './bank-tx/services/bank-transaction-handler.service';
 import { SepaParser } from './bank-tx/services/sepa-parser.service';
@@ -51,6 +52,7 @@ import { SepaParser } from './bank-tx/services/sepa-parser.service';
     BankTxReturnRepository,
     BankTxRepeatRepository,
     BankTxService,
+    BankTxFrickService,
     BankTxReturnService,
     BankTxRepeatService,
     BankTxBatchService,

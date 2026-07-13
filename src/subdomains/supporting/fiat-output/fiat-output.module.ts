@@ -15,6 +15,7 @@ import { FiatOutputRepository } from '../fiat-output/fiat-output.repository';
 import { FiatOutputService } from '../fiat-output/fiat-output.service';
 import { LogModule } from '../log/log.module';
 import { Ep2ReportService } from './ep2-report.service';
+import { FiatOutputFrickService } from './fiat-output-frick.service';
 import { FiatOutputJobService } from './fiat-output-job.service';
 
 @Module({
@@ -37,6 +38,7 @@ import { FiatOutputJobService } from './fiat-output-job.service';
     SellRepository,
     FiatOutputService,
     Ep2ReportService,
+    FiatOutputFrickService,
     FiatOutputJobService,
   ],
   exports: [FiatOutputService],
