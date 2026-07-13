@@ -120,7 +120,10 @@ export class FiatOutputJobService {
         const fileName = `settlement_${Util.isoDateTime(entity.created)}_${routeId}.ep2`;
         const reportBuffer = Buffer.from(report);
 
-        await createStorageService(container).uploadBlob(fileName, reportBuffer, 'text/xml');
+        // WORM sink: uploadWormBlob fails closed if the (runtime-resolved, per-merchant) EP2
+        // container is not Object-Lock protected, so a mis-provisioned bucket never silently
+        // accepts mutable GeBüV settlement records instead of throwing here.
+        await createStorageService(container).uploadWormBlob(fileName, reportBuffer, 'text/xml');
 
         // Mark the report as created as soon as the WORM upload succeeded, BEFORE the best-effort
         // anchoring below. A recordHash failure must not leave reportCreated=false, otherwise the

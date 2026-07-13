@@ -3,11 +3,11 @@
 jest.mock('opentimestamps', () => ({}));
 
 // generateReports resolves a per-merchant EP2 container at runtime via createStorageService();
-// mock the factory so uploadBlob is a spy and no real storage backend is touched.
+// mock the factory so the WORM sink (uploadWormBlob) is a spy and no real storage backend is touched.
 const ep2UploadBlobMock = jest.fn();
 jest.mock('src/integration/infrastructure/storage/storage.factory', () => ({
   createStorageService: jest.fn(() => ({
-    uploadBlob: (...args: any[]) => ep2UploadBlobMock(...args),
+    uploadWormBlob: (...args: any[]) => ep2UploadBlobMock(...args),
   })),
 }));
 

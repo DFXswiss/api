@@ -47,13 +47,24 @@ function getBucketName(): string {
   return bucket;
 }
 
-function getRetentionYears(): number {
+// Swiss GeBüV requires business records to be retained for 10 years. COMPLIANCE-mode Object
+// Lock retention is extend-only and irreversible, so a value provisioned too low can never be
+// corrected on the objects it protects — it must therefore fail closed, never silently under-retain.
+export const GEBUEV_RETENTION_FLOOR_YEARS = 10;
+
+export function getRetentionYears(): number {
   const raw = process.env.RETENTION_YEARS ?? process.argv[3];
   if (raw == null) return 11; // GeBüV 10y + safety margin; explicit, not a silent credential default.
 
   const years = Number(raw);
   if (!Number.isInteger(years) || years <= 0)
     throw new Error(`Invalid RETENTION_YEARS: ${raw} (expected positive integer)`);
+  if (years < GEBUEV_RETENTION_FLOOR_YEARS)
+    throw new Error(
+      `RETENTION_YEARS=${years} is below the GeBüV ${GEBUEV_RETENTION_FLOOR_YEARS}-year retention floor. ` +
+        `COMPLIANCE-mode WORM retention is extend-only and irreversible, so refusing to provision an ` +
+        `under-retained bucket. Set RETENTION_YEARS to at least ${GEBUEV_RETENTION_FLOOR_YEARS} (default 11).`,
+    );
   return years;
 }
 
@@ -127,9 +138,13 @@ async function main(): Promise<void> {
   console.log(`Done. Bucket "${bucket}" is WORM-protected (COMPLIANCE, ${years}y).`);
 }
 
-main()
-  .then(() => process.exit(0))
-  .catch((e) => {
-    console.error('Provisioning failed:', e?.message ?? e);
-    process.exit(1);
-  });
+// Only run when invoked directly as a script (npx ts-node …), not when imported (e.g. by tests
+// that exercise getRetentionYears' GeBüV floor without provisioning a real bucket).
+if (require.main === module) {
+  main()
+    .then(() => process.exit(0))
+    .catch((e) => {
+      console.error('Provisioning failed:', e?.message ?? e);
+      process.exit(1);
+    });
+}
