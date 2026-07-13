@@ -46,12 +46,14 @@ export abstract class EvmStrategy extends PayoutStrategy {
         await this.designateBeforeBroadcast(order, this.payoutOrderRepo);
 
         const txId = await this.dispatchPayout(order);
+        order.resetPayoutRetry();
         order.pendingPayout(txId);
 
         await this.payoutOrderRepo.save(order);
       } catch (e) {
-        // Fail-closed: leave the order PAYOUT_DESIGNATED for processFailedOrders; never rollback — a re-broadcast could double-pay.
         this.logger.error(`Error while executing EVM payout order ${order.id}:`, e);
+
+        await this.handleBroadcastError(order, e, this.payoutOrderRepo);
       }
     }
   }

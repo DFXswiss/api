@@ -781,6 +781,13 @@ export class Configuration {
     ],
   };
 
+  payout = {
+    // Cap on auto-retries for a payout order that fails provably before the on-chain send call
+    // (gas estimation, nonce fetch, gasPrice RPC). Beyond this, a permanently failing pre-broadcast
+    // step (e.g. gas-estimation revert) escalates to PAYOUT_UNCERTAIN instead of retrying forever.
+    maxPreBroadcastRetries: +(process.env.PAYOUT_MAX_PRE_BROADCAST_RETRIES ?? 3),
+  };
+
   blockchain = {
     default: {
       user: process.env.NODE_USER,

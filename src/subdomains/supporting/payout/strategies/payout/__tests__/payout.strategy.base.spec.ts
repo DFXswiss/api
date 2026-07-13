@@ -1,10 +1,12 @@
 import { mock } from 'jest-mock-extended';
+import { Config, ConfigService } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { createCustomPayoutOrder } from '../../../entities/__mocks__/payout-order.entity.mock';
 import { PayoutOrder, PayoutOrderStatus } from '../../../entities/payout-order.entity';
+import { PayoutBroadcastException } from '../../../exceptions/payout-broadcast.exception';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutEvmService } from '../../../services/payout-evm.service';
 import { EvmStrategy } from '../impl/base/evm.strategy';
@@ -43,6 +45,90 @@ describe('PayoutStrategy (base)', () => {
       expect(designateSpy).not.toHaveBeenCalled();
       expect(payoutOrderRepo.save).not.toHaveBeenCalled();
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+    });
+  });
+
+  describe('#handleBroadcastError(...)', () => {
+    let payoutOrderRepo: PayoutOrderRepository;
+    let repoSaveSpy: jest.SpyInstance;
+
+    beforeAll(() => {
+      new ConfigService(); // sets module-level Config (Config.payout.maxPreBroadcastRetries)
+    });
+
+    beforeEach(() => {
+      payoutOrderRepo = mock<PayoutOrderRepository>();
+      repoSaveSpy = jest.spyOn(payoutOrderRepo, 'save').mockImplementation(async (o) => o as PayoutOrder);
+    });
+
+    it('rolls back to PREPARATION_CONFIRMED on a first-attempt plain error (provably pre-broadcast)', async () => {
+      const strategy = new TestStrategyWrapper();
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_DESIGNATED, payoutTxId: null });
+      const rollbackSpy = jest.spyOn(order, 'rollbackPayoutDesignation');
+
+      await strategy.callHandleBroadcastError(order, new Error('gas estimation failed'), payoutOrderRepo);
+
+      expect(order.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+      expect(order.retryCount).toBe(1);
+      expect(order.lastError).toBe('gas estimation failed');
+      expect(rollbackSpy).toHaveBeenCalledTimes(1);
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not roll back on a PayoutBroadcastException (send was reached, fail-closed)', async () => {
+      const strategy = new TestStrategyWrapper();
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_DESIGNATED, payoutTxId: null });
+      const rollbackSpy = jest.spyOn(order, 'rollbackPayoutDesignation');
+
+      await strategy.callHandleBroadcastError(
+        order,
+        new PayoutBroadcastException('tx may be in-flight'),
+        payoutOrderRepo,
+      );
+
+      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+      expect(rollbackSpy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+    });
+
+    it('does not roll back a re-entry with payoutTxId already set (would break speedup/expired-retry nonce reuse)', async () => {
+      const strategy = new TestStrategyWrapper();
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_DESIGNATED, payoutTxId: 'OLD_TX' });
+      const rollbackSpy = jest.spyOn(order, 'rollbackPayoutDesignation');
+
+      await strategy.callHandleBroadcastError(order, new Error('replacement transaction underpriced'), payoutOrderRepo);
+
+      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+      expect(order.payoutTxId).toBe('OLD_TX');
+      expect(rollbackSpy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+    });
+
+    it('stops rolling back once retryCount reaches the cap (escalates to PAYOUT_UNCERTAIN downstream)', async () => {
+      const strategy = new TestStrategyWrapper();
+      const order = createCustomPayoutOrder({
+        status: PayoutOrderStatus.PAYOUT_DESIGNATED,
+        payoutTxId: null,
+        retryCount: Config.payout.maxPreBroadcastRetries,
+      });
+      const rollbackSpy = jest.spyOn(order, 'rollbackPayoutDesignation');
+
+      await strategy.callHandleBroadcastError(order, new Error('gas estimation failed'), payoutOrderRepo);
+
+      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+      expect(order.retryCount).toBe(Config.payout.maxPreBroadcastRetries);
+      expect(rollbackSpy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+    });
+
+    it('records String(e) as the failure message for a non-Error rejection', async () => {
+      const strategy = new TestStrategyWrapper();
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_DESIGNATED, payoutTxId: null });
+
+      await strategy.callHandleBroadcastError(order, 'rpc failure string', payoutOrderRepo);
+
+      expect(order.lastError).toBe('rpc failure string');
+      expect(order.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
     });
   });
 
@@ -155,6 +241,10 @@ class TestStrategyWrapper extends PayoutStrategy {
 
   async callDesignateBeforeBroadcast(order: PayoutOrder, repo: PayoutOrderRepository): Promise<void> {
     return this.designateBeforeBroadcast(order, repo);
+  }
+
+  async callHandleBroadcastError(order: PayoutOrder, e: unknown, repo: PayoutOrderRepository): Promise<void> {
+    return this.handleBroadcastError(order, e, repo);
   }
 }
 

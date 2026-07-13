@@ -1,6 +1,7 @@
 import * as SolanaToken from '@solana/spl-token';
 import * as Solana from '@solana/web3.js';
 import { Config, GetConfig } from 'src/config/config';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache } from 'src/shared/utils/async-cache';
@@ -128,8 +129,10 @@ export class SolanaClient extends BlockchainClient {
 
     const hexTransaction = transaction.serialize().toString('hex');
 
+    // Broadcast boundary: the RPC call has already been made at this point, so a rejection here is
+    // ambiguous (skipPreflight means the node may have accepted and relayed the tx before erroring).
     const result = await this.sendSignedTransaction(hexTransaction);
-    if (result.error) throw new Error(result.error.message);
+    if (result.error) throw new TxBroadcastError(result.error.message, { cause: result.error });
 
     return result.hash;
   }

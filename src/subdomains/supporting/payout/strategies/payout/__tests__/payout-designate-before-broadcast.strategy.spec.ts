@@ -1,9 +1,11 @@
 import { mock } from 'jest-mock-extended';
+import { ConfigService } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { createCustomPayoutOrder } from '../../../entities/__mocks__/payout-order.entity.mock';
 import { PayoutOrder, PayoutOrderStatus } from '../../../entities/payout-order.entity';
+import { PayoutBroadcastException } from '../../../exceptions/payout-broadcast.exception';
 import { PayoutOrderRepository } from '../../../repositories/payout-order.repository';
 import { PayoutArkadeService } from '../../../services/payout-arkade.service';
 import { PayoutCardanoService } from '../../../services/payout-cardano.service';
@@ -32,11 +34,37 @@ interface DesignateBeforeBroadcastFixture {
   repoSaveSpy: jest.SpyInstance;
 }
 
+interface DesignateBeforeBroadcastOptions {
+  // Error thrown by dispatchPayout to simulate a broadcast-time failure. Plain Error by default
+  // (matches every strategy that still has the old, undifferentiated fail-closed catch). EVM,
+  // Cardano and Solana now map a real send failure to PayoutBroadcastException (see
+  // payout-evm/cardano/solana.service.ts + evm/cardano/solana-client.ts), so their fixtures must
+  // throw that type here to stay representative.
+  broadcastError?: Error;
+  // PayoutStrategy#handleBroadcastError (see payout.strategy.ts, exercised via EvmStrategy /
+  // CardanoStrategy / SolanaStrategy #doPayout) treats any non-PayoutBroadcastException
+  // before/at the pre-broadcast designate-save as provably pre-broadcast and rolls back for
+  // retry - including a failed designate save itself, since dispatchPayout was never reached
+  // either way. Every other (not-yet-migrated) strategy keeps the old "never touch it again"
+  // behavior for that case.
+  designateSaveFailureRollsBack?: boolean;
+}
+
 // Shared table of the four designate-before-broadcast variants, run identically against every
 // strategy's fixture. Kept as real, individually-named it() blocks (not a silent for-loop) so a
 // failure in one strategy/variant combination is reported on its own line.
-function runDesignateBeforeBroadcastSuite(strategyName: string, setup: () => DesignateBeforeBroadcastFixture): void {
+function runDesignateBeforeBroadcastSuite(
+  strategyName: string,
+  setup: () => DesignateBeforeBroadcastFixture,
+  options: DesignateBeforeBroadcastOptions = {},
+): void {
+  const { broadcastError = new Error('broadcast failed'), designateSaveFailureRollsBack = false } = options;
+
   describe(`${strategyName} #doPayout(...)`, () => {
+    beforeAll(() => {
+      new ConfigService(); // sets module-level Config (Config.payout.maxPreBroadcastRetries used by handleBroadcastError)
+    });
+
     it('designates and persists BEFORE broadcasting, then reaches PAYOUT_PENDING with the new txId', async () => {
       const { doPayout, dispatchSpy, repoSaveSpy } = setup();
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
@@ -62,7 +90,7 @@ function runDesignateBeforeBroadcastSuite(strategyName: string, setup: () => Des
       const { doPayout, dispatchSpy, repoSaveSpy } = setup();
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
       const rollbackSpy = jest.spyOn(order, 'rollbackPayoutDesignation');
-      dispatchSpy.mockRejectedValue(new Error('broadcast failed'));
+      dispatchSpy.mockRejectedValue(broadcastError);
 
       await doPayout([order]);
 
@@ -96,13 +124,22 @@ function runDesignateBeforeBroadcastSuite(strategyName: string, setup: () => Des
       // doPayout must swallow the error (fail-closed logging), never let it escape
       await expect(doPayout([order])).resolves.toBeUndefined();
 
-      expect(repoSaveSpy).toHaveBeenCalledTimes(1);
       expect(dispatchSpy).not.toHaveBeenCalled(); // broadcast is never reached
-      // order.designatePayout() already ran synchronously before the rejected save, so the
-      // in-memory object is PAYOUT_DESIGNATED even though nothing was ever persisted - it never
-      // advances to PAYOUT_PENDING/txId, which is what matters for not being double-broadcast.
-      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
-      expect(order.payoutTxId).toBeNull();
+
+      if (designateSaveFailureRollsBack) {
+        // EVM: the failed designate save is itself proof dispatchPayout was never reached, so the
+        // differentiated catch rolls back for retry (failed save + rollback save = 2 total).
+        expect(repoSaveSpy).toHaveBeenCalledTimes(2);
+        expect(order.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+        expect(order.payoutTxId).toBeNull();
+      } else {
+        expect(repoSaveSpy).toHaveBeenCalledTimes(1);
+        // order.designatePayout() already ran synchronously before the rejected save, so the
+        // in-memory object is PAYOUT_DESIGNATED even though nothing was ever persisted - it never
+        // advances to PAYOUT_PENDING/txId, which is what matters for not being double-broadcast.
+        expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+        expect(order.payoutTxId).toBeNull();
+      }
     });
   });
 }
@@ -208,10 +245,19 @@ function setupLightning(): DesignateBeforeBroadcastFixture {
 }
 
 describe('Payout designate-before-broadcast', () => {
-  runDesignateBeforeBroadcastSuite('EvmStrategy', setupEvm);
-  runDesignateBeforeBroadcastSuite('SolanaStrategy (SolanaCoinStrategy)', setupSolana);
+  runDesignateBeforeBroadcastSuite('EvmStrategy', setupEvm, {
+    broadcastError: new PayoutBroadcastException('broadcast failed'),
+    designateSaveFailureRollsBack: true,
+  });
+  runDesignateBeforeBroadcastSuite('SolanaStrategy (SolanaCoinStrategy)', setupSolana, {
+    broadcastError: new PayoutBroadcastException('broadcast failed'),
+    designateSaveFailureRollsBack: true,
+  });
   runDesignateBeforeBroadcastSuite('TronStrategy (TronCoinStrategy)', setupTron);
-  runDesignateBeforeBroadcastSuite('CardanoStrategy (CardanoCoinStrategy)', setupCardano);
+  runDesignateBeforeBroadcastSuite('CardanoStrategy (CardanoCoinStrategy)', setupCardano, {
+    broadcastError: new PayoutBroadcastException('broadcast failed'),
+    designateSaveFailureRollsBack: true,
+  });
   runDesignateBeforeBroadcastSuite('IcpStrategy (InternetComputerCoinStrategy)', setupIcp);
   runDesignateBeforeBroadcastSuite('ArkadeStrategy', setupArkade);
   runDesignateBeforeBroadcastSuite('SparkStrategy', setupSpark);

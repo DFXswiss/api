@@ -44,8 +44,9 @@ export abstract class SolanaStrategy extends PayoutStrategy {
 
         await this.payoutOrderRepo.save(order);
       } catch (e) {
-        // Fail-closed: leave the order PAYOUT_DESIGNATED for processFailedOrders; never rollback — a re-broadcast could double-pay.
         this.logger.error(`Error while executing Solana payout order ${order.id}:`, e);
+
+        await this.handleBroadcastError(order, e, this.payoutOrderRepo);
       }
     }
   }
