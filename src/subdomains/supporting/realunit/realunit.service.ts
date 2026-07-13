@@ -893,13 +893,36 @@ export class RealUnitService {
   }
 
   // Residence country (addressCountry) must appear among the declared tax residences.
-  // CH is covered by `swissTaxResidence === true` (not via countryAndTINs — CH has no TIN
-  // in this contract). Non-CH countries are covered by a countryAndTINs entry. Additional
-  // tax countries beyond the address country are allowed; omitting the address country is not.
+  // CH is covered ONLY by `swissTaxResidence === true` — never via countryAndTINs (CH has no
+  // TIN in this contract). Non-CH countries are covered by a countryAndTINs entry with a
+  // non-empty TIN. Additional tax countries beyond the address country are allowed.
   private validateTaxResidenceCoversAddress(dto: RealUnitRegistrationDto): void {
-    const tinCountries = (dto.countryAndTINs ?? []).map((e) => e.country);
+    const entries = dto.countryAndTINs ?? [];
+
+    if (entries.some((e) => e.country === 'CH')) {
+      throw new BadRequestException(
+        'countryAndTINs must not include CH; set swissTaxResidence for Swiss tax residence',
+      );
+    }
+
+    // Nested shape is also enforced here so multi-residence entries stay valid when
+    // swissTaxResidence is true (DTO @ValidateIf historically skipped nested checks then).
+    for (const entry of entries) {
+      if (typeof entry.country !== 'string' || !/^[A-Z]{2}$/.test(entry.country)) {
+        throw new BadRequestException('countryAndTINs.country must be a 2-letter country code');
+      }
+      if (typeof entry.tin !== 'string' || !entry.tin.trim()) {
+        throw new BadRequestException('countryAndTINs.tin must be a non-empty string');
+      }
+    }
+
+    const tinCountries = entries.map((e) => e.country);
     if (new Set(tinCountries).size !== tinCountries.length) {
       throw new BadRequestException('countryAndTINs must not contain duplicate countries');
+    }
+
+    if (!dto.swissTaxResidence && entries.length === 0) {
+      throw new BadRequestException('countryAndTINs is required when swissTaxResidence is false');
     }
 
     const taxCountries = new Set(tinCountries);

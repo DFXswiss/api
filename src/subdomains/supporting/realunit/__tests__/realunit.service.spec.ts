@@ -3143,6 +3143,25 @@ describe('RealUnitService', () => {
       );
     });
 
+    it('N5: throws when CH appears in countryAndTINs (must use swissTaxResidence instead)', async () => {
+      // CH address covered only via countryAndTINs.CH would bypass the swissTaxResidence flag.
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'CH', swissTaxResidence: false }), humanKyc()),
+        [{ country: 'CH', tin: 'should-not-be-here' }],
+      );
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(/countryAndTINs must not include CH/);
+    });
+
+    it('N6: throws when a multi-residence TIN entry has an empty tin (even with swissTaxResidence true)', async () => {
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'CH', swissTaxResidence: true }), humanKyc()),
+        [{ country: 'FR', tin: '   ' }],
+      );
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(
+        /countryAndTINs.tin must be a non-empty string/,
+      );
+    });
+
     it('resolveSignedRegistrationMessage normalizes a signature that lacks the 0x prefix', async () => {
       const fields = humanFields();
       const signature = await wallet._signTypedData(domain, types, fields);
