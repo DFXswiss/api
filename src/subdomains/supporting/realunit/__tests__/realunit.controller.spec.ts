@@ -21,7 +21,7 @@ describe('RealUnitController (W2W transfer)', () => {
   });
 
   describe('prepareTransfer', () => {
-    it('loads the user with kyc/country relations and delegates to the service', async () => {
+    it('loads the user with userData and delegates to the service', async () => {
       const user = { id: 42 };
       const dto = { toAddress: '0xRecipient', amount: 5 } as any;
       userService.getUser.mockResolvedValue(user);
@@ -29,7 +29,8 @@ describe('RealUnitController (W2W transfer)', () => {
 
       const result = await controller.prepareTransfer(jwt, dto);
 
-      expect(userService.getUser).toHaveBeenCalledWith(42, { userData: { kycSteps: true, country: true } });
+      // Registration is checked via AktionariatRegistrationRepository (async), not kycSteps.
+      expect(userService.getUser).toHaveBeenCalledWith(42, { userData: true });
       expect(realunitService.prepareTransfer).toHaveBeenCalledWith(user, dto);
       expect(result).toEqual({ id: 99 });
     });

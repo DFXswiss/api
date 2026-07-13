@@ -945,21 +945,21 @@ Keep old endpoints for backward compatibility but annotate:
 
 The RealUnit purchase and sale flows historically lived under `/v1/realunit/brokerbot/*`. That naming is misleading: most of those endpoints never touch the on-chain Brokerbot smart contract. Treat them as two distinct subsystems:
 
-| Path | What it does | On-chain? |
-|---|---|---|
-| `GET /v1/realunit/quote/price` | Spot price per share | No — Aktionariat REST (`/directinvestment/getPrice`, 30 s cache) |
-| `GET /v1/realunit/quote/buyPrice?shares=N` | `N × price` (buy direction) | No |
-| `GET /v1/realunit/quote/buyShares?amount=N` | `floor(N / price)` (buy direction) | No |
-| `GET /v1/realunit/quote/sellPrice?shares=N` | Estimated payout after user-specific fees | No — REST price + local fee math |
-| `GET /v1/realunit/quote/sellShares?amount=N` | Reverse of the above | No |
-| `GET /v1/realunit/quote/info` | Spot price + Brokerbot contract addresses (for clients that need them) | No |
-| `PUT /v1/realunit/buy` + `/buy/:id/confirm` | Fiat IBAN flow — Aktionariat allocates shares off-chain via `directinvestment/payAndAllocate` | No |
-| `PUT /v1/realunit/sell` | Anchors the quote against the live on-chain sell price before returning payment-info | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` (viem `readContract`) |
-| `PUT /v1/realunit/sell/:id/unsigned-transactions` | Reads the on-chain sell price and builds the EIP-7702 batch the user has to sign | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` |
-| `PUT /v1/realunit/sell/:id/confirm` | Verifies the user-signed batch against the live on-chain sell price | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` |
-| `PUT /v1/realunit/sell/:id/broadcast` | Submits the user-signed EIP-1559 transaction to the network | No — broadcast only, no `readContract` |
-| `PUT /v1/realunit/transfer` | Persists a wallet-to-wallet (W2W) transfer intent and returns the EIP-7702 delegation data to sign. Limit-exempt (on-chain REALU→REALU self-custody movement). | No — prepares the gasless transfer |
-| `PUT /v1/realunit/transfer/:id/confirm` | Relays the user-signed EIP-7702 delegation for the stored transfer request; DFX pays gas from the dedicated W2W gas wallet (`REALUNIT_W2W_GAS_WALLET_*`), never the Sell/OTC relayer | No `readContract` — relays the user-authorized ERC20 transfer |
+| Path                                              | What it does                                                                                                                                                                         | On-chain?                                                                         |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------- |
+| `GET /v1/realunit/quote/price`                    | Spot price per share                                                                                                                                                                 | No — Aktionariat REST (`/directinvestment/getPrice`, 30 s cache)                  |
+| `GET /v1/realunit/quote/buyPrice?shares=N`        | `N × price` (buy direction)                                                                                                                                                          | No                                                                                |
+| `GET /v1/realunit/quote/buyShares?amount=N`       | `floor(N / price)` (buy direction)                                                                                                                                                   | No                                                                                |
+| `GET /v1/realunit/quote/sellPrice?shares=N`       | Estimated payout after user-specific fees                                                                                                                                            | No — REST price + local fee math                                                  |
+| `GET /v1/realunit/quote/sellShares?amount=N`      | Reverse of the above                                                                                                                                                                 | No                                                                                |
+| `GET /v1/realunit/quote/info`                     | Spot price + Brokerbot contract addresses (for clients that need them)                                                                                                               | No                                                                                |
+| `PUT /v1/realunit/buy` + `/buy/:id/confirm`       | Fiat IBAN flow — Aktionariat allocates shares off-chain via `directinvestment/payAndAllocate`                                                                                        | No                                                                                |
+| `PUT /v1/realunit/sell`                           | Anchors the quote against the live on-chain sell price before returning payment-info                                                                                                 | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice` (viem `readContract`) |
+| `PUT /v1/realunit/sell/:id/unsigned-transactions` | Reads the on-chain sell price and builds the EIP-7702 batch the user has to sign                                                                                                     | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice`                       |
+| `PUT /v1/realunit/sell/:id/confirm`               | Verifies the user-signed batch against the live on-chain sell price                                                                                                                  | **Yes** — `RealUnitBlockchainService.getBrokerbotSellPrice`                       |
+| `PUT /v1/realunit/sell/:id/broadcast`             | Submits the user-signed EIP-1559 transaction to the network                                                                                                                          | No — broadcast only, no `readContract`                                            |
+| `PUT /v1/realunit/transfer`                       | Persists a wallet-to-wallet (W2W) transfer intent and returns the EIP-7702 delegation data to sign. Limit-exempt (on-chain REALU→REALU self-custody movement).                       | No — prepares the gasless transfer                                                |
+| `PUT /v1/realunit/transfer/:id/confirm`           | Relays the user-signed EIP-7702 delegation for the stored transfer request; DFX pays gas from the dedicated W2W gas wallet (`REALUNIT_W2W_GAS_WALLET_*`), never the Sell/OTC relayer | No `readContract` — relays the user-authorized ERC20 transfer                     |
 
 Operational consequences:
 
@@ -971,10 +971,10 @@ Operational consequences:
 
 The endpoint that tells the client what to do to RealUnit-register the connected wallet historically lived under `/v1/realunit/wallet/status`. That naming is misleading: the resource being described is the user's Aktionariat registration, not a generic wallet status — and clients never ask "what is the wallet's status?", they ask "what do I need to do to be RealUnit-registered?". The canonical path is now `/v1/realunit/registration`; the legacy path is kept as a `deprecated: true` mirror.
 
-| Old | New |
-|---|---|
-| `GET /v1/realunit/wallet/status` | `GET /v1/realunit/registration` |
-| `RealUnitWalletStatusDto` | `RealUnitRegistrationInfoDto` |
+| Old                                           | New                                        |
+| --------------------------------------------- | ------------------------------------------ |
+| `GET /v1/realunit/wallet/status`              | `GET /v1/realunit/registration`            |
+| `RealUnitWalletStatusDto`                     | `RealUnitRegistrationInfoDto`              |
 | `RealUnitService.getAddressWalletStatus(...)` | `RealUnitService.getRegistrationInfo(...)` |
 
 Operational consequence: treat `/wallet/status` as deprecated; consume `state` from the new `/registration` endpoint; the legacy path is kept for backwards compatibility on existing clients only.
@@ -1002,13 +1002,13 @@ new capability flag.**
 
 #### 1. Heterogeneous capabilities — `bool` for hide-able, struct for discoverable
 
-| Action type | Schema |
-|---|---|
-| Hide-able (e.g. Edit button — UI just hides/disables it when forbidden) | `canEditName: boolean` |
+| Action type                                                                  | Schema                                                     |
+| ---------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Hide-able (e.g. Edit button — UI just hides/disables it when forbidden)      | `canEditName: boolean`                                     |
 | Discoverable (tile MUST stay visible; user is guided through a prerequisite) | `createSupportTicket: { available, missingPrerequisite? }` |
 
 Don't mix the two. Hide-able stays `bool`. Discoverable needs a
-discriminator so the client knows *which* prerequisite to render.
+discriminator so the client knows _which_ prerequisite to render.
 
 #### 2. Static info belongs in Swagger, NOT in the `/user` response
 
