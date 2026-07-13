@@ -745,6 +745,9 @@ export class RealUnitService {
       dto.walletAddress,
     );
     if (isForCurrentWallet) {
+      // Registration row is already durable — still sync user_data.tin (e.g. retry after a
+      // previous attempt that forwarded successfully but failed the tin audit write).
+      await this.persistUserDataTinAfterRegistration(userData, dto);
       return this.idempotentRegistrationResult(userData, existingRegistration!, dto.signature);
     }
 
@@ -754,27 +757,24 @@ export class RealUnitService {
       throw new BadRequestException('Personal data does not match existing data');
     }
 
-    // Persist personal data (first-time only) and ALWAYS store submitted tax residences/TINs on
-    // user_data.tin. TINs are also retained on aktionariat_registration.signedPayload (via
-    // countryAndTINs in the forward payload), but user_data.tin is the queryable DFX store —
-    // it must not be skipped when personal data already exists (pre-filled registration path).
+    // Personal data first (first-time only). TINs are intentionally NOT written here:
+    // user_data.tin is only updated AFTER the registration row is durable so every change
+    // is recoverable (see persistUserDataTinAfterRegistration).
     if (!hasExistingData) {
       await this.userDataService.updatePersonalData(userData, dto.kycData);
       await this.userDataService.updateUserDataInternal(userData, {
         nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
         birthday: new Date(dto.birthday),
         language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
-        tin: this.serializeCountryAndTins(dto.countryAndTINs),
-      });
-    } else {
-      await this.userDataService.updateUserDataInternal(userData, {
-        tin: this.serializeCountryAndTins(dto.countryAndTINs),
       });
     }
 
-    // forward to Aktionariat (persists the single-source-of-truth registration row in both branches)
+    // forward to Aktionariat (persists the single-source-of-truth registration row in both branches).
+    // signedPayload carries countryAndTINs for this event; superseded rows stay queryable.
     const success = await this.forwardRegistration(userData, dto);
     if (!success) return RealUnitRegistrationStatus.FORWARDING_FAILED;
+
+    await this.persistUserDataTinAfterRegistration(userData, dto);
 
     return RealUnitRegistrationStatus.COMPLETED;
   }
@@ -933,11 +933,60 @@ export class RealUnitService {
     }
   }
 
-  // Canonical persistence shape for user_data.tin: JSON array of {country, tin}, or null when
-  // there are no non-CH tax residences (Swiss-only). Always returns null (not undefined) so a
-  // TypeORM update clears a stale value instead of leaving it untouched.
+  // Canonical shape for user_data.tin: JSON array of {country, tin}, or null when the
+  // submission carries no non-CH tax residences (Swiss-only / empty).
   private serializeCountryAndTins(entries: { country: string; tin: string }[] | undefined): string | null {
     return entries?.length ? JSON.stringify(entries) : null;
+  }
+
+  // DFX data rule: overwriting a DB value is only allowed when the previous value remains
+  // recoverable. Tax residences are therefore dual-stored:
+  //   1) aktionariat_registration.signedPayload — immutable event log (superseded rows kept)
+  //   2) user_data.tin — current snapshot for queries
+  // This method runs ONLY after forwardRegistration has persisted (1). It never silently
+  // destroys a non-null previous tin by writing null (Swiss-only submissions omit
+  // countryAndTINs from the new payload, so nulling would lose prior foreign TINs).
+  // Every actual mutation is audited with before→after before the column is updated.
+  private async persistUserDataTinAfterRegistration(userData: UserData, dto: RealUnitRegistrationDto): Promise<void> {
+    const previousTin = userData.tin ?? null;
+    const nextTin = this.serializeCountryAndTins(dto.countryAndTINs);
+
+    if (previousTin === nextTin) return;
+
+    // Never clear a stored TIN set to null — that would drop recoverable history from
+    // user_data without placing those TINs on the new registration row (Swiss-only payload).
+    // Prior foreign TINs stay on user_data until a new non-empty set is submitted; each
+    // registration event remains on aktionariat_registration (active + superseded).
+    if (nextTin === null && previousTin != null) {
+      return;
+    }
+
+    // Fail closed on audit: do not overwrite until the before→after event is written.
+    await this.logUserDataTinChange(userData.id, dto.walletAddress, previousTin, nextTin);
+    await this.userDataService.updateUserDataInternal(userData, { tin: nextTin });
+  }
+
+  private async logUserDataTinChange(
+    userDataId: number,
+    walletAddress: string,
+    previousTin: string | null,
+    nextTin: string | null,
+  ): Promise<void> {
+    await this.logService.create({
+      system: 'RealUnit',
+      subsystem: 'UserDataTin',
+      severity: LogSeverity.INFO,
+      message: JSON.stringify({
+        action: 'user_data.tin change',
+        userDataId,
+        walletAddress,
+        previousTin,
+        nextTin,
+        changedAt: new Date().toISOString(),
+      }),
+      category: String(userDataId),
+      valid: null,
+    });
   }
 
   private async validateRegistrationDto(dto: RealUnitRegistrationDto): Promise<void> {

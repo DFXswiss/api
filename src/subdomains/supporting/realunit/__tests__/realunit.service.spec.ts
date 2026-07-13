@@ -2208,13 +2208,10 @@ describe('RealUnitService', () => {
 
       expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
       expect(forwardSpy).toHaveBeenCalled();
-      // Personal KYC fields stay untouched when they already match, but tax residences/TINs are
-      // always written (null when none were submitted — Swiss-only or empty).
+      // Personal KYC fields stay untouched when they already match. dto has no countryAndTINs and
+      // userData.tin is empty → tin persist is a no-op (no destructive null write).
       expect(userDataService.updatePersonalData).not.toHaveBeenCalled();
-      expect(userDataService.updateUserDataInternal).toHaveBeenCalledWith(
-        expect.anything(),
-        expect.objectContaining({ tin: null }),
-      );
+      expect(userDataService.updateUserDataInternal).not.toHaveBeenCalled();
     });
 
     it('persists personal data for a first-time customer (no existing firstname) before forwarding', async () => {
@@ -3257,26 +3254,25 @@ describe('RealUnitService', () => {
     });
   });
 
-  describe('completeRegistration — tax-residence TINs (countryAndTINs persistence on user_data.tin)', () => {
-    // Persistence matrix for user_data.tin after completeRegistration:
-    //   S1 CH + swissTaxResidence, countryAndTINs undefined/empty → tin null
-    //   S2 DE + [{DE, tin}]                                       → JSON of DE
-    //   S3 CH + swissTaxResidence + [{FR, tin}]                   → JSON of FR
-    //   S4 DE + swissTaxResidence + [{DE, tin}]                   → JSON of DE
-    //   S5 DE + [{DE},{FR},{US}]                                  → JSON of all three
-    // Covered for BOTH first-time (firstname null) AND existing personal data paths.
+  describe('completeRegistration — tax-residence TINs (audit-safe user_data.tin persistence)', () => {
+    // Data rule: never overwrite a DB value if the previous value would become unrecoverable.
+    //   - New non-empty countryAndTINs → written AFTER forwardRegistration (signedPayload holds the event)
+    //     with a before→after audit log.
+    //   - Swiss-only / empty countryAndTINs → does NOT clear an existing non-null user_data.tin.
     // validateRegistrationDto is mocked here — tax-residence rule coverage lives in its own describe.
 
     const TIN_DE = { country: 'DE', tin: 'DE123456789' };
     const TIN_FR = { country: 'FR', tin: 'FR111111111' };
     const TIN_US = { country: 'US', tin: 'US999999999' };
+    const STALE = JSON.stringify([{ country: 'XX', tin: 'stale' }]);
 
     type TinScenario = {
       id: string;
       addressCountry: string;
       swissTaxResidence: boolean;
       countryAndTINs: { country: string; tin: string }[] | undefined | [];
-      expectedTin: string | null;
+      /** Expected next value when previous tin is empty; null means no tin column write. */
+      expectedTinWhenEmpty: string | null;
     };
 
     const tinScenarios: TinScenario[] = [
@@ -3285,42 +3281,42 @@ describe('RealUnitService', () => {
         addressCountry: 'CH',
         swissTaxResidence: true,
         countryAndTINs: undefined,
-        expectedTin: null,
+        expectedTinWhenEmpty: null,
       },
       {
         id: 'S1-empty',
         addressCountry: 'CH',
         swissTaxResidence: true,
         countryAndTINs: [],
-        expectedTin: null,
+        expectedTinWhenEmpty: null,
       },
       {
         id: 'S2',
         addressCountry: 'DE',
         swissTaxResidence: false,
         countryAndTINs: [TIN_DE],
-        expectedTin: JSON.stringify([TIN_DE]),
+        expectedTinWhenEmpty: JSON.stringify([TIN_DE]),
       },
       {
         id: 'S3',
         addressCountry: 'CH',
         swissTaxResidence: true,
         countryAndTINs: [TIN_FR],
-        expectedTin: JSON.stringify([TIN_FR]),
+        expectedTinWhenEmpty: JSON.stringify([TIN_FR]),
       },
       {
         id: 'S4',
         addressCountry: 'DE',
         swissTaxResidence: true,
         countryAndTINs: [TIN_DE],
-        expectedTin: JSON.stringify([TIN_DE]),
+        expectedTinWhenEmpty: JSON.stringify([TIN_DE]),
       },
       {
         id: 'S5',
         addressCountry: 'DE',
         swissTaxResidence: false,
         countryAndTINs: [TIN_DE, TIN_FR, TIN_US],
-        expectedTin: JSON.stringify([TIN_DE, TIN_FR, TIN_US]),
+        expectedTinWhenEmpty: JSON.stringify([TIN_DE, TIN_FR, TIN_US]),
       },
     ];
 
@@ -3334,6 +3330,7 @@ describe('RealUnitService', () => {
       forwardSpy = jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
       (service as any).countryService.getCountryWithSymbol.mockResolvedValue({ id: 1, symbol: 'CH' });
       (service as any).languageService.getLanguageBySymbol.mockResolvedValue({ id: 1, symbol: 'DE' });
+      logService.create.mockResolvedValue({} as any);
     });
 
     const buildDto = (scenario: TinScenario): any => ({
@@ -3349,16 +3346,24 @@ describe('RealUnitService', () => {
       countryAndTINs: scenario.countryAndTINs,
     });
 
+    const tinUpdates = (): any[] =>
+      (userDataService.updateUserDataInternal as jest.Mock).mock.calls
+        .map((c) => c[1])
+        .filter((u) => u && Object.prototype.hasOwnProperty.call(u, 'tin'));
+
     describe.each(tinScenarios)(
-      '$id first-time customer (firstname null) — addressCountry=$addressCountry swissTaxResidence=$swissTaxResidence',
+      '$id first-time customer (empty previous tin) — addressCountry=$addressCountry',
       (scenario) => {
-        it(`persists tin=${scenario.expectedTin === null ? 'null' : 'JSON'} , forwards, and returns COMPLETED`, async () => {
+        it(`forwards first, then writes tin only when non-empty (expected=${
+          scenario.expectedTinWhenEmpty === null ? 'no write' : 'JSON'
+        })`, async () => {
           const dto = buildDto(scenario);
           const userData: any = {
             id: 1,
             kycLevel: KycLevel.LEVEL_10,
             mail: 'max@example.com',
             firstname: null,
+            tin: null,
           };
           userService.getUserByAddress.mockResolvedValue({ userData } as any);
 
@@ -3366,27 +3371,52 @@ describe('RealUnitService', () => {
 
           expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
           expect(userDataService.updatePersonalData).toHaveBeenCalledWith(userData, dto.kycData);
-          expect(userDataService.updateUserDataInternal).toHaveBeenCalledTimes(1);
-          const [, update] = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[0];
-          expect(update.tin).toBe(scenario.expectedTin);
+          // Personal-data update never includes tin (tin is written only after forward).
+          const personalUpdate = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[0][1];
+          expect(personalUpdate).not.toHaveProperty('tin');
           expect(forwardSpy).toHaveBeenCalledWith(userData, dto);
-          expect(forwardSpy).toHaveBeenCalledTimes(1);
+
+          const tinWrites = tinUpdates();
+          if (scenario.expectedTinWhenEmpty === null) {
+            expect(tinWrites).toHaveLength(0);
+            expect(logService.create).not.toHaveBeenCalledWith(expect.objectContaining({ subsystem: 'UserDataTin' }));
+          } else {
+            expect(tinWrites).toEqual([{ tin: scenario.expectedTinWhenEmpty }]);
+            expect(logService.create).toHaveBeenCalledWith(
+              expect.objectContaining({
+                system: 'RealUnit',
+                subsystem: 'UserDataTin',
+                message: expect.stringContaining('"previousTin":null'),
+              }),
+            );
+            // Audit before column write: log must be called before the tin update.
+            const logOrder = (logService.create as jest.Mock).mock.invocationCallOrder.find((_, i) => {
+              const arg = (logService.create as jest.Mock).mock.calls[i][0];
+              return arg?.subsystem === 'UserDataTin';
+            });
+            const tinOrder = (userDataService.updateUserDataInternal as jest.Mock).mock.invocationCallOrder.find(
+              (_, i) => {
+                const arg = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[i][1];
+                return arg && Object.prototype.hasOwnProperty.call(arg, 'tin');
+              },
+            );
+            expect(logOrder).toBeLessThan(tinOrder!);
+          }
         });
       },
     );
 
     describe.each(tinScenarios)(
-      '$id existing personal data (firstname set + isPersonalDataMatching) — addressCountry=$addressCountry',
+      '$id existing personal data with stale tin — addressCountry=$addressCountry',
       (scenario) => {
-        it(`persists tin=${scenario.expectedTin === null ? 'null' : 'JSON'} only, forwards, and returns COMPLETED`, async () => {
+        it('never destroys the previous non-null tin without a recoverable replacement', async () => {
           const dto = buildDto(scenario);
           const userData: any = {
             id: 1,
             kycLevel: KycLevel.LEVEL_10,
             mail: 'max@example.com',
             firstname: 'Max',
-            // stale TIN must be overwritten (including cleared to null for Swiss-only)
-            tin: JSON.stringify([{ country: 'XX', tin: 'stale' }]),
+            tin: STALE,
           };
           userService.getUserByAddress.mockResolvedValue({ userData } as any);
           jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(true);
@@ -3395,49 +3425,43 @@ describe('RealUnitService', () => {
 
           expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
           expect(userDataService.updatePersonalData).not.toHaveBeenCalled();
-          expect(userDataService.updateUserDataInternal).toHaveBeenCalledTimes(1);
-          const [, update] = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[0];
-          // existing path only updates tin — no nationality/birthday/language rewrite
-          expect(update).toEqual({ tin: scenario.expectedTin });
           expect(forwardSpy).toHaveBeenCalledWith(userData, dto);
-          expect(forwardSpy).toHaveBeenCalledTimes(1);
+
+          const tinWrites = tinUpdates();
+          if (scenario.expectedTinWhenEmpty === null) {
+            // Swiss-only must NOT clear STALE — that would lose data not on the new payload.
+            expect(tinWrites).toHaveLength(0);
+          } else {
+            // Non-empty next set: overwrite after audit (new value also on signedPayload).
+            expect(tinWrites).toEqual([{ tin: scenario.expectedTinWhenEmpty }]);
+            const audit = (logService.create as jest.Mock).mock.calls.find(
+              (c) => c[0]?.subsystem === 'UserDataTin',
+            )?.[0];
+            expect(audit).toBeDefined();
+            const body = JSON.parse(audit.message);
+            expect(body.previousTin).toBe(STALE);
+            expect(body.nextTin).toBe(scenario.expectedTinWhenEmpty);
+          }
         });
       },
     );
 
-    it('still persists multi-country TINs (DE+AT) for an existing customer (regression)', async () => {
-      const countryAndTINs = [
-        { country: 'DE', tin: 'DE123456789' },
-        { country: 'AT', tin: 'AT987654321' },
-      ];
-      const dto: any = {
-        walletAddress: '0xabc',
-        signature: '0xsig',
-        email: 'max@example.com',
-        kycData: { accountType: 'Personal' },
-        nationality: 'DE',
-        birthday: '1990-01-01',
-        lang: 'DE',
-        addressCountry: 'DE',
-        swissTaxResidence: false,
-        countryAndTINs,
-      };
+    it('fails closed: does not overwrite tin when the before→after audit log cannot be written', async () => {
+      const dto = buildDto(tinScenarios.find((s) => s.id === 'S2')!);
       const userData: any = {
         id: 1,
         kycLevel: KycLevel.LEVEL_10,
         mail: 'max@example.com',
         firstname: 'Max',
+        tin: STALE,
       };
       userService.getUserByAddress.mockResolvedValue({ userData } as any);
       jest.spyOn(service as any, 'isPersonalDataMatching').mockReturnValue(true);
+      logService.create.mockRejectedValue(new Error('log down'));
 
-      const status = await service.completeRegistration(1, dto);
-
-      expect(status).toBe(RealUnitRegistrationStatus.COMPLETED);
-      expect(userDataService.updatePersonalData).not.toHaveBeenCalled();
-      const [, update] = (userDataService.updateUserDataInternal as jest.Mock).mock.calls[0];
-      expect(update).toEqual({ tin: JSON.stringify(countryAndTINs) });
-      expect(forwardSpy).toHaveBeenCalledWith(userData, dto);
+      await expect(service.completeRegistration(1, dto)).rejects.toThrow('log down');
+      // Registration forward already ran, but the column must not change without audit.
+      expect(tinUpdates()).toHaveLength(0);
     });
   });
 
