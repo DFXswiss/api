@@ -1686,7 +1686,10 @@ describe('RealUnitService', () => {
       const second = await (service as any).forwardRegistration(fakeUserData(10), dto);
 
       expect(second).toBe(true);
-      expect(httpService.post).toHaveBeenCalledTimes(2); // re-POSTed on the retry (no durable row short-circuited it)
+      // the POST runs unconditionally (outside the persist txn), so its count alone does not prove the retry;
+      // the self-heal is shown by the second attempt actually persisting a COMPLETED row — the rolled-back
+      // first attempt left no active row to short-circuit it.
+      expect(httpService.post).toHaveBeenCalledTimes(2);
       expect(aktionariatTxManager.save).toHaveBeenCalledTimes(2);
       const persisted = (aktionariatRegistrationRepo.create as jest.Mock).mock.calls.at(-1)[0];
       expect(persisted.status).toBe(ReviewStatus.COMPLETED); // the retry persists the COMPLETED registration
