@@ -71,10 +71,15 @@ describe('RealUnitComplianceService', () => {
     return Object.assign(new KycStep(), values);
   }
 
-  // Balance resolution defaults: no wallet addresses, empty holder set, share token with 0 decimals.
+  // Balance resolution defaults: the member has no wallet addresses, but the indexer DOES resolve (a single
+  // foreign holder keeps the set non-empty) — so members resolve to 0 (holds nothing), not unknown. Share
+  // token with 0 decimals.
   function mockEmptyBalances(): void {
     userService.getUsersByUserDataIds.mockResolvedValue([]);
-    realUnitService.getHolders.mockResolvedValue({ holders: [], pageInfo: { hasNextPage: false } } as HoldersDto);
+    realUnitService.getHolders.mockResolvedValue({
+      holders: [{ address: '0xf000000000000000000000000000000000000000', balance: '0' }],
+      pageInfo: { hasNextPage: false },
+    } as HoldersDto);
     realUnitService.getRealuAsset.mockResolvedValue({ decimals: 0 } as Asset);
   }
 
@@ -291,6 +296,21 @@ describe('RealUnitComplianceService', () => {
       expect(dossier.checks.identCheck).toBeUndefined();
       expect(dossier.checks.nameCheck).toBeUndefined();
     });
+
+    it('resolves the member REALU balance in the dossier detail', async () => {
+      mockDossierDefaults();
+      userService.getUsersByUserDataIds.mockResolvedValue([
+        Object.assign(new User(), { address: '0xAaA', userData: { id: 1 } as UserData }),
+      ]);
+      realUnitService.getHolders.mockResolvedValue({
+        holders: [{ address: '0xaaa', balance: '250' }],
+        pageInfo: { hasNextPage: false },
+      } as HoldersDto);
+
+      const dossier = await service.getReducedDossier(1);
+
+      expect(dossier.balance).toBe(250);
+    });
   });
 
   describe('searchCustomers', () => {
@@ -361,6 +381,55 @@ describe('RealUnitComplianceService', () => {
       const result = await service.searchCustomers();
 
       expect(result).toHaveLength(1);
+      expect(result[0].balance).toBeUndefined();
+    });
+
+    it('reports the balance as unknown (undefined) when the indexer resolves but returns no holders', async () => {
+      scopeService.getCustomerIds.mockResolvedValue([1]);
+      userDataService.getUserDataByIds.mockResolvedValue([Object.assign(new UserData(), { id: 1 })]);
+      userService.getUsersByUserDataIds.mockResolvedValue([
+        Object.assign(new User(), { address: '0xabc', userData: { id: 1 } as UserData }),
+      ]);
+      realUnitService.getHolders.mockResolvedValue({ holders: [], pageInfo: { hasNextPage: false } } as HoldersDto);
+
+      const result = await service.searchCustomers();
+
+      expect(result[0].balance).toBeUndefined();
+    });
+
+    it('skips a single unparsable holder balance and still sums the remaining addresses', async () => {
+      scopeService.getCustomerIds.mockResolvedValue([1]);
+      userDataService.getUserDataByIds.mockResolvedValue([Object.assign(new UserData(), { id: 1 })]);
+      userService.getUsersByUserDataIds.mockResolvedValue([
+        Object.assign(new User(), { address: '0xabc', userData: { id: 1 } as UserData }),
+        Object.assign(new User(), { address: '0xdef', userData: { id: 1 } as UserData }),
+      ]);
+      realUnitService.getHolders.mockResolvedValue({
+        holders: [
+          { address: '0xabc', balance: 'not-a-number' }, // malformed -> skipped, must not blank the batch
+          { address: '0xdef', balance: '50' },
+        ],
+        pageInfo: { hasNextPage: false },
+      } as HoldersDto);
+
+      const result = await service.searchCustomers();
+
+      expect(result[0].balance).toBe(50);
+    });
+
+    it('reports the balance as unknown (undefined) when the indexer signals another page without a cursor', async () => {
+      scopeService.getCustomerIds.mockResolvedValue([1]);
+      userDataService.getUserDataByIds.mockResolvedValue([Object.assign(new UserData(), { id: 1 })]);
+      userService.getUsersByUserDataIds.mockResolvedValue([
+        Object.assign(new User(), { address: '0xabc', userData: { id: 1 } as UserData }),
+      ]);
+      realUnitService.getHolders.mockResolvedValue({
+        holders: [{ address: '0xabc', balance: '100' }],
+        pageInfo: { hasNextPage: true },
+      } as unknown as HoldersDto);
+
+      const result = await service.searchCustomers();
+
       expect(result[0].balance).toBeUndefined();
     });
 
