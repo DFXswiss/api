@@ -19,8 +19,8 @@ module.exports = class AddBankFrickPayoutTracking1783944000000 {
    */
   async up(queryRunner) {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`ALTER TABLE "fiat_output" ADD "frickOrderId" character varying(256)`);
-    await queryRunner.query(`ALTER TABLE "fiat_output" ADD "frickTxId" character varying(256)`);
+    await queryRunner.query(`ALTER TABLE "fiat_output" ADD "frickOrderId" character varying(255)`);
+    await queryRunner.query(`ALTER TABLE "fiat_output" ADD "frickTxId" character varying(255)`);
   }
 
   /**

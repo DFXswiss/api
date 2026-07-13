@@ -152,10 +152,10 @@ export class FiatOutput extends IEntity {
   @Column({ nullable: true })
   olkyOrderId?: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ nullable: true })
   frickOrderId?: string;
 
-  @Column({ length: 256, nullable: true })
+  @Column({ nullable: true })
   frickTxId?: string;
 
   // --- ENTITY METHODS --- //

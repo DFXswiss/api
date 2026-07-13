@@ -656,6 +656,91 @@ describe('FiatOutputJobService', () => {
       });
     });
 
+    it('polls an already-approved IN_PROGRESS order without issuing an empty update', async () => {
+      Config.bank.frick.payoutEnabled = false;
+      Config.bank.frick.approveWithoutTan = false;
+      jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(frickService, 'getPaymentOrder').mockResolvedValue({
+        ...order,
+        state: FrickPaymentState.IN_PROGRESS,
+      });
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 42,
+          frickTxId: 'DFX-FO-42',
+          isApprovedDate: new Date('2026-07-01'),
+          isComplete: false,
+          info: undefined,
+        }),
+      ]);
+
+      await service.checkFrickOrderStatus();
+
+      expect(frickService.getPaymentOrder).toHaveBeenCalledWith('DFX-FO-42');
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('preserves an operations note when a status request fails', async () => {
+      jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(frickService, 'getPaymentOrder').mockRejectedValue(new Error('synthetic status failure'));
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 42,
+          frickTxId: 'DFX-FO-42',
+          isComplete: false,
+          info: 'Manual operations note',
+        }),
+      ]);
+
+      await service.checkFrickOrderStatus();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('does not use a lone house number as the creditor address', async () => {
+      Config.bank.frick.payoutEnabled = true;
+      Config.bank.frick.approveWithoutTan = false;
+      jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(frickService, 'createPaymentOrder').mockResolvedValue(order);
+      jest.spyOn(frickService, 'getSafeOrderId').mockReturnValue('4242');
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 42,
+          amount: 10,
+          currency: 'EUR',
+          accountIban: 'SYNTHETIC-DEBTOR',
+          name: 'Synthetic Recipient',
+          iban: 'SYNTHETIC-CREDITOR',
+          address: undefined,
+          houseNumber: '12',
+          bank: createCustomBank({ name: IbanBankName.FRICK }),
+        }),
+      ]);
+
+      await service['transmitFrickPayments']();
+
+      expect(frickService.createPaymentOrder).toHaveBeenCalledWith(
+        expect.objectContaining({ creditor: expect.objectContaining({ address: undefined }) }),
+      );
+    });
+
+    it('preserves an operations note when transmission fails', async () => {
+      Config.bank.frick.payoutEnabled = true;
+      jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+      jest.spyOn(frickService, 'createPaymentOrder').mockRejectedValue(new Error('synthetic transmission failure'));
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+        createCustomFiatOutput({
+          id: 42,
+          bank: createCustomBank({ name: IbanBankName.FRICK }),
+          info: 'Manual operations note',
+        }),
+      ]);
+
+      await service['transmitFrickPayments']();
+
+      expect(fiatOutputRepo.update).not.toHaveBeenCalled();
+    });
+
     it('does not recreate a rejected order and records the terminal state', async () => {
       Config.bank.frick.payoutEnabled = true;
       Config.bank.frick.approveWithoutTan = false;

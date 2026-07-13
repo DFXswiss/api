@@ -221,6 +221,7 @@ export class Iso20022Service {
     const statements = Array.isArray(rawStatements) ? rawStatements : [rawStatements];
 
     const transactions: CamtTransaction[] = [];
+    const fallbackOccurrences = new Map<string, number>();
 
     for (const stmt of statements) {
       if (!stmt.Ntry) continue;
@@ -228,7 +229,14 @@ export class Iso20022Service {
 
       for (const entry of entries) {
         try {
-          transactions.push(Iso20022Service.parseCamt053JsonEntry(entry, accountIban, strict));
+          const stableReference = this.createStableCamtReference(accountIban, entry);
+          const occurrence = fallbackOccurrences.get(stableReference) ?? 0;
+          fallbackOccurrences.set(stableReference, occurrence + 1);
+          // Equal reference-less entries can be separate transfers. Preserve deterministic deduplication while
+          // assigning each occurrence a distinct reference instead of silently collapsing a valid payment.
+          const fallbackReference = occurrence === 0 ? stableReference : `${stableReference}-${occurrence + 1}`;
+
+          transactions.push(Iso20022Service.parseCamt053JsonEntry(entry, accountIban, strict, fallbackReference));
         } catch (error) {
           if (strict) throw error;
           continue;
@@ -239,7 +247,12 @@ export class Iso20022Service {
     return transactions;
   }
 
-  private static parseCamt053JsonEntry(entry: any, accountIban: string, strict = false): CamtTransaction {
+  private static parseCamt053JsonEntry(
+    entry: any,
+    accountIban: string,
+    strict = false,
+    fallbackReference = this.createStableCamtReference(accountIban, entry),
+  ): CamtTransaction {
     // amount and currency
     const amtObj = entry.Amt;
     const amount = parseFloat(amtObj?.Value || amtObj?.['#text'] || amtObj || '0');
@@ -306,11 +319,7 @@ export class Iso20022Service {
 
     // reference - check transaction-level refs first (matches camt.054), then entry-level AcctSvcrRef
     const accountServiceRef =
-      txDtls.Refs?.AcctSvcrRef ||
-      txDtls.Refs?.TxId ||
-      entry.AcctSvcrRef ||
-      entry.NtryRef ||
-      this.createStableCamtReference(accountIban, entry);
+      txDtls.Refs?.AcctSvcrRef || txDtls.Refs?.TxId || entry.AcctSvcrRef || entry.NtryRef || fallbackReference;
 
     // end-to-end ID
     const endToEndId = txDtls.Refs?.EndToEndId || '';

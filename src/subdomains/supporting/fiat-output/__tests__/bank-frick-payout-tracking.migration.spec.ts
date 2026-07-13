@@ -52,10 +52,10 @@ describeDb('AddBankFrickPayoutTracking migration (real Postgres)', () => {
       {
         column_name: 'frickOrderId',
         data_type: 'character varying',
-        character_maximum_length: 256,
+        character_maximum_length: 255,
         is_nullable: 'YES',
       },
-      { column_name: 'frickTxId', data_type: 'character varying', character_maximum_length: 256, is_nullable: 'YES' },
+      { column_name: 'frickTxId', data_type: 'character varying', character_maximum_length: 255, is_nullable: 'YES' },
     ]);
 
     await queryRunner.startTransaction();

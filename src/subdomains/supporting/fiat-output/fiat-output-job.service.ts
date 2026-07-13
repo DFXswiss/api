@@ -127,13 +127,16 @@ export class FiatOutputJobService {
           order = await this.frickService.approvePaymentWithoutTan(entity.frickTxId);
         }
 
-        await this.fiatOutputRepo.update(entity.id, this.getFrickStatusUpdate(order, entity));
+        const updateData = this.getFrickStatusUpdate(order, entity);
+        if (Object.keys(updateData).length > 0) await this.fiatOutputRepo.update(entity.id, updateData);
       } catch (error) {
         this.logger.error(`Failed to check Bank Frick order status for fiat output ${entity.id}:`, error);
-        const message = error instanceof Error ? error.message : 'unknown error';
-        await this.fiatOutputRepo.update(entity.id, {
-          info: `FRICK status error: ${message}`.substring(0, 256),
-        });
+        if (!entity.info || entity.info.startsWith('FRICK')) {
+          const message = error instanceof Error ? error.message : 'unknown error';
+          await this.fiatOutputRepo.update(entity.id, {
+            info: `FRICK status error: ${message}`.substring(0, 256),
+          });
+        }
       }
     }
   }
@@ -569,7 +572,7 @@ export class FiatOutputJobService {
       try {
         const customId = `DFX-FO-${entity.id}`;
         const remittanceInfo = entity.remittanceInfo ?? `DFX Payout ${entity.id}`;
-        const address = [entity.address, entity.houseNumber].filter(Boolean).join(' ') || undefined;
+        const address = entity.address ? [entity.address, entity.houseNumber].filter(Boolean).join(' ') : undefined;
         const charge = entity.charge
           ? {
               [TransactionCharge.BEN]: FrickPaymentCharge.BENEFICIARY,
@@ -612,14 +615,17 @@ export class FiatOutputJobService {
 
         if (this.isFrickAutomaticApprovalEnabled() && order.state === FrickPaymentState.PREPARED) {
           const approvedOrder = await this.frickService.approvePaymentWithoutTan(customId);
-          await this.fiatOutputRepo.update(entity.id, this.getFrickStatusUpdate(approvedOrder, entity));
+          const updateData = this.getFrickStatusUpdate(approvedOrder, entity);
+          if (Object.keys(updateData).length > 0) await this.fiatOutputRepo.update(entity.id, updateData);
         }
       } catch (error) {
         this.logger.error(`Failed to transmit Bank Frick payment for fiat output ${entity.id}:`, error);
-        const message = error instanceof Error ? error.message : 'unknown error';
-        await this.fiatOutputRepo.update(entity.id, {
-          info: `FRICK error: ${message}`.substring(0, 256),
-        });
+        if (!entity.info || entity.info.startsWith('FRICK')) {
+          const message = error instanceof Error ? error.message : 'unknown error';
+          await this.fiatOutputRepo.update(entity.id, {
+            info: `FRICK error: ${message}`.substring(0, 256),
+          });
+        }
       }
     }
   }

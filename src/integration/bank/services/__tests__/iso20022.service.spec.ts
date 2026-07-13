@@ -40,6 +40,19 @@ describe('Iso20022Service camt.053 references', () => {
     expect(otherAccount.accountServiceRef).not.toBe(first.accountServiceRef);
   });
 
+  it('deterministically distinguishes identical entries without bank references', () => {
+    const camt053 = { BkToCstmrStmt: { Stmt: { Ntry: [entry, entry] } } };
+
+    const firstParse = Iso20022Service.parseCamt053Json(camt053, 'SYNTHETIC-ACCOUNT-A');
+    const secondParse = Iso20022Service.parseCamt053Json(camt053, 'SYNTHETIC-ACCOUNT-A');
+
+    expect(firstParse).toHaveLength(2);
+    expect(firstParse[0].accountServiceRef).not.toBe(firstParse[1].accountServiceRef);
+    expect(firstParse.map(({ accountServiceRef }) => accountServiceRef)).toEqual(
+      secondParse.map(({ accountServiceRef }) => accountServiceRef),
+    );
+  });
+
   it('throws on malformed entries in strict mode so a poller cannot advance past dropped data', () => {
     const malformedEntry = { ...entry, CdtDbtInd: undefined };
 

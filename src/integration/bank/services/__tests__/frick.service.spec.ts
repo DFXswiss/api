@@ -204,6 +204,17 @@ describe('BankFrickService', () => {
     await expect(service.createPaymentOrder(inputWithBic)).rejects.toThrow('requires a valid charge');
   });
 
+  it("enforces Bank Frick's documented 35-character creditor name limit", async () => {
+    Config.bank.frick.payoutEnabled = true;
+    const input = {
+      ...paymentInput(),
+      creditor: { ...paymentInput().creditor, name: 'A'.repeat(36) },
+    };
+
+    await expect(service.createPaymentOrder(input)).rejects.toThrow('creditor name exceeds 35 characters');
+    expect(http.request).not.toHaveBeenCalled();
+  });
+
   it('rejects an existing customId when any sent payment detail differs', async () => {
     Config.bank.frick.payoutEnabled = true;
     const input = {
