@@ -286,7 +286,6 @@ describe('EvmClient - broadcast boundary', () => {
   });
 });
 
-
 describe('EvmClient - getTransactionCount block tag', () => {
   // Call the real method body with a stubbed provider so we can assert the block-tag
   // forwarding without constructing a live EvmClient (same isolation pattern as the
