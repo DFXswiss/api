@@ -1,6 +1,7 @@
 import {
   CopyObjectCommand,
   GetObjectCommand,
+  GetObjectLockConfigurationCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -22,6 +23,11 @@ import { Blob, BlobContent, BlobMetaData, StorageService } from './storage.servi
  * intentionally not applied per request here.
  */
 export class S3StorageService extends StorageService {
+  // Containers verified to have Object Lock enabled. Static so the check is amortized across the
+  // short-lived per-container instances the EP2 sink creates (createStorageService per report),
+  // keeping the GetObjectLockConfiguration probe off the per-PUT hot path (verify once per bucket).
+  private static readonly objectLockVerified = new Set<string>();
+
   private readonly client: S3Client;
 
   constructor(container: string) {
@@ -60,6 +66,42 @@ export class S3StorageService extends StorageService {
     );
 
     return this.blobUrl(name);
+  }
+
+  // WORM sink (GeBüV): fail closed unless the target bucket enforces Object Lock. Object Lock
+  // cannot be retro-fitted onto an existing bucket, so writing a compliance record into a
+  // non-locked (or unverifiable) bucket would leave it mutable/deletable forever — we refuse
+  // rather than under-protect. Verified once per container; subsequent PUTs skip the probe.
+  async uploadWormBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string> {
+    await this.assertObjectLockEnabled();
+    return this.uploadBlob(name, data, type, metadata);
+  }
+
+  private async assertObjectLockEnabled(): Promise<void> {
+    if (S3StorageService.objectLockVerified.has(this.container)) return;
+
+    let enabled: string | undefined;
+    try {
+      const res = await this.client.send(new GetObjectLockConfigurationCommand({ Bucket: this.container }));
+      enabled = res.ObjectLockConfiguration?.ObjectLockEnabled;
+    } catch (e) {
+      // A bucket without Object Lock returns ObjectLockConfigurationNotFoundError; any other error
+      // (missing bucket, transport, auth) is equally unverifiable. Either way, fail closed.
+      throw new Error(
+        `Refusing WORM write into bucket "${this.container}": could not verify Object Lock is enabled ` +
+          `(${e?.name ?? 'error'}: ${e?.message ?? e}). GeBüV compliance records must not be written into ` +
+          `an unverified bucket. Provision it first (scripts/storage/provision-bucket.ts).`,
+      );
+    }
+
+    if (enabled !== 'Enabled')
+      throw new Error(
+        `Refusing WORM write into bucket "${this.container}": Object Lock is not enabled. GeBüV compliance ` +
+          `records must be WORM-protected and Object Lock cannot be retro-fitted onto an existing bucket. ` +
+          `Provision it first (scripts/storage/provision-bucket.ts).`,
+      );
+
+    S3StorageService.objectLockVerified.add(this.container);
   }
 
   async copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<void> {

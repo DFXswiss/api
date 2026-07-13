@@ -1,6 +1,7 @@
 import {
   CopyObjectCommand,
   GetObjectCommand,
+  GetObjectLockConfigurationCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
   PutObjectCommand,
@@ -200,6 +201,69 @@ describe('S3StorageService', () => {
       await new S3StorageService(CONTAINER).uploadBlob('a.bin', Buffer.from('x'), 'application/octet-stream');
 
       expect(s3Mock.commandCalls(PutObjectCommand)[0].args[0].input.Metadata).toBeUndefined();
+    });
+  });
+
+  describe('uploadWormBlob (WORM/EP2 sink, fail-closed Object-Lock guard)', () => {
+    // Distinct container per test: the verified-container cache is a process-wide static, so reusing
+    // a name would let one test's verification leak into the next.
+    it('PUTs into a bucket whose Object Lock is enabled', async () => {
+      const container = 'ep2-worm-locked';
+      s3Mock
+        .on(GetObjectLockConfigurationCommand, { Bucket: container })
+        .resolves({ ObjectLockConfiguration: { ObjectLockEnabled: 'Enabled' } });
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      const url = await new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml');
+
+      expect(url).toBe(`https://files.test.local/${container}/settlement.ep2`);
+      const puts = s3Mock.commandCalls(PutObjectCommand);
+      expect(puts).toHaveLength(1);
+      expect(puts[0].args[0].input).toMatchObject({ Bucket: container, Key: 'settlement.ep2', ContentType: 'text/xml' });
+    });
+
+    it('fails closed and does NOT PUT when Object Lock is not enabled on the bucket', async () => {
+      const container = 'ep2-worm-unlocked';
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({ ObjectLockConfiguration: {} });
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await expect(
+        new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
+      ).rejects.toThrow('Object Lock is not enabled');
+
+      // the mutable bucket must never receive the compliance record
+      expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+    });
+
+    it('fails closed when the lock configuration cannot be read (e.g. bucket has no Object Lock config)', async () => {
+      const container = 'ep2-worm-noconfig';
+      const err: any = new Error('Object Lock configuration does not exist for this bucket');
+      err.name = 'ObjectLockConfigurationNotFoundError';
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).rejects(err);
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await expect(
+        new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
+      ).rejects.toThrow('could not verify Object Lock is enabled');
+
+      expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+    });
+
+    it('verifies Object Lock once per container, then skips the probe on subsequent WORM writes', async () => {
+      const container = 'ep2-worm-cache';
+      s3Mock
+        .on(GetObjectLockConfigurationCommand, { Bucket: container })
+        .resolves({ ObjectLockConfiguration: { ObjectLockEnabled: 'Enabled' } });
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      const service = new S3StorageService(container);
+      await service.uploadWormBlob('a.ep2', Buffer.from('a'), 'text/xml');
+      await service.uploadWormBlob('b.ep2', Buffer.from('b'), 'text/xml');
+      // a fresh instance for the same container must also reuse the cached verification
+      await new S3StorageService(container).uploadWormBlob('c.ep2', Buffer.from('c'), 'text/xml');
+
+      expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(1);
+      expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(3);
     });
   });
 

@@ -35,6 +35,20 @@ export abstract class StorageService {
   abstract uploadBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string>;
   abstract copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<void>;
 
+  /**
+   * WORM sink for GeBüV-retention-relevant compliance records (e.g. EP2 settlement reports written
+   * to a per-merchant container resolved at runtime). The target bucket MUST enforce Object Lock,
+   * which cannot be retro-fitted onto an existing non-locked bucket — so a concrete implementation
+   * must verify the lock is present before the first write and fail closed if it is not, rather than
+   * silently persisting mutable, deletable compliance records into an unprotected bucket.
+   *
+   * The base default delegates to `uploadBlob` (no server-side Object Lock in LOC/mock); the S3
+   * implementation adds the fail-closed verification.
+   */
+  async uploadWormBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string> {
+    return this.uploadBlob(name, data, type, metadata);
+  }
+
   blobUrl(name: string): string {
     return `${Config.s3.publicUrl}${this.container}/${this.encodeKey(name)}`;
   }
