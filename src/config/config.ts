@@ -1004,7 +1004,8 @@ export class Configuration {
     solana: {
       solanaWalletSeed: process.env.SOLANA_WALLET_SEED,
       solanaGatewayUrl: process.env.SOLANA_GATEWAY_URL,
-      solanaApiKey: process.env.TATUM_API_KEY,
+      // set SOLANA_API_KEY to '' for a keyless RPC gateway; unset falls back to the Tatum key
+      solanaApiKey: process.env.SOLANA_API_KEY ?? process.env.TATUM_API_KEY,
       transactionPriorityRate: +(process.env.SOLANA_TRANSACTION_PRIORITY_RATE ?? 1),
       minimalCoinAccountRent: 0.00089088,
       createTokenAccountFee: 0.00203928,

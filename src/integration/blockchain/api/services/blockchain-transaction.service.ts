@@ -164,7 +164,7 @@ export class BlockchainTransactionService {
 
   private getSolanaConnection(): Solana.Connection {
     const { solanaGatewayUrl, solanaApiKey } = Config.blockchain.solana;
-    const url = `${solanaGatewayUrl}/${solanaApiKey ?? ''}`;
+    const url = solanaApiKey ? `${solanaGatewayUrl}/${solanaApiKey}` : solanaGatewayUrl;
     return new Solana.Connection(url);
   }
 

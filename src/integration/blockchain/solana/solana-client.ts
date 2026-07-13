@@ -39,7 +39,7 @@ export class SolanaClient extends BlockchainClient {
     super();
 
     const { solanaGatewayUrl, solanaApiKey, solanaWalletSeed } = GetConfig().blockchain.solana;
-    this.url = `${solanaGatewayUrl}/${solanaApiKey ?? ''}`;
+    this.url = solanaApiKey ? `${solanaGatewayUrl}/${solanaApiKey}` : solanaGatewayUrl;
 
     this.connection = new Solana.Connection(this.url);
     this.wallet = SolanaWallet.create(solanaWalletSeed);
