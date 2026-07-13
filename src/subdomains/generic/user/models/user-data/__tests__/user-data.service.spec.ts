@@ -1,3 +1,7 @@
+// Stub the heavy `opentimestamps` library (pulled in transitively via KycDocumentService ->
+// ArchiveService) so its eager network/`request` deps never load at jest runtime.
+jest.mock('opentimestamps', () => ({}));
+
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConflictException } from '@nestjs/common';

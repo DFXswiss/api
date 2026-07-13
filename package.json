@@ -29,7 +29,7 @@
   "dependencies": {
     "@arbitrum/sdk": "^3.7.3",
     "@arkade-os/sdk": "^0.4.36",
-    "@azure/storage-blob": "^12.29.1",
+    "@aws-sdk/client-s3": "^3.1071.0",
     "@blockfrost/blockfrost-js": "^6.1.0",
     "@buildonspark/spark-sdk": "^0.6.7",
     "@cardano-foundation/cardano-verify-datasignature": "^1.0.11",
@@ -116,6 +116,7 @@
     "node-2fa": "^2.0.3",
     "node-pty": "^1.1.0",
     "nodemailer": "^6.10.1",
+    "opentimestamps": "^0.4.9",
     "passport": "^0.6.0",
     "passport-jwt": "^4.0.1",
     "pdfkit": "^0.15.2",
@@ -154,6 +155,7 @@
     "@types/passport-jwt": "^3.0.13",
     "@types/pdfkit": "^0.13.9",
     "@types/supertest": "^2.0.16",
+    "aws-sdk-client-mock": "^4.1.0",
     "eslint": "^9.17.0",
     "eslint-config-prettier": "^9.1.0",
     "eslint-plugin-prettier": "^5.2.1",
@@ -198,7 +200,8 @@
     "body-parser": "1.20.3",
     "qs": "^6.14.1",
     "request": {
-      "form-data": "2.5.5"
+      "form-data": "2.5.5",
+      "uuid": "3.4.0"
     },
     "multer": "^2.0.0",
     "uuid": "^9.0.0",
