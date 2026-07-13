@@ -214,12 +214,20 @@ describe('S3StorageService', () => {
         .resolves({ ObjectLockConfiguration: { ObjectLockEnabled: 'Enabled' } });
       s3Mock.on(PutObjectCommand).resolves({});
 
-      const url = await new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml');
+      const url = await new S3StorageService(container).uploadWormBlob(
+        'settlement.ep2',
+        Buffer.from('<ep2/>'),
+        'text/xml',
+      );
 
       expect(url).toBe(`https://files.test.local/${container}/settlement.ep2`);
       const puts = s3Mock.commandCalls(PutObjectCommand);
       expect(puts).toHaveLength(1);
-      expect(puts[0].args[0].input).toMatchObject({ Bucket: container, Key: 'settlement.ep2', ContentType: 'text/xml' });
+      expect(puts[0].args[0].input).toMatchObject({
+        Bucket: container,
+        Key: 'settlement.ep2',
+        ContentType: 'text/xml',
+      });
     });
 
     it('fails closed and does NOT PUT when Object Lock is not enabled on the bucket', async () => {
