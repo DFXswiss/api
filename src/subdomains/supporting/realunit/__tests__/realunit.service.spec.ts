@@ -1,4 +1,5 @@
-import { BadRequestException, ConflictException, ForbiddenException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';import { Test, TestingModule } from '@nestjs/testing';
+import { BadRequestException, ConflictException, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
 import { ethers, Wallet } from 'ethers';
 import { verifyTypedData } from 'ethers/lib/utils';
 import { request } from 'graphql-request';
@@ -48,6 +49,7 @@ import { FindOperator, IsNull } from 'typeorm';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAktionariatConfirmationStatus } from '../dto/realunit-confirm-aktionariat.dto';
+import {
   RealUnitEmailRegistrationStatus,
   RealUnitLanguage,
   RealUnitRegistrationState,
@@ -94,7 +96,8 @@ jest.mock('src/config/config', () => ({
           w2wGasLowBalanceThreshold: 0.05,
         },
       },
-    };  },
+    };
+  },
   Environment: {
     LOC: 'loc',
     DEV: 'dev',
@@ -887,6 +890,10 @@ describe('RealUnitService', () => {
       expect(transactionRequestService.confirmTransactionRequest).toHaveBeenCalledWith(
         buyRequest,
         JSON.stringify({ reference: 'REF-123' }),
+      );
+    });
+  });
+
   // Valid EVM addresses (checksummed) for the serialization / encoding paths
   const userAddress = '0x70997970C51812dc3A010C7d01b50e0d17dc79C8';
   const realuContract = '0x5FbDB2315678afecb367f032d93F642f64180aa3';
@@ -976,15 +983,12 @@ describe('RealUnitService', () => {
   describe('getSwapPaymentInfo', () => {
     const walletAddress = '0x4444444444444444444444444444444444444444';
 
-    function buildUser(opts: { kycLevel?: number; registered?: boolean } = {}): any {
-      const steps =
-        (opts.registered ?? true) ? [{ isFailed: false, isCanceled: false, getResult: () => ({ walletAddress }) }] : [];
+    function buildUser(opts: { kycLevel?: number } = {}): any {
       return {
         id: 42,
         address: walletAddress,
         userData: {
-          kycLevel: opts.kycLevel ?? 30,
-          getStepsWith: jest.fn().mockReturnValue(steps),
+          kycLevel: opts.kycLevel ?? KycLevel.LEVEL_30,
         },
       };
     }
@@ -1006,6 +1010,7 @@ describe('RealUnitService', () => {
     };
 
     beforeEach(() => {
+      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
       assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
       evmClient.getRecommendedGasPrice.mockResolvedValue(ethers.BigNumber.from(1_000_000_000));
       evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(1);
@@ -1055,16 +1060,18 @@ describe('RealUnitService', () => {
     });
 
     it('should require RealUnit registration', async () => {
-      await expect(service.getSwapPaymentInfo(buildUser({ registered: false }), { amount: 10 } as any)).rejects.toThrow(
-        ForbiddenException,
+      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(false);
+
+      await expect(service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any)).rejects.toBeInstanceOf(
+        RegistrationRequiredException,
       );
       expect(swapService.createSwapPaymentInfo).not.toHaveBeenCalled();
     });
 
     it('should require KYC Level 30', async () => {
-      await expect(service.getSwapPaymentInfo(buildUser({ kycLevel: 20 }), { amount: 10 } as any)).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.getSwapPaymentInfo(buildUser({ kycLevel: KycLevel.LEVEL_20 }), { amount: 10 } as any),
+      ).rejects.toBeInstanceOf(KycLevelRequiredException);
       expect(swapService.createSwapPaymentInfo).not.toHaveBeenCalled();
     });
 
@@ -1295,7 +1302,8 @@ describe('RealUnitService', () => {
       });
 
       await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
-        BadRequestException,      );
+        BadRequestException,
+      );
     });
 
     it('should throw BadRequestException if the ZCHF asset has no contract address', async () => {
@@ -1412,6 +1420,9 @@ describe('RealUnitService', () => {
 
       await expect(service.confirmPaymentReceived(1)).rejects.toThrow(NotFoundException);
       expect(devService()).not.toHaveBeenCalled();
+    });
+  });
+
   describe('submitOcpPay', () => {
     beforeAll(() => {
       mockEnvironment = 'prd';

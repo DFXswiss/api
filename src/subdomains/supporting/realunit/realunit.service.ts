@@ -1955,8 +1955,8 @@ export class RealUnitService {
   async getSwapPaymentInfo(user: User, dto: RealUnitSwapDto): Promise<RealUnitSwapPaymentInfoDto> {
     const userData = user.userData;
 
-    // 1. Registration required
-    if (!this.hasRegistrationForWallet(userData, user.address)) {
+    // 1. Registration required (async — must await; a bare Promise is always truthy)
+    if (!(await this.hasRegistrationForWallet(userData, user.address))) {
       throw new RegistrationRequiredException(undefined, KycContext.REALUNIT_SELL);
     }
 
