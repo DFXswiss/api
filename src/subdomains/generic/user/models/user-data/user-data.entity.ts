@@ -114,7 +114,8 @@ export class UserData extends IEntity {
   @Column({ type: 'timestamp', nullable: true })
   birthday?: Date;
 
-  @Column({ length: 256, nullable: true })
+  // RealUnit stores a JSON list of tax residences here (not a single TIN); 1024 covers the DTO-bounded max.
+  @Column({ length: 1024, nullable: true })
   tin?: string;
 
   // --- ORGANIZATION DATA --- //

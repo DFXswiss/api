@@ -90,6 +90,9 @@ import {
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
   AktionariatRegistrationDto,
+  MAX_SERIALIZED_TIN_LENGTH,
+  MAX_TAX_RESIDENCES,
+  MAX_TIN_LENGTH,
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationStatus,
   RealUnitLanguage,
@@ -745,10 +748,19 @@ export class RealUnitService {
       dto.walletAddress,
     );
     if (isForCurrentWallet) {
-      // Registration row is already durable — still sync user_data.tin (e.g. retry after a
-      // previous attempt that forwarded successfully but failed the tin audit write).
-      await this.persistUserDataTinAfterRegistration(userData, dto);
-      return this.idempotentRegistrationResult(userData, existingRegistration!, dto.signature);
+      // Signature check FIRST: idempotentRegistrationResult rejects a mismatching signature with a 400,
+      // and a request that is about to be rejected must not have mutated the database on its way out.
+      const status = await this.idempotentRegistrationResult(userData, existingRegistration!, dto.signature);
+
+      // The snapshot follows the event of record, never the request body. countryAndTINs is NOT part of
+      // the EIP-712 envelope, so a replay could otherwise rewrite user_data.tin to something that was
+      // never registered with Aktionariat. Syncing from the durable registration row also self-heals a
+      // retry whose forward succeeded but whose tin audit write failed.
+      const registrationData = this.toRegistrationDto(existingRegistration!);
+      if (!registrationData) throw new BadRequestException('Invalid registration data');
+      await this.persistUserDataTinAfterRegistration(userData, registrationData);
+
+      return status;
     }
 
     // validate personal data
@@ -899,6 +911,17 @@ export class RealUnitService {
   private validateTaxResidenceCoversAddress(dto: RealUnitRegistrationDto): void {
     const entries = dto.countryAndTINs ?? [];
 
+    // Defense in depth: the DTO enforces this too, but the service must never index into a non-array.
+    // A non-array body used to reach here (the DTO's @ValidateIf skipped @IsArray whenever
+    // swissTaxResidence was true) and crashed with a TypeError => HTTP 500 instead of a 400.
+    if (!Array.isArray(entries)) {
+      throw new BadRequestException('countryAndTINs must be an array');
+    }
+
+    if (entries.length > MAX_TAX_RESIDENCES) {
+      throw new BadRequestException(`countryAndTINs must not contain more than ${MAX_TAX_RESIDENCES} entries`);
+    }
+
     if (entries.some((e) => e.country === 'CH')) {
       throw new BadRequestException(
         'countryAndTINs must not include CH; set swissTaxResidence for Swiss tax residence',
@@ -913,6 +936,9 @@ export class RealUnitService {
       }
       if (typeof entry.tin !== 'string' || !entry.tin.trim()) {
         throw new BadRequestException('countryAndTINs.tin must be a non-empty string');
+      }
+      if (entry.tin.length > MAX_TIN_LENGTH) {
+        throw new BadRequestException(`countryAndTINs.tin must not exceed ${MAX_TIN_LENGTH} characters`);
       }
     }
 
@@ -930,6 +956,14 @@ export class RealUnitService {
 
     if (!taxCountries.has(dto.addressCountry)) {
       throw new BadRequestException(`Tax residence must include the residence country (${dto.addressCountry})`);
+    }
+
+    // Fail closed BEFORE anything is forwarded. user_data.tin is a bounded column and is written only
+    // AFTER forwardRegistration has persisted the registration — an oversized payload must therefore be
+    // rejected here with a 400, never blow up as a 500 on a registration that is already durable.
+    const serialized = this.serializeCountryAndTins(entries);
+    if (serialized && serialized.length > MAX_SERIALIZED_TIN_LENGTH) {
+      throw new BadRequestException('countryAndTINs is too large');
     }
   }
 
@@ -1254,6 +1288,52 @@ export class RealUnitService {
     return userDataDto as RealUnitUserDataDto;
   }
 
+  // user_data.tin is written exclusively by persistUserDataTinAfterRegistration, as a JSON array of
+  // {country, tin} with no CH entry. A malformed or contract-violating legacy value must not take this
+  // prefill down: GET registration-info is the only channel through which the user can submit a
+  // CORRECTED declaration, so throwing here would lock the account out of the very fix it needs. The
+  // bad value is therefore dropped LOUDLY (error log, no PII) and the prefill degrades to "no known tax
+  // residences" — it never hands the client back a payload that validateTaxResidenceCoversAddress would
+  // reject.
+  private parseStoredTin(userData: UserData): { country: string; tin: string }[] {
+    if (!userData.tin) return [];
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(userData.tin);
+    } catch {
+      this.logger.error(
+        `Malformed user_data.tin for userData ${userData.id}: not valid JSON — prefill degraded to empty`,
+      );
+      return [];
+    }
+
+    if (!Array.isArray(parsed)) {
+      this.logger.error(
+        `Malformed user_data.tin for userData ${userData.id}: not an array — prefill degraded to empty`,
+      );
+      return [];
+    }
+
+    const entries = parsed.filter(
+      (e): e is { country: string; tin: string } =>
+        !!e &&
+        typeof e.country === 'string' &&
+        /^[A-Z]{2}$/.test(e.country) &&
+        e.country !== 'CH' &&
+        typeof e.tin === 'string' &&
+        !!e.tin.trim(),
+    );
+
+    if (entries.length !== parsed.length) {
+      this.logger.error(
+        `user_data.tin for userData ${userData.id} contains ${parsed.length - entries.length} entr(ies) violating the registration contract — dropped from the prefill`,
+      );
+    }
+
+    return entries;
+  }
+
   // Pre-fill source for first-time RealUnit registrations: maps the user's existing DFX KYC data into
   // the Aktionariat-shaped DTO. The corresponding `completeRegistration` validation
   // (`isPersonalDataMatching`) compares the submitted KycPersonalData/address against the same
@@ -1265,7 +1345,7 @@ export class RealUnitService {
 
     const lang = Object.values(RealUnitLanguage).find((l) => l === userData.language?.symbol?.toUpperCase());
     const addressStreet = [userData.street, userData.houseNumber].filter((s) => s).join(' ');
-    const tinEntries: { country: string; tin: string }[] = userData.tin ? JSON.parse(userData.tin) : [];
+    const tinEntries = this.parseStoredTin(userData);
 
     return {
       email: userData.mail ?? '',

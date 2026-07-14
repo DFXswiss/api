@@ -71,6 +71,48 @@ describe('RealUnitRegistrationDto (class-validator decorators)', () => {
     expect(errors.find((e) => e.property === 'countryAndTINs')).toBeUndefined();
   });
 
+  // When swissTaxResidence is true BUT countryAndTINs is present, validators must still run
+  // (previously @ValidateIf skipped @IsArray and a non-array body reached the service as a 500).
+  it('rejects a non-array countryAndTINs when swissTaxResidence is true (F3 regression)', async () => {
+    const errors = await validate(build({ swissTaxResidence: true, countryAndTINs: 'pwned' }));
+    const tinError = errors.find((e) => e.property === 'countryAndTINs');
+    expect(tinError).toBeDefined();
+    expect(tinError!.constraints).toHaveProperty('isArray');
+  });
+
+  it('rejects a TIN longer than 64 characters via @MaxLength', async () => {
+    const errors = await validate(
+      build({ swissTaxResidence: true, countryAndTINs: [{ country: 'DE', tin: 'x'.repeat(65) }] }),
+    );
+    const tinError = errors.find((e) => e.property === 'countryAndTINs');
+    expect(tinError).toBeDefined();
+    expect(tinError!.children?.length).toBeGreaterThan(0);
+    const nestedTinError = tinError!.children![0].children?.find((e) => e.property === 'tin');
+    expect(nestedTinError?.constraints).toHaveProperty('maxLength');
+  });
+
+  it('rejects more than 10 countryAndTINs entries via @ArrayMaxSize', async () => {
+    // Valid 2-letter codes so only ArrayMaxSize (not nested Matches) is the failure mode.
+    const countries = ['DE', 'FR', 'US', 'AT', 'IT', 'ES', 'NL', 'BE', 'PT', 'IE', 'PL'];
+    const countryAndTINs = countries.map((country, i) => ({ country, tin: `TIN${i}` }));
+    const errors = await validate(build({ swissTaxResidence: false, countryAndTINs }));
+    const tinError = errors.find((e) => e.property === 'countryAndTINs');
+    expect(tinError).toBeDefined();
+    expect(tinError!.constraints).toHaveProperty('arrayMaxSize');
+  });
+
+  it('trims TIN whitespace via @Transform(Util.trim)', () => {
+    const dto = build({ swissTaxResidence: false, countryAndTINs: [{ country: 'DE', tin: '  DE123  ' }] });
+    expect(dto.countryAndTINs![0].tin).toBe('DE123');
+  });
+
+  it('accepts exactly 10 countryAndTINs entries (ArrayMaxSize boundary)', async () => {
+    const countries = ['DE', 'FR', 'US', 'AT', 'IT', 'ES', 'NL', 'BE', 'PT', 'IE'];
+    const countryAndTINs = countries.map((country, i) => ({ country, tin: `TIN${i}` }));
+    const errors = await validate(build({ swissTaxResidence: false, countryAndTINs }));
+    expect(errors.find((e) => e.property === 'countryAndTINs')).toBeUndefined();
+  });
+
   // --- kycData nested factory (@Type(() => KycPersonalData)) --- //
 
   it('instantiates kycData through the KycPersonalData type factory', () => {

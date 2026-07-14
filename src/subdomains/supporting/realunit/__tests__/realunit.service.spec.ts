@@ -2216,10 +2216,26 @@ describe('RealUnitService', () => {
 
     it('returns the idempotent result for an existing current-wallet registration', async () => {
       userService.getUserByAddress.mockResolvedValue({
-        userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com' },
+        userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', tin: null },
       } as any);
+      // After the F2 fix the isForCurrentWallet branch reconstructs the registration via
+      // toRegistrationDto (reads signedPayloadData) before syncing user_data.tin from the record.
       jest.spyOn(service as any, 'findRegistration').mockResolvedValue({
-        registration: { id: 3, signature: '0xsig', status: ReviewStatus.COMPLETED },
+        registration: {
+          id: 3,
+          signature: '0xsig',
+          status: ReviewStatus.COMPLETED,
+          signedPayloadData: {
+            email: 'max@example.com',
+            name: 'Max',
+            walletAddress: '0xabc',
+            signature: '0xsig',
+            registrationDate: '2026-01-01',
+            swissTaxResidence: true,
+            addressCountry: 'CH',
+          },
+          kycDataObj: { accountType: 'Personal' },
+        },
         isForCurrentWallet: true,
       });
 
@@ -2304,6 +2320,111 @@ describe('RealUnitService', () => {
       const status = await service.completeRegistration(1, dto);
 
       expect(status).toBe(RealUnitRegistrationStatus.FORWARDING_FAILED);
+    });
+
+    it('F1: does not call forwardRegistration when countryAndTINs is too large', async () => {
+      // Exercise the real tax-residence guard (serialized-length fail-closed) without the full EIP-712 path.
+      jest.spyOn(service as any, 'validateRegistrationDto').mockImplementation(async (d: any) => {
+        (service as any).validateTaxResidenceCoversAddress(d);
+      });
+      jest.spyOn(service as any, 'serializeCountryAndTins').mockReturnValue('x'.repeat(1025));
+      const forwardSpy = jest.spyOn(service as any, 'forwardRegistration').mockResolvedValue(true);
+
+      const oversizedDto: any = {
+        walletAddress: '0xabc',
+        signature: '0xsig',
+        email: 'max@example.com',
+        addressCountry: 'DE',
+        swissTaxResidence: false,
+        countryAndTINs: [{ country: 'DE', tin: 'DE123456789' }],
+        kycData: {},
+      };
+      userService.getUserByAddress.mockResolvedValue({
+        userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', firstname: 'Max' },
+      } as any);
+
+      await expect(service.completeRegistration(1, oversizedDto)).rejects.toThrow(/countryAndTINs is too large/);
+      expect(forwardSpy).not.toHaveBeenCalled();
+    });
+
+    it('F2: does not write user_data.tin when the idempotent path rejects a signature mismatch', async () => {
+      userService.getUserByAddress.mockResolvedValue({
+        userData: { id: 1, kycLevel: KycLevel.LEVEL_10, mail: 'max@example.com', tin: null },
+      } as any);
+      jest.spyOn(service as any, 'findRegistration').mockResolvedValue({
+        registration: {
+          id: 3,
+          signature: '0xSTORED_SIGNATURE',
+          status: ReviewStatus.COMPLETED,
+          signedPayloadData: {
+            email: 'max@example.com',
+            name: 'Max',
+            walletAddress: '0xabc',
+            signature: '0xSTORED_SIGNATURE',
+            registrationDate: '2026-01-01',
+            swissTaxResidence: true,
+            addressCountry: 'CH',
+            countryAndTINs: [{ country: 'DE', tin: 'DE-STORED' }],
+          },
+          kycDataObj: { accountType: 'Personal' },
+        },
+        isForCurrentWallet: true,
+      });
+      // Incoming signature does NOT match the stored one; body carries a different TIN set.
+      const mismatchDto: any = {
+        ...dto,
+        signature: '0xMISMATCHING_SIGNATURE',
+        countryAndTINs: [{ country: 'FR', tin: 'FR-ATTACKER' }],
+      };
+
+      await expect(service.completeRegistration(1, mismatchDto)).rejects.toThrow(BadRequestException);
+
+      const tinWrites = (userDataService.updateUserDataInternal as jest.Mock).mock.calls
+        .map((c) => c[1])
+        .filter((u) => u && Object.prototype.hasOwnProperty.call(u, 'tin'));
+      expect(tinWrites).toHaveLength(0);
+      expect(logService.create).not.toHaveBeenCalledWith(expect.objectContaining({ subsystem: 'UserDataTin' }));
+    });
+
+    it('F2: syncs user_data.tin from the stored registration, not the request body, on idempotent retry', async () => {
+      const storedTins = [{ country: 'DE', tin: 'DE-STORED' }];
+      const bodyTins = [{ country: 'FR', tin: 'FR-FROM-BODY' }];
+      const userData: any = {
+        id: 1,
+        kycLevel: KycLevel.LEVEL_10,
+        mail: 'max@example.com',
+        tin: null,
+      };
+      userService.getUserByAddress.mockResolvedValue({ userData } as any);
+      jest.spyOn(service as any, 'findRegistration').mockResolvedValue({
+        registration: {
+          id: 3,
+          signature: '0xsig',
+          status: ReviewStatus.COMPLETED,
+          signedPayloadData: {
+            email: 'max@example.com',
+            name: 'Max',
+            walletAddress: '0xabc',
+            signature: '0xsig',
+            registrationDate: '2026-01-01',
+            swissTaxResidence: true,
+            addressCountry: 'CH',
+            countryAndTINs: storedTins,
+          },
+          kycDataObj: { accountType: 'Personal' },
+        },
+        isForCurrentWallet: true,
+      });
+      logService.create.mockResolvedValue({} as any);
+
+      const status = await service.completeRegistration(1, { ...dto, countryAndTINs: bodyTins });
+
+      expect(status).toBe(RealUnitRegistrationStatus.ALREADY_REGISTERED);
+      const tinWrites = (userDataService.updateUserDataInternal as jest.Mock).mock.calls
+        .map((c) => c[1])
+        .filter((u) => u && Object.prototype.hasOwnProperty.call(u, 'tin'));
+      expect(tinWrites).toEqual([{ tin: JSON.stringify(storedTins) }]);
+      expect(tinWrites[0].tin).not.toContain('FR-FROM-BODY');
     });
   });
 
@@ -3205,6 +3326,55 @@ describe('RealUnitService', () => {
       );
     });
 
+    // --- F1/F3 defense-in-depth bounds on countryAndTINs (fail closed before forward) ---
+
+    it('F1: rejects countryAndTINs whose serialized length exceeds MAX_SERIALIZED_TIN_LENGTH', async () => {
+      // Under the DTO bounds the worst-case serialization is ~890 chars; the serialized-length
+      // check is a fail-closed safety net for constant drift. Force it by stubbing serialize.
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'DE', swissTaxResidence: false }), humanKyc()),
+        [{ country: 'DE', tin: 'DE123456789' }],
+      );
+      jest.spyOn(service as any, 'serializeCountryAndTins').mockReturnValue('x'.repeat(1025));
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(/countryAndTINs is too large/);
+    });
+
+    it('F1: rejects more than 10 countryAndTINs entries at the service layer', async () => {
+      const countries = ['DE', 'FR', 'US', 'AT', 'IT', 'ES', 'NL', 'BE', 'PT', 'IE', 'PL'];
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'DE', swissTaxResidence: false }), humanKyc()),
+        countries.map((country, i) => ({ country, tin: `TIN${i}` })),
+      );
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(/more than 10 entries/);
+    });
+
+    it('F1: rejects a TIN longer than 64 characters at the service layer', async () => {
+      const dto = attachTins(
+        await buildDto(humanFields({ addressCountry: 'DE', swissTaxResidence: false }), humanKyc()),
+        [{ country: 'DE', tin: 'x'.repeat(65) }],
+      );
+      await expect((service as any).validateRegistrationDto(dto)).rejects.toThrow(/must not exceed 64 characters/);
+    });
+
+    it('F3: rejects a non-array countryAndTINs with BadRequestException (not TypeError)', () => {
+      for (const countryAndTINs of ['pwned', { a: 1 }, 42] as any[]) {
+        expect(() =>
+          (service as any).validateTaxResidenceCoversAddress({
+            swissTaxResidence: true,
+            addressCountry: 'CH',
+            countryAndTINs,
+          }),
+        ).toThrow(BadRequestException);
+        expect(() =>
+          (service as any).validateTaxResidenceCoversAddress({
+            swissTaxResidence: true,
+            addressCountry: 'CH',
+            countryAndTINs,
+          }),
+        ).toThrow(/countryAndTINs must be an array/);
+      }
+    });
+
     it('resolveSignedRegistrationMessage normalizes a signature that lacks the 0x prefix', async () => {
       const fields = humanFields();
       const signature = await wallet._signTypedData(domain, types, fields);
@@ -3611,6 +3781,33 @@ describe('RealUnitService', () => {
         zip: '',
         country: { symbol: 'CH', id: 7 },
       });
+    });
+
+    // F4: malformed / contract-violating user_data.tin must degrade the prefill loudly, never throw.
+    it('F4: degrades prefill to empty countryAndTINs when tin is not valid JSON', () => {
+      const userData: any = { id: 99, firstname: 'Erika', tin: 'not json' };
+      const dto = (service as any).toUserDataDtoFromUserData(userData);
+      expect(dto).toBeDefined();
+      expect(dto.countryAndTINs).toBeUndefined();
+      expect((service as any).logger.error).toHaveBeenCalledWith(expect.stringContaining('not valid JSON'));
+    });
+
+    it('F4: degrades prefill to empty countryAndTINs when tin is a non-array JSON value', () => {
+      const userData: any = { id: 99, firstname: 'Erika', tin: '{"a":1}' };
+      const dto = (service as any).toUserDataDtoFromUserData(userData);
+      expect(dto).toBeDefined();
+      expect(dto.countryAndTINs).toBeUndefined();
+      expect((service as any).logger.error).toHaveBeenCalledWith(expect.stringContaining('not an array'));
+    });
+
+    it('F4: drops a contract-violating CH entry from the prefill without throwing', () => {
+      const userData: any = { id: 99, firstname: 'Erika', tin: '[{"country":"CH","tin":"x"}]' };
+      const dto = (service as any).toUserDataDtoFromUserData(userData);
+      expect(dto).toBeDefined();
+      expect(dto.countryAndTINs).toBeUndefined();
+      expect((service as any).logger.error).toHaveBeenCalledWith(
+        expect.stringContaining('violating the registration contract'),
+      );
     });
   });
 
