@@ -21,8 +21,38 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  one-off-dev-ref-history:
+    name: Enable referral history for Joshua on DEV
+    if: github.event_name == 'workflow_dispatch' && github.ref_name == 'agent/dev-ref-history-joshua-20260714'
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install cloudflared
+        run: |
+          curl -fsSL https://github.com/cloudflare/cloudflared/releases/download/2025.4.0/cloudflared-linux-arm64 -o /usr/local/bin/cloudflared
+          chmod +x /usr/local/bin/cloudflared
+
+      - name: Apply scoped DEV data update
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.DEPLOY_DEV_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.DEPLOY_DEV_SSH_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+          script_b64="$(base64 -w0 .github/scripts/set-dev-ref-history-joshua.js)"
+          ssh -i ~/.ssh/deploy_key \
+            -o ProxyCommand="cloudflared access ssh --hostname ${{ secrets.DEPLOY_DEV_HOST }}" \
+            ${{ secrets.DEPLOY_DEV_USER }}@${{ secrets.DEPLOY_DEV_HOST }} \
+            "set -eu;
+             container_id=\$(docker ps --filter ancestor=dfxswiss/dfx-api:beta --format '{{.ID}}' | head -n 1);
+             test -n \"\$container_id\" || { echo 'Running DEV API container not found'; exit 1; };
+             printf '%s' '$script_b64' | base64 -d | docker exec -i \"\$container_id\" node"
+
   build-and-deploy:
     name: Build and deploy to DEV
+    if: github.ref_name != 'agent/dev-ref-history-joshua-20260714'
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout
