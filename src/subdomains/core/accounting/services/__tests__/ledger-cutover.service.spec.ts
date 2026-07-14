@@ -470,6 +470,22 @@ describe('LedgerCutoverService', () => {
       expect(JSON.parse(bankWm[1]).lastReversalScan).toBe('2026-06-07T22:00:00.000Z');
     });
 
+    // §6.3: the pinned snapshot date is exported (= snapshot.created) so a forward consumer can classify a
+    // pre-cutover-settled row; it MUST be set before the ready flag (a consumer that sees the flag can already classify).
+    it('exports the snapshot date (ledgerCutoverSnapshotDate) = snapshot.created before the ready flag', async () => {
+      jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+
+      await service.run();
+
+      const keys = setSpy.mock.calls.map((c) => c[0]);
+      const dateCall = setSpy.mock.calls.find((c) => c[0] === 'ledgerCutoverSnapshotDate');
+      expect(dateCall).toBeDefined();
+      expect(dateCall[1]).toBe('2026-06-07T22:00:00.000Z'); // = snapshot.created
+      expect(keys.indexOf('ledgerCutoverSnapshotDate')).toBeLessThan(keys.indexOf('ledgerCutoverLogId'));
+    });
+
     // §6.3 Z.917 / Blocker R3-1: the per-consumer settled-filter MUST be applied to the watermark MAX(id) query,
     // otherwise a high-id pre-cutover NON-settled row sets the watermark too high (payout_order: skips a later
     // Complete-transition → phantom liability) / too low (exchange_tx: re-books a row the ASSET-opening already
@@ -739,6 +755,32 @@ describe('LedgerCutoverService', () => {
       expect(liabilityLeg.account.name).toBe('LIABILITY/buyCrypto-received');
       expect(liabilityLeg.amountChf).toBe(-15000);
       expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:61')).toBe(false); // null amountInChf → skipped
+    });
+
+    // MAJOR (double-book guard): Card inputs (checkoutTx != null) MUST be excluded from the per-row buyCrypto-received
+    // opening — card received is booked by the forward consumer's seq0 (buy-crypto.consumer bookCardInput). A per-row
+    // opening here would double-book received across the cutover boundary (the content-change scan re-books seq0 after
+    // completion → received ends at −amountInChf + a phantom EQUITY opening). Asserts the query passes checkoutTx IS
+    // NULL (else the mock returns the Card row) AND that the Card row gets no opening.
+    it('excludes Card inputs (checkoutTx) from the per-row buyCrypto-received opening', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
+        // received query: outputAmount IS NULL. The service now also passes checkoutTx IS NULL → simulate the DB filter:
+        // when the where carries checkoutTx, the Card row (checkoutTx set) is filtered out, only the non-Card remains.
+        if (where?.outputAmount) {
+          const rows = [
+            buyCrypto({ id: 60, amountInChf: 15000, outputAmount: null }), // non-Card → opened
+            buyCrypto({ id: 61, amountInChf: 15000, outputAmount: null, checkoutTx: { currency: 'EUR' } as any }), // Card
+          ];
+          return Promise.resolve(where.checkoutTx ? rows.filter((r) => r.checkoutTx == null) : rows);
+        }
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:60')).toBe(true); // non-Card opened
+      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:61')).toBe(false); // Card excluded (forward seq0 books it)
     });
 
     it('skips a bankTx-return row whose underlying bank_tx amount is null (nothing to anchor)', async () => {

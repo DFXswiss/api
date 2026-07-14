@@ -359,4 +359,65 @@ describe('BuyCryptoConsumer', () => {
     expect(rebookSpy).not.toHaveBeenCalled(); // non-Card → no seq0 reverse
     expect(booked.some((b) => b.seq === 1 && b.sourceId === '31')).toBe(true); // completion still booked
   });
+
+  // --- §6.3 CUTOVER CARD DOUBLE-BOOK GUARD (MAJOR: settledBeforeCutover) --- //
+
+  // a Card row already settled at the cutover (outputDate ≤ snapshot) whose `updated` moves post-cutover (chargeback/
+  // mail flag) must NOT be re-booked — its value is in the aggregate opening. Neither seq0 nor seq1 is booked.
+  it('does NOT re-book a Card row settled before the cutover (Scenario B, double-book guard)', async () => {
+    jest.spyOn(settingService, 'get').mockImplementation((key: string) => {
+      if (key === 'ledgerCutoverLogId') return Promise.resolve('1557344');
+      if (key === 'ledgerCutoverSnapshotDate') return Promise.resolve('2026-06-07T22:00:00.000Z');
+      return Promise.resolve(undefined);
+    });
+    const changed = buyCrypto({
+      id: 40,
+      amountInChf: 1000,
+      totalFeeAmountChf: 10,
+      isComplete: true,
+      outputDate: new Date('2026-05-15T00:00:00Z'), // settled BEFORE the snapshot → covered by the aggregate opening
+      updated: new Date('2026-06-20T00:00:00Z'), // a post-cutover flag change re-selects it in the content-change scan
+      checkoutTx: { currency: 'EUR' } as any,
+    });
+    jest
+      .spyOn(buyCryptoRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [changed] : []));
+
+    await consumer.process();
+
+    expect(booked.some((b) => b.sourceId === '40')).toBe(false); // neither seq0 nor seq1 booked
+  });
+
+  // a Card row OPEN at the cutover that completes AFTER it (outputDate > snapshot) IS booked (seq0 + seq1) — the
+  // forward seq0 is its opening (the per-row cutover opening is excluded for Card). received closes to 0. (Scenario A)
+  it('books seq0 + seq1 for a Card row completing after the cutover (Scenario A, not settled-before-cutover)', async () => {
+    jest.spyOn(settingService, 'get').mockImplementation((key: string) => {
+      if (key === 'ledgerCutoverLogId') return Promise.resolve('1557344');
+      if (key === 'ledgerCutoverSnapshotDate') return Promise.resolve('2026-06-07T22:00:00.000Z');
+      return Promise.resolve(undefined);
+    });
+    const changed = buyCrypto({
+      id: 41,
+      amountInChf: 1000,
+      totalFeeAmountChf: 10,
+      isComplete: true,
+      outputDate: new Date('2026-06-20T00:00:00Z'), // completed AFTER the snapshot → NOT covered by the opening
+      updated: new Date('2026-06-20T00:00:00Z'),
+      checkoutTx: { currency: 'EUR' } as any,
+    });
+    jest
+      .spyOn(buyCryptoRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [changed] : []));
+
+    await consumer.process();
+
+    const s0 = booked.find((b) => b.sourceId === '41' && b.seq === 0);
+    const s1 = booked.find((b) => b.sourceId === '41' && b.seq === 1);
+    expect(s0).toBeDefined(); // forward seq0 = the card opening
+    expect(s1).toBeDefined(); // completion books (outputDate > snapshot → not settled-before-cutover → gate open)
+    const receivedSum = [...s0.legs, ...s1.legs]
+      .filter((l) => l.account.name === 'LIABILITY/buyCrypto-received')
+      .reduce((s, l) => s + (l.amountChf ?? 0), 0);
+    expect(receivedSum).toBe(0); // seq0 −1000 + seq1 (+10 +990) → received closes to 0
+  });
 });

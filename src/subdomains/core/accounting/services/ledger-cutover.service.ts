@@ -40,6 +40,11 @@ const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
 // after a partial crash so every per-row opening sourceId (`<logId>:buy_fiat:<id>`, …) stays identical and the
 // alreadyBooked UNIQUE backstop catches the collision → no double-counted openings (Major design-accounting, R3-1).
 const CUTOVER_SNAPSHOT_LOG_ID_KEY = 'ledgerCutoverSnapshotLogId';
+// the pinned snapshot's created-date, exported so a forward consumer can classify a row as pre-cutover-settled
+// (its value already in the aggregate opening, §6.1) vs open/post-cutover (§6.3). The buy_crypto Card gate reads it:
+// a completed Card row whose outputDate ≤ this date was already captured by openAssets → its seq0/seq1 must NOT be
+// (re-)booked. Stable across re-runs because snapshotDate derives from the pinned snapshot (Major design-accounting R3-1).
+const CUTOVER_SNAPSHOT_DATE_KEY = 'ledgerCutoverSnapshotDate';
 const WATERMARK_KEY_PREFIX = 'ledgerWatermark.';
 const SOURCE_TYPE = 'cutover';
 const CHF = 'CHF';
@@ -119,6 +124,11 @@ export class LedgerCutoverService {
 
     // (4) initialise consumer watermarks atomically — only rows settled at/before the snapshot (Blocker R3-1)
     await this.initWatermarks(snapshotDate);
+
+    // export the pinned snapshot date BEFORE the ready-marker, so any consumer that sees the cutover as done can
+    // already classify a pre-cutover-settled row (covered by the aggregate opening). NOT the watermark's
+    // lastReversalScan — that drifts forward as the content-change scan advances, so it is not a stable snapshot date.
+    await this.settingService.set(CUTOVER_SNAPSHOT_DATE_KEY, snapshotDate.toISOString());
 
     // (5) LAST: set the "ledger ready" marker the §4 gate reads (auditable: value = used logId)
     await this.settingService.set(CUTOVER_LOG_ID_KEY, `${snapshot.id}`);
@@ -308,10 +318,15 @@ export class LedgerCutoverService {
     }
   }
 
-  // buyCrypto-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R2-7); per-row seq0-marker (R4-2)
+  // buyCrypto-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R2-7); per-row seq0-marker (R4-2).
+  // Card inputs (checkoutTx != null) are EXCLUDED: card received is booked by the forward consumer's seq0
+  // (buy-crypto.consumer bookCardInput), so a per-row opening would double-book received across the cutover boundary.
+  // (The open Card row sits below the id-watermark → the forward id-scan skips it, but after completion the
+  // content-change scan re-books its seq0 −amountInChf on top of this opening → received would end at −amountInChf
+  // instead of 0, plus a phantom EQUITY opening. The forward consumer books the card seq0 fresh once it completes.)
   private async openBuyCryptoReceived(snapshot: Log, date: Date, lookback: Date, equity: LedgerAccount): Promise<void> {
     const rows = await this.buyCryptoRepo.find({
-      where: { isComplete: false, outputAmount: IsNull(), created: Between(lookback, date) },
+      where: { isComplete: false, outputAmount: IsNull(), checkoutTx: IsNull(), created: Between(lookback, date) },
     });
     const liability = await this.liability('buyCrypto-received');
 

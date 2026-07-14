@@ -16,6 +16,7 @@ const SOURCE_TYPE = 'buy_crypto';
 const CRYPTO_INPUT_SOURCE = 'crypto_input';
 const CUTOVER_SOURCE = 'cutover';
 const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
+const CUTOVER_SNAPSHOT_DATE_KEY = 'ledgerCutoverSnapshotDate';
 const CHF = 'CHF';
 
 /**
@@ -123,6 +124,10 @@ export class BuyCryptoConsumer {
   private async buildCardInputSeq0(bc: BuyCrypto): Promise<LedgerTxInput | undefined> {
     if (!bc.checkoutTx) return undefined; // not a Card input → seq0 not this consumer's job
     if (bc.amountInChf == null) return undefined;
+    // §6.3: a Card row already settled at the cutover (outputDate ≤ snapshot) is captured by the aggregate opening
+    // (openAssets) — re-booking its seq0 Checkout inflow would double-count. Only OPEN-at-cutover rows (whose per-row
+    // cutover opening is excluded, so the forward seq0 IS their opening) and post-cutover Card rows get a forward seq0.
+    if (await this.settledBeforeCutover(bc)) return undefined;
 
     const checkout = await this.checkoutAccount(bc.checkoutTx.currency);
     const received = await this.liability('buyCrypto-received');
@@ -176,7 +181,11 @@ export class BuyCryptoConsumer {
   // received is opened either by the seq0 CryptoInput ledger_tx (G-a, post-cutover) or by the cutover opening
   // (G-b, cutover-straddling — the pre-cutover-settled crypto_input never gets a seq0 ledger_tx)
   private async receivedOpened(bc: BuyCrypto): Promise<boolean> {
-    if (bc.checkoutTx) return true; // Card input opened received via this consumer's own seq0
+    // Card input: received was opened by this consumer's own seq0 — EXCEPT a row already settled at the cutover, whose
+    // seq0 is (correctly) skipped as covered by the aggregate opening → its completion must stay blocked too. This
+    // mirrors the non-Card G-a/G-b path, which finds neither a crypto_input seq0 (G-a) nor a per-row cutover opening
+    // (G-b) for a pre-cutover-settled row → gate closed. Without it, seq1 would Dr received with no −opening → phantom.
+    if (bc.checkoutTx) return !(await this.settledBeforeCutover(bc));
 
     const cryptoInputId = bc.cryptoInput?.id;
     if (cryptoInputId != null) {
@@ -202,6 +211,25 @@ export class BuyCryptoConsumer {
   private async cutoverReceivedSourceId(buyCryptoId: number): Promise<string | undefined> {
     const cutoverLogId = await this.settingService.get(CUTOVER_LOG_ID_KEY);
     return cutoverLogId != null ? `${cutoverLogId}:buy_crypto:${buyCryptoId}` : undefined;
+  }
+
+  // §6.3: true iff this Card row's completion is at/before the cutover snapshot → its value is already in the aggregate
+  // opening (openAssets), so its seq0/seq1 must NOT be (re-)booked. The completion marker is `outputDate`: the immutable
+  // payout timestamp set exactly once when the buy-crypto completes. Unlike `updated` (which a post-cutover flag change —
+  // chargeback/mail — pushes past the snapshot; that is the very Scenario-B trigger) `outputDate` still reflects whether
+  // the row had settled at the cutover. Non-Card rows are handled by the natural G-a/G-b gate → this guards Card only.
+  private async settledBeforeCutover(bc: BuyCrypto): Promise<boolean> {
+    if (!bc.checkoutTx || !bc.isComplete || bc.outputDate == null) return false;
+
+    const snapshotDate = await this.cutoverSnapshotDate();
+    return snapshotDate != null && bc.outputDate <= snapshotDate;
+  }
+
+  // the pinned cutover snapshot date (§6.3), exported by the cutover (ledger-cutover.service step 4). Absent → cutover
+  // not run yet → no pre-cutover classification applies (forward-only booking, the pre-cutover default).
+  private async cutoverSnapshotDate(): Promise<Date | undefined> {
+    const iso = await this.settingService.get(CUTOVER_SNAPSHOT_DATE_KEY);
+    return iso != null ? new Date(iso) : undefined;
   }
 
   // --- HELPERS --- //
