@@ -40,6 +40,7 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { AmlRule } from 'src/subdomains/core/aml/enums/aml-rule.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { KycLevel, KycType } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 
@@ -49,7 +50,7 @@ describe('AmlHelperService - Scorechain gate', () => {
   // Minimal entity: getAmlErrors is stubbed, so only the fields getAmlResult itself reads matter.
   const entity = { amlCheck: null, created: new Date(0) } as any;
 
-  const getAmlResult = (scorechainHighRisk: boolean) =>
+  const getAmlResult = (scorechainOutcome: ScorechainOutcome) =>
     AmlHelperService.getAmlResult(
       entity,
       null as any, // inputAsset
@@ -68,25 +69,35 @@ describe('AmlHelperService - Scorechain gate', () => {
       undefined, // ipLogCountries
       undefined, // virtualIban
       undefined, // multiAccountBankNames
-      scorechainHighRisk,
+      scorechainOutcome,
     );
 
-  it('forwards scorechainHighRisk to getAmlErrors as the last argument', () => {
+  it('forwards scorechainOutcome to getAmlErrors as the last argument', () => {
     const spy = jest.spyOn(AmlHelperService, 'getAmlErrors').mockReturnValue([]);
 
-    getAmlResult(true);
+    getAmlResult(ScorechainOutcome.HIGH_RISK);
 
-    expect(spy.mock.calls[0].at(-1)).toBe(true);
+    expect(spy.mock.calls[0].at(-1)).toBe(ScorechainOutcome.HIGH_RISK);
   });
 
   it('resolves a SCORECHAIN_HIGH_RISK error to a PENDING manual-review check (after the 10-min grace)', () => {
     jest.spyOn(AmlHelperService, 'getAmlErrors').mockReturnValue([AmlError.SCORECHAIN_HIGH_RISK]);
 
-    const result = getAmlResult(true);
+    const result = getAmlResult(ScorechainOutcome.HIGH_RISK);
 
     expect(result.amlCheck).toBe(CheckStatus.PENDING);
     expect(result.amlReason).toBe(AmlReason.MANUAL_CHECK);
     expect(result.comment).toContain('ScorechainHighRisk');
+  });
+
+  it('resolves a SCORECHAIN_UNAVAILABLE error to a PENDING manual-review check (after the 10-min grace)', () => {
+    jest.spyOn(AmlHelperService, 'getAmlErrors').mockReturnValue([AmlError.SCORECHAIN_UNAVAILABLE]);
+
+    const result = getAmlResult(ScorechainOutcome.UNAVAILABLE);
+
+    expect(result.amlCheck).toBe(CheckStatus.PENDING);
+    expect(result.amlReason).toBe(AmlReason.MANUAL_CHECK);
+    expect(result.comment).toContain('ScorechainUnavailable');
   });
 
   describe('getAmlErrors Scorechain branch (real call)', () => {
@@ -143,7 +154,7 @@ describe('AmlHelperService - Scorechain gate', () => {
     const inputAsset = createCustomAsset({ name: 'BTC', amlRuleFrom: AmlRule.DEFAULT, sellable: true });
     const ibanCountry = { symbol: 'DE', fatfEnable: true, amlRule: AmlRule.DEFAULT } as any;
 
-    const collect = (scorechainHighRisk: boolean): AmlError[] =>
+    const collect = (scorechainOutcome: ScorechainOutcome): AmlError[] =>
       AmlHelperService.getAmlErrors(
         cleanEntity(),
         inputAsset,
@@ -162,15 +173,21 @@ describe('AmlHelperService - Scorechain gate', () => {
         undefined, // virtualIban
         undefined, // multiAccountBankNames
         undefined, // recommender
-        scorechainHighRisk,
+        scorechainOutcome,
       );
 
     it('adds SCORECHAIN_HIGH_RISK when the screening is high-risk', () => {
-      expect(collect(true)).toContain(AmlError.SCORECHAIN_HIGH_RISK);
+      expect(collect(ScorechainOutcome.HIGH_RISK)).toContain(AmlError.SCORECHAIN_HIGH_RISK);
     });
 
     it('adds no Scorechain error when the screening is clean', () => {
-      expect(collect(false)).not.toContain(AmlError.SCORECHAIN_HIGH_RISK);
+      expect(collect(ScorechainOutcome.PASS)).not.toContain(AmlError.SCORECHAIN_HIGH_RISK);
+      expect(collect(ScorechainOutcome.PASS)).not.toContain(AmlError.SCORECHAIN_UNAVAILABLE);
+    });
+
+    it('adds SCORECHAIN_UNAVAILABLE (not SCORECHAIN_HIGH_RISK) when screening was unavailable', () => {
+      expect(collect(ScorechainOutcome.UNAVAILABLE)).toContain(AmlError.SCORECHAIN_UNAVAILABLE);
+      expect(collect(ScorechainOutcome.UNAVAILABLE)).not.toContain(AmlError.SCORECHAIN_HIGH_RISK);
     });
   });
 });
