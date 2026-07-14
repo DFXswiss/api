@@ -186,7 +186,17 @@ export class AktionariatRegistrationDto {
   @IsEnum(RealUnitLanguage)
   lang: RealUnitLanguage;
 
-  @ApiPropertyOptional({ type: [CountryAndTin], description: 'Required if swissTaxResidence is false' })
+  @ApiPropertyOptional({
+    type: [CountryAndTin],
+    description:
+      'Tax residences with TINs for non-CH countries only (never CH — use swissTaxResidence). ' +
+      'Required when swissTaxResidence is false. Multi-residence TINs may also be sent when ' +
+      'swissTaxResidence is true; nested shape is enforced by the service. addressCountry must be ' +
+      'covered: CH via swissTaxResidence, any other country via an entry here.',
+  })
+  // Presence required only for non-Swiss. Nested shape for multi-residence with
+  // swissTaxResidence=true is enforced in RealUnitService.validateTaxResidenceCoversAddress
+  // (class-validator ValidateIf cannot both require-when-false and nested-check-when-present cleanly).
   @ValidateIf((o: AktionariatRegistrationDto) => !o.swissTaxResidence)
   @IsNotEmpty({ message: 'countryAndTINs is required when swissTaxResidence is false' })
   @IsArray()
