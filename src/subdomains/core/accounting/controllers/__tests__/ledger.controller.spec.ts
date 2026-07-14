@@ -184,11 +184,12 @@ describe('LedgerController', () => {
       expect(guards).toHaveLength(3);
 
       // RoleGuard is the only instance-based guard in the chain; it must carry the ADMIN entry role
-      const roleGuard = guards.find((g) => (g as { entryRole?: UserRole }).entryRole !== undefined) as {
-        entryRole: UserRole;
+      // (RoleGuardClass holds variadic `entryRoles` since the multi-role OR support on develop)
+      const roleGuard = guards.find((g) => (g as { entryRoles?: UserRole[] }).entryRoles !== undefined) as {
+        entryRoles: UserRole[];
       };
       expect(roleGuard).toBeDefined();
-      expect(roleGuard.entryRole).toBe(UserRole.ADMIN);
+      expect(roleGuard.entryRoles).toEqual([UserRole.ADMIN]);
 
       // the remaining two guards are the AuthGuard passport mixin (anonymous Function) and the UserActiveGuardClass
       const guardNames = guards.map((g) => (g as { constructor: { name: string } }).constructor.name);
