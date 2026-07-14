@@ -395,8 +395,10 @@ and consistent — no untyped failures, no silent passes:
    (`screenScorechain` in `buy-crypto-preparation` / `buy-fiat-preparation`) catches it and
    returns `ScorechainOutcome.UNAVAILABLE`, so the tx is routed to manual review
    (`AmlError.SCORECHAIN_UNAVAILABLE` → `CheckStatus.PENDING`) instead of throwing out of the AML
-   computation — deliberately **not** `SCORECHAIN_HIGH_RISK`, since no screening actually happened (no
-   `scorechain_screening` row, no compliance PDF). Letting the throw escape the compute path would
+   computation — deliberately **not** `SCORECHAIN_HIGH_RISK`, since no risk verdict could be
+   established: for a transport/quota error neither a `scorechain_screening` row nor a compliance
+   PDF exists, but for a missing risk-threshold configuration both may already have been
+   persisted before the throw. Letting the throw escape the compute path would
    silently stall settlement of every otherwise-passing tx on every cron run, so the error is
    deliberately caught at the seam.
 5. **ikna coexistence:** run both fully in parallel (no routing rule); Scorechain is additive.

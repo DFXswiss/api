@@ -188,7 +188,6 @@ describe('BuyFiatPreparationService', () => {
         .mockRejectedValue(new Error('scorechain unavailable'));
 
       await expect(call(entity)).resolves.toBe(ScorechainOutcome.UNAVAILABLE);
-      await expect(call(entity)).resolves.not.toBe(ScorechainOutcome.HIGH_RISK);
     });
 
     it('fails closed to UNAVAILABLE when isHighRisk throws (misconfigured risk threshold)', async () => {

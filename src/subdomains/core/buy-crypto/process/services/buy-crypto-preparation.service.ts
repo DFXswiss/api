@@ -99,8 +99,10 @@ export class BuyCryptoPreparationService {
     } catch (e) {
       // Fail-closed to manual review: a provider/transport error or a reached monthly quota must not
       // throw out of the AML computation (which would silently stall settlement of every otherwise-
-      // passing tx on every cron run). Classify as UNAVAILABLE, never HIGH_RISK: no screening row and
-      // no compliance PDF exist for this tx, so it must not be recorded as an actual Scorechain hit.
+      // passing tx on every cron run).
+      // Classify as UNAVAILABLE, never HIGH_RISK: no risk verdict could be established. A transport or quota
+      // error leaves no screening row and no compliance PDF at all; a missing risk threshold throws only
+      // after both have been persisted. In neither case may the tx be recorded as an actual Scorechain hit.
       this.logger.error(`Scorechain screening unavailable for buy-crypto ${entity.id}, routing to manual review:`, e);
       return ScorechainOutcome.UNAVAILABLE;
     }

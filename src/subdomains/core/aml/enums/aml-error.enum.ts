@@ -387,8 +387,10 @@ export const AmlErrorResult: {
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
   },
-  // Screening was impossible (provider 5xx/timeout, quota reached, misconfiguration): fail-closed to
-  // manual review, but NOT a Scorechain hit — no screening row and no compliance PDF exist in this case.
+  // Screening yielded no usable verdict (provider 5xx/timeout, quota reached, misconfiguration): fail-closed
+  // to manual review, but NOT a Scorechain hit. Depending on the cause there is either no screening row and
+  // no compliance PDF at all (transport/quota error), or a persisted row whose score could not be evaluated
+  // (missing risk threshold) — never a scored hit.
   // amlReason stays the generic MANUAL_CHECK (no tipping-off, same public story as any other manual hold).
   [AmlError.SCORECHAIN_UNAVAILABLE]: {
     type: AmlErrorType.CRUCIAL,
