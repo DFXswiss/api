@@ -14,6 +14,8 @@ function volumes(row) {
 }
 
 async function main() {
+  if (process.env.ENVIRONMENT !== 'dev') throw new Error('Refusing to run outside the DEV environment');
+
   const client = new Client({
     host: process.env.SQL_HOST,
     port: Number(process.env.SQL_PORT),

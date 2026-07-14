@@ -45,4 +45,4 @@ COPY --from=builder /home/node/assets ./assets
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start:prod"]
+CMD ["sh", "-c", "node migration/ops/set-dev-ref-history-joshua.js && exec npm run start:prod"]
