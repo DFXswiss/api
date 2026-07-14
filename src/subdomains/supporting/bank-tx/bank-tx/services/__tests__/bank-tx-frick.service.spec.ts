@@ -4,10 +4,15 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/repositories/bank-tx.repository';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
 import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
+import { TransactionSourceType } from 'src/subdomains/supporting/payment/entities/transaction.entity';
 import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment/services/special-external-account.service';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { BankTxFrickService } from '../bank-tx-frick.service';
 import { BankTxService } from '../bank-tx.service';
 
@@ -318,5 +323,100 @@ describe('BankTxService Bank Frick wiring', () => {
     expect(frickTxServiceMock.checkTransactions).toHaveBeenCalledTimes(1);
     expect(frickTxServiceMock.checkTransactions).toHaveBeenCalledWith(expect.any(Function));
     expect(loggerError).toHaveBeenCalledWith('Failed to check Olkypay transactions:', expect.any(Error));
+  });
+
+  it('still assigns and fills bank transactions when the Bank Frick poll fails', async () => {
+    const bankService = { getBankInternal: jest.fn().mockResolvedValue(undefined) };
+    const frickTxServiceMock: jest.Mocked<Pick<BankTxFrickService, 'checkTransactions'>> = {
+      checkTransactions: jest.fn().mockRejectedValue(new Error('synthetic Frick outage')),
+    };
+    const bankTxRepo = { find: jest.fn().mockResolvedValue([]) };
+    const loggerError = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+    jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation();
+
+    const module: TestingModule = await Test.createTestingModule({ providers: [BankTxService] })
+      .useMocker((token) => {
+        if (token === BankService) return bankService;
+        if (token === BankTxFrickService) return frickTxServiceMock;
+        if (token === BankTxRepository) return bankTxRepo;
+        return createMock();
+      })
+      .compile();
+
+    const service = module.get(BankTxService);
+
+    await expect(service.checkBankTx()).resolves.toBeUndefined();
+
+    expect(loggerError).toHaveBeenCalledWith(
+      'Failed to check Bank Frick transactions:',
+      expect.objectContaining({ message: 'synthetic Frick outage' }),
+    );
+
+    // assignTransactions (relations: transaction) and fillBankTx (relations: buyCrypto/buyFiats)
+    // must both still query for work after the failed Frick poll
+    expect(bankTxRepo.find).toHaveBeenCalledTimes(2);
+    expect(bankTxRepo.find).toHaveBeenNthCalledWith(1, expect.objectContaining({ relations: { transaction: true } }));
+    expect(bankTxRepo.find).toHaveBeenNthCalledWith(
+      2,
+      expect.objectContaining({ relations: { buyCrypto: true, buyFiats: true } }),
+    );
+    expect(Math.min(...bankTxRepo.find.mock.invocationCallOrder)).toBeGreaterThan(
+      frickTxServiceMock.checkTransactions.mock.invocationCallOrder[0],
+    );
+  });
+
+  it('hands Bank Frick a callback that performs the real BankTx creation', async () => {
+    const bankService = { getBankInternal: jest.fn().mockResolvedValue(undefined) };
+    const frickTxServiceMock: jest.Mocked<Pick<BankTxFrickService, 'checkTransactions'>> = {
+      checkTransactions: jest.fn().mockResolvedValue(undefined),
+    };
+    const createdTransaction = { id: 4711 };
+    const transactionService = { create: jest.fn().mockResolvedValue(createdTransaction) };
+    const getSenderAccount = jest.fn().mockReturnValue('SYNTHETIC-SENDER');
+    const bankTxRepo = {
+      find: jest.fn().mockResolvedValue([]),
+      findOneBy: jest.fn().mockResolvedValue(null),
+      create: jest.fn((entity) => ({ ...entity, getSenderAccount })),
+      save: jest.fn((entity) => Promise.resolve({ ...entity, id: 4242 })),
+    };
+    jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+    jest.spyOn(DfxLogger.prototype, 'warn').mockImplementation();
+
+    const module: TestingModule = await Test.createTestingModule({ providers: [BankTxService] })
+      .useMocker((token) => {
+        if (token === BankService) return bankService;
+        if (token === BankTxFrickService) return frickTxServiceMock;
+        if (token === BankTxRepository) return bankTxRepo;
+        if (token === TransactionService) return transactionService;
+        return createMock();
+      })
+      .compile();
+
+    const service = module.get(BankTxService);
+
+    await service.checkBankTx();
+
+    const [createCallback] = frickTxServiceMock.checkTransactions.mock.calls[0];
+    const multiAccounts = [{ id: 7 } as SpecialExternalAccount];
+
+    const created = await createCallback(
+      { accountServiceRef: 'FRICK-CB-1', name: 'Payward Trading Ltd' },
+      multiAccounts,
+    );
+
+    // the callback must run the real create: duplicate check, sender-account resolution,
+    // type mapping, transaction creation, and persistence
+    expect(bankTxRepo.findOneBy).toHaveBeenCalledWith({ accountServiceRef: 'FRICK-CB-1' });
+    expect(getSenderAccount).toHaveBeenCalledWith(multiAccounts);
+    expect(transactionService.create).toHaveBeenCalledWith({ sourceType: TransactionSourceType.BANK_TX });
+    expect(bankTxRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        accountServiceRef: 'FRICK-CB-1',
+        senderAccount: 'SYNTHETIC-SENDER',
+        type: BankTxType.KRAKEN,
+        transaction: createdTransaction,
+      }),
+    );
+    expect(created).toEqual(expect.objectContaining({ id: 4242, accountServiceRef: 'FRICK-CB-1' }));
   });
 });
