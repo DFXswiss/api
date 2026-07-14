@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
+import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { AccountType } from '../entities/ledger-account.entity';
 import { LedgerAccountService } from './ledger-account.service';
 

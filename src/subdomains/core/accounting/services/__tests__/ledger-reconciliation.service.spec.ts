@@ -25,7 +25,7 @@ import { LedgerMarkService } from '../ledger-mark.service';
 import { FeedStatus, LedgerReconciliationService } from '../ledger-reconciliation.service';
 
 interface LegQueryStub {
-  native?: string; // journalNativeBalance getRawOne
+  native?: string; // journal native balance per account (fed through the nativeBalanceByAccount map, §7.0 m8)
   equityChf?: string; // journalEquity getRawOne
   transit?: { name: string; native: string; oldest: Date }[];
   suspense?: { name: string; chf: string }[];
@@ -46,6 +46,7 @@ describe('LedgerReconciliationService', () => {
 
   let mails: MailRequest[];
   let legStub: LegQueryStub;
+  let nativeBalanceSpy: jest.SpyInstance;
 
   function assetAccount(assetId: number, asset?: Partial<Asset>): LedgerAccount {
     return createCustomLedgerAccount({
@@ -159,6 +160,13 @@ describe('LedgerReconciliationService', () => {
     }).compile();
 
     service = module.get<LedgerReconciliationService>(LedgerReconciliationService);
+
+    // §7.0 (m8): journal native balances come from ONE GROUP-BY map (nativeBalanceByAccount). The default map yields
+    // legStub.native for EVERY account (mirrors the former per-account getRawOne default); the dedicated getRawMany
+    // test restores this spy to exercise the real GROUP-BY→map wiring.
+    nativeBalanceSpy = jest
+      .spyOn(service as any, 'nativeBalanceByAccount')
+      .mockImplementation(() => Promise.resolve({ get: () => Util.round(+(legStub.native ?? '0'), 8) }));
   });
 
   it('is defined', () => {
@@ -354,6 +362,57 @@ describe('LedgerReconciliationService', () => {
       await service.run();
 
       expect(mails.filter((m) => m.context === MailContext.LEDGER_RECONCILIATION)).toHaveLength(0);
+    });
+
+    // m3: reconcileAssets MUST eager-load account.asset (+ its bank), else classifyCustody(account.asset) sees
+    // undefined → every account falls to ON_CHAIN_INACTIVE (24h) and bank accounts (should be 96h BANK_ACTIVE) are
+    // wrongly reported unverified. Assert both the relations on the find AND the resulting BANK_ACTIVE classification.
+    it('loads account.asset with its bank so a bank account classifies BANK_ACTIVE (96h), not ON_CHAIN_INACTIVE (m3)', async () => {
+      const now = new Date();
+      const bankAccount = assetAccount(269, { bank: { id: 1 } as any });
+      const findSpy = jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([bankAccount]);
+      // a 50h-old bank feed is FRESH under the 96h SEPA threshold; matching journal → no diff, no unverified alarm
+      jest
+        .spyOn(liquidityManagementBalanceService, 'getBalances')
+        .mockResolvedValue([balance(269, 5000, Util.hoursBefore(50, now))]);
+      legStub.native = '5000';
+
+      await service.run();
+
+      // the eager relation is the fix — without it classifyCustody(account.asset) sees undefined → ON_CHAIN_INACTIVE
+      expect(findSpy).toHaveBeenCalledWith(expect.objectContaining({ relations: { asset: { bank: true } } }));
+      // BANK_ACTIVE (96h) → the 50h feed stays FRESH → neither an unverified nor a diff alarm
+      expect(mails.some((m) => m.correlationId?.includes('ledger-unverified-'))).toBe(false);
+      expect(mails.some((m) => m.correlationId?.includes('ledger-recon-'))).toBe(false);
+      // and the classification itself: a bank-linked asset → BANK_ACTIVE 96h threshold (via classifyFeed)
+      expect(service.classifyFeed(balance(269, 5000, Util.hoursBefore(50, now)), bankAccount, now).thresholdHours).toBe(
+        96,
+      );
+    });
+  });
+
+  // m8: the journal native balance for reconcileFreshAsset comes from ONE GROUP-BY pass (nativeBalanceByAccount),
+  // not a per-account SUM query inside the batched loop. The map keys on account.id (Σ leg.amount per account).
+  describe('journal native balance GROUP-BY map (§7.0 / m8)', () => {
+    it('nativeBalanceByAccount builds the journal map from ONE GROUP-BY getRawMany (per-account)', async () => {
+      nativeBalanceSpy.mockRestore(); // exercise the REAL helper (not the default spy)
+
+      const qb: any = {};
+      qb.select = () => qb;
+      qb.addSelect = () => qb;
+      qb.groupBy = () => qb;
+      qb.getRawMany = () =>
+        Promise.resolve([
+          { accountId: 1005, native: '150.123456789' },
+          { accountId: 1006, native: '-2.5' },
+        ]);
+      jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockReturnValue(qb);
+
+      const map = await (service as any).nativeBalanceByAccount();
+
+      expect(map.get(1005)).toBe(Util.round(150.123456789, 8)); // Σ rounded to 8 dp
+      expect(map.get(1006)).toBe(-2.5);
+      expect(map.get(9999)).toBeUndefined(); // an account absent from the aggregate → caller falls back to ?? 0
     });
   });
 

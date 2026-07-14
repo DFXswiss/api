@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
+import { ExchangeTx } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -8,7 +10,6 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
-import { ExchangeTx } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementOrderStatus } from 'src/subdomains/core/liquidity-management/enums';
 import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
@@ -21,11 +22,10 @@ import {
 import { FinanceLog, ManualLogPosition } from 'src/subdomains/supporting/log/dto/log.dto';
 import { Log } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
-import { Asset } from 'src/shared/models/asset/asset.entity';
-import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { CryptoInput, CryptoInputSettledStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayoutOrder, PayoutOrderStatus } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { Between, In, IsNull, Repository, SelectQueryBuilder } from 'typeorm';
@@ -203,7 +203,6 @@ export class LedgerCutoverService {
       const amountChf = priceChf != null ? Util.round(priceChf * native, 2) : undefined;
 
       await this.bookOpening(
-        snapshot,
         seq++,
         `${snapshot.id}`,
         `Opening balance from FinancialDataLog #${snapshot.id}`,
@@ -245,6 +244,9 @@ export class LedgerCutoverService {
     equity: LedgerAccount,
   ): Promise<void> {
     const lookback = Util.daysBefore(OPEN_ROW_LOOKBACK_DAYS, snapshotDate);
+    // load every bank keyed by IBAN ONCE (§6.1) — openBankTxReturn/Repeat/Unattributed value each row's bank leg
+    // against this map instead of a per-row bankRepo.findOne (N+1)
+    const bankByIban = await this.bankByIban();
 
     await this.openBuyFiatReceived(snapshot, snapshotDate, lookback, equity);
     await this.openBuyFiatOwed(snapshot, snapshotDate, lookback, marks, equity);
@@ -253,9 +255,9 @@ export class LedgerCutoverService {
     // §6.1 (Major design-accounting): the BANK_TX_RETURN/REPEAT + unattributed liabilities. A pre-cutover open
     // return/repeat whose chargeback settles post-cutover (§4.2 BANK_TX_*_CHARGEBACK) finds its opening-CHF anchor
     // here; without it the chargeback's −Σ(other legs) fallback leaves the liability phantom-negative (never on 0).
-    await this.openBankTxReturn(snapshot, snapshotDate, lookback, marks, equity);
-    await this.openBankTxRepeat(snapshot, snapshotDate, lookback, marks, equity);
-    await this.openUnattributed(snapshot, snapshotDate, lookback, marks, equity);
+    await this.openBankTxReturn(snapshot, snapshotDate, lookback, marks, equity, bankByIban);
+    await this.openBankTxRepeat(snapshot, snapshotDate, lookback, marks, equity, bankByIban);
+    await this.openUnattributed(snapshot, snapshotDate, lookback, marks, equity, bankByIban);
   }
 
   // buyFiat-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R3-6); per-row seq0-marker (R4-2)
@@ -268,7 +270,6 @@ export class LedgerCutoverService {
     for (const row of rows) {
       if (row.amountInChf == null) continue;
       await this.bookReceivedOwedOpening(
-        snapshot,
         date,
         `${snapshot.id}:buy_fiat:${row.id}`,
         `Opening buyFiat-received from open buy_fiat #${row.id}`,
@@ -302,7 +303,6 @@ export class LedgerCutoverService {
       const amountChf = Util.round(row.outputAmount * fiatMark, 2);
 
       await this.bookReceivedOwedOpening(
-        snapshot,
         date,
         `${snapshot.id}:buy_fiat-owed:${row.id}`,
         `Opening buyFiat-owed from open buy_fiat #${row.id}`,
@@ -328,7 +328,6 @@ export class LedgerCutoverService {
     for (const row of rows) {
       if (row.amountInChf == null) continue;
       await this.bookReceivedOwedOpening(
-        snapshot,
         date,
         `${snapshot.id}:buy_crypto:${row.id}`,
         `Opening buyCrypto-received from open buy_crypto #${row.id}`,
@@ -360,7 +359,6 @@ export class LedgerCutoverService {
       const amountChf = mark != null ? Util.round(row.outputAmount * mark, 2) : undefined;
 
       await this.bookReceivedOwedOpening(
-        snapshot,
         date,
         `${snapshot.id}:buy_crypto-owed:${row.id}`,
         `Opening buyCrypto-owed from open buy_crypto #${row.id}`,
@@ -385,6 +383,7 @@ export class LedgerCutoverService {
     lookback: Date,
     marks: LedgerMarkCache,
     equity: LedgerAccount,
+    bankByIban: Map<string, Bank>,
   ): Promise<void> {
     const rows = await this.bankTxReturnRepo.find({
       where: { chargebackBankTx: IsNull(), created: Between(lookback, date) },
@@ -393,7 +392,16 @@ export class LedgerCutoverService {
     const liability = await this.liability('bankTx-return');
 
     for (const row of rows) {
-      await this.openOpenLiabilityRow(snapshot, date, marks, equity, liability, 'bank_tx-return', row.bankTx);
+      await this.openOpenLiabilityRow(
+        snapshot,
+        date,
+        marks,
+        equity,
+        liability,
+        'bank_tx-return',
+        row.bankTx,
+        bankByIban,
+      );
     }
   }
 
@@ -404,6 +412,7 @@ export class LedgerCutoverService {
     lookback: Date,
     marks: LedgerMarkCache,
     equity: LedgerAccount,
+    bankByIban: Map<string, Bank>,
   ): Promise<void> {
     const rows = await this.bankTxRepeatRepo.find({
       where: { chargebackBankTx: IsNull(), created: Between(lookback, date) },
@@ -412,7 +421,16 @@ export class LedgerCutoverService {
     const liability = await this.liability('bankTx-repeat');
 
     for (const row of rows) {
-      await this.openOpenLiabilityRow(snapshot, date, marks, equity, liability, 'bank_tx-repeat', row.bankTx);
+      await this.openOpenLiabilityRow(
+        snapshot,
+        date,
+        marks,
+        equity,
+        liability,
+        'bank_tx-repeat',
+        row.bankTx,
+        bankByIban,
+      );
     }
   }
 
@@ -426,14 +444,14 @@ export class LedgerCutoverService {
     liability: LedgerAccount,
     marker: string,
     bankTx: BankTx | undefined,
+    bankByIban: Map<string, Bank>,
   ): Promise<void> {
     if (bankTx?.amount == null) return; // no underlying bank_tx amount → nothing to anchor
 
-    const { mark } = await this.bankMark(bankTx, date, marks);
+    const { mark } = this.bankMark(bankTx, date, marks, bankByIban);
     const amountChf = mark != null ? Util.round(bankTx.amount * mark, 2) : undefined;
 
     await this.bookReceivedOwedOpening(
-      snapshot,
       date,
       `${snapshot.id}:${marker}:${bankTx.id}`,
       `Opening ${marker} from open bank_tx #${bankTx.id}`,
@@ -454,6 +472,7 @@ export class LedgerCutoverService {
     lookback: Date,
     marks: LedgerMarkCache,
     equity: LedgerAccount,
+    bankByIban: Map<string, Bank>,
   ): Promise<void> {
     // §6.1: type NULL/Pending/Unknown/GSheet credits → the unattributed bucket (two where-branches for the NULL type)
     const credit = { creditDebitIndicator: BankTxIndicator.CREDIT, created: Between(lookback, date) };
@@ -466,7 +485,7 @@ export class LedgerCutoverService {
     let needsMark = false;
     for (const row of rows) {
       if (row.amount == null) continue;
-      const { mark } = await this.bankMark(row, date, marks);
+      const { mark } = this.bankMark(row, date, marks, bankByIban);
       if (mark == null) {
         needsMark = true; // a feedless/unmatched credit cannot be valued now → mark-to-market values the rest later
         continue;
@@ -478,7 +497,6 @@ export class LedgerCutoverService {
 
     const liability = await this.liability('unattributed');
     await this.bookReceivedOwedOpening(
-      snapshot,
       date,
       `${snapshot.id}:unattributed`,
       `Opening unattributed from open bank_tx credits as of FinancialDataLog #${snapshot.id}`,
@@ -491,17 +509,22 @@ export class LedgerCutoverService {
     );
   }
 
+  // every bank keyed by IBAN, loaded ONCE per cutover (§6.1) so the per-row bank leg is valued from an in-memory map
+  // instead of a per-row bankRepo.findOne (N+1). Banks without an IBAN are skipped (no accountIban can match them).
+  private async bankByIban(): Promise<Map<string, Bank>> {
+    const banks = await this.bankRepo.find({ relations: { asset: true } });
+    return new Map(banks.filter((b) => b.iban != null).map((b) => [b.iban, b]));
+  }
+
   // the bank's currency asset + its CHF mark (≤ snapshot) for a bank_tx (via accountIban → Bank.asset, §4.2/§1.6).
   // CHF bank → mark 1; EUR bank → EUR-mark from the cache; no bank match / feedless → mark undefined (caller needsMark).
-  private async bankMark(
+  private bankMark(
     bankTx: BankTx,
     date: Date,
     marks: LedgerMarkCache,
-  ): Promise<{ asset?: Asset; mark: number | undefined }> {
-    const bank = bankTx.accountIban
-      ? await this.bankRepo.findOne({ where: { iban: bankTx.accountIban }, relations: { asset: true } })
-      : null;
-
+    bankByIban: Map<string, Bank>,
+  ): { asset?: Asset; mark: number | undefined } {
+    const bank = bankTx.accountIban ? bankByIban.get(bankTx.accountIban) : undefined;
     if (bank?.currency === CHF || bankTx.currency === CHF) return { asset: bank?.asset, mark: 1 };
     const asset = bank?.asset;
     return { asset, mark: asset?.id != null ? marks.getMarkAt(asset.id, date) : undefined };
@@ -533,7 +556,6 @@ export class LedgerCutoverService {
       const amountChf = priceChf != null ? Util.round(priceChf * position.value, 2) : undefined;
 
       await this.bookOpening(
-        snapshot,
         seq++,
         `${snapshot.id}:manual-debt:${position.assetId}`,
         `Opening manual-debt for asset #${position.assetId} from FinancialDataLog #${snapshot.id}`,
@@ -663,7 +685,6 @@ export class LedgerCutoverService {
 
   // a single 2-leg opening tx (account leg + EQUITY counter-leg) → balances by construction in CHF (§6.2)
   private async bookOpening(
-    snapshot: Log,
     seq: number,
     sourceId: string,
     description: string,
@@ -696,7 +717,6 @@ export class LedgerCutoverService {
 
   // per-row received/owed opening (seq=0): Cr LIABILITY/{…} / Dr EQUITY/opening-balance, CHF-valued (§6.3 R4-2/R6-1)
   private async bookReceivedOwedOpening(
-    snapshot: Log,
     bookingDate: Date,
     sourceId: string,
     description: string,
@@ -706,7 +726,6 @@ export class LedgerCutoverService {
     needsMark = false,
   ): Promise<void> {
     await this.bookOpening(
-      snapshot,
       0,
       sourceId,
       description,

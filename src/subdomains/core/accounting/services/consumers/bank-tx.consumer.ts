@@ -5,10 +5,10 @@ import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { IsNull, LessThan, MoreThan, Not, Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity';
 import { LedgerLeg } from '../../entities/ledger-leg.entity';
@@ -109,7 +109,9 @@ export class BankTxConsumer {
     });
     if (!batch.length) return;
 
-    const from = Util.minObj(batch, 'created').created;
+    // settlement can predate `created` (bookingDate ?? created feeds getMarkAt); anchor the mark lookback on the
+    // earliest settlement so getMarkAt finds a mark at-or-before every row's bookingDate (else the earliest row wedges)
+    const from = Util.daysBefore(2, new Date(Math.min(...batch.map((tx) => (tx.bookingDate ?? tx.created).getTime()))));
     const to = Util.maxObj(batch, 'created').created;
     const marks = await this.markService.preload(from, to);
 

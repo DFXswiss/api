@@ -135,7 +135,9 @@ describe('LedgerCutoverService', () => {
     jest.spyOn(bankTxRepo, 'find').mockResolvedValue([]);
     jest.spyOn(bankTxReturnRepo, 'find').mockResolvedValue([]);
     jest.spyOn(bankTxRepeatRepo, 'find').mockResolvedValue([]);
-    jest.spyOn(bankRepo, 'findOne').mockResolvedValue(null);
+    // m7: openBankTxReturn/Repeat/Unattributed value each bank leg from a single bankByIban() map (bankRepo.find),
+    // NOT a per-row bankRepo.findOne — default to no banks (tests that need a match override with a keyed iban)
+    jest.spyOn(bankRepo, 'find').mockResolvedValue([]);
     jest.spyOn(settingService, 'getObj').mockResolvedValue([] as any);
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map()));
 
@@ -366,8 +368,10 @@ describe('LedgerCutoverService', () => {
           new LedgerMarkCache(new Map([[269, [{ created: new Date('2026-06-01'), priceChf: 0.95 }]]])),
         );
       jest
-        .spyOn(bankRepo, 'findOne')
-        .mockResolvedValue(Object.assign(new Bank(), { name: 'Olkypay', currency: 'EUR', asset: { id: 269 } }) as any);
+        .spyOn(bankRepo, 'find')
+        .mockResolvedValue([
+          Object.assign(new Bank(), { iban: 'EUR-IBAN', name: 'Olkypay', currency: 'EUR', asset: { id: 269 } }),
+        ] as any);
       jest.spyOn(bankTxReturnRepo, 'find').mockResolvedValue([
         Object.assign(new BankTxReturn(), {
           bankTx: Object.assign(new BankTx(), { id: 70, amount: 100, accountIban: 'EUR-IBAN', currency: 'EUR' }),
@@ -388,8 +392,10 @@ describe('LedgerCutoverService', () => {
     it('opens bankTx-repeat per row at mark 1 for a CHF bank', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest
-        .spyOn(bankRepo, 'findOne')
-        .mockResolvedValue(Object.assign(new Bank(), { name: 'Yapeal', currency: 'CHF', asset: { id: 100 } }) as any);
+        .spyOn(bankRepo, 'find')
+        .mockResolvedValue([
+          Object.assign(new Bank(), { iban: 'CHF-IBAN', name: 'Yapeal', currency: 'CHF', asset: { id: 100 } }),
+        ] as any);
       jest.spyOn(bankTxRepeatRepo, 'find').mockResolvedValue([
         Object.assign(new BankTxRepeat(), {
           bankTx: Object.assign(new BankTx(), { id: 80, amount: 250, accountIban: 'CHF-IBAN', currency: 'CHF' }),
@@ -414,8 +420,10 @@ describe('LedgerCutoverService', () => {
           new LedgerMarkCache(new Map([[269, [{ created: new Date('2026-06-01'), priceChf: 0.95 }]]])),
         );
       jest
-        .spyOn(bankRepo, 'findOne')
-        .mockResolvedValue(Object.assign(new Bank(), { name: 'Olkypay', currency: 'EUR', asset: { id: 269 } }) as any);
+        .spyOn(bankRepo, 'find')
+        .mockResolvedValue([
+          Object.assign(new Bank(), { iban: 'EUR-IBAN', name: 'Olkypay', currency: 'EUR', asset: { id: 269 } }),
+        ] as any);
       // first find() = typed credits (GSheet/Pending/Unknown), second find() = NULL-type credits
       jest
         .spyOn(bankTxRepo, 'find')
@@ -803,8 +811,10 @@ describe('LedgerCutoverService', () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       // no mark in the cache + the bank match resolves to an EUR bank whose asset has no mark → mark == null → needsMark
       jest
-        .spyOn(bankRepo, 'findOne')
-        .mockResolvedValue(Object.assign(new Bank(), { name: 'Olkypay', currency: 'EUR', asset: { id: 269 } }) as any);
+        .spyOn(bankRepo, 'find')
+        .mockResolvedValue([
+          Object.assign(new Bank(), { iban: 'EUR-IBAN', name: 'Olkypay', currency: 'EUR', asset: { id: 269 } }),
+        ] as any);
       jest
         .spyOn(bankTxRepo, 'find')
         .mockResolvedValueOnce([
@@ -837,7 +847,7 @@ describe('LedgerCutoverService', () => {
 
     it('values an unattributed credit at mark 1 via the bankTx.currency=CHF fast-path (no bank row needed)', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
-      jest.spyOn(bankRepo, 'findOne').mockResolvedValue(null); // no Bank row, but the tx itself is CHF → mark 1
+      jest.spyOn(bankRepo, 'find').mockResolvedValue([]); // no Bank row, but the tx itself is CHF → mark 1
       jest
         .spyOn(bankTxRepo, 'find')
         .mockResolvedValueOnce([
@@ -964,8 +974,10 @@ describe('LedgerCutoverService', () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no EUR mark
       jest
-        .spyOn(bankRepo, 'findOne')
-        .mockResolvedValue(Object.assign(new Bank(), { name: 'Olkypay', currency: 'EUR', asset: { id: 269 } }) as any);
+        .spyOn(bankRepo, 'find')
+        .mockResolvedValue([
+          Object.assign(new Bank(), { iban: 'EUR-IBAN', name: 'Olkypay', currency: 'EUR', asset: { id: 269 } }),
+        ] as any);
       jest.spyOn(bankTxReturnRepo, 'find').mockResolvedValue([
         Object.assign(new BankTxReturn(), {
           bankTx: Object.assign(new BankTx(), { id: 95, amount: 400, accountIban: 'EUR-IBAN', currency: 'EUR' }),
@@ -1007,8 +1019,10 @@ describe('LedgerCutoverService', () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map()));
       jest
-        .spyOn(bankRepo, 'findOne')
-        .mockResolvedValue(Object.assign(new Bank(), { name: 'Olkypay', currency: 'EUR', asset: undefined }) as any);
+        .spyOn(bankRepo, 'find')
+        .mockResolvedValue([
+          Object.assign(new Bank(), { iban: 'EUR-IBAN', name: 'Olkypay', currency: 'EUR', asset: undefined }),
+        ] as any);
       jest
         .spyOn(bankTxRepo, 'find')
         .mockResolvedValueOnce([

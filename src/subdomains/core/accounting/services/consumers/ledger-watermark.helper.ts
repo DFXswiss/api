@@ -1,5 +1,5 @@
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Config } from 'src/config/config';
+import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Raw, Repository } from 'typeorm';
 

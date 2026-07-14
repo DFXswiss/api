@@ -1,11 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Config } from 'src/config/config';
+import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
-import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { Between, In, MoreThan, Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity';
@@ -77,7 +77,11 @@ export class ExchangeTxConsumer {
     if (!batch.length) return;
 
     const times = batch.map((tx) => (tx.externalCreated ?? tx.created).getTime());
-    const marks = await this.markService.preload(new Date(Math.min(...times)), new Date(Math.max(...times)));
+    const marks = await this.markService.preload(
+      // lookback so getMarkAt finds the latest mark at-or-before the earliest row timestamp
+      Util.daysBefore(2, new Date(Math.min(...times))),
+      new Date(Math.max(...times)),
+    );
     const fillIndexMap = await this.buildFillIndexMap(batch);
 
     let lastProcessedId = watermark.lastProcessedId;

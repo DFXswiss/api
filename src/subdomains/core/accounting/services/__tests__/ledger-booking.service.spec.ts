@@ -413,15 +413,15 @@ describe('LedgerBookingService', () => {
       expect(await service.hasActiveTxAt('bank_tx', '900', 5)).toBe(false);
     });
 
-    // §4.12 activeTx re-book selection (line 192): when MORE THAN ONE non-reversal booking sits above the reversal's
-    // seq, the walk must pick the one with the SMALLEST seq via `.sort((a,b) => a.seq - b.seq)[0]`. A single candidate
-    // never invokes the comparator; this seeds two candidates (1_000_001 and 1_000_002) above the reversal so the
-    // comparator actually runs and the EARLIEST corrected re-book (1_000_001) is chosen as the chain's next link.
-    it('picks the smallest-seq re-book when several non-reversal tx sit above the reversal (sort comparator)', async () => {
+    // §4.12 activeTx re-book selection (adjacency): the walk follows the corrected re-book at EXACTLY reversal.seq + 1
+    // and ignores any higher, non-adjacent booking above the reversal. This seeds the adjacent re-book (1_000_001) plus
+    // a higher decoy (1_000_002, inserted first, out of seq order) and asserts the walk resolves the chain to the
+    // adjacent one (1_000_001), so a re-scan with the same value is a no-op.
+    it('follows the adjacent re-book at reversal.seq + 1 and ignores a higher non-adjacent booking', async () => {
       await service.bookTx(seq0Input(50000)); // forward seq0 (id 1)
       const original = txStore.find((t) => t.seq === 0)!;
 
-      // seed a reversal of seq0 plus TWO independent non-reversal re-books above it (out of seq order on purpose)
+      // seed a reversal of seq0 plus the adjacent re-book (1_000_001) and a higher non-adjacent decoy (out of seq order)
       const reversal = Object.assign(new LedgerTx(), {
         id: nextId++,
         sourceType: 'bank_tx',
@@ -434,7 +434,7 @@ describe('LedgerBookingService', () => {
         id: nextId++,
         sourceType: 'bank_tx',
         sourceId: '900',
-        seq: 1_000_002, // larger seq, inserted first → comparator must still pick the smaller one
+        seq: 1_000_002, // higher, non-adjacent (reversal.seq + 2) → the adjacency walk must ignore it
         legs: [
           { account: walletAsset, amount: 1, priceChf: 60000, amountChf: 60000 },
           { account: liability, amount: -60000, priceChf: 1, amountChf: -60000 },
@@ -444,7 +444,7 @@ describe('LedgerBookingService', () => {
         id: nextId++,
         sourceType: 'bank_tx',
         sourceId: '900',
-        seq: 1_000_001, // the SMALLEST seq above the reversal → the chain's next link
+        seq: 1_000_001, // adjacent (reversal.seq + 1) → the chain's next link
         legs: [
           { account: walletAsset, amount: 1, priceChf: 50000, amountChf: 50000 },
           { account: liability, amount: -50000, priceChf: 1, amountChf: -50000 },
@@ -452,12 +452,45 @@ describe('LedgerBookingService', () => {
       });
       txStore.push(reversal, rebookLater, rebookEarliest);
 
-      // a re-scan with the SAME value as the earliest re-book (50000) → the walk resolves the active tx to the
-      // smallest-seq re-book (1_000_001), finds it unchanged → no-op (false). A broken comparator would resolve to
-      // 1_000_002 (60000), see a diff, and wrongly book another reversal.
+      // a re-scan with the SAME value as the adjacent re-book (50000) → the walk resolves the active tx to the
+      // adjacent re-book (1_000_001), finds it unchanged → no-op (false). Resolving to the non-adjacent 1_000_002
+      // (60000) instead would see a diff and wrongly book another reversal.
       const changed = await service.reverseAndRebookIfChanged(seq0Input(50000));
       expect(changed).toBe(false); // active tx = the 50000 re-book at 1_000_001 → unchanged → no reversal
       expect(txStore.filter((t) => t.sourceId === '900')).toHaveLength(4); // no new tx appended
+    });
+
+    // §4.12 activeTx adjacency (M2): a FLAT reversal (reversed, NO re-book) must resolve to "nothing booked", even
+    // when an UNRELATED foreign correction (reversalOf NULL) sits at a HIGHER seq across a seq gap. The corrected
+    // re-book is required at EXACTLY reversal.seq + 1; the OLD "smallest seq > reversal.seq" picker would grab the
+    // foreign tx and wrongly report a phantom active booking (e.g. an ExchangeTrade fill flipped ok→failed).
+    it('activeTx returns undefined for a flat reversal even when a foreign correction sits at a higher seq (adjacency)', async () => {
+      await service.bookTx(seq0Input(50000)); // forward seq0 (id 1, reversalOf NULL)
+      const original = txStore.find((t) => t.seq === 0)!;
+
+      const reversal = Object.assign(new LedgerTx(), {
+        id: nextId++,
+        sourceType: 'bank_tx',
+        sourceId: '900',
+        seq: 1_000_000,
+        reversalOfId: original.id, // flat reversal of seq0 — NO re-book at 1_000_001
+        legs: [],
+      });
+      const foreign = Object.assign(new LedgerTx(), {
+        id: nextId++,
+        sourceType: 'bank_tx',
+        sourceId: '900',
+        seq: 1_000_005, // an unrelated correction (reversalOf NULL) across a seq gap — NOT the re-book of seq0
+        reversalOfId: undefined,
+        legs: [
+          { account: walletAsset, amount: 1, priceChf: 99999, amountChf: 99999 },
+          { account: liability, amount: -99999, priceChf: 1, amountChf: -99999 },
+        ],
+      });
+      txStore.push(reversal, foreign);
+
+      const active = await (service as any).activeTx('bank_tx', '900', 0);
+      expect(active).toBeUndefined(); // flat reversal → nothing booked now; the foreign 1_000_005 tx must NOT be grabbed
     });
 
     // §4.12 needsMark reversal (line 103) + legsDiffer null tolerances (lines 206/207): a seq0 booked with a

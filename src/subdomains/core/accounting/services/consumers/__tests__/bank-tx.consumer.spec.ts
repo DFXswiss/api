@@ -898,6 +898,41 @@ describe('BankTxConsumer', () => {
     expect(lastPreload[1]).toBe(created);
   });
 
+  // M1 (forward mark lookback): a forward row whose settlement (bookingDate ?? created) PREDATES `created` must
+  // anchor the mark-preload window on the earliest settlement (2 days earlier), NOT min(created). Without it,
+  // getMarkAt finds no mark at-or-before that row's bookingDate → needsMark → the asymmetric EUR-mark bank leg
+  // throws a CHF imbalance in appendRoundingLeg and the row wedges permanently.
+  it('anchors the forward mark window on the earliest bookingDate ?? created (2 days earlier) so an early-settling row books (M1)', async () => {
+    const preloadSpy = jest.spyOn(markService, 'preload');
+    const bookingDate = new Date('2026-05-18T00:00:00Z'); // settlement PREDATES `created`
+    const created = new Date('2026-05-20T00:00:00Z');
+    mockBatch([
+      bankTx({
+        id: 42,
+        type: BankTxType.BANK_TX_RETURN,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        accountIban: 'EUR-IBAN', // EUR bank → the ASSET leg is EUR-mark-valued (needs a mark ≤ bookingDate)
+        amount: 100,
+        created,
+        bookingDate,
+      }),
+    ]);
+
+    await consumer.process();
+
+    // load-bearing regression guard: the forward preload lower bound is anchored on min(bookingDate ?? created) − 2d,
+    // NOT min(created) — this assertion fails if the fix is reverted (the window that supplies the pre-`created` mark)
+    expect(preloadSpy.mock.calls[0][0]).toEqual(Util.daysBefore(2, bookingDate));
+
+    // given the window supplies the mark, the row books cleanly: a VALUED EUR bank leg (no needsMark) and Σ CHF = 0
+    const tx = booked.find((b) => b.sourceId === '42');
+    expect(tx).toBeDefined();
+    const bankLeg = tx.legs.find((l) => l.account.type === AccountType.ASSET);
+    expect(bankLeg.needsMark).toBe(false);
+    expect(bankLeg.amountChf).toBe(95); // 100 EUR × 0.95
+    expect(cents(tx.legs)).toBe(0); // Σ CHF = 0 → no CHF-imbalance throw in appendRoundingLeg
+  });
+
   // §4.2 buildSeq0Input `tx.bookingDate ?? tx.created` + `tx.valueDate ?? bookingDate` — a forward row with BOTH
   // bookingDate AND valueDate null → both settlement dates fall back to tx.created (source lines 153/154 null sides).
   it('buildSeq0Input falls back to tx.created for both bookingDate and valueDate when null (lines 153/154 null sides)', async () => {

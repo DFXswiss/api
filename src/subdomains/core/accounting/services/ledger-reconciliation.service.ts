@@ -1,8 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { Asset } from 'src/shared/models/asset/asset.entity';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { Asset } from 'src/shared/models/asset/asset.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -11,8 +11,8 @@ import { Util } from 'src/shared/utils/util';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
-import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { FinanceLog } from 'src/subdomains/supporting/log/dto/log.dto';
+import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
@@ -105,7 +105,11 @@ export class LedgerReconciliationService {
     // native journal↔feed diff in CHF before comparing against the CHF tolerance (see reconcileFreshAsset).
     const marks = await this.markService.preload(Util.daysBefore(2, now), now);
 
-    await this.reconcileAssets(feed, marks, now);
+    // §7.0: all native journal balances in ONE GROUP-BY pass (analog the feed read) — avoids a per-account query
+    // inside the batched reconcileFreshAsset loop (was O(accounts) SUM queries).
+    const balances = await this.nativeBalanceByAccount();
+
+    await this.reconcileAssets(feed, marks, balances, now);
     await this.checkTransitAge(now);
     await this.checkSuspense();
     await this.checkEquityParity(now);
@@ -113,7 +117,12 @@ export class LedgerReconciliationService {
 
   // --- ASSET RECONCILIATION (§7.1/§7.2/§7.3) --- //
 
-  private async reconcileAssets(feed: LiquidityBalance[], marks: LedgerMarkCache, now: Date): Promise<void> {
+  private async reconcileAssets(
+    feed: LiquidityBalance[],
+    marks: LedgerMarkCache,
+    balances: Map<number, number>,
+    now: Date,
+  ): Promise<void> {
     const feedByAssetId = new Map(feed.filter((b) => b.asset?.id != null).map((b) => [b.asset.id, b]));
 
     const unverified: string[] = [];
@@ -127,6 +136,7 @@ export class LedgerReconciliationService {
     for (;;) {
       const assetAccounts = await this.ledgerAccountRepository.find({
         where: { type: AccountType.ASSET, active: true, id: MoreThan(lastId) },
+        relations: { asset: { bank: true } },
         order: { id: 'ASC' },
         take: batchSize,
       });
@@ -159,7 +169,7 @@ export class LedgerReconciliationService {
           continue;
         }
 
-        await this.reconcileFreshAsset(account, balance, mark, now);
+        await this.reconcileFreshAsset(account, balance, mark, balances, now);
       }
 
       lastId = assetAccounts[assetAccounts.length - 1].id;
@@ -221,9 +231,10 @@ export class LedgerReconciliationService {
     account: LedgerAccount,
     balance: LiquidityBalance,
     mark: number,
+    balances: Map<number, number>,
     now: Date,
   ): Promise<void> {
-    const journal = await this.journalNativeBalance(account.id);
+    const journal = balances.get(account.id) ?? 0;
     const feedAmount = balance.amount ?? 0;
     const diff = Util.round(journal - feedAmount, 8);
     const diffChf = Util.round(diff * mark, 2);
@@ -382,14 +393,18 @@ export class LedgerReconciliationService {
 
   // --- HELPERS --- //
 
-  private async journalNativeBalance(accountId: number): Promise<number> {
+  // all native journal balances in ONE GROUP-BY pass (Σ leg.amount per account). alias.property refs
+  // (leg.accountId, SUM(leg.amount)) are auto-quoted by TypeORM — no bare camelCase column. Unfiltered all-legs
+  // aggregate (same semantics as the former per-account journalNativeBalance) → an all-time journal balance.
+  private async nativeBalanceByAccount(): Promise<Map<number, number>> {
     const raw = await this.ledgerLegRepository
       .createQueryBuilder('leg')
-      .select('SUM(leg.amount)', 'native')
-      .where('leg.accountId = :accountId', { accountId })
-      .getRawOne<{ native: string | null }>();
+      .select('leg.accountId', 'accountId')
+      .addSelect('SUM(leg.amount)', 'native')
+      .groupBy('leg.accountId')
+      .getRawMany<{ accountId: number; native: string }>();
 
-    return Util.round(+(raw?.native ?? 0), 8);
+    return new Map(raw.map((r) => [+r.accountId, Util.round(+r.native, 8)]));
   }
 
   // every ledger alarm goes ONLY through NotificationService.sendMail → sanctioned notification-write (Major R12-1).

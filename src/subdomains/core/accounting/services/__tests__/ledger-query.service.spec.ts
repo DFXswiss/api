@@ -298,9 +298,14 @@ describe('LedgerQueryService', () => {
           status: balance.asset.id === 12 ? FeedStatus.STALE : FeedStatus.FRESH,
         } as any;
       });
-      // journalNativeBalance getRawOne → 100 for all (fresh: diff 0 → ok)
-      qbStub.rawOne = {};
-      jest.spyOn(service as any, 'journalNativeBalance').mockResolvedValue(100);
+      // nativeBalanceByAccount → 100 for every account id (fresh: journal 100 vs feed 100 → diff 0 → ok)
+      jest.spyOn(service as any, 'nativeBalanceByAccount').mockResolvedValue(
+        new Map([
+          [1, 100],
+          [2, 100],
+          [3, 100],
+        ]),
+      );
 
       const res = await service.getReconStatus();
 
@@ -338,7 +343,7 @@ describe('LedgerQueryService', () => {
         .spyOn(liquidityManagementBalanceService, 'getBalances')
         .mockResolvedValue([feed(14, 1.0, new Date('2026-06-10T05:00:00.000Z'))]);
       jest.spyOn(reconciliationService, 'classifyFeed').mockReturnValue({ status: FeedStatus.PLACEHOLDER } as any);
-      jest.spyOn(service as any, 'journalNativeBalance').mockResolvedValue(0);
+      jest.spyOn(service as any, 'nativeBalanceByAccount').mockResolvedValue(new Map([[4, 0]]));
 
       const res = await service.getReconStatus();
 
@@ -662,7 +667,7 @@ describe('LedgerQueryService', () => {
   // --- REAL QUERY-BUILDER PATHS (the private balance helpers run against a captured getRawOne, NOT mocked away) --- //
 
   // A query-builder whose getRawOne returns a value keyed by what the query selects/filters, so the actual private
-  // helpers (nativeBalanceBefore/InPeriod, journalNativeBalance, journalEquityAt, transitPhantom, staleFeed,
+  // helpers (nativeBalanceBefore/InPeriod, nativeBalanceByAccount, journalEquityAt, transitPhantom, staleFeed,
   // spreadFees) execute their COALESCE `?? 0` rounding paths instead of being stubbed.
   describe('balance helpers run against the real query-builder', () => {
     // keyed resolution of getRawOne by a discriminator captured from select/where clauses
@@ -725,19 +730,45 @@ describe('LedgerQueryService', () => {
       expect(res.closingBalance).toBe(100);
     });
 
-    it('getReconStatus uses the real journalNativeBalance (null getRawOne → ledger balance 0)', async () => {
+    it('getReconStatus uses the real nativeBalanceByAccount (empty getRawMany → ledger balance 0)', async () => {
       const asset = assetAccount(1, 11, 'Binance/EUR');
       jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([asset]);
       jest
         .spyOn(liquidityManagementBalanceService, 'getBalances')
         .mockResolvedValue([feed(11, 0, new Date('2026-06-10T05:00:00.000Z'))]);
-      // journalNativeBalance getRawOne → null → 0; feed amount 0 → diff 0 → ok (fresh by default mock)
+      // nativeBalanceByAccount getRawMany → [] → empty map → balances.get(id) ?? 0 → 0; feed 0 → diff 0 → ok (fresh)
       jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockImplementation(() => richLegQb(() => null));
 
       const res = await service.getReconStatus();
 
-      expect(res.accounts[0].ledgerBalance).toBe(0); // SUM(amount) null → 0
+      expect(res.accounts[0].ledgerBalance).toBe(0); // account absent from the GROUP-BY map → 0
       expect(res.accounts[0].status).toBe('ok'); // diff 0 ≤ tolerance
+    });
+
+    // m8: getReconStatus reads each account's journal balance from ONE GROUP-BY map (nativeBalanceByAccount), keyed
+    // by account.id — proving the per-account SUM(leg.amount) rows map to the right accounts (no per-account query).
+    it('getReconStatus maps each account journal balance from the GROUP-BY getRawMany rows (per-account, m8)', async () => {
+      const a1 = assetAccount(1, 11, 'Binance/EUR');
+      const a2 = assetAccount(2, 12, 'Kraken/BTC');
+      jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([a1, a2]);
+      jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+      const qb: any = {};
+      qb.select = () => qb;
+      qb.addSelect = () => qb;
+      qb.groupBy = () => qb;
+      // ONE GROUP-BY pass keyed by account.id → account 1 → 100, account 2 → 250
+      qb.getRawMany = () =>
+        Promise.resolve([
+          { accountId: 1, native: '100' },
+          { accountId: 2, native: '250' },
+        ]);
+      jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockReturnValue(qb);
+
+      const res = await service.getReconStatus();
+
+      const byId = new Map(res.accounts.map((a) => [a.accountId, a]));
+      expect(byId.get(1).ledgerBalance).toBe(100); // per-account journal from the GROUP-BY map
+      expect(byId.get(2).ledgerBalance).toBe(250);
     });
 
     // Finding 5(b): unverifiedAccountIds skips an ASSET account whose assetId is null (the `account.assetId == null`

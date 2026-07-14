@@ -165,11 +165,12 @@ export class LedgerBookingService {
    * the §4.12 reversal chain SPECIFIC to that original (NOT just the highest live seq — a multi-seq source row, e.g.
    * buy_fiat seq1/2/3, has several independent originals and reversing the wrong one would corrupt an unrelated leg).
    *
-   * Walk: start at the original (seq=originalSeq, reversalOf NULL). If it is reversed (some reversal's reversalOf
-   * points at it), its corrected re-book is the booking (reversalOf NULL) with the SMALLEST seq strictly above the
-   * reversal's seq (§4.12 Z.809 order: reversal at seq=N, re-book at seq=N+1); advance to it and repeat. When the
-   * current booking is NOT reversed it is the live correction → return it. A flat reversal (reversed, no re-book)
-   * returns undefined (= nothing booked now).
+   * Walk: start at the original (seq=originalSeq, reversalOfId NULL). If it is reversed (some reversal's reversalOfId
+   * points at it), its corrected re-book is the booking (reversalOfId NULL) at EXACTLY reversal.seq + 1 (§4.12 Z.809
+   * order: reversal at seq=N, re-book at seq=N+1); advance to it and repeat. Requiring adjacency (not merely "smallest
+   * seq above") makes a flat reversal (reversed, no re-book) — whose N+1 slot is empty — resolve to undefined instead
+   * of grabbing an unrelated correction tx across the seq gap. When the current booking is NOT reversed it is the live
+   * correction → return it.
    */
   private async activeTx(sourceType: string, sourceId: string, originalSeq: number): Promise<LedgerTx | undefined> {
     const all = await this.dataSource.getRepository(LedgerTx).find({
@@ -179,18 +180,18 @@ export class LedgerBookingService {
     });
     if (!all.length) return undefined;
 
-    let current = all.find((tx) => tx.seq === originalSeq && tx.reversalOf == null);
+    let current = all.find((tx) => tx.seq === originalSeq && tx.reversalOfId == null);
     if (!current) return undefined; // no original forward booking at this seq → nothing to correct (§4.12)
 
     for (;;) {
       const reversal = all.find((tx) => tx.reversalOfId === current!.id);
       if (!reversal) return current; // current booking is live (not reversed) → the active correction
 
-      // the corrected re-book = first real booking (reversalOf NULL) with seq strictly above the reversal's seq
-      const rebook = all
-        .filter((tx) => tx.reversalOf == null && tx.seq > reversal.seq)
-        .sort((a, b) => a.seq - b.seq)[0];
-      if (!rebook) return undefined; // flat reversal (no re-book) → nothing booked now
+      // the corrected re-book = the real booking (reversalOf NULL) at EXACTLY reversal.seq + 1 (§4.12 Z.809 order:
+      // reversal at seq=N, re-book at seq=N+1). Requiring adjacency avoids grabbing a FOREIGN correction tx across a
+      // seq gap left by a flat reversal (no re-book) — that gap must resolve to "nothing booked", not the next tx.
+      const rebook = all.find((tx) => tx.reversalOfId == null && tx.seq === reversal.seq + 1);
+      if (!rebook) return undefined; // flat reversal (no adjacent re-book) → nothing booked now
       current = rebook;
     }
   }

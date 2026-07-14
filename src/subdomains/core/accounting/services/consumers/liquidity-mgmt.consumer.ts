@@ -61,7 +61,11 @@ export class LiquidityMgmtConsumer {
     if (!batch.length) return;
 
     const times = batch.map((o) => o.updated.getTime());
-    const marks = await this.markService.preload(new Date(Math.min(...times)), new Date(Math.max(...times)));
+    const marks = await this.markService.preload(
+      // lookback so getMarkAt finds the latest mark at-or-before the earliest row timestamp
+      Util.daysBefore(2, new Date(Math.min(...times))),
+      new Date(Math.max(...times)),
+    );
 
     let lastProcessedId = watermark.lastProcessedId;
     for (const order of batch) {

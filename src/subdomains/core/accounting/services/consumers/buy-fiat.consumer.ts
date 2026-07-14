@@ -116,7 +116,8 @@ export class BuyFiatConsumer {
   private async preloadMarks(batch: BuyFiat[]): Promise<LedgerMarkCache> {
     const dates = batch.flatMap((bf) => [bf.updated, bf.fiatOutput?.bankTx?.bookingDate].filter((d): d is Date => !!d));
     const times = dates.map((d) => d.getTime());
-    return this.markService.preload(new Date(Math.min(...times)), new Date(Math.max(...times)));
+    // lookback so getMarkAt finds the latest mark at-or-before the earliest row timestamp
+    return this.markService.preload(Util.daysBefore(2, new Date(Math.min(...times))), new Date(Math.max(...times)));
   }
 
   // returns false when seq1 is gate-blocked (received/paymentLink not yet opened) → caller stops advancing
@@ -124,7 +125,7 @@ export class BuyFiatConsumer {
     return bf.cryptoInput?.paymentLinkPayment ? this.bookPaymentLink(bf, marks) : this.bookRegular(bf, marks);
   }
 
-  // === (I) REGULAR SELL (§4.7 / §4.7a) === //
+  // --- (I) REGULAR SELL (§4.7 / §4.7a) --- //
 
   private async bookRegular(bf: BuyFiat, marks: LedgerMarkCache): Promise<boolean> {
     // §4.7a/§6.1 owed-straddling: a pre-cutover open buy_fiat (outputAmount set) had its received→owed reclassification
@@ -228,7 +229,7 @@ export class BuyFiatConsumer {
     });
   }
 
-  // === (II) PAYMENTLINK MERCHANT PAYOUT (§4.7b) === //
+  // --- (II) PAYMENTLINK MERCHANT PAYOUT (§4.7b) --- //
 
   private async bookPaymentLink(bf: BuyFiat, marks: LedgerMarkCache): Promise<boolean> {
     // seq1 (fee realization + venue-spread plug) — once outputAmount set AND the seq0 paymentLink opening exists
@@ -305,7 +306,7 @@ export class BuyFiatConsumer {
     });
   }
 
-  // === SHARED HELPERS === //
+  // --- SHARED HELPERS --- //
 
   // the bank-ASSET Cr leg of seq3: −outputAmount native, CHF = mark × outputAmount (mark-consistent, §7)
   private async bankCrLeg(bf: BuyFiat, bookingDate: Date, marks: LedgerMarkCache): Promise<LedgerLegInput> {
@@ -371,7 +372,7 @@ export class BuyFiatConsumer {
     return bf.outputAsset?.name ?? bf.fiatOutput?.currency ?? CHF;
   }
 
-  // === GATE (§4.7 G-a/G-b) === //
+  // --- GATE (§4.7 G-a/G-b) --- //
 
   // received is opened by the seq0 CryptoInput ledger_tx (G-a) or the cutover opening (G-b, cutover-straddling)
   private async receivedOpened(bf: BuyFiat): Promise<boolean> {

@@ -58,7 +58,7 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
     let ledgerLegRepository: LedgerLegRepository;
 
     let mails: MailRequest[];
-    let journalNative: string; // the stubbed journal native balance (journalNativeBalance getRawOne)
+    let journalNative: string; // the stubbed journal native balance (fed through the nativeBalanceByAccount map, m8)
 
     function assetAccount(assetId: number, asset: Partial<Asset>): LedgerAccount {
       return createCustomLedgerAccount({
@@ -129,6 +129,12 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
       }).compile();
 
       service = module.get<LedgerReconciliationService>(LedgerReconciliationService);
+
+      // §7.0 (m8): reconcileFreshAsset reads the journal balance from the nativeBalanceByAccount GROUP-BY map — yield
+      // journalNative for every account (balances.get(account.id)); replaces the former per-account getRawOne.
+      jest
+        .spyOn(service as any, 'nativeBalanceByAccount')
+        .mockImplementation(() => Promise.resolve({ get: () => Util.round(+journalNative, 8) }));
     });
 
     it('flags a stale-feed account as unverified with ONE suppressible aggregated alarm (no repeat alarm)', async () => {

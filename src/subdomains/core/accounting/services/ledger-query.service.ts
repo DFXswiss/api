@@ -158,12 +158,13 @@ export class LedgerQueryService {
       relations: { asset: { bank: true } },
     });
     const feedByAssetId = await this.feedByAssetId();
+    const balances = await this.nativeBalanceByAccount();
 
     const results: AccountReconResultDto[] = [];
     for (const account of accounts) {
       if (account.assetId == null) continue;
 
-      const ledgerBalance = await this.journalNativeBalance(account.id);
+      const ledgerBalance = balances.get(account.id) ?? 0;
       const result = this.reconResult(account, ledgerBalance, feedByAssetId, now);
       results.push(LedgerDtoMapper.mapReconResult(result));
     }
@@ -314,14 +315,18 @@ export class LedgerQueryService {
     return Util.round(+(raw?.native ?? 0), 8);
   }
 
-  private async journalNativeBalance(accountId: number): Promise<number> {
+  // all native journal balances in ONE GROUP-BY pass (Σ leg.amount per account, all-time) for getReconStatus.
+  // alias.property refs (leg.accountId, SUM(leg.amount)) are auto-quoted by TypeORM — no bare camelCase column.
+  // Unlike balancesByAccount this joins no tx and applies no bookingDate filter → the all-time journal balance.
+  private async nativeBalanceByAccount(): Promise<Map<number, number>> {
     const raw = await this.ledgerLegRepository
       .createQueryBuilder('leg')
-      .select('SUM(leg.amount)', 'native')
-      .where('leg.accountId = :accountId', { accountId })
-      .getRawOne<{ native: string | null }>();
+      .select('leg.accountId', 'accountId')
+      .addSelect('SUM(leg.amount)', 'native')
+      .groupBy('leg.accountId')
+      .getRawMany<{ accountId: number; native: string }>();
 
-    return Util.round(+(raw?.native ?? 0), 8);
+    return new Map(raw.map((r) => [+r.accountId, Util.round(+r.native, 8)]));
   }
 
   // for each leg, the counter account = the other account when the tx is a clean 2-leg booking
