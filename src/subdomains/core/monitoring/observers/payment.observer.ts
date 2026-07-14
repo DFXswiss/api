@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
+import { FRICK_TERMINAL_STATES } from 'src/integration/bank/dto/frick.dto';
 import { RepositoryFactory } from 'src/shared/repositories/repository.factory';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -109,11 +110,21 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         ),
         created: LessThan(Util.hoursBefore(3)),
       }),
-      stuckFiatOutputs: await this.repos.fiatOutput.countBy({
-        isReadyDate: LessThan(Util.hoursBefore(1)),
-        isTransmittedDate: IsNull(),
-        isComplete: false,
-      }),
+      // Three independent stuck conditions, OR'd together:
+      // 1. Never transmitted (the original condition) - stale readiness.
+      // 2. A Bank Frick order reached a definitive terminal state without ever completing - the
+      //    row already has isTransmittedDate set, so clause 1 alone can never see it.
+      // 3. Generic safety net: transmitted and still not complete after 48h, regardless of bank or
+      //    reason (e.g. an ambiguous/unmatched outgoing bank_tx) - catches anything clause 1 and 2
+      //    don't name explicitly. Deliberately 48h, not 24h: a legitimate SEPA/instant payout can
+      //    still be mid-settlement across a weekend or bank holiday at the 24h mark, and this clause
+      //    is a monitoring signal a human checks, not an automated action - a few extra hours of
+      //    detection latency is the right trade against false-positive alert noise.
+      stuckFiatOutputs: await this.repos.fiatOutput.countBy([
+        { isReadyDate: LessThan(Util.hoursBefore(1)), isTransmittedDate: IsNull(), isComplete: false },
+        { frickOrderStatus: In(FRICK_TERMINAL_STATES), isComplete: false },
+        { isTransmittedDate: LessThan(Util.hoursBefore(48)), isComplete: false },
+      ]),
       pendingCustodyOrders: await this.repos.custodyOrder.countBy({
         status: CustodyOrderStatus.CONFIRMED,
         type: Not(In(CustodyIncomingTypes)),

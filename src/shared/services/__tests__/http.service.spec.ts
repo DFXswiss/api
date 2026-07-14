@@ -22,7 +22,7 @@ describe('HttpService signed responses', () => {
   it('verifies exact raw JSON bytes before parsing them', async () => {
     const rawBody = '{ "answer": 42 }';
     const headers = { signature: 'synthetic-signature', algorithm: 'rsa-sha512' };
-    nestHttp.request.mockReturnValue(of({ data: rawBody, headers }));
+    nestHttp.request.mockReturnValue(of({ data: Buffer.from(rawBody), headers }));
     const responseVerifier = jest.fn();
 
     await expect(
@@ -33,15 +33,34 @@ describe('HttpService signed responses', () => {
       }),
     ).resolves.toEqual({ answer: 42 });
 
-    expect(responseVerifier).toHaveBeenCalledWith(rawBody, headers);
+    expect(responseVerifier).toHaveBeenCalledWith(Buffer.from(rawBody), headers);
     const transportConfig = nestHttp.request.mock.calls[0][0];
-    expect(transportConfig.responseType).toBe('text');
+    expect(transportConfig.responseType).toBe('arraybuffer');
     expect(transportConfig.transformResponse[0](rawBody)).toBe(rawBody);
     expect(transportConfig).not.toHaveProperty('responseVerifier');
   });
 
+  it('verifies a response containing a UTF-8 BOM and non-UTF-8 bytes against a signature computed over the exact raw bytes', async () => {
+    // A legitimately signed response that includes a UTF-8 BOM and a byte sequence that is not valid
+    // UTF-8 (0xFF) must still verify - decoding to a string (even correctly) before verification would
+    // strip the BOM and mangle the invalid sequence, breaking a signature computed over the raw bytes.
+    const rawBytes = Buffer.concat([
+      Buffer.from([0xef, 0xbb, 0xbf]),
+      Buffer.from('{"answer":42}'),
+      Buffer.from([0xff]),
+    ]);
+    const headers = { signature: 'synthetic-signature', algorithm: 'rsa-sha512' };
+    nestHttp.request.mockReturnValue(of({ data: rawBytes, headers }));
+    const responseVerifier = jest.fn();
+
+    await service.request({ url: 'https://synthetic.example/signed', responseType: 'text', responseVerifier });
+
+    expect(responseVerifier).toHaveBeenCalledWith(rawBytes, headers);
+    expect(Buffer.isBuffer(responseVerifier.mock.calls[0][0])).toBe(true);
+  });
+
   it('returns verified text without JSON parsing', async () => {
-    nestHttp.request.mockReturnValue(of({ data: '<Document/>', headers: {} }));
+    nestHttp.request.mockReturnValue(of({ data: Buffer.from('<Document/>'), headers: {} }));
 
     await expect(
       service.request<string>({
@@ -53,7 +72,7 @@ describe('HttpService signed responses', () => {
   });
 
   it('propagates verification failure before exposing the response body', async () => {
-    nestHttp.request.mockReturnValue(of({ data: '{"unsafe":true}', headers: {} }));
+    nestHttp.request.mockReturnValue(of({ data: Buffer.from('{"unsafe":true}'), headers: {} }));
 
     await expect(
       service.request({
@@ -65,7 +84,7 @@ describe('HttpService signed responses', () => {
     ).rejects.toThrow('synthetic signature mismatch');
   });
 
-  it('rejects a signed response that was not preserved as raw text', async () => {
+  it('rejects a signed response that was not preserved as a raw byte buffer', async () => {
     nestHttp.request.mockReturnValue(of({ data: { already: 'parsed' }, headers: {} }));
 
     await expect(
@@ -73,7 +92,7 @@ describe('HttpService signed responses', () => {
         url: 'https://synthetic.example/signed',
         responseVerifier: jest.fn(),
       }),
-    ).rejects.toThrow('Signed HTTP response body is not raw text');
+    ).rejects.toThrow('Signed HTTP response body is not a raw byte buffer');
   });
 
   it('preserves the existing parsed-response path when no verifier is configured', async () => {
@@ -139,5 +158,35 @@ describe('HttpService local Bank Frick mocks', () => {
       }),
     ).resolves.toEqual(expect.objectContaining({ transactions: [expect.objectContaining({ state: 'IN_PROGRESS' })] }));
     expect(nestHttp.request).not.toHaveBeenCalled();
+  });
+
+  it('does not leak mock Frick order state across separately-constructed HttpService instances', async () => {
+    process.env.ENVIRONMENT = Environment.LOC;
+    const baseUrl = 'https://olbtest.bankfrick.li/webapi/v2';
+    const firstInstance = new HttpService({ request: jest.fn() } as unknown as NestHttpService);
+    const secondInstance = new HttpService({ request: jest.fn() } as unknown as NestHttpService);
+
+    await firstInstance.request({
+      url: `${baseUrl}/transactions`,
+      method: 'PUT',
+      data: JSON.stringify({
+        transactions: [
+          {
+            customId: 'DFX-FO-ISOLATED-1',
+            type: 'SEPA',
+            amount: 1,
+            currency: 'EUR',
+            debitor: { iban: 'LI00SYNTHETIC' },
+            creditor: { iban: 'DE00SYNTHETIC', name: 'Local Recipient' },
+          },
+        ],
+      }),
+    });
+
+    await expect(
+      secondInstance.request<{ resultSetSize: number }>({
+        url: `${baseUrl}/transactions?customId=DFX-FO-ISOLATED-1`,
+      }),
+    ).resolves.toEqual(expect.objectContaining({ resultSetSize: 0 }));
   });
 });

@@ -246,12 +246,49 @@ describe('FiatOutputJobService', () => {
       expect(result).toEqual({ accountIban: olkyEUR.iban, bank: olkyEUR });
     });
 
-    it('fails closed when more than one sender bank is eligible for the same currency', async () => {
+    it('still routes an EUR payout to Olkypay while Frick EUR is send=true with the seeded (worse) default priority', async () => {
       const frick = createCustomBank({
         name: IbanBankName.FRICK,
         currency: 'EUR',
         iban: 'SYNTHETIC-FRICK-ACCOUNT',
         send: true,
+        sendPriority: 2000,
+      });
+      jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([frick, olkyEUR]);
+
+      const result = await service['getPayoutAccount'](
+        createCustomFiatOutput({ currency: 'EUR', buyFiats: [] }),
+        createCustomCountry({ yapealEnable: true }),
+      );
+
+      expect(result).toEqual({ accountIban: olkyEUR.iban, bank: olkyEUR });
+    });
+
+    it('routes to Frick once its priority is lowered below the incumbent sender', async () => {
+      const frick = createCustomBank({
+        name: IbanBankName.FRICK,
+        currency: 'EUR',
+        iban: 'SYNTHETIC-FRICK-ACCOUNT',
+        send: true,
+        sendPriority: 500,
+      });
+      jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([frick, yapealEUR]);
+
+      const result = await service['getPayoutAccount'](
+        createCustomFiatOutput({ currency: 'EUR', buyFiats: [] }),
+        createCustomCountry({ yapealEnable: true }),
+      );
+
+      expect(result).toEqual({ accountIban: frick.iban, bank: frick });
+    });
+
+    it('throws only when two eligible banks share the exact same priority, not merely because Frick coexists', async () => {
+      const frick = createCustomBank({
+        name: IbanBankName.FRICK,
+        currency: 'EUR',
+        iban: 'SYNTHETIC-FRICK-ACCOUNT',
+        send: true,
+        sendPriority: 1000,
       });
       jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([frick, yapealEUR]);
 
@@ -260,18 +297,33 @@ describe('FiatOutputJobService', () => {
           createCustomFiatOutput({ currency: 'EUR', buyFiats: [] }),
           createCustomCountry({ yapealEnable: true }),
         ),
-      ).rejects.toThrow('Ambiguous sender bank configuration for EUR');
+      ).rejects.toThrow('Ambiguous sender bank priority for EUR');
     });
 
-    it('preserves the existing first-match behavior when Bank Frick is not one of multiple senders', async () => {
-      jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([yapealEUR, olkyEUR]);
+    it('routes to the highest-priority (lowest number) sender when multiple non-Frick banks are eligible', async () => {
+      const highPriorityOlky = createCustomBank({ ...olkyEUR, sendPriority: 500 });
+      jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([yapealEUR, highPriorityOlky]);
 
       const result = await service['getPayoutAccount'](
         createCustomFiatOutput({ currency: 'EUR', buyFiats: [] }),
         createCustomCountry({ yapealEnable: true }),
       );
 
-      expect(result).toEqual({ accountIban: yapealEUR.iban, bank: yapealEUR });
+      expect(result).toEqual({ accountIban: highPriorityOlky.iban, bank: highPriorityOlky });
+    });
+
+    it('routes an EUR payout to the first eligible non-Frick sender when Olkypay EUR and Yapeal EUR are both send=true at the default priority (no throw)', async () => {
+      // Regression: a tie between two non-Frick incumbents at the shared default priority (1000) must
+      // never throw - only a tie that involves Frick itself is a genuine ambiguity. Throwing here would
+      // silently strand every EUR payout the moment a second non-Frick sender is enabled for EUR.
+      jest.spyOn(bankService, 'getSenderBanks').mockResolvedValue([olkyEUR, yapealEUR]);
+
+      const result = await service['getPayoutAccount'](
+        createCustomFiatOutput({ currency: 'EUR', buyFiats: [] }),
+        createCustomCountry({ yapealEnable: true }),
+      );
+
+      expect(result).toEqual({ accountIban: olkyEUR.iban, bank: olkyEUR });
     });
 
     it('does not use an unavailable Bank Frick virtual IBAN', async () => {
@@ -452,7 +504,7 @@ describe('FiatOutputJobService', () => {
           currency: 'EUR',
           isReadyDate: new Date('2026-07-01'),
           isTransmittedDate: new Date('2026-07-01'),
-          frickTxId: 'DFX-FO-5',
+          frickCustomId: 'DFX-FO-5',
         }),
         createCustomFiatOutput({
           id: 6,
@@ -494,7 +546,7 @@ describe('FiatOutputJobService', () => {
           currency: 'EUR',
           isReadyDate: new Date('2026-07-01'),
           isTransmittedDate: new Date('2026-07-01'),
-          frickTxId: 'DFX-FO-5',
+          frickCustomId: 'DFX-FO-5',
           frickOrderStatus: FrickPaymentState.REJECTED,
           info: 'Manual operations follow-up',
         }),
@@ -698,6 +750,26 @@ describe('FiatOutputJobService', () => {
       expect(fiatOutputRepo.update).toHaveBeenCalledWith(1, expect.objectContaining({ isComplete: true, bankTx }));
     });
 
+    it('matches a Bank Frick payout via frickReference (the bank-echoed reference), not the untouched customer remittanceInfo', async () => {
+      const bankTx = createCustomBankTx({ id: 101, created: new Date('2024-01-01') });
+      const fiatOutput = createCustomFiatOutput({
+        id: 3,
+        remittanceInfo: 'Original customer text',
+        frickReference: 'DFX-FO-3 Original customer text',
+        isComplete: false,
+        isReadyDate: new Date('2024-01-01'),
+      });
+
+      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([fiatOutput]);
+      jest.spyOn(bankTxOutgoingMatchService, 'getUniqueOutgoingBankTx').mockResolvedValue(bankTx);
+
+      await service['searchOutgoingBankTx']();
+
+      expect(bankTxOutgoingMatchService.getUniqueOutgoingBankTx).toHaveBeenCalledWith(
+        expect.objectContaining({ remittanceInfo: 'DFX-FO-3 Original customer text' }),
+      );
+    });
+
     it('should match FiatOutput via endToEndId when remittanceInfo is not set', async () => {
       const bankTx = createCustomBankTx({ id: 200, created: new Date('2024-01-01') });
       const fiatOutput = createCustomFiatOutput({
@@ -743,7 +815,7 @@ describe('FiatOutputJobService', () => {
       const bankTx = createCustomBankTx({ id: 400, created: new Date('2026-07-02') });
       const fiatOutput = createCustomFiatOutput({
         id: 4,
-        frickTxId: 'DFX-FO-4',
+        frickCustomId: 'DFX-FO-4',
         remittanceInfo: 'Synthetic Frick payout',
         isComplete: false,
         isReadyDate: new Date('2026-07-01'),
@@ -775,7 +847,7 @@ describe('FiatOutputJobService', () => {
           currency: 'EUR',
           isReadyDate: new Date('2026-07-01'),
           isTransmittedDate: new Date('2026-07-01'),
-          frickTxId: 'DFX-FO-5',
+          frickCustomId: 'DFX-FO-5',
           frickOrderStatus: FrickPaymentState.DELETION_REQUESTED,
         }),
         createCustomFiatOutput({

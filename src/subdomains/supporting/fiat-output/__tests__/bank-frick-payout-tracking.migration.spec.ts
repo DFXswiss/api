@@ -15,7 +15,7 @@ let AddBankFrickPayoutTracking: new () => {
 
 describe('FiatOutput Bank Frick column metadata', () => {
   it('keeps every tracking column aligned with the migration length', () => {
-    const trackingProperties = ['frickOrderId', 'frickTxId', 'frickOrderStatus', 'frickError'];
+    const trackingProperties = ['frickOrderId', 'frickCustomId', 'frickOrderStatus', 'frickError', 'frickReference'];
     const trackingColumns = Object.fromEntries(
       getMetadataArgsStorage()
         .columns.filter((column) => column.target === FiatOutput && trackingProperties.includes(column.propertyName))
@@ -23,10 +23,11 @@ describe('FiatOutput Bank Frick column metadata', () => {
     );
 
     expect(trackingColumns).toEqual({
-      frickOrderId: { length: 256, nullable: true },
-      frickTxId: { length: 256, nullable: true },
+      frickOrderId: { length: 64, nullable: true },
+      frickCustomId: { length: 256, nullable: true },
       frickOrderStatus: { length: 256, nullable: true },
       frickError: { length: 256, nullable: true },
+      frickReference: { length: 256, nullable: true },
     });
   });
 });
@@ -48,7 +49,7 @@ describe('Bank Frick registry rollout data', () => {
     }
   });
 
-  it('installs disabled production placeholders and both default-off process switches', async () => {
+  it('only changes schema and process switches, and never touches bank rows', async () => {
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     const Migration = require('../../../../../migration/1783944000000-AddBankFrickPayoutTracking');
     const queryRunner = { query: jest.fn().mockResolvedValue(undefined) };
@@ -56,11 +57,22 @@ describe('Bank Frick registry rollout data', () => {
     await new Migration().up(queryRunner);
 
     const sql = queryRunner.query.mock.calls.map(([statement]) => statement).join('\n');
-    expect(sql).toContain("'LI4200000FRICKCHF0001'");
-    expect(sql).toContain("'LI5600000FRICKEUR0001'");
-    expect(sql).toContain('FALSE, FALSE, FALSE, TRUE');
+    expect(sql).toContain('ADD "sendPriority" integer NOT NULL DEFAULT 1000');
     expect(sql).toContain('FiatOutputFrickTransmission');
     expect(sql).toContain('FiatOutputFrickStatusCheck');
+    // The only migration that ever inserted a bank row (Yapeal EUR) was reverted (f897b98a2) because
+    // the row is a manual production step - this migration must never repeat that mistake.
+    expect(sql.toLowerCase()).not.toContain('insert into "bank"');
+    expect(sql.toLowerCase()).not.toContain('delete from "bank"');
+    expect(sql.toLowerCase()).not.toContain('update "bank"');
+
+    const rollbackQueryRunner = { query: jest.fn().mockResolvedValue(undefined) };
+    await new Migration().down(rollbackQueryRunner);
+    const rollbackSql = rollbackQueryRunner.query.mock.calls.map(([statement]) => statement).join('\n');
+    expect(rollbackSql.toLowerCase()).not.toContain('insert into "bank"');
+    expect(rollbackSql.toLowerCase()).not.toContain('delete from "bank"');
+    expect(rollbackSql.toLowerCase()).not.toContain('update "bank"');
+    expect(rollbackSql).toContain('DROP COLUMN "sendPriority"');
   });
 });
 
@@ -134,16 +146,23 @@ describeDb('AddBankFrickPayoutTracking migration (real Postgres)', () => {
     await queryRunner.startTransaction();
     await migration.up(queryRunner);
     const added = await getTrackingColumns();
-    const frickBanks = await getFrickBanks();
+    const bankRowCountAfterUp = await getBankRowCount();
+    const existingBankPriority = await getSendPriority('Existing Bank');
     const disabledProcesses = await getDisabledProcesses();
     await queryRunner.commitTransaction();
 
     expect(added).toEqual([
+      {
+        column_name: 'frickCustomId',
+        data_type: 'character varying',
+        character_maximum_length: 256,
+        is_nullable: 'YES',
+      },
       { column_name: 'frickError', data_type: 'character varying', character_maximum_length: 256, is_nullable: 'YES' },
       {
         column_name: 'frickOrderId',
         data_type: 'character varying',
-        character_maximum_length: 256,
+        character_maximum_length: 64,
         is_nullable: 'YES',
       },
       {
@@ -152,24 +171,33 @@ describeDb('AddBankFrickPayoutTracking migration (real Postgres)', () => {
         character_maximum_length: 256,
         is_nullable: 'YES',
       },
-      { column_name: 'frickTxId', data_type: 'character varying', character_maximum_length: 256, is_nullable: 'YES' },
+      {
+        column_name: 'frickReference',
+        data_type: 'character varying',
+        character_maximum_length: 256,
+        is_nullable: 'YES',
+      },
     ]);
-    expect(frickBanks).toEqual([
-      { currency: 'CHF', iban: 'LI4200000FRICKCHF0001', receive: false, send: false },
-      { currency: 'EUR', iban: 'LI5600000FRICKEUR0001', receive: false, send: false },
-    ]);
+    // The migration must never create, update or delete a bank row - the two new Bank Frick accounts
+    // and any legacy-row cleanup are manual production steps (docs/bank-frick-operations.md §3).
+    expect(bankRowCountAfterUp).toBe(1);
+    // Every pre-existing row is backfilled to the neutral default so enabling Frick's send flag alone
+    // cannot change existing routing - Ops must deliberately lower Frick's priority to cut over.
+    expect(existingBankPriority).toBe(1000);
     expect(disabledProcesses).toEqual(['ExistingProcess', 'FiatOutputFrickTransmission', 'FiatOutputFrickStatusCheck']);
 
     await queryRunner.startTransaction();
     await migration.down(queryRunner);
     const removed = await getTrackingColumns();
-    const rolledBackFrickBanks = await getFrickBanks();
+    const bankRowCountAfterDown = await getBankRowCount();
     const rolledBackDisabledProcesses = await getDisabledProcesses();
+    const sendPriorityColumnExists = await hasSendPriorityColumn();
     await queryRunner.commitTransaction();
 
     expect(removed).toEqual([]);
-    expect(rolledBackFrickBanks).toEqual([]);
+    expect(bankRowCountAfterDown).toBe(1);
     expect(rolledBackDisabledProcesses).toEqual(['ExistingProcess']);
+    expect(sendPriorityColumnExists).toBe(false);
   });
 
   function getTrackingColumns(): Promise<
@@ -179,19 +207,28 @@ describeDb('AddBankFrickPayoutTracking migration (real Postgres)', () => {
       `SELECT column_name, data_type, character_maximum_length, is_nullable
        FROM information_schema.columns
        WHERE table_schema = $1 AND table_name = 'fiat_output'
-         AND column_name IN ('frickOrderId', 'frickTxId', 'frickOrderStatus', 'frickError')
+         AND column_name IN ('frickOrderId', 'frickCustomId', 'frickOrderStatus', 'frickError', 'frickReference')
        ORDER BY column_name`,
       [SCHEMA],
     );
   }
 
-  function getFrickBanks(): Promise<{ currency: string; iban: string; receive: boolean; send: boolean }[]> {
-    return queryRunner.query(
-      `SELECT "currency", "iban", "receive", "send"
-       FROM "bank"
-       WHERE "name" = 'Bank Frick'
-       ORDER BY "currency"`,
+  async function getBankRowCount(): Promise<number> {
+    const [{ count }] = await queryRunner.query(`SELECT COUNT(*) AS count FROM "bank"`);
+    return Number(count);
+  }
+
+  async function getSendPriority(name: string): Promise<number> {
+    const [{ sendPriority }] = await queryRunner.query(`SELECT "sendPriority" FROM "bank" WHERE "name" = $1`, [name]);
+    return sendPriority;
+  }
+
+  async function hasSendPriorityColumn(): Promise<boolean> {
+    const rows = await queryRunner.query(
+      `SELECT 1 FROM information_schema.columns WHERE table_schema = $1 AND table_name = 'bank' AND column_name = 'sendPriority'`,
+      [SCHEMA],
     );
+    return rows.length > 0;
   }
 
   async function getDisabledProcesses(): Promise<string[]> {

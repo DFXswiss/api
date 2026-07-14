@@ -24,6 +24,10 @@ export interface CamtTransaction {
   exchangeSourceCurrency?: string;
   exchangeTargetCurrency?: string;
   exchangeRate?: number;
+  // The entry-booked amount can include bank charges deducted from a debit; chargeAmount is the real,
+  // parsed Ntry/Chrgs total (0 when the entry genuinely carries no charge, never a stand-in default).
+  chargeAmount?: number;
+  chargeCurrency?: string;
 
   name?: string;
   addressLine1?: string;
@@ -215,7 +219,12 @@ export class Iso20022Service {
   }
 
   // --- CAMT.053 PARSING --- //
-  static parseCamt053Json(camt053: any, accountIban: string, strict = false): CamtTransaction[] {
+  static parseCamt053Json(
+    camt053: any,
+    accountIban: string,
+    strict = false,
+    onEntryRejected?: (error: Error, entry: unknown) => void,
+  ): CamtTransaction[] {
     const rawStatements = camt053?.BkToCstmrStmt?.Stmt;
     if (!rawStatements) {
       if (strict) throw new Error('Invalid camt.053 format: missing Stmt');
@@ -227,6 +236,10 @@ export class Iso20022Service {
     const fallbackOccurrences = new Map<string, number>();
 
     for (const stmt of statements) {
+      // A statement whose account IBAN does not match the requested one is a structural mismatch -
+      // this fetch does not belong to the requested account at all, so it stays fatal for the whole
+      // statement. An individual entry failing its own validation, below, is never allowed to do the
+      // same: it is reported and dropped so every other, well-formed entry is still imported.
       if (strict) this.assertValidCamtStatement(stmt, accountIban);
       if (!stmt.Ntry) continue;
       const entries = Array.isArray(stmt.Ntry) ? stmt.Ntry : [stmt.Ntry];
@@ -243,7 +256,7 @@ export class Iso20022Service {
           fallbackOccurrences.set(stableReference, occurrence + 1);
           transactions.push(transaction);
         } catch (error) {
-          if (strict) throw error;
+          onEntryRejected?.(error, entry);
           continue;
         }
       }
@@ -272,6 +285,13 @@ export class Iso20022Service {
     if (!cdtDbtInd) throw new Error('Missing CdtDbtInd in CAMT entry');
     if (strict && !['CRDT', 'DBIT'].includes(cdtDbtInd)) throw new Error('Invalid CdtDbtInd in CAMT entry');
     const creditDebitIndicator = cdtDbtInd === 'CRDT' ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT;
+
+    // bank charges - Bank Frick (and other banks) can book a debit entry's amount inclusive of the
+    // charge it deducted. Charges are only ever taken from an outgoing (debit) entry.
+    const { chargeAmount, chargeCurrency } =
+      creditDebitIndicator === BankTxIndicator.DEBIT
+        ? this.parseCamtCharge(entry.Chrgs, currency)
+        : { chargeAmount: 0, chargeCurrency: currency };
 
     // dates
     const bookingDateStr = this.getCamtDate(entry.BookgDt);
@@ -318,18 +338,25 @@ export class Iso20022Service {
     const ultimateCountry = ultimatePostalAddress?.Ctry;
 
     // remittance information
-    const remittanceInfo = this.parseCamtRemittanceInfo(txDtls.RmtInf, entry.AddtlNtryInf, strict);
+    const remittanceInfo = this.parseCamtRemittanceInfo(txDtls.RmtInf, entry.AddtlNtryInf);
 
     // reference - check transaction-level refs first (matches camt.054), then entry-level AcctSvcrRef
-    const transactionAccountServiceRef = this.parseOptionalCamtString(txDtls.Refs?.AcctSvcrRef, 'AcctSvcrRef', strict);
-    const transactionId = this.parseOptionalCamtString(txDtls.Refs?.TxId, 'TxId', strict);
-    const entryAccountServiceRef = this.parseOptionalCamtString(entry.AcctSvcrRef, 'AcctSvcrRef', strict);
-    const entryReference = this.parseOptionalCamtString(entry.NtryRef, 'NtryRef', strict);
-    const accountServiceRef =
-      transactionAccountServiceRef || transactionId || entryAccountServiceRef || entryReference || fallbackReference;
+    const transactionAccountServiceRef = this.parseOptionalCamtString(txDtls.Refs?.AcctSvcrRef);
+    const transactionId = this.parseOptionalCamtString(txDtls.Refs?.TxId);
+    const entryAccountServiceRef = this.parseOptionalCamtString(entry.AcctSvcrRef);
+    const entryReference = this.parseOptionalCamtString(entry.NtryRef);
+    const realReference = transactionAccountServiceRef || transactionId || entryAccountServiceRef || entryReference;
+    // A synthetic, content-derived reference is the deliberate, already-shipped fix for reference-less
+    // Yapeal/Raiffeisen entries (see docs/bank-frick-operations.md §2) and must stay for non-strict
+    // callers. In strict mode (Bank Frick), reconciliation matches on this reference exactly, so a
+    // content hash that changes on a cosmetic bank-side amendment (e.g. a re-sent AddtlNtryInf) would
+    // silently mint a second identity for the same money and risk a double credit. Fail closed instead:
+    // reject the entry so it is retried, never assign it a synthesized identity.
+    if (!realReference && strict) throw new Error('Bank Frick CAMT entry missing bank reference');
+    const accountServiceRef = realReference || fallbackReference;
 
     // end-to-end ID
-    const endToEndId = this.parseOptionalCamtString(txDtls.Refs?.EndToEndId, 'EndToEndId', strict) || '';
+    const endToEndId = this.parseOptionalCamtString(txDtls.Refs?.EndToEndId) || '';
 
     // bank transaction codes
     const bkTxCd = (txDtls.BkTxCd ?? entry.BkTxCd)?.Domn;
@@ -343,6 +370,8 @@ export class Iso20022Service {
       valueDate,
       amount,
       currency,
+      chargeAmount,
+      chargeCurrency,
       creditDebitIndicator,
       name,
       addressLine1,
@@ -365,7 +394,12 @@ export class Iso20022Service {
     };
   }
 
-  static parseCamt053Xml(xmlData: string, accountIban: string, strict = false): CamtTransaction[] {
+  static parseCamt053Xml(
+    xmlData: string,
+    accountIban: string,
+    strict = false,
+    onEntryRejected?: (error: Error, entry: unknown) => void,
+  ): CamtTransaction[] {
     const parser = new XMLParser({
       ignoreAttributes: false,
       attributeNamePrefix: '',
@@ -376,7 +410,7 @@ export class Iso20022Service {
     });
 
     const jsonData = parser.parse(xmlData);
-    return this.parseCamt053Json(jsonData.Document || jsonData, accountIban, strict);
+    return this.parseCamt053Json(jsonData.Document || jsonData, accountIban, strict, onEntryRejected);
   }
 
   private static createStableCamtReference(accountIban: string, entry: unknown): string {
@@ -415,18 +449,16 @@ export class Iso20022Service {
     return party?.Pty ?? party ?? {};
   }
 
-  private static parseCamtRemittanceInfo(
-    remittance: any,
-    additionalEntryInfo: unknown,
-    strict: boolean,
-  ): string | undefined {
+  // Remittance information is cosmetic (customer-facing text, not a money-identifying field): an
+  // unsupported or malformed shape drops the field to undefined instead of rejecting the entry, in
+  // both strict and non-strict mode.
+  private static parseCamtRemittanceInfo(remittance: any, additionalEntryInfo: unknown): string | undefined {
     if (remittance?.Ustrd !== undefined) {
       const values = Array.isArray(remittance.Ustrd) ? remittance.Ustrd : [remittance.Ustrd];
       if (values.every((value) => typeof value === 'string')) {
         const normalizedValues = values.map((value) => value.trim()).filter(Boolean);
         if (normalizedValues.length > 0) return normalizedValues.join(' ');
       }
-      if (strict) throw new Error('Invalid unstructured remittance information in CAMT entry');
     }
 
     if (remittance?.Strd !== undefined) {
@@ -437,7 +469,6 @@ export class Iso20022Service {
         .filter((reference): reference is string => typeof reference === 'string' && !!reference.trim())
         .map((reference) => reference.trim());
       if (references.length > 0) return references.join(' ');
-      if (strict) throw new Error('Unsupported structured remittance information in CAMT entry');
     }
 
     return typeof additionalEntryInfo === 'string' && additionalEntryInfo.trim()
@@ -451,10 +482,42 @@ export class Iso20022Service {
     return Number(value.trim());
   }
 
-  private static parseOptionalCamtString(value: unknown, field: string, strict: boolean): string | undefined {
-    if (value === undefined) return undefined;
+  private static parseAmtValue(amtObj: any): number {
+    const raw = amtObj?.Value ?? amtObj?.['#text'] ?? amtObj;
+    return parseFloat(raw ?? '0');
+  }
+
+  // ISO 20022's Ntry/Chrgs (ChargesInformation8): either a single TtlChrgsAndTaxAmt total, or one or
+  // more Rcrd entries each carrying their own Amt - mirrors what SepaParser.getTotalCharge already
+  // does for the SEPA-file format, at the entry level instead of that format's own attribute
+  // convention. A genuinely absent Chrgs element is a real 0, not a fallback masking an unread value.
+  private static parseCamtCharge(
+    chrgs: any,
+    fallbackCurrency: string,
+  ): { chargeAmount: number; chargeCurrency: string } {
+    if (!chrgs) return { chargeAmount: 0, chargeCurrency: fallbackCurrency };
+
+    if (chrgs.TtlChrgsAndTaxAmt !== undefined) {
+      const amount = this.parseAmtValue(chrgs.TtlChrgsAndTaxAmt);
+      return {
+        chargeAmount: Number.isFinite(amount) ? amount : 0,
+        chargeCurrency: chrgs.TtlChrgsAndTaxAmt?.Ccy || fallbackCurrency,
+      };
+    }
+
+    const records: any[] = Array.isArray(chrgs.Rcrd) ? chrgs.Rcrd : chrgs.Rcrd ? [chrgs.Rcrd] : [];
+    const chargeAmount = records.reduce((sum, record) => {
+      const recordAmount = this.parseAmtValue(record?.Amt);
+      return sum + (Number.isFinite(recordAmount) ? recordAmount : 0);
+    }, 0);
+    const chargeCurrency = records[0]?.Amt?.Ccy || fallbackCurrency;
+    return { chargeAmount, chargeCurrency };
+  }
+
+  // A present-but-blank optional element (e.g. an empty <EndToEndId/>) is cosmetic, never money-critical
+  // - it is always dropped to undefined rather than rejecting the entry, in both strict and non-strict mode.
+  private static parseOptionalCamtString(value: unknown): string | undefined {
     if (typeof value === 'string' && value.trim()) return value.trim();
-    if (strict) throw new Error(`Invalid ${field} in CAMT entry`);
     return undefined;
   }
 

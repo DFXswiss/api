@@ -39,7 +39,9 @@ export class BankTxOutgoingMatchService {
       .where('bankTx.creditDebitIndicator = :indicator', { indicator: BankTxIndicator.DEBIT })
       .andWhere(`UPPER(REPLACE(bankTx.accountIban, ' ', '')) = :accountIban`, { accountIban })
       .andWhere('UPPER(bankTx.currency) = :currency', { currency })
-      .andWhere('ABS(bankTx.amount - :amount) < :amountTolerance', {
+      // Net of any bank charge deducted from the booked debit (0 for every non-charged bank/entry, so
+      // this is a no-op everywhere except a charged Bank Frick FOREIGN payout).
+      .andWhere('ABS((bankTx.amount - COALESCE(bankTx.chargeAmount, 0)) - :amount) < :amountTolerance', {
         amount: match.amount,
         amountTolerance: 0.005,
       })

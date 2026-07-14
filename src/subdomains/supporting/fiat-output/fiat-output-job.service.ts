@@ -129,7 +129,10 @@ export class FiatOutputJobService {
 
   private async getMatchingBankTx(entity: FiatOutput): Promise<BankTx> {
     return this.bankTxOutgoingMatchService.getUniqueOutgoingBankTx({
-      remittanceInfo: entity.remittanceInfo,
+      // Frick's bank-echoed reference lives in frickReference - the untouched, customer-facing
+      // remittanceInfo is never what the bank actually echoes back for a Frick payout. Every other
+      // bank never sets frickReference, so this falls straight through to remittanceInfo for them.
+      remittanceInfo: entity.frickReference ?? entity.remittanceInfo,
       endToEndId: entity.endToEndId,
       accountIban: entity.sourceIban,
       amount: entity.amount,
@@ -139,16 +142,21 @@ export class FiatOutputJobService {
   }
 
   private async getPayoutAccount(entity: FiatOutput, country: Country): Promise<{ accountIban: string; bank: Bank }> {
+    const currency = entity.currency ?? entity.bankAccountCurrency;
+
+    // A Frick instant payout is only ever supported for EUR (Bank Frick rejects instant CHF/FOREIGN
+    // orders outright) - gate on both the capability flag and the currency so an instant CHF output can
+    // never be assigned to Frick in the first place, rather than failing on every transmit retry.
+    const isEligibleFrickCandidate = (bank: Bank): boolean =>
+      bank.name !== IbanBankName.FRICK || !entity.isInstant || (bank.sctInst && currency === 'EUR');
+
     // use virtual IBAN if existing
     if (entity.userData && [FiatOutputType.BUY_FIAT, FiatOutputType.BUY_CRYPTO_FAIL].includes(entity.type)) {
-      const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(
-        entity.userData,
-        entity.currency ?? entity.bankAccountCurrency,
-      );
+      const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(entity.userData, currency);
 
       if (
         virtualIban?.bank?.send &&
-        (virtualIban.bank.name !== IbanBankName.FRICK || !entity.isInstant || virtualIban.bank.sctInst) &&
+        isEligibleFrickCandidate(virtualIban.bank) &&
         virtualIban.bank.isCountryEnabled(country) &&
         (virtualIban.bank.name !== IbanBankName.FRICK || this.frickPayoutService.canCreatePayments())
       )
@@ -156,16 +164,26 @@ export class FiatOutputJobService {
     }
 
     // fallback to standard bank account selection
-    const banks = await this.bankService.getSenderBanks(entity.currency ?? entity.bankAccountCurrency);
+    const banks = await this.bankService.getSenderBanks(currency);
     const eligibleBanks = banks.filter(
       (candidate) =>
-        (candidate.name !== IbanBankName.FRICK || !entity.isInstant || candidate.sctInst) &&
+        isEligibleFrickCandidate(candidate) &&
         candidate.isCountryEnabled(country) &&
         (candidate.name !== IbanBankName.FRICK || this.frickPayoutService.canCreatePayments()),
     );
-    if (eligibleBanks.length > 1 && eligibleBanks.some((candidate) => candidate.name === IbanBankName.FRICK))
-      throw new Error(`Ambiguous sender bank configuration for ${entity.currency ?? entity.bankAccountCurrency}`);
-    const bank = eligibleBanks[0];
+
+    // Sender priority (lower wins) is the deterministic tie-breaker between multiple eligible senders for
+    // the same currency - an operational input (Bank.sendPriority), not a hardcoded bank-name preference.
+    // A throw is reserved for a genuine priority tie that involves Frick itself, never for a tie between
+    // two non-Frick incumbents (e.g. Olkypay EUR and Yapeal EUR both send=true at the shared default
+    // priority): Array.prototype.sort is stable, so when every candidate shares the same priority, the
+    // pre-existing first-match order is used instead of throwing away an otherwise-workable route.
+    const sortedBanks = [...eligibleBanks].sort((a, b) => a.sendPriority - b.sendPriority);
+    const tiedForTop = sortedBanks.filter((candidate) => candidate.sendPriority === sortedBanks[0]?.sendPriority);
+    if (tiedForTop.length > 1 && tiedForTop.some((candidate) => candidate.name === IbanBankName.FRICK))
+      throw new Error(`Ambiguous sender bank priority for ${currency}`);
+
+    const bank = sortedBanks[0];
     return bank ? { accountIban: bank.iban, bank } : { accountIban: undefined, bank: undefined };
   }
 
@@ -548,13 +566,13 @@ export class FiatOutputJobService {
         };
 
         if (
-          (entity.yapealMsgId || entity.olkyOrderId || entity.frickOrderId || entity.frickTxId) &&
+          (entity.yapealMsgId || entity.olkyOrderId || entity.frickOrderId || entity.frickCustomId) &&
           !entity.isConfirmedDate
         ) {
           updateData.isConfirmedDate = bankTx.created;
         }
 
-        if ((entity.frickOrderId || entity.frickTxId) && !entity.isApprovedDate)
+        if ((entity.frickOrderId || entity.frickCustomId) && !entity.isApprovedDate)
           updateData.isApprovedDate = bankTx.created;
 
         await this.fiatOutputRepo.update(entity.id, updateData);

@@ -6,8 +6,10 @@ import { BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entit
 import {
   FrickPaymentCharge,
   FrickPaymentOrder,
+  FrickPaymentOrderNotFoundError,
   FrickPaymentState,
   FrickPaymentType,
+  FrickSignatureVerificationError,
   FrickTransactionsResponse,
 } from '../../dto/frick.dto';
 import { BankFrickService } from '../frick.service';
@@ -52,6 +54,10 @@ describe('BankFrickService', () => {
     expect(authorize.headers.Authorization).toBeUndefined();
     expectSignature(authorize.data, authorize.headers.Signature);
     expect(http.request.mock.calls[1][0].url).toBe('https://bank.invalid/webapi/v2/accounts/0000000');
+    // Combined with the unbounded cron lock on the status poller, a hung connection with no timeout
+    // would silently kill it permanently.
+    expect(authorize.timeout).toBe(30_000);
+    expect(http.request.mock.calls[1][0].timeout).toBe(30_000);
 
     for (const [index, [request]] of http.request.mock.calls.entries()) {
       const rawResponse = JSON.stringify({ syntheticResponse: index });
@@ -136,6 +142,23 @@ describe('BankFrickService', () => {
     await expect(request).rejects.not.toThrow('synthetic-api-key');
   });
 
+  it('reports a tampered response signature distinctly from a generic transport failure, both during authorization and a normal request', async () => {
+    // A FrickSignatureVerificationError is what HttpService.request() throws internally when
+    // verifyResponse rejects a response - simulated directly here since http.request is mocked at
+    // the HttpService boundary.
+    http.request.mockRejectedValueOnce(new FrickSignatureVerificationError('Invalid Bank Frick response signature'));
+    await expect(service.getBalances()).rejects.toThrow(
+      'Bank Frick authorization response signature verification failed: Invalid Bank Frick response signature',
+    );
+
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockRejectedValueOnce(new FrickSignatureVerificationError('Invalid Bank Frick response signature headers'));
+    await expect(service.getBalances()).rejects.toThrow(
+      'Bank Frick response signature verification failed (GET accounts/0000000): Invalid Bank Frick response signature headers',
+    );
+  });
+
   it('fails loud when connection configuration is incomplete', async () => {
     Config.bank.frick.privateKey = undefined;
 
@@ -164,7 +187,7 @@ describe('BankFrickService', () => {
     const signature = signer.sign(keys.privateKey, 'base64');
 
     expect(() =>
-      service['verifyResponse'](body, { Signature: signature, Algorithm: headerAlgorithm } as never),
+      service['verifyResponse'](Buffer.from(body), { Signature: signature, Algorithm: headerAlgorithm } as never),
     ).not.toThrow();
   });
 
@@ -173,7 +196,7 @@ describe('BankFrickService', () => {
     [{ signature: 'not-a-signature', algorithm: 'rsa-sha512' }, 'Invalid Bank Frick response signature'],
     [{ signature: 'irrelevant', algorithm: 'rsa-pss-sha512' }, 'Invalid Bank Frick response signature headers'],
   ])('rejects missing, invalid or unsupported response signatures', (headers, expectedError) => {
-    expect(() => service['verifyResponse']('{"synthetic":true}', headers as never)).toThrow(expectedError);
+    expect(() => service['verifyResponse'](Buffer.from('{"synthetic":true}'), headers as never)).toThrow(expectedError);
   });
 
   it('fails closed when a payment is attempted without the explicit payout flag', async () => {
@@ -479,7 +502,71 @@ describe('BankFrickService', () => {
       .mockResolvedValueOnce({ token: jwt() })
       .mockResolvedValueOnce(transactionsResponse([]))
       .mockResolvedValueOnce(transactionsResponse([]));
-    await expect(service.getPaymentOrder('DFX-FO-42')).rejects.toThrow('payment order DFX-FO-42 not found');
+    await expect(service.getPaymentOrder('DFX-FO-42')).rejects.toThrow(FrickPaymentOrderNotFoundError);
+  });
+
+  it('resolves a real Bank Frick BOOKED response that carries neither customId nor type', async () => {
+    // Reproduces the Bank Frick spec's actual BOOKED transaction shape: settled payouts never echo
+    // customId/type, only orderId/state/amount/currency/debitor/creditor. A prior, stricter validator
+    // unconditionally required both fields and made this the normal success path throw forever.
+    const bookedPayload = {
+      orderId: 4242,
+      state: FrickPaymentState.BOOKED,
+      amount: '10.25',
+      currency: 'EUR',
+      debitor: { iban: debtorIban },
+      creditor: { name: 'Synthetic Recipient', iban: creditorIban },
+    };
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce(transactionsResponse([bookedPayload as unknown as FrickPaymentOrder]));
+
+    await expect(service.getPaymentOrder('DFX-FO-42')).resolves.toEqual(bookedPayload);
+  });
+
+  it('trusts the customId-scoped filter for a BOOKED response missing customId, but still rejects one with a genuinely mismatched customId', async () => {
+    const bookedWithoutCustomId = {
+      orderId: 1,
+      state: FrickPaymentState.BOOKED,
+      amount: '1.00',
+      currency: 'EUR',
+      debitor: { iban: debtorIban },
+      creditor: { name: 'Synthetic Recipient', iban: creditorIban },
+    };
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce(transactionsResponse([bookedWithoutCustomId as unknown as FrickPaymentOrder]));
+
+    await expect(
+      service['getFilteredPaymentOrder'](new URLSearchParams({ customId: 'DFX-FO-42' }), 'DFX-FO-42'),
+    ).resolves.toEqual(bookedWithoutCustomId);
+
+    http.request.mockResolvedValueOnce(
+      transactionsResponse([{ ...bookedWithoutCustomId, customId: 'DFX-FO-OTHER' } as unknown as FrickPaymentOrder]),
+    );
+    await expect(
+      service['getFilteredPaymentOrder'](new URLSearchParams({ customId: 'DFX-FO-42' }), 'DFX-FO-42'),
+    ).rejects.toThrow('Invalid Bank Frick payment lookup response for DFX-FO-42');
+  });
+
+  it('recognises an already-BOOKED order missing customId/type as idempotent instead of a collision', async () => {
+    Config.bank.frick.payoutEnabled = true;
+    const bookedWithoutCustomIdOrType = {
+      orderId: 1,
+      state: FrickPaymentState.BOOKED,
+      amount: 10.25,
+      currency: 'EUR',
+      express: false,
+      reference: 'Synthetic payout 42',
+      debitor: { iban: debtorIban },
+      creditor: { name: 'Synthetic Recipient', iban: creditorIban },
+    };
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce(transactionsResponse([bookedWithoutCustomIdOrType as unknown as FrickPaymentOrder]));
+
+    await expect(service.createPaymentOrder(paymentInput())).resolves.toEqual(bookedWithoutCustomIdOrType);
+    expect(http.request.mock.calls.some(([request]) => request.method === 'PUT')).toBe(false);
   });
 
   it.each([
@@ -502,14 +589,17 @@ describe('BankFrickService', () => {
   });
 
   it('validates transaction and account response envelopes and rows', () => {
-    expect(() => service['validateTransactionsResponse'](undefined)).toThrow(
+    expect(() => service['validateTransactionsResponse'](undefined, true)).toThrow(
       'Invalid Bank Frick transactions response',
     );
     expect(() =>
-      service['validateTransactionsResponse'](transactionsResponse([{ ...paymentOrder(), state: 'UNKNOWN' as never }])),
+      service['validateTransactionsResponse'](
+        transactionsResponse([{ ...paymentOrder(), state: 'UNKNOWN' as never }]),
+        true,
+      ),
     ).toThrow('Invalid Bank Frick payment order response');
     expect(() =>
-      service['validateTransactionsResponse'](transactionsResponse([paymentOrder({ orderId: -1 })])),
+      service['validateTransactionsResponse'](transactionsResponse([paymentOrder({ orderId: -1 })]), true),
     ).toThrow('Invalid Bank Frick orderId response');
 
     expect(() => service['validateAccountsResponse'](undefined)).toThrow('Invalid Bank Frick accounts response');
@@ -561,7 +651,10 @@ describe('BankFrickService', () => {
     http = { request: jest.fn() };
     service = new BankFrickService(http as unknown as HttpService);
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce('   ');
-    await expect(service.getFrickTransactions(new Date('2026-07-01'), debtorIban)).resolves.toEqual([]);
+    await expect(service.getFrickTransactions(new Date('2026-07-01'), debtorIban)).resolves.toEqual({
+      transactions: [],
+      fullyParsed: true,
+    });
   });
 
   it('maps debit CAMT entries as debit transactions', async () => {
@@ -569,9 +662,18 @@ describe('BankFrickService', () => {
       .mockResolvedValueOnce({ token: jwt() })
       .mockResolvedValueOnce(camt053Fixture().replace('<CdtDbtInd>CRDT</CdtDbtInd>', '<CdtDbtInd>DBIT</CdtDbtInd>'));
 
-    const [transaction] = await service.getFrickTransactions(new Date('2026-07-01'), debtorIban);
+    const { transactions, fullyParsed } = await service.getFrickTransactions(new Date('2026-07-01'), debtorIban);
 
-    expect(transaction.creditDebitIndicator).toBe(BankTxIndicator.DEBIT);
+    expect(transactions[0].creditDebitIndicator).toBe(BankTxIndicator.DEBIT);
+    expect(fullyParsed).toBe(true);
+  });
+
+  it('parses a booked debit with Amt=1005.00 and Chrgs=5.00 into a real chargeAmount instead of hard-coding 0', async () => {
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(camt053ChargedDebitFixture());
+
+    const { transactions } = await service.getFrickTransactions(new Date('2026-07-01'), debtorIban);
+
+    expect(transactions[0]).toMatchObject({ amount: 1005, chargeAmount: 5, chargeCurrency: 'CHF' });
   });
 
   it('accepts JWTs without exp and caches them indefinitely', async () => {
@@ -626,8 +728,13 @@ describe('BankFrickService', () => {
   it('maps a signed camt.053 response completely into BankTx fields', async () => {
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(camt053Fixture());
 
-    const [transaction] = await service.getFrickTransactions(new Date('2026-07-01T00:00:00Z'), debtorIban);
+    const { transactions, fullyParsed } = await service.getFrickTransactions(
+      new Date('2026-07-01T00:00:00Z'),
+      debtorIban,
+    );
+    const [transaction] = transactions;
 
+    expect(fullyParsed).toBe(true);
     expect(transaction).toMatchObject({
       accountServiceRef: expect.stringMatching(/^FRICK-[a-f0-9]{64}$/),
       txId: 'SYNTHETIC-REF-1',
@@ -656,6 +763,16 @@ describe('BankFrickService', () => {
     expect(camtRequest.headers.Accept).toBe('application/xml');
     expect(camtRequest.data).toBe('');
     expectSignature('', camtRequest.headers.Signature);
+  });
+
+  it('reports fullyParsed=false and drops only the malformed entry when a statement mixes a well-formed and a reference-less debit', async () => {
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(camt053MixedFixture());
+
+    const { transactions, fullyParsed } = await service.getFrickTransactions(new Date('2026-07-01'), debtorIban);
+
+    expect(fullyParsed).toBe(false);
+    expect(transactions).toHaveLength(1);
+    expect(transactions[0]).toMatchObject({ txId: 'GOOD-ENTRY-REF', amount: 5 });
   });
 
   it('formats statement boundaries in Bank Frick local time', async () => {
@@ -755,6 +872,52 @@ describe('BankFrickService', () => {
             <RmtInf><Ustrd>Synthetic transfer</Ustrd></RmtInf>
           </TxDtls>
         </NtryDtls>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>`;
+  }
+
+  function camt053MixedFixture(): string {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Document>
+  <BkToCstmrStmt>
+    <Stmt>
+      <Acct><Id><IBAN>${debtorIban}</IBAN></Id></Acct>
+      <Ntry>
+        <Amt Ccy="EUR">5</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-07-02</Dt></BookgDt>
+        <ValDt><Dt>2026-07-02</Dt></ValDt>
+        <AcctSvcrRef>GOOD-ENTRY-REF</AcctSvcrRef>
+      </Ntry>
+      <Ntry>
+        <Amt Ccy="EUR">7</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-07-02</Dt></BookgDt>
+        <ValDt><Dt>2026-07-02</Dt></ValDt>
+      </Ntry>
+    </Stmt>
+  </BkToCstmrStmt>
+</Document>`;
+  }
+
+  function camt053ChargedDebitFixture(): string {
+    return `<?xml version="1.0" encoding="UTF-8"?>
+<Document>
+  <BkToCstmrStmt>
+    <Stmt>
+      <Acct><Id><IBAN>${debtorIban}</IBAN></Id></Acct>
+      <Ntry>
+        <Amt Ccy="CHF">1005</Amt>
+        <CdtDbtInd>DBIT</CdtDbtInd>
+        <Sts>BOOK</Sts>
+        <BookgDt><Dt>2026-07-02</Dt></BookgDt>
+        <ValDt><Dt>2026-07-02</Dt></ValDt>
+        <AcctSvcrRef>CHARGED-DEBIT-REF</AcctSvcrRef>
+        <Chrgs><TtlChrgsAndTaxAmt Ccy="CHF">5</TtlChrgsAndTaxAmt></Chrgs>
       </Ntry>
     </Stmt>
   </BkToCstmrStmt>

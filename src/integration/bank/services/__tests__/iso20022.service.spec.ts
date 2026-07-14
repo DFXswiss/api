@@ -304,13 +304,30 @@ describe('Iso20022Service camt.053 references', () => {
     );
   });
 
-  it('throws on malformed entries in strict mode so a poller cannot advance past dropped data', () => {
+  it('drops a malformed entry instead of failing the whole statement, in both strict and non-strict mode', () => {
     const malformedEntry = { ...entry, CdtDbtInd: undefined };
 
     expect(Iso20022Service.parseCamt053Json(statement(malformedEntry), 'SYNTHETIC-ACCOUNT-A')).toEqual([]);
-    expect(() => Iso20022Service.parseCamt053Json(statement(malformedEntry), 'SYNTHETIC-ACCOUNT-A', true)).toThrow(
-      'Missing CdtDbtInd',
+    expect(Iso20022Service.parseCamt053Json(statement(malformedEntry), 'SYNTHETIC-ACCOUNT-A', true)).toEqual([]);
+  });
+
+  it('reports a dropped entry via onEntryRejected in strict mode, and still returns other well-formed entries in the same statement', () => {
+    const malformedEntry = { ...entry, CdtDbtInd: undefined };
+    // A real Bank Frick entry is BOOKED and carries a bank reference; both are required for this entry
+    // to survive strict validation and demonstrate that the malformed sibling above does not poison it.
+    const goodEntry = { ...entry, Sts: 'BOOK', AcctSvcrRef: 'GOOD-ENTRY-REF' };
+    const camt053 = {
+      BkToCstmrStmt: { Stmt: { Acct: { Id: { IBAN: 'SYNTHETIC-ACCOUNT-A' } }, Ntry: [malformedEntry, goodEntry] } },
+    };
+    const rejections: Error[] = [];
+
+    const result = Iso20022Service.parseCamt053Json(camt053, 'SYNTHETIC-ACCOUNT-A', true, (error) =>
+      rejections.push(error),
     );
+
+    expect(result).toHaveLength(1);
+    expect(rejections).toHaveLength(1);
+    expect(rejections[0].message).toBe('Missing CdtDbtInd in CAMT entry');
   });
 
   it('does not consume an occurrence suffix when a non-strict entry is discarded', () => {
@@ -336,11 +353,20 @@ describe('Iso20022Service camt.053 references', () => {
     [{ ...entry, CdtDbtInd: 'UNKNOWN' }, 'Invalid CdtDbtInd'],
     [{ ...entry, BookgDt: { Dt: '2026-02-31' } }, 'Invalid booking date'],
     [{ ...entry, ValDt: { Dt: '2026-02-31' } }, 'Invalid value date'],
-  ])('rejects unsafe CAMT defaults in strict mode', (malformedEntry, expectedError) => {
-    expect(() => Iso20022Service.parseCamt053Json(statement(malformedEntry), 'SYNTHETIC-ACCOUNT-A', true)).toThrow(
-      expectedError,
-    );
-  });
+  ])(
+    'rejects the entry (not the whole statement) for an unsafe money-critical CAMT default in strict mode',
+    (malformedEntry, expectedError) => {
+      const rejections: Error[] = [];
+
+      const result = Iso20022Service.parseCamt053Json(statement(malformedEntry), 'SYNTHETIC-ACCOUNT-A', true, (error) =>
+        rejections.push(error),
+      );
+
+      expect(result).toEqual([]);
+      expect(rejections).toHaveLength(1);
+      expect(rejections[0].message).toContain(expectedError);
+    },
+  );
 
   function statement(transactionEntry: object) {
     return {
@@ -657,7 +683,7 @@ describe('Iso20022Service camt.053 entry field parsing', () => {
     expect(result).toHaveLength(2);
   });
 
-  it('rejects a strict entry whose booking date is not a well-formed date string', () => {
+  it('rejects (drops) a strict entry whose booking date is not a well-formed date string', () => {
     const camt053 = {
       BkToCstmrStmt: {
         Stmt: {
@@ -671,10 +697,14 @@ describe('Iso20022Service camt.053 entry field parsing', () => {
         },
       },
     };
+    const rejections: Error[] = [];
 
-    expect(() => Iso20022Service.parseCamt053Json(camt053, 'SYNTHETIC-ACCOUNT', true)).toThrow(
-      'Invalid booking date in CAMT entry',
+    const result = Iso20022Service.parseCamt053Json(camt053, 'SYNTHETIC-ACCOUNT', true, (error) =>
+      rejections.push(error),
     );
+
+    expect(result).toEqual([]);
+    expect(rejections.map((error) => error.message)).toEqual(['Invalid booking date in CAMT entry']);
   });
 
   it('keeps the calendar date fallback for a malformed DateTime in non-strict compatibility mode', () => {
@@ -705,6 +735,7 @@ describe('Iso20022Service camt.053 entry field parsing', () => {
             CdtDbtInd: 'CRDT',
             Sts: { Cd: 'BOOK' },
             BookgDt: { Dt: '2026-07-01' },
+            AcctSvcrRef: 'SYNTHETIC-REF',
           },
         },
       },
@@ -723,6 +754,114 @@ describe('Iso20022Service camt.053 entry field parsing', () => {
     )['parseCamt053JsonEntry'](entry, 'SYNTHETIC-ACCOUNT');
 
     expect(result.accountServiceRef).toMatch(/^CAMT-[a-f0-9]{64}$/);
+  });
+});
+
+describe('Iso20022Service camt.053 charge parsing', () => {
+  function debitEntry(overrides: object = {}) {
+    return {
+      Amt: { Value: 1005, Ccy: 'CHF' },
+      CdtDbtInd: 'DBIT',
+      BookgDt: { Dt: '2026-07-01' },
+      AcctSvcrRef: 'SYNTHETIC-DEBIT-REF',
+      ...overrides,
+    };
+  }
+
+  function statement(entry: object) {
+    return { BkToCstmrStmt: { Stmt: { Ntry: entry } } };
+  }
+
+  it('parses a debit entry with Amt=1005.00 and Chrgs/TtlChrgsAndTaxAmt=5.00 into chargeAmount=5', () => {
+    const [result] = Iso20022Service.parseCamt053Json(
+      statement(debitEntry({ Chrgs: { TtlChrgsAndTaxAmt: { Value: 5, Ccy: 'CHF' } } })),
+      'SYNTHETIC-ACCOUNT',
+    );
+
+    expect(result.amount).toBe(1005);
+    expect(result.chargeAmount).toBe(5);
+    expect(result.chargeCurrency).toBe('CHF');
+  });
+
+  it('sums multiple Chrgs/Rcrd entries when no TtlChrgsAndTaxAmt total is present', () => {
+    const [result] = Iso20022Service.parseCamt053Json(
+      statement(
+        debitEntry({
+          Chrgs: { Rcrd: [{ Amt: { Value: 3, Ccy: 'CHF' } }, { Amt: { Value: 2, Ccy: 'CHF' } }] },
+        }),
+      ),
+      'SYNTHETIC-ACCOUNT',
+    );
+
+    expect(result.chargeAmount).toBe(5);
+    expect(result.chargeCurrency).toBe('CHF');
+  });
+
+  it('defaults chargeAmount to 0 when the entry genuinely carries no Chrgs element', () => {
+    const [result] = Iso20022Service.parseCamt053Json(statement(debitEntry()), 'SYNTHETIC-ACCOUNT');
+
+    expect(result.chargeAmount).toBe(0);
+    expect(result.chargeCurrency).toBe('CHF');
+  });
+
+  it('never attributes a charge to a credit entry, even if Chrgs is present', () => {
+    const [result] = Iso20022Service.parseCamt053Json(
+      statement({ ...debitEntry({ Chrgs: { TtlChrgsAndTaxAmt: { Value: 5, Ccy: 'CHF' } } }), CdtDbtInd: 'CRDT' }),
+      'SYNTHETIC-ACCOUNT',
+    );
+
+    expect(result.chargeAmount).toBe(0);
+  });
+
+  it('reads a total charge given as #text/attribute or a bare primitive value', () => {
+    const [textShaped] = Iso20022Service.parseCamt053Json(
+      statement(debitEntry({ Chrgs: { TtlChrgsAndTaxAmt: { '#text': '5', Ccy: 'CHF' } } })),
+      'SYNTHETIC-ACCOUNT',
+    );
+    expect(textShaped.chargeAmount).toBe(5);
+
+    const [bareShaped] = Iso20022Service.parseCamt053Json(
+      statement(debitEntry({ Chrgs: { TtlChrgsAndTaxAmt: 5 } })),
+      'SYNTHETIC-ACCOUNT',
+    );
+    expect(bareShaped.chargeAmount).toBe(5);
+    // no Ccy on a bare-value total - falls back to the entry's own currency
+    expect(bareShaped.chargeCurrency).toBe('CHF');
+  });
+
+  it('defaults an unparseable total charge to 0 instead of propagating NaN', () => {
+    const [result] = Iso20022Service.parseCamt053Json(
+      statement(debitEntry({ Chrgs: { TtlChrgsAndTaxAmt: 'not-a-number' } })),
+      'SYNTHETIC-ACCOUNT',
+    );
+
+    expect(result.chargeAmount).toBe(0);
+  });
+
+  it('falls back to the entry currency for a Rcrd charge with no Ccy, and treats a record missing Amt or with an unparseable Amt as 0', () => {
+    const [result] = Iso20022Service.parseCamt053Json(
+      statement(debitEntry({ Chrgs: { Rcrd: [{}, { Amt: 'garbage' }, { Amt: { Value: 2, Ccy: 'CHF' } }] } })),
+      'SYNTHETIC-ACCOUNT',
+    );
+
+    expect(result.chargeAmount).toBe(2);
+    expect(result.chargeCurrency).toBe('CHF');
+  });
+
+  it('accepts a single, non-array Rcrd charge', () => {
+    const [result] = Iso20022Service.parseCamt053Json(
+      statement(debitEntry({ Chrgs: { Rcrd: { Amt: { Value: 5, Ccy: 'CHF' } } } })),
+      'SYNTHETIC-ACCOUNT',
+    );
+
+    expect(result.chargeAmount).toBe(5);
+  });
+
+  it('defaults to a 0 charge for a Chrgs element with neither a total nor any records', () => {
+    const [result] = Iso20022Service.parseCamt053Json(statement(debitEntry({ Chrgs: {} })), 'SYNTHETIC-ACCOUNT');
+
+    expect(result.chargeAmount).toBe(0);
+    expect(result.chargeCurrency).toBe('CHF');
   });
 });
 
@@ -789,6 +928,9 @@ describe('Iso20022Service strict Bank Frick camt.053 contract', () => {
       Sts: 'BOOK',
       BookgDt: { Dt: '2018-04-17+02:00' },
       ValDt: { DtTm: '2018-04-18T09:10:11+02:00' },
+      // A real Bank Frick entry always carries a bank reference; tests that specifically exercise the
+      // missing-reference guard (#5) explicitly unset this with `AcctSvcrRef: undefined`.
+      AcctSvcrRef: 'SYNTHETIC-DEFAULT-REF',
       ...overrides,
     };
   }
@@ -880,33 +1022,79 @@ describe('Iso20022Service strict Bank Frick camt.053 contract', () => {
     [strictEntry({ BookgDt: { Dt: '2018-04-17+15:00' } }), 'Invalid booking date in CAMT entry'],
     [strictEntry({ BookgDt: { Dt: '2018-04-17+14:01' } }), 'Invalid booking date in CAMT entry'],
     [strictEntry({ BookgDt: { DtTm: '2018-04-17T99:00:00Z' } }), 'Invalid booking date in CAMT entry'],
-    [
-      strictEntry({ NtryDtls: { TxDtls: { RmtInf: { Ustrd: { unexpected: true } } } } }),
-      'Invalid unstructured remittance information in CAMT entry',
-    ],
-    [
-      strictEntry({ NtryDtls: { TxDtls: { RmtInf: { Strd: { unsupported: true } } } } }),
-      'Unsupported structured remittance information in CAMT entry',
-    ],
-    [
-      strictEntry({ NtryDtls: { TxDtls: { RmtInf: { Ustrd: [' ', ''] } } } }),
-      'Invalid unstructured remittance information in CAMT entry',
-    ],
-    [
-      strictEntry({ NtryDtls: { TxDtls: { RmtInf: { Strd: ' ' } } } }),
-      'Unsupported structured remittance information in CAMT entry',
-    ],
-    [
-      strictEntry({ NtryDtls: { TxDtls: { Refs: { AcctSvcrRef: { malformed: true } } } } }),
-      'Invalid AcctSvcrRef in CAMT entry',
-    ],
-    [
-      strictEntry({ NtryDtls: { TxDtls: { Refs: { EndToEndId: { malformed: true } } } } }),
-      'Invalid EndToEndId in CAMT entry',
-    ],
-  ])('rejects a lossy or unsafe strict entry', (entry, expectedError) => {
-    expect(() => Iso20022Service.parseCamt053Json(strictStatement(entry), accountIban, true)).toThrow(expectedError);
+  ])(
+    'rejects the entry (not the whole statement) for a lossy or unsafe money-critical strict field: %#',
+    (entry, expectedError) => {
+      const rejections: Error[] = [];
+
+      const result = Iso20022Service.parseCamt053Json(strictStatement(entry), accountIban, true, (error) =>
+        rejections.push(error),
+      );
+
+      expect(result).toEqual([]);
+      expect(rejections).toHaveLength(1);
+      expect(rejections[0].message).toBe(expectedError);
+    },
+  );
+
+  it('fails closed on a strict entry with no bank-provided reference at all, instead of synthesizing one from the payload', () => {
+    // Same money-identifying fields as the reference-less non-strict fixture used elsewhere in this
+    // file - only the missing reference differs - to isolate exactly the behaviour #5 changes.
+    const entryWithoutReference = strictEntry({
+      AcctSvcrRef: undefined,
+      NtryDtls: { TxDtls: { RltdPties: { Dbtr: { Nm: 'Synthetic Sender' } } } },
+    });
+    const rejections: Error[] = [];
+
+    const result = Iso20022Service.parseCamt053Json(
+      strictStatement(entryWithoutReference),
+      accountIban,
+      true,
+      (error) => rejections.push(error),
+    );
+
+    expect(result).toEqual([]);
+    expect(rejections.map((error) => error.message)).toEqual(['Bank Frick CAMT entry missing bank reference']);
   });
+
+  it.each([
+    [
+      { RmtInf: { Ustrd: { unexpected: true } } },
+      (result: { remittanceInfo?: string }) => expect(result.remittanceInfo).toBeUndefined(),
+    ],
+    [
+      { RmtInf: { Strd: { unsupported: true } } },
+      (result: { remittanceInfo?: string }) => expect(result.remittanceInfo).toBeUndefined(),
+    ],
+    [
+      { RmtInf: { Ustrd: [' ', ''] } },
+      (result: { remittanceInfo?: string }) => expect(result.remittanceInfo).toBeUndefined(),
+    ],
+    [{ RmtInf: { Strd: ' ' } }, (result: { remittanceInfo?: string }) => expect(result.remittanceInfo).toBeUndefined()],
+    [
+      { Refs: { EndToEndId: { malformed: true } } },
+      (result: { endToEndId?: string }) => expect(result.endToEndId).toBe(''),
+    ],
+  ])(
+    'drops a cosmetic field to undefined instead of rejecting the entry, in strict mode: %#',
+    (txDtlsOverrides, assertField) => {
+      const refsOverride = (txDtlsOverrides as { Refs?: object }).Refs;
+      const entry = strictEntry({
+        NtryDtls: {
+          TxDtls: { ...txDtlsOverrides, Refs: { AcctSvcrRef: 'REAL-BANK-REFERENCE', ...refsOverride } },
+        },
+      });
+      const rejections: Error[] = [];
+
+      const [result] = Iso20022Service.parseCamt053Json(strictStatement(entry), accountIban, true, (error) =>
+        rejections.push(error),
+      );
+
+      expect(rejections).toEqual([]);
+      expect(result.accountServiceRef).toBe('REAL-BANK-REFERENCE');
+      assertField(result);
+    },
+  );
 });
 
 describe('Iso20022Service pain.001 generation', () => {

@@ -1,3 +1,23 @@
+// Distinguishable from a generic Error so callers can safely treat "no such order" as reliable
+// evidence a payout was never created (the lookup always searches from BankFrickService's earliest
+// fromDate, never a narrow recent window) instead of an ambiguous transport/validation failure.
+export class FrickPaymentOrderNotFoundError extends Error {
+  constructor(customId: string) {
+    super(`Bank Frick payment order ${customId} not found`);
+    this.name = 'FrickPaymentOrderNotFoundError';
+  }
+}
+
+// A failed response-signature verification is a detected tampered-response attack, not a generic
+// transport failure - distinguishable so it is never reported to operators as the indistinguishable
+// "request failed" string that defeats detection of the exact attack the signature check exists for.
+export class FrickSignatureVerificationError extends Error {
+  constructor(reason: string) {
+    super(reason);
+    this.name = 'FrickSignatureVerificationError';
+  }
+}
+
 export interface FrickAuthorizeRequest {
   key: string;
 }
@@ -53,6 +73,17 @@ export enum FrickPaymentState {
   DELETION_REQUESTED = 'DELETION_REQUESTED',
   ERROR = 'ERROR',
 }
+
+// DELETION_REQUESTED is intentionally NOT terminal: the bank order can still be executed or fail
+// later, so liquidity must stay reserved and the status must keep being polled until a real terminal
+// state (or a matching debit bankTx via the isComplete path) arrives. Exported so both
+// FiatOutputFrickService and the payment monitor can agree on exactly which states are terminal.
+export const FRICK_TERMINAL_STATES = [
+  FrickPaymentState.REJECTED,
+  FrickPaymentState.EXPIRED,
+  FrickPaymentState.DELETED,
+  FrickPaymentState.ERROR,
+];
 
 export interface FrickPaymentAccount {
   accountNumber?: string;

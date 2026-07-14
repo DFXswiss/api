@@ -36,9 +36,18 @@ export class BankTxFrickService {
 
     let banks: Bank[];
     try {
-      banks = await this.bankService
-        .getBanksByName(IbanBankName.FRICK)
-        .then((rows) => rows.filter((bank) => bank.receive));
+      const allFrickBanks = await this.bankService.getBanksByName(IbanBankName.FRICK);
+
+      // A send=true/receive=false row can never see its own debit come back, so its reserved liquidity
+      // deadlocks silently. This row is invisible to the filter below by construction, so check for it
+      // here, every cycle, before filtering it out - loud and repeated instead of never observed.
+      const misconfigured = allFrickBanks.filter((bank) => !bank.isReconcilable);
+      if (misconfigured.length)
+        this.logger.error(
+          `Bank Frick row(s) ${misconfigured.map((bank) => bank.id).join(',')} have send=true and receive=false - payout reconciliation will deadlock. Fix the row's flags before further payouts are processed.`,
+        );
+
+      banks = allFrickBanks.filter((bank) => bank.receive);
     } catch (error) {
       this.logger.error('Failed to load Bank Frick account registry:', error);
       return;
@@ -67,11 +76,21 @@ export class BankTxFrickService {
       const now = new Date();
 
       try {
-        const transactions = await this.frickService.getFrickTransactions(lastModificationTime, bank.iban);
+        const { transactions, fullyParsed } = await this.frickService.getFrickTransactions(
+          lastModificationTime,
+          bank.iban,
+        );
         const bookingTimes = transactions.map((transaction) => transaction.bookingDate?.getTime());
         if (bookingTimes.some((bookingTime) => !Number.isFinite(bookingTime)))
           throw new Error('Invalid booking date in parsed Bank Frick transaction');
-        let fullyProcessed = true;
+        if (!fullyParsed)
+          this.logger.error(
+            `Bank Frick camt.053 fetch for bank row ${bank.id} contained at least one entry that failed strict validation and was dropped; the watermark will not advance past this window until it is fixed.`,
+          );
+        // Fetches that dropped an entry never count as fully processed, even if every remaining,
+        // well-formed entry in this batch imports cleanly - the watermark must not skip past a window
+        // that still contains an entry Bank Frick has not yet resolved.
+        let fullyProcessed = fullyParsed;
 
         for (const transaction of transactions) {
           try {

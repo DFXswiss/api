@@ -4,7 +4,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
+import { BankTx, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxRepository } from 'src/subdomains/supporting/bank-tx/bank-tx/repositories/bank-tx.repository';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
@@ -15,6 +15,10 @@ import { SpecialExternalAccountService } from 'src/subdomains/supporting/payment
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { BankTxFrickService } from '../bank-tx-frick.service';
 import { BankTxService } from '../bank-tx.service';
+
+function fetchResult(transactions: Partial<BankTx>[], fullyParsed = true) {
+  return { transactions, fullyParsed };
+}
 
 describe('BankTxFrickService', () => {
   let frickTxService: BankTxFrickService;
@@ -61,8 +65,8 @@ describe('BankTxFrickService', () => {
       bank(103, 'SYNTHETIC-NON-RECEIVING', false),
     ]);
     frickService.getFrickTransactions
-      .mockResolvedValueOnce([{ accountServiceRef: 'FRICK-EUR-1', bookingDate: new Date('2026-07-10') }])
-      .mockResolvedValueOnce([{ accountServiceRef: 'FRICK-CHF-1', bookingDate: new Date('2026-07-11') }]);
+      .mockResolvedValueOnce(fetchResult([{ accountServiceRef: 'FRICK-EUR-1', bookingDate: new Date('2026-07-10') }]))
+      .mockResolvedValueOnce(fetchResult([{ accountServiceRef: 'FRICK-CHF-1', bookingDate: new Date('2026-07-11') }]));
     const createTx = jest.fn().mockResolvedValue({});
 
     await frickTxService.checkTransactions(createTx);
@@ -89,7 +93,9 @@ describe('BankTxFrickService', () => {
       bank(101, 'SYNTHETIC-FRICK-EUR', true),
       bank(102, 'SYNTHETIC-FRICK-CHF', true),
     ]);
-    frickService.getFrickTransactions.mockResolvedValueOnce([]).mockRejectedValueOnce(new Error('synthetic outage'));
+    frickService.getFrickTransactions
+      .mockResolvedValueOnce(fetchResult([]))
+      .mockRejectedValueOnce(new Error('synthetic outage'));
     const createTx = jest.fn();
 
     await frickTxService.checkTransactions(createTx);
@@ -103,9 +109,9 @@ describe('BankTxFrickService', () => {
       bank(101, 'SYNTHETIC-FRICK-EUR', true),
       bank(102, 'SYNTHETIC-FRICK-CHF', true),
     ]);
-    frickService.getFrickTransactions.mockResolvedValue([
-      { accountServiceRef: 'SYNTHETIC-REF', bookingDate: new Date('2026-07-10') },
-    ]);
+    frickService.getFrickTransactions.mockResolvedValue(
+      fetchResult([{ accountServiceRef: 'SYNTHETIC-REF', bookingDate: new Date('2026-07-10') }]),
+    );
     const createTx = jest
       .fn()
       .mockRejectedValueOnce(new ConflictException('duplicate'))
@@ -116,6 +122,22 @@ describe('BankTxFrickService', () => {
     expect(settingService.setDateMax).toHaveBeenCalledTimes(1);
     expect(settingService.setDateMax).toHaveBeenCalledWith('lastBankFrickDate:101', expect.any(Date));
     expect(loggerError).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not advance the watermark when the parser dropped an entry, but still imports the other, well-formed entries in the same fetch', async () => {
+    bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
+    frickService.getFrickTransactions.mockResolvedValue(
+      fetchResult([{ accountServiceRef: 'FRICK-GOOD-ENTRY', bookingDate: new Date('2026-07-10') }], false),
+    );
+    const createTx = jest.fn().mockResolvedValue({});
+
+    await frickTxService.checkTransactions(createTx);
+
+    expect(createTx).toHaveBeenCalledTimes(1);
+    expect(settingService.setDateMax).not.toHaveBeenCalled();
+    expect(loggerError).toHaveBeenCalledWith(
+      'Bank Frick camt.053 fetch for bank row 101 contained at least one entry that failed strict validation and was dropped; the watermark will not advance past this window until it is fixed.',
+    );
   });
 
   it('warns only once while the integration is unconfigured', async () => {
@@ -193,10 +215,12 @@ describe('BankTxFrickService', () => {
       bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
       const olderBookingDate = new Date('2024-01-05T00:00:00.000Z');
       const maxBookingDate = new Date('2024-01-10T00:00:00.000Z');
-      frickService.getFrickTransactions.mockResolvedValue([
-        { accountServiceRef: 'FRICK-OLD', bookingDate: olderBookingDate },
-        { accountServiceRef: 'FRICK-NEW', bookingDate: maxBookingDate },
-      ]);
+      frickService.getFrickTransactions.mockResolvedValue(
+        fetchResult([
+          { accountServiceRef: 'FRICK-OLD', bookingDate: olderBookingDate },
+          { accountServiceRef: 'FRICK-NEW', bookingDate: maxBookingDate },
+        ]),
+      );
       const createTx = jest.fn().mockResolvedValue({});
 
       await frickTxService.checkTransactions(createTx);
@@ -208,9 +232,9 @@ describe('BankTxFrickService', () => {
       const now = new Date('2024-06-15T12:00:00.000Z');
       jest.useFakeTimers().setSystemTime(now);
       bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
-      frickService.getFrickTransactions.mockResolvedValue([
-        { accountServiceRef: 'FRICK-FUTURE', bookingDate: new Date('2024-06-20T00:00:00.000Z') },
-      ]);
+      frickService.getFrickTransactions.mockResolvedValue(
+        fetchResult([{ accountServiceRef: 'FRICK-FUTURE', bookingDate: new Date('2024-06-20T00:00:00.000Z') }]),
+      );
       const createTx = jest.fn().mockResolvedValue({});
 
       await frickTxService.checkTransactions(createTx);
@@ -221,7 +245,7 @@ describe('BankTxFrickService', () => {
     it('leaves the watermark unchanged on an empty response', async () => {
       jest.useFakeTimers().setSystemTime(new Date('2024-06-15T12:00:00.000Z'));
       bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
-      frickService.getFrickTransactions.mockResolvedValue([]);
+      frickService.getFrickTransactions.mockResolvedValue(fetchResult([]));
       const createTx = jest.fn();
 
       await frickTxService.checkTransactions(createTx);
@@ -234,9 +258,9 @@ describe('BankTxFrickService', () => {
       bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
       const aheadWatermark = new Date('2024-05-01T00:00:00.000Z');
       settingService.get.mockResolvedValue(aheadWatermark.toISOString());
-      frickService.getFrickTransactions.mockResolvedValue([
-        { accountServiceRef: 'FRICK-OLD', bookingDate: new Date('2024-01-01T00:00:00.000Z') },
-      ]);
+      frickService.getFrickTransactions.mockResolvedValue(
+        fetchResult([{ accountServiceRef: 'FRICK-OLD', bookingDate: new Date('2024-01-01T00:00:00.000Z') }]),
+      );
       const createTx = jest.fn().mockResolvedValue({});
 
       await frickTxService.checkTransactions(createTx);
@@ -249,9 +273,9 @@ describe('BankTxFrickService', () => {
 
     it('fails before importing when a parsed transaction has no valid booking date', async () => {
       bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
-      frickService.getFrickTransactions.mockResolvedValue([
-        { accountServiceRef: 'FRICK-MALFORMED', bookingDate: undefined },
-      ]);
+      frickService.getFrickTransactions.mockResolvedValue(
+        fetchResult([{ accountServiceRef: 'FRICK-MALFORMED', bookingDate: undefined }]),
+      );
       const createTx = jest.fn();
 
       await frickTxService.checkTransactions(createTx);
@@ -280,9 +304,9 @@ describe('BankTxFrickService', () => {
 
     it('leaves the watermark unchanged when an import fails with a non-conflict error', async () => {
       bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true)]);
-      frickService.getFrickTransactions.mockResolvedValue([
-        { accountServiceRef: 'FRICK-1', bookingDate: new Date('2024-01-01T00:00:00.000Z') },
-      ]);
+      frickService.getFrickTransactions.mockResolvedValue(
+        fetchResult([{ accountServiceRef: 'FRICK-1', bookingDate: new Date('2024-01-01T00:00:00.000Z') }]),
+      );
       const createTx = jest.fn().mockRejectedValue(new Error('synthetic persistence failure'));
 
       await frickTxService.checkTransactions(createTx);
@@ -291,8 +315,38 @@ describe('BankTxFrickService', () => {
     });
   });
 
-  function bank(id: number, iban: string, receive: boolean): Bank {
-    return { id, iban, receive } as Bank;
+  describe('send=true/receive=false deadlock guard', () => {
+    it('logs a loud error for a Frick row with send=true and receive=false but still polls other correctly-configured rows in the same cycle', async () => {
+      bankService.getBanksByName.mockResolvedValue([
+        bank(101, 'SYNTHETIC-FRICK-EUR', true),
+        bank(102, 'SYNTHETIC-FRICK-DEADLOCKED', false, true),
+      ]);
+      frickService.getFrickTransactions.mockResolvedValue(fetchResult([]));
+      const createTx = jest.fn();
+
+      await frickTxService.checkTransactions(createTx);
+
+      expect(loggerError).toHaveBeenCalledWith(
+        "Bank Frick row(s) 102 have send=true and receive=false - payout reconciliation will deadlock. Fix the row's flags before further payouts are processed.",
+      );
+      // still polls the other, correctly-configured receiving row
+      expect(frickService.getFrickTransactions).toHaveBeenCalledTimes(1);
+      expect(frickService.getFrickTransactions).toHaveBeenCalledWith(expect.any(Date), 'SYNTHETIC-FRICK-EUR');
+    });
+
+    it('does not log the deadlock warning for a normally-configured row', async () => {
+      bankService.getBanksByName.mockResolvedValue([bank(101, 'SYNTHETIC-FRICK-EUR', true, true)]);
+      frickService.getFrickTransactions.mockResolvedValue(fetchResult([]));
+      const createTx = jest.fn();
+
+      await frickTxService.checkTransactions(createTx);
+
+      expect(loggerError).not.toHaveBeenCalledWith(expect.stringContaining('deadlock'));
+    });
+  });
+
+  function bank(id: number, iban: string, receive: boolean, send = false): Bank {
+    return Object.assign(new Bank(), { id, iban, receive, send, name: IbanBankName.FRICK });
   }
 });
 

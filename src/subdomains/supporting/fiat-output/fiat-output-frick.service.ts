@@ -1,7 +1,13 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { FrickPaymentCharge, FrickPaymentOrder, FrickPaymentState } from 'src/integration/bank/dto/frick.dto';
+import {
+  FRICK_TERMINAL_STATES,
+  FrickPaymentCharge,
+  FrickPaymentOrder,
+  FrickPaymentOrderNotFoundError,
+  FrickPaymentState,
+} from 'src/integration/bank/dto/frick.dto';
 import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { IbanService } from 'src/integration/bank/services/iban.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -14,16 +20,6 @@ import { FiatOutputRepository } from './fiat-output.repository';
 
 @Injectable()
 export class FiatOutputFrickService {
-  // DELETION_REQUESTED is intentionally NOT terminal: the bank order can still be executed or fail
-  // later, so liquidity must stay reserved and the status must keep being polled until a real
-  // terminal state (or a matching debit bankTx via the isComplete path) arrives.
-  private static readonly FRICK_TERMINAL_STATES = [
-    FrickPaymentState.REJECTED,
-    FrickPaymentState.EXPIRED,
-    FrickPaymentState.DELETED,
-    FrickPaymentState.ERROR,
-  ];
-
   private readonly logger = new DfxLogger(FiatOutputFrickService);
 
   constructor(
@@ -32,22 +28,36 @@ export class FiatOutputFrickService {
     private readonly ibanService: IbanService,
   ) {}
 
-  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT })
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.FIAT_OUTPUT, timeout: 1800 })
   async checkFrickOrderStatus(): Promise<void> {
     if (DisabledProcess(Process.FIAT_OUTPUT_FRICK_STATUS_CHECK)) return;
     if (!this.frickService.isAvailable()) return;
 
-    const statusRequest: FindOptionsWhere<FiatOutput> = { frickTxId: Not(IsNull()), isComplete: false };
+    const statusRequest: FindOptionsWhere<FiatOutput> = { frickCustomId: Not(IsNull()), isComplete: false };
     const entities = await this.fiatOutputRepo.find({
       where: [
         { ...statusRequest, frickOrderStatus: IsNull() },
-        { ...statusRequest, frickOrderStatus: Not(In(FiatOutputFrickService.FRICK_TERMINAL_STATES)) },
+        { ...statusRequest, frickOrderStatus: Not(In(FRICK_TERMINAL_STATES)) },
       ],
     });
 
     for (const entity of entities) {
       try {
-        let order = await this.frickService.getPaymentOrder(entity.frickTxId);
+        let order: FrickPaymentOrder;
+        try {
+          order = await this.frickService.getPaymentOrder(entity.frickCustomId);
+        } catch (error) {
+          if (error instanceof FrickPaymentOrderNotFoundError && !entity.isTransmittedDate) {
+            // The lookup searches Bank Frick's full history (never a narrow recent window), so "not
+            // found" is reliable evidence the PUT that reserved this customId never actually reached
+            // (or was never accepted by) Bank Frick. Release the claim so transmitPayments can safely
+            // retry with the same, still-deterministic customId - its own idempotent lookup-before-PUT
+            // then either finds the order after all or creates it fresh.
+            await this.fiatOutputRepo.update(entity.id, { frickCustomId: null, frickError: null });
+            continue;
+          }
+          throw error;
+        }
 
         if (order.state === FrickPaymentState.PREPARED && this.isFrickAutomaticApprovalEnabled()) {
           order = await this.frickService.approvePaymentWithoutTan(order);
@@ -72,7 +82,7 @@ export class FiatOutputFrickService {
       where: {
         isReadyDate: Not(IsNull()),
         isTransmittedDate: IsNull(),
-        frickTxId: IsNull(),
+        frickCustomId: IsNull(),
         isComplete: false,
         bank: { name: IbanBankName.FRICK },
       },
@@ -81,9 +91,18 @@ export class FiatOutputFrickService {
     for (const entity of entities) {
       try {
         const customId = `DFX-FO-${entity.id}`;
-        const remittanceInfo = this.createUniqueReference(customId, entity.remittanceInfo);
+        // The exact, bank-bound reference sent to Bank Frick - kept in its own column (frickReference)
+        // rather than overwriting the customer-facing remittanceInfo, which chain report history reads
+        // verbatim and must never be retroactively rewritten.
+        const frickReference = this.createUniqueReference(customId, entity.remittanceInfo);
         const address = entity.address ? [entity.address, entity.houseNumber].filter(Boolean).join(' ') : undefined;
+        // Pre-flight computation only (no Bank Frick HTTP call yet): a data problem here (e.g. no
+        // unique creditor BIC) must not touch frickCustomId, so it keeps retrying every minute via this
+        // same method instead of only every hour via the status poller's self-heal.
         const creditorBic = await this.resolveCreditorBic(entity);
+        // CHF (Bank Frick FOREIGN) requires some charge value - SHA is the documented default when the
+        // business never set one. Persisted onto the entity below instead of staying a NULL that looks
+        // unset, so the actual decision is durable and visible on the row, not just implicit in code.
         const outputCharge = entity.currency === 'CHF' ? (entity.charge ?? TransactionCharge.SHA) : entity.charge;
         const charge = outputCharge
           ? {
@@ -93,12 +112,23 @@ export class FiatOutputFrickService {
             }[outputCharge]
           : undefined;
 
+        // Reserve this row atomically immediately before the actual Bank Frick call. customId is
+        // deterministic (derived only from entity.id), so re-setting it to the same value on a
+        // legitimate retry is inherently idempotent - the WHERE clause is what turns this into a
+        // mutex: a concurrent tick (an overlapping cron window, or a second instance) sees affected=0
+        // and skips, so at most one caller ever reaches createPaymentOrder for this row.
+        const reserved = await this.fiatOutputRepo.update(
+          { id: entity.id, frickCustomId: IsNull() },
+          { frickCustomId: customId },
+        );
+        if (reserved.affected !== 1) continue;
+
         const order = await this.frickService.createPaymentOrder({
           customId,
           amount: entity.amount,
           currency: entity.currency as 'CHF' | 'EUR',
           instant: entity.isInstant,
-          reference: remittanceInfo,
+          reference: frickReference,
           charge,
           debtorIban: entity.accountIban,
           creditor: {
@@ -114,12 +144,16 @@ export class FiatOutputFrickService {
         });
         const safeOrderId = this.frickService.getSafeOrderId(order);
 
-        // Persist the bank-side identity before any optional approval call. If approval fails, the
-        // status job continues with the stable customId and never creates another payment order.
+        // frickCustomId is already durably reserved above. Persist the rest of the bank-side identity
+        // before any optional approval call - if approval fails, the status job continues with the
+        // stable customId and never creates another payment order. remittanceInfo is only ever filled
+        // when the business never set one at all (matching the Yapeal/Olkypay fallback pattern) -
+        // never overwritten with the bank-bound reference.
         await this.fiatOutputRepo.update(entity.id, {
-          frickTxId: customId,
           ...(safeOrderId && { frickOrderId: safeOrderId }),
-          remittanceInfo,
+          frickReference,
+          charge: outputCharge,
+          ...(!entity.remittanceInfo && { remittanceInfo: `DFX Payout ${entity.id}` }),
           isTransmittedDate: new Date(),
           ...this.getFrickStatusUpdate(order, entity),
         });
@@ -140,7 +174,7 @@ export class FiatOutputFrickService {
   }
 
   isFrickTerminalState(status: FrickPaymentState | undefined): boolean {
-    return status !== undefined && FiatOutputFrickService.FRICK_TERMINAL_STATES.includes(status);
+    return status !== undefined && FRICK_TERMINAL_STATES.includes(status);
   }
 
   canCreatePayments(): boolean {
@@ -204,7 +238,12 @@ export class FiatOutputFrickService {
       case FrickPaymentState.EXPIRED:
       case FrickPaymentState.DELETED:
       case FrickPaymentState.ERROR:
-        return { frickOrderStatus: order.state, frickError: null };
+        // Terminal and unpaid: persist the failure reason instead of erasing it - an operator (or the
+        // stuckFiatOutputs monitor) must be able to see why this payout never completed.
+        return {
+          frickOrderStatus: order.state,
+          frickError: entity.frickError ?? `Bank Frick order terminated: ${order.state}`,
+        };
 
       default:
         throw new Error('Unsupported Bank Frick payment state');

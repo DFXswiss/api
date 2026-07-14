@@ -153,17 +153,24 @@ export class FiatOutput extends IEntity {
   @Column({ nullable: true })
   olkyOrderId?: string;
 
-  @Column({ length: 256, nullable: true })
+  // Bank Frick's own numeric orderId (max 16 digits) - stringified for the safely-representable case.
+  @Column({ length: 64, nullable: true })
   frickOrderId?: string;
 
+  // DFX's own generated customId (e.g. "DFX-FO-42"), not a Bank Frick transaction id.
   @Column({ length: 256, nullable: true })
-  frickTxId?: string;
+  frickCustomId?: string;
 
   @Column({ type: 'varchar', length: 256, nullable: true })
   frickOrderStatus?: FrickPaymentState;
 
   @Column({ length: 256, nullable: true })
   frickError?: string;
+
+  // The exact, bank-bound reference string sent to Bank Frick (customId-prefixed, truncated to 140
+  // chars). Kept separate from remittanceInfo so the customer-facing text is never overwritten.
+  @Column({ length: 256, nullable: true })
+  frickReference?: string;
 
   // --- ENTITY METHODS --- //
 

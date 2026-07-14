@@ -61,65 +61,115 @@ exist yet and defaults to the epoch (`1970-01-01`) on first poll. Seed the setti
 **before** flipping `Bank.receive` to `true`, to the earliest date that should be imported (or
 `now`, if only new activity should be picked up). Do not enable an account with an epoch cursor.
 
-## 2. Raiffeisen/Yapeal reference-less entries after deploy
+## 2. `Iso20022Service`'s deterministic reference does not affect existing Raiffeisen/Yapeal imports
 
-Before this change, Raiffeisen/Yapeal statement entries without a bank-provided reference could
-be assigned a randomly generated `accountServiceRef` on each import, so the same underlying
-entry could get a different synthetic reference every time it was seen. That randomness is now
-removed (`Iso20022Service`), but any **already-imported** rows created under the old logic still
-carry the old, non-reproducible references.
+`Iso20022Service.parseCamt053Json`'s reference-less-entry fallback now derives a deterministic,
+content-scoped hash instead of a random string. This does **not** create a duplicate-`bank_tx`
+risk for Raiffeisen or Yapeal, because neither bank's actual import-and-create path runs through
+this fallback:
 
-Because the new logic derives `accountServiceRef` deterministically for the same entry, the
-first overlapping poll after this deploy will, for reference-less Raiffeisen/Yapeal entries that
-fall inside the poll's overlap window, compute a reference that differs from what was already
-stored in `bank_tx`. The `create()` dedup keys off `accountServiceRef`, so it will not recognize
-these as duplicates of the old rows — expect a one-time batch of duplicate `bank_tx` entries for
-those accounts until the overlap window has fully rolled past the old imports.
+- Raiffeisen's `bank_tx` creation uses the entirely separate `SepaParser`, with its own
+  independent reference scheme (`CUSTOM/<iban>/<date>/<narrative>`) - it never calls
+  `Iso20022Service` at all.
+- Yapeal's only call into `Iso20022Service.parseCamt053Json`
+  (`BankTxService.enrichYapealTransactions`) uses the result solely to **enrich already-existing**
+  `bank_tx` rows (matched by their already-stored `accountServiceRef`) with address/bank-transaction-
+  code fields - it never creates a `bank_tx` row.
 
-### Monitoring
-
-- After deploy, watch `bank_tx` insert volume on Raiffeisen and Yapeal accounts for the first
-  several poll cycles. A one-off bump limited to reference-less entries within the overlap
-  window is expected; anything larger or sustained is not and should be investigated.
-- Cross-check new rows against the pre-existing ones by amount, value date and counterparty to
-  confirm they are the expected duplicates and not a genuine new-data issue.
-
-### Cleanup
-
-- Historical reference-less rows imported under the old random-reference logic are not
-  retroactively corrected by this deploy. Once the one-time duplicate batch above has been
-  confirmed, plan a manual cleanup pass (dedup/merge or archive the superseded rows) for the
-  affected Raiffeisen/Yapeal accounts; do not run it automatically as part of the deploy.
+No monitoring or manual cleanup pass is required for either bank as a result of this change.
 
 ## 3. Registry and default-off activation
 
-The migration installs two disabled synthetic placeholders (`LI4200000FRICKCHF0001` and
-`LI5600000FRICKEUR0001`) only so deployed databases have deterministic CHF/EUR rows to update.
-They have `receive=false`, `send=false` and `sctInst=false`; they are not production accounts.
-The local seed uses the same clearly synthetic, checksum-valid IBANs with the same disabled flags.
+The migration never creates, updates or deletes a `bank` row. The only prior migration that ever
+inserted one (Yapeal EUR) was reverted (`f897b98a2 chore: remove migration (already inserted
+manually)`) because the row is a manual production step, not something a schema migration should
+own. The two new Bank Frick account rows are created the same way, manually, as part of this
+runbook. The local seed (`migration/seed/bank.csv`) keeps clearly synthetic, checksum-valid
+IBANs/ids for a fresh local database only - it is never applied to production (`migration/seed/
+seed.js` hard-blocks any non-local host/environment).
 
-Before activation, Operations must:
+### 3.1 Manually insert the two new Bank Frick accounts
 
-1. Replace each synthetic IBAN with the team-provided CT account IBAN and confirm `BFRILI22`.
-   Operating accounts are deliberately not registered under the same `(name, currency)` because
-   existing selectors assume one Bank Frick row per currency.
-2. Set `receive`, `send` and `sctInst` from the confirmed account-role matrix. Never infer these
-   flags from currency.
+The real Bank Frick CT account IBANs for the new account:
+
+- **EUR: `LI75088110105923K000E`**
+- **CHF: `LI32088110105923K000C`**
+
+Run manually against production. BIC is `BFRILI22` for both rows (it identifies Bank Frick itself,
+not the individual account, so it is the same as the existing legacy rows' BIC):
+
+```sql
+-- Defensive: this INSERT relies on bank_id_seq via the identity column. Explicit-id inserts
+-- elsewhere in this codebase (see migration/seed/seed.js) are a known source of a lagging
+-- sequence; bump it first so this insert can never collide with a not-yet-advanced sequence.
+SELECT setval('bank_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM "bank"), (SELECT last_value FROM bank_id_seq)));
+
+INSERT INTO "bank"
+  ("updated", "created", "name", "iban", "bic", "currency", "receive", "send", "sctInst", "amlEnabled", "sendPriority")
+VALUES
+  (NOW(), NOW(), 'Bank Frick', 'LI75088110105923K000E', 'BFRILI22', 'EUR', FALSE, FALSE, FALSE, TRUE, 2000),
+  (NOW(), NOW(), 'Bank Frick', 'LI32088110105923K000C', 'BFRILI22', 'CHF', FALSE, FALSE, FALSE, TRUE, 2000);
+```
+
+`receive`, `send` and `sctInst` all start `FALSE` and `sendPriority` starts at `2000` (worse than
+every pre-existing row's backfilled `1000`), so inserting these rows changes nothing about current
+routing by itself - Ops must deliberately flip flags/lower the priority per the steps below.
+
+### 3.2 Retire the legacy Bank Frick rows
+
+Bank Frick was integrated once before and removed; three legacy `Bank Frick` rows (the old
+account's IBANs, `receive=false`/`send=false`) were never cleaned up. Once the new rows above
+exist, `(name, currency)` would match two rows each for EUR/CHF unless the legacy rows are
+retired. **Decision: rename, not delete** (keeps history/audit trail intact). Run manually against
+production, immediately after 3.1:
+
+```sql
+UPDATE "bank"
+SET "name" = 'Bank Frick (legacy)'
+WHERE "name" = 'Bank Frick'
+  AND "receive" = FALSE AND "send" = FALSE
+  AND "iban" NOT IN ('LI75088110105923K000E', 'LI32088110105923K000C');
+```
+
+This is scoped so it can never match the two new rows inserted in 3.1 (excluded by IBAN) or any
+row that is actually live - `receive`/`send` both `FALSE` only matches the dormant legacy rows
+today. To roll back (rename the legacy rows back), reverse the `SET`:
+
+```sql
+UPDATE "bank" SET "name" = 'Bank Frick' WHERE "name" = 'Bank Frick (legacy)';
+```
+
+As defense in depth independent of this cleanup step, `BankService.getBankInternal`/
+`loadIbanCache` now deterministically prefer the highest `Bank.id` per `(name, currency)` - the
+newest row always wins a name/currency collision even before (or if ever again after) this cleanup
+runs.
+
+### 3.3 Activate
+
+1. Set `receive`, `send` and `sctInst` from the confirmed account-role matrix. Never infer these
+   flags from currency. **A Frick row used for `send=true` must also have `receive=true`** - a
+   send-only Frick row can never see its own booked debit come back on a statement, so it can never
+   reach `isComplete` and its reserved liquidity silently never releases. This combination is
+   checked and logged loudly on every `BankTxFrickService` poll cycle, but must not be relied upon
+   as the primary safeguard - set the flags correctly up front.
    Before setting `send=true`, link the row to the correctly configured custody/liquidity asset and
    verify that its balance is refreshed; payout readiness deliberately requires that balance.
    Instant outputs additionally require `sctInst=true`; a row without that confirmed capability is
    excluded from instant routing.
-3. Seed `lastBankFrickDate:<bankId>` before setting `receive=true`.
-4. Leave `FiatOutputFrickTransmission` and `FiatOutputFrickStatusCheck` in the `disabledProcess`
+2. Seed `lastBankFrickDate:<bankId>` before setting `receive=true`.
+3. Leave `FiatOutputFrickTransmission` and `FiatOutputFrickStatusCheck` in the `disabledProcess`
    setting until the sandbox checklist below is complete. The migration adds both without
    removing or duplicating existing process switches.
-5. Enable the status process before (or in the same controlled change as) transmission. If new
+4. Enable the status process before (or in the same controlled change as) transmission. If new
    payout creation is later stopped, keep status polling enabled until all existing Frick orders
    are terminal or reconciled.
-6. Ensure exactly one sender bank is eligible for each currency/country route before enabling a
-   Frick `send` flag. A Frick route alongside another eligible sender is deliberately treated as
-   ambiguous and leaves the output unassigned until Operations makes the ownership decision
-   explicit; existing non-Frick routing order remains unchanged.
+5. Set `Bank.sendPriority` deliberately before enabling a Frick `send` flag. Lower value is tried
+   first; every pre-existing row defaults to `1000` and the new Frick rows are inserted at `2000`
+   (3.1), so enabling Frick's `send` flag changes nothing by default - Frick coexists with, but
+   loses ties against, the incumbent (Olkypay/Yapeal) until Ops explicitly lowers its priority
+   below `1000` to cut traffic over. Two eligible banks sharing the exact same priority for a
+   currency is treated as a genuine misconfiguration and leaves the output unassigned until Ops
+   resolves the tie.
 
 The API also refuses to assign or ready a new Frick payout while creation is unavailable. If
 another eligible sender bank exists it is selected instead; otherwise the output remains
@@ -178,3 +228,26 @@ sandbox credentials:
    empty statement and import-persistence failure; each must leave money/cursors unchanged.
 7. Enable `FiatOutputFrickStatusCheck`, observe clean polling, then enable
    `FiatOutputFrickTransmission` in a separate controlled step.
+8. Verify with a real camt.053 sample that Bank Frick books a charged debit **gross**
+   (`Ntry/Amt` inclusive of `Chrgs`), matching what the #8 net-of-charge reconciliation fix
+   (`bank-tx-outgoing-match.service.ts`) assumes. If Bank Frick ever books net instead while still
+   sending a `Chrgs` element, the matcher would subtract a phantom charge from an already-net amount
+   and the payout would never reconcile - this can only be confirmed against a real booked statement,
+   not from the API documentation alone.
+9. Verify that a payment order just created via `PUT /transactions` is immediately visible through
+   `GET /transactions?customId=...` (read-after-write). If Bank Frick can transiently return no
+   result right after creation, the #6 self-heal in `checkFrickOrderStatus` could misread that as
+   "order was never created", clear the reservation, and trigger a re-`PUT` for the same customId.
+   Confirm this with a real sandbox order before enabling automatic status polling.
+
+## 7. Coverage gate on the shared `iso20022.service.ts`
+
+`package.json`'s `coverageThreshold` holds `src/integration/bank/services/iso20022.service.ts` to
+100% even though this file is shared with Yapeal/Raiffeisen parsing, not Frick-only. This is a
+deliberate trade-off, not an oversight: the money-critical fixes in this PR (malformed-entry
+rejection, the missing-bank-reference guard, and bank-charge parsing) live in exactly this file,
+and 100% branch coverage is the only mechanical guarantee that a future change cannot silently
+regress them. The cost - a future, unrelated Yapeal/Raiffeisen-only change could fail CI on an
+uncovered branch it didn't intend to touch - is accepted deliberately in exchange for that
+protection. If this ever becomes a real blocker, the long-term fix is to split the Frick-specific
+strict-mode parsing into its own file with its own gate, not to lower this threshold.

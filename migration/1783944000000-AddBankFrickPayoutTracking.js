@@ -4,10 +4,14 @@
  */
 
 /**
- * Concrete Bank Frick IBANs and account roles are supplied out of band. This migration therefore
- * creates unmistakably synthetic, disabled placeholders in non-empty deployed registries. They
- * cannot receive or send until Operations replaces the IBANs and deliberately sets the role flags.
- * A fresh local registry stays empty here and is populated from migration/seed/bank.csv instead.
+ * Schema-only migration: `fiat_output` payout-tracking columns, the `bank.sendPriority` sender
+ * tie-breaker column (backfilled to a neutral default on every existing row), and the default-off
+ * process switches. It deliberately never inserts, updates or deletes `bank` rows - the only prior
+ * migration that ever did that (`1768943778000-AddYapealEurManualBank.js`) was reverted because the
+ * row was already inserted manually (`f897b98a2`). The two new Bank Frick account rows, and any
+ * cleanup of the legacy Bank Frick rows, are manual production steps documented in
+ * `docs/bank-frick-operations.md` §3, exactly like the existing Yapeal EUR account. A fresh local
+ * registry is populated from migration/seed/bank.csv instead.
  *
  * @class
  * @implements {MigrationInterface}
@@ -20,20 +24,23 @@ module.exports = class AddBankFrickPayoutTracking1783944000000 {
    */
   async up(queryRunner) {
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
-    await queryRunner.query(`ALTER TABLE "fiat_output" ADD "frickOrderId" character varying(256)`);
-    await queryRunner.query(`ALTER TABLE "fiat_output" ADD "frickTxId" character varying(256)`);
+    // Bank Frick's orderId is a plain integer (max 16 digits); varchar(64) is deliberately generous
+    // rather than the unrelated 256-character width used for the other string-identifier columns below.
+    await queryRunner.query(`ALTER TABLE "fiat_output" ADD "frickOrderId" character varying(64)`);
+    // Stores DFX's own generated customId (e.g. "DFX-FO-42"), not a Bank Frick transaction id - named
+    // accordingly rather than "frickTxId".
+    await queryRunner.query(`ALTER TABLE "fiat_output" ADD "frickCustomId" character varying(256)`);
     await queryRunner.query(`ALTER TABLE "fiat_output" ADD "frickOrderStatus" character varying(256)`);
     await queryRunner.query(`ALTER TABLE "fiat_output" ADD "frickError" character varying(256)`);
-    await queryRunner.query(`
-      INSERT INTO "bank" ("updated", "created", "name", "iban", "bic", "currency", "receive", "send", "sctInst", "amlEnabled")
-      SELECT NOW(), NOW(), account."name", account."iban", account."bic", account."currency", FALSE, FALSE, FALSE, TRUE
-      FROM (VALUES
-        ('Bank Frick', 'LI4200000FRICKCHF0001', 'BFRILI22', 'CHF'),
-        ('Bank Frick', 'LI5600000FRICKEUR0001', 'BFRILI22', 'EUR')
-      ) AS account("name", "iban", "bic", "currency")
-      WHERE EXISTS (SELECT 1 FROM "bank")
-      ON CONFLICT ("iban", "bic") DO NOTHING
-    `);
+    // Holds exactly the reference string sent to Bank Frick (customId-prefixed, bank-bound) so
+    // reconciliation can match on it without ever overwriting the customer-facing remittanceInfo.
+    await queryRunner.query(`ALTER TABLE "fiat_output" ADD "frickReference" character varying(256)`);
+    // Sender priority is a deliberate, operator-controlled tie-breaker: lower value tried first. Every
+    // pre-existing bank row is backfilled to the neutral default (1000) so this column changes nothing
+    // about today's routing. The new Frick rows are seeded worse than that default (2000) so simply
+    // flipping Frick's `send` flag on cannot silently steal traffic from a working incumbent (Olkypay,
+    // Yapeal) — Ops must deliberately lower Frick's priority below the incumbent's to cut over.
+    await queryRunner.query(`ALTER TABLE "bank" ADD "sendPriority" integer NOT NULL DEFAULT 1000`);
     await queryRunner.query(`
       INSERT INTO "setting" ("key", "value", "updated", "created")
       VALUES (
@@ -71,16 +78,11 @@ module.exports = class AddBankFrickPayoutTracking1783944000000 {
       "updated" = NOW()
       WHERE "key" = 'disabledProcess'
     `);
-    await queryRunner.query(`
-      DELETE FROM "bank"
-      WHERE "name" = 'Bank Frick'
-        AND "iban" IN ('LI4200000FRICKCHF0001', 'LI5600000FRICKEUR0001')
-        AND "receive" = FALSE
-        AND "send" = FALSE
-    `);
+    await queryRunner.query(`ALTER TABLE "bank" DROP COLUMN "sendPriority"`);
+    await queryRunner.query(`ALTER TABLE "fiat_output" DROP COLUMN "frickReference"`);
     await queryRunner.query(`ALTER TABLE "fiat_output" DROP COLUMN "frickError"`);
     await queryRunner.query(`ALTER TABLE "fiat_output" DROP COLUMN "frickOrderStatus"`);
-    await queryRunner.query(`ALTER TABLE "fiat_output" DROP COLUMN "frickTxId"`);
+    await queryRunner.query(`ALTER TABLE "fiat_output" DROP COLUMN "frickCustomId"`);
     await queryRunner.query(`ALTER TABLE "fiat_output" DROP COLUMN "frickOrderId"`);
   }
 };

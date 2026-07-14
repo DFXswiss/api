@@ -31,6 +31,11 @@ export class Bank extends IEntity {
   @Column({ default: true })
   amlEnabled: boolean;
 
+  // Deterministic sender tie-breaker for currencies with more than one eligible send=true bank: lower
+  // value is tried first. An operational input (set by Ops), never inferred from bank name in code.
+  @Column({ type: 'int', default: 1000 })
+  sendPriority: number = 1000;
+
   @OneToOne(() => Asset, (asset) => asset.bank, { nullable: true })
   @JoinColumn()
   asset: Asset;
@@ -46,5 +51,12 @@ export class Bank extends IEntity {
       default:
         return true;
     }
+  }
+
+  // A Frick row used for payouts (send=true) that never receives (receive=false) can never see its own
+  // booked debit come back in a camt.053 statement, so it can never reach isComplete and its reserved
+  // liquidity is never released - a silent deadlock. Every other bank is trivially reconcilable.
+  get isReconcilable(): boolean {
+    return this.name !== IbanBankName.FRICK || !this.send || this.receive;
   }
 }

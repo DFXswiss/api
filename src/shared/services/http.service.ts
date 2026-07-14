@@ -6,6 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import { Environment, GetConfig } from 'src/config/config';
 import { Util } from '../utils/util';
 import { DfxLogger } from './dfx-logger';
+import { FrickMockGateway } from './frick-mock-gateway';
 
 export interface HttpError {
   response?: {
@@ -17,72 +18,17 @@ export interface HttpError {
 export type HttpRequestConfig = AxiosRequestConfig & {
   tryCount?: number;
   retryDelay?: number;
-  responseVerifier?: (rawBody: string, headers: AxiosResponse['headers']) => void;
+  // Raw response bytes, exactly as received - never decoded/transcoded before the caller verifies
+  // them, so a legitimately signed response can never fail verification due to axios' own text decoding.
+  responseVerifier?: (rawBody: Buffer, headers: AxiosResponse['headers']) => void;
 };
 
 type MockResponseFactory = (url: string, config?: HttpRequestConfig) => unknown;
-const FRICK_MOCK_ORDERS = new Map<string, Record<string, unknown>>();
 
-function parseMockRequestBody(config?: HttpRequestConfig): any {
-  if (typeof config?.data === 'string') return JSON.parse(config.data);
-  return config?.data ?? {};
-}
-
-function frickTransactionsResponse(transactions: Record<string, unknown>[]) {
-  return { moreResults: false, resultSetSize: transactions.length, transactions };
-}
-
-// Mock responses for local development. Bank Frick is endpoint-aware because a generic `{}` response makes the
-// integration appear reachable while every validator fails, which hides local wiring errors instead of simulating it.
+// Mock responses for local development. Bank Frick's own mock is stateful and endpoint-aware -
+// handled by the dedicated FrickMockGateway (its own file, its own instance-scoped state) rather than
+// living inline here; every other integration below is a simple stateless stub.
 const MOCK_RESPONSES: { pattern: RegExp; response: unknown | MockResponseFactory }[] = [
-  {
-    pattern: /bankfrick\.li\/webapi\/v2\/authorize(?:\?|$)/,
-    response: () => {
-      const header = Buffer.from(JSON.stringify({ alg: 'RS512', typ: 'JWT' })).toString('base64url');
-      const payload = Buffer.from(JSON.stringify({ exp: Math.floor(Date.now() / 1000) + 3600 })).toString('base64url');
-      return { token: `${header}.${payload}.local-mock-signature` };
-    },
-  },
-  {
-    pattern: /bankfrick\.li\/webapi\/v2\/camt053(?:\?|$)/,
-    response: (url) => {
-      const iban = new URL(url).searchParams.get('iban') ?? 'SYNTHETIC-UNCONFIGURED-IBAN';
-      return `<?xml version="1.0" encoding="UTF-8"?><Document><BkToCstmrStmt><Stmt><Acct><Id><IBAN>${iban}</IBAN></Id></Acct></Stmt></BkToCstmrStmt></Document>`;
-    },
-  },
-  {
-    pattern: /bankfrick\.li\/webapi\/v2\/accounts(?:\/|\?|$)/,
-    response: { date: '2026-01-01', moreResults: false, resultSetSize: 0, accounts: [] },
-  },
-  {
-    pattern: /bankfrick\.li\/webapi\/v2\/signTransactionWithoutTan(?:\?|$)/,
-    response: (_url, config) => {
-      const request = parseMockRequestBody(config);
-      const orderIds = new Set((request.orderIds ?? []).map(String));
-      const customIds = new Set(request.customIds ?? []);
-      const orders = [...FRICK_MOCK_ORDERS.values()]
-        .filter((order) => orderIds.has(String(order.orderId)) || customIds.has(String(order.customId)))
-        .map<Record<string, unknown>>((order) => ({ ...order, state: 'IN_PROGRESS' }));
-      orders.forEach((order) => FRICK_MOCK_ORDERS.set(String(order.customId), order));
-      return frickTransactionsResponse(orders);
-    },
-  },
-  {
-    pattern: /bankfrick\.li\/webapi\/v2\/transactions(?:\?|$)/,
-    response: (url, config) => {
-      if (config?.method?.toUpperCase() === 'PUT') {
-        const transaction = parseMockRequestBody(config).transactions?.[0];
-        if (!transaction) return frickTransactionsResponse([]);
-        const order = { ...transaction, orderId: FRICK_MOCK_ORDERS.size + 1, state: 'PREPARED' };
-        FRICK_MOCK_ORDERS.set(String(order.customId), order);
-        return frickTransactionsResponse([order]);
-      }
-
-      const customId = new URL(url).searchParams.get('customId');
-      const order = customId ? FRICK_MOCK_ORDERS.get(customId) : undefined;
-      return frickTransactionsResponse(order ? [order] : []);
-    },
-  },
   { pattern: /alchemy\.com/, response: { result: '0x0', jsonrpc: '2.0', id: 1 } },
   { pattern: /tatum\.io/, response: { balance: '0', transactions: [] } },
   { pattern: /api\.sift\.com/, response: { status: 0, score: 0.1 } },
@@ -111,6 +57,9 @@ const MOCK_RESPONSES: { pattern: RegExp; response: unknown | MockResponseFactory
 export class HttpService {
   private readonly logger = new DfxLogger(HttpService);
   private readonly isMockMode: boolean;
+  // Instance-scoped, not shared across separately-constructed HttpService instances (e.g. across test
+  // files) - a fresh gateway (and its stateful order Map) is created lazily only when actually mocking.
+  private frickMockGateway?: FrickMockGateway;
 
   constructor(private readonly http: Http) {
     this.isMockMode = GetConfig().environment === Environment.LOC;
@@ -127,9 +76,14 @@ export class HttpService {
   }
 
   private getMockResponse<T>(url: string, config?: HttpRequestConfig): T {
-    const mock = MOCK_RESPONSES.find((m) => m.pattern.test(url));
-    const response =
-      typeof mock?.response === 'function' ? mock.response(url, config) : (mock?.response ?? { mock: true });
+    this.frickMockGateway ??= new FrickMockGateway();
+    let response: unknown;
+    if (this.frickMockGateway.matches(url)) {
+      response = this.frickMockGateway.resolve(url, config);
+    } else {
+      const mock = MOCK_RESPONSES.find((m) => m.pattern.test(url));
+      response = typeof mock?.response === 'function' ? mock.response(url, config) : (mock?.response ?? { mock: true });
+    }
     this.logger.verbose(`Mock HTTP: ${url.substring(0, 80)}... → ${JSON.stringify(response).substring(0, 50)}`);
     return response as T;
   }
@@ -206,9 +160,11 @@ export class HttpService {
     const { tryCount, retryDelay, responseVerifier, ...axiosConfig } = config;
     const requestedResponseType = axiosConfig.responseType;
     if (responseVerifier) {
-      // Preserve the exact response bytes as a UTF-8 string until the detached signature was verified. Axios' JSON
-      // transform would otherwise parse/re-serialize the body and make verification both unreliable and unsafe.
-      axiosConfig.responseType = 'text';
+      // Preserve the exact response bytes as a Buffer until the detached signature was verified. Any
+      // string decoding (even axios' own default UTF-8 text handling) can strip a BOM or lossily
+      // transcode non-UTF-8 bytes before the verifier ever sees them - arraybuffer is the only
+      // responseType that hands back the untouched bytes.
+      axiosConfig.responseType = 'arraybuffer';
       axiosConfig.transformResponse = [(data) => data];
     }
 
@@ -218,11 +174,12 @@ export class HttpService {
       retryDelay,
     );
     if (!responseVerifier) return response.data;
-    if (typeof response.data !== 'string') throw new Error('Signed HTTP response body is not raw text');
+    if (!Buffer.isBuffer(response.data)) throw new Error('Signed HTTP response body is not a raw byte buffer');
 
     responseVerifier(response.data, response.headers);
-    if (requestedResponseType === 'text') return response.data as T;
-    return JSON.parse(response.data) as T;
+    const decoded = response.data.toString('utf8');
+    if (requestedResponseType === 'text') return decoded as T;
+    return JSON.parse(decoded) as T;
   }
 
   async downloadFile(fileUrl: string, filePath: string) {

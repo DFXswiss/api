@@ -17,13 +17,24 @@ import {
   FrickPaymentCharge,
   FrickPaymentOrder,
   FrickPaymentOrderInput,
+  FrickPaymentOrderNotFoundError,
   FrickPaymentState,
   FrickPaymentType,
+  FrickSignatureVerificationError,
   FrickTransactionsResponse,
 } from '../dto/frick.dto';
 import { CamtTransaction, Iso20022Service } from './iso20022.service';
 
 type FrickResponseType = 'json' | 'text';
+
+export interface FrickTransactionsFetchResult {
+  transactions: Partial<BankTx>[];
+  // False when at least one CAMT entry in this fetch failed strict validation (bad money-critical
+  // field, or no bank-provided reference) and was dropped. The caller must not advance its watermark
+  // past a fetch that is not fully parsed, even though the other, well-formed entries are returned and
+  // should still be imported this cycle.
+  fullyParsed: boolean;
+}
 
 @Injectable()
 export class BankFrickService {
@@ -32,6 +43,10 @@ export class BankFrickService {
   // is supplied. Every customId lookup must send this wide fromDate, not only the BOOKED fallback, so a
   // stale or slow-settling order can never be missed and re-submitted as a duplicate payout.
   private static readonly EARLIEST_FROM_DATE = '1970-01-01';
+  // Every Bank Frick request combined with an unbounded cron lock (see checkFrickOrderStatus's
+  // DfxCron timeout) means a single hung connection would otherwise stall the payout status poller
+  // permanently and silently.
+  private static readonly HTTP_TIMEOUT_MS = 30_000;
 
   private accessToken?: string;
   private tokenExpiryMs = 0;
@@ -64,7 +79,7 @@ export class BankFrickService {
       }));
   }
 
-  async getFrickTransactions(lastModificationTime: Date, accountIban: string): Promise<Partial<BankTx>[]> {
+  async getFrickTransactions(lastModificationTime: Date, accountIban: string): Promise<FrickTransactionsFetchResult> {
     this.assertAvailable();
     if (!(lastModificationTime instanceof Date) || Number.isNaN(lastModificationTime.getTime()))
       throw new Error('Invalid Bank Frick transaction start date');
@@ -86,9 +101,14 @@ export class BankFrickService {
       'text',
     );
     if (typeof statement !== 'string') throw new Error('Invalid Bank Frick camt.053 response');
-    if (!statement.trim()) return [];
+    if (!statement.trim()) return { transactions: [], fullyParsed: true };
 
-    return Iso20022Service.parseCamt053Xml(statement, iban, true).map((tx) => this.parseTransaction(tx, iban));
+    let rejectedCount = 0;
+    const transactions = Iso20022Service.parseCamt053Xml(statement, iban, true, () => {
+      rejectedCount++;
+    }).map((tx) => this.parseTransaction(tx, iban));
+
+    return { transactions, fullyParsed: rejectedCount === 0 };
   }
 
   async createPaymentOrder(input: FrickPaymentOrderInput): Promise<FrickPaymentOrder> {
@@ -114,7 +134,7 @@ export class BankFrickService {
     this.validateString(customId, 'customId', 50, true);
 
     const payment = await this.getPaymentOrderOrUndefined(customId);
-    if (!payment) throw new Error(`Bank Frick payment order ${customId} not found`);
+    if (!payment) throw new FrickPaymentOrderNotFoundError(customId);
     return payment;
   }
 
@@ -148,11 +168,13 @@ export class BankFrickService {
       amount: tx.amount,
       instructedAmount: tx.instructedAmount ?? tx.amount,
       txAmount: tx.txAmount ?? tx.amount,
-      chargeAmount: 0,
+      // Real, parsed Ntry/Chrgs total (0 only when the entry genuinely carries no charge) - a booked
+      // debit that included a bank charge must reconcile net of it, not against the full booked amount.
+      chargeAmount: tx.chargeAmount,
       currency: tx.currency,
       instructedCurrency: tx.instructedCurrency ?? tx.currency,
       txCurrency: tx.txCurrency ?? tx.currency,
-      chargeCurrency: tx.currency,
+      chargeCurrency: tx.chargeCurrency,
       creditDebitIndicator:
         tx.creditDebitIndicator === BankTxIndicator.CREDIT ? BankTxIndicator.CREDIT : BankTxIndicator.DEBIT,
       iban: tx.iban,
@@ -301,17 +323,24 @@ export class BankFrickService {
     customId: string,
   ): Promise<FrickPaymentOrder | undefined> {
     const response = await this.callApi<FrickTransactionsResponse>(`transactions?${params.toString()}`);
-    this.validateTransactionsResponse(response);
+    // This lookup is already scoped to customId by the request itself (the ?customId= query param).
+    // Bank Frick's real BOOKED transaction objects carry neither customId nor type - requiring them
+    // here would make every settled payout throw and never reach a terminal state. Trust the filter:
+    // customId/type are validated when present, but their absence is not itself an error.
+    this.validateTransactionsResponse(response, false);
 
     if (response.moreResults) throw new Error(`Ambiguous Bank Frick payment lookup for ${customId}`);
-    if (response.transactions.some((payment) => payment.customId !== customId))
+    if (response.transactions.some((payment) => payment.customId !== undefined && payment.customId !== customId))
       throw new Error(`Invalid Bank Frick payment lookup response for ${customId}`);
     if (response.transactions.length > 1) throw new Error(`Duplicate Bank Frick payment orders for ${customId}`);
     return response.transactions[0];
   }
 
   private getSinglePayment(response: FrickTransactionsResponse, customId: string): FrickPaymentOrder {
-    this.validateTransactionsResponse(response);
+    // Unlike the filtered lookup above, this reads the response to a PUT/signTransactionWithoutTan
+    // request DFX itself just issued for this exact customId - Bank Frick returns type/customId here,
+    // so the stricter shape stays required as a defense against a malformed or mismatched response.
+    this.validateTransactionsResponse(response, true);
     if (response.moreResults) throw new Error(`Ambiguous Bank Frick payment response for ${customId}`);
 
     const matches = response.transactions.filter((payment) => payment.customId === customId);
@@ -319,7 +348,7 @@ export class BankFrickService {
     return matches[0];
   }
 
-  private validateTransactionsResponse(response: FrickTransactionsResponse): void {
+  private validateTransactionsResponse(response: FrickTransactionsResponse, requireTypeAndCustomId: boolean): void {
     if (
       !response ||
       typeof response !== 'object' ||
@@ -331,11 +360,17 @@ export class BankFrickService {
       throw new Error('Invalid Bank Frick transactions response');
 
     for (const payment of response.transactions) {
+      const hasValidCustomId =
+        typeof payment?.customId === 'string' || (!requireTypeAndCustomId && payment?.customId === undefined);
+      const hasValidType =
+        Object.values(FrickPaymentType).includes(payment?.type) ||
+        (!requireTypeAndCustomId && payment?.type === undefined);
+
       if (
         !payment ||
         typeof payment !== 'object' ||
-        typeof payment.customId !== 'string' ||
-        !Object.values(FrickPaymentType).includes(payment.type) ||
+        !hasValidCustomId ||
+        !hasValidType ||
         !Object.values(FrickPaymentState).includes(payment.state) ||
         typeof payment.currency !== 'string' ||
         !payment.debitor ||
@@ -382,8 +417,11 @@ export class BankFrickService {
   private assertSamePayment(existing: FrickPaymentOrder, requested: FrickCreateTransaction): void {
     const existingAmount = this.parseResponseAmount(existing.amount);
     const same =
-      existing.customId === requested.customId &&
-      existing.type === requested.type &&
+      // A BOOKED order returned by the customId-scoped lookup carries neither field (see
+      // getFilteredPaymentOrder's "trust the filter" comment) - their absence was already verified
+      // against the request there and is not itself a mismatch here.
+      (existing.customId === undefined || existing.customId === requested.customId) &&
+      (existing.type === undefined || existing.type === requested.type) &&
       existing.currency === requested.currency &&
       Math.abs(existingAmount - requested.amount) < 0.005 &&
       existing.debitor?.iban?.replace(/\s/g, '').toUpperCase() === requested.debitor.iban &&
@@ -450,6 +488,7 @@ export class BankFrickService {
         data: bodyString,
         responseType,
         tryCount: 1,
+        timeout: BankFrickService.HTTP_TIMEOUT_MS,
         headers: {
           Accept: accept,
           'Content-Type': body === undefined ? '*/*' : 'application/json',
@@ -460,6 +499,9 @@ export class BankFrickService {
         responseVerifier: (rawBody, headers) => this.verifyResponse(rawBody, headers),
       });
     } catch (error) {
+      if (error instanceof FrickSignatureVerificationError)
+        throw new Error(`Bank Frick response signature verification failed (${method} ${path}): ${error.message}`);
+
       if (allowUnauthorizedRetry && error?.response?.status === 401) {
         await this.refreshAfterUnauthorized(token);
         return this.callApi(path, method, body, accept, responseType, false);
@@ -502,6 +544,7 @@ export class BankFrickService {
         data: bodyString,
         responseType: 'json',
         tryCount: 1,
+        timeout: BankFrickService.HTTP_TIMEOUT_MS,
         headers: {
           Accept: 'application/json',
           'Content-Type': 'application/json',
@@ -511,6 +554,9 @@ export class BankFrickService {
         responseVerifier: (rawBody, headers) => this.verifyResponse(rawBody, headers),
       });
     } catch (error) {
+      if (error instanceof FrickSignatureVerificationError)
+        throw new Error(`Bank Frick authorization response signature verification failed: ${error.message}`);
+
       throw new Error(`Bank Frick authorization failed: ${this.getHttpFailureReason(error)}`);
     }
 
@@ -549,19 +595,19 @@ export class BankFrickService {
     }
   }
 
-  private verifyResponse(rawBody: string, headers: AxiosResponse['headers']): void {
+  private verifyResponse(rawBody: Buffer, headers: AxiosResponse['headers']): void {
     const signature = headers?.signature ?? headers?.Signature;
     const algorithm = String(headers?.algorithm ?? headers?.Algorithm ?? '').toLowerCase();
     const algorithms = { 'rsa-sha512': 'sha512', 'rsa-sha384': 'sha384', 'rsa-sha256': 'sha256' } as const;
     const hashAlgorithm = algorithms[algorithm as keyof typeof algorithms];
     if (typeof signature !== 'string' || !signature || !hashAlgorithm)
-      throw new Error('Invalid Bank Frick response signature headers');
+      throw new FrickSignatureVerificationError('Invalid Bank Frick response signature headers');
 
     try {
       if (!Util.verifySign(rawBody, Config.bank.frick.serverPublicKey, signature, hashAlgorithm, 'base64'))
         throw new Error('signature mismatch');
     } catch {
-      throw new Error('Invalid Bank Frick response signature');
+      throw new FrickSignatureVerificationError('Invalid Bank Frick response signature');
     }
   }
 

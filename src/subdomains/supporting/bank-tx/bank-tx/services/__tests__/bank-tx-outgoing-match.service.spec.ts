@@ -68,10 +68,10 @@ describe('BankTxOutgoingMatchService.getUniqueOutgoingBankTx', () => {
       accountIban: 'LI00SYNTHETICACCOUNT',
     });
     expect(query.andWhere).toHaveBeenCalledWith('UPPER(bankTx.currency) = :currency', { currency: 'EUR' });
-    expect(query.andWhere).toHaveBeenCalledWith('ABS(bankTx.amount - :amount) < :amountTolerance', {
-      amount: 12.34,
-      amountTolerance: 0.005,
-    });
+    expect(query.andWhere).toHaveBeenCalledWith(
+      'ABS((bankTx.amount - COALESCE(bankTx.chargeAmount, 0)) - :amount) < :amountTolerance',
+      { amount: 12.34, amountTolerance: 0.005 },
+    );
     expect(query.andWhere).toHaveBeenCalledWith('bankTx.created >= :earliestDate', {
       earliestDate: completeMatch.earliestDate,
     });
@@ -86,6 +86,29 @@ describe('BankTxOutgoingMatchService.getUniqueOutgoingBankTx', () => {
       remittanceInfo: 'DFX-FO-42Syntheticpayout',
     });
     expect(references.orWhere).toHaveBeenCalledWith('bankTx.endToEndId = :endToEndId', { endToEndId: 'E2E-42' });
+  });
+
+  it('matches a charged Bank Frick debit (Amt=1005.00, Chrgs=5.00) against a fiat_output.amount of 1000.00', async () => {
+    // The literal #8 regression case: a booked debit entry included a 5.00 bank charge, so
+    // bank_tx.amount is the gross 1005.00 and bank_tx.chargeAmount holds the real, parsed charge - the
+    // query must ask Postgres to compare net-of-charge, not the full booked amount, against the
+    // customer-facing fiat_output.amount.
+    const chargedBankTx = createCustomBankTx({ id: 99, amount: 1005, chargeAmount: 5 });
+    query.getMany.mockResolvedValue([chargedBankTx]);
+
+    await expect(service.getUniqueOutgoingBankTx({ ...completeMatch, amount: 1000 })).resolves.toBe(chargedBankTx);
+
+    expect(query.andWhere).toHaveBeenCalledWith(
+      'ABS((bankTx.amount - COALESCE(bankTx.chargeAmount, 0)) - :amount) < :amountTolerance',
+      { amount: 1000, amountTolerance: 0.005 },
+    );
+  });
+
+  it('still matches a charge-less bank_tx (chargeAmount=0) unchanged', async () => {
+    const chargeLessBankTx = createCustomBankTx({ id: 100, amount: 1000, chargeAmount: 0 });
+    query.getMany.mockResolvedValue([chargeLessBankTx]);
+
+    await expect(service.getUniqueOutgoingBankTx({ ...completeMatch, amount: 1000 })).resolves.toBe(chargeLessBankTx);
   });
 
   it.each([
