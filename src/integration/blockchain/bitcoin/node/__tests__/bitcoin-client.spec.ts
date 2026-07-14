@@ -333,7 +333,9 @@ describe('BitcoinClient', () => {
       const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
 
       mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' })); // walletpassphrase
-      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: { complete: true }, error: null, id: 'test' }));
+      mockRpcPost.mockImplementationOnce(() =>
+        Promise.resolve({ result: { complete: true }, error: null, id: 'test' }),
+      );
 
       let error: unknown;
       try {
