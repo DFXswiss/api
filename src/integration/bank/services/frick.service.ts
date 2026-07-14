@@ -402,7 +402,7 @@ export class BankFrickService {
       ) &&
       this.matchesSentString(existing.creditor.bic, requested.creditor.bic, (value) => {
         const bic = value.replace(/\s/g, '').toUpperCase();
-        return bic.length === 8 ? `${bic}XXX` : bic;
+        return bic.length === 8 ? bic.padEnd(11, 'X') : bic;
       });
 
     if (!same) throw new Error(`Bank Frick customId collision for ${requested.customId}`);
