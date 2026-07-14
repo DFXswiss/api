@@ -136,7 +136,7 @@ export class AppController {
     @Res() res: Response,
   ): Promise<void> {
     const ref = await this.getRef(code);
-    if (ref || origin) await this.refService.addOrUpdate(ip, code, origin);
+    if (ref || origin) await this.refService.addOrUpdate(ip, ref, origin);
     res.redirect(307, this.homepageUrl);
   }
 
@@ -167,7 +167,9 @@ export class AppController {
   private async getRef(code: string): Promise<string | undefined> {
     const keys = await this.settingService.getObj('ref-keys', {});
 
-    return Config.formats.ref.test(code) ? code : keys[code];
+    if (Config.formats.ref.test(code)) return code;
+
+    return Object.prototype.hasOwnProperty.call(keys, code) ? keys[code] : undefined;
   }
 
   // --- HELPER METHODS --- //
