@@ -493,7 +493,7 @@ describe('Ledger evidence-week integration (§10.2)', () => {
     expect(ledger.txs.length).toBeGreaterThan(0);
     expect(ledger.everyTxBalances()).toBe(true);
     for (const tx of ledger.txs) {
-      expect(typeof tx.amountChfSum).toBe('number'); // integer type, never a bigint string (Blocker R1-4)
+      expect(typeof tx.amountChfSum).toBe('number'); // JS number, never a raw bigint string (bigint column → chfCentsTransformer, Blocker R1-4)
       expect(tx.amountChfSum).toBe(0);
     }
 

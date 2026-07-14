@@ -115,7 +115,7 @@ describe('LedgerBookingService', () => {
     });
 
     expect(tx.amountChfSum).toBe(0);
-    expect(typeof tx.amountChfSum).toBe('number'); // integer type guarantee (Blocker R1-4)
+    expect(typeof tx.amountChfSum).toBe('number'); // JS number, never a raw bigint string (bigint column → chfCentsTransformer, Blocker R1-4)
     expect(savedLegs).toHaveLength(2);
     expect(savedLegs.reduce((s, l) => s + l.amountChfCents, 0)).toBe(0); // real addition, no string concat
     expect(savedLegs.map((l) => l.amountChfCents)).toEqual([5000000, -5000000]);

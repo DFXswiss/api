@@ -42,6 +42,51 @@ describe('LedgerAccountService', () => {
     expect(saveSpy).not.toHaveBeenCalled(); // re-run no-op
   });
 
+  // findOrCreate is NOT atomic (find→create→save). Two consumer crons lazily creating the SAME account race: the
+  // loser's save hits UNIQUE(name) (SQLSTATE 23505). It must catch exactly that, reload the winner's row and return
+  // it (true idempotent no-op) — the old code let the 23505 bubble up and crash the loser's booking run.
+  it('returns the concurrent winner’s row when save races into a UNIQUE(name) violation (23505)', async () => {
+    const winner = createCustomLedgerAccount({ name: 'TRANSIT/paymentLink', type: AccountType.TRANSIT });
+    jest
+      .spyOn(ledgerAccountRepository, 'findOneBy')
+      .mockResolvedValueOnce(null) // initial lookup: not there yet → proceed to create/save
+      .mockResolvedValueOnce(winner); // reload after the race: the winner committed it
+    jest.spyOn(ledgerAccountRepository, 'create').mockImplementation((dto: any) => dto);
+    jest
+      .spyOn(ledgerAccountRepository, 'save')
+      .mockRejectedValue(Object.assign(new Error('duplicate key value violates unique constraint'), { code: '23505' }));
+
+    const result = await service.findOrCreate('TRANSIT/paymentLink', AccountType.TRANSIT, 'CHF');
+
+    expect(result).toBe(winner);
+    expect(ledgerAccountRepository.findOneBy).toHaveBeenCalledTimes(2); // initial miss + post-race reload
+  });
+
+  // only 23505 is swallowed: any OTHER save error (no code / different code) propagates unchanged (no broad catch).
+  it('propagates a non-unique-violation save error unchanged (no broad catch)', async () => {
+    jest.spyOn(ledgerAccountRepository, 'findOneBy').mockResolvedValue(null);
+    jest.spyOn(ledgerAccountRepository, 'create').mockImplementation((dto: any) => dto);
+    jest
+      .spyOn(ledgerAccountRepository, 'save')
+      .mockRejectedValue(Object.assign(new Error('connection terminated'), { code: '08006' }));
+
+    await expect(service.findOrCreate('LIABILITY/x', AccountType.LIABILITY, 'CHF')).rejects.toThrow(
+      /connection terminated/,
+    );
+    expect(ledgerAccountRepository.findOneBy).toHaveBeenCalledTimes(1); // no post-error reload for a non-race error
+  });
+
+  // defensive fail-loud: a 23505 whose row is still not findable (not the expected name race) surfaces the original
+  // error instead of returning undefined (which would violate the non-nullable return type).
+  it('re-throws the original 23505 when the row is still not findable after the race', async () => {
+    const boom = Object.assign(new Error('duplicate key'), { code: '23505' });
+    jest.spyOn(ledgerAccountRepository, 'findOneBy').mockResolvedValue(null); // never resolves the row
+    jest.spyOn(ledgerAccountRepository, 'create').mockImplementation((dto: any) => dto);
+    jest.spyOn(ledgerAccountRepository, 'save').mockRejectedValue(boom);
+
+    await expect(service.findOrCreate('LIABILITY/ghost', AccountType.LIABILITY, 'CHF')).rejects.toBe(boom);
+  });
+
   it('creates a new ASSET account with assetId relation when missing', async () => {
     jest.spyOn(ledgerAccountRepository, 'findOneBy').mockResolvedValue(null);
     jest.spyOn(ledgerAccountRepository, 'create').mockImplementation((dto: any) => dto);

@@ -6,7 +6,10 @@
 /**
  * Creates the append-only double-entry ledger tables (ledger_account / ledger_tx / ledger_leg).
  * New tables only — no ALTER/INSERT on existing tables (CoA bootstrap + cutover run as code jobs).
- * Integer-cent columns are PostgreSQL `integer` (never bigint → JS string), the single-row balance
+ * Integer-cent columns are PostgreSQL `bigint`: int4 caps at ±2'147'483'647 cents (~21.4M CHF) per row,
+ * which a single large LM transfer or an aggregate cutover opening can exceed → the INSERT would fail and
+ * stall the source chain permanently. The entity ValueTransformer maps the driver's bigint string back to
+ * a JS number and fails loud above Number.MAX_SAFE_INTEGER (never silently rounds). The single-row balance
  * gate is a CHECK("amountChfSum" = 0) on ledger_tx, and `sourceId` is character varying(64).
  *
  * @class
@@ -26,13 +29,13 @@ module.exports = class AddLedgerTables1781235331368 {
     await queryRunner.query(`CREATE INDEX "IDX_6793efdea5c47073f6b5d2af34" ON "ledger_account" ("assetId") `);
 
     await queryRunner.query(
-      `CREATE TABLE "ledger_tx" ("id" SERIAL NOT NULL, "updated" TIMESTAMP NOT NULL DEFAULT now(), "created" TIMESTAMP NOT NULL DEFAULT now(), "bookingDate" TIMESTAMP NOT NULL, "valueDate" TIMESTAMP NOT NULL, "description" character varying(512), "sourceType" character varying(64) NOT NULL, "sourceId" character varying(64) NOT NULL, "seq" integer NOT NULL DEFAULT 0, "amountChfSum" integer NOT NULL DEFAULT 0, "reversalOfId" integer, CONSTRAINT "UQ_86a66bea626f9a32e1d26a7b136" UNIQUE ("sourceType", "sourceId", "seq"), CONSTRAINT "CHK_357a2fc90abae910ef69d3822e" CHECK ("amountChfSum" = 0), CONSTRAINT "PK_2a5f197e0dbaa656731fee263d8" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "ledger_tx" ("id" SERIAL NOT NULL, "updated" TIMESTAMP NOT NULL DEFAULT now(), "created" TIMESTAMP NOT NULL DEFAULT now(), "bookingDate" TIMESTAMP NOT NULL, "valueDate" TIMESTAMP NOT NULL, "description" character varying(512), "sourceType" character varying(64) NOT NULL, "sourceId" character varying(64) NOT NULL, "seq" integer NOT NULL DEFAULT 0, "amountChfSum" bigint NOT NULL DEFAULT 0, "reversalOfId" integer, CONSTRAINT "UQ_86a66bea626f9a32e1d26a7b136" UNIQUE ("sourceType", "sourceId", "seq"), CONSTRAINT "CHK_357a2fc90abae910ef69d3822e" CHECK ("amountChfSum" = 0), CONSTRAINT "PK_2a5f197e0dbaa656731fee263d8" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(`CREATE INDEX "IDX_e27c60c70525be037830f579b4" ON "ledger_tx" ("bookingDate") `);
     await queryRunner.query(`CREATE INDEX "IDX_42c53a01650aaa5e88bb9a3470" ON "ledger_tx" ("reversalOfId") `);
 
     await queryRunner.query(
-      `CREATE TABLE "ledger_leg" ("id" SERIAL NOT NULL, "updated" TIMESTAMP NOT NULL DEFAULT now(), "created" TIMESTAMP NOT NULL DEFAULT now(), "amount" double precision NOT NULL, "priceChf" double precision, "amountChf" double precision, "amountChfCents" integer NOT NULL DEFAULT 0, "needsMark" boolean NOT NULL DEFAULT false, "txId" integer NOT NULL, "accountId" integer NOT NULL, CONSTRAINT "PK_6566e1943c692f0caad604015d0" PRIMARY KEY ("id"))`,
+      `CREATE TABLE "ledger_leg" ("id" SERIAL NOT NULL, "updated" TIMESTAMP NOT NULL DEFAULT now(), "created" TIMESTAMP NOT NULL DEFAULT now(), "amount" double precision NOT NULL, "priceChf" double precision, "amountChf" double precision, "amountChfCents" bigint NOT NULL DEFAULT 0, "needsMark" boolean NOT NULL DEFAULT false, "txId" integer NOT NULL, "accountId" integer NOT NULL, CONSTRAINT "PK_6566e1943c692f0caad604015d0" PRIMARY KEY ("id"))`,
     );
     await queryRunner.query(`CREATE INDEX "IDX_7c939d7bfcc9cc3f71bb3eddd9" ON "ledger_leg" ("txId") `);
     await queryRunner.query(`CREATE INDEX "IDX_b8d0b654d708ff1255a49b7e6e" ON "ledger_leg" ("accountId") `);
