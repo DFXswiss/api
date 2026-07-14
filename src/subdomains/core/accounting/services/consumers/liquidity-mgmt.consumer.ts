@@ -20,7 +20,7 @@ import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
 import { getLedgerWatermark, setLedgerWatermark } from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'liquidity_management_order';
-const BRIDGE_IN_COMMAND = 'bridge-in'; // dEURO bridge-in (§4.8 Zweig 4, system=dEURO)
+const BRIDGE_IN_COMMAND = 'bridge-in'; // dEURO bridge-in (§4.8 branch 4, system=dEURO)
 
 /**
  * §4.8 LiquidityMgmt consumer (D14 B.5/B.6). Pure observer: reads liquidity_management_order (+ its eager action),
@@ -69,7 +69,7 @@ export class LiquidityMgmtConsumer {
         await this.book(order, marks);
         lastProcessedId = order.id;
       } catch (e) {
-        this.logger.error(`Failed to book liquidity_management_order ${order.id}`, e);
+        this.logger.error(`Failed to book liquidity_management_order ${order.id}:`, e);
         break; // failure-isolation: leave watermark unchanged, retry next run (§4-header)
       }
     }
@@ -89,14 +89,14 @@ export class LiquidityMgmtConsumer {
     const command = order.action?.command;
 
     // (4) bridge systems (*Bridge / dEURO bridge-in) → BOOK. Checked FIRST because the dEURO bridge-in command is
-    // the one exception to the §4.8 Zweig-1 exchange skip: system=dEURO is otherwise an exchange (Zweig 1), but the
+    // the one exception to the §4.8 branch-1 exchange skip: system=dEURO is otherwise an exchange (branch 1), but the
     // bridge-in command is a bridge hop with NO external settlement record → the liquidity_management_order is its
-    // own authoritative evidence (D14 §B.5). Resolving Zweig 4 before Zweig 1 keeps the dEURO bridge-in bookable.
+    // own authoritative evidence (D14 §B.5). Resolving branch 4 before branch 1 keeps the dEURO bridge-in bookable.
     if (this.isBridgeSystem(system, command)) return this.bookBridge(order, marks);
 
     // (1) exchange-routed transfers/trades (Binance/MEXC/Scrypt/Kraken/XT/Frankencoin/dEURO/Juice) → SKIP.
     // The exchange_tx Deposit/Withdrawal/Trade row is the authoritative settlement record (D14 §B.5); the
-    // exchange_tx consumer books it. correlationId(exchange_tx) = LM-order-id (rein lesend, kein double booking).
+    // exchange_tx consumer books it. correlationId(exchange_tx) = LM-order-id (read-only, no double booking).
     if (this.isExchangeSystem(system)) return;
 
     if (system === LiquidityManagementSystem.DFX_DEX) {
@@ -115,7 +115,7 @@ export class LiquidityMgmtConsumer {
   }
 
   /**
-   * §4.8 Zweig 4 — bridge / dEURO bridge-in. The value crosses the bridge as a single asset (same value on two
+   * §4.8 branch 4 — bridge / dEURO bridge-in. The value crosses the bridge as a single asset (same value on two
    * chains); the bridge hop is held by a TRANSIT/bridge/{ccy} account between the two mirror legs. Booking:
    * `Dr ASSET/wallet-target / Cr TRANSIT/bridge/{ccy}` (the arriving target side; the mirror sending side closes
    * the TRANSIT account when its own order settles). Both legs are mark-valued in the SAME mark → Σ CHF = 0, no
@@ -172,7 +172,7 @@ export class LiquidityMgmtConsumer {
   }
 
   // bridge systems: the *Bridge family (incl. Boltz) plus the dEURO bridge-in command (system=dEURO is otherwise
-  // an exchange system; the bridge-in command is the only dEURO path this consumer books, §4.8 Zweig 4)
+  // an exchange system; the bridge-in command is the only dEURO path this consumer books, §4.8 branch 4)
   private isBridgeSystem(system?: LiquidityManagementSystem, command?: string): boolean {
     if (system != null && LiquidityManagementBridges.includes(system)) return true;
     return system === LiquidityManagementSystem.DEURO && command === BRIDGE_IN_COMMAND;

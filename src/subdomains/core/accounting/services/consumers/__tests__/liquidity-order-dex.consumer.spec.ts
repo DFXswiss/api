@@ -129,7 +129,7 @@ describe('LiquidityOrderDexConsumer', () => {
     expect(booked).toHaveLength(1);
     const tx = booked[0];
     expect(tx.sourceType).toBe('liquidity_order');
-    expect(tx.sourceId).toBe('LiquidityManagement:123177'); // '<context>:<correlationId>' (Minor R6-8)
+    expect(tx.sourceId).toBe('LiquidityManagement:123177:10'); // '<context>:<correlationId>:<id>' (Minor R6-8)
 
     const target = leg(tx, 'Ethereum/EURC');
     const swap = leg(tx, 'Ethereum/USDC');
@@ -187,7 +187,7 @@ describe('LiquidityOrderDexConsumer', () => {
   });
 
   // §4.8a Major R2-5 null-strategy: no feeAsset/feeAmount → no fee leg at all
-  it('books no fee leg when feeAsset/feeAmount are absent (Null-Strategie)', async () => {
+  it('books no fee leg when feeAsset/feeAmount are absent (null strategy)', async () => {
     mockBatch([liquidityOrder({ id: 14, feeAsset: undefined, feeAmount: undefined })]);
     await consumer.process();
     expect(leg(booked[0], 'EXPENSE/network-fee')).toBeUndefined();
@@ -214,13 +214,32 @@ describe('LiquidityOrderDexConsumer', () => {
     expect(booked).toHaveLength(0);
   });
 
-  // §4.8a idempotency / adversarial dedup: re-running over the same '<context>:<correlationId>' key must NOT
+  // §4.8a idempotency / adversarial dedup: re-running over the same '<context>:<correlationId>:<id>' key must NOT
   // double-book the swap — uniqueness rests on the ledger UNIQUE(sourceType,sourceId,seq) (Minor R6-8)
-  it('is idempotent on the <context>:<correlationId> key (re-run, nextSeq > 0)', async () => {
+  it('is idempotent on the <context>:<correlationId>:<id> key (re-run, nextSeq > 0)', async () => {
     nextSeqValue = 1;
     mockBatch([liquidityOrder({ id: 17 })]);
     await consumer.process();
     expect(booked).toHaveLength(0);
+  });
+
+  // Minor R6-8 row-uniqueness: (context, correlationId) is NOT unique — dex.service finds plural rows per tuple.
+  // Two settled swaps sharing the SAME (context, correlationId) must BOTH book because the row id is part of the
+  // sourceId; the previous '<context>:<correlationId>' key made the second row collide on the ledger UNIQUE and the
+  // consumer silently dropped it (ledger under-booked).
+  it('books BOTH settled rows that share the same (context, correlationId) tuple', async () => {
+    // realistic per-sourceId dedup: nextSeq > 0 only for a sourceId that already booked
+    jest
+      .spyOn(bookingService, 'nextSeq')
+      .mockImplementation((_st, sourceId: string) =>
+        Promise.resolve(booked.some((t) => t.sourceId === sourceId) ? 1 : 0),
+      );
+    mockBatch([liquidityOrder({ id: 30, correlationId: '999' }), liquidityOrder({ id: 31, correlationId: '999' })]);
+
+    await consumer.process();
+
+    expect(booked).toHaveLength(2);
+    expect(booked.map((t) => t.sourceId).sort()).toEqual(['LiquidityManagement:999:30', 'LiquidityManagement:999:31']);
   });
 
   // §4.8a DEDUP query: the query excludes Reservation rows and txId IS NULL — the consumer never sees the rows

@@ -219,11 +219,14 @@ describe('LedgerCutoverService', () => {
   });
 
   describe('failure-isolation (§6.3)', () => {
-    it('catches a cutover error and never sets the flag (consumers stay no-op)', async () => {
+    // run() no longer catches — @DfxCron's lock layer catches + logs (CONTRIBUTING: no redundant try/catch in a
+    // @DfxCron method). The failure-isolation semantic holds: the throw propagates before the flag is set, so the flag
+    // stays unset and all consumers stay no-op.
+    it('propagates a cutover error and never sets the flag (consumers stay no-op)', async () => {
       jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
       jest.spyOn(logService, 'getFinancialLogs').mockRejectedValue(new Error('boom'));
 
-      await expect(service.run()).resolves.toBeUndefined();
+      await expect(service.run()).rejects.toThrow('boom');
 
       const flagSet = (settingService.set as jest.Mock).mock.calls.find((c) => c[0] === 'ledgerCutoverLogId');
       expect(flagSet).toBeUndefined();
@@ -567,15 +570,15 @@ describe('LedgerCutoverService', () => {
   // --- SNAPSHOT SELECTION + PINNING (§6.3 / Major design-accounting R3-1) --- //
 
   describe('snapshot selection + pinning (R3-1)', () => {
-    it('throws (caught by run) when there is no valid FinancialDataLog snapshot ≤ Stichtag', async () => {
+    it('throws when there is no valid FinancialDataLog snapshot ≤ cutoff date (flag stays unset)', async () => {
       jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
       // selectSnapshot reads getFinancialLogs and keeps only rows created ≤ now; a single FUTURE-dated row is filtered
-      // out → no snapshot → cutover throws → run() catches it → flag stays unset.
+      // out → no snapshot → cutover throws → the throw propagates to @DfxCron → flag stays unset.
       const future = Object.assign(new Log(), { id: 1, created: new Date(Date.now() + 86400000), valid: true });
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([future]);
       const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
 
-      await expect(service.run()).resolves.toBeUndefined();
+      await expect(service.run()).rejects.toThrow('No valid FinancialDataLog snapshot available for cutover');
 
       expect(bookingService.bookTx).not.toHaveBeenCalled();
       expect(setSpy.mock.calls.find((c) => c[0] === 'ledgerCutoverLogId')).toBeUndefined();
@@ -604,7 +607,7 @@ describe('LedgerCutoverService', () => {
       expect(setSpy).toHaveBeenLastCalledWith('ledgerCutoverLogId', '999');
     });
 
-    it('throws (caught) when the pinned snapshot log no longer exists', async () => {
+    it('throws when the pinned snapshot log no longer exists (flag stays unset)', async () => {
       jest.spyOn(settingService, 'get').mockImplementation((key: string) => {
         if (key === 'ledgerCutoverSnapshotLogId') return Promise.resolve('999');
         return Promise.resolve(undefined);
@@ -612,7 +615,7 @@ describe('LedgerCutoverService', () => {
       jest.spyOn(logService, 'getLog').mockResolvedValue(null); // pinned log was deleted
       const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
 
-      await expect(service.run()).resolves.toBeUndefined(); // run swallows the throw
+      await expect(service.run()).rejects.toThrow('pinned cutover snapshot FinancialDataLog #999 no longer exists');
 
       expect(setSpy.mock.calls.find((c) => c[0] === 'ledgerCutoverLogId')).toBeUndefined(); // flag never set
     });
@@ -660,7 +663,7 @@ describe('LedgerCutoverService', () => {
       expect(setSpy).toHaveBeenLastCalledWith('ledgerCutoverLogId', '888'); // flag set to the concurrent winner
     });
 
-    it('throws (caught) when the snapshot message is not parseable JSON', async () => {
+    it('throws when the snapshot message is not parseable JSON (flag stays unset)', async () => {
       jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
       const broken = Object.assign(new Log(), {
         id: 1557344,
@@ -671,7 +674,7 @@ describe('LedgerCutoverService', () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([broken]);
       const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
 
-      await expect(service.run()).resolves.toBeUndefined();
+      await expect(service.run()).rejects.toThrow('message is not parseable');
 
       expect(bookingService.bookTx).not.toHaveBeenCalled();
       expect(setSpy.mock.calls.find((c) => c[0] === 'ledgerCutoverLogId')).toBeUndefined();

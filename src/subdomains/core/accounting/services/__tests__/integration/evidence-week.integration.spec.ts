@@ -32,11 +32,11 @@ const SUN = new Date('2026-06-07T00:00:00Z'); // bank booking (Class-1 hold)
 const SETTLED = new Date('2026-06-04T00:00:00Z');
 
 /**
- * §10.2 Integrationstests = the synthetic evidence-week, run against the REAL booking+account services over a
+ * §10.2 integration tests = the synthetic evidence-week, run against the REAL booking+account services over a
  * shared in-memory ledger (InMemoryLedger). Unlike the unit consumer specs (which mock the booking service), this
  * proves that the received/owed/TRANSIT/SUSPENSE liabilities net to 0 ACROSS consumers — the Class-1/2/4
  * elimination thesis of Issue #385 — and that the single per-tx invariant Σ amountChfCents = 0 holds over
- * everything. All amounts are synthetic/scaled structural ratios (Minor R1-4); no real PRD tripel, no real IBAN.
+ * everything. All amounts are synthetic/scaled structural ratios (Minor R1-4); no real PRD triple, no real IBAN.
  */
 describe('Ledger evidence-week integration (§10.2)', () => {
   let ledger: InMemoryLedger;
@@ -256,7 +256,7 @@ describe('Ledger evidence-week integration (§10.2)', () => {
     expect(bookedTx.bookingDate).toEqual(SUN); // the single 14851.50 bank debit happens at bookingDate, NOT Friday
     expect(ledger.chfBalance('TRANSIT/payout/CHF')).toBe(0); // nets after the Sunday booking
 
-    // the bank is debited GENAU once by exactly the output amount
+    // the bank is debited EXACTLY once by exactly the output amount
     expect(ledger.chfBalance('Maerki/CHF')).toBe(-14851.5);
     expect(ledger.nativeBalance('Maerki/CHF')).toBe(-14851.5);
 
@@ -352,7 +352,7 @@ describe('Ledger evidence-week integration (§10.2)', () => {
     });
     await exchangeTxConsumer([settled, walletWithdrawal]).process();
 
-    // GENAU one booking of the deposit (no double count from the pending phase)
+    // EXACTLY one booking of the deposit (no double count from the pending phase)
     expect(ledger.txs.filter((t) => t.sourceType === 'exchange_tx' && t.sourceId === '1')).toHaveLength(1);
     // the deposit + withdrawal net the same TRANSIT/wallet↔Scrypt/EUR route to 0 (no journal imbalance)
     expect(ledger.chfBalance('TRANSIT/wallet↔Scrypt/EUR')).toBe(0);
@@ -550,7 +550,7 @@ describe('Ledger evidence-week integration (§10.2)', () => {
 
   it('Cutover-straddling buy_fiat: G-b opens seq1 (received NOT via G-a), received + owed close to 0 (Blocker R4-2)', async () => {
     // the financing crypto_input settled PRE-cutover → it has NO seq0 ledger_tx (G-a impossible). The cutover opening
-    // eröffnet buyFiat-received per-row with the synthetic marker; the buy_fiat consumer must resolve G-b from
+    // opens buyFiat-received per-row with the synthetic marker; the buy_fiat consumer must resolve G-b from
     // ledgerCutoverLogId (the exact `:buy_fiat:${id}` suffix-only match would never hit, Blocker R4-2).
     await openCutoverReceived(70, 15000);
     expect(ledger.chfBalance('LIABILITY/buyFiat-received')).toBe(-15000); // opened by the cutover, NOT a seq0 ledger_tx
@@ -705,7 +705,7 @@ describe('Ledger evidence-week integration (§10.2)', () => {
       expect(seq0.reversalOfId).toBeUndefined();
       expect(ledger.chfBalance('LIABILITY/unattributed')).toBe(-1000); // GSHEET credit held as unattributed
 
-      // RE-CLASSIFY: GSHEET → BUY_CRYPTO via a later updated timestamp (the §4.12 musterbeispiel trigger)
+      // RE-CLASSIFY: GSHEET → BUY_CRYPTO via a later updated timestamp (the §4.12 textbook-example trigger)
       row.type = BankTxType.BUY_CRYPTO;
       (row as any).buyCrypto = { amountInChf: 1000 };
       row.updated = new Date('2026-06-03T00:00:00Z'); // updated > lastReversalScan → content-change scan re-selects it

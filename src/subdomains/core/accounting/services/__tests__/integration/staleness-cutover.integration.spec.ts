@@ -335,8 +335,9 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
     });
 
     it('re-run after a partial crash reuses the PINNED snapshot despite snapshot-window drift (no double-count, R3-1)', async () => {
-      // Run A crashes in step (4) initWatermarks AFTER all openings committed but BEFORE the flag is set — the
-      // failure-isolated run() swallows it, the flag stays unset, the openings + the snapshot pin remain committed.
+      // Run A crashes in step (4) initWatermarks AFTER all openings committed but BEFORE the flag is set — run() now
+      // propagates the error to @DfxCron's lock layer (no redundant in-method catch); the flag stays unset, the
+      // openings + the snapshot pin remain committed.
       let crashWatermarks = true;
       jest.spyOn(settingService, 'set').mockImplementation((key: string, value: string) => {
         if (key === 'ledgerCutoverLogId') cutoverFlag = value;
@@ -346,7 +347,7 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
         return Promise.resolve();
       });
 
-      await service.run();
+      await expect(service.run()).rejects.toThrow('simulated crash in initWatermarks');
       expect(cutoverFlag).toBeUndefined(); // crash before step (5) → flag never set
       expect(snapshotPin).toBe('1557344'); // pin survived (set in step (2) before any opening)
       const firstRunBookings = booked.length;

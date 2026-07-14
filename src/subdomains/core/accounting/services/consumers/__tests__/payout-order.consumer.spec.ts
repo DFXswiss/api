@@ -304,7 +304,7 @@ describe('PayoutOrderConsumer', () => {
     await consumer.process();
 
     const tx = booked[0];
-    expect(leg(tx, 'Ethereum/ETH').amount).toBe(-0.002); // native gegen ETH
+    expect(leg(tx, 'Ethereum/ETH').amount).toBe(-0.002); // native against ETH
     expect(leg(tx, 'Ethereum/ETH').amountChf).toBe(-4); // 0.002 × 2000
     expect(leg(tx, 'Bitcoin/BTC').amount).toBe(-1); // BTC leg only the payout amount, NOT amount + fee
     expect(cents(tx.legs)).toBe(0);
@@ -533,8 +533,8 @@ describe('PayoutOrderConsumer', () => {
   });
 
   // §4.5 withFxPlug needsMark short-circuit: when the wallet leg needsMark (no mark) the plug is NOT booked even
-  // though the CHF cents don't balance — the mark-to-market job revalues it later (§5.1 Stufe 3, no silent plug).
-  it('books NO fx-revaluation plug while the wallet leg needsMark (no silent plug, §5.1 Stufe 3)', async () => {
+  // though the CHF cents don't balance — the mark-to-market job revalues it later (§5.1 stage 3, no silent plug).
+  it('books NO fx-revaluation plug while the wallet leg needsMark (no silent plug, §5.1 stage 3)', async () => {
     jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
     jest
       .spyOn(accountService, 'findByAssetId')

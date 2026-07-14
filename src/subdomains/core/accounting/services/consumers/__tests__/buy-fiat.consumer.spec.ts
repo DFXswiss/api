@@ -157,6 +157,21 @@ describe('BuyFiatConsumer', () => {
     expect(consumer).toBeDefined();
   });
 
+  // regression: Bank.asset is NOT eager, so the seq3 bank-ASSET Cr leg (bankCrLeg / outputMark reads
+  // bf.fiatOutput.bank.asset) is undefined at runtime unless the scans eager-load it → every tracked settlement
+  // booking throws and the watermark wedges. BOTH the forward id-scan and the §4.12 content-change scan must request
+  // fiatOutput.bank.asset.
+  it('loads fiatOutput.bank.asset in both the forward and the content-change relation trees', async () => {
+    const findSpy = jest.spyOn(buyFiatRepo, 'find').mockImplementation(() => Promise.resolve([]));
+
+    await consumer.process();
+
+    const forwardCall = findSpy.mock.calls.find((c) => (c[0] as any).where?.id != null);
+    const scanCall = findSpy.mock.calls.find((c) => (c[0] as any).where?.updated != null);
+    expect((forwardCall[0] as any).relations.fiatOutput).toEqual({ bankTx: true, bank: { asset: true } });
+    expect((scanCall[0] as any).relations.fiatOutput).toEqual({ bankTx: true, bank: { asset: true } });
+  });
+
   // §10.2 Class-1-Liability-Hold = the 14'980.12 headline (single bf 68310, 15'000 / 148.50 / 14'851.50, Sunday)
   it('books the regular sell chain: received→owed→TRANSIT(hold)→bank, both liabilities close to 0', async () => {
     mockBatch([
@@ -391,7 +406,7 @@ describe('BuyFiatConsumer', () => {
     mockBatch([make(101, 1000), make(102, 500), make(103, 300)]);
     await consumer.process();
 
-    // three seq3 legs, each its own outputAmount; ASSET/bank debited GENAU um fiat_output.amount = 1800 total
+    // three seq3 legs, each its own outputAmount; ASSET/bank debited EXACTLY by fiat_output.amount = 1800 total
     const bankLegs = booked.filter((b) => b.seq === 3).map((b) => leg(b, 'Bank/CHF'));
     expect(bankLegs).toHaveLength(3);
     expect(bankLegs.map((l) => l.amountChf).sort((a, b) => a - b)).toEqual([-1000, -500, -300].sort((a, b) => a - b));

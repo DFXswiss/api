@@ -119,8 +119,8 @@ describe('LiquidityMgmtConsumer', () => {
     expect(consumer).toBeDefined();
   });
 
-  // §4.8 Zweig 4 — bridge: Dr ASSET/wallet-target / Cr TRANSIT/bridge/{ccy}, both same mark → Σ CHF = 0, no plug
-  it('books a *Bridge order as a TRANSIT/bridge movement (Zweig 4)', async () => {
+  // §4.8 branch 4 — bridge: Dr ASSET/wallet-target / Cr TRANSIT/bridge/{ccy}, both same mark → Σ CHF = 0, no plug
+  it('books a *Bridge order as a TRANSIT/bridge movement (branch 4)', async () => {
     mockBatch([
       lmOrder({
         id: 10,
@@ -145,8 +145,8 @@ describe('LiquidityMgmtConsumer', () => {
     expect(cents(tx.legs)).toBe(0); // single currency, same mark → no spread plug needed
   });
 
-  // §4.8 Zweig 4 — dEURO bridge-in: system=dEURO (otherwise exchange) + command='bridge-in' → BOOK (not skip)
-  it('books a dEURO bridge-in order (Zweig 4, NOT skipped as exchange)', async () => {
+  // §4.8 branch 4 — dEURO bridge-in: system=dEURO (otherwise exchange) + command='bridge-in' → BOOK (not skip)
+  it('books a dEURO bridge-in order (branch 4, NOT skipped as exchange)', async () => {
     mockBatch([
       lmOrder({
         id: 11,
@@ -200,7 +200,7 @@ describe('LiquidityMgmtConsumer', () => {
     expect(setSpy).not.toHaveBeenCalled();
   });
 
-  // §4.8 Zweig 1 DEDUP: exchange-routed → SKIP (exchange_tx authoritative). The same transfer must NOT be booked
+  // §4.8 branch 1 DEDUP: exchange-routed → SKIP (exchange_tx authoritative). The same transfer must NOT be booked
   // by the LM consumer — the exchange_tx consumer owns it (no double booking across the matrix).
   it.each([
     LiquidityManagementSystem.BINANCE,
@@ -211,15 +211,15 @@ describe('LiquidityMgmtConsumer', () => {
     LiquidityManagementSystem.FRANKENCOIN,
     LiquidityManagementSystem.DEURO,
     LiquidityManagementSystem.JUICE,
-  ])('skips %s exchange-routed orders (Zweig 1, exchange_tx authoritative)', async (system) => {
+  ])('skips %s exchange-routed orders (branch 1, exchange_tx authoritative)', async (system) => {
     mockBatch([lmOrder({ id: 20, system, command: 'withdraw', outputAmount: 100, targetAssetId: ZCHF_ASSET_ID })]);
     await consumer.process();
     expect(booked).toHaveLength(0); // dedup: exchange_tx books this movement, not the LM consumer
   });
 
-  // §4.8 Zweig 2 DEDUP: DfxDex purchase/sell → SKIP (liquidity_order dex authoritative, §4.8a). The same on-chain
+  // §4.8 branch 2 DEDUP: DfxDex purchase/sell → SKIP (liquidity_order dex authoritative, §4.8a). The same on-chain
   // swap must NOT be booked by both the LM consumer AND the LiquidityOrderDex consumer.
-  it.each(['purchase', 'sell'])('skips DfxDex %s orders (Zweig 2, liquidity_order dex authoritative)', async (cmd) => {
+  it.each(['purchase', 'sell'])('skips DfxDex %s orders (branch 2, liquidity_order dex authoritative)', async (cmd) => {
     mockBatch([
       lmOrder({
         id: 21,
@@ -233,8 +233,8 @@ describe('LiquidityMgmtConsumer', () => {
     expect(booked).toHaveLength(0); // dedup: §4.8a books this swap, not the LM consumer
   });
 
-  // §4.8 Zweig 3 DEDUP: DfxDex withdraw → SKIP (target deposit exchange_tx authoritative)
-  it('skips DfxDex withdraw orders (Zweig 3, target deposit exchange_tx authoritative)', async () => {
+  // §4.8 branch 3 DEDUP: DfxDex withdraw → SKIP (target deposit exchange_tx authoritative)
+  it('skips DfxDex withdraw orders (branch 3, target deposit exchange_tx authoritative)', async () => {
     mockBatch([
       lmOrder({
         id: 22,

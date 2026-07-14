@@ -41,7 +41,7 @@ export async function getLedgerWatermark(
 
 /**
  * Writes the per-source watermark (§11.3) — exclusively via `settingService.set` (never `setObj`/`settingRepo`;
- * §4.10 R2-Ausnahme-a). The watermark is only advanced after a successful batch (§4-header failure-isolation).
+ * §4.10 R2-exception-a). The watermark is only advanced after a successful batch (§4-header failure-isolation).
  */
 export async function setLedgerWatermark(
   settingService: SettingService,
@@ -119,7 +119,7 @@ export async function runContentChangeScan<T extends { id: number; updated: Date
       await book(row);
       cursor = { updated: row.updated, id: row.id }; // advance only past rows whose (idempotent) re-book committed
     } catch (e) {
-      contentChangeLogger.error(`Content-change scan failed on ${source} ${row.id}`, e);
+      contentChangeLogger.error(`Content-change scan failed on ${source} ${row.id}:`, e);
       break; // leave the failed row + the rest for the next run → self-healing retry (§4.12 Minor R12-2)
     }
   }

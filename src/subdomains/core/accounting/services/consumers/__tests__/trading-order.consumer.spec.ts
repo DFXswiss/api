@@ -291,7 +291,7 @@ describe('TradingOrderConsumer', () => {
     await consumer.process();
 
     expect(booked.map((b) => b.sourceId)).toEqual(['40']); // only the first booked
-    expect(errSpy).toHaveBeenCalledWith('Failed to book trading_order 41', expect.any(Error));
+    expect(errSpy).toHaveBeenCalledWith('Failed to book trading_order 41:', expect.any(Error));
     expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(40); // NOT 41 → retry next run
   });
 });

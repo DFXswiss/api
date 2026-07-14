@@ -92,20 +92,15 @@ export class LedgerCutoverService {
   async run(): Promise<void> {
     if ((await this.settingService.get(CUTOVER_LOG_ID_KEY)) != null) return; // primary guard: already cut over → no-op
 
-    try {
-      await this.cutover();
-    } catch (e) {
-      // failure-isolation (§6.3): caught + logged, never hard-aborts; flag stays unset → consumers no-op, retry next run
-      this.logger.error('Ledger cutover failed', e);
-    }
+    await this.cutover();
   }
 
-  // gelockter Cutover-Run, fixed order (§6.3 Blocker R1-6/R3-1)
+  // locked cutover run, fixed order (§6.3 Blocker R1-6/R3-1)
   private async cutover(): Promise<void> {
     // (1) CoA bootstrap (idempotent, findOrCreate per account)
     await this.bootstrapService.bootstrap();
 
-    // (2) snapshot logId = newest valid FinancialDataLog ≤ Stichtag (now), PINNED on first run so a crash-then-retry
+    // (2) snapshot logId = newest valid FinancialDataLog ≤ cutoff date (now), PINNED on first run so a crash-then-retry
     // reuses the exact same logId (stable opening sourceIds → idempotent re-run, Major design-accounting R3-1)
     const snapshot = await this.pinnedSnapshot();
     if (!snapshot) throw new Error('No valid FinancialDataLog snapshot available for cutover');
@@ -166,7 +161,7 @@ export class LedgerCutoverService {
     return repinned != null && +repinned !== snapshot.id ? this.logService.getLog(+repinned) : snapshot;
   }
 
-  // §6.3: newest valid=true FinancialDataLog ≤ Stichtag. Bounded read (last 2 days) then pick latest ≤ now.
+  // §6.3: newest valid=true FinancialDataLog ≤ cutoff date. Bounded read (last 2 days) then pick latest ≤ now.
   private async selectSnapshot(): Promise<Log | undefined> {
     const now = new Date();
     const candidates = await this.logService.getFinancialLogs(Util.daysBefore(2, now));
@@ -218,7 +213,7 @@ export class LedgerCutoverService {
           amount: native,
           priceChf: priceChf ?? null,
           amountChf,
-          needsMark: amountChf == null, // dauerhaft feedlos → nativ, mark-to-market bewertet nach (§5.1 Stufe 3)
+          needsMark: amountChf == null, // permanently feedless → native, mark-to-market revalues later (§5.1 stage 3)
         },
         equity,
       );
@@ -372,7 +367,7 @@ export class LedgerCutoverService {
         liability,
         amountChf,
         equity,
-        mark == null, // feedless outputAsset → needsMark, mark-to-market values it later (§5.1 Stufe 3)
+        mark == null, // feedless outputAsset → needsMark, mark-to-market values it later (§5.1 stage 3)
       );
     }
   }
@@ -489,7 +484,7 @@ export class LedgerCutoverService {
       `Opening unattributed from open bank_tx credits as of FinancialDataLog #${snapshot.id}`,
       liability,
       // a feedless/unmatched credit leaves the aggregate unvaluable → carry amountChf=undefined (needsMark) so the
-      // mark-to-market job values the whole bucket later (§5.1 Stufe 3); never a partial/-0 phantom CHF on the leg.
+      // mark-to-market job values the whole bucket later (§5.1 stage 3); never a partial/-0 phantom CHF on the leg.
       needsMark ? undefined : Util.round(amountChf, 2),
       equity,
       needsMark,

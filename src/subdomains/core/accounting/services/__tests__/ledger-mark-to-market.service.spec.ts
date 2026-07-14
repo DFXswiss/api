@@ -273,18 +273,16 @@ describe('LedgerMarkToMarketService', () => {
     expect(bookingService.bookTx).not.toHaveBeenCalled();
   });
 
-  // run() failure-isolation (line 57): markToMarket throwing (e.g. the candidate query fails) is caught and logged,
-  // run() resolves without rethrowing — the cron must never crash the scheduler.
-  it('catches a markToMarket error in run() and never rethrows (failure-isolation)', async () => {
+  // run() no longer wraps markToMarket in a try/catch — @DfxCron's lock layer catches + logs (CONTRIBUTING: no
+  // redundant try/catch in a @DfxCron method). A markToMarket failure therefore propagates out of run() to that layer.
+  it('propagates a markToMarket error out of run() (handled by @DfxCron, no redundant in-method catch)', async () => {
     legStub = { candidateIds: [205], balance: { native: '100', chf: '90' }, alreadyBookedCount: 0 };
     jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockImplementation(() => {
       throw new Error('db down'); // the very first selectCandidates query throws
     });
-    const errSpy = jest.spyOn(service['logger'], 'error');
 
-    await expect(service.run()).resolves.toBeUndefined();
+    await expect(service.run()).rejects.toThrow('db down');
 
-    expect(errSpy).toHaveBeenCalledWith('Ledger mark-to-market failed', expect.any(Error));
     expect(bookingService.bookTx).not.toHaveBeenCalled();
   });
 
@@ -313,7 +311,7 @@ describe('LedgerMarkToMarketService', () => {
 
     await service.run();
 
-    expect(errSpy).toHaveBeenCalledWith('Failed to mark-to-market ledger account 9000', expect.any(Error));
+    expect(errSpy).toHaveBeenCalledWith('Failed to mark-to-market ledger account 9000:', expect.any(Error));
     expect(booked.map((t) => t.sourceId)).toEqual(['1005']); // the good account still booked despite the bad one
   });
 

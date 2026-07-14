@@ -29,7 +29,7 @@ interface AccountBalance {
  * to the current FinancialDataLog mark. Append-only: a revaluation-tx supplies the CHF re-valuation (the original
  * needsMark leg is never mutated). Native is unchanged (amount=0 on the FX leg) — only the CHF basis moves; Σ CHF = 0.
  *
- * Runs off-peak at 04:00; the reconciliation job (§7) runs 1h later (05:00) so it compares against tagesaktuell
+ * Runs off-peak at 04:00; the reconciliation job (§7) runs 1h later (05:00) so it compares against same-day
  * revalued accounts (Minor R13-8). Paginated over the whole open-account universe in Config.ledger.backfillBatchSize
  * windows by id-watermark (no full-scan AND no truncation, analog reconciliation §7.0, §5.3 Minor R1-2).
  */
@@ -51,11 +51,7 @@ export class LedgerMarkToMarketService {
   async run(): Promise<void> {
     if (!(await this.jobService.isLedgerReady())) return; // cutover-gate (Blocker R1-6) applies here too
 
-    try {
-      await this.markToMarket();
-    } catch (e) {
-      this.logger.error('Ledger mark-to-market failed', e);
-    }
+    await this.markToMarket();
   }
 
   private async markToMarket(): Promise<void> {
@@ -78,7 +74,7 @@ export class LedgerMarkToMarketService {
         try {
           await this.revalue(account, marks, now, dayIndex, fx);
         } catch (e) {
-          this.logger.error(`Failed to mark-to-market ledger account ${account.id}`, e);
+          this.logger.error(`Failed to mark-to-market ledger account ${account.id}:`, e);
           // failure-isolation: one account failing must not abort the others (each tx is atomic)
         }
       }

@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { Util } from 'src/shared/utils/util';
 import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankTx, BankTxIndicator, BankTxType } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
@@ -230,7 +231,7 @@ describe('BankTxConsumer', () => {
 
   it('books BUY_CRYPTO on an untracked bank with NO same-currency tracked mark as a needsMark leg, no silent plug', async () => {
     // when no tracked bank of the currency exists, currencyMarkAssetId returns undefined → the SUSPENSE leg stays
-    // needsMark and withFxPlug books NO plug (§5.1 Stufe 3: no silent plug without a mark; mark-to-market revalues)
+    // needsMark and withFxPlug books NO plug (§5.1 stage 3: no silent plug without a mark; mark-to-market revalues)
     const buyCrypto = { amountInChf: 9480 } as any;
     mockBatch(
       [bankTx({ type: BankTxType.BUY_CRYPTO, accountIban: 'UNTRACKED-IBAN', amount: 10000, buyCrypto })],
@@ -591,7 +592,7 @@ describe('BankTxConsumer', () => {
     expect(cents(legs)).toBe(0);
   });
 
-  it('books CHECKOUT_LTD CRDT: ASSET/bank netto + EXPENSE/acquirer-fee / ASSET/Checkout brutto (CHF cross-asset)', async () => {
+  it('books CHECKOUT_LTD CRDT: ASSET/bank net + EXPENSE/acquirer-fee / ASSET/Checkout gross (CHF cross-asset)', async () => {
     createdAccounts.set('Checkout/EUR', account('Checkout/EUR', AccountType.ASSET, 'EUR', 270));
     mockBatch([
       bankTx({
@@ -608,7 +609,7 @@ describe('BankTxConsumer', () => {
     const legs = booked[0].legs;
     expect(legs.some((l) => l.account.name === 'EXPENSE/acquirer-fee' && l.amountChf === 3)).toBe(true);
     const checkout = legs.find((l) => l.account.name === 'Checkout/EUR');
-    expect(checkout.amountChf).toBe(-(95 + 3)); // brutto = netto + fee (Minor R3-5)
+    expect(checkout.amountChf).toBe(-(95 + 3)); // gross = net + fee (Minor R3-5)
     expect(cents(legs)).toBe(0);
   });
 
@@ -800,7 +801,7 @@ describe('BankTxConsumer', () => {
     expect(cents(legs)).toBe(0); // the 48000 − 47500 = 500 drift closes via the fx plug
   });
 
-  // §4.2 CHECKOUT_LTD with no acquirer fee (chargeAmountChf null → 0): no EXPENSE/acquirer-fee leg, brutto == netto
+  // §4.2 CHECKOUT_LTD with no acquirer fee (chargeAmountChf null → 0): no EXPENSE/acquirer-fee leg, gross == net
   it('books CHECKOUT_LTD with no acquirer fee (chargeAmountChf null → no fee leg)', async () => {
     createdAccounts.set('Checkout/CHF', account('Checkout/CHF', AccountType.ASSET, 'CHF', 271));
     mockBatch([
@@ -809,14 +810,14 @@ describe('BankTxConsumer', () => {
         creditDebitIndicator: BankTxIndicator.CREDIT,
         accountIban: 'CHF-IBAN',
         amount: 100,
-        chargeAmountChf: null, // no fee → fee leg skipped, brutto = netto
+        chargeAmountChf: null, // no fee → fee leg skipped, gross = net
       }),
     ]);
     await consumer.process();
     const legs = booked[0].legs;
     expect(legs.some((l) => l.account.name === 'EXPENSE/acquirer-fee')).toBe(false);
     const checkout = legs.find((l) => l.account.name === 'Checkout/CHF');
-    expect(checkout.amountChf).toBe(-100); // brutto == netto (no fee)
+    expect(checkout.amountChf).toBe(-100); // gross == net (no fee)
     expect(cents(legs)).toBe(0);
   });
 
@@ -868,8 +869,9 @@ describe('BankTxConsumer', () => {
   // --- ADDITIONAL BRANCH COVERAGE --- //
 
   // §4.12 content-change scan callback `tx.bookingDate ?? tx.created` — a re-classified row whose bookingDate is null
-  // → the scan preloads marks at tx.created (the null-side of the ?? in the scan callback, source line 94).
-  it('content-change scan uses tx.created for the mark window when bookingDate is null (line 94 null side)', async () => {
+  // → the scan preloads marks over [daysBefore(2, tx.created), tx.created] (the null-side of the ?? feeds the lookback
+  // window so getMarkAt finds the latest mark at-or-before the row timestamp for a non-CHF asset).
+  it('content-change scan uses a daysBefore(2, tx.created) lookback for the mark window when bookingDate is null', async () => {
     const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
     const preloadSpy = jest.spyOn(markService, 'preload');
     const created = new Date('2026-05-20T00:00:00Z');
@@ -890,9 +892,9 @@ describe('BankTxConsumer', () => {
 
     expect(rebookSpy).toHaveBeenCalledTimes(1);
     expect(rebookSpy.mock.calls[0][0].sourceId).toBe('40');
-    // the scan callback preload (the LAST preload call) was invoked with tx.created on both bounds (bookingDate null)
+    // the scan callback preload (the LAST preload call) has a daysBefore(2, tx.created) lower bound + tx.created upper
     const lastPreload = preloadSpy.mock.calls[preloadSpy.mock.calls.length - 1];
-    expect(lastPreload[0]).toBe(created);
+    expect(lastPreload[0]).toEqual(Util.daysBefore(2, created));
     expect(lastPreload[1]).toBe(created);
   });
 

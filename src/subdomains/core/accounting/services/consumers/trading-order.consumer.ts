@@ -63,7 +63,7 @@ export class TradingOrderConsumer {
         await this.book(order, marks);
         lastProcessedId = order.id;
       } catch (e) {
-        this.logger.error(`Failed to book trading_order ${order.id}`, e);
+        this.logger.error(`Failed to book trading_order ${order.id}:`, e);
         break; // failure-isolation: leave watermark unchanged, retry next run (§4-header)
       }
     }
@@ -118,7 +118,7 @@ export class TradingOrderConsumer {
    * The spread-arbitrage plug absorbs the residual between the mark-valued ASSET legs and the persisted fee/profit
    * legs so Σ CHF closes to 0 (Blocker R1-3, NOT ROUNDING). Residual > 0 → INCOME/spread-arbitrage; < 0 →
    * EXPENSE/spread-arbitrage. Skips the plug when any ASSET leg still needsMark (no silent plug without a mark,
-   * §5.1 Stufe 3 / §4.9) — mark-to-market revalues then. Sub-cent rest → ROUNDING (booking service).
+   * §5.1 stage 3 / §4.9) — mark-to-market revalues then. Sub-cent rest → ROUNDING (booking service).
    */
   private async appendArbitragePlug(legs: LedgerLegInput[]): Promise<void> {
     if (legs.some((l) => l.needsMark)) return;

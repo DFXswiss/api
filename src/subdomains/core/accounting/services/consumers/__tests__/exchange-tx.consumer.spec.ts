@@ -5,6 +5,7 @@ import { ExchangeTx, ExchangeTxType } from 'src/integration/exchange/entities/ex
 import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { Util } from 'src/shared/utils/util';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../../entities/ledger-account.entity';
@@ -763,10 +764,12 @@ describe('ExchangeTxConsumer', () => {
     expect(asset.amountChf).toBe(95);
   });
 
-  // reconcileBooking `tx.externalCreated ?? tx.created` (L103, both operands): a content-change ok row with
-  // externalCreated NULL → the reconcile mark-preload AND the recomputed spec use `created` as the booking date.
+  // reconcileBooking `tx.externalCreated ?? tx.created` (both operands): a content-change ok row with externalCreated
+  // NULL → the recomputed spec uses `created` as the booking date, and the reconcile mark-preload uses a
+  // daysBefore(2, created) lookback lower bound (so getMarkAt finds the latest mark at-or-before the row timestamp).
   it('reconciles a content-change row with null externalCreated using tx.created (reverse+rebook)', async () => {
     const created = new Date('2026-04-20T08:00:00Z');
+    const preloadSpy = jest.spyOn(markService, 'preload');
     const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
     const reverseSpy = jest.spyOn(bookingService, 'reverseActiveIfBooked').mockResolvedValue(false);
     const changed = exchangeTx({
@@ -787,6 +790,10 @@ describe('ExchangeTxConsumer', () => {
     expect(rebookSpy.mock.calls[0][0].sourceId).toBe('31');
     expect(rebookSpy.mock.calls[0][0].bookingDate).toEqual(created); // externalCreated null → created
     expect(reverseSpy).not.toHaveBeenCalled();
+    // forward batch empty → the only preload call is the reconcile one: [daysBefore(2, created), created]
+    const lastPreload = preloadSpy.mock.calls[preloadSpy.mock.calls.length - 1];
+    expect(lastPreload[0]).toEqual(Util.daysBefore(2, created));
+    expect(lastPreload[1]).toEqual(created);
   });
 
   // withdrawalSpec asset leg `chf.amountChf != null ? -chf.amountChf : undefined` UNDEFINED side (L174): a Withdrawal

@@ -86,7 +86,7 @@ export class BuyCryptoConsumer {
         if (!advance) break;
         lastProcessedId = bc.id;
       } catch (e) {
-        this.logger.error(`Failed to book buy_crypto ${bc.id}`, e);
+        this.logger.error(`Failed to book buy_crypto ${bc.id}:`, e);
         break; // failure-isolation: leave watermark unchanged, retry next run (§4-header)
       }
     }

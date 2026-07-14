@@ -21,7 +21,7 @@ const SOURCE_TYPE = 'liquidity_order';
 const CHF = 'CHF';
 const DEX = 'DfxDex';
 
-// the LM consumer (§4.8 Zweig 2) skips DfxDex purchase/sell on these contexts because THIS consumer books them.
+// the LM consumer (§4.8 branch 2) skips DfxDex purchase/sell on these contexts because THIS consumer books them.
 // BuyFiatReturn/BuyCryptoReturn/Manual/RefPayout are excluded — their value-moving payout runs via the
 // payout_order consumer (§4.5); their liquidity_order is purchase detail of the parent only (D10 §D.1).
 const BOOKED_CONTEXTS = [
@@ -38,8 +38,9 @@ const BOOKED_CONTEXTS = [
  * liquidity_order has NO *Chf field (targetAmount/swapAmount/feeAmount all native, D04 §0.2) → both ASSET legs +
  * the feeAmount leg are stage-2 mark-valued; the CHF residual of two independently mark-valued legs is a real
  * venue/valuation spread (NOT rounding) → a dedicated EXPENSE/INCOME spread-DfxDex plug leg, never ROUNDING
- * (§1.15/§1.11). Idempotency/uniqueness rest SOLELY on the ledger UNIQUE(sourceType,sourceId,seq) — the source
- * @Index([context, correlationId]) is NOT unique (Minor R6-8).
+ * (§1.15/§1.11). The source @Index([context, correlationId]) is NOT unique (dex.service finds plural rows per
+ * tuple), so the ledger sourceId carries the row id (`<context>:<correlationId>:<id>`) to stay row-unique; the
+ * ledger UNIQUE(sourceType,sourceId,seq) then backstops idempotency (Minor R6-8).
  */
 @Injectable()
 export class LiquidityOrderDexConsumer {
@@ -84,7 +85,7 @@ export class LiquidityOrderDexConsumer {
         await this.book(order, marks);
         lastProcessedId = order.id;
       } catch (e) {
-        this.logger.error(`Failed to book liquidity_order ${order.id}`, e);
+        this.logger.error(`Failed to book liquidity_order ${order.id}:`, e);
         break; // failure-isolation: leave watermark unchanged, retry next run (§4-header)
       }
     }
@@ -125,8 +126,8 @@ export class LiquidityOrderDexConsumer {
 
     await this.bookingService.bookTx({
       sourceType: SOURCE_TYPE,
-      // sourceId = '<context>:<correlationId>' (Minor R6-8: uniqueness rests on the ledger UNIQUE, not the
-      // non-unique source @Index([context, correlationId]))
+      // sourceId = '<context>:<correlationId>:<id>' — the row id makes it unique because the source
+      // @Index([context, correlationId]) is NOT unique (plural rows per tuple); the ledger UNIQUE backstops it (R6-8)
       sourceId: this.sourceId(order),
       seq: 0,
       bookingDate,
@@ -149,7 +150,7 @@ export class LiquidityOrderDexConsumer {
     legs: LedgerLegInput[],
   ): Promise<void> {
     const { feeAsset, feeAmount, targetAsset, swapAsset } = order;
-    if (!feeAsset || feeAmount == null || feeAmount === 0) return; // Null-Strategie §5.1: no fee → no fee leg
+    if (!feeAsset || feeAmount == null || feeAmount === 0) return; // null strategy §5.1: no fee → no fee leg
 
     const mark = marks.getMarkAt(feeAsset.id, bookingDate);
     const feeChf = mark != null ? Util.round(mark * feeAmount, 2) : undefined;
@@ -180,7 +181,7 @@ export class LiquidityOrderDexConsumer {
   }
 
   // appends an EXPENSE/INCOME spread-DfxDex plug for the CHF residual; sub-cent → ROUNDING (booking service).
-  // Skips the plug when any leg still needsMark (no silent plug without a mark, §5.1 Stufe 3 / §4.8a).
+  // Skips the plug when any leg still needsMark (no silent plug without a mark, §5.1 stage 3 / §4.8a).
   private async appendSpreadPlug(legs: LedgerLegInput[]): Promise<void> {
     if (legs.some((l) => l.needsMark)) return;
 
@@ -226,7 +227,7 @@ export class LiquidityOrderDexConsumer {
   // --- HELPERS --- //
 
   private sourceId(order: LiquidityOrder): string {
-    return `${order.context}:${order.correlationId}`;
+    return `${order.context}:${order.correlationId}:${order.id}`;
   }
 
   private async assetAccount(asset: Asset): Promise<LedgerAccount> {

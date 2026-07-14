@@ -33,7 +33,7 @@ describe('LedgerMarkService', () => {
     expect(service).toBeDefined();
   });
 
-  it('returns the priceChf of the latest mark ≤ bookingDate (Stufe 2)', async () => {
+  it('returns the priceChf of the latest mark ≤ bookingDate (stage 2)', async () => {
     jest
       .spyOn(logService, 'getFinancialLogs')
       .mockResolvedValue([
@@ -48,7 +48,7 @@ describe('LedgerMarkService', () => {
     expect(cache.getMarkAt(5, new Date('2026-06-03'))).toBe(52000);
   });
 
-  it('returns undefined when no log row ≤ bookingDate exists (Stufe 3 → needsMark)', async () => {
+  it('returns undefined when no log row ≤ bookingDate exists (stage 3 → needsMark)', async () => {
     jest
       .spyOn(logService, 'getFinancialLogs')
       .mockResolvedValue([financialLog(new Date('2026-06-05'), { '5': { priceChf: 50000 } })]);

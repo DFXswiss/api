@@ -173,7 +173,7 @@ describe('LedgerBookingJobService', () => {
       expect(await getLedgerWatermark(settingService, 'bank_tx')).toBeUndefined();
     });
 
-    it('writes a watermark exclusively via settingService.set (never setObj/settingRepo, §4.10 R2-Ausnahme-a)', async () => {
+    it('writes a watermark exclusively via settingService.set (never setObj/settingRepo, §4.10 R2-exception-a)', async () => {
       const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
       await setLedgerWatermark(settingService, 'crypto_input', {
         lastProcessedId: 7,

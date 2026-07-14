@@ -5,8 +5,9 @@ import { RelationIdMetadataArgs } from 'typeorm/metadata-args/RelationIdMetadata
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { createCustomLedgerLeg } from '../__mocks__/ledger-leg.entity.mock';
 import { createCustomLedgerTx } from '../__mocks__/ledger-tx.entity.mock';
+import { chfCentsTransformer } from '../ledger-cents.transformer';
 import { LedgerAccount } from '../ledger-account.entity';
-import { chfCentsTransformer, LedgerLeg } from '../ledger-leg.entity';
+import { LedgerLeg } from '../ledger-leg.entity';
 import { LedgerTx } from '../ledger-tx.entity';
 
 // TypeORM keeps the relation/relationId lambdas (type thunks, inverse-side selectors, relationId selectors) in the

@@ -44,7 +44,7 @@ const CUTOVER_OWED_MARKER: Partial<Record<PayoutOrderContext, string>> = {
 };
 
 /**
- * The EINZIGE booker of all payout network fees (§4.5/§1.7, all contexts). Pure observer: reads payout_order
+ * The ONLY booker of all payout network fees (§4.5/§1.7, all contexts). Pure observer: reads payout_order
  * (+ ref_reward for the RefPayout correlationId join), writes only ledger_*.
  *
  * payout_order has no *Chf for the main amount → the wallet-ASSET Cr leg is stage-2 mark-valued and the
@@ -65,7 +65,7 @@ export class PayoutOrderConsumer {
     @InjectRepository(PayoutOrder) private readonly payoutOrderRepo: Repository<PayoutOrder>,
     @InjectRepository(RefReward) private readonly refRewardRepo: Repository<RefReward>,
     // read-only — the LIABILITY-Dr leg carries the owed completion CHF (amountInChf − totalFeeAmountChf, §4.5
-    // "CHF aus Completion"); the WP1 repo summary lists only PayoutOrder/RefReward, but the §4.5 body requires
+    // "CHF from completion"); the WP1 repo summary lists only PayoutOrder/RefReward, but the §4.5 body requires
     // the completion CHF, derivable only from the linked product → these two read-repos are needed (deviation
     // documented). correlationId == product.id (buy-crypto-out.service.ts:142 / buy-fiat.service.ts:283).
     @InjectRepository(BuyCrypto) private readonly buyCryptoRepo: Repository<BuyCrypto>,
@@ -97,7 +97,7 @@ export class PayoutOrderConsumer {
         await this.book(order, marks);
         lastProcessedId = order.id;
       } catch (e) {
-        this.logger.error(`Failed to book payout_order ${order.id}`, e);
+        this.logger.error(`Failed to book payout_order ${order.id}:`, e);
         break; // failure-isolation: leave watermark unchanged, retry next run (§4-header)
       }
     }
@@ -285,7 +285,7 @@ export class PayoutOrderConsumer {
     legs: LedgerLegInput[],
   ): Promise<void> {
     const feeChf = this.networkFeeChf(order);
-    if (feeChf === 0) return; // LN (Fee=0) or both null → no fee leg (Null-Strategie §5.1)
+    if (feeChf === 0) return; // LN (Fee=0) or both null → no fee leg (null strategy §5.1)
 
     legs.push(this.namedLeg(await this.expense('network-fee'), feeChf));
 
@@ -342,7 +342,7 @@ export class PayoutOrderConsumer {
   // --- HELPERS --- //
 
   // appends an EXPENSE/INCOME fx-revaluation plug for the CHF residual > tolerance (§4.5); sub-cent → ROUNDING.
-  // No silent plug while a leg still needsMark (§5.1 Stufe 3): an unmarked leg carries amountChf=undefined (counted
+  // No silent plug while a leg still needsMark (§5.1 stage 3): an unmarked leg carries amountChf=undefined (counted
   // as 0), so plugging would book its full value as a phantom fx-revaluation — leave the tx for the mark-to-market job
   // to revalue, consistent with exchange-tx.consumer.ts (mark-to-market then closes the residual).
   private async withFxPlug(legs: LedgerLegInput[]): Promise<LedgerLegInput[]> {

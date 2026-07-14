@@ -25,7 +25,7 @@ const BUY_CRYPTO_OWED = 'LIABILITY/buyCrypto-owed';
 const CHF = 'CHF';
 const LIABILITY_PREFIX = 'LIABILITY/';
 
-// bank-side exchange route segment per type (§3.3 {ex}); SCB route is created lazily (§3.3 "neue Routen lazy")
+// bank-side exchange route segment per type (§3.3 {ex}); SCB route is created lazily (§3.3 "new routes lazily")
 const EXCHANGE_ROUTE: Partial<Record<BankTxType, string>> = {
   [BankTxType.KRAKEN]: 'Kraken',
   [BankTxType.SCRYPT]: 'Scrypt',
@@ -76,7 +76,7 @@ export class BankTxConsumer {
 
     await this.processForward(watermark);
 
-    // content-change scan (§4.12): re-classification of an already-booked bank_tx (the §4.12 musterbeispiel
+    // content-change scan (§4.12): re-classification of an already-booked bank_tx (the §4.12 textbook example
     // GSHEET→BUY_CRYPTO via updateInternal; also amount / creditDebitIndicator changes, §4.2 reversal triggers, and
     // a reset()→PENDING) recomputes the seq0 legs and, if they differ beyond the §4.12 tolerances, reverses the
     // active tx + re-books the corrected legs. Runs ALSO when the forward batch is empty. Re-read the watermark in
@@ -89,9 +89,11 @@ export class BankTxConsumer {
       this.bankTxRepo,
       { buyCrypto: true },
       async (tx: BankTx) => {
+        const t = tx.bookingDate ?? tx.created;
         await this.reconcileBooking(
           tx,
-          await this.markService.preload(tx.bookingDate ?? tx.created, tx.bookingDate ?? tx.created),
+          // lookback so getMarkAt finds the latest mark at-or-before the row timestamp
+          await this.markService.preload(Util.daysBefore(2, t), t),
         );
       },
     );
@@ -117,7 +119,7 @@ export class BankTxConsumer {
         await this.book(tx, marks);
         lastProcessedId = tx.id;
       } catch (e) {
-        this.logger.error(`Failed to book bank_tx ${tx.id}`, e);
+        this.logger.error(`Failed to book bank_tx ${tx.id}:`, e);
         break; // failure-isolation: leave watermark unchanged, retry next run (§4-header)
       }
     }
@@ -394,7 +396,7 @@ export class BankTxConsumer {
     return [bank, liability];
   }
 
-  // §4.2 BANK_TX_REPEAT_CHARGEBACK DBIT: Dr LIABILITY/{bucket} (Eröffnungs-CHF) / Cr ASSET/bank (EUR-mark) + fx-plug.
+  // §4.2 BANK_TX_REPEAT_CHARGEBACK DBIT: Dr LIABILITY/{bucket} (opening CHF) / Cr ASSET/bank (EUR-mark) + fx-plug.
   // The owed/repeat LIABILITY was OPENED at the EUR-mark of the BANK_TX_REPEAT credit (§4.2 line 357 + Minor R11-4) —
   // its account is CHF-denominated (§3.4) and does NOT drift while open (the mark-to-market job only re-marks
   // asset-backed accounts, §5.3). If the chargeback debits the liability with the chargeback-time bank-mark instead of
@@ -417,7 +419,7 @@ export class BankTxConsumer {
     return this.withFxPlug([liability, bank]);
   }
 
-  // §4.2 BANK_TX_RETURN_CHARGEBACK DBIT: Dr LIABILITY/{bucket} (Eröffnungs-CHF) / Cr ASSET/bank (EUR-mark)
+  // §4.2 BANK_TX_RETURN_CHARGEBACK DBIT: Dr LIABILITY/{bucket} (opening CHF) / Cr ASSET/bank (EUR-mark)
   // (+ EXPENSE/bank-fee chargeAmountChf). LIABILITY-Dr = the CHF the BANK_TX_RETURN credit OPENED the liability with
   // (§4.2 line 356 + B-15), NOT the chargeback-time close value. Closing on the close value (−Σ(bank+fee)) makes the
   // plug structurally always net to 0 → the EUR-mark drift between return and chargeback stays a phantom on
@@ -510,21 +512,21 @@ export class BankTxConsumer {
     return Util.round(-leg.amountChf, 2); // cutover Cr leg is −openingChf → chargeback Dr debits +openingChf
   }
 
-  // §4.2 CHECKOUT_LTD CRDT: Dr ASSET/bank (netto) + Dr EXPENSE/acquirer-fee / Cr ASSET/Checkout (brutto), CHF-only
+  // §4.2 CHECKOUT_LTD CRDT: Dr ASSET/bank (net) + Dr EXPENSE/acquirer-fee / Cr ASSET/Checkout (gross), CHF-only
   private async checkoutLtdLegs(
     tx: BankTx,
     ctx: BankContext,
     bookingDate: Date,
     marks: LedgerMarkCache,
   ): Promise<LedgerLegInput[]> {
-    const bank = this.bankAssetLeg(ctx, +tx.amount, bookingDate, marks, await this.bankAccount(ctx)); // netto
+    const bank = this.bankAssetLeg(ctx, +tx.amount, bookingDate, marks, await this.bankAccount(ctx)); // net
     const feeChf = tx.chargeAmountChf ?? 0;
     const netChf = bank.amountChf;
     const legs: LedgerLegInput[] = [bank];
 
     if (feeChf !== 0) legs.push(this.namedLeg(await this.expense('acquirer-fee'), feeChf));
 
-    // brutto Checkout custody Cr-leg: no own *Chf → CHF = netto + fee (both CHF-known), else needsMark (Minor R3-5)
+    // gross Checkout custody Cr-leg: no own *Chf → CHF = net + fee (both CHF-known), else needsMark (Minor R3-5)
     const grossChf = netChf != null ? netChf + feeChf : undefined;
     legs.push({
       account: await this.checkoutAccount(ctx.currency),
@@ -593,7 +595,7 @@ export class BankTxConsumer {
 
   // appends an EXPENSE/INCOME fx-revaluation plug for a remaining CHF residual > tolerance (§4.2a); sub-cent →
   // the booking-service ROUNDING leg closes it (no plug created).
-  // NO silent plug while a leg still needsMark (§5.1 Stufe 3): an unmarked non-CHF leg carries amountChf=undefined
+  // NO silent plug while a leg still needsMark (§5.1 stage 3): an unmarked non-CHF leg carries amountChf=undefined
   // (counted as 0 here), so plugging would book the full leg value as a phantom fx-revaluation; instead leave the tx
   // unbalanced-by-mark and let the mark-to-market job revalue the leg later — consistent with exchange-tx.consumer.ts
   // (the §4.2a fix resolves the EUR mark for untracked banks, so this guard only fires when the mark is truly absent).
@@ -676,7 +678,7 @@ export class BankTxConsumer {
   // a representative tracked-bank asset id for `currency` whose FinancialDataLog mark values an UNTRACKED-bank leg
   // (§4.2a Raiffeisen-untracked variant). The EUR mark is identical across all EUR bank assets, so any tracked bank
   // of the same currency supplies it; CHF needs no mark (priceChf=1). Returns undefined when no tracked bank of that
-  // currency exists → the leg stays needsMark and withFxPlug books no silent plug (§5.1 Stufe 3).
+  // currency exists → the leg stays needsMark and withFxPlug books no silent plug (§5.1 stage 3).
   private async currencyMarkAssetId(currency: string): Promise<number | undefined> {
     if (currency === CHF) return undefined; // CHF leg is valued 1:1, no mark lookup needed
 

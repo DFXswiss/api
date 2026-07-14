@@ -23,7 +23,7 @@ const PAYMENT_LINK = 'LIABILITY/paymentLink';
 const BUY_FIAT_OWED = 'LIABILITY/buyFiat-owed';
 
 /**
- * The Class-1-Kern consumer (§4.7 + §4.7a + §4.7b, D04 §2 / D13 C). Pure observer: reads buy_fiat (+ ledger_tx
+ * The Class-1 core consumer (§4.7 + §4.7a + §4.7b, D04 §2 / D13 C). Pure observer: reads buy_fiat (+ ledger_tx
  * for the seq0/opening gate), writes only ledger_*.
  *
  * It does NOT book the crypto-input leg (CryptoInput consumer is the single booker, §4.1). Two settlement paths,
@@ -63,7 +63,7 @@ export class BuyFiatConsumer {
       SOURCE_TYPE,
       afterForward,
       this.buyFiatRepo,
-      { cryptoInput: { paymentLinkPayment: true }, fiatOutput: { bankTx: true } },
+      { cryptoInput: { paymentLinkPayment: true }, fiatOutput: { bankTx: true, bank: { asset: true } } },
       async (bf: BuyFiat) => {
         // §4.12: an amountInChf / totalFeeAmountChf change on a settled regular sell reverses + re-books the seq1
         // reclassification tx; then the idempotent forward book() appends any newly-settled seqs (transmit/booked).
@@ -87,7 +87,7 @@ export class BuyFiatConsumer {
   private async processForward(watermark: { lastProcessedId: number; lastReversalScan: Date }): Promise<void> {
     const batch = await this.buyFiatRepo.find({
       where: { id: MoreThan(watermark.lastProcessedId) },
-      relations: { cryptoInput: { paymentLinkPayment: true }, fiatOutput: { bankTx: true } },
+      relations: { cryptoInput: { paymentLinkPayment: true }, fiatOutput: { bankTx: true, bank: { asset: true } } },
       order: { id: 'ASC' },
       take: Config.ledger.backfillBatchSize,
     });
@@ -103,7 +103,7 @@ export class BuyFiatConsumer {
         if (!advance) break;
         lastProcessedId = bf.id;
       } catch (e) {
-        this.logger.error(`Failed to book buy_fiat ${bf.id}`, e);
+        this.logger.error(`Failed to book buy_fiat ${bf.id}:`, e);
         break; // failure-isolation: leave watermark unchanged, retry next run (§4-header)
       }
     }
@@ -258,13 +258,13 @@ export class BuyFiatConsumer {
   private async bookPaymentLinkFee(bf: BuyFiat, openingChf: number): Promise<void> {
     const totalFee = bf.totalFeeAmountChf ?? 0;
     // paymentLinkFeeAmount is NOT a persisted column (local var in setPaymentLinkPayment buy-fiat.entity.ts:392);
-    // reconstruct as outputReferenceAmount − outputAmount (both persisted :199/:206), the schluss-consistent value
+    // reconstruct as outputReferenceAmount − outputAmount (both persisted :199/:206), the closing-consistent value
     const plFeeNative = Util.round((bf.outputReferenceAmount ?? 0) - (bf.outputAmount ?? 0), 8);
     const plFeeChf = Util.round(plFeeNative * this.owedReferenceRate(bf), 2);
     const feeChf = Util.round(totalFee + plFeeChf, 2);
 
     const outputChf = this.owedChf(bf); // outputAmount × reclassification-mark
-    const venueSpread = Util.round(openingChf - outputChf - feeChf, 2); // the real Krypto↔Fiat sell-spread
+    const venueSpread = Util.round(openingChf - outputChf - feeChf, 2); // the real crypto↔fiat sell-spread
 
     const paymentLink = await this.paymentLinkAccount();
     const feeIncome = await this.income('fee-paymentLink');
@@ -327,7 +327,7 @@ export class BuyFiatConsumer {
   }
 
   // §4.7a — appends the FX-P&L leg = −(Σ CHF) for the EUR/output drift; CHF output → drift 0 → no leg.
-  // No silent plug while a leg still needsMark (§5.1 Stufe 3): an unmarked leg carries amountChf=undefined (counted
+  // No silent plug while a leg still needsMark (§5.1 stage 3): an unmarked leg carries amountChf=undefined (counted
   // as 0), so plugging would book its full value as a phantom fx-revaluation — leave it for the mark-to-market job to
   // revalue, consistent with exchange-tx.consumer.ts.
   private async appendFxResidual(legs: LedgerLegInput[]): Promise<void> {

@@ -46,7 +46,7 @@ const SUN = new Date('2026-06-07T00:00:00Z');
  * §10.2 DB-Write-Isolation (Major R3-1 / R9-1 / R12-1) — the dynamic counterpart to the static grep-gate. After a
  * consumer run (and an alarm run), it asserts that NO write method of any business-/log-table repository was
  * invoked, and that only the sanctioned non-ledger_* writes happened: the two ledger Settings (via settingService.set)
- * and the notification queue (via NotificationService.sendMail, R2-Ausnahme-b). Every business table (bank_tx,
+ * and the notification queue (via NotificationService.sendMail, R2-exception-b). Every business table (bank_tx,
  * exchange_tx, payout_order, crypto_input, buy_crypto, buy_fiat, liquidity_management_order, trading_order) PLUS the
  * authoritative `log` table (FinancialDataLog) stay strictly read-only; only ledger_*, the two ledger settings, and
  * notification may change. This catches a write that would slip past the static grep (e.g. via a renamed injection
@@ -184,7 +184,7 @@ describe('Ledger DB-write isolation after a consumer/alarm run (§10.2)', () => 
       expect(spy).not.toHaveBeenCalled();
     }
 
-    // (3) the ONLY non-ledger_* writes are the two ledger watermark settings (sanctioned R2-Ausnahme-a)
+    // (3) the ONLY non-ledger_* writes are the two ledger watermark settings (sanctioned R2-exception-a)
     for (const key of [...ciSetting.setKeys, ...bfSetting.setKeys]) {
       expect(key).toMatch(/^ledgerWatermark\.|^ledgerCutoverLogId$/);
     }

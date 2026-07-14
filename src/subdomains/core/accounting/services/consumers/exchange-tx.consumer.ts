@@ -87,7 +87,7 @@ export class ExchangeTxConsumer {
         if (spec) await this.bookingService.bookTx(spec);
         lastProcessedId = tx.id;
       } catch (e) {
-        this.logger.error(`Failed to book exchange_tx ${tx.id}`, e);
+        this.logger.error(`Failed to book exchange_tx ${tx.id}:`, e);
         break; // failure-isolation: leave watermark unchanged, retry next run (§4-header)
       }
     }
@@ -100,7 +100,9 @@ export class ExchangeTxConsumer {
   // §4.3 content-change reconcile: a row whose status flipped away from 'ok' is flat-reversed (the booking became
   // invalid); an 'ok' row whose amount/fee/route changed is reversed + re-booked with the corrected legs (§4.12).
   private async reconcileBooking(tx: ExchangeTx): Promise<void> {
-    const marks = await this.markService.preload(tx.externalCreated ?? tx.created, tx.externalCreated ?? tx.created);
+    const t = tx.externalCreated ?? tx.created;
+    // lookback so getMarkAt finds the latest mark at-or-before the row timestamp
+    const marks = await this.markService.preload(Util.daysBefore(2, t), t);
     const fillIndexMap = await this.buildFillIndexMap([tx]);
     const spec = await this.buildSpec(tx, marks, fillIndexMap);
     if (!spec) return; // unbookable type → nothing to correct
@@ -212,7 +214,7 @@ export class ExchangeTxConsumer {
     const baseAccount = await this.exchangeAssetByCcy(tx.exchange, base);
     const quoteAccount = await this.exchangeAssetByCcy(tx.exchange, quote);
 
-    // base leg: +amount on buy / −amount on sell; CHF = persisted amountChf (Stufe 1) ?? mark
+    // base leg: +amount on buy / −amount on sell; CHF = persisted amountChf (stage 1) ?? mark
     const baseAmount = isBuy ? +tx.amount : -tx.amount;
     const baseChf = tx.amountChf ?? this.markValue(baseAccount, tx.amount, bookingDate, marks);
     const baseLeg: LedgerLegInput = {
@@ -280,7 +282,7 @@ export class ExchangeTxConsumer {
 
   // --- ROUTE DISAMBIGUATION (§4.3a/§4.3b) --- //
 
-  // determines the route-passing counter account of a deposit/withdrawal (rein lesend, §4.3a)
+  // determines the route-passing counter account of a deposit/withdrawal (read-only, §4.3a)
   private async routeCounterAccount(tx: ExchangeTx, bookingDate: Date): Promise<LedgerAccount> {
     const ex = tx.exchange;
     const ccy = tx.currency ?? tx.asset;
@@ -333,7 +335,7 @@ export class ExchangeTxConsumer {
     return 'none';
   }
 
-  // rein lesend: a bank_tx KRAKEN/SCRYPT/SCB on the same currency within a date window (§4.3a-R2 nachgebaut)
+  // read-only: a bank_tx KRAKEN/SCRYPT/SCB on the same currency within a date window (§4.3a-R2 rebuilt)
   private async hasBankRouteMatch(tx: ExchangeTx, bookingDate: Date): Promise<boolean> {
     const ccy = tx.currency ?? tx.asset;
     if (!ccy) return false;
@@ -407,7 +409,7 @@ export class ExchangeTxConsumer {
     };
   }
 
-  // §4.3 amountChf null fallback (Minor R9-4): persisted amountChf (Stufe 1) ?? mark × amount (Stufe 2) ?? needsMark
+  // §4.3 amountChf null fallback (Minor R9-4): persisted amountChf (stage 1) ?? mark × amount (stage 2) ?? needsMark
   private depositChf(
     tx: ExchangeTx,
     asset: LedgerAccount,
@@ -454,7 +456,7 @@ export class ExchangeTxConsumer {
     return account;
   }
 
-  // trade base/quote via symbol+side (not null-pair); reuse dashboard-reconciliation parse logic (nachgebaut, §4.3)
+  // trade base/quote via symbol+side (not null-pair); reuse dashboard-reconciliation parse logic (rebuilt, §4.3)
   private parseSymbol(tx: ExchangeTx): { base: string; quote: string; isBuy: boolean } | undefined {
     if (!tx.symbol || !tx.side) return undefined;
     const parts = tx.symbol.split('/');

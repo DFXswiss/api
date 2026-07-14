@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { Util } from 'src/shared/utils/util';
 import { CryptoInput, PayInStatus, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../../entities/ledger-account.entity';
@@ -203,8 +204,8 @@ describe('CryptoInputConsumer', () => {
     expect(cents(seq0.legs)).toBe(0);
   });
 
-  // §10.2 fixture (B)(d) / §5.1 Stufe 3 — no mark: ASSET leg needsMark, NO silent fx-revaluation plug
-  it('flags the ASSET leg needsMark when no mark exists and books NO silent plug (§5.1 Stufe 3)', async () => {
+  // §10.2 fixture (B)(d) / §5.1 stage 3 — no mark: ASSET leg needsMark, NO silent fx-revaluation plug
+  it('flags the ASSET leg needsMark when no mark exists and books NO silent plug (§5.1 stage 3)', async () => {
     mockBatch([
       cryptoInput({
         id: 5,
@@ -223,7 +224,7 @@ describe('CryptoInputConsumer', () => {
     expect(assetLeg.needsMark).toBe(true);
     expect(assetLeg.amountChf).toBeUndefined();
     // NO fx-revaluation plug while the asset leg needsMark (the old bug plugged the FULL +50000 received value as a
-    // phantom fx-revaluation, vacuously balancing cents to 0). Per §5.1 Stufe 3 the tx stays unbalanced-by-mark and
+    // phantom fx-revaluation, vacuously balancing cents to 0). Per §5.1 stage 3 the tx stays unbalanced-by-mark and
     // the mark-to-market job revalues the asset leg later — exactly the systemic needsMark-guard fix.
     expect(seq0.legs.find((l) => l.account.name?.includes('fx-revaluation'))).toBeUndefined();
     expect(seq0.legs).toHaveLength(2); // asset (needsMark) + received anchor only, no plug leg
@@ -252,7 +253,7 @@ describe('CryptoInputConsumer', () => {
     expect(cents(seq1.legs)).toBe(0);
   });
 
-  it('does NOT book a forward fee leg when forwardFeeAmountChf is null (Null-Strategie)', async () => {
+  it('does NOT book a forward fee leg when forwardFeeAmountChf is null (null strategy)', async () => {
     mockBatch([
       cryptoInput({
         id: 7,
@@ -369,6 +370,32 @@ describe('CryptoInputConsumer', () => {
     expect(rebookSpy.mock.calls[0][0].sourceId).toBe('30'); // recomputed seq0 input for the changed row
   });
 
+  // §5.2 lookback: the content-change scan preloads marks over [daysBefore(2, ci.updated), ci.updated] — NOT a
+  // zero-width [updated, updated] window — so getMarkAt finds the latest mark at-or-before the row timestamp for a
+  // non-CHF asset (a zero-width window would leave the cache empty → CHF-unbalanced re-book → the cursor wedges).
+  it('preloads the content-change marks over a daysBefore(2, ci.updated) lookback window', async () => {
+    const preloadSpy = jest.spyOn(markService, 'preload');
+    const updated = new Date('2026-05-15T09:00:00Z');
+    const changed = cryptoInput({
+      id: 31,
+      updated,
+      amount: 1,
+      asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
+      buyFiat: { amountInChf: 50000 } as any,
+    });
+    jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
+    jest
+      .spyOn(cryptoInputRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [changed] : []));
+
+    await consumer.process();
+
+    // forward batch is empty → the only preload call is the content-change scan's
+    const lastPreload = preloadSpy.mock.calls[preloadSpy.mock.calls.length - 1];
+    expect(lastPreload[0]).toEqual(Util.daysBefore(2, updated));
+    expect(lastPreload[1]).toEqual(updated);
+  });
+
   // a content-change row with no anchor → buildSeq0Input undefined → reverseAndRebookIfChanged NOT called (no-op)
   it('content-change scan no-ops a row that has no bookable seq0 input', async () => {
     const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(false);
@@ -407,7 +434,7 @@ describe('CryptoInputConsumer', () => {
     expect(assetLeg.needsMark).toBe(true);
     expect(assetLeg.amountChf).toBeUndefined();
     expect(assetLeg.priceChf).toBeNull(); // mark ?? null
-    // a needsMark leg short-circuits appendFxPlug (§5.1 Stufe 3) → received anchor only, NO plug leg
+    // a needsMark leg short-circuits appendFxPlug (§5.1 stage 3) → received anchor only, NO plug leg
     expect(seq0.legs.find((l) => l.account.name?.includes('fx-revaluation'))).toBeUndefined();
     expect(seq0.legs).toHaveLength(2);
   });

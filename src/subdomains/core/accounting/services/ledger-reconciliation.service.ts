@@ -30,21 +30,21 @@ const PLACEHOLDER_AMOUNT = 1.0; // Scrypt/EUR, Base/ZCHF placeholder feed → ne
 const EQUITY_PARITY_MEDIAN_SAMPLE = 5;
 
 export enum FeedStatus {
-  PLACEHOLDER = 'placeholder',
-  FRESH = 'fresh',
-  STALE = 'stale',
-  NO_FEED = 'no-feed',
+  PLACEHOLDER = 'Placeholder',
+  FRESH = 'Fresh',
+  STALE = 'Stale',
+  NO_FEED = 'NoFeed',
 }
 
 // §7.1 custody classification → staleness threshold (hours)
 enum CustodyClass {
-  BANK_ACTIVE = 'bank-active',
-  BANK_DEAD = 'bank-dead',
-  ON_CHAIN_ACTIVE = 'on-chain-active',
-  ON_CHAIN_INACTIVE = 'on-chain-inactive',
-  EXCHANGE_ACTIVE = 'exchange-active',
-  EXCHANGE_ORDER_DRIVEN = 'exchange-order-driven',
-  EXCHANGE_FEEDLESS = 'exchange-feedless',
+  BANK_ACTIVE = 'BankActive',
+  BANK_DEAD = 'BankDead',
+  ON_CHAIN_ACTIVE = 'OnChainActive',
+  ON_CHAIN_INACTIVE = 'OnChainInactive',
+  EXCHANGE_ACTIVE = 'ExchangeActive',
+  EXCHANGE_ORDER_DRIVEN = 'ExchangeOrderDriven',
+  EXCHANGE_FEEDLESS = 'ExchangeFeedless',
 }
 
 const STALENESS_THRESHOLD_HOURS: Record<CustodyClass, number> = {
@@ -68,7 +68,7 @@ export interface FeedClassification {
  * persisted feed (liquidity_balance.amount via getBalances — NEVER a fresh API call, §7.0). Pure observer: the
  * only non-ledger_* write is the sanctioned notification-write via NotificationService.sendMail (§7.5/Major R12-1).
  *
- * Runs off-peak at 05:00 — 1h AFTER the mark-to-market job (§5.3, 04:00) so it compares against tagesaktuell
+ * Runs off-peak at 05:00 — 1h AFTER the mark-to-market job (§5.3, 04:00) so it compares against same-day
  * revalued accounts (Minor R13-8). Staleness drives unverified status + suppressed alarms (§7.2/§7.3); transit-age
  * (§7.4), suspense (§7.5) and equity-parity (§7.6) alarms follow.
  */
@@ -92,11 +92,7 @@ export class LedgerReconciliationService {
   async run(): Promise<void> {
     if (!(await this.jobService.isLedgerReady())) return; // cutover-gate (Blocker R1-6)
 
-    try {
-      await this.reconcile();
-    } catch (e) {
-      this.logger.error('Ledger reconciliation failed', e);
-    }
+    await this.reconcile();
   }
 
   private async reconcile(): Promise<void> {

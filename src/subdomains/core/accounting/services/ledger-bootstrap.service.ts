@@ -55,7 +55,7 @@ export class LedgerBootstrapService {
 
   private static readonly EQUITY_ACCOUNTS = ['opening-balance', 'retained-earnings'];
 
-  // §3.3 — canonical direction-neutral TRANSIT routes (vorab-fixliste, line 266)
+  // §3.3 — canonical direction-neutral TRANSIT routes (predefined fix-list, line 266)
   private static readonly TRANSIT_ACCOUNTS: { route: string; currency: string }[] = [
     { route: 'bank↔Scrypt/EUR', currency: 'EUR' },
     { route: 'bank↔Scrypt/CHF', currency: 'CHF' },

@@ -16,7 +16,7 @@ const SOURCE_TYPE = 'crypto_input';
 const CHF = 'CHF';
 
 /**
- * The EINZIGE booker of the crypto-input leg (Single-Booker §4.1 Blocker R1-1) + the standalone forward-fee
+ * The ONLY booker of the crypto-input leg (Single-Booker §4.1 Blocker R1-1) + the standalone forward-fee
  * booker (§4.4). Pure observer: reads crypto_input (+ buyFiat/buyCrypto for the amountInChf base anchor),
  * writes only ledger_*.
  *
@@ -56,7 +56,8 @@ export class CryptoInputConsumer {
       this.cryptoInputRepo,
       { buyFiat: true, buyCrypto: true },
       async (ci: CryptoInput) => {
-        const marks = await this.markService.preload(ci.updated, ci.updated);
+        // lookback so getMarkAt finds the latest mark at-or-before the row timestamp
+        const marks = await this.markService.preload(Util.daysBefore(2, ci.updated), ci.updated);
         const input = await this.buildSeq0Input(ci, ci.updated, marks);
         if (input) await this.bookingService.reverseAndRebookIfChanged(input);
       },
@@ -82,7 +83,7 @@ export class CryptoInputConsumer {
         await this.book(ci, marks);
         lastProcessedId = ci.id;
       } catch (e) {
-        this.logger.error(`Failed to book crypto_input ${ci.id}`, e);
+        this.logger.error(`Failed to book crypto_input ${ci.id}:`, e);
         break; // failure-isolation: leave watermark unchanged, retry next run (§4-header)
       }
     }
@@ -167,7 +168,7 @@ export class CryptoInputConsumer {
   // seq1 — standalone forward fee (§4.4): Dr EXPENSE/network-fee / Cr ASSET/{asset.uniqueName}.
   // The fee's priceChf is derived from the persisted forwardFeeAmountChf/forwardFeeAmount pair, not the cache.
   private async bookForwardFee(ci: CryptoInput, bookingDate: Date): Promise<void> {
-    if (!ci.outTxId || ci.forwardFeeAmountChf == null) return; // null fee → no leg (Null-Strategie §5.1)
+    if (!ci.outTxId || ci.forwardFeeAmountChf == null) return; // null fee → no leg (null strategy §5.1)
     if (await this.alreadyBooked(ci.id, 1)) return;
 
     const wallet = await this.walletAsset(ci);
@@ -193,7 +194,7 @@ export class CryptoInputConsumer {
 
   // appends an EXPENSE/INCOME fx-revaluation plug for the seq0 valuation residual amountInChf − mark×amount (§4.4a);
   // sub-cent → the booking-service ROUNDING leg closes it.
-  // No silent plug while a leg still needsMark (§5.1 Stufe 3): an unmarked leg carries amountChf=undefined (counted
+  // No silent plug while a leg still needsMark (§5.1 stage 3): an unmarked leg carries amountChf=undefined (counted
   // as 0), so plugging would book its full value as a phantom fx-revaluation — leave it for the mark-to-market job to
   // revalue, consistent with exchange-tx.consumer.ts.
   private appendFxPlug(legs: LedgerLegInput[], fx: { income: LedgerAccount; expense: LedgerAccount }): void {

@@ -617,13 +617,12 @@ describe('LedgerReconciliationService', () => {
       expect(result.thresholdHours).toBe(24); // ON_CHAIN_INACTIVE (asset undefined)
     });
 
-    it('catches a reconcile error in run() and never throws (failure-isolation)', async () => {
+    // run() no longer wraps reconcile in a try/catch — @DfxCron's lock layer catches + logs (CONTRIBUTING: no
+    // redundant try/catch in a @DfxCron method). A reconcile failure therefore propagates out of run() to that layer.
+    it('propagates a reconcile error out of run() (handled by @DfxCron, no redundant in-method catch)', async () => {
       jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockRejectedValue(new Error('feed down'));
-      const errSpy = jest.spyOn(service['logger'], 'error');
 
-      await expect(service.run()).resolves.toBeUndefined(); // swallowed, not rethrown
-
-      expect(errSpy).toHaveBeenCalled();
+      await expect(service.run()).rejects.toThrow('feed down');
     });
   });
 });
