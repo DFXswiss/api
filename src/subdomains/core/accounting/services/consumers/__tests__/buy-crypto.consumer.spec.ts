@@ -420,4 +420,70 @@ describe('BuyCryptoConsumer', () => {
       .reduce((s, l) => s + (l.amountChf ?? 0), 0);
     expect(receivedSum).toBe(0); // seq0 −1000 + seq1 (+10 +990) → received closes to 0
   });
+
+  // --- F1: BANK-FINANCED buy_crypto GATE (§4.7 bank branch) --- //
+
+  // A BANK-financed buy_crypto (bankTx set, no checkoutTx, no cryptoInput) has its buyCrypto-received opened by the
+  // BankTx consumer as the bank_tx seq0 booking — NOT by a crypto_input seq0 (G-a) nor a cutover marker (G-b).
+  // receivedOpened must gate on an ACTIVE bank_tx seq0 tx for the funding bank_tx, else seq1 is never booked.
+  it('books the bank-financed completion (seq1) once the bank_tx seq0 received-opening exists (F1 bank branch)', async () => {
+    gateOpen = false; // G-a (countBy) and G-b (cutover logId) both closed
+    activeKeys.add('500:0'); // the BankTx consumer opened buyCrypto-received at bank_tx seq0 (bank_tx id 500)
+    mockBatch([
+      buyCrypto({
+        id: 1,
+        isComplete: true,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        outputDate: new Date('2026-06-05'),
+        bankTx: { id: 500 } as any, // funding bank_tx id ≠ buy_crypto id
+      }),
+    ]);
+    await consumer.process();
+
+    expect(seq(1)).toBeDefined(); // bank branch opened the gate → completion books
+    expect(cents(seq(1).legs)).toBe(0);
+  });
+
+  // F1 negative: with G-a/G-b closed AND no bank_tx seq0 opening, the bank-financed completion stays gate-blocked
+  it('skips the bank-financed completion while no bank_tx seq0 opening exists (F1 gate closed)', async () => {
+    gateOpen = false; // activeKeys empty → hasActiveTxAt('bank_tx', '500', 0) is false
+    mockBatch([
+      buyCrypto({
+        id: 1,
+        isComplete: true,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        outputDate: new Date('2026-06-05'),
+        bankTx: { id: 500 } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(seq(1)).toBeUndefined(); // no bank opening + G-a/G-b closed → gate closed
+  });
+
+  // F1 content-change gate-block: a bank-financed row re-selected by the §4.12 content-change scan whose received is
+  // NOT yet opened must THROW inside the scan callback so the combined (updated, id) cursor is NOT advanced past it —
+  // the late-settling row is retried next run, not lost (a swallowed false return would silently drop the completion).
+  it('does NOT advance the content-change cursor when a bank-financed completion is gate-blocked (F1)', async () => {
+    gateOpen = false;
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const blocked = buyCrypto({
+      id: 50,
+      isComplete: true,
+      amountInChf: 1000,
+      totalFeeAmountChf: 10,
+      bankTx: { id: 500 } as any, // no bank_tx seq0 opening (activeKeys empty) → gate closed
+    });
+    // forward id-scan empty; the content-change scan (where.updated) returns the gate-blocked bank row
+    jest
+      .spyOn(buyCryptoRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [blocked] : []));
+
+    await expect(consumer.process()).resolves.toBeUndefined(); // the scan swallows the throw internally
+
+    expect(seq(1)).toBeUndefined(); // completion NOT booked (gate closed)
+    expect(setSpy).not.toHaveBeenCalled(); // content-change cursor NOT advanced past the gate-blocked row
+  });
 });

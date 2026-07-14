@@ -1,6 +1,12 @@
 import { AccountType } from '../entities/ledger-account.entity';
 
-export type LedgerReconStatus = 'ok' | 'diff' | 'stale' | 'unverified' | 'placeholder';
+export enum LedgerReconStatus {
+  OK = 'Ok',
+  DIFF = 'Diff',
+  STALE = 'Stale',
+  UNVERIFIED = 'Unverified',
+  PLACEHOLDER = 'Placeholder',
+}
 
 export class LedgerAccountBalanceDto {
   accountId: number;

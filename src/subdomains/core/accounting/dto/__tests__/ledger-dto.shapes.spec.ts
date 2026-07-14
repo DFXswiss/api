@@ -7,6 +7,7 @@ import {
   LedgerLegEntryDto,
   LedgerLegsResponseDto,
   LedgerPeriodDto,
+  LedgerReconStatus,
 } from '../ledger-account.dto';
 import {
   EquityComparisonDto,
@@ -23,6 +24,8 @@ import {
 } from '../ledger-query.dto';
 import {
   AccountReconResultDto,
+  LedgerFeedStaleness,
+  LedgerReconResultStatus,
   ReconStatusResponseDto,
   SuspenseLegDto,
   SuspenseResponseDto,
@@ -42,7 +45,7 @@ describe('ledger account/margin/reconciliation response DTOs', () => {
       currency: 'EUR',
       balanceNative: 1234.5,
       balanceChf: 1180.25,
-      reconStatus: 'ok',
+      reconStatus: LedgerReconStatus.OK,
       reconDiff: 0,
       lastVerified: '2026-03-31T05:00:00.000Z',
     });
@@ -142,8 +145,8 @@ describe('ledger account/margin/reconciliation response DTOs', () => {
       difference: 0.5,
       feedTimestamp: '2026-06-10T04:00:00.000Z',
       feedAge: 2,
-      staleness: 'fresh',
-      status: 'diff',
+      staleness: LedgerFeedStaleness.FRESH,
+      status: LedgerReconResultStatus.DIFF,
     });
     const dto = Object.assign(new ReconStatusResponseDto(), {
       runAt: '2026-06-10T05:00:00.000Z',
@@ -152,8 +155,8 @@ describe('ledger account/margin/reconciliation response DTOs', () => {
 
     expect(dto).toBeInstanceOf(ReconStatusResponseDto);
     expect(dto.accounts[0]).toBeInstanceOf(AccountReconResultDto);
-    expect(dto.accounts[0].status).toBe('diff');
-    expect(dto.accounts[0].staleness).toBe('fresh');
+    expect(dto.accounts[0].status).toBe(LedgerReconResultStatus.DIFF);
+    expect(dto.accounts[0].staleness).toBe(LedgerFeedStaleness.FRESH);
   });
 
   it('builds a SuspenseResponseDto with a suspense leg', () => {

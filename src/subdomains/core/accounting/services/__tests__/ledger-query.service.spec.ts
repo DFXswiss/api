@@ -8,6 +8,8 @@ import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entit
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
 import { Log } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
+import { LedgerReconStatus } from '../../dto/ledger-account.dto';
+import { LedgerFeedStaleness, LedgerReconResultStatus } from '../../dto/ledger-reconciliation.dto';
 import { createCustomLedgerAccount } from '../../entities/__mocks__/ledger-account.entity.mock';
 import { createCustomLedgerLeg } from '../../entities/__mocks__/ledger-leg.entity.mock';
 import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity';
@@ -15,6 +17,7 @@ import { LedgerLeg } from '../../entities/ledger-leg.entity';
 import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountRepository } from '../../repositories/ledger-account.repository';
 import { LedgerLegRepository } from '../../repositories/ledger-leg.repository';
+import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
 import { LedgerQueryService } from '../ledger-query.service';
 import { FeedStatus, LedgerReconciliationService } from '../ledger-reconciliation.service';
 
@@ -36,9 +39,18 @@ describe('LedgerQueryService', () => {
   let ledgerLegRepository: LedgerLegRepository;
   let reconciliationService: LedgerReconciliationService;
   let liquidityManagementBalanceService: LiquidityManagementBalanceService;
+  let markService: LedgerMarkService;
   let logService: LogService;
 
   let qbStub: LegQbStub;
+
+  // §7 unit fix: a persisted-mark cache the recon path uses to value the native journal↔feed diff in CHF. Every
+  // FRESH-feed ok/diff test needs a mark for its asset id (else mapReconStatus → unverified, never silently ok).
+  function markCache(byAssetId: Record<number, number>): LedgerMarkCache {
+    return new LedgerMarkCache(
+      new Map(Object.entries(byAssetId).map(([id, priceChf]) => [+id, [{ created: new Date(0), priceChf }]])),
+    );
+  }
 
   function assetAccount(id: number, assetId: number, name: string): LedgerAccount {
     return createCustomLedgerAccount({
@@ -170,6 +182,7 @@ describe('LedgerQueryService', () => {
     ledgerLegRepository = createMock<LedgerLegRepository>();
     reconciliationService = createMock<LedgerReconciliationService>();
     liquidityManagementBalanceService = createMock<LiquidityManagementBalanceService>();
+    markService = createMock<LedgerMarkService>();
     logService = createMock<LogService>();
 
     jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockImplementation(() => legQb());
@@ -177,6 +190,9 @@ describe('LedgerQueryService', () => {
     jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([]);
     jest.spyOn(ledgerAccountRepository, 'findOneBy').mockResolvedValue(null);
     jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+    // default marks: mark 1 for every asset id used in the FRESH ok/diff tests → the native diff values the same in
+    // CHF (mark 1), so the pre-existing "diff 50 > tol 1" lands on diff and the "diff 0" cases on ok
+    jest.spyOn(markService, 'preload').mockResolvedValue(markCache({ 11: 1, 12: 1, 13: 1, 14: 1, 100: 1 }));
     jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([]);
     // default: fresh feed (real classifyFeed reused via the actual reconciliation service in targeted tests)
     jest
@@ -191,6 +207,7 @@ describe('LedgerQueryService', () => {
         { provide: LedgerLegRepository, useValue: ledgerLegRepository },
         { provide: LedgerReconciliationService, useValue: reconciliationService },
         { provide: LiquidityManagementBalanceService, useValue: liquidityManagementBalanceService },
+        { provide: LedgerMarkService, useValue: markService },
         { provide: LogService, useValue: logService },
       ],
     }).compile();
@@ -226,7 +243,7 @@ describe('LedgerQueryService', () => {
       expect(assetDto.balanceNative).toBe(1000.5);
       expect(assetDto.balanceChf).toBe(950.25);
       // diff = 1000.5 − 1000 = 0.5 ≤ tolerance(1) → ok
-      expect(assetDto.reconStatus).toBe('ok');
+      expect(assetDto.reconStatus).toBe(LedgerReconStatus.OK);
 
       const liabilityDto = res.accounts.find((a) => a.accountId === 6);
       expect(liabilityDto.balanceChf).toBe(-500);
@@ -244,8 +261,27 @@ describe('LedgerQueryService', () => {
 
       const res = await service.getAccounts();
 
-      expect(res.accounts[0].reconStatus).toBe('diff'); // diff 50 > tolerance 1
+      expect(res.accounts[0].reconStatus).toBe(LedgerReconStatus.DIFF); // diff 50 > tolerance 1
       expect(res.accounts[0].reconDiff).toBe(50);
+    });
+
+    // §7 unit fix (F3): a crypto ASSET account with a SMALL native diff whose CHF value (× mark) exceeds the CHF
+    // tolerance must flag `diff` — the old code compared the native diff directly against the CHF tolerance.
+    it('flags a crypto ASSET account whose small native diff exceeds the tolerance once valued in CHF (mark)', async () => {
+      const btc = assetAccount(8, 200, 'Kraken/BTC');
+      jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([btc]);
+      jest
+        .spyOn(liquidityManagementBalanceService, 'getBalances')
+        .mockResolvedValue([feed(200, 1.0, new Date('2026-06-10T05:00:00.000Z'))]);
+      jest.spyOn(reconciliationService, 'classifyFeed').mockReturnValue({ status: FeedStatus.FRESH } as any);
+      jest.spyOn(markService, 'preload').mockResolvedValue(markCache({ 200: 50000 })); // large BTC mark
+      qbStub.balancesByAccount = [{ accountId: 8, native: '1.001', chf: '50050' }]; // native diff 0.001 vs feed 1.0
+
+      const res = await service.getAccounts();
+
+      // native diff 0.001 × mark 50000 = 50 CHF > tolerance 1 → diff (the native diff alone would be ≤ 1 → wrongly ok)
+      expect(res.accounts[0].reconStatus).toBe(LedgerReconStatus.DIFF);
+      expect(res.accounts[0].reconDiff).toBe(0.001); // the reported difference stays NATIVE
     });
 
     it('defaults missing-balance accounts to 0', async () => {
@@ -274,9 +310,9 @@ describe('LedgerQueryService', () => {
       const res = await service.getAccounts();
 
       const dto = res.accounts.find((a) => a.accountId === 5);
-      expect(dto.reconStatus).toBe('stale'); // mapReconStatus(STALE, …) → 'stale'
+      expect(dto.reconStatus).toBe(LedgerReconStatus.STALE); // mapReconStatus(STALE, …) → stale
       expect(dto.reconDiff).toBe(20); // ledger 120 − feed 100
-      expect(dto.lastVerified).toBeUndefined(); // staleness 'stale' → non-fresh side of L339
+      expect(dto.lastVerified).toBeUndefined(); // staleness stale → non-fresh side of L339
     });
   });
 
@@ -311,12 +347,12 @@ describe('LedgerQueryService', () => {
 
       expect(res.runAt).toBeDefined();
       const byId = new Map(res.accounts.map((a) => [a.accountId, a]));
-      expect(byId.get(1).staleness).toBe('fresh');
-      expect(byId.get(1).status).toBe('ok');
-      expect(byId.get(2).staleness).toBe('stale');
-      expect(byId.get(2).status).toBe('stale');
-      expect(byId.get(3).staleness).toBe('missing');
-      expect(byId.get(3).status).toBe('unverified');
+      expect(byId.get(1).staleness).toBe(LedgerFeedStaleness.FRESH);
+      expect(byId.get(1).status).toBe(LedgerReconResultStatus.OK);
+      expect(byId.get(2).staleness).toBe(LedgerFeedStaleness.STALE);
+      expect(byId.get(2).status).toBe(LedgerReconResultStatus.STALE);
+      expect(byId.get(3).staleness).toBe(LedgerFeedStaleness.MISSING);
+      expect(byId.get(3).status).toBe(LedgerReconResultStatus.UNVERIFIED);
       expect(byId.get(3).externalFeedBalance).toBe(0);
     });
 
@@ -349,8 +385,8 @@ describe('LedgerQueryService', () => {
 
       const acc = res.accounts.find((a) => a.accountId === 4);
       expect(acc).toBeDefined();
-      expect(acc.staleness).toBe('placeholder'); // line 370
-      expect(acc.status).toBe('unverified'); // placeholder → not fresh, not stale → unverified
+      expect(acc.staleness).toBe(LedgerFeedStaleness.PLACEHOLDER); // line 370
+      expect(acc.status).toBe(LedgerReconResultStatus.UNVERIFIED); // placeholder → not fresh, not stale → unverified
     });
   });
 
@@ -742,7 +778,7 @@ describe('LedgerQueryService', () => {
       const res = await service.getReconStatus();
 
       expect(res.accounts[0].ledgerBalance).toBe(0); // account absent from the GROUP-BY map → 0
-      expect(res.accounts[0].status).toBe('ok'); // diff 0 ≤ tolerance
+      expect(res.accounts[0].status).toBe(LedgerReconResultStatus.OK); // diff 0 ≤ tolerance
     });
 
     // m8: getReconStatus reads each account's journal balance from ONE GROUP-BY map (nativeBalanceByAccount), keyed

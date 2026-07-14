@@ -1,5 +1,16 @@
-export type LedgerFeedStaleness = 'fresh' | 'stale' | 'missing' | 'placeholder';
-export type LedgerReconResultStatus = 'ok' | 'diff' | 'stale' | 'unverified' | 'suspense_alarm';
+export enum LedgerFeedStaleness {
+  FRESH = 'Fresh',
+  STALE = 'Stale',
+  MISSING = 'Missing',
+  PLACEHOLDER = 'Placeholder',
+}
+export enum LedgerReconResultStatus {
+  OK = 'Ok',
+  DIFF = 'Diff',
+  STALE = 'Stale',
+  UNVERIFIED = 'Unverified',
+  SUSPENSE_ALARM = 'SuspenseAlarm',
+}
 
 export class AccountReconResultDto {
   accountId: number;

@@ -64,6 +64,9 @@ describe('LedgerBookingService', () => {
         if (_entity === LedgerLeg) savedLegs = value as LedgerLeg[];
         return Promise.resolve(value) as any;
       });
+      // §4.12 (F2): the manager-scoped seq allocation reads through manager.getRepository → delegate to whatever
+      // dataSource.getRepository a test sets, so the in-transaction seq read sees the same source of truth
+      jest.spyOn(manager, 'getRepository').mockImplementation((entity: any) => dataSource.getRepository(entity));
       return runInTransaction(manager) as any;
     });
 
@@ -280,6 +283,9 @@ describe('LedgerBookingService', () => {
           savedLegs = legs;
           return Promise.resolve(legs) as any;
         });
+        // §4.12 (F2): the in-transaction seq read goes through manager.getRepository → delegate to the store-backed
+        // dataSource.getRepository so the re-book's seq allocation sees the uncommitted reversal (reversal.seq + 1)
+        jest.spyOn(manager, 'getRepository').mockImplementation((entity: any) => dataSource.getRepository(entity));
         return (arg as (m: EntityManager) => unknown)(manager) as any;
       });
 
@@ -328,6 +334,68 @@ describe('LedgerBookingService', () => {
       expect(all.map((t) => t.seq)).toEqual([0, 1_000_000, 1_000_001]); // strictly monotone over the cycle
       expect(all[1].reversalOfId).toBe(all[0].id); // the reversal reverses the ORIGINAL seq0
       expect(all[2].reversalOfId).toBeUndefined(); // the re-book is a new valid booking
+    });
+
+    // §4.12 (F2): reversal + re-book run in ONE transaction. A crash DURING the re-book (after the reversal was
+    // written) must roll BOTH back — otherwise a flat-reversal state persists and the next forward run collides on
+    // the original seq0 (a UNIQUE loop). The transaction mock here is ATOMIC: tx saved in the callback are buffered
+    // and only flushed to txStore when the callback RESOLVES; a throw discards the buffer (models a real ROLLBACK).
+    it('rolls back BOTH the reversal and the re-book when the re-book save crashes (one-transaction atomicity)', async () => {
+      await service.bookTx(seq0Input(50000)); // committed forward seq0 (via the describe's default tx mock)
+
+      let ledgerTxSaves = 0;
+      jest.spyOn(dataSource, 'transaction').mockImplementation(async (arg: any) => {
+        const buffer: LedgerTx[] = [];
+        const manager = createMock<EntityManager>();
+        jest.spyOn(manager, 'create').mockImplementation((entity: any, plain: any) => {
+          const build = (p: any) =>
+            entity === LedgerTx
+              ? Object.assign(new LedgerTx(), p, p?.reversalOf?.id != null ? { reversalOfId: p.reversalOf.id } : {})
+              : Object.assign(new LedgerLeg(), p);
+          return (Array.isArray(plain) ? plain.map(build) : build(plain)) as any;
+        });
+        jest.spyOn(manager, 'save').mockImplementation((entity: any, value: any) => {
+          if (entity === LedgerTx) {
+            if (++ledgerTxSaves === 2) return Promise.reject(new Error('re-book save crashed')); // 2nd = the re-book
+            const tx = value as LedgerTx;
+            tx.id = nextId++;
+            buffer.push(tx); // buffered, NOT yet visible in txStore
+            return Promise.resolve(tx) as any;
+          }
+          const legs = value as LedgerLeg[];
+          for (const leg of legs) (leg.tx.legs ??= []).push(leg);
+          savedLegs = legs;
+          return Promise.resolve(legs) as any;
+        });
+        // seq reads inside the tx see txStore + the buffered (uncommitted) reversal → the re-book gets reversal.seq + 1
+        jest.spyOn(manager, 'getRepository').mockReturnValue({
+          createQueryBuilder: () => {
+            let st: string, sid: string;
+            const qb: any = {};
+            qb.select = () => qb;
+            qb.where = (_e: string, p: any) => ((st = p.sourceType), qb);
+            qb.andWhere = (_e: string, p: any) => ((sid = p.sourceId), qb);
+            qb.getRawOne = () => {
+              const seqs = [...txStore, ...buffer]
+                .filter((t) => t.sourceType === st && t.sourceId === sid)
+                .map((t) => t.seq);
+              return Promise.resolve({ max: seqs.length ? Math.max(...seqs) : null });
+            };
+            return qb;
+          },
+        } as any);
+
+        const result = await (arg as (m: EntityManager) => unknown)(manager);
+        txStore.push(...buffer); // flush only on resolve; the throw above skips this line (rollback)
+        return result as any;
+      });
+
+      await expect(service.reverseAndRebookIfChanged(seq0Input(60000))).rejects.toThrow();
+
+      const forSource = txStore.filter((t) => t.sourceId === '900');
+      expect(forSource).toHaveLength(1); // only the original seq0 survived — the reversal was rolled back
+      expect(forSource[0].seq).toBe(0);
+      expect(txStore.some((t) => t.reversalOfId != null)).toBe(false); // no orphan flat reversal persisted
     });
 
     it('is a no-op when nothing changed (idempotent re-scan) and when a sub-tolerance mark drift occurs', async () => {

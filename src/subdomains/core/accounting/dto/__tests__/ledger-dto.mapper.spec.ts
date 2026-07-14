@@ -3,6 +3,7 @@ import { createCustomLedgerLeg } from '../../entities/__mocks__/ledger-leg.entit
 import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity';
 import { LedgerLeg } from '../../entities/ledger-leg.entity';
 import { LedgerTx } from '../../entities/ledger-tx.entity';
+import { LedgerReconStatus } from '../ledger-account.dto';
 import {
   AccountBalance,
   AccountReconResult,
@@ -10,6 +11,7 @@ import {
   LedgerDtoMapper,
   SuspenseLegRow,
 } from '../ledger-dto.mapper';
+import { LedgerFeedStaleness, LedgerReconResultStatus } from '../ledger-reconciliation.dto';
 
 function tx(custom: Partial<LedgerTx>): LedgerTx {
   return Object.assign(new LedgerTx(), {
@@ -67,14 +69,14 @@ describe('LedgerDtoMapper', () => {
     it('attaches the recon snapshot for an ASSET account', () => {
       const balance: AccountBalance = { account, balanceNative: 1000, balanceChf: 950 };
       const recon: AccountReconSnapshot = {
-        reconStatus: 'ok',
+        reconStatus: LedgerReconStatus.OK,
         reconDiff: 0.4,
         lastVerified: new Date('2026-06-10T05:00:00.000Z'),
       };
 
       const dto = LedgerDtoMapper.mapAccountBalance(balance, recon);
 
-      expect(dto.reconStatus).toBe('ok');
+      expect(dto.reconStatus).toBe(LedgerReconStatus.OK);
       expect(dto.reconDiff).toBe(0.4);
       expect(dto.lastVerified).toBe('2026-06-10T05:00:00.000Z');
     });
@@ -122,8 +124,8 @@ describe('LedgerDtoMapper', () => {
         difference: 0.5,
         feedTimestamp: new Date('2026-06-10T04:00:00.000Z'),
         feedAge: 2,
-        staleness: 'fresh',
-        status: 'diff',
+        staleness: LedgerFeedStaleness.FRESH,
+        status: LedgerReconResultStatus.DIFF,
       };
 
       const dto = LedgerDtoMapper.mapReconResult(result);
@@ -136,8 +138,8 @@ describe('LedgerDtoMapper', () => {
         difference: 0.5,
         feedTimestamp: '2026-06-10T04:00:00.000Z',
         feedAge: 2,
-        staleness: 'fresh',
-        status: 'diff',
+        staleness: LedgerFeedStaleness.FRESH,
+        status: LedgerReconResultStatus.DIFF,
       });
     });
 
@@ -150,13 +152,13 @@ describe('LedgerDtoMapper', () => {
         difference: 1,
         feedTimestamp: undefined,
         feedAge: undefined,
-        staleness: 'missing',
-        status: 'unverified',
+        staleness: LedgerFeedStaleness.MISSING,
+        status: LedgerReconResultStatus.UNVERIFIED,
       });
 
       expect(dto.feedTimestamp).toBeUndefined();
       expect(dto.feedAge).toBeUndefined();
-      expect(dto.staleness).toBe('missing');
+      expect(dto.staleness).toBe(LedgerFeedStaleness.MISSING);
     });
   });
 

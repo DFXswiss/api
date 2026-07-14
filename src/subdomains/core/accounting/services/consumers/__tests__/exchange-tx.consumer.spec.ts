@@ -198,7 +198,17 @@ describe('ExchangeTxConsumer', () => {
     jest.spyOn(ledgerLegRepository, 'find').mockResolvedValue([{ amount: 1000 } as any, { amount: 1000 } as any]);
     mockBatch([exchangeTx({ id: 1, type: ExchangeTxType.DEPOSIT, currency: 'EUR', amount: 1000, amountChf: 950 })]);
     await consumer.process();
-    expect(booked[0].legs.some((l) => l.account.name === 'SUSPENSE/untracked-bank-Raiffeisen-EUR')).toBe(true);
+
+    const legs = booked[0].legs;
+    // no guessing: only the deposit's own 2 legs — no extra leg synthesised to close a specific ambiguous post
+    expect(legs).toHaveLength(2);
+    const asset = legs.find((l) => l.account.name === 'Scrypt/EUR');
+    expect(asset.amount).toBe(1000);
+    expect(asset.amountChf).toBe(950);
+    const suspenseLegs = legs.filter((l) => l.account.name === 'SUSPENSE/untracked-bank-Raiffeisen-EUR');
+    expect(suspenseLegs).toHaveLength(1); // one deposit-worth counter leg, NOT a per-post closing leg
+    expect(suspenseLegs[0].amountChf).toBe(-950); // one deposit's value → both open +1000 posts remain, no sweep
+    expect(cents(legs)).toBe(0); // balanced
   });
 
   it('books a Withdrawal mirror (Dr counter / Cr ASSET)', async () => {
@@ -253,6 +263,7 @@ describe('ExchangeTxConsumer', () => {
     const spread = legs.filter((l) => l.account.name?.includes('spread-Scrypt'));
     expect(spread).toHaveLength(1);
     expect(spread[0].account.name).toBe('INCOME/spread-Scrypt');
+    expect(spread[0].amountChf).toBe(-5); // the persisted feeAmountChf (rebate) is the exact spread-leg value
     // quote leg is the plug; no extra mark-based quote-spread leg
     const quote = legs.find((l) => l.account.name === 'Scrypt/CHF');
     expect(quote).toBeDefined();
@@ -277,7 +288,7 @@ describe('ExchangeTxConsumer', () => {
       }),
     ]);
     await consumer.process();
-    expect(booked[0].legs.some((l) => l.account.name === 'EXPENSE/spread-Scrypt')).toBe(true);
+    expect(booked[0].legs.some((l) => l.account.name === 'EXPENSE/spread-Scrypt' && l.amountChf === 5)).toBe(true);
     expect(cents(booked[0].legs)).toBe(0);
   });
 
@@ -344,6 +355,52 @@ describe('ExchangeTxConsumer', () => {
     const seqs = booked.map((b) => b.seq).sort((a, b) => a - b);
     expect(seqs).toEqual([0, 1]); // deterministic 0-based ranks by id
     expect(booked.every((b) => b.sourceId === 'O-9')).toBe(true);
+  });
+
+  // the watermark does not persist in this spec (getObj → undefined, set → no-op), so a naive second process()
+  // re-selects the same rows. The real backstop against double-booking is the DB UNIQUE(sourceType, sourceId, seq)
+  // constraint + the forward loop's failure-isolation: here bookTx enforces UNIQUE, and buildFillIndexMap re-derives
+  // the SAME 0-based ranks, so the re-run's identical keys collide and no second booking lands. If fill_index were NOT
+  // reproduced (e.g. run 2 produced seq 2,3) booked.length would be 4; the `=== 2` assertion is what discriminates.
+  it('is re-run idempotent: a second run reproduces the same fill_index and does not double-book (UNIQUE backstop)', async () => {
+    const keys = new Set<string>();
+    jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
+      const key = `${input.sourceType}:${input.sourceId}:${input.seq}`;
+      if (keys.has(key)) return Promise.reject(new Error('duplicate ledger_tx key (UNIQUE)')); // DB backstop
+      keys.add(key);
+      booked.push(input);
+      return Promise.resolve({} as any);
+    });
+    const f1 = exchangeTx({
+      id: 10,
+      type: ExchangeTxType.TRADE,
+      symbol: 'USDT/CHF',
+      side: 'buy',
+      order: 'O-9',
+      amount: 100,
+      amountChf: 90,
+      cost: 90,
+    });
+    const f2 = exchangeTx({
+      id: 11,
+      type: ExchangeTxType.TRADE,
+      symbol: 'USDT/CHF',
+      side: 'buy',
+      order: 'O-9',
+      amount: 100,
+      amountChf: 90,
+      cost: 90,
+    });
+    mockBatch([f1, f2]);
+
+    await consumer.process();
+    await consumer.process(); // re-run: forward re-selects, buildFillIndexMap re-derives the same 0-based ranks
+
+    // no double-booking: the re-run's identical (sourceId, seq) keys collided with the UNIQUE backstop → still 2 txs
+    expect(booked).toHaveLength(2);
+    // deterministic, reproduced fill_index
+    expect(booked.map((b) => b.seq).sort((a, b) => a - b)).toEqual([0, 1]);
+    expect(booked.every((b) => b.sourceType === 'ExchangeTrade' && b.sourceId === 'O-9')).toBe(true);
   });
 
   it('advances the watermark after a successful batch', async () => {

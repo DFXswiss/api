@@ -2,7 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
-import { DataSource } from 'typeorm';
+import { DataSource, EntityManager } from 'typeorm';
 import { AccountType, LedgerAccount } from '../entities/ledger-account.entity';
 import { LedgerLeg } from '../entities/ledger-leg.entity';
 import { LedgerTx } from '../entities/ledger-tx.entity';
@@ -54,6 +54,12 @@ export class LedgerBookingService {
    * only a sanity-check for pure same-asset transfers.
    */
   async bookTx(input: LedgerTxInput): Promise<LedgerTx> {
+    return this.dataSource.transaction((manager) => this.bookTxWithManager(manager, input));
+  }
+
+  // core booking body, transaction-scoped: all reads/writes go through `manager` so the caller controls atomicity
+  // (§4.12: reversal + re-book must live in ONE transaction). Behaviour is identical to the public bookTx.
+  private async bookTxWithManager(manager: EntityManager, input: LedgerTxInput): Promise<LedgerTx> {
     const legs = input.legs.map((leg) => this.prepareLeg(leg));
 
     await this.appendRoundingLeg(legs);
@@ -61,24 +67,22 @@ export class LedgerBookingService {
 
     const amountChfSum = legs.reduce((sum, leg) => sum + leg.amountChfCents, 0);
 
-    return this.dataSource.transaction(async (manager) => {
-      const tx = manager.create(LedgerTx, {
-        sourceType: input.sourceType,
-        sourceId: input.sourceId,
-        seq: input.seq,
-        bookingDate: input.bookingDate,
-        valueDate: input.valueDate ?? input.bookingDate,
-        description: input.description,
-        reversalOf: input.reversalOf,
-        amountChfSum,
-      });
-      const savedTx = await manager.save(LedgerTx, tx); // ledger-allowlist
-
-      const entities = legs.map((leg) => manager.create(LedgerLeg, { ...leg, tx: savedTx }));
-      await manager.save(LedgerLeg, entities); // ledger-allowlist
-
-      return savedTx;
+    const tx = manager.create(LedgerTx, {
+      sourceType: input.sourceType,
+      sourceId: input.sourceId,
+      seq: input.seq,
+      bookingDate: input.bookingDate,
+      valueDate: input.valueDate ?? input.bookingDate,
+      description: input.description,
+      reversalOf: input.reversalOf,
+      amountChfSum,
     });
+    const savedTx = await manager.save(LedgerTx, tx); // ledger-allowlist
+
+    const entities = legs.map((leg) => manager.create(LedgerLeg, { ...leg, tx: savedTx }));
+    await manager.save(LedgerLeg, entities); // ledger-allowlist
+
+    return savedTx;
   }
 
   /**
@@ -86,9 +90,15 @@ export class LedgerBookingService {
    * seq in the (sourceType, sourceId) namespace; the original stays untouched.
    */
   async reverseTx(original: LedgerTx): Promise<LedgerTx> {
-    const nextSeq = await this.nextCorrectionSeq(original.sourceType, original.sourceId);
+    return this.dataSource.transaction((manager) => this.reverseTxWithManager(manager, original));
+  }
 
-    return this.bookTx({
+  // transaction-scoped reversal: the correction seq is allocated via the SAME `manager` so it sees any uncommitted
+  // sibling booking in the caller's transaction (§4.12 one-transaction reversal + re-book).
+  private async reverseTxWithManager(manager: EntityManager, original: LedgerTx): Promise<LedgerTx> {
+    const nextSeq = await this.nextCorrectionSeqWithManager(manager, original.sourceType, original.sourceId);
+
+    return this.bookTxWithManager(manager, {
       sourceType: original.sourceType,
       sourceId: original.sourceId,
       seq: nextSeq,
@@ -124,13 +134,18 @@ export class LedgerBookingService {
     await this.appendRoundingLeg(fresh);
     if (!this.legsDiffer(active.legs, fresh)) return false; // unchanged within §4.12 tolerances → no-op
 
-    // (1) reversal-tx (reversalOf = the active original, inverted legs)
-    await this.reverseTx(active);
+    // §4.12: reversal + re-book in ONE transaction so a crash between them cannot leave a flat-reversal state (the
+    // next run would then collide on the original forward seq — a UNIQUE loop). The re-book seq is allocated via the
+    // SAME `manager` so it sees the uncommitted reversal → reversal.seq + 1, collision-free inside the transaction.
+    await this.dataSource.transaction(async (manager) => {
+      // (1) reversal-tx (reversalOf = the active original, inverted legs)
+      await this.reverseTxWithManager(manager, active);
 
-    // (2) re-book-tx (reversalOf = NULL — a new valid booking) with the corrected legs, next free CORRECTION seq
-    // (above the forward range, so it never collides with a not-yet-booked forward seq of a multi-seq source, R3)
-    const reSeq = await this.nextCorrectionSeq(input.sourceType, input.sourceId);
-    await this.bookTx({ ...input, seq: reSeq, reversalOf: undefined });
+      // (2) re-book-tx (reversalOf = NULL — a new valid booking) with the corrected legs, next free CORRECTION seq
+      // (above the forward range, so it never collides with a not-yet-booked forward seq of a multi-seq source, R3)
+      const reSeq = await this.nextCorrectionSeqWithManager(manager, input.sourceType, input.sourceId);
+      await this.bookTxWithManager(manager, { ...input, seq: reSeq, reversalOf: undefined });
+    });
 
     return true;
   }
@@ -223,9 +238,33 @@ export class LedgerBookingService {
     return false;
   }
 
-  // monotonic, collision-free seq allocation in the (sourceType, sourceId) namespace (§4.12)
+  // monotonic, collision-free seq allocation in the (sourceType, sourceId) namespace (§4.12) — reads the committed
+  // state via the DataSource's own connection
   async nextSeq(sourceType: string, sourceId: string): Promise<number> {
-    const { max } = await this.dataSource
+    return this.nextSeqFrom(this.dataSource, sourceType, sourceId);
+  }
+
+  // monotonic, collision-free seq for a reversal/re-book tx — ALWAYS in the reserved correction range (§4.12 "eigener
+  // seq-Namespace"), so it never lands on a forward fixed seq (0–3) of a multi-seq source that is not yet booked (R3).
+  async nextCorrectionSeq(sourceType: string, sourceId: string): Promise<number> {
+    return Math.max(await this.nextSeq(sourceType, sourceId), CORRECTION_SEQ_BASE);
+  }
+
+  // manager-scoped correction seq: reads through the transaction `manager` so it sees an uncommitted sibling booking
+  // (the reversal just written in the same §4.12 transaction) → reversal.seq + 1, collision-free.
+  private async nextCorrectionSeqWithManager(
+    manager: EntityManager,
+    sourceType: string,
+    sourceId: string,
+  ): Promise<number> {
+    return Math.max(await this.nextSeqFrom(manager, sourceType, sourceId), CORRECTION_SEQ_BASE);
+  }
+
+  // `runner` is the DataSource (its own connection, committed state) or the transaction EntityManager (sees the
+  // uncommitted sibling booking) — an explicit choice by the caller, NOT a silent fallback. Both expose
+  // getRepository(...).createQueryBuilder(...) with the same shape.
+  private async nextSeqFrom(runner: DataSource | EntityManager, sourceType: string, sourceId: string): Promise<number> {
+    const { max } = await runner
       .getRepository(LedgerTx)
       .createQueryBuilder('tx')
       .select('MAX(tx.seq)', 'max')
@@ -234,12 +273,6 @@ export class LedgerBookingService {
       .getRawOne<{ max: number | null }>();
 
     return (max ?? -1) + 1;
-  }
-
-  // monotonic, collision-free seq for a reversal/re-book tx — ALWAYS in the reserved correction range (§4.12 "eigener
-  // seq-Namespace"), so it never lands on a forward fixed seq (0–3) of a multi-seq source that is not yet booked (R3).
-  async nextCorrectionSeq(sourceType: string, sourceId: string): Promise<number> {
-    return Math.max(await this.nextSeq(sourceType, sourceId), CORRECTION_SEQ_BASE);
   }
 
   private prepareLeg(leg: LedgerLegInput): LedgerLeg {

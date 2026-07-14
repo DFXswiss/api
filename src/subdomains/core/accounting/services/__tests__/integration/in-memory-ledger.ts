@@ -188,6 +188,10 @@ export class InMemoryLedger {
         }
         return Promise.resolve(legs) as any;
       });
+      // §4.12: the manager-scoped seq allocation (reversal + re-book in ONE transaction) reads through
+      // manager.getRepository → delegate to the same store-backed dataSource.getRepository so the re-book sees the
+      // just-written reversal (reversal.seq + 1)
+      jest.spyOn(manager, 'getRepository').mockImplementation((entity: any) => dataSource.getRepository(entity));
       return (arg as (m: EntityManager) => unknown)(manager) as any;
     });
 

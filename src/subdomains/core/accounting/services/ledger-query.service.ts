@@ -18,6 +18,7 @@ import {
   LedgerAccountsResponseDto,
   LedgerLegEntryDto,
   LedgerLegsResponseDto,
+  LedgerReconStatus,
 } from '../dto/ledger-account.dto';
 import {
   AccountBalance,
@@ -37,6 +38,7 @@ import { AccountType, LedgerAccount } from '../entities/ledger-account.entity';
 import { LedgerLeg } from '../entities/ledger-leg.entity';
 import { LedgerAccountRepository } from '../repositories/ledger-account.repository';
 import { LedgerLegRepository } from '../repositories/ledger-leg.repository';
+import { LedgerMarkCache, LedgerMarkService } from './ledger-mark.service';
 import { FeedStatus, LedgerReconciliationService } from './ledger-reconciliation.service';
 
 const LEGS_PAGE_SIZE = 100;
@@ -57,7 +59,8 @@ interface EquityDayAgg {
 
 /**
  * Read-only query layer for the ADMIN ledger endpoints (§8). Pure observer: it only reads from ledger_* plus the
- * whitelisted feed read (LiquidityManagementBalanceService.getBalances, §7.0/§4.10) and the read-only LogService
+ * whitelisted feed read (LiquidityManagementBalanceService.getBalances, §7.0/§4.10), the persisted mark read
+ * (LedgerMarkService.preload, §5.2 — to value the native journal↔feed diff in CHF, §7) and the read-only LogService
  * (FinancialDataLog time-series for the equity comparison). It reuses LedgerReconciliationService.classifyFeed for
  * the staleness classification so the API view matches the daily reconciliation run. No pricing-service injection,
  * no external calls, no writes.
@@ -69,6 +72,7 @@ export class LedgerQueryService {
     private readonly ledgerLegRepository: LedgerLegRepository,
     private readonly reconciliationService: LedgerReconciliationService,
     private readonly liquidityManagementBalanceService: LiquidityManagementBalanceService,
+    private readonly markService: LedgerMarkService,
     private readonly logService: LogService,
   ) {}
 
@@ -83,6 +87,9 @@ export class LedgerQueryService {
 
     // ASSET-account recon snapshot for the list (against the persisted feed, §7) — feed read once for all accounts
     const feedByAssetId = await this.feedByAssetId();
+    // §7 (unit fix): marks read ONCE per request (same 2-day window as the reconciliation job) to value the native
+    // journal↔feed diff in CHF before the CHF-tolerance check (see mapReconStatus)
+    const marks = await this.markService.preload(Util.daysBefore(2, now), now);
 
     const accountDtos: LedgerAccountBalanceDto[] = accounts.map((account) => {
       const balance: AccountBalance = {
@@ -90,7 +97,7 @@ export class LedgerQueryService {
         balanceNative: balances.get(account.id)?.native ?? 0,
         balanceChf: balances.get(account.id)?.chf ?? 0,
       };
-      const recon = this.reconSnapshot(account, balance.balanceNative, feedByAssetId, now);
+      const recon = this.reconSnapshot(account, balance.balanceNative, feedByAssetId, marks, now);
       return LedgerDtoMapper.mapAccountBalance(balance, recon);
     });
 
@@ -159,13 +166,15 @@ export class LedgerQueryService {
     });
     const feedByAssetId = await this.feedByAssetId();
     const balances = await this.nativeBalanceByAccount();
+    // §7 (unit fix): marks read ONCE per request (same 2-day window as the reconciliation job) — see mapReconStatus
+    const marks = await this.markService.preload(Util.daysBefore(2, now), now);
 
     const results: AccountReconResultDto[] = [];
     for (const account of accounts) {
       if (account.assetId == null) continue;
 
       const ledgerBalance = balances.get(account.id) ?? 0;
-      const result = this.reconResult(account, ledgerBalance, feedByAssetId, now);
+      const result = this.reconResult(account, ledgerBalance, feedByAssetId, marks, now);
       results.push(LedgerDtoMapper.mapReconResult(result));
     }
 
@@ -370,22 +379,41 @@ export class LedgerQueryService {
     account: LedgerAccount,
     ledgerBalance: number,
     feedByAssetId: Map<number, LiquidityBalance>,
+    marks: LedgerMarkCache,
     now: Date,
   ): AccountReconSnapshot | undefined {
     if (account.type !== AccountType.ASSET || account.assetId == null) return undefined;
 
-    const result = this.reconResult(account, ledgerBalance, feedByAssetId, now);
+    const result = this.reconResult(account, ledgerBalance, feedByAssetId, marks, now);
     return {
-      reconStatus: result.status === 'suspense_alarm' ? 'diff' : result.status,
+      reconStatus: this.toReconStatus(result.status),
       reconDiff: result.difference,
-      lastVerified: result.staleness === 'fresh' ? result.feedTimestamp : undefined,
+      lastVerified: result.staleness === LedgerFeedStaleness.FRESH ? result.feedTimestamp : undefined,
     };
+  }
+
+  // the list-view reconStatus (LedgerReconStatus) derived from the recon result status (LedgerReconResultStatus).
+  // These are DISTINCT enums: the list has no SUSPENSE_ALARM member, so a suspense alarm surfaces as `diff` here.
+  private toReconStatus(status: LedgerReconResultStatus): LedgerReconStatus {
+    switch (status) {
+      case LedgerReconResultStatus.SUSPENSE_ALARM:
+        return LedgerReconStatus.DIFF; // suspense alarm surfaces as diff in the list
+      case LedgerReconResultStatus.DIFF:
+        return LedgerReconStatus.DIFF;
+      case LedgerReconResultStatus.STALE:
+        return LedgerReconStatus.STALE;
+      case LedgerReconResultStatus.UNVERIFIED:
+        return LedgerReconStatus.UNVERIFIED;
+      case LedgerReconResultStatus.OK:
+        return LedgerReconStatus.OK;
+    }
   }
 
   private reconResult(
     account: LedgerAccount,
     ledgerBalance: number,
     feedByAssetId: Map<number, LiquidityBalance>,
+    marks: LedgerMarkCache,
     now: Date,
   ): AccountReconResult {
     const balance = account.assetId != null ? feedByAssetId.get(account.assetId) : undefined;
@@ -396,8 +424,11 @@ export class LedgerQueryService {
     const feedTimestamp = balance?.updated;
     const feedAge = feedTimestamp ? Util.hoursDiff(feedTimestamp, now) : undefined;
 
+    // §7 unit fix: the tolerance check is in CHF, so value the native diff via the account's mark (see mapReconStatus)
+    const mark = account.assetId != null ? marks.getMarkAt(account.assetId, now) : undefined;
+
     const staleness = this.mapStaleness(classification.status);
-    const status = this.mapReconStatus(classification.status, difference);
+    const status = this.mapReconStatus(classification.status, difference, mark);
 
     return { account, ledgerBalance, externalFeedBalance, difference, feedTimestamp, feedAge, staleness, status };
   }
@@ -405,22 +436,28 @@ export class LedgerQueryService {
   private mapStaleness(status: FeedStatus): LedgerFeedStaleness {
     switch (status) {
       case FeedStatus.FRESH:
-        return 'fresh';
+        return LedgerFeedStaleness.FRESH;
       case FeedStatus.STALE:
-        return 'stale';
+        return LedgerFeedStaleness.STALE;
       case FeedStatus.PLACEHOLDER:
-        return 'placeholder';
+        return LedgerFeedStaleness.PLACEHOLDER;
       case FeedStatus.NO_FEED:
       default:
-        return 'missing';
+        return LedgerFeedStaleness.MISSING;
     }
   }
 
-  private mapReconStatus(status: FeedStatus, difference: number): LedgerReconResultStatus {
-    if (status === FeedStatus.STALE) return 'stale';
-    if (status !== FeedStatus.FRESH) return 'unverified'; // placeholder / no-feed → unverified (§7.2)
+  private mapReconStatus(status: FeedStatus, difference: number, mark: number | undefined): LedgerReconResultStatus {
+    if (status === FeedStatus.STALE) return LedgerReconResultStatus.STALE;
+    if (status !== FeedStatus.FRESH) return LedgerReconResultStatus.UNVERIFIED; // placeholder / no-feed (§7.2)
 
-    return Math.abs(difference) <= Config.ledger.reconciliationToleranceChf ? 'ok' : 'diff';
+    // §7 unit fix: value the native journal↔feed diff in CHF (× mark) before the CHF-tolerance check; no mark →
+    // unverified (same as the job), NEVER silently ok (that would mask a real discrepancy).
+    if (mark == null) return LedgerReconResultStatus.UNVERIFIED;
+    const diffChf = Util.round(difference * mark, 2);
+    return Math.abs(diffChf) <= Config.ledger.reconciliationToleranceChf
+      ? LedgerReconResultStatus.OK
+      : LedgerReconResultStatus.DIFF;
   }
 
   // --- MARGIN HELPERS (§1.11/§7.6) --- //

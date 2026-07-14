@@ -14,6 +14,7 @@ import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './
 
 const SOURCE_TYPE = 'buy_crypto';
 const CRYPTO_INPUT_SOURCE = 'crypto_input';
+const BANK_TX_SOURCE = 'bank_tx';
 const CUTOVER_SOURCE = 'cutover';
 const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
 const CUTOVER_SNAPSHOT_DATE_KEY = 'ledgerCutoverSnapshotDate';
@@ -57,14 +58,18 @@ export class BuyCryptoConsumer {
       SOURCE_TYPE,
       afterForward,
       this.buyCryptoRepo,
-      { checkoutTx: true, cryptoInput: { paymentLinkPayment: true } },
+      { checkoutTx: true, cryptoInput: { paymentLinkPayment: true }, bankTx: true },
       async (bc: BuyCrypto) => {
         // §4.12: a Card-input amount/fee change (amountInChf) reverses + re-books the seq0 Card-input tx; then the
         // idempotent forward book() appends any newly-settled seqs (seq1 completion). Non-Card inputs have no seq0
         // here (booked by the CryptoInput/BankTx single booker) → buildSeq0Input returns undefined → no-op reversal.
         const seq0 = await this.buildCardInputSeq0(bc);
         if (seq0) await this.bookingService.reverseAndRebookIfChanged(seq0);
-        await this.book(bc);
+        // honour the book() gate: a gate-blocked run (seq1 received not yet opened) returns false and must NOT
+        // advance the content-change cursor past this row, else the late-settling row is lost (§4.7 G-a)
+        if (!(await this.book(bc))) {
+          throw new Error(`buy_crypto ${bc.id} content-change scan gate-blocked — retry next run (§4.7 G-a)`);
+        }
       },
     );
   }
@@ -72,7 +77,7 @@ export class BuyCryptoConsumer {
   private async processForward(watermark: { lastProcessedId: number; lastReversalScan: Date }): Promise<void> {
     const batch = await this.buyCryptoRepo.find({
       where: { id: MoreThan(watermark.lastProcessedId) },
-      relations: { checkoutTx: true, cryptoInput: { paymentLinkPayment: true } },
+      relations: { checkoutTx: true, cryptoInput: { paymentLinkPayment: true }, bankTx: true },
       order: { id: 'ASC' },
       take: Config.ledger.backfillBatchSize,
     });
@@ -186,6 +191,13 @@ export class BuyCryptoConsumer {
     // mirrors the non-Card G-a/G-b path, which finds neither a crypto_input seq0 (G-a) nor a per-row cutover opening
     // (G-b) for a pre-cutover-settled row → gate closed. Without it, seq1 would Dr received with no −opening → phantom.
     if (bc.checkoutTx) return !(await this.settledBeforeCutover(bc));
+
+    // Bank input: the BankTx consumer opens buyCrypto-received as the bank_tx seq0 booking (§4.2 BUY_CRYPTO legs).
+    // Gate on an ACTIVE bank_tx seq0 tx for this row's funding bank_tx — per-seq via hasActiveTxAt (walks the §4.12
+    // reversal chain, so a content-change reversal/re-book of that opening still resolves), analogous to G-a. Falls
+    // through to the G-b cutover marker below for a cutover-straddling bank-funded row (opened by the cutover, not
+    // by a bank_tx seq0).
+    if (bc.bankTx && (await this.bookingService.hasActiveTxAt(BANK_TX_SOURCE, `${bc.bankTx.id}`, 0))) return true;
 
     const cryptoInputId = bc.cryptoInput?.id;
     if (cryptoInputId != null) {
