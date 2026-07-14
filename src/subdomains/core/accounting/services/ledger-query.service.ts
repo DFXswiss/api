@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
@@ -41,6 +41,19 @@ import { FeedStatus, LedgerReconciliationService } from './ledger-reconciliation
 
 const LEGS_PAGE_SIZE = 100;
 const MARK_TO_MARKET_SOURCE = 'mark_to_market';
+
+// §7.6 (perf): server-side cap on the equity-comparison range. `from` is mandatory (rejects a full-history scan) and
+// the window [from, now] must stay within this many days so the endpoint's cost is bounded (~1 quarter of daily logs).
+const MAX_EQUITY_COMPARISON_RANGE_DAYS = 92;
+
+// running cumulative of the four equity-comparison components at a given UTC day (YYYY-MM-DD), §7.6
+interface EquityDayAgg {
+  day: string;
+  equity: number; // Σ amountChf over the balance-account types
+  transit: number; // Σ amountChf on TRANSIT accounts (Class-2 phantom)
+  stale: number; // Σ amountChf of mark_to_market legs on currently-unverified accounts (Class-3)
+  spread: number; // Σ amountChf on EXPENSE accounts excl. refReward/extraordinary/fx-revaluation (Class-6)
+}
 
 /**
  * Read-only query layer for the ADMIN ledger endpoints (§8). Pure observer: it only reads from ledger_* plus the
@@ -211,7 +224,25 @@ export class LedgerQueryService {
   // --- GET ledger/equity-comparison (§7.6) --- //
 
   async getEquityComparison(from?: Date, dailySample = true): Promise<EquityComparisonDto> {
+    const now = new Date();
+
+    // §7.6 (perf a): `from` is mandatory and the range is capped — the old code scanned the ENTIRE ledger history per
+    // log period when `from` was omitted. Fail loud (BadRequest) rather than silently run an unbounded full scan.
+    if (from == null) throw new BadRequestException('from is required');
+    if (Util.daysDiff(from, now) > MAX_EQUITY_COMPARISON_RANGE_DAYS)
+      throw new BadRequestException(`range from-now must not exceed ${MAX_EQUITY_COMPARISON_RANGE_DAYS} days`);
+
     const logs = await this.logService.getFinancialLogs(from, dailySample);
+    if (!logs.length) return { periods: [] };
+
+    // §7.6 (perf b): the unverified-account set (incl. the feed read) is period-independent → compute it ONCE for the
+    // whole comparison instead of re-reading the entire feed inside every log iteration (was N feed reads).
+    const unverifiedAccountIds = await this.unverifiedAccountIds();
+
+    // §7.6 (perf c): all four per-period aggregates come from ONE day-grouped ledger_leg pass, turned into running
+    // cumulative totals in memory — instead of four cumulative SUM queries per log period (was O(periods) full scans).
+    const lastPeriod = logs[logs.length - 1].created;
+    const cumulative = await this.cumulativeEquityByDay(lastPeriod, unverifiedAccountIds);
 
     const periods: EquityComparisonPeriodDto[] = [];
     for (const log of logs) {
@@ -219,9 +250,15 @@ export class LedgerQueryService {
       const financialDataLogTotal = finance?.balancesTotal?.totalBalanceChf;
       if (financialDataLogTotal == null) continue;
 
-      const journalEquity = await this.journalEquityAt(log.created);
+      const at = this.cumulativeAt(cumulative, log.created);
+      const journalEquity = Util.round(at.equity, 2);
       const difference = Util.round(journalEquity - financialDataLogTotal, 2);
-      const decomposition = await this.equityDecomposition(log.created, difference);
+      const decomposition: EquityDecompositionDto = {
+        transitPhantom: Util.round(at.transit, 2),
+        staleFeed: Util.round(at.stale, 2),
+        spreadFees: Util.round(at.spread, 2),
+        other: Util.round(difference - (at.transit + at.stale + at.spread), 2),
+      };
 
       periods.push({
         date: log.created.toISOString(),
@@ -448,83 +485,98 @@ export class LedgerQueryService {
 
   // --- EQUITY-COMPARISON HELPERS (§7.6) --- //
 
-  // signed Σ amountChf over the balance-account types up to `at` (Dr +, Cr − already in the leg sign convention, §2.3)
-  private async journalEquityAt(at: Date): Promise<number> {
-    const raw = await this.ledgerLegRepository
+  // §7.6 (perf c): ONE day-grouped pass over ledger_leg → the four equity components per day (bookingDate ≤ `to`),
+  // accumulated into a running cumulative in memory. Same four components as the former per-period helpers
+  // (journalEquity over the balance-account types; transitPhantom = TRANSIT; staleFeed = mark_to_market legs on the
+  // currently-unverified accounts; spreadFees = EXPENSE minus refReward/extraordinary/fx-revaluation). PG-quoting:
+  // alias.property refs (`tx.bookingDate`, `account.type`, `leg.amountChf`) are auto-quoted by TypeORM — no camelCase
+  // column is referenced bare in the raw CASE expressions.
+  private async cumulativeEquityByDay(to: Date, unverifiedAccountIds: number[]): Promise<EquityDayAgg[]> {
+    const equityTypes = [
+      AccountType.ASSET,
+      AccountType.TRANSIT,
+      AccountType.LIABILITY,
+      AccountType.SUSPENSE,
+      AccountType.ROUNDING,
+    ];
+    const excludedSpreadNames = ['EXPENSE/refReward', 'EXPENSE/extraordinary', 'EXPENSE/fx-revaluation'];
+
+    const qb = this.ledgerLegRepository
       .createQueryBuilder('leg')
       .innerJoin('leg.tx', 'tx')
       .innerJoin('leg.account', 'account')
-      .select('SUM(COALESCE(leg.amountChf, 0))', 'chf')
-      .where('tx.bookingDate <= :at', { at })
-      .andWhere('account.type IN (:...types)', {
-        types: [
-          AccountType.ASSET,
-          AccountType.TRANSIT,
-          AccountType.LIABILITY,
-          AccountType.SUSPENSE,
-          AccountType.ROUNDING,
-        ],
-      })
-      .getRawOne<{ chf: string | null }>();
+      .select('CAST(tx.bookingDate AS DATE)', 'day')
+      .addSelect(
+        'SUM(CASE WHEN account.type IN (:...equityTypes) THEN COALESCE(leg.amountChf, 0) ELSE 0 END)',
+        'equity',
+      )
+      .addSelect('SUM(CASE WHEN account.type = :transitType THEN COALESCE(leg.amountChf, 0) ELSE 0 END)', 'transit')
+      .addSelect(
+        'SUM(CASE WHEN account.type = :expenseType AND account.name NOT IN (:...excludedSpreadNames) THEN COALESCE(leg.amountChf, 0) ELSE 0 END)',
+        'spread',
+      );
 
-    return Util.round(+(raw?.chf ?? 0), 2);
+    const params: Record<string, unknown> = {
+      to,
+      equityTypes,
+      transitType: AccountType.TRANSIT,
+      expenseType: AccountType.EXPENSE,
+      excludedSpreadNames,
+      scanTypes: [...equityTypes, AccountType.EXPENSE], // bound the scan to types that feed any component
+    };
+
+    // Class-3 stale-feed only exists when at least one account is unverified (SQL `IN ()` is invalid → literal 0)
+    if (unverifiedAccountIds.length) {
+      qb.addSelect(
+        'SUM(CASE WHEN tx.sourceType = :markSource AND leg.accountId IN (:...unverifiedAccountIds) THEN COALESCE(leg.amountChf, 0) ELSE 0 END)',
+        'stale',
+      );
+      params.markSource = MARK_TO_MARKET_SOURCE;
+      params.unverifiedAccountIds = unverifiedAccountIds;
+    } else {
+      qb.addSelect('0', 'stale');
+    }
+
+    const rows = await qb
+      .where('tx.bookingDate <= :to')
+      .andWhere('account.type IN (:...scanTypes)')
+      .groupBy('CAST(tx.bookingDate AS DATE)')
+      .setParameters(params)
+      .getRawMany<{ day: string; equity: string; transit: string; stale: string; spread: string }>();
+
+    // ascending by day, running cumulative — each period reads the cumulative as of its own day (cumulativeAt)
+    let equity = 0;
+    let transit = 0;
+    let stale = 0;
+    let spread = 0;
+
+    return rows
+      .map((r) => ({
+        day: this.bucketKey(r.day),
+        equity: +r.equity,
+        transit: +r.transit,
+        stale: +r.stale,
+        spread: +r.spread,
+      }))
+      .sort((a, b) => a.day.localeCompare(b.day))
+      .map((r) => {
+        equity += r.equity;
+        transit += r.transit;
+        stale += r.stale;
+        spread += r.spread;
+        return { day: r.day, equity, transit, stale, spread };
+      });
   }
 
-  // three buckets aggregated independently from ledger_* (Minor R13-5); `other` is the only residual (Class-5).
-  private async equityDecomposition(at: Date, difference: number): Promise<EquityDecompositionDto> {
-    const transitPhantom = await this.transitPhantom(at);
-    const staleFeed = await this.staleFeed(at);
-    const spreadFees = await this.spreadFees(at);
-    const other = Util.round(difference - (transitPhantom + staleFeed + spreadFees), 2);
-
-    return { transitPhantom, staleFeed, spreadFees, other };
-  }
-
-  private async transitPhantom(at: Date): Promise<number> {
-    const raw = await this.ledgerLegRepository
-      .createQueryBuilder('leg')
-      .innerJoin('leg.tx', 'tx')
-      .innerJoin('leg.account', 'account')
-      .select('SUM(COALESCE(leg.amountChf, 0))', 'chf')
-      .where('tx.bookingDate <= :at', { at })
-      .andWhere('account.type = :type', { type: AccountType.TRANSIT })
-      .getRawOne<{ chf: string | null }>();
-
-    return Util.round(+(raw?.chf ?? 0), 2);
-  }
-
-  // Class-3: mark_to_market fx-revaluation legs on accounts that are currently unverified
-  private async staleFeed(at: Date): Promise<number> {
-    const unverifiedAccountIds = await this.unverifiedAccountIds();
-    if (!unverifiedAccountIds.length) return 0;
-
-    const raw = await this.ledgerLegRepository
-      .createQueryBuilder('leg')
-      .innerJoin('leg.tx', 'tx')
-      .select('SUM(COALESCE(leg.amountChf, 0))', 'chf')
-      .where('tx.bookingDate <= :at', { at })
-      .andWhere('tx.sourceType = :sourceType', { sourceType: MARK_TO_MARKET_SOURCE })
-      .andWhere('leg.accountId IN (:...ids)', { ids: unverifiedAccountIds })
-      .getRawOne<{ chf: string | null }>();
-
-    return Util.round(+(raw?.chf ?? 0), 2);
-  }
-
-  // Class-6: Σ EXPENSE/spread-* + EXPENSE/network-fee (+ bank-fee, acquirer-fee) = executionCosts (type=EXPENSE)
-  private async spreadFees(at: Date): Promise<number> {
-    const raw = await this.ledgerLegRepository
-      .createQueryBuilder('leg')
-      .innerJoin('leg.tx', 'tx')
-      .innerJoin('leg.account', 'account')
-      .select('SUM(COALESCE(leg.amountChf, 0))', 'chf')
-      .where('tx.bookingDate <= :at', { at })
-      .andWhere('account.type = :type', { type: AccountType.EXPENSE })
-      .andWhere('account.name NOT IN (:...excluded)', {
-        excluded: ['EXPENSE/refReward', 'EXPENSE/extraordinary', 'EXPENSE/fx-revaluation'],
-      })
-      .getRawOne<{ chf: string | null }>();
-
-    return Util.round(+(raw?.chf ?? 0), 2);
+  // cumulative component totals as of `at` = the latest day-bucket with day ≤ at's UTC day (all-0 if none precedes it)
+  private cumulativeAt(cumulative: EquityDayAgg[], at: Date): EquityDayAgg {
+    const dayKey = at.toISOString().slice(0, 10);
+    let result: EquityDayAgg = { day: dayKey, equity: 0, transit: 0, stale: 0, spread: 0 };
+    for (const c of cumulative) {
+      if (c.day <= dayKey) result = c;
+      else break;
+    }
+    return result;
   }
 
   private async unverifiedAccountIds(): Promise<number[]> {

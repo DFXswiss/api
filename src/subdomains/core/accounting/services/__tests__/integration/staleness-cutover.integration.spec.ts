@@ -11,6 +11,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
 import { LiquidityOrder } from 'src/subdomains/supporting/dex/entities/liquidity-order.entity';
@@ -103,7 +104,13 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
       });
       jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockImplementation(() => legQb());
       jest.spyOn(settingService, 'get').mockResolvedValue('0');
-      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(undefined);
+      jest.spyOn(logService, 'getLatestValidFinancialLogs').mockResolvedValue([]); // no snapshot → equity parity skipped
+
+      // §7 unit fix: a mark of 1 CHF/native for the seeded assets so a matching fresh feed produces diff 0 (no alarm)
+      const markService = createMock<LedgerMarkService>();
+      jest.spyOn(markService, 'preload').mockResolvedValue({ getMarkAt: () => 1 } as any);
+      const refRewardService = createMock<RefRewardService>();
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
 
       const module: TestingModule = await Test.createTestingModule({
         providers: [
@@ -116,6 +123,8 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
           { provide: LiquidityManagementBalanceService, useValue: liquidityManagementBalanceService },
           { provide: LedgerAccountRepository, useValue: ledgerAccountRepository },
           { provide: LedgerLegRepository, useValue: ledgerLegRepository },
+          { provide: LedgerMarkService, useValue: markService },
+          { provide: RefRewardService, useValue: refRewardService },
         ],
       }).compile();
 

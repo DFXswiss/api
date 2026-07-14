@@ -6,6 +6,7 @@ import { SharedModule } from 'src/shared/shared.module';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
 import { LiquidityManagementModule } from 'src/subdomains/core/liquidity-management/liquidity-management.module';
+import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
 import { RefReward } from 'src/subdomains/core/referral/reward/ref-reward.entity';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { TradingOrder } from 'src/subdomains/core/trading/entities/trading-order.entity';
@@ -69,6 +70,7 @@ import { LedgerReconciliationService } from './services/ledger-reconciliation.se
     LogModule, // LogService.getFinancialLogs (mark preload §5.2)
     LiquidityManagementModule, // LiquidityManagementBalanceService.getBalances (feed read §7.0)
     NotificationModule, // NotificationService.sendMail (ledger alarms §7.3/§7.4/§7.5, Major R12-1)
+    ReferralModule, // RefRewardService.getOpenRefCreditLiability (equity-parity RefCredit baseline §7.6)
   ],
   controllers: [LedgerController],
   providers: [

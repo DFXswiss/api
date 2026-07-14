@@ -10,6 +10,7 @@ import { TestUtil } from 'src/shared/utils/test.util';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { Log } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -20,6 +21,7 @@ import { createCustomLedgerAccount } from '../../entities/__mocks__/ledger-accou
 import { LedgerAccountRepository } from '../../repositories/ledger-account.repository';
 import { LedgerLegRepository } from '../../repositories/ledger-leg.repository';
 import { LedgerBookingJobService } from '../ledger-booking-job.service';
+import { LedgerMarkService } from '../ledger-mark.service';
 import { FeedStatus, LedgerReconciliationService } from '../ledger-reconciliation.service';
 
 interface LegQueryStub {
@@ -39,6 +41,8 @@ describe('LedgerReconciliationService', () => {
   let liquidityManagementBalanceService: LiquidityManagementBalanceService;
   let ledgerAccountRepository: LedgerAccountRepository;
   let ledgerLegRepository: LedgerLegRepository;
+  let markService: LedgerMarkService;
+  let refRewardService: RefRewardService;
 
   let mails: MailRequest[];
   let legStub: LegQueryStub;
@@ -57,17 +61,21 @@ describe('LedgerReconciliationService', () => {
     return Object.assign(new LiquidityBalance(), { asset: { id: assetId } as Asset, amount, updated });
   }
 
-  function financeLog(totalBalanceChf: number): Log {
-    return Object.assign(new Log(), {
-      id: 1,
-      created: new Date('2026-06-11T00:00:00Z'),
-      message: JSON.stringify({
-        assets: {},
-        tradings: {},
-        balancesByFinancialType: {},
-        balancesTotal: { totalBalanceChf },
+  // the last N VALID FinancialDataLog snapshots (getLatestValidFinancialLogs), one per totalBalanceChf value
+  function validLogs(totals: number[]): Log[] {
+    return totals.map((totalBalanceChf, i) =>
+      Object.assign(new Log(), {
+        id: 100 + i,
+        created: new Date('2026-06-11T00:00:00Z'),
+        valid: true,
+        message: JSON.stringify({
+          assets: {},
+          tradings: {},
+          balancesByFinancialType: {},
+          balancesTotal: { totalBalanceChf },
+        }),
       }),
-    });
+    );
   }
 
   // chainable leg query-builder stub resolving its terminal method by the captured select/where expressions
@@ -115,6 +123,8 @@ describe('LedgerReconciliationService', () => {
     liquidityManagementBalanceService = createMock<LiquidityManagementBalanceService>();
     ledgerAccountRepository = createMock<LedgerAccountRepository>();
     ledgerLegRepository = createMock<LedgerLegRepository>();
+    markService = createMock<LedgerMarkService>();
+    refRewardService = createMock<RefRewardService>();
 
     jest.spyOn(jobService, 'isLedgerReady').mockResolvedValue(true);
     jest.spyOn(notificationService, 'sendMail').mockImplementation((request: MailRequest) => {
@@ -125,6 +135,12 @@ describe('LedgerReconciliationService', () => {
     jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([]);
     jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockImplementation(() => legQb());
     jest.spyOn(settingService, 'get').mockResolvedValue('0');
+    // default: a mark of 1 CHF/native for every asset (diffChf == native diff) so the diff-alarm tests read cleanly;
+    // Finding-4 tests override preload with a realistic mark (e.g. BTC 52'000, meme-coin 1e-7, or no mark).
+    jest.spyOn(markService, 'preload').mockResolvedValue({ getMarkAt: () => 1 } as any);
+    jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+    // default: no valid snapshot → equity parity skipped (the §7.6 tests override this with real snapshots)
+    jest.spyOn(logService, 'getLatestValidFinancialLogs').mockResolvedValue([]);
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -137,6 +153,8 @@ describe('LedgerReconciliationService', () => {
         { provide: LiquidityManagementBalanceService, useValue: liquidityManagementBalanceService },
         { provide: LedgerAccountRepository, useValue: ledgerAccountRepository },
         { provide: LedgerLegRepository, useValue: ledgerLegRepository },
+        { provide: LedgerMarkService, useValue: markService },
+        { provide: RefRewardService, useValue: refRewardService },
       ],
     }).compile();
 
@@ -162,7 +180,7 @@ describe('LedgerReconciliationService', () => {
   });
 
   it('reads the feed exactly once per run (§7.0 Minor R13-2)', async () => {
-    jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(financeLog(1000));
+    jest.spyOn(logService, 'getLatestValidFinancialLogs').mockResolvedValue(validLogs([1000]));
 
     await service.run();
 
@@ -349,6 +367,34 @@ describe('LedgerReconciliationService', () => {
       expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(true);
     });
 
+    // Finding 1 (regression): the transit-age aggregate reads MIN(bookingDate), but bookingDate lives on ledger_tx,
+    // NOT ledger_leg. The query MUST join leg.tx and select MIN(tx.bookingDate); a MIN(leg.bookingDate) references a
+    // non-existent column and crashes EVERY reconciliation run on real PG. Assert the exact join args + select
+    // expression so a regression back to leg.bookingDate (or a dropped leg.tx join) turns this test red.
+    it('checkTransitAge joins leg.tx and aggregates MIN(tx.bookingDate), never leg.bookingDate (Finding 1)', async () => {
+      const calls = { innerJoins: [] as [string, string][], selects: [] as string[] };
+      const qb: any = {};
+      qb.innerJoin = (a: string, b: string) => {
+        calls.innerJoins.push([a, b]);
+        return qb;
+      };
+      qb.select = (e: string) => (calls.selects.push(e), qb);
+      qb.addSelect = (e: string) => (calls.selects.push(e), qb);
+      qb.where = () => qb;
+      qb.groupBy = () => qb;
+      qb.addGroupBy = () => qb;
+      qb.having = () => qb;
+      qb.getRawMany = () => Promise.resolve([]);
+      jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockReturnValue(qb);
+
+      await (service as any).checkTransitAge(new Date());
+
+      expect(calls.innerJoins).toContainEqual(['leg.tx', 'tx']); // the join that makes tx.bookingDate reachable
+      expect(calls.innerJoins).toContainEqual(['leg.account', 'account']);
+      expect(calls.selects).toContain('MIN(tx.bookingDate)'); // age = oldest booking date from ledger_tx
+      expect(calls.selects).not.toContain('MIN(leg.bookingDate)'); // the crashing regression (no such column)
+    });
+
     it('emits a suspense alarm when a SUSPENSE balance exceeds its threshold', async () => {
       legStub.suspense = [{ name: 'SUSPENSE', chf: '5000' }];
       // generic SUSPENSE threshold 0 → 5000 > 0 → alarm
@@ -396,50 +442,156 @@ describe('LedgerReconciliationService', () => {
       expect(journalEquity).toBe(16050.01); // round(16050.005, 2), positive (sign-consistent with totalBalanceChf)
     });
 
-    it('logs the EXACT computed difference = journalEquity − totalBalanceChf (not a vacuous substring)', async () => {
-      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(financeLog(16000));
+    // Finding 2(d): the baseline is the MEDIAN of the last valid snapshots, NOT the single latest one — a lone
+    // ±snapshot-skew spike (here 130'000) must NOT move the baseline. Finding 3: the open RefCredit liability is
+    // folded into the baseline and reported as its own component. adjustedDifference = journalEquity − (median + refCredit).
+    it('compares against the median of the last valid snapshots (spike-immune) and folds in openRefCredit', async () => {
+      // last 5 valid totals incl. a transient +130k skew spike → median = 16005 (spike ignored)
+      jest
+        .spyOn(logService, 'getLatestValidFinancialLogs')
+        .mockResolvedValue(validLogs([16000, 130000, 16010, 15990, 16005]));
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 38, amountChf: 40 });
       legStub.equityChf = '16050';
       const logSpy = jest.spyOn(service['logger'], 'info');
 
       await service.run();
 
-      const parityLog = logSpy.mock.calls.find((c) => c[0].includes('equity parity'));
-      expect(parityLog).toBeDefined();
+      const msg = logSpy.mock.calls.find((c) => c[0].includes('equity parity'))![0] as string;
+      const median = Number(/medianTotalBalanceChf (-?\d+(?:\.\d+)?)/.exec(msg)![1]);
+      const refCredit = Number(/openRefCreditChf (-?\d+(?:\.\d+)?)/.exec(msg)![1]);
+      const adjusted = Number(/adjustedDifference (-?\d+(?:\.\d+)?)/.exec(msg)![1]);
+      expect(median).toBe(16005); // median of [15990,16000,16005,16010,130000] — the 130k spike does NOT skew it
+      expect(refCredit).toBe(40);
+      expect(adjusted).toBe(Util.round(16050 - (16005 + 40), 2)); // journalEquity − (median + refCredit) = 5
+      expect(adjusted).toBe(5);
 
-      // parse the logged numbers and assert the difference is ARITHMETICALLY journalEquity − totalBalanceChf — this
-      // catches a swapped subtraction (16000 − 16050 = −50) or a wrong operand, which a substring check would miss.
-      const msg: string = parityLog[0];
-      const journalEquity = Number(/journalEquity (-?\d+(?:\.\d+)?)/.exec(msg)![1]);
-      const totalBalanceChf = Number(/totalBalanceChf (-?\d+(?:\.\d+)?)/.exec(msg)![1]);
-      const difference = Number(/difference (-?\d+(?:\.\d+)?)/.exec(msg)![1]);
-      expect(journalEquity).toBe(16050);
-      expect(totalBalanceChf).toBe(16000);
-      expect(difference).toBe(Util.round(journalEquity - totalBalanceChf, 2)); // = +50, NOT −50 (subtraction order)
-      expect(difference).toBe(50);
+      // threshold defaults to 0 → |5| > 0 → a LEDGER_EQUITY_PARITY alarm with day-key suppression fires
+      const alarm = mails.find((m) => m.context === MailContext.LEDGER_EQUITY_PARITY);
+      expect(alarm).toBeDefined();
+      expect(alarm.type).toBe(MailType.ERROR_MONITORING);
+      expect(alarm.correlationId).toContain('ledger-equity-parity-');
+      expect(alarm.options?.suppressRecurring).toBe(true);
+      const errors = (alarm.input as { errors: string[] }).errors;
+      expect(errors.some((e) => e.includes('openRefCreditChf 40'))).toBe(true);
+      expect(errors.some((e) => e.includes('adjustedDifference 5'))).toBe(true);
     });
 
-    it('skips the parity log when there is no FinancialDataLog snapshot', async () => {
-      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(null);
+    // Finding 3: a book that differs from the log EXACTLY by the open ref credit is fully explained → adjustedDifference
+    // 0 → NO alarm. Without folding in RefCredit the raw difference would be 40 and this would be a permanent false alarm.
+    it('does NOT alarm when the book differs from the log solely by the open RefCredit liability', async () => {
+      jest.spyOn(logService, 'getLatestValidFinancialLogs').mockResolvedValue(validLogs([16000]));
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 38, amountChf: 40 });
+      legStub.equityChf = '16040'; // = median(16000) + refCredit(40) → adjustedDifference 0
+      const logSpy = jest.spyOn(service['logger'], 'info');
+
+      await service.run();
+
+      expect(mails.some((m) => m.context === MailContext.LEDGER_EQUITY_PARITY)).toBe(false);
+      const msg = logSpy.mock.calls.find((c) => c[0].includes('equity parity'))![0] as string;
+      expect(Number(/adjustedDifference (-?\d+(?:\.\d+)?)/.exec(msg)![1])).toBe(0);
+    });
+
+    // Finding 2(b/c): the alarm is threshold-gated via the 'ledgerEquityParityThresholdChf' runtime setting (analog
+    // ledgerSuspenseThresholdChf). A difference within the threshold logs but does NOT alarm.
+    it('suppresses the alarm when the adjusted difference is within the runtime threshold', async () => {
+      jest.spyOn(settingService, 'get').mockImplementation((key: string) => {
+        if (key === 'ledgerEquityParityThresholdChf') return Promise.resolve('100'); // high → suppresses
+        return Promise.resolve('0');
+      });
+      jest.spyOn(logService, 'getLatestValidFinancialLogs').mockResolvedValue(validLogs([16000]));
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      legStub.equityChf = '16050'; // adjustedDifference 50 ≤ threshold 100 → no alarm
+
+      await service.run();
+
+      expect(mails.some((m) => m.context === MailContext.LEDGER_EQUITY_PARITY)).toBe(false);
+    });
+
+    it('skips the parity check when there is no valid FinancialDataLog snapshot', async () => {
+      jest.spyOn(logService, 'getLatestValidFinancialLogs').mockResolvedValue([]);
       const logSpy = jest.spyOn(service['logger'], 'info');
 
       await service.run();
 
       expect(logSpy.mock.calls.find((c) => c[0].includes('equity parity'))).toBeUndefined();
+      expect(mails.some((m) => m.context === MailContext.LEDGER_EQUITY_PARITY)).toBe(false);
+      expect(refRewardService.getOpenRefCreditLiability).not.toHaveBeenCalled(); // returned before the refCredit read
     });
 
-    it('skips the parity log when the snapshot carries no totalBalanceChf', async () => {
-      // a snapshot whose balancesTotal lacks totalBalanceChf → checkEquityParity returns before the log (line 287)
+    it('skips the parity check when every snapshot lacks a totalBalanceChf', async () => {
       const noTotal = Object.assign(new Log(), {
         id: 2,
         created: new Date('2026-06-11T00:00:00Z'),
+        valid: true,
         message: JSON.stringify({ assets: {}, tradings: {}, balancesByFinancialType: {}, balancesTotal: {} }),
       });
-      jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(noTotal);
+      jest.spyOn(logService, 'getLatestValidFinancialLogs').mockResolvedValue([noTotal]);
       const logSpy = jest.spyOn(service['logger'], 'info');
 
       await service.run();
 
       expect(logSpy.mock.calls.find((c) => c[0].includes('equity parity'))).toBeUndefined();
+      expect(mails.some((m) => m.context === MailContext.LEDGER_EQUITY_PARITY)).toBe(false);
+    });
+  });
+
+  // Finding 4: the native journal↔feed diff is valued in CHF (× mark) BEFORE the CHF-tolerance compare. A native
+  // tolerance is ~52'000× too loose for BTC and far too tight for meme-coins. No mark → unverified, never silent 0.
+  describe('reconciliation diff unit conversion via mark (§7 / Finding 4)', () => {
+    it('alarms on a tiny native BTC diff once valued in CHF (0.001 × 52 000 = 52 CHF > tolerance)', async () => {
+      const now = new Date();
+      jest
+        .spyOn(ledgerAccountRepository, 'find')
+        .mockResolvedValue([assetAccount(5, { blockchain: Blockchain.BITCOIN })]);
+      jest
+        .spyOn(liquidityManagementBalanceService, 'getBalances')
+        .mockResolvedValue([balance(5, 0, Util.hoursBefore(1, now))]);
+      jest.spyOn(markService, 'preload').mockResolvedValue({ getMarkAt: () => 52000 } as any); // BTC mark
+      legStub.native = '0.001'; // journal 0.001 vs feed 0 → 0.001 native ≈ 52 CHF
+
+      await service.run();
+
+      const reconMail = mails.find((m) => m.correlationId?.includes('ledger-recon-'));
+      expect(reconMail).toBeDefined(); // OLD code: |0.001| ≤ 1 → no alarm (masked a 52 CHF gap); NEW: 52 CHF > 1 → alarm
+      const errors = (reconMail.input as { errors: string[] }).errors;
+      expect(errors[0]).toContain('52 CHF');
+      expect(errors[0]).toContain('@ mark 52000');
+    });
+
+    it('does NOT alarm on a large native meme-coin diff worth cents in CHF (1 000 000 × 1e-7 = 0.1 CHF ≤ tolerance)', async () => {
+      const now = new Date();
+      jest
+        .spyOn(ledgerAccountRepository, 'find')
+        .mockResolvedValue([assetAccount(5, { blockchain: Blockchain.ETHEREUM })]);
+      jest
+        .spyOn(liquidityManagementBalanceService, 'getBalances')
+        .mockResolvedValue([balance(5, 0, Util.hoursBefore(1, now))]);
+      jest.spyOn(markService, 'preload').mockResolvedValue({ getMarkAt: () => 0.0000001 } as any); // near-worthless mark
+      legStub.native = '1000000'; // journal 1e6 vs feed 0 → 0.1 CHF
+
+      await service.run();
+
+      // OLD code: |1e6| > 1 → false alarm; NEW: 0.1 CHF ≤ 1 → no diff alarm (and it is fresh+marked → not unverified)
+      expect(mails.some((m) => m.context === MailContext.LEDGER_RECONCILIATION)).toBe(false);
+    });
+
+    it('treats a fresh account with NO mark as unverified (never silently valued at 0)', async () => {
+      const now = new Date();
+      jest
+        .spyOn(ledgerAccountRepository, 'find')
+        .mockResolvedValue([assetAccount(5, { blockchain: Blockchain.ETHEREUM })]);
+      jest
+        .spyOn(liquidityManagementBalanceService, 'getBalances')
+        .mockResolvedValue([balance(5, 100, Util.hoursBefore(1, now))]);
+      jest.spyOn(markService, 'preload').mockResolvedValue({ getMarkAt: () => undefined } as any); // no mark
+      legStub.native = '150'; // journal 150 vs feed 100 → would be a diff, but without a mark it can't be valued
+
+      await service.run();
+
+      const unverified = mails.find((m) => m.correlationId?.includes('ledger-unverified-'));
+      expect(unverified).toBeDefined();
+      expect((unverified.input as { errors: string[] }).errors.some((e) => e.includes('no-mark'))).toBe(true);
+      expect(mails.some((m) => m.correlationId?.includes('ledger-recon-'))).toBe(false); // no silent 0-valued diff alarm
     });
   });
 

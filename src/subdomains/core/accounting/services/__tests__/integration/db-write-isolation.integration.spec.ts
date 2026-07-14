@@ -6,6 +6,7 @@ import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { MailRequest } from 'src/subdomains/supporting/notification/interfaces';
@@ -54,6 +55,7 @@ const SUN = new Date('2026-06-07T00:00:00Z');
 describe('Ledger DB-write isolation after a consumer/alarm run (§10.2)', () => {
   let ledger: InMemoryLedger;
   let markService: LedgerMarkService;
+  let refRewardService: RefRewardService;
 
   const markMap = new Map([
     [ZCHF_WALLET, [{ created: new Date('2026-01-01'), priceChf: 1 }]],
@@ -68,6 +70,8 @@ describe('Ledger DB-write isolation after a consumer/alarm run (§10.2)', () => 
     ledger.seed('ROUNDING', AccountType.ROUNDING, 'CHF');
     markService = createMock<LedgerMarkService>();
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(markMap));
+    refRewardService = createMock<RefRewardService>();
+    jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
   });
 
   // a row-count + MAX(updated) snapshot of a business table (§10.2 name-independent backstop): every write — whether
@@ -239,6 +243,7 @@ describe('Ledger DB-write isolation after a consumer/alarm run (§10.2)', () => 
     const legRepo = createMock<LedgerLegRepository>();
     const recSetting = createMock<SettingService>();
     jest.spyOn(recSetting, 'get').mockResolvedValue('0');
+    jest.spyOn(logService, 'getLatestValidFinancialLogs').mockResolvedValue([]); // no snapshot → equity parity skipped
 
     // an account whose feed is stale → exactly one aggregated "unverified accounts" alarm
     const now = new Date();
@@ -273,6 +278,8 @@ describe('Ledger DB-write isolation after a consumer/alarm run (§10.2)', () => 
       liqBalance,
       accountRepo,
       legRepo,
+      markService,
+      refRewardService,
     );
 
     const before = notification.length;
@@ -303,7 +310,7 @@ describe('Ledger DB-write isolation after a consumer/alarm run (§10.2)', () => 
     const liqBalance = createMock<LiquidityManagementBalanceService>();
     jest.spyOn(liqBalance, 'getBalances').mockResolvedValue([]); // no accounts → no diff, no unverified → no alarm
     const logService = createMock<LogService>();
-    jest.spyOn(logService, 'getLatestFinancialLog').mockResolvedValue(undefined);
+    jest.spyOn(logService, 'getLatestValidFinancialLogs').mockResolvedValue([]); // no snapshot → equity parity skipped
     const accountRepo = createMock<LedgerAccountRepository>();
     jest.spyOn(accountRepo, 'find').mockResolvedValue([]);
     const legRepo = createMock<LedgerLegRepository>();
@@ -325,6 +332,8 @@ describe('Ledger DB-write isolation after a consumer/alarm run (§10.2)', () => 
       liqBalance,
       accountRepo,
       legRepo,
+      markService,
+      refRewardService,
     );
 
     await service.run();

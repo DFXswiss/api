@@ -10,6 +10,7 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
 import { LiquidityManagementBalanceService } from 'src/subdomains/core/liquidity-management/services/liquidity-management-balance.service';
+import { RefRewardService } from 'src/subdomains/core/referral/reward/services/ref-reward.service';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { FinanceLog } from 'src/subdomains/supporting/log/dto/log.dto';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
@@ -20,8 +21,13 @@ import { AccountType, LedgerAccount } from '../entities/ledger-account.entity';
 import { LedgerAccountRepository } from '../repositories/ledger-account.repository';
 import { LedgerLegRepository } from '../repositories/ledger-leg.repository';
 import { LedgerBookingJobService } from './ledger-booking-job.service';
+import { LedgerMarkCache, LedgerMarkService } from './ledger-mark.service';
 
 const PLACEHOLDER_AMOUNT = 1.0; // Scrypt/EUR, Base/ZCHF placeholder feed → never reconcile (§7.1)
+
+// §7.6: median window for the equity-parity baseline. The FinancialDataLog carries transient ±snapshot-skew spikes
+// (see BalancesTotal, case 4); comparing against the median of the last few VALID snapshots absorbs a single spike.
+const EQUITY_PARITY_MEDIAN_SAMPLE = 5;
 
 export enum FeedStatus {
   PLACEHOLDER = 'placeholder',
@@ -78,6 +84,8 @@ export class LedgerReconciliationService {
     private readonly liquidityManagementBalanceService: LiquidityManagementBalanceService,
     private readonly ledgerAccountRepository: LedgerAccountRepository,
     private readonly ledgerLegRepository: LedgerLegRepository,
+    private readonly markService: LedgerMarkService,
+    private readonly refRewardService: RefRewardService,
   ) {}
 
   @DfxCron(CronExpression.EVERY_DAY_AT_5AM, { process: Process.LEDGER_RECONCILIATION })
@@ -97,15 +105,19 @@ export class LedgerReconciliationService {
     // §7.0: feed read ONCE per run, held in-memory for all batches (never per-batch, Minor R13-2)
     const feed = await this.liquidityManagementBalanceService.getBalances();
 
-    await this.reconcileAssets(feed, now);
+    // §7 (unit fix): marks loaded ONCE per run (analog mark-to-market §5.2, same 2-day window). Used to value the
+    // native journal↔feed diff in CHF before comparing against the CHF tolerance (see reconcileFreshAsset).
+    const marks = await this.markService.preload(Util.daysBefore(2, now), now);
+
+    await this.reconcileAssets(feed, marks, now);
     await this.checkTransitAge(now);
     await this.checkSuspense();
-    await this.checkEquityParity();
+    await this.checkEquityParity(now);
   }
 
   // --- ASSET RECONCILIATION (§7.1/§7.2/§7.3) --- //
 
-  private async reconcileAssets(feed: LiquidityBalance[], now: Date): Promise<void> {
+  private async reconcileAssets(feed: LiquidityBalance[], marks: LedgerMarkCache, now: Date): Promise<void> {
     const feedByAssetId = new Map(feed.filter((b) => b.asset?.id != null).map((b) => [b.asset.id, b]));
 
     const unverified: string[] = [];
@@ -141,7 +153,17 @@ export class LedgerReconciliationService {
           continue; // unverified → no per-asset diff alarm, aggregated below (§7.2/§7.3)
         }
 
-        await this.reconcileFreshAsset(account, balance, now);
+        // §7 (unit fix): the native journal↔feed diff MUST be valued in CHF (× the current mark) before it is
+        // compared against the CHF-denominated tolerance — a native tolerance is ~52'000× too loose for BTC and far
+        // too tight for meme-coins. No mark available → treat the account as unverified (same as the staleness path),
+        // NEVER silently value the diff at 0 (that would mask a real discrepancy).
+        const mark = marks.getMarkAt(account.assetId, now);
+        if (mark == null) {
+          unverified.push(`${account.name} (no-mark, ${classification.custodyClass})`);
+          continue;
+        }
+
+        await this.reconcileFreshAsset(account, balance, mark, now);
       }
 
       lastId = assetAccounts[assetAccounts.length - 1].id;
@@ -196,32 +218,45 @@ export class LedgerReconciliationService {
     return isOnChain ? CustodyClass.ON_CHAIN_ACTIVE : CustodyClass.EXCHANGE_ACTIVE;
   }
 
-  // §7: compare journal balance vs feed within tolerance; on diff → log (the journal stays authoritative, observer)
-  private async reconcileFreshAsset(account: LedgerAccount, balance: LiquidityBalance, now: Date): Promise<void> {
+  // §7: compare journal balance vs feed within tolerance; on diff → alarm (the journal stays authoritative, observer).
+  // The diff is native (leg.amount ≡ liquidity_balance.amount) and is valued at `mark` (CHF per native unit) so it is
+  // compared against the CHF-denominated tolerance in the SAME unit (§7 unit fix).
+  private async reconcileFreshAsset(
+    account: LedgerAccount,
+    balance: LiquidityBalance,
+    mark: number,
+    now: Date,
+  ): Promise<void> {
     const journal = await this.journalNativeBalance(account.id);
     const feedAmount = balance.amount ?? 0;
     const diff = Util.round(journal - feedAmount, 8);
+    const diffChf = Util.round(diff * mark, 2);
 
-    if (Math.abs(diff) <= Config.ledger.reconciliationToleranceChf) return; // within tolerance → balanced
+    if (Math.abs(diffChf) <= Config.ledger.reconciliationToleranceChf) return; // within CHF tolerance → balanced
 
     await this.sendAlarm(
       MailContext.LEDGER_RECONCILIATION,
       'Ledger reconciliation diff',
-      [`${account.name}: journal ${journal} vs feed ${feedAmount} (diff ${diff})`],
+      [
+        `${account.name}: journal ${journal} vs feed ${feedAmount} (diff ${diff} native, ${diffChf} CHF @ mark ${mark})`,
+      ],
       `ledger-recon-${account.id}-${this.dayKey(now)}`,
     );
   }
 
   // --- TRANSIT-AGE (§7.4) --- //
 
-  // transit account with balance ≠ 0 older than route threshold → alarm; age = MIN(bookingDate) of open legs
+  // transit account with balance ≠ 0 older than route threshold → alarm; age = MIN(bookingDate) of open legs.
+  // bookingDate lives on ledger_tx, NOT ledger_leg — the aggregate MUST join leg.tx and read MIN(tx.bookingDate)
+  // (a MIN(leg.bookingDate) references a non-existent column and crashes the whole reconciliation run on real PG).
   private async checkTransitAge(now: Date): Promise<void> {
     const overdue = await this.ledgerLegRepository
       .createQueryBuilder('leg')
       .innerJoin('leg.account', 'account')
+      .innerJoin('leg.tx', 'tx')
       .select('account.name', 'name')
       .addSelect('SUM(leg.amount)', 'native')
-      .addSelect('MIN(leg.bookingDate)', 'oldest')
+      .addSelect('MIN(tx.bookingDate)', 'oldest')
       .where('account.type = :type', { type: AccountType.TRANSIT })
       .groupBy('account.id')
       .addGroupBy('account.name')
@@ -274,22 +309,59 @@ export class LedgerReconciliationService {
 
   // --- EQUITY PARITY (§7.6) --- //
 
-  // journalEquity = signed Σ over all balance accounts (ASSET+/TRANSIT+/LIABILITY−/SUSPENSE/ROUNDING), no leading
-  // minus (Major R8-1) → positive, sign-consistent with totalBalanceChf. Compared against the FinancialDataLog total.
-  private async checkEquityParity(): Promise<void> {
+  // §7.6 global completeness net: every balance change ≥ threshold must be attributable to an event. journalEquity =
+  // signed Σ over all balance accounts (ASSET+/TRANSIT+/LIABILITY−/SUSPENSE/ROUNDING), no leading minus (Major R8-1)
+  // → positive, sign-consistent with totalBalanceChf. It is compared against a robust FinancialDataLog baseline and,
+  // above a runtime threshold, raises an alarm (day-key suppressed like the peer checks). Two corrections make the
+  // comparison honest:
+  //   (1) Median baseline: the FinancialDataLog carries transient ±snapshot-skew spikes (BalancesTotal case 4). We
+  //       compare against the MEDIAN of the last EQUITY_PARITY_MEDIAN_SAMPLE VALID snapshots, not the single latest
+  //       one, so a lone spike can never trip the alarm.
+  //   (2) RefCredit baseline (Finding 3): develop accrues the open referral-credit liability into totalBalanceChf
+  //       (accrual basis) while the ledger books ref rewards cash basis (only at payout) → a permanent definitional
+  //       gap. We fold the open RefCredit liability explicitly into the baseline and report every component so the
+  //       remaining difference stays explainable, instead of adding an accrual consumer to the ledger.
+  private async checkEquityParity(now: Date): Promise<void> {
     const journalEquity = await this.journalEquity();
 
-    const snapshot = await this.logService.getLatestFinancialLog();
-    const finance = snapshot ? this.parseFinance(snapshot.message) : undefined;
-    if (!finance) return;
+    const snapshots = await this.logService.getLatestValidFinancialLogs(EQUITY_PARITY_MEDIAN_SAMPLE);
+    const totals = snapshots
+      .map((s) => this.parseFinance(s.message)?.balancesTotal?.totalBalanceChf)
+      .filter((t): t is number => t != null);
+    if (!totals.length) return; // no valid snapshot yet → nothing to compare against
 
-    const totalBalanceChf = finance.balancesTotal?.totalBalanceChf;
-    if (totalBalanceChf == null) return;
+    const medianTotalChf = Util.round(this.median(totals), 2);
+    const openRefCreditChf = Util.round((await this.refRewardService.getOpenRefCreditLiability()).amountChf, 2);
 
-    const difference = Util.round(journalEquity - totalBalanceChf, 2);
+    // fold the accrual-only RefCredit liability into the baseline so cash-basis ledger vs accrual-basis log align
+    const adjustedDifference = Util.round(journalEquity - (medianTotalChf + openRefCreditChf), 2);
+
     this.logger.info(
-      `Ledger equity parity: journalEquity ${journalEquity} vs totalBalanceChf ${totalBalanceChf} (difference ${difference})`,
+      `Ledger equity parity: journalEquity ${journalEquity} vs medianTotalBalanceChf ${medianTotalChf} + ` +
+        `openRefCreditChf ${openRefCreditChf} (adjustedDifference ${adjustedDifference}, median of ${totals.length} snapshots)`,
     );
+
+    const threshold = +(await this.settingService.get('ledgerEquityParityThresholdChf', '0'));
+    if (Math.abs(adjustedDifference) <= threshold) return; // within threshold → attributable → no alarm
+
+    await this.sendAlarm(
+      MailContext.LEDGER_EQUITY_PARITY,
+      'Ledger equity parity breach',
+      [
+        `journalEquity ${journalEquity} CHF`,
+        `medianTotalBalanceChf ${medianTotalChf} CHF (median of ${totals.length} valid snapshots)`,
+        `openRefCreditChf ${openRefCreditChf} CHF`,
+        `adjustedDifference ${adjustedDifference} CHF (threshold ${threshold} CHF)`,
+      ],
+      `ledger-equity-parity-${this.dayKey(now)}`,
+    );
+  }
+
+  // median of a non-empty list (even count → mean of the two middle values); the caller guards against an empty list
+  private median(values: number[]): number {
+    const sorted = [...values].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 === 0 ? (sorted[mid - 1] + sorted[mid]) / 2 : sorted[mid];
   }
 
   // signed Σ amountChf over the balance-account types (Dr +, Cr − already in the leg sign convention §2.3)

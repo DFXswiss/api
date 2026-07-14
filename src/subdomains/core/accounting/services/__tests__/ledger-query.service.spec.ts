@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -52,6 +53,19 @@ describe('LedgerQueryService', () => {
 
   function feed(assetId: number, amount: number, updated: Date): LiquidityBalance {
     return Object.assign(new LiquidityBalance(), { asset: { id: assetId } as Asset, amount, updated });
+  }
+
+  function financeLog(created: string, totalBalanceChf: number): Log {
+    return Object.assign(new Log(), {
+      id: 1,
+      created: new Date(created),
+      message: JSON.stringify({
+        assets: {},
+        tradings: {},
+        balancesByFinancialType: {},
+        balancesTotal: { totalBalanceChf },
+      }),
+    });
   }
 
   function legTx(custom: Partial<LedgerTx>): LedgerTx {
@@ -119,6 +133,33 @@ describe('LedgerQueryService', () => {
     qb.getMany = () => Promise.resolve(qbStub.suspenseLegs ?? []);
     qb.getManyAndCount = () => Promise.resolve([qbStub.detailLegs ?? [], qbStub.detailTotal ?? 0]);
 
+    return qb;
+  }
+
+  // §7.6 batched equity-comparison query (cumulativeEquityByDay): a chainable stub that records the addSelect
+  // expressions + bound parameters and resolves getRawMany with the supplied day-grouped delta rows.
+  interface EquityGroupedRow {
+    day: string;
+    equity: string;
+    transit: string;
+    stale: string;
+    spread: string;
+  }
+  function equityGroupedQb(
+    rows: EquityGroupedRow[],
+    captured?: { selects: string[]; params: Record<string, unknown> },
+  ): any {
+    const qb: any = {};
+    const chain = () => qb;
+    qb.innerJoin = chain;
+    qb.select = (e: string) => (captured?.selects.push(e), qb);
+    qb.addSelect = (e: string) => (captured?.selects.push(e), qb);
+    qb.where = chain;
+    qb.andWhere = chain;
+    qb.groupBy = chain;
+    qb.setParameters = (p: Record<string, unknown>) => (captured && Object.assign(captured.params, p), qb);
+    qb.getRawMany = () => Promise.resolve(rows);
+    qb.getRawOne = () => Promise.resolve(null);
     return qb;
   }
 
@@ -425,27 +466,20 @@ describe('LedgerQueryService', () => {
   });
 
   describe('getEquityComparison', () => {
-    function financeLog(created: string, totalBalanceChf: number): Log {
-      return Object.assign(new Log(), {
-        id: 1,
-        created: new Date(created),
-        message: JSON.stringify({
-          assets: {},
-          tradings: {},
-          balancesByFinancialType: {},
-          balancesTotal: { totalBalanceChf },
-        }),
-      });
-    }
-
-    it('computes journalEquity, difference and the four-bucket decomposition (other = residual)', async () => {
+    it('computes journalEquity, difference and the four-bucket decomposition from ONE day-grouped query', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([financeLog('2026-06-10T00:00:00.000Z', 20000)]);
-      jest.spyOn(service as any, 'journalEquityAt').mockResolvedValue(19000);
-      jest.spyOn(service as any, 'transitPhantom').mockResolvedValue(-500);
-      jest.spyOn(service as any, 'staleFeed').mockResolvedValue(-200);
-      jest.spyOn(service as any, 'spreadFees').mockResolvedValue(-100);
+      // one unverified account → the stale-feed CASE is active in the grouped query
+      const unverified = assetAccount(2, 12, 'Olkypay/EUR');
+      jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([unverified]);
+      jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+      jest.spyOn(reconciliationService, 'classifyFeed').mockReturnValue({ status: FeedStatus.NO_FEED } as any);
+      jest
+        .spyOn(ledgerLegRepository, 'createQueryBuilder')
+        .mockReturnValue(
+          equityGroupedQb([{ day: '2026-06-10', equity: '19000', transit: '-500', stale: '-200', spread: '-100' }]),
+        );
 
-      const res = await service.getEquityComparison(undefined, true);
+      const res = await service.getEquityComparison(new Date('2026-06-01'), true);
 
       const period = res.periods[0];
       expect(period.journalEquity).toBe(19000);
@@ -461,12 +495,98 @@ describe('LedgerQueryService', () => {
     });
 
     it('skips logs without a totalBalanceChf', async () => {
-      const broken = Object.assign(new Log(), { id: 2, created: new Date(), message: '{ not json' });
+      const broken = Object.assign(new Log(), { id: 2, created: new Date('2026-06-10'), message: '{ not json' });
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([broken]);
+      jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockReturnValue(equityGroupedQb([]));
 
-      const res = await service.getEquityComparison();
+      const res = await service.getEquityComparison(new Date('2026-06-01'));
 
       expect(res.periods).toHaveLength(0);
+    });
+
+    // Finding 5(a): `from` is mandatory — a missing `from` used to scan the ENTIRE ledger history per period. Fail loud.
+    it('rejects a missing from with BadRequest (no unbounded full-history scan)', async () => {
+      await expect(service.getEquityComparison(undefined, true)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    // Finding 5(a): the [from, now] range is capped server-side (MAX_EQUITY_COMPARISON_RANGE_DAYS = 92)
+    it('rejects a from further back than the 92-day range cap', async () => {
+      await expect(service.getEquityComparison(Util.daysBefore(120), true)).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    // Finding 5: no logs in range → empty periods AND no leg query at all (early return before the grouped scan)
+    it('returns empty periods and runs no leg query when there are no logs in range', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([]);
+      const qbSpy = jest.spyOn(ledgerLegRepository, 'createQueryBuilder');
+
+      const res = await service.getEquityComparison(new Date('2026-06-01'));
+
+      expect(res.periods).toHaveLength(0);
+      expect(qbSpy).not.toHaveBeenCalled();
+    });
+
+    // Finding 5(b): the feed read (via unverifiedAccountIds) happens ONCE for the whole comparison, not once per period
+    it('reads the feed exactly once regardless of the period count (perf b)', async () => {
+      jest
+        .spyOn(logService, 'getFinancialLogs')
+        .mockResolvedValue([
+          financeLog('2026-06-08T00:00:00.000Z', 100),
+          financeLog('2026-06-09T00:00:00.000Z', 100),
+          financeLog('2026-06-10T00:00:00.000Z', 100),
+        ]);
+      jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([]);
+      const getBalancesSpy = jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+      jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockReturnValue(equityGroupedQb([]));
+
+      await service.getEquityComparison(new Date('2026-06-01'), true);
+
+      expect(getBalancesSpy).toHaveBeenCalledTimes(1); // ONE feed read for N periods (was N)
+    });
+
+    // Finding 5(c): the grouped day-deltas are turned into RUNNING cumulative totals — a later period sees the sum of
+    // its own day plus every earlier day, not just its own bucket.
+    it('accumulates the grouped day-deltas into running cumulative totals per period (perf c)', async () => {
+      jest
+        .spyOn(logService, 'getFinancialLogs')
+        .mockResolvedValue([financeLog('2026-06-08T12:00:00.000Z', 0), financeLog('2026-06-09T12:00:00.000Z', 0)]);
+      jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([]);
+      jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
+      jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockReturnValue(
+        equityGroupedQb([
+          { day: '2026-06-08', equity: '100', transit: '0', stale: '0', spread: '0' },
+          { day: '2026-06-09', equity: '50', transit: '0', stale: '0', spread: '0' },
+        ]),
+      );
+
+      const res = await service.getEquityComparison(new Date('2026-06-01'), true);
+
+      expect(res.periods[0].journalEquity).toBe(100); // day 08 cumulative
+      expect(res.periods[1].journalEquity).toBe(150); // day 08 + day 09 running cumulative
+    });
+
+    // Finding 5(c) guard: with NO unverified accounts the stale component is a literal 0 and NO unverifiedAccountIds
+    // parameter is bound — an empty `IN ()` list would be invalid SQL on real PG.
+    it('uses a literal-0 stale component (no unverified accounts) and binds no empty IN list', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([financeLog('2026-06-10T00:00:00.000Z', 500)]);
+      const fresh = assetAccount(1, 11, 'Binance/EUR');
+      jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([fresh]);
+      jest
+        .spyOn(liquidityManagementBalanceService, 'getBalances')
+        .mockResolvedValue([feed(11, 0, new Date('2026-06-10T05:00:00.000Z'))]);
+      jest.spyOn(reconciliationService, 'classifyFeed').mockReturnValue({ status: FeedStatus.FRESH } as any);
+
+      const captured = { selects: [] as string[], params: {} as Record<string, unknown> };
+      jest
+        .spyOn(ledgerLegRepository, 'createQueryBuilder')
+        .mockReturnValue(
+          equityGroupedQb([{ day: '2026-06-10', equity: '500', transit: '0', stale: '0', spread: '0' }], captured),
+        );
+
+      const res = await service.getEquityComparison(new Date('2026-06-01'), true);
+
+      expect(res.periods[0].decomposition.staleFeed).toBe(0);
+      expect(captured.selects).toContain('0'); // the literal-0 stale addSelect
+      expect(captured.params).not.toHaveProperty('unverifiedAccountIds'); // no empty IN list bound
     });
   });
 
@@ -620,121 +740,35 @@ describe('LedgerQueryService', () => {
       expect(res.accounts[0].status).toBe('ok'); // diff 0 ≤ tolerance
     });
 
-    it('getEquityComparison runs the real journalEquityAt + decomposition query-builders (residual = other)', async () => {
-      const log = Object.assign(new Log(), {
-        id: 1,
-        created: new Date('2026-06-10T00:00:00.000Z'),
-        message: JSON.stringify({
-          assets: {},
-          tradings: {},
-          balancesByFinancialType: {},
-          balancesTotal: { totalBalanceChf: 20000 },
-        }),
-      });
-      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([log]);
-      // an unverified ASSET account drives unverifiedAccountIds → the staleFeed query actually runs (not skipped)
-      const unverified = assetAccount(2, 12, 'Olkypay/EUR');
-      jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([unverified]);
-      jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
-      jest.spyOn(reconciliationService, 'classifyFeed').mockReturnValue({ status: FeedStatus.NO_FEED } as any);
-
-      jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockImplementation(() =>
-        richLegQb((_selects, wheres) => {
-          // staleFeed: mark_to_market sourceType + accountId IN (unverified) → −200 (check FIRST, no account.type)
-          if (wheres.includes('tx.sourceType = :sourceType')) return { chf: '-200' };
-          // spreadFees: EXPENSE type + account.name NOT IN (...) → −100 (has account.type = :type too → check before it)
-          if (wheres.includes('account.name NOT IN')) return { chf: '-100' };
-          // journalEquityAt: balance-account types IN (...) → 19000
-          if (wheres.includes('account.type IN')) return { chf: '19000' };
-          // transitPhantom: account.type = :type (TRANSIT) → −500
-          if (wheres.includes('account.type = :type')) return { chf: '-500' };
-          return { chf: '0' };
-        }),
-      );
-
-      const res = await service.getEquityComparison(undefined, true);
-
-      const period = res.periods[0];
-      expect(period.journalEquity).toBe(19000);
-      expect(period.difference).toBe(-1000); // 19000 − 20000
-      expect(period.decomposition.transitPhantom).toBe(-500);
-      expect(period.decomposition.staleFeed).toBe(-200);
-      expect(period.decomposition.spreadFees).toBe(-100);
-      expect(period.decomposition.other).toBe(-200); // −1000 − (−800)
-    });
-
-    // null-COALESCE fallbacks across the equity decomposition: journalEquityAt (L470), transitPhantom (L493),
-    // staleFeed (L510) and spreadFees (L527) each do `+(raw?.chf ?? 0)` — drive EVERY getRawOne to null so all four
-    // `?? 0` null sides fire (each helper → 0). Additionally unverifiedAccountIds (L540) sees an ASSET account whose
-    // assetId is null → `if (account.assetId == null) return false` (the false guard) plus a genuinely-unverified
-    // (NO_FEED) account, so the list is non-empty and the staleFeed SUM query actually executes (not short-circuited).
-    it('null getRawOne drives every equity-decomposition ?? 0 to 0 and skips a null-assetId account in the unverified scan (L470/L493/L510/L527/L540)', async () => {
-      const log = Object.assign(new Log(), {
-        id: 1,
-        created: new Date('2026-06-10T00:00:00.000Z'),
-        message: JSON.stringify({ balancesTotal: { totalBalanceChf: 20000 } }),
-      });
-      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([log]);
+    // Finding 5(b): unverifiedAccountIds skips an ASSET account whose assetId is null (the `account.assetId == null`
+    // guard) BEFORE classifyFeed, and the resulting id-set is bound ONCE into the grouped stale-feed CASE. A
+    // genuinely-unverified (NO_FEED) account keeps the set non-empty so the stale component is aggregated, not 0.
+    it('skips a null-assetId ASSET account in the unverified scan and binds only real unverified ids into the grouped query', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([financeLog('2026-06-10T00:00:00.000Z', 20000)]);
 
       const nullAssetIdAccount = createCustomLedgerAccount({
         id: 7,
         name: 'ASSET/no-asset-link',
         type: AccountType.ASSET,
-        assetId: undefined, // → L540 false guard, skipped before classifyFeed
+        assetId: undefined, // → the `assetId == null` guard, skipped before classifyFeed
       });
-      const unverified = assetAccount(2, 12, 'Olkypay/EUR'); // NO_FEED → non-fresh → keeps the list non-empty
+      const unverified = assetAccount(2, 12, 'Olkypay/EUR'); // NO_FEED → non-fresh → keeps the id-set non-empty
       jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([nullAssetIdAccount, unverified]);
       jest.spyOn(liquidityManagementBalanceService, 'getBalances').mockResolvedValue([]);
       jest.spyOn(reconciliationService, 'classifyFeed').mockReturnValue({ status: FeedStatus.NO_FEED } as any);
 
-      let staleQueryRan = false;
-      jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockImplementation(() =>
-        richLegQb((_selects, wheres) => {
-          if (wheres.includes('tx.sourceType = :sourceType')) staleQueryRan = true; // staleFeed SUM query executed
-          return null; // every getRawOne → null → +(raw?.chf ?? 0) → 0 for all four helpers
-        }),
-      );
-
-      const res = await service.getEquityComparison(undefined, true);
-
-      const period = res.periods[0];
-      expect(staleQueryRan).toBe(true); // unverified list non-empty (null-assetId account skipped, NO_FEED kept) → SUM ran
-      expect(period.journalEquity).toBe(0); // journalEquityAt null chf → 0 (L470)
-      expect(period.difference).toBe(-20000); // 0 − 20000
-      expect(period.decomposition.transitPhantom).toBe(0); // L493
-      expect(period.decomposition.staleFeed).toBe(0); // L510
-      expect(period.decomposition.spreadFees).toBe(0); // L527
-      expect(period.decomposition.other).toBe(-20000); // −20000 − (0+0+0) residual
-    });
-
-    it('staleFeed short-circuits to 0 when there are no unverified accounts', async () => {
-      const log = Object.assign(new Log(), {
-        id: 1,
-        created: new Date('2026-06-10T00:00:00.000Z'),
-        message: JSON.stringify({ balancesTotal: { totalBalanceChf: 100 } }),
-      });
-      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([log]);
-      // a FRESH account → unverifiedAccountIds is empty → staleFeed returns 0 WITHOUT running the SUM query
-      const fresh = assetAccount(1, 11, 'Binance/EUR');
-      jest.spyOn(ledgerAccountRepository, 'find').mockResolvedValue([fresh]);
+      const captured = { selects: [] as string[], params: {} as Record<string, unknown> };
       jest
-        .spyOn(liquidityManagementBalanceService, 'getBalances')
-        .mockResolvedValue([feed(11, 0, new Date('2026-06-10T05:00:00.000Z'))]);
-      jest.spyOn(reconciliationService, 'classifyFeed').mockReturnValue({ status: FeedStatus.FRESH } as any);
+        .spyOn(ledgerLegRepository, 'createQueryBuilder')
+        .mockReturnValue(
+          equityGroupedQb([{ day: '2026-06-10', equity: '19000', transit: '0', stale: '-200', spread: '0' }], captured),
+        );
 
-      let staleQueryRan = false;
-      jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockImplementation(() =>
-        richLegQb((_selects, wheres) => {
-          if (wheres.includes('tx.sourceType = :sourceType')) staleQueryRan = true; // staleFeed SUM query
-          if (wheres.includes('account.type IN')) return { chf: '100' };
-          return { chf: '0' };
-        }),
-      );
+      const res = await service.getEquityComparison(new Date('2026-06-01'), true);
 
-      const res = await service.getEquityComparison(undefined, true);
-
-      expect(staleQueryRan).toBe(false); // no unverified accounts → the staleFeed SUM query is never executed
-      expect(res.periods[0].decomposition.staleFeed).toBe(0);
+      expect(res.periods[0].journalEquity).toBe(19000);
+      expect(res.periods[0].decomposition.staleFeed).toBe(-200); // active stale-feed CASE (unverified set non-empty)
+      expect(captured.params.unverifiedAccountIds).toEqual([unverified.id]); // only the real one; null-assetId skipped
     });
   });
 
