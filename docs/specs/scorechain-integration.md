@@ -368,11 +368,12 @@ and consistent — no untyped failures, no silent passes:
    (e.g. the `RoleGuard(SUPPORT)`-gated support-issue data endpoint). Do not add a Scorechain-named
    `AmlReason` and do not surface `comment` in any customer-facing DTO.
 
-   **HighRisk vs. Unavailable (DFXswiss/api#4205):** a real Scorechain hit and a provider/
-   infrastructure failure (5xx, timeout, quota reached, misconfiguration, unexpected throw) are
-   different events and must not collapse into the same classification — a Prod incident showed a
-   Buy-Crypto tx routed to manual review with comment `ScorechainHighRisk` although Scorechain had
-   returned HTTP 500 and no `scorechain_screening` row or compliance PDF ever existed for it. The
+   **HighRisk vs. Unavailable (DFXswiss/api#4205):** a real Scorechain hit and a
+   provider/infrastructure failure (5xx, timeout, quota reached, misconfiguration,
+   unexpected throw) are different events and must not collapse into the same classification —
+   a Prod incident showed a Buy-Crypto tx routed to manual review with comment
+   `ScorechainHighRisk` although Scorechain had returned HTTP 500 and no
+   `scorechain_screening` row or compliance PDF ever existed for it. The
    call-site now returns a `ScorechainOutcome` (`PASS` / `HIGH_RISK` / `UNAVAILABLE`,
    `scorechain-outcome.enum.ts`) instead of a boolean; `HIGH_RISK` still maps to
    `AmlError.SCORECHAIN_HIGH_RISK`, and the new `AmlError.SCORECHAIN_UNAVAILABLE` (mapped
