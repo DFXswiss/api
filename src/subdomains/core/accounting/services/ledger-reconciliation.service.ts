@@ -259,33 +259,78 @@ export class LedgerReconciliationService {
 
   // --- TRANSIT-AGE (§7.4) --- //
 
-  // transit account with balance ≠ 0 older than route threshold → alarm; age = MIN(bookingDate) of open legs.
-  // bookingDate lives on ledger_tx, NOT ledger_leg — the aggregate MUST join leg.tx and read MIN(tx.bookingDate)
-  // (a MIN(leg.bookingDate) references a non-existent column and crashes the whole reconciliation run on real PG).
+  // transit account with balance ≠ 0 older than route threshold → alarm. The age is the age of the CURRENT open
+  // residual, NOT MIN(bookingDate) over all legs: a churning route (opens+closes repeatedly, e.g. TRANSIT/payout)
+  // would otherwise report its very first leg ever, so a freshly re-opened residual reads as ancient and alarms every
+  // day (alert fatigue). It is derived from the last zero-crossing of the account's cumulative balance — the moment the
+  // balance last left 0 and stayed ≠ 0 (see openResidualSince).
   private async checkTransitAge(now: Date): Promise<void> {
-    const overdue = await this.ledgerLegRepository
+    // the open (non-zero) transit accounts; the id feeds the per-account cumulation below
+    const open = await this.ledgerLegRepository
       .createQueryBuilder('leg')
       .innerJoin('leg.account', 'account')
-      .innerJoin('leg.tx', 'tx')
-      .select('account.name', 'name')
+      .select('account.id', 'id')
+      .addSelect('account.name', 'name')
       .addSelect('SUM(leg.amount)', 'native')
-      .addSelect('MIN(tx.bookingDate)', 'oldest')
       .where('account.type = :type', { type: AccountType.TRANSIT })
       .groupBy('account.id')
       .addGroupBy('account.name')
       .having('ABS(SUM(leg.amount)) > :tol', { tol: 1e-8 })
-      .getRawMany<{ name: string; native: string; oldest: Date }>();
+      .getRawMany<{ id: number; name: string; native: string }>();
+    if (!open.length) return;
 
     const thresholdDays = Config.ledger.transitAlarmThresholdDays;
-    const aged = overdue.filter((t) => t.oldest && Util.daysDiff(new Date(t.oldest), now) > thresholdDays);
+    const aged: { name: string; native: string; since: Date }[] = [];
+    for (const account of open) {
+      const since = await this.openResidualSince(+account.id);
+      if (since && Util.daysDiff(since, now) > thresholdDays) {
+        aged.push({ name: account.name, native: account.native, since });
+      }
+    }
     if (!aged.length) return;
 
     await this.sendAlarm(
       MailContext.LEDGER_TRANSIT_OVERDUE,
       'Ledger transit overdue',
-      aged.map((t) => `${t.name}: balance ${t.native} open since ${new Date(t.oldest).toISOString()}`),
+      aged.map((t) => `${t.name}: balance ${t.native} open since ${t.since.toISOString()}`),
       `ledger-transit-${this.dayKey(now)}`,
     );
+  }
+
+  // §7.4 — the bookingDate since which the account's cumulative native balance has been continuously ≠ 0 (the opening
+  // of the CURRENT open residual), or undefined if it nets back to 0. Derived by an in-memory chronological cumulation
+  // over the account's legs: cheap because it runs ONLY for the few transit accounts the HAVING pre-filtered to a
+  // non-zero balance (a QueryBuilder running-sum zero-crossing would be disproportionate for so few rows). bookingDate
+  // lives on ledger_tx (NOT ledger_leg) → the query joins leg.tx and reads tx.bookingDate (alias.property is auto-quoted
+  // by TypeORM; a bare leg.bookingDate is a non-existent column that would crash the run on real PG). Ties on
+  // bookingDate are broken by leg.id so the crossing point is deterministic.
+  private async openResidualSince(accountId: number): Promise<Date | undefined> {
+    const legs = await this.ledgerLegRepository
+      .createQueryBuilder('leg')
+      .innerJoin('leg.tx', 'tx')
+      .innerJoin('leg.account', 'account')
+      .select('leg.amount', 'amount')
+      .addSelect('tx.bookingDate', 'bookingDate')
+      .where('account.id = :accountId', { accountId })
+      .orderBy('tx.bookingDate', 'ASC')
+      .addOrderBy('leg.id', 'ASC')
+      .getRawMany<{ amount: string; bookingDate: string | Date }>();
+
+    const tol = 1e-8;
+    let cumulative = 0;
+    let openSince: Date | undefined;
+    for (const leg of legs) {
+      const wasZero = Math.abs(cumulative) <= tol;
+      cumulative = Util.round(cumulative + +leg.amount, 8);
+      if (Math.abs(cumulative) <= tol) {
+        openSince = undefined; // residual closed → the current non-zero run ended
+      } else if (wasZero) {
+        openSince = new Date(leg.bookingDate); // balance just left zero → a new open run starts at this leg
+      }
+      // !wasZero && still ≠ 0 → the same run continues, keep openSince
+    }
+
+    return openSince;
   }
 
   // --- SUSPENSE (§7.5) --- //

@@ -679,6 +679,68 @@ describe('BankTxConsumer', () => {
     expect(setSpy).not.toHaveBeenCalled(); // throw → watermark not advanced (row retried next run)
   });
 
+  // F1: a non-CHF CHECKOUT_LTD with NO historical mark at the booking date but a CURRENT mark (getLatestMark). The two
+  // ASSET legs (bank + Checkout custody) are bridged so the fee-carrying MIXED tx balances instead of wedging bookTx
+  // head-of-line (its Σ = feeChf ≠ 0 would trip the appendRoundingLeg imbalance guard). needsMark stays true → the
+  // mark-to-market job revalues the gross later; the F2 gross native convention is untouched by the bridge.
+  it('bridges a no-historical-mark CHECKOUT_LTD via the current mark so the fee-carrying tx balances (F1)', async () => {
+    createdAccounts.set('Checkout/EUR', account('Checkout/EUR', AccountType.ASSET, 'EUR', 270));
+    jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no historical mark anywhere
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(0.95); // but a current mark exists → bridgeable
+    mockBatch([
+      bankTx({
+        id: 104,
+        type: BankTxType.CHECKOUT_LTD,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100,
+        currency: 'EUR',
+        chargeAmount: 3.2,
+        chargeCurrency: 'EUR', // ladder 2 → feeNative 3.2
+        chargeAmountChf: 3.04, // 0.95 × 3.2 → the bridged legs net exactly (no residual plug)
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(1);
+    const legs = booked[0].legs;
+    const bank = legs.find((l) => l.account === eurBankAccount);
+    const checkout = legs.find((l) => l.account.name === 'Checkout/EUR');
+    expect(bank.amountChf).toBe(95); // bridged 0.95 × 100
+    expect(bank.needsMark).toBe(true); // provisional basis → re-marked later
+    expect(checkout.amount).toBe(-103.2); // gross native (F2 convention) untouched by the bridge
+    expect(checkout.amountChf).toBe(-98.04); // bridged 0.95 × 103.2
+    expect(checkout.needsMark).toBe(true);
+    expect(cents(legs)).toBe(0); // balances (was a throw-wedge pre-fix)
+  });
+
+  // F1: a non-CHF CHECKOUT_LTD with a non-zero fee and NO mark anywhere (no historical, no current). The bridge finds
+  // nothing, so the MIXED tx defers via failure-isolation instead of a permanent throw-wedge — the watermark stays put
+  // and the row retries once the feed has the asset (§4.2a Major B5 fail-closed).
+  it('defers a no-mark CHECKOUT_LTD with a non-zero fee (F1 defer, no throw-wedge)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    createdAccounts.set('Checkout/EUR', account('Checkout/EUR', AccountType.ASSET, 'EUR', 270));
+    jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no historical mark
+    // getLatestMark stays the default undefined → no bridge anywhere
+    mockBatch([
+      bankTx({
+        id: 105,
+        type: BankTxType.CHECKOUT_LTD,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100,
+        currency: 'EUR',
+        chargeAmount: 3.2,
+        chargeCurrency: 'EUR',
+        chargeAmountChf: 3.04,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // deferred: unbalanceable mixed tx, nothing to bridge
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced (retry next run)
+  });
+
   it('books GSHEET CRDT to LIABILITY/unattributed (EUR-mark in both legs)', async () => {
     mockBatch([
       bankTx({

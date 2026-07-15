@@ -27,7 +27,8 @@ import { CustodyClass, FeedStatus, LedgerReconciliationService } from '../ledger
 interface LegQueryStub {
   native?: string; // journal native balance per account (fed through the nativeBalanceByAccount map, §7.0 m8)
   equityChf?: string; // journalEquity getRawOne
-  transit?: { name: string; native: string; oldest: Date }[];
+  transit?: { id: number; name: string; native: string }[]; // checkTransitAge open-account candidates (F3)
+  transitLegs?: { amount: string; bookingDate: Date }[]; // openResidualSince per-account ordered legs (F3)
   suspense?: { name: string; chf: string }[];
 }
 
@@ -97,13 +98,17 @@ describe('LedgerReconciliationService', () => {
       return qb;
     };
     qb.andWhere = chain;
+    qb.orderBy = chain;
+    qb.addOrderBy = chain;
     qb.groupBy = chain;
     qb.addGroupBy = chain;
     qb.having = chain;
     qb.getRawMany = () => {
       const selects = qb._selects.join(' ');
-      if (selects.includes('bookingDate')) return Promise.resolve(legStub.transit ?? []); // checkTransitAge (MIN bookingDate)
-      return Promise.resolve(legStub.suspense ?? []); // checkSuspense
+      if (selects.includes('bookingDate')) return Promise.resolve(legStub.transitLegs ?? []); // openResidualSince (F3)
+      if (selects.includes('COALESCE')) return Promise.resolve(legStub.suspense ?? []); // checkSuspense (Σ COALESCE amountChf)
+      if (selects.includes('SUM(leg.amount)')) return Promise.resolve(legStub.transit ?? []); // checkTransitAge candidates
+      return Promise.resolve([]);
     };
     qb.getRawOne = () => {
       const wheres = qb._wheres.join(' ');
@@ -419,39 +424,64 @@ describe('LedgerReconciliationService', () => {
   describe('transit-age + suspense alarms (§7.4/§7.5)', () => {
     it('emits a transit-overdue alarm for an open transit balance older than the threshold', async () => {
       const oldDate = Util.daysBefore(10); // well beyond the 3-day default threshold
-      legStub.transit = [{ name: 'TRANSIT/payout/CHF', native: '14851.5', oldest: oldDate }];
+      legStub.transit = [{ id: 7, name: 'TRANSIT/payout/CHF', native: '14851.5' }];
+      legStub.transitLegs = [{ amount: '14851.5', bookingDate: oldDate }]; // opened 10d ago, never closed → open since then
 
       await service.run();
 
       expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(true);
     });
 
-    // Finding 1 (regression): the transit-age aggregate reads MIN(bookingDate), but bookingDate lives on ledger_tx,
-    // NOT ledger_leg. The query MUST join leg.tx and select MIN(tx.bookingDate); a MIN(leg.bookingDate) references a
-    // non-existent column and crashes EVERY reconciliation run on real PG. Assert the exact join args + select
-    // expression so a regression back to leg.bookingDate (or a dropped leg.tx join) turns this test red.
-    it('checkTransitAge joins leg.tx and aggregates MIN(tx.bookingDate), never leg.bookingDate (Finding 1)', async () => {
+    // F3: a churning transit route that repeatedly opens and closes must be aged from the LAST zero-crossing of its
+    // cumulative balance, NOT MIN(bookingDate) over all legs. A route that closed to 0 and re-opened fresh has a YOUNG
+    // residual → no overdue alarm, even though its very first leg is ancient (alert-fatigue fix).
+    it('ages a churning transit route from the last zero-crossing, not its first leg (F3)', async () => {
+      legStub.transit = [{ id: 8, name: 'TRANSIT/payout/CHF', native: '50' }]; // net ≠ 0 → an open candidate
+      legStub.transitLegs = [
+        { amount: '100', bookingDate: Util.daysBefore(20) }, // opened 20d ago …
+        { amount: '-100', bookingDate: Util.daysBefore(19) }, // … closed to 0 the next day (that run ended)
+        { amount: '50', bookingDate: Util.daysBefore(1) }, // re-opened fresh 1d ago → residual age = 1d
+      ];
+
+      await service.run();
+
+      expect(mails.some((m) => m.context === MailContext.LEDGER_TRANSIT_OVERDUE)).toBe(false); // 1d < 3d threshold
+    });
+
+    // Finding 1 / F3 (regression): the residual age comes from ledger_tx.bookingDate — bookingDate lives on ledger_tx,
+    // NOT ledger_leg. openResidualSince MUST join leg.tx and select tx.bookingDate; a leg.bookingDate references a
+    // non-existent column and crashes EVERY reconciliation run on real PG. Also assert MIN(tx.bookingDate) is gone (F3:
+    // no longer an aggregate over ALL legs). Turns red on a dropped leg.tx join or a regression to leg.bookingDate.
+    it('reads the residual age from ledger_tx (openResidualSince joins leg.tx + tx.bookingDate, never leg.bookingDate)', async () => {
       const calls = { innerJoins: [] as [string, string][], selects: [] as string[] };
-      const qb: any = {};
+      const qb: any = { _selects: [] as string[] };
       qb.innerJoin = (a: string, b: string) => {
         calls.innerJoins.push([a, b]);
         return qb;
       };
-      qb.select = (e: string) => (calls.selects.push(e), qb);
-      qb.addSelect = (e: string) => (calls.selects.push(e), qb);
+      qb.select = (e: string) => (calls.selects.push(e), qb._selects.push(e), qb);
+      qb.addSelect = (e: string) => (calls.selects.push(e), qb._selects.push(e), qb);
       qb.where = () => qb;
+      qb.orderBy = () => qb;
+      qb.addOrderBy = () => qb;
       qb.groupBy = () => qb;
       qb.addGroupBy = () => qb;
       qb.having = () => qb;
-      qb.getRawMany = () => Promise.resolve([]);
+      // the candidate aggregate returns one open account → openResidualSince runs; its per-account query (the one
+      // selecting bookingDate) then returns the (empty) leg list
+      qb.getRawMany = () =>
+        Promise.resolve(
+          qb._selects.join(' ').includes('bookingDate') ? [] : [{ id: 9, name: 'TRANSIT/x', native: '5' }],
+        );
       jest.spyOn(ledgerLegRepository, 'createQueryBuilder').mockReturnValue(qb);
 
       await (service as any).checkTransitAge(new Date());
 
       expect(calls.innerJoins).toContainEqual(['leg.tx', 'tx']); // the join that makes tx.bookingDate reachable
       expect(calls.innerJoins).toContainEqual(['leg.account', 'account']);
-      expect(calls.selects).toContain('MIN(tx.bookingDate)'); // age = oldest booking date from ledger_tx
-      expect(calls.selects).not.toContain('MIN(leg.bookingDate)'); // the crashing regression (no such column)
+      expect(calls.selects).toContain('tx.bookingDate'); // age read from ledger_tx
+      expect(calls.selects).not.toContain('leg.bookingDate'); // the crashing regression (no such column)
+      expect(calls.selects).not.toContain('MIN(tx.bookingDate)'); // F3: no longer an aggregate over ALL legs
     });
 
     it('emits a suspense alarm when a SUSPENSE balance exceeds its threshold', async () => {

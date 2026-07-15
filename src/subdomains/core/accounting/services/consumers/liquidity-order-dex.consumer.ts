@@ -194,9 +194,17 @@ export class LiquidityOrderDexConsumer {
     const { feeAsset, feeAmount, targetAsset, swapAsset } = order;
     if (!feeAsset || feeAmount == null || feeAmount === 0) return; // null strategy §5.1: no fee → no fee leg
 
-    const mark = marks.getMarkAt(feeAsset.id, bookingDate);
+    // Major B5 (F2): the CHF EXPENSE/network-fee leg has no assetId, so resolveLegsOrDefer cannot bridge it — but it
+    // WOULD bridge the fee's ASSET counter-leg (own leg or the folded swap/target leg) with getLatestMark. Bridging one
+    // side while the other stays unvalued nets to the fee value → the swap wedges head-of-line (fee mark first fed AFTER
+    // the swap date). Derive feeChf here from the SAME bridged mark the asset counter-leg uses (getLatestMark, same
+    // asset) so both sides move in lockstep and Σ balances. needsMark stays true whenever the HISTORICAL mark was
+    // absent → the leg is provisional and the mark-to-market job re-marks it later. A truly feedless fee asset (no
+    // bridge either) leaves feeChf undefined → both fee legs stay unvalued → resolveLegsOrDefer defers the row.
+    const historicalMark = marks.getMarkAt(feeAsset.id, bookingDate);
+    const mark = historicalMark ?? (await this.markService.getLatestMark(feeAsset.id));
     const feeChf = mark != null ? Util.round(mark * feeAmount, 2) : undefined;
-    const feeNeedsMark = feeChf == null;
+    const feeNeedsMark = historicalMark == null;
 
     // EXPENSE/network-fee (CHF-only) closes the CHF cross-asset side; the native fee leaves ASSET/{feeAsset}
     legs.push(this.networkFeeLeg(await this.expense('network-fee'), feeChf, feeNeedsMark));

@@ -532,8 +532,12 @@ export class BankTxConsumer {
   //      mark × amount holds on the custody leg by construction;
   //   4. else THROW (fail-loud): a non-zero fee with neither a same-currency chargeAmount nor a mark cannot be
   //      booked mark-consistently; the consumer's failure-isolation retries the row on the next run.
-  // No-mark case (bank.amountChf == null, feeNative resolved via ladder 1–2): the custody leg books the CORRECT
-  // gross native + needsMark → the mark-to-market job revalues it later against the correct gross.
+  // No-mark case (bank.amountChf == null, feeNative resolved via ladder 1–2): the composed legs are routed through
+  // withFxPlug (F1) — a MIXED CHECKOUT_LTD (needsMark bank/custody ASSET legs + a CHF-valued acquirer-fee leg) is NEVER
+  // handed raw to bookTx: its Σ = feeChf ≠ 0 would trip the CHF-imbalance guard in appendRoundingLeg and wedge every
+  // later bank_tx head-of-line. Both ASSET legs carry an assetId → resolveLegsOrDefer bridges them with the youngest
+  // available mark so the tx balances (needsMark stays true, the mark-to-market job revalues the gross later); the
+  // fee-vs-mark valuation residual routes to fx-revaluation. A truly feedless asset (no bridge) defers the row.
   private async checkoutLtdLegs(
     tx: BankTx,
     ctx: BankContext,
@@ -576,7 +580,11 @@ export class BankTxConsumer {
       needsMark: grossChf == null,
     });
 
-    return legs;
+    // F1: route through the shared bridge/plug path — with a historical mark the legs already net to 0 (no plug); a
+    // no-historical-mark row bridges the two ASSET legs via getLatestMark so the fee-carrying MIXED tx balances instead
+    // of wedging bookTx, and a feedless asset defers cleanly (§4.2a Major B5). The F2 gross convention stays intact:
+    // resolveLegsOrDefer only fills the needsMark legs' amountChf (native untouched, needsMark stays true).
+    return this.withFxPlug(legs, `bank_tx ${tx.id} checkout_ltd`);
   }
 
   // §4.2 GSHEET/PENDING DBIT + UNKNOWN: Dr/Cr SUSPENSE ↔ ASSET/bank (both mark, §4.2-Note)

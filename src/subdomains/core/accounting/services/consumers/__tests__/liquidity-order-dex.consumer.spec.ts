@@ -355,6 +355,40 @@ describe('LiquidityOrderDexConsumer', () => {
     expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
   });
 
+  // F2: a distinct gas-fee asset with NO historical mark at the swap date but a CURRENT mark (first fed AFTER the swap).
+  // The CHF EXPENSE/network-fee leg is derived from the SAME bridged mark as its ASSET/{feeAsset} counter-leg, so both
+  // move in lockstep and the swap balances — instead of bridging only the asset side and wedging the row head-of-line
+  // (asymmetric Σ = feeChf > tolerance). needsMark stays true → the mark-to-market job re-marks the basis later.
+  it('bridges a no-historical-mark gas fee via the current mark so the swap balances (F2)', async () => {
+    jest.spyOn(markService, 'preload').mockResolvedValue(
+      new LedgerMarkCache(
+        new Map([
+          [EURC_ASSET_ID, [{ created: new Date('2026-01-01'), priceChf: 1.05 }]],
+          [USDC_ASSET_ID, [{ created: new Date('2026-01-01'), priceChf: 0.95 }]],
+          // ETH (fee asset) has NO historical mark at the swap date …
+        ]),
+      ),
+    );
+    jest
+      .spyOn(markService, 'getLatestMark')
+      .mockImplementation((id: number) => Promise.resolve(id === ETH_ASSET_ID ? 2000 : undefined)); // … but a current mark exists
+
+    mockBatch([
+      liquidityOrder({ id: 25, feeAsset: { id: ETH_ASSET_ID, uniqueName: 'Ethereum/ETH' }, feeAmount: 0.01 }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(1);
+    const tx = booked[0];
+    const feeExpense = leg(tx, 'EXPENSE/network-fee');
+    const ethLeg = leg(tx, 'Ethereum/ETH');
+    expect(feeExpense.amountChf).toBe(20); // bridged 0.01 × 2000
+    expect(feeExpense.needsMark).toBe(true); // provisional → re-marked later
+    expect(ethLeg.amountChf).toBe(-20); // ASSET counter-leg bridged with the SAME mark → symmetric
+    expect(ethLeg.needsMark).toBe(true);
+    expect(cents(tx.legs)).toBe(0); // balances (was a wrong defer / head-of-line wedge pre-fix)
+  });
+
   // §4.8a appendSpreadPlug sub-cent branch (lines 187-188): a swap whose two mark legs net to 0 (within tolerance) →
   // NO spread plug appended. EURC 1000 × 1.05 = 1050; USDC swapAmount chosen so 0.95 × amount = 1050 → amount ≈ 1105.26
   // is not clean; instead use equal marks via a swap where target CHF == swap CHF exactly.
