@@ -2175,9 +2175,7 @@ export class RealUnitService {
     const mappedStatus = this.mapConfirmationStatus(httpStatus);
     const noRegistrationMatch =
       !walletAddresses.length && mappedStatus === RealUnitAktionariatConfirmationStatus.CONFIRMED;
-    const status = noRegistrationMatch
-      ? RealUnitAktionariatConfirmationStatus.CONFIRMED_NO_REGISTRATION
-      : mappedStatus;
+    const status = noRegistrationMatch ? RealUnitAktionariatConfirmationStatus.CONFIRMED_NO_REGISTRATION : mappedStatus;
 
     if (!walletAddresses.length) {
       const message = `No RealUnit registration wallet found for ${maskedEmail}`;
