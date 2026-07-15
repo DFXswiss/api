@@ -2,6 +2,8 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { createCustomExchangeTx } from 'src/integration/exchange/dto/__mocks__/exchange-tx.entity.mock';
+import { ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -116,6 +118,48 @@ describe('LogJobService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
+  });
+
+  describe('getChangeLog (Scrypt & MEXC exchange fees)', () => {
+    function setupEmpty() {
+      jest.spyOn(buyFiatService, 'getBuyFiat').mockResolvedValue([] as any);
+      jest.spyOn(buyCryptoService, 'getBuyCrypto').mockResolvedValue([] as any);
+      jest.spyOn(tradingOrderService, 'getTradingOrderYield').mockResolvedValue({ fee: 0, profit: 0 } as any);
+      jest.spyOn(payoutService, 'getPayoutOrders').mockResolvedValue([] as any);
+      jest.spyOn(bankTxService, 'getBankTxFee').mockResolvedValue(0 as any);
+      jest.spyOn(payInService, 'getPayInFee').mockResolvedValue(0 as any);
+      jest.spyOn(refRewardService, 'getRefRewardVolume').mockResolvedValue(0 as any);
+    }
+
+    it('sums Scrypt and MEXC trade+withdrawal fees (sign-aware, incl. rebates) into minus and total', async () => {
+      setupEmpty();
+      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([
+        // Scrypt: trade 240 minus a 20 rebate = 220 net trading, plus a 10 withdrawal -> total 230
+        createCustomExchangeTx({ exchange: ExchangeName.SCRYPT, type: ExchangeTxType.TRADE, feeAmountChf: 240 }),
+        createCustomExchangeTx({ exchange: ExchangeName.SCRYPT, type: ExchangeTxType.TRADE, feeAmountChf: -20 }),
+        createCustomExchangeTx({ exchange: ExchangeName.SCRYPT, type: ExchangeTxType.WITHDRAWAL, feeAmountChf: 10 }),
+        // MEXC: trade 18 + withdrawal 5 -> total 23
+        createCustomExchangeTx({ exchange: ExchangeName.MEXC, type: ExchangeTxType.TRADE, feeAmountChf: 18 }),
+        createCustomExchangeTx({ exchange: ExchangeName.MEXC, type: ExchangeTxType.WITHDRAWAL, feeAmountChf: 5 }),
+      ] as any);
+
+      const result = await (service as any).getChangeLog();
+
+      expect(result.minus.scrypt).toEqual({ total: 230, withdraw: 10, trading: 220 });
+      expect(result.minus.mexc).toEqual({ total: 23, withdraw: 5, trading: 18 });
+      expect(result.minus.total).toBe(253);
+      expect(result.total).toBe(-253);
+    });
+
+    it('omits the Scrypt and MEXC blocks when there are no such exchange fees', async () => {
+      setupEmpty();
+      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([] as any);
+
+      const result = await (service as any).getChangeLog();
+
+      expect(result.minus.scrypt).toBeUndefined();
+      expect(result.minus.mexc).toBeUndefined();
+    });
   });
 
   describe('saveTradingLog (referral-credit liability)', () => {

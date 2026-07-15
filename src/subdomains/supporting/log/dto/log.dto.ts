@@ -183,6 +183,8 @@ type ChangeMinusBalance = {
   bank?: number;
   kraken?: ChangeExchangeBalance;
   binance?: ChangeExchangeBalance;
+  scrypt?: ChangeExchangeBalance;
+  mexc?: ChangeExchangeBalance;
   blockchain?: ChangeBlockchainBalance;
   ref?: ChangeRefBalance;
 };
