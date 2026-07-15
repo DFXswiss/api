@@ -557,6 +557,20 @@ describe('RealUnitService', () => {
       expect((service as any).generatePaymentRequest).not.toHaveBeenCalled();
     });
 
+    it('prefers PrimaryEmailRequired over PrimaryEmailNotConfirmed when the email is missing AND unconfirmed', async () => {
+      (service as any).findRegistration.mockResolvedValue({
+        registration: buildRegistration({ requiresEmailConfirmation: true, confirmedDate: undefined }),
+        isForCurrentWallet: true,
+      });
+      buyService.toPaymentInfoDto.mockResolvedValue(buildBuyPaymentInfo({ isValid: true, error: undefined }));
+
+      const result = await service.getPaymentInfo(buildUser(undefined), { amount: 100 });
+
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.PRIMARY_EMAIL_REQUIRED);
+      expect(result.paymentRequest).toBeUndefined();
+    });
+
     it('returns a valid quote when an email-confirmation registration has a confirmedDate', async () => {
       const confirmedDate = new Date('2026-06-01T00:00:00.000Z');
       (service as any).findRegistration.mockResolvedValue({
