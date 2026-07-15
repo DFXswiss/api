@@ -33,7 +33,10 @@ export class BankService implements OnModuleInit {
   }
 
   async getBankInternal(name: IbanBankName, currency: string): Promise<Bank> {
-    return this.bankRepo.findOneCachedBy(`${name}-${currency}`, { name, currency });
+    // A (name, currency) pair can match more than one row (e.g. a retired legacy Bank Frick account
+    // alongside its replacement). Ordering by id descending deterministically prefers the newest row
+    // instead of an arbitrary one, so a stale/legacy row can never silently win.
+    return this.bankRepo.findOneCached(`${name}-${currency}`, { where: { name, currency }, order: { id: 'DESC' } });
   }
 
   async getBankById(id: number): Promise<Bank> {
@@ -48,8 +51,8 @@ export class BankService implements OnModuleInit {
     return this.bankRepo.findCachedBy(`receive`, { receive: true });
   }
 
-  async getSenderBank(currency: string): Promise<Bank> {
-    return this.bankRepo.findOneCachedBy(`send-${currency}`, { currency, send: true });
+  async getSenderBanks(currency: string): Promise<Bank[]> {
+    return this.bankRepo.findCachedBy(`send-${currency}`, { currency, send: true });
   }
 
   // --- BANK SELECTOR --- //
@@ -98,7 +101,9 @@ export class BankService implements OnModuleInit {
 
   // --- HELPER METHODS --- //
   private async loadIbanCache(): Promise<void> {
-    const banks = await this.bankRepo.find();
+    // Ordering by id descending makes the "first row per key wins" rule below deterministically prefer
+    // the newest row for a given (name, currency), instead of relying on implicit DB row order.
+    const banks = await this.bankRepo.find({ order: { id: 'DESC' } });
 
     for (const bank of banks) {
       const key = `${bank.name}-${bank.currency}`;

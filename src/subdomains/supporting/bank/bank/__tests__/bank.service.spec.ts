@@ -18,8 +18,10 @@ import {
   yapealEUR,
   olkyEUR,
 } from '../__mocks__/bank.entity.mock';
+import { Bank } from '../bank.entity';
 import { BankRepository } from '../bank.repository';
 import { BankSelectorInput, BankService } from '../bank.service';
+import { IbanBankName } from '../dto/bank.dto';
 
 function createBankSelectorInput(
   currency = 'EUR',
@@ -128,5 +130,105 @@ describe('BankService', () => {
     const result = await service.getBank(createBankSelectorInput('EUR', undefined, FiatPaymentMethod.INSTANT));
     expect(result.iban).toBe(yapealEUR.iban);
     expect(result.bic).toBe(yapealEUR.bic);
+  });
+});
+
+describe('Bank Frick country routing', () => {
+  const bank = Object.assign(new Bank(), { name: IbanBankName.FRICK });
+
+  it('uses the existing automated-bank country allowlist', () => {
+    expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: true }))).toBe(true);
+    expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: false }))).toBe(false);
+  });
+});
+
+describe('Bank.isReconcilable', () => {
+  it('is false only for a Frick row with send=true and receive=false', () => {
+    expect(Object.assign(new Bank(), { name: IbanBankName.FRICK, send: true, receive: false }).isReconcilable).toBe(
+      false,
+    );
+  });
+
+  it.each([
+    [true, true],
+    [false, true],
+    [false, false],
+  ])('is true for a Frick row with send=%s and receive=%s', (send, receive) => {
+    expect(Object.assign(new Bank(), { name: IbanBankName.FRICK, send, receive }).isReconcilable).toBe(true);
+  });
+
+  it('is always true for a non-Frick bank, regardless of send/receive', () => {
+    expect(Object.assign(new Bank(), { name: IbanBankName.YAPEAL, send: true, receive: false }).isReconcilable).toBe(
+      true,
+    );
+  });
+});
+
+describe('Bank (name, currency) collision tie-break', () => {
+  let service: BankService;
+  let bankRepo: BankRepository;
+
+  beforeEach(async () => {
+    bankRepo = createMock<BankRepository>();
+
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [TestSharedModule],
+      providers: [
+        BankService,
+        { provide: BankRepository, useValue: bankRepo },
+        { provide: UserService, useValue: createMock<UserService>() },
+        { provide: BuyCryptoService, useValue: createMock<BuyCryptoService>() },
+        { provide: FiatService, useValue: createMock<FiatService>() },
+        { provide: CountryService, useValue: createMock<CountryService>() },
+        { provide: BankAccountService, useValue: createMock<BankAccountService>() },
+        TestUtil.provideConfig(),
+      ],
+    }).compile();
+
+    service = module.get<BankService>(BankService);
+    (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+  });
+
+  it('resolves a (name, currency) collision by preferring the newest row (highest id)', async () => {
+    jest
+      .spyOn(bankRepo, 'findOneCached')
+      .mockResolvedValue(
+        Object.assign(new Bank(), { id: 99, name: IbanBankName.FRICK, currency: 'EUR', iban: 'NEW-ROW-IBAN' }),
+      );
+
+    const result = await service.getBankInternal(IbanBankName.FRICK, 'EUR');
+
+    expect(result.iban).toBe('NEW-ROW-IBAN');
+    expect(bankRepo.findOneCached).toHaveBeenCalledWith(`${IbanBankName.FRICK}-EUR`, {
+      where: { name: IbanBankName.FRICK, currency: 'EUR' },
+      order: { id: 'DESC' },
+    });
+  });
+
+  it('loads the iban cache ordered by id descending, so the newest row per (name, currency) wins', async () => {
+    const legacyRow = Object.assign(new Bank(), {
+      id: 3,
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      iban: 'LEGACY-DEAD-ACCOUNT-IBAN',
+    });
+    const newRow = Object.assign(new Bank(), {
+      id: 99,
+      name: IbanBankName.FRICK,
+      currency: 'EUR',
+      iban: 'NEW-ROW-IBAN',
+    });
+    // Requested in descending order - the mock returns them already sorted, mirroring what an
+    // `order: { id: 'DESC' }` query would produce, so "first row per key wins" picks the newest.
+    jest.spyOn(bankRepo, 'find').mockResolvedValue([newRow, legacyRow]);
+
+    await service.onModuleInit();
+    // onModuleInit fires the load without awaiting it; give the microtask queue a turn to settle.
+    await new Promise(process.nextTick);
+
+    expect(bankRepo.find).toHaveBeenCalledWith({ order: { id: 'DESC' } });
+    expect((BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.get('Bank Frick-EUR')).toBe(
+      'NEW-ROW-IBAN',
+    );
   });
 });

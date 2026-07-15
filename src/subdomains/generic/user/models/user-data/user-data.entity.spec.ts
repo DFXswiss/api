@@ -4,7 +4,7 @@ import { User } from '../user/user.entity';
 import { UserStatus } from '../user/user.enum';
 import { createCustomUserData } from './__mocks__/user-data.entity.mock';
 import { UserData } from './user-data.entity';
-import { ServiceProvider } from './user-data.enum';
+import { ServiceProvider, UserDataStatus } from './user-data.enum';
 
 describe('UserData', () => {
   // getMailLoginUser resolves which user a mail login authenticates as for an elevated role. It is the
@@ -133,6 +133,11 @@ describe('UserData', () => {
 
     it('isRealUnitCustomer is true when the RealUnit marker is present', () => {
       expect(userData('RealUnit').isRealUnitCustomer).toBe(true);
+    });
+
+    it('isRealUnitCustomer is false for a merged tombstone even when the marker is present', () => {
+      const ud = createCustomUserData({ serviceProviders: 'RealUnit', status: UserDataStatus.MERGED });
+      expect(ud.isRealUnitCustomer).toBe(false);
     });
 
     it('addServiceProvider sets the marker on an account that had none', () => {

@@ -26,6 +26,7 @@ import { MailOptions } from 'src/subdomains/supporting/notification/services/mai
 import { RealUnitLegalAgreement } from 'src/subdomains/supporting/realunit/enums/realunit-legal-agreement.enum';
 import { LoggerOptions } from 'typeorm';
 import { EVM_CHAINS } from './chains.config';
+import { buildFrickConfig } from './frick.config';
 
 export type NetworkName = 'mainnet' | 'testnet' | 'regtest';
 
@@ -1202,6 +1203,7 @@ export class Configuration {
         clientSecret: process.env.OLKY_CLIENT_SECRET,
       },
     },
+    frick: buildFrickConfig(process.env),
     raiffeisen: {
       credentials: {
         url: process.env.RAIFFEISEN_EBICS_URL,

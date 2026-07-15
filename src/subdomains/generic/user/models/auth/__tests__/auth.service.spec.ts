@@ -19,11 +19,12 @@ import { CustodyProviderService } from '../../custody-provider/custody-provider.
 import { RecommendationService } from '../../recommendation/recommendation.service';
 import { createCustomUserData } from '../../user-data/__mocks__/user-data.entity.mock';
 import { UserData } from '../../user-data/user-data.entity';
-import { KycLevel, UserDataStatus } from '../../user-data/user-data.enum';
+import { KycLevel, ServiceProvider, UserDataStatus } from '../../user-data/user-data.enum';
 import { UserDataService } from '../../user-data/user-data.service';
 import { createCustomUser } from '../../user/__mocks__/user.entity.mock';
 import { UserRepository } from '../../user/user.repository';
 import { UserService } from '../../user/user.service';
+import { createCustomWallet } from '../../wallet/__mocks__/wallet.entity.mock';
 import { WalletService } from '../../wallet/wallet.service';
 import { AuthService, MailKeyData } from '../auth.service';
 
@@ -35,6 +36,9 @@ describe('AuthService', () => {
   const userDataServiceMock = mock<UserDataService>();
   const settingServiceMock = mock<SettingService>();
   const kycServiceMock = mock<KycService>();
+  const userServiceMock = mock<UserService>();
+  const walletServiceMock = mock<WalletService>();
+  const custodyProviderServiceMock = mock<CustodyProviderService>();
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -42,10 +46,10 @@ describe('AuthService', () => {
         // completeSignInByMail builds an absolute session/error URL from Config.frontend.services, so it must
         // be a valid absolute URL or new URL(...) would throw and every success case would fall into the catch.
         TestUtil.provideConfig({ frontend: { services: 'https://services.test' } }),
-        { provide: UserService, useValue: mock<UserService>() },
+        { provide: UserService, useValue: userServiceMock },
         { provide: UserRepository, useValue: mock<UserRepository>() },
-        { provide: WalletService, useValue: mock<WalletService>() },
-        { provide: CustodyProviderService, useValue: mock<CustodyProviderService>() },
+        { provide: WalletService, useValue: walletServiceMock },
+        { provide: CustodyProviderService, useValue: custodyProviderServiceMock },
         { provide: JwtService, useValue: jwtServiceMock },
         { provide: CryptoService, useValue: mock<CryptoService>() },
         { provide: RefService, useValue: mock<RefService>() },
@@ -282,6 +286,68 @@ describe('AuthService', () => {
       await service.changeUser(1, { address: 'USER_ADDR' } as any, ip);
 
       expect((jwtServiceMock.sign.mock.calls[0][0] as any).tfaRequired).toBeUndefined();
+    });
+  });
+
+  // The service-provider marker (e.g. RealUnit) is the scope anchor of the tenant compliance/support
+  // dashboards. It must be set at the FIRST server contact of a tenant-wallet address: at sign-up (on the
+  // account before a potential mail merge, so the merge union propagates it to the master) and self-healing
+  // at sign-in (addresses created before the marker existed, or imported without a fresh sign-up).
+  describe('service-provider marker (RealUnit)', () => {
+    const ip = '1.2.3.4';
+    // masterKey === dto.signature short-circuits signature verification in both auth paths
+    const custodyProvider = { masterKey: 'SIG' } as any;
+
+    // tradeApprovalDate skips the recommendation check, hasIpRisk skips the ip-blacklist lookup
+    const account = () => createCustomUserData({ id: 11, tradeApprovalDate: new Date(), hasIpRisk: true });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      jwtServiceMock.sign.mockReturnValue('signed-jwt');
+    });
+
+    describe('sign-up', () => {
+      const signUp = async (walletName: string) => {
+        const wallet = createCustomWallet({ name: walletName });
+        const user = createCustomUser({ id: 21, userData: account(), wallet });
+        userServiceMock.getUserByAddress.mockResolvedValue(null);
+        custodyProviderServiceMock.getWithMasterKey.mockResolvedValue(custodyProvider);
+        walletServiceMock.getByIdOrName.mockResolvedValue(wallet);
+        userServiceMock.createUser.mockResolvedValue(user);
+
+        await service.signUp({ address: 'ADDR_01', signature: 'SIG', wallet: walletName } as any, ip);
+        return user;
+      };
+
+      it('marks the new account when signing up through a service-provider wallet', async () => {
+        const user = await signUp('RealUnit');
+        expect(userDataServiceMock.addServiceProvider).toHaveBeenCalledWith(user.userData, ServiceProvider.REALUNIT);
+      });
+
+      it('does not mark a sign-up through a non-tenant wallet', async () => {
+        await signUp('DFX Wallet');
+        expect(userDataServiceMock.addServiceProvider).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('sign-in', () => {
+      const signIn = async (walletName?: string) => {
+        const user = createCustomUser({ id: 21, userData: account(), custodyProvider });
+        userServiceMock.getUserByAddress.mockResolvedValue(user);
+
+        await service.signIn({ address: 'ADDR_01', signature: 'SIG', wallet: walletName } as any, ip);
+        return user;
+      };
+
+      it('self-heals the marker when the login comes through a service-provider wallet', async () => {
+        const user = await signIn('RealUnit');
+        expect(userDataServiceMock.addServiceProvider).toHaveBeenCalledWith(user.userData, ServiceProvider.REALUNIT);
+      });
+
+      it('does not mark a sign-in without a tenant wallet name', async () => {
+        await signIn(undefined);
+        expect(userDataServiceMock.addServiceProvider).not.toHaveBeenCalled();
+      });
     });
   });
 });

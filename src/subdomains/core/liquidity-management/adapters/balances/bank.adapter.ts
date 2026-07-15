@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { BankFrickService } from 'src/integration/bank/services/frick.service';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { CheckoutService } from 'src/integration/checkout/services/checkout.service';
@@ -22,6 +23,7 @@ export class BankAdapter implements LiquidityBalanceIntegration {
     private readonly olkypayService: OlkypayService,
     private readonly checkoutService: CheckoutService,
     private readonly yapealService: YapealService,
+    private readonly frickService: BankFrickService,
   ) {}
 
   async getBalances(assets: LiquidityManagementAsset[]): Promise<LiquidityBalance[]> {
@@ -67,6 +69,24 @@ export class BankAdapter implements LiquidityBalanceIntegration {
           const yapealBalances = await this.yapealService.getBalances();
 
           for (const balance of yapealBalances) {
+            const matchingAssets = assets.filter((asset) => asset.dexName === balance.currency);
+            matchingAssets.forEach((asset) => balances.push(LiquidityBalance.create(asset, balance.availableBalance)));
+          }
+
+          break;
+        }
+
+        case IbanBankName.FRICK: {
+          const frickBalances = await this.frickService.getBalances();
+
+          for (const balance of frickBalances) {
+            // Bank Frick's `available` field is optional in its own account-listing contract. Falling
+            // back to the booked `balance` would overstate spendable liquidity (it ignores pending
+            // debits) - exactly the overdraft risk this case exists to close - so a missing available
+            // balance fails loud instead of silently substituting a different, unsafe number.
+            if (!Number.isFinite(balance.availableBalance))
+              throw new Error(`Missing available balance for Bank Frick account ${balance.iban}`);
+
             const matchingAssets = assets.filter((asset) => asset.dexName === balance.currency);
             matchingAssets.forEach((asset) => balances.push(LiquidityBalance.create(asset, balance.availableBalance)));
           }
