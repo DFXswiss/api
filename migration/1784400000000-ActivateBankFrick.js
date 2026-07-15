@@ -52,8 +52,9 @@ module.exports = class ActivateBankFrick1784400000000 {
       `SELECT setval('bank_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM "bank"), (SELECT last_value FROM bank_id_seq)))`,
     );
 
-    // sendPriority=500 = Frick primaer, Cutover EUR+CHF von Olkypay/Yapeal. 2000=Fallback.
-    // NIE 1000 (Gleichstand -> getPayoutAccount wirft).
+    // sendPriority=500 makes Frick the primary sender for EUR+CHF (a full cutover from Olkypay/Yapeal,
+    // whose backfilled priority is 1000); set 2000 to keep Frick fallback-only. Never 1000 - a
+    // top-priority tie that includes Frick is treated as misconfiguration and throws in getPayoutAccount.
     // Idempotent per IBAN via WHERE NOT EXISTS so a re-run cannot double-insert (the unique (iban, bic)
     // index would otherwise throw). Both rows are ACTIVE: receive=true + send=true (send-only would
     // deadlock reconciliation, see Bank.isReconcilable), sctInst=false, amlEnabled=true.
@@ -160,7 +161,12 @@ module.exports = class ActivateBankFrick1784400000000 {
       )
     `);
 
-    // Remove the two rows this migration inserted (identified by their IBANs).
+    // Remove the two rows this migration inserted (identified by their IBANs). This is a hard,
+    // unconditional removal by IBAN: unlike the idempotent up(), down() does not reconstruct a
+    // pre-existing manual state, and it runs cleanly only BEFORE the new rows are used for a payout -
+    // once fiat_output.bank / virtual_iban.bank reference them the FK constraint makes this DELETE
+    // fail (fail-loud, the whole down() rolls back), and rollback becomes an Ops procedure
+    // (re-point/remove references first), not a plain migration revert.
     await queryRunner.query(`
       DELETE FROM "bank" WHERE "iban" IN ('LI75088110105923K000E', 'LI32088110105923K000C')
     `);
