@@ -1073,6 +1073,18 @@ export class LogJobService {
     const binanceTxTradingFee = this.getFeeAmount(
       exchangeTx.filter((e) => e.exchange === ExchangeName.BINANCE && e.type === ExchangeTxType.TRADE),
     );
+    const scryptTxWithdrawFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.SCRYPT && e.type === ExchangeTxType.WITHDRAWAL),
+    );
+    const scryptTxTradingFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.SCRYPT && e.type === ExchangeTxType.TRADE),
+    );
+    const mexcTxWithdrawFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.MEXC && e.type === ExchangeTxType.WITHDRAWAL),
+    );
+    const mexcTxTradingFee = this.getFeeAmount(
+      exchangeTx.filter((e) => e.exchange === ExchangeName.MEXC && e.type === ExchangeTxType.TRADE),
+    );
     const cryptoInputFee = await this.payInService.getPayInFee(firstDayOfMonth);
     const refRewards = await this.refRewardService.getRefRewardVolume(firstDayOfMonth);
     const payoutOrderRefFee = this.getFeeAmount(
@@ -1082,6 +1094,8 @@ export class LogJobService {
 
     const totalKrakenFee = krakenTxWithdrawFee + krakenTxTradingFee;
     const totalBinanceFee = binanceTxWithdrawFee + binanceTxTradingFee;
+    const totalScryptFee = scryptTxWithdrawFee + scryptTxTradingFee;
+    const totalMexcFee = mexcTxWithdrawFee + mexcTxTradingFee;
 
     const totalRefReward = refRewards + payoutOrderRefFee;
     const totalTxFee = cryptoInputFee + payoutOrderFee;
@@ -1089,7 +1103,14 @@ export class LogJobService {
 
     // total amounts
     const totalPlus = buyCryptoFee + buyFiatFee + paymentLinkFee + tradingOrderProfit;
-    const totalMinus = bankTxFee + totalKrakenFee + totalBinanceFee + totalRefReward + totalBlockchainFee;
+    const totalMinus =
+      bankTxFee +
+      totalKrakenFee +
+      totalBinanceFee +
+      totalScryptFee +
+      totalMexcFee +
+      totalRefReward +
+      totalBlockchainFee;
 
     return {
       total: totalPlus - totalMinus,
@@ -1115,6 +1136,20 @@ export class LogJobService {
               total: totalBinanceFee,
               withdraw: binanceTxWithdrawFee || undefined,
               trading: binanceTxTradingFee || undefined,
+            }
+          : undefined,
+        scrypt: totalScryptFee
+          ? {
+              total: totalScryptFee,
+              withdraw: scryptTxWithdrawFee || undefined,
+              trading: scryptTxTradingFee || undefined,
+            }
+          : undefined,
+        mexc: totalMexcFee
+          ? {
+              total: totalMexcFee,
+              withdraw: mexcTxWithdrawFee || undefined,
+              trading: mexcTxTradingFee || undefined,
             }
           : undefined,
         blockchain: totalBlockchainFee
