@@ -99,6 +99,7 @@ export enum Process {
   GUARANTEED_PRICE = 'GuaranteedPrice',
   ARCHIVE_ANCHOR = 'ArchiveAnchor',
   ARCHIVE_UPGRADE = 'ArchiveUpgrade',
+  ARCHIVE_RECONCILE = 'ArchiveReconcile',
   GS_DEBUG = 'GsDebug',
   GS_DB = 'GsDb',
   TRANSACTION_AML_CHECK_LOG = 'TransactionAmlCheckLog',
