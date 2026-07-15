@@ -10,6 +10,11 @@ interface MarkPoint {
   priceChf: number;
 }
 
+// Major B5 bridge: bounded recent-log window scanned for the youngest available mark (latest ≤ now) per asset, and a
+// short memoization TTL so a wedge-heavy batch (many rows missing a historical mark) does not re-query the feed per row.
+const LATEST_MARK_LOOKBACK_DAYS = 5;
+const LATEST_MARK_TTL_MS = 5 * 60 * 1000;
+
 /**
  * Per-run mark cache (§5.2). Holds `Map<assetId, MarkPoint[]>` (each list sorted ascending by `created`)
  * and resolves `getMarkAt(assetId, bookingDate)` = latest mark ≤ bookingDate via binary search.
@@ -46,6 +51,44 @@ export class LedgerMarkCache {
 @Injectable()
 export class LedgerMarkService {
   constructor(private readonly logService: LogService) {}
+
+  // memoized youngest-mark-per-asset map (≤ now) for the B5 bridge; refreshed at most once per LATEST_MARK_TTL_MS
+  private latestMarks?: { map: Map<number, number>; loadedAt: number };
+
+  /**
+   * §5.2 Major B5 bridge — the youngest available mark for an asset (latest FinancialDataLog priceChf ≤ now), from a
+   * bounded recent-log read. Used ONLY as the documented fallback when the per-batch cache has no mark AT a historical
+   * bookingDate: the leg is booked with this provisional CHF value so a mixed tx balances, needsMark stays true, and
+   * the daily mark-to-market job corrects the basis to the real rate. Returns undefined ONLY when the asset has NO
+   * finite priceChf in any recent log (never fed / feedless) — the caller then DEFERS the row (skip without advancing
+   * the watermark) rather than book a wrong value: a feedless asset is a genuine data state, not a price-timing gap.
+   */
+  async getLatestMark(assetId: number): Promise<number | undefined> {
+    return (await this.getLatestMarks()).get(assetId);
+  }
+
+  // bounded, memoized youngest-mark map (≤ now). Ascending by created → the last finite write per asset wins → youngest.
+  private async getLatestMarks(): Promise<Map<number, number>> {
+    const now = Date.now();
+    if (this.latestMarks && now - this.latestMarks.loadedAt < LATEST_MARK_TTL_MS) return this.latestMarks.map;
+
+    const asOf = new Date(now);
+    const rows = (
+      await this.logService.getFinancialLogs(Util.daysBefore(LATEST_MARK_LOOKBACK_DAYS, asOf), true)
+    ).filter((r) => r.created.getTime() <= asOf.getTime());
+
+    const map = new Map<number, number>();
+    for (const row of rows) {
+      const assets = this.parseAssets(row.message);
+      if (!assets) continue;
+      for (const [assetIdKey, assetLog] of Object.entries(assets)) {
+        if (Number.isFinite(assetLog?.priceChf)) map.set(+assetIdKey, assetLog.priceChf);
+      }
+    }
+
+    this.latestMarks = { map, loadedAt: now };
+    return map;
+  }
 
   /**
    * Bounded preload (§5.2, Hard Constraint #4): always limited by (batchStartDate, to) and maxRows.

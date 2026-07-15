@@ -93,6 +93,7 @@ describe('LiquidityMgmtConsumer', () => {
       });
 
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(markMap));
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(undefined); // B5: no bridge by default (tests opt in)
     jest.spyOn(settingService, 'getObj').mockResolvedValue(undefined);
     jest.spyOn(settingService, 'set').mockResolvedValue();
 

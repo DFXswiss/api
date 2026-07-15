@@ -90,6 +90,7 @@ describe('TradingOrderConsumer', () => {
       });
 
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(markMap));
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(undefined); // B5: no bridge by default (tests opt in)
     jest.spyOn(settingService, 'getObj').mockResolvedValue(undefined);
     jest.spyOn(settingService, 'set').mockResolvedValue();
 
@@ -225,17 +226,40 @@ describe('TradingOrderConsumer', () => {
   });
 
   // §4.9 missing mark → ASSET leg needsMark, plug stays open (no silent plug without a mark)
-  it('flags the ASSET leg needsMark and skips the plug when a mark is missing', async () => {
+  // Major B5 — no mark ANYWHERE for the TOKEN leg: the mixed swap (valued USDT + fee/profit legs, unvalued TOKEN) cannot
+  // balance and the bridge finds no mark → the row DEFERS (nothing booked, watermark unchanged), never an unbalanceable
+  // set handed to bookTx.
+  it('defers (no booking, watermark unchanged) when an ASSET leg has no mark anywhere (B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     jest.spyOn(markService, 'preload').mockResolvedValue(
       new LedgerMarkCache(new Map([[USDT_ASSET_ID, [{ created: new Date('2026-01-01'), priceChf: 0.9 }]]])), // TOKEN missing
     );
+    // markService.getLatestMark → undefined (auto-mock) → no bridge → resolveLegsOrDefer throws → failure-isolation
     mockBatch([tradingOrder({ id: 15 })]);
     await consumer.process();
+
+    expect(booked[0]).toBeUndefined(); // nothing booked (deferred)
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced → retry next run
+  });
+
+  // Major B5 bridge — a missing HISTORICAL TOKEN mark but a present current mark: the TOKEN leg is valued with the
+  // youngest available mark (bridge), needsMark STAYS true so the mark-to-market job corrects the basis later, and the
+  // swap balances via the spread-arbitrage plug — no wedge.
+  it('bridges a missing historical mark with the latest available mark and books balanced, needsMark stays true (B5)', async () => {
+    jest.spyOn(markService, 'preload').mockResolvedValue(
+      new LedgerMarkCache(new Map([[USDT_ASSET_ID, [{ created: new Date('2026-01-01'), priceChf: 0.9 }]]])), // TOKEN missing
+    );
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(1.05); // youngest available TOKEN mark
+    mockBatch([tradingOrder({ id: 15 })]);
+    await consumer.process();
+
     const tx = booked[0];
-    expect(leg(tx, 'Ethereum/TOKEN').needsMark).toBe(true);
-    expect(leg(tx, 'Ethereum/TOKEN').amountChf).toBeUndefined();
-    expect(leg(tx, 'EXPENSE/spread-arbitrage')).toBeUndefined(); // no silent plug without a mark
-    expect(leg(tx, 'INCOME/spread-arbitrage')).toBeUndefined();
+    expect(leg(tx, 'Ethereum/TOKEN').amountChf).toBe(877.8); // bridged: 1.05 × 836
+    expect(leg(tx, 'Ethereum/TOKEN').needsMark).toBe(true); // stays true → mark-to-market re-marks later
+    // balanced: +877.80 (out) − 870.30 (in) + 1 + 2 − 3 = +7.50 residual → EXPENSE/spread-arbitrage plug
+    expect(leg(tx, 'EXPENSE/spread-arbitrage').amountChf).toBe(-7.5);
+    const cents = tx.legs.reduce((s, l) => s + Math.round((l.amountChf ?? 0) * 100), 0);
+    expect(cents).toBe(0);
   });
 
   // §4.9 assetAccount throw (line 163): an asset with no CoA ledger account → throws → failure-isolation (watermark

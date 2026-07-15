@@ -10,8 +10,11 @@ import { InMemoryLedger } from './in-memory-ledger';
 /**
  * §10.2 integration — the MAJOR cutover double-book finding for Card (Checkout) buy_crypto inputs, run against the
  * REAL booking + account services over a shared in-memory ledger (InMemoryLedger). Two Card rows straddle the cutover:
- *  (A) a row OPEN at the cutover: the per-row cutover opening is EXCLUDED for Card, so the forward consumer's seq0 IS
- *      the card opening — after completion seq0 + seq1 close LIABILITY/buyCrypto-received to 0 (pre-fix: −amountInChf);
+ *  (A) a row OPEN at the cutover: its card-currency GROSS is already in the aggregate ASSET opening (openAssets books
+ *      liquidityBalance.total, which carries the Checkout.com collateral feed of auto-captured card charges) AND the
+ *      cutover booked its per-row buyCrypto-received opening (Major B1), so the forward consumer SKIPS seq0 — re-booking
+ *      it would re-debit the gross on Checkout/{ccy} a SECOND time (permanent phantom, the pre-fix bug) — and books
+ *      only seq1, which closes LIABILITY/buyCrypto-received against the cutover opening to 0;
  *  (B) a row already SETTLED at the cutover whose `updated` moves post-cutover (chargeback/mail flag): its value is
  *      already in the aggregate opening (openAssets) → the consumer must re-book NOTHING (no phantom Checkout asset /
  *      phantom owed).
@@ -102,28 +105,59 @@ describe('Ledger buy_crypto cutover Card double-book (§10.2, MAJOR)', () => {
     });
   }
 
-  it('Scenario A: an open Card row completing after the cutover books seq0+seq1 → received closes to 0', async () => {
-    // the cutover did NOT open a per-row received for this Card row (Card excluded); it completes post-cutover, so the
-    // content-change scan books the fresh seq0 (the card opening) + seq1 (fee/reclass) → received nets to 0.
+  // books the §6.1 per-row cutover received opening (Cr LIABILITY/buyCrypto-received −chf / Dr EQUITY +chf) the cutover
+  // wrote for an OPEN-at-cutover row (Major B1: Card rows are now included). The completion seq1 closes received against
+  // this opening; the forward Card seq0 is skipped because this marker exists.
+  async function bookReceivedOpening(rowId: number, chf: number): Promise<void> {
+    const received = await ledger.accountService.findOrCreate(
+      'LIABILITY/buyCrypto-received',
+      AccountType.LIABILITY,
+      'CHF',
+    );
+    const equity = await ledger.accountService.findOrCreate('EQUITY/opening-balance', AccountType.EQUITY, 'CHF');
+    await ledger.bookingService.bookTx({
+      sourceType: 'cutover',
+      sourceId: `1557344:buy_crypto:${rowId}`,
+      seq: 0,
+      bookingDate: SNAPSHOT,
+      valueDate: SNAPSHOT,
+      description: `Opening buyCrypto-received from open buy_crypto #${rowId}`,
+      legs: [
+        { account: received, amount: -chf, priceChf: 1, amountChf: -chf },
+        { account: equity, amount: chf, priceChf: 1, amountChf: chf },
+      ],
+    });
+  }
+
+  it('Scenario A: an open Card row completing after the cutover skips seq0 (marker present) and books only seq1 → received closes to 0, Checkout not re-debited', async () => {
+    // Major B1: the cutover DID open a per-row buyCrypto-received for this OPEN-at-cutover Card row (bookReceivedOpening
+    // below) and its card gross is already in the aggregate ASSET opening (openAssets → the Checkout.com collateral
+    // feed; out of this consumer test's scope). It completes post-cutover, so the content-change scan SKIPS seq0 — the
+    // marker exists, re-booking would re-debit the gross on Checkout/EUR a second time (the pre-fix phantom) — and books
+    // only seq1 (fee/reclass), which closes received against the cutover opening.
+    await bookReceivedOpening(70, 1000); // §6.1 per-row cutover received opening for the open Card row (−1000)
+
     const row = buyCrypto({
       id: 70,
       amountInChf: 1000,
       totalFeeAmountChf: 10,
       isComplete: true,
-      outputDate: POST_CUTOVER, // completed AFTER the snapshot → NOT covered by the aggregate opening
+      outputDate: POST_CUTOVER, // completed AFTER the snapshot → completion booked post-cutover
       updated: POST_CUTOVER,
     });
 
     await consumer(row, 100).process();
 
-    // seq0 (card opening) + seq1 (completion) both booked
-    expect(ledger.txs.some((t) => t.sourceType === 'buy_crypto' && t.sourceId === '70' && t.seq === 0)).toBe(true);
+    // seq0 SKIPPED (cutover received marker present → the forward card seq0 would double-debit the gross); seq1 booked
+    expect(ledger.txs.some((t) => t.sourceType === 'buy_crypto' && t.sourceId === '70' && t.seq === 0)).toBe(false);
     expect(ledger.txs.some((t) => t.sourceType === 'buy_crypto' && t.sourceId === '70' && t.seq === 1)).toBe(true);
-    // received: opened −1000 (seq0), debited +10 fee + +990 reclass (seq1) → closes to 0 (NOT −1000, the pre-fix bug)
+    // received: opened −1000 by the cutover, debited +10 fee + +990 reclass (seq1) → closes to 0 (NOT −1000)
     expect(ledger.chfBalance('LIABILITY/buyCrypto-received')).toBe(0);
-    // owed = −(amountInChf − fee); the Card custody is debited exactly once by amountInChf
+    // owed = −(amountInChf − fee)
     expect(ledger.chfBalance('LIABILITY/buyCrypto-owed')).toBe(-990);
-    expect(ledger.chfBalance('Checkout/EUR')).toBe(1000);
+    // Checkout/EUR is NOT touched by the consumer: the card gross is already carried by the aggregate ASSET opening
+    // (the collateral feed contains it). Pre-fix the forward seq0 re-debited +1000 here → permanent phantom.
+    expect(ledger.chfBalance('Checkout/EUR')).toBe(0);
     expect(ledger.everyTxBalances()).toBe(true);
   });
 

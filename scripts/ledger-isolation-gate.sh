@@ -32,6 +32,16 @@ set -u
 TARGET_DIR="${1:-src/subdomains/core/accounting}"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# A3 fail-closed: if the scan set is EMPTY (wrong path / renamed tree / bad exclude), a grep gate finds no matches and
+# would report "clean" (exit 0) — a silent false pass. Count the source files the gate will actually scan (same
+# includes/excludes as the grep passes below) and abort with a distinct exit 2 when none exist, so CI never green-lights
+# an un-scanned module.
+TS_FILE_COUNT="$(find "$TARGET_DIR" -type f -name '*.ts' ! -name '*.spec.ts' ! -path '*/__tests__/*' ! -path '*/__mocks__/*' 2>/dev/null | wc -l | tr -d ' ')"
+if [ "$TS_FILE_COUNT" -eq 0 ]; then
+  echo "ledger-isolation-gate: NO .ts source files scanned in $TARGET_DIR (wrong path or empty tree) — failing closed" >&2
+  exit 2
+fi
+
 # NON_ALLOWLISTABLE_PATTERN (Blocks 1-4): pricing/HTTP, external feed-read, logService/settingService side-effects and
 # lifecycle/strategy calls. The `// ledger-allowlist` post-filter is NOT applied to this class — a marker comment must
 # never silence one of these (there is no sanctioned reason for the ledger module to price, hit a feed, mutate the
@@ -44,7 +54,7 @@ NON_ALLOWLISTABLE_PATTERN+='|\.complete\(|checkOrderCompletion|syncExchanges|doP
 # WRITE_PATTERN (Blocks 4a/4b, 5, 6, 7): the EntityManager / repository / getRepository / queryRunner / QueryBuilder-DSL
 # DB-write paths. The `| grep -v 'ledger-allowlist'` post-filter IS applied to this class — only ledger-own writes into
 # ledger_* (e.g. `manager.save(LedgerTx,…) // ledger-allowlist`) legitimately clear it.
-WRITE_PATTERN='balanceRepo\.(update|save|insert|delete|remove|increment|decrement)\(|\b(?!ledger)\w*Repo(sitory)?\.(update|save|insert|delete|remove|increment|decrement)\('
+WRITE_PATTERN='balanceRepo\.(update|save|insert|delete|remove|upsert|softDelete|softRemove|recover|increment|decrement)\(|\b(?!ledger)\w*Repo(sitory)?\.(update|save|insert|delete|remove|upsert|softDelete|softRemove|recover|increment|decrement)\('
 # Block 6 (EntityManager + raw-SQL write paths — robustness gap §10.2): `\w*[Mm]anager.<write>(` catches the
 # idiomatic injected EntityManager regardless of binding identifier — manager.save, entityManager.save,
 # dataSource.manager.save (the bare `\bmanager.` missed `entityManager.` — there is no word boundary inside the

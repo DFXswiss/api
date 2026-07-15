@@ -155,9 +155,16 @@ export class BuyCryptoConsumer {
     if (!bc.checkoutTx) return undefined; // not a Card input → seq0 not this consumer's job
     if (bc.amountInChf == null) return undefined;
     // §6.3: a Card row already settled at the cutover (outputDate ≤ snapshot) is captured by the aggregate opening
-    // (openAssets) — re-booking its seq0 Checkout inflow would double-count. Only OPEN-at-cutover rows (whose per-row
-    // cutover opening is excluded, so the forward seq0 IS their opening) and post-cutover Card rows get a forward seq0.
+    // (openAssets) — re-booking its seq0 Checkout inflow would double-count. Only post-cutover Card rows get a
+    // forward seq0.
     if (await this.settledBeforeCutover(bc)) return undefined;
+    // §6.1 (Major B1): an OPEN-at-cutover Card row has BOTH its card-currency gross in the aggregate ASSET opening
+    // (openAssets → liquidityBalance.total carries the Checkout.com collateral feed of auto-captured card charges) AND
+    // its received LIABILITY opened by the cutover per-row marker `${snapshotLogId}:buy_crypto:${id}`. Re-booking the
+    // forward seq0 would re-debit that gross on Checkout/{ccy} a second time (permanent phantom). Skip when the marker
+    // exists — the completion seq1 closes received against the cutover opening; only a post-cutover Card row (no
+    // marker) gets a forward seq0 as its own opening.
+    if (await this.hasCutoverReceivedOpening(bc.id)) return undefined;
 
     // FAIL-LOUD (F2): a priced Card row (amountInChf set) without its card-currency gross (inputReferenceAmount —
     // the CHECKOUT branch of pendingInputAmount() carries the card gross there) is a data error. Booking native 0 or
@@ -237,11 +244,16 @@ export class BuyCryptoConsumer {
   // received is opened either by the seq0 CryptoInput ledger_tx (G-a, post-cutover) or by the cutover opening
   // (G-b, cutover-straddling — the pre-cutover-settled crypto_input never gets a seq0 ledger_tx)
   private async receivedOpened(bc: BuyCrypto): Promise<boolean> {
-    // Card input: received was opened by this consumer's own seq0 — EXCEPT a row already settled at the cutover, whose
-    // seq0 is (correctly) skipped as covered by the aggregate opening → its completion must stay blocked too. This
-    // mirrors the non-Card G-a/G-b path, which finds neither a crypto_input seq0 (G-a) nor a per-row cutover opening
-    // (G-b) for a pre-cutover-settled row → gate closed. Without it, seq1 would Dr received with no −opening → phantom.
-    if (bc.checkoutTx) return !(await this.settledBeforeCutover(bc));
+    // Card input (§6.1 Major B1): received is opened by EITHER the cutover per-row marker (G-b, an OPEN-at-cutover Card
+    // row whose forward seq0 is skipped — its gross is already in the aggregate opening) OR this consumer's own forward
+    // seq0 (G-a analog, a post-cutover Card row). A row already settled at the cutover (outputDate ≤ snapshot) has
+    // NEITHER — its value is fully in the aggregate opening and no per-row marker exists → gate stays closed, so seq1
+    // never Dr's received without a matching −opening (mirrors the non-Card pre-cutover-settled path).
+    if (bc.checkoutTx) {
+      if (await this.settledBeforeCutover(bc)) return false; // pre-cutover-settled → aggregate opening, no marker/seq0
+      if (await this.hasCutoverReceivedOpening(bc.id)) return true; // G-b: open-at-cutover cutover received opening
+      return this.alreadyBooked(bc.id, 0); // G-a analog: this consumer's forward Card seq0 opened received
+    }
 
     // Bank input: the BankTx consumer opens buyCrypto-received as the bank_tx seq0 booking (§4.2 BUY_CRYPTO legs).
     // Gate on an ACTIVE bank_tx seq0 tx for this row's funding bank_tx — per-seq via hasActiveTxAt (walks the §4.12
@@ -258,12 +270,8 @@ export class BuyCryptoConsumer {
       return true; // G-a
     }
 
-    // G-b: cutover opening on buyCrypto-received for this buy_crypto.id (synthetic seq0 marker, §6.1). The cutover
-    // writes `${snapshotLogId}:buy_crypto:${id}`, so the prefix must be resolved from ledgerCutoverLogId — an exact
-    // `:buy_crypto:${id}` match would NEVER hit (the snapshot logId prefix is missing → G-b dead, Blocker R4-2).
-    const cutoverSourceId = await this.cutoverReceivedSourceId(bc.id);
-    if (cutoverSourceId == null) return false; // cutover not run yet → no opening to match
-    return this.ledgerTxRepo.existsBy({ sourceType: CUTOVER_SOURCE, sourceId: cutoverSourceId });
+    // G-b: cutover opening on buyCrypto-received for this buy_crypto.id (synthetic seq0 marker, §6.1).
+    return this.hasCutoverReceivedOpening(bc.id);
   }
 
   // the full cutover per-row received marker sourceId (§6.1 / §4.7 G-b): `${snapshotLogId}:buy_crypto:${id}`.
@@ -271,6 +279,17 @@ export class BuyCryptoConsumer {
   private async cutoverReceivedSourceId(buyCryptoId: number): Promise<string | undefined> {
     const cutoverLogId = await this.settingService.get(CUTOVER_LOG_ID_KEY);
     return cutoverLogId != null ? `${cutoverLogId}:buy_crypto:${buyCryptoId}` : undefined;
+  }
+
+  // §6.1 / §4.7 G-b: true iff the cutover booked the per-row received opening `${snapshotLogId}:buy_crypto:${id}` for
+  // this row (open-at-cutover: its gross is already in the aggregate opening, so buildCardInputSeq0 is skipped and this
+  // marker is the sole `received` opening). The snapshot logId prefix must be resolved from ledgerCutoverLogId — an
+  // exact `:buy_crypto:${id}` match would NEVER hit (missing prefix → G-b dead, Blocker R4-2). Absent logId (cutover
+  // not run) → no opening to match.
+  private async hasCutoverReceivedOpening(buyCryptoId: number): Promise<boolean> {
+    const cutoverSourceId = await this.cutoverReceivedSourceId(buyCryptoId);
+    if (cutoverSourceId == null) return false;
+    return this.ledgerTxRepo.existsBy({ sourceType: CUTOVER_SOURCE, sourceId: cutoverSourceId });
   }
 
   // §6.1: true iff the cutover booked the per-row owed opening `${snapshotLogId}:buy_crypto-owed:${id}` for this row

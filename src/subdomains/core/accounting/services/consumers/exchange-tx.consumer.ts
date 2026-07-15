@@ -14,6 +14,7 @@ import { LedgerLegRepository } from '../../repositories/ledger-leg.repository';
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
+import { resolveLegsOrDefer } from './ledger-mark-bridge.helper';
 import {
   getLedgerWatermark,
   isCoveredByCutoverOpening,
@@ -249,6 +250,14 @@ export class ExchangeTxConsumer {
       needsMark: baseChf == null,
     };
 
+    // A4: a settled ('ok') trade with NO cost (quote amount) is a data error — `cost ?? 0` would book a zero-quote trade
+    // and plug the FULL base value into spread (a phantom). Fail loud for an 'ok' trade; a non-'ok' row keeps `?? 0`
+    // because its spec is only used to target the flat reversal (sourceId/seq), never booked.
+    if (tx.cost == null && tx.status === OK_STATUS) {
+      throw new Error(
+        `exchange_tx ${tx.id} is an 'ok' trade with no cost (quote amount) — refusing to book a zero-quote`,
+      );
+    }
     const cost = tx.cost ?? 0;
     const quoteAmount = isBuy ? -cost : +cost;
 
@@ -278,9 +287,11 @@ export class ExchangeTxConsumer {
       const feeChf = tx.feeAmountChf; // separate venue fee (real ccxt fee, sign-aware)
       if (feeChf != null && feeChf !== 0) legs.push(await this.spreadLeg(tx.exchange, feeChf));
 
-      // mark-based quote-spread leg: closes the base↔quote mark residual to 0 (sign-aware). Skip when a leg
-      // still needsMark (no silent plug, §4.3) — mark-to-market revalues then.
-      if (!legs.some((l) => l.needsMark)) {
+      // mark-based quote-spread leg: closes the base↔quote mark residual to 0 (sign-aware). Major B5: an ASSET leg
+      // without a historical mark is first bridged with the youngest available mark (resolveLegsOrDefer) so the trade
+      // balances — needsMark stays true, the mark-to-market job corrects the basis later. A truly feedless asset (no
+      // bridge) defers the row instead of handing an unbalanceable set to bookTx.
+      if (await resolveLegsOrDefer(legs, this.markService, this.logger, `exchange_tx ${tx.id} trade`)) {
         const residualChf = -legs.reduce((s, l) => s + (l.amountChf ?? 0), 0);
         const residualCents = Math.round(Util.round(residualChf, 2) * 100);
         if (Math.abs(residualCents) > Config.ledger.roundingToleranceCents) {
@@ -291,7 +302,11 @@ export class ExchangeTxConsumer {
 
     const seq = fillIndexMap.get(tx.id) ?? 0;
     const order = tx.order;
-    const sourceId = order ? `${order}` : `${tx.id}`;
+    // Major B3: the composite trade sourceId MUST carry the exchange prefix `${exchange}:${order}`, matching the
+    // `${exchange}|${order}` fill-ranking key (buildFillIndexMap). Without it, the SAME order string on two different
+    // exchanges collapses to one sourceId → two distinct fills claim the same (sourceType, sourceId, seq) → UNIQUE
+    // collision on the second booker → permanent wedge. `${tx.id}` stays the fallback for an order-less trade.
+    const sourceId = order ? `${tx.exchange}:${order}` : `${tx.id}`;
     const sourceType = order ? TRADE_SOURCE_TYPE : SOURCE_TYPE;
 
     return {
@@ -393,14 +408,21 @@ export class ExchangeTxConsumer {
     if (!orderKeys.size) return map;
 
     const orders = [...orderKeys].map((k) => k.split('|')[1]);
+    // Major B4: rank over ALL fills of the order, status-AGNOSTIC (no status='ok' filter). Dense ranking over only the
+    // current 'ok' set is unstable: when a sibling fill flips ok→failed it drops out of the set and every later
+    // survivor's rank shifts down by one → the survivor's seq changes → its active booking is stranded at the old seq
+    // (cross-fill corruption) or its correction is silently discarded. `id`/`order` are immutable, so ranking over all
+    // fills gives each fill a permanent id-ordered slot; a failed fill keeps its slot (its booking is flat-reversed by
+    // reconcileBooking, which does not need the slot freed) → survivors never move.
     const existing = await this.exchangeTxRepo.find({
-      where: { type: ExchangeTxType.TRADE, status: OK_STATUS, order: In(orders) },
+      where: { type: ExchangeTxType.TRADE, order: In(orders) },
       select: { id: true, exchange: true, order: true },
     });
 
-    // merge the batch rows so a TRADE being reconciled keeps its booking-time rank even after it flipped away from
-    // 'ok' (the OK-filtered query no longer returns it). Ranking is by id and order-preserving, so reinserting the row
-    // at its id reproduces exactly the rank it had when it was booked → the reversal targets the right seq (§4.3).
+    // merge the batch rows over the query result: the ranking is status-agnostic (all fills of the order, any status),
+    // so a fill that flipped away from 'ok' still appears and keeps its id-ordered slot; the merge only refreshes each
+    // batch row's (exchange, order) from the freshest in-memory copy (and covers a fill not yet visible to the read).
+    // Ranking is by id and order-preserving → a fill's rank is immutable, so the reversal targets the right seq (§4.3).
     const merged = new Map<number, { id: number; exchange: string; order?: string }>();
     for (const e of existing) merged.set(e.id, e);
     for (const tx of batch) {

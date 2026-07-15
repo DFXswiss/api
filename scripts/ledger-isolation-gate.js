@@ -39,7 +39,7 @@ const NON_ALLOWLISTABLE_PATTERN = new RegExp(
 const ALLOWLISTABLE_WRITE_PATTERN = new RegExp(
   [
     // Block 4a/4b (non-ledger repository write)
-    'balanceRepo\\.(update|save|insert|delete|remove|increment|decrement)\\(|\\b(?!ledger)\\w*Repo(sitory)?\\.(update|save|insert|delete|remove|increment|decrement)\\(',
+    'balanceRepo\\.(update|save|insert|delete|remove|upsert|softDelete|softRemove|recover|increment|decrement)\\(|\\b(?!ledger)\\w*Repo(sitory)?\\.(update|save|insert|delete|remove|upsert|softDelete|softRemove|recover|increment|decrement)\\(',
     // Block 6 (EntityManager + raw-SQL write paths, Major design-accounting): `\w*[Mm]anager.<write>(` catches the
     // idiomatic injected EntityManager regardless of the binding identifier — `manager.save`, `entityManager.save`,
     // `dataSource.manager.save` (the bare `\bmanager.` missed `entityManager.` because there is no word boundary
@@ -101,6 +101,16 @@ if (stat?.isDirectory()) {
   collectTsFiles(TARGET_DIR, files);
 } else if (stat?.isFile() && TARGET_DIR.endsWith('.ts') && !isTestPath(TARGET_DIR)) {
   files.push(TARGET_DIR);
+}
+
+// A3 fail-closed: an EMPTY scan set (wrong path / renamed tree / bad exclude) must NOT report "clean" — that is a silent
+// false pass. Abort with a distinct exit 2 (stderr) so CI never green-lights an un-scanned module. Mirrors the shell
+// gate's pre-scan file-count guard (only reachable standalone; the wrapper already guards before delegating here).
+if (files.length === 0) {
+  process.stderr.write(
+    `ledger-isolation-gate: NO .ts source files scanned in ${TARGET_DIR} (wrong path or empty tree) — failing closed\n`,
+  );
+  process.exit(2);
 }
 
 for (const file of files) {

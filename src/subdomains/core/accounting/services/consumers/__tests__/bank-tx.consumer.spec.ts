@@ -100,6 +100,7 @@ describe('BankTxConsumer', () => {
     jest
       .spyOn(markService, 'preload')
       .mockResolvedValue(new LedgerMarkCache(new Map([[269, [{ created: new Date('2026-01-01'), priceChf: 0.95 }]]])));
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(undefined); // B5: no bridge by default (tests opt in)
 
     jest.spyOn(settingService, 'getObj').mockResolvedValue(undefined);
 
@@ -229,9 +230,11 @@ describe('BankTxConsumer', () => {
     expect(cents(legs)).toBe(0);
   });
 
-  it('books BUY_CRYPTO on an untracked bank with NO same-currency tracked mark as a needsMark leg, no silent plug', async () => {
-    // when no tracked bank of the currency exists, currencyMarkAssetId returns undefined → the SUSPENSE leg stays
-    // needsMark and withFxPlug books NO plug (§5.1 stage 3: no silent plug without a mark; mark-to-market revalues)
+  // Major B5 — an untracked bank with NO same-currency tracked mark: the SUSPENSE leg has no assetId to bridge (and no
+  // mark anywhere), so the mixed BUY_CRYPTO tx (unvalued bank/SUSPENSE leg + valued received leg) DEFERS rather than
+  // handing an unbalanceable set to bookTx (never a silent plug).
+  it('defers BUY_CRYPTO on an untracked bank with no same-currency tracked mark (B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     const buyCrypto = { amountInChf: 9480 } as any;
     mockBatch(
       [bankTx({ type: BankTxType.BUY_CRYPTO, accountIban: 'UNTRACKED-IBAN', amount: 10000, buyCrypto })],
@@ -246,10 +249,8 @@ describe('BankTxConsumer', () => {
     });
     await consumer.process();
 
-    const legs = booked[0].legs;
-    const suspense = legs.find((l) => l.account.name === 'SUSPENSE/untracked-bank-Raiffeisen-EUR');
-    expect(suspense.needsMark).toBe(true); // no mark resolvable
-    expect(legs.find((l) => l.account.name?.includes('fx-revaluation'))).toBeUndefined(); // NO silent plug
+    expect(booked[0]).toBeUndefined(); // deferred: unbalanceable mixed tx, nothing to bridge on the SUSPENSE leg
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced (retry next run)
   });
 
   it('books BUY_CRYPTO_RETURN on an EUR bank: owed-Dr = completion CHF, fx-plug absorbs the mark drift (§4.2a/R2-2)', async () => {

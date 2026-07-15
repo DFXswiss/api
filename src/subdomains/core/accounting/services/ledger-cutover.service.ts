@@ -192,25 +192,27 @@ export class LedgerCutoverService {
     snapshotDate: Date,
     equity: LedgerAccount,
   ): Promise<void> {
-    let seq = 0;
     for (const [assetIdKey, assetLog] of Object.entries(finance.assets)) {
       const assetId = +assetIdKey;
       const account = await this.accountService.findByAssetId(assetId);
       if (!account) continue; // asset not in the CoA (CUSTOM/PRESALE/feedless-without-row) → no opening
 
       const native = this.assetOpeningAmount(assetLog);
-      if (Math.abs(native) <= 1e-8) {
-        seq++;
-        continue; // feedless/placeholder/zero → opening 0, no leg
-      }
+      if (Math.abs(native) <= 1e-8) continue; // feedless/placeholder/zero → opening 0, no leg
 
       const priceChf = Number.isFinite(assetLog.priceChf) ? assetLog.priceChf : undefined;
       const amountChf = priceChf != null ? Util.round(priceChf * native, 2) : undefined;
 
+      // Major B2: key each ASSET opening on its OWN sourceId `<logId>:asset:<assetId>` at seq 0 (the same per-row-marker
+      // pattern as the received/owed/manual-debt openings), NOT one running seq over a single `<logId>` sourceId. A
+      // running seq is unstable across a fail-loud retry: an asset skipped on the first run (no CoA account) that gets
+      // bootstrapped in between shifts every subsequent seq → alreadyBooked (nextSeq > seq) then evaluates the WRONG
+      // seq and either re-books an already-booked asset (double) or skips a not-yet-booked one (loss). Keying each asset
+      // independently makes alreadyBooked exact per asset → a retry books exactly the missing assets, no seq drift.
       await this.bookOpening(
-        seq++,
-        `${snapshot.id}`,
-        `Opening balance from FinancialDataLog #${snapshot.id}`,
+        0,
+        `${snapshot.id}:asset:${assetId}`,
+        `Opening balance for asset #${assetId} from FinancialDataLog #${snapshot.id}`,
         snapshotDate,
         {
           account,
@@ -323,14 +325,18 @@ export class LedgerCutoverService {
   }
 
   // buyCrypto-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R2-7); per-row seq0-marker (R4-2).
-  // Card inputs (checkoutTx != null) are EXCLUDED: card received is booked by the forward consumer's seq0
-  // (buy-crypto.consumer bookCardInput), so a per-row opening would double-book received across the cutover boundary.
-  // (The open Card row sits below the id-watermark → the forward id-scan skips it, but after completion the
-  // content-change scan re-books its seq0 −amountInChf on top of this opening → received would end at −amountInChf
-  // instead of 0, plus a phantom EQUITY opening. The forward consumer books the card seq0 fresh once it completes.)
+  // §6.1 (Major B1): Card inputs (checkoutTx != null) are INCLUDED, symmetrically to bank/crypto-funded open rows. An
+  // open Card row's card-currency GROSS is ALREADY in the aggregate ASSET opening — openAssets books
+  // liquidityBalance.total, which carries the Checkout.com collateral feed: a card charge is auto-captured at payment
+  // and sits in that feed until the CHECKOUT_LTD settlement. So the ASSET side is covered by the aggregate opening
+  // (exactly as a bank balance funds a bank-funded open row) and THIS per-row opening covers the received LIABILITY
+  // side; the completion seq1 later closes received against it. The forward Card seq0
+  // (buy-crypto.consumer.buildCardInputSeq0) is gated to SKIP when this marker exists — WITHOUT both the per-row
+  // opening and the skip, the forward seq0 would re-debit the gross on Checkout/{ccy} a SECOND time (permanent phantom
+  // on Checkout/{ccy}, the pre-fix double-count).
   private async openBuyCryptoReceived(snapshot: Log, date: Date, lookback: Date, equity: LedgerAccount): Promise<void> {
     const rows = await this.buyCryptoRepo.find({
-      where: { isComplete: false, outputAmount: IsNull(), checkoutTx: IsNull(), created: Between(lookback, date) },
+      where: { isComplete: false, outputAmount: IsNull(), created: Between(lookback, date) },
     });
     const liability = await this.liability('buyCrypto-received');
 

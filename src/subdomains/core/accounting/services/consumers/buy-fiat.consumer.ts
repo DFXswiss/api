@@ -12,6 +12,7 @@ import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
+import { resolveLegsOrDefer } from './ledger-mark-bridge.helper';
 import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'buy_fiat';
@@ -129,7 +130,12 @@ export class BuyFiatConsumer {
   }
 
   private async preloadMarks(batch: BuyFiat[]): Promise<LedgerMarkCache> {
-    const dates = batch.flatMap((bf) => [bf.updated, bf.fiatOutput?.bankTx?.bookingDate].filter((d): d is Date => !!d));
+    // B6: the seq3 settlement lookup uses `bankTx.bookingDate ?? bankTx.created` (buildSettlementSeq3), so the preload
+    // window MUST include the same fallback — otherwise a row whose bankTx has no bookingDate (settled via `created`)
+    // could fall outside the preloaded span and getMarkAt would miss its mark.
+    const dates = batch.flatMap((bf) =>
+      [bf.updated, bf.fiatOutput?.bankTx?.bookingDate ?? bf.fiatOutput?.bankTx?.created].filter((d): d is Date => !!d),
+    );
     const times = dates.map((d) => d.getTime());
     // lookback so getMarkAt finds the latest mark at-or-before the earliest row timestamp
     return this.markService.preload(Util.daysBefore(2, new Date(Math.min(...times))), new Date(Math.max(...times)));
@@ -254,7 +260,7 @@ export class BuyFiatConsumer {
 
     // §4.7a FX-P&L leg = −(Σ CHF) → INCOME/EXPENSE fx-revaluation (EUR drift between reclassification and booking)
     const legs: LedgerLegInput[] = [this.chfLeg(transit, owedChf), bankLeg];
-    await this.appendFxResidual(legs);
+    await this.appendFxResidual(legs, `buy_fiat ${bf.id} seq3`);
 
     return {
       sourceType: SOURCE_TYPE,
@@ -351,7 +357,12 @@ export class BuyFiatConsumer {
     if (!bankAsset) throw new Error(`buy_fiat ${bf.id} fiatOutput has no bank.asset (untracked output bank)`);
     const account = await this.assetAccount(bankAsset.id);
 
-    const outputAmount = bf.outputAmount ?? 0;
+    // A5 fail-loud (consistency with :182/:351): a settled row (bankTx booked) with a NULL outputAmount is a data error
+    // — `?? 0` would book a 0-native/0-CHF bank leg and silently drop the settlement value. Throw (retry) instead.
+    if (bf.outputAmount == null) {
+      throw new Error(`buy_fiat ${bf.id} settlement without outputAmount — cannot value the bank-ASSET leg`);
+    }
+    const outputAmount = bf.outputAmount;
     const mark = this.outputMark(bf, bookingDate, marks);
     const chf = mark != null ? Util.round(mark * outputAmount, 2) : undefined;
 
@@ -365,11 +376,12 @@ export class BuyFiatConsumer {
   }
 
   // §4.7a — appends the FX-P&L leg = −(Σ CHF) for the EUR/output drift; CHF output → drift 0 → no leg.
-  // No silent plug while a leg still needsMark (§5.1 stage 3): an unmarked leg carries amountChf=undefined (counted
-  // as 0), so plugging would book its full value as a phantom fx-revaluation — leave it for the mark-to-market job to
-  // revalue, consistent with exchange-tx.consumer.ts.
-  private async appendFxResidual(legs: LedgerLegInput[]): Promise<void> {
-    if (legs.some((l) => l.needsMark)) return;
+  // Major B5: an unmarked bank-ASSET leg is first bridged with the youngest available mark (resolveLegsOrDefer) so this
+  // mixed tx (TRANSIT CHF leg + bank-ASSET leg) balances — needsMark stays true, the mark-to-market job corrects the
+  // basis later. A truly feedless output asset (no bridge) defers the row instead of handing an unbalanceable set to
+  // bookTx at the fixed historical bank bookingDate.
+  private async appendFxResidual(legs: LedgerLegInput[], ref: string): Promise<void> {
+    if (!(await resolveLegsOrDefer(legs, this.markService, this.logger, ref))) return;
 
     const sumCents = legs.reduce((s, l) => s + Math.round(Util.round(l.amountChf ?? 0, 2) * 100), 0);
     if (Math.abs(sumCents) <= Config.ledger.roundingToleranceCents) return; // sub-cent → ROUNDING
@@ -386,7 +398,16 @@ export class BuyFiatConsumer {
   // Opening↔Settlement lands in the §4.7a FX-P&L leg (appendFxResidual), not as a phantom on owed (Blocker R6-1).
   private owedChf(bf: BuyFiat, owedOpeningChf?: number): number {
     if (owedOpeningChf != null) return owedOpeningChf;
-    if (bf.cryptoInput?.paymentLinkPayment) return Util.round((bf.outputAmount ?? 0) * this.owedReferenceRate(bf), 2);
+    if (bf.cryptoInput?.paymentLinkPayment) {
+      // A5 fail-loud (consistency with :182/:351): a paymentLink row being settled with a NULL outputAmount is a data
+      // error — `?? 0` would zero the merchant fiat output and misvalue the paymentLink clear. Throw (retry) instead.
+      if (bf.outputAmount == null) {
+        throw new Error(
+          `buy_fiat ${bf.id} paymentLink owedChf without outputAmount — cannot value the merchant payout`,
+        );
+      }
+      return Util.round(bf.outputAmount * this.owedReferenceRate(bf), 2);
+    }
     return Util.round((bf.amountInChf ?? 0) - (bf.totalFeeAmountChf ?? 0), 2);
   }
 

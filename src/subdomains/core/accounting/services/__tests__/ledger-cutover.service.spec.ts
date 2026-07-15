@@ -220,6 +220,44 @@ describe('LedgerCutoverService', () => {
 
       expect(bootstrapService.bootstrap).toHaveBeenCalledTimes(1);
     });
+
+    // Major B2: openAssets keys each ASSET opening on its OWN sourceId `<logId>:asset:<assetId>` at seq 0 (per-asset
+    // marker), NOT a running seq over one `<logId>` sourceId. So a retry after a partial crash re-books EXACTLY the
+    // assets whose per-asset opening is missing — with no running-seq drift when a previously-skipped asset gets a CoA
+    // account in between. Here asset 100 was already booked on the crashed first run (its per-asset nextSeq is 1) and
+    // asset 200 was not; the retry must book ONLY 200, at seq 0, and re-book nothing.
+    it('re-books exactly the missing per-asset openings on a retry after a partial crash (no seq drift, B2)', async () => {
+      jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([
+        snapshotLog({
+          '100': {
+            priceChf: 2,
+            plusBalance: { total: 0, liquidity: { total: 0, liquidityBalance: { total: 10 } } },
+            minusBalance: { total: 0 },
+            error: '',
+          },
+          '200': {
+            priceChf: 3,
+            plusBalance: { total: 0, liquidity: { total: 0, liquidityBalance: { total: 5 } } },
+            minusBalance: { total: 0 },
+            error: '',
+          },
+        }),
+      ]);
+      // asset 100's per-asset opening was already booked on the crashed first run → alreadyBooked(seq 0) true → skipped
+      nextSeqByKey.set('cutover:1557344:asset:100', 1);
+
+      await service.run();
+
+      // asset 100 NOT re-booked (idempotent per-asset skip); asset 200 booked exactly once, at seq 0, its own sourceId
+      expect(booked.some((b) => b.sourceId === '1557344:asset:100')).toBe(false);
+      const tx200 = booked.find((b) => b.sourceId === '1557344:asset:200');
+      expect(tx200).toBeDefined();
+      expect(tx200.seq).toBe(0);
+      const assetLeg = tx200.legs.find((l) => l.account.type === AccountType.ASSET);
+      expect(assetLeg.amount).toBe(5); // native opening booked exactly once (no drift)
+      expect(assetLeg.amountChf).toBe(15); // 5 × priceChf 3
+    });
   });
 
   describe('failure-isolation (§6.3)', () => {
@@ -915,30 +953,32 @@ describe('LedgerCutoverService', () => {
       expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:61')).toBe(false); // null amountInChf → skipped
     });
 
-    // MAJOR (double-book guard): Card inputs (checkoutTx != null) MUST be excluded from the per-row buyCrypto-received
-    // opening — card received is booked by the forward consumer's seq0 (buy-crypto.consumer bookCardInput). A per-row
-    // opening here would double-book received across the cutover boundary (the content-change scan re-books seq0 after
-    // completion → received ends at −amountInChf + a phantom EQUITY opening). Asserts the query passes checkoutTx IS
-    // NULL (else the mock returns the Card row) AND that the Card row gets no opening.
-    it('excludes Card inputs (checkoutTx) from the per-row buyCrypto-received opening', async () => {
+    // MAJOR (B1): Card inputs (checkoutTx != null) are INCLUDED in the per-row buyCrypto-received opening, symmetrically
+    // to bank/crypto-funded open rows — an open Card row's gross is already in the aggregate ASSET opening (the
+    // Checkout.com collateral feed) and this per-row opening covers the received LIABILITY side. The forward Card seq0
+    // is gated to SKIP when this marker exists (buy-crypto.consumer.buildCardInputSeq0). Asserts the received query does
+    // NOT filter on checkoutTx (both the non-Card and the Card row are opened).
+    it('includes Card inputs (checkoutTx) in the per-row buyCrypto-received opening (B1)', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      let receivedWhere: any;
       jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
-        // received query: outputAmount IS NULL. The service now also passes checkoutTx IS NULL → simulate the DB filter:
-        // when the where carries checkoutTx, the Card row (checkoutTx set) is filtered out, only the non-Card remains.
+        // received query: outputAmount IS NULL. The service must NOT filter on checkoutTx → capture the where to assert
+        // the Card row is returned (not filtered out) and opened per-row.
         if (where?.outputAmount) {
-          const rows = [
+          receivedWhere = where;
+          return Promise.resolve([
             buyCrypto({ id: 60, amountInChf: 15000, outputAmount: null }), // non-Card → opened
             buyCrypto({ id: 61, amountInChf: 15000, outputAmount: null, checkoutTx: { currency: 'EUR' } as any }), // Card
-          ];
-          return Promise.resolve(where.checkoutTx ? rows.filter((r) => r.checkoutTx == null) : rows);
+          ]);
         }
         return Promise.resolve([]);
       });
 
       await service.run();
 
+      expect(receivedWhere?.checkoutTx).toBeUndefined(); // no checkoutTx filter → Card rows are NOT excluded (B1)
       expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:60')).toBe(true); // non-Card opened
-      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:61')).toBe(false); // Card excluded (forward seq0 books it)
+      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:61')).toBe(true); // Card ALSO opened (B1)
     });
 
     it('skips a bankTx-return row whose underlying bank_tx amount is null (nothing to anchor)', async () => {
@@ -1265,8 +1305,9 @@ describe('LedgerCutoverService', () => {
     });
     jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
     jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshot]);
-    // the ASSET opening sits at seq 0 → nextSeq already returns 1 → alreadyBooked(seq 0) true → no re-book
-    nextSeqByKey.set('cutover:1557344', 1);
+    // the ASSET opening sits at its per-asset sourceId `<logId>:asset:<assetId>` seq 0 (B2) → nextSeq already returns 1
+    // → alreadyBooked(seq 0) true → no re-book
+    nextSeqByKey.set('cutover:1557344:asset:100', 1);
 
     await service.run();
 

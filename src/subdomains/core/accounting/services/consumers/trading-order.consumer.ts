@@ -12,6 +12,7 @@ import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
+import { resolveLegsOrDefer } from './ledger-mark-bridge.helper';
 import {
   getLedgerWatermark,
   isCoveredByCutoverOpening,
@@ -140,7 +141,7 @@ export class TradingOrderConsumer {
       legs.push(this.chfLeg(await this.expense(`spread-${SWAP_VENUE}`), order.swapFeeAmountChf));
     if (order.profitChf != null) legs.push(this.chfLeg(await this.income('trading'), -order.profitChf));
 
-    await this.appendArbitragePlug(legs);
+    await this.appendArbitragePlug(legs, `trading_order ${order.id}`);
 
     await this.bookingService.bookTx({
       sourceType: SOURCE_TYPE,
@@ -155,11 +156,13 @@ export class TradingOrderConsumer {
   /**
    * The spread-arbitrage plug absorbs the residual between the mark-valued ASSET legs and the persisted fee/profit
    * legs so Σ CHF closes to 0 (Blocker R1-3, NOT ROUNDING). Residual > 0 → INCOME/spread-arbitrage; < 0 →
-   * EXPENSE/spread-arbitrage. Skips the plug when any ASSET leg still needsMark (no silent plug without a mark,
-   * §5.1 stage 3 / §4.9) — mark-to-market revalues then. Sub-cent rest → ROUNDING (booking service).
+   * EXPENSE/spread-arbitrage. Major B5: an ASSET leg without a historical mark is first bridged with the youngest
+   * available mark (resolveLegsOrDefer) so the swap balances — needsMark stays true, the mark-to-market job corrects the
+   * basis later. A truly feedless swap asset (no bridge) defers the row instead of handing an unbalanceable set to
+   * bookTx. Sub-cent rest → ROUNDING (booking service).
    */
-  private async appendArbitragePlug(legs: LedgerLegInput[]): Promise<void> {
-    if (legs.some((l) => l.needsMark)) return;
+  private async appendArbitragePlug(legs: LedgerLegInput[], ref: string): Promise<void> {
+    if (!(await resolveLegsOrDefer(legs, this.markService, this.logger, ref))) return;
 
     const sumCents = legs.reduce((s, l) => s + Math.round(Util.round(l.amountChf ?? 0, 2) * 100), 0);
     if (Math.abs(sumCents) <= Config.ledger.roundingToleranceCents) return;

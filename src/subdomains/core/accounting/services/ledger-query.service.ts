@@ -436,7 +436,6 @@ export class LedgerQueryService {
       case FeedStatus.PLACEHOLDER:
         return LedgerFeedStaleness.PLACEHOLDER;
       case FeedStatus.NO_FEED:
-      default:
         return LedgerFeedStaleness.MISSING;
     }
   }

@@ -10,6 +10,7 @@ import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
+import { resolveLegsOrDefer } from './ledger-mark-bridge.helper';
 import {
   getLedgerWatermark,
   isCoveredByCutoverOpening,
@@ -120,7 +121,7 @@ export class CryptoInputConsumer {
     const bookingDate = ci.updated;
 
     await this.bookInput(ci, bookingDate, marks); // seq0
-    await this.bookForwardFee(ci, bookingDate); // seq1 (only if outTxId + forwardFeeAmountChf)
+    await this.bookForwardFee(ci, bookingDate, marks); // seq1 (only if outTxId + forwardFeeAmountChf)
   }
 
   // seq0 — the crypto-input leg (§4.4/§4.4a)
@@ -183,23 +184,41 @@ export class CryptoInputConsumer {
       assetLeg,
       { account: received, amount: -product.amountInChf, priceChf: 1, amountChf: -product.amountInChf },
     ];
-    this.appendFxPlug(legs, await this.fxAccounts());
+    await this.appendFxPlug(legs, await this.fxAccounts(), `crypto_input ${ci.id} seq0`);
 
     return { sourceType: SOURCE_TYPE, sourceId: `${ci.id}`, seq: 0, bookingDate, valueDate: bookingDate, legs };
   }
 
   // seq1 — standalone forward fee (§4.4): Dr EXPENSE/network-fee / Cr ASSET/{asset.uniqueName}.
   // The fee's priceChf is derived from the persisted forwardFeeAmountChf/forwardFeeAmount pair, not the cache.
-  private async bookForwardFee(ci: CryptoInput, bookingDate: Date): Promise<void> {
+  private async bookForwardFee(ci: CryptoInput, bookingDate: Date, marks: LedgerMarkCache): Promise<void> {
     if (!ci.outTxId || ci.forwardFeeAmountChf == null) return; // null fee → no leg (null strategy §5.1)
     if (await this.alreadyBooked(ci.id, 1)) return;
 
     const wallet = await this.walletAsset(ci);
     const feeChf = ci.forwardFeeAmountChf;
-    const feeNative = ci.forwardFeeAmount;
-    const mark = feeChf != null && feeNative ? Util.round(feeChf / feeNative, 8) : null;
-    const networkFee = await this.expense('network-fee');
+    let feeNative = ci.forwardFeeAmount;
+    let mark = feeNative ? Util.round(feeChf / feeNative, 8) : null;
 
+    // B7: the wallet leg is NATIVE crypto (the fee left the wallet). When forwardFeeAmount (the native fee) is missing,
+    // `-(feeNative ?? feeChf)` would book the CHF value as native units on the crypto wallet — a silent unit corruption.
+    // Instead derive the native from feeChf via the wallet mark (historical, else the B5 latest-mark bridge); if no mark
+    // exists at all, fail loud (retry) rather than book CHF as native. NEVER a CHF value in a native amount.
+    if (feeNative == null) {
+      const derivedMark =
+        (wallet.assetId != null ? marks.getMarkAt(wallet.assetId, bookingDate) : undefined) ??
+        (wallet.assetId != null ? await this.markService.getLatestMark(wallet.assetId) : undefined);
+      if (derivedMark == null || derivedMark === 0) {
+        throw new Error(
+          `crypto_input ${ci.id} forward fee: forwardFeeAmountChf set but forwardFeeAmount missing and no mark to ` +
+            `derive the native fee — refusing to book a CHF value as native units`,
+        );
+      }
+      feeNative = Util.round(feeChf / derivedMark, 8);
+      mark = derivedMark;
+    }
+
+    const networkFee = await this.expense('network-fee');
     await this.bookingService.bookTx({
       sourceType: SOURCE_TYPE,
       sourceId: `${ci.id}`,
@@ -208,7 +227,7 @@ export class CryptoInputConsumer {
       valueDate: bookingDate,
       legs: [
         { account: networkFee, amount: feeChf, priceChf: 1, amountChf: feeChf },
-        { account: wallet, amount: -(feeNative ?? feeChf), priceChf: mark, amountChf: -feeChf },
+        { account: wallet, amount: -feeNative, priceChf: mark, amountChf: -feeChf },
       ],
     });
   }
@@ -217,11 +236,15 @@ export class CryptoInputConsumer {
 
   // appends an EXPENSE/INCOME fx-revaluation plug for the seq0 valuation residual amountInChf − mark×amount (§4.4a);
   // sub-cent → the booking-service ROUNDING leg closes it.
-  // No silent plug while a leg still needsMark (§5.1 stage 3): an unmarked leg carries amountChf=undefined (counted
-  // as 0), so plugging would book its full value as a phantom fx-revaluation — leave it for the mark-to-market job to
-  // revalue, consistent with exchange-tx.consumer.ts.
-  private appendFxPlug(legs: LedgerLegInput[], fx: { income: LedgerAccount; expense: LedgerAccount }): void {
-    if (legs.some((l) => l.needsMark)) return;
+  // Major B5: an unmarked asset leg is first bridged with the youngest available mark (resolveLegsOrDefer) so this mixed
+  // tx (crypto asset leg + CHF-anchored received leg) balances — needsMark stays true, the mark-to-market job corrects
+  // the basis later. A truly feedless asset (no bridge) defers the row instead of handing an unbalanceable set to bookTx.
+  private async appendFxPlug(
+    legs: LedgerLegInput[],
+    fx: { income: LedgerAccount; expense: LedgerAccount },
+    ref: string,
+  ): Promise<void> {
+    if (!(await resolveLegsOrDefer(legs, this.markService, this.logger, ref))) return;
 
     const sumCents = legs.reduce((s, l) => s + Math.round(Util.round(l.amountChf ?? 0, 2) * 100), 0);
     if (Math.abs(sumCents) <= Config.ledger.roundingToleranceCents) return;

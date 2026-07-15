@@ -16,6 +16,7 @@ import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
+import { resolveLegsOrDefer } from './ledger-mark-bridge.helper';
 import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'bank_tx';
@@ -250,7 +251,7 @@ export class BankTxConsumer {
     const bank = this.bankAssetLeg(ctx, +tx.amount, bookingDate, marks, await this.bankAccount(ctx)); // mark-consistent
     const received = this.namedLeg(await this.liability('buyCrypto-received'), -amountInChf);
 
-    return this.withFxPlug([bank, received]);
+    return this.withFxPlug([bank, received], `bank_tx ${tx.id} buy_crypto`);
   }
 
   // §4.2a — BUY_CRYPTO_RETURN DBIT: Dr LIABILITY/buyCrypto-owed (completion/opening CHF) / Cr ASSET/bank (EUR-mark ×
@@ -270,7 +271,7 @@ export class BankTxConsumer {
 
     // owed-Dr (completion/opening CHF) + bank-Cr (EUR-mark) → withFxPlug routes the mark/valuation drift to
     // EXPENSE/INCOME fx-revaluation, owed closes cent-exact to 0 (§4.2a). CHF account → drift 0 → 2-leg, no plug.
-    return this.withFxPlug([owed, bank]);
+    return this.withFxPlug([owed, bank], `bank_tx ${tx.id} buy_crypto_return`);
   }
 
   // the CHF the buyCrypto-owed was opened with: §4.6 completion (amountInChf − totalFeeAmountChf), or — for a
@@ -361,7 +362,7 @@ export class BankTxConsumer {
     const expenseChf = tx.chargeAmountChf ?? -(bank.amountChf ?? 0); // Pricing anchor
     const expense = this.namedLeg(await this.expense('bank-fee'), expenseChf);
 
-    return this.withFxPlug([expense, bank]); // ≤2c → ROUNDING, >2c → fx-revaluation (§4.2-Note B-10)
+    return this.withFxPlug([expense, bank], `bank_tx ${tx.id} bank_fee`); // ≤2c → ROUNDING, >2c → fx-revaluation (§4.2-Note B-10)
   }
 
   // §4.2 EXTRAORDINARY_EXPENSES: Dr EXPENSE/{name} / Cr ASSET/bank
@@ -418,7 +419,7 @@ export class BankTxConsumer {
 
     // opening-CHF Dr + EUR-mark bank Cr → withFxPlug routes the mark/valuation drift to fx-revaluation, liability
     // closes cent-exact to 0. CHF account / no opening found → drift 0 → 2-leg, no plug (no behaviour change).
-    return this.withFxPlug([liability, bank]);
+    return this.withFxPlug([liability, bank], `bank_tx ${tx.id} liability_debit`);
   }
 
   // §4.2 BANK_TX_RETURN_CHARGEBACK DBIT: Dr LIABILITY/{bucket} (opening CHF) / Cr ASSET/bank (EUR-mark)
@@ -443,7 +444,7 @@ export class BankTxConsumer {
     const liabilityChf = await this.chargebackOpeningChf(tx, bucket, others);
     const legs: LedgerLegInput[] = [this.namedLeg(await this.liability(bucket), liabilityChf), ...others];
 
-    return this.withFxPlug(legs); // ≤2c → ROUNDING, >2c → fx-revaluation
+    return this.withFxPlug(legs, `bank_tx ${tx.id} chargeback`); // ≤2c → ROUNDING, >2c → fx-revaluation
   }
 
   // the CHF the LIABILITY/{bucket} was OPENED with (§4.2 line 356/357, B-15): looks up the original BANK_TX_RETURN /
@@ -634,12 +635,13 @@ export class BankTxConsumer {
 
   // appends an EXPENSE/INCOME fx-revaluation plug for a remaining CHF residual > tolerance (§4.2a); sub-cent →
   // the booking-service ROUNDING leg closes it (no plug created).
-  // NO silent plug while a leg still needsMark (§5.1 stage 3): an unmarked non-CHF leg carries amountChf=undefined
-  // (counted as 0 here), so plugging would book the full leg value as a phantom fx-revaluation; instead leave the tx
-  // unbalanced-by-mark and let the mark-to-market job revalue the leg later — consistent with exchange-tx.consumer.ts
-  // (the §4.2a fix resolves the EUR mark for untracked banks, so this guard only fires when the mark is truly absent).
-  private async withFxPlug(legs: LedgerLegInput[]): Promise<LedgerLegInput[]> {
-    if (legs.some((l) => l.needsMark)) return legs;
+  // Major B5: an unmarked non-CHF bank leg is first bridged with the youngest available mark (resolveLegsOrDefer) so a
+  // mixed tx (bank-ASSET leg + CHF-anchored liability/expense leg) balances — needsMark stays true, the mark-to-market
+  // job corrects the basis later. A truly feedless bank asset (no bridge) defers the row instead of handing an
+  // unbalanceable set to bookTx at the fixed historical bookingDate (the §4.2a fix already resolves the EUR mark for
+  // untracked banks, so the bridge/defer only fires when the mark is truly absent everywhere).
+  private async withFxPlug(legs: LedgerLegInput[], ref: string): Promise<LedgerLegInput[]> {
+    if (!(await resolveLegsOrDefer(legs, this.markService, this.logger, ref))) return legs;
 
     const sumCents = legs.reduce((s, l) => s + Math.round(Util.round(l.amountChf ?? 0, 2) * 100), 0);
     if (Math.abs(sumCents) <= Config.ledger.roundingToleranceCents) return legs;

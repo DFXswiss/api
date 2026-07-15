@@ -93,6 +93,7 @@ describe('CryptoInputConsumer', () => {
       });
 
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(markMap));
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(undefined); // B5: no bridge by default (tests opt in)
     jest.spyOn(settingService, 'getObj').mockResolvedValue(undefined);
     jest.spyOn(settingService, 'set').mockResolvedValue();
 
@@ -204,8 +205,11 @@ describe('CryptoInputConsumer', () => {
     expect(cents(seq0.legs)).toBe(0);
   });
 
-  // §10.2 fixture (B)(d) / §5.1 stage 3 — no mark: ASSET leg needsMark, NO silent fx-revaluation plug
-  it('flags the ASSET leg needsMark when no mark exists and books NO silent plug (§5.1 stage 3)', async () => {
+  // §10.2 fixture (B)(d) / Major B5 — no mark ANYWHERE (asset never fed): the mixed seq0 (needsMark crypto leg + −50000
+  // received anchor) cannot balance and the bridge finds no mark → the row DEFERS (nothing booked, watermark unchanged),
+  // NEVER an unbalanceable set handed to bookTx. A feedless asset is a genuine data state, retried next run.
+  it('defers (no booking, watermark unchanged) when the ASSET leg has no mark anywhere (B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     mockBatch([
       cryptoInput({
         id: 5,
@@ -217,17 +221,41 @@ describe('CryptoInputConsumer', () => {
     jest
       .spyOn(accountService, 'findByAssetId')
       .mockResolvedValue(account('Unknown/XYZ', AccountType.ASSET, 'XYZ', 999));
+    // markService.getLatestMark → undefined (auto-mock) → no bridge → resolveLegsOrDefer throws → failure-isolation
+    await consumer.process();
+
+    expect(booked.find((b) => b.seq === 0)).toBeUndefined(); // nothing booked (deferred)
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced → retry next run
+  });
+
+  // Major B5 bridge — a missing HISTORICAL mark but a present current mark: the crypto leg is valued with the youngest
+  // available mark (bridge), needsMark STAYS true so the mark-to-market job corrects the basis later, and the seq0
+  // balances via the real fx-revaluation spread (crypto value vs the amountInChf anchor) — no wedge.
+  it('bridges a missing historical mark with the latest available mark and books balanced, needsMark stays true (B5)', async () => {
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(48000); // youngest available mark for asset 999
+    mockBatch([
+      cryptoInput({
+        id: 5,
+        amount: 1,
+        asset: { id: 999, uniqueName: 'Unknown/XYZ' },
+        buyFiat: { amountInChf: 50000 } as any,
+      }),
+    ]);
+    jest
+      .spyOn(accountService, 'findByAssetId')
+      .mockResolvedValue(account('Unknown/XYZ', AccountType.ASSET, 'XYZ', 999));
+
     await consumer.process();
 
     const seq0 = booked.find((b) => b.seq === 0);
     const assetLeg = seq0.legs.find((l) => l.account.name === 'Unknown/XYZ');
-    expect(assetLeg.needsMark).toBe(true);
-    expect(assetLeg.amountChf).toBeUndefined();
-    // NO fx-revaluation plug while the asset leg needsMark (the old bug plugged the FULL +50000 received value as a
-    // phantom fx-revaluation, vacuously balancing cents to 0). Per §5.1 stage 3 the tx stays unbalanced-by-mark and
-    // the mark-to-market job revalues the asset leg later — exactly the systemic needsMark-guard fix.
-    expect(seq0.legs.find((l) => l.account.name?.includes('fx-revaluation'))).toBeUndefined();
-    expect(seq0.legs).toHaveLength(2); // asset (needsMark) + received anchor only, no plug leg
+    expect(assetLeg.amountChf).toBe(48000); // bridged: 48000 × 1
+    expect(assetLeg.needsMark).toBe(true); // stays true → mark-to-market re-marks to the real rate later
+    // real fx-revaluation spread plug (+2000 = 50000 anchor − 48000 bridged), NOT a phantom full-value plug
+    const fx = seq0.legs.find((l) => l.account.name?.includes('fx-revaluation'));
+    expect(fx?.amountChf).toBe(2000);
+    const cents = seq0.legs.reduce((s, l) => s + Math.round((l.amountChf ?? 0) * 100), 0);
+    expect(cents).toBe(0); // balances
   });
 
   it('books the forward fee (seq1) only when outTxId + forwardFeeAmountChf are set', async () => {
@@ -508,10 +536,11 @@ describe('CryptoInputConsumer', () => {
   // --- ADDITIONAL BRANCH COVERAGE --- //
 
   // line 117 UNDEFINED side: the resolved wallet LedgerAccount has assetId == null → the `wallet.assetId != null`
-  // ternary takes the `: undefined` branch (NOT getMarkAt) → mark undefined → assetChf undefined → asset leg
-  // needsMark. With a buyFiat anchor the needsMark asset leg short-circuits appendFxPlug → NO fx plug leg.
-  // (Distinct from the id-5 test, which resolves a wallet WITH assetId 999 → takes the getMarkAt side.)
-  it('takes the undefined-mark branch when the wallet account has a null assetId (no fx plug)', async () => {
+  // ternary takes the `: undefined` branch (NOT getMarkAt) → mark undefined → assetChf undefined → asset leg needsMark.
+  // Major B5: a needsMark leg with NO assetId cannot be bridged (nothing to look up) → the mixed seq0 defers rather than
+  // handing an unbalanceable set to bookTx. (Distinct from the id-5 test, which resolves a wallet WITH assetId.)
+  it('defers when the wallet account has a null assetId (no mark, nothing to bridge — B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     mockBatch([
       cryptoInput({
         id: 40,
@@ -525,14 +554,8 @@ describe('CryptoInputConsumer', () => {
 
     await consumer.process();
 
-    const seq0 = booked.find((b) => b.seq === 0);
-    const assetLeg = seq0.legs.find((l) => l.account.name === 'Bitcoin/BTC');
-    expect(assetLeg.needsMark).toBe(true);
-    expect(assetLeg.amountChf).toBeUndefined();
-    expect(assetLeg.priceChf).toBeNull(); // mark ?? null
-    // a needsMark leg short-circuits appendFxPlug (§5.1 stage 3) → received anchor only, NO plug leg
-    expect(seq0.legs.find((l) => l.account.name?.includes('fx-revaluation'))).toBeUndefined();
-    expect(seq0.legs).toHaveLength(2);
+    expect(booked.find((b) => b.seq === 0)).toBeUndefined(); // nothing booked (deferred — no assetId to bridge)
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
   });
 
   // lines 141-144 (isPayment, assetChf == null): a PAYMENT crypto_input whose asset has NO mark → mark undefined →
@@ -564,10 +587,10 @@ describe('CryptoInputConsumer', () => {
     expect(paymentLink.amount).toBe(-0); // -(assetChf ?? 0) → -0 (the negation of the 0 fallback)
   });
 
-  // lines 176-187 forward-fee: forwardFeeAmount (feeNative) null while forwardFeeAmountChf set → mark falls to null
-  // (the `feeChf != null && feeNative` guard is false) and the wallet native amount uses the `-(feeNative ?? feeChf)`
-  // fallback = −feeChf.
-  it('books the forward fee with a null priceChf and the feeChf native fallback when forwardFeeAmount is null', async () => {
+  // B7 forward-fee: forwardFeeAmount (feeNative) null while forwardFeeAmountChf set → the native fee is DERIVED from
+  // feeChf via the wallet mark (feeChf / mark), NEVER the CHF value booked as native units. BTC has a mark (50300) →
+  // native = round(5 / 50300, 8), priceChf = 50300, amountChf = −5.
+  it('derives the native forward fee from feeChf via the wallet mark when forwardFeeAmount is null (B7)', async () => {
     mockBatch([
       cryptoInput({
         id: 42,
@@ -575,7 +598,7 @@ describe('CryptoInputConsumer', () => {
         asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' },
         buyFiat: { amountInChf: 50000 } as any,
         outTxId: '0xforward',
-        forwardFeeAmount: null, // feeNative null → mark null, native fallback to feeChf
+        forwardFeeAmount: null, // feeNative null → derive native from feeChf via the BTC mark (never CHF as native)
         forwardFeeAmountChf: 5,
       }),
     ]);
@@ -586,10 +609,35 @@ describe('CryptoInputConsumer', () => {
     const networkFee = seq1.legs.find((l) => l.account.name === 'EXPENSE/network-fee');
     const wallet = seq1.legs.find((l) => l.account.name === 'Bitcoin/BTC');
     expect(networkFee.amountChf).toBe(5);
-    expect(wallet.amount).toBe(-5); // -(feeNative ?? feeChf) = -5 (the ?? fallback)
+    expect(wallet.amount).toBe(-Util.round(5 / 50300, 8)); // native derived: feeChf / mark, NOT the CHF value
     expect(wallet.amountChf).toBe(-5);
-    expect(wallet.priceChf).toBeNull(); // feeNative falsy → mark null
+    expect(wallet.priceChf).toBe(50300); // the wallet mark used to derive the native
     expect(cents(seq1.legs)).toBe(0);
+  });
+
+  // B7 fail-loud: forwardFeeAmount null AND no mark ANYWHERE for the wallet asset → refuse to book a CHF value as native
+  // units; throw (failure-isolation, retry) instead. Uses an isPayment row so seq0 (2-leg, both needsMark → balances)
+  // books and the forward-fee seq1 is the only thing that throws — isolating the B7 guard.
+  it('fails loud when the forward fee has no native amount and no mark to derive it (B7)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    mockBatch([
+      cryptoInput({
+        id: 43,
+        amount: 1,
+        txType: PayInType.PAYMENT, // isPayment → seq0 is a balanced 2-leg (no appendFxPlug), so seq0 books
+        asset: { id: 999, uniqueName: 'Unknown/XYZ' }, // no mark in markMap, getLatestMark → undefined
+        outTxId: '0xforward',
+        forwardFeeAmount: null, // no native fee AND no mark → B7 throws rather than book CHF as native
+        forwardFeeAmountChf: 5,
+      }),
+    ]);
+    jest
+      .spyOn(accountService, 'findByAssetId')
+      .mockResolvedValue(account('Unknown/XYZ', AccountType.ASSET, 'XYZ', 999));
+    await consumer.process();
+
+    expect(booked.find((b) => b.seq === 1)).toBeUndefined(); // forward fee NOT booked (fail-loud), never CHF as native
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced → retry
   });
 
   // lines 202/206 appendFxPlug POSITIVE residual: amountInChf > mark×amount → residual ≥ 0 → INCOME/fx-revaluation.

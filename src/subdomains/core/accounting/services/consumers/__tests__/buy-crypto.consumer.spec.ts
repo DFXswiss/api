@@ -127,6 +127,7 @@ describe('BuyCryptoConsumer', () => {
   // §4.6 seq0 — Card input only: Dr ASSET/Checkout (native = card-currency gross, amountChf = gross CHF, F2) /
   // Cr LIABILITY/buyCrypto-received (= amountInChf)
   it('books a Card input seq0 against Checkout custody (Bank/crypto inputs are NOT booked here)', async () => {
+    gateOpen = false; // no cutover → no per-row received marker → the forward seq0 IS this Card row's own opening (B1)
     mockBatch([
       buyCrypto({ id: 1, amountInChf: 1000, inputReferenceAmount: 1050, checkoutTx: { currency: 'EUR' } as any }),
     ]);
@@ -145,6 +146,7 @@ describe('BuyCryptoConsumer', () => {
   // booking native 0 on the card-currency custody account would silently corrupt the account's native unit → throw
   // → failure-isolation (nothing booked, watermark not advanced, retried next run).
   it('throws (failure-isolation) on a Card row with amountInChf but no inputReferenceAmount', async () => {
+    gateOpen = false; // no cutover marker → buildCardInputSeq0 reaches the inputReferenceAmount fail-loud (B1)
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     mockBatch([
       buyCrypto({ id: 25, amountInChf: 1000, inputReferenceAmount: null, checkoutTx: { currency: 'EUR' } as any }),
@@ -281,6 +283,7 @@ describe('BuyCryptoConsumer', () => {
   // §4.6 failure-isolation: a Card input whose Checkout account is missing throws in bookCardInput → break, watermark
   // not advanced (retry next run)
   it('stops the batch and leaves the watermark when the Checkout account is missing (failure-isolation)', async () => {
+    gateOpen = false; // no cutover marker → buildCardInputSeq0 reaches checkoutAccount() → throws on the missing acct (B1)
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     accounts.delete('Checkout/EUR'); // findByName('Checkout/EUR') → undefined → throw in checkoutAccount
     mockBatch([
@@ -349,6 +352,7 @@ describe('BuyCryptoConsumer', () => {
   // newly-settled completion. Reversing only seq0 while seq1 is booked would leave `received` non-zero
   // (liability closure breaks) → the chain method reverses the whole active chain atomically.
   it('runs the content-change scan: reverse-and-rebooks the Card seq0/seq1 chain then books the completion', async () => {
+    gateOpen = false; // no cutover marker → the Card seq0 IS this row's opening, so the chain carries both seq0 + seq1 (B1)
     const chainSpy = jest.spyOn(bookingService, 'reverseAndRebookChainIfChanged').mockResolvedValue(true);
     const changed = buyCrypto({
       id: 30,
@@ -452,9 +456,11 @@ describe('BuyCryptoConsumer', () => {
     expect(booked.some((b) => b.sourceId === '40')).toBe(false); // neither seq0 nor seq1 booked
   });
 
-  // a Card row OPEN at the cutover that completes AFTER it (outputDate > snapshot) IS booked (seq0 + seq1) — the
-  // forward seq0 is its opening (the per-row cutover opening is excluded for Card). received closes to 0. (Scenario A)
-  it('books seq0 + seq1 for a Card row completing after the cutover (Scenario A, not settled-before-cutover)', async () => {
+  // Major B1: a Card row OPEN at the cutover that completes AFTER it (outputDate > snapshot) has its gross in the
+  // aggregate ASSET opening AND a per-row cutover buyCrypto-received opening (the default existsBy models the marker as
+  // present). The forward seq0 is SKIPPED (re-booking would double-debit the gross on Checkout/{ccy}); only seq1 books,
+  // closing received against the cutover opening. (Scenario A)
+  it('skips seq0 (cutover received marker present) and books only seq1 for an open-at-cutover Card row (Scenario A)', async () => {
     jest.spyOn(settingService, 'get').mockImplementation((key: string) => {
       if (key === 'ledgerCutoverLogId') return Promise.resolve('1557344');
       if (key === 'ledgerCutoverSnapshotDate') return Promise.resolve('2026-06-07T22:00:00.000Z');
@@ -466,7 +472,7 @@ describe('BuyCryptoConsumer', () => {
       inputReferenceAmount: 1050, // card-currency gross (F2 custody native)
       totalFeeAmountChf: 10,
       isComplete: true,
-      outputDate: new Date('2026-06-20T00:00:00Z'), // completed AFTER the snapshot → NOT covered by the opening
+      outputDate: new Date('2026-06-20T00:00:00Z'), // completed AFTER the snapshot → completion booked post-cutover
       updated: new Date('2026-06-20T00:00:00Z'),
       checkoutTx: { currency: 'EUR' } as any,
     });
@@ -478,8 +484,42 @@ describe('BuyCryptoConsumer', () => {
 
     const s0 = booked.find((b) => b.sourceId === '41' && b.seq === 0);
     const s1 = booked.find((b) => b.sourceId === '41' && b.seq === 1);
-    expect(s0).toBeDefined(); // forward seq0 = the card opening
-    expect(s1).toBeDefined(); // completion books (outputDate > snapshot → not settled-before-cutover → gate open)
+    expect(s0).toBeUndefined(); // forward seq0 SKIPPED (cutover received marker present → would double-debit the gross)
+    expect(s1).toBeDefined(); // completion books against the cutover received opening (gate open via G-b marker)
+    const receivedSum = s1.legs
+      .filter((l) => l.account.name === 'LIABILITY/buyCrypto-received')
+      .reduce((s, l) => s + (l.amountChf ?? 0), 0);
+    expect(receivedSum).toBe(1000); // seq1 debits received +10 fee + +990 reclass → closes the cutover opening's −1000
+  });
+
+  // Major B1: a POST-cutover Card row (cutover has run, but this row was created after the snapshot → no per-row cutover
+  // opening) books its OWN forward seq0 as the received opening; the gate then opens via that seq0 (alreadyBooked), not a
+  // marker. Distinguishes the no-marker forward path from the open-at-cutover G-b path above.
+  it('books seq0 (its own opening) + seq1 for a post-cutover Card row with no cutover marker', async () => {
+    jest.spyOn(settingService, 'get').mockImplementation((key: string) => {
+      if (key === 'ledgerCutoverLogId') return Promise.resolve('1557344');
+      if (key === 'ledgerCutoverSnapshotDate') return Promise.resolve('2026-06-07T22:00:00.000Z');
+      return Promise.resolve(undefined);
+    });
+    jest.spyOn(ledgerTxRepo, 'existsBy').mockResolvedValue(false); // no per-row cutover received/owed marker for this row
+    mockBatch([
+      buyCrypto({
+        id: 42,
+        amountInChf: 1000,
+        inputReferenceAmount: 1050,
+        totalFeeAmountChf: 10,
+        isComplete: true,
+        outputDate: new Date('2026-06-20T00:00:00Z'), // created + completed after the cutover → no per-row opening
+        checkoutTx: { currency: 'EUR' } as any,
+      }),
+    ]);
+
+    await consumer.process();
+
+    const s0 = booked.find((b) => b.sourceId === '42' && b.seq === 0);
+    const s1 = booked.find((b) => b.sourceId === '42' && b.seq === 1);
+    expect(s0).toBeDefined(); // no marker → the forward seq0 IS this Card row's own received opening
+    expect(s1).toBeDefined(); // gate opened by that forward seq0 (alreadyBooked) → completion books
     const receivedSum = [...s0.legs, ...s1.legs]
       .filter((l) => l.account.name === 'LIABILITY/buyCrypto-received')
       .reduce((s, l) => s + (l.amountChf ?? 0), 0);

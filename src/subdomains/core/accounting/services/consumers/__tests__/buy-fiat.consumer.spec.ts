@@ -118,6 +118,7 @@ describe('BuyFiatConsumer', () => {
     });
 
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(markMap));
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(undefined); // B5: no bridge by default (tests opt in)
     jest.spyOn(settingService, 'getObj').mockResolvedValue(undefined);
     jest.spyOn(settingService, 'get').mockImplementation(() => Promise.resolve(cutoverLogId));
     jest.spyOn(settingService, 'set').mockResolvedValue();
@@ -542,7 +543,10 @@ describe('BuyFiatConsumer', () => {
   // appendFxResidual early-return (line 334): a regular EUR sell whose bank.asset has NO mark → the bank leg
   // needsMark → NO fx-residual leg appended (also covers outputMark returning undefined for a non-CHF output whose
   // mark is missing, lines 364-368). seq3 carries only TRANSIT + the unmarked bank leg.
-  it('appends NO fx residual when the bank leg still needsMark (unmarked EUR output)', async () => {
+  // Major B5 — no output-bank mark ANYWHERE: the mixed seq3 (valued TRANSIT owed leg + unvalued bank-ASSET leg) cannot
+  // balance and the bridge finds no mark → the row DEFERS (nothing booked at seq3, watermark unchanged).
+  it('defers seq3 when the output-bank leg has no mark anywhere (mixed tx, B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     mockBatch([
       buyFiat({
         id: 13,
@@ -554,7 +558,34 @@ describe('BuyFiatConsumer', () => {
         fiatOutput: {
           isTransmittedDate: FRI,
           currency: 'EUR',
-          bank: { asset: { id: 999 } }, // 999 is NOT in markMap → getMarkAt → undefined → needsMark
+          bank: { asset: { id: 999 } }, // 999 is NOT in markMap → getMarkAt → undefined; getLatestMark → undefined too
+          bankTx: { bookingDate: SUN },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(seq(3)).toBeUndefined(); // seq3 deferred (unbalanceable mixed tx, no bridge)
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
+  });
+
+  // Major B5 bridge — a missing HISTORICAL output-bank mark but a present current mark: the bank-ASSET leg is valued with
+  // the youngest available mark (bridge), needsMark STAYS true so the mark-to-market job corrects the basis later, and
+  // seq3 balances via the fx-revaluation plug.
+  it('bridges a missing historical output-bank mark and books seq3 balanced, needsMark stays true (B5)', async () => {
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(0.95); // youngest available EUR-bank mark for asset 999
+    mockBatch([
+      buyFiat({
+        id: 13,
+        amountInChf: 9000,
+        totalFeeAmountChf: 0,
+        outputAmount: 10000, // EUR
+        outputReferenceAmount: 10000,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'EUR',
+          bank: { asset: { id: 999 } },
           bankTx: { bookingDate: SUN },
         } as any,
       }),
@@ -562,18 +593,22 @@ describe('BuyFiatConsumer', () => {
     await consumer.process();
 
     const s3 = seq(3);
-    expect(s3.legs).toHaveLength(2); // TRANSIT + bank only, NO fx-revaluation plug while unmarked
-    expect(leg(s3, 'TRANSIT/payout/EUR').amountChf).toBe(9000); // owed_chf = 9000 − 0
-    const bankLeg = s3.legs.find((l) => l.account.name === 'Bank/CHF'); // asset 999 → findByAssetId fallback
+    const bankLeg = s3.legs.find((l) => l.needsMark);
     expect(bankLeg.amount).toBe(-10000); // native −outputAmount
-    expect(bankLeg.needsMark).toBe(true); // unmarked → carried for the mark-to-market job
-    expect(bankLeg.amountChf).toBeUndefined();
-    expect(s3.legs.some((l) => /fx-revaluation/.test(l.account.name))).toBe(false);
+    expect(bankLeg.amountChf).toBe(-9500); // bridged: 0.95 × −10000
+    expect(bankLeg.needsMark).toBe(true); // stays true → mark-to-market re-marks later
+    // balanced: TRANSIT +9000, bank −9500 → residual +500 → fx-revaluation plug
+    expect(s3.legs.some((l) => /fx-revaluation/.test(l.account.name))).toBe(true);
+    const cents = s3.legs.reduce((s, l) => s + Math.round((l.amountChf ?? 0) * 100), 0);
+    expect(cents).toBe(0);
   });
 
   // outputMark bankAssetId == null branch (lines 364-368 false arm): the bank.asset exists (no bankCrLeg throw) but
   // its id is undefined → outputMark returns undefined without a getMarkAt lookup → bank leg needsMark, no fx leg.
-  it('marks the bank leg as needsMark when the bank.asset has no id (outputMark null-id arm)', async () => {
+  // Major B5 — bank.asset has no id (outputMark null-id arm) → nothing to bridge (no assetId to look up): the mixed seq3
+  // defers rather than handing an unbalanceable set to bookTx.
+  it('defers seq3 when the output bank.asset has no id (nothing to bridge — B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     mockBatch([
       buyFiat({
         id: 14,
@@ -592,12 +627,8 @@ describe('BuyFiatConsumer', () => {
     ]);
     await consumer.process();
 
-    const s3 = seq(3);
-    const bankLeg = s3.legs.find((l) => l.needsMark);
-    expect(bankLeg).toBeDefined();
-    expect(bankLeg.amount).toBe(-8400);
-    expect(bankLeg.amountChf).toBeUndefined();
-    expect(s3.legs.some((l) => /fx-revaluation/.test(l.account.name))).toBe(false);
+    expect(seq(3)).toBeUndefined(); // seq3 deferred (no assetId to bridge, unbalanceable mixed tx)
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
   });
 
   // appendFxResidual INCOME side (line 340 ≥0 arm): an EUR sell where owed_chf < bank-CHF → positive residual →
@@ -1091,13 +1122,16 @@ describe('BuyFiatConsumer', () => {
   // bankCrLeg outputAmount null-fallback (L316) + owedChf regular null-fallbacks (L352 x2): a regular sell reaching
   // seq2/seq3 with outputAmount == null (→ seq1 skipped by the outputAmount gate) AND amountInChf == null AND
   // totalFeeAmountChf == null → owedChf = (0) − (0) = 0; bankCrLeg outputAmount = 0 → native −0, CHF −0 (CHF mark 1).
-  it('defaults null outputAmount/amountInChf/totalFeeAmountChf to 0 in seq2/seq3 (L316, L352)', async () => {
+  // The REGULAR-sell owedChf still defaults a null amountInChf/totalFeeAmountChf to 0 in seq2 (unchanged); but A5 makes
+  // seq3 FAIL LOUD on a null outputAmount (the bank-ASSET leg cannot be valued) instead of booking a 0-native/0-CHF leg.
+  it('defaults null amountInChf/totalFeeAmountChf to 0 in seq2 but fails loud on a null outputAmount in seq3 (A5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     mockBatch([
       buyFiat({
         id: 29,
-        amountInChf: null, // → owedChf amountInChf ?? 0 (L352)
-        totalFeeAmountChf: null, // → owedChf totalFeeAmountChf ?? 0 (L352)
-        outputAmount: null, // → seq1 skipped + bankCrLeg outputAmount ?? 0 (L316)
+        amountInChf: null, // → regular owedChf amountInChf ?? 0 (unchanged)
+        totalFeeAmountChf: null, // → regular owedChf totalFeeAmountChf ?? 0 (unchanged)
+        outputAmount: null, // → seq1 skipped; seq3 bankCrLeg fails loud (A5)
         outputReferenceAmount: 0,
         outputAsset: { name: 'CHF' },
         fiatOutput: {
@@ -1112,19 +1146,18 @@ describe('BuyFiatConsumer', () => {
 
     expect(seq(1)).toBeUndefined(); // outputAmount null → seq1 gate skips it
     const s2 = seq(2);
-    expect(leg(s2, 'LIABILITY/buyFiat-owed').amountChf).toBe(0); // (0) − (0)
+    expect(leg(s2, 'LIABILITY/buyFiat-owed').amountChf).toBe(0); // regular owedChf: (0) − (0)
     expect(leg(s2, 'TRANSIT/payout/CHF').amountChf).toBe(-0);
-    const s3 = seq(3);
-    expect(leg(s3, 'TRANSIT/payout/CHF').amountChf).toBe(0);
-    const bankLeg = leg(s3, 'Bank/CHF');
-    expect(bankLeg.amount).toBe(-0); // −(outputAmount ?? 0) = −0
-    expect(bankLeg.amountChf).toBe(-0); // −(mark 1 × 0) = −0
-    expect(bankLeg.needsMark).toBe(false); // CHF mark present → marked
+    expect(seq(3)).toBeUndefined(); // A5: seq3 bankCrLeg fails loud on the null outputAmount (never a 0-native leg)
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced → retry
   });
 
   // owedChf paymentLink outputAmount null-fallback (L351): a paymentLink row reaching seq2 with outputAmount == null
   // → owedChf = (0) × rate = 0. seq1 is skipped (outputAmount gate); seq2 transmits paymentLink 0 / TRANSIT −0.
-  it('defaults a null outputAmount to 0 in the paymentLink owedChf (L351)', async () => {
+  // A5 fail-loud — a paymentLink row being transmitted with a NULL outputAmount is a data error: `outputAmount ?? 0`
+  // would zero the merchant fiat payout in owedChf. The seq2 transmit throws (never a silent 0) → failure-isolation.
+  it('fails loud on a paymentLink transmit (seq2) with a null outputAmount (A5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     seq0PaymentLinkChf = -100; // opening present (irrelevant: seq1 skipped by the outputAmount gate)
     mockBatch([
       buyFiat({
@@ -1132,7 +1165,7 @@ describe('BuyFiatConsumer', () => {
         amountInChf: 100,
         totalFeeAmountChf: 0,
         outputReferenceAmount: 100,
-        outputAmount: null, // → owedChf (outputAmount ?? 0) × rate = 0
+        outputAmount: null, // paymentLink owedChf with null outputAmount → A5 throws
         outputAsset: { name: 'CHF' },
         cryptoInput: { id: 10, updated: new Date('2026-06-04T00:00:00Z'), paymentLinkPayment: { id: 1 } },
         fiatOutput: { isTransmittedDate: FRI, currency: 'CHF' } as any,
@@ -1141,10 +1174,8 @@ describe('BuyFiatConsumer', () => {
     await consumer.process();
 
     expect(seq(1)).toBeUndefined(); // outputAmount null → §4.7b seq1 gate skips it
-    const s2 = seq(2);
-    expect(leg(s2, 'LIABILITY/paymentLink').amountChf).toBe(0); // (outputAmount ?? 0) × rate = 0
-    expect(leg(s2, 'TRANSIT/payout/CHF').amountChf).toBe(-0);
-    expect(cents(s2.legs)).toBe(0);
+    expect(seq(2)).toBeUndefined(); // seq2 transmit fails loud (owedChf refuses a 0-fallback)
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced → retry
   });
 
   // outputCurrency fallback chain (L371): outputAsset undefined → uses fiatOutput.currency. EUR fiatOutput with no

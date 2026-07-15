@@ -33,6 +33,40 @@ describe('LedgerMarkService', () => {
     expect(service).toBeDefined();
   });
 
+  // Major B5 bridge — the youngest available mark (latest ≤ now), memoized, used as the fallback when a historical mark
+  // is missing at the booking date.
+  describe('getLatestMark (B5 bridge)', () => {
+    const daysAgo = (n: number) => new Date(Date.now() - n * 24 * 60 * 60 * 1000);
+
+    it('returns the youngest available priceChf ≤ now and memoizes the recent-log read', async () => {
+      const spy = jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([
+        financialLog(daysAgo(2), { '7': { priceChf: 100 } }),
+        financialLog(daysAgo(1), { '7': { priceChf: 110 } }), // youngest ≤ now
+      ]);
+
+      expect(await service.getLatestMark(7)).toBe(110);
+      expect(await service.getLatestMark(7)).toBe(110); // second call reuses the memoized map
+      expect(spy).toHaveBeenCalledTimes(1); // no per-call re-query (memoized within the TTL)
+    });
+
+    it('returns undefined for an asset absent from every recent log (feedless → caller defers)', async () => {
+      jest
+        .spyOn(logService, 'getFinancialLogs')
+        .mockResolvedValue([financialLog(daysAgo(1), { '7': { priceChf: 110 } })]);
+
+      expect(await service.getLatestMark(999)).toBeUndefined();
+    });
+
+    it('ignores logs created after now (upper-bound ≤ now)', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([
+        financialLog(daysAgo(1), { '7': { priceChf: 110 } }),
+        financialLog(new Date(Date.now() + 60_000), { '7': { priceChf: 999 } }), // future → excluded
+      ]);
+
+      expect(await service.getLatestMark(7)).toBe(110);
+    });
+  });
+
   it('returns the priceChf of the latest mark ≤ bookingDate (stage 2)', async () => {
     jest
       .spyOn(logService, 'getFinancialLogs')

@@ -15,6 +15,7 @@ import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
+import { resolveLegsOrDefer } from './ledger-mark-bridge.helper';
 import {
   getLedgerWatermark,
   isCoveredByCutoverOpening,
@@ -163,7 +164,7 @@ export class LiquidityOrderDexConsumer {
 
     const legs: LedgerLegInput[] = [targetLeg, swapLeg];
     await this.appendFeeLegs(order, bookingDate, marks, targetLeg, swapLeg, legs);
-    await this.appendSpreadPlug(legs);
+    await this.appendSpreadPlug(legs, `liquidity_order ${order.id}`);
 
     await this.bookingService.bookTx({
       sourceType: SOURCE_TYPE,
@@ -222,9 +223,11 @@ export class LiquidityOrderDexConsumer {
   }
 
   // appends an EXPENSE/INCOME spread-DfxDex plug for the CHF residual; sub-cent → ROUNDING (booking service).
-  // Skips the plug when any leg still needsMark (no silent plug without a mark, §5.1 stage 3 / §4.8a).
-  private async appendSpreadPlug(legs: LedgerLegInput[]): Promise<void> {
-    if (legs.some((l) => l.needsMark)) return;
+  // Major B5: an ASSET/fee leg without a historical mark is first bridged with the youngest available mark
+  // (resolveLegsOrDefer) so the swap balances — needsMark stays true, the mark-to-market job corrects the basis later.
+  // A truly feedless swap/fee asset (no bridge) defers the row instead of handing an unbalanceable set to bookTx.
+  private async appendSpreadPlug(legs: LedgerLegInput[], ref: string): Promise<void> {
+    if (!(await resolveLegsOrDefer(legs, this.markService, this.logger, ref))) return;
 
     const sumCents = legs.reduce((s, l) => s + Math.round(Util.round(l.amountChf ?? 0, 2) * 100), 0);
     if (Math.abs(sumCents) <= Config.ledger.roundingToleranceCents) return;

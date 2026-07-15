@@ -109,6 +109,7 @@ describe('PayoutOrderConsumer', () => {
       });
 
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(markMap));
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(undefined); // B5: no bridge by default (tests opt in)
     jest.spyOn(settingService, 'getObj').mockResolvedValue(undefined);
     jest.spyOn(settingService, 'set').mockResolvedValue();
 
@@ -341,7 +342,10 @@ describe('PayoutOrderConsumer', () => {
   });
 
   // §4.5 missing wallet mark → needsMark, plug stays open, no silent priceChf=0
-  it('flags the wallet leg needsMark when the payout-asset mark is missing', async () => {
+  // Major B5 — no mark ANYWHERE for the payout (wallet) asset: the mixed tx (unvalued wallet + valued owed completion CHF)
+  // cannot balance and the bridge finds no mark → the row DEFERS (nothing booked, watermark unchanged).
+  it('defers when the payout-asset mark is missing everywhere (mixed tx cannot balance, B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
     jest
       .spyOn(accountService, 'findByAssetId')
@@ -359,9 +363,37 @@ describe('PayoutOrderConsumer', () => {
     ]);
     await consumer.process();
 
+    expect(booked[0]).toBeUndefined(); // nothing booked (deferred)
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
+  });
+
+  // Major B5 bridge — a missing HISTORICAL payout-asset mark but a present current mark: the wallet leg is valued with
+  // the youngest available mark (bridge), needsMark STAYS true so the mark-to-market job corrects the basis later, and
+  // the tx balances via the fx-revaluation plug (bridged wallet value vs the owed completion CHF).
+  it('bridges a missing historical payout-asset mark and books balanced, needsMark stays true (B5)', async () => {
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(49000); // youngest available mark for asset 999
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
+    jest
+      .spyOn(accountService, 'findByAssetId')
+      .mockResolvedValue(account('Unknown/XYZ', AccountType.ASSET, 'XYZ', 999));
+    mockBatch([
+      payoutOrder({
+        id: 17,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: '782',
+        amount: 1,
+        asset: { id: 999, uniqueName: 'Unknown/XYZ' },
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
     const wallet = leg(booked[0], 'Unknown/XYZ');
-    expect(wallet.needsMark).toBe(true);
-    expect(wallet.amountChf).toBeUndefined();
+    expect(wallet.amountChf).toBe(-49000); // bridged Cr wallet: −(49000 × 1)
+    expect(wallet.needsMark).toBe(true); // stays true → mark-to-market re-marks later
+    const cents = booked[0].legs.reduce((s, l) => s + Math.round((l.amountChf ?? 0) * 100), 0);
+    expect(cents).toBe(0); // balances (owed +50000, wallet −49000, fx-revaluation plug −1000)
   });
 
   // §4.5 assetAccount throw (line 372): a distinct fee asset with no CoA ledger account → throws → failure-isolation
@@ -598,7 +630,10 @@ describe('PayoutOrderConsumer', () => {
 
   // §4.5 withFxPlug needsMark short-circuit: when the wallet leg needsMark (no mark) the plug is NOT booked even
   // though the CHF cents don't balance — the mark-to-market job revalues it later (§5.1 stage 3, no silent plug).
-  it('books NO fx-revaluation plug while the wallet leg needsMark (no silent plug, §5.1 stage 3)', async () => {
+  // Major B5 — never hand an unbalanceable set to bookTx: a needsMark wallet leg with no bridge on a mixed tx defers
+  // (owed-Dr 50000 completion + unvalued wallet → cannot net) rather than booking a silent phantom plug.
+  it('defers a mixed tx with a needsMark wallet leg and no bridge (no silent plug, B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
     jest
       .spyOn(accountService, 'findByAssetId')
@@ -616,10 +651,8 @@ describe('PayoutOrderConsumer', () => {
     ]);
     await consumer.process();
 
-    // owed-Dr 50000 (completion) + wallet needsMark (amountChf undefined) → cents don't net, but NO plug is appended
-    expect(leg(booked[0], 'INCOME/fx-revaluation')).toBeUndefined();
-    expect(leg(booked[0], 'EXPENSE/fx-revaluation')).toBeUndefined();
-    expect(leg(booked[0], 'Unknown/XYZ').needsMark).toBe(true);
+    expect(booked[0]).toBeUndefined(); // deferred: no booking, no silent phantom plug
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
   });
 
   // §4.5 liabilityCounter (lines 220/223): a liability row where BOTH the completion CHF (non-integer correlationId →
@@ -768,7 +801,10 @@ describe('PayoutOrderConsumer', () => {
 
   // §4.5 appendDistinctFeeLegs (lines 299-306): a DISTINCT fee asset (≠ payout asset) with NO mark → its native Cr
   // leg carries amountChf undefined + needsMark true + priceChf null; because a leg needsMark, withFxPlug books no plug.
-  it('flags a distinct fee-asset leg needsMark when that fee asset has no mark (no plug booked)', async () => {
+  // Major B5 — a distinct fee asset with no mark ANYWHERE: the tx is mixed (valued wallet/owed/network-fee + unvalued
+  // fee-asset leg) and the bridge finds no fee-asset mark → the row DEFERS instead of a silent phantom plug.
+  it('defers when a distinct fee asset has no mark anywhere (mixed tx, B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
     jest.spyOn(accountService, 'findByAssetId').mockImplementation((assetId: number) => {
       if (assetId === 888) return Promise.resolve(account('NoMark/NOM', AccountType.ASSET, 'NOM', 888));
@@ -789,15 +825,8 @@ describe('PayoutOrderConsumer', () => {
     ]);
     await consumer.process();
 
-    const tx = booked[0];
-    const feeLeg = leg(tx, 'NoMark/NOM');
-    expect(feeLeg.amount).toBe(-0.003); // native fee against the fee asset
-    expect(feeLeg.amountChf).toBeUndefined(); // no mark → chf undefined (line 304)
-    expect(feeLeg.needsMark).toBe(true); // line 305: needsMark = chf == null
-    expect(feeLeg.priceChf).toBeNull(); // line 303: priceChf = mark ?? null
-    expect(leg(tx, 'EXPENSE/network-fee').amountChf).toBe(5); // CHF fee leg still booked
-    expect(leg(tx, 'INCOME/fx-revaluation')).toBeUndefined(); // a leg needsMark → no plug
-    expect(leg(tx, 'EXPENSE/fx-revaluation')).toBeUndefined();
+    expect(booked[0]).toBeUndefined(); // deferred: mixed tx with an unbridgeable fee asset
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
   });
 
   // §4.5 payoutAssetFeeNative (line 318): a preparationFee in the payout asset itself folds into the wallet Cr leg
@@ -831,7 +860,10 @@ describe('PayoutOrderConsumer', () => {
 
   // §4.5 payoutAssetFeeNative (line 325): the payout asset has NO mark → the folded payout-asset fee CHF takes the 0
   // side (mark != null ? ... : 0) and the fold flags needsMark; mainChf undefined → wallet leg needsMark → no plug.
-  it('takes chf=0 for a folded payout-asset fee when the payout asset has no mark (needsMark)', async () => {
+  // Major B5 — a folded payout-asset fee where the payout asset has no mark ANYWHERE: the single (folded) wallet leg is
+  // unvalued and the owed completion CHF is valued → mixed tx, no bridge → the row DEFERS.
+  it('defers a folded-fee tx when the payout asset has no mark anywhere (B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 49000, totalFeeAmountChf: 0 } as any);
     jest
       .spyOn(accountService, 'findByAssetId')
@@ -851,14 +883,8 @@ describe('PayoutOrderConsumer', () => {
     ]);
     await consumer.process();
 
-    const tx = booked[0];
-    const walletLegs = tx.legs.filter((l) => l.account.name === 'Unknown/XYZ');
-    expect(walletLegs).toHaveLength(1); // fee folded into the single wallet leg
-    expect(walletLegs[0].amount).toBe(-1.0002); // amount + folded fee native
-    expect(walletLegs[0].amountChf).toBeUndefined(); // no mark → mainChf undefined → wallet chf undefined
-    expect(walletLegs[0].needsMark).toBe(true); // fee.needsMark (no mark) → wallet needsMark
-    expect(leg(tx, 'INCOME/fx-revaluation')).toBeUndefined(); // a leg needsMark → no plug
-    expect(leg(tx, 'EXPENSE/fx-revaluation')).toBeUndefined();
+    expect(booked[0]).toBeUndefined(); // deferred: unvalued folded wallet leg vs valued owed completion CHF
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
   });
 
   // §4.5 withFxPlug (lines 351/355): a constellation with Σ legs > 0 → residual < 0 → EXPENSE/fx-revaluation (the

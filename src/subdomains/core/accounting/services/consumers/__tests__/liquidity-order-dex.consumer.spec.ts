@@ -95,6 +95,7 @@ describe('LiquidityOrderDexConsumer', () => {
       });
 
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(markMap));
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(undefined); // B5: no bridge by default (tests opt in)
     jest.spyOn(settingService, 'getObj').mockResolvedValue(undefined);
     jest.spyOn(settingService, 'set').mockResolvedValue();
 
@@ -199,17 +200,18 @@ describe('LiquidityOrderDexConsumer', () => {
   });
 
   // §4.8a missing mark → ASSET leg needsMark, plug skipped (no silent plug without a mark)
-  it('flags the ASSET leg needsMark and skips the spread plug when a mark is missing', async () => {
+  // Major B5 — no mark ANYWHERE for the target (EURC) leg: the mixed swap (unvalued EURC + valued USDC) cannot balance
+  // and the bridge finds no mark → the row DEFERS (nothing booked, watermark unchanged), never a silent plug.
+  it('defers a swap when a target/swap ASSET leg has no mark anywhere (mixed tx, B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     jest.spyOn(markService, 'preload').mockResolvedValue(
       new LedgerMarkCache(new Map([[USDC_ASSET_ID, [{ created: new Date('2026-01-01'), priceChf: 0.95 }]]])), // EURC missing
     );
     mockBatch([liquidityOrder({ id: 15 })]);
     await consumer.process();
-    const tx = booked[0];
-    expect(leg(tx, 'Ethereum/EURC').needsMark).toBe(true);
-    expect(leg(tx, 'Ethereum/EURC').amountChf).toBeUndefined();
-    expect(leg(tx, 'EXPENSE/spread-DfxDex')).toBeUndefined();
-    expect(leg(tx, 'INCOME/spread-DfxDex')).toBeUndefined();
+
+    expect(booked[0]).toBeUndefined(); // deferred: unbalanceable mixed swap, no EURC bridge
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
   });
 
   // §4.8a invalid swap (target/swap amount null) → skip
@@ -314,7 +316,11 @@ describe('LiquidityOrderDexConsumer', () => {
   // §4.8a Major R7-1 case 3 with NO mark for the third (gas) fee asset → the network-fee CHF leg is needsMark and the
   // fee Cr ASSET leg carries amountChf undefined (lines 155/176-177 undefined sides + 217 feeChf ?? 0). Because a leg
   // needsMark, appendSpreadPlug books no plug.
-  it('flags the gas-fee legs needsMark when the fee asset has no mark (lines 155/176-177/217)', async () => {
+  // Major B5 — a third-asset (gas) fee with no mark ANYWHERE: the network-fee EXPENSE leg is CHF-derived from the missing
+  // fee mark (amountChf undefined, no assetId to bridge), so the swap cannot be balanced/plugged and DEFERS — the fee
+  // value is NEVER misclassified into a phantom spread plug.
+  it('defers a swap when a distinct gas-fee asset has no mark anywhere (B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     jest.spyOn(markService, 'preload').mockResolvedValue(
       new LedgerMarkCache(
         new Map([
@@ -329,33 +335,24 @@ describe('LiquidityOrderDexConsumer', () => {
     ]);
     await consumer.process();
 
-    const tx = booked[0];
-    const networkFee = leg(tx, 'EXPENSE/network-fee');
-    const ethLeg = leg(tx, 'Ethereum/ETH');
-    expect(networkFee.needsMark).toBe(true); // feeChf undefined → needsMark
-    expect(networkFee.amountChf).toBeUndefined();
-    expect(networkFee.amount).toBe(0); // networkFeeLeg `feeChf ?? 0` → 0
-    expect(ethLeg.needsMark).toBe(true);
-    expect(ethLeg.amountChf).toBeUndefined();
-    expect(leg(tx, 'EXPENSE/spread-DfxDex')).toBeUndefined(); // a needsMark leg → no spread plug
-    expect(leg(tx, 'INCOME/spread-DfxDex')).toBeUndefined();
+    expect(booked[0]).toBeUndefined(); // deferred: the CHF-derived network-fee leg cannot be bridged → no phantom plug
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
   });
 
   // §4.8a Major R7-1 case 1 (feeAsset == swapAsset) with NO fee mark → addToLeg `needsMark` true side (lines 163/223):
   // the swap leg's native grows by the fee but its CHF stays unmovable and the leg becomes needsMark.
-  it('folds a no-mark swap-asset fee and marks the combined leg needsMark (lines 163/223)', async () => {
+  // Major B5 — a folded swap-asset fee where the swap asset (USDC) has no mark ANYWHERE: the combined swap leg is
+  // unvalued and the network-fee EXPENSE leg is CHF-derived from the missing mark → the mixed swap DEFERS.
+  it('defers a folded swap-asset-fee swap when the swap asset has no mark anywhere (B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     jest.spyOn(markService, 'preload').mockResolvedValue(
       new LedgerMarkCache(new Map([[EURC_ASSET_ID, [{ created: new Date('2026-01-01'), priceChf: 1.05 }]]])), // USDC absent
     );
     mockBatch([liquidityOrder({ id: 22, feeAsset: { id: USDC_ASSET_ID, uniqueName: 'Ethereum/USDC' }, feeAmount: 5 })]);
     await consumer.process();
 
-    const tx = booked[0];
-    const swapLegs = tx.legs.filter((l) => l.account.name === 'Ethereum/USDC');
-    expect(swapLegs).toHaveLength(1);
-    expect(swapLegs[0].amount).toBe(-1055); // −1050 − 5 folded native
-    expect(swapLegs[0].needsMark).toBe(true); // no swap mark → combined leg needsMark
-    expect(leg(tx, 'EXPENSE/network-fee').needsMark).toBe(true);
+    expect(booked[0]).toBeUndefined(); // deferred: unvalued combined swap leg on a mixed tx
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
   });
 
   // §4.8a appendSpreadPlug sub-cent branch (lines 187-188): a swap whose two mark legs net to 0 (within tolerance) →

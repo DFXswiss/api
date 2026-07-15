@@ -88,6 +88,7 @@ describe('ExchangeTxConsumer', () => {
       });
 
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(markMap));
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(undefined); // B5: no bridge by default (tests opt in)
     jest.spyOn(settingService, 'getObj').mockResolvedValue(undefined);
     jest.spyOn(settingService, 'set').mockResolvedValue();
     jest.spyOn(bankTxRepo, 'find').mockResolvedValue([]);
@@ -127,11 +128,16 @@ describe('ExchangeTxConsumer', () => {
   function mockContentChange(forward: ExchangeTx[], changed: ExchangeTx[]): void {
     jest.spyOn(exchangeTxRepo, 'find').mockImplementation((opts: any) => {
       if (opts?.where?.updated != null) return Promise.resolve(changed); // the content-change scan rows
-      // fill-index preload (status='ok', order in …) ranks among the still-ok trades + the merged batch rows
-      if (opts?.where?.order != null)
+      // B4: the fill-index preload query is status-AGNOSTIC (where: { type, order } — no status filter), so a fill that
+      // flipped away from 'ok' keeps its id-ordered rank slot (survivors never shift). Faithfully honour opts.where.status
+      // so the mock returns exactly what the query asks: post-fix (no status) → all fills; a reverted status='ok' filter
+      // → only the still-ok ones (which would shift the survivors, failing the B4 test).
+      if (opts?.where?.order != null) {
+        const trades = [...forward, ...changed].filter((r) => r.type === ExchangeTxType.TRADE);
         return Promise.resolve(
-          [...forward, ...changed].filter((r) => r.type === ExchangeTxType.TRADE && r.status === 'ok'),
+          opts.where.status != null ? trades.filter((r) => r.status === opts.where.status) : trades,
         );
+      }
       return Promise.resolve(forward.filter((r) => opts?.where?.status == null || r.status === opts.where.status));
     });
   }
@@ -269,7 +275,7 @@ describe('ExchangeTxConsumer', () => {
     expect(quote).toBeDefined();
     expect(cents(legs)).toBe(0); // closes without ROUNDING throw
     expect(booked[0].sourceType).toBe('ExchangeTrade');
-    expect(booked[0].sourceId).toBe('O-1');
+    expect(booked[0].sourceId).toBe('Scrypt:O-1'); // B3: exchange-prefixed composite sourceId
   });
 
   it('books a positive Scrypt spread to EXPENSE/spread-Scrypt', async () => {
@@ -354,7 +360,7 @@ describe('ExchangeTxConsumer', () => {
 
     const seqs = booked.map((b) => b.seq).sort((a, b) => a - b);
     expect(seqs).toEqual([0, 1]); // deterministic 0-based ranks by id
-    expect(booked.every((b) => b.sourceId === 'O-9')).toBe(true);
+    expect(booked.every((b) => b.sourceId === 'Scrypt:O-9')).toBe(true); // B3: exchange-prefixed composite sourceId
   });
 
   // the watermark does not persist in this spec (getObj → undefined, set → no-op), so a naive second process()
@@ -400,7 +406,7 @@ describe('ExchangeTxConsumer', () => {
     expect(booked).toHaveLength(2);
     // deterministic, reproduced fill_index
     expect(booked.map((b) => b.seq).sort((a, b) => a - b)).toEqual([0, 1]);
-    expect(booked.every((b) => b.sourceType === 'ExchangeTrade' && b.sourceId === 'O-9')).toBe(true);
+    expect(booked.every((b) => b.sourceType === 'ExchangeTrade' && b.sourceId === 'Scrypt:O-9')).toBe(true); // B3
   });
 
   it('advances the watermark after a successful batch', async () => {
@@ -444,8 +450,48 @@ describe('ExchangeTxConsumer', () => {
     mockContentChange([], [canceled]);
     await consumer.process();
 
-    // trade reversal targets sourceType=ExchangeTrade, sourceId=order, seq=fill-index (0 for the only fill of O-7)
-    expect(reverseSpy).toHaveBeenCalledWith('ExchangeTrade', 'O-7', 0);
+    // trade reversal targets sourceType=ExchangeTrade, sourceId=`${exchange}:${order}` (B3), seq=fill-index (0 for the
+    // only fill of O-7)
+    expect(reverseSpy).toHaveBeenCalledWith('ExchangeTrade', 'Scrypt:O-7', 0);
+  });
+
+  // Major B4: an ok→failed flip of a SIBLING fill must NOT shift the survivors' fill-index seqs. Order O-40 has three
+  // fills [id 10, 20, 30]; fill 20 flipped to failed. The ranking is status-agnostic (over ALL fills of the order), so
+  // fill 30 keeps its id-ordered slot seq 2 — NOT shifted down to 1 by fill 20 dropping out of the 'ok' set (the pre-fix
+  // corruption). The survivor's correction targets seq 2. The faithful preload mock honours opts.where.status, so a
+  // reverted status='ok' filter would return only [10, 30] → rank fill 30 at seq 1 → this test would fail.
+  it('keeps a survivor fill index stable when a sibling fill flips ok→failed (no seq shift, B4)', async () => {
+    const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
+    const fill = (id: number, status = 'ok') =>
+      exchangeTx({
+        id,
+        type: ExchangeTxType.TRADE,
+        symbol: 'USDT/CHF',
+        side: 'buy',
+        order: 'O-40',
+        amount: 100,
+        amountChf: 90,
+        cost: 90,
+        status,
+      });
+    const f10 = fill(10);
+    const f20 = fill(20, 'failed'); // sibling flipped away from 'ok'
+    const f30 = fill(30); // survivor being reconciled by the content-change scan
+
+    jest.spyOn(exchangeTxRepo, 'find').mockImplementation((opts: any) => {
+      if (opts?.where?.updated != null) return Promise.resolve([f30]); // content-change scan re-selects the survivor
+      if (opts?.where?.order != null) {
+        const all = [f10, f20, f30]; // ALL fills of O-40, any status
+        return Promise.resolve(opts.where.status != null ? all.filter((r) => r.status === opts.where.status) : all);
+      }
+      return Promise.resolve([]); // forward id-scan empty
+    });
+
+    await consumer.process();
+
+    expect(rebookSpy).toHaveBeenCalledTimes(1);
+    expect(rebookSpy.mock.calls[0][0].seq).toBe(2); // fill 30 keeps rank 2 (status-agnostic) — NOT shifted to 1
+    expect(rebookSpy.mock.calls[0][0].sourceId).toBe('Scrypt:O-40');
   });
 
   it('reverses + re-books an ok Deposit whose amount changed (content-change, §4.12)', async () => {
@@ -634,7 +680,10 @@ describe('ExchangeTxConsumer', () => {
 
   // §4.3 markValue no-mark: a ccxt Trade whose quote asset has no mark → the quote leg is needsMark and the
   // mark-based quote-spread plug is SKIPPED (no silent plug, §4.3) — the quote leg carries amountChf undefined
-  it('flags the ccxt quote leg needsMark and skips the quote-spread plug when the quote mark is missing', async () => {
+  // Major B5 — no mark ANYWHERE for the ccxt quote asset: the mixed trade (valued base leg + unvalued quote leg) cannot
+  // balance and the bridge finds no mark → the row DEFERS (nothing booked, watermark unchanged), never a silent plug.
+  it('defers a ccxt trade when the quote mark is missing everywhere (mixed tx, B5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     accounts.set('Binance/XYZ', account('Binance/XYZ', AccountType.ASSET, 'XYZ', 998)); // no mark for 998
     mockBatch([
       exchangeTx({
@@ -652,11 +701,8 @@ describe('ExchangeTxConsumer', () => {
     ]);
     await consumer.process();
 
-    const quote = booked[0].legs.find((l) => l.account.name === 'Binance/XYZ');
-    expect(quote.needsMark).toBe(true); // no mark for the quote asset
-    expect(quote.amountChf).toBeUndefined();
-    // no mark-based quote-spread plug appended while a leg needsMark (only base + quote legs, no spread plug)
-    expect(booked[0].legs.filter((l) => l.account.name?.includes('spread-Binance'))).toHaveLength(0);
+    expect(booked[0]).toBeUndefined(); // deferred: unbalanceable mixed trade, no quote bridge
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
   });
 
   // §4.3 parseSymbol guard: a Trade with a malformed symbol (no '/') is unattributable → SUSPENSE, not a base/quote split
@@ -1073,7 +1119,10 @@ describe('ExchangeTxConsumer', () => {
 
   // tradeSpec `tx.cost ?? 0` NULL side (L226): a Scrypt trade with cost null → cost 0 → quoteAmount 0, quotePrice null,
   // quote leg amountChf = plug (−base). Distinct from id 22 which sets cost: 0 (the left operand of `?? `).
-  it('treats a null cost as 0 on a Scrypt Trade (quote amount −0, priceChf null, amountChf = −base)', async () => {
+  // A4 — a settled ('ok') trade with NO cost (quote amount) is a data error: `cost ?? 0` would book a zero-quote trade
+  // (silently). Fail loud instead → failure-isolation leaves the watermark and retries.
+  it('fails loud on an ok Trade with a null cost (no silent zero-quote, A4)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     mockBatch([
       exchangeTx({
         id: 36,
@@ -1084,17 +1133,14 @@ describe('ExchangeTxConsumer', () => {
         order: 'O-36',
         amount: 1000,
         amountChf: 900,
-        cost: null, // tx.cost ?? 0 → 0
+        cost: null, // 'ok' trade with no cost → A4 throws (never a silent 0-quote)
         feeAmountChf: 0,
       }),
     ]);
     await consumer.process();
 
-    const quote = booked[0].legs.find((l) => l.account.name === 'Scrypt/CHF');
-    expect(quote.amount).toBe(-0); // isBuy ? -(cost ?? 0) = -0
-    expect(quote.priceChf).toBeNull(); // quoteAmount 0 → no price
-    expect(quote.amountChf).toBe(-900); // plug = −base
-    expect(cents(booked[0].legs)).toBe(0);
+    expect(booked[0]).toBeUndefined(); // nothing booked (fail-loud)
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced → retry
   });
 
   // tradeSpec ccxt quote `Math.abs(quoteChf)/Math.abs(cost || 1)` `cost || 1` fallback (L247): a Binance trade with
