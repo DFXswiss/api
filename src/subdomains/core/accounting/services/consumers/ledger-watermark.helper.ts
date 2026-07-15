@@ -67,11 +67,13 @@ export async function setLedgerWatermark(
 
 /**
  * Writes the per-source cutover boundary (§6.3) — exclusively via `settingService.set` (never `setObj`/`settingRepo`;
- * §4.10 R2-exception-a), materialised ONCE at cutover time. `boundaryId` is the immutable MAX(id) of rows settled at
- * the snapshot; the watermark's `lastReversalScan`/`lastProcessedId` drift forward as the forward scan advances — this
- * copy does NOT. `holeIds` are the ids ≤ boundaryId that were OPEN at the snapshot: their value is NOT in the aggregate
- * opening (the cutover deliberately excludes the pending bucket), so their forward seq0 IS their opening and must be
- * booked exactly once when they settle post-cutover.
+ * §4.10 R2-exception-a), pinned ONCE, up front in the cutover's watermark-init step (BEFORE any opening is booked),
+ * set-only-if-unset together with the watermark: a fail-loud retry reuses the pinned value verbatim and never
+ * overwrites it. `boundaryId` is the immutable MAX(id) of rows settled at the snapshot; the watermark's
+ * `lastReversalScan`/`lastProcessedId` drift forward as the forward scan advances — this copy does NOT. `holeIds` are
+ * the ids ≤ boundaryId that were OPEN at the snapshot: their value is NOT in the aggregate opening (the cutover
+ * deliberately excludes the pending bucket), so their forward seq0 IS their opening and must be booked exactly once
+ * when they settle post-cutover.
  */
 export async function setCutoverBoundary(
   settingService: SettingService,
@@ -85,11 +87,28 @@ export async function setCutoverBoundary(
 }
 
 /**
+ * Reads the per-source cutover boundary (§6.3) — the counterpart to `setCutoverBoundary`, reading the raw setting via
+ * `get` (NOT `getObj`) so it returns undefined when unset. Used by the cutover to make the boundary set-only-if-unset:
+ * a fail-loud retry reuses the first-run boundary verbatim instead of recomputing it against a drifted DB (where an
+ * `updated` bump between runs would flip a settled-at-snapshot row's classification → double-booked forward seq0).
+ */
+export async function getCutoverBoundary(
+  settingService: SettingService,
+  source: string,
+): Promise<LedgerCutoverBoundary | undefined> {
+  const raw = await settingService.get(`${CUTOVER_BOUNDARY_KEY_PREFIX}${source}`);
+  if (raw == null) return undefined;
+  const parsed = JSON.parse(raw) as { boundaryId: number; holeIds: number[] };
+  return { boundaryId: parsed.boundaryId, holeIds: parsed.holeIds };
+}
+
+/**
  * Cutover-opening membership guard (§6.3): forward-book a row's seq0 IFF its value is NOT already in the cutover
- * aggregate opening. Opening-membership is a fact FIXED at snapshot time; the cutover materialises it per source as an
- * immutable boundary (`setCutoverBoundary`) so it can be reconstructed later even for a source with no immutable
- * settlement timestamp (e.g. crypto_input, whose `updated` gets bumped post-cutover — "settled at the snapshot" cannot
- * be re-derived after the fact, so it is persisted at cutover time):
+ * aggregate opening. Opening-membership is a fact FIXED at snapshot time; the cutover pins it per source as an
+ * immutable boundary (`setCutoverBoundary`) — set-only-if-unset BEFORE any opening on the FIRST cutover run and never
+ * overwritten on a retry, which is what makes it immutable — so it can be reconstructed later even for a source with
+ * no immutable settlement timestamp (e.g. crypto_input, whose `updated` gets bumped post-cutover — "settled at the
+ * snapshot" cannot be re-derived after the fact, so it is persisted at cutover time):
  *  - `boundaryId` = MAX(id) of rows SETTLED at the snapshot (= the watermark's initial `lastProcessedId`; the watermark
  *    drifts forward as the forward scan advances, THIS copy does not).
  *  - `holeIds` = ids ≤ boundaryId that were OPEN (NOT settled) at the snapshot AND created within OPEN_ROW_LOOKBACK_DAYS

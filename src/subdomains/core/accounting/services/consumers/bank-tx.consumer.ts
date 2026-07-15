@@ -514,7 +514,22 @@ export class BankTxConsumer {
     return Util.round(-leg.amountChf, 2); // cutover Cr leg is −openingChf → chargeback Dr debits +openingChf
   }
 
-  // §4.2 CHECKOUT_LTD CRDT: Dr ASSET/bank (net) + Dr EXPENSE/acquirer-fee / Cr ASSET/Checkout (gross), CHF-only
+  // §4.2 CHECKOUT_LTD CRDT: Dr ASSET/bank (net) + Dr EXPENSE/acquirer-fee (feeChf) / Cr ASSET/Checkout (gross).
+  // Convention (F2): the Checkout/{ccy} custody account carries native GROSS in CARD currency on every leg and
+  // amountChf = the corresponding gross CHF → amountChf ≈ mark × amount holds per leg AND on the account aggregate,
+  // so the mark-to-market job flushes only genuine FX drift. Booking the NET native against the GROSS CHF (pre-fix)
+  // broke that by exactly the acquirer fee → the mark-to-market job "corrected" it as a phantom */fx-revaluation
+  // posting and the margin report counted the fee twice (executionCosts AND fxPnl).
+  // The fee's card-currency native (feeNative) is resolved via a documented ladder — no silent assumption:
+  //   1. feeChf === 0 → feeNative = 0;
+  //   2. chargeAmount persisted in the settlement currency (chargeCurrency === tx.currency) → use it directly;
+  //   3. bank mark available → feeNative = feeChf / bank.priceChf — the fee is only persisted in CHF, so its
+  //      card-currency native is derived via the SAME mark that values the net settlement leg → amountChf ≈
+  //      mark × amount holds on the custody leg by construction;
+  //   4. else THROW (fail-loud): a non-zero fee with neither a same-currency chargeAmount nor a mark cannot be
+  //      booked mark-consistently; the consumer's failure-isolation retries the row on the next run.
+  // No-mark case (bank.amountChf == null, feeNative resolved via ladder 1–2): the custody leg books the CORRECT
+  // gross native + needsMark → the mark-to-market job revalues it later against the correct gross.
   private async checkoutLtdLegs(
     tx: BankTx,
     ctx: BankContext,
@@ -528,12 +543,28 @@ export class BankTxConsumer {
 
     if (feeChf !== 0) legs.push(this.namedLeg(await this.expense('acquirer-fee'), feeChf));
 
-    // gross Checkout custody Cr-leg: no own *Chf → CHF = net + fee (both CHF-known), else needsMark (Minor R3-5)
+    // fee native in the settlement (card) currency, resolved via the F2 ladder documented above
+    let feeNative: number;
+    if (feeChf === 0) {
+      feeNative = 0;
+    } else if (tx.chargeAmount != null && tx.chargeCurrency === tx.currency) {
+      feeNative = tx.chargeAmount; // ladder 2: fee persisted in the settlement currency — use it directly
+    } else if (bank.priceChf != null) {
+      feeNative = Util.round(feeChf / bank.priceChf, 8); // ladder 3: CHF fee bridged via the settlement mark
+    } else {
+      throw new Error(
+        `bank_tx ${tx.id} CHECKOUT_LTD: non-zero acquirer fee (${feeChf} CHF) with neither a same-currency ` +
+          `chargeAmount nor a mark — the Checkout custody leg cannot be booked mark-consistently`,
+      );
+    }
+
+    // gross Checkout custody Cr-leg: native gross = net + feeNative (CARD currency, F2 convention); no own *Chf →
+    // CHF = net + fee (both CHF-known), else needsMark (Minor R3-5)
     const grossChf = netChf != null ? netChf + feeChf : undefined;
     legs.push({
       account: await this.checkoutAccount(ctx.currency),
-      amount: -tx.amount,
-      priceChf: null,
+      amount: -Util.round(tx.amount + feeNative, 8),
+      priceChf: bank.priceChf,
       amountChf: grossChf != null ? -grossChf : undefined,
       needsMark: grossChf == null,
     });

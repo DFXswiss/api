@@ -613,6 +613,72 @@ describe('LedgerCutoverService', () => {
       // bank_tx is watermark-only (not a guard source) → no boundary persisted
       expect(setSpy.mock.calls.some((c) => c[0] === 'ledgerCutoverBoundary.bank_tx')).toBe(false);
     });
+
+    // §6.3 (F1): boundary+watermark are pinned set-only-if-unset BEFORE any opening, so a fail-loud opening retry
+    // reuses the run-1 boundary VERBATIM instead of recomputing it against a drifted DB. Here row 50 is settled at
+    // the snapshot in run 1 (→ holeIds []), but its `updated` is bumped between the runs, so the run-2 settled
+    // predicate no longer matches it (a recompute would yield holeIds [50]). Freezing the boundary prevents the
+    // forward consumer from reclassifying row 50 as a hole and double-booking its seq0 onto the aggregate opening
+    // (the F1 double-count).
+    it('reuses the pinned boundary+watermark verbatim on a fail-loud retry (set-only-if-unset, no recompute)', async () => {
+      // STATEFUL setting store: run 1 pins snapshot+boundary+watermarks, then crashes in the openings; run 2 (the
+      // cron retry hours later) must reuse every pinned value instead of recomputing it.
+      const settings = new Map<string, string>();
+      jest.spyOn(settingService, 'get').mockImplementation((key: string) => Promise.resolve(settings.get(key) as any));
+      jest.spyOn(settingService, 'set').mockImplementation((key: string, value: string) => {
+        settings.set(key, value);
+        return Promise.resolve();
+      });
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest
+        .spyOn(logService, 'getLog')
+        .mockImplementation((id: number) => Promise.resolve(id === 1557344 ? snapshotLog({}) : (undefined as any)));
+
+      let run = 1;
+      // crypto_input qb: MAX(id) 100 in BOTH runs; the openHoleIds id-queries differ — run 1 sees row 50 SETTLED
+      // (with-status-filter [50,60] → holeIds []), in run 2 row 50 fell OUT of the settled predicate (`updated`
+      // bumped between the runs → with-status-filter only [60] → a recompute would record holeIds [50]).
+      jest.spyOn(cryptoInputRepo, 'createQueryBuilder').mockImplementation(() => {
+        let hasStatusFilter = false;
+        const qb: any = {
+          select: () => qb,
+          where: () => qb,
+          andWhere: (clause: string) => {
+            if (/e\.status/i.test(clause)) hasStatusFilter = true;
+            return qb;
+          },
+          getRawOne: () => Promise.resolve({ max: 100 }),
+          getRawMany: () =>
+            Promise.resolve((hasStatusFilter ? (run === 1 ? [50, 60] : [60]) : [50, 60]).map((id) => ({ id }))),
+        };
+        return qb;
+      });
+
+      // run 1 throws AFTER the pin step: an owed buy_crypto row whose outputAsset has no mark (empty LedgerMarkCache
+      // from the default beforeEach) → bookReceivedOwedOpening throws → openings abort, ready flag stays unset. The
+      // owed query is the only buyCryptoRepo.find with an outputAsset relation (openBuyCryptoOwed).
+      jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where, relations }: any) => {
+        if (run === 1 && where?.isComplete === false && relations?.outputAsset) {
+          return Promise.resolve([buyCrypto({ id: 60, outputAmount: 2, outputAsset: { id: 999 } as any })]);
+        }
+        return Promise.resolve([]); // run 2: the row resolved in the meantime → no open rows left
+      });
+
+      await expect(service.run()).rejects.toThrow(/without a mark/i);
+      expect(settings.get('ledgerCutoverLogId')).toBeUndefined(); // fail-loud → flag unset → the cron retries
+
+      run = 2;
+      await service.run(); // retry against the drifted DB → completes WITHOUT recomputing boundary/watermark
+
+      // run-1 boundary reused verbatim — NOT overwritten to holeIds [50] from the drifted run-2 predicate
+      expect(JSON.parse(settings.get('ledgerCutoverBoundary.crypto_input'))).toEqual({ boundaryId: 100, holeIds: [] });
+      const setCalls = (settingService.set as jest.Mock).mock.calls;
+      expect(setCalls.filter((c) => c[0] === 'ledgerCutoverBoundary.crypto_input')).toHaveLength(1); // pinned ONCE
+      const wmCalls = setCalls.filter((c) => c[0] === 'ledgerWatermark.crypto_input');
+      expect(wmCalls).toHaveLength(1); // the watermark is pinned exactly once too (run 2 reuses it)
+      expect(JSON.parse(wmCalls[0][1]).lastProcessedId).toBe(100); // == boundaryId (derived from the pinned boundary)
+      expect(settings.get('ledgerCutoverLogId')).toBe('1557344'); // run 2 completed on the pinned snapshot
+    });
   });
 
   // --- SNAPSHOT SELECTION + PINNING (§6.3 / Major design-accounting R3-1) --- //

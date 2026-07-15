@@ -2,7 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { ConfigService } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { FindOperator, Repository } from 'typeorm';
-import { LedgerWatermark, runContentChangeScan } from '../ledger-watermark.helper';
+import { getCutoverBoundary, LedgerWatermark, runContentChangeScan } from '../ledger-watermark.helper';
 
 interface Row {
   id: number;
@@ -117,5 +117,34 @@ describe('runContentChangeScan combined (updated, id) cursor', () => {
     expect(written).toHaveLength(1);
     expect(written[0].lastReversalScan.getTime()).toBe(t1.getTime());
     expect(written[0].lastReversalScanId).toBe(1);
+  });
+});
+
+/**
+ * §6.3 getCutoverBoundary — the set-only-if-unset reader counterpart of setCutoverBoundary: an unset key must read as
+ * undefined (raw `get`, not `getObj`) so the cutover pins the boundary exactly once and a retry reuses it verbatim.
+ */
+describe('getCutoverBoundary', () => {
+  it('returns undefined when no boundary is pinned yet (raw setting unset)', async () => {
+    const settingService = createMock<SettingService>();
+    jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
+
+    await expect(getCutoverBoundary(settingService, 'crypto_input')).resolves.toBeUndefined();
+  });
+
+  it('parses the pinned JSON boundary for the requested source', async () => {
+    const settingService = createMock<SettingService>();
+    jest
+      .spyOn(settingService, 'get')
+      .mockImplementation((key: string) =>
+        Promise.resolve(
+          key === 'ledgerCutoverBoundary.crypto_input' ? JSON.stringify({ boundaryId: 100, holeIds: [50] }) : undefined,
+        ),
+      );
+
+    await expect(getCutoverBoundary(settingService, 'crypto_input')).resolves.toEqual({
+      boundaryId: 100,
+      holeIds: [50],
+    });
   });
 });

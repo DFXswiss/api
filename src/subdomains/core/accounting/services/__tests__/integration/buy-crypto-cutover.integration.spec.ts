@@ -46,6 +46,7 @@ describe('Ledger buy_crypto cutover Card double-book (§10.2, MAJOR)', () => {
       created: new Date('2026-05-10T00:00:00Z'),
       isComplete: false,
       checkoutTx: { currency: 'EUR' } as any, // Card input
+      inputReferenceAmount: 1050, // card-currency gross — the F2 custody native (seq0 booking requires it)
       ...values,
     });
   }

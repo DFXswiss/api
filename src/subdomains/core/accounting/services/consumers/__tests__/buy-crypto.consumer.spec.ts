@@ -3,6 +3,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../../entities/ledger-account.entity';
@@ -123,15 +124,35 @@ describe('BuyCryptoConsumer', () => {
     expect(consumer).toBeDefined();
   });
 
-  // §4.6 seq0 — Card input only: Dr ASSET/Checkout / Cr LIABILITY/buyCrypto-received (= amountInChf)
+  // §4.6 seq0 — Card input only: Dr ASSET/Checkout (native = card-currency gross, amountChf = gross CHF, F2) /
+  // Cr LIABILITY/buyCrypto-received (= amountInChf)
   it('books a Card input seq0 against Checkout custody (Bank/crypto inputs are NOT booked here)', async () => {
-    mockBatch([buyCrypto({ id: 1, amountInChf: 1000, checkoutTx: { currency: 'EUR' } as any })]);
+    mockBatch([
+      buyCrypto({ id: 1, amountInChf: 1000, inputReferenceAmount: 1050, checkoutTx: { currency: 'EUR' } as any }),
+    ]);
     await consumer.process();
 
     const tx = seq(0);
-    expect(leg(tx, 'Checkout/EUR').amountChf).toBe(1000);
-    expect(leg(tx, 'LIABILITY/buyCrypto-received').amountChf).toBe(-1000);
+    const custody = leg(tx, 'Checkout/EUR');
+    expect(custody.amount).toBe(1050); // F2: native = card-currency GROSS (inputReferenceAmount), not a CHF number
+    expect(custody.amountChf).toBe(1000); // gross CHF
+    expect(custody.priceChf).toBe(Util.round(1000 / 1050, 8)); // implied CHF-per-card-unit conversion of this row
+    expect(leg(tx, 'LIABILITY/buyCrypto-received').amountChf).toBe(-1000); // CHF-denominated LIABILITY unchanged
     expect(cents(tx.legs)).toBe(0);
+  });
+
+  // F2 fail-loud: a priced Card row (amountInChf set) without its card-currency reference amount is a data error —
+  // booking native 0 on the card-currency custody account would silently corrupt the account's native unit → throw
+  // → failure-isolation (nothing booked, watermark not advanced, retried next run).
+  it('throws (failure-isolation) on a Card row with amountInChf but no inputReferenceAmount', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    mockBatch([
+      buyCrypto({ id: 25, amountInChf: 1000, inputReferenceAmount: null, checkoutTx: { currency: 'EUR' } as any }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled(); // throw → watermark stays put
   });
 
   it('does NOT book seq0 for a non-Card input (no checkoutTx → CryptoInput/BankTx single booker)', async () => {
@@ -262,7 +283,9 @@ describe('BuyCryptoConsumer', () => {
   it('stops the batch and leaves the watermark when the Checkout account is missing (failure-isolation)', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     accounts.delete('Checkout/EUR'); // findByName('Checkout/EUR') → undefined → throw in checkoutAccount
-    mockBatch([buyCrypto({ id: 20, amountInChf: 1000, checkoutTx: { currency: 'EUR' } as any })]);
+    mockBatch([
+      buyCrypto({ id: 20, amountInChf: 1000, inputReferenceAmount: 1050, checkoutTx: { currency: 'EUR' } as any }),
+    ]);
     await consumer.process();
 
     expect(booked).toHaveLength(0);
@@ -330,6 +353,7 @@ describe('BuyCryptoConsumer', () => {
     const changed = buyCrypto({
       id: 30,
       amountInChf: 1000,
+      inputReferenceAmount: 1050, // card-currency gross (F2 custody native)
       totalFeeAmountChf: 10,
       isComplete: true,
       checkoutTx: { currency: 'EUR' } as any, // Card input → buildCardInputSeq0 resolves → chain carries seq0 + seq1
@@ -439,6 +463,7 @@ describe('BuyCryptoConsumer', () => {
     const changed = buyCrypto({
       id: 41,
       amountInChf: 1000,
+      inputReferenceAmount: 1050, // card-currency gross (F2 custody native)
       totalFeeAmountChf: 10,
       isComplete: true,
       outputDate: new Date('2026-06-20T00:00:00Z'), // completed AFTER the snapshot → NOT covered by the opening

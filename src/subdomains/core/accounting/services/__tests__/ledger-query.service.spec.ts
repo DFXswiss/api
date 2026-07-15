@@ -488,6 +488,23 @@ describe('LedgerQueryService', () => {
       expect(res.totalFeeIncome).toBe(42);
     });
 
+    // F2: EXPENSE/acquirer-fee lands in executionCosts EXACTLY ONCE and never in fxPnl — with the Checkout/{ccy}
+    // native-gross convention the mark-to-market job books no phantom */fx-revaluation for the acquirer fee, so the
+    // margin report carries the fee in one bucket only (pre-fix it showed up in executionCosts AND fxPnl).
+    it('buckets EXPENSE/acquirer-fee into executionCosts exactly once (never fxPnl)', async () => {
+      qbStub.marginRows = [
+        { bucket: '2026-06-07', type: AccountType.EXPENSE, name: 'EXPENSE/network-fee', chf: '5' },
+        { bucket: '2026-06-07', type: AccountType.EXPENSE, name: 'EXPENSE/acquirer-fee', chf: '7' },
+      ];
+
+      const res = await service.getMargin(new Date('2026-06-01'), new Date('2026-06-30'), true);
+
+      const day = res.periods[0];
+      expect(day.executionCosts).toBe(12); // network-fee 5 + acquirer-fee 7 → the fee counted exactly once
+      expect(day.fxPnl).toBe(0); // and NOT mirrored into fxPnl (no phantom fx posting exists for it)
+      expect(res.totalExecutionCosts).toBe(12);
+    });
+
     // dailySample with TWO day buckets returned out of order → the periods MUST come back sorted ascending by date
     // (covers the marginBuckets `.sort((a,b) => a.date.localeCompare(b.date))` comparator, which a single bucket never
     // invokes). A broken/removed sort would leave them in insertion (reverse) order and fail this.

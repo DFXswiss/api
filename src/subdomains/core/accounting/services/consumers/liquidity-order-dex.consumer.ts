@@ -37,7 +37,7 @@ const BOOKED_CONTEXTS = [
 ];
 
 /**
- * §4.8a LiquidityOrderDex consumer (NEU, D14 §B.3/§B.6, D04 §7.2/§7.3; Blocker R5-1). Authoritative for DfxDex
+ * §4.8a LiquidityOrderDex consumer (new, D14 §B.3/§B.6, D04 §7.2/§7.3; Blocker R5-1). Authoritative for DfxDex
  * purchase/sell ON-CHAIN swaps (txId IS NOT NULL). Pure observer: reads liquidity_order (dex subdomain), writes
  * only ledger_*.
  *

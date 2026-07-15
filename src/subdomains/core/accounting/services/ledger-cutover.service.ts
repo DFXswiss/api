@@ -34,7 +34,7 @@ import { LedgerAccountService } from './ledger-account.service';
 import { LedgerBookingService, LedgerLegInput } from './ledger-booking.service';
 import { LedgerBootstrapService } from './ledger-bootstrap.service';
 import { LedgerMarkCache, LedgerMarkService } from './ledger-mark.service';
-import { setCutoverBoundary } from './consumers/ledger-watermark.helper';
+import { getCutoverBoundary, setCutoverBoundary } from './consumers/ledger-watermark.helper';
 
 const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
 // pinned at the very first cutover step (before any opening is booked); makes the snapshot stable across a re-run
@@ -110,16 +110,20 @@ export class LedgerCutoverService {
     if (!finance) throw new Error(`FinancialDataLog #${snapshot.id} message is not parseable`);
 
     const snapshotDate = snapshot.created;
+
+    // (3) pin consumer watermarks + cutover boundaries (set-only-if-unset) BEFORE any opening — only rows settled
+    // at/before the snapshot (Blocker R3-1). Pinned up front so a fail-loud opening below (missing mark → throw, the
+    // ready flag stays unset, the cron retries hours later) can never trigger a recompute of the `updated`-keyed
+    // settled predicates against a drifted DB (see initWatermarks).
+    await this.initWatermarks(snapshotDate);
+
     const marks = await this.markService.preload(Util.daysBefore(2, snapshotDate), snapshotDate);
     const equity = await this.equityAccount();
 
-    // (3) ASSET openings → LIABILITY openings → Manual openings (TRANSIT stays 0)
+    // (4) ASSET openings → LIABILITY openings → Manual openings (TRANSIT stays 0)
     await this.openAssets(finance, snapshot, snapshotDate, equity);
     await this.openLiabilities(snapshot, snapshotDate, marks, equity);
     await this.openManualDebt(finance, snapshot, snapshotDate, equity);
-
-    // (4) initialise consumer watermarks atomically — only rows settled at/before the snapshot (Blocker R3-1)
-    await this.initWatermarks(snapshotDate);
 
     // export the pinned snapshot date BEFORE the ready-marker, so any consumer that sees the cutover as done can
     // already classify a pre-cutover-settled row (covered by the aggregate opening). NOT the watermark's
@@ -578,19 +582,23 @@ export class LedgerCutoverService {
     }
   }
 
-  // --- WATERMARK INIT (§6.3 step 4, Blocker R3-1) --- //
+  // --- WATERMARK INIT (§6.3 step 3, Blocker R3-1) --- //
 
-  // sets each ledgerWatermark.<source> to MAX(id) of pre-cutover settled rows + lastReversalScan = snapshotDate,
-  // so the forward consumers never re-book a row whose settlement the opening already covers (no double-count).
-  // ALL nine consumer sources MUST be initialised here (§6.3 Z.910-917, Blocker R3-1) — a missing watermark would
-  // default the consumer to lastProcessedId:0 → WHERE id>0 full-history backfill (Hard Constraint #4 + ASSET
-  // double-count vs the openAssets openings, §6.1). The settled-filter per source is exactly the §4.x consumer
-  // filter (§6.3 Z.917).
+  // pins each ledgerWatermark.<source> to MAX(id) of pre-cutover settled rows + lastReversalScan = snapshotDate, and
+  // (guard sources) the cutover boundary — ONCE, up front (BEFORE any opening), set-only-if-unset: a retry after a
+  // fail-loud opening reuses the pinned values verbatim, so the forward consumers never re-book a row whose settlement
+  // the opening already covers (no double-count). ALL nine consumer sources MUST be initialised here (§6.3 Z.910-917,
+  // Blocker R3-1) — a missing watermark would default the consumer to lastProcessedId:0 → WHERE id>0 full-history
+  // backfill (Hard Constraint #4 + ASSET double-count vs the openAssets openings, §6.1). The settled-filter per source
+  // is exactly the §4.x consumer filter (§6.3 Z.917).
   private async initWatermarks(snapshotDate: Date): Promise<void> {
     // per-source settled filters (§4.x / §6.3 Z.917) — each extracted into a named const so the SAME predicate is
-    // reused for BOTH the MAX(id) boundary and the open-hole id query. Reusing one filter guarantees a
-    // settled-at-snapshot row is classified identically on both sides → it can never be misread as an open hole
-    // (which would re-book its seq0 post-cutover → double-count the ASSET + phantom liability, §6.3 the bug fixed here).
+    // reused for BOTH the MAX(id) boundary and the open-hole id query. Filter identity guarantees consistent
+    // classification only WITHIN one computation; across a fail-loud retry it holds ONLY because boundary+watermark
+    // are pinned set-only-if-unset on the FIRST run, BEFORE any opening (loop below). Four guard sources are keyed on
+    // the mutable `updated` (exchange_tx on the immutable externalCreated): an `updated` bump between runs would
+    // otherwise flip a settled-at-snapshot row's classification — recorded as a NEW hole, or dropped from a shrunken
+    // boundary — and its forward seq0 would double-book the aggregate opening (ASSET double-count + phantom liability).
     const ciFilter = (qb: SelectQueryBuilder<CryptoInput>) =>
       qb.andWhere('e.status IN (:...ciStatus)', { ciStatus: CryptoInputSettledStatus });
     const poFilter = (qb: SelectQueryBuilder<PayoutOrder>) =>
@@ -661,12 +669,29 @@ export class LedgerCutoverService {
       },
     ];
 
+    // set-only-if-unset (§6.3): recomputing on a retry would re-evaluate the settled predicates against a drifted DB —
+    // a guard-source row settled at the snapshot whose `updated` was bumped in [snapshot → retry] falls out of the
+    // predicate (shrunken boundary or a new hole) and its forward seq0 double-books the aggregate opening. ACCEPTED
+    // RESIDUAL: within the FIRST run a tiny window remains between the snapshot's `created` timestamp and this pin —
+    // a guard-source row settled at-or-before the snapshot whose `updated` is bumped inside that window is still
+    // misclassified. It is bounded to first-run execution latency (seconds) and, unlike the pre-fix retry window
+    // (potentially hours), CANNOT grow across retries → deliberately not closed with a heavier snapshot/lock mechanism.
     for (const { source, maxId, holeIds } of sources) {
-      const boundaryId = await maxId();
-      await this.setWatermark(source, boundaryId, snapshotDate);
-      // persist the immutable cutover boundary for the guard sources — the watermark value above is untouched
-      if (holeIds)
+      const watermarkPinned = (await this.settingService.get(`${WATERMARK_KEY_PREFIX}${source}`)) != null;
+      const pinnedBoundary = holeIds ? await getCutoverBoundary(this.settingService, source) : undefined;
+
+      if (watermarkPinned && (!holeIds || pinnedBoundary)) continue; // fully pinned on a prior run → reuse verbatim
+
+      const boundaryId = pinnedBoundary ? pinnedBoundary.boundaryId : await maxId();
+
+      // boundary FIRST, then the watermark derived from it: a crash between the two writes leaves the boundary
+      // pinned and the retry re-derives the watermark from it → lastProcessedId == boundaryId holds across retries
+      if (holeIds && !pinnedBoundary) {
         await setCutoverBoundary(this.settingService, source, { boundaryId, holeIds: await holeIds(boundaryId) });
+      }
+      if (!watermarkPinned) {
+        await this.setWatermark(source, boundaryId, snapshotDate); // lastProcessedId derived from the (pinned) boundary
+      }
     }
   }
 
@@ -692,8 +717,10 @@ export class LedgerCutoverService {
   }
 
   // §6.3 — ids <= boundaryId that were OPEN (not settled) at the snapshot and created within OPEN_ROW_LOOKBACK_DAYS.
-  // = (recent ids <= boundary) MINUS (recent SETTLED ids <= boundary), reusing the exact per-source settled filter so a
-  // settled-at-snapshot row can never be misclassified as a hole (which would re-book it post-cutover → double-count).
+  // = (recent ids <= boundary) MINUS (recent SETTLED ids <= boundary), reusing the exact per-source settled filter for
+  // a consistent classification WITHIN this computation. Across runs the classification is frozen because the RESULT
+  // is pinned once (set-only-if-unset, initWatermarks) — the filter alone is not time-invariant: an `updated` bump
+  // between runs would flip a settled-at-snapshot row into a hole, re-booking it post-cutover → double-count.
   // A >OPEN_ROW_LOOKBACK_DAYS-old unsettled row is treated as terminal (excluded), consistent with openLiabilities.
   private async openHoleIds<T>(
     repo: Repository<T>,

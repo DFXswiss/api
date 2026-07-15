@@ -25,7 +25,7 @@ const CHF = 'CHF';
 const SWAP_VENUE = 'DfxDex';
 
 /**
- * §4.9 TradingOrder consumer (NEU, D10 D, D14 B.4; Blocker R1-3). Books DFX arbitrage swaps. Pure observer: reads
+ * §4.9 TradingOrder consumer (new, D10 D, D14 B.4; Blocker R1-3). Books DFX arbitrage swaps. Pure observer: reads
  * trading_order (assetIn/assetOut eager-loaded), writes only ledger_*. No cross-check (D14 B.4: trading_order.txId
  * ∉ liquidity_order, no overlap with §4.8a).
  *

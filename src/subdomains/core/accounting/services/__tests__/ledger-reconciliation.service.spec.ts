@@ -22,7 +22,7 @@ import { LedgerAccountRepository } from '../../repositories/ledger-account.repos
 import { LedgerLegRepository } from '../../repositories/ledger-leg.repository';
 import { LedgerBookingJobService } from '../ledger-booking-job.service';
 import { LedgerMarkService } from '../ledger-mark.service';
-import { FeedStatus, LedgerReconciliationService } from '../ledger-reconciliation.service';
+import { CustodyClass, FeedStatus, LedgerReconciliationService } from '../ledger-reconciliation.service';
 
 interface LegQueryStub {
   native?: string; // journal native balance per account (fed through the nativeBalanceByAccount map, §7.0 m8)
@@ -657,17 +657,58 @@ describe('LedgerReconciliationService', () => {
   describe('classification + run error branches', () => {
     const now = new Date('2026-06-11T12:00:00Z');
 
-    // §7.1: an EXCHANGE_FEEDLESS custody (Kraken/Binance blockchain) is unverified from start → NO_FEED even with a
-    // present, fresh balance (the source line 173 branch). classifyCustody maps KRAKEN/BINANCE → EXCHANGE_ACTIVE, so to
-    // reach EXCHANGE_FEEDLESS we drive classifyFeed against an account whose custodyClass is EXCHANGE_FEEDLESS via a
-    // 0-threshold; simplest deterministic trigger: a Kraken-blockchain asset has EXCHANGE_ACTIVE (4h) — instead assert
-    // the documented feedless path by a balance whose age exceeds the threshold is already covered; here we cover the
-    // EXCHANGE custody branch (non-on-chain) explicitly.
+    // §7.1: exchange-blockchain assets are EXCHANGE_ACTIVE — the only exchange class. EXCHANGE_FEEDLESS was removed
+    // ("no exchange balance feed" is exactly the generic NO_FEED path) and EXCHANGE_ORDER_DRIVEN too (all configured
+    // exchanges refresh their balances every minute, ungated — no objective order-driven criterion exists).
     it('classifies a Kraken-blockchain (exchange) custody as EXCHANGE_ACTIVE (4h threshold)', () => {
       const account = assetAccount(7, { blockchain: Blockchain.KRAKEN });
       const result = service.classifyFeed(balance(7, 100, Util.hoursBefore(2, now)), account, now);
-      expect(result.thresholdHours).toBe(4); // EXCHANGE_ACTIVE
+      expect(result.custodyClass).toBe(CustodyClass.EXCHANGE_ACTIVE);
+      expect(result.thresholdHours).toBe(4);
       expect(result.status).toBe(FeedStatus.FRESH);
+    });
+
+    // §7.1 F3: XT/MEXC belong to the blockchain.enum.ts `// Exchanges` group — the pre-fix KRAKEN/BINANCE-only check
+    // misclassified them ON_CHAIN_ACTIVE (same 4h threshold by accident, but the wrong class in every alarm text).
+    it('classifies XT- and MEXC-blockchain assets as EXCHANGE_ACTIVE (4h threshold)', () => {
+      for (const blockchain of [Blockchain.XT, Blockchain.MEXC]) {
+        const result = service.classifyFeed(
+          balance(8, 100, Util.hoursBefore(2, now)),
+          assetAccount(8, { blockchain }),
+          now,
+        );
+        expect(result.custodyClass).toBe(CustodyClass.EXCHANGE_ACTIVE);
+        expect(result.thresholdHours).toBe(4);
+        expect(result.status).toBe(FeedStatus.FRESH);
+      }
+    });
+
+    // §7.1 F3: OLKY_FROZEN is the frozen/dead-bank marker → BANK_DEAD: its feed never refreshes again, so the last
+    // snapshot counts for 7d once, then the account is permanently unverified (STALE) — never a 4h on-chain flip.
+    it('classifies an OLKY_FROZEN (dead bank) asset as BANK_DEAD (168h threshold, then permanently STALE)', () => {
+      const account = assetAccount(9, { blockchain: Blockchain.OLKY_FROZEN });
+
+      const withinWeek = service.classifyFeed(balance(9, 100, Util.hoursBefore(100, now)), account, now);
+      expect(withinWeek.custodyClass).toBe(CustodyClass.BANK_DEAD);
+      expect(withinWeek.thresholdHours).toBe(7 * 24);
+      expect(withinWeek.status).toBe(FeedStatus.FRESH); // 100h < 168h → the last dead-bank snapshot still counts
+
+      const beyondWeek = service.classifyFeed(balance(9, 100, Util.hoursBefore(169, now)), account, now);
+      expect(beyondWeek.status).toBe(FeedStatus.STALE); // > 7d → unverified from here on
+
+      const noFeed = service.classifyFeed(undefined, account, now);
+      expect(noFeed.status).toBe(FeedStatus.NO_FEED);
+      expect(noFeed.custodyClass).toBe(CustodyClass.BANK_DEAD);
+    });
+
+    // §7.1 F3: a bank-blockchain asset (blockchain.enum.ts `// Banks` group) WITHOUT a `bank` relation must still get
+    // the SEPA/bank threshold — pre-fix it fell through to ON_CHAIN_ACTIVE (4h) and went unverified after 4h.
+    it('classifies a bank-blockchain asset without a bank relation as BANK_ACTIVE (96h threshold)', () => {
+      const account = assetAccount(10, { blockchain: Blockchain.SUMIXX });
+      const result = service.classifyFeed(balance(10, 100, Util.hoursBefore(50, now)), account, now);
+      expect(result.custodyClass).toBe(CustodyClass.BANK_ACTIVE);
+      expect(result.thresholdHours).toBe(96);
+      expect(result.status).toBe(FeedStatus.FRESH); // 50h < 96h
     });
 
     it('classifies a no-asset account as ON_CHAIN_INACTIVE (24h default)', () => {

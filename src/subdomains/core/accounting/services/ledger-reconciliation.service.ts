@@ -36,15 +36,25 @@ export enum FeedStatus {
   NO_FEED = 'NoFeed',
 }
 
+// §7.1 objective custody criteria — mirrors the (unexported) EXCHANGE_BLOCKCHAINS/BANK_BLOCKCHAINS lists in
+// src/subdomains/supporting/dashboard/dashboard-reconciliation.service.ts (blockchain.enum.ts groups); keep in sync.
+const EXCHANGE_BLOCKCHAINS: Blockchain[] = [Blockchain.KRAKEN, Blockchain.BINANCE, Blockchain.XT, Blockchain.MEXC];
+const BANK_BLOCKCHAINS: Blockchain[] = [
+  Blockchain.MAERKI_BAUMANN,
+  Blockchain.OLKYPAY,
+  Blockchain.OLKY_FROZEN,
+  Blockchain.CHECKOUT,
+  Blockchain.SUMIXX,
+  Blockchain.YAPEAL,
+];
+
 // §7.1 custody classification → staleness threshold (hours)
-enum CustodyClass {
+export enum CustodyClass {
   BANK_ACTIVE = 'BankActive',
   BANK_DEAD = 'BankDead',
   ON_CHAIN_ACTIVE = 'OnChainActive',
   ON_CHAIN_INACTIVE = 'OnChainInactive',
   EXCHANGE_ACTIVE = 'ExchangeActive',
-  EXCHANGE_ORDER_DRIVEN = 'ExchangeOrderDriven',
-  EXCHANGE_FEEDLESS = 'ExchangeFeedless',
 }
 
 const STALENESS_THRESHOLD_HOURS: Record<CustodyClass, number> = {
@@ -53,8 +63,6 @@ const STALENESS_THRESHOLD_HOURS: Record<CustodyClass, number> = {
   [CustodyClass.ON_CHAIN_ACTIVE]: 4,
   [CustodyClass.ON_CHAIN_INACTIVE]: 24,
   [CustodyClass.EXCHANGE_ACTIVE]: 4,
-  [CustodyClass.EXCHANGE_ORDER_DRIVEN]: 48,
-  [CustodyClass.EXCHANGE_FEEDLESS]: 0, // unverified from start
 };
 
 export interface FeedClassification {
@@ -198,9 +206,6 @@ export class LedgerReconciliationService {
     if (balance.amount === PLACEHOLDER_AMOUNT) {
       return { status: FeedStatus.PLACEHOLDER, custodyClass, thresholdHours };
     }
-    if (custodyClass === CustodyClass.EXCHANGE_FEEDLESS) {
-      return { status: FeedStatus.NO_FEED, custodyClass, thresholdHours }; // unverified from start (§7.1)
-    }
 
     const ageHours = Util.hoursDiff(balance.updated, now);
     return {
@@ -210,18 +215,19 @@ export class LedgerReconciliationService {
     };
   }
 
-  // §7.1 custody-type → class. On-chain assets are blockchain-backed; bank/exchange assets are CUSTODY rows.
+  // §7.1 custody-type → class, on objective criteria only: OLKY_FROZEN is the frozen/dead-bank marker (dead-bank
+  // feeds never refresh → 7d once, then permanently unverified); a `bank` relation or a bank blockchain → SEPA/bank
+  // threshold; the four exchange blockchains → exchange threshold; anything else (incl. payment-provider blockchains)
+  // is on-chain — blockchain is non-nullable (default BITCOIN), so only a missing asset yields ON_CHAIN_INACTIVE.
+  // EXCHANGE_ORDER_DRIVEN and EXCHANGE_FEEDLESS were removed: no code-level criterion distinguishes an order-driven
+  // exchange feed (all configured exchanges refresh every minute, ungated) and a feedless exchange asset is exactly
+  // the generic NO_FEED path.
   private classifyCustody(asset: Asset | undefined): CustodyClass {
     if (!asset) return CustodyClass.ON_CHAIN_INACTIVE;
-
-    // bank custody (asset linked to a Bank) → SEPA active threshold
-    if (asset.bank) return CustodyClass.BANK_ACTIVE;
-
-    // exchange/feedless custody rows carry a non-blockchain custody marker
-    const blockchain = asset.blockchain;
-    const isOnChain = blockchain != null && blockchain !== Blockchain.KRAKEN && blockchain !== Blockchain.BINANCE;
-
-    return isOnChain ? CustodyClass.ON_CHAIN_ACTIVE : CustodyClass.EXCHANGE_ACTIVE;
+    if (asset.blockchain === Blockchain.OLKY_FROZEN) return CustodyClass.BANK_DEAD; // dead wins over a stale bank link
+    if (asset.bank || BANK_BLOCKCHAINS.includes(asset.blockchain)) return CustodyClass.BANK_ACTIVE;
+    if (EXCHANGE_BLOCKCHAINS.includes(asset.blockchain)) return CustodyClass.EXCHANGE_ACTIVE;
+    return CustodyClass.ON_CHAIN_ACTIVE;
   }
 
   // §7: compare journal balance vs feed within tolerance; on diff → alarm (the journal stays authoritative, observer).

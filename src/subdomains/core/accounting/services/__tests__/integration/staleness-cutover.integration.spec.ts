@@ -227,11 +227,13 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
       markService = createMock<LedgerMarkService>();
 
       // the Setting flag is the primary idempotency guard: set on success, read on the next run. The snapshot pin
-      // (ledgerCutoverSnapshotLogId) starts unset and is pinned at the first cutover step (Major design-accounting R3-1).
+      // (ledgerCutoverSnapshotLogId) starts unset and is pinned at the first cutover step (Major design-accounting
+      // R3-1). Every other key (ledgerWatermark.<source>, ledgerCutoverBoundary.<source>) reads as UNSET so the
+      // set-only-if-unset pin step actually computes + writes them (a non-null default would read as already pinned).
       jest.spyOn(settingService, 'get').mockImplementation((key: string) => {
         if (key === 'ledgerCutoverLogId') return Promise.resolve(cutoverFlag as any);
         if (key === 'ledgerCutoverSnapshotLogId') return Promise.resolve(snapshotPin as any);
-        return Promise.resolve('0');
+        return Promise.resolve(undefined as any);
       });
       jest.spyOn(settingService, 'set').mockImplementation((key: string, value: string) => {
         if (key === 'ledgerCutoverLogId') cutoverFlag = value;
@@ -341,23 +343,23 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
     });
 
     it('re-run after a partial crash reuses the PINNED snapshot despite snapshot-window drift (no double-count, R3-1)', async () => {
-      // Run A crashes in step (4) initWatermarks AFTER all openings committed but BEFORE the flag is set — run() now
-      // propagates the error to @DfxCron's lock layer (no redundant in-method catch); the flag stays unset, the
-      // openings + the snapshot pin remain committed.
+      // Run A crashes in step (3), the watermark+boundary pin — which now PRECEDES every opening — but AFTER the
+      // snapshot pin of step (2). run() propagates the error to @DfxCron's lock layer (no redundant in-method catch);
+      // the flag stays unset, the snapshot pin remains committed and ZERO openings were booked.
       let crashWatermarks = true;
       jest.spyOn(settingService, 'set').mockImplementation((key: string, value: string) => {
         if (key === 'ledgerCutoverLogId') cutoverFlag = value;
         if (key === 'ledgerCutoverSnapshotLogId') snapshotPin = value;
-        // a watermark write is step (4) — crash there once, simulating the partial-cutover scenario
+        // a watermark write is step (3) — crash there once, simulating the partial-cutover scenario
         if (crashWatermarks && key.startsWith('ledgerWatermark.')) throw new Error('simulated crash in initWatermarks');
         return Promise.resolve();
       });
 
       await expect(service.run()).rejects.toThrow('simulated crash in initWatermarks');
       expect(cutoverFlag).toBeUndefined(); // crash before step (5) → flag never set
-      expect(snapshotPin).toBe('1557344'); // pin survived (set in step (2) before any opening)
-      const firstRunBookings = booked.length;
-      expect(firstRunBookings).toBeGreaterThan(0); // at least the ASSET opening committed before the crash
+      expect(snapshotPin).toBe('1557344'); // pin survived (set in step (2))
+      const runABookings = booked.length;
+      expect(runABookings).toBe(0); // the pin step precedes every opening → the crash left NOTHING booked
 
       // Run B: the snapshot WINDOW has drifted — getFinancialLogs now returns a NEWER log (id 9999999, the drift the
       // reviewer flagged). Without the pin, maxObj(valid,'created') would pick 9999999 → different opening sourceIds →
@@ -375,9 +377,12 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
 
       expect(snapshotPin).toBe('1557344'); // pin unchanged — the drifted 9999999 was NOT chosen
       expect(cutoverFlag).toBe('1557344'); // Run B completes on the pinned snapshot
-      expect(booked).toHaveLength(firstRunBookings); // openings booked exactly once (no double-count via the drift)
+      expect(booked.length).toBeGreaterThan(runABookings); // the openings were booked in Run B only
       // every booked opening carries the pinned logId in its sourceId — none carry the drifted 9999999
       expect(booked.every((b) => !b.sourceId.startsWith('9999999'))).toBe(true);
+      // and no cutover opening was booked twice across the two runs (Run A booked none, Run B booked each once)
+      const openingKeys = booked.map((b) => `${b.sourceId}#${b.seq}`);
+      expect(new Set(openingKeys).size).toBe(openingKeys.length);
     });
   });
 });

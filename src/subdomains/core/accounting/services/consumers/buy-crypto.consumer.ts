@@ -137,7 +137,10 @@ export class BuyCryptoConsumer {
     return true;
   }
 
-  // §4.6 seq0 — Card input only: Dr ASSET/Checkout{ccy} / Cr LIABILITY/buyCrypto-received (= amountInChf).
+  // §4.6 seq0 — Card input only: Dr ASSET/Checkout/{ccy} (native = card-currency GROSS, amountChf = gross CHF) /
+  // Cr LIABILITY/buyCrypto-received (= amountInChf). Convention (F2): Checkout/{ccy} carries native gross in card
+  // currency on EVERY leg with amountChf = the corresponding gross CHF → amountChf ≈ mark × amount holds per leg and
+  // on the account aggregate, so the mark-to-market job books only genuine FX drift, never a phantom.
   // Bank input → BankTx consumer; crypto input → CryptoInput consumer (§4.1 single booker).
   private async bookCardInput(bc: BuyCrypto): Promise<void> {
     if (await this.alreadyBooked(bc.id, 0)) return;
@@ -156,6 +159,14 @@ export class BuyCryptoConsumer {
     // cutover opening is excluded, so the forward seq0 IS their opening) and post-cutover Card rows get a forward seq0.
     if (await this.settledBeforeCutover(bc)) return undefined;
 
+    // FAIL-LOUD (F2): a priced Card row (amountInChf set) without its card-currency gross (inputReferenceAmount —
+    // the CHECKOUT branch of pendingInputAmount() carries the card gross there) is a data error. Booking native 0 or
+    // a CHF native on the card-currency Checkout/{ccy} custody account would silently corrupt the account's native
+    // unit — throw instead; the consumer's failure-isolation retries the row on the next run.
+    if (bc.inputReferenceAmount == null || bc.inputReferenceAmount === 0) {
+      throw new Error(`buy_crypto ${bc.id} Card input has amountInChf but no card-currency inputReferenceAmount`);
+    }
+
     const checkout = await this.checkoutAccount(bc.checkoutTx.currency);
     const received = await this.liability('buyCrypto-received');
 
@@ -165,7 +176,18 @@ export class BuyCryptoConsumer {
       seq: 0,
       bookingDate: bc.created,
       valueDate: bc.created,
-      legs: [this.chfLeg(checkout, bc.amountInChf), this.chfLeg(received, -bc.amountInChf)],
+      legs: [
+        // custody Dr: native = card-currency gross; priceChf = the implied CHF-per-card-unit conversion of THIS row
+        // (amountInChf / inputReferenceAmount) → amountChf = priceChf × amount holds exactly on the leg (F2)
+        {
+          account: checkout,
+          amount: bc.inputReferenceAmount,
+          priceChf: Util.round(bc.amountInChf / bc.inputReferenceAmount, 8),
+          amountChf: bc.amountInChf,
+          needsMark: false,
+        },
+        this.chfLeg(received, -bc.amountInChf), // LIABILITY is CHF-denominated: native == CHF (correct as is)
+      ],
     };
   }
 

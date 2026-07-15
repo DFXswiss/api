@@ -592,7 +592,7 @@ describe('BankTxConsumer', () => {
     expect(cents(legs)).toBe(0);
   });
 
-  it('books CHECKOUT_LTD CRDT: ASSET/bank net + EXPENSE/acquirer-fee / ASSET/Checkout gross (CHF cross-asset)', async () => {
+  it('books CHECKOUT_LTD CRDT: ASSET/bank net + EXPENSE/acquirer-fee / ASSET/Checkout gross (card-currency native)', async () => {
     createdAccounts.set('Checkout/EUR', account('Checkout/EUR', AccountType.ASSET, 'EUR', 270));
     mockBatch([
       bankTx({
@@ -609,8 +609,73 @@ describe('BankTxConsumer', () => {
     const legs = booked[0].legs;
     expect(legs.some((l) => l.account.name === 'EXPENSE/acquirer-fee' && l.amountChf === 3)).toBe(true);
     const checkout = legs.find((l) => l.account.name === 'Checkout/EUR');
-    expect(checkout.amountChf).toBe(-(95 + 3)); // gross = net + fee (Minor R3-5)
+    expect(checkout.amountChf).toBe(-(95 + 3)); // gross CHF = net + fee (Minor R3-5)
+    // F2 ladder 3: no chargeAmount persisted → feeNative = feeChf / mark = 3 / 0.95 = 3.15789474 → custody native
+    // gross = −(100 + 3.15789474) in CARD currency (was −100 net pre-fix — the fee-sized native hole the
+    // mark-to-market job flushed as a phantom fxPnl posting)
+    expect(checkout.amount).toBe(-103.15789474);
+    // MARK-CONSISTENCY: |amountChf| ≈ mark × |amount| within 1 cent → nothing left for M2M but genuine FX drift
+    expect(Math.abs(checkout.amountChf)).toBeCloseTo(0.95 * Math.abs(checkout.amount), 2);
     expect(cents(legs)).toBe(0);
+  });
+
+  // F2 ladder 2: the acquirer fee is persisted in the settlement currency (chargeCurrency === tx.currency) → its
+  // native is used directly, no mark bridge needed. The mark-consistency residual (0.95 × 103.2 = 98.04 vs 98) is
+  // the chargeAmountChf-vs-mark pricing drift — a REAL spread, not a phantom — and stays within 5 cents here.
+  it('books CHECKOUT_LTD with a same-currency chargeAmount: custody native gross = net + chargeAmount (ladder 2)', async () => {
+    createdAccounts.set('Checkout/EUR', account('Checkout/EUR', AccountType.ASSET, 'EUR', 270));
+    mockBatch([
+      bankTx({
+        type: BankTxType.CHECKOUT_LTD,
+        creditDebitIndicator: BankTxIndicator.CREDIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100,
+        currency: 'EUR', // settlement currency — matches chargeCurrency → ladder 2
+        chargeAmount: 3.2,
+        chargeCurrency: 'EUR',
+        chargeAmountChf: 3,
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    expect(legs.some((l) => l.account.name === 'EXPENSE/acquirer-fee' && l.amountChf === 3)).toBe(true);
+    const checkout = legs.find((l) => l.account.name === 'Checkout/EUR');
+    expect(checkout.amount).toBe(-103.2); // −(net 100 + chargeAmount 3.2), card currency
+    expect(checkout.amountChf).toBe(-98); // −(netChf 95 + feeChf 3)
+    expect(Math.abs(checkout.amountChf)).toBeCloseTo(0.95 * Math.abs(checkout.amount), 1); // within 5 cents
+    expect(cents(legs)).toBe(0);
+  });
+
+  // F2 ladder 4 (fail-loud): a non-zero acquirer fee with neither a same-currency chargeAmount nor a mark cannot be
+  // booked mark-consistently → throw → failure-isolation (nothing booked, watermark stays put, retried next run)
+  it('throws (failure-isolation) on CHECKOUT_LTD with a non-zero fee, no chargeAmount and no mark', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    createdAccounts.set('Checkout/EUR', account('Checkout/EUR', AccountType.ASSET, 'EUR', 270));
+    mockBatch(
+      [
+        bankTx({
+          id: 106,
+          type: BankTxType.CHECKOUT_LTD,
+          creditDebitIndicator: BankTxIndicator.CREDIT,
+          accountIban: 'UNTRACKED-IBAN',
+          amount: 100,
+          chargeAmountChf: 3, // non-zero fee, no chargeAmount
+        }),
+      ],
+      undefined,
+    );
+    // override: untracked EUR bank + NO tracked EUR bank → no mark resolvable (ladder 3 unavailable)
+    jest.spyOn(bankRepo, 'findOne').mockImplementation((opts: any) => {
+      const iban = opts?.where?.iban;
+      if (iban === 'UNTRACKED-IBAN')
+        return Promise.resolve(Object.assign(new Bank(), { name: 'Raiffeisen', currency: 'EUR', asset: null }));
+      return Promise.resolve(null); // currency lookup finds no tracked EUR bank
+    });
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // buildLegs threw → bookTx never called for the row
+    expect(setSpy).not.toHaveBeenCalled(); // throw → watermark not advanced (row retried next run)
   });
 
   it('books GSHEET CRDT to LIABILITY/unattributed (EUR-mark in both legs)', async () => {
@@ -817,6 +882,7 @@ describe('BankTxConsumer', () => {
     const legs = booked[0].legs;
     expect(legs.some((l) => l.account.name === 'EXPENSE/acquirer-fee')).toBe(false);
     const checkout = legs.find((l) => l.account.name === 'Checkout/CHF');
+    expect(checkout.amount).toBe(-100); // feeChf 0 → feeNative 0 (F2 ladder 1) → native gross == net
     expect(checkout.amountChf).toBe(-100); // gross == net (no fee)
     expect(cents(legs)).toBe(0);
   });
