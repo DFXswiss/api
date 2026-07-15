@@ -32,7 +32,10 @@ function matchesClause(clause: Record<string, unknown>, row: Record<string, unkn
   });
 }
 
-function countMatching(where: Record<string, unknown> | Record<string, unknown>[], rows: Record<string, unknown>[]): number {
+function countMatching(
+  where: Record<string, unknown> | Record<string, unknown>[],
+  rows: Record<string, unknown>[],
+): number {
   const clauses = Array.isArray(where) ? where : [where];
   return rows.filter((row) => clauses.some((clause) => matchesClause(clause, row))).length;
 }
