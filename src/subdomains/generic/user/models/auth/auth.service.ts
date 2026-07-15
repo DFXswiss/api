@@ -78,6 +78,7 @@ export class AuthService {
   private readonly challengeList = new Map<string, ChallengeData>();
   private readonly mailKeyList = new Map<string, MailKeyData>();
   private readonly userCache = new AsyncCache<User>(CacheItemResetPeriod.EVERY_10_SECONDS);
+  private readonly signUpCalls = new AsyncCache<AuthResponseDto>(CacheItemResetPeriod.ALWAYS);
 
   constructor(
     private readonly userService: UserService,
@@ -128,12 +129,20 @@ export class AuthService {
     if (existingUser && userDataId && existingUser.userData.id !== userDataId)
       throw new ConflictException('Address already linked to another account');
 
+    // Clients fire parallel sign-ups for a new address (retries/double-clicks); the single-flight
+    // keyed on address lets one INSERT run and hands its response to the others, instead of every
+    // loser racing into the unique constraint and abandoning the user_data row it just created.
+    // The duplicate-key fallback stays for races the coalescing cannot see (other entry points).
     return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
-      : this.doSignUp(dto, userIp, false, userDataId, userId).catch((e) => {
-          if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
-          throw e;
-        });
+      : this.signUpCalls.get(dto.address, () =>
+          this.doSignUp(dto, userIp, false, userDataId, userId)
+            .catch((e) => {
+              if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
+              throw e;
+            })
+            .finally(() => this.userCache.invalidate(dto.address)),
+        );
   }
 
   async signUp(dto: SignUpDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {

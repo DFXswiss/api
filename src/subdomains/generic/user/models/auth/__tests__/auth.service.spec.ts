@@ -350,4 +350,73 @@ describe('AuthService', () => {
       });
     });
   });
+
+  // Parallel first-contact requests for the same new address used to race into the user.address
+  // unique constraint: every loser logged a DB error and left behind the user_data row it had
+  // already created. The single-flight on authenticate() must collapse the burst into one INSERT.
+  describe('authenticate sign-up race', () => {
+    const ip = '1.2.3.4';
+    const custodyProvider = { masterKey: 'SIG' } as any;
+
+    const account = () => createCustomUserData({ id: 11, tradeApprovalDate: new Date(), hasIpRisk: true });
+
+    beforeEach(() => {
+      jest.clearAllMocks();
+      (service as any).userCache.invalidate();
+      (service as any).signUpCalls.invalidate();
+      jwtServiceMock.sign.mockReturnValue('signed-jwt');
+      custodyProviderServiceMock.getWithMasterKey.mockResolvedValue(custodyProvider);
+    });
+
+    it('coalesces concurrent sign-ups for the same address into one createUser call', async () => {
+      const wallet = createCustomWallet({ name: 'DFX Wallet' });
+      const user = createCustomUser({ id: 21, userData: account(), wallet });
+      const dto = { address: 'RACE_ADDR_1', signature: 'SIG' } as any;
+
+      userServiceMock.getUserByAddress.mockResolvedValue(null);
+      walletServiceMock.getByIdOrName.mockResolvedValue(wallet);
+      userServiceMock.createUser.mockImplementation(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+        return user;
+      });
+
+      const [first, second] = await Promise.all([service.authenticate(dto, ip), service.authenticate({ ...dto }, ip)]);
+
+      expect(userServiceMock.createUser).toHaveBeenCalledTimes(1);
+      expect(first.accessToken).toEqual(second.accessToken);
+    });
+
+    it('falls back to sign-in when the insert still hits the unique constraint', async () => {
+      const wallet = createCustomWallet({ name: 'DFX Wallet' });
+      const user = createCustomUser({ id: 22, userData: account(), wallet, custodyProvider });
+      const dto = { address: 'RACE_ADDR_2', signature: 'SIG' } as any;
+
+      userServiceMock.getUserByAddress.mockResolvedValueOnce(null).mockResolvedValue(user);
+      walletServiceMock.getByIdOrName.mockResolvedValue(wallet);
+      userServiceMock.createUser.mockRejectedValue(
+        new Error('duplicate key value violates unique constraint "UQ_3122b4b8709577da50e89b68983"'),
+      );
+
+      const result = await service.authenticate(dto, ip);
+
+      expect(result.accessToken).toEqual('signed-jwt');
+    });
+
+    it('finds the user on the next authenticate instead of racing again', async () => {
+      const wallet = createCustomWallet({ name: 'DFX Wallet' });
+      const user = createCustomUser({ id: 23, userData: account(), wallet, custodyProvider });
+      const dto = { address: 'RACE_ADDR_3', signature: 'SIG' } as any;
+
+      userServiceMock.getUserByAddress.mockResolvedValueOnce(null).mockResolvedValue(user);
+      walletServiceMock.getByIdOrName.mockResolvedValue(wallet);
+      userServiceMock.createUser.mockResolvedValue(user);
+
+      await service.authenticate(dto, ip);
+      // the sign-up invalidated the 10s user cache, so this lookup sees the new user and signs in
+      await service.authenticate({ ...dto }, ip);
+
+      expect(userServiceMock.createUser).toHaveBeenCalledTimes(1);
+      expect(userServiceMock.getUserByAddress).toHaveBeenCalledTimes(2);
+    });
+  });
 });
