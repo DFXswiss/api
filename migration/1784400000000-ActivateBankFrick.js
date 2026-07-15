@@ -136,6 +136,15 @@ module.exports = class ActivateBankFrick1784400000000 {
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
+    // Rollout assumption: this activation is code-owned - the rows are created here, not pre-created by
+    // the manual runbook §3.1 path - so down() is a clean inverse. That asymmetry is deliberate and
+    // stated here because up() is defensively idempotent for the pre-created path (ON CONFLICT DO UPDATE
+    // converges an existing inactive row; the watermark uses ON CONFLICT DO NOTHING to preserve a
+    // hand-set value), whereas down() removes both unconditionally. So IF a row/watermark was
+    // pre-created rather than inserted by up(), down() is a lossy hard-removal that does not restore the
+    // prior state. Rolling back an activation that already routed a payout is likewise an Ops procedure
+    // (re-point references, restore the prior row/watermark), not a plain migration revert.
+
     // Re-add the two default-off Frick process sentinels - EXACTLY the up()-SQL of
     // 1783944000000-AddBankFrickPayoutTracking.js (adds each only if not already present).
     await queryRunner.query(`
@@ -184,12 +193,10 @@ module.exports = class ActivateBankFrick1784400000000 {
       )
     `);
 
-    // Remove the two rows this migration inserted (identified by their IBANs). This is a hard,
-    // unconditional removal by IBAN: unlike the idempotent up(), down() does not reconstruct a
-    // pre-existing manual state, and it runs cleanly only BEFORE the new rows are used for a payout -
-    // once fiat_output.bank / virtual_iban.bank reference them the FK constraint makes this DELETE
-    // fail (fail-loud, the whole down() rolls back), and rollback becomes an Ops procedure
-    // (re-point/remove references first), not a plain migration revert.
+    // Remove the two rows this migration inserted (identified by their IBANs). Runs cleanly only BEFORE
+    // the new rows are used for a payout - once fiat_output.bank / virtual_iban.bank reference them the
+    // FK constraint makes this DELETE fail (fail-loud, the whole down() rolls back). See the rollout-
+    // assumption note at the top of down() for the lossy pre-created-path behaviour.
     await queryRunner.query(`
       DELETE FROM "bank" WHERE "iban" IN ('LI75088110105923K000E', 'LI32088110105923K000C')
     `);
