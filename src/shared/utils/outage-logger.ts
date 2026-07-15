@@ -2,7 +2,9 @@ import { DfxLogger } from '../services/dfx-logger';
 import { Util } from './util';
 
 export function isConnectionFailure(e: Error): boolean {
-  return /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EAI_AGAIN|EPIPE|socket hang up|timeout/i.test(
+  // Node system-error codes plus the one free-text phrase (socket hang up) that has no
+  // code. Deliberately no bare "timeout" — that also matches unrelated DB/query timeouts.
+  return /ECONNREFUSED|ECONNRESET|ENOTFOUND|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EAI_AGAIN|EPIPE|socket hang up/i.test(
     e.message ?? '',
   );
 }

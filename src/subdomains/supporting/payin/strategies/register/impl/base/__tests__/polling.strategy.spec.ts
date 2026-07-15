@@ -173,5 +173,17 @@ describe('PollingStrategy', () => {
       await expect(strategy.checkPayInEntries()).resolves.toBeUndefined();
       expect(error).toHaveBeenCalledTimes(1);
     });
+
+    it('rethrows processNewPayInEntries failures instead of misattributing them to a node outage', async () => {
+      // The node itself is healthy (getBlockHeight succeeds) — this is a DB write failure
+      // inside processNewPayInEntries, which happens to have a connection-shaped message.
+      strategy.getBlockHeight.mockResolvedValue(100);
+      const dbError = new Error('insert into pay_in failed: Connection terminated unexpectedly ECONNRESET');
+      strategy.processNewPayInEntries.mockRejectedValueOnce(dbError);
+
+      await expect(strategy.checkPayInEntries()).rejects.toBe(dbError);
+      expect(error).not.toHaveBeenCalled();
+      expect(verbose).not.toHaveBeenCalled();
+    });
   });
 });

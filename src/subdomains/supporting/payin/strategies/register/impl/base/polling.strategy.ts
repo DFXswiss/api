@@ -20,26 +20,46 @@ export abstract class PollingStrategy extends RegisterStrategy {
   protected abstract processNewPayInEntries(): Promise<void>;
 
   async checkPayInEntries(): Promise<void> {
+    const currentBlockHeight = await this.pollBlockHeight();
+    if (currentBlockHeight == null || this.blockHeight >= currentBlockHeight) return;
+
     try {
-      const currentBlockHeight = await this.getBlockHeight();
+      await this.processNewPayInEntries();
+      this.blockHeight = currentBlockHeight;
+    } catch (e) {
+      // Node restarting/warming up (e.g. after a deploy): transient. The cron runs
+      // every second, so without this a ~1 min warmup emits dozens of spurious errors.
+      // blockHeight only advances on success, so a skipped cycle is reprocessed without
+      // duplication.
+      if (e instanceof NodeNotReadyError) {
+        this.handleNodeWarmup();
+        return;
+      }
+
+      // Deliberately not classified as a node outage here: this call also does DB
+      // writes, and a connection-shaped message from those would misattribute a
+      // database problem as "node unreachable". Only the node probe below gets that
+      // treatment; anything from here throws loudly, same as any other real bug.
+      throw e;
+    }
+  }
+
+  // The node probe: cheap, side-effect-free, and the one call whose connection failures
+  // are safely attributable to the node itself — so it's the only place an outage is
+  // opened, tracked, and closed.
+  private async pollBlockHeight(): Promise<number | undefined> {
+    try {
+      const height = await this.getBlockHeight();
 
       this.warmupSince = undefined;
       this.warmupEscalated = false;
       this.nodeOutage.recovered();
 
-      if (this.blockHeight < currentBlockHeight) {
-        await this.processNewPayInEntries();
-        this.blockHeight = currentBlockHeight;
-      }
+      return height;
     } catch (e) {
-      // Node restarting/warming up (e.g. after a deploy): transient. The cron runs
-      // every second, so without this a ~1 min warmup emits dozens of spurious errors.
-      // Either RPC (getBlockHeight or processNewPayInEntries) can hit warmup if the
-      // node restarts mid-cycle; blockHeight only advances on success, so a skipped
-      // cycle is reprocessed without duplication.
       if (e instanceof NodeNotReadyError) {
         this.handleNodeWarmup();
-        return;
+        return undefined;
       }
 
       // Node down (wedged daemon, restart in flight): a real outage, but one incident —
@@ -48,7 +68,7 @@ export abstract class PollingStrategy extends RegisterStrategy {
       // (parse errors, bugs) still throws loudly every cycle.
       if (e instanceof Error && isConnectionFailure(e)) {
         this.nodeOutage.failure(e);
-        return;
+        return undefined;
       }
 
       throw e;
