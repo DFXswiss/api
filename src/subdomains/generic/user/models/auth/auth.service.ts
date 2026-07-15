@@ -36,7 +36,7 @@ import { CustodyProviderService } from '../custody-provider/custody-provider.ser
 import { RecommendationMethod, RecommendationType } from '../recommendation/recommendation.entity';
 import { RecommendationService } from '../recommendation/recommendation.service';
 import { UserData } from '../user-data/user-data.entity';
-import { KycType, TradeApprovalReason, UserDataStatus } from '../user-data/user-data.enum';
+import { getServiceProviderForWallet, KycType, TradeApprovalReason, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
 import { LinkedUserInDto } from '../user/dto/linked-user.dto';
 import { User } from '../user/user.entity';
@@ -184,6 +184,12 @@ export class AuthService {
       dto.language,
     );
 
+    // service-provider marker (e.g. RealUnit) keyed on the login wallet: must be set at first server
+    // contact so tenant dashboards see the account before any registration step, and set on the account
+    // BEFORE a potential mail merge so the existing merge union propagates it to the master
+    const serviceProvider = getServiceProviderForWallet((wallet ?? user.wallet)?.name);
+    if (serviceProvider) await this.userDataService.addServiceProvider(user.userData, serviceProvider);
+
     // update ip Logs
     await this.ipLogService.updateUserIpLogs(user);
 
@@ -227,7 +233,7 @@ export class AuthService {
     return this.doSignIn(user, dto, userIp, isCustodial);
   }
 
-  private async doSignIn(user: User, dto: SignInDto, userIp: string, isCustodial: boolean) {
+  private async doSignIn(user: User, dto: SignInDto & { wallet?: string }, userIp: string, isCustodial: boolean) {
     if (!user.custodyProvider || user.custodyProvider.masterKey !== dto.signature) {
       if (
         !(await this.verifySignature(dto.address, dto.signature, isCustodial, dto.key, user.signature, dto.blockchain))
@@ -250,6 +256,11 @@ export class AuthService {
 
     if (dto.moderator || (dto.walletType && !user.walletType))
       await this.userService.updateUserInternal(user, { moderator: dto.moderator, walletType: dto.walletType });
+
+    // self-healing service-provider marker: addresses created before the marker existed (or imported into a
+    // tenant app without a fresh sign-up) are marked on their next login; no-op when the marker is present
+    const serviceProvider = getServiceProviderForWallet(dto.wallet);
+    if (serviceProvider) await this.userDataService.addServiceProvider(user.userData, serviceProvider);
 
     await this.checkIpBlacklistFor(user.userData, userIp);
 
