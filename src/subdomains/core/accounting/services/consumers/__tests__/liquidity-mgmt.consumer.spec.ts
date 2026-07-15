@@ -327,4 +327,31 @@ describe('LiquidityMgmtConsumer', () => {
     await consumer.process();
     expect(booked).toHaveLength(0);
   });
+
+  // §6.3 covered-by-cutover-opening guard: a bridge liquidity_management_order already Complete at the cutover snapshot
+  // is in the aggregate ASSET opening; a post-cutover `updated` bump re-selects it in the content-change scan, but its
+  // seq0 must NOT be re-booked (double-count). id 42 <= boundary 100, not a hole → covered.
+  it('does NOT re-book a pre-cutover-settled liquidity_management_order re-selected by the content-change scan (covered)', async () => {
+    jest
+      .spyOn(settingService, 'getObj')
+      .mockImplementation((key: string) =>
+        Promise.resolve(
+          key === 'ledgerCutoverBoundary.liquidity_management_order' ? { boundaryId: 100, holeIds: [] } : undefined,
+        ),
+      );
+    const covered = lmOrder({
+      id: 42,
+      system: LiquidityManagementSystem.ARBITRUM_L2_BRIDGE,
+      command: 'deposit',
+      outputAmount: 1000,
+      targetAssetId: ZCHF_ASSET_ID,
+    }); // Complete bridge → would book if not covered
+    jest
+      .spyOn(orderRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [covered] : []));
+
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // covered → no fresh seq0
+  });
 });

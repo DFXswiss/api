@@ -398,7 +398,7 @@ export class PayoutOrderConsumer {
 
   private async assetAccount(asset: Asset): Promise<LedgerAccount> {
     const account = await this.accountService.findByAssetId(asset.id);
-    if (!account) throw new Error(`ledger account for asset ${asset.id} not found (CoA bootstrap missing)`);
+    if (!account) throw new Error(`Ledger account for asset ${asset.id} not found (CoA bootstrap missing)`);
     return account;
   }
 

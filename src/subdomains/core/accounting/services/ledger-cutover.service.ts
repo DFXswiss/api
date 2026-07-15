@@ -34,6 +34,7 @@ import { LedgerAccountService } from './ledger-account.service';
 import { LedgerBookingService, LedgerLegInput } from './ledger-booking.service';
 import { LedgerBootstrapService } from './ledger-bootstrap.service';
 import { LedgerMarkCache, LedgerMarkService } from './ledger-mark.service';
+import { setCutoverBoundary } from './consumers/ledger-watermark.helper';
 
 const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
 // pinned at the very first cutover step (before any opening is booked); makes the snapshot stable across a re-run
@@ -481,12 +482,15 @@ export class LedgerCutoverService {
     equity: LedgerAccount,
     bankByIban: Map<string, Bank>,
   ): Promise<void> {
-    // §6.1: type NULL/Pending/Unknown/GSheet credits → the unattributed bucket (two where-branches for the NULL type)
+    // §6.1: type NULL/Pending/Unknown/GSheet credits → the unattributed bucket (one query, two where-branches ORed
+    // for the NULL type)
     const credit = { creditDebitIndicator: BankTxIndicator.CREDIT, created: Between(lookback, date) };
-    const rows = [
-      ...(await this.bankTxRepo.find({ where: { ...credit, type: In(UNATTRIBUTED_TYPES) } })),
-      ...(await this.bankTxRepo.find({ where: { ...credit, type: IsNull() } })),
-    ];
+    const rows = await this.bankTxRepo.find({
+      where: [
+        { ...credit, type: In(UNATTRIBUTED_TYPES) },
+        { ...credit, type: IsNull() },
+      ],
+    });
 
     let amountChf = 0;
     let needsMark = false;
@@ -583,75 +587,86 @@ export class LedgerCutoverService {
   // double-count vs the openAssets openings, §6.1). The settled-filter per source is exactly the §4.x consumer
   // filter (§6.3 Z.917).
   private async initWatermarks(snapshotDate: Date): Promise<void> {
-    const sources: { source: string; maxId: () => Promise<number> }[] = [
+    // per-source settled filters (§4.x / §6.3 Z.917) — each extracted into a named const so the SAME predicate is
+    // reused for BOTH the MAX(id) boundary and the open-hole id query. Reusing one filter guarantees a
+    // settled-at-snapshot row is classified identically on both sides → it can never be misread as an open hole
+    // (which would re-book its seq0 post-cutover → double-count the ASSET + phantom liability, §6.3 the bug fixed here).
+    const ciFilter = (qb: SelectQueryBuilder<CryptoInput>) =>
+      qb.andWhere('e.status IN (:...ciStatus)', { ciStatus: CryptoInputSettledStatus });
+    const poFilter = (qb: SelectQueryBuilder<PayoutOrder>) =>
+      qb.andWhere('e.status = :poStatus', { poStatus: PayoutOrderStatus.COMPLETE });
+    const etFilter = (qb: SelectQueryBuilder<ExchangeTx>) => qb.andWhere('e.status = :etStatus', { etStatus: 'ok' });
+    const lmFilter = (qb: SelectQueryBuilder<LiquidityManagementOrder>) =>
+      qb.andWhere('e.status = :lmStatus', { lmStatus: LiquidityManagementOrderStatus.COMPLETE });
+    const toFilter = (qb: SelectQueryBuilder<TradingOrder>) =>
+      qb.andWhere('e.status = :toStatus', { toStatus: TradingOrderStatus.COMPLETE }).andWhere('e.txId IS NOT NULL');
+    const loFilter = (qb: SelectQueryBuilder<LiquidityOrder>) =>
+      qb
+        .andWhere('e.txId IS NOT NULL')
+        .andWhere('e.context IN (:...loContexts)', {
+          loContexts: [
+            LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
+            LiquidityOrderContext.BUY_CRYPTO,
+            LiquidityOrderContext.TRADING,
+          ],
+        })
+        .andWhere('e.type IN (:...loTypes)', {
+          loTypes: [LiquidityOrderType.PURCHASE, LiquidityOrderType.SELL],
+        });
+
+    // The 5 guard sources ALSO persist a cutover boundary (boundaryId + holeIds) via `holeIds`; bank_tx/payout_order/
+    // buy_crypto/buy_fiat keep watermark-only (no holeIds). The watermark value is unchanged for every source.
+    const sources: {
+      source: string;
+      maxId: () => Promise<number>;
+      holeIds?: (boundaryId: number) => Promise<number[]>;
+    }[] = [
       { source: 'bank_tx', maxId: () => this.maxSettledId(this.bankTxRepo, 'bookingDate', snapshotDate) },
       // §4.4 — crypto_input: status ∈ CryptoInputSettledStatus + updated <= snapshot (§6.3 Z.917)
       {
         source: 'crypto_input',
-        maxId: () =>
-          this.maxSettledId(this.cryptoInputRepo, 'updated', snapshotDate, (qb) =>
-            qb.andWhere('e.status IN (:...ciStatus)', { ciStatus: CryptoInputSettledStatus }),
-          ),
+        maxId: () => this.maxSettledId(this.cryptoInputRepo, 'updated', snapshotDate, ciFilter),
+        holeIds: (b) => this.openHoleIds(this.cryptoInputRepo, b, snapshotDate, 'updated', ciFilter),
       },
       // §4.5 — payout_order: status='Complete' + updated <= snapshot (§6.3 Z.917)
       {
         source: 'payout_order',
-        maxId: () =>
-          this.maxSettledId(this.payoutOrderRepo, 'updated', snapshotDate, (qb) =>
-            qb.andWhere('e.status = :poStatus', { poStatus: PayoutOrderStatus.COMPLETE }),
-          ),
+        maxId: () => this.maxSettledId(this.payoutOrderRepo, 'updated', snapshotDate, poFilter),
       },
       // §4.3 — exchange_tx: status='ok' + (externalCreated ?? created) <= snapshot (§6.3 Z.917)
       {
         source: 'exchange_tx',
-        maxId: () =>
-          this.maxSettledId(this.exchangeTxRepo, 'externalCreated', snapshotDate, (qb) =>
-            qb.andWhere('e.status = :etStatus', { etStatus: 'ok' }),
-          ),
+        maxId: () => this.maxSettledId(this.exchangeTxRepo, 'externalCreated', snapshotDate, etFilter),
+        holeIds: (b) => this.openHoleIds(this.exchangeTxRepo, b, snapshotDate, 'externalCreated', etFilter),
       },
       { source: 'buy_crypto', maxId: () => this.maxSettledId(this.buyCryptoRepo, 'updated', snapshotDate) },
       { source: 'buy_fiat', maxId: () => this.maxSettledId(this.buyFiatRepo, 'updated', snapshotDate) },
       // §4.8 — liquidity_management_order: status='Complete' + updated <= snapshot
       {
         source: 'liquidity_management_order',
-        maxId: () =>
-          this.maxSettledId(this.liquidityManagementOrderRepo, 'updated', snapshotDate, (qb) =>
-            qb.andWhere('e.status = :lmStatus', { lmStatus: LiquidityManagementOrderStatus.COMPLETE }),
-          ),
+        maxId: () => this.maxSettledId(this.liquidityManagementOrderRepo, 'updated', snapshotDate, lmFilter),
+        holeIds: (b) => this.openHoleIds(this.liquidityManagementOrderRepo, b, snapshotDate, 'updated', lmFilter),
       },
       // §4.9 — trading_order: status='Complete' AND txId IS NOT NULL + updated <= snapshot
       {
         source: 'trading_order',
-        maxId: () =>
-          this.maxSettledId(this.tradingOrderRepo, 'updated', snapshotDate, (qb) =>
-            qb
-              .andWhere('e.status = :toStatus', { toStatus: TradingOrderStatus.COMPLETE })
-              .andWhere('e.txId IS NOT NULL'),
-          ),
+        maxId: () => this.maxSettledId(this.tradingOrderRepo, 'updated', snapshotDate, toFilter),
+        holeIds: (b) => this.openHoleIds(this.tradingOrderRepo, b, snapshotDate, 'updated', toFilter),
       },
       // §4.8a — liquidity_order: txId IS NOT NULL AND context IN (...) AND type IN ('Purchase','Sell') + updated <= snapshot
       {
         source: 'liquidity_order',
-        maxId: () =>
-          this.maxSettledId(this.liquidityOrderRepo, 'updated', snapshotDate, (qb) =>
-            qb
-              .andWhere('e.txId IS NOT NULL')
-              .andWhere('e.context IN (:...loContexts)', {
-                loContexts: [
-                  LiquidityOrderContext.LIQUIDITY_MANAGEMENT,
-                  LiquidityOrderContext.BUY_CRYPTO,
-                  LiquidityOrderContext.TRADING,
-                ],
-              })
-              .andWhere('e.type IN (:...loTypes)', {
-                loTypes: [LiquidityOrderType.PURCHASE, LiquidityOrderType.SELL],
-              }),
-          ),
+        maxId: () => this.maxSettledId(this.liquidityOrderRepo, 'updated', snapshotDate, loFilter),
+        holeIds: (b) => this.openHoleIds(this.liquidityOrderRepo, b, snapshotDate, 'updated', loFilter),
       },
     ];
 
-    for (const { source, maxId } of sources) {
-      await this.setWatermark(source, await maxId(), snapshotDate);
+    for (const { source, maxId, holeIds } of sources) {
+      const boundaryId = await maxId();
+      await this.setWatermark(source, boundaryId, snapshotDate);
+      // persist the immutable cutover boundary for the guard sources — the watermark value above is untouched
+      if (holeIds)
+        await setCutoverBoundary(this.settingService, source, { boundaryId, holeIds: await holeIds(boundaryId) });
     }
   }
 
@@ -674,6 +689,48 @@ export class LedgerCutoverService {
     const { max } = (await qb.getRawOne<{ max: number | null }>()) ?? { max: null };
 
     return max ?? 0;
+  }
+
+  // §6.3 — ids <= boundaryId that were OPEN (not settled) at the snapshot and created within OPEN_ROW_LOOKBACK_DAYS.
+  // = (recent ids <= boundary) MINUS (recent SETTLED ids <= boundary), reusing the exact per-source settled filter so a
+  // settled-at-snapshot row can never be misclassified as a hole (which would re-book it post-cutover → double-count).
+  // A >OPEN_ROW_LOOKBACK_DAYS-old unsettled row is treated as terminal (excluded), consistent with openLiabilities.
+  private async openHoleIds<T>(
+    repo: Repository<T>,
+    boundaryId: number,
+    snapshotDate: Date,
+    dateColumn: string,
+    filter?: (qb: SelectQueryBuilder<T>) => SelectQueryBuilder<T>,
+  ): Promise<number[]> {
+    if (boundaryId <= 0) return []; // boundary 0 = nothing settled at the snapshot → no id <= boundary → no holes
+    const cutoff = Util.daysBefore(OPEN_ROW_LOOKBACK_DAYS, snapshotDate);
+    const allRecent = await this.idsUpToBoundary(repo, boundaryId, cutoff);
+    const settledRecent = await this.idsUpToBoundary(repo, boundaryId, cutoff, snapshotDate, dateColumn, filter);
+    const settled = new Set(settledRecent);
+    return allRecent.filter((id) => !settled.has(id));
+  }
+
+  // ids <= boundaryId created after `cutoff`. With `snapshotDate`+`dateColumn`(+filter) it additionally restricts to
+  // rows SETTLED at the snapshot (the per-source predicate), mirroring maxSettledId's `COALESCE(e.<col>, e.created)
+  // <= :date` verbatim so there is no new Postgres-quoting divergence from that method (alias `e`, `e.id` selected).
+  private async idsUpToBoundary<T>(
+    repo: Repository<T>,
+    boundaryId: number,
+    cutoff: Date,
+    snapshotDate?: Date,
+    dateColumn?: string,
+    filter?: (qb: SelectQueryBuilder<T>) => SelectQueryBuilder<T>,
+  ): Promise<number[]> {
+    let qb = repo
+      .createQueryBuilder('e')
+      .select('e.id', 'id')
+      .where('e.id <= :boundaryId', { boundaryId })
+      .andWhere('e.created > :cutoff', { cutoff });
+    if (snapshotDate && dateColumn)
+      qb = qb.andWhere(`COALESCE(e.${dateColumn}, e.created) <= :snap`, { snap: snapshotDate });
+    if (filter) qb = filter(qb);
+    const rows = await qb.getRawMany<{ id: number }>();
+    return rows.map((r) => +r.id);
   }
 
   private async setWatermark(source: string, lastProcessedId: number, snapshotDate: Date): Promise<void> {
@@ -733,7 +790,7 @@ export class LedgerCutoverService {
     // cron run retries once the mark feed is available. Never a stale zero-opening.
     if (amountChf == null) {
       throw new Error(
-        `cutover opening ${sourceId} without a mark would silently drop the value (CHF liability, never revalued by mark-to-market) — retry when the mark feed is available`,
+        `Cutover opening ${sourceId} without a mark would silently drop the value (CHF liability, never revalued by mark-to-market) — retry when the mark feed is available`,
       );
     }
 

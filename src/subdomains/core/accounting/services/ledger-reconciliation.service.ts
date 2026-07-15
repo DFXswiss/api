@@ -99,15 +99,15 @@ export class LedgerReconciliationService {
     const now = new Date();
 
     // §7.0: feed read ONCE per run, held in-memory for all batches (never per-batch, Minor R13-2)
-    const feed = await this.liquidityManagementBalanceService.getBalances();
-
     // §7 (unit fix): marks loaded ONCE per run (analog mark-to-market §5.2, same 2-day window). Used to value the
     // native journal↔feed diff in CHF before comparing against the CHF tolerance (see reconcileFreshAsset).
-    const marks = await this.markService.preload(Util.daysBefore(2, now), now);
-
     // §7.0: all native journal balances in ONE GROUP-BY pass (analog the feed read) — avoids a per-account query
     // inside the batched reconcileFreshAsset loop (was O(accounts) SUM queries).
-    const balances = await this.nativeBalanceByAccount();
+    const [feed, marks, balances] = await Promise.all([
+      this.liquidityManagementBalanceService.getBalances(),
+      this.markService.preload(Util.daysBefore(2, now), now),
+      this.nativeBalanceByAccount(),
+    ]);
 
     await this.reconcileAssets(feed, marks, balances, now);
     await this.checkTransitAge(now);

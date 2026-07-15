@@ -448,6 +448,63 @@ describe('CryptoInputConsumer', () => {
     expect(booked.some((b) => b.sourceId === '51')).toBe(false); // not settled → not booked
   });
 
+  // --- §6.3 COVERED-BY-CUTOVER-OPENING GUARD (C1) --- //
+
+  // §6.3: a crypto_input already SETTLED at the cutover snapshot has its value in the aggregate ASSET opening. When its
+  // `updated` is bumped post-cutover the content-change scan re-selects it, but its seq0 must NOT be re-booked — that
+  // would double-count the ASSET + book a phantom liability. boundaryId 10, no holes → id 5 <= 10 and not a hole → covered.
+  it('does NOT re-book a pre-cutover-settled crypto_input bumped post-cutover (covered by the aggregate opening)', async () => {
+    const settled = cryptoInput({
+      id: 5,
+      amount: 15000,
+      asset: { id: ZCHF_ASSET_ID, uniqueName: 'Ethereum/ZCHF' },
+      buyFiat: { amountInChf: 15000 } as any,
+    });
+    jest
+      .spyOn(settingService, 'getObj')
+      .mockImplementation((key: string) =>
+        Promise.resolve(key === 'ledgerCutoverBoundary.crypto_input' ? { boundaryId: 10, holeIds: [] } : undefined),
+      );
+    jest
+      .spyOn(cryptoInputRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [settled] : []));
+
+    await consumer.process();
+
+    expect(booked.some((b) => b.sourceId === '5')).toBe(false); // covered → no fresh seq0 booking
+  });
+
+  // §6.3: an open-at-cutover crypto_input (value NOT in the aggregate opening) that settles post-cutover MUST book its
+  // seq0 exactly once. Both the post-boundary path (id 12 > boundary 10) and the recorded-hole path (id 4 in holeIds)
+  // book fresh — the guard suppresses only genuinely covered rows.
+  it('books exactly one seq0 for an open-at-cutover crypto_input that settles post-cutover (hole + post-boundary)', async () => {
+    const postBoundary = cryptoInput({
+      id: 12,
+      amount: 15000,
+      asset: { id: ZCHF_ASSET_ID, uniqueName: 'Ethereum/ZCHF' },
+      buyFiat: { amountInChf: 15000 } as any,
+    });
+    const hole = cryptoInput({
+      id: 4,
+      amount: 15000,
+      asset: { id: ZCHF_ASSET_ID, uniqueName: 'Ethereum/ZCHF' },
+      buyFiat: { amountInChf: 15000 } as any,
+    });
+    jest
+      .spyOn(settingService, 'getObj')
+      .mockImplementation((key: string) =>
+        Promise.resolve(key === 'ledgerCutoverBoundary.crypto_input' ? { boundaryId: 10, holeIds: [4] } : undefined),
+      );
+    jest
+      .spyOn(cryptoInputRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [hole, postBoundary] : []));
+
+    await consumer.process();
+
+    expect(booked.filter((b) => b.sourceId === '12' && b.seq === 0)).toHaveLength(1); // post-boundary → booked once
+    expect(booked.filter((b) => b.sourceId === '4' && b.seq === 0)).toHaveLength(1); // recorded hole → booked once
+  });
+
   // --- ADDITIONAL BRANCH COVERAGE --- //
 
   // line 117 UNDEFINED side: the resolved wallet LedgerAccount has assetId == null → the `wallet.assetId != null`

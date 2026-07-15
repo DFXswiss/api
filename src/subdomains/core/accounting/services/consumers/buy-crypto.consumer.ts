@@ -307,7 +307,7 @@ export class BuyCryptoConsumer {
 
   private async checkoutAccount(currency: string): Promise<LedgerAccount> {
     const account = await this.accountService.findByName(`Checkout/${currency}`);
-    if (!account) throw new Error(`ledger account Checkout/${currency} not found (CoA bootstrap missing)`);
+    if (!account) throw new Error(`Ledger account Checkout/${currency} not found (CoA bootstrap missing)`);
     return account;
   }
 

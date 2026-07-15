@@ -323,8 +323,8 @@ describe('BuyCryptoConsumer', () => {
   // --- §4.12 / §6.3 CONTENT-CHANGE SCAN --- //
 
   // M3: the content-change scan reverse-and-rebooks the value-coupled Card seq0 / completion seq1 CHAIN, then books any
-  // newly-settled completion. Reversing only seq0 while seq1 is booked would leave `received` non-zero (Liability-
-  // Schliessung bricht) → the chain method reverses the whole active chain atomically.
+  // newly-settled completion. Reversing only seq0 while seq1 is booked would leave `received` non-zero
+  // (liability closure breaks) → the chain method reverses the whole active chain atomically.
   it('runs the content-change scan: reverse-and-rebooks the Card seq0/seq1 chain then books the completion', async () => {
     const chainSpy = jest.spyOn(bookingService, 'reverseAndRebookChainIfChanged').mockResolvedValue(true);
     const changed = buyCrypto({

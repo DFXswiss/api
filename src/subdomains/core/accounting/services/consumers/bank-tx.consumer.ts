@@ -619,7 +619,7 @@ export class BankTxConsumer {
   private async bankAccount(ctx: BankContext): Promise<LedgerAccount> {
     if (ctx.tracked && ctx.asset) {
       const account = await this.accountService.findByAssetId(ctx.asset.id);
-      if (!account) throw new Error(`ledger account for asset ${ctx.asset.id} not found (CoA bootstrap missing)`);
+      if (!account) throw new Error(`Ledger account for asset ${ctx.asset.id} not found (CoA bootstrap missing)`);
       return account;
     }
 
@@ -634,7 +634,7 @@ export class BankTxConsumer {
   private async checkoutAccount(currency: string): Promise<LedgerAccount> {
     // Checkout custody asset account (id 270/271/311 exist as asset rows, §1.1); resolved by name
     const account = await this.accountService.findByName(`Checkout/${currency}`);
-    if (!account) throw new Error(`ledger account Checkout/${currency} not found (CoA bootstrap missing)`);
+    if (!account) throw new Error(`Ledger account Checkout/${currency} not found (CoA bootstrap missing)`);
     return account;
   }
 

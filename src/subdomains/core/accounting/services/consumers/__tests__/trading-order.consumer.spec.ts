@@ -299,4 +299,23 @@ describe('TradingOrderConsumer', () => {
     expect(errSpy).toHaveBeenCalledWith('Failed to book trading_order 41:', expect.any(Error));
     expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(40); // NOT 41 → retry next run
   });
+
+  // §6.3 covered-by-cutover-opening guard: a trading_order already settled (Complete + txId) at the cutover snapshot is
+  // in the aggregate ASSET opening; a post-cutover `updated` bump re-selects it in the content-change scan, but its seq0
+  // must NOT be re-booked (double-count). id 42 <= boundary 100, not a hole → covered.
+  it('does NOT re-book a pre-cutover-settled trading_order re-selected by the content-change scan (covered)', async () => {
+    jest
+      .spyOn(settingService, 'getObj')
+      .mockImplementation((key: string) =>
+        Promise.resolve(key === 'ledgerCutoverBoundary.trading_order' ? { boundaryId: 100, holeIds: [] } : undefined),
+      );
+    const covered = tradingOrder({ id: 42 }); // Complete + txId → passes the settled filter, would book if not covered
+    jest
+      .spyOn(tradingOrderRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [covered] : []));
+
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // covered → no fresh seq0
+  });
 });

@@ -141,12 +141,14 @@ describe('LedgerCutoverService', () => {
     jest.spyOn(settingService, 'getObj').mockResolvedValue([] as any);
     jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map()));
 
-    // watermark MAX(id) query builder stub (chainable where/andWhere for the per-consumer settled filters)
+    // watermark MAX(id) query builder stub (chainable where/andWhere for the per-consumer settled filters). getRawMany
+    // backs the §6.3 openHoleIds/idsUpToBoundary path; with MAX(id)=0 the boundary is empty so no holes are queried.
     const maxQb: any = {
       select: () => maxQb,
       where: () => maxQb,
       andWhere: () => maxQb,
       getRawOne: () => Promise.resolve({ max: 0 }),
+      getRawMany: () => Promise.resolve([]),
     };
     for (const repo of [
       bankTxRepo,
@@ -426,13 +428,11 @@ describe('LedgerCutoverService', () => {
         .mockResolvedValue([
           Object.assign(new Bank(), { iban: 'EUR-IBAN', name: 'Olkypay', currency: 'EUR', asset: { id: 269 } }),
         ] as any);
-      // first find() = typed credits (GSheet/Pending/Unknown), second find() = NULL-type credits
+      // ONE find() serves both ORed where-branches (typed GSheet/Pending/Unknown credits + NULL-type credits)
       jest
         .spyOn(bankTxRepo, 'find')
-        .mockResolvedValueOnce([
+        .mockResolvedValue([
           Object.assign(new BankTx(), { id: 90, amount: 1000, accountIban: 'EUR-IBAN', currency: 'EUR' }),
-        ] as any)
-        .mockResolvedValueOnce([
           Object.assign(new BankTx(), { id: 91, amount: 2000, accountIban: 'EUR-IBAN', currency: 'EUR' }),
         ] as any);
 
@@ -533,6 +533,8 @@ describe('LedgerCutoverService', () => {
             const max = matching.length ? Math.max(...matching.map((r) => r.id)) : null;
             return Promise.resolve({ max });
           },
+          // §6.3 openHoleIds id query — the boundary content is asserted separately; here it only needs to resolve
+          getRawMany: () => Promise.resolve([]),
         };
         return qb;
       };
@@ -574,6 +576,42 @@ describe('LedgerCutoverService', () => {
       const exchangeWm = setSpy.mock.calls.find((c) => c[0] === 'ledgerWatermark.exchange_tx');
       expect(JSON.parse(payoutWm[1]).lastProcessedId).toBe(0); // MAX null → 0
       expect(JSON.parse(exchangeWm[1]).lastProcessedId).toBe(0); // getRawOne undefined → { max: null } → 0
+    });
+
+    // §6.3: the guard sources persist an immutable cutover boundary (ledgerCutoverBoundary.<source>) = boundaryId
+    // (MAX settled id) + holeIds (ids <= boundary that were OPEN at the snapshot = allRecent MINUS settledRecent). A
+    // settled-at-snapshot row must NEVER appear as a hole (that would re-book it post-cutover → double-count). Here:
+    // MAX(settled)=100, recent ids <= 100 = [40,50,60], settled-recent = [40,60] → holeIds = [50]. Non-guard sources
+    // (bank_tx) persist NO boundary.
+    it('persists the cutover boundary (boundaryId + open-hole ids) for a guard source but not for a non-guard source', async () => {
+      jest.spyOn(settingService, 'get').mockResolvedValue(undefined);
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+
+      // a fresh qb per createQueryBuilder call so the status-filter flag never leaks across the MAX(id) and the two
+      // openHoleIds id queries: no status filter → all recent ids; status filter applied → only the settled recent ids.
+      jest.spyOn(cryptoInputRepo, 'createQueryBuilder').mockImplementation(() => {
+        let hasStatusFilter = false;
+        const qb: any = {
+          select: () => qb,
+          where: () => qb,
+          andWhere: (clause: string) => {
+            if (/e\.status/i.test(clause)) hasStatusFilter = true;
+            return qb;
+          },
+          getRawOne: () => Promise.resolve({ max: 100 }),
+          getRawMany: () => Promise.resolve((hasStatusFilter ? [40, 60] : [40, 50, 60]).map((id) => ({ id }))),
+        };
+        return qb;
+      });
+
+      await service.run();
+
+      const ciBoundary = setSpy.mock.calls.find((c) => c[0] === 'ledgerCutoverBoundary.crypto_input');
+      expect(ciBoundary).toBeDefined();
+      expect(JSON.parse(ciBoundary[1])).toEqual({ boundaryId: 100, holeIds: [50] }); // 50 was open → the only hole
+      // bank_tx is watermark-only (not a guard source) → no boundary persisted
+      expect(setSpy.mock.calls.some((c) => c[0] === 'ledgerCutoverBoundary.bank_tx')).toBe(false);
     });
   });
 

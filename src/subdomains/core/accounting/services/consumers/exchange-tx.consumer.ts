@@ -14,7 +14,12 @@ import { LedgerLegRepository } from '../../repositories/ledger-leg.repository';
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
-import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
+import {
+  getLedgerWatermark,
+  isCoveredByCutoverOpening,
+  runContentChangeScan,
+  setLedgerWatermark,
+} from './ledger-watermark.helper';
 
 const OK_STATUS = 'ok';
 const SOURCE_TYPE = 'exchange_tx';
@@ -125,7 +130,13 @@ export class ExchangeTxConsumer {
     // never got a forward booking because it turned 'ok' only AFTER the id-watermark advanced over it (the forward
     // scan filters status='ok'). Forward-book it iff NO tx has EVER been booked at this exact (sourceType, sourceId,
     // seq): a late-settling row → book; an active-unchanged / flat-reversed one → skip (bookTx would collide UNIQUE).
-    if (!(await this.bookingService.hasAnyTxAt(spec.sourceType, spec.sourceId, spec.seq))) {
+    // §6.3 covered-by-cutover-opening guard (keyed on the exchange_tx row id, not the composite trade sourceId): a row
+    // already 'ok' (settled) at the cutover snapshot has its value in the aggregate ASSET opening — re-booking its seq0
+    // would double-count. A hole / post-boundary row is NOT covered → it still books fresh.
+    if (
+      !(await this.bookingService.hasAnyTxAt(spec.sourceType, spec.sourceId, spec.seq)) &&
+      !(await isCoveredByCutoverOpening(this.settingService, SOURCE_TYPE, tx.id))
+    ) {
       await this.bookingService.bookTx(spec);
     }
   }
@@ -465,7 +476,7 @@ export class ExchangeTxConsumer {
   private async exchangeAssetByCcy(exchange: ExchangeName, ccy?: string): Promise<LedgerAccount> {
     if (!ccy) throw new Error(`exchange_tx asset/currency missing for ${exchange}`);
     const account = await this.accountService.findByName(`${exchange}/${ccy}`);
-    if (!account) throw new Error(`ledger account ${exchange}/${ccy} not found (CoA bootstrap missing)`);
+    if (!account) throw new Error(`Ledger account ${exchange}/${ccy} not found (CoA bootstrap missing)`);
     return account;
   }
 

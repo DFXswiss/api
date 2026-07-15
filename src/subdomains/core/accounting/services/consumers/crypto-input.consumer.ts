@@ -10,7 +10,12 @@ import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
-import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
+import {
+  getLedgerWatermark,
+  isCoveredByCutoverOpening,
+  runContentChangeScan,
+  setLedgerWatermark,
+} from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'crypto_input';
 const CHF = 'CHF';
@@ -61,7 +66,15 @@ export class CryptoInputConsumer {
         // C1: forward-book a late-settling row the id-watermark skipped (settled AFTER the watermark advanced over it).
         // Gated on the SAME settled-status filter as the forward scan; book() is idempotent (per-seq hasActiveTxAt), so
         // an already-booked row is a no-op. A not-yet-settled row is left (its settle bump on `updated` re-selects it).
-        if (CryptoInputSettledStatus.includes(ci.status)) await this.book(ci, marks);
+        // §6.3 covered-by-cutover-opening guard: a row already SETTLED at the cutover snapshot has its value in the
+        // aggregate ASSET opening — its `updated` bump post-cutover re-selects it here, but its seq0 must NOT be
+        // (re-)booked (that would double-count the ASSET + book a phantom liability). An open-at-cutover hole or a
+        // post-boundary row is NOT covered → it still books its seq0 fresh exactly once.
+        if (
+          CryptoInputSettledStatus.includes(ci.status) &&
+          !(await isCoveredByCutoverOpening(this.settingService, SOURCE_TYPE, ci.id))
+        )
+          await this.book(ci, marks);
         // §4.12 content-change: an amount / buyFiat-buyCrypto re-link on an already-booked seq0 → reverse + re-book the
         // corrected legs (a no-op when nothing changed, incl. the row just forward-booked above).
         const input = await this.buildSeq0Input(ci, ci.updated, marks);
@@ -235,7 +248,7 @@ export class CryptoInputConsumer {
   private async walletAsset(ci: CryptoInput): Promise<LedgerAccount> {
     if (!ci.asset) throw new Error(`crypto_input ${ci.id} has no asset`);
     const account = await this.accountService.findByAssetId(ci.asset.id);
-    if (!account) throw new Error(`ledger account for asset ${ci.asset.id} not found (CoA bootstrap missing)`);
+    if (!account) throw new Error(`Ledger account for asset ${ci.asset.id} not found (CoA bootstrap missing)`);
     return account;
   }
 

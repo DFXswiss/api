@@ -17,7 +17,12 @@ import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
-import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
+import {
+  getLedgerWatermark,
+  isCoveredByCutoverOpening,
+  runContentChangeScan,
+  setLedgerWatermark,
+} from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'liquidity_management_order';
 const BRIDGE_IN_COMMAND = 'bridge-in'; // dEURO bridge-in (§4.8 branch 4, system=dEURO)
@@ -71,6 +76,10 @@ export class LiquidityMgmtConsumer {
         // honour the forward settled-filter: only a status='Complete' order is bookable; a not-yet-Complete row is
         // left (cursor advances; its completion bumps `updated` → re-selected). book() is idempotent (alreadyBooked).
         if (order.status !== LiquidityManagementOrderStatus.COMPLETE) return;
+        // §6.3 covered-by-cutover-opening guard: a bridge order already Complete at the cutover snapshot is in the
+        // aggregate ASSET opening — its `updated` bump post-cutover re-selects it here, but re-booking its seq0 would
+        // double-count. A hole / post-boundary row is NOT covered → it still books fresh.
+        if (await isCoveredByCutoverOpening(this.settingService, SOURCE_TYPE, order.id)) return;
         await this.book(order, await this.preloadMarks([order]));
       },
     );
@@ -213,7 +222,7 @@ export class LiquidityMgmtConsumer {
 
   private async assetAccount(asset: Asset): Promise<LedgerAccount> {
     const account = await this.accountService.findByAssetId(asset.id);
-    if (!account) throw new Error(`ledger account for asset ${asset.id} not found (CoA bootstrap missing)`);
+    if (!account) throw new Error(`Ledger account for asset ${asset.id} not found (CoA bootstrap missing)`);
     return account;
   }
 

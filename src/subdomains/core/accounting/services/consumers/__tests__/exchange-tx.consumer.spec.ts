@@ -581,6 +581,33 @@ describe('ExchangeTxConsumer', () => {
     expect(booked.map((b) => b.sourceId).sort()).toEqual(['60', '61']); // row 60 finally booked on the second run
   });
 
+  // §6.3 covered-by-cutover-opening guard: an exchange_tx already 'ok' (settled) at the cutover snapshot is in the
+  // aggregate ASSET opening; a post-cutover `updated` bump re-selects it in the content-change scan, but its seq0 must
+  // NOT be re-booked (double-count). The guard keys on the exchange_tx row id, not the composite trade sourceId. Without
+  // the guard this row WOULD forward-book (reverseAndRebookIfChanged found nothing active + hasAnyTxAt false).
+  it('does NOT re-book a pre-cutover-settled exchange_tx re-selected by the content-change scan (covered)', async () => {
+    jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(false); // nothing active to correct
+    jest.spyOn(bookingService, 'hasAnyTxAt').mockResolvedValue(false); // no tx at the seq → would book if not covered
+    jest
+      .spyOn(settingService, 'getObj')
+      .mockImplementation((key: string) =>
+        Promise.resolve(key === 'ledgerCutoverBoundary.exchange_tx' ? { boundaryId: 100, holeIds: [] } : undefined),
+      );
+    const covered = exchangeTx({
+      id: 42,
+      type: ExchangeTxType.DEPOSIT,
+      currency: 'EUR',
+      amount: 100,
+      amountChf: 95,
+      txId: '0x',
+      status: 'ok',
+    });
+    mockContentChange([], [covered]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // id 42 <= boundary 100, not a hole → covered → no fresh seq0
+  });
+
   // --- FORWARD ERROR / UNHANDLED-TYPE BRANCHES --- //
 
   it('skips an unhandled exchange_tx type in the forward scan (buildSpec undefined → no booking)', async () => {

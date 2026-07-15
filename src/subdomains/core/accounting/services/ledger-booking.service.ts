@@ -154,8 +154,8 @@ export class LedgerBookingService {
    * §4.12 value-coupled chain reversal (Major M3). Several forward seqs of one source row can share a value (buy_fiat
    * reclassification seq1 / transmit seq2 / settlement seq3 all carry owedChf; buy_crypto Card input seq0 / completion
    * seq1 both carry the amountInChf base). A content-change that reverses+rebooks ONLY the first seq leaves the later,
-   * already-booked seqs on the OLD value → the shared liability (owed/received) never closes to 0 (Liability-Schliessung
-   * bricht). This reverses the WHOLE currently-active chain and re-books every input atomically, but ONLY when at least
+   * already-booked seqs on the OLD value → the shared liability (owed/received) never closes to 0 (liability closure
+   * breaks). This reverses the WHOLE currently-active chain and re-books every input atomically, but ONLY when at least
    * one input differs from its active booking (idempotent re-scan otherwise). `inputs` are the value-coupled seqs in
    * ascending seq order; each participates only if it currently has an active booking (a later seq not yet settled has
    * none → left to the forward path, which books it fresh at the new value). Each (reversal, re-book) pair is written

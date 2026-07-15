@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { SettingService } from 'src/shared/models/setting/setting.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
 import { BankTxConsumer } from './consumers/bank-tx.consumer';
@@ -28,8 +27,6 @@ const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
  */
 @Injectable()
 export class LedgerBookingJobService {
-  private readonly logger = new DfxLogger(LedgerBookingJobService);
-
   constructor(
     private readonly settingService: SettingService,
     private readonly bankTxConsumer: BankTxConsumer,

@@ -12,7 +12,12 @@ import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
-import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
+import {
+  getLedgerWatermark,
+  isCoveredByCutoverOpening,
+  runContentChangeScan,
+  setLedgerWatermark,
+} from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'trading_order';
 const CHF = 'CHF';
@@ -64,6 +69,10 @@ export class TradingOrderConsumer {
         // honour the forward settled-filter: only a Complete swap with a txId is bookable; a not-yet-settled row is
         // left (cursor advances; its settle-bump on `updated` re-selects it). book() is idempotent (alreadyBooked).
         if (order.status !== TradingOrderStatus.COMPLETE || order.txId == null) return;
+        // §6.3 covered-by-cutover-opening guard: a swap already settled at the cutover snapshot is in the aggregate
+        // ASSET opening — its `updated` bump post-cutover re-selects it here, but re-booking its seq0 would
+        // double-count. A hole / post-boundary row is NOT covered → it still books fresh.
+        if (await isCoveredByCutoverOpening(this.settingService, SOURCE_TYPE, order.id)) return;
         await this.book(order, await this.preloadMarks([order]));
       },
     );
@@ -189,7 +198,7 @@ export class TradingOrderConsumer {
 
   private async assetAccount(asset: Asset): Promise<LedgerAccount> {
     const account = await this.accountService.findByAssetId(asset.id);
-    if (!account) throw new Error(`ledger account for asset ${asset.id} not found (CoA bootstrap missing)`);
+    if (!account) throw new Error(`Ledger account for asset ${asset.id} not found (CoA bootstrap missing)`);
     return account;
   }
 

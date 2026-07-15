@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -632,14 +632,10 @@ describe('LedgerQueryService', () => {
   });
 
   describe('getAccountDetail', () => {
-    it('returns an empty shell for an unknown account', async () => {
+    it('throws NotFoundException for an unknown account', async () => {
       jest.spyOn(ledgerAccountRepository, 'findOneBy').mockResolvedValue(null);
 
-      const res = await service.getAccountDetail(999);
-
-      expect(res.legs).toHaveLength(0);
-      expect(res.total).toBe(0);
-      expect(res.openingBalance).toBe(0);
+      await expect(service.getAccountDetail(999)).rejects.toThrow(NotFoundException);
     });
 
     it('maps legs with opening/closing balance and a 2-leg counter account', async () => {

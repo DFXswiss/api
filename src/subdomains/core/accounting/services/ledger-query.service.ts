@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { LiquidityBalance } from 'src/subdomains/core/liquidity-management/entities/liquidity-balance.entity';
@@ -82,14 +82,15 @@ export class LedgerQueryService {
     const now = new Date();
     const period = this.resolvePeriod(from, to, now);
 
-    const accounts = await this.ledgerAccountRepository.find({ relations: { asset: { bank: true } } });
-    const balances = await this.balancesByAccount(period.to);
-
-    // ASSET-account recon snapshot for the list (against the persisted feed, §7) — feed read once for all accounts
-    const feedByAssetId = await this.feedByAssetId();
+    // ASSET-account recon snapshot for the list (against the persisted feed, §7) — feed read once for all accounts.
     // §7 (unit fix): marks read ONCE per request (same 2-day window as the reconciliation job) to value the native
     // journal↔feed diff in CHF before the CHF-tolerance check (see mapReconStatus)
-    const marks = await this.markService.preload(Util.daysBefore(2, now), now);
+    const [accounts, balances, feedByAssetId, marks] = await Promise.all([
+      this.ledgerAccountRepository.find({ relations: { asset: { bank: true } } }),
+      this.balancesByAccount(period.to),
+      this.feedByAssetId(),
+      this.markService.preload(Util.daysBefore(2, now), now),
+    ]);
 
     const accountDtos: LedgerAccountBalanceDto[] = accounts.map((account) => {
       const balance: AccountBalance = {
@@ -111,22 +112,13 @@ export class LedgerQueryService {
     const period = this.resolvePeriod(from, to, now);
 
     const account = await this.ledgerAccountRepository.findOneBy({ id: accountId });
-    if (!account) {
-      return {
-        accountId,
-        accountName: '',
-        currency: '',
-        period: LedgerDtoMapper.mapPeriod(period.from, period.to),
-        openingBalance: 0,
-        closingBalance: 0,
-        legs: [],
-        total: 0,
-      };
-    }
+    if (!account) throw new NotFoundException('Ledger account not found');
 
     // opening balance = signed native Σ of all legs booked strictly before the period start
-    const openingBalance = await this.nativeBalanceBefore(accountId, period.from);
-    const periodNative = await this.nativeBalanceInPeriod(accountId, period.from, period.to);
+    const [openingBalance, periodNative] = await Promise.all([
+      this.nativeBalanceBefore(accountId, period.from),
+      this.nativeBalanceInPeriod(accountId, period.from, period.to),
+    ]);
     const closingBalance = Util.round(openingBalance + periodNative, 8);
 
     const [legs, total] = await this.ledgerLegRepository
@@ -160,14 +152,16 @@ export class LedgerQueryService {
   async getReconStatus(): Promise<ReconStatusResponseDto> {
     const now = new Date();
 
-    const accounts = await this.ledgerAccountRepository.find({
-      where: { type: AccountType.ASSET, active: true },
-      relations: { asset: { bank: true } },
-    });
-    const feedByAssetId = await this.feedByAssetId();
-    const balances = await this.nativeBalanceByAccount();
     // §7 (unit fix): marks read ONCE per request (same 2-day window as the reconciliation job) — see mapReconStatus
-    const marks = await this.markService.preload(Util.daysBefore(2, now), now);
+    const [accounts, feedByAssetId, balances, marks] = await Promise.all([
+      this.ledgerAccountRepository.find({
+        where: { type: AccountType.ASSET, active: true },
+        relations: { asset: { bank: true } },
+      }),
+      this.feedByAssetId(),
+      this.nativeBalanceByAccount(),
+      this.markService.preload(Util.daysBefore(2, now), now),
+    ]);
 
     const results: AccountReconResultDto[] = [];
     for (const account of accounts) {

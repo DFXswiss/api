@@ -80,7 +80,7 @@ export class BuyFiatConsumer {
 
         // then §4.12 + M3 + M4: on a content change, reverse+rebook the value-coupled regular-sell chain (reclassification
         // seq1 / transmit seq2 / settlement seq3 all carry owedChf). Reversing ONLY seq1 while seq2/seq3 are booked leaves
-        // owed on the OLD value and it never closes to 0 (Liability-Schliessung bricht) — the chain method reverses the
+        // owed on the OLD value and it never closes to 0 (liability closure breaks) — the chain method reverses the
         // whole ACTIVE chain atomically and no-ops when nothing changed (incl. the seqs book() just booked). Gated on
         // outputAmount != null (M4: an unpriced row is "not yet settled", not an error → no seq1 to reverse). Skipped for
         // owed-straddling rows (reclassification anchored in the cutover opening) and the paymentLink path (own seq chain).
@@ -507,7 +507,7 @@ export class BuyFiatConsumer {
 
   private async assetAccount(assetId: number): Promise<LedgerAccount> {
     const account = await this.accountService.findByAssetId(assetId);
-    if (!account) throw new Error(`ledger account for asset ${assetId} not found (CoA bootstrap missing)`);
+    if (!account) throw new Error(`Ledger account for asset ${assetId} not found (CoA bootstrap missing)`);
     return account;
   }
 

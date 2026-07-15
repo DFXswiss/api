@@ -17,6 +17,13 @@ export interface LedgerWatermark {
 
 const WATERMARK_KEY_PREFIX = 'ledgerWatermark.';
 
+const CUTOVER_BOUNDARY_KEY_PREFIX = 'ledgerCutoverBoundary.';
+
+export interface LedgerCutoverBoundary {
+  boundaryId: number; // MAX(id) settled at the snapshot; immutable (the watermark's lastProcessedId drifts, this does not)
+  holeIds: number[]; // ids <= boundaryId OPEN at the snapshot (value NOT in the aggregate) → their forward seq0 IS their opening
+}
+
 /**
  * Reads the per-source watermark (§11.3). Stored as a JSON string under `ledgerWatermark.<source>` and read
  * via `getObj`. Returns undefined when no watermark exists yet (the cutover initialises it before the gate opens).
@@ -56,6 +63,60 @@ export async function setLedgerWatermark(
       lastReversalScanId: watermark.lastReversalScanId ?? 0,
     }),
   );
+}
+
+/**
+ * Writes the per-source cutover boundary (§6.3) — exclusively via `settingService.set` (never `setObj`/`settingRepo`;
+ * §4.10 R2-exception-a), materialised ONCE at cutover time. `boundaryId` is the immutable MAX(id) of rows settled at
+ * the snapshot; the watermark's `lastReversalScan`/`lastProcessedId` drift forward as the forward scan advances — this
+ * copy does NOT. `holeIds` are the ids ≤ boundaryId that were OPEN at the snapshot: their value is NOT in the aggregate
+ * opening (the cutover deliberately excludes the pending bucket), so their forward seq0 IS their opening and must be
+ * booked exactly once when they settle post-cutover.
+ */
+export async function setCutoverBoundary(
+  settingService: SettingService,
+  source: string,
+  boundary: LedgerCutoverBoundary,
+): Promise<void> {
+  await settingService.set(
+    `${CUTOVER_BOUNDARY_KEY_PREFIX}${source}`,
+    JSON.stringify({ boundaryId: boundary.boundaryId, holeIds: boundary.holeIds }),
+  );
+}
+
+/**
+ * Cutover-opening membership guard (§6.3): forward-book a row's seq0 IFF its value is NOT already in the cutover
+ * aggregate opening. Opening-membership is a fact FIXED at snapshot time; the cutover materialises it per source as an
+ * immutable boundary (`setCutoverBoundary`) so it can be reconstructed later even for a source with no immutable
+ * settlement timestamp (e.g. crypto_input, whose `updated` gets bumped post-cutover — "settled at the snapshot" cannot
+ * be re-derived after the fact, so it is persisted at cutover time):
+ *  - `boundaryId` = MAX(id) of rows SETTLED at the snapshot (= the watermark's initial `lastProcessedId`; the watermark
+ *    drifts forward as the forward scan advances, THIS copy does not).
+ *  - `holeIds` = ids ≤ boundaryId that were OPEN (NOT settled) at the snapshot AND created within OPEN_ROW_LOOKBACK_DAYS
+ *    — their value is NOT in the aggregate (the cutover deliberately excludes the pending bucket), so their forward
+ *    seq0 IS their opening and MUST be booked exactly once when they settle post-cutover.
+ * Covered (→ SKIP the fresh forward seq0) iff: the cutover ran AND `id ≤ boundaryId` AND `id ∉ holeIds`. Rows with
+ * `id > boundaryId` and recorded holes forward-book normally. HORIZON CAVEAT: a row unsettled at the snapshot but older
+ * than OPEN_ROW_LOOKBACK_DAYS is treated as terminal (never recorded as a hole) → it is reported covered and its
+ * post-cutover seq0 is suppressed — consistent with the cutover's existing 90-day open-row horizon
+ * (OPEN_ROW_LOOKBACK_DAYS, used by openLiabilities), which assumes a >90d-old open row is abandoned and carries no
+ * opening.
+ * The three early-returns are documented invariant branches, NOT silent fallbacks: a missing boundary means the
+ * cutover has not run yet (pre-cutover default — the forward path is the only booker); `id > boundaryId` means the row
+ * settled after the snapshot (its value is not in the aggregate → book); the hole check is the exact open-at-snapshot
+ * carve-out. Each is a correct branch of the invariant and must be kept.
+ */
+export async function isCoveredByCutoverOpening(
+  settingService: SettingService,
+  source: string,
+  rowId: number,
+): Promise<boolean> {
+  const raw = await settingService.getObj<{ boundaryId: number; holeIds: number[] }>(
+    `${CUTOVER_BOUNDARY_KEY_PREFIX}${source}`,
+  );
+  if (!raw) return false; // cutover not run → forward-book normally (pre-cutover default)
+  if (rowId > raw.boundaryId) return false; // post-boundary → not in the aggregate → book
+  return !raw.holeIds.includes(rowId); // id <= boundary: covered unless it was an open-at-cutover hole
 }
 
 const contentChangeLogger = new DfxLogger('LedgerContentChangeScan');
