@@ -327,10 +327,13 @@ export class Configuration {
 
   // Reduce a KYC blob URL to its container-relative, percent-decoded object key (drops scheme/host
   // and the leading `<container>/` segment), mirroring StorageService.blobName's reversal.
+  // Fail loud on unexpected URL shapes: a silent full-URL fallback would reintroduce the pre-cutover
+  // host-equality bug for any URL missing the container marker (missing compliance docs, no error).
   private static kycBlobKey(url: string): string {
     const marker = 'kyc/';
     const idx = url.indexOf(marker);
-    const rel = idx < 0 ? url : url.substring(idx + marker.length);
+    if (idx < 0) throw new Error(`Unexpected KYC blob URL format (missing 'kyc/' marker): ${url}`);
+    const rel = url.substring(idx + marker.length);
     return rel.split('/').map(decodeURIComponent).join('/');
   }
 
@@ -1291,6 +1294,13 @@ export class Configuration {
     accessKey: process.env.S3_ACCESS_KEY,
     secretKey: process.env.S3_SECRET_KEY,
     publicUrl: process.env.S3_PUBLIC_URL,
+  };
+
+  // Provisioning-only S3 credentials (broader admin policy), distinct from the policy-restricted
+  // app credentials in `s3`. Used only by scripts/storage/provision-bucket.ts. secrets -> .env.
+  s3Admin = {
+    accessKey: process.env.S3_ADMIN_ACCESS_KEY,
+    secretKey: process.env.S3_ADMIN_SECRET_KEY,
   };
 
   alby = {

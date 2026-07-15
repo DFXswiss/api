@@ -18,7 +18,11 @@
  * default-retention configuration is (re)applied.
  *
  * Configuration (no silent defaults for credentials — fails fast if incomplete):
- *   - S3 endpoint/region/credentials come from the standard S3_* env vars (via Config.s3).
+ *   - S3 endpoint/region from Config.s3 (S3_ENDPOINT / S3_REGION — shared with the app).
+ *   - Auth from Config.s3Admin (S3_ADMIN_ACCESS_KEY / S3_ADMIN_SECRET_KEY) — dedicated
+ *     provisioning credentials with CreateBucket/Object-Lock rights. The app's policy-
+ *     restricted S3_ACCESS_KEY/S3_SECRET_KEY are intentionally NOT used and NOT fallen
+ *     back to: they cannot create buckets or apply Object Lock.
  *
  * Run with (bucket name required, retention years optional, default 11):
  *   BUCKET=kyc RETENTION_YEARS=11 npx ts-node scripts/storage/provision-bucket.ts
@@ -28,6 +32,7 @@
 import {
   CreateBucketCommand,
   GetBucketVersioningCommand,
+  GetObjectLockConfigurationCommand,
   HeadBucketCommand,
   ObjectLockRetentionMode,
   PutBucketVersioningCommand,
@@ -38,7 +43,7 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-// Loaded after dotenv so Config.s3 reads the populated env.
+// Loaded after dotenv so Config.s3 / Config.s3Admin read the populated env.
 import { Config } from '../../src/config/config';
 
 function getBucketName(): string {
@@ -69,9 +74,12 @@ export function getRetentionYears(): number {
 }
 
 function buildClient(): S3Client {
-  const { endpoint, region, accessKey, secretKey } = Config.s3;
+  const { endpoint, region } = Config.s3;
+  const { accessKey, secretKey } = Config.s3Admin;
   if (!endpoint || !region || !accessKey || !secretKey)
-    throw new Error('Incomplete S3 config: S3_ENDPOINT, S3_REGION, S3_ACCESS_KEY and S3_SECRET_KEY are required');
+    throw new Error(
+      'Incomplete S3 admin config: S3_ENDPOINT, S3_REGION, S3_ADMIN_ACCESS_KEY and S3_ADMIN_SECRET_KEY are required',
+    );
 
   return new S3Client({
     endpoint,
@@ -88,6 +96,15 @@ async function bucketExists(client: S3Client, bucket: string): Promise<boolean> 
   } catch (e) {
     const status = e?.$metadata?.httpStatusCode;
     if (status === 404 || e?.name === 'NotFound' || e?.name === 'NoSuchBucket') return false;
+    // HeadBucket on this deployment returns 403 (not 404) when the caller's policy lacks
+    // access — including for buckets that do not exist yet. Neither true nor false is safe:
+    // true would skip provisioning a genuinely new EP2 merchant bucket; false would blind-
+    // CreateBucket against a bucket that may already exist. Fail loud so the policy is fixed.
+    if (status === 403 || e?.name === 'AccessDenied')
+      throw new Error(
+        `Cannot verify bucket existence — provisioning credentials lack permission on "${bucket}" (403). ` +
+          `Check the S3_ADMIN_ACCESS_KEY/S3_ADMIN_SECRET_KEY policy.`,
+      );
     throw e;
   }
 }
@@ -118,6 +135,27 @@ async function applyObjectLock(client: S3Client, bucket: string, years: number):
   console.log(`  Object Lock: default retention COMPLIANCE / ${years} year(s)`);
 }
 
+// Object Lock cannot be retro-fitted once objects exist. Read back the applied configuration
+// and refuse success unless COMPLIANCE + requested years are confirmed live on the bucket.
+async function verifyObjectLock(client: S3Client, bucket: string, years: number): Promise<void> {
+  const result = await client.send(new GetObjectLockConfigurationCommand({ Bucket: bucket }));
+  const cfg = result.ObjectLockConfiguration;
+  const retention = cfg?.Rule?.DefaultRetention;
+
+  if (
+    cfg?.ObjectLockEnabled !== 'Enabled' ||
+    retention?.Mode !== ObjectLockRetentionMode.COMPLIANCE ||
+    retention?.Years !== years
+  ) {
+    throw new Error(
+      `Object Lock verification failed for bucket "${bucket}": expected Enabled + COMPLIANCE / ${years} year(s), ` +
+        `got ObjectLockEnabled=${cfg?.ObjectLockEnabled}, Mode=${retention?.Mode}, Years=${retention?.Years}`,
+    );
+  }
+
+  console.log(`  Object Lock verified: Enabled + COMPLIANCE / ${years} year(s)`);
+}
+
 async function main(): Promise<void> {
   const bucket = getBucketName();
   const years = getRetentionYears();
@@ -134,6 +172,7 @@ async function main(): Promise<void> {
 
   await ensureVersioning(client, bucket);
   await applyObjectLock(client, bucket, years);
+  await verifyObjectLock(client, bucket, years);
 
   console.log(`Done. Bucket "${bucket}" is WORM-protected (COMPLIANCE, ${years}y).`);
 }

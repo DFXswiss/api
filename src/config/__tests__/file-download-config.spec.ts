@@ -59,6 +59,19 @@ describe('fileDownloadConfig - host-independent KYC document selection (storage 
       expect(Configuration.isSameKycBlob(undefined, liveMinioUrl)).toBe(false);
       expect(Configuration.isSameKycBlob(legacyAzureUrl, undefined)).toBe(false);
     });
+
+    // A URL without the container marker must not fall back to full-URL equality (that was the
+    // pre-cutover silent-drop bug). Fail loud so a malformed stored/live URL surfaces as an error
+    // instead of quietly excluding Handelsregisterauszug / Vollmacht from the compliance ZIP.
+    it('throws when a URL is missing the kyc/ container marker', () => {
+      const malformed = 'https://files.dfx.swiss/other-container/user/42/CommercialRegister/hr-auszug.pdf';
+      expect(() => Configuration.isSameKycBlob(malformed, liveMinioUrl)).toThrow(
+        /Unexpected KYC blob URL format \(missing 'kyc\/' marker\)/,
+      );
+      expect(() => Configuration.isSameKycBlob(legacyAzureUrl, malformed)).toThrow(
+        /Unexpected KYC blob URL format \(missing 'kyc\/' marker\)/,
+      );
+    });
   });
 
   describe('id 11 - Handelsregisterauszug', () => {
