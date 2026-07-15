@@ -268,9 +268,17 @@ export class BankTxService implements OnModuleInit {
 
     for (const entity of entities) {
       try {
+        // The matcher (BankTxOutgoingMatchService) treats a DEBIT row's `amount` as already
+        // charge-inclusive/gross (net-of-charge matching subtracts chargeAmount from it) - accounting
+        // must use the same convention instead of adding the charge back on top, or a charged Frick
+        // payout is double-counted. A CREDIT row's `amount` is charge-exclusive as received (the charge
+        // was already deducted before it arrived), so it still needs chargeAmount added back to recover
+        // the original, pre-charge amount - unchanged from before this PR.
+        const accountingCharge = entity.creditDebitIndicator === BankTxIndicator.CREDIT ? entity.chargeAmount : 0;
+
         if (![BankTxType.BUY_CRYPTO, BankTxType.BUY_FIAT].includes(entity.type)) {
           await this.bankTxRepo.update(entity.id, {
-            accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
+            accountingAmountBeforeFee: Util.roundReadable(entity.amount + accountingCharge, AmountType.FIAT),
           });
           continue;
         }
@@ -280,21 +288,21 @@ export class BankTxService implements OnModuleInit {
 
         if (entity.type === BankTxType.BUY_CRYPTO) {
           update.accountingFeePercent = entity.buyCrypto.percentFee;
-          update.accountingFeeAmount = update.accountingFeePercent * (entity.amount + entity.chargeAmount);
-          update.accountingAmountAfterFee = entity.amount + entity.chargeAmount - update.accountingFeeAmount;
+          update.accountingFeeAmount = update.accountingFeePercent * (entity.amount + accountingCharge);
+          update.accountingAmountAfterFee = entity.amount + accountingCharge - update.accountingFeeAmount;
           update.accountingAmountBeforeFeeChf = entity.buyCrypto.amountInChf;
           update.accountingAmountAfterFeeChf = entity.buyCrypto.amountInChf * (1 - update.accountingFeePercent);
         } else {
           update.accountingFeePercent = entity.buyFiats[0].percentFee;
           update.accountingFeeAmount =
-            update.accountingFeePercent * ((entity.amount + entity.chargeAmount) / (1 - update.accountingFeePercent));
-          update.accountingAmountAfterFee = entity.amount + entity.chargeAmount;
+            update.accountingFeePercent * ((entity.amount + accountingCharge) / (1 - update.accountingFeePercent));
+          update.accountingAmountAfterFee = entity.amount + accountingCharge;
           update.accountingAmountBeforeFeeChf = entity.buyFiats[0].amountInChf / (1 - update.accountingFeePercent);
           update.accountingAmountAfterFeeChf = entity.buyFiats[0].amountInChf;
         }
 
         await this.bankTxRepo.update(entity.id, {
-          accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
+          accountingAmountBeforeFee: Util.roundReadable(entity.amount + accountingCharge, AmountType.FIAT),
           accountingFeePercent: Util.roundReadable(update.accountingFeePercent, AmountType.FIAT),
           accountingFeeAmount: Util.roundReadable(update.accountingFeeAmount, AmountType.FIAT),
           accountingAmountAfterFee: Util.roundReadable(update.accountingAmountAfterFee, AmountType.FIAT),

@@ -53,7 +53,16 @@ export class FiatOutputFrickService {
             // (or was never accepted by) Bank Frick. Release the claim so transmitPayments can safely
             // retry with the same, still-deterministic customId - its own idempotent lookup-before-PUT
             // then either finds the order after all or creates it fresh.
-            await this.fiatOutputRepo.update(entity.id, { frickCustomId: null, frickError: null });
+            // Conditional, not unconditional-by-id: this snapshot's `entity.isTransmittedDate` can be
+            // stale by the time this write runs (the minutely transmitPayments may have reserved and
+            // transmitted this very row in between). Re-checking frickCustomId + isTransmittedDate IS
+            // NULL against the live row means the clear only takes effect if the row is still in exactly
+            // the state this branch observed - otherwise it's a no-op and the concurrent reservation
+            // stays visible to this status poller.
+            await this.fiatOutputRepo.update(
+              { id: entity.id, frickCustomId: entity.frickCustomId, isTransmittedDate: IsNull() },
+              { frickCustomId: null, frickError: null },
+            );
             continue;
           }
           throw error;
@@ -63,7 +72,18 @@ export class FiatOutputFrickService {
           order = await this.frickService.approvePaymentWithoutTan(order);
         }
 
-        const updateData = this.getFrickStatusUpdate(order, entity);
+        // Defense-in-depth for the atomic reserve+transmit write in transmitPayments: an order being
+        // found here proves it was actually created at Bank Frick, so if isTransmittedDate/frickReference
+        // are still missing on our side (a crash/DB blip hit between transmitPayments' two writes), heal
+        // them here instead of leaving the row permanently unmatched by reconciliation.
+        const reservationGapHeal: Partial<FiatOutput> = {
+          ...(!entity.isTransmittedDate && { isTransmittedDate: new Date() }),
+          ...(!entity.frickReference && {
+            frickReference: this.createUniqueReference(entity.frickCustomId, entity.remittanceInfo),
+          }),
+        };
+
+        const updateData = { ...reservationGapHeal, ...this.getFrickStatusUpdate(order, entity) };
         if (Object.keys(updateData).length > 0) await this.fiatOutputRepo.update(entity.id, updateData);
       } catch (error) {
         this.logger.error(`Failed to check Bank Frick order status for fiat output ${entity.id}:`, error);
@@ -116,10 +136,15 @@ export class FiatOutputFrickService {
         // deterministic (derived only from entity.id), so re-setting it to the same value on a
         // legitimate retry is inherently idempotent - the WHERE clause is what turns this into a
         // mutex: a concurrent tick (an overlapping cron window, or a second instance) sees affected=0
-        // and skips, so at most one caller ever reaches createPaymentOrder for this row.
+        // and skips, so at most one caller ever reaches createPaymentOrder for this row. frickReference
+        // is folded into this same atomic write (not deferred to the post-createPaymentOrder update
+        // below): it's already fully computed and is required for reconciliation
+        // (getMatchingBankTx uses frickReference ?? remittanceInfo) - if it only landed after the order
+        // was created at Bank Frick, a crash/DB blip between the two writes would leave the order live
+        // at the bank but frickReference NULL on our side, permanently stranding reconciliation.
         const reserved = await this.fiatOutputRepo.update(
           { id: entity.id, frickCustomId: IsNull() },
-          { frickCustomId: customId },
+          { frickCustomId: customId, frickReference },
         );
         if (reserved.affected !== 1) continue;
 
@@ -144,14 +169,13 @@ export class FiatOutputFrickService {
         });
         const safeOrderId = this.frickService.getSafeOrderId(order);
 
-        // frickCustomId is already durably reserved above. Persist the rest of the bank-side identity
-        // before any optional approval call - if approval fails, the status job continues with the
-        // stable customId and never creates another payment order. remittanceInfo is only ever filled
-        // when the business never set one at all (matching the Yapeal/Olkypay fallback pattern) -
-        // never overwritten with the bank-bound reference.
+        // frickCustomId and frickReference are already durably reserved above. Persist the rest of the
+        // bank-side identity before any optional approval call - if approval fails, the status job
+        // continues with the stable customId and never creates another payment order. remittanceInfo is
+        // only ever filled when the business never set one at all (matching the Yapeal/Olkypay fallback
+        // pattern) - never overwritten with the bank-bound reference.
         await this.fiatOutputRepo.update(entity.id, {
           ...(safeOrderId && { frickOrderId: safeOrderId }),
-          frickReference,
           charge: outputCharge,
           ...(!entity.remittanceInfo && { remittanceInfo: `DFX Payout ${entity.id}` }),
           isTransmittedDate: new Date(),

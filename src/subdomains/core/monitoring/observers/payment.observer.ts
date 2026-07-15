@@ -110,20 +110,26 @@ export class PaymentObserver extends MetricObserver<PaymentData> {
         ),
         created: LessThan(Util.hoursBefore(3)),
       }),
-      // Three independent stuck conditions, OR'd together:
-      // 1. Never transmitted (the original condition) - stale readiness.
+      // Three independent stuck conditions, OR'd together. `health.controller.ts` turns any
+      // stuckFiatOutputs > 0 into DEGRADED, so every clause here must be scoped as tightly as the
+      // condition it actually names - a clause that matches unrelated, long-settled non-Frick rows
+      // would misreport deploy-time health with zero Frick activity involved.
+      // 1. Never transmitted (the original condition) - stale readiness, any bank.
       // 2. A Bank Frick order reached a definitive terminal state without ever completing - the
       //    row already has isTransmittedDate set, so clause 1 alone can never see it.
-      // 3. Generic safety net: transmitted and still not complete after 48h, regardless of bank or
-      //    reason (e.g. an ambiguous/unmatched outgoing bank_tx) - catches anything clause 1 and 2
-      //    don't name explicitly. Deliberately 48h, not 24h: a legitimate SEPA/instant payout can
-      //    still be mid-settlement across a weekend or bank holiday at the 24h mark, and this clause
-      //    is a monitoring signal a human checks, not an automated action - a few extra hours of
-      //    detection latency is the right trade against false-positive alert noise.
+      // 3. Frick-specific safety net: a Frick payout (frickCustomId set) transmitted and still not
+      //    complete after 48h - catches an ambiguous/unmatched outgoing bank_tx for Frick that
+      //    clauses 1 and 2 don't name explicitly. Scoped to frickCustomId, not every bank: production
+      //    has months-old, perfectly settled non-Frick rows that would otherwise match this clause on
+      //    every check and report DEGRADED with no Frick activity at all. Deliberately 48h, not 24h:
+      //    a legitimate SEPA/instant payout can still be mid-settlement across a weekend or bank
+      //    holiday at the 24h mark, and this clause is a monitoring signal a human checks, not an
+      //    automated action - a few extra hours of detection latency is the right trade against
+      //    false-positive alert noise.
       stuckFiatOutputs: await this.repos.fiatOutput.countBy([
         { isReadyDate: LessThan(Util.hoursBefore(1)), isTransmittedDate: IsNull(), isComplete: false },
         { frickOrderStatus: In(FRICK_TERMINAL_STATES), isComplete: false },
-        { isTransmittedDate: LessThan(Util.hoursBefore(48)), isComplete: false },
+        { frickCustomId: Not(IsNull()), isTransmittedDate: LessThan(Util.hoursBefore(48)), isComplete: false },
       ]),
       pendingCustodyOrders: await this.repos.custodyOrder.countBy({
         status: CustodyOrderStatus.CONFIRMED,

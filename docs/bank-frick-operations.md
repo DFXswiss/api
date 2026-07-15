@@ -233,7 +233,10 @@ sandbox credentials:
    (`bank-tx-outgoing-match.service.ts`) assumes. If Bank Frick ever books net instead while still
    sending a `Chrgs` element, the matcher would subtract a phantom charge from an already-net amount
    and the payout would never reconcile - this can only be confirmed against a real booked statement,
-   not from the API documentation alone.
+   not from the API documentation alone. The matcher and `BankTxService.fillBankTx`'s accounting
+   (which now also treats a DEBIT row's `amount` as gross and does not add `chargeAmount` back on top)
+   both encode the same gross-booking assumption - if this verification ever concludes Bank Frick books
+   net instead, both must be re-aligned together, not just the matcher.
 9. Verify that a payment order just created via `PUT /transactions` is immediately visible through
    `GET /transactions?customId=...` (read-after-write). If Bank Frick can transiently return no
    result right after creation, the #6 self-heal in `checkFrickOrderStatus` could misread that as

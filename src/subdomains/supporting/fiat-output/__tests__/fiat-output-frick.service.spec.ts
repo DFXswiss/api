@@ -149,27 +149,30 @@ describe('FiatOutputFrickService', () => {
     expect(frickService.createPaymentOrder).toHaveBeenCalledWith(
       expect.objectContaining({ customId: 'DFX-FO-42', reference: 'DFX-FO-42 Synthetic payout' }),
     );
-    // Reserved atomically, before the Bank Frick call itself
+    // Reserved atomically, before the Bank Frick call itself. frickReference is folded into this same
+    // write (not deferred to the post-createPaymentOrder update below) so it can never be stranded by a
+    // crash between the two writes.
     expect(fiatOutputRepo.update).toHaveBeenNthCalledWith(
       1,
       { id: 42, frickCustomId: IsNull() },
-      { frickCustomId: 'DFX-FO-42' },
+      { frickCustomId: 'DFX-FO-42', frickReference: 'DFX-FO-42 Synthetic payout' },
     );
     expect((fiatOutputRepo.update as jest.Mock).mock.invocationCallOrder[0]).toBeLessThan(
       (frickService.createPaymentOrder as jest.Mock).mock.invocationCallOrder[0],
     );
     // remittanceInfo already had a value ('Synthetic payout') and must stay untouched - the bank-bound
-    // reference goes into frickReference instead.
+    // reference goes into frickReference instead, which is already durably set by the reserve above and
+    // must NOT be repeated/overwritten here.
     expect(fiatOutputRepo.update).toHaveBeenNthCalledWith(
       2,
       42,
       expect.objectContaining({
         frickOrderId: '4242',
-        frickReference: 'DFX-FO-42 Synthetic payout',
         isTransmittedDate: expect.any(Date),
       }),
     );
     expect((fiatOutputRepo.update as jest.Mock).mock.calls[1][1]).not.toHaveProperty('remittanceInfo');
+    expect((fiatOutputRepo.update as jest.Mock).mock.calls[1][1]).not.toHaveProperty('frickReference');
     expect((fiatOutputRepo.update as jest.Mock).mock.invocationCallOrder[1]).toBeLessThan(
       (frickService.approvePaymentWithoutTan as jest.Mock).mock.invocationCallOrder[0],
     );
@@ -201,9 +204,98 @@ describe('FiatOutputFrickService', () => {
     await service.transmitPayments();
 
     expect(fiatOutputRepo.update).toHaveBeenCalledWith(
-      42,
-      expect.objectContaining({ frickReference: 'DFX-FO-42', remittanceInfo: 'DFX Payout 42' }),
+      { id: 42, frickCustomId: IsNull() },
+      expect.objectContaining({ frickReference: 'DFX-FO-42' }),
     );
+    expect(fiatOutputRepo.update).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({ remittanceInfo: 'DFX Payout 42' }),
+    );
+  });
+
+  it('persists frickReference in the atomic reserve so it is never stranded by a failure in the later, non-atomic update (crash/DB-blip after the order was already created at Bank Frick)', async () => {
+    Config.bank.frick.payoutEnabled = true;
+    jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+    jest.spyOn(frickService, 'createPaymentOrder').mockResolvedValue(order);
+    jest.spyOn(frickService, 'getSafeOrderId').mockReturnValue('4242');
+    // The reserve (1st update) still succeeds; the post-createPaymentOrder (2nd) update is what fails here.
+    (fiatOutputRepo.update as jest.Mock)
+      .mockReset()
+      .mockResolvedValueOnce({ affected: 1, raw: {}, generatedMaps: [] })
+      .mockRejectedValueOnce(new Error('synthetic DB blip'));
+    jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+      createCustomFiatOutput({
+        id: 42,
+        amount: 10,
+        currency: 'EUR',
+        accountIban: 'SYNTHETIC-DEBTOR',
+        name: 'Synthetic Recipient',
+        iban: 'SYNTHETIC-CREDITOR',
+        remittanceInfo: 'Synthetic payout',
+        bank: createCustomBank({ name: IbanBankName.FRICK }),
+      }),
+    ]);
+
+    await service.transmitPayments();
+
+    // The order WAS already created at Bank Frick (createPaymentOrder resolved) by the time the 2nd
+    // update fails - frickReference must already be durably persisted from the 1st (reserve) call, or
+    // reconciliation (frickReference ?? remittanceInfo) can never match the resulting bank debit.
+    expect(fiatOutputRepo.update).toHaveBeenNthCalledWith(
+      1,
+      { id: 42, frickCustomId: IsNull() },
+      { frickCustomId: 'DFX-FO-42', frickReference: 'DFX-FO-42 Synthetic payout' },
+    );
+  });
+
+  it("re-persists isTransmittedDate and frickReference when a found order reveals a gap left by a crash between transmitPayments' two writes", async () => {
+    jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+    jest.spyOn(frickService, 'getPaymentOrder').mockResolvedValue({ ...order, state: FrickPaymentState.IN_PROGRESS });
+    jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+      createCustomFiatOutput({
+        id: 42,
+        frickCustomId: 'DFX-FO-42',
+        remittanceInfo: 'Synthetic payout',
+        frickReference: undefined,
+        isTransmittedDate: undefined,
+        isComplete: false,
+      }),
+    ]);
+
+    await service.checkFrickOrderStatus();
+
+    // Bank Frick actually has this order (getPaymentOrder resolved), so the crash must have happened
+    // between transmitPayments' reserve and its second write - heal both gaps here instead of leaving
+    // the row permanently unmatched by reconciliation and permanently "not yet transmitted" for the
+    // stuckFiatOutputs monitor.
+    expect(fiatOutputRepo.update).toHaveBeenCalledWith(
+      42,
+      expect.objectContaining({
+        isTransmittedDate: expect.any(Date),
+        frickReference: 'DFX-FO-42 Synthetic payout',
+      }),
+    );
+  });
+
+  it('does not overwrite an already-set isTransmittedDate/frickReference during a routine status poll', async () => {
+    jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+    jest.spyOn(frickService, 'getPaymentOrder').mockResolvedValue({ ...order, state: FrickPaymentState.IN_PROGRESS });
+    const alreadyTransmitted = new Date('2026-01-01');
+    jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+      createCustomFiatOutput({
+        id: 42,
+        frickCustomId: 'DFX-FO-42',
+        frickReference: 'DFX-FO-42 already-set',
+        isTransmittedDate: alreadyTransmitted,
+        isComplete: false,
+      }),
+    ]);
+
+    await service.checkFrickOrderStatus();
+
+    const call = (fiatOutputRepo.update as jest.Mock).mock.calls.find((c) => c[0] === 42);
+    expect(call[1]).not.toHaveProperty('isTransmittedDate');
+    expect(call[1]).not.toHaveProperty('frickReference');
   });
 
   it('does not create a second payment order when the reservation update reports zero affected rows', async () => {
@@ -244,8 +336,39 @@ describe('FiatOutputFrickService', () => {
 
     await service.checkFrickOrderStatus();
 
-    expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, { frickCustomId: null, frickError: null });
+    // Conditional on the exact reserved state, not an unconditional-by-id clear: guards against the
+    // clear firing after a concurrent transmitPayments reserved/transmitted the very same row in
+    // between this snapshot and this write (see the dedicated race test below).
+    expect(fiatOutputRepo.update).toHaveBeenCalledWith(
+      { id: 42, frickCustomId: 'DFX-FO-42', isTransmittedDate: IsNull() },
+      { frickCustomId: null, frickError: null },
+    );
     expect(frickService.approvePaymentWithoutTan).not.toHaveBeenCalled();
+  });
+
+  it('scopes the not-found self-heal clear to a conditional update instead of clearing unconditionally by id (guards against racing with a concurrent transmitPayments reservation)', async () => {
+    jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
+    jest.spyOn(frickService, 'getPaymentOrder').mockRejectedValue(new FrickPaymentOrderNotFoundError('DFX-FO-42'));
+    // Simulates a concurrent transmitPayments tick having already reserved+transmitted this row between
+    // this job's SELECT and this UPDATE: the conditional WHERE no longer matches, so the clear is a no-op.
+    (fiatOutputRepo.update as jest.Mock).mockReset().mockResolvedValueOnce({ affected: 0, raw: {}, generatedMaps: [] });
+    jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+      createCustomFiatOutput({
+        id: 42,
+        frickCustomId: 'DFX-FO-42',
+        isTransmittedDate: undefined,
+        isComplete: false,
+      }),
+    ]);
+
+    await service.checkFrickOrderStatus();
+
+    expect(fiatOutputRepo.update).toHaveBeenCalledWith(
+      { id: 42, frickCustomId: 'DFX-FO-42', isTransmittedDate: IsNull() },
+      { frickCustomId: null, frickError: null },
+    );
+    // Not called with the old unconditional-by-id form.
+    expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(42, { frickCustomId: null, frickError: null });
   });
 
   it('keeps frickCustomId and does not roll back on a non-not-found status error, even before transmission was confirmed', async () => {
@@ -262,7 +385,10 @@ describe('FiatOutputFrickService', () => {
 
     await service.checkFrickOrderStatus();
 
-    expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(42, { frickCustomId: null, frickError: null });
+    expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(expect.anything(), {
+      frickCustomId: null,
+      frickError: null,
+    });
     expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, {
       frickError: 'FRICK status error: synthetic transport failure',
     });
@@ -282,7 +408,10 @@ describe('FiatOutputFrickService', () => {
 
     await service.checkFrickOrderStatus();
 
-    expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(42, { frickCustomId: null, frickError: null });
+    expect(fiatOutputRepo.update).not.toHaveBeenCalledWith(expect.anything(), {
+      frickCustomId: null,
+      frickError: null,
+    });
     expect(fiatOutputRepo.update).toHaveBeenCalledWith(42, {
       frickError: `FRICK status error: Bank Frick payment order DFX-FO-42 not found`,
     });
@@ -421,6 +550,8 @@ describe('FiatOutputFrickService', () => {
       createCustomFiatOutput({
         id: 42,
         frickCustomId: 'DFX-FO-42',
+        isTransmittedDate: new Date('2026-01-01'),
+        frickReference: 'DFX-FO-42 existing',
         isComplete: false,
         info: 'FRICK manual operations hold',
       }),
@@ -511,6 +642,8 @@ describe('FiatOutputFrickService', () => {
         id: 42,
         frickCustomId: 'DFX-FO-42',
         isApprovedDate: new Date('2026-07-01'),
+        isTransmittedDate: new Date('2026-01-01'),
+        frickReference: 'DFX-FO-42 existing',
         isComplete: false,
         info: undefined,
       }),
@@ -685,9 +818,15 @@ describe('FiatOutputFrickService', () => {
       ...order,
       state: FrickPaymentState.REJECTED,
     });
-    jest
-      .spyOn(fiatOutputRepo, 'find')
-      .mockResolvedValue([createCustomFiatOutput({ id: 42, frickCustomId: 'DFX-FO-42', isComplete: false })]);
+    jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+      createCustomFiatOutput({
+        id: 42,
+        frickCustomId: 'DFX-FO-42',
+        isTransmittedDate: new Date('2026-01-01'),
+        frickReference: 'DFX-FO-42 existing',
+        isComplete: false,
+      }),
+    ]);
 
     await service.checkFrickOrderStatus();
 
@@ -753,6 +892,8 @@ describe('FiatOutputFrickService', () => {
       createCustomFiatOutput({
         id: 42,
         frickCustomId: 'DFX-FO-42',
+        isTransmittedDate: new Date('2026-01-01'),
+        frickReference: 'DFX-FO-42 existing',
         isComplete: false,
         frickOrderStatus: FrickPaymentState.DELETION_REQUESTED,
       }),
@@ -796,9 +937,15 @@ describe('FiatOutputFrickService', () => {
     Config.bank.frick.approveWithoutTan = false;
     jest.spyOn(frickService, 'isAvailable').mockReturnValue(true);
     jest.spyOn(frickService, 'getPaymentOrder').mockResolvedValue(order); // order.state === PREPARED
-    jest
-      .spyOn(fiatOutputRepo, 'find')
-      .mockResolvedValue([createCustomFiatOutput({ id: 42, frickCustomId: 'DFX-FO-42', isComplete: false })]);
+    jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([
+      createCustomFiatOutput({
+        id: 42,
+        frickCustomId: 'DFX-FO-42',
+        isTransmittedDate: new Date('2026-01-01'),
+        frickReference: 'DFX-FO-42 existing',
+        isComplete: false,
+      }),
+    ]);
 
     await service.checkFrickOrderStatus();
 
