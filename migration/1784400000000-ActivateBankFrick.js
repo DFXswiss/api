@@ -149,9 +149,12 @@ module.exports = class ActivateBankFrick1784400000000 {
       )::text, "updated" = NOW()
     `);
 
-    // Restore the legacy rows' name (runbook §3.2 rollback). Scoped symmetrically to up()'s rename
-    // (dormant rows only, excluding the two new IBANs) so it reverts exactly what up() renamed and
-    // never touches an unrelated, pre-existing '(legacy)'-named row.
+    // Restore the legacy rows' name (runbook §3.2 rollback), scoped to dormant rows only, excluding
+    // the two new IBANs. This is not a strict inverse of up(): up() only renames rows named exactly
+    // 'Bank Frick', so a dormant row already named 'Bank Frick (legacy)' before this migration would
+    // also be renamed here. That does not occur in the decided rollout (the legacy Frick rows are
+    // named 'Bank Frick', per the runbook); a distinguishing marker would be required for a strict
+    // inverse.
     await queryRunner.query(`
       UPDATE "bank" SET "name" = 'Bank Frick'
       WHERE "name" = 'Bank Frick (legacy)'
