@@ -104,22 +104,28 @@ export class S3StorageService extends StorageService {
     S3StorageService.objectLockVerified.add(this.container);
   }
 
-  async copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<void> {
+  async copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<string[]> {
+    await this.assertObjectLockEnabled();
     // copy needs only the keys, not metadata — avoid the per-object HeadObject fan-out.
     const keys = await this.listKeys(sourcePrefix);
+    const targetKeys: string[] = [];
 
     for (const key of keys) {
+      const targetKey = key.replace(sourcePrefix, targetPrefix);
       await this.client.send(
         new CopyObjectCommand({
           Bucket: this.container,
-          Key: key.replace(sourcePrefix, targetPrefix),
+          Key: targetKey,
           CopySource: `${this.container}/${this.encodeKey(key)}`, // key must be URL-encoded
         }),
       );
+      targetKeys.push(targetKey);
     }
+
+    return targetKeys;
   }
 
-  private async listKeys(prefix?: string): Promise<string[]> {
+  async listKeys(prefix?: string): Promise<string[]> {
     const keys: string[] = [];
 
     let token: string | undefined;

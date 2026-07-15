@@ -69,6 +69,23 @@ describe('MockStorageService', () => {
     });
   });
 
+  describe('listKeys', () => {
+    it('filters by prefix and returns plain key strings', async () => {
+      const service = new MockStorageService('mock-spec-keys');
+      await service.uploadBlob('user/1/a.png', Buffer.from('a'), 'image/png');
+      await service.uploadBlob('user/1/b.pdf', Buffer.from('b'), 'application/pdf');
+      await service.uploadBlob('user/2/c.png', Buffer.from('c'), 'image/png');
+
+      expect((await service.listKeys('user/1/')).sort()).toEqual(['user/1/a.png', 'user/1/b.pdf']);
+    });
+
+    it('returns [] when nothing matches the prefix', async () => {
+      const service = new MockStorageService('mock-spec-keys-empty');
+
+      expect(await service.listKeys('nope/')).toEqual([]);
+    });
+  });
+
   describe('getBlob dummy-file fallback', () => {
     const service = new MockStorageService('mock-spec-dummy');
 
@@ -115,7 +132,9 @@ describe('MockStorageService', () => {
       await service.uploadBlob('src/a.png', Buffer.from('a'), 'image/png', { k: 'v' });
       await service.uploadBlob('src/sub/b.pdf', Buffer.from('b'), 'application/pdf');
 
-      await service.copyBlobs('src/', 'dst/');
+      const targetKeys = await service.copyBlobs('src/', 'dst/');
+
+      expect(targetKeys.sort()).toEqual(['dst/a.png', 'dst/sub/b.pdf']);
 
       const copied = await service.listBlobs('dst/');
       expect(copied.map((b) => b.name).sort()).toEqual(['dst/a.png', 'dst/sub/b.pdf']);

@@ -276,13 +276,20 @@ describe('S3StorageService', () => {
   });
 
   describe('copyBlobs', () => {
+    beforeEach(() => {
+      s3Mock
+        .on(GetObjectLockConfigurationCommand, { Bucket: CONTAINER })
+        .resolves({ ObjectLockConfiguration: { ObjectLockEnabled: 'Enabled' } });
+    });
+
     it('URL-encodes keys with spaces / special chars and rewrites the prefix', async () => {
       const key = 'src/sub dir/file (1)+&.png';
       s3Mock.on(ListObjectsV2Command).resolves({ Contents: [{ Key: key }], IsTruncated: false });
       s3Mock.on(CopyObjectCommand).resolves({});
 
-      await new S3StorageService(CONTAINER).copyBlobs('src/', 'dst/');
+      const targetKeys = await new S3StorageService(CONTAINER).copyBlobs('src/', 'dst/');
 
+      expect(targetKeys).toEqual(['dst/sub dir/file (1)+&.png']);
       const calls = s3Mock.commandCalls(CopyObjectCommand);
       expect(calls).toHaveLength(1);
       expect(calls[0].args[0].input).toMatchObject({
@@ -299,8 +306,9 @@ describe('S3StorageService', () => {
       s3Mock.on(ListObjectsV2Command).resolves({ Contents: [{ Key: 'src/a' }, { Key: 'src/b' }], IsTruncated: false });
       s3Mock.on(CopyObjectCommand).resolves({});
 
-      await new S3StorageService(CONTAINER).copyBlobs('src/', 'dst/');
+      const targetKeys = await new S3StorageService(CONTAINER).copyBlobs('src/', 'dst/');
 
+      expect(targetKeys).toEqual(['dst/a', 'dst/b']);
       const keys = s3Mock.commandCalls(CopyObjectCommand).map((c) => c.args[0].input.Key);
       expect(keys).toEqual(['dst/a', 'dst/b']);
     });
@@ -308,7 +316,21 @@ describe('S3StorageService', () => {
     it('does nothing for an empty source prefix', async () => {
       s3Mock.on(ListObjectsV2Command).resolves({ Contents: [], IsTruncated: false });
 
-      await new S3StorageService(CONTAINER).copyBlobs('src/', 'dst/');
+      const targetKeys = await new S3StorageService(CONTAINER).copyBlobs('src/', 'dst/');
+
+      expect(targetKeys).toEqual([]);
+      expect(s3Mock.commandCalls(CopyObjectCommand)).toHaveLength(0);
+    });
+
+    it('fails closed and does NOT copy when Object Lock is not enabled on the bucket', async () => {
+      const container = 'copy-worm-unlocked';
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({ ObjectLockConfiguration: {} });
+      s3Mock.on(ListObjectsV2Command).resolves({ Contents: [{ Key: 'src/a' }], IsTruncated: false });
+      s3Mock.on(CopyObjectCommand).resolves({});
+
+      await expect(new S3StorageService(container).copyBlobs('src/', 'dst/')).rejects.toThrow(
+        'Object Lock is not enabled',
+      );
 
       expect(s3Mock.commandCalls(CopyObjectCommand)).toHaveLength(0);
     });

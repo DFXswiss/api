@@ -31,9 +31,12 @@ export abstract class StorageService {
   constructor(protected readonly container: string) {}
 
   abstract listBlobs(prefix?: string): Promise<Blob[]>;
+  /** Keys only, no per-object metadata fetch — cheap for large buckets (e.g. reconciliation diffing). */
+  abstract listKeys(prefix?: string): Promise<string[]>;
   abstract getBlob(name: string): Promise<BlobContent>;
   abstract uploadBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string>;
-  abstract copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<void>;
+  /** Copies every object under `sourcePrefix` to `targetPrefix` and returns the TARGET keys of every object copied. */
+  abstract copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<string[]>;
 
   /**
    * WORM sink for GeBüV-retention-relevant compliance records (e.g. EP2 settlement reports written

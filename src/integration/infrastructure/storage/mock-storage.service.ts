@@ -47,6 +47,14 @@ export class MockStorageService extends StorageService {
       });
   }
 
+  async listKeys(prefix?: string): Promise<string[]> {
+    const keyPrefix = `${this.container}/${prefix ?? ''}`;
+
+    return [...mockStorage.keys()]
+      .filter((key) => key.startsWith(keyPrefix))
+      .map((key) => key.replace(`${this.container}/`, ''));
+  }
+
   async getBlob(name: string): Promise<BlobContent> {
     const stored = mockStorage.get(`${this.container}/${name}`);
     if (stored)
@@ -87,15 +95,16 @@ export class MockStorageService extends StorageService {
     return this.blobUrl(name);
   }
 
-  async copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<void> {
+  async copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<string[]> {
+    const targetKeys: string[] = [];
+
     for (const blob of await this.listBlobs(sourcePrefix)) {
       const content = await this.getBlob(blob.name);
-      await this.uploadBlob(
-        blob.name.replace(sourcePrefix, targetPrefix),
-        content.data,
-        content.contentType,
-        blob.metadata,
-      );
+      const targetKey = blob.name.replace(sourcePrefix, targetPrefix);
+      await this.uploadBlob(targetKey, content.data, content.contentType, blob.metadata);
+      targetKeys.push(targetKey);
     }
+
+    return targetKeys;
   }
 }

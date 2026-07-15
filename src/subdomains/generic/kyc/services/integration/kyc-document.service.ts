@@ -121,7 +121,7 @@ export class KycDocumentService {
 
     const blobName = this.toFileId(FileCategory.USER, userData.id, type, name);
 
-    const url = await this.storageService.uploadBlob(blobName, data, contentType, metadata);
+    const url = await this.storageService.uploadWormBlob(blobName, data, contentType, metadata);
 
     // GeBüV anchoring (Stage 3): record the content hash of the just-uploaded KYC document
     // (a retention-relevant compliance bucket) so it can later be Merkle-batched and anchored.
@@ -142,12 +142,26 @@ export class KycDocumentService {
   }
 
   async copyFiles(sourceUserDataId: number, targetUserDataId: number): Promise<void> {
-    await this.storageService.copyBlobs(`spider/${sourceUserDataId}/`, `spider/${targetUserDataId}/`);
-    await this.storageService.copyBlobs(
-      `spider/${sourceUserDataId}-organization/`,
-      `spider/${targetUserDataId}-organization/`,
-    );
-    await this.storageService.copyBlobs(`user/${sourceUserDataId}/`, `user/${targetUserDataId}/`);
+    await this.copyAndAnchor(`spider/${sourceUserDataId}/`, `spider/${targetUserDataId}/`);
+    await this.copyAndAnchor(`spider/${sourceUserDataId}-organization/`, `spider/${targetUserDataId}-organization/`);
+    await this.copyAndAnchor(`user/${sourceUserDataId}/`, `user/${targetUserDataId}/`);
+  }
+
+  // GeBüV anchoring (Stage 3): a copy made by copyBlobs is a fresh WORM write just like an
+  // upload, so it must be recorded the same way uploadFile does — otherwise a merged account's
+  // copied documents would never get a time anchor. Best-effort per file, same as uploadFile:
+  // failures are logged (never silently swallowed) but never abort the remaining copies.
+  private async copyAndAnchor(sourcePrefix: string, targetPrefix: string): Promise<void> {
+    const targetKeys = await this.storageService.copyBlobs(sourcePrefix, targetPrefix);
+
+    for (const targetKey of targetKeys) {
+      try {
+        const blob = await this.storageService.getBlob(targetKey);
+        await this.archiveService.recordHash(KYC_CONTAINER, targetKey, sha256(blob.data).toString('hex'));
+      } catch (e) {
+        this.logger.error(`GeBüV anchoring failed to record hash for ${KYC_CONTAINER}/${targetKey}:`, e);
+      }
+    }
   }
 
   // --- HELPER METHODS --- //
