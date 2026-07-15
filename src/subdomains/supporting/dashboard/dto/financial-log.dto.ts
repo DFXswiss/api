@@ -3,6 +3,9 @@ export class FinancialLogEntryDto {
   totalBalanceChf: number;
   plusBalanceChf: number;
   minusBalanceChf: number;
+  // per-interval price effect (FX P&L) of the open positions vs. the previous snapshot; 0 for entries
+  // logged before this field existed (see BalancesTotal.fxPnlChf).
+  fxPnlChf: number;
   btcPriceChf: number;
   balancesByType: Record<string, { plusBalanceChf: number; minusBalanceChf: number }>;
 }

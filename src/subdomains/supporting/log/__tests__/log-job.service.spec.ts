@@ -269,6 +269,142 @@ describe('LogJobService', () => {
     });
   });
 
+  describe('getFxPnlChf (per-interval price effect of open positions)', () => {
+    // a short BTC leg and a long USD leg, priced up and down respectively, plus a non-financialType asset
+    // whose price also moves and must therefore be excluded from the FX total.
+    const assets = [
+      createCustomAsset({ id: 1, financialType: 'BTC' }),
+      createCustomAsset({ id: 2, financialType: 'USD' }),
+      createCustomAsset({ id: 3 }), // no financialType -> excluded
+    ];
+
+    it('sums previous net position times the CHF price change, only over financialType assets', () => {
+      const prev = {
+        assets: {
+          1: { plusBalance: { total: 0 }, minusBalance: { total: 1.7 }, priceChf: 50000 }, // net short 1.7 BTC
+          2: { plusBalance: { total: 250000 }, minusBalance: { total: 0 }, priceChf: 0.9 }, // net long 250k USD
+          3: { plusBalance: { total: 1000 }, minusBalance: { total: 0 }, priceChf: 10 }, // excluded (no financialType)
+        },
+      } as any;
+      const assetLog = {
+        1: { priceChf: 51000 }, // +1000 -> short leg marks down -1700
+        2: { priceChf: 0.88 }, // -0.02 -> long leg marks down -5000
+        3: { priceChf: 1000 }, // large move, but must not count
+      } as any;
+
+      // -1.7 * (51000 - 50000) + 250000 * (0.88 - 0.90) = -1700 + -5000 = -6700; asset 3 filtered out
+      expect(service['getFxPnlChf'](prev, assetLog, assets)).toBeCloseTo(-6700, 4);
+    });
+
+    it('returns undefined when there is no predecessor snapshot to diff against (first entry)', () => {
+      expect(service['getFxPnlChf'](undefined, {} as any, assets)).toBeUndefined();
+      // a predecessor log without an assets map is equally unusable as a reference point
+      expect(service['getFxPnlChf']({ balancesTotal: {} } as any, {} as any, assets)).toBeUndefined();
+    });
+
+    it('ignores positions absent from either snapshot (new and closed positions carry no price effect)', () => {
+      const prev = {
+        assets: {
+          1: { plusBalance: { total: 2 }, minusBalance: { total: 0 }, priceChf: 50000 }, // present both sides
+          2: { plusBalance: { total: 100 }, minusBalance: { total: 0 }, priceChf: 10 }, // closed: gone from current
+        },
+      } as any;
+      const assetLog = {
+        1: { priceChf: 50100 }, // +100 -> 2 * 100 = 200
+        4: { priceChf: 999 }, // new position: not in prev -> ignored
+      } as any;
+      const withNewAndClosed = [
+        createCustomAsset({ id: 1, financialType: 'BTC' }),
+        createCustomAsset({ id: 2, financialType: 'BTC' }), // closed since the previous snapshot
+        createCustomAsset({ id: 4, financialType: 'BTC' }), // newly entered
+      ];
+
+      // only asset 1 is in both snapshots: 2 * (50100 - 50000) = 200
+      expect(service['getFxPnlChf'](prev, assetLog, withNewAndClosed)).toBeCloseTo(200, 4);
+    });
+
+    it('skips an asset without a usable price on either side', () => {
+      const prev = {
+        assets: {
+          1: { plusBalance: { total: 2 }, minusBalance: { total: 0 }, priceChf: undefined }, // no previous price
+          2: { plusBalance: { total: 2 }, minusBalance: { total: 0 }, priceChf: 100 },
+        },
+      } as any;
+      const assetLog = {
+        1: { priceChf: 100 },
+        2: { priceChf: undefined }, // no current price
+      } as any;
+      const twoAssets = [
+        createCustomAsset({ id: 1, financialType: 'BTC' }),
+        createCustomAsset({ id: 2, financialType: 'BTC' }),
+      ];
+
+      expect(service['getFxPnlChf'](prev, assetLog, twoAssets)).toBe(0);
+    });
+  });
+
+  describe('saveTradingLog (FX P&L component)', () => {
+    function setupFxPnl(params: { assets: Asset[]; assetLog: Record<number, unknown>; lastMessage: object }) {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue(params.assetLog);
+      // mock the bucket aggregation so the FX assertion is isolated from balance summation; a healthy
+      // finite total keeps safety mode and the valid flag out of the way.
+      jest.spyOn(service as any, 'getBalancesByFinancialType').mockReturnValue({
+        BTC: { plusBalance: 0, plusBalanceChf: 200000, minusBalance: 0, minusBalanceChf: 0 },
+      });
+      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue(params.assets as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(100 as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      jest
+        .spyOn(logService, 'maxEntity')
+        .mockResolvedValue({ created: new Date(), message: JSON.stringify(params.lastMessage) } as any);
+      return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    function financialLog(createSpy: jest.SpyInstance) {
+      const call = createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog');
+      return JSON.parse(call[0].message);
+    }
+
+    it('writes the price effect of the open positions since the previous snapshot into balancesTotal', async () => {
+      const createSpy = setupFxPnl({
+        assets: [
+          createCustomAsset({ id: 1, financialType: 'BTC' }),
+          createCustomAsset({ id: 2, financialType: 'USD' }),
+        ],
+        assetLog: {
+          1: { priceChf: 51000, plusBalance: { total: 0 }, minusBalance: { total: 1.7 } },
+          2: { priceChf: 0.88, plusBalance: { total: 250000 }, minusBalance: { total: 0 } },
+        },
+        lastMessage: {
+          balancesTotal: { totalBalanceChf: 200000 },
+          assets: {
+            1: { plusBalance: { total: 0 }, minusBalance: { total: 1.7 }, priceChf: 50000 },
+            2: { plusBalance: { total: 250000 }, minusBalance: { total: 0 }, priceChf: 0.9 },
+          },
+        },
+      });
+
+      await service.saveTradingLog();
+
+      // -1.7*(51000-50000) + 250000*(0.88-0.90) = -1700 + -5000 = -6700 (rounded to 2 dp, negative preserved)
+      expect(financialLog(createSpy).balancesTotal.fxPnlChf).toBe(-6700);
+    });
+
+    it('omits fxPnlChf when the previous snapshot has no assets to diff against (first entry)', async () => {
+      const createSpy = setupFxPnl({
+        assets: [createCustomAsset({ id: 1, financialType: 'BTC' })],
+        assetLog: { 1: { priceChf: 51000, plusBalance: { total: 1 }, minusBalance: { total: 0 } } },
+        lastMessage: { balancesTotal: { totalBalanceChf: 200000 } }, // no assets map -> no reference point
+      });
+
+      await service.saveTradingLog();
+
+      expect(financialLog(createSpy).balancesTotal).not.toHaveProperty('fxPnlChf');
+    });
+  });
+
   describe('safety mode (fail closed on non-finite total)', () => {
     function setup(buckets: Record<string, unknown>, minTotalBalanceChf: number) {
       jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});

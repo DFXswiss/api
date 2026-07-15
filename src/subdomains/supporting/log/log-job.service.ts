@@ -160,7 +160,13 @@ export class LogJobService {
       await this.processService.setSafetyModeActive(safetyModeActive);
 
       const lastLog = await this.logService.maxEntity('LogService', 'FinancialDataLog', LogSeverity.INFO, true);
-      const lastTotalBalance = (JSON.parse(lastLog.message) as FinanceLog).balancesTotal.totalBalanceChf;
+      const lastFinanceLog = JSON.parse(lastLog.message) as FinanceLog;
+      const lastTotalBalance = lastFinanceLog.balancesTotal.totalBalanceChf;
+
+      // price effect (FX P&L) of the open positions since the previous snapshot; undefined on the first
+      // entry (no reference point). Pure arithmetic over already-parsed data (see getFxPnlChf), so it is
+      // deliberately left outside any try/catch — it cannot throw and a wrapping catch would only mask a bug.
+      const fxPnlChf = this.getFxPnlChf(lastFinanceLog, assetLog, assets);
 
       await this.logService.create({
         system: 'LogService',
@@ -177,6 +183,10 @@ export class LogJobService {
             plusBalanceChf: this.getJsonValue(plusBalanceChf, AmountType.FIAT, true, true),
             minusBalanceChf: this.getJsonValue(minusBalanceChf, AmountType.FIAT, true, true),
             totalBalanceChf: this.getJsonValue(totalBalanceChf, AmountType.FIAT, true, true),
+            // per-interval price effect vs. the previous snapshot, rounded like its neighbours (FIAT,
+            // returnNegativeValue so a negative drift stays numeric). Left undefined when there is no
+            // predecessor to diff against; JSON.stringify then drops the key (absence, not a false 0).
+            fxPnlChf: fxPnlChf === undefined ? undefined : this.getJsonValue(fxPnlChf, AmountType.FIAT, true, true),
           },
         }),
         // jump vs. the last VALID entry (lastLog above), not the direct predecessor; must be
@@ -238,6 +248,40 @@ export class LogJobService {
 
       return acc;
     }, {});
+  }
+
+  // Per-interval price effect (FX P&L) of the open book: for each asset that carried a net position in the
+  // previous snapshot, its previous net (plusBalance.total − minusBalance.total) times the change in its CHF
+  // price since then. Equity drifts on open positions while orders are in flight (case 2 in BalancesTotal);
+  // this isolates that FX component so ΔtotalBalanceChf can be split into transactional yield vs. FX vs. errors.
+  //
+  // Only assets with a financialType are counted (same filter as getBalancesByFinancialType). A position
+  // absent from EITHER snapshot contributes no price effect: new positions enter the book via flows (which
+  // are balance-neutral), not via FX, and a closed position has no mark left to move. Assets lacking a usable
+  // price on either side are likewise skipped, as no price effect is derivable.
+  //
+  // Returns undefined when there is no predecessor snapshot, so the caller omits the field instead of writing
+  // a false 0 for the very first entry. This is pure arithmetic over already-parsed data (the predecessor
+  // FinanceLog and the freshly built assetLog), so it cannot throw and deliberately carries no try/catch — a
+  // wrapping catch would only mask a logic error while adding nothing to the resilience of the log write.
+  private getFxPnlChf(prevFinanceLog: FinanceLog | undefined, assetLog: AssetLog, assets: Asset[]): number | undefined {
+    const prevAssets = prevFinanceLog?.assets;
+    if (!prevAssets) return undefined;
+
+    return assets
+      .filter((a) => a.financialType)
+      .reduce((sum, asset) => {
+        const prev = prevAssets[asset.id];
+        const now = assetLog[asset.id];
+        if (!prev || !now) return sum;
+
+        const pPrev = prev.priceChf;
+        const pNow = now.priceChf;
+        if (pPrev == null || pNow == null) return sum;
+
+        const netPrev = (prev.plusBalance?.total ?? 0) - (prev.minusBalance?.total ?? 0);
+        return sum + netPrev * (pNow - pPrev);
+      }, 0);
   }
 
   // open referral-credit liability (EUR-denominated), booked as a synthetic financialType bucket so it

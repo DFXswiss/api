@@ -255,6 +255,7 @@ export class DashboardFinancialService {
         totalBalanceChf: financeLog.balancesTotal?.totalBalanceChf ?? 0,
         plusBalanceChf: financeLog.balancesTotal?.plusBalanceChf ?? 0,
         minusBalanceChf: financeLog.balancesTotal?.minusBalanceChf ?? 0,
+        fxPnlChf: financeLog.balancesTotal?.fxPnlChf ?? 0,
         btcPriceChf,
         balancesByType,
       };
