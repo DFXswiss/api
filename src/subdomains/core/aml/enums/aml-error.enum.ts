@@ -71,6 +71,7 @@ export enum AmlError {
   BANK_TX_CUSTOMER_NAME_MISSING = 'BankTxCustomerNameMissing',
   FORCE_MANUAL_CHECK = 'ForceManualCheck',
   SCORECHAIN_HIGH_RISK = 'ScorechainHighRisk',
+  SCORECHAIN_UNAVAILABLE = 'ScorechainUnavailable',
   ASSET_INPUT_NOT_ALLOWED = 'AssetInputNotAllowed',
   REFERRAL_NO_TRADE_HISTORY = 'ReferralNoTradeHistory',
 }
@@ -382,6 +383,16 @@ export const AmlErrorResult: {
   // `comment` (AmlError name "ScorechainHighRisk"), which is never exposed externally — see the
   // `comment` field docs on BuyCrypto/BuyFiat.
   [AmlError.SCORECHAIN_HIGH_RISK]: {
+    type: AmlErrorType.CRUCIAL,
+    amlCheck: CheckStatus.PENDING,
+    amlReason: AmlReason.MANUAL_CHECK,
+  },
+  // Screening yielded no usable verdict (provider 5xx/timeout, quota reached, misconfiguration): fail-closed
+  // to manual review, but NOT a Scorechain hit. Depending on the cause there is either no screening row and
+  // no compliance PDF at all (transport/quota error), or a persisted row whose score could not be evaluated
+  // (missing risk threshold) — never a scored hit.
+  // amlReason stays the generic MANUAL_CHECK (no tipping-off, same public story as any other manual hold).
+  [AmlError.SCORECHAIN_UNAVAILABLE]: {
     type: AmlErrorType.CRUCIAL,
     amlCheck: CheckStatus.PENDING,
     amlReason: AmlReason.MANUAL_CHECK,
