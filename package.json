@@ -20,7 +20,7 @@
     "test": "jest --silent",
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
-    "test:frick:cov": "jest integration/bank/services/__tests__/frick.service.spec.ts integration/bank/services/__tests__/iso20022.service.spec.ts config/__tests__/frick.config.spec.ts config/__tests__/bank-frick-config.spec.ts subdomains/supporting/bank-tx/bank-tx/services/__tests__/bank-tx-frick.service.spec.ts subdomains/supporting/bank-tx/bank-tx/services/__tests__/bank-tx-outgoing-match.service.spec.ts subdomains/supporting/fiat-output/__tests__/fiat-output-frick.service.spec.ts --coverage --runInBand --collectCoverageFrom=integration/bank/dto/frick.dto.ts --collectCoverageFrom=integration/bank/services/frick.service.ts --collectCoverageFrom=integration/bank/services/iso20022.service.ts --collectCoverageFrom=config/frick.config.ts --collectCoverageFrom=subdomains/supporting/bank-tx/bank-tx/services/bank-tx-frick.service.ts --collectCoverageFrom=subdomains/supporting/bank-tx/bank-tx/services/bank-tx-outgoing-match.service.ts --collectCoverageFrom=subdomains/supporting/fiat-output/fiat-output-frick.service.ts",
+    "test:frick:cov": "jest --config jest.frick.config.js integration/bank/services/__tests__/frick.service.spec.ts integration/bank/services/__tests__/iso20022.service.spec.ts config/__tests__/frick.config.spec.ts config/__tests__/bank-frick-config.spec.ts subdomains/supporting/bank-tx/bank-tx/services/__tests__/bank-tx-frick.service.spec.ts subdomains/supporting/bank-tx/bank-tx/services/__tests__/bank-tx-outgoing-match.service.spec.ts subdomains/supporting/fiat-output/__tests__/fiat-output-frick.service.spec.ts --coverage --runInBand --collectCoverageFrom=integration/bank/dto/frick.dto.ts --collectCoverageFrom=integration/bank/services/frick.service.ts --collectCoverageFrom=integration/bank/services/iso20022.service.ts --collectCoverageFrom=config/frick.config.ts --collectCoverageFrom=subdomains/supporting/bank-tx/bank-tx/services/bank-tx-frick.service.ts --collectCoverageFrom=subdomains/supporting/bank-tx/bank-tx/services/bank-tx-outgoing-match.service.ts --collectCoverageFrom=subdomains/supporting/fiat-output/fiat-output-frick.service.ts",
     "type-check": "tsc --noEmit",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\"",
     "check": "npm run lint && npm run test",
@@ -190,50 +190,6 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "coverageThreshold": {
-      "src/integration/bank/dto/frick.dto.ts": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      },
-      "src/integration/bank/services/frick.service.ts": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      },
-      "src/integration/bank/services/iso20022.service.ts": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      },
-      "src/config/frick.config.ts": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      },
-      "src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-frick.service.ts": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      },
-      "src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-outgoing-match.service.ts": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      },
-      "src/subdomains/supporting/fiat-output/fiat-output-frick.service.ts": {
-        "branches": 100,
-        "functions": 100,
-        "lines": 100,
-        "statements": 100
-      }
-    },
     "testEnvironment": "node",
     "forceExit": true
   },
