@@ -7,10 +7,16 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { MoreThan, Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity';
+import { LedgerLeg } from '../../entities/ledger-leg.entity';
 import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
-import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
+import {
+  getLedgerWatermark,
+  isUnpricedAtCutover,
+  runContentChangeScan,
+  setLedgerWatermark,
+} from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'buy_crypto';
 const CRYPTO_INPUT_SOURCE = 'crypto_input';
@@ -19,6 +25,7 @@ const CUTOVER_SOURCE = 'cutover';
 const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
 const CUTOVER_SNAPSHOT_DATE_KEY = 'ledgerCutoverSnapshotDate';
 const CHF = 'CHF';
+const PAYMENT_LINK = 'LIABILITY/paymentLink';
 
 /**
  * Books the buy_crypto completion chain (§4.6, D14 A). Pure observer: reads buy_crypto (+ ledger_tx for the
@@ -69,6 +76,16 @@ export class BuyCryptoConsumer {
         // value-coupled accounts below for a never-booked row (no phantom LIABILITY/buyCrypto-owed).
         if (!(await this.book(bc))) {
           if (await this.preCutoverSettled(bc)) return;
+          // F2: an open row unpriced at the cutover (amountInChf NULL) never got a per-row received opening — its gross
+          // is in the aggregate ASSET opening (the Checkout collateral feed). Its received gate can NEVER open, so
+          // SKIP+advance with an ERROR alarm instead of throwing forever (head-of-line wedge); buildCardInputSeq0 also
+          // skips it so the gross is not double-booked once the row is priced. Manual re-anchoring is traced by the alarm.
+          if (await isUnpricedAtCutover(this.settingService, SOURCE_TYPE, bc.id)) {
+            this.logger.error(
+              `buy_crypto ${bc.id} was unpriced at the cutover (value in the aggregate opening) — skipping its per-row chain (F2 alarm)`,
+            );
+            return;
+          }
           throw new Error(`buy_crypto ${bc.id} content-change scan gate-blocked — retry next run (§4.7 G-a)`);
         }
 
@@ -154,6 +171,10 @@ export class BuyCryptoConsumer {
   private async buildCardInputSeq0(bc: BuyCrypto): Promise<LedgerTxInput | undefined> {
     if (!bc.checkoutTx) return undefined; // not a Card input → seq0 not this consumer's job
     if (bc.amountInChf == null) return undefined;
+    // F2: a Card row unpriced at the cutover (amountInChf NULL then) already has its card-currency gross in the
+    // aggregate ASSET opening (the Checkout collateral feed) — once it is priced post-cutover, re-booking the forward
+    // seq0 would re-debit that gross on Checkout/{ccy} a SECOND time (double-count). The pinned id suppresses the seq0.
+    if (await isUnpricedAtCutover(this.settingService, SOURCE_TYPE, bc.id)) return undefined;
     // §6.3: a Card row already settled at the cutover (outputDate ≤ snapshot) is captured by the aggregate opening
     // (openAssets) — re-booking its seq0 Checkout inflow would double-count. Only post-cutover Card rows get a
     // forward seq0.
@@ -216,9 +237,19 @@ export class BuyCryptoConsumer {
 
     const fee = bc.totalFeeAmountChf ?? 0; // additive null-strategy (§5.1): missing fee = 0
     const reclassChf = Util.round(bc.amountInChf - fee, 2);
+    const owed = await this.liability('buyCrypto-owed');
+
+    // §4.6 F3: a paymentLink-funded buy_crypto's crypto_input seq0 (§4.4 isPayment) credited LIABILITY/paymentLink —
+    // NOT buyCrypto-received. Clearing buyCrypto-received here (which was never credited for this row) drifts both
+    // liabilities apart unbounded (equity-neutral, parity-blind). Clear paymentLink against the seq0 opening value
+    // instead. Only when that seq0 opening exists; a cutover-straddling paymentLink row (no seq0, received opened as
+    // buyCrypto-received by the cutover) falls through to the received clearing below (unchanged, no drift).
+    if (bc.paymentLinkPayment) {
+      const openingChf = await this.paymentLinkOpeningChf(bc);
+      if (openingChf != null) return this.buildPaymentLinkCompletionSeq1(bc, fee, reclassChf, owed, openingChf);
+    }
 
     const received = await this.liability('buyCrypto-received');
-    const owed = await this.liability('buyCrypto-owed');
     // paymentLink-linked → the fee is INCOME/fee-paymentLink (§4.6); else INCOME/fee-buyCrypto
     const feeIncome = await this.income(bc.paymentLinkPayment ? 'fee-paymentLink' : 'fee-buyCrypto');
 
@@ -237,6 +268,63 @@ export class BuyCryptoConsumer {
       valueDate: bc.outputDate ?? bc.updated,
       legs,
     };
+  }
+
+  /**
+   * §4.6 F3 paymentLink completion — debits LIABILITY/paymentLink by exactly the seq0 opening value (Mark×amount, the
+   * gross crypto received) so paymentLink closes cent-exact to 0: (a) fee → INCOME/fee-paymentLink; (b) reclassification
+   * → buyCrypto-owed (= amountInChf − fee, closed later by the payout_order consumer); (c) the venue-sell-spread
+   * (opening − amountInChf) → the fx-revaluation plug (valuation drift, NOT income). Total paymentLink debit =
+   * fee + reclass + venueSpread = openingChf → closes the seq0 −openingChf credit to 0. Mirrors buy-fiat bookPaymentLinkFee.
+   */
+  private async buildPaymentLinkCompletionSeq1(
+    bc: BuyCrypto,
+    fee: number,
+    reclassChf: number,
+    owed: LedgerAccount,
+    openingChf: number,
+  ): Promise<LedgerTxInput> {
+    const paymentLink = await this.paymentLinkAccount();
+    const feeIncome = await this.income('fee-paymentLink');
+    const venueSpread = Util.round(openingChf - (bc.amountInChf ?? 0), 2); // crypto received value vs the amountInChf base
+
+    const legs: LedgerLegInput[] = [
+      this.chfLeg(paymentLink, fee), // (a) Dr paymentLink +fee
+      this.chfLeg(feeIncome, -fee), //     Cr INCOME/fee-paymentLink −fee
+      this.chfLeg(paymentLink, reclassChf), // (b) Dr paymentLink +(amountInChf−fee)
+      this.chfLeg(owed, -reclassChf), //       Cr owed −(amountInChf−fee)
+    ];
+    if (venueSpread !== 0) {
+      legs.push(this.chfLeg(paymentLink, venueSpread)); // (c) Dr paymentLink +venueSpread → total debit reaches openingChf
+      const fx = venueSpread >= 0 ? await this.income('fx-revaluation') : await this.expense('fx-revaluation');
+      legs.push(this.chfLeg(fx, -venueSpread));
+    }
+
+    return {
+      sourceType: SOURCE_TYPE,
+      sourceId: `${bc.id}`,
+      seq: 1,
+      bookingDate: bc.outputDate ?? bc.updated,
+      valueDate: bc.outputDate ?? bc.updated,
+      legs,
+    };
+  }
+
+  // §4.6 F3 — the crypto_input seq0 paymentLink opening CHF (= −leg.amountChf) for a paymentLink-funded buy_crypto, or
+  // undefined when no seq0 paymentLink leg exists (a cutover-straddling row financed pre-cutover). Mirrors the buy-fiat
+  // paymentLinkOpeningChf gate/value.
+  private async paymentLinkOpeningChf(bc: BuyCrypto): Promise<number | undefined> {
+    const cryptoInputId = bc.cryptoInput?.id;
+    if (cryptoInputId == null) return undefined;
+
+    const seq0 = await this.ledgerTxRepo.findOne({
+      where: { sourceType: CRYPTO_INPUT_SOURCE, sourceId: `${cryptoInputId}`, seq: 0 },
+      relations: { legs: { account: true } },
+    });
+    const leg = seq0?.legs?.find((l: LedgerLeg) => l.account?.name === PAYMENT_LINK);
+    if (leg?.amountChf == null) return undefined;
+
+    return Util.round(-leg.amountChf, 2); // seq0 Cr leg is −Mark×amount → opening value is its absolute CHF
   }
 
   // --- GATE (§4.6/§4.7 G-a/G-b) --- //
@@ -356,7 +444,15 @@ export class BuyCryptoConsumer {
     return this.accountService.findOrCreate(`LIABILITY/${qualifier}`, AccountType.LIABILITY, CHF);
   }
 
+  private paymentLinkAccount(): Promise<LedgerAccount> {
+    return this.accountService.findOrCreate(PAYMENT_LINK, AccountType.LIABILITY, CHF);
+  }
+
   private income(qualifier: string): Promise<LedgerAccount> {
     return this.accountService.findOrCreate(`INCOME/${qualifier}`, AccountType.INCOME, CHF);
+  }
+
+  private expense(qualifier: string): Promise<LedgerAccount> {
+    return this.accountService.findOrCreate(`EXPENSE/${qualifier}`, AccountType.EXPENSE, CHF);
   }
 }

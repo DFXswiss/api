@@ -655,22 +655,53 @@ describe('PayoutOrderConsumer', () => {
     expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
   });
 
-  // §4.5 liabilityCounter (lines 220/223): a liability row where BOTH the completion CHF (non-integer correlationId →
-  // no product lookup) AND the settlement CHF (no mark for the payout asset) are undefined → liabilityChf undefined →
-  // the owed leg amount falls to 0, amountChf undefined, needsMark true. mainChf undefined → wallet also needsMark →
-  // withFxPlug short-circuits, no plug.
-  it('books an owed leg with amount 0 / needsMark when both completion and settlement CHF are undefined', async () => {
+  // §4.5 F6 fail-loud: a liability row where BOTH the completion CHF (non-integer correlationId → no product lookup) AND
+  // the settlement CHF (no historical mark for the payout asset) are undefined would book an unvalued needsMark leg on
+  // the assetId-less LIABILITY (CHF-denominated → the mark-to-market job can NEVER revalue it). When the youngest-mark
+  // bridge ALSO finds nothing (truly feedless), the consumer FAILS LOUD WITH an alarm (nothing booked, watermark
+  // unchanged) rather than a never-revaluable phantom leg that, mixed with a bridged wallet leg, would wedge every run.
+  it('fails loud (alarm) when the owed leg has no completion, no settlement, and a feedless payout asset (F6)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errorSpy = jest.spyOn((consumer as any).logger, 'error');
     const findSpy = jest.spyOn(buyCryptoRepo, 'findOneBy');
+    // no mark anywhere: getMarkAt undefined (asset 999 not in markMap) AND getLatestMark undefined (default) → no bridge
     jest
       .spyOn(accountService, 'findByAssetId')
-      .mockResolvedValue(account('Unknown/XYZ', AccountType.ASSET, 'XYZ', 999)); // no mark → settlementChf undefined
+      .mockResolvedValue(account('Unknown/XYZ', AccountType.ASSET, 'XYZ', 999));
     mockBatch([
       payoutOrder({
         id: 50,
         context: PayoutOrderContext.BUY_CRYPTO,
         correlationId: 'no-product', // non-integer → no product completion AND no cutover opening match
         amount: 1,
-        asset: { id: 999, uniqueName: 'Unknown/XYZ' }, // no mark
+        asset: { id: 999, uniqueName: 'Unknown/XYZ' }, // feedless
+        preparationFeeAmountChf: 0,
+        payoutFeeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(findSpy).not.toHaveBeenCalled(); // non-integer correlationId → never queries the product repo
+    expect(booked).toHaveLength(0); // deferred: nothing booked (no unvalued LIABILITY leg on an assetId-less account)
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced → retry next run
+    expect(errorSpy.mock.calls.some((c) => /feedless/i.test(String(c[0])))).toBe(true); // F6 alarm logged
+  });
+
+  // §4.5 F6 bridge: no completion AND no historical settlement mark BUT a youngest mark exists → the settlement (and
+  // thus BOTH the owed LIABILITY leg and the wallet leg) is bridged from that mark so the tx balances now; the wallet
+  // ASSET leg keeps needsMark → the mark-to-market job corrects its basis later. No wedge, no unvalued liability leg.
+  it('bridges the owed leg from the latest mark when completion and historical settlement are missing (F6)', async () => {
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(49000); // youngest available mark for asset 999
+    jest
+      .spyOn(accountService, 'findByAssetId')
+      .mockResolvedValue(account('Unknown/XYZ', AccountType.ASSET, 'XYZ', 999));
+    mockBatch([
+      payoutOrder({
+        id: 50,
+        context: PayoutOrderContext.BUY_CRYPTO,
+        correlationId: 'no-product', // non-integer → no product completion AND no cutover opening
+        amount: 1,
+        asset: { id: 999, uniqueName: 'Unknown/XYZ' }, // no historical mark, but getLatestMark bridges it
         preparationFeeAmountChf: 0,
         payoutFeeAmountChf: 0,
       }),
@@ -678,15 +709,12 @@ describe('PayoutOrderConsumer', () => {
     await consumer.process();
 
     const owed = leg(booked[0], 'LIABILITY/buyCrypto-owed');
-    expect(findSpy).not.toHaveBeenCalled(); // non-integer correlationId → never queries the product repo
-    expect(owed.amount).toBe(0); // liabilityChf undefined → amount falls to 0 (line 220)
-    expect(owed.amountChf).toBeUndefined(); // line 222: amountChf = liabilityChf (undefined)
-    expect(owed.needsMark).toBe(true); // line 223: needsMark = liabilityChf == null
     const wallet = leg(booked[0], 'Unknown/XYZ');
-    expect(wallet.needsMark).toBe(true); // mainChf undefined → wallet leg needsMark too
-    expect(wallet.amountChf).toBeUndefined();
-    expect(leg(booked[0], 'INCOME/fx-revaluation')).toBeUndefined(); // a leg needsMark → no silent plug
-    expect(leg(booked[0], 'EXPENSE/fx-revaluation')).toBeUndefined();
+    expect(owed.amountChf).toBe(49000); // bridged settlement (no completion anchor) → owed leg valued
+    expect(owed.needsMark).toBe(false); // CHF-denominated liability: valued now, never a mark-to-market candidate
+    expect(wallet.amountChf).toBe(-49000); // wallet valued from the same bridge
+    expect(wallet.needsMark).toBe(true); // stays true → mark-to-market re-marks the wallet ASSET basis later
+    expect(cents(booked[0].legs)).toBe(0); // balances (owed +49000, wallet −49000)
   });
 
   // §4.5 completionChf (line 246): a product whose amountInChf is null → completion undefined → mark fallback.

@@ -237,12 +237,33 @@ export class PayoutOrderConsumer {
     const openingChf = await this.cutoverOwedOpeningChf(order);
     const completionChf = openingChf ?? (await this.owedCompletionChf(order)); // persisted owed value (§4.5)
     const mark = marks.getMarkAt(order.asset.id, bookingDate);
-    const settlementChf = mark != null ? Util.round(mark * order.amount, 2) : undefined;
+    let settlementChf = mark != null ? Util.round(mark * order.amount, 2) : undefined;
+
+    // F6: with NO completion anchor AND no historical settlement mark, the LIABILITY-Dr leg is CHF-denominated
+    // (assetId=NULL) → the mark-to-market job can NEVER revalue it. Booking it unvalued (needsMark), mixed with the
+    // bridged wallet leg, would DEFER every run (mixed-unbalanceable → withFxPlug throws → watermark wedge). Bridge the
+    // settlement from the youngest available mark so BOTH legs are valued now (the wallet ASSET leg keeps needsMark →
+    // the daily mark-to-market job corrects its basis). A truly feedless payout asset fails loud WITH an alarm — never
+    // a never-revaluable unvalued needsMark leg on an assetId-less liability.
+    if (completionChf == null && settlementChf == null) {
+      const bridgeMark = await this.markService.getLatestMark(order.asset.id);
+      if (bridgeMark == null) {
+        this.logger.error(
+          `payout_order ${order.id} owed leg unvaluable: no completion CHF and payout asset ${order.asset.id} is feedless (no mark anywhere) — refusing an unvalued LIABILITY leg on an assetId-less account`,
+        );
+        throw new Error(
+          `payout_order ${order.id} owed LIABILITY leg has no completion/settlement CHF and the payout asset is feedless — deferring (retry once the mark feed has the asset)`,
+        );
+      }
+      settlementChf = Util.round(bridgeMark * order.amount, 2);
+    }
 
     // Dr LIABILITY = completion CHF (closes owed to 0); mainChf = settlement mark × amount (values the wallet leg
     // → the drift completion↔settlement lands in the fx plug)
     const liabilityChf = completionChf ?? settlementChf;
-    const needsMark = settlementChf == null;
+    // the wallet leg re-marks whenever the historical settlement mark was missing/bridged (assetId != null → the daily
+    // mark-to-market job corrects its basis); the CHF-denominated LIABILITY leg is never a mark-to-market candidate
+    const needsMark = mark == null;
 
     return {
       leg: {

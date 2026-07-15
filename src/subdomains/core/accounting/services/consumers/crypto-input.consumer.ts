@@ -151,24 +151,30 @@ export class CryptoInputConsumer {
     };
 
     if (ci.isPayment) {
-      // paymentLink: 2-leg, mark-based (no per-input amountInChf anchor — @ManyToOne, Minor R10-4)
+      // §4.4 paymentLink: 2-leg, mark-based (no per-input amountInChf anchor — @ManyToOne, Minor R10-4). F5: the
+      // paymentLink LIABILITY is CHF-denominated (assetId=NULL), so the mark-to-market job (assetId IS NOT NULL) can
+      // NEVER revalue it — it MUST be booked with a CHF value NOW. Value the wallet leg (historical mark, else the §5.2
+      // B5 youngest-mark bridge; needsMark stays true so the mark-to-market job corrects the wallet ASSET basis later),
+      // then mirror that (bridged) CHF onto the paymentLink leg. A truly feedless wallet asset (no mark anywhere) DEFERS
+      // the row (fail-loud) rather than booking an unvalued merchant liability that would read null forever downstream
+      // (§4.7b/F3 paymentLinkOpeningChf → permanent buy-fiat/buy-crypto wedge).
       const paymentLink = await this.liability('paymentLink');
+      await resolveLegsOrDefer([assetLeg], this.markService, this.logger, `crypto_input ${ci.id} paymentLink seq0`);
+      if (assetLeg.amountChf == null) {
+        throw new Error(
+          `crypto_input ${ci.id} paymentLink seq0: wallet asset has no mark in any FinancialDataLog (feedless) — ` +
+            `deferring (retry once the mark feed has the asset); never booking an unvalued liability on the CHF paymentLink account`,
+        );
+      }
+      const chf = assetLeg.amountChf;
+
       return {
         sourceType: SOURCE_TYPE,
         sourceId: `${ci.id}`,
         seq: 0,
         bookingDate,
         valueDate: bookingDate,
-        legs: [
-          assetLeg,
-          {
-            account: paymentLink,
-            amount: -(assetChf ?? 0),
-            priceChf: 1,
-            amountChf: assetChf != null ? -assetChf : undefined,
-            needsMark: assetChf == null,
-          },
-        ],
+        legs: [assetLeg, { account: paymentLink, amount: -chf, priceChf: 1, amountChf: -chf, needsMark: false }],
       };
     }
 

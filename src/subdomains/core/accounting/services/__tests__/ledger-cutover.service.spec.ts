@@ -381,6 +381,66 @@ describe('LedgerCutoverService', () => {
       expect(liabilityLeg.amountChf).toBe(-14851.5); // CHF output → mark 1
     });
 
+    // §4.7b/§6.1 (F1): a paymentLink-funded open buy_fiat (outputAmount NULL) is opened on LIABILITY/paymentLink via the
+    // per-row marker `${logId}:buy_fiat-paymentLink:${id}` at the gross (amountInChf) — NOT buyFiat-received (which the
+    // forward bookPaymentLink path never consumes → permanent content-scan wedge + wrong bucket).
+    it('opens a paymentLink-funded buyFiat-received row on LIABILITY/paymentLink, not buyFiat-received (F1)', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+        if (where?.outputAmount) {
+          return Promise.resolve([
+            buyFiat({
+              id: 45,
+              amountInChf: 1000,
+              outputAmount: null,
+              cryptoInput: { paymentLinkPayment: { id: 1 } } as any,
+            }),
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      const plTx = booked.find((b) => b.sourceId === '1557344:buy_fiat-paymentLink:45');
+      expect(plTx).toBeDefined();
+      const liabilityLeg = plTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
+      expect(liabilityLeg.account.name).toBe('LIABILITY/paymentLink');
+      expect(liabilityLeg.amountChf).toBe(-1000); // Cr paymentLink at the gross (amountInChf), CHF-denominated
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat:45')).toBe(false); // NOT the buyFiat-received bucket
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:45')).toBe(false);
+    });
+
+    // §4.7b/§6.1 (F1): the owed path (outputAmount NOT NULL) also routes a paymentLink row to LIABILITY/paymentLink at
+    // the gross (amountInChf), NOT buyFiat-owed (outputAmount × mark). Exercises the openBuyFiatOwed paymentLink branch.
+    it('opens a paymentLink-funded owed-straddling buyFiat row on LIABILITY/paymentLink, not buyFiat-owed (F1)', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+        // owed query (no outputAmount key) → a paymentLink row with outputAmount set
+        if (!where?.outputAmount) {
+          return Promise.resolve([
+            buyFiat({
+              id: 46,
+              amountInChf: 1000,
+              outputAmount: 940,
+              outputAsset: { id: 1, name: 'CHF' } as any,
+              cryptoInput: { paymentLinkPayment: { id: 1 } } as any,
+            }),
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      const plTx = booked.find((b) => b.sourceId === '1557344:buy_fiat-paymentLink:46');
+      expect(plTx).toBeDefined();
+      const liabilityLeg = plTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
+      expect(liabilityLeg.account.name).toBe('LIABILITY/paymentLink');
+      expect(liabilityLeg.amountChf).toBe(-1000); // gross (amountInChf), NOT outputAmount × mark (940)
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:46')).toBe(false); // NOT the owed bucket
+    });
+
     // m6 fail-loud: a feedless buyCrypto-owed opening (no mark for the outputAsset) would book a CHF liability with
     // native 0 that the mark-to-market job can NEVER revalue → the cutover THROWS and leaves the ledger-ready flag
     // unset (retry once the mark feed is back), rather than silently dropping the value into a stale zero-opening.
@@ -918,8 +978,11 @@ describe('LedgerCutoverService', () => {
       expect(assetLeg.amountChf).toBeUndefined();
     });
 
-    it('skips a buyFiat-received row whose amountInChf is null (no CHF anchor → no leg)', async () => {
+    // F2: a buyFiat-received row with a NULL amountInChf has no CHF anchor → no per-row opening. Its id is PINNED as
+    // unpriced-at-cutover so the forward consumer skips+advances (alarm) instead of wedging on the never-opened gate.
+    it('pins a buyFiat-received row with a null amountInChf as unpriced-at-cutover (no per-row opening; F2)', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
       jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
         if (where?.outputAmount) return Promise.resolve([buyFiat({ id: 42, amountInChf: null, outputAmount: null })]);
         return Promise.resolve([]);
@@ -927,17 +990,25 @@ describe('LedgerCutoverService', () => {
 
       await service.run();
 
-      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat:42')).toBe(false);
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat:42')).toBe(false); // no CHF anchor → no per-row opening
+      const pin = setSpy.mock.calls.find((c) => c[0] === 'ledgerCutoverUnpricedIds.buy_fiat');
+      expect(pin).toBeDefined();
+      expect(JSON.parse(pin[1])).toEqual([42]); // F2: pinned → forward consumer skips+advances (alarm), never wedges
     });
 
-    it('opens buyCrypto-received per row CHF = amountInChf and skips a row with null amountInChf', async () => {
+    // F2: bank/crypto-funded AND Card open received rows with a NULL amountInChf are pinned as unpriced-at-cutover; a
+    // priced row is still opened normally. The pin lets the forward buildCardInputSeq0 suppress the Card seq0 (its gross
+    // is in the aggregate opening) and the completion scan skip+advance without a wedge.
+    it('opens priced buyCrypto-received rows and pins null-amountInChf rows (bank + Card) as unpriced (F2)', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
       jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
-        // received query: outputAmount IS NULL → one bookable row (id 60) + one null-amountInChf row (id 61, skipped)
+        // received query: outputAmount IS NULL → one priced row (60) + one unpriced bank/crypto (61) + one unpriced Card (62)
         if (where?.outputAmount) {
           return Promise.resolve([
             buyCrypto({ id: 60, amountInChf: 15000, outputAmount: null }),
             buyCrypto({ id: 61, amountInChf: null, outputAmount: null }),
+            buyCrypto({ id: 62, amountInChf: null, outputAmount: null, checkoutTx: { currency: 'EUR' } as any }),
           ]);
         }
         return Promise.resolve([]);
@@ -950,7 +1021,11 @@ describe('LedgerCutoverService', () => {
       const liabilityLeg = receivedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
       expect(liabilityLeg.account.name).toBe('LIABILITY/buyCrypto-received');
       expect(liabilityLeg.amountChf).toBe(-15000);
-      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:61')).toBe(false); // null amountInChf → skipped
+      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:61')).toBe(false); // unpriced → no opening
+      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:62')).toBe(false); // unpriced Card → no opening
+      const pin = setSpy.mock.calls.find((c) => c[0] === 'ledgerCutoverUnpricedIds.buy_crypto');
+      expect(pin).toBeDefined();
+      expect(JSON.parse(pin[1])).toEqual([61, 62]); // both unpriced ids pinned (bank/crypto + Card)
     });
 
     // MAJOR (B1): Card inputs (checkoutTx != null) are INCLUDED in the per-row buyCrypto-received opening, symmetrically

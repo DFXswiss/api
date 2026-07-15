@@ -1275,4 +1275,92 @@ describe('BuyFiatConsumer', () => {
     expect(seq(3)).toBeUndefined(); // assetAccount threw → seq3 never booked
     expect(setSpy).not.toHaveBeenCalled(); // failure-isolation: watermark NOT advanced
   });
+
+  // --- F1: CUTOVER-STRADDLING PAYMENTLINK buy_fiat --- //
+
+  // §4.7b/§6.1 (F1): a cutover-straddling paymentLink buy_fiat whose financing crypto_input settled PRE-cutover has NO
+  // crypto_input seq0 — the cutover opened its paymentLink liability via the per-row marker
+  // `${logId}:buy_fiat-paymentLink:${id}` instead of a buyFiat-received/-owed opening. The forward bookPaymentLink path
+  // resolves the opening from that marker (G-b), books the seq1/seq2/seq3 chain, and paymentLink closes cent-exact to 0
+  // — no permanent content-scan wedge, and the opening sits in the paymentLink bucket (not received/owed).
+  it('settles a cutover-straddling paymentLink buy_fiat against the cutover paymentLink anchor (G-b, F1)', async () => {
+    cutoverLogId = '1557344';
+    seq0PaymentLinkChf = undefined; // no crypto_input seq0 (financed pre-cutover)
+    // the cutover paymentLink opening for this row = −1000 (the gross crypto value in CHF); only the paymentLink marker
+    // resolves (a buyFiat-owed cutover lookup would return undefined → no false owed anchor)
+    jest.spyOn(ledgerTxRepo, 'findOne').mockImplementation(({ where }: any) => {
+      if (where?.sourceType === 'cutover' && `${where?.sourceId}`.includes(':buy_fiat-paymentLink:')) {
+        const pl = account('LIABILITY/paymentLink', AccountType.LIABILITY, 'CHF');
+        const plLeg = Object.assign(new LedgerLeg(), { account: pl, amountChf: -1000 });
+        return Promise.resolve(Object.assign(new LedgerTx(), { legs: [plLeg] }));
+      }
+      return Promise.resolve(undefined);
+    });
+    mockBatch([
+      buyFiat({
+        id: 70,
+        amountInChf: 1000,
+        totalFeeAmountChf: 0,
+        outputReferenceAmount: 1000,
+        outputAmount: 1000, // net merchant fiat (CHF), 1:1 → clean venue spread 0
+        outputAsset: { name: 'CHF' },
+        cryptoInput: { id: 10, updated: new Date('2026-06-04T00:00:00Z'), paymentLinkPayment: { id: 1 } },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'CHF',
+          bank: { asset: { id: CHF_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    // the gate opened via the cutover paymentLink marker (G-b) → seq1 IS booked (pre-fix: gate-blocked forever = wedge)
+    expect(seq(1)).toBeDefined();
+    // it chose the paymentLink path — the opening landed in the paymentLink bucket, NOT received/owed
+    expect(sumOn('LIABILITY/buyFiat-received')).toBe(0);
+    expect(sumOn('LIABILITY/buyFiat-owed')).toBe(0);
+    // paymentLink debited across seq1+seq2 by exactly the opening (1000) → closes the external cutover −1000 to 0
+    expect(Math.round(sumOn('LIABILITY/paymentLink') * 100)).toBe(100000); // +1000 CHF
+    for (const tx of booked) expect(cents(tx.legs)).toBe(0);
+  });
+
+  // --- F2: UNPRICED-AT-CUTOVER GUARD --- //
+
+  // F2: a buy_fiat unpriced at the cutover (amountInChf NULL then → pinned) that settles post-cutover surfaces in the
+  // content-change scan with a PERMANENTLY-closed received gate (its value is in the aggregate opening; no per-row
+  // opening exists). The scan must SKIP+advance with an ERROR alarm instead of throwing forever (head-of-line wedge).
+  it('skips+advances (alarm, no throw) an unpriced-at-cutover buy_fiat in the content-change scan (F2)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errorSpy = jest.spyOn((consumer as any).logger, 'error');
+    gateOpen = false; // received gate permanently closed (no per-row opening was booked)
+    cutoverLogId = undefined; // no G-a/G-b opening resolvable
+    jest
+      .spyOn(settingService, 'getObj')
+      .mockImplementation((key: string) =>
+        Promise.resolve(key === 'ledgerCutoverUnpricedIds.buy_fiat' ? [80] : undefined),
+      );
+    jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        where?.updated != null
+          ? [
+              buyFiat({
+                id: 80,
+                amountInChf: 1000, // priced now (was NULL at the cutover → pinned)
+                totalFeeAmountChf: 10,
+                outputAmount: 990,
+                outputReferenceAmount: 990,
+                outputAsset: { name: 'CHF' },
+              }),
+            ]
+          : [],
+      ),
+    );
+
+    await expect(consumer.process()).resolves.toBeUndefined(); // no throw propagates out of the scan
+
+    expect(seq(1)).toBeUndefined(); // gate-blocked → nothing booked (value already in the aggregate opening)
+    expect(setSpy).toHaveBeenCalled(); // content-change cursor ADVANCED (skip, not wedge)
+    expect(errorSpy.mock.calls.some((c) => /unpriced at the cutover/i.test(String(c[0])))).toBe(true); // F2 alarm
+  });
 });

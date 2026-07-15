@@ -19,6 +19,8 @@ const WATERMARK_KEY_PREFIX = 'ledgerWatermark.';
 
 const CUTOVER_BOUNDARY_KEY_PREFIX = 'ledgerCutoverBoundary.';
 
+const CUTOVER_UNPRICED_KEY_PREFIX = 'ledgerCutoverUnpricedIds.';
+
 export interface LedgerCutoverBoundary {
   boundaryId: number; // MAX(id) settled at the snapshot; immutable (the watermark's lastProcessedId drifts, this does not)
   holeIds: number[]; // ids <= boundaryId OPEN at the snapshot (value NOT in the aggregate) → their forward seq0 IS their opening
@@ -136,6 +138,48 @@ export async function isCoveredByCutoverOpening(
   if (!raw) return false; // cutover not run → forward-book normally (pre-cutover default)
   if (rowId > raw.boundaryId) return false; // post-boundary → not in the aggregate → book
   return !raw.holeIds.includes(rowId); // id <= boundary: covered unless it was an open-at-cutover hole
+}
+
+/**
+ * Writes the per-source unpriced-at-cutover id list (§6.1 F2) — exclusively via `settingService.set` (never
+ * `setObj`/`settingRepo`; §4.10 R2-exception-a). A row OPEN at the snapshot whose `amountInChf` was NULL could get NO
+ * per-row received/owed/paymentLink opening (the CHF anchor is missing) — its value stays in the aggregate ASSET
+ * opening (the input/collateral feed). These ids are pinned so the forward consumer keys on them to SKIP+advance (with
+ * an ERROR alarm) instead of wedging on the never-opened received gate, and to suppress the Card seq0 that would
+ * otherwise double-book the gross once the row is priced post-cutover. Pinned set-only-if-unset, BEFORE the ready flag.
+ */
+export async function setCutoverUnpricedIds(
+  settingService: SettingService,
+  source: string,
+  ids: number[],
+): Promise<void> {
+  await settingService.set(`${CUTOVER_UNPRICED_KEY_PREFIX}${source}`, JSON.stringify(ids));
+}
+
+/**
+ * Reads the raw per-source unpriced-at-cutover setting (§6.1 F2) via `get` (NOT `getObj`) so it returns undefined when
+ * unset — the counterpart the cutover uses to make the pin set-only-if-unset (a fail-loud retry reuses the first-run
+ * list verbatim, mirroring `getCutoverBoundary`).
+ */
+export async function getCutoverUnpricedIdsRaw(
+  settingService: SettingService,
+  source: string,
+): Promise<string | undefined> {
+  return (await settingService.get(`${CUTOVER_UNPRICED_KEY_PREFIX}${source}`)) ?? undefined;
+}
+
+/**
+ * True iff `rowId` was pinned as unpriced at the cutover (§6.1 F2) — its value is in the aggregate ASSET opening, no
+ * per-row liability opening exists, so the forward consumer must SKIP+advance (never wedge on the closed received gate)
+ * and never (re-)book its Card seq0. Absent list (cutover not run / no unpriced rows) → false (the normal path).
+ */
+export async function isUnpricedAtCutover(
+  settingService: SettingService,
+  source: string,
+  rowId: number,
+): Promise<boolean> {
+  const raw = await settingService.getObj<number[]>(`${CUTOVER_UNPRICED_KEY_PREFIX}${source}`);
+  return Array.isArray(raw) && raw.includes(rowId);
 }
 
 const contentChangeLogger = new DfxLogger('LedgerContentChangeScan');

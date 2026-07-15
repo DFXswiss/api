@@ -7,6 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../../entities/ledger-account.entity';
+import { LedgerLeg } from '../../../entities/ledger-leg.entity';
 import { LedgerTx } from '../../../entities/ledger-tx.entity';
 import { createCustomLedgerAccount } from '../../../entities/__mocks__/ledger-account.entity.mock';
 import { LedgerAccountService } from '../../ledger-account.service';
@@ -590,5 +591,119 @@ describe('BuyCryptoConsumer', () => {
 
     expect(seq(1)).toBeUndefined(); // completion NOT booked (gate closed)
     expect(setSpy).not.toHaveBeenCalled(); // content-change cursor NOT advanced past the gate-blocked row
+  });
+
+  // --- F3: PAYMENTLINK-FUNDED buy_crypto COMPLETION --- //
+
+  // F3: a paymentLink-funded buy_crypto's crypto_input seq0 (§4.4 isPayment) credited LIABILITY/paymentLink — NOT
+  // buyCrypto-received. The completion seq1 MUST clear paymentLink (fee → INCOME/fee-paymentLink + reclassification →
+  // owed + venue-spread), NOT debit buyCrypto-received (never credited for this row). Debiting the wrong bucket drifts
+  // both liabilities apart unbounded (equity-neutral, parity-blind). seq0 opening = 1000 → seq1 debits paymentLink by
+  // exactly 1000 → paymentLink closes to 0 and buyCrypto-received is never touched.
+  it('clears paymentLink (not buyCrypto-received) for a paymentLink-funded completion; both liabilities to 0 (F3)', async () => {
+    // the crypto_input seq0 paymentLink opening leg = −1000 (Mark×amount of the crypto received)
+    jest.spyOn(ledgerTxRepo, 'findOne').mockImplementation(({ where }: any) => {
+      if (where?.sourceType === 'crypto_input') {
+        const pl = account('LIABILITY/paymentLink', AccountType.LIABILITY, 'CHF');
+        const plLeg = Object.assign(new LedgerLeg(), { account: pl, amountChf: -1000 });
+        return Promise.resolve(Object.assign(new LedgerTx(), { legs: [plLeg] }));
+      }
+      return Promise.resolve(null);
+    });
+    mockBatch([
+      buyCrypto({
+        id: 70,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        isComplete: true,
+        cryptoInput: { id: 555, paymentLinkPayment: { id: 1 } } as any, // isPayment → seq0 credited paymentLink
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = seq(1);
+    expect(tx).toBeDefined();
+    expect(leg(tx, 'INCOME/fee-paymentLink').amountChf).toBe(-10); // fee realized as paymentLink income
+    expect(leg(tx, 'LIABILITY/buyCrypto-owed').amountChf).toBe(-990); // reclassification → owed = −(1000 − 10)
+    expect(tx.legs.some((l) => l.account.name === 'LIABILITY/buyCrypto-received')).toBe(false); // received NEVER touched
+    // paymentLink debited by fee 10 + reclass 990 + venueSpread 0 = 1000 → closes the seq0 −1000 credit to 0
+    const plDr = tx.legs
+      .filter((l) => l.account.name === 'LIABILITY/paymentLink')
+      .reduce((s, l) => s + (l.amountChf ?? 0), 0);
+    expect(plDr).toBe(1000);
+    expect(cents(tx.legs)).toBe(0);
+  });
+
+  // F3: a paymentLink-funded buy_crypto with a venue spread (seq0 opening 1050 vs amountInChf 1000) → the extra 50 goes
+  // to the fx-revaluation plug (valuation drift, NOT income); paymentLink still closes to exactly the opening (1050).
+  it('routes the paymentLink venue spread to fx-revaluation and still closes paymentLink to the opening (F3)', async () => {
+    jest.spyOn(ledgerTxRepo, 'findOne').mockImplementation(({ where }: any) => {
+      if (where?.sourceType === 'crypto_input') {
+        const pl = account('LIABILITY/paymentLink', AccountType.LIABILITY, 'CHF');
+        const plLeg = Object.assign(new LedgerLeg(), { account: pl, amountChf: -1050 }); // opening 1050 > amountInChf 1000
+        return Promise.resolve(Object.assign(new LedgerTx(), { legs: [plLeg] }));
+      }
+      return Promise.resolve(null);
+    });
+    mockBatch([
+      buyCrypto({
+        id: 71,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        isComplete: true,
+        cryptoInput: { id: 556, paymentLinkPayment: { id: 1 } } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const tx = seq(1);
+    const fx = leg(tx, 'INCOME/fx-revaluation');
+    expect(fx.amountChf).toBe(-50); // venueSpread +50 ≥ 0 → INCOME credit −venueSpread
+    expect(leg(tx, 'LIABILITY/buyCrypto-owed').amountChf).toBe(-990);
+    const plDr = tx.legs
+      .filter((l) => l.account.name === 'LIABILITY/paymentLink')
+      .reduce((s, l) => s + (l.amountChf ?? 0), 0);
+    expect(plDr).toBe(1050); // fee 10 + reclass 990 + venueSpread 50 → closes the −1050 opening to 0
+    expect(cents(tx.legs)).toBe(0);
+  });
+
+  // --- F2: UNPRICED-AT-CUTOVER GUARD --- //
+
+  // F2: a Card row unpriced at the cutover (amountInChf NULL then → pinned) that gets priced post-cutover must NOT
+  // re-book its forward seq0 — its card-currency gross is already in the aggregate ASSET opening (the Checkout collateral
+  // feed); re-debiting Checkout/{ccy} would double-count. buildCardInputSeq0 skips the pinned id and the gate-blocked
+  // completion skips+advances with an ERROR alarm (no head-of-line wedge), instead of throwing forever.
+  it('does NOT re-book the Card seq0 gross for an unpriced-at-cutover row and skips+advances with an alarm (F2)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const errorSpy = jest.spyOn((consumer as any).logger, 'error');
+    jest
+      .spyOn(settingService, 'get')
+      .mockImplementation((key: string) => Promise.resolve(key === 'ledgerCutoverLogId' ? '1557344' : undefined));
+    jest
+      .spyOn(settingService, 'getObj')
+      .mockImplementation((key: string) =>
+        Promise.resolve(key === 'ledgerCutoverUnpricedIds.buy_crypto' ? [80] : undefined),
+      );
+    jest.spyOn(ledgerTxRepo, 'existsBy').mockResolvedValue(false); // no per-row cutover received/owed opening for id 80
+    const priced = buyCrypto({
+      id: 80,
+      amountInChf: 1000, // priced now (was NULL at the cutover → pinned)
+      inputReferenceAmount: 1050,
+      totalFeeAmountChf: 10,
+      isComplete: true,
+      outputDate: new Date('2026-06-20T00:00:00Z'), // completed AFTER the snapshot (straddling, not pre-cutover-settled)
+      updated: new Date('2026-06-20T00:00:00Z'),
+      checkoutTx: { currency: 'EUR' } as any,
+    });
+    jest
+      .spyOn(buyCryptoRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [priced] : []));
+
+    await expect(consumer.process()).resolves.toBeUndefined(); // no throw
+
+    expect(booked.some((b) => b.sourceId === '80' && b.seq === 0)).toBe(false); // Card seq0 NOT re-booked (no double gross)
+    expect(booked.some((b) => b.sourceId === '80' && b.seq === 1)).toBe(false); // completion gate-blocked → skipped
+    expect(setSpy).toHaveBeenCalled(); // content-change cursor ADVANCED (skip, not wedge)
+    expect(errorSpy.mock.calls.some((c) => /unpriced at the cutover/i.test(String(c[0])))).toBe(true); // F2 alarm
   });
 });

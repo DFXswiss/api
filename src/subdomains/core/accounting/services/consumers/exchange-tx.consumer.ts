@@ -269,9 +269,23 @@ export class ExchangeTxConsumer {
       const spreadChf = tx.feeAmountChf ?? 0;
       if (spreadChf !== 0) legs.push(await this.spreadLeg(tx.exchange, spreadChf));
 
-      const plugChf = -legs.reduce((s, l) => s + (l.amountChf ?? 0), 0); // quote leg closes the tx
+      // F4: resolve/bridge the base (and any unvalued asset) leg BEFORE forming the quote plug — exactly like the ccxt
+      // branch. Otherwise an unvalued base leg is silently counted as 0 CHF and the quote plug absorbs the FULL base
+      // value (the quote custody account misvalued by the whole base). resolveLegsOrDefer bridges the base with the
+      // youngest available mark (needsMark stays true); a truly feedless base defers the row (throw) instead of misbooking.
+      await resolveLegsOrDefer(legs, this.markService, this.logger, `exchange_tx ${tx.id} trade`);
+
+      const plugChf = -legs.reduce((s, l) => s + (l.amountChf ?? 0), 0); // quote leg closes the tx (base now valued)
       const quotePrice = quoteAmount !== 0 ? Util.round(Math.abs(plugChf) / Math.abs(quoteAmount), 8) : null;
-      legs.push({ account: quoteAccount, amount: quoteAmount, priceChf: quotePrice, amountChf: plugChf });
+      legs.push({
+        account: quoteAccount,
+        amount: quoteAmount,
+        priceChf: quotePrice,
+        amountChf: plugChf,
+        // a bridged (provisional) base makes the quote plug provisional too → let the mark-to-market job re-mark the
+        // quote account; with a real historical base mark the plug is the intended cost basis and needs no re-mark (F4)
+        needsMark: legs.some((l) => l.needsMark),
+      });
     } else {
       // ccxt (Binance/MEXC/Kraken): quote leg with its OWN mark (not plug) + separate venue fee leg + a
       // mark-based quote-spread plug leg that absorbs the base↔quote mark residual (§4.3, two distinct legs)

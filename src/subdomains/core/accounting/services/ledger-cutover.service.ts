@@ -34,7 +34,12 @@ import { LedgerAccountService } from './ledger-account.service';
 import { LedgerBookingService, LedgerLegInput } from './ledger-booking.service';
 import { LedgerBootstrapService } from './ledger-bootstrap.service';
 import { LedgerMarkCache, LedgerMarkService } from './ledger-mark.service';
-import { getCutoverBoundary, setCutoverBoundary } from './consumers/ledger-watermark.helper';
+import {
+  getCutoverBoundary,
+  getCutoverUnpricedIdsRaw,
+  setCutoverBoundary,
+  setCutoverUnpricedIds,
+} from './consumers/ledger-watermark.helper';
 
 const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
 // pinned at the very first cutover step (before any opening is booked); makes the snapshot stable across a re-run
@@ -255,10 +260,18 @@ export class LedgerCutoverService {
     // against this map instead of a per-row bankRepo.findOne (N+1)
     const bankByIban = await this.bankByIban();
 
-    await this.openBuyFiatReceived(snapshot, snapshotDate, lookback, equity);
-    await this.openBuyFiatOwed(snapshot, snapshotDate, lookback, marks, equity);
-    await this.openBuyCryptoReceived(snapshot, snapshotDate, lookback, equity);
+    // F2: openBuyFiat/CryptoReceived+Owed return the ids of open rows they could NOT value into a per-row opening
+    // (amountInChf NULL → no CHF anchor). Pin them per source (set-only-if-unset) so the forward consumer skips+advances
+    // (with an alarm) instead of wedging, and the Card seq0 does not double-book the gross once the row is priced.
+    const unpricedBuyFiat = [
+      ...(await this.openBuyFiatReceived(snapshot, snapshotDate, lookback, equity)),
+      ...(await this.openBuyFiatOwed(snapshot, snapshotDate, lookback, marks, equity)),
+    ];
+    await this.pinUnpricedIds('buy_fiat', unpricedBuyFiat);
+
+    const unpricedBuyCrypto = await this.openBuyCryptoReceived(snapshot, snapshotDate, lookback, equity);
     await this.openBuyCryptoOwed(snapshot, snapshotDate, lookback, marks, equity);
+    await this.pinUnpricedIds('buy_crypto', unpricedBuyCrypto);
     // §6.1 (Major design-accounting): the BANK_TX_RETURN/REPEAT + unattributed liabilities. A pre-cutover open
     // return/repeat whose chargeback settles post-cutover (§4.2 BANK_TX_*_CHARGEBACK) finds its opening-CHF anchor
     // here; without it the chargeback's −Σ(other legs) fallback leaves the liability phantom-negative (never on 0).
@@ -267,42 +280,74 @@ export class LedgerCutoverService {
     await this.openUnattributed(snapshot, snapshotDate, lookback, marks, equity, bankByIban);
   }
 
-  // buyFiat-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R3-6); per-row seq0-marker (R4-2)
-  private async openBuyFiatReceived(snapshot: Log, date: Date, lookback: Date, equity: LedgerAccount): Promise<void> {
+  // buyFiat-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R3-6); per-row seq0-marker (R4-2).
+  // Returns the ids of rows with a NULL amountInChf (no CHF anchor) so the caller pins them as unpriced-at-cutover (F2).
+  private async openBuyFiatReceived(
+    snapshot: Log,
+    date: Date,
+    lookback: Date,
+    equity: LedgerAccount,
+  ): Promise<number[]> {
     const rows = await this.buyFiatRepo.find({
       where: { isComplete: false, outputAmount: IsNull(), created: Between(lookback, date) },
+      // F1: load paymentLinkPayment to route a paymentLink-funded row to its OWN paymentLink opening instead of
+      // buyFiat-received — the forward bookPaymentLink path clears LIABILITY/paymentLink and would NEVER consume a
+      // buyFiat-received/-owed opening (permanent content-scan wedge), and its opening would land in the wrong bucket.
+      relations: { cryptoInput: { paymentLinkPayment: true } },
     });
-    const liability = await this.liability('buyFiat-received');
+    const received = await this.liability('buyFiat-received');
+    const paymentLink = await this.liability('paymentLink');
+    const unpriced: number[] = [];
 
     for (const row of rows) {
-      if (row.amountInChf == null) continue;
-      await this.bookReceivedOwedOpening(
-        date,
-        `${snapshot.id}:buy_fiat:${row.id}`,
-        `Opening buyFiat-received from open buy_fiat #${row.id}`,
-        liability,
-        row.amountInChf,
-        equity,
-      );
+      if (row.amountInChf == null) {
+        unpriced.push(row.id); // F2: no CHF anchor → pin; forward SKIPs+advances (alarm), value stays in the aggregate
+        continue;
+      }
+      await this.openBuyFiatRow(snapshot, date, row, received, paymentLink, equity);
     }
+
+    return unpriced;
   }
 
-  // buyFiat-owed: open rows with outputAmount NOT NULL → CHF = outputAmount × mark(outputAsset-Fiat ≤ snapshot) (R6-1)
+  // buyFiat-owed: open rows with outputAmount NOT NULL → CHF = outputAmount × mark(outputAsset-Fiat ≤ snapshot) (R6-1).
+  // Returns the ids of paymentLink rows with a NULL amountInChf (no paymentLink anchor) so the caller pins them (F2).
   private async openBuyFiatOwed(
     snapshot: Log,
     date: Date,
     lookback: Date,
     marks: LedgerMarkCache,
     equity: LedgerAccount,
-  ): Promise<void> {
+  ): Promise<number[]> {
     const rows = await this.buyFiatRepo.find({
       where: { isComplete: false, created: Between(lookback, date) },
-      relations: { outputAsset: true },
+      // F1: load paymentLinkPayment to detect a paymentLink row (its opening goes to LIABILITY/paymentLink, not -owed)
+      relations: { outputAsset: true, cryptoInput: { paymentLinkPayment: true } },
     });
-    const liability = await this.liability('buyFiat-owed');
+    const owed = await this.liability('buyFiat-owed');
+    const paymentLink = await this.liability('paymentLink');
+    const unpriced: number[] = [];
 
     for (const row of rows) {
       if (row.outputAmount == null) continue;
+
+      // F1: a paymentLink-funded owed-straddling row → book the paymentLink opening at the gross (amountInChf), NOT
+      // buyFiat-owed. amountInChf NULL → pin as unpriced (F2), never a paymentLink opening on a missing anchor.
+      if (row.cryptoInput?.paymentLinkPayment != null) {
+        if (row.amountInChf == null) {
+          unpriced.push(row.id);
+          continue;
+        }
+        await this.bookReceivedOwedOpening(
+          date,
+          `${snapshot.id}:buy_fiat-paymentLink:${row.id}`,
+          `Opening buyFiat paymentLink from open buy_fiat #${row.id}`,
+          paymentLink,
+          row.amountInChf,
+          equity,
+        );
+        continue;
+      }
 
       // outputAsset is a Fiat; CHF-output → mark 1, foreign-currency output → fiat-mark ≤ snapshot
       const fiatMark = row.outputAsset?.name === CHF ? 1 : this.fiatMark(row.outputAsset?.id, date, marks);
@@ -317,11 +362,38 @@ export class LedgerCutoverService {
         date,
         `${snapshot.id}:buy_fiat-owed:${row.id}`,
         `Opening buyFiat-owed from open buy_fiat #${row.id}`,
-        liability,
+        owed,
         amountChf,
         equity,
       );
     }
+
+    return unpriced;
+  }
+
+  // §4.7b/§6.1 (F1): one open buyFiat received-row opening. A paymentLink-funded row (cryptoInput.paymentLinkPayment)
+  // gets a per-row LIABILITY/paymentLink opening `${logId}:buy_fiat-paymentLink:${id}` at the gross (amountInChf) — the
+  // forward bookPaymentLink path clears it via fee + venue-spread + transmit. A regular row gets the buyFiat-received
+  // opening. Both carry the same amountInChf CHF value; only the target liability bucket + marker differ.
+  private async openBuyFiatRow(
+    snapshot: Log,
+    date: Date,
+    row: BuyFiat,
+    received: LedgerAccount,
+    paymentLink: LedgerAccount,
+    equity: LedgerAccount,
+  ): Promise<void> {
+    const isPaymentLink = row.cryptoInput?.paymentLinkPayment != null;
+    await this.bookReceivedOwedOpening(
+      date,
+      isPaymentLink ? `${snapshot.id}:buy_fiat-paymentLink:${row.id}` : `${snapshot.id}:buy_fiat:${row.id}`,
+      isPaymentLink
+        ? `Opening buyFiat paymentLink from open buy_fiat #${row.id}`
+        : `Opening buyFiat-received from open buy_fiat #${row.id}`,
+      isPaymentLink ? paymentLink : received,
+      row.amountInChf,
+      equity,
+    );
   }
 
   // buyCrypto-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R2-7); per-row seq0-marker (R4-2).
@@ -334,14 +406,25 @@ export class LedgerCutoverService {
   // (buy-crypto.consumer.buildCardInputSeq0) is gated to SKIP when this marker exists — WITHOUT both the per-row
   // opening and the skip, the forward seq0 would re-debit the gross on Checkout/{ccy} a SECOND time (permanent phantom
   // on Checkout/{ccy}, the pre-fix double-count).
-  private async openBuyCryptoReceived(snapshot: Log, date: Date, lookback: Date, equity: LedgerAccount): Promise<void> {
+  private async openBuyCryptoReceived(
+    snapshot: Log,
+    date: Date,
+    lookback: Date,
+    equity: LedgerAccount,
+  ): Promise<number[]> {
     const rows = await this.buyCryptoRepo.find({
       where: { isComplete: false, outputAmount: IsNull(), created: Between(lookback, date) },
     });
     const liability = await this.liability('buyCrypto-received');
+    const unpriced: number[] = [];
 
     for (const row of rows) {
-      if (row.amountInChf == null) continue;
+      if (row.amountInChf == null) {
+        // F2: no CHF anchor → pin; the forward buildCardInputSeq0 SKIPs (its gross is in the aggregate opening via the
+        // Checkout collateral feed, re-booking would double-count) and the completion scan skips+advances (no wedge).
+        unpriced.push(row.id);
+        continue;
+      }
       await this.bookReceivedOwedOpening(
         date,
         `${snapshot.id}:buy_crypto:${row.id}`,
@@ -351,6 +434,18 @@ export class LedgerCutoverService {
         equity,
       );
     }
+
+    return unpriced;
+  }
+
+  // §6.1 F2: pin the open rows the cutover could not value into a per-row opening (amountInChf NULL) — set-only-if-unset
+  // (like the boundary/watermark) so a fail-loud retry reuses the run-1 list verbatim and never overwrites it. An empty
+  // list is never pinned (isUnpricedAtCutover defaults to false). Called BEFORE the ready flag → the forward consumer
+  // sees it as soon as it starts.
+  private async pinUnpricedIds(source: string, ids: number[]): Promise<void> {
+    if (!ids.length) return; // no unpriced rows → no pin (forward defaults to the normal path)
+    if ((await getCutoverUnpricedIdsRaw(this.settingService, source)) != null) return; // already pinned → reuse verbatim
+    await setCutoverUnpricedIds(this.settingService, source, ids);
   }
 
   // buyCrypto-owed: open rows with outputAmount NOT NULL → CHF = outputAmount × getMarkAt(outputAsset ≤ snapshot) (R6-1)

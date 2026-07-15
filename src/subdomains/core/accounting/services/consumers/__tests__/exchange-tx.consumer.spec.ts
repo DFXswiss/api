@@ -946,6 +946,65 @@ describe('ExchangeTxConsumer', () => {
     expect(cents(booked[0].legs)).toBe(0);
   });
 
+  // F4: a Scrypt trade whose base leg is UNVALUED (amountChf null AND no historical mark) but has a youngest mark → the
+  // base is bridged BEFORE the quote plug is formed, so the quote plug reflects the REAL base value (not the phantom 0
+  // that would misvalue the quote custody account by the full base). The quote plug inherits needsMark (provisional
+  // basis) → the mark-to-market job re-marks the quote account once the base is re-marked.
+  it('bridges an unvalued Scrypt base leg before the quote plug and flags the plug needsMark (F4)', async () => {
+    accounts.set('Scrypt/XYZ', account('Scrypt/XYZ', AccountType.ASSET, 'XYZ', 998)); // no historical mark for 998
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(0.9); // youngest available mark for the base asset
+    mockBatch([
+      exchangeTx({
+        id: 25,
+        exchange: ExchangeName.SCRYPT,
+        type: ExchangeTxType.TRADE,
+        symbol: 'XYZ/CHF',
+        side: 'buy',
+        order: 'O-25',
+        amount: 1000,
+        amountChf: null, // base unvalued (no persisted CHF) and 998 has no mark at the booking date
+        cost: 905,
+        feeAmountChf: 0,
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    const base = legs.find((l) => l.account.name === 'Scrypt/XYZ');
+    const quote = legs.find((l) => l.account.name === 'Scrypt/CHF');
+    expect(base.amountChf).toBe(900); // bridged: 0.9 × 1000 (NOT undefined / a phantom 0)
+    expect(base.needsMark).toBe(true); // stays true → mark-to-market re-marks the base later
+    expect(quote.amountChf).toBe(-900); // the quote plug reflects the REAL bridged base value, not −0
+    expect(quote.needsMark).toBe(true); // base was bridged → the quote plug is provisional → re-marked too
+    expect(cents(legs)).toBe(0);
+  });
+
+  // F4: a Scrypt trade whose base is feedless (no mark anywhere) AND carries a market spread → the mixed set (valued
+  // spread leg + unvalued base) cannot balance and the bridge finds nothing → the row DEFERS instead of silently
+  // plugging the full base value into the quote custody leg.
+  it('defers a Scrypt trade when the base is feedless and there is a market spread (F4)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    accounts.set('Scrypt/XYZ', account('Scrypt/XYZ', AccountType.ASSET, 'XYZ', 998)); // no mark; getLatestMark undefined
+    mockBatch([
+      exchangeTx({
+        id: 26,
+        exchange: ExchangeName.SCRYPT,
+        type: ExchangeTxType.TRADE,
+        symbol: 'XYZ/CHF',
+        side: 'buy',
+        order: 'O-26',
+        amount: 1000,
+        amountChf: null,
+        cost: 905,
+        feeAmountChf: 5, // a market spread → the valued spread leg makes the unvalued-base set mixed-unbalanceable
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked[0]).toBeUndefined(); // deferred (feedless base + spread → mixed, no bridge)
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced
+  });
+
   // depositChf `tx.amount ?` FALSE side: amount 0 (falsy) with amountChf set → priceChf null, amountChf persisted.
   it('sets the Deposit priceChf null when amount is 0 (depositChf amount-falsy branch)', async () => {
     mockBatch([

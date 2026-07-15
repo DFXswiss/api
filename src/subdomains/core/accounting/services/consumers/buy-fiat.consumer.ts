@@ -13,7 +13,12 @@ import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
 import { resolveLegsOrDefer } from './ledger-mark-bridge.helper';
-import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
+import {
+  getLedgerWatermark,
+  isUnpricedAtCutover,
+  runContentChangeScan,
+  setLedgerWatermark,
+} from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'buy_fiat';
 const CRYPTO_INPUT_SOURCE = 'crypto_input';
@@ -76,6 +81,16 @@ export class BuyFiatConsumer {
         // below for a never-booked row (no phantom owed/transit/bank accounts).
         if (!(await this.book(bf, marks))) {
           if (await this.preCutoverSettled(bf)) return;
+          // F2: an open row unpriced at the cutover (amountInChf NULL) never got a per-row received/paymentLink opening
+          // — its value is in the aggregate ASSET opening. Its received gate can NEVER open, so SKIP+advance with an
+          // ERROR alarm (manual reconciliation) instead of throwing forever (head-of-line wedge). The per-row chain
+          // begins only once the row is priced AND manually re-anchored — traceable via this alarm.
+          if (await isUnpricedAtCutover(this.settingService, SOURCE_TYPE, bf.id)) {
+            this.logger.error(
+              `buy_fiat ${bf.id} was unpriced at the cutover (value in the aggregate opening) — skipping its per-row chain (F2 alarm)`,
+            );
+            return;
+          }
           throw new Error(`buy_fiat ${bf.id} content-change scan gate-blocked — retry next run (§4.7 G-a)`);
         }
 
@@ -497,19 +512,40 @@ export class BuyFiatConsumer {
     return Util.round(-leg.amountChf, 2); // the opening Cr leg is −openingChf → owed-Dr debits +openingChf
   }
 
-  // §4.7b gate — returns the seq0 paymentLink opening CHF (= −leg.amountChf) or undefined if not yet opened
+  // §4.7b gate — returns the paymentLink opening CHF (= −leg.amountChf) or undefined if not yet opened. Two openers:
+  //  (G-a) the CryptoInput seq0 (post-cutover paymentLink row, §4.4 isPayment);
+  //  (G-b/F1) the cutover per-row marker `${snapshotLogId}:buy_fiat-paymentLink:${id}` for a cutover-straddling
+  //  paymentLink row whose financing crypto_input settled pre-cutover (no seq0). Without G-b the gate would NEVER open
+  //  and the content-change scan would wedge on the straddling row forever.
   private async paymentLinkOpeningChf(bf: BuyFiat): Promise<number | undefined> {
     const cryptoInputId = bf.cryptoInput?.id;
-    if (cryptoInputId == null) return undefined;
+    if (cryptoInputId != null) {
+      const seq0 = await this.ledgerTxRepo.findOne({
+        where: { sourceType: CRYPTO_INPUT_SOURCE, sourceId: `${cryptoInputId}`, seq: 0 },
+        relations: { legs: { account: true } },
+      });
+      const leg = seq0?.legs?.find((l: LedgerLeg) => l.account?.name === PAYMENT_LINK);
+      if (leg?.amountChf != null) return Util.round(-leg.amountChf, 2); // seq0 Cr leg is −Mark×amount → absolute CHF
+    }
 
-    const seq0 = await this.ledgerTxRepo.findOne({
-      where: { sourceType: CRYPTO_INPUT_SOURCE, sourceId: `${cryptoInputId}`, seq: 0 },
+    return this.cutoverPaymentLinkOpeningChf(bf.id); // G-b/F1: cutover-straddling paymentLink row
+  }
+
+  // §6.1/F1 — the cutover per-row paymentLink opening CHF (marker `${snapshotLogId}:buy_fiat-paymentLink:${id}`); the
+  // prefix is the snapshot logId persisted in ledgerCutoverLogId. Returns the opening anchor (= −leg.amountChf) so the
+  // §4.7b seq1/seq2 debit LIABILITY/paymentLink by exactly the cutover opening → paymentLink closes cent-exact to 0.
+  private async cutoverPaymentLinkOpeningChf(buyFiatId: number): Promise<number | undefined> {
+    const cutoverLogId = await this.settingService.get(CUTOVER_LOG_ID_KEY);
+    if (cutoverLogId == null) return undefined;
+
+    const opening = await this.ledgerTxRepo.findOne({
+      where: { sourceType: CUTOVER_SOURCE, sourceId: `${cutoverLogId}:buy_fiat-paymentLink:${buyFiatId}` },
       relations: { legs: { account: true } },
     });
-    const leg = seq0?.legs?.find((l: LedgerLeg) => l.account?.name === PAYMENT_LINK);
+    const leg = opening?.legs?.find((l: LedgerLeg) => l.account?.name === PAYMENT_LINK);
     if (leg?.amountChf == null) return undefined;
 
-    return Util.round(-leg.amountChf, 2); // seq0 Cr leg is −Mark×amount → opening value is its absolute CHF
+    return Util.round(-leg.amountChf, 2);
   }
 
   // --- ACCOUNT/LEG HELPERS --- //
