@@ -60,6 +60,13 @@ export interface BalancesTotal {
   plusBalanceChf: number;
   minusBalanceChf: number;
   totalBalanceChf: number;
+  /**
+   * Per-interval price effect (FX P&L) of the open positions vs. the previous snapshot: the sum over
+   * assets of each one's previous net position times the change in its CHF price. Customer flow is
+   * balance-neutral, so `ΔtotalBalanceChf ≈ transactional yield + fxPnlChf + errors`. Absent (not 0) on
+   * the first entry, which has no previous snapshot to diff against.
+   */
+  fxPnlChf?: number;
 }
 
 export interface BalancesByFinancialType {

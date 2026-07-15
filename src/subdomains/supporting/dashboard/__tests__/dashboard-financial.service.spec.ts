@@ -52,4 +52,25 @@ describe('DashboardFinancialService', () => {
     expect(entry.minus.mexc).toEqual({ total: 0, withdraw: 0, trading: 0 });
     expect(entry.minus.binance).toEqual({ total: 7, withdraw: 1, trading: 6 });
   });
+
+  describe('mapLogToEntry (fxPnlChf exposure)', () => {
+    const logWith = (balancesTotal: object): Log =>
+      ({ created: new Date('2026-07-14T00:00:00Z'), message: JSON.stringify({ balancesTotal }) }) as Log;
+
+    it('exposes the fxPnlChf written into the log entry, preserving a negative value', () => {
+      const entry = service['mapLogToEntry'](
+        logWith({ totalBalanceChf: 100, plusBalanceChf: 100, minusBalanceChf: 0, fxPnlChf: -3245 }),
+      );
+
+      expect(entry?.fxPnlChf).toBe(-3245);
+    });
+
+    it('defaults historical entries logged before fxPnlChf existed to 0', () => {
+      const entry = service['mapLogToEntry'](
+        logWith({ totalBalanceChf: 100, plusBalanceChf: 100, minusBalanceChf: 0 }),
+      );
+
+      expect(entry?.fxPnlChf).toBe(0);
+    });
+  });
 });
