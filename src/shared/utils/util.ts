@@ -13,7 +13,7 @@ export type KeyType<T, U> = {
   [K in keyof T]: T[K] extends U ? K : never;
 }[keyof T];
 
-type CryptoAlgorithm = 'md5' | 'sha256' | 'sha512';
+type CryptoAlgorithm = 'md5' | 'sha256' | 'sha384' | 'sha512';
 
 export enum AmountType {
   ASSET = 'Asset',

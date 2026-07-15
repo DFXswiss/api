@@ -3,6 +3,7 @@ import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-c
 import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { User } from 'src/subdomains/generic/user/models/user/user.entity';
+import { FrickPaymentState } from 'src/integration/bank/dto/frick.dto';
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToMany, OneToOne } from 'typeorm';
 import { BankTxRepeat } from '../bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from '../bank-tx/bank-tx-return/bank-tx-return.entity';
@@ -151,6 +152,25 @@ export class FiatOutput extends IEntity {
 
   @Column({ nullable: true })
   olkyOrderId?: string;
+
+  // Bank Frick's own numeric orderId (max 16 digits) - stringified for the safely-representable case.
+  @Column({ length: 64, nullable: true })
+  frickOrderId?: string;
+
+  // DFX's own generated customId (e.g. "DFX-FO-42"), not a Bank Frick transaction id.
+  @Column({ length: 256, nullable: true })
+  frickCustomId?: string;
+
+  @Column({ type: 'varchar', length: 256, nullable: true })
+  frickOrderStatus?: FrickPaymentState;
+
+  @Column({ length: 256, nullable: true })
+  frickError?: string;
+
+  // The exact, bank-bound reference string sent to Bank Frick (customId-prefixed, truncated to 140
+  // chars). Kept separate from remittanceInfo so the customer-facing text is never overwritten.
+  @Column({ length: 256, nullable: true })
+  frickReference?: string;
 
   // --- ENTITY METHODS --- //
 

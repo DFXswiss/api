@@ -6,6 +6,7 @@ import { firstValueFrom } from 'rxjs';
 import { Environment, GetConfig } from 'src/config/config';
 import { Util } from '../utils/util';
 import { DfxLogger } from './dfx-logger';
+import { FrickMockGateway } from './frick-mock-gateway';
 
 export interface HttpError {
   response?: {
@@ -14,10 +15,20 @@ export interface HttpError {
   };
 }
 
-export type HttpRequestConfig = AxiosRequestConfig & { tryCount?: number; retryDelay?: number };
+export type HttpRequestConfig = AxiosRequestConfig & {
+  tryCount?: number;
+  retryDelay?: number;
+  // Raw response bytes, exactly as received - never decoded/transcoded before the caller verifies
+  // them, so a legitimately signed response can never fail verification due to axios' own text decoding.
+  responseVerifier?: (rawBody: Buffer, headers: AxiosResponse['headers']) => void;
+};
 
-// Mock responses for local development
-const MOCK_RESPONSES: { pattern: RegExp; response: any }[] = [
+type MockResponseFactory = (url: string, config?: HttpRequestConfig) => unknown;
+
+// Mock responses for local development. Bank Frick's own mock is stateful and endpoint-aware -
+// handled by the dedicated FrickMockGateway (its own file, its own instance-scoped state) rather than
+// living inline here; every other integration below is a simple stateless stub.
+const MOCK_RESPONSES: { pattern: RegExp; response: unknown | MockResponseFactory }[] = [
   { pattern: /alchemy\.com/, response: { result: '0x0', jsonrpc: '2.0', id: 1 } },
   { pattern: /tatum\.io/, response: { balance: '0', transactions: [] } },
   { pattern: /api\.sift\.com/, response: { status: 0, score: 0.1 } },
@@ -46,6 +57,9 @@ const MOCK_RESPONSES: { pattern: RegExp; response: any }[] = [
 export class HttpService {
   private readonly logger = new DfxLogger(HttpService);
   private readonly isMockMode: boolean;
+  // Instance-scoped, not shared across separately-constructed HttpService instances (e.g. across test
+  // files) - a fresh gateway (and its stateful order Map) is created lazily only when actually mocking.
+  private frickMockGateway?: FrickMockGateway;
 
   constructor(private readonly http: Http) {
     this.isMockMode = GetConfig().environment === Environment.LOC;
@@ -61,12 +75,17 @@ export class HttpService {
     return true;
   }
 
-  private getMockResponse<T>(url: string): T {
-    const mock = MOCK_RESPONSES.find((m) => m.pattern.test(url));
-    this.logger.verbose(
-      `Mock HTTP: ${url.substring(0, 80)}... → ${JSON.stringify(mock?.response ?? {}).substring(0, 50)}`,
-    );
-    return (mock?.response ?? { mock: true }) as T;
+  private getMockResponse<T>(url: string, config?: HttpRequestConfig): T {
+    this.frickMockGateway ??= new FrickMockGateway();
+    let response: unknown;
+    if (this.frickMockGateway.matches(url)) {
+      response = this.frickMockGateway.resolve(url, config);
+    } else {
+      const mock = MOCK_RESPONSES.find((m) => m.pattern.test(url));
+      response = typeof mock?.response === 'function' ? mock.response(url, config) : (mock?.response ?? { mock: true });
+    }
+    this.logger.verbose(`Mock HTTP: ${url.substring(0, 80)}... → ${JSON.stringify(response).substring(0, 50)}`);
+    return response as T;
   }
 
   public async get<T>(url: string, config?: HttpRequestConfig): Promise<T> {
@@ -137,10 +156,30 @@ export class HttpService {
   }
 
   public async request<T>(config: HttpRequestConfig): Promise<T> {
-    if (config.url && this.shouldMock(config.url)) return this.getMockResponse<T>(config.url);
-    return (
-      await Util.retry(() => firstValueFrom(this.http.request<T>(config)), config?.tryCount ?? 1, config?.retryDelay)
-    ).data;
+    if (config.url && this.shouldMock(config.url)) return this.getMockResponse<T>(config.url, config);
+    const { tryCount, retryDelay, responseVerifier, ...axiosConfig } = config;
+    const requestedResponseType = axiosConfig.responseType;
+    if (responseVerifier) {
+      // Preserve the exact response bytes as a Buffer until the detached signature was verified. Any
+      // string decoding (even axios' own default UTF-8 text handling) can strip a BOM or lossily
+      // transcode non-UTF-8 bytes before the verifier ever sees them - arraybuffer is the only
+      // responseType that hands back the untouched bytes.
+      axiosConfig.responseType = 'arraybuffer';
+      axiosConfig.transformResponse = [(data) => data];
+    }
+
+    const response = await Util.retry(
+      () => firstValueFrom(this.http.request<T>(axiosConfig)),
+      tryCount ?? 1,
+      retryDelay,
+    );
+    if (!responseVerifier) return response.data;
+    if (!Buffer.isBuffer(response.data)) throw new Error('Signed HTTP response body is not a raw byte buffer');
+
+    responseVerifier(response.data, response.headers);
+    const decoded = response.data.toString('utf8');
+    if (requestedResponseType === 'text') return decoded as T;
+    return JSON.parse(decoded) as T;
   }
 
   async downloadFile(fileUrl: string, filePath: string) {

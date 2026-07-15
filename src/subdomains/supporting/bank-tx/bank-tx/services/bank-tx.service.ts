@@ -58,6 +58,7 @@ import {
 } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
+import { BankTxFrickService } from './bank-tx-frick.service';
 import { SepaParser } from './sepa-parser.service';
 
 export const TransactionBankTxTypeMapper: {
@@ -99,6 +100,7 @@ export class BankTxService implements OnModuleInit {
     private readonly notificationService: NotificationService,
     private readonly settingService: SettingService,
     private readonly olkyService: OlkypayService,
+    private readonly frickTxService: BankTxFrickService,
     private readonly bankTxReturnService: BankTxReturnService,
     private readonly bankTxRepeatService: BankTxRepeatService,
     private readonly buyService: BuyService,
@@ -123,7 +125,16 @@ export class BankTxService implements OnModuleInit {
   // --- TRANSACTION HANDLING --- //
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 3600, process: Process.BANK_TX })
   async checkBankTx(): Promise<void> {
-    await this.checkTransactions();
+    try {
+      await this.checkTransactions();
+    } catch (error) {
+      this.logger.error('Failed to check Olkypay transactions:', error);
+    }
+    try {
+      await this.frickTxService.checkTransactions(this.create.bind(this));
+    } catch (error) {
+      this.logger.error('Failed to check Bank Frick transactions:', error);
+    }
     await this.assignTransactions();
     await this.fillBankTx();
   }
@@ -257,9 +268,17 @@ export class BankTxService implements OnModuleInit {
 
     for (const entity of entities) {
       try {
+        // The matcher (BankTxOutgoingMatchService) treats a DEBIT row's `amount` as already
+        // charge-inclusive/gross (net-of-charge matching subtracts chargeAmount from it) - accounting
+        // must use the same convention instead of adding the charge back on top, or a charged Frick
+        // payout is double-counted. A CREDIT row's `amount` is charge-exclusive as received (the charge
+        // was already deducted before it arrived), so it still needs chargeAmount added back to recover
+        // the original, pre-charge amount - unchanged from before this PR.
+        const accountingCharge = entity.creditDebitIndicator === BankTxIndicator.CREDIT ? entity.chargeAmount : 0;
+
         if (![BankTxType.BUY_CRYPTO, BankTxType.BUY_FIAT].includes(entity.type)) {
           await this.bankTxRepo.update(entity.id, {
-            accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
+            accountingAmountBeforeFee: Util.roundReadable(entity.amount + accountingCharge, AmountType.FIAT),
           });
           continue;
         }
@@ -269,21 +288,21 @@ export class BankTxService implements OnModuleInit {
 
         if (entity.type === BankTxType.BUY_CRYPTO) {
           update.accountingFeePercent = entity.buyCrypto.percentFee;
-          update.accountingFeeAmount = update.accountingFeePercent * (entity.amount + entity.chargeAmount);
-          update.accountingAmountAfterFee = entity.amount + entity.chargeAmount - update.accountingFeeAmount;
+          update.accountingFeeAmount = update.accountingFeePercent * (entity.amount + accountingCharge);
+          update.accountingAmountAfterFee = entity.amount + accountingCharge - update.accountingFeeAmount;
           update.accountingAmountBeforeFeeChf = entity.buyCrypto.amountInChf;
           update.accountingAmountAfterFeeChf = entity.buyCrypto.amountInChf * (1 - update.accountingFeePercent);
         } else {
           update.accountingFeePercent = entity.buyFiats[0].percentFee;
           update.accountingFeeAmount =
-            update.accountingFeePercent * ((entity.amount + entity.chargeAmount) / (1 - update.accountingFeePercent));
-          update.accountingAmountAfterFee = entity.amount + entity.chargeAmount;
+            update.accountingFeePercent * ((entity.amount + accountingCharge) / (1 - update.accountingFeePercent));
+          update.accountingAmountAfterFee = entity.amount + accountingCharge;
           update.accountingAmountBeforeFeeChf = entity.buyFiats[0].amountInChf / (1 - update.accountingFeePercent);
           update.accountingAmountAfterFeeChf = entity.buyFiats[0].amountInChf;
         }
 
         await this.bankTxRepo.update(entity.id, {
-          accountingAmountBeforeFee: Util.roundReadable(entity.amount + entity.chargeAmount, AmountType.FIAT),
+          accountingAmountBeforeFee: Util.roundReadable(entity.amount + accountingCharge, AmountType.FIAT),
           accountingFeePercent: Util.roundReadable(update.accountingFeePercent, AmountType.FIAT),
           accountingFeeAmount: Util.roundReadable(update.accountingFeeAmount, AmountType.FIAT),
           accountingAmountAfterFee: Util.roundReadable(update.accountingAmountAfterFee, AmountType.FIAT),
@@ -383,26 +402,6 @@ export class BankTxService implements OnModuleInit {
     }
 
     return query.getOne();
-  }
-
-  async getBankTxByRemittanceInfo(remittanceInfo: string): Promise<BankTx> {
-    return this.bankTxRepo
-      .createQueryBuilder('bankTx')
-      .select('bankTx', 'bankTx')
-      .leftJoinAndSelect('bankTx.transaction', 'transaction')
-      .where(`REPLACE(bankTx.remittanceInfo, ' ', '') = :remittanceInfo`, {
-        remittanceInfo: remittanceInfo.replace(/ /g, ''),
-      })
-      .orderBy('bankTx.id', 'DESC')
-      .getOne();
-  }
-
-  async getBankTxByEndToEndId(endToEndId: string): Promise<BankTx> {
-    return this.bankTxRepo.findOne({
-      where: { endToEndId, creditDebitIndicator: BankTxIndicator.DEBIT },
-      relations: { transaction: true },
-      order: { id: 'DESC' },
-    });
   }
 
   async getBankTxByTransactionId(transactionId: number, relations?: FindOptionsRelations<BankTx>): Promise<BankTx> {
