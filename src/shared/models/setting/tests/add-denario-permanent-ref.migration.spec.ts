@@ -6,29 +6,36 @@ type Migration = {
   down(queryRunner: QueryRunner): Promise<void>;
 };
 
+const BACKUP_KEY = 'ref-keys.backup.1784037000000';
+
 type MigrationHarness = {
   queryRunner: QueryRunner;
   query: jest.Mock;
-  getSetting(): string | undefined;
+  getSetting(key?: string): string | undefined;
 };
 
-let AddDenarioPermanentRef: new () => Migration;
-
 function createHarness(refs: unknown[] = ['123-456'], initialSetting?: string): MigrationHarness {
-  let setting = initialSetting;
+  const settings = new Map<string, string>();
+  if (initialSetting !== undefined) settings.set('ref-keys', initialSetting);
+
   const query = jest.fn(async (sql: string, parameters: unknown[] = []) => {
     if (sql.includes('FROM "user" u')) return refs.map((ref) => ({ ref }));
-    if (sql.startsWith('SELECT "value" FROM "setting"')) return setting === undefined ? [] : [{ value: setting }];
+    if (sql.startsWith('SELECT "value" FROM "setting"')) {
+      const key = parameters[0] as string;
+      return settings.has(key) ? [{ value: settings.get(key) }] : [];
+    }
     if (sql.startsWith('UPDATE "setting"')) {
-      setting = parameters[0] as string;
+      settings.set(parameters[1] as string, parameters[0] as string);
       return [];
     }
     if (sql.startsWith('INSERT INTO "setting"')) {
-      setting = parameters[1] as string;
+      const key = parameters[0] as string;
+      if (settings.has(key)) throw new Error(`duplicate key value violates unique constraint "${key}"`);
+      settings.set(key, parameters[1] as string);
       return [];
     }
     if (sql.startsWith('DELETE FROM "setting"')) {
-      setting = undefined;
+      settings.delete(parameters[0] as string);
       return [];
     }
 
@@ -38,9 +45,11 @@ function createHarness(refs: unknown[] = ['123-456'], initialSetting?: string): 
   return {
     queryRunner: { query } as unknown as QueryRunner,
     query,
-    getSetting: () => setting,
+    getSetting: (key = 'ref-keys') => settings.get(key),
   };
 }
+
+let AddDenarioPermanentRef: new () => Migration;
 
 describe('AddDenarioPermanentRef migration', () => {
   beforeAll(() => {
@@ -64,33 +73,52 @@ describe('AddDenarioPermanentRef migration', () => {
     ]);
   });
 
-  it('creates ref-keys when the setting does not exist', async () => {
+  it('writes an immutable before-image backup before overwriting ref-keys', async () => {
+    const previous = JSON.stringify({ cakewallet: '111-222' });
+    const harness = createHarness(['123-456'], previous);
+
+    await new AddDenarioPermanentRef().up(harness.queryRunner);
+
+    expect(JSON.parse(harness.getSetting(BACKUP_KEY)!)).toEqual({ existed: true, previous, ownedRef: '123-456' });
+    // backup is inserted before the ref-keys update
+    const insertBackupCall = harness.query.mock.calls.findIndex(
+      ([sql, params]) => /^INSERT INTO "setting"/.test(sql) && params?.[0] === BACKUP_KEY,
+    );
+    const updateRefKeysCall = harness.query.mock.calls.findIndex(([sql]) => /^UPDATE "setting"/.test(sql));
+    expect(insertBackupCall).toBeGreaterThanOrEqual(0);
+    expect(insertBackupCall).toBeLessThan(updateRefKeysCall);
+  });
+
+  it('creates ref-keys when the setting does not exist and records existed=false', async () => {
     const harness = createHarness();
 
     await new AddDenarioPermanentRef().up(harness.queryRunner);
 
     expect(JSON.parse(harness.getSetting()!)).toEqual({ denario: '123-456' });
-    expect(harness.query).toHaveBeenCalledWith(expect.stringMatching(/^INSERT INTO "setting"/), [
-      'ref-keys',
-      JSON.stringify({ denario: '123-456' }),
-    ]);
+    expect(JSON.parse(harness.getSetting(BACKUP_KEY)!)).toEqual({
+      existed: false,
+      previous: null,
+      ownedRef: '123-456',
+    });
   });
 
-  it('is idempotent when the alias already targets the same account', async () => {
+  it('is idempotent and writes no backup when the alias already targets the same account', async () => {
     const initialSetting = JSON.stringify({ denario: '123-456' });
     const harness = createHarness(['123-456'], initialSetting);
 
     await new AddDenarioPermanentRef().up(harness.queryRunner);
 
     expect(harness.getSetting()).toBe(initialSetting);
+    expect(harness.getSetting(BACKUP_KEY)).toBeUndefined();
     expect(harness.query).toHaveBeenCalledTimes(2);
   });
 
-  it('refuses to overwrite a conflicting Denario alias', async () => {
+  it('refuses to overwrite a conflicting Denario alias and writes no backup', async () => {
     const harness = createHarness(['123-456'], JSON.stringify({ denario: '999-999' }));
 
     await expect(new AddDenarioPermanentRef().up(harness.queryRunner)).rejects.toThrow('conflicting');
     expect(JSON.parse(harness.getSetting()!)).toEqual({ denario: '999-999' });
+    expect(harness.getSetting(BACKUP_KEY)).toBeUndefined();
   });
 
   it.each([
@@ -102,6 +130,7 @@ describe('AddDenarioPermanentRef migration', () => {
 
     await expect(new AddDenarioPermanentRef().up(harness.queryRunner)).rejects.toThrow(error);
     expect(harness.getSetting()).toBeUndefined();
+    expect(harness.getSetting(BACKUP_KEY)).toBeUndefined();
   });
 
   it.each(['not-json', '[]', 'null'])('rejects corrupt ref-keys configuration: %s', async (value) => {
@@ -109,35 +138,55 @@ describe('AddDenarioPermanentRef migration', () => {
 
     await expect(new AddDenarioPermanentRef().up(harness.queryRunner)).rejects.toThrow("Setting 'ref-keys'");
     expect(harness.getSetting()).toBe(value);
+    expect(harness.getSetting(BACKUP_KEY)).toBeUndefined();
   });
 
-  it('removes only the Denario alias on rollback', async () => {
-    const harness = createHarness([], JSON.stringify({ cakewallet: '111-222', denario: '123-456' }));
+  it('removes only the Denario alias on rollback and clears the backup', async () => {
+    const harness = createHarness(['123-456'], JSON.stringify({ cakewallet: '111-222' }));
+    await new AddDenarioPermanentRef().up(harness.queryRunner);
+
+    await new AddDenarioPermanentRef().down(harness.queryRunner);
+
+    expect(JSON.parse(harness.getSetting()!)).toEqual({ cakewallet: '111-222' });
+    expect(harness.getSetting(BACKUP_KEY)).toBeUndefined();
+  });
+
+  it('removes an otherwise empty ref-keys setting on rollback when it did not exist before', async () => {
+    const harness = createHarness(['123-456']);
+    await new AddDenarioPermanentRef().up(harness.queryRunner);
+
+    await new AddDenarioPermanentRef().down(harness.queryRunner);
+
+    expect(harness.getSetting()).toBeUndefined();
+    expect(harness.getSetting(BACKUP_KEY)).toBeUndefined();
+  });
+
+  it('is a no-op on rollback when up() never owned a change (no backup)', async () => {
+    const harness = createHarness(['123-456'], JSON.stringify({ cakewallet: '111-222' }));
 
     await new AddDenarioPermanentRef().down(harness.queryRunner);
 
     expect(JSON.parse(harness.getSetting()!)).toEqual({ cakewallet: '111-222' });
   });
 
-  it('removes an otherwise empty ref-keys setting on rollback', async () => {
-    const harness = createHarness([], JSON.stringify({ denario: '123-456' }));
+  it('does not destroy a Denario alias re-pointed after deployment', async () => {
+    const harness = createHarness(['123-456'], JSON.stringify({ cakewallet: '111-222' }));
+    await new AddDenarioPermanentRef().up(harness.queryRunner);
+
+    // an admin re-points the alias after deployment
+    harness.query.mock.calls.length = 0;
+    const current = JSON.parse(harness.getSetting()!);
+    current.denario = '555-666';
+    (harness.queryRunner as unknown as { query: jest.Mock }).query(
+      `UPDATE "setting" SET "value" = $1, "updated" = NOW() WHERE "key" = $2`,
+      [JSON.stringify(current), 'ref-keys'],
+    );
 
     await new AddDenarioPermanentRef().down(harness.queryRunner);
 
-    expect(harness.getSetting()).toBeUndefined();
+    expect(JSON.parse(harness.getSetting()!)).toEqual({ cakewallet: '111-222', denario: '555-666' });
+    expect(harness.getSetting(BACKUP_KEY)).toBeUndefined();
   });
-
-  it.each([undefined, JSON.stringify({ cakewallet: '111-222' })])(
-    'leaves unrelated configuration untouched on rollback: %s',
-    async (value) => {
-      const harness = createHarness([], value);
-
-      await new AddDenarioPermanentRef().down(harness.queryRunner);
-
-      expect(harness.getSetting()).toBe(value);
-      expect(harness.query).toHaveBeenCalledTimes(1);
-    },
-  );
 });
 
 describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
@@ -195,7 +244,7 @@ describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
     `);
   });
 
-  it('resolves the active organization ref and applies a reversible setting update', async () => {
+  it('resolves the active organization ref and applies a reversible, auditable setting update', async () => {
     await dataSource.query(
       `INSERT INTO "user_data" ("id", "organizationName", "accountType", "status") VALUES
         (1, '  DeNaRiO AG  ', 'Organization', 'Active'),
@@ -222,10 +271,18 @@ describe('AddDenarioPermanentRef migration (postgres semantics)', () => {
       await migration.up(queryRunner);
       const afterUp = await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = 'ref-keys'`);
       expect(JSON.parse(afterUp.at(0).value)).toEqual({ cakewallet: '111-222', denario: '123-456' });
+      const backup = await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = '${BACKUP_KEY}'`);
+      expect(JSON.parse(backup.at(0).value)).toEqual({
+        existed: true,
+        previous: JSON.stringify({ cakewallet: '111-222' }),
+        ownedRef: '123-456',
+      });
 
       await migration.down(queryRunner);
       const afterDown = await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = 'ref-keys'`);
       expect(JSON.parse(afterDown.at(0).value)).toEqual({ cakewallet: '111-222' });
+      const backupAfterDown = await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = '${BACKUP_KEY}'`);
+      expect(backupAfterDown).toHaveLength(0);
     } finally {
       await queryRunner.release();
     }

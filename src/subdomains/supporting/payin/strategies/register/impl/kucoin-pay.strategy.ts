@@ -44,7 +44,7 @@ export class KucoinPayStrategy extends RegisterStrategy {
   }
 
   private async processWebhookTransactions(payWebhook: C2BWebhookResult): Promise<void> {
-    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+    const supportedAssets = await this.assetService.getPayInAssets([this.blockchain]);
 
     const payInEntry = this.mapKucoinTransaction(payWebhook, supportedAssets);
 

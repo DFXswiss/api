@@ -66,7 +66,7 @@ export class SolanaStrategy extends RegisterStrategy implements OnModuleInit {
     if (Util.includesIgnoreCase(dto.counterAddresses, ownWalletAddress)) return;
     if (!Util.includesIgnoreCase(toAddresses, dto.address)) return;
 
-    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+    const supportedAssets = await this.assetService.getPayInAssets([this.blockchain]);
 
     const payInEntry = this.mapSolanaTransaction(dto, supportedAssets);
 

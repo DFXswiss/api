@@ -68,7 +68,7 @@ export class InternetComputerStrategy extends RegisterStrategy {
   ): Promise<void> {
     const log = this.createNewLogObject();
     const scanState: Record<string, number> = persistProgress ? await this.getScanState() : {};
-    const assets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+    const assets = await this.assetService.getPayInAssets([this.blockchain]);
 
     const newEntries: PayInEntry[] = [];
     for (const asset of assets) {

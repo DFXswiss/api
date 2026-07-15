@@ -98,7 +98,7 @@ export abstract class CitreaBaseStrategy extends RegisterStrategy {
       toBlock,
     );
 
-    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+    const supportedAssets = await this.assetService.getPayInAssets([this.blockchain]);
 
     const coinEntries = this.mapCoinTransactionsToEntries(coinTransactions, depositAddress, supportedAssets);
     const tokenEntries = this.mapTokenTransactionsToEntries(tokenTransactions, depositAddress, supportedAssets);

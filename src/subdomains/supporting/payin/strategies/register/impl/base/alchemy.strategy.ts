@@ -58,7 +58,7 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
     const fromAddresses = this.getOwnAddresses();
     const toAddresses = await this.getPayInAddresses();
 
-    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+    const supportedAssets = await this.assetService.getPayInAssets([this.blockchain]);
 
     const relevantTransactions = this.filterWebhookTransactionsByRelevantAddresses(fromAddresses, toAddresses, dto);
     const transactions = AlchemyTransactionMapper.mapWebhookActivities(relevantTransactions);
@@ -97,7 +97,7 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
     const fromAddresses = this.getOwnAddresses();
     const toAddresses = await this.getPayInAddresses();
 
-    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+    const supportedAssets = await this.assetService.getPayInAssets([this.blockchain]);
 
     const relevantAssetTransfers = this.filterAssetTransfersByRelevantAddresses(
       fromAddresses,

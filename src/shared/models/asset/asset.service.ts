@@ -49,6 +49,18 @@ export class AssetService {
     });
   }
 
+  // Assets that a pay-in register strategy may recognize. Only priced assets qualify: the register
+  // flow feeds the asset into validateInput() -> pricing, which throws without a price rule and would
+  // leave the pay-in stuck in CREATED, re-tried and logged by the minute cron forever. Scoped to the
+  // pay-in path (its own cache key), so balances, monitoring and the asset API stay unaffected.
+  async getPayInAssets(blockchains: Blockchain[], includePrivate = true): Promise<Asset[]> {
+    const where: FindOptionsWhere<Asset> = { priceRule: Not(IsNull()) };
+    where.blockchain = blockchains.length > 0 ? In(blockchains) : Not(Blockchain.DEFICHAIN);
+    if (!includePrivate) where.category = Not(AssetCategory.PRIVATE);
+
+    return this.assetRepo.findCached(`pay-in-${JSON.stringify(where)}`, { where });
+  }
+
   async getPaymentAssets(): Promise<Asset[]> {
     return this.assetRepo.findCachedBy('payment', { paymentEnabled: true });
   }

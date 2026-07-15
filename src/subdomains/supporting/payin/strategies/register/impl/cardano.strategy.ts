@@ -111,7 +111,7 @@ export class CardanoStrategy extends RegisterStrategy {
     const transactions = await this.payInCardanoService.getHistoryForAddress(depositAddress.address, 50);
     const relevantTransactions = this.filterByRelevantTransactions(transactions, depositAddress, fromBlock, toBlock);
 
-    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+    const supportedAssets = await this.assetService.getPayInAssets([this.blockchain]);
 
     return this.mapToPayInEntries(depositAddress, relevantTransactions, supportedAssets);
   }

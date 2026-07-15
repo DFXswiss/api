@@ -69,7 +69,23 @@ module.exports = class AddDenarioWalletAndAssets1784038000000 {
    * @param {QueryRunner} queryRunner
    */
   async down(queryRunner) {
-    await queryRunner.query(`DELETE FROM "asset" WHERE "uniqueName" IN ('Polygon/DGC', 'Polygon/DSC')`);
-    await queryRunner.query(`DELETE FROM "wallet" WHERE "name" = 'Denario'`);
+    // Revert only the state this migration owns. up() inserts are NOT EXISTS-guarded (the loc seed can
+    // create the same rows), so down() must not delete rows it may not have created: remove the assets
+    // only while they are still inert (no price rule, not tradeable) and the wallet only while it has no
+    // owner and no attached users. Anything activated or linked afterwards is left in place (roll-forward),
+    // so a rollback never destroys pre-existing or accumulated data.
+    await queryRunner.query(
+      `DELETE FROM "asset"
+        WHERE "uniqueName" IN ('Polygon/DGC', 'Polygon/DSC')
+          AND "priceRuleId" IS NULL
+          AND "buyable" = false
+          AND "sellable" = false`,
+    );
+    await queryRunner.query(
+      `DELETE FROM "wallet"
+        WHERE "name" = 'Denario'
+          AND "ownerId" IS NULL
+          AND "id" NOT IN (SELECT "walletId" FROM "user" WHERE "walletId" IS NOT NULL)`,
+    );
   }
 };

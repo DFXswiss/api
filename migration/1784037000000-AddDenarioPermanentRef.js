@@ -4,6 +4,11 @@
  */
 
 const REF_SETTING_KEY = 'ref-keys';
+// Immutable prior-state / audit record for this migration's overwrite of `ref-keys`
+// (CONTRIBUTING: auditable mutations — no destructive overwrite). Written before the update and only
+// on the path that actually changes the setting; it is the recoverable before-image and the ownership
+// marker used by down().
+const REF_BACKUP_KEY = 'ref-keys.backup.1784037000000';
 const DENARIO_ALIAS = 'denario';
 const DENARIO_ORGANIZATION_NAMES = ['denario', 'denario ag'];
 const REF_CODE_FORMAT = /^\w{1,3}-\w{1,3}$/;
@@ -99,6 +104,15 @@ module.exports = class AddDenarioPermanentRef1784037000000 {
       );
     }
 
+    // Auditable mutation: persist the immutable before-image FIRST, then change the snapshot. The
+    // whole migration runs in one transaction, so if this insert fails (e.g. a backup already exists),
+    // the `ref-keys` update never happens — fail closed, never a destructive overwrite without a record.
+    const backup = JSON.stringify({ existed: row != null, previous: row ? row.value : null, ownedRef: denarioRef });
+    await queryRunner.query(
+      `INSERT INTO "setting" ("key", "value", "created", "updated") VALUES ($1, $2, NOW(), NOW())`,
+      [REF_BACKUP_KEY, backup],
+    );
+
     Reflect.set(refKeys, DENARIO_ALIAS, denarioRef);
     const value = JSON.stringify(refKeys);
 
@@ -119,22 +133,36 @@ module.exports = class AddDenarioPermanentRef1784037000000 {
    * @param {QueryRunner} queryRunner
    */
   async down(queryRunner) {
+    // Revert only the change this migration owns. The backup record exists exactly when up() changed
+    // `ref-keys`; without it, up() was a no-op (alias already present) and there is nothing to undo.
+    const backupRow = (
+      await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = $1 FOR UPDATE`, Array.of(REF_BACKUP_KEY))
+    ).at(0);
+    if (!backupRow) return;
+
+    const backup = JSON.parse(backupRow.value);
+
     const row = (
       await queryRunner.query(`SELECT "value" FROM "setting" WHERE "key" = $1 FOR UPDATE`, Array.of(REF_SETTING_KEY))
     ).at(0);
-    if (!row) return;
 
-    const refKeys = parseRefKeys(row);
-    if (!Object.prototype.hasOwnProperty.call(refKeys, DENARIO_ALIAS)) return;
-
-    Reflect.deleteProperty(refKeys, DENARIO_ALIAS);
-    if (Object.keys(refKeys).length === 0) {
-      await queryRunner.query(`DELETE FROM "setting" WHERE "key" = $1`, Array.of(REF_SETTING_KEY));
-    } else {
-      await queryRunner.query(`UPDATE "setting" SET "value" = $1, "updated" = NOW() WHERE "key" = $2`, [
-        JSON.stringify(refKeys),
-        REF_SETTING_KEY,
-      ]);
+    if (row) {
+      const refKeys = parseRefKeys(row);
+      // Only remove the alias while it still carries the value we set — an admin may have re-pointed or
+      // re-added it after deployment; that later change is not ours to destroy.
+      if (Reflect.get(refKeys, DENARIO_ALIAS) === backup.ownedRef) {
+        Reflect.deleteProperty(refKeys, DENARIO_ALIAS);
+        if (Object.keys(refKeys).length === 0 && !backup.existed) {
+          await queryRunner.query(`DELETE FROM "setting" WHERE "key" = $1`, Array.of(REF_SETTING_KEY));
+        } else {
+          await queryRunner.query(`UPDATE "setting" SET "value" = $1, "updated" = NOW() WHERE "key" = $2`, [
+            JSON.stringify(refKeys),
+            REF_SETTING_KEY,
+          ]);
+        }
+      }
     }
+
+    await queryRunner.query(`DELETE FROM "setting" WHERE "key" = $1`, Array.of(REF_BACKUP_KEY));
   }
 };

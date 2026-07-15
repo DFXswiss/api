@@ -69,7 +69,7 @@ export class ZanoStrategy extends PollingStrategy {
     const transferInResults = await this.payInZanoService.getTransactionHistory(lastCheckedBlockHeight);
     const relevantTransferInResults = this.filterByRelevantPayments(transferInResults);
 
-    const supportedAssets = await this.assetService.getAllBlockchainAssets([this.blockchain]);
+    const supportedAssets = await this.assetService.getPayInAssets([this.blockchain]);
 
     return this.mapToPayInEntries(relevantTransferInResults, supportedAssets);
   }
