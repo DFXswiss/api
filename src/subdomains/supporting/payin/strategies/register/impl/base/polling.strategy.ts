@@ -1,5 +1,6 @@
 import { NodeNotReadyError } from 'src/integration/blockchain/bitcoin/node/rpc';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { isConnectionFailure, OutageLogger } from 'src/shared/utils/outage-logger';
 import { RegisterStrategy } from './register.strategy';
 
 // A normal node restart warms up in ~1 min. If it stays in warmup past this, the
@@ -13,6 +14,7 @@ export abstract class PollingStrategy extends RegisterStrategy {
   private blockHeight = -1;
   private warmupSince?: number;
   private warmupEscalated = false;
+  private outage?: OutageLogger;
 
   protected abstract getBlockHeight(): Promise<number>;
   protected abstract processNewPayInEntries(): Promise<void>;
@@ -23,6 +25,7 @@ export abstract class PollingStrategy extends RegisterStrategy {
 
       this.warmupSince = undefined;
       this.warmupEscalated = false;
+      this.nodeOutage.recovered();
 
       if (this.blockHeight < currentBlockHeight) {
         await this.processNewPayInEntries();
@@ -38,8 +41,23 @@ export abstract class PollingStrategy extends RegisterStrategy {
         this.handleNodeWarmup();
         return;
       }
+
+      // Node down (wedged daemon, restart in flight): a real outage, but one incident —
+      // not one error per polling cycle. The outage stays visible as a single ERROR at
+      // onset and an INFO with duration on recovery; anything non-connection-shaped
+      // (parse errors, bugs) still throws loudly every cycle.
+      if (e instanceof Error && isConnectionFailure(e)) {
+        this.nodeOutage.failure(e);
+        return;
+      }
+
       throw e;
     }
+  }
+
+  // Lazily built so the subclass field initializers (blockchain, logger) are set.
+  private get nodeOutage(): OutageLogger {
+    return (this.outage ??= new OutageLogger(this.logger, `${this.blockchain} node`));
   }
 
   private handleNodeWarmup(): void {
