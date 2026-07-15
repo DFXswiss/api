@@ -29,7 +29,7 @@ export class LedgerTx extends IEntity {
 
   // self-FK for corrections (§4.12); references the original tx
   @Index()
-  @ManyToOne(() => LedgerTx, { nullable: true, eager: false })
+  @ManyToOne(() => LedgerTx, { nullable: true })
   @JoinColumn()
   reversalOf?: LedgerTx;
 

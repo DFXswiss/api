@@ -103,7 +103,7 @@ export enum Process {
   LEDGER_BOOKING_PAYOUT = 'LedgerBookingPayout',
   LEDGER_BOOKING_BUY_CRYPTO = 'LedgerBookingBuyCrypto',
   LEDGER_BOOKING_BUY_FIAT = 'LedgerBookingBuyFiat',
-  LEDGER_BOOKING_LIQ_MGMT = 'LedgerBookingLiqMgmt',
+  LEDGER_BOOKING_LIQUIDITY_MANAGEMENT = 'LedgerBookingLiquidityManagement',
   LEDGER_BOOKING_TRADING_ORDER = 'LedgerBookingTradingOrder',
   LEDGER_BOOKING_LIQUIDITY_ORDER = 'LedgerBookingLiquidityOrder',
   LEDGER_RECONCILIATION = 'LedgerReconciliation',

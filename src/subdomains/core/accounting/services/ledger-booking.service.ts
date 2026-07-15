@@ -225,7 +225,7 @@ export class LedgerBookingService {
    * walk the reversal chain — mere existence at the seq is the signal.
    */
   async hasAnyTxAt(sourceType: string, sourceId: string, seq: number): Promise<boolean> {
-    return (await this.dataSource.getRepository(LedgerTx).countBy({ sourceType, sourceId, seq })) > 0;
+    return this.dataSource.getRepository(LedgerTx).existsBy({ sourceType, sourceId, seq });
   }
 
   /**

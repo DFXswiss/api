@@ -625,7 +625,7 @@ describe('LedgerCutoverService', () => {
       jest.spyOn(logService, 'getLog').mockResolvedValue(null); // pinned log was deleted
       const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
 
-      await expect(service.run()).rejects.toThrow('pinned cutover snapshot FinancialDataLog #999 no longer exists');
+      await expect(service.run()).rejects.toThrow('Pinned cutover snapshot FinancialDataLog #999 no longer exists');
 
       expect(setSpy.mock.calls.find((c) => c[0] === 'ledgerCutoverLogId')).toBeUndefined(); // flag never set
     });
@@ -878,9 +878,11 @@ describe('LedgerCutoverService', () => {
       expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:50')).toBe(false);
     });
 
-    // §6.1 openBuyFiatOwed: a foreign-currency (EUR) output whose fiat-mark is missing is skipped — line 296
-    // (cannot value the CHF-denominated owed liability now; the forward path values it later).
-    it('skips a foreign-currency buyFiat-owed row when its fiat-mark is missing (no value)', async () => {
+    // m6 fail-loud (F2): a foreign-currency (EUR) buyFiat-owed opening without a fiat-mark would silently skip an
+    // opening the forward path can NEVER supply — buy-fiat bookRegular skips seq1 for an owed-straddling row and
+    // anchors seq2/seq3 on this opening, so the row would gate-block the content-change scan forever. The cutover
+    // THROWS and leaves the ledger-ready flag unset (retry once the mark feed is back).
+    it('throws (m6) on a foreign-currency buyFiat-owed opening when its fiat-mark is missing', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no mark for asset 7
       jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
@@ -890,25 +892,29 @@ describe('LedgerCutoverService', () => {
         return Promise.resolve([]);
       });
 
-      await service.run();
+      await expect(service.run()).rejects.toThrow(/without a mark/i);
 
-      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:51')).toBe(false); // no fiat-mark → skipped
+      const flagSet = (settingService.set as jest.Mock).mock.calls.find((c) => c[0] === 'ledgerCutoverLogId');
+      expect(flagSet).toBeUndefined(); // ledger-ready flag NOT set → all consumers stay no-op, retry next cron run
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:51')).toBe(false); // no zero-opening booked
     });
 
-    // fiatMark (line 719 `assetId != null` false side): a foreign-currency buyFiat-owed whose outputAsset has NO id →
-    // fiatMark(undefined, …) returns undefined → the row is skipped (cannot value the owed liability).
-    it('skips a foreign-currency buyFiat-owed row whose outputAsset has no id (fiatMark undefined)', async () => {
+    // fiatMark (`assetId != null` false side): a foreign-currency buyFiat-owed whose outputAsset has NO id →
+    // fiatMark(undefined, …) returns undefined → amountChf undefined → the same m6 fail-loud as the missing-mark case.
+    it('throws (m6) on a foreign-currency buyFiat-owed opening whose outputAsset has no id (fiatMark undefined)', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
         if (!where?.outputAmount) {
-          // outputAsset.name 'EUR' (not CHF) but id undefined → fiatMark(undefined) → undefined → skip
+          // outputAsset.name 'EUR' (not CHF) but id undefined → fiatMark(undefined) → undefined → throw
           return Promise.resolve([buyFiat({ id: 53, outputAmount: 1000, outputAsset: { name: 'EUR' } as any })]);
         }
         return Promise.resolve([]);
       });
 
-      await service.run();
+      await expect(service.run()).rejects.toThrow(/without a mark/i);
 
+      const flagSet = (settingService.set as jest.Mock).mock.calls.find((c) => c[0] === 'ledgerCutoverLogId');
+      expect(flagSet).toBeUndefined();
       expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:53')).toBe(false);
     });
 
@@ -1052,40 +1058,43 @@ describe('LedgerCutoverService', () => {
 
       const manualTx = booked.find((b) => b.sourceId === '1557344:manual-debt:100');
       expect(manualTx).toBeDefined();
+      expect(manualTx.seq).toBe(0); // per-row opening (unique sourceId per assetId), like the received/owed markers
       const liabilityLeg = manualTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
       expect(liabilityLeg.account.name).toBe('LIABILITY/manual-debt');
       expect(liabilityLeg.amountChf).toBe(-2000); // −(priceChf 2 × value 1000), the debt side only (Minor R6-5)
+      expect(liabilityLeg.amount).toBe(-2000); // CHF-denominated liability → native amount = CHF (priceChf 1)
+      expect(liabilityLeg.priceChf).toBe(1);
       const equityLeg = manualTx.legs.find((l) => l.account.type === AccountType.EQUITY);
       expect(equityLeg.amountChf).toBe(2000); // Dr EQUITY/opening-balance counter
     });
 
-    it('skips a manual-debt position with no value (seq advances, no leg)', async () => {
+    it('skips a manual-debt position with no value (no leg)', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({ '100': { priceChf: 2 } })]);
       jest.spyOn(settingService, 'getObj').mockResolvedValue([
-        { assetId: 100, value: 0 }, // no value → skipped
-        { assetId: 100, value: 500 }, // bookable → seq must be 1 (the skipped position advanced seq)
+        { assetId: 100, value: 0 }, // no value → skipped, books nothing
+        { assetId: 100, value: 500 }, // bookable
       ] as any);
 
       await service.run();
 
-      expect(booked.some((b) => b.sourceId === '1557344:manual-debt:100' && b.seq === 0)).toBe(false); // skipped at seq0
-      const booked1 = booked.find((b) => b.sourceId === '1557344:manual-debt:100' && b.seq === 1);
-      expect(booked1).toBeDefined();
-      expect(booked1.legs.find((l) => l.account.type === AccountType.LIABILITY).amountChf).toBe(-1000);
+      const manualTxs = booked.filter((b) => b.sourceId === '1557344:manual-debt:100');
+      expect(manualTxs).toHaveLength(1); // only the valued position books
+      expect(manualTxs[0].seq).toBe(0);
+      expect(manualTxs[0].legs.find((l) => l.account.type === AccountType.LIABILITY).amountChf).toBe(-1000);
     });
 
-    it('opens a manual-debt with needsMark + native fallback when the asset priceChf is non-finite', async () => {
-      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({ '100': { priceChf: NaN } })]);
+    // m6 fail-loud (F1): a manual-debt position whose asset has no priceChf in the snapshot would book a CHF liability
+    // (no assetId) the mark-to-market job can NEVER revalue → the cutover THROWS and leaves the ledger-ready flag
+    // unset (retry once the price feed is back), rather than silently dropping the CHF value or booking native units.
+    it('throws (m6) on a manual-debt position whose asset has no priceChf in the snapshot', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]); // asset 100 not in the snapshot
       jest.spyOn(settingService, 'getObj').mockResolvedValue([{ assetId: 100, value: 1000 }] as any);
 
-      await service.run();
+      await expect(service.run()).rejects.toThrow(/without a mark/i);
 
-      const manualTx = booked.find((b) => b.sourceId === '1557344:manual-debt:100');
-      expect(manualTx).toBeDefined();
-      const liabilityLeg = manualTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
-      expect(liabilityLeg.needsMark).toBe(true);
-      expect(liabilityLeg.amount).toBe(-1000); // native fallback −value (no CHF basis yet)
-      expect(liabilityLeg.amountChf).toBeUndefined();
+      const flagSet = (settingService.set as jest.Mock).mock.calls.find((c) => c[0] === 'ledgerCutoverLogId');
+      expect(flagSet).toBeUndefined(); // ledger-ready flag NOT set → all consumers stay no-op, retry next cron run
+      expect(booked.some((b) => b.sourceId === '1557344:manual-debt:100')).toBe(false); // no zero-opening booked
     });
 
     it('books no manual-debt opening when there are no debt positions', async () => {

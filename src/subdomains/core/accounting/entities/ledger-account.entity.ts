@@ -22,9 +22,9 @@ export class LedgerAccount extends IEntity {
   @Column({ length: 32 })
   type: AccountType;
 
-  // only ASSET accounts backed by an asset row; nullable read-only join (no cascade, eager:false)
+  // only ASSET accounts backed by an asset row; nullable read-only join (no cascade, not eager)
   @Index()
-  @ManyToOne(() => Asset, { nullable: true, eager: false })
+  @ManyToOne(() => Asset, { nullable: true })
   @JoinColumn()
   asset?: Asset;
 

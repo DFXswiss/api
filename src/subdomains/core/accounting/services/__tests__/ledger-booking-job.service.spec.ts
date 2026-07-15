@@ -129,7 +129,7 @@ describe('LedgerBookingJobService', () => {
       runPayoutOrder: Process.LEDGER_BOOKING_PAYOUT,
       runBuyCrypto: Process.LEDGER_BOOKING_BUY_CRYPTO,
       runBuyFiat: Process.LEDGER_BOOKING_BUY_FIAT,
-      runLiquidityMgmt: Process.LEDGER_BOOKING_LIQ_MGMT,
+      runLiquidityMgmt: Process.LEDGER_BOOKING_LIQUIDITY_MANAGEMENT,
       runLiquidityOrderDex: Process.LEDGER_BOOKING_LIQUIDITY_ORDER,
       runTradingOrder: Process.LEDGER_BOOKING_TRADING_ORDER,
     };

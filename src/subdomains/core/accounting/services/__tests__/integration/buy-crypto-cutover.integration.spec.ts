@@ -15,6 +15,11 @@ import { InMemoryLedger } from './in-memory-ledger';
  *  (B) a row already SETTLED at the cutover whose `updated` moves post-cutover (chargeback/mail flag): its value is
  *      already in the aggregate opening (openAssets) → the consumer must re-book NOTHING (no phantom Checkout asset /
  *      phantom owed).
+ * Two more rows are OWED-straddling (outputAmount set, not complete at the snapshot → per-row cutover owed opening
+ * `<logId>:buy_crypto-owed:<id>`, §6.1) and complete post-cutover — the consumer must book NEITHER seq0 NOR seq1
+ * (the payout_order consumer closes owed against the opening anchor):
+ *  (C) bank-funded: pre-fix the content-change scan threw forever (receivedOpened never true → permanent wedge);
+ *  (D) Card-funded: pre-fix seq0+seq1 booked ON TOP of the owed opening (double count).
  * All amounts synthetic; no real customer/account/IBAN (public repo).
  */
 describe('Ledger buy_crypto cutover Card double-book (§10.2, MAJOR)', () => {
@@ -23,6 +28,7 @@ describe('Ledger buy_crypto cutover Card double-book (§10.2, MAJOR)', () => {
   const POST_CUTOVER = new Date('2026-06-20T00:00:00Z'); // completion / flag change AFTER the cutover
 
   let ledger: InMemoryLedger;
+  let settingService: SettingService; // the consumer's SettingService mock (watermark-write assertions read its spy)
 
   beforeEach(() => {
     new ConfigService(); // sets the Config singleton the booking service + consumer read (§11.2)
@@ -66,13 +72,33 @@ describe('Ledger buy_crypto cutover Card double-book (§10.2, MAJOR)', () => {
     jest
       .spyOn(repo, 'find')
       .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [row] : []));
+    settingService = cutoverSettingService(lastProcessedId);
     return new BuyCryptoConsumer(
-      cutoverSettingService(lastProcessedId),
+      settingService,
       ledger.bookingService,
       ledger.accountService,
       repo,
       ledger.ledgerTxRepository(),
     );
+  }
+
+  // books the §6.1 per-row cutover owed opening (Cr LIABILITY/buyCrypto-owed −chf / Dr EQUITY +chf) the cutover
+  // wrote for an owed-straddling row (outputAmount set, not complete at the snapshot); logId matches the mock above
+  async function bookOwedOpening(rowId: number, chf: number): Promise<void> {
+    const owed = await ledger.accountService.findOrCreate('LIABILITY/buyCrypto-owed', AccountType.LIABILITY, 'CHF');
+    const equity = await ledger.accountService.findOrCreate('EQUITY/opening-balance', AccountType.EQUITY, 'CHF');
+    await ledger.bookingService.bookTx({
+      sourceType: 'cutover',
+      sourceId: `1557344:buy_crypto-owed:${rowId}`,
+      seq: 0,
+      bookingDate: SNAPSHOT,
+      valueDate: SNAPSHOT,
+      description: `Opening buyCrypto-owed from open buy_crypto #${rowId}`,
+      legs: [
+        { account: owed, amount: -chf, priceChf: 1, amountChf: -chf },
+        { account: equity, amount: chf, priceChf: 1, amountChf: chf },
+      ],
+    });
   }
 
   it('Scenario A: an open Card row completing after the cutover books seq0+seq1 → received closes to 0', async () => {
@@ -119,6 +145,60 @@ describe('Ledger buy_crypto cutover Card double-book (§10.2, MAJOR)', () => {
     expect(ledger.chfBalance('LIABILITY/buyCrypto-received')).toBe(0);
     expect(ledger.chfBalance('Checkout/EUR')).toBe(0);
     expect(ledger.hasAccount('LIABILITY/buyCrypto-owed')).toBe(false);
+    expect(ledger.everyTxBalances()).toBe(true);
+  });
+
+  it('Scenario C: an owed-straddling bank-funded row completing after the cutover books nothing and advances (no wedge)', async () => {
+    // owed-straddling (§6.1): outputAmount was set at the snapshot → the cutover booked the per-row owed opening; the
+    // payout_order consumer closes owed against that anchor. This consumer must book NEITHER seq0 NOR seq1. Pre-fix,
+    // the content-change scan threw forever for this row (receivedOpened never true, preCutoverSettled false because
+    // outputDate is post-cutover) — booking nothing is NOT enough evidence, the cursor MUST also advance past the row.
+    await bookOwedOpening(72, 990);
+    const row = buyCrypto({
+      id: 72,
+      amountInChf: 1000,
+      totalFeeAmountChf: 10,
+      outputAmount: 0.5, // set pre-cutover → owed-straddling
+      isComplete: true,
+      outputDate: POST_CUTOVER, // completed AFTER the snapshot
+      updated: POST_CUTOVER,
+      checkoutTx: null, // bank-funded, not Card
+      bankTx: { id: 600 } as any,
+    });
+
+    await consumer(row, 100).process();
+
+    // nothing booked by this consumer: no seq0/seq1 (the owed opening is the only tx touching this row)
+    expect(ledger.txs.filter((t) => t.sourceType === 'buy_crypto' && t.sourceId === '72')).toHaveLength(0);
+    expect(ledger.chfBalance('LIABILITY/buyCrypto-owed')).toBe(-990); // owed still equals the opening value
+    // the content-change cursor ADVANCED past the row (pre-fix wedge: the scan threw → cursor stayed at the snapshot)
+    const wmWrites = (settingService.set as jest.Mock).mock.calls.filter((c) => c[0] === 'ledgerWatermark.buy_crypto');
+    expect(wmWrites).toHaveLength(1);
+    expect(JSON.parse(wmWrites[0][1]).lastReversalScan).toBe(POST_CUTOVER.toISOString());
+    expect(JSON.parse(wmWrites[0][1]).lastReversalScanId).toBe(72);
+    expect(ledger.everyTxBalances()).toBe(true);
+  });
+
+  it('Scenario D: an owed-straddling Card row completing after the cutover is NOT double-counted (no seq0/seq1)', async () => {
+    // Card variant of Scenario C: pre-fix, receivedOpened returned true via the Card branch → seq0+seq1 booked IN
+    // ADDITION to the cutover owed opening → owed doubled to −1980 and Checkout/EUR carried a phantom +1000.
+    await bookOwedOpening(73, 990);
+    const row = buyCrypto({
+      id: 73,
+      amountInChf: 1000,
+      totalFeeAmountChf: 10,
+      outputAmount: 0.5, // set pre-cutover → owed-straddling
+      isComplete: true,
+      outputDate: POST_CUTOVER,
+      updated: POST_CUTOVER, // checkoutTx { currency: 'EUR' } from the helper → Card-funded
+    });
+
+    await consumer(row, 100).process();
+
+    expect(ledger.txs.filter((t) => t.sourceType === 'buy_crypto' && t.sourceId === '73')).toHaveLength(0);
+    expect(ledger.chfBalance('Checkout/EUR')).toBe(0); // Card custody never debited
+    expect(ledger.chfBalance('LIABILITY/buyCrypto-owed')).toBe(-990); // ONLY the opening value, no double count
+    expect(ledger.hasAccount('LIABILITY/buyCrypto-received')).toBe(false); // received untouched (never created)
     expect(ledger.everyTxBalances()).toBe(true);
   });
 });

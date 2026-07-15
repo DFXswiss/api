@@ -47,7 +47,7 @@ describe('BuyFiatConsumer', () => {
   let accounts: Map<string, LedgerAccount>;
   let nextSeqValue: number;
   let activeKeys: Set<string>; // `${sourceId}:${seq}` with an active booking — backs hasActiveTxAt (per-seq, R3)
-  let gateCount: number; // countBy result (received/cutover gate)
+  let gateOpen: boolean; // existsBy result (received/cutover gate)
   let seq0PaymentLinkChf: number | undefined; // the seq0 paymentLink opening leg amountChf (negative)
   let cutoverOwedOpeningChf: number | undefined; // the cutover buyFiat-owed opening leg amountChf (negative)
   let cutoverLogId: string | undefined; // ledgerCutoverLogId setting (enables the owed-opening lookup)
@@ -61,7 +61,7 @@ describe('BuyFiatConsumer', () => {
     booked = [];
     nextSeqValue = 0;
     activeKeys = new Set<string>();
-    gateCount = 1;
+    gateOpen = true;
     seq0PaymentLinkChf = undefined;
     cutoverOwedOpeningChf = undefined;
     cutoverLogId = undefined;
@@ -101,7 +101,7 @@ describe('BuyFiatConsumer', () => {
         return Promise.resolve(acc);
       });
 
-    jest.spyOn(ledgerTxRepo, 'countBy').mockImplementation(() => Promise.resolve(gateCount));
+    jest.spyOn(ledgerTxRepo, 'existsBy').mockImplementation(() => Promise.resolve(gateOpen));
     jest.spyOn(ledgerTxRepo, 'findOne').mockImplementation(({ where }: any) => {
       // cutover buyFiat-owed opening lookup (§4.7a/§6.1): sourceType='cutover', sourceId='<logId>:buy_fiat-owed:<id>'
       if (where?.sourceType === 'cutover') {
@@ -257,7 +257,7 @@ describe('BuyFiatConsumer', () => {
   it('settles an owed-straddling buy_fiat end-to-end: skip seq1, owed closes to 0 via the opening anchor', async () => {
     cutoverLogId = '1557344';
     cutoverOwedOpeningChf = -9500; // cutover opened buyFiat-owed at outputAmount(10000 EUR) × mark@snapshot(0.95)
-    gateCount = 0; // the received seq0 gate would NEVER open (the financing crypto_input settled pre-cutover)
+    gateOpen = false; // the received seq0 gate would NEVER open (the financing crypto_input settled pre-cutover)
     mockBatch([
       buyFiat({
         id: 6,
@@ -297,7 +297,7 @@ describe('BuyFiatConsumer', () => {
 
   // §4.7 G-a/G-b gate: seq1 skipped while received not opened; watermark not advanced past the row
   it('skips seq1 and does not advance the watermark while the received gate is closed', async () => {
-    gateCount = 0; // neither G-a nor G-b
+    gateOpen = false; // neither G-a nor G-b
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     mockBatch([
       buyFiat({
@@ -522,7 +522,7 @@ describe('BuyFiatConsumer', () => {
   // amountInChf == null throws `has outputAmount but amountInChf is null` → caught by processForward → set NOT called.
   it('isolates the buildReclassificationSeq1 throw when amountInChf is null (watermark unchanged)', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
-    gateCount = 1; // received gate OPEN → we reach buildReclassificationSeq1, not the gate skip
+    gateOpen = true; // received gate OPEN → we reach buildReclassificationSeq1, not the gate skip
     mockBatch([
       buyFiat({
         id: 12,
@@ -767,13 +767,13 @@ describe('BuyFiatConsumer', () => {
   });
 
   // receivedOpened G-b path (lines 388-394): G-a closed (crypto_input seq0 absent) but the cutover received marker
-  // exists → seq1 opens via G-b. countBy returns 0 for the crypto_input G-a query and >0 for the cutover G-b query.
+  // exists → seq1 opens via G-b. existsBy is false for the crypto_input G-a query and true for the cutover G-b query.
   it('opens seq1 via the cutover received marker (G-b) when G-a is closed', async () => {
-    cutoverLogId = '1557344'; // enables cutoverReceivedSourceId → the G-b countBy runs
+    cutoverLogId = '1557344'; // enables cutoverReceivedSourceId → the G-b existsBy runs
     // distinguish the two gate queries by sourceType: G-a (crypto_input) closed, G-b (cutover) open
     jest
-      .spyOn(ledgerTxRepo, 'countBy')
-      .mockImplementation(({ sourceType }: any) => Promise.resolve(sourceType === 'cutover' ? 1 : 0));
+      .spyOn(ledgerTxRepo, 'existsBy')
+      .mockImplementation(({ sourceType }: any) => Promise.resolve(sourceType === 'cutover'));
     mockBatch([
       buyFiat({
         id: 21,
@@ -850,7 +850,7 @@ describe('BuyFiatConsumer', () => {
   it('skips the seq1 reverse for an owed-straddling row in the content-change scan but still settles', async () => {
     cutoverLogId = '1557344';
     cutoverOwedOpeningChf = -9500; // owed opening anchor → owedOpeningChf != null
-    gateCount = 0; // received gate stays closed for this row (would never open via G-a)
+    gateOpen = false; // received gate stays closed for this row (would never open via G-a)
     const reverseSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
     jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) =>
       Promise.resolve(
@@ -887,7 +887,7 @@ describe('BuyFiatConsumer', () => {
   // §4.12 content-change scan gate-block (line 81): book() returns false (received gate closed) → the scan throws,
   // which runContentChangeScan catches → the cursor is NOT advanced (set not called) and process() resolves cleanly.
   it('throws on a gate-blocked content-change row so the cursor is not advanced (R6-1)', async () => {
-    gateCount = 0; // received gate closed → bookRegular returns false (book gate-blocked)
+    gateOpen = false; // received gate closed → bookRegular returns false (book gate-blocked)
     cutoverLogId = undefined; // no G-b → receivedOpened false
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
     jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
@@ -947,7 +947,7 @@ describe('BuyFiatConsumer', () => {
   // wedge the scan forever. A post-cutover flag change re-selects the row; book() gate-blocks; preCutoverSettled → skip.
   it('advances (does NOT throw/wedge) for a pre-cutover-settled gate-blocked row in the content-change scan (C2)', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
-    gateCount = 0; // received gate closed (no G-a/G-b)
+    gateOpen = false; // received gate closed (no G-a/G-b)
     jest
       .spyOn(settingService, 'get')
       .mockImplementation((key: string) =>

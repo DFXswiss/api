@@ -82,21 +82,15 @@ export class InMemoryLedger {
   }
 
   /**
-   * In-memory LedgerTx repository for the cross-consumer gate reads (BuyFiat consumer countBy/findOne, §4.7
+   * In-memory LedgerTx repository for the cross-consumer gate reads (BuyFiat consumer existsBy/findOne, §4.7
    * G-a/G-b). Backs only the read surface those gates use over the shared tx/leg store.
    */
   ledgerTxRepository(): Repository<LedgerTx> {
     const repo = createMock<Repository<LedgerTx>>();
 
-    jest.spyOn(repo, 'countBy').mockImplementation((where: any) => {
-      return Promise.resolve(
-        this.txs.filter(
-          (tx) =>
-            (where.sourceType == null || tx.sourceType === where.sourceType) &&
-            (where.sourceId == null || tx.sourceId === where.sourceId) &&
-            (where.seq == null || tx.seq === where.seq),
-        ).length,
-      );
+    // the gate reads (§4.7 G-a/G-b, owed-straddling marker) go through existsBy over the shared tx store
+    jest.spyOn(repo, 'existsBy').mockImplementation((where: any) => {
+      return Promise.resolve(this.matchingTxs(where).length > 0);
     });
 
     jest.spyOn(repo, 'findOne').mockImplementation(({ where }: any) => {
@@ -109,6 +103,16 @@ export class InMemoryLedger {
     });
 
     return repo;
+  }
+
+  // the (sourceType, sourceId, seq) predicate behind existsBy (absent field = no filter)
+  private matchingTxs(where: { sourceType?: string; sourceId?: string; seq?: number }): LedgerTx[] {
+    return this.txs.filter(
+      (tx) =>
+        (where.sourceType == null || tx.sourceType === where.sourceType) &&
+        (where.sourceId == null || tx.sourceId === where.sourceId) &&
+        (where.seq == null || tx.seq === where.seq),
+    );
   }
 
   private legsForAccount(name: string): LedgerLeg[] {
@@ -206,6 +210,8 @@ export class InMemoryLedger {
             .sort((a, b) => a.seq - b.seq)
             .map((tx) => Object.assign(new LedgerTx(), tx, { legs: this.legsForTx(tx.id) })),
         ),
+      // backs LedgerBookingService.hasAnyTxAt (content-change scan): any tx at the exact (sourceType, sourceId, seq)
+      existsBy: (where: any) => Promise.resolve(this.matchingTxs(where).length > 0),
     } as any);
 
     return dataSource;

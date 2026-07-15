@@ -7,7 +7,7 @@ import { LedgerTx } from './ledger-tx.entity';
 @Entity()
 export class LedgerLeg extends IEntity {
   @Index()
-  @ManyToOne(() => LedgerTx, (tx) => tx.legs, { nullable: false, eager: false })
+  @ManyToOne(() => LedgerTx, (tx) => tx.legs, { nullable: false })
   @JoinColumn()
   tx: LedgerTx;
 
@@ -15,7 +15,7 @@ export class LedgerLeg extends IEntity {
   txId: number;
 
   @Index()
-  @ManyToOne(() => LedgerAccount, { nullable: false, eager: false })
+  @ManyToOne(() => LedgerAccount, { nullable: false })
   @JoinColumn()
   account: LedgerAccount;
 

@@ -240,7 +240,7 @@ export class LedgerQueryService {
     // log period when `from` was omitted. Fail loud (BadRequest) rather than silently run an unbounded full scan.
     if (from == null) throw new BadRequestException('from is required');
     if (Util.daysDiff(from, now) > MAX_EQUITY_COMPARISON_RANGE_DAYS)
-      throw new BadRequestException(`range from-now must not exceed ${MAX_EQUITY_COMPARISON_RANGE_DAYS} days`);
+      throw new BadRequestException(`Range from-now must not exceed ${MAX_EQUITY_COMPARISON_RANGE_DAYS} days`);
 
     const logs = await this.logService.getFinancialLogs(from, dailySample);
     if (!logs.length) return { periods: [] };

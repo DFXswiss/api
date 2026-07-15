@@ -296,12 +296,12 @@ describe('LedgerBookingService', () => {
               .filter((tx) => tx.sourceType === where.sourceType && tx.sourceId === where.sourceId)
               .sort((a, b) => a.seq - b.seq),
           ),
-        // hasAnyTxAt: count of any tx at the exact (sourceType, sourceId, seq)
-        countBy: (where: any) =>
+        // hasAnyTxAt: any tx exists at the exact (sourceType, sourceId, seq)
+        existsBy: (where: any) =>
           Promise.resolve(
-            txStore.filter(
+            txStore.some(
               (tx) => tx.sourceType === where.sourceType && tx.sourceId === where.sourceId && tx.seq === where.seq,
-            ).length,
+            ),
           ),
         createQueryBuilder: () => {
           let st: string, sid: string;

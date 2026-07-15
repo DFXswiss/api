@@ -145,7 +145,7 @@ export class LedgerCutoverService {
     if (pinned != null) {
       // a previous (partial) run already chose the snapshot — reuse the exact logId so all sourceIds stay stable
       const log = await this.logService.getLog(+pinned);
-      if (!log) throw new Error(`pinned cutover snapshot FinancialDataLog #${pinned} no longer exists`);
+      if (!log) throw new Error(`Pinned cutover snapshot FinancialDataLog #${pinned} no longer exists`);
       return log;
     }
 
@@ -299,9 +299,13 @@ export class LedgerCutoverService {
 
       // outputAsset is a Fiat; CHF-output → mark 1, foreign-currency output → fiat-mark ≤ snapshot
       const fiatMark = row.outputAsset?.name === CHF ? 1 : this.fiatMark(row.outputAsset?.id, date, marks);
-      if (fiatMark == null) continue; // no mark → cannot value the CHF-denominated liability; leave to forward path
-      const amountChf = Util.round(row.outputAmount * fiatMark, 2);
+      const amountChf = fiatMark != null ? Util.round(row.outputAmount * fiatMark, 2) : undefined;
 
+      // missing fiat-mark → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): the forward path can
+      // NEVER supply this opening — buy-fiat bookRegular (§4.7a) skips seq1 for an owed-straddling row and anchors
+      // seq2/seq3 on exactly this opening, so a missing opening would gate-block the row in the content-change scan
+      // forever. A missing mark must abort the cutover run (already-booked openings are skipped idempotently on the
+      // retry once the mark feed is available), never a silent skip.
       await this.bookReceivedOwedOpening(
         date,
         `${snapshot.id}:buy_fiat-owed:${row.id}`,
@@ -547,29 +551,24 @@ export class LedgerCutoverService {
     if (!debts?.length) return;
 
     const manualDebt = await this.liability('manual-debt');
-    let seq = 0;
     for (const position of debts) {
-      if (!position?.value) {
-        seq++;
-        continue;
-      }
+      if (!position?.value) continue;
 
       const rawPrice = finance.assets[position.assetId]?.priceChf;
       const priceChf = Number.isFinite(rawPrice) ? rawPrice : undefined;
       const amountChf = priceChf != null ? Util.round(priceChf * position.value, 2) : undefined;
 
-      await this.bookOpening(
-        seq++,
+      // feedless asset (no priceChf in the snapshot) → amountChf undefined → bookReceivedOwedOpening throws (m6
+      // fail-loud): the manual-debt LIABILITY is CHF-denominated with NO assetId, so the mark-to-market job can NEVER
+      // revalue it — a missing price must abort the cutover run (already-booked openings are skipped idempotently on
+      // the retry once the price feed is available), not silently drop the CHF value or book native units on a CHF
+      // account.
+      await this.bookReceivedOwedOpening(
+        snapshotDate,
         `${snapshot.id}:manual-debt:${position.assetId}`,
         `Opening manual-debt for asset #${position.assetId} from FinancialDataLog #${snapshot.id}`,
-        snapshotDate,
-        {
-          account: manualDebt,
-          amount: -(amountChf ?? position.value),
-          priceChf: priceChf ?? null,
-          amountChf: amountChf != null ? -amountChf : undefined,
-          needsMark: amountChf == null,
-        },
+        manualDebt,
+        amountChf,
         equity,
       );
     }
@@ -727,11 +726,11 @@ export class LedgerCutoverService {
     amountChf: number | undefined,
     equity: LedgerAccount,
   ): Promise<void> {
-    // m6 fail-loud: a received/owed/unattributed opening lives on a CHF-denominated LIABILITY (assetId=NULL) and would
-    // be booked with native 0, so the mark-to-market job (assetId IS NOT NULL, native≠0) can NEVER revalue it. Booking
-    // it with amountChf=undefined would silently drop the liability's value forever. If the required mark is missing,
-    // throw: the whole cutover rolls back, the ledger-ready flag stays unset, and the next cron run retries once the
-    // mark feed is available. Never a stale zero-opening.
+    // m6 fail-loud: a received/owed/unattributed/manual-debt opening lives on a CHF-denominated LIABILITY
+    // (assetId=NULL) and would be booked with native 0, so the mark-to-market job (assetId IS NOT NULL, native≠0) can
+    // NEVER revalue it. Booking it with amountChf=undefined would silently drop the liability's value forever. If the
+    // required mark is missing, throw: the whole cutover rolls back, the ledger-ready flag stays unset, and the next
+    // cron run retries once the mark feed is available. Never a stale zero-opening.
     if (amountChf == null) {
       throw new Error(
         `cutover opening ${sourceId} without a mark would silently drop the value (CHF liability, never revalued by mark-to-market) — retry when the mark feed is available`,

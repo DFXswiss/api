@@ -86,7 +86,7 @@ export class LedgerBookingJobService {
   }
 
   // §4.8 — bridge-only (skips exchange/DfxDex movements booked by their authoritative consumers)
-  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LEDGER_BOOKING_LIQ_MGMT, timeout: 1800 })
+  @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.LEDGER_BOOKING_LIQUIDITY_MANAGEMENT, timeout: 1800 })
   async runLiquidityMgmt(): Promise<void> {
     if (!(await this.isLedgerReady())) return;
     await this.liquidityMgmtConsumer.process();

@@ -27,6 +27,8 @@ const CHF = 'CHF';
  * It does NOT book the crypto-input leg (CryptoInput consumer is the single booker, §4.1) — only the Card input
  * (Checkout) at seq0, and at seq1 the cent-exact 4-leg completion tx: fee against `received` + reclassification
  * received→owed. It skips actualPayoutFeeAmount (network fee booked by the payout_order consumer, §4.5).
+ * Owed-straddling rows (per-row cutover owed opening, §6.1) are skipped entirely — the reclassification is anchored
+ * in that opening and the payout_order consumer (§4.5) closes owed against it.
  */
 @Injectable()
 export class BuyCryptoConsumer {
@@ -70,6 +72,11 @@ export class BuyCryptoConsumer {
           throw new Error(`buy_crypto ${bc.id} content-change scan gate-blocked — retry next run (§4.7 G-a)`);
         }
 
+        // §6.1 owed-straddling: this consumer booked NOTHING for such a row (the reclassification is anchored in the
+        // cutover owed opening, closed by the payout_order consumer) — building the reverse/rebook chain below would
+        // findOrCreate phantom accounts for a never-booked row. Mirrors the buy-fiat callback's owed-straddling skip.
+        if (await this.hasCutoverOwedOpening(bc.id)) return;
+
         // then §4.12 + M3: on a content change, reverse+rebook the value-coupled Card-input seq0 / completion seq1 chain
         // (both carry the amountInChf base). Reversing ONLY seq0 while seq1 is booked would leave `received` non-zero
         // (the shared liability never closes to 0); the chain method reverses the whole ACTIVE chain atomically and
@@ -112,6 +119,12 @@ export class BuyCryptoConsumer {
 
   // returns false when seq1 is gate-blocked (received not yet opened) → the caller must not advance past this row
   private async book(bc: BuyCrypto): Promise<boolean> {
+    // §4.6/§6.1 owed-straddling: the cutover booked this row's per-row owed opening and the payout_order consumer
+    // (§4.5) closes owed against exactly that anchor — this consumer must book NEITHER seq0 NOR seq1. Booking them
+    // would wedge a bank/crypto-funded row (receivedOpened never true → the content-change scan throws forever) or
+    // double-count a Card row (seq0+seq1 on top of the owed opening) → skip both and advance the watermark.
+    if (await this.hasCutoverOwedOpening(bc.id)) return true;
+
     await this.bookCardInput(bc); // seq0 (Card only; bank/crypto inputs have their own single booker)
 
     if (!bc.isComplete) return true; // completion not settled yet — nothing more to do, advance
@@ -216,13 +229,11 @@ export class BuyCryptoConsumer {
     if (bc.bankTx && (await this.bookingService.hasActiveTxAt(BANK_TX_SOURCE, `${bc.bankTx.id}`, 0))) return true;
 
     const cryptoInputId = bc.cryptoInput?.id;
-    if (cryptoInputId != null) {
-      const ga = await this.ledgerTxRepo.countBy({
-        sourceType: CRYPTO_INPUT_SOURCE,
-        sourceId: `${cryptoInputId}`,
-        seq: 0,
-      });
-      if (ga > 0) return true; // G-a
+    if (
+      cryptoInputId != null &&
+      (await this.ledgerTxRepo.existsBy({ sourceType: CRYPTO_INPUT_SOURCE, sourceId: `${cryptoInputId}`, seq: 0 }))
+    ) {
+      return true; // G-a
     }
 
     // G-b: cutover opening on buyCrypto-received for this buy_crypto.id (synthetic seq0 marker, §6.1). The cutover
@@ -230,8 +241,7 @@ export class BuyCryptoConsumer {
     // `:buy_crypto:${id}` match would NEVER hit (the snapshot logId prefix is missing → G-b dead, Blocker R4-2).
     const cutoverSourceId = await this.cutoverReceivedSourceId(bc.id);
     if (cutoverSourceId == null) return false; // cutover not run yet → no opening to match
-    const gb = await this.ledgerTxRepo.countBy({ sourceType: CUTOVER_SOURCE, sourceId: cutoverSourceId });
-    return gb > 0;
+    return this.ledgerTxRepo.existsBy({ sourceType: CUTOVER_SOURCE, sourceId: cutoverSourceId });
   }
 
   // the full cutover per-row received marker sourceId (§6.1 / §4.7 G-b): `${snapshotLogId}:buy_crypto:${id}`.
@@ -239,6 +249,18 @@ export class BuyCryptoConsumer {
   private async cutoverReceivedSourceId(buyCryptoId: number): Promise<string | undefined> {
     const cutoverLogId = await this.settingService.get(CUTOVER_LOG_ID_KEY);
     return cutoverLogId != null ? `${cutoverLogId}:buy_crypto:${buyCryptoId}` : undefined;
+  }
+
+  // §6.1: true iff the cutover booked the per-row owed opening `${snapshotLogId}:buy_crypto-owed:${id}` for this row
+  // (owed-straddling: outputAmount set, not complete at the snapshot). The reclassification is anchored in that
+  // opening and the payout_order consumer (§4.5) closes owed against it — this consumer books nothing for such a row.
+  private async hasCutoverOwedOpening(buyCryptoId: number): Promise<boolean> {
+    const cutoverLogId = await this.settingService.get(CUTOVER_LOG_ID_KEY);
+    if (cutoverLogId == null) return false;
+    return this.ledgerTxRepo.existsBy({
+      sourceType: CUTOVER_SOURCE,
+      sourceId: `${cutoverLogId}:buy_crypto-owed:${buyCryptoId}`,
+    });
   }
 
   // §6.3: true iff this Card row's completion is at/before the cutover snapshot → its value is already in the aggregate

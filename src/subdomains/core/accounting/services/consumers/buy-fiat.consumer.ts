@@ -424,13 +424,11 @@ export class BuyFiatConsumer {
   // received is opened by the seq0 CryptoInput ledger_tx (G-a) or the cutover opening (G-b, cutover-straddling)
   private async receivedOpened(bf: BuyFiat): Promise<boolean> {
     const cryptoInputId = bf.cryptoInput?.id;
-    if (cryptoInputId != null) {
-      const ga = await this.ledgerTxRepo.countBy({
-        sourceType: CRYPTO_INPUT_SOURCE,
-        sourceId: `${cryptoInputId}`,
-        seq: 0,
-      });
-      if (ga > 0) return true; // G-a
+    if (
+      cryptoInputId != null &&
+      (await this.ledgerTxRepo.existsBy({ sourceType: CRYPTO_INPUT_SOURCE, sourceId: `${cryptoInputId}`, seq: 0 }))
+    ) {
+      return true; // G-a
     }
 
     // G-b: cutover opening on buyFiat-received for this buy_fiat.id (synthetic seq0 marker, §6.1). The cutover
@@ -438,8 +436,7 @@ export class BuyFiatConsumer {
     // `:buy_fiat:${id}` match would NEVER hit (the snapshot logId prefix is missing → G-b dead, Blocker R4-2).
     const cutoverSourceId = await this.cutoverReceivedSourceId(bf.id);
     if (cutoverSourceId == null) return false; // cutover not run yet → no opening to match
-    const gb = await this.ledgerTxRepo.countBy({ sourceType: CUTOVER_SOURCE, sourceId: cutoverSourceId });
-    return gb > 0;
+    return this.ledgerTxRepo.existsBy({ sourceType: CUTOVER_SOURCE, sourceId: cutoverSourceId });
   }
 
   // the full cutover per-row received marker sourceId (§6.1 / §4.7 G-b): `${snapshotLogId}:buy_fiat:${id}`.

@@ -75,10 +75,16 @@ describe('BuyCryptoConsumer', () => {
         return Promise.resolve(acc);
       });
 
-    // gate lookup: countBy returns 1 when the gate is open (seq0 crypto_input / cutover marker exists). For the
+    // gate lookup: existsBy returns true when the gate is open (seq0 crypto_input / cutover marker exists). For the
     // G-b cutover path the consumer also resolves the snapshot logId prefix from ledgerCutoverLogId (Blocker R4-2):
     // a gate-open run models a completed cutover (logId set) so the `${logId}:buy_crypto:${id}` marker is resolvable.
-    jest.spyOn(ledgerTxRepo, 'countBy').mockImplementation(() => Promise.resolve(gateOpen ? 1 : 0));
+    // The owed-straddling marker (`:buy_crypto-owed:`) is absent by default — a row with a cutover owed opening is
+    // skipped entirely by book(), so tests that need it mock existsBy explicitly.
+    jest
+      .spyOn(ledgerTxRepo, 'existsBy')
+      .mockImplementation(({ sourceId }: any) =>
+        Promise.resolve(gateOpen && !`${sourceId}`.includes(':buy_crypto-owed:')),
+      );
 
     jest.spyOn(settingService, 'getObj').mockResolvedValue(undefined);
     jest
@@ -263,16 +269,16 @@ describe('BuyCryptoConsumer', () => {
     expect(setSpy).not.toHaveBeenCalled(); // throw → break before advancing
   });
 
-  // §4.7 G-a gate: a non-Card buy_crypto whose crypto_input seq0 ledger_tx exists (countBy>0) opens the completion
+  // §4.7 G-a gate: a non-Card buy_crypto whose crypto_input seq0 ledger_tx exists (existsBy) opens the completion
   it('books the completion via the G-a gate (crypto_input seq0 ledger_tx exists)', async () => {
-    // non-Card (no checkoutTx) but the crypto_input seq0 ledger_tx exists → receivedOpened true via G-a (countBy>0)
+    // non-Card (no checkoutTx) but the crypto_input seq0 ledger_tx exists → receivedOpened true via G-a (existsBy)
     mockBatch([
       buyCrypto({
         id: 21,
         amountInChf: 1000,
         totalFeeAmountChf: 10,
         isComplete: true,
-        cryptoInput: { id: 555 } as any, // G-a: countBy(crypto_input, 555, seq0) > 0 (gateOpen=true default)
+        cryptoInput: { id: 555 } as any, // G-a: existsBy(crypto_input, 555, seq0) true (gateOpen=true default)
       }),
     ]);
     await consumer.process();
@@ -287,14 +293,14 @@ describe('BuyCryptoConsumer', () => {
 
   // §4.7 receivedOpened: cutover not run (ledgerCutoverLogId unset) AND no G-a → gate closed → completion skipped
   it('skips the completion when the cutover has not run and no G-a opening exists', async () => {
-    gateOpen = false; // countBy → 0 AND ledgerCutoverLogId → undefined
+    gateOpen = false; // existsBy → false AND ledgerCutoverLogId → undefined
     mockBatch([
       buyCrypto({
         id: 22,
         amountInChf: 1000,
         totalFeeAmountChf: 10,
         isComplete: true,
-        cryptoInput: { id: 556 } as any, // G-a countBy → 0; cutoverReceivedSourceId → undefined (no logId)
+        cryptoInput: { id: 556 } as any, // G-a existsBy → false; cutoverReceivedSourceId → undefined (no logId)
       }),
     ]);
     await consumer.process();
@@ -375,7 +381,7 @@ describe('BuyCryptoConsumer', () => {
       if (key === 'ledgerCutoverSnapshotDate') return Promise.resolve('2026-06-07T22:00:00.000Z');
       return Promise.resolve(undefined);
     });
-    jest.spyOn(ledgerTxRepo, 'countBy').mockResolvedValue(0); // gate closed: neither G-a nor G-b opening
+    jest.spyOn(ledgerTxRepo, 'existsBy').mockResolvedValue(false); // gate closed: neither G-a nor G-b opening
     const settled = buyCrypto({
       id: 45,
       amountInChf: 1000,
@@ -461,7 +467,7 @@ describe('BuyCryptoConsumer', () => {
   // BankTx consumer as the bank_tx seq0 booking — NOT by a crypto_input seq0 (G-a) nor a cutover marker (G-b).
   // receivedOpened must gate on an ACTIVE bank_tx seq0 tx for the funding bank_tx, else seq1 is never booked.
   it('books the bank-financed completion (seq1) once the bank_tx seq0 received-opening exists (F1 bank branch)', async () => {
-    gateOpen = false; // G-a (countBy) and G-b (cutover logId) both closed
+    gateOpen = false; // G-a (existsBy) and G-b (cutover logId) both closed
     activeKeys.add('500:0'); // the BankTx consumer opened buyCrypto-received at bank_tx seq0 (bank_tx id 500)
     mockBatch([
       buyCrypto({
