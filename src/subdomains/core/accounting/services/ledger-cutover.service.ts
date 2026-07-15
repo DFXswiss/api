@@ -37,6 +37,7 @@ import { LedgerMarkCache, LedgerMarkService } from './ledger-mark.service';
 import {
   getCutoverBoundary,
   getCutoverUnpricedIdsRaw,
+  isCoveredByCutoverOpening,
   setCutoverBoundary,
   setCutoverUnpricedIds,
 } from './consumers/ledger-watermark.helper';
@@ -283,10 +284,11 @@ export class LedgerCutoverService {
   // buyFiat-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R3-6); per-row seq0-marker (R4-2).
   // Returns the ids of rows with a NULL amountInChf (no CHF anchor) so the caller pins them as unpriced-at-cutover (F2).
   // G-a exclusivity (Major): the per-row received/paymentLink opening is mutually exclusive with the forward
-  // crypto_input seq0. A row whose funding crypto_input was NOT settled at the snapshot (status ∉ CryptoInputSettledStatus)
-  // is skipped here — its forward seq0 is the SINGLE received/paymentLink opener; opening it per-row too would
+  // crypto_input seq0. A row whose funding crypto_input is NOT covered by the pinned cutover opening
+  // (isCoveredByCutoverOpening=false, keyed on the immutable at-snapshot crypto_input boundary — NOT the mutable live
+  // status) is skipped here — its forward seq0 is the SINGLE received/paymentLink opener; opening it per-row too would
   // double-credit the bucket (permanent phantom, no alarm — the cutover and crypto_input sourceId namespaces are
-  // disjoint, so no UNIQUE backstop catches it). A settled input keeps the per-row opening (its seq0 is suppressed as
+  // disjoint, so no UNIQUE backstop catches it). A covered input keeps the per-row opening (its seq0 is suppressed as
   // covered-by-cutover, so the per-row opening is then the sole opener). Card-/bank-funded rows have cryptoInput=null → unchanged.
   private async openBuyFiatReceived(
     snapshot: Log,
@@ -312,10 +314,16 @@ export class LedgerCutoverService {
         unpriced.push(row.id); // F2: no CHF anchor → pin; forward SKIPs+advances (alarm), value stays in the aggregate
         continue;
       }
-      // G-a: received opening is mutually exclusive with the forward crypto_input seq0 — the cutover only opens received
-      // when the input's value already sits in the aggregate ASSET opening (settled ≤ snapshot → its seq0 is suppressed
-      // by isCoveredByCutoverOpening); otherwise the forward seq0 is the single opener.
-      if (row.cryptoInput && !CryptoInputSettledStatus.includes(row.cryptoInput.status)) continue;
+      // G-a: the per-row opening must be EXACTLY complementary to the forward crypto_input seq0 suppression — both key on
+      // the SAME pinned at-snapshot boundary (isCoveredByCutoverOpening), NEVER on the mutable live status. A settlement
+      // inside the fail-loud retry window would otherwise let BOTH the forward seq0 (live-settled + not covered) and this
+      // per-row opening credit received → a permanent double-credit. Open here IFF the input is covered (its value is in
+      // the aggregate opening and its seq0 is suppressed); otherwise the forward seq0 is the single opener.
+      if (
+        row.cryptoInput &&
+        !(await isCoveredByCutoverOpening(this.settingService, 'crypto_input', row.cryptoInput.id))
+      )
+        continue;
       await this.openBuyFiatRow(snapshot, date, row, received, paymentLink, equity);
     }
 
@@ -418,11 +426,12 @@ export class LedgerCutoverService {
   // (buy-crypto.consumer.buildCardInputSeq0) is gated to SKIP when this marker exists — WITHOUT both the per-row
   // opening and the skip, the forward seq0 would re-debit the gross on Checkout/{ccy} a SECOND time (permanent phantom
   // on Checkout/{ccy}, the pre-fix double-count).
-  // G-a exclusivity (Major): a crypto-funded open row (cryptoInput != null) whose funding input was NOT settled at the
-  // snapshot (status ∉ CryptoInputSettledStatus) is EXCLUDED here — its forward crypto_input seq0 is the SOLE
+  // G-a exclusivity (Major): a crypto-funded open row (cryptoInput != null) whose funding input is NOT covered by the
+  // pinned cutover opening (isCoveredByCutoverOpening=false, keyed on the immutable at-snapshot crypto_input boundary —
+  // NOT the mutable live status) is EXCLUDED here — its forward crypto_input seq0 is the SOLE
   // buyCrypto-received opener; opening it per-row too would double-credit buyCrypto-received (permanent phantom, no
   // alarm — the cutover and crypto_input sourceId namespaces are disjoint, so no UNIQUE backstop catches it, and
-  // isCoveredByCutoverOpening only knows the crypto_input boundary). A settled input keeps the per-row opening (its
+  // isCoveredByCutoverOpening only knows the crypto_input boundary). A covered input keeps the per-row opening (its
   // seq0 is suppressed as covered-by-cutover, so the per-row opening is then the sole opener). Card-/bank-funded rows
   // (cryptoInput=null) are unaffected — Card: buildCardInputSeq0 is skipped by hasCutoverReceivedOpening; bank: its
   // funding bank_tx seq0 is suppressed by the immutable-bookingDate watermark.
@@ -448,10 +457,16 @@ export class LedgerCutoverService {
         unpriced.push(row.id);
         continue;
       }
-      // G-a: received opening is mutually exclusive with the forward crypto_input seq0 — the cutover only opens received
-      // when the input's value already sits in the aggregate ASSET opening (settled ≤ snapshot → its seq0 is suppressed
-      // by isCoveredByCutoverOpening); otherwise the forward seq0 is the single opener.
-      if (row.cryptoInput && !CryptoInputSettledStatus.includes(row.cryptoInput.status)) continue;
+      // G-a: the per-row opening must be EXACTLY complementary to the forward crypto_input seq0 suppression — both key on
+      // the SAME pinned at-snapshot boundary (isCoveredByCutoverOpening), NEVER on the mutable live status. A settlement
+      // inside the fail-loud retry window would otherwise let BOTH the forward seq0 (live-settled + not covered) and this
+      // per-row opening credit received → a permanent double-credit. Open here IFF the input is covered (its value is in
+      // the aggregate opening and its seq0 is suppressed); otherwise the forward seq0 is the single opener.
+      if (
+        row.cryptoInput &&
+        !(await isCoveredByCutoverOpening(this.settingService, 'crypto_input', row.cryptoInput.id))
+      )
+        continue;
       await this.bookReceivedOwedOpening(
         date,
         `${snapshot.id}:buy_crypto:${row.id}`,
