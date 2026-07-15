@@ -33,6 +33,7 @@ export enum Process {
   BANK_TX = 'BankTx',
   STAKING = 'Staking',
   REF_PAYOUT = 'RefPayout',
+  RECOMMENDATION_REF_SYNC = 'RecommendationRefSync',
   PRICING = 'Pricing',
   AUTO_AML_CHECK = 'AutoAmlCheck',
   BANK_RELEASE_CHECK = 'BankReleaseCheck',

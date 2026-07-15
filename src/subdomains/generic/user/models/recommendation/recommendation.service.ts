@@ -1,6 +1,9 @@
 import { BadRequestException, forwardRef, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
+import { Process } from 'src/shared/services/process.service';
+import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { KycRecommendationData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { KycStep } from 'src/subdomains/generic/kyc/entities/kyc-step.entity';
@@ -14,6 +17,7 @@ import { FindOptionsWhere, IsNull, MoreThan } from 'typeorm';
 import { UserData } from '../user-data/user-data.entity';
 import { KycLevel, KycType, TradeApprovalReason, UserDataStatus } from '../user-data/user-data.enum';
 import { UserDataService } from '../user-data/user-data.service';
+import { UserStatus } from '../user/user.enum';
 import { UserService } from '../user/user.service';
 import { CreateRecommendationDto } from './dto/recommendation.dto';
 import { Recommendation, RecommendationMethod, RecommendationType } from './recommendation.entity';
@@ -239,15 +243,45 @@ export class RecommendationService {
     return this.recommendationRepo.save(entity);
   }
 
+  // A deleted/blocked user's ref would accrue credit that the payout job never pays out, so active users take precedence
   async setRecommenderRefCode(entity: Recommendation): Promise<void> {
     const refCode =
       entity.kycStep && entity.method === RecommendationMethod.REF_CODE
         ? entity.kycStep.getResult<KycRecommendationData>().key
-        : (entity.recommender.users.find((u) => u.ref)?.ref ?? Config.defaultRef);
+        : (entity.recommender.users.find((u) => u.ref && u.status === UserStatus.ACTIVE)?.ref ??
+          entity.recommender.users.find((u) => u.ref)?.ref ??
+          Config.defaultRef);
 
     for (const user of entity.recommended.users ??
       (await this.userService.getAllUserDataUsers(entity.recommended.id))) {
       if (user.usedRef === Config.defaultRef) await this.userService.updateUserInternal(user, { usedRef: refCode });
+    }
+  }
+
+  // Mail invitations can only couple the referral code once a wallet user exists. The signup backfill misses
+  // customers who register a fresh wallet account first and merge by mail afterwards, so this job re-checks
+  // recent confirmed mail invitations whose users still carry the default ref.
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.RECOMMENDATION_REF_SYNC, timeout: 1800 })
+  async syncRecommenderRefCodes(): Promise<void> {
+    const recommendations = await this.recommendationRepo.find({
+      where: {
+        type: RecommendationType.INVITATION,
+        method: RecommendationMethod.MAIL,
+        isConfirmed: true,
+        created: MoreThan(Util.daysBefore(90)),
+        recommended: { users: { usedRef: Config.defaultRef } },
+      },
+      relations: { recommended: { users: true }, recommender: { users: true }, kycStep: true },
+    });
+
+    for (const recommendation of recommendations) {
+      if (!recommendation.recommended.tradeApprovalDate) continue;
+
+      try {
+        await this.setRecommenderRefCode(recommendation);
+      } catch (e) {
+        this.logger.error(`Failed to sync recommender ref code for recommendation ${recommendation.id}:`, e);
+      }
     }
   }
 
