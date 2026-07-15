@@ -679,6 +679,47 @@ describe('LedgerCutoverService', () => {
       expect(JSON.parse(wmCalls[0][1]).lastProcessedId).toBe(100); // == boundaryId (derived from the pinned boundary)
       expect(settings.get('ledgerCutoverLogId')).toBe('1557344'); // run 2 completed on the pinned snapshot
     });
+
+    // §6.3 (F1): mid-loop resume — a crash BETWEEN the boundary write and the watermark write (boundary pinned,
+    // watermark unset) must re-derive the watermark from the PINNED boundaryId on the retry, never from a fresh
+    // MAX(id) recompute (the drifted DB would yield a different id → lastProcessedId ≠ boundaryId → the guard's
+    // covered/hole classification and the forward scan would disagree about the same rows).
+    it('derives the watermark from an already-pinned boundary without recomputing it (mid-loop resume)', async () => {
+      const settings = new Map<string, string>();
+      // pre-seeded state: the previous run pinned the crypto_input boundary, then crashed before its watermark write
+      settings.set('ledgerCutoverBoundary.crypto_input', JSON.stringify({ boundaryId: 100, holeIds: [] }));
+      jest.spyOn(settingService, 'get').mockImplementation((key: string) => Promise.resolve(settings.get(key) as any));
+      jest.spyOn(settingService, 'set').mockImplementation((key: string, value: string) => {
+        settings.set(key, value);
+        return Promise.resolve();
+      });
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest
+        .spyOn(logService, 'getLog')
+        .mockImplementation((id: number) => Promise.resolve(id === 1557344 ? snapshotLog({}) : (undefined as any)));
+
+      // drifted DB on the retry: a fresh MAX(id) would now yield 777 — the pinned boundary (100) must win
+      jest.spyOn(cryptoInputRepo, 'createQueryBuilder').mockImplementation(() => {
+        const qb: any = {
+          select: () => qb,
+          where: () => qb,
+          andWhere: () => qb,
+          getRawOne: () => Promise.resolve({ max: 777 }),
+          getRawMany: () => Promise.resolve([{ id: 777 }]),
+        };
+        return qb;
+      });
+
+      await service.run();
+
+      // the boundary was NOT recomputed/overwritten (no write at all — it was already pinned)
+      const setCalls = (settingService.set as jest.Mock).mock.calls;
+      expect(setCalls.filter((c) => c[0] === 'ledgerCutoverBoundary.crypto_input')).toHaveLength(0);
+      expect(JSON.parse(settings.get('ledgerCutoverBoundary.crypto_input'))).toEqual({ boundaryId: 100, holeIds: [] });
+      // the watermark derives from the PINNED boundaryId (100), not from the drifted MAX(id) 777
+      expect(JSON.parse(settings.get('ledgerWatermark.crypto_input')).lastProcessedId).toBe(100);
+      expect(settings.get('ledgerCutoverLogId')).toBe('1557344'); // the resume completes the cutover
+    });
   });
 
   // --- SNAPSHOT SELECTION + PINNING (§6.3 / Major design-accounting R3-1) --- //

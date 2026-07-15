@@ -672,10 +672,14 @@ export class LedgerCutoverService {
     // set-only-if-unset (§6.3): recomputing on a retry would re-evaluate the settled predicates against a drifted DB —
     // a guard-source row settled at the snapshot whose `updated` was bumped in [snapshot → retry] falls out of the
     // predicate (shrunken boundary or a new hole) and its forward seq0 double-books the aggregate opening. ACCEPTED
-    // RESIDUAL: within the FIRST run a tiny window remains between the snapshot's `created` timestamp and this pin —
+    // RESIDUAL: a tiny window remains between the snapshot's `created` timestamp and each source's pin below —
     // a guard-source row settled at-or-before the snapshot whose `updated` is bumped inside that window is still
-    // misclassified. It is bounded to first-run execution latency (seconds) and, unlike the pre-fix retry window
-    // (potentially hours), CANNOT grow across retries → deliberately not closed with a heavier snapshot/lock mechanism.
+    // misclassified. Once a source is pinned its window is closed for good; only a crash INSIDE this pin step
+    // (a transient infrastructure error — no mark-feed dependency exists here, unlike the openings) leaves the
+    // not-yet-pinned sources to be computed on the retry, so the exposure stays bounded to pin-step execution
+    // latency (seconds per attempt), unlike the pre-fix ordering where every fail-loud OPENING (missing mark,
+    // potentially hours until the feed recovers) re-opened the full recompute window for ALL sources →
+    // deliberately not closed with a heavier snapshot/lock mechanism.
     for (const { source, maxId, holeIds } of sources) {
       const watermarkPinned = (await this.settingService.get(`${WATERMARK_KEY_PREFIX}${source}`)) != null;
       const pinnedBoundary = holeIds ? await getCutoverBoundary(this.settingService, source) : undefined;

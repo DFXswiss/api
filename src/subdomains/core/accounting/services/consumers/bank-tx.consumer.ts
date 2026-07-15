@@ -521,8 +521,11 @@ export class BankTxConsumer {
   // broke that by exactly the acquirer fee → the mark-to-market job "corrected" it as a phantom */fx-revaluation
   // posting and the margin report counted the fee twice (executionCosts AND fxPnl).
   // The fee's card-currency native (feeNative) is resolved via a documented ladder — no silent assumption:
-  //   1. feeChf === 0 → feeNative = 0;
-  //   2. chargeAmount persisted in the settlement currency (chargeCurrency === tx.currency) → use it directly;
+  //   1. feeChf === 0 → feeNative = 0. This covers "no fee" AND "fee not yet CHF-priced" (chargeAmount set but
+  //      chargeAmountChf still null): the leg then temporarily books net-as-gross; the later CHF-pricing bumps
+  //      `updated` → the content-change scan reverses+rebooks the corrected legs (self-healing, §4.12);
+  //   2. chargeAmount persisted in the custody account's currency (chargeCurrency non-null and equal to the
+  //      bank/settlement currency the custody account is denominated in) → use it directly;
   //   3. bank mark available → feeNative = feeChf / bank.priceChf — the fee is only persisted in CHF, so its
   //      card-currency native is derived via the SAME mark that values the net settlement leg → amountChf ≈
   //      mark × amount holds on the custody leg by construction;
@@ -547,8 +550,11 @@ export class BankTxConsumer {
     let feeNative: number;
     if (feeChf === 0) {
       feeNative = 0;
-    } else if (tx.chargeAmount != null && tx.chargeCurrency === tx.currency) {
-      feeNative = tx.chargeAmount; // ladder 2: fee persisted in the settlement currency — use it directly
+    } else if (tx.chargeAmount != null && tx.chargeCurrency != null && tx.chargeCurrency === ctx.currency) {
+      // ladder 2: fee persisted in the custody account's currency (ctx.currency, the unit of every native amount on
+      // Checkout/{ccy}) — use it directly. The explicit non-null guard keeps a null==null match from smuggling an
+      // unverified unit in; a mismatching/unknown fee currency falls through to the mark bridge (ladder 3).
+      feeNative = tx.chargeAmount;
     } else if (bank.priceChf != null) {
       feeNative = Util.round(feeChf / bank.priceChf, 8); // ladder 3: CHF fee bridged via the settlement mark
     } else {
