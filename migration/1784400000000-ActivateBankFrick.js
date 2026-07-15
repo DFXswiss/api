@@ -19,8 +19,9 @@
  * up():
  *   1. prod guard (no-op elsewhere)
  *   2. lock_timeout
- *   3. advance the identity sequence (resolved via pg_get_serial_sequence, not a hard-coded name)
- *      so an identity insert can never collide with a lagging seq (runbook §3.1)
+ *   3. advance the identity sequence via the named sequence 'bank_id_seq' (runbook §3.1; NOT
+ *      pg_get_serial_sequence, which returns NULL when the post-cutover prod sequence is not OWNED
+ *      BY the column - see the step-3 inline comment) so an insert cannot collide with a lagging seq
  *   4. insert the two new Bank Frick rows (EUR/CHF) ACTIVE and idempotent per IBAN
  *   5. rename the dormant legacy Bank Frick rows to 'Bank Frick (legacy)' (runbook §3.2)
  *   6. seed `lastBankFrickDate:<newBankId>` per new row (runbook §1) so polling never starts at epoch
