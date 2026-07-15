@@ -109,9 +109,7 @@ describe('RealUnitRegistrationDto (class-validator decorators)', () => {
   // Non-string tin must not crash @Transform (Util.trim would throw TypeError => HTTP 500);
   // the value must fall through so @IsString can reject it as a clean 400.
   it('rejects a non-string tin as isString without throwing (400 not 500 regression)', async () => {
-    const errors = await validate(
-      build({ swissTaxResidence: true, countryAndTINs: [{ country: 'DE', tin: 12345 }] }),
-    );
+    const errors = await validate(build({ swissTaxResidence: true, countryAndTINs: [{ country: 'DE', tin: 12345 }] }));
     const tinError = errors.find((e) => e.property === 'countryAndTINs');
     expect(tinError).toBeDefined();
     expect(tinError!.children?.length).toBeGreaterThan(0);
