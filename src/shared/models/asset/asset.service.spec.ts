@@ -43,15 +43,12 @@ describe('AssetService', () => {
       expect(options.where).toMatchObject({ priceRule: Not(IsNull()) });
     });
 
-    it('does not recognize an inbound deposit of a token missing from the priced pay-in set, so it cannot loop the pay-in', async () => {
-      // the DB filter already dropped the unpriced DGC, so only ZCHF comes back
+    it('uses only the DB-filtered set for chain-id matching', async () => {
       jest.spyOn(assetRepo, 'findCached').mockResolvedValue([zchf]);
 
       const payInAssets = await service.getPayInAssets([Blockchain.POLYGON]);
 
-      // priced token stays recognizable
       expect(service.getByChainIdSync(payInAssets, Blockchain.POLYGON, zchf.chainId)).toBe(zchf);
-      // inert DGC is not recognized -> mapped asset is undefined -> CryptoInput gets status FAILED (no retry loop)
       expect(service.getByChainIdSync(payInAssets, Blockchain.POLYGON, dgcChainId)).toBeUndefined();
     });
   });

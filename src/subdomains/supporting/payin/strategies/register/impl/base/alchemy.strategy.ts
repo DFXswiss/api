@@ -54,7 +54,7 @@ export abstract class AlchemyStrategy extends EvmStrategy implements OnModuleIni
       });
   }
 
-  private async processWebhookTransactions(dto: AlchemyWebhookDto): Promise<void> {
+  protected async processWebhookTransactions(dto: AlchemyWebhookDto): Promise<void> {
     const fromAddresses = this.getOwnAddresses();
     const toAddresses = await this.getPayInAddresses();
 

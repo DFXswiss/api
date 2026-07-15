@@ -317,7 +317,7 @@ export class PayInService {
   }
 
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.PAY_IN, timeout: 7200 })
-  async updateFailedPayments() {
+  async updateFailedPayments(): Promise<void> {
     const checkDate = Util.minutesBefore(15);
 
     const recentlyFailedPayments = await this.payInRepository.find({
@@ -325,10 +325,17 @@ export class PayInService {
         created: MoreThan(checkDate),
         txType: PayInType.PAYMENT,
         status: PayInStatus.FAILED,
+        asset: { priceRule: Not(IsNull()) },
       },
+      relations: { asset: { priceRule: true } },
     });
 
     for (const failedPayment of recentlyFailedPayments) {
+      // Unknown or unpriced tokens are intentionally persisted as FAILED by the register flow. They must
+      // never be resurrected by the payment-quote retry, otherwise the minute job processes an input that
+      // cannot be priced. Keep this guard in addition to the SQL filter as a fail-closed service boundary.
+      if (!failedPayment.asset?.priceRule) continue;
+
       try {
         const quote = await this.paymentLinkPaymentService.getPaymentQuoteByFailedCryptoInput(failedPayment);
 
