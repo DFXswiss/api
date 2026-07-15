@@ -835,8 +835,9 @@ export class RealUnitController {
       'Public endpoint called from realunit.app/confirm-aktionariat when the user opens the email link. ' +
       'Server-side confirms the connection at Aktionariat using the provided code (which acts as the auth ' +
       'token) and documents the outcome per RealUnit-registered wallet. Returns the mapped state: ' +
-      '`confirmed` (Aktionariat accepted), `invalid` (link invalid/expired), or `unavailable` (Aktionariat ' +
-      'unreachable — retry later).',
+      '`confirmed` (Aktionariat accepted), `confirmed_no_registration` (Aktionariat accepted the email, but ' +
+      'no RealUnit registration matched it — a permanent outcome, not a retry candidate), `invalid` (link ' +
+      'invalid/expired), or `unavailable` (Aktionariat unreachable — retry later).',
   })
   @ApiOkResponse({ type: RealUnitConfirmAktionariatDto })
   async confirmAktionariat(

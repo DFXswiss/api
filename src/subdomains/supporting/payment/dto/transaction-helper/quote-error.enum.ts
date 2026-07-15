@@ -14,6 +14,7 @@ export enum QuoteError {
   RECOMMENDATION_REQUIRED = 'RecommendationRequired',
   EMAIL_REQUIRED = 'EmailRequired',
   PRIMARY_EMAIL_REQUIRED = 'PrimaryEmailRequired',
+  PRIMARY_EMAIL_NOT_CONFIRMED = 'PrimaryEmailNotConfirmed',
   COUNTRY_NOT_ALLOWED = 'CountryNotAllowed',
   ASSET_UNSUPPORTED = 'AssetUnsupported',
   CURRENCY_UNSUPPORTED = 'CurrencyUnsupported',
