@@ -4,6 +4,7 @@ import { IsNull } from 'typeorm';
 import { ArchiveBatch, ArchiveBatchStatus } from './archive-batch.entity';
 import { ArchiveBatchRepository } from './archive-batch.repository';
 import { ArchiveFileRepository } from './archive-file.repository';
+import { deserializeMerkleProof, serializeMerkleProof } from './merkle-proof-codec';
 import { buildMerkleRoot, merkleInclusionProof, sha256, verifyMerkleProof } from './merkle';
 import { OpenTimestampsService } from './opentimestamps.service';
 
@@ -17,9 +18,18 @@ export interface ArchiveVerification {
   anchored?: boolean;
   /** true if the inclusion proof recomputes the batch's stored Merkle root. */
   proofValid?: boolean;
+  /**
+   * true iff found && hashMatches && anchored && proofValid (all four independently true).
+   * Independent of `pending`: a calendar-only (not yet Bitcoin-confirmed) proof can still
+   * be fully verified against its Merkle root.
+   */
+  verified: boolean;
   /** Bitcoin block height of the OpenTimestamps attestation, once anchored on-chain. */
   bitcoinHeight?: number;
-  /** true while the OpenTimestamps proof is still calendar-only (not yet on-chain). */
+  /**
+   * true while the OpenTimestamps proof is still calendar-only (not yet on-chain).
+   * Independent of `verified` — pending does not mean unverified.
+   */
   pending?: boolean;
 }
 
@@ -29,9 +39,11 @@ export interface ArchiveVerification {
  * via OpenTimestamps (Stage 1 primitives), upgrades those proofs to Bitcoin attestations,
  * and verifies a given document against its anchored batch end-to-end.
  *
- * Leaves are the raw 32-byte SHA-256 digests of the file contents (the Merkle module does
- * NOT re-hash leaves). `merkleRoot` is stored hex, `otsProof` is stored base64 of the
- * serialized detached `.ots` bytes.
+ * Leaves are the 32-byte SHA-256 digests of the file contents; the Merkle module
+ * domain-separates them via RFC 6962 leaf hashing (`sha256(0x00 || digest)`) before they
+ * enter the tree. `merkleRoot` is stored hex, `otsProof` is stored base64 of the serialized
+ * detached `.ots` bytes, and each file's inclusion proof is persisted as JSON on
+ * `archive_file.merkleProof`.
  */
 @Injectable()
 export class ArchiveService {
@@ -56,6 +68,10 @@ export class ArchiveService {
    * leaf hash and make {@link verifyDocument} report bogus tampering. Therefore, for an
    * already-anchored record: an identical hash is a no-op, and a differing hash is a hard
    * error (the existing anchored hash is never overwritten).
+   *
+   * When the row looks unanchored at read time, the update is conditional on `batch` still
+   * being null at write time, so a concurrent {@link anchorPending} that claims the row
+   * cannot be overwritten by a stale write (TOCTOU).
    */
   async recordHash(bucket: string, name: string, sha256Hex: string): Promise<void> {
     const existing = await this.archiveFileRepo.findOne({ where: { bucket, name }, relations: ['batch'] });
@@ -71,8 +87,36 @@ export class ArchiveService {
         throw new Error(message);
       }
 
-      await this.archiveFileRepo.update(existing.id, { sha256: sha256Hex });
-      return;
+      // Conditional update: only write if still unanchored (closes TOCTOU with anchorPending).
+      const result = await this.archiveFileRepo.update({ id: existing.id, batch: IsNull() }, { sha256: sha256Hex });
+      if (result.affected !== 0) return;
+
+      // Lost the race: a concurrent anchorPending claimed this row between read and write.
+      const reloaded = await this.archiveFileRepo.findOne({ where: { id: existing.id }, relations: ['batch'] });
+      if (!reloaded) {
+        const message = `Archive file ${existing.id} (${bucket}/${name}) disappeared during concurrent update`;
+        this.logger.error(message);
+        throw new Error(message);
+      }
+
+      if (reloaded.sha256 === sha256Hex) return;
+
+      if (reloaded.batch != null) {
+        const message =
+          `Refusing to overwrite anchored hash for ${bucket}/${name} (file ${reloaded.id}, batch ` +
+          `${reloaded.batch.id}): concurrent anchor claimed the row; stored ${reloaded.sha256} ` +
+          `differs from new ${sha256Hex}`;
+        this.logger.error(message);
+        throw new Error(message);
+      }
+
+      // batch still null but conditional update matched nothing — data-integrity inconsistency.
+      const message =
+        `Unexpected data-integrity inconsistency for ${bucket}/${name} (file ${reloaded.id}): ` +
+        `conditional update affected 0 rows but file is still unanchored with differing hash ` +
+        `(stored ${reloaded.sha256}, new ${sha256Hex})`;
+      this.logger.error(message);
+      throw new Error(message);
     }
 
     const file = this.archiveFileRepo.create({ bucket, name, sha256: sha256Hex });
@@ -80,8 +124,21 @@ export class ArchiveService {
   }
 
   /**
+   * Names already present in the `(bucket, name)` archive index for a bucket, regardless of
+   * anchoring status. Used by {@link ArchiveScheduler.reconcileHashes} to diff live storage
+   * objects against recorded hashes and find gaps left by a failed {@link recordHash} call —
+   * which, unlike a normal upload failure, leaves no row at all, so a DB-only scan can never
+   * find it.
+   */
+  async recordedNames(bucket: string): Promise<Set<string>> {
+    const files = await this.archiveFileRepo.find({ where: { bucket }, select: ['name'] });
+    return new Set(files.map((file) => file.name));
+  }
+
+  /**
    * Batch all currently unanchored files (ordered by id) into one Merkle tree, timestamp its
-   * root via OpenTimestamps, and persist batch + per-file assignment in a single transaction.
+   * root via OpenTimestamps, and persist batch + per-file assignment (including each file's
+   * inclusion proof) in a single transaction.
    *
    * Returns the created batch, or `undefined` if there is nothing to anchor.
    */
@@ -106,6 +163,7 @@ export class ArchiveService {
       files.forEach((file, index) => {
         file.batch = savedBatch;
         file.leafIndex = index;
+        file.merkleProof = serializeMerkleProof(merkleInclusionProof(leaves, index));
       });
 
       await manager.save(files);
@@ -159,28 +217,34 @@ export class ArchiveService {
 
   /**
    * Verify a supplied document against its archived, anchored Merkle batch end-to-end:
-   * recompute its SHA-256, compare with the stored hash, rebuild the inclusion proof against
-   * the batch's Merkle root, and check the OpenTimestamps attestation status.
+   * recompute its SHA-256 from the supplied bytes, compare with the stored hash, verify the
+   * persisted inclusion proof against the batch's Merkle root using the supplied digest as
+   * the leaf, and check the OpenTimestamps attestation status.
    */
   async verifyDocument(bucket: string, name: string, data: Buffer): Promise<ArchiveVerification> {
     const file = await this.archiveFileRepo.findOne({ where: { bucket, name }, relations: ['batch'] });
-    if (!file) return { found: false };
+    if (!file) return { found: false, verified: false };
 
-    const computedHex = sha256(data).toString('hex');
+    const computedDigest = sha256(data);
+    const computedHex = computedDigest.toString('hex');
     const hashMatches = file.sha256 === computedHex;
 
     const batch = file.batch;
-    if (!batch) return { found: true, hashMatches, anchored: false };
+    if (!batch) return { found: true, hashMatches, anchored: false, verified: false };
 
-    const batchFiles = await this.archiveFileRepo.find({
-      where: { batch: { id: batch.id } },
-      order: { leafIndex: 'ASC' },
-    });
-    const leaves = batchFiles.map((batchFile) => Buffer.from(batchFile.sha256, 'hex'));
+    if (file.merkleProof == null || file.merkleProof === '') {
+      const message =
+        `Data-integrity inconsistency: archive file ${file.id} (${bucket}/${name}) is assigned ` +
+        `to batch ${batch.id} but has no persisted merkleProof`;
+      this.logger.error(message);
+      throw new Error(message);
+    }
 
     const rootBuffer = Buffer.from(batch.merkleRoot, 'hex');
-    const proof = merkleInclusionProof(leaves, file.leafIndex);
-    const proofValid = verifyMerkleProof(Buffer.from(file.sha256, 'hex'), proof, rootBuffer);
+    const proof = deserializeMerkleProof(file.merkleProof);
+    // Leaf must be the digest of the SUPPLIED bytes — never the stored hash — so a
+    // tampered document yields proofValid: false.
+    const proofValid = verifyMerkleProof(computedDigest, proof, rootBuffer);
 
     let bitcoinHeight: number;
     let pending = true;
@@ -191,6 +255,7 @@ export class ArchiveService {
       if (ots.bitcoin) bitcoinHeight = ots.bitcoin.height;
     }
 
-    return { found: true, hashMatches, anchored: true, proofValid, bitcoinHeight, pending };
+    const verified = hashMatches && proofValid;
+    return { found: true, hashMatches, anchored: true, proofValid, verified, bitcoinHeight, pending };
   }
 }
