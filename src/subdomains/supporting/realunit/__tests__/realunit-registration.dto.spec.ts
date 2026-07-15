@@ -101,9 +101,22 @@ describe('RealUnitRegistrationDto (class-validator decorators)', () => {
     expect(tinError!.constraints).toHaveProperty('arrayMaxSize');
   });
 
-  it('trims TIN whitespace via @Transform(Util.trim)', () => {
+  it('trims TIN whitespace via string-safe @Transform', () => {
     const dto = build({ swissTaxResidence: false, countryAndTINs: [{ country: 'DE', tin: '  DE123  ' }] });
     expect(dto.countryAndTINs![0].tin).toBe('DE123');
+  });
+
+  // Non-string tin must not crash @Transform (Util.trim would throw TypeError => HTTP 500);
+  // the value must fall through so @IsString can reject it as a clean 400.
+  it('rejects a non-string tin as isString without throwing (400 not 500 regression)', async () => {
+    const errors = await validate(
+      build({ swissTaxResidence: true, countryAndTINs: [{ country: 'DE', tin: 12345 }] }),
+    );
+    const tinError = errors.find((e) => e.property === 'countryAndTINs');
+    expect(tinError).toBeDefined();
+    expect(tinError!.children?.length).toBeGreaterThan(0);
+    const nestedTinError = tinError!.children![0].children?.find((e) => e.property === 'tin');
+    expect(nestedTinError?.constraints).toHaveProperty('isString');
   });
 
   it('accepts exactly 10 countryAndTINs entries (ArrayMaxSize boundary)', async () => {

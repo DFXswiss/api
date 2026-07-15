@@ -94,7 +94,10 @@ export class CountryAndTin {
   @IsNotEmpty()
   @IsString()
   @MaxLength(MAX_TIN_LENGTH)
-  @Transform(Util.trim)
+  // NOT Util.trim: class-transformer runs this before class-validator, so a non-string tin (e.g. a
+  // number) would make `value.trim()` throw a TypeError => HTTP 500 before @IsString can reject it as
+  // a 400. Trim only actual strings and let any other type fall through to @IsString.
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   tin: string;
 }
 
