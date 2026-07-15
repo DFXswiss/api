@@ -69,6 +69,12 @@ export enum ServiceProvider {
   REALUNIT = 'RealUnit',
 }
 
+// A tenant's app authenticates with its own wallet name (e.g. 'RealUnit'), which by convention equals the
+// ServiceProvider enum value. Pure string match — no DB lookup — so it is safe on every sign-in.
+export function getServiceProviderForWallet(walletName?: string): ServiceProvider | undefined {
+  return Object.values(ServiceProvider).find((p) => p === walletName);
+}
+
 export enum LegalEntity {
   AG = 'AG',
   GMBH = 'GmbH',

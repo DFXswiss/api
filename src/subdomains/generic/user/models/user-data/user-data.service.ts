@@ -160,12 +160,14 @@ export class UserDataService {
   }
 
   async getUserDataIdsByServiceProvider(provider: ServiceProvider): Promise<number[]> {
-    // exact token match on the semicolon list (mirrors the backfill migration and the UserData.isRealUnitCustomer
-    // getter), so the scope source and the per-issue membership check share one definition and cannot diverge
+    // exact token match on the semicolon list plus the merged-tombstone exclusion (mirrors the
+    // UserData.isRealUnitCustomer getter), so the scope source and the per-issue membership check share one
+    // definition and cannot diverge; a merged slave keeps its marker but the master represents it
     return this.userDataRepo
       .createQueryBuilder('userData')
       .select('userData.id', 'id')
       .where(`';' || userData.serviceProviders || ';' LIKE :pattern`, { pattern: `%;${provider};%` })
+      .andWhere('userData.status != :merged', { merged: UserDataStatus.MERGED })
       .getRawMany<{ id: number }>()
       .then((rows) => rows.map((r) => r.id));
   }
