@@ -282,6 +282,12 @@ export class LedgerCutoverService {
 
   // buyFiat-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R3-6); per-row seq0-marker (R4-2).
   // Returns the ids of rows with a NULL amountInChf (no CHF anchor) so the caller pins them as unpriced-at-cutover (F2).
+  // G-a exclusivity (Major): the per-row received/paymentLink opening is mutually exclusive with the forward
+  // crypto_input seq0. A row whose funding crypto_input was NOT settled at the snapshot (status ∉ CryptoInputSettledStatus)
+  // is skipped here — its forward seq0 is the SINGLE received/paymentLink opener; opening it per-row too would
+  // double-credit the bucket (permanent phantom, no alarm — the cutover and crypto_input sourceId namespaces are
+  // disjoint, so no UNIQUE backstop catches it). A settled input keeps the per-row opening (its seq0 is suppressed as
+  // covered-by-cutover, so the per-row opening is then the sole opener). Card-/bank-funded rows have cryptoInput=null → unchanged.
   private async openBuyFiatReceived(
     snapshot: Log,
     date: Date,
@@ -293,6 +299,8 @@ export class LedgerCutoverService {
       // F1: load paymentLinkPayment to route a paymentLink-funded row to its OWN paymentLink opening instead of
       // buyFiat-received — the forward bookPaymentLink path clears LIABILITY/paymentLink and would NEVER consume a
       // buyFiat-received/-owed opening (permanent content-scan wedge), and its opening would land in the wrong bucket.
+      // cryptoInput.status is ALSO read below (G-a): a funding input NOT settled at the snapshot has its forward seq0 as
+      // the sole received/paymentLink opener, so the per-row opening is skipped to avoid a double-credit.
       relations: { cryptoInput: { paymentLinkPayment: true } },
     });
     const received = await this.liability('buyFiat-received');
@@ -304,6 +312,10 @@ export class LedgerCutoverService {
         unpriced.push(row.id); // F2: no CHF anchor → pin; forward SKIPs+advances (alarm), value stays in the aggregate
         continue;
       }
+      // G-a: received opening is mutually exclusive with the forward crypto_input seq0 — the cutover only opens received
+      // when the input's value already sits in the aggregate ASSET opening (settled ≤ snapshot → its seq0 is suppressed
+      // by isCoveredByCutoverOpening); otherwise the forward seq0 is the single opener.
+      if (row.cryptoInput && !CryptoInputSettledStatus.includes(row.cryptoInput.status)) continue;
       await this.openBuyFiatRow(snapshot, date, row, received, paymentLink, equity);
     }
 
@@ -406,6 +418,14 @@ export class LedgerCutoverService {
   // (buy-crypto.consumer.buildCardInputSeq0) is gated to SKIP when this marker exists — WITHOUT both the per-row
   // opening and the skip, the forward seq0 would re-debit the gross on Checkout/{ccy} a SECOND time (permanent phantom
   // on Checkout/{ccy}, the pre-fix double-count).
+  // G-a exclusivity (Major): a crypto-funded open row (cryptoInput != null) whose funding input was NOT settled at the
+  // snapshot (status ∉ CryptoInputSettledStatus) is EXCLUDED here — its forward crypto_input seq0 is the SOLE
+  // buyCrypto-received opener; opening it per-row too would double-credit buyCrypto-received (permanent phantom, no
+  // alarm — the cutover and crypto_input sourceId namespaces are disjoint, so no UNIQUE backstop catches it, and
+  // isCoveredByCutoverOpening only knows the crypto_input boundary). A settled input keeps the per-row opening (its
+  // seq0 is suppressed as covered-by-cutover, so the per-row opening is then the sole opener). Card-/bank-funded rows
+  // (cryptoInput=null) are unaffected — Card: buildCardInputSeq0 is skipped by hasCutoverReceivedOpening; bank: its
+  // funding bank_tx seq0 is suppressed by the immutable-bookingDate watermark.
   private async openBuyCryptoReceived(
     snapshot: Log,
     date: Date,
@@ -414,6 +434,9 @@ export class LedgerCutoverService {
   ): Promise<number[]> {
     const rows = await this.buyCryptoRepo.find({
       where: { isComplete: false, outputAmount: IsNull(), created: Between(lookback, date) },
+      // G-a: load cryptoInput (+ status) to decide the received opener — a crypto-funded row whose input was not settled
+      // at the snapshot is skipped (its forward seq0 opens received); a Card/bank-funded row has cryptoInput=null.
+      relations: { cryptoInput: true },
     });
     const liability = await this.liability('buyCrypto-received');
     const unpriced: number[] = [];
@@ -425,6 +448,10 @@ export class LedgerCutoverService {
         unpriced.push(row.id);
         continue;
       }
+      // G-a: received opening is mutually exclusive with the forward crypto_input seq0 — the cutover only opens received
+      // when the input's value already sits in the aggregate ASSET opening (settled ≤ snapshot → its seq0 is suppressed
+      // by isCoveredByCutoverOpening); otherwise the forward seq0 is the single opener.
+      if (row.cryptoInput && !CryptoInputSettledStatus.includes(row.cryptoInput.status)) continue;
       await this.bookReceivedOwedOpening(
         date,
         `${snapshot.id}:buy_crypto:${row.id}`,

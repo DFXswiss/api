@@ -17,7 +17,7 @@ import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { BankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxRepeat } from 'src/subdomains/supporting/bank-tx/bank-tx-repeat/bank-tx-repeat.entity';
 import { BankTxReturn } from 'src/subdomains/supporting/bank-tx/bank-tx-return/bank-tx-return.entity';
-import { CryptoInput } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayoutOrder } from 'src/subdomains/supporting/payout/entities/payout-order.entity';
 import { Repository } from 'typeorm';
 import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity';
@@ -341,6 +341,160 @@ describe('LedgerCutoverService', () => {
       expect(liabilityLeg.amountChf).toBe(-15000); // Cr LIABILITY (CHF-denominated, amountInChf)
     });
 
+    // --- G-a exclusivity (Major): the per-row received opening vs the forward crypto_input seq0 --- //
+    // A priced open row whose funding crypto_input was NOT settled at the snapshot (real window: amountInChf is set at
+    // AML on isConfirmed, before the input reaches FORWARD_CONFIRMED) must get NO per-row received opening — the forward
+    // crypto_input seq0 is the SOLE received opener. Opening it here too would double-credit ${bucket}-received to
+    // −2·amountInChf (the cutover / crypto_input sourceId namespaces are disjoint → no UNIQUE backstop), leaving a
+    // permanent −amountInChf phantom after the completion debits once. A settled input keeps the per-row opening (its
+    // seq0 is suppressed as covered-by-cutover). Card-/bank-funded rows (cryptoInput=null) are unchanged.
+    describe('G-a exclusivity: per-row received opening vs the forward crypto_input seq0 (Major)', () => {
+      it('skips the buyFiat-received opening for a crypto-funded row whose input was NOT settled at the snapshot', async () => {
+        jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+        jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+          if (where?.outputAmount)
+            return Promise.resolve([
+              buyFiat({
+                id: 80,
+                amountInChf: 15000,
+                outputAmount: null,
+                cryptoInput: { id: 800, status: PayInStatus.ACKNOWLEDGED } as any, // unsettled at the snapshot
+              }),
+            ]);
+          return Promise.resolve([]);
+        });
+
+        await service.run();
+
+        // no per-row opening → the forward crypto_input seq0 opens buyFiat-received exactly once (no double-credit)
+        expect(booked.some((b) => b.sourceId === '1557344:buy_fiat:80')).toBe(false);
+      });
+
+      it('opens the buyFiat-received per row when the funding crypto_input WAS settled at the snapshot', async () => {
+        jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+        jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+          if (where?.outputAmount)
+            return Promise.resolve([
+              buyFiat({
+                id: 81,
+                amountInChf: 15000,
+                outputAmount: null,
+                cryptoInput: { id: 810, status: PayInStatus.FORWARD_CONFIRMED } as any, // settled → value in the aggregate
+              }),
+            ]);
+          return Promise.resolve([]);
+        });
+
+        await service.run();
+
+        // settled input → its seq0 is suppressed as covered-by-cutover, so the per-row opening is the sole opener
+        const receivedTx = booked.find((b) => b.sourceId === '1557344:buy_fiat:81');
+        expect(receivedTx).toBeDefined();
+        const liabilityLeg = receivedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
+        expect(liabilityLeg.account.name).toBe('LIABILITY/buyFiat-received');
+        expect(liabilityLeg.amountChf).toBe(-15000);
+      });
+
+      it('skips the buyFiat paymentLink opening too when the funding crypto_input was NOT settled at the snapshot', async () => {
+        // the guard sits before openBuyFiatRow, so it covers the paymentLink branch as well: the forward crypto_input
+        // seq0 (ci.isPayment) opens LIABILITY/paymentLink for an unsettled input, so a per-row paymentLink opening here
+        // would double-credit it exactly like the received bucket.
+        jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+        jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+          if (where?.outputAmount)
+            return Promise.resolve([
+              buyFiat({
+                id: 82,
+                amountInChf: 1000,
+                outputAmount: null,
+                cryptoInput: { paymentLinkPayment: { id: 1 }, status: PayInStatus.ACKNOWLEDGED } as any, // unsettled
+              }),
+            ]);
+          return Promise.resolve([]);
+        });
+
+        await service.run();
+
+        expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-paymentLink:82')).toBe(false);
+        expect(booked.some((b) => b.sourceId === '1557344:buy_fiat:82')).toBe(false);
+      });
+
+      it('skips the buyCrypto-received opening for a crypto-funded row whose input was NOT settled at the snapshot', async () => {
+        jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+        jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
+          if (where?.outputAmount)
+            return Promise.resolve([
+              buyCrypto({
+                id: 90,
+                amountInChf: 1000,
+                outputAmount: null,
+                cryptoInput: { id: 900, status: PayInStatus.ACKNOWLEDGED } as any, // unsettled at the snapshot
+              }),
+            ]);
+          return Promise.resolve([]);
+        });
+
+        await service.run();
+
+        expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:90')).toBe(false);
+      });
+
+      it('opens the buyCrypto-received per row when the funding crypto_input WAS settled at the snapshot', async () => {
+        jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+        jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
+          if (where?.outputAmount)
+            return Promise.resolve([
+              buyCrypto({
+                id: 91,
+                amountInChf: 1000,
+                outputAmount: null,
+                cryptoInput: { id: 910, status: PayInStatus.COMPLETED } as any, // settled → value in the aggregate
+              }),
+            ]);
+          return Promise.resolve([]);
+        });
+
+        await service.run();
+
+        const receivedTx = booked.find((b) => b.sourceId === '1557344:buy_crypto:91');
+        expect(receivedTx).toBeDefined();
+        const liabilityLeg = receivedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
+        expect(liabilityLeg.account.name).toBe('LIABILITY/buyCrypto-received');
+        expect(liabilityLeg.amountChf).toBe(-1000);
+      });
+
+      it('opens the buyCrypto-received per row for a Card-funded row (cryptoInput=null, regression)', async () => {
+        jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+        jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
+          if (where?.outputAmount)
+            return Promise.resolve([
+              buyCrypto({ id: 92, amountInChf: 1000, outputAmount: null, checkoutTx: { currency: 'EUR' } as any }),
+            ]);
+          return Promise.resolve([]);
+        });
+
+        await service.run();
+
+        // Card row: cryptoInput=null → the guard does not fire → the per-row received opening still books (unchanged)
+        expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:92')).toBe(true);
+      });
+
+      it('opens the buyCrypto-received per row for a bank-funded row (cryptoInput=null, regression)', async () => {
+        jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+        jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
+          if (where?.outputAmount)
+            return Promise.resolve([
+              buyCrypto({ id: 93, amountInChf: 1000, outputAmount: null, bankTx: { id: 500 } as any }),
+            ]);
+          return Promise.resolve([]);
+        });
+
+        await service.run();
+
+        expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:93')).toBe(true);
+      });
+    });
+
     it('opens buyFiat-owed per row CHF = outputAmount × fiat-mark for a foreign-currency (EUR) output (R6-1)', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest
@@ -381,9 +535,12 @@ describe('LedgerCutoverService', () => {
       expect(liabilityLeg.amountChf).toBe(-14851.5); // CHF output → mark 1
     });
 
-    // §4.7b/§6.1 (F1): a paymentLink-funded open buy_fiat (outputAmount NULL) is opened on LIABILITY/paymentLink via the
-    // per-row marker `${logId}:buy_fiat-paymentLink:${id}` at the gross (amountInChf) — NOT buyFiat-received (which the
-    // forward bookPaymentLink path never consumes → permanent content-scan wedge + wrong bucket).
+    // §4.7b/§6.1 (F1): a paymentLink-funded open buy_fiat (outputAmount NULL) whose financing crypto_input settled
+    // PRE-cutover (status ∈ CryptoInputSettledStatus → its value is in the aggregate opening, no forward seq0) is opened
+    // on LIABILITY/paymentLink via the per-row marker `${logId}:buy_fiat-paymentLink:${id}` at the gross (amountInChf) —
+    // NOT buyFiat-received (which the forward bookPaymentLink path never consumes → permanent content-scan wedge + wrong
+    // bucket). The G-a exclusivity guard keeps this opening for a settled input; an UNSETTLED paymentLink input is
+    // skipped instead (its forward seq0 opens paymentLink — covered by the dedicated G-a exclusivity tests below).
     it('opens a paymentLink-funded buyFiat-received row on LIABILITY/paymentLink, not buyFiat-received (F1)', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
@@ -393,7 +550,7 @@ describe('LedgerCutoverService', () => {
               id: 45,
               amountInChf: 1000,
               outputAmount: null,
-              cryptoInput: { paymentLinkPayment: { id: 1 } } as any,
+              cryptoInput: { paymentLinkPayment: { id: 1 }, status: PayInStatus.FORWARD_CONFIRMED } as any, // settled pre-cutover
             }),
           ]);
         }
