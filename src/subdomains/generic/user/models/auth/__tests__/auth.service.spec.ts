@@ -351,9 +351,6 @@ describe('AuthService', () => {
     });
   });
 
-  // Parallel first-contact requests for the same new address used to race into the user.address
-  // unique constraint: every loser logged a DB error and left behind the user_data row it had
-  // already created. The single-flight on authenticate() must collapse the burst into one INSERT.
   describe('authenticate sign-up race', () => {
     const ip = '1.2.3.4';
     const custodyProvider = { masterKey: 'SIG' } as any;
@@ -412,7 +409,6 @@ describe('AuthService', () => {
       userServiceMock.createUser.mockResolvedValue(user);
 
       await service.authenticate(dto, ip);
-      // the sign-up invalidated the 10s user cache, so this lookup sees the new user and signs in
       await service.authenticate({ ...dto }, ip);
 
       expect(userServiceMock.createUser).toHaveBeenCalledTimes(1);

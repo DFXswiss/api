@@ -129,10 +129,6 @@ export class AuthService {
     if (existingUser && userDataId && existingUser.userData.id !== userDataId)
       throw new ConflictException('Address already linked to another account');
 
-    // Clients fire parallel sign-ups for a new address (retries/double-clicks); the single-flight
-    // keyed on address lets one INSERT run and hands its response to the others, instead of every
-    // loser racing into the unique constraint and abandoning the user_data row it just created.
-    // The duplicate-key fallback stays for races the coalescing cannot see (other entry points).
     return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
       : this.signUpCalls.get(dto.address, () =>
