@@ -60,16 +60,25 @@ export class BuyCryptoConsumer {
       this.buyCryptoRepo,
       { checkoutTx: true, cryptoInput: { paymentLinkPayment: true }, bankTx: true },
       async (bc: BuyCrypto) => {
-        // §4.12: a Card-input amount/fee change (amountInChf) reverses + re-books the seq0 Card-input tx; then the
-        // idempotent forward book() appends any newly-settled seqs (seq1 completion). Non-Card inputs have no seq0
-        // here (booked by the CryptoInput/BankTx single booker) → buildSeq0Input returns undefined → no-op reversal.
-        const seq0 = await this.buildCardInputSeq0(bc);
-        if (seq0) await this.bookingService.reverseAndRebookIfChanged(seq0);
-        // honour the book() gate: a gate-blocked run (seq1 received not yet opened) returns false and must NOT
-        // advance the content-change cursor past this row, else the late-settling row is lost (§4.7 G-a)
+        // forward book() FIRST: append any newly-settled seqs / forward-book a late-settling row the id-watermark
+        // skipped. A gate-blocked run returns false → distinguish a pre-cutover-settled row (value in the aggregate
+        // opening, C2) → SKIP+advance, from a genuinely post-cutover row whose received opening is not yet booked →
+        // THROW (cursor stays put, retry). Returning here for a gate-blocked row ALSO avoids resolving+creating the
+        // value-coupled accounts below for a never-booked row (no phantom LIABILITY/buyCrypto-owed).
         if (!(await this.book(bc))) {
+          if (await this.preCutoverSettled(bc)) return;
           throw new Error(`buy_crypto ${bc.id} content-change scan gate-blocked — retry next run (§4.7 G-a)`);
         }
+
+        // then §4.12 + M3: on a content change, reverse+rebook the value-coupled Card-input seq0 / completion seq1 chain
+        // (both carry the amountInChf base). Reversing ONLY seq0 while seq1 is booked would leave `received` non-zero
+        // (the shared liability never closes to 0); the chain method reverses the whole ACTIVE chain atomically and
+        // no-ops when nothing changed (incl. the seqs book() just forward-booked). buildCardInputSeq0 is undefined for a
+        // non-Card / pre-cutover-settled row and buildCompletionSeq1 for a not-yet-complete row → each drops out.
+        const chain = (await Promise.all([this.buildCardInputSeq0(bc), this.buildCompletionSeq1(bc)])).filter(
+          (i): i is LedgerTxInput => i != null,
+        );
+        if (chain.length) await this.bookingService.reverseAndRebookChainIfChanged(chain);
       },
     );
   }
@@ -154,6 +163,13 @@ export class BuyCryptoConsumer {
    * −(amountInChf−totalFeeAmountChf) (cleared later by the payout_order consumer, §4.5).
    */
   private async bookCompletion(bc: BuyCrypto): Promise<void> {
+    const input = await this.buildCompletionSeq1(bc);
+    if (input) await this.bookingService.bookTx(input);
+  }
+
+  // builds the seq1 completion LedgerTxInput, or undefined for a not-yet-complete row (nothing to book / no chain link)
+  private async buildCompletionSeq1(bc: BuyCrypto): Promise<LedgerTxInput | undefined> {
+    if (!bc.isComplete) return undefined;
     if (bc.amountInChf == null) throw new Error(`buy_crypto ${bc.id} is complete but amountInChf is null`);
 
     const fee = bc.totalFeeAmountChf ?? 0; // additive null-strategy (§5.1): missing fee = 0
@@ -171,14 +187,14 @@ export class BuyCryptoConsumer {
       this.chfLeg(owed, -reclassChf), //       Cr owed −(amountInChf−fee)
     ];
 
-    await this.bookingService.bookTx({
+    return {
       sourceType: SOURCE_TYPE,
       sourceId: `${bc.id}`,
       seq: 1,
       bookingDate: bc.outputDate ?? bc.updated,
       valueDate: bc.outputDate ?? bc.updated,
       legs,
-    });
+    };
   }
 
   // --- GATE (§4.6/§4.7 G-a/G-b) --- //
@@ -231,7 +247,16 @@ export class BuyCryptoConsumer {
   // chargeback/mail — pushes past the snapshot; that is the very Scenario-B trigger) `outputDate` still reflects whether
   // the row had settled at the cutover. Non-Card rows are handled by the natural G-a/G-b gate → this guards Card only.
   private async settledBeforeCutover(bc: BuyCrypto): Promise<boolean> {
-    if (!bc.checkoutTx || !bc.isComplete || bc.outputDate == null) return false;
+    return !!bc.checkoutTx && (await this.preCutoverSettled(bc)); // Card-only variant of the general predicate below
+  }
+
+  // C2: true iff this row's settlement (outputDate) is at/before the cutover snapshot → its value is already in the
+  // aggregate opening (openAssets/openLiabilities), NEVER a per-row cutover marker (openBuyCrypto* opens ONLY rows
+  // still OPEN at the snapshot, whose outputDate is null or > snapshot). Used by the content-change scan to SKIP+advance
+  // a forever-gate-blocked pre-cutover-settled row instead of throwing — the "no marker" half of §6.1 is implied here
+  // because being gate-blocked already means receivedOpened found neither a G-a seq0 nor a G-b marker.
+  private async preCutoverSettled(bc: BuyCrypto): Promise<boolean> {
+    if (!bc.isComplete || bc.outputDate == null) return false;
 
     const snapshotDate = await this.cutoverSnapshotDate();
     return snapshotDate != null && bc.outputDate <= snapshotDate;

@@ -132,7 +132,12 @@ describe('PayoutOrderConsumer', () => {
   });
 
   const cents = (legs: LedgerLegInput[]) => legs.reduce((s, l) => s + Math.round((l.amountChf ?? 0) * 100), 0);
-  const mockBatch = (rows: PayoutOrder[]) => jest.spyOn(payoutOrderRepo, 'find').mockResolvedValue(rows);
+  // forward id-scan returns the rows; the §4.12 content-change scan (where has `updated`, not `id`) returns [] so the
+  // forward path is asserted in isolation (its late-settling coverage has dedicated two-run tests below).
+  const mockBatch = (rows: PayoutOrder[]) =>
+    jest
+      .spyOn(payoutOrderRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [] : rows));
   const leg = (tx: LedgerTxInput, name: string) => tx.legs.find((l) => l.account.name === name);
 
   it('is defined', () => {
@@ -418,6 +423,65 @@ describe('PayoutOrderConsumer', () => {
     mockBatch([]);
     await consumer.process();
     expect(booked).toHaveLength(0);
+  });
+
+  // --- C1: LATE-SETTLING FORWARD COVERAGE (content-change scan) --- //
+
+  // C1: a payout that is NOT yet Complete when the forward id-watermark advances OVER it (a later, higher-id row does
+  // settle) would be forward-unreachable once it completes. The status-agnostic content-change scan must forward-book
+  // it on the run after it settles — the row is NOT lost. Two runs: run 1 advances the watermark past the unsettled
+  // id; the row completes; run 2's forward id-scan no longer returns it, but the content-change scan does and books it.
+  it('forward-books a payout that settled AFTER the id-watermark advanced over it (C1, two runs)', async () => {
+    // realistic idempotency: a sourceId already booked reports nextSeq > 0, so re-selecting an already-booked row in
+    // the content-change scan is a no-op (does not double-book)
+    jest
+      .spyOn(bookingService, 'nextSeq')
+      .mockImplementation((_st, sourceId: string) =>
+        Promise.resolve(booked.some((t) => t.sourceId === sourceId) ? 1 : 0),
+      );
+    jest.spyOn(buyCryptoRepo, 'findOneBy').mockResolvedValue({ amountInChf: 50000, totalFeeAmountChf: 0 } as any);
+
+    const settled = payoutOrder({
+      id: 61,
+      correlationId: '901',
+      amount: 1,
+      preparationFeeAmountChf: 0,
+      payoutFeeAmountChf: 0,
+    });
+    const lateBefore = payoutOrder({
+      id: 60,
+      correlationId: '900',
+      amount: 1,
+      status: PayoutOrderStatus.CREATED,
+      preparationFeeAmountChf: 0,
+      payoutFeeAmountChf: 0,
+    });
+    const lateAfter = payoutOrder({
+      id: 60,
+      correlationId: '900',
+      amount: 1,
+      status: PayoutOrderStatus.COMPLETE,
+      preparationFeeAmountChf: 0,
+      payoutFeeAmountChf: 0,
+    });
+
+    // RUN 1: forward returns only the Complete row 61 (id-watermark jumps to 61, over the still-Created id 60); the
+    // content-change scan sees both, skips row 60 (not yet Complete) and no-ops row 61 (already booked).
+    jest
+      .spyOn(payoutOrderRepo, 'find')
+      .mockImplementation(({ where }: any) =>
+        Promise.resolve(where?.updated != null ? [lateBefore, settled] : [settled]),
+      );
+    await consumer.process();
+    expect(booked.map((b) => b.sourceId)).toEqual(['61']); // row 60 not booked (still Created)
+
+    // RUN 2: row 60 has since completed. The forward id-scan (id > 61) no longer returns it — forward-unreachable.
+    // The content-change scan re-selects it (updated bump) and books it because it now satisfies the settled filter.
+    jest
+      .spyOn(payoutOrderRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [lateAfter] : []));
+    await consumer.process();
+    expect(booked.map((b) => b.sourceId).sort()).toEqual(['60', '61']); // row 60 finally booked on the second run
   });
 
   // --- ERROR / SKIP / FALLBACK BRANCHES --- //

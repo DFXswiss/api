@@ -713,16 +713,18 @@ describe('BuyFiatConsumer', () => {
     expect(cents(s2.legs)).toBe(0);
   });
 
-  // owedReferenceRate ref==null + non-CHF output (line 359 → returns 0): a paymentLink EUR row with
-  // outputReferenceAmount null → owed_chf = outputAmount × 0 = 0. Asserted on seq2 transmit (both legs 0).
-  it('uses owedReferenceRate 0 for a non-CHF paymentLink row with a null reference', async () => {
-    seq0PaymentLinkChf = -100; // opening present (gate passes); spread plugs to fx, not asserted here
+  // m5 fail-loud: a non-CHF paymentLink row with a null outputReferenceAmount cannot derive owedReferenceRate → the
+  // consumer THROWS instead of the old silent 0-fallback (which would zero owedChf/plFeeChf and misclassify the whole
+  // value into the fx-revaluation plug). The forward loop catches → failure-isolation: nothing booked, watermark stays.
+  it('throws (failure-isolation) for a non-CHF paymentLink row with a null reference (owedReferenceRate, m5)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    seq0PaymentLinkChf = -100; // opening present so the §4.7b seq1 is attempted (where owedReferenceRate throws)
     mockBatch([
       buyFiat({
         id: 19,
         amountInChf: 100,
         totalFeeAmountChf: 0,
-        outputReferenceAmount: null, // ref null → EUR → rate 0
+        outputReferenceAmount: null, // ref null + non-CHF (EUR) → owedReferenceRate throws (no 0-fallback)
         outputAmount: 10000, // EUR
         outputAsset: { name: 'EUR' },
         cryptoInput: { id: 10, updated: new Date('2026-06-04T00:00:00Z'), paymentLinkPayment: { id: 1 } },
@@ -731,10 +733,8 @@ describe('BuyFiatConsumer', () => {
     ]);
     await consumer.process();
 
-    const s2 = seq(2);
-    expect(leg(s2, 'LIABILITY/paymentLink').amountChf).toBe(0); // outputAmount × 0
-    expect(leg(s2, 'TRANSIT/payout/EUR').amountChf).toBe(-0);
-    expect(cents(s2.legs)).toBe(0);
+    expect(booked).toHaveLength(0); // owedReferenceRate threw before any leg was booked
+    expect(setSpy).not.toHaveBeenCalled(); // watermark unchanged (retry next run)
   });
 
   // bankCrLeg throw (line 313): a regular sell reaching seq3 whose fiatOutput.bank.asset is missing throws
@@ -798,10 +798,11 @@ describe('BuyFiatConsumer', () => {
     expect(sumOn('LIABILITY/buyFiat-received')).toBe(1000);
   });
 
-  // §4.12 content-change scan (process lines 60-84): a settled regular row surfaced ONLY by the content-change scan
-  // (where.updated) → buildReclassificationSeq1 is reverse-and-rebooked, then the idempotent book() appends seq2/seq3.
-  it('reverse-and-rebooks the seq1 on a content-change scan and appends the later seqs', async () => {
-    const reverseSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
+  // §4.12 + M3 content-change scan (process lines 60-90): a settled regular row surfaced ONLY by the content-change
+  // scan (where.updated) → the value-coupled reclassification/transmit/settlement CHAIN is reverse-and-rebooked (not
+  // just seq1), then the idempotent book() appends any not-yet-booked seqs.
+  it('reverse-and-rebooks the value-coupled chain on a content-change scan and appends the later seqs (M3)', async () => {
+    const chainSpy = jest.spyOn(bookingService, 'reverseAndRebookChainIfChanged').mockResolvedValue(true);
     activeKeys.add('22:1'); // seq1 already exists → book() skips it; only seq2/seq3 append
     jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) =>
       Promise.resolve(
@@ -827,10 +828,16 @@ describe('BuyFiatConsumer', () => {
     );
     await consumer.process();
 
-    expect(reverseSpy).toHaveBeenCalledTimes(1);
-    const reInput = reverseSpy.mock.calls[0][0];
-    expect(reInput.seq).toBe(1); // the rebuilt seq1 reclassification
-    expect(leg(reInput, 'LIABILITY/buyFiat-owed').amountChf).toBe(-990);
+    expect(chainSpy).toHaveBeenCalledTimes(1);
+    const chain = chainSpy.mock.calls[0][0];
+    // the value-coupled chain carries reclassification seq1 + transmit seq2 + settlement seq3 (M3: whole chain, not seq1)
+    expect(chain.map((i) => i.seq).sort((a, b) => a - b)).toEqual([1, 2, 3]);
+    expect(
+      leg(
+        chain.find((i) => i.seq === 1),
+        'LIABILITY/buyFiat-owed',
+      ).amountChf,
+    ).toBe(-990);
     // the idempotent forward book() then appends transmit + booked
     expect(seq(2)).toBeDefined();
     expect(seq(3)).toBeDefined();
@@ -904,6 +911,70 @@ describe('BuyFiatConsumer', () => {
     await expect(consumer.process()).resolves.toBeUndefined();
     expect(seq(1)).toBeUndefined(); // gate-blocked → nothing booked
     expect(setSpy).not.toHaveBeenCalled(); // cursor NOT advanced past the late-settling row
+  });
+
+  // M4: an UNPRICED row (outputAmount null) surfaced by the content-change scan must NOT throw. The old callback called
+  // buildReclassificationSeq1 unconditionally, which throws on a null amountInChf and wedged the scan. The
+  // `outputAmount != null` guard (matching the forward path) treats it as "not yet settled": the chain is not built and
+  // book() no-ops, so the cursor advances.
+  it('does NOT throw for an unpriced (outputAmount null) row in the content-change scan (M4 guard)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const chainSpy = jest.spyOn(bookingService, 'reverseAndRebookChainIfChanged');
+    jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        where?.updated != null
+          ? [
+              buyFiat({
+                id: 60,
+                amountInChf: null,
+                outputAmount: null,
+                outputReferenceAmount: null,
+                outputAsset: { name: 'CHF' },
+              }),
+            ]
+          : [],
+      ),
+    );
+
+    await expect(consumer.process()).resolves.toBeUndefined(); // no throw propagates (M4: unpriced ≠ error)
+    expect(chainSpy).not.toHaveBeenCalled(); // outputAmount null → chain not built (no seq1 to reverse)
+    expect(booked).toHaveLength(0); // nothing settled → nothing booked
+    expect(setSpy).toHaveBeenCalled(); // the content-change cursor ADVANCED (not-yet-settled, not a wedge)
+  });
+
+  // C2: a regular sell settled at/before the cutover snapshot whose received gate is permanently closed (its value is
+  // already in the aggregate opening) must be SKIPPED+advanced by the content-change scan, NOT throw — throwing would
+  // wedge the scan forever. A post-cutover flag change re-selects the row; book() gate-blocks; preCutoverSettled → skip.
+  it('advances (does NOT throw/wedge) for a pre-cutover-settled gate-blocked row in the content-change scan (C2)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    gateCount = 0; // received gate closed (no G-a/G-b)
+    jest
+      .spyOn(settingService, 'get')
+      .mockImplementation((key: string) =>
+        Promise.resolve(key === 'ledgerCutoverSnapshotDate' ? '2026-06-07T22:00:00.000Z' : undefined),
+      );
+    jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) =>
+      Promise.resolve(
+        where?.updated != null
+          ? [
+              buyFiat({
+                id: 61,
+                amountInChf: 1000,
+                totalFeeAmountChf: 10,
+                outputAmount: 990,
+                outputReferenceAmount: 990,
+                outputAsset: { name: 'CHF' },
+                outputDate: new Date('2026-05-15T00:00:00Z'), // settled BEFORE the snapshot → value in the aggregate
+                updated: new Date('2026-06-20T00:00:00Z'), // a post-cutover flag change re-selects it in the scan
+              }),
+            ]
+          : [],
+      ),
+    );
+
+    await expect(consumer.process()).resolves.toBeUndefined(); // no throw propagates out of the scan
+    expect(booked).toHaveLength(0); // value in the aggregate opening → nothing booked
+    expect(setSpy).toHaveBeenCalled(); // the content-change cursor ADVANCED past it (skip, not throw/wedge)
   });
 
   // buildReclassificationSeq1 paymentLink guard (L165): the content-change scan calls buildReclassificationSeq1 for a

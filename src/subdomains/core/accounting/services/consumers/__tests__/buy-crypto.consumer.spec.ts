@@ -316,15 +316,17 @@ describe('BuyCryptoConsumer', () => {
 
   // --- §4.12 / §6.3 CONTENT-CHANGE SCAN --- //
 
-  // the content-change scan reverses+rebooks a Card-input seq0 and then books any newly-settled completion
-  it('runs the content-change scan: reverses+rebooks the Card seq0 then books the completion', async () => {
-    const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
+  // M3: the content-change scan reverse-and-rebooks the value-coupled Card seq0 / completion seq1 CHAIN, then books any
+  // newly-settled completion. Reversing only seq0 while seq1 is booked would leave `received` non-zero (Liability-
+  // Schliessung bricht) → the chain method reverses the whole active chain atomically.
+  it('runs the content-change scan: reverse-and-rebooks the Card seq0/seq1 chain then books the completion', async () => {
+    const chainSpy = jest.spyOn(bookingService, 'reverseAndRebookChainIfChanged').mockResolvedValue(true);
     const changed = buyCrypto({
       id: 30,
       amountInChf: 1000,
       totalFeeAmountChf: 10,
       isComplete: true,
-      checkoutTx: { currency: 'EUR' } as any, // Card input → buildCardInputSeq0 resolves → reverseAndRebookIfChanged
+      checkoutTx: { currency: 'EUR' } as any, // Card input → buildCardInputSeq0 resolves → chain carries seq0 + seq1
     });
     // forward id-scan empty; content-change scan (where.updated) returns the changed Card row
     jest
@@ -333,16 +335,18 @@ describe('BuyCryptoConsumer', () => {
 
     await consumer.process();
 
-    expect(rebookSpy).toHaveBeenCalledTimes(1); // the Card seq0 reverse-and-rebook ran
-    expect(rebookSpy.mock.calls[0][0].sourceId).toBe('30');
+    expect(chainSpy).toHaveBeenCalledTimes(1); // the value-coupled chain reverse-and-rebook ran
+    const chain = chainSpy.mock.calls[0][0];
+    expect(chain.map((i) => i.seq).sort((a, b) => a - b)).toEqual([0, 1]); // BOTH the Card seq0 and the completion seq1
+    expect(chain.every((i) => i.sourceId === '30')).toBe(true);
     // and the idempotent forward book() then appended the completion seq1
     expect(booked.some((b) => b.seq === 1 && b.sourceId === '30')).toBe(true);
   });
 
-  // a content-change row that is a NON-Card input has no seq0 here → buildCardInputSeq0 undefined → no reversal,
-  // but the idempotent book() still appends the completion
-  it('content-change scan: a non-Card row triggers no seq0 reversal but still books its completion', async () => {
-    const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(false);
+  // a content-change row that is a NON-Card input has no Card seq0 here → the value-coupled chain carries only the
+  // completion seq1; the idempotent book() still appends the completion.
+  it('content-change scan: a non-Card row has no Card seq0 in the chain but still books its completion', async () => {
+    const chainSpy = jest.spyOn(bookingService, 'reverseAndRebookChainIfChanged').mockResolvedValue(false);
     const changed = buyCrypto({
       id: 31,
       amountInChf: 1000,
@@ -356,8 +360,38 @@ describe('BuyCryptoConsumer', () => {
 
     await consumer.process();
 
-    expect(rebookSpy).not.toHaveBeenCalled(); // non-Card → no seq0 reverse
+    expect(chainSpy).toHaveBeenCalledTimes(1);
+    expect(chainSpy.mock.calls[0][0].map((i) => i.seq)).toEqual([1]); // only the completion seq1, no Card seq0
     expect(booked.some((b) => b.seq === 1 && b.sourceId === '31')).toBe(true); // completion still booked
+  });
+
+  // C2: a row settled at/before the cutover snapshot whose gate is permanently closed (its value is already in the
+  // aggregate opening) must be SKIPPED+advanced by the content-change scan, NOT throw — throwing would wedge the scan
+  // forever at this cursor. A post-cutover flag change re-selects the row; book() gate-blocks; the scan advances.
+  it('advances (does NOT throw/wedge) for a pre-cutover-settled gate-blocked row in the content-change scan (C2)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(settingService, 'get').mockImplementation((key: string) => {
+      if (key === 'ledgerCutoverLogId') return Promise.resolve('1557344');
+      if (key === 'ledgerCutoverSnapshotDate') return Promise.resolve('2026-06-07T22:00:00.000Z');
+      return Promise.resolve(undefined);
+    });
+    jest.spyOn(ledgerTxRepo, 'countBy').mockResolvedValue(0); // gate closed: neither G-a nor G-b opening
+    const settled = buyCrypto({
+      id: 45,
+      amountInChf: 1000,
+      totalFeeAmountChf: 10,
+      isComplete: true,
+      outputDate: new Date('2026-05-15T00:00:00Z'), // settled BEFORE the snapshot → value in the aggregate opening
+      updated: new Date('2026-06-20T00:00:00Z'), // a post-cutover flag change re-selects it in the content-change scan
+      cryptoInput: { id: 558 } as any, // non-Card, gate closed (no crypto_input seq0 booked)
+    });
+    jest
+      .spyOn(buyCryptoRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [settled] : []));
+
+    await expect(consumer.process()).resolves.toBeUndefined(); // no throw propagates out of the scan
+    expect(booked.some((b) => b.sourceId === '45')).toBe(false); // value in the aggregate opening → nothing booked
+    expect(setSpy).toHaveBeenCalled(); // the content-change cursor ADVANCED past it (skip, not throw/wedge)
   });
 
   // --- §6.3 CUTOVER CARD DOUBLE-BOOK GUARD (MAJOR: settledBeforeCutover) --- //

@@ -296,6 +296,13 @@ describe('LedgerBookingService', () => {
               .filter((tx) => tx.sourceType === where.sourceType && tx.sourceId === where.sourceId)
               .sort((a, b) => a.seq - b.seq),
           ),
+        // hasAnyTxAt: count of any tx at the exact (sourceType, sourceId, seq)
+        countBy: (where: any) =>
+          Promise.resolve(
+            txStore.filter(
+              (tx) => tx.sourceType === where.sourceType && tx.sourceId === where.sourceId && tx.seq === where.seq,
+            ).length,
+          ),
         createQueryBuilder: () => {
           let st: string, sid: string;
           const qb: any = {};
@@ -625,6 +632,93 @@ describe('LedgerBookingService', () => {
         ],
       };
       expect(await service.reverseAndRebookIfChanged(threeLeg)).toBe(true);
+    });
+
+    // --- §4.12 value-coupled chain reversal (M3) --- //
+
+    // a value-coupled 2-seq chain on the SAME liability: seq0 opens the liability at −chf, seq1 closes it at +chf →
+    // net 0. sum of `liability` amountChf across the whole store = the liability's running balance.
+    const chainSeqs = (chf: number) => [
+      {
+        sourceType: 'bank_tx',
+        sourceId: '960',
+        seq: 0,
+        bookingDate: new Date('2026-06-01'),
+        legs: [
+          { account: walletAsset, amount: 1, priceChf: chf, amountChf: chf },
+          { account: liability, amount: -chf, priceChf: 1, amountChf: -chf }, // opens liability at −chf
+        ],
+      },
+      {
+        sourceType: 'bank_tx',
+        sourceId: '960',
+        seq: 1,
+        bookingDate: new Date('2026-06-01'),
+        legs: [
+          { account: liability, amount: chf, priceChf: 1, amountChf: chf }, // closes liability at +chf
+          { account: exchangeAsset, amount: -1, priceChf: chf, amountChf: -chf },
+        ],
+      },
+    ];
+    const liabilityBalance = () =>
+      txStore
+        .filter((t) => t.sourceId === '960')
+        .flatMap((t) => t.legs)
+        .filter((l) => l.account.id === liability.id)
+        .reduce((s, l) => s + (l.amountChf ?? 0), 0);
+
+    it('reverses the WHOLE value-coupled chain on a change so the shared liability still closes to 0 (M3)', async () => {
+      const [seq0, seq1] = chainSeqs(50000);
+      await service.bookTx(seq0);
+      await service.bookTx(seq1);
+      expect(liabilityBalance()).toBe(0); // opened −50000 (seq0), closed +50000 (seq1)
+
+      // amountInChf changes 50000 → 60000: reversing ONLY seq0 would leave the liability at −10000 (the M3 bug). The
+      // chain method reverses+rebooks BOTH active seqs → the liability closes cent-exact to 0 again.
+      const changed = await service.reverseAndRebookChainIfChanged(chainSeqs(60000));
+      expect(changed).toBe(true);
+      expect(liabilityBalance()).toBe(0); // −50000 +50000(rev) −60000(rebook) +50000 −50000(rev) +60000(rebook) = 0
+
+      // the live re-books carry the NEW value (60000) at both seqs
+      const active0 = await (service as any).activeTx('bank_tx', '960', 0);
+      const active1 = await (service as any).activeTx('bank_tx', '960', 1);
+      expect(active0.legs.find((l: LedgerLeg) => l.account.id === liability.id).amountChf).toBe(-60000);
+      expect(active1.legs.find((l: LedgerLeg) => l.account.id === liability.id).amountChf).toBe(60000);
+    });
+
+    it('reverseAndRebookChainIfChanged is a no-op (false) when nothing in the chain changed', async () => {
+      const [seq0, seq1] = chainSeqs(50000);
+      await service.bookTx(seq0);
+      await service.bookTx(seq1);
+
+      expect(await service.reverseAndRebookChainIfChanged(chainSeqs(50000))).toBe(false); // identical → no-op
+      expect(txStore.filter((t) => t.sourceId === '960')).toHaveLength(2); // no reversal/re-book appended
+    });
+
+    it('reverseAndRebookChainIfChanged reverses ONLY the currently-active seqs (a not-yet-booked later seq is skipped)', async () => {
+      const [seq0] = chainSeqs(50000);
+      await service.bookTx(seq0); // only seq0 booked; seq1 not yet settled
+
+      // seq0 changed, seq1 has no active booking → the chain reverses seq0 alone; seq1 is left to the forward path
+      const changed = await service.reverseAndRebookChainIfChanged(chainSeqs(60000));
+      expect(changed).toBe(true);
+      const all = txStore.filter((t) => t.sourceId === '960').sort((a, b) => a.seq - b.seq);
+      expect(all.map((t) => t.seq)).toEqual([0, 1_000_000, 1_000_001]); // seq0 reversal+rebook only, no seq1 tx
+    });
+
+    it('reverseAndRebookChainIfChanged returns false when no seq in the chain is booked yet', async () => {
+      expect(await service.reverseAndRebookChainIfChanged(chainSeqs(50000))).toBe(false);
+      expect(txStore.filter((t) => t.sourceId === '960')).toHaveLength(0);
+    });
+
+    it('hasAnyTxAt is true once a seq is booked (even after a flat reversal) and false for an unbooked seq', async () => {
+      await service.bookTx(seq0Input(50000)); // seq0 booked
+      expect(await service.hasAnyTxAt('bank_tx', '900', 0)).toBe(true);
+      expect(await service.hasAnyTxAt('bank_tx', '900', 5)).toBe(false); // never booked at seq 5
+
+      await service.reverseActiveIfBooked('bank_tx', '900', 0); // flat reversal — the original seq0 tx still EXISTS
+      expect(await service.hasActiveTxAt('bank_tx', '900', 0)).toBe(false); // nothing ACTIVE
+      expect(await service.hasAnyTxAt('bank_tx', '900', 0)).toBe(true); // but a tx still exists at seq0 (append-only)
     });
   });
 

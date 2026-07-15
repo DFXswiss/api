@@ -118,7 +118,16 @@ export class ExchangeTxConsumer {
       return;
     }
 
-    await this.bookingService.reverseAndRebookIfChanged(spec);
+    // status 'ok': first correct an already-active booking whose amount/fee/route changed (§4.12).
+    if (await this.bookingService.reverseAndRebookIfChanged(spec)) return;
+
+    // C1: reverseAndRebookIfChanged found nothing to correct — either the booking is active-and-unchanged, or the row
+    // never got a forward booking because it turned 'ok' only AFTER the id-watermark advanced over it (the forward
+    // scan filters status='ok'). Forward-book it iff NO tx has EVER been booked at this exact (sourceType, sourceId,
+    // seq): a late-settling row → book; an active-unchanged / flat-reversed one → skip (bookTx would collide UNIQUE).
+    if (!(await this.bookingService.hasAnyTxAt(spec.sourceType, spec.sourceId, spec.seq))) {
+      await this.bookingService.bookTx(spec);
+    }
   }
 
   // builds the LedgerTxInput spec for an exchange_tx (or undefined for an unhandled type) — shared by the forward

@@ -20,7 +20,7 @@ import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
-import { getLedgerWatermark, setLedgerWatermark } from './ledger-watermark.helper';
+import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'payout_order';
 const CUTOVER_SOURCE = 'cutover';
@@ -80,6 +80,30 @@ export class PayoutOrderConsumer {
       lastReversalScan: new Date(0),
     };
 
+    await this.processForward(watermark);
+
+    // content-change scan (§4.12 / C1): the forward id-scan filters status='Complete' and advances lastProcessedId
+    // OVER not-yet-Complete ids; a row that completes AFTER the watermark passed it is forward-unreachable. The
+    // status-agnostic (updated, id)-cursor scan re-selects it and forward-books it idempotently (book() gates on
+    // alreadyBooked) once it satisfies the settled filter. Runs ALSO when the forward batch is empty. Re-read the
+    // watermark in case the forward batch advanced lastProcessedId above.
+    const afterForward = (await getLedgerWatermark(this.settingService, SOURCE_TYPE)) ?? watermark;
+    await runContentChangeScan(
+      this.settingService,
+      SOURCE_TYPE,
+      afterForward,
+      this.payoutOrderRepo,
+      {},
+      async (order: PayoutOrder) => {
+        // honour the forward settled-filter: only a status='Complete' row is bookable. A not-yet-Complete row is left
+        // (cursor advances; its later completion bumps `updated` → re-selected). book() is idempotent (alreadyBooked).
+        if (order.status !== PayoutOrderStatus.COMPLETE) return;
+        await this.book(order, await this.preloadMarks([order]));
+      },
+    );
+  }
+
+  private async processForward(watermark: { lastProcessedId: number; lastReversalScan: Date }): Promise<void> {
     // settlement = status='Complete' (per-chain complete() transition, all chains, §4.5)
     const batch = await this.payoutOrderRepo.find({
       where: { id: MoreThan(watermark.lastProcessedId), status: PayoutOrderStatus.COMPLETE },
@@ -88,12 +112,7 @@ export class PayoutOrderConsumer {
     });
     if (!batch.length) return;
 
-    const times = batch.map((o) => o.updated.getTime());
-    const marks = await this.markService.preload(
-      // lookback so getMarkAt finds the latest mark at-or-before the earliest row timestamp
-      Util.daysBefore(2, new Date(Math.min(...times))),
-      new Date(Math.max(...times)),
-    );
+    const marks = await this.preloadMarks(batch);
 
     let lastProcessedId = watermark.lastProcessedId;
     for (const order of batch) {
@@ -109,6 +128,12 @@ export class PayoutOrderConsumer {
     if (lastProcessedId > watermark.lastProcessedId) {
       await setLedgerWatermark(this.settingService, SOURCE_TYPE, { ...watermark, lastProcessedId });
     }
+  }
+
+  // mark cache with a 2-day lookback so getMarkAt finds the latest mark at-or-before the earliest row's `updated`
+  private async preloadMarks(orders: PayoutOrder[]): Promise<LedgerMarkCache> {
+    const times = orders.map((o) => o.updated.getTime());
+    return this.markService.preload(Util.daysBefore(2, new Date(Math.min(...times))), new Date(Math.max(...times)));
   }
 
   private async book(order: PayoutOrder, marks: LedgerMarkCache): Promise<void> {

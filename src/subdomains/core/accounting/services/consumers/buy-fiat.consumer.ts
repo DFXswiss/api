@@ -18,6 +18,7 @@ const SOURCE_TYPE = 'buy_fiat';
 const CRYPTO_INPUT_SOURCE = 'crypto_input';
 const CUTOVER_SOURCE = 'cutover';
 const CUTOVER_LOG_ID_KEY = 'ledgerCutoverLogId';
+const CUTOVER_SNAPSHOT_DATE_KEY = 'ledgerCutoverSnapshotDate';
 const CHF = 'CHF';
 const PAYMENT_LINK = 'LIABILITY/paymentLink';
 const BUY_FIAT_OWED = 'LIABILITY/buyFiat-owed';
@@ -65,20 +66,34 @@ export class BuyFiatConsumer {
       this.buyFiatRepo,
       { cryptoInput: { paymentLinkPayment: true }, fiatOutput: { bankTx: true, bank: { asset: true } } },
       async (bf: BuyFiat) => {
-        // §4.12: an amountInChf / totalFeeAmountChf change on a settled regular sell reverses + re-books the seq1
-        // reclassification tx; then the idempotent forward book() appends any newly-settled seqs (transmit/booked).
-        // The paymentLink seq1 (venue-spread) and the later seqs are append-only and re-derived by the forward path.
-        // An owed-straddling row (§4.7a/§6.1) has its reclassification anchored in the cutover opening and skips seq1
-        // → do NOT reverse/rebook a seq1 that was never booked by this consumer.
-        const owedOpeningChf = await this.cutoverOwedOpeningChf(bf.id);
-        if (owedOpeningChf == null) {
-          const seq1 = await this.buildReclassificationSeq1(bf);
-          if (seq1) await this.bookingService.reverseAndRebookIfChanged(seq1);
-        }
-        // honour the book() gate: a gate-blocked run (seq1 received/paymentLink not yet opened) returns false and must
-        // NOT advance the content-change watermark past this row, else the late-settling row is lost (Blocker R6-1)
-        if (!(await this.book(bf, await this.preloadMarks([bf])))) {
+        const marks = await this.preloadMarks([bf]);
+
+        // forward book() FIRST: append any newly-settled seqs / forward-book a late-settling row. A gate-blocked run
+        // returns false → distinguish a pre-cutover-settled row (value in the aggregate opening, C2) → SKIP+advance,
+        // from a genuinely post-cutover row whose received/paymentLink opening is not yet booked → THROW (cursor stays
+        // put, retry). Returning here for a gate-blocked row ALSO avoids resolving+creating the value-coupled accounts
+        // below for a never-booked row (no phantom owed/transit/bank accounts).
+        if (!(await this.book(bf, marks))) {
+          if (await this.preCutoverSettled(bf)) return;
           throw new Error(`buy_fiat ${bf.id} content-change scan gate-blocked — retry next run (§4.7 G-a)`);
+        }
+
+        // then §4.12 + M3 + M4: on a content change, reverse+rebook the value-coupled regular-sell chain (reclassification
+        // seq1 / transmit seq2 / settlement seq3 all carry owedChf). Reversing ONLY seq1 while seq2/seq3 are booked leaves
+        // owed on the OLD value and it never closes to 0 (Liability-Schliessung bricht) — the chain method reverses the
+        // whole ACTIVE chain atomically and no-ops when nothing changed (incl. the seqs book() just booked). Gated on
+        // outputAmount != null (M4: an unpriced row is "not yet settled", not an error → no seq1 to reverse). Skipped for
+        // owed-straddling rows (reclassification anchored in the cutover opening) and the paymentLink path (own seq chain).
+        const owedOpeningChf = await this.cutoverOwedOpeningChf(bf.id);
+        if (owedOpeningChf == null && !bf.cryptoInput?.paymentLinkPayment && bf.outputAmount != null) {
+          const chain = (
+            await Promise.all([
+              this.buildReclassificationSeq1(bf),
+              this.buildTransmitSeq2(bf, owedOpeningChf),
+              this.buildSettlementSeq3(bf, marks, owedOpeningChf),
+            ])
+          ).filter((i): i is LedgerTxInput => i != null);
+          if (chain.length) await this.bookingService.reverseAndRebookChainIfChanged(chain);
         }
       },
     );
@@ -192,23 +207,45 @@ export class BuyFiatConsumer {
   // For an owed-straddling row owedOpeningChf is the cutover opening-CHF anchor (§4.7a/§6.1), so the owed-Dr debits
   // the exact value the opening Cr leg credited → owed closes cent-exact to 0.
   private async bookTransmit(bf: BuyFiat, owedOpeningChf?: number): Promise<void> {
+    const input = await this.buildTransmitSeq2(bf, owedOpeningChf);
+    if (input) await this.bookingService.bookTx(input);
+  }
+
+  // builds the seq2 transmit LedgerTxInput for the REGULAR sell path, or undefined when not yet transmitted (no chain
+  // link). owedChf is the value-coupled anchor (reclassification CHF, or the cutover opening-CHF for a straddling row).
+  private async buildTransmitSeq2(bf: BuyFiat, owedOpeningChf?: number): Promise<LedgerTxInput | undefined> {
+    if (!bf.fiatOutput?.isTransmittedDate) return undefined;
+
     const owedChf = this.owedChf(bf, owedOpeningChf);
     const owed = await this.liability('buyFiat-owed');
     const transit = await this.transit(this.outputCurrency(bf));
 
-    await this.bookingService.bookTx({
+    return {
       sourceType: SOURCE_TYPE,
       sourceId: `${bf.id}`,
       seq: 2,
       bookingDate: bf.fiatOutput.isTransmittedDate,
       valueDate: bf.fiatOutput.isTransmittedDate,
       legs: [this.chfLeg(owed, owedChf), this.chfLeg(transit, -owedChf)],
-    });
+    };
   }
 
   // §4.7 seq3 — booked: Dr TRANSIT/payout +owed_chf / Cr ASSET/bank −(outputAmount × mark) (+ §4.7a FX-P&L leg
   // for non-CHF output). Settlement = bank_tx.bookingDate (NOT isTransmittedDate — Class 1).
   private async bookSettlement(bf: BuyFiat, marks: LedgerMarkCache, owedOpeningChf?: number): Promise<void> {
+    const input = await this.buildSettlementSeq3(bf, marks, owedOpeningChf);
+    if (input) await this.bookingService.bookTx(input);
+  }
+
+  // builds the seq3 settlement LedgerTxInput (regular + paymentLink share it), or undefined when the bank_tx is not yet
+  // booked (no chain link). owedChf is the value-coupled anchor (reclassification CHF / cutover opening / paymentLink).
+  private async buildSettlementSeq3(
+    bf: BuyFiat,
+    marks: LedgerMarkCache,
+    owedOpeningChf?: number,
+  ): Promise<LedgerTxInput | undefined> {
+    if (!bf.fiatOutput?.bankTx) return undefined;
+
     const bookingDate = bf.fiatOutput.bankTx.bookingDate ?? bf.fiatOutput.bankTx.created;
     const owedChf = this.owedChf(bf, owedOpeningChf);
 
@@ -219,14 +256,14 @@ export class BuyFiatConsumer {
     const legs: LedgerLegInput[] = [this.chfLeg(transit, owedChf), bankLeg];
     await this.appendFxResidual(legs);
 
-    await this.bookingService.bookTx({
+    return {
       sourceType: SOURCE_TYPE,
       sourceId: `${bf.id}`,
       seq: 3,
       bookingDate,
       valueDate: bf.fiatOutput.bankTx.valueDate ?? bookingDate,
       legs,
-    });
+    };
   }
 
   // --- (II) PAYMENTLINK MERCHANT PAYOUT (§4.7b) --- //
@@ -357,7 +394,17 @@ export class BuyFiatConsumer {
   // is the fiat reference, amountInChf its CHF value) — a deterministic ratio, NOT a market mark lookup
   private owedReferenceRate(bf: BuyFiat): number {
     const ref = bf.outputReferenceAmount;
-    if (ref == null || ref === 0 || bf.amountInChf == null) return this.outputCurrency(bf) === CHF ? 1 : 0;
+    if (ref == null || ref === 0 || bf.amountInChf == null) {
+      // CHF output has a 1:1 rate that needs no reference; a non-CHF output without one cannot be valued — fail loud
+      // rather than silently returning 0, which would zero owedChf/plFeeChf and misclassify the whole value into the
+      // fx-revaluation plug (§5.1 no silent fallback).
+      if (this.outputCurrency(bf) === CHF) return 1;
+      throw new Error(
+        `buy_fiat ${bf.id} owedReferenceRate: missing outputReferenceAmount/amountInChf for non-CHF output ${this.outputCurrency(
+          bf,
+        )} — refusing a 0-fallback that would misclassify the value into the fx-revaluation plug`,
+      );
+    }
     return Util.round(bf.amountInChf / ref, 8);
   }
 
@@ -400,6 +447,19 @@ export class BuyFiatConsumer {
   private async cutoverReceivedSourceId(buyFiatId: number): Promise<string | undefined> {
     const cutoverLogId = await this.settingService.get(CUTOVER_LOG_ID_KEY);
     return cutoverLogId != null ? `${cutoverLogId}:buy_fiat:${buyFiatId}` : undefined;
+  }
+
+  // C2: true iff this row's settlement (outputDate, the immutable completion timestamp) is at/before the cutover
+  // snapshot → its value is already in the aggregate opening, NEVER a per-row cutover marker (the cutover opens ONLY
+  // rows still OPEN at the snapshot, whose outputDate is null or > snapshot). The content-change scan uses it to
+  // SKIP+advance a forever-gate-blocked pre-cutover-settled row instead of throwing (which would wedge the scan). The
+  // "no marker" half of §6.1 is implied — being gate-blocked already means neither a G-a seq0 nor a G-b/owed/paymentLink
+  // opening was found for this row.
+  private async preCutoverSettled(bf: BuyFiat): Promise<boolean> {
+    if (bf.outputDate == null) return false;
+
+    const iso = await this.settingService.get(CUTOVER_SNAPSHOT_DATE_KEY);
+    return iso != null && bf.outputDate <= new Date(iso);
   }
 
   // §4.7a/§6.1 — looks up the cutover per-row owed-opening leg CHF (marker `${snapshotLogId}:buy_fiat-owed:${id}`);

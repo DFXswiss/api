@@ -114,7 +114,12 @@ describe('LiquidityOrderDexConsumer', () => {
   });
 
   const cents = (legs: LedgerLegInput[]) => legs.reduce((s, l) => s + Math.round((l.amountChf ?? 0) * 100), 0);
-  const mockBatch = (rows: LiquidityOrder[]) => jest.spyOn(liquidityOrderRepo, 'find').mockResolvedValue(rows);
+  // forward id-scan returns the rows; the §4.12 content-change scan (where has `updated`, not `id`) returns [] so the
+  // forward path is asserted in isolation (its late-settling coverage is exercised for payout_order/exchange_tx).
+  const mockBatch = (rows: LiquidityOrder[]) =>
+    jest
+      .spyOn(liquidityOrderRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [] : rows));
   const leg = (tx: LedgerTxInput, name: string) => tx.legs.find((l) => l.account.name === name);
 
   it('is defined', () => {
@@ -248,8 +253,9 @@ describe('LiquidityOrderDexConsumer', () => {
     const findSpy = mockBatch([]);
     await consumer.process();
 
-    expect(findSpy).toHaveBeenCalledTimes(1);
-    const where = findSpy.mock.calls[0][0].where as Record<string, unknown>;
+    // the forward id-scan is the call carrying `where.id` (the §4.12 content-change scan carries `where.updated`)
+    const forwardCall = findSpy.mock.calls.find((c) => (c[0] as any).where?.id != null);
+    const where = forwardCall[0].where as Record<string, unknown>;
     // txId IS NOT NULL — must match the source filter EXACTLY: Not(IsNull()), a FindOperator wrapping an IsNull
     // operator. The old `Not(expect.anything())` was a tautology that would also pass for Not(MoreThan(0)) etc. — it
     // never actually pinned the IS-NOT-NULL semantics. Not(IsNull()) deep-equals the source-built operator.

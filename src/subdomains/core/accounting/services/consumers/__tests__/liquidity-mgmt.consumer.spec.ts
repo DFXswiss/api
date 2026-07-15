@@ -112,7 +112,12 @@ describe('LiquidityMgmtConsumer', () => {
   });
 
   const cents = (legs: LedgerLegInput[]) => legs.reduce((s, l) => s + Math.round((l.amountChf ?? 0) * 100), 0);
-  const mockBatch = (rows: LiquidityManagementOrder[]) => jest.spyOn(orderRepo, 'find').mockResolvedValue(rows);
+  // forward id-scan returns the rows; the §4.12 content-change scan (where has `updated`, not `id`) returns [] so the
+  // forward path is asserted in isolation (its late-settling coverage is exercised for payout_order/exchange_tx).
+  const mockBatch = (rows: LiquidityManagementOrder[]) =>
+    jest
+      .spyOn(orderRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [] : rows));
   const leg = (tx: LedgerTxInput, name: string) => tx.legs.find((l) => l.account.name === name);
 
   it('is defined', () => {

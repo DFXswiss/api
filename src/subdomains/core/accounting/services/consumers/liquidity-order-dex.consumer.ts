@@ -15,9 +15,10 @@ import { AccountType, LedgerAccount } from '../../entities/ledger-account.entity
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
-import { getLedgerWatermark, setLedgerWatermark } from './ledger-watermark.helper';
+import { getLedgerWatermark, runContentChangeScan, setLedgerWatermark } from './ledger-watermark.helper';
 
 const SOURCE_TYPE = 'liquidity_order';
+const BOOKED_TYPES = [LiquidityOrderType.PURCHASE, LiquidityOrderType.SELL];
 const CHF = 'CHF';
 const DEX = 'DfxDex';
 
@@ -60,6 +61,32 @@ export class LiquidityOrderDexConsumer {
       lastReversalScan: new Date(0),
     };
 
+    await this.processForward(watermark);
+
+    // content-change scan (§4.12 / C1): the forward id-scan filters txId IS NOT NULL + context + Purchase/Sell and
+    // advances lastProcessedId OVER not-yet-settled ids (a Reservation row that later gets a txId, a context/type not
+    // yet matching); such a row settling AFTER the watermark passed it is forward-unreachable. The status-agnostic
+    // (updated, id)-cursor scan re-selects it and forward-books it idempotently (book() gates on alreadyBooked) once
+    // it satisfies the settled filter. Re-read the watermark in case the forward batch advanced lastProcessedId above.
+    const afterForward = (await getLedgerWatermark(this.settingService, SOURCE_TYPE)) ?? watermark;
+    await runContentChangeScan(
+      this.settingService,
+      SOURCE_TYPE,
+      afterForward,
+      this.liquidityOrderRepo,
+      {},
+      async (order: LiquidityOrder) => {
+        // honour the forward settled-filter (txId set + booked context + Purchase/Sell); a row not yet matching it is
+        // left (cursor advances; a later settle bumps `updated` → re-selected). book() is idempotent (per-sourceId
+        // nextSeq gate).
+        if (order.txId == null || !BOOKED_CONTEXTS.includes(order.context) || !BOOKED_TYPES.includes(order.type))
+          return;
+        await this.book(order, await this.preloadMarks([order]));
+      },
+    );
+  }
+
+  private async processForward(watermark: { lastProcessedId: number; lastReversalScan: Date }): Promise<void> {
     // type IN ('Purchase','Sell') AND txId IS NOT NULL excludes Reservation rows (no on-chain settlement, D10 §D.1).
     // context='Trading' liquidity_orders are exclusively type=Reservation (no own swap txId); the arb swap is booked
     // solely via trading_order.txId (§4.9). The type IN ('Purchase','Sell') AND txId IS NOT NULL filter excludes
@@ -69,19 +96,14 @@ export class LiquidityOrderDexConsumer {
         id: MoreThan(watermark.lastProcessedId),
         txId: Not(IsNull()),
         context: In(BOOKED_CONTEXTS),
-        type: In([LiquidityOrderType.PURCHASE, LiquidityOrderType.SELL]),
+        type: In(BOOKED_TYPES),
       },
       order: { id: 'ASC' },
       take: Config.ledger.backfillBatchSize,
     });
     if (!batch.length) return;
 
-    const times = batch.map((o) => o.updated.getTime());
-    const marks = await this.markService.preload(
-      // lookback so getMarkAt finds the latest mark at-or-before the earliest row timestamp
-      Util.daysBefore(2, new Date(Math.min(...times))),
-      new Date(Math.max(...times)),
-    );
+    const marks = await this.preloadMarks(batch);
 
     let lastProcessedId = watermark.lastProcessedId;
     for (const order of batch) {
@@ -97,6 +119,12 @@ export class LiquidityOrderDexConsumer {
     if (lastProcessedId > watermark.lastProcessedId) {
       await setLedgerWatermark(this.settingService, SOURCE_TYPE, { ...watermark, lastProcessedId });
     }
+  }
+
+  // mark cache with a 2-day lookback so getMarkAt finds the latest mark at-or-before the earliest row's `updated`
+  private async preloadMarks(orders: LiquidityOrder[]): Promise<LedgerMarkCache> {
+    const times = orders.map((o) => o.updated.getTime());
+    return this.markService.preload(Util.daysBefore(2, new Date(Math.min(...times))), new Date(Math.max(...times)));
   }
 
   /**

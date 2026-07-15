@@ -58,6 +58,12 @@ export class CryptoInputConsumer {
       async (ci: CryptoInput) => {
         // lookback so getMarkAt finds the latest mark at-or-before the row timestamp
         const marks = await this.markService.preload(Util.daysBefore(2, ci.updated), ci.updated);
+        // C1: forward-book a late-settling row the id-watermark skipped (settled AFTER the watermark advanced over it).
+        // Gated on the SAME settled-status filter as the forward scan; book() is idempotent (per-seq hasActiveTxAt), so
+        // an already-booked row is a no-op. A not-yet-settled row is left (its settle bump on `updated` re-selects it).
+        if (CryptoInputSettledStatus.includes(ci.status)) await this.book(ci, marks);
+        // §4.12 content-change: an amount / buyFiat-buyCrypto re-link on an already-booked seq0 → reverse + re-book the
+        // corrected legs (a no-op when nothing changed, incl. the row just forward-booked above).
         const input = await this.buildSeq0Input(ci, ci.updated, marks);
         if (input) await this.bookingService.reverseAndRebookIfChanged(input);
       },

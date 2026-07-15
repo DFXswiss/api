@@ -1,7 +1,7 @@
 import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
-import { Raw, Repository } from 'typeorm';
+import { FindOptionsOrder, FindOptionsRelations, FindOptionsWhere, Raw, Repository } from 'typeorm';
 
 // per-source checkpoint (§11.3): id-watermark + content-change scan cursor.
 // The content-change cursor is the COMBINED (updated, id) pair (§4.12): `lastReversalScan` alone cannot paginate
@@ -87,7 +87,7 @@ export async function runContentChangeScan<T extends { id: number; updated: Date
   source: string,
   watermark: LedgerWatermark,
   repo: Repository<T>,
-  scanRelations: Record<string, unknown>,
+  scanRelations: FindOptionsRelations<T>,
   book: (row: T) => Promise<void>,
 ): Promise<void> {
   const batchSize = Config.ledger.backfillBatchSize;
@@ -106,9 +106,9 @@ export async function runContentChangeScan<T extends { id: number; updated: Date
         },
         { lcsScan: scan, lcsScanId: scanId },
       ),
-    } as any,
-    relations: scanRelations as any,
-    order: { updated: 'ASC', id: 'ASC' } as any,
+    } as FindOptionsWhere<T>,
+    relations: scanRelations,
+    order: { updated: 'ASC', id: 'ASC' } as FindOptionsOrder<T>,
     take: batchSize,
   });
   if (!changed.length) return;

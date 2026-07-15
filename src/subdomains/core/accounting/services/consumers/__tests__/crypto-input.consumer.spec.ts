@@ -409,6 +409,45 @@ describe('CryptoInputConsumer', () => {
     expect(rebookSpy).not.toHaveBeenCalled(); // no seq0 input → nothing to reverse/rebook
   });
 
+  // C1: a settled crypto_input surfaced ONLY by the content-change scan (the id-watermark advanced over it before it
+  // reached a settled status) must be FORWARD-booked — book() runs from the scan callback under the settled-status gate.
+  it('forward-books a late-settling crypto_input surfaced only by the content-change scan (C1)', async () => {
+    const late = cryptoInput({
+      id: 50,
+      amount: 15000,
+      asset: { id: ZCHF_ASSET_ID, uniqueName: 'Ethereum/ZCHF' },
+      buyFiat: { amountInChf: 15000 } as any,
+    });
+    jest
+      .spyOn(cryptoInputRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [late] : []));
+
+    await consumer.process();
+
+    const seq0 = booked.find((b) => b.seq === 0 && b.sourceId === '50');
+    expect(seq0).toBeDefined(); // forward-booked by the content-change scan (the forward id-scan never returned it)
+    expect(seq0.legs.find((l) => l.account.name === 'LIABILITY/buyFiat-received').amountChf).toBe(-15000);
+  });
+
+  // C1 gate: a NOT-yet-settled crypto_input in the content-change scan is NOT forward-booked (the settled-status gate
+  // matches the forward filter) — its later settle bump on `updated` re-selects it.
+  it('does NOT forward-book a not-yet-settled crypto_input in the content-change scan (settled-status gate)', async () => {
+    const notSettled = cryptoInput({
+      id: 51,
+      status: PayInStatus.CREATED, // not in CryptoInputSettledStatus
+      amount: 15000,
+      asset: { id: ZCHF_ASSET_ID, uniqueName: 'Ethereum/ZCHF' },
+      buyFiat: { amountInChf: 15000 } as any,
+    });
+    jest
+      .spyOn(cryptoInputRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [notSettled] : []));
+
+    await consumer.process();
+
+    expect(booked.some((b) => b.sourceId === '51')).toBe(false); // not settled → not booked
+  });
+
   // --- ADDITIONAL BRANCH COVERAGE --- //
 
   // line 117 UNDEFINED side: the resolved wallet LedgerAccount has assetId == null → the `wallet.assetId != null`

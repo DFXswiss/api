@@ -480,6 +480,107 @@ describe('ExchangeTxConsumer', () => {
     expect(rebookSpy).not.toHaveBeenCalled();
   });
 
+  // --- C1: LATE-SETTLING FORWARD COVERAGE (content-change scan) --- //
+
+  // C1: an exchange_tx that becomes status='ok' only AFTER the forward id-watermark advanced over it is
+  // forward-unreachable (the forward scan filters status='ok'). The status-agnostic content-change scan must
+  // forward-book it: reconcileBooking finds nothing active to correct and no tx ever booked at the seq → bookTx.
+  it('forward-books a late-settling ok exchange_tx surfaced only by the content-change scan (C1)', async () => {
+    const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(false); // nothing active
+    jest.spyOn(bookingService, 'hasAnyTxAt').mockResolvedValue(false); // never booked at this seq
+    const late = exchangeTx({
+      id: 40,
+      type: ExchangeTxType.DEPOSIT,
+      currency: 'EUR',
+      amount: 100,
+      amountChf: 95,
+      txId: '0x',
+      status: 'ok',
+    });
+    mockContentChange([], [late]);
+    await consumer.process();
+
+    expect(rebookSpy).toHaveBeenCalledTimes(1); // tried to correct → nothing active
+    expect(booked.map((b) => b.sourceId)).toEqual(['40']); // then forward-booked because no tx ever existed at the seq
+  });
+
+  // C1: an active-unchanged (or flat-reversed) row in the content-change scan must NOT be re-booked — hasAnyTxAt guards
+  // the bookTx so no UNIQUE collision on the append-only original seq.
+  it('does NOT forward-book an ok exchange_tx that already has a tx at its seq (hasAnyTxAt guard)', async () => {
+    jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(false); // unchanged & active
+    jest.spyOn(bookingService, 'hasAnyTxAt').mockResolvedValue(true); // a tx already exists at this seq
+    const unchanged = exchangeTx({
+      id: 41,
+      type: ExchangeTxType.DEPOSIT,
+      currency: 'EUR',
+      amount: 100,
+      amountChf: 95,
+      txId: '0x',
+      status: 'ok',
+    });
+    mockContentChange([], [unchanged]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // hasAnyTxAt true → no forward book (would collide with the existing seq)
+  });
+
+  // C1 two-run integration: run 1 books the ok row 61 and advances the id-watermark OVER the still-pending id 60; row
+  // 60 flips to ok; run 2's forward id-scan (id > 61) no longer returns it, but the content-change scan forward-books it.
+  it('forward-books an exchange_tx that flipped to ok AFTER the id-watermark advanced over it (C1, two runs)', async () => {
+    const bookedKeys = new Set<string>();
+    jest.spyOn(bookingService, 'bookTx').mockImplementation((input: LedgerTxInput) => {
+      bookedKeys.add(`${input.sourceType}:${input.sourceId}:${input.seq}`);
+      booked.push(input);
+      return Promise.resolve({} as any);
+    });
+    jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(false); // nothing active to correct
+    jest.spyOn(bookingService, 'reverseActiveIfBooked').mockResolvedValue(false);
+    jest
+      .spyOn(bookingService, 'hasAnyTxAt')
+      .mockImplementation((st: string, sid: string, seq: number) =>
+        Promise.resolve(bookedKeys.has(`${st}:${sid}:${seq}`)),
+      );
+
+    const settled = exchangeTx({
+      id: 61,
+      type: ExchangeTxType.DEPOSIT,
+      currency: 'EUR',
+      amount: 100,
+      amountChf: 95,
+      txId: '0x',
+      status: 'ok',
+    });
+    const lateBefore = exchangeTx({
+      id: 60,
+      type: ExchangeTxType.DEPOSIT,
+      currency: 'EUR',
+      amount: 50,
+      amountChf: 47,
+      txId: '0x',
+      status: 'pending',
+    });
+    const lateAfter = exchangeTx({
+      id: 60,
+      type: ExchangeTxType.DEPOSIT,
+      currency: 'EUR',
+      amount: 50,
+      amountChf: 47,
+      txId: '0x',
+      status: 'ok',
+    });
+
+    // RUN 1: forward books ok row 61; the content-change scan sees the still-pending row 60 (flat-reverse no-op, never
+    // booked) and the already-booked row 61 (hasAnyTxAt true → no re-book).
+    mockContentChange([settled], [lateBefore, settled]);
+    await consumer.process();
+    expect(booked.map((b) => b.sourceId)).toEqual(['61']); // only row 61 booked (row 60 still pending)
+
+    // RUN 2: row 60 flipped to ok. Forward (id > 61) returns nothing; the content-change scan forward-books row 60.
+    mockContentChange([], [lateAfter]);
+    await consumer.process();
+    expect(booked.map((b) => b.sourceId).sort()).toEqual(['60', '61']); // row 60 finally booked on the second run
+  });
+
   // --- FORWARD ERROR / UNHANDLED-TYPE BRANCHES --- //
 
   it('skips an unhandled exchange_tx type in the forward scan (buildSpec undefined → no booking)', async () => {

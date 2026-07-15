@@ -151,6 +151,48 @@ export class LedgerBookingService {
   }
 
   /**
+   * §4.12 value-coupled chain reversal (Major M3). Several forward seqs of one source row can share a value (buy_fiat
+   * reclassification seq1 / transmit seq2 / settlement seq3 all carry owedChf; buy_crypto Card input seq0 / completion
+   * seq1 both carry the amountInChf base). A content-change that reverses+rebooks ONLY the first seq leaves the later,
+   * already-booked seqs on the OLD value → the shared liability (owed/received) never closes to 0 (Liability-Schliessung
+   * bricht). This reverses the WHOLE currently-active chain and re-books every input atomically, but ONLY when at least
+   * one input differs from its active booking (idempotent re-scan otherwise). `inputs` are the value-coupled seqs in
+   * ascending seq order; each participates only if it currently has an active booking (a later seq not yet settled has
+   * none → left to the forward path, which books it fresh at the new value). Each (reversal, re-book) pair is written
+   * adjacently — the re-book lands at reversal.seq+1 because its correction seq is allocated AFTER its own reversal via
+   * the same `manager` — so the §4.12 activeTx adjacency walk still resolves every corrected seq. Returns true when a
+   * correction was booked.
+   */
+  async reverseAndRebookChainIfChanged(inputs: LedgerTxInput[]): Promise<boolean> {
+    const active = await Promise.all(inputs.map((i) => this.activeTx(i.sourceType, i.sourceId, i.seq)));
+    const chain = inputs
+      .map((input, i) => ({ input, original: active[i] }))
+      .filter((p): p is { input: LedgerTxInput; original: LedgerTx } => p.original != null);
+    if (!chain.length) return false; // nothing active yet → the forward booker owns these seqs
+
+    const changed = await Promise.all(
+      chain.map(async ({ input, original }) => {
+        const fresh = input.legs.map((leg) => this.prepareLeg(leg));
+        await this.appendRoundingLeg(fresh);
+        return this.legsDiffer(original.legs, fresh);
+      }),
+    );
+    if (!changed.some(Boolean)) return false; // every active seq within §4.12 tolerances → no-op
+
+    // reverse + re-book the whole chain in ONE transaction; the re-book of each seq is allocated AFTER its own reversal
+    // (through `manager`) → it lands at reversal.seq+1, keeping the activeTx adjacency walk intact for every seq.
+    await this.dataSource.transaction(async (manager) => {
+      for (const { input, original } of chain) {
+        await this.reverseTxWithManager(manager, original);
+        const reSeq = await this.nextCorrectionSeqWithManager(manager, input.sourceType, input.sourceId);
+        await this.bookTxWithManager(manager, { ...input, seq: reSeq, reversalOf: undefined });
+      }
+    });
+
+    return true;
+  }
+
+  /**
    * §4.12 flat reversal: if `(sourceType, sourceId)` has an active booking (forward seq = `originalSeq`) but the
    * source row is no longer bookable (e.g. its type changed to a skipped type), reverse the active tx and do NOT
    * re-book — the corrected state is "nothing booked". Returns true when a reversal was booked, false otherwise.
@@ -172,6 +214,18 @@ export class LedgerBookingService {
    */
   async hasActiveTxAt(sourceType: string, sourceId: string, originalSeq: number): Promise<boolean> {
     return (await this.activeTx(sourceType, sourceId, originalSeq)) != null;
+  }
+
+  /**
+   * True iff ANY tx has EVER been booked at this exact `(sourceType, sourceId, seq)` — active, reversed, OR a
+   * reversal/re-book. The content-change scan uses it to decide whether a status-filtered row it re-selected (by the
+   * `updated` cursor, not the id-watermark) was ever forward-booked: a late-settling row the id-watermark skipped has
+   * NONE, so it is booked forward (C1); a flat-reversed original DOES have one, so the forward book is skipped (an
+   * append-only bookTx at the original seq would collide on the UNIQUE constraint). Unlike hasActiveTxAt this does not
+   * walk the reversal chain — mere existence at the seq is the signal.
+   */
+  async hasAnyTxAt(sourceType: string, sourceId: string, seq: number): Promise<boolean> {
+    return (await this.dataSource.getRepository(LedgerTx).countBy({ sourceType, sourceId, seq })) > 0;
   }
 
   /**

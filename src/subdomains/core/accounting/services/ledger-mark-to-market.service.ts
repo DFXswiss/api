@@ -1,7 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
-import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
 import { DfxCron } from 'src/shared/utils/cron';
@@ -39,7 +38,6 @@ export class LedgerMarkToMarketService {
 
   constructor(
     private readonly jobService: LedgerBookingJobService,
-    private readonly settingService: SettingService,
     private readonly bookingService: LedgerBookingService,
     private readonly accountService: LedgerAccountService,
     private readonly markService: LedgerMarkService,

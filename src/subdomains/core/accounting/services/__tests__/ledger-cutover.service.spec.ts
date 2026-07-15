@@ -341,21 +341,23 @@ describe('LedgerCutoverService', () => {
       expect(liabilityLeg.amountChf).toBe(-14851.5); // CHF output → mark 1
     });
 
-    it('opens buyCrypto-owed CHF = outputAmount × getMarkAt(outputAsset), needsMark when feedless (R6-1)', async () => {
+    // m6 fail-loud: a feedless buyCrypto-owed opening (no mark for the outputAsset) would book a CHF liability with
+    // native 0 that the mark-to-market job can NEVER revalue → the cutover THROWS and leaves the ledger-ready flag
+    // unset (retry once the mark feed is back), rather than silently dropping the value into a stale zero-opening.
+    it('throws (m6) on a feedless buyCrypto-owed opening and leaves the ledger-ready flag unset', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
         if (!where?.outputAmount) {
-          return Promise.resolve([buyCrypto({ id: 50, outputAmount: 2, outputAsset: { id: 999 } as any })]);
+          return Promise.resolve([buyCrypto({ id: 50, outputAmount: 2, outputAsset: { id: 999 } as any })]); // no mark
         }
         return Promise.resolve([]);
       });
 
-      await service.run();
+      await expect(service.run()).rejects.toThrow(/without a mark/i);
 
-      const owedTx = booked.find((b) => b.sourceId === '1557344:buy_crypto-owed:50');
-      expect(owedTx).toBeDefined();
-      const liabilityLeg = owedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
-      expect(liabilityLeg.needsMark).toBe(true); // no mark for asset 999 → mark-to-market values later
+      const flagSet = (settingService.set as jest.Mock).mock.calls.find((c) => c[0] === 'ledgerCutoverLogId');
+      expect(flagSet).toBeUndefined(); // ledger-ready flag NOT set → all consumers stay no-op, retry next cron run
+      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto-owed:50')).toBe(false); // no zero-opening booked
     });
 
     // §6.1 (Major design-accounting): an open BANK_TX_RETURN (chargebackBankTx IS NULL) is opened per-row, CHF-valued
@@ -807,9 +809,11 @@ describe('LedgerCutoverService', () => {
       expect(booked.some((b) => b.sourceId === '1557344:bank_tx-return:70')).toBe(false);
     });
 
-    it('opens an aggregated unattributed with needsMark when a credit cannot be valued (no mark)', async () => {
+    // m6 fail-loud: an unattributed aggregate with a credit that cannot be valued (no mark) would book a CHF liability
+    // with native 0, never revalued → the cutover THROWS and leaves the flag unset (retry when the feed is back).
+    it('throws (m6) on an unvaluable unattributed credit and leaves the ledger-ready flag unset', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
-      // no mark in the cache + the bank match resolves to an EUR bank whose asset has no mark → mark == null → needsMark
+      // no mark in the cache + the bank match resolves to an EUR bank whose asset has no mark → mark == null → unvaluable
       jest
         .spyOn(bankRepo, 'find')
         .mockResolvedValue([
@@ -822,13 +826,11 @@ describe('LedgerCutoverService', () => {
         ] as any)
         .mockResolvedValueOnce([]);
 
-      await service.run();
+      await expect(service.run()).rejects.toThrow(/without a mark/i);
 
-      const unattributedTx = booked.find((b) => b.sourceId === '1557344:unattributed');
-      expect(unattributedTx).toBeDefined();
-      const liabilityLeg = unattributedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
-      expect(liabilityLeg.needsMark).toBe(true); // a feedless credit → needsMark, valued later by mark-to-market
-      expect(liabilityLeg.amountChf).toBeUndefined();
+      const flagSet = (settingService.set as jest.Mock).mock.calls.find((c) => c[0] === 'ledgerCutoverLogId');
+      expect(flagSet).toBeUndefined();
+      expect(booked.some((b) => b.sourceId === '1557344:unattributed')).toBe(false);
     });
 
     it('skips an unattributed credit row with a null amount (no opening when nothing else valued)', async () => {
@@ -935,24 +937,23 @@ describe('LedgerCutoverService', () => {
       expect(liabilityLeg.needsMark).toBe(false);
     });
 
-    // §6.1 openBuyCryptoOwed line 349 (`outputAsset?.id != null` FALSE side): an owed row whose outputAsset has NO id
-    // → mark undefined → needsMark opening (valued later by mark-to-market). Distinct from the id-present-no-mark case.
-    it('opens a buyCrypto-owed with needsMark when the outputAsset has no id (line 349 null-id side)', async () => {
+    // §6.1 openBuyCryptoOwed line 349 (`outputAsset?.id != null` FALSE side): an owed row whose outputAsset has NO id →
+    // mark undefined → amountChf undefined → m6 fail-loud (the CHF owed opening would never be revalued). Distinct from
+    // the id-present-no-mark case, but the same fail-loud outcome.
+    it('throws (m6) on a buyCrypto-owed opening whose outputAsset has no id (line 349 null-id side)', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
         if (!where?.outputAmount) {
-          return Promise.resolve([buyCrypto({ id: 55, outputAmount: 2, outputAsset: {} as any })]); // no id
+          return Promise.resolve([buyCrypto({ id: 55, outputAmount: 2, outputAsset: {} as any })]); // no id → no mark
         }
         return Promise.resolve([]);
       });
 
-      await service.run();
+      await expect(service.run()).rejects.toThrow(/without a mark/i);
 
-      const owedTx = booked.find((b) => b.sourceId === '1557344:buy_crypto-owed:55');
-      expect(owedTx).toBeDefined();
-      const liabilityLeg = owedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
-      expect(liabilityLeg.needsMark).toBe(true); // no outputAsset.id → no mark → needsMark
-      expect(liabilityLeg.amountChf).toBeUndefined();
+      const flagSet = (settingService.set as jest.Mock).mock.calls.find((c) => c[0] === 'ledgerCutoverLogId');
+      expect(flagSet).toBeUndefined();
+      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto-owed:55')).toBe(false);
     });
 
     // §6.1 openBuyCryptoOwed: a row with outputAmount NULL is skipped — line 347
@@ -968,9 +969,9 @@ describe('LedgerCutoverService', () => {
       expect(booked.some((b) => b.sourceId === '1557344:buy_crypto-owed:52')).toBe(false);
     });
 
-    // §6.1 openOpenLiabilityRow (bankTx-return/repeat): a row with a valid amount but NO mark → needsMark, amountChf
-    // undefined (line 423 undefined side). EUR bank, empty mark cache → mark undefined → the liability leg is feedless.
-    it('opens a bankTx-return with needsMark when the bank mark is missing (line 423 undefined side)', async () => {
+    // §6.1 openOpenLiabilityRow (bankTx-return/repeat): a row with a valid amount but NO mark → amountChf undefined →
+    // m6 fail-loud (a CHF return opening booked with native 0 is never revalued). EUR bank, empty mark cache.
+    it('throws (m6) on a bankTx-return opening when the bank mark is missing', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no EUR mark
       jest
@@ -984,18 +985,16 @@ describe('LedgerCutoverService', () => {
         }),
       ] as any);
 
-      await service.run();
+      await expect(service.run()).rejects.toThrow(/without a mark/i);
 
-      const returnTx = booked.find((b) => b.sourceId === '1557344:bank_tx-return:95');
-      expect(returnTx).toBeDefined();
-      const liabilityLeg = returnTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
-      expect(liabilityLeg.needsMark).toBe(true); // EUR + no mark → feedless, valued later
-      expect(liabilityLeg.amountChf).toBeUndefined();
+      const flagSet = (settingService.set as jest.Mock).mock.calls.find((c) => c[0] === 'ledgerCutoverLogId');
+      expect(flagSet).toBeUndefined();
+      expect(booked.some((b) => b.sourceId === '1557344:bank_tx-return:95')).toBe(false);
     });
 
     // §4.2/§1.6 bankMark: a bank_tx with NO accountIban (line 489 null side) and currency EUR → no bank lookup, no
-    // asset → mark undefined → the unattributed leg is needsMark.
-    it('values an unattributed credit needsMark when the bank_tx has no accountIban and no CHF currency', async () => {
+    // asset → mark undefined → amountChf undefined → m6 fail-loud (the CHF unattributed bucket is never revalued).
+    it('throws (m6) on an unattributed credit whose bank_tx has no accountIban and a non-CHF currency', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map()));
       jest
@@ -1005,17 +1004,16 @@ describe('LedgerCutoverService', () => {
         ] as any)
         .mockResolvedValueOnce([]);
 
-      await service.run();
+      await expect(service.run()).rejects.toThrow(/without a mark/i);
 
-      const unattributedTx = booked.find((b) => b.sourceId === '1557344:unattributed');
-      expect(unattributedTx).toBeDefined();
-      const liabilityLeg = unattributedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
-      expect(liabilityLeg.needsMark).toBe(true); // no accountIban, EUR, no mark → needsMark
+      const flagSet = (settingService.set as jest.Mock).mock.calls.find((c) => c[0] === 'ledgerCutoverLogId');
+      expect(flagSet).toBeUndefined();
+      expect(booked.some((b) => b.sourceId === '1557344:unattributed')).toBe(false);
     });
 
     // §4.2/§1.6 bankMark: a bank match whose asset is undefined (line 495 `asset?.id != null` false side) and a
-    // non-CHF currency → mark undefined → needsMark.
-    it('values an unattributed credit needsMark when the matched bank has no asset', async () => {
+    // non-CHF currency → mark undefined → amountChf undefined → m6 fail-loud.
+    it('throws (m6) on an unattributed credit whose matched bank has no asset', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map()));
       jest
@@ -1030,12 +1028,11 @@ describe('LedgerCutoverService', () => {
         ] as any)
         .mockResolvedValueOnce([]);
 
-      await service.run();
+      await expect(service.run()).rejects.toThrow(/without a mark/i);
 
-      const unattributedTx = booked.find((b) => b.sourceId === '1557344:unattributed');
-      expect(unattributedTx).toBeDefined();
-      const liabilityLeg = unattributedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
-      expect(liabilityLeg.needsMark).toBe(true); // bank has no asset → no mark → needsMark
+      const flagSet = (settingService.set as jest.Mock).mock.calls.find((c) => c[0] === 'ledgerCutoverLogId');
+      expect(flagSet).toBeUndefined();
+      expect(booked.some((b) => b.sourceId === '1557344:unattributed')).toBe(false);
     });
   });
 

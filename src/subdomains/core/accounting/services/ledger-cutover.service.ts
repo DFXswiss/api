@@ -358,6 +358,9 @@ export class LedgerCutoverService {
       const mark = row.outputAsset?.id != null ? marks.getMarkAt(row.outputAsset.id, date) : undefined;
       const amountChf = mark != null ? Util.round(row.outputAmount * mark, 2) : undefined;
 
+      // feedless outputAsset → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): a CHF owed
+      // opening booked with native 0 can never be revalued, so a missing mark must roll back the cutover, not silently
+      // drop the value.
       await this.bookReceivedOwedOpening(
         date,
         `${snapshot.id}:buy_crypto-owed:${row.id}`,
@@ -365,7 +368,6 @@ export class LedgerCutoverService {
         liability,
         amountChf,
         equity,
-        mark == null, // feedless outputAsset → needsMark, mark-to-market values it later (§5.1 stage 3)
       );
     }
   }
@@ -451,6 +453,8 @@ export class LedgerCutoverService {
     const { mark } = this.bankMark(bankTx, date, marks, bankByIban);
     const amountChf = mark != null ? Util.round(bankTx.amount * mark, 2) : undefined;
 
+    // feedless / no-bank-match → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): a CHF
+    // return/repeat opening booked with native 0 is never revalued, so a missing mark rolls back the cutover.
     await this.bookReceivedOwedOpening(
       date,
       `${snapshot.id}:${marker}:${bankTx.id}`,
@@ -458,7 +462,6 @@ export class LedgerCutoverService {
       liability,
       amountChf,
       equity,
-      mark == null,
     );
   }
 
@@ -496,16 +499,16 @@ export class LedgerCutoverService {
     if (Math.abs(amountChf) <= 1e-8 && !needsMark) return; // no open unattributed credits → no opening
 
     const liability = await this.liability('unattributed');
+    // a feedless/unmatched credit leaves the aggregate unvaluable → amountChf undefined → bookReceivedOwedOpening
+    // throws (m6 fail-loud): the CHF unattributed bucket is booked with native 0 and can never be revalued, so a
+    // missing mark rolls back the cutover rather than dropping the value into a stale zero-opening.
     await this.bookReceivedOwedOpening(
       date,
       `${snapshot.id}:unattributed`,
       `Opening unattributed from open bank_tx credits as of FinancialDataLog #${snapshot.id}`,
       liability,
-      // a feedless/unmatched credit leaves the aggregate unvaluable → carry amountChf=undefined (needsMark) so the
-      // mark-to-market job values the whole bucket later (§5.1 stage 3); never a partial/-0 phantom CHF on the leg.
       needsMark ? undefined : Util.round(amountChf, 2),
       equity,
-      needsMark,
     );
   }
 
@@ -723,20 +726,24 @@ export class LedgerCutoverService {
     liability: LedgerAccount,
     amountChf: number | undefined,
     equity: LedgerAccount,
-    needsMark = false,
   ): Promise<void> {
+    // m6 fail-loud: a received/owed/unattributed opening lives on a CHF-denominated LIABILITY (assetId=NULL) and would
+    // be booked with native 0, so the mark-to-market job (assetId IS NOT NULL, native≠0) can NEVER revalue it. Booking
+    // it with amountChf=undefined would silently drop the liability's value forever. If the required mark is missing,
+    // throw: the whole cutover rolls back, the ledger-ready flag stays unset, and the next cron run retries once the
+    // mark feed is available. Never a stale zero-opening.
+    if (amountChf == null) {
+      throw new Error(
+        `cutover opening ${sourceId} without a mark would silently drop the value (CHF liability, never revalued by mark-to-market) — retry when the mark feed is available`,
+      );
+    }
+
     await this.bookOpening(
       0,
       sourceId,
       description,
       bookingDate,
-      {
-        account: liability,
-        amount: -(amountChf ?? 0),
-        priceChf: 1,
-        amountChf: amountChf != null ? -amountChf : undefined,
-        needsMark,
-      },
+      { account: liability, amount: -amountChf, priceChf: 1, amountChf: -amountChf, needsMark: false },
       equity,
     );
   }
