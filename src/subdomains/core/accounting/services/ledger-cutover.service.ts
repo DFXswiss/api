@@ -301,8 +301,9 @@ export class LedgerCutoverService {
       // F1: load paymentLinkPayment to route a paymentLink-funded row to its OWN paymentLink opening instead of
       // buyFiat-received — the forward bookPaymentLink path clears LIABILITY/paymentLink and would NEVER consume a
       // buyFiat-received/-owed opening (permanent content-scan wedge), and its opening would land in the wrong bucket.
-      // cryptoInput.status is ALSO read below (G-a): a funding input NOT settled at the snapshot has its forward seq0 as
-      // the sole received/paymentLink opener, so the per-row opening is skipped to avoid a double-credit.
+      // cryptoInput.id is read below (G-a) to check coverage against the pinned at-snapshot cutover boundary
+      // (isCoveredByCutoverOpening) — an input NOT covered has its forward seq0 as the sole opener, so the per-row
+      // opening is skipped.
       relations: { cryptoInput: { paymentLinkPayment: true } },
     });
     const received = await this.liability('buyFiat-received');
@@ -350,6 +351,18 @@ export class LedgerCutoverService {
 
     for (const row of rows) {
       if (row.outputAmount == null) continue;
+
+      // G-a: the per-row opening (paymentLink or owed) must be EXACTLY complementary to the forward crypto_input seq0
+      // suppression — both key on the SAME pinned at-snapshot boundary (isCoveredByCutoverOpening), NEVER on the mutable
+      // live status. A settlement inside the fail-loud retry window would otherwise let BOTH the forward seq0
+      // (live-settled + not covered) and this per-row opening credit the bucket → a permanent double-credit. Open here
+      // IFF the input is covered (its value is in the aggregate opening and its seq0 is suppressed); otherwise the
+      // forward seq0 is the single opener. Card-/bank-funded rows have cryptoInput=null → the guard does not fire.
+      if (
+        row.cryptoInput &&
+        !(await isCoveredByCutoverOpening(this.settingService, 'crypto_input', row.cryptoInput.id))
+      )
+        continue;
 
       // F1: a paymentLink-funded owed-straddling row → book the paymentLink opening at the gross (amountInChf), NOT
       // buyFiat-owed. amountInChf NULL → pin as unpriced (F2), never a paymentLink opening on a missing anchor.
@@ -443,8 +456,9 @@ export class LedgerCutoverService {
   ): Promise<number[]> {
     const rows = await this.buyCryptoRepo.find({
       where: { isComplete: false, outputAmount: IsNull(), created: Between(lookback, date) },
-      // G-a: load cryptoInput (+ status) to decide the received opener — a crypto-funded row whose input was not settled
-      // at the snapshot is skipped (its forward seq0 opens received); a Card/bank-funded row has cryptoInput=null.
+      // G-a: load cryptoInput to decide the received opener — a crypto-funded row whose input is not covered by the
+      // pinned cutover opening (isCoveredByCutoverOpening) is skipped (its forward seq0 opens received); a Card/bank-funded
+      // row has cryptoInput=null.
       relations: { cryptoInput: true },
     });
     const liability = await this.liability('buyCrypto-received');

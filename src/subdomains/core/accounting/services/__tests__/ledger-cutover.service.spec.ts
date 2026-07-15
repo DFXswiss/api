@@ -637,6 +637,7 @@ describe('LedgerCutoverService', () => {
     // §4.7b/§6.1 (F1): the owed path (outputAmount NOT NULL) also routes a paymentLink row to LIABILITY/paymentLink at
     // the gross (amountInChf), NOT buyFiat-owed (outputAmount × mark). Exercises the openBuyFiatOwed paymentLink branch.
     it('opens a paymentLink-funded owed-straddling buyFiat row on LIABILITY/paymentLink, not buyFiat-owed (F1)', async () => {
+      stubCryptoInputBoundary({ boundaryId: 860, holeIds: [] }); // input 860 <= boundary → covered → paymentLink opening books
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
         // owed query (no outputAmount key) → a paymentLink row with outputAmount set
@@ -647,7 +648,7 @@ describe('LedgerCutoverService', () => {
               amountInChf: 1000,
               outputAmount: 940,
               outputAsset: { id: 1, name: 'CHF' } as any,
-              cryptoInput: { paymentLinkPayment: { id: 1 } } as any,
+              cryptoInput: { id: 860, paymentLinkPayment: { id: 1 } } as any,
             }),
           ]);
         }
@@ -662,6 +663,73 @@ describe('LedgerCutoverService', () => {
       expect(liabilityLeg.account.name).toBe('LIABILITY/paymentLink');
       expect(liabilityLeg.amountChf).toBe(-1000); // gross (amountInChf), NOT outputAmount × mark (940)
       expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:46')).toBe(false); // NOT the owed bucket
+    });
+
+    // §6.1 (F1) G-a divergence — the openBuyFiatOwed guard. The buyFiat-owed and paymentLink per-row openings must be
+    // EXACTLY complementary to the forward crypto_input seq0 suppression: both key on the pinned at-snapshot boundary
+    // (isCoveredByCutoverOpening), NEVER on the mutable live status. Two owed-straddling rows with the SAME live-settled
+    // status but split by the boundary: the covered one opens (its seq0 is suppressed → the per-row opening is the sole
+    // opener), the post-boundary one is skipped (its forward seq0 is the sole opener → a per-row opening would
+    // double-credit the bucket, a permanent phantom with no UNIQUE backstop).
+    it('opens the buyFiat-owed per row for a covered input but skips a post-boundary one (G-a divergence, F1)', async () => {
+      stubCryptoInputBoundary({ boundaryId: 870, holeIds: [] }); // 870 covered; 880 > boundary → not covered
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+        if (!where?.outputAmount)
+          return Promise.resolve([
+            buyFiat({
+              id: 47,
+              outputAmount: 1000,
+              outputAsset: { id: 1, name: 'CHF' } as any,
+              cryptoInput: { id: 870, status: PayInStatus.FORWARD_CONFIRMED } as any, // covered by the boundary
+            }),
+            buyFiat({
+              id: 48,
+              outputAmount: 1000,
+              outputAsset: { id: 1, name: 'CHF' } as any,
+              cryptoInput: { id: 880, status: PayInStatus.FORWARD_CONFIRMED } as any, // post-boundary → not covered
+            }),
+          ]);
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:47')).toBe(true); // covered → opens as before
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:48')).toBe(false); // not covered → forward seq0 is sole opener
+    });
+
+    // §6.1 (F1) G-a divergence — the paymentLink branch of openBuyFiatOwed obeys the SAME boundary guard: a covered
+    // input opens LIABILITY/paymentLink at the gross (amountInChf); a post-boundary input is skipped (its forward seq0
+    // opens paymentLink → a per-row opening would double-credit it).
+    it('opens the buyFiat paymentLink per row for a covered input but skips a post-boundary one (G-a divergence, F1)', async () => {
+      stubCryptoInputBoundary({ boundaryId: 890, holeIds: [] }); // 890 covered; 895 > boundary → not covered
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+        if (!where?.outputAmount)
+          return Promise.resolve([
+            buyFiat({
+              id: 51,
+              amountInChf: 1000,
+              outputAmount: 940,
+              outputAsset: { id: 1, name: 'CHF' } as any,
+              cryptoInput: { id: 890, paymentLinkPayment: { id: 1 }, status: PayInStatus.FORWARD_CONFIRMED } as any, // covered
+            }),
+            buyFiat({
+              id: 52,
+              amountInChf: 1000,
+              outputAmount: 940,
+              outputAsset: { id: 1, name: 'CHF' } as any,
+              cryptoInput: { id: 895, paymentLinkPayment: { id: 1 }, status: PayInStatus.FORWARD_CONFIRMED } as any, // not covered
+            }),
+          ]);
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-paymentLink:51')).toBe(true); // covered → opens
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-paymentLink:52')).toBe(false); // not covered → skipped
     });
 
     // m6 fail-loud: a feedless buyCrypto-owed opening (no mark for the outputAsset) would book a CHF liability with
