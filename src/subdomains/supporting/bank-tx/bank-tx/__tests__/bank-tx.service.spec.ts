@@ -21,6 +21,7 @@ import { BankTxReturnService } from '../../bank-tx-return/bank-tx-return.service
 import { BankTxIndicator } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
+import { BankTxFrickService } from '../services/bank-tx-frick.service';
 import { BankTxService } from '../services/bank-tx.service';
 import { SepaParser } from '../services/sepa-parser.service';
 
@@ -81,6 +82,7 @@ describe('BankTxService', () => {
       createMock<NotificationService>(),
       createMock<SettingService>(),
       createMock<OlkypayService>(),
+      createMock<BankTxFrickService>(),
       createMock<BankTxReturnService>(),
       createMock<BankTxRepeatService>(),
       createMock<BuyService>(),
