@@ -732,6 +732,67 @@ describe('LedgerCutoverService', () => {
       expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-paymentLink:52')).toBe(false); // not covered → skipped
     });
 
+    // §6.1 (F1) G-a divergence — the openBuyCryptoOwed guard. The per-row buyCrypto-owed opening must be EXACTLY
+    // complementary to the forward crypto_input seq0/seq1 handling: it keys on the pinned at-snapshot boundary
+    // (isCoveredByCutoverOpening), NEVER on the mutable live status. A COVERED input (its value is in the aggregate
+    // opening, its forward seq0 suppressed) keeps the per-row owed opening — the sole owed opener.
+    it('opens the buyCrypto-owed per row when the funding crypto_input IS covered by the boundary (G-a divergence, F1)', async () => {
+      stubCryptoInputBoundary({ boundaryId: 950, holeIds: [] }); // input 950 <= boundary → covered
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest
+        .spyOn(markService, 'preload')
+        .mockResolvedValue(
+          new LedgerMarkCache(new Map([[42, [{ created: new Date('2026-06-01'), priceChf: 30000 }]]])),
+        );
+      jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
+        if (!where?.outputAmount)
+          return Promise.resolve([
+            buyCrypto({
+              id: 62,
+              outputAmount: 0.5,
+              outputAsset: { id: 42 } as any,
+              cryptoInput: { id: 950, status: PayInStatus.FORWARD_CONFIRMED } as any, // covered by the boundary
+            }),
+          ]);
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto-owed:62')).toBe(true); // covered → opens as before
+    });
+
+    // §6.1 (F1) G-a divergence — the mirror case: an input NOT covered by the pinned boundary (a post-boundary settle, or
+    // an `updated` bump FORWARD_CONFIRMED→COMPLETED inside the [snapshot→pin] retry window) is SKIPPED here. Its forward
+    // crypto_input seq0 opens buyCrypto-received and the completion seq1 closes it; a per-row owed opening would make that
+    // seq1 SKIP via hasCutoverOwedOpening → the received leg would never close (orphaned received phantom, no UNIQUE
+    // backstop). The forward seq0/seq1 chain is the sole handler.
+    it('skips the buyCrypto-owed opening for a crypto-funded row whose input is NOT covered (G-a divergence, F1)', async () => {
+      stubCryptoInputBoundary({ boundaryId: 950, holeIds: [] }); // input 960 > boundary → not covered
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest
+        .spyOn(markService, 'preload')
+        .mockResolvedValue(
+          new LedgerMarkCache(new Map([[42, [{ created: new Date('2026-06-01'), priceChf: 30000 }]]])),
+        );
+      jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
+        if (!where?.outputAmount)
+          return Promise.resolve([
+            buyCrypto({
+              id: 63,
+              outputAmount: 0.5,
+              outputAsset: { id: 42 } as any,
+              cryptoInput: { id: 960, status: PayInStatus.FORWARD_CONFIRMED } as any, // post-boundary → not covered
+            }),
+          ]);
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto-owed:63')).toBe(false); // not covered → forward seq0/seq1 is sole handler
+    });
+
     // m6 fail-loud: a feedless buyCrypto-owed opening (no mark for the outputAsset) would book a CHF liability with
     // native 0 that the mark-to-market job can NEVER revalue → the cutover THROWS and leaves the ledger-ready flag
     // unset (retry once the mark feed is back), rather than silently dropping the value into a stale zero-opening.

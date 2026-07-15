@@ -342,7 +342,8 @@ export class LedgerCutoverService {
   ): Promise<number[]> {
     const rows = await this.buyFiatRepo.find({
       where: { isComplete: false, created: Between(lookback, date) },
-      // F1: load paymentLinkPayment to detect a paymentLink row (its opening goes to LIABILITY/paymentLink, not -owed)
+      // F1: load paymentLinkPayment to detect a paymentLink row (its opening goes to LIABILITY/paymentLink, not -owed).
+      // cryptoInput.id is read below (G-a) to check coverage against the pinned cutover boundary (isCoveredByCutoverOpening).
       relations: { outputAsset: true, cryptoInput: { paymentLinkPayment: true } },
     });
     const owed = await this.liability('buyFiat-owed');
@@ -514,12 +515,30 @@ export class LedgerCutoverService {
   ): Promise<void> {
     const rows = await this.buyCryptoRepo.find({
       where: { isComplete: false, created: Between(lookback, date) },
-      relations: { outputAsset: true },
+      // G-a: load cryptoInput to decide the owed opener — a crypto-funded row whose input is not covered by the pinned
+      // cutover opening (isCoveredByCutoverOpening) is skipped (its forward crypto_input seq0 opens received and the
+      // completion seq1 closes it; a per-row owed opening here would make that seq1 SKIP via hasCutoverOwedOpening →
+      // orphaned received phantom); a Card/bank-funded row has cryptoInput=null.
+      relations: { outputAsset: true, cryptoInput: true },
     });
     const liability = await this.liability('buyCrypto-owed');
 
     for (const row of rows) {
       if (row.outputAmount == null) continue;
+
+      // G-a: the per-row owed opening must be EXACTLY complementary to the forward crypto_input seq0/seq1 handling — key
+      // on the SAME pinned at-snapshot boundary (isCoveredByCutoverOpening), NEVER on the mutable live status. In the
+      // [snapshot→pin] retry window an `updated` bump (FORWARD_CONFIRMED→COMPLETED) can leave an input NOT covered while
+      // its forward seq0 already opens buyCrypto-received; booking a per-row owed opening here would make the forward
+      // completion seq1 SKIP via hasCutoverOwedOpening → the received leg never closes (orphaned received phantom, no
+      // UNIQUE backstop — the cutover and crypto_input sourceId namespaces are disjoint). Open here IFF the input is
+      // covered (its value is in the aggregate opening and its seq0 is suppressed); otherwise the forward seq0/seq1 chain
+      // is the sole handler. Card-/bank-funded rows have cryptoInput=null → the guard does not fire.
+      if (
+        row.cryptoInput &&
+        !(await isCoveredByCutoverOpening(this.settingService, 'crypto_input', row.cryptoInput.id))
+      )
+        continue;
 
       const mark = row.outputAsset?.id != null ? marks.getMarkAt(row.outputAsset.id, date) : undefined;
       const amountChf = mark != null ? Util.round(row.outputAmount * mark, 2) : undefined;
