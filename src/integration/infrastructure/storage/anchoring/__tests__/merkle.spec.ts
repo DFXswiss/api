@@ -9,9 +9,16 @@ function leaves(count: number): Buffer[] {
   return Array.from({ length: count }, (_, i) => leaf(i));
 }
 
-/** Reference parent hash matching the module's documented `sha256(left || right)` rule. */
-function parent(left: Buffer, right: Buffer): Buffer {
-  return sha256(Buffer.concat([left, right]));
+// Independent reference helpers — do NOT call production merkle functions.
+const LEAF_PREFIX = Buffer.from([0x00]);
+const NODE_PREFIX = Buffer.from([0x01]);
+
+function leafHash(d: Buffer): Buffer {
+  return sha256(Buffer.concat([LEAF_PREFIX, d]));
+}
+
+function node(l: Buffer, r: Buffer): Buffer {
+  return sha256(Buffer.concat([NODE_PREFIX, l, r]));
 }
 
 describe('merkle', () => {
@@ -20,32 +27,54 @@ describe('merkle', () => {
       expect(() => buildMerkleRoot([])).toThrow();
     });
 
-    it('returns the leaf itself for a single-leaf tree', () => {
-      const l = leaf(0);
-      expect(buildMerkleRoot([l]).equals(l)).toBe(true);
+    it('returns leafHash(d) for a single-leaf tree', () => {
+      const d0 = leaf(0);
+      expect(buildMerkleRoot([d0]).equals(leafHash(d0))).toBe(true);
     });
 
     it('hashes the pair for two leaves', () => {
       const [a, b] = leaves(2);
-      expect(buildMerkleRoot([a, b]).equals(parent(a, b))).toBe(true);
+      expect(buildMerkleRoot([a, b]).equals(node(leafHash(a), leafHash(b)))).toBe(true);
     });
 
-    it('duplicates the last node for three leaves', () => {
+    it('builds an unbalanced tree for three leaves (no last-node duplication)', () => {
       const [a, b, c] = leaves(3);
-      // level 1: [h(a,b), h(c,c)]  ->  root: h( h(a,b), h(c,c) )
-      const expected = parent(parent(a, b), parent(c, c));
+      // k=2: root = node(node(L0,L1), L2) — NOT node(node(L0,L1), node(L2,L2))
+      const expected = node(node(leafHash(a), leafHash(b)), leafHash(c));
       expect(buildMerkleRoot([a, b, c]).equals(expected)).toBe(true);
     });
 
     it('builds a balanced tree for four leaves', () => {
       const [a, b, c, d] = leaves(4);
-      const expected = parent(parent(a, b), parent(c, d));
+      const expected = node(node(leafHash(a), leafHash(b)), node(leafHash(c), leafHash(d)));
       expect(buildMerkleRoot([a, b, c, d]).equals(expected)).toBe(true);
     });
 
     it('is deterministic across repeated calls', () => {
       const ls = leaves(4);
       expect(buildMerkleRoot(ls).equals(buildMerkleRoot(ls))).toBe(true);
+    });
+
+    it('CVE-2012-2459: three-leaf and four-leaf-with-duplicated-last produce different roots', () => {
+      const [a, b, c] = leaves(3);
+      const root3 = buildMerkleRoot([a, b, c]);
+      const root4dup = buildMerkleRoot([a, b, c, c]);
+      expect(root3.equals(root4dup)).toBe(false);
+    });
+
+    it('applies domain-separation prefixes (leaf and node)', () => {
+      const d = leaf(0);
+      const root1 = buildMerkleRoot([d]);
+      // Single leaf is leafHash(d), not the raw digest.
+      expect(root1.equals(d)).toBe(false);
+      expect(root1.equals(leafHash(d))).toBe(true);
+
+      const [a, b] = leaves(2);
+      const root2 = buildMerkleRoot([a, b]);
+      // Two leaves use node() with 0x01 prefix, not bare sha256 of concatenated leaf hashes.
+      const bareNoPrefix = sha256(Buffer.concat([leafHash(a), leafHash(b)]));
+      expect(root2.equals(bareNoPrefix)).toBe(false);
+      expect(root2.equals(node(leafHash(a), leafHash(b)))).toBe(true);
     });
   });
 

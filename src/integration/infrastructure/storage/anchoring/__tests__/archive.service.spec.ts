@@ -14,11 +14,12 @@ import { OpenTimestampsService } from '../opentimestamps.service';
 
 /**
  * A shared in-memory store backing both fake repositories. It reproduces just enough TypeORM
- * behaviour (auto-increment ids, `(bucket, name)` upsert, batch-null filtering, ordering and
- * `manager.transaction`) for the round-trip the service performs, so that saves inside the
- * transaction the service runs on the batch repo's manager land in the same `files`/`batches`
- * arrays the assertions inspect. The Merkle math is the REAL Stage-1 module; only
- * OpenTimestamps is mocked so no network is touched.
+ * behaviour (auto-increment ids, `(bucket, name)` upsert, batch-null filtering, ordering,
+ * conditional `update` with criteria, and `manager.transaction`) for the round-trip the
+ * service performs, so that saves inside the transaction the service runs on the batch
+ * repo's manager land in the same `files`/`batches` arrays the assertions inspect. The
+ * Merkle math is the REAL Stage-1 module; only OpenTimestamps is mocked so no network is
+ * touched.
  */
 function fakeStore() {
   const files: ArchiveFile[] = [];
@@ -55,9 +56,23 @@ function fakeStore() {
     manager,
     create: (data: Partial<ArchiveFile>) => Object.assign(new ArchiveFile(), data),
     save: async (entity: ArchiveFile | ArchiveFile[]) => saveEntity(entity),
-    update: async (id: number, partial: Partial<ArchiveFile>) => {
-      const file = files.find((f) => f.id === id);
-      if (file) Object.assign(file, partial);
+    // TypeORM-style criteria update: evaluate conditions against current row state and
+    // return `{ affected }` so conditional updates (e.g. batch: IsNull()) are testable.
+    update: async (criteria: { id: number; batch?: any }, partial: Partial<ArchiveFile>) => {
+      const file = files.find((f) => f.id === criteria.id);
+      if (!file) return { affected: 0 };
+
+      if (criteria.batch !== undefined) {
+        const wantsNull = criteria.batch?._type === 'isNull' || criteria.batch === null;
+        if (wantsNull) {
+          if (file.batch != null) return { affected: 0 };
+        } else if (criteria.batch?.id != null) {
+          if (file.batch?.id !== criteria.batch.id) return { affected: 0 };
+        }
+      }
+
+      Object.assign(file, partial);
+      return { affected: 1 };
     },
     findOneBy: async (where: Partial<ArchiveFile>) =>
       files.find((f) => f.bucket === where.bucket && f.name === where.name) ?? undefined,
@@ -172,9 +187,12 @@ describe('ArchiveService', () => {
       expect(batch.otsProof).toBeDefined();
       expect(ots.stamp).toHaveBeenCalledTimes(1);
 
-      // every file got assigned to the batch with a leaf index
+      // every file got assigned to the batch with a leaf index and a persisted inclusion proof
       expect(fileRepo.files.every((f: ArchiveFile) => f.batch?.id === batch.id)).toBe(true);
       expect(fileRepo.files.map((f: ArchiveFile) => f.leafIndex).sort()).toEqual([0, 1, 2]);
+      expect(
+        fileRepo.files.every((f: ArchiveFile) => typeof f.merkleProof === 'string' && f.merkleProof.length > 0),
+      ).toBe(true);
     });
 
     it('returns undefined when there is nothing to anchor', async () => {
@@ -192,6 +210,7 @@ describe('ArchiveService', () => {
       expect(result.hashMatches).toBe(true);
       expect(result.anchored).toBe(true);
       expect(result.proofValid).toBe(true);
+      expect(result.verified).toBe(true);
       expect(result.pending).toBe(true);
       expect(result.bitcoinHeight).toBeUndefined();
     });
@@ -205,7 +224,9 @@ describe('ArchiveService', () => {
       expect(result.hashMatches).toBe(false);
       // the stored hash is still genuinely anchored, only the supplied bytes differ
       expect(result.anchored).toBe(true);
-      expect(result.proofValid).toBe(true);
+      // leaf is derived from the supplied (tampered) bytes → proof must not validate
+      expect(result.proofValid).toBe(false);
+      expect(result.verified).toBe(false);
     });
 
     it('reports an unanchored file as anchored:false', async () => {
@@ -215,12 +236,14 @@ describe('ArchiveService', () => {
       expect(result.hashMatches).toBe(true);
       expect(result.anchored).toBe(false);
       expect(result.proofValid).toBeUndefined();
+      expect(result.verified).toBe(false);
     });
 
     it('reports an unknown document as found:false', async () => {
       const result = await service.verifyDocument('archive', 'missing.pdf', Buffer.from('whatever'));
 
       expect(result.found).toBe(false);
+      expect(result.verified).toBe(false);
     });
 
     it('confirms a batch once OpenTimestamps reports a Bitcoin attestation', async () => {
@@ -338,8 +361,60 @@ describe('ArchiveService', () => {
       expect(result.hashMatches).toBe(true);
       expect(result.anchored).toBe(true);
       expect(result.proofValid).toBe(true);
+      expect(result.verified).toBe(true);
       expect(result.pending).toBe(false);
       expect(result.bitcoinHeight).toBe(850000);
+    });
+
+    it('throws when an anchored file is missing its persisted merkleProof', async () => {
+      await service.anchorPending();
+
+      const file = fileRepo.files.find((f: ArchiveFile) => f.name === 'doc-b.pdf');
+      file.merkleProof = null;
+
+      await expect(service.verifyDocument('archive', 'doc-b.pdf', docs[1].data)).rejects.toThrow(
+        /Data-integrity inconsistency.*no persisted merkleProof/,
+      );
+    });
+
+    it('refuses a concurrent recordHash that races with anchorPending (TOCTOU)', async () => {
+      // Isolate to a single unanchored file so the interleaving is clear.
+      // (round-trip beforeEach already recorded three docs — clear and re-seed one.)
+      fileRepo.files.length = 0;
+      batchRepo.batches.length = 0;
+      await service.recordHash('archive', 'race.pdf', sha256(Buffer.from('original')).toString('hex'));
+
+      const stored = fileRepo.files.find((f: ArchiveFile) => f.name === 'race.pdf');
+      const anchoredHash = stored.sha256;
+      // Snapshot of the unanchored row as recordHash would have seen it at read time.
+      const staleSnapshot = Object.assign(new ArchiveFile(), {
+        id: stored.id,
+        bucket: stored.bucket,
+        name: stored.name,
+        sha256: stored.sha256,
+        batch: undefined,
+        leafIndex: undefined,
+        merkleProof: undefined,
+      });
+
+      // Between findOne (read) and the conditional update, run a full anchorPending that
+      // claims the row into a batch. recordHash still only sees the stale pre-anchor snapshot.
+      jest.spyOn(fileRepo, 'findOne').mockImplementationOnce(async () => {
+        await service.anchorPending();
+        return staleSnapshot;
+      });
+
+      const newHash = sha256(Buffer.from('concurrent re-upload')).toString('hex');
+      await expect(service.recordHash('archive', 'race.pdf', newHash)).rejects.toThrow(
+        /Refusing to overwrite anchored hash.*concurrent anchor/,
+      );
+
+      // Leaf committed by anchorPending must be untouched.
+      const after = fileRepo.files.find((f: ArchiveFile) => f.name === 'race.pdf');
+      expect(after.sha256).toBe(anchoredHash);
+      expect(after.batch).toBeDefined();
+      expect(typeof after.merkleProof).toBe('string');
+      expect(after.merkleProof.length).toBeGreaterThan(0);
     });
   });
 });
