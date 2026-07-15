@@ -46,33 +46,42 @@ module.exports = class ActivateBankFrick1784400000000 {
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
-    // Defensive: the INSERT below relies on the identity sequence. Resolve the sequence name at
-    // runtime via pg_get_serial_sequence (exactly as migration/seed/seed.js does) rather than
-    // assuming a literal 'bank_id_seq' - the production id sequence may not carry that name after the
-    // MSSQL->PG cutover, and a hard-coded name would make this prd-guarded migration crash on boot.
-    // Explicit-id inserts elsewhere are a known source of a lagging sequence; advance it past the
-    // highest id first so the insert can never collide (runbook §3.1).
+    // Defensive: the ON CONFLICT insert below can advance the identity sequence. Explicit-id inserts
+    // elsewhere are a known source of a lagging sequence, so advance it past the highest id first
+    // (GREATEST guard so it only ever moves forward, never backward into ids down() may have freed).
+    // This uses the named-sequence form from the authoritative prod runbook §3.1 ('bank_id_seq'), NOT
+    // pg_get_serial_sequence('bank','id'): after the MSSQL->PG cutover the prod sequence exists under
+    // that name but may not be OWNED BY the column, in which case pg_get_serial_sequence returns NULL
+    // and setval(NULL, ...) would crash this prd-guarded migration on boot. The local seed.js can use
+    // pg_get_serial_sequence because a TypeORM-created local schema owns the sequence; prod cannot rely
+    // on that.
     await queryRunner.query(
-      `SELECT setval(pg_get_serial_sequence('bank', 'id'), (SELECT COALESCE(MAX(id), 1) FROM "bank"))`,
+      `SELECT setval('bank_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM "bank"), (SELECT last_value FROM bank_id_seq)))`,
     );
 
     // sendPriority=500 makes Frick the primary sender for EUR+CHF (a full cutover from Olkypay/Yapeal,
     // whose backfilled priority is 1000); set 2000 to keep Frick fallback-only. Never 1000 - a
     // top-priority tie that includes Frick is treated as misconfiguration and throws in getPayoutAccount.
-    // Idempotent per IBAN via WHERE NOT EXISTS so a re-run cannot double-insert (the unique (iban, bic)
-    // index would otherwise throw). Both rows are ACTIVE: receive=true + send=true (send-only would
-    // deadlock reconciliation, see Bank.isReconcilable), sctInst=false, amlEnabled=true.
+    // Self-correcting via ON CONFLICT on the unique (iban, bic) index: whether the row is new or was
+    // pre-created inactive by the manual runbook §3.1 procedure (receive/send=false, sendPriority=2000),
+    // it converges to the intended ACTIVE state instead of silently no-op'ing. receive=true AND send=true
+    // (send-only would deadlock reconciliation, see Bank.isReconcilable); sctInst=false, amlEnabled=true.
+    // Re-runnable: a re-run re-applies the same active state.
     await queryRunner.query(`
       INSERT INTO "bank"
         ("updated", "created", "name", "iban", "bic", "currency", "receive", "send", "sctInst", "amlEnabled", "sendPriority")
-      SELECT NOW(), NOW(), 'Bank Frick', 'LI75088110105923K000E', 'BFRILI22', 'EUR', TRUE, TRUE, FALSE, TRUE, 500
-      WHERE NOT EXISTS (SELECT 1 FROM "bank" WHERE "iban" = 'LI75088110105923K000E')
+      VALUES (NOW(), NOW(), 'Bank Frick', 'LI75088110105923K000E', 'BFRILI22', 'EUR', TRUE, TRUE, FALSE, TRUE, 500)
+      ON CONFLICT ("iban", "bic") DO UPDATE SET
+        "name" = 'Bank Frick', "receive" = TRUE, "send" = TRUE, "sctInst" = FALSE,
+        "amlEnabled" = TRUE, "sendPriority" = 500, "updated" = NOW()
     `);
     await queryRunner.query(`
       INSERT INTO "bank"
         ("updated", "created", "name", "iban", "bic", "currency", "receive", "send", "sctInst", "amlEnabled", "sendPriority")
-      SELECT NOW(), NOW(), 'Bank Frick', 'LI32088110105923K000C', 'BFRILI22', 'CHF', TRUE, TRUE, FALSE, TRUE, 500
-      WHERE NOT EXISTS (SELECT 1 FROM "bank" WHERE "iban" = 'LI32088110105923K000C')
+      VALUES (NOW(), NOW(), 'Bank Frick', 'LI32088110105923K000C', 'BFRILI22', 'CHF', TRUE, TRUE, FALSE, TRUE, 500)
+      ON CONFLICT ("iban", "bic") DO UPDATE SET
+        "name" = 'Bank Frick', "receive" = TRUE, "send" = TRUE, "sctInst" = FALSE,
+        "amlEnabled" = TRUE, "sendPriority" = 500, "updated" = NOW()
     `);
 
     // Retire the dormant legacy Bank Frick rows so a (name, currency) lookup no longer collides
