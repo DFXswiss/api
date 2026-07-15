@@ -160,6 +160,18 @@ describe('LogJobService', () => {
       expect(result.minus.scrypt).toBeUndefined();
       expect(result.minus.mexc).toBeUndefined();
     });
+
+    it('flows the bank tx fee into minus.bank and the totals', async () => {
+      setupEmpty();
+      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([] as any);
+      jest.spyOn(bankTxService, 'getBankTxFee').mockResolvedValue(4196 as any);
+
+      const result = await (service as any).getChangeLog();
+
+      expect(result.minus.bank).toBe(4196);
+      expect(result.minus.total).toBe(4196);
+      expect(result.total).toBe(-4196);
+    });
   });
 
   describe('saveTradingLog (referral-credit liability)', () => {

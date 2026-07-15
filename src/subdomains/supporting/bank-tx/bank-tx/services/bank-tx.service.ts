@@ -9,7 +9,9 @@ import {
 } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Observable, Subject } from 'rxjs';
+import { Config } from 'src/config/config';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
+import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -26,6 +28,11 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { SpecialExternalAccount } from 'src/subdomains/supporting/payment/entities/special-external-account.entity';
 import { TransactionNotificationService } from 'src/subdomains/supporting/payment/services/transaction-notification.service';
+import {
+  PriceCurrency,
+  PriceValidity,
+  PricingService,
+} from 'src/subdomains/supporting/pricing/services/pricing.service';
 import {
   DeepPartial,
   FindOptionsRelations,
@@ -114,6 +121,8 @@ export class BankTxService implements OnModuleInit {
     private readonly virtualIbanService: VirtualIbanService,
     @Inject(forwardRef(() => TransactionNotificationService))
     private readonly transactionNotificationService: TransactionNotificationService,
+    private readonly pricingService: PricingService,
+    private readonly fiatService: FiatService,
   ) {}
 
   onModuleInit() {
@@ -430,6 +439,10 @@ export class BankTxService implements OnModuleInit {
     ]);
   }
 
+  // Bank fees come from two sources: legacy per-tx charges (chargeAmountChf) plus dedicated BankAccountFee rows.
+  // Charge fields ceased with the bank migration in Dec 2025; fees arrive as dedicated BankAccountFee rows since,
+  // carrying the amount in the account currency (no amountChf column), so they are aggregated per currency and
+  // converted to CHF.
   async getBankTxFee(from: Date): Promise<number> {
     const { fee } = await this.bankTxRepo
       .createQueryBuilder('bankTx')
@@ -437,7 +450,39 @@ export class BankTxService implements OnModuleInit {
       .where('bankTx.created >= :from', { from })
       .getRawOne<{ fee: number }>();
 
-    return fee ?? 0;
+    let totalFeeChf = fee ?? 0;
+
+    const feeRows = await this.bankTxRepo.findBy({
+      type: BankTxType.BANK_ACCOUNT_FEE,
+      created: MoreThanOrEqual(from),
+    });
+
+    const amountByCurrency = new Map<string, number>();
+    for (const tx of feeRows) {
+      let signedAmount: number;
+      if (tx.creditDebitIndicator === BankTxIndicator.DEBIT) {
+        signedAmount = +tx.amount;
+      } else if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
+        signedAmount = -tx.amount;
+      } else {
+        this.logger.error(
+          `BankAccountFee bankTx ${tx.id} has unexpected creditDebitIndicator ${tx.creditDebitIndicator}, skipping`,
+        );
+        continue;
+      }
+
+      amountByCurrency.set(tx.currency, (amountByCurrency.get(tx.currency) ?? 0) + signedAmount);
+    }
+
+    for (const [currency, amount] of amountByCurrency) {
+      if (!amount) continue;
+
+      const fiat = await this.fiatService.getFiatByName(currency);
+      const price = await this.pricingService.getPrice(fiat, PriceCurrency.CHF, PriceValidity.ANY);
+      totalFeeChf += price.convert(amount, Config.defaultVolumeDecimal);
+    }
+
+    return totalFeeChf;
   }
 
   async getRecentBankToBankTx(fromIban: string, toIban: string): Promise<BankTx[]> {
