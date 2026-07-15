@@ -19,7 +19,8 @@
  * up():
  *   1. prod guard (no-op elsewhere)
  *   2. lock_timeout
- *   3. bump `bank_id_seq` (runbook §3.1) so an identity insert can never collide with a lagging seq
+ *   3. advance the identity sequence (resolved via pg_get_serial_sequence, not a hard-coded name)
+ *      so an identity insert can never collide with a lagging seq (runbook §3.1)
  *   4. insert the two new Bank Frick rows (EUR/CHF) ACTIVE and idempotent per IBAN
  *   5. rename the dormant legacy Bank Frick rows to 'Bank Frick (legacy)' (runbook §3.2)
  *   6. seed `lastBankFrickDate:<newBankId>` per new row (runbook §1) so polling never starts at epoch
@@ -45,11 +46,14 @@ module.exports = class ActivateBankFrick1784400000000 {
 
     await queryRunner.query(`SET LOCAL lock_timeout = '5s'`);
 
-    // Defensive: the INSERT below relies on bank_id_seq via the identity column. Explicit-id inserts
-    // elsewhere (migration/seed/seed.js) are a known source of a lagging sequence; bump it first so
-    // the insert can never collide with a not-yet-advanced sequence (runbook §3.1).
+    // Defensive: the INSERT below relies on the identity sequence. Resolve the sequence name at
+    // runtime via pg_get_serial_sequence (exactly as migration/seed/seed.js does) rather than
+    // assuming a literal 'bank_id_seq' - the production id sequence may not carry that name after the
+    // MSSQL->PG cutover, and a hard-coded name would make this prd-guarded migration crash on boot.
+    // Explicit-id inserts elsewhere are a known source of a lagging sequence; advance it past the
+    // highest id first so the insert can never collide (runbook §3.1).
     await queryRunner.query(
-      `SELECT setval('bank_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM "bank"), (SELECT last_value FROM bank_id_seq)))`,
+      `SELECT setval(pg_get_serial_sequence('bank', 'id'), (SELECT COALESCE(MAX(id), 1) FROM "bank"))`,
     );
 
     // sendPriority=500 makes Frick the primary sender for EUR+CHF (a full cutover from Olkypay/Yapeal,
@@ -145,9 +149,15 @@ module.exports = class ActivateBankFrick1784400000000 {
       )::text, "updated" = NOW()
     `);
 
-    // Restore the legacy rows' name (runbook §3.2 rollback).
+    // Restore the legacy rows' name (runbook §3.2 rollback). Scoped symmetrically to up()'s rename
+    // (dormant rows only, excluding the two new IBANs) so it reverts exactly what up() renamed and
+    // never touches an unrelated, pre-existing '(legacy)'-named row.
     await queryRunner.query(`
-      UPDATE "bank" SET "name" = 'Bank Frick' WHERE "name" = 'Bank Frick (legacy)'
+      UPDATE "bank" SET "name" = 'Bank Frick'
+      WHERE "name" = 'Bank Frick (legacy)'
+        AND "receive" = false
+        AND "send" = false
+        AND "iban" NOT IN ('LI75088110105923K000E', 'LI32088110105923K000C')
     `);
 
     // Delete the seeded watermark settings BEFORE the bank rows - the key is derived from the bank id,
