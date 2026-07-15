@@ -37,8 +37,6 @@ describe('FeeService', () => {
     service = module.get<FeeService>(FeeService);
   });
 
-  // fee exceptions log the request for triage; the request carries full User/Wallet entities,
-  // so the log line must stay limited to identifying scalars (no address/signature/IP)
   describe('describeFeeRequest', () => {
     it('logs identifying scalars only, never entity internals', () => {
       const user = createCustomUser({

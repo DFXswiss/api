@@ -309,8 +309,6 @@ export class FeeService {
 
   // --- HELPER METHODS --- //
 
-  // A fee request carries full User/UserData/Wallet entities (address, signature, IP, ...) -
-  // log only identifying scalars, never the entities themselves.
   private describeFeeRequest(request: OptionalFeeRequest): string {
     return JSON.stringify({
       user: request.user?.id,

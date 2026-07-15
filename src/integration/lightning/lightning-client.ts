@@ -394,8 +394,6 @@ export class LightningClient implements CoinOnly {
       headers: {
         'X-Forwarded-Proto': 'https',
         Host: new URL(Config.url()).hostname,
-        // header instead of ?api-key= query param: LNbits logs request URLs in its access log,
-        // so a query-string key ends up in plaintext in the central logs
         'X-Api-Key': Config.blockchain.lightning.lnbits.apiKey,
       },
       params: { ...params },
