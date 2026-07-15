@@ -11,6 +11,7 @@ import * as processServiceModule from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
@@ -119,7 +120,7 @@ describe('BuyCryptoPreparationService', () => {
   }
 
   describe('screenScorechain (Scorechain AML gate)', () => {
-    const call = (entity: any): Promise<boolean> => (service as any).screenScorechain(entity);
+    const call = (entity: any): Promise<ScorechainOutcome> => (service as any).screenScorechain(entity);
 
     let apiKeyBackup: string | undefined;
 
@@ -151,7 +152,7 @@ describe('BuyCryptoPreparationService', () => {
       jest.spyOn(scorechainScreeningService, 'screenWithdrawalAddress').mockResolvedValue({} as any);
       jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
 
-      await expect(call(entity)).resolves.toBe(true);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
       expect(scorechainScreeningService.screenWithdrawalAddress).toHaveBeenCalledWith(Blockchain.ETHEREUM, '0xabc');
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
     });
@@ -163,7 +164,7 @@ describe('BuyCryptoPreparationService', () => {
       jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
       jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(false);
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalledWith(Blockchain.BITCOIN, 'txhash');
       expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
     });
@@ -175,7 +176,7 @@ describe('BuyCryptoPreparationService', () => {
       });
       jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('addr');
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
     });
 
@@ -186,7 +187,7 @@ describe('BuyCryptoPreparationService', () => {
       });
       jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue(undefined);
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
     });
 
@@ -198,7 +199,7 @@ describe('BuyCryptoPreparationService', () => {
       });
       jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('0xabc');
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
     });
 
@@ -210,11 +211,11 @@ describe('BuyCryptoPreparationService', () => {
       });
       jest.spyOn(entity, 'targetAddress', 'get').mockReturnValue('0xabc');
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenWithdrawalAddress).not.toHaveBeenCalled();
     });
 
-    it('fails closed to manual review (true) when the provider throws (outage / quota reached)', async () => {
+    it('fails closed to manual review (UNAVAILABLE) when the provider throws (outage / quota reached)', async () => {
       const entity = createCustomBuyCrypto({
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
@@ -222,7 +223,19 @@ describe('BuyCryptoPreparationService', () => {
         .spyOn(scorechainScreeningService, 'screenDepositTransaction')
         .mockRejectedValue(new Error('scorechain unavailable'));
 
-      await expect(call(entity)).resolves.toBe(true);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.UNAVAILABLE);
+    });
+
+    it('fails closed to UNAVAILABLE when isHighRisk throws (misconfigured risk threshold)', async () => {
+      const entity = createCustomBuyCrypto({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockImplementation(() => {
+        throw new Error('SCORECHAIN_RISK_THRESHOLD is not configured');
+      });
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.UNAVAILABLE);
     });
 
     it('stores a compliance report for a freshly-screened tx tied to a customer', async () => {

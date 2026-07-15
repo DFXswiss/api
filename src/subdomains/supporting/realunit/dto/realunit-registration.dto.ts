@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
   IsArray,
   IsBoolean,
   IsEmail,
@@ -17,6 +18,14 @@ import {
 import { Util } from 'src/shared/utils/util';
 import { KycPersonalData } from 'src/subdomains/generic/kyc/dto/input/kyc-data.dto';
 import { DfxPhoneTransform, IsDfxPhone } from 'src/subdomains/generic/user/models/user-data/is-dfx-phone.validator';
+
+// Bounds for the `user_data.tin` snapshot, which stores countryAndTINs as a JSON array of
+// {country, tin}. The column is varchar(1024); the bounded worst case (10 entries x 64-char TIN)
+// serializes to ~890 characters and therefore always fits. Keeping the three limits together makes
+// the DB invariant explicit instead of implicit in the JSON envelope arithmetic.
+export const MAX_TAX_RESIDENCES = 10;
+export const MAX_TIN_LENGTH = 64;
+export const MAX_SERIALIZED_TIN_LENGTH = 1024;
 
 export enum RealUnitUserType {
   HUMAN = 'HUMAN',
@@ -84,6 +93,11 @@ export class CountryAndTin {
   @ApiProperty({ description: 'Tax identification number' })
   @IsNotEmpty()
   @IsString()
+  @MaxLength(MAX_TIN_LENGTH)
+  // NOT Util.trim: class-transformer runs this before class-validator, so a non-string tin (e.g. a
+  // number) would make `value.trim()` throw a TypeError => HTTP 500 before @IsString can reject it as
+  // a 400. Trim only actual strings and let any other type fall through to @IsString.
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   tin: string;
 }
 
@@ -186,10 +200,24 @@ export class AktionariatRegistrationDto {
   @IsEnum(RealUnitLanguage)
   lang: RealUnitLanguage;
 
-  @ApiPropertyOptional({ type: [CountryAndTin], description: 'Required if swissTaxResidence is false' })
-  @ValidateIf((o: AktionariatRegistrationDto) => !o.swissTaxResidence)
+  @ApiPropertyOptional({
+    type: [CountryAndTin],
+    description:
+      'Tax residences with TINs for non-CH countries only (never CH — use swissTaxResidence). ' +
+      'Required when swissTaxResidence is false. Multi-residence TINs may also be sent when ' +
+      'swissTaxResidence is true (max 10 entries, each TIN max 64 chars). addressCountry must be ' +
+      'covered: CH via swissTaxResidence, any other country via an entry here.',
+  })
+  // Validate whenever the field is REQUIRED (no Swiss tax residence declared) OR whenever it is
+  // present at all. The previous condition (`!o.swissTaxResidence` alone) skipped EVERY validator —
+  // including @IsArray — as soon as swissTaxResidence was true, so a non-array body slipped through
+  // the pipe and crashed the service with a TypeError (HTTP 500 instead of 400).
+  @ValidateIf((o: AktionariatRegistrationDto) => !o.swissTaxResidence || o.countryAndTINs !== undefined)
   @IsNotEmpty({ message: 'countryAndTINs is required when swissTaxResidence is false' })
   @IsArray()
+  @ArrayMaxSize(MAX_TAX_RESIDENCES, {
+    message: `countryAndTINs must not contain more than ${MAX_TAX_RESIDENCES} entries`,
+  })
   @ValidateNested({ each: true })
   @Type(() => CountryAndTin)
   countryAndTINs?: CountryAndTin[];

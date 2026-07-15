@@ -5,7 +5,9 @@ import {
   BitcoinTestnet4NodeType,
   BitcoinTestnet4Service,
 } from 'src/integration/blockchain/bitcoin-testnet4/bitcoin-testnet4.service';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { PayoutOrderContext } from '../entities/payout-order.entity';
+import { PayoutBroadcastException } from '../exceptions/payout-broadcast.exception';
 import { PayoutBitcoinBasedService, PayoutGroup } from './base/payout-bitcoin-based.service';
 
 @Injectable()
@@ -28,7 +30,13 @@ export class PayoutBitcoinTestnet4Service extends PayoutBitcoinBasedService {
 
   async sendUtxoToMany(_context: PayoutOrderContext, payout: PayoutGroup): Promise<string> {
     const feeRate = await this.getCurrentFeeRate();
-    return this.client.sendMany(payout, feeRate);
+
+    try {
+      return await this.client.sendMany(payout, feeRate);
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw new PayoutBroadcastException(e.message, { cause: e });
+      throw e;
+    }
   }
 
   async getPayoutCompletionData(_context: PayoutOrderContext, payoutTxId: string): Promise<[boolean, number]> {

@@ -90,6 +90,9 @@ import {
 import { RealUnitDtoMapper } from './dto/realunit-dto.mapper';
 import {
   AktionariatRegistrationDto,
+  MAX_SERIALIZED_TIN_LENGTH,
+  MAX_TAX_RESIDENCES,
+  MAX_TIN_LENGTH,
   RealUnitEmailRegistrationDto,
   RealUnitEmailRegistrationStatus,
   RealUnitLanguage,
@@ -745,7 +748,19 @@ export class RealUnitService {
       dto.walletAddress,
     );
     if (isForCurrentWallet) {
-      return this.idempotentRegistrationResult(userData, existingRegistration!, dto.signature);
+      // Signature check FIRST: idempotentRegistrationResult rejects a mismatching signature with a 400,
+      // and a request that is about to be rejected must not have mutated the database on its way out.
+      const status = await this.idempotentRegistrationResult(userData, existingRegistration!, dto.signature);
+
+      // The snapshot follows the event of record, never the request body. countryAndTINs is NOT part of
+      // the EIP-712 envelope, so a replay could otherwise rewrite user_data.tin to something that was
+      // never registered with Aktionariat. Syncing from the durable registration row also self-heals a
+      // retry whose forward succeeded but whose tin audit write failed.
+      const registrationData = this.toRegistrationDto(existingRegistration!);
+      if (!registrationData) throw new BadRequestException('Invalid registration data');
+      await this.persistUserDataTinAfterRegistration(userData, registrationData);
+
+      return status;
     }
 
     // validate personal data
@@ -754,20 +769,24 @@ export class RealUnitService {
       throw new BadRequestException('Personal data does not match existing data');
     }
 
-    // save personal data
+    // Personal data first (first-time only). TINs are intentionally NOT written here:
+    // user_data.tin is only updated AFTER the registration row is durable so every change
+    // is recoverable (see persistUserDataTinAfterRegistration).
     if (!hasExistingData) {
       await this.userDataService.updatePersonalData(userData, dto.kycData);
       await this.userDataService.updateUserDataInternal(userData, {
         nationality: await this.countryService.getCountryWithSymbol(dto.nationality),
         birthday: new Date(dto.birthday),
         language: dto.lang && (await this.languageService.getLanguageBySymbol(dto.lang)),
-        tin: dto.countryAndTINs?.length ? JSON.stringify(dto.countryAndTINs) : undefined,
       });
     }
 
-    // forward to Aktionariat (persists the single-source-of-truth registration row in both branches)
+    // forward to Aktionariat (persists the single-source-of-truth registration row in both branches).
+    // signedPayload carries countryAndTINs for this event; superseded rows stay queryable.
     const success = await this.forwardRegistration(userData, dto);
     if (!success) return RealUnitRegistrationStatus.FORWARDING_FAILED;
+
+    await this.persistUserDataTinAfterRegistration(userData, dto);
 
     return RealUnitRegistrationStatus.COMPLETED;
   }
@@ -885,6 +904,125 @@ export class RealUnitService {
     }
   }
 
+  // Residence country (addressCountry) must appear among the declared tax residences.
+  // CH is covered ONLY by `swissTaxResidence === true` — never via countryAndTINs (CH has no
+  // TIN in this contract). Non-CH countries are covered by a countryAndTINs entry with a
+  // non-empty TIN. Additional tax countries beyond the address country are allowed.
+  private validateTaxResidenceCoversAddress(dto: RealUnitRegistrationDto): void {
+    const entries = dto.countryAndTINs ?? [];
+
+    // Defense in depth: the DTO enforces this too, but the service must never index into a non-array.
+    // A non-array body used to reach here (the DTO's @ValidateIf skipped @IsArray whenever
+    // swissTaxResidence was true) and crashed with a TypeError => HTTP 500 instead of a 400.
+    if (!Array.isArray(entries)) {
+      throw new BadRequestException('countryAndTINs must be an array');
+    }
+
+    if (entries.length > MAX_TAX_RESIDENCES) {
+      throw new BadRequestException(`countryAndTINs must not contain more than ${MAX_TAX_RESIDENCES} entries`);
+    }
+
+    if (entries.some((e) => e.country === 'CH')) {
+      throw new BadRequestException(
+        'countryAndTINs must not include CH; set swissTaxResidence for Swiss tax residence',
+      );
+    }
+
+    // Nested shape is also enforced here so multi-residence entries stay valid when
+    // swissTaxResidence is true (DTO @ValidateIf historically skipped nested checks then).
+    for (const entry of entries) {
+      if (typeof entry.country !== 'string' || !/^[A-Z]{2}$/.test(entry.country)) {
+        throw new BadRequestException('countryAndTINs.country must be a 2-letter country code');
+      }
+      if (typeof entry.tin !== 'string' || !entry.tin.trim()) {
+        throw new BadRequestException('countryAndTINs.tin must be a non-empty string');
+      }
+      if (entry.tin.length > MAX_TIN_LENGTH) {
+        throw new BadRequestException(`countryAndTINs.tin must not exceed ${MAX_TIN_LENGTH} characters`);
+      }
+    }
+
+    const tinCountries = entries.map((e) => e.country);
+    if (new Set(tinCountries).size !== tinCountries.length) {
+      throw new BadRequestException('countryAndTINs must not contain duplicate countries');
+    }
+
+    if (!dto.swissTaxResidence && entries.length === 0) {
+      throw new BadRequestException('countryAndTINs is required when swissTaxResidence is false');
+    }
+
+    const taxCountries = new Set(tinCountries);
+    if (dto.swissTaxResidence) taxCountries.add('CH');
+
+    if (!taxCountries.has(dto.addressCountry)) {
+      throw new BadRequestException(`Tax residence must include the residence country (${dto.addressCountry})`);
+    }
+
+    // Fail closed BEFORE anything is forwarded. user_data.tin is a bounded column and is written only
+    // AFTER forwardRegistration has persisted the registration — an oversized payload must therefore be
+    // rejected here with a 400, never blow up as a 500 on a registration that is already durable.
+    const serialized = this.serializeCountryAndTins(entries);
+    if (serialized && serialized.length > MAX_SERIALIZED_TIN_LENGTH) {
+      throw new BadRequestException('countryAndTINs is too large');
+    }
+  }
+
+  // Canonical shape for user_data.tin: JSON array of {country, tin}, or null when the
+  // submission carries no non-CH tax residences (Swiss-only / empty).
+  private serializeCountryAndTins(entries: { country: string; tin: string }[] | undefined): string | null {
+    return entries?.length ? JSON.stringify(entries) : null;
+  }
+
+  // DFX data rule: overwriting a DB value is only allowed when the previous value remains
+  // recoverable. Tax residences are therefore dual-stored:
+  //   1) aktionariat_registration.signedPayload — immutable event log (superseded rows kept)
+  //   2) user_data.tin — current snapshot for queries
+  // This method runs ONLY after forwardRegistration has persisted (1). It never silently
+  // destroys a non-null previous tin by writing null (Swiss-only submissions omit
+  // countryAndTINs from the new payload, so nulling would lose prior foreign TINs).
+  // Every actual mutation is audited with before→after before the column is updated.
+  private async persistUserDataTinAfterRegistration(userData: UserData, dto: RealUnitRegistrationDto): Promise<void> {
+    const previousTin = userData.tin ?? null;
+    const nextTin = this.serializeCountryAndTins(dto.countryAndTINs);
+
+    if (previousTin === nextTin) return;
+
+    // Never clear a stored TIN set to null — that would drop recoverable history from
+    // user_data without placing those TINs on the new registration row (Swiss-only payload).
+    // Prior foreign TINs stay on user_data until a new non-empty set is submitted; each
+    // registration event remains on aktionariat_registration (active + superseded).
+    if (nextTin === null && previousTin != null) {
+      return;
+    }
+
+    // Fail closed on audit: do not overwrite until the before→after event is written.
+    await this.logUserDataTinChange(userData.id, dto.walletAddress, previousTin, nextTin);
+    await this.userDataService.updateUserDataInternal(userData, { tin: nextTin });
+  }
+
+  private async logUserDataTinChange(
+    userDataId: number,
+    walletAddress: string,
+    previousTin: string | null,
+    nextTin: string | null,
+  ): Promise<void> {
+    await this.logService.create({
+      system: 'RealUnit',
+      subsystem: 'UserDataTin',
+      severity: LogSeverity.INFO,
+      message: JSON.stringify({
+        action: 'user_data.tin change',
+        userDataId,
+        walletAddress,
+        previousTin,
+        nextTin,
+        changedAt: new Date().toISOString(),
+      }),
+      category: String(userDataId),
+      valid: null,
+    });
+  }
+
   private async validateRegistrationDto(dto: RealUnitRegistrationDto): Promise<void> {
     // signature validation
     if (!this.verifyRealUnitRegistrationSignature(dto)) {
@@ -902,6 +1040,13 @@ export class RealUnitService {
     const maxAge = new Date(now);
     maxAge.setFullYear(maxAge.getFullYear() - 140);
     if (birthday < maxAge) throw new BadRequestException('Birthday cannot be more than 140 years ago');
+
+    // Tax residence must cover the residence (address) country. `swissTaxResidence`
+    // counts as CH; each `countryAndTINs` entry covers its country code. Multi-
+    // residence is allowed (additional countries beyond the address country), but
+    // the address country itself is mandatory among the declared tax residences —
+    // e.g. living in DE requires a DE tax-residence entry (with TIN).
+    this.validateTaxResidenceCoversAddress(dto);
 
     // data validation
     if (dto.kycData.accountType === AccountType.ORGANIZATION) {
@@ -1143,6 +1288,52 @@ export class RealUnitService {
     return userDataDto as RealUnitUserDataDto;
   }
 
+  // user_data.tin is written exclusively by persistUserDataTinAfterRegistration, as a JSON array of
+  // {country, tin} with no CH entry. A malformed or contract-violating legacy value must not take this
+  // prefill down: GET registration-info is the only channel through which the user can submit a
+  // CORRECTED declaration, so throwing here would lock the account out of the very fix it needs. The
+  // bad value is therefore dropped LOUDLY (error log, no PII) and the prefill degrades to "no known tax
+  // residences" — it never hands the client back a payload that validateTaxResidenceCoversAddress would
+  // reject.
+  private parseStoredTin(userData: UserData): { country: string; tin: string }[] {
+    if (!userData.tin) return [];
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(userData.tin);
+    } catch {
+      this.logger.error(
+        `Malformed user_data.tin for userData ${userData.id}: not valid JSON — prefill degraded to empty`,
+      );
+      return [];
+    }
+
+    if (!Array.isArray(parsed)) {
+      this.logger.error(
+        `Malformed user_data.tin for userData ${userData.id}: not an array — prefill degraded to empty`,
+      );
+      return [];
+    }
+
+    const entries = parsed.filter(
+      (e): e is { country: string; tin: string } =>
+        !!e &&
+        typeof e.country === 'string' &&
+        /^[A-Z]{2}$/.test(e.country) &&
+        e.country !== 'CH' &&
+        typeof e.tin === 'string' &&
+        !!e.tin.trim(),
+    );
+
+    if (entries.length !== parsed.length) {
+      this.logger.error(
+        `user_data.tin for userData ${userData.id} contains ${parsed.length - entries.length} entr(ies) violating the registration contract — dropped from the prefill`,
+      );
+    }
+
+    return entries;
+  }
+
   // Pre-fill source for first-time RealUnit registrations: maps the user's existing DFX KYC data into
   // the Aktionariat-shaped DTO. The corresponding `completeRegistration` validation
   // (`isPersonalDataMatching`) compares the submitted KycPersonalData/address against the same
@@ -1154,7 +1345,7 @@ export class RealUnitService {
 
     const lang = Object.values(RealUnitLanguage).find((l) => l === userData.language?.symbol?.toUpperCase());
     const addressStreet = [userData.street, userData.houseNumber].filter((s) => s).join(' ');
-    const tinEntries: { country: string; tin: string }[] = userData.tin ? JSON.parse(userData.tin) : [];
+    const tinEntries = this.parseStoredTin(userData);
 
     return {
       email: userData.mail ?? '',
@@ -1167,8 +1358,10 @@ export class RealUnitService {
       addressPostalCode: userData.zip ?? '',
       addressCity: userData.location ?? '',
       addressCountry: userData.country?.symbol ?? '',
-      // Swiss tax residence cannot be derived from KYC data alone; default to the country-of-residence
-      // signal so a CH-resident pre-fills the common case. The user can still override before signing.
+      // Default Swiss tax residence from the country-of-residence signal so a CH-resident
+      // pre-fills the common case. The signed payload must still cover addressCountry among
+      // the declared tax residences (swissTaxResidence and/or countryAndTINs) — see
+      // validateTaxResidenceCoversAddress.
       swissTaxResidence: userData.country?.symbol === 'CH',
       lang: lang ?? RealUnitLanguage.EN,
       countryAndTINs: tinEntries.length ? tinEntries : undefined,

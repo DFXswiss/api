@@ -39,6 +39,7 @@ import { PriceCurrency } from 'src/subdomains/supporting/pricing/services/pricin
 import { Column, Entity, Index, JoinColumn, ManyToOne, OneToOne } from 'typeorm';
 import { AmlReason } from '../../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../../aml/enums/check-status.enum';
+import { ScorechainOutcome } from '../../../aml/enums/scorechain-outcome.enum';
 import { Buy } from '../../routes/buy/buy.entity';
 import { BuyCryptoBatch } from './buy-crypto-batch.entity';
 import { BuyCryptoFee } from './buy-crypto-fees.entity';
@@ -682,9 +683,9 @@ export class BuyCrypto extends IEntity {
     ipLogCountries?: string[],
     virtualIban?: VirtualIban,
     multiAccountBankNames?: string[],
-    screenScorechain?: () => Promise<boolean>,
+    screenScorechain?: () => Promise<ScorechainOutcome>,
   ): Promise<UpdateResult<BuyCrypto>> {
-    const computeAmlResult = (scorechainHighRisk: boolean) =>
+    const computeAmlResult = (scorechainOutcome: ScorechainOutcome) =>
       AmlHelperService.getAmlResult(
         this,
         inputAsset,
@@ -703,13 +704,16 @@ export class BuyCrypto extends IEntity {
         ipLogCountries,
         virtualIban,
         multiAccountBankNames,
-        scorechainHighRisk,
+        scorechainOutcome,
       );
 
-    let amlResult = computeAmlResult(false);
+    let amlResult = computeAmlResult(ScorechainOutcome.PASS);
+
     // Run the (billable) Scorechain screening only when the tx would otherwise PASS.
-    if (screenScorechain && amlResult.amlCheck === CheckStatus.PASS && (await screenScorechain()))
-      amlResult = computeAmlResult(true);
+    if (screenScorechain && amlResult.amlCheck === CheckStatus.PASS) {
+      const scorechainOutcome = await screenScorechain();
+      if (scorechainOutcome !== ScorechainOutcome.PASS) amlResult = computeAmlResult(scorechainOutcome);
+    }
 
     const update: Partial<BuyCrypto> = {
       ...amlResult,

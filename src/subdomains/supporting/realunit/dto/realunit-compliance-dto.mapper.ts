@@ -49,9 +49,10 @@ interface RealUnitDossierSlices {
 export class RealUnitComplianceDtoMapper {
   // --- CUSTOMER --- //
 
-  static toCustomerListDto(userData: UserData): RealUnitCustomerListDto {
+  static toCustomerListDto(userData: UserData, balance?: number): RealUnitCustomerListDto {
     return {
       id: userData.id,
+      balance,
       kycStatus: userData.kycStatus,
       kycLevel: userData.kycLevel,
       accountType: userData.accountType,
@@ -60,9 +61,14 @@ export class RealUnitComplianceDtoMapper {
     };
   }
 
-  static toCustomerDetailDto(userData: UserData, slices: RealUnitDossierSlices): RealUnitCustomerDetailDto {
+  static toCustomerDetailDto(
+    userData: UserData,
+    balance: number | undefined,
+    slices: RealUnitDossierSlices,
+  ): RealUnitCustomerDetailDto {
     return {
       id: userData.id,
+      balance,
       created: userData.created,
       accountType: userData.accountType,
       mail: userData.mail,

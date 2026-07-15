@@ -3,6 +3,7 @@ import { IcpLedgerCanister } from '@dfinity/ledger-icp';
 import { IcrcLedgerCanister } from '@dfinity/ledger-icrc';
 import { Principal } from '@dfinity/principal';
 import { Config, GetConfig } from 'src/config/config';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { HttpService } from 'src/shared/services/http.service';
@@ -368,15 +369,24 @@ export class InternetComputerClient extends BlockchainClient {
     const agent = wallet.getAgent(this.host);
     const ledger = IcpLedgerCanister.create({ agent });
 
-    const blockIndex = await ledger.icrc1Transfer({
+    // Pre-broadcast: build/validate the request (Principal parsing, amount conversion) OUTSIDE the
+    // broadcast boundary so a malformed address fails as a plain, provably-pre-send error.
+    const transferArgs: Parameters<typeof ledger.icrc1Transfer>[0] = {
       to: {
         owner: Principal.fromText(toAddress),
         subaccount: [],
       },
       amount: InternetComputerUtil.toSmallestUnit(amount),
-    });
+    };
 
-    return blockIndex.toString();
+    // Broadcast boundary: an ICP update call is ambiguous once sent - the IC boundary node may have
+    // already accepted/routed it before a network error surfaces here.
+    try {
+      const blockIndex = await ledger.icrc1Transfer(transferArgs);
+      return blockIndex.toString();
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   // --- Send token ---
@@ -415,15 +425,22 @@ export class InternetComputerClient extends BlockchainClient {
       canisterId: Principal.fromText(canisterId),
     });
 
-    const blockIndex = await tokenLedger.transfer({
+    // Pre-broadcast: build/validate the request OUTSIDE the broadcast boundary (see sendNativeCoin).
+    const transferArgs: Parameters<typeof tokenLedger.transfer>[0] = {
       to: {
         owner: Principal.fromText(toAddress),
         subaccount: [],
       },
       amount: InternetComputerUtil.toSmallestUnit(amount, token.decimals),
-    });
+    };
 
-    return `${canisterId}:${blockIndex}`;
+    // Broadcast boundary: see sendNativeCoin.
+    try {
+      const blockIndex = await tokenLedger.transfer(transferArgs);
+      return `${canisterId}:${blockIndex}`;
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   // --- ICRC-2 Approve/TransferFrom ---

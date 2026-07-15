@@ -8,6 +8,7 @@ import * as processServiceModule from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
+import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { CustodyOrderService } from 'src/subdomains/core/custody/services/custody-order.service';
@@ -106,7 +107,7 @@ describe('BuyFiatPreparationService', () => {
   }
 
   describe('screenScorechain (Scorechain AML gate)', () => {
-    const call = (entity: any): Promise<boolean> => (service as any).screenScorechain(entity);
+    const call = (entity: any): Promise<ScorechainOutcome> => (service as any).screenScorechain(entity);
 
     let apiKeyBackup: string | undefined;
 
@@ -136,7 +137,7 @@ describe('BuyFiatPreparationService', () => {
       jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
       jest.spyOn(scorechainScreeningService, 'isHighRisk').mockReturnValue(true);
 
-      await expect(call(entity)).resolves.toBe(true);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.HIGH_RISK);
       expect(scorechainScreeningService.screenDepositTransaction).toHaveBeenCalledWith(Blockchain.BITCOIN, 'txhash');
     });
 
@@ -145,7 +146,7 @@ describe('BuyFiatPreparationService', () => {
         cryptoInput: { asset: { blockchain: Blockchain.MONERO }, inTxId: 'txhash' } as any,
       });
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
     });
 
@@ -154,7 +155,7 @@ describe('BuyFiatPreparationService', () => {
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: undefined } as any,
       });
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
     });
 
@@ -164,7 +165,7 @@ describe('BuyFiatPreparationService', () => {
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
     });
 
@@ -174,11 +175,11 @@ describe('BuyFiatPreparationService', () => {
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
 
-      await expect(call(entity)).resolves.toBe(false);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.PASS);
       expect(scorechainScreeningService.screenDepositTransaction).not.toHaveBeenCalled();
     });
 
-    it('fails closed to manual review (true) when the provider throws (outage / quota reached)', async () => {
+    it('fails closed to manual review (UNAVAILABLE) when the provider throws (outage / quota reached)', async () => {
       const entity = createCustomBuyFiat({
         cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
       });
@@ -186,7 +187,19 @@ describe('BuyFiatPreparationService', () => {
         .spyOn(scorechainScreeningService, 'screenDepositTransaction')
         .mockRejectedValue(new Error('scorechain unavailable'));
 
-      await expect(call(entity)).resolves.toBe(true);
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.UNAVAILABLE);
+    });
+
+    it('fails closed to UNAVAILABLE when isHighRisk throws (misconfigured risk threshold)', async () => {
+      const entity = createCustomBuyFiat({
+        cryptoInput: { asset: { blockchain: Blockchain.BITCOIN }, inTxId: 'txhash' } as any,
+      });
+      jest.spyOn(scorechainScreeningService, 'screenDepositTransaction').mockResolvedValue({} as any);
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockImplementation(() => {
+        throw new Error('SCORECHAIN_RISK_THRESHOLD is not configured');
+      });
+
+      await expect(call(entity)).resolves.toBe(ScorechainOutcome.UNAVAILABLE);
     });
 
     it('stores a compliance report for a freshly-screened deposit tied to a customer', async () => {

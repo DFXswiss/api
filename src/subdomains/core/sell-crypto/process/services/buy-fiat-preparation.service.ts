@@ -9,6 +9,7 @@ import { DisabledProcess, Process } from 'src/shared/services/process.service';
 import { AmountType, Util } from 'src/shared/utils/util';
 import { AmlSourceType } from 'src/subdomains/core/aml/entities/transaction-aml-check.entity';
 import { BlockAmlReasons } from 'src/subdomains/core/aml/enums/aml-reason.enum';
+import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AmlService } from 'src/subdomains/core/aml/services/aml.service';
 import { TransactionAmlCheckService } from 'src/subdomains/core/aml/services/transaction-aml-check.service';
 import { CustodyOrderStatus } from 'src/subdomains/core/custody/enums/custody';
@@ -64,15 +65,15 @@ export class BuyFiatPreparationService {
   // Scorechain on-chain screening for the sell/BuyFiat AML gate: screens the incoming crypto deposit
   // tx. Chains Scorechain does not cover yield no signal (the other AML mechanisms apply). isHighRisk
   // is fail-closed (invalid signature / no coverage / unsupported → high risk).
-  private async screenScorechain(entity: BuyFiat): Promise<boolean> {
+  private async screenScorechain(entity: BuyFiat): Promise<ScorechainOutcome> {
     // Feature gate / kill-switch: when Scorechain is disabled or unconfigured (no API key), emit no
     // signal so the tx is decided by the other AML mechanisms. This is the deliberate off-state and
     // must never route an unscreened-because-off tx to manual review.
-    if (DisabledProcess(Process.SCORECHAIN) || !Config.scorechain.apiKey) return false;
+    if (DisabledProcess(Process.SCORECHAIN) || !Config.scorechain.apiKey) return ScorechainOutcome.PASS;
 
     const blockchain = entity.cryptoInput?.asset.blockchain;
     const txHash = entity.cryptoInput?.inTxId;
-    if (!txHash || !toScorechainBlockchain(blockchain)) return false;
+    if (!txHash || !toScorechainBlockchain(blockchain)) return ScorechainOutcome.PASS;
 
     try {
       const screening = await this.scorechainScreeningService.screenDepositTransaction(blockchain, txHash);
@@ -82,13 +83,18 @@ export class BuyFiatPreparationService {
       if (screening.isNewlyScreened && entity.userData)
         await this.scorechainDocumentService.createScreeningReport(entity.userData, screening);
 
-      return this.scorechainScreeningService.isHighRisk(screening);
+      return this.scorechainScreeningService.isHighRisk(screening)
+        ? ScorechainOutcome.HIGH_RISK
+        : ScorechainOutcome.PASS;
     } catch (e) {
       // Fail-closed to manual review: a provider/transport error or a reached monthly quota must not
       // throw out of the AML computation (which would silently stall settlement of every otherwise-
-      // passing tx on every cron run). Treat it as high risk → SCORECHAIN_HIGH_RISK → PENDING.
-      this.logger.error(`Scorechain screening failed for buy-fiat ${entity.id}, routing to manual review:`, e);
-      return true;
+      // passing tx on every cron run).
+      // Classify as UNAVAILABLE, never HIGH_RISK: no risk verdict could be established. A transport or quota
+      // error leaves no screening row and no compliance PDF at all; a missing risk threshold throws only
+      // after both have been persisted. In neither case may the tx be recorded as an actual Scorechain hit.
+      this.logger.error(`Scorechain screening unavailable for buy-fiat ${entity.id}, routing to manual review:`, e);
+      return ScorechainOutcome.UNAVAILABLE;
     }
   }
 

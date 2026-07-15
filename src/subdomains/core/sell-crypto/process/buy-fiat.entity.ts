@@ -28,6 +28,7 @@ import { FiatOutput } from '../../../supporting/fiat-output/fiat-output.entity';
 import { Transaction } from '../../../supporting/payment/entities/transaction.entity';
 import { AmlReason } from '../../aml/enums/aml-reason.enum';
 import { CheckStatus } from '../../aml/enums/check-status.enum';
+import { ScorechainOutcome } from '../../aml/enums/scorechain-outcome.enum';
 import { AmlHelperService } from '../../aml/services/aml-helper.service';
 import { PaymentLinkPayment } from '../../payment-link/entities/payment-link-payment.entity';
 import { Sell } from '../route/sell.entity';
@@ -471,9 +472,9 @@ export class BuyFiat extends IEntity {
     ibanCountry: Country,
     refUser?: User,
     recommender?: UserData,
-    screenScorechain?: () => Promise<boolean>,
+    screenScorechain?: () => Promise<ScorechainOutcome>,
   ): Promise<UpdateResult<BuyFiat>> {
-    const computeAmlResult = (scorechainHighRisk: boolean) =>
+    const computeAmlResult = (scorechainOutcome: ScorechainOutcome) =>
       AmlHelperService.getAmlResult(
         this,
         inputAsset,
@@ -492,13 +493,16 @@ export class BuyFiat extends IEntity {
         undefined,
         undefined,
         undefined,
-        scorechainHighRisk,
+        scorechainOutcome,
       );
 
-    let amlResult = computeAmlResult(false);
+    let amlResult = computeAmlResult(ScorechainOutcome.PASS);
+
     // Run the (billable) Scorechain screening only when the tx would otherwise PASS.
-    if (screenScorechain && amlResult.amlCheck === CheckStatus.PASS && (await screenScorechain()))
-      amlResult = computeAmlResult(true);
+    if (screenScorechain && amlResult.amlCheck === CheckStatus.PASS) {
+      const scorechainOutcome = await screenScorechain();
+      if (scorechainOutcome !== ScorechainOutcome.PASS) amlResult = computeAmlResult(scorechainOutcome);
+    }
 
     const update: Partial<BuyFiat> = {
       ...amlResult,

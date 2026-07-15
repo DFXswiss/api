@@ -7,6 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
+import { TxBroadcastError } from '../shared/errors/tx-broadcast.error';
 import { BlockchainClient, BlockchainToken } from '../shared/util/blockchain-client';
 import {
   ZanoAddressDto,
@@ -251,6 +252,11 @@ export class ZanoClient extends BlockchainClient {
     return this.doSendTransfer(payout, payoutAmount, token.decimals, token.chainId);
   }
 
+  // Broadcast boundary: the wallet RPC's 'transfer' method builds, signs and relays the tx
+  // atomically in one call - there is no separate pre-broadcast step. A failure of the HTTP call
+  // itself or a response missing tx_details are both ambiguous (the wallet may have already
+  // relayed before the response was lost/rejected), mirroring the Solana sendTransaction boundary
+  // (result.error / empty hash -> TxBroadcastError).
   private async doSendTransfer(
     payout: PayoutGroup,
     payoutAmount: number,
@@ -271,15 +277,23 @@ export class ZanoClient extends BlockchainClient {
       service_entries: [],
     });
 
-    return this.http
-      .post<{
+    try {
+      const response = await this.http.post<{
         result: { tx_details: { tx_hash: string } };
-      }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, transferParams)
-      .then((r) => this.createSendTransferResult(payoutAmount, r));
+      }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, transferParams);
+
+      // Response mapping stays inside the boundary: a malformed/empty body throwing while reading
+      // response.result would otherwise be a plain error and self-heal a possibly-relayed transfer.
+      return this.createSendTransferResult(payoutAmount, response);
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw e;
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   private createSendTransferResult(payoutAmount: number, response?: any): ZanoSendTransferResultDto {
-    if (!response.result?.tx_details) throw new Error(`Transfer not sent: response was ${JSON.stringify(response)}`);
+    if (!response.result?.tx_details)
+      throw new TxBroadcastError(`Transfer not sent: response was ${JSON.stringify(response)}`);
 
     return {
       txId: response.result.tx_details.tx_hash,
