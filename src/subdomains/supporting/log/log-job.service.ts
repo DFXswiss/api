@@ -129,9 +129,6 @@ export class LogJobService {
       const refCreditLiability = await this.getRefCreditLiability();
       if (refCreditLiability) balancesByFinancialType[REF_CREDIT_FINANCIAL_TYPE] = refCreditLiability;
 
-      // changes
-      const changeLog = await this.getChangeLog();
-
       // total balances — customer flow is balance-neutral, so totalBalanceChf moves only on
       // operating profit, FX, or an error/realised loss (see BalancesTotal). Hence the guardrails below.
       const plusBalanceChf = Util.sumObjValue(Object.values(balancesByFinancialType), 'plusBalanceChf');
@@ -190,14 +187,24 @@ export class LogJobService {
         category: null,
       });
 
-      await this.logService.create({
-        system: 'LogService',
-        subsystem: 'FinancialChangesLog',
-        severity: LogSeverity.INFO,
-        message: JSON.stringify({ changes: changeLog }),
-        valid: null,
-        category: null,
-      });
+      // The changeLog feeds only the informative FinancialChangesLog and is independent of the equity
+      // path above, so it runs in its own try/catch: a reporting-price failure must not arm the equity
+      // safety mode; the equity path above has already run and set it correctly. On failure we log the
+      // error and omit this minute's changes entry (absence instead of a wrong value).
+      try {
+        const changeLog = await this.getChangeLog();
+
+        await this.logService.create({
+          system: 'LogService',
+          subsystem: 'FinancialChangesLog',
+          severity: LogSeverity.INFO,
+          message: JSON.stringify({ changes: changeLog }),
+          valid: null,
+          category: null,
+        });
+      } catch (e) {
+        this.logger.error("Failed to build the financial changes log; skipping this minute's changes entry", e);
+      }
     } catch (e) {
       await this.processService.setSafetyModeActive(true);
       throw e;

@@ -18,12 +18,18 @@ import { TransactionService } from 'src/subdomains/supporting/payment/services/t
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { BankTxRepeatService } from '../../bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx-return/bank-tx-return.service';
-import { createCustomBankTx } from '../__mocks__/bank-tx.entity.mock';
-import { BankTx, BankTxIndicator, BankTxType } from '../entities/bank-tx.entity';
+import { BankTxIndicator } from '../entities/bank-tx.entity';
 import { BankTxBatchRepository } from '../repositories/bank-tx-batch.repository';
 import { BankTxRepository } from '../repositories/bank-tx.repository';
 import { BankTxService } from '../services/bank-tx.service';
 import { SepaParser } from '../services/sepa-parser.service';
+
+// one raw aggregate row as returned by the GROUP BY currency, creditDebitIndicator query
+interface FeeAggregate {
+  currency: string;
+  creditDebitIndicator: BankTxIndicator;
+  amount: string; // Postgres returns SUM() as a string
+}
 
 describe('BankTxService', () => {
   let service: BankTxService;
@@ -36,6 +42,11 @@ describe('BankTxService', () => {
 
   const from = new Date('2026-07-01');
 
+  // Distinct per-currency CHF prices. Price.convert divides the amount by the price
+  // (getPrice(fiat, CHF).convert(x) = x / price), so a wrong currency->price mapping or an
+  // inverted (multiply) direction produces a different total and turns these tests red.
+  const chfPriceByCurrency: Record<string, number> = { EUR: 0.8, USD: 2 };
+
   beforeAll(() => {
     new ConfigService(); // sets module-level Config (defaultVolumeDecimal read by the CHF conversion)
   });
@@ -47,8 +58,18 @@ describe('BankTxService', () => {
     pricingService = createMock<PricingService>();
     fiatService = createMock<FiatService>();
 
-    // legacy chargeAmountChf sum query builder
-    qb = { select: jest.fn(() => qb), where: jest.fn(() => qb), getRawOne: jest.fn() };
+    // one chainable query builder mock serves both queries: the legacy chargeAmountChf sum
+    // (getRawOne) and the per-currency/direction BankAccountFee aggregation (getRawMany).
+    qb = {
+      select: jest.fn(() => qb),
+      addSelect: jest.fn(() => qb),
+      where: jest.fn(() => qb),
+      andWhere: jest.fn(() => qb),
+      groupBy: jest.fn(() => qb),
+      addGroupBy: jest.fn(() => qb),
+      getRawOne: jest.fn(),
+      getRawMany: jest.fn(),
+    };
     (bankTxRepo.createQueryBuilder as jest.Mock).mockReturnValue(qb);
 
     (fiatService.getFiatByName as jest.Mock).mockImplementation((name: string) => createCustomFiat({ name }));
@@ -80,104 +101,80 @@ describe('BankTxService', () => {
     qb.getRawOne.mockResolvedValue({ fee });
   }
 
-  function mockFeeRows(rows: Partial<BankTx>[]): void {
-    (bankTxRepo.findBy as jest.Mock).mockResolvedValue(rows.map((r) => createCustomBankTx(r)));
+  function mockFeeAggregates(rows: FeeAggregate[]): void {
+    qb.getRawMany.mockResolvedValue(rows);
   }
 
-  // identity conversion: Price.convert divides by price, so price 1 keeps the amount unchanged
-  function mockIdentityChfPrice(): void {
-    (pricingService.getPrice as jest.Mock).mockResolvedValue(
-      createCustomPrice({ source: 'EUR', target: 'CHF', price: 1 }),
+  // per-currency prices from chfPriceByCurrency (distinct so mapping/direction errors are caught)
+  function mockChfPrices(): void {
+    (pricingService.getPrice as jest.Mock).mockImplementation(async (fiat: { name: string }) =>
+      createCustomPrice({ source: fiat.name, target: 'CHF', price: chfPriceByCurrency[fiat.name] }),
     );
   }
 
-  it('adds DBIT BankAccountFee rows converted to CHF into the fee', async () => {
+  it('converts each DBIT currency aggregate with its own price and sums the result', async () => {
     mockLegacyFee(null);
-    mockFeeRows([
-      {
-        id: 1,
-        type: BankTxType.BANK_ACCOUNT_FEE,
-        creditDebitIndicator: BankTxIndicator.DEBIT,
-        amount: 100,
-        currency: 'EUR',
-      },
-      {
-        id: 2,
-        type: BankTxType.BANK_ACCOUNT_FEE,
-        creditDebitIndicator: BankTxIndicator.DEBIT,
-        amount: 200,
-        currency: 'CHF',
-      },
+    mockFeeAggregates([
+      { currency: 'EUR', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '100' },
+      { currency: 'USD', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '200' },
     ]);
-    mockIdentityChfPrice();
+    mockChfPrices();
 
-    await expect(service.getBankTxFee(from)).resolves.toBe(300);
+    // EUR 100 / 0.8 = 125 CHF; USD 200 / 2 = 100 CHF; total 225 CHF
+    // (a multiply direction -> 80 + 400 = 480; a swapped currency->price -> 125 + 250 = 375)
+    await expect(service.getBankTxFee(from)).resolves.toBe(225);
 
-    expect(fiatService.getFiatByName).toHaveBeenCalledTimes(2);
+    expect(fiatService.getFiatByName).toHaveBeenCalledWith('EUR');
+    expect(fiatService.getFiatByName).toHaveBeenCalledWith('USD');
     expect(pricingService.getPrice).toHaveBeenCalledTimes(2);
   });
 
-  it('nets a CRDT refund against a DBIT fee in the same currency', async () => {
+  it('nets a CRDT refund against a DBIT fee in the same currency before converting', async () => {
     mockLegacyFee(null);
-    mockFeeRows([
-      {
-        id: 1,
-        type: BankTxType.BANK_ACCOUNT_FEE,
-        creditDebitIndicator: BankTxIndicator.DEBIT,
-        amount: 100,
-        currency: 'EUR',
-      },
-      {
-        id: 2,
-        type: BankTxType.BANK_ACCOUNT_FEE,
-        creditDebitIndicator: BankTxIndicator.CREDIT,
-        amount: 30,
-        currency: 'EUR',
-      },
+    mockFeeAggregates([
+      { currency: 'EUR', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '100' },
+      { currency: 'EUR', creditDebitIndicator: BankTxIndicator.CREDIT, amount: '30' },
     ]);
-    mockIdentityChfPrice();
+    mockChfPrices();
 
-    await expect(service.getBankTxFee(from)).resolves.toBe(70);
+    // net EUR 70 / 0.8 = 87.5 CHF (converted once, after netting)
+    await expect(service.getBankTxFee(from)).resolves.toBe(87.5);
 
-    expect(fiatService.getFiatByName).toHaveBeenCalledTimes(1);
     expect(pricingService.getPrice).toHaveBeenCalledTimes(1);
   });
 
-  it('adds the legacy chargeAmountChf sum on top of the BankAccountFee rows', async () => {
+  it('adds the legacy chargeAmountChf sum on top of the converted BankAccountFee aggregates', async () => {
     mockLegacyFee(5);
-    mockFeeRows([
-      {
-        id: 1,
-        type: BankTxType.BANK_ACCOUNT_FEE,
-        creditDebitIndicator: BankTxIndicator.DEBIT,
-        amount: 100,
-        currency: 'EUR',
-      },
-    ]);
-    mockIdentityChfPrice();
+    mockFeeAggregates([{ currency: 'EUR', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '100' }]);
+    mockChfPrices();
 
-    await expect(service.getBankTxFee(from)).resolves.toBe(105);
+    // legacy 5 + EUR 100 / 0.8 (125) = 130
+    await expect(service.getBankTxFee(from)).resolves.toBe(130);
+  });
+
+  it('rounds the assembled total to the default volume decimals', async () => {
+    mockLegacyFee(0.1);
+    mockFeeAggregates([{ currency: 'EUR', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '0.2' }]);
+    // price 1 so the converted amount is exactly 0.2 and only the final sum needs rounding
+    (pricingService.getPrice as jest.Mock).mockResolvedValue(
+      createCustomPrice({ source: 'EUR', target: 'CHF', price: 1 }),
+    );
+
+    // legacy 0.1 + EUR 0.2 = 0.30000000000000004 in float -> must be rounded to 0.3
+    await expect(service.getBankTxFee(from)).resolves.toBe(0.3);
   });
 
   it('fails loud when the price is unavailable', async () => {
     mockLegacyFee(null);
-    mockFeeRows([
-      {
-        id: 1,
-        type: BankTxType.BANK_ACCOUNT_FEE,
-        creditDebitIndicator: BankTxIndicator.DEBIT,
-        amount: 100,
-        currency: 'EUR',
-      },
-    ]);
+    mockFeeAggregates([{ currency: 'EUR', creditDebitIndicator: BankTxIndicator.DEBIT, amount: '100' }]);
     (pricingService.getPrice as jest.Mock).mockRejectedValue(new Error('No valid price'));
 
     await expect(service.getBankTxFee(from)).rejects.toThrow();
   });
 
-  it('returns only the legacy sum when there are no BankAccountFee rows', async () => {
+  it('returns only the legacy sum when there are no BankAccountFee aggregates', async () => {
     mockLegacyFee(5);
-    mockFeeRows([]);
+    mockFeeAggregates([]);
 
     await expect(service.getBankTxFee(from)).resolves.toBe(5);
 

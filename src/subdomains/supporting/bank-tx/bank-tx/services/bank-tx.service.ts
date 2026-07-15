@@ -452,26 +452,38 @@ export class BankTxService implements OnModuleInit {
 
     let totalFeeChf = fee ?? 0;
 
-    const feeRows = await this.bankTxRepo.findBy({
-      type: BankTxType.BANK_ACCOUNT_FEE,
-      created: MoreThanOrEqual(from),
-    });
+    // Aggregate the dedicated BankAccountFee rows in the database (summed per currency and direction)
+    // rather than hydrating every row: this runs every minute from the financial-log cron and the table
+    // grows continuously. Column references use the alias.property form so TypeORM quotes the camelCase
+    // identifiers correctly for Postgres.
+    const feeAggregates = await this.bankTxRepo
+      .createQueryBuilder('bankTx')
+      .select('bankTx.currency', 'currency')
+      .addSelect('bankTx.creditDebitIndicator', 'creditDebitIndicator')
+      .addSelect('SUM(bankTx.amount)', 'amount')
+      .where('bankTx.type = :type', { type: BankTxType.BANK_ACCOUNT_FEE })
+      .andWhere('bankTx.created >= :from', { from })
+      .groupBy('bankTx.currency')
+      .addGroupBy('bankTx.creditDebitIndicator')
+      .getRawMany<{ currency: string; creditDebitIndicator: string; amount: string }>();
 
     const amountByCurrency = new Map<string, number>();
-    for (const tx of feeRows) {
+    for (const row of feeAggregates) {
+      const groupAmount = Number(row.amount);
+
       let signedAmount: number;
-      if (tx.creditDebitIndicator === BankTxIndicator.DEBIT) {
-        signedAmount = +tx.amount;
-      } else if (tx.creditDebitIndicator === BankTxIndicator.CREDIT) {
-        signedAmount = -tx.amount;
+      if (row.creditDebitIndicator === BankTxIndicator.DEBIT) {
+        signedAmount = groupAmount;
+      } else if (row.creditDebitIndicator === BankTxIndicator.CREDIT) {
+        signedAmount = -groupAmount;
       } else {
         this.logger.error(
-          `BankAccountFee bankTx ${tx.id} has unexpected creditDebitIndicator ${tx.creditDebitIndicator}, skipping`,
+          `BankAccountFee aggregate (currency ${row.currency}) has unexpected creditDebitIndicator ${row.creditDebitIndicator}, skipping`,
         );
         continue;
       }
 
-      amountByCurrency.set(tx.currency, (amountByCurrency.get(tx.currency) ?? 0) + signedAmount);
+      amountByCurrency.set(row.currency, (amountByCurrency.get(row.currency) ?? 0) + signedAmount);
     }
 
     for (const [currency, amount] of amountByCurrency) {
@@ -482,7 +494,7 @@ export class BankTxService implements OnModuleInit {
       totalFeeChf += price.convert(amount, Config.defaultVolumeDecimal);
     }
 
-    return totalFeeChf;
+    return Util.round(totalFeeChf, Config.defaultVolumeDecimal);
   }
 
   async getRecentBankToBankTx(fromIban: string, toIban: string): Promise<BankTx[]> {
