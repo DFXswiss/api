@@ -160,6 +160,59 @@ describe('LogJobService', () => {
       expect(result.minus.scrypt).toBeUndefined();
       expect(result.minus.mexc).toBeUndefined();
     });
+
+    it('flows the bank tx fee into minus.bank and the totals', async () => {
+      setupEmpty();
+      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([] as any);
+      jest.spyOn(bankTxService, 'getBankTxFee').mockResolvedValue(4196 as any);
+
+      const result = await (service as any).getChangeLog();
+
+      expect(result.minus.bank).toBe(4196);
+      expect(result.minus.total).toBe(4196);
+      expect(result.total).toBe(-4196);
+    });
+  });
+
+  describe('FinancialChangesLog isolation (reporting failure must not arm the equity safety mode)', () => {
+    // a healthy, finite book comfortably above the minimum -> the equity path leaves safety mode off
+    function setup() {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
+      jest
+        .spyOn(service as any, 'getBalancesByFinancialType')
+        .mockReturnValue({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } });
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(100 as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      jest
+        .spyOn(logService, 'maxEntity')
+        .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 5000 } }) } as any);
+      return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    it('writes the FinancialDataLog, keeps safety mode off, logs the error and omits the changes entry when getChangeLog throws', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      const createSpy = setup();
+      // a transient reporting-price failure while building the changes log
+      jest.spyOn(service as any, 'getChangeLog').mockRejectedValue(new Error('No valid price'));
+
+      await service.saveTradingLog();
+
+      // the equity path ran and still persisted the FinancialDataLog entry for this minute
+      const dataLog = createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog');
+      expect(dataLog).toBeDefined();
+
+      // the reporting-price failure did NOT arm the equity safety mode: the healthy book set it to false
+      // (and the outer catch, which would set it true, never ran)
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(false);
+      expect(processService.setSafetyModeActive).not.toHaveBeenCalledWith(true);
+
+      // the failure is logged and this minute's changes entry is omitted (absence, not a wrong value)
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('financial changes log'), expect.any(Error));
+      const changesLog = createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialChangesLog');
+      expect(changesLog).toBeUndefined();
+    });
   });
 
   describe('saveTradingLog (referral-credit liability)', () => {
