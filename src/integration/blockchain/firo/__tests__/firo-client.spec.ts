@@ -199,6 +199,20 @@ describe('FiroClient - broadcast boundary', () => {
       );
     });
 
+    it('keeps an RPC-successful-but-empty sendrawtransaction result fail-closed', async () => {
+      mockSendRawResponse(() => Promise.resolve({ result: '', error: null, id: 'test' }));
+
+      let error: unknown;
+      try {
+        await client.sendMany([{ addressTo: 'tDestAddr', amount: 1 }], 10);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('Firo sendrawtransaction returned no transaction ID');
+    });
+
     it('does not wrap a pre-broadcast signing failure (plain Error propagates unchanged)', async () => {
       mockRpcPost.mockImplementation((_url, body) => {
         const parsed = JSON.parse(body);

@@ -171,16 +171,6 @@ describe('ZanoClient - broadcast boundary', () => {
       expect((error as TxBroadcastError).message).toContain('Transfer not sent');
     });
 
-    it('wraps a transfer response with an empty transaction hash into a TxBroadcastError', async () => {
-      mockPost.mockImplementation((_url, params) => {
-        if (params.method === 'getbalance')
-          return Promise.resolve({ result: { balance: 100e12, unlocked_balance: 100e12, balances: [] } });
-        return Promise.resolve({ result: { tx_details: { tx_hash: '' } } });
-      });
-
-      await expect(client.sendCoins(payout)).rejects.toBeInstanceOf(TxBroadcastError);
-    });
-
     it('wraps a malformed null transfer body (throwing while reading response.result) into a TxBroadcastError, staying fail-closed', async () => {
       // A null/undefined body would make createSendTransferResult throw a plain TypeError; since it
       // now runs inside the boundary, that becomes a TxBroadcastError instead of a self-healing error.

@@ -267,7 +267,6 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
       // result.error would otherwise be a plain error and self-heal a possibly-relayed transfer.
       return this.mapSendTransfer(result);
     } catch (e) {
-      if (e instanceof TxBroadcastError) throw e;
       throw toBroadcastBoundaryError(e, MONERO_PRE_BROADCAST_RPC_CODES);
     }
   }

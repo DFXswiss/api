@@ -474,6 +474,28 @@ describe('PayoutBitcoinBasedStrategy', () => {
       expect(loggerWarnSpy).toHaveBeenCalledWith(expect.stringContaining('retry cap 3 exceeded for order(s) 51'));
     });
 
+    // A misconfigured NaN cap makes every `retryCount <= cap` comparison false, so the negated
+    // partition routes all orders into the fail-closed branch (no silent self-heal under bad config).
+    it('does not roll back when the retry cap is NaN and warns for all orders', async () => {
+      Config.payout.maxPreBroadcastRetries = NaN;
+      const orders = [
+        createCustomPayoutOrder({ id: 60, status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null }),
+        createCustomPayoutOrder({ id: 61, status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null }),
+      ];
+      const rollbackSpies = orders.map((order) => jest.spyOn(order, 'rollbackPayoutDesignation'));
+      const loggerWarnSpy = jest.spyOn((strategy as any).logger, 'warn');
+      strategy.dispatchPayoutImpl = () => Promise.reject(new Error('deterministic pre-broadcast failure'));
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders);
+
+      expect(orders.every((order) => order.status === PayoutOrderStatus.PAYOUT_DESIGNATED)).toBe(true);
+      for (const spy of rollbackSpies) expect(spy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).toHaveBeenCalledTimes(4); // designation + failure tracking only (2 each)
+      expect(loggerWarnSpy).toHaveBeenCalledWith(
+        expect.stringContaining('retry cap NaN exceeded for order(s) 60, 61'),
+      );
+    });
+
     it('still fires the recurring-failure alert at its threshold when the retry cap is configured above it', async () => {
       Config.payout.maxPreBroadcastRetries = 6;
       const order = createCustomPayoutOrder({

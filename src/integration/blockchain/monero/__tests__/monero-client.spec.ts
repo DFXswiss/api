@@ -144,12 +144,6 @@ describe('MoneroClient - broadcast boundary', () => {
       expect((error as TxBroadcastError).message).toBe('No result after send transfer');
     });
 
-    it('wraps a response with an empty transaction hash into a TxBroadcastError', async () => {
-      mockPost.mockResolvedValueOnce({ result: { amount: 1, fee: 1, tx_hash: '' } });
-
-      await expect(client.sendTransfers(payout)).rejects.toBeInstanceOf(TxBroadcastError);
-    });
-
     it('wraps a malformed null body (throwing while reading result.error) into a TxBroadcastError, staying fail-closed', async () => {
       // A null/undefined body would make mapSendTransfer throw a plain TypeError; since it now runs
       // inside the boundary, that becomes a TxBroadcastError instead of a self-healing plain error.

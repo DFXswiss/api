@@ -199,7 +199,9 @@ export class FiroClient extends BitcoinBasedClient {
     // failures and the narrow wallet pre-funding allowlist stay plain; ambiguous failures fail closed.
     try {
       const txId = await this.callNode(() => this.rpc.call<string>('sendrawtransaction', [signedResult.hex]), true);
-      if (!txId) throw new Error('sendrawtransaction returned no transaction ID');
+      if (!txId) {
+        throw new TxBroadcastError('Firo sendrawtransaction returned no transaction ID', { cause: txId });
+      }
 
       return txId;
     } catch (e) {
