@@ -141,6 +141,22 @@ function runDesignateBeforeBroadcastSuite(
       expect(secondRunStaleOrder.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
       expect(secondRunStaleOrder.payoutTxId).toBeNull();
     });
+
+    it('skips broadcast and persistence when the designation update fails, without escaping', async () => {
+      const { doPayout, dispatchSpy, repoUpdateSpy, repoSaveSpy } = setup();
+      const order = createCustomPayoutOrder({
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+      });
+      repoUpdateSpy.mockRejectedValueOnce(new Error('database unavailable'));
+
+      await expect(doPayout([order])).resolves.toBeUndefined();
+
+      expect(dispatchSpy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+      expect(order.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+      expect(order.payoutTxId).toBeNull();
+    });
   });
 }
 

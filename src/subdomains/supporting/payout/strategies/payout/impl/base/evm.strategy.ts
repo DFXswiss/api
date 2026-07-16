@@ -43,10 +43,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
       try {
-        if (!(await this.designateBeforeBroadcast(order, this.payoutOrderRepo))) {
-          this.logger.warn(`Skipping payout order ${order.id}: designation lost to a concurrent payout run`);
-          continue;
-        }
+        if (!(await this.designateBeforeBroadcast(order, this.payoutOrderRepo))) continue;
 
         const txId = await this.dispatchPayout(order);
         order.resetPayoutRetry();
@@ -86,8 +83,7 @@ export abstract class EvmStrategy extends PayoutStrategy {
             this.logger.warn(
               `Payout order ${order.id} failed with out-of-gas (tx ${order.payoutTxId}), retrying with fresh nonce`,
             );
-            order.rollbackPayout();
-            await this.payoutOrderRepo.save(order);
+            if (!(await this.rollbackBroadcastForRetry(order, this.payoutOrderRepo))) continue;
           } else {
             // TX expired (not on-chain, not in mempool) - retry immediately, no gas costs incurred
             this.logger.info(`Payout order ${order.id} has expired TX (${order.payoutTxId}), retrying immediately`);

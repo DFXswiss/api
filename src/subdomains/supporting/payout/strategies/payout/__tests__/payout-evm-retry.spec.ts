@@ -117,7 +117,53 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       expect(payoutEvmService.getTxNonce).not.toHaveBeenCalled(); // fresh nonce, no reuse
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
       expect(order.payoutTxId).toBe('TX_NEW_OOG');
-      expect(repoSaveSpy).toHaveBeenCalledTimes(2); // rollback save + pending save; designation uses UPDATE
+      expect(payoutOrderRepo.update).toHaveBeenNthCalledWith(
+        1,
+        { id: order.id, status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'TX_OOG' },
+        { status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null },
+      );
+      expect(payoutOrderRepo.update).toHaveBeenNthCalledWith(
+        2,
+        { id: order.id, status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+        { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+      );
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // pending only; rollback and designation use UPDATE
+    });
+
+    it('failed, out-of-gas + stale rollback: skips retry when the exact pending transaction changed', async () => {
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'TX_OOG' });
+      const status: PayoutTxStatus = { state: 'failed', isOutOfGas: true };
+      jest.spyOn(payoutEvmService, 'getPayoutCompletionData').mockResolvedValue(status);
+      jest.spyOn(payoutOrderRepo, 'update').mockResolvedValueOnce({ affected: 0 } as any);
+      const rollbackSpy = jest.spyOn(order, 'rollbackPayout');
+
+      await strategy.checkPayoutCompletionData([order]);
+
+      expect(payoutOrderRepo.update).toHaveBeenCalledWith(
+        { id: order.id, status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'TX_OOG' },
+        { status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null },
+      );
+      expect(rollbackSpy).not.toHaveBeenCalled();
+      expect(dispatchFn).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(order.payoutTxId).toBe('TX_OOG');
+    });
+
+    it('failed, out-of-gas + rollback update error: skips retry and leaves the order unchanged', async () => {
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'TX_OOG' });
+      const status: PayoutTxStatus = { state: 'failed', isOutOfGas: true };
+      jest.spyOn(payoutEvmService, 'getPayoutCompletionData').mockResolvedValue(status);
+      jest.spyOn(payoutOrderRepo, 'update').mockRejectedValueOnce(new Error('database unavailable'));
+      const rollbackSpy = jest.spyOn(order, 'rollbackPayout');
+
+      await expect(strategy.checkPayoutCompletionData([order])).resolves.toBeUndefined();
+
+      expect(rollbackSpy).not.toHaveBeenCalled();
+      expect(dispatchFn).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(order.payoutTxId).toBe('TX_OOG');
     });
 
     it('(d) expired in mempool + retryable: keeps payoutTxId, skips re-designation and reuses the nonce', async () => {

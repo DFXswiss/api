@@ -236,18 +236,27 @@ export class PayoutService {
 
   private async processFailedOrders(): Promise<void> {
     const orders = await this.payoutOrderRepo.findBy({ status: PayoutOrderStatus.PAYOUT_DESIGNATED });
-
-    if (orders.length === 0) return;
-
-    const logMessage = this.logs.logFailedOrders(orders);
-    const mailRequest = this.createMailRequest(logMessage, orders);
-
-    await this.notificationService.sendMail(mailRequest);
+    const escalatedOrders: PayoutOrder[] = [];
 
     for (const order of orders) {
-      order.pendingInvestigation();
-      await this.payoutOrderRepo.save(order);
+      const result = await this.payoutOrderRepo.update(
+        { id: order.id, status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+        { status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+      );
+      if (!result.affected) {
+        this.logger.info(`Skipping failed payout order ${order.id}: state changed concurrently`);
+        continue;
+      }
+
+      escalatedOrders.push(order);
     }
+
+    if (escalatedOrders.length === 0) return;
+
+    const logMessage = this.logs.logFailedOrders(escalatedOrders);
+    const mailRequest = this.createMailRequest(logMessage, escalatedOrders);
+
+    await this.notificationService.sendMail(mailRequest);
   }
 
   private groupByStrategies<T>(orders: PayoutOrder[], getter: (asset: Asset) => T): Map<T, PayoutOrder[]> {

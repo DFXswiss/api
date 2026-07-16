@@ -12,7 +12,7 @@ import {
   PayoutGroup,
 } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../../../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderContext } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutStrategy } from './payout.strategy';
 
@@ -201,16 +201,7 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
   protected async designatePayout(orders: PayoutOrder[]): Promise<PayoutOrder[]> {
     const designated: PayoutOrder[] = [];
     for (const order of orders) {
-      const result = await this.payoutOrderRepo.update(
-        { id: order.id, status: PayoutOrderStatus.PREPARATION_CONFIRMED },
-        { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
-      );
-      if (!result.affected) {
-        this.logger.warn(`Skipping payout order ${order.id}: designation lost to a concurrent payout run`);
-        continue;
-      }
-      order.designatePayout();
-      designated.push(order);
+      if (await this.claimForBroadcast(order, this.payoutOrderRepo)) designated.push(order);
     }
     return designated;
   }

@@ -313,6 +313,55 @@ describe('PayoutBitcoinBasedStrategy', () => {
       expect(repoSaveSpy).not.toHaveBeenCalledWith(orders[1]);
     });
 
+    it('skips a failed designation update and still dispatches the other winners', async () => {
+      const asset = createCustomAsset({ name: 'BTC' });
+      const orders = [
+        createCustomPayoutOrder({
+          id: 53,
+          asset,
+          status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+          destinationAddress: 'WINNER_1',
+          amount: 1,
+        }),
+        createCustomPayoutOrder({
+          id: 54,
+          asset,
+          status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+          destinationAddress: 'FAILED_CLAIM',
+          amount: 2,
+        }),
+        createCustomPayoutOrder({
+          id: 55,
+          asset,
+          status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+          destinationAddress: 'WINNER_2',
+          amount: 3,
+        }),
+      ];
+      repoUpdateSpy
+        .mockResolvedValueOnce({ affected: 1 } as any)
+        .mockRejectedValueOnce(new Error('database unavailable'))
+        .mockResolvedValueOnce({ affected: 1 } as any);
+      const dispatchSpy = jest.fn().mockResolvedValue('CHAIN_TX_ID');
+      strategy.dispatchPayoutImpl = dispatchSpy;
+
+      await expect(strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders)).resolves.toBeUndefined();
+
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        PayoutOrderContext.BUY_CRYPTO,
+        [
+          { addressTo: 'WINNER_1', amount: 1 },
+          { addressTo: 'WINNER_2', amount: 3 },
+        ],
+        asset,
+      );
+      expect(orders[0].status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(orders[1].status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+      expect(orders[2].status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(repoSaveSpy).toHaveBeenCalledTimes(2);
+      expect(repoSaveSpy).not.toHaveBeenCalledWith(orders[1]);
+    });
+
     it('does not dispatch or save when every order loses the designation race', async () => {
       const orders = [
         createCustomPayoutOrder({ id: 60, status: PayoutOrderStatus.PREPARATION_CONFIRMED }),
@@ -351,6 +400,37 @@ describe('PayoutBitcoinBasedStrategy', () => {
       await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders);
 
       expect(orders[0].status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+    });
+
+    it('tracks and rolls back only claim winners when dispatch throws a plain Error', async () => {
+      const winners = [
+        createCustomPayoutOrder({ id: 70, status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null }),
+        createCustomPayoutOrder({ id: 72, status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null }),
+      ];
+      const loser = createCustomPayoutOrder({
+        id: 71,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+      });
+      const orders = [winners[0], loser, winners[1]];
+      repoUpdateSpy
+        .mockResolvedValueOnce({ affected: 1 } as any)
+        .mockResolvedValueOnce({ affected: 0 } as any)
+        .mockResolvedValueOnce({ affected: 1 } as any);
+      strategy.dispatchPayoutImpl = () => Promise.reject(new Error('pre-broadcast failure'));
+      const trackSpy = jest.spyOn(strategy as any, 'trackPayoutFailure');
+      const rollbackSpy = jest.spyOn(strategy as any, 'rollbackPayoutDesignation');
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders);
+
+      expect(trackSpy).toHaveBeenCalledTimes(1);
+      expect(trackSpy).toHaveBeenCalledWith(winners, expect.any(Error));
+      expect(rollbackSpy).toHaveBeenCalledTimes(1);
+      expect(rollbackSpy).toHaveBeenCalledWith(winners);
+      expect(loser.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+      expect(loser.retryCount).toBe(0);
+      expect(loser.lastError).toBeNull();
+      expect(repoSaveSpy).not.toHaveBeenCalledWith(loser);
     });
 
     // Regression test for the removed heuristic: a pre-broadcast RPC timeout (e.g. fee

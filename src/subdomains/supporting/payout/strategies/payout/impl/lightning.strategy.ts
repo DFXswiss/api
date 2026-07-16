@@ -39,10 +39,7 @@ export class LightningStrategy extends PayoutStrategy {
     if (await this.isHealthy()) {
       for (const order of orders) {
         try {
-          if (!(await this.designateBeforeBroadcast(order, this.payoutOrderRepo))) {
-            this.logger.warn(`Skipping payout order ${order.id}: designation lost to a concurrent payout run`);
-            continue;
-          }
+          if (!(await this.designateBeforeBroadcast(order, this.payoutOrderRepo))) continue;
 
           const address = order.destinationAddress;
           const amount = order.amount;

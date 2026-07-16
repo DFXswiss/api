@@ -78,8 +78,11 @@ interface LeafConfig {
 }
 
 function repoSaveEcho(payoutOrderRepo: PayoutOrderRepository): void {
-  jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
   jest.spyOn(payoutOrderRepo, 'save').mockImplementation(async (o) => o as PayoutOrder);
+}
+
+function repoUpdateAffected(payoutOrderRepo: PayoutOrderRepository): void {
+  jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
 }
 
 function makeConfirmedCoinOrder(): PayoutOrder {
@@ -167,6 +170,7 @@ describe('Payout non-EVM leaf strategies', () => {
       const payoutOrderRepo = mock<PayoutOrderRepository>();
       const feeAsset = createCustomAsset({ name: 'ADA' });
       const gasAsset = createCustomAsset({ id: 42, type: AssetType.COIN });
+      repoUpdateAffected(payoutOrderRepo);
       repoSaveEcho(payoutOrderRepo);
       const strategy = new CardanoCoinStrategy(cardanoService, assetService, payoutOrderRepo);
 
@@ -199,6 +203,7 @@ describe('Payout non-EVM leaf strategies', () => {
       const payoutOrderRepo = mock<PayoutOrderRepository>();
       const feeAsset = createCustomAsset({ name: 'ADA' });
       const gasAsset = createCustomAsset({ id: 43, type: AssetType.TOKEN });
+      repoUpdateAffected(payoutOrderRepo);
       repoSaveEcho(payoutOrderRepo);
       const strategy = new CardanoTokenStrategy(cardanoService, assetService, payoutOrderRepo);
 
@@ -233,6 +238,7 @@ describe('Payout non-EVM leaf strategies', () => {
       const payoutOrderRepo = mock<PayoutOrderRepository>();
       const feeAsset = createCustomAsset({ name: 'SOL' });
       const gasAsset = createCustomAsset({ id: 42, type: AssetType.COIN });
+      repoUpdateAffected(payoutOrderRepo);
       repoSaveEcho(payoutOrderRepo);
       const strategy = new SolanaCoinStrategy(solanaService, assetService, payoutOrderRepo);
 
@@ -265,6 +271,7 @@ describe('Payout non-EVM leaf strategies', () => {
       const payoutOrderRepo = mock<PayoutOrderRepository>();
       const feeAsset = createCustomAsset({ name: 'SOL' });
       const gasAsset = createCustomAsset({ id: 43, type: AssetType.TOKEN });
+      repoUpdateAffected(payoutOrderRepo);
       repoSaveEcho(payoutOrderRepo);
       const strategy = new SolanaTokenStrategy(solanaService, assetService, payoutOrderRepo);
 
@@ -299,6 +306,7 @@ describe('Payout non-EVM leaf strategies', () => {
       const payoutOrderRepo = mock<PayoutOrderRepository>();
       const feeAsset = createCustomAsset({ name: 'TRX' });
       const gasAsset = createCustomAsset({ id: 42, type: AssetType.COIN });
+      repoUpdateAffected(payoutOrderRepo);
       repoSaveEcho(payoutOrderRepo);
       const strategy = new TronCoinStrategy(tronService, assetService, payoutOrderRepo);
 
@@ -331,6 +339,7 @@ describe('Payout non-EVM leaf strategies', () => {
       const payoutOrderRepo = mock<PayoutOrderRepository>();
       const feeAsset = createCustomAsset({ name: 'TRX' });
       const gasAsset = createCustomAsset({ id: 43, type: AssetType.TOKEN });
+      repoUpdateAffected(payoutOrderRepo);
       repoSaveEcho(payoutOrderRepo);
       const strategy = new TronTokenStrategy(tronService, assetService, payoutOrderRepo);
 
@@ -365,6 +374,7 @@ describe('Payout non-EVM leaf strategies', () => {
       const payoutOrderRepo = mock<PayoutOrderRepository>();
       const feeAsset = createCustomAsset({ name: 'ICP' });
       const gasAsset = createCustomAsset({ id: 42, type: AssetType.COIN });
+      repoUpdateAffected(payoutOrderRepo);
       repoSaveEcho(payoutOrderRepo);
       const strategy = new InternetComputerCoinStrategy(icpService, assetService, payoutOrderRepo);
 
@@ -397,6 +407,7 @@ describe('Payout non-EVM leaf strategies', () => {
       const payoutOrderRepo = mock<PayoutOrderRepository>();
       const feeAsset = createCustomAsset({ name: 'ICP' });
       const gasAsset = createCustomAsset({ id: 43, type: AssetType.TOKEN });
+      repoUpdateAffected(payoutOrderRepo);
       repoSaveEcho(payoutOrderRepo);
       const strategy = new InternetComputerTokenStrategy(icpService, assetService, payoutOrderRepo);
 
