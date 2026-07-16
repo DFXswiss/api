@@ -341,7 +341,8 @@ describe('Payout designate-before-broadcast', () => {
       expect(order.payoutTxId).toBeNull();
       expect(dispatchSpy).toHaveBeenCalledTimes(1);
       expect(rollbackSpy).not.toHaveBeenCalled();
-      expect(repoSaveSpy).toHaveBeenCalledTimes(1);
+      // designation is a conditional UPDATE, and the broadcast exception path persists nothing
+      expect(repoSaveSpy).not.toHaveBeenCalled();
     });
 
     it('CardanoStrategy: empty-tx-hash PayoutBroadcastException leaves PAYOUT_DESIGNATED (no rollback, no rebroadcast)', async () => {
@@ -356,7 +357,8 @@ describe('Payout designate-before-broadcast', () => {
       expect(order.payoutTxId).toBeNull();
       expect(dispatchSpy).toHaveBeenCalledTimes(1);
       expect(rollbackSpy).not.toHaveBeenCalled();
-      expect(repoSaveSpy).toHaveBeenCalledTimes(1);
+      // designation is a conditional UPDATE, and the broadcast exception path persists nothing
+      expect(repoSaveSpy).not.toHaveBeenCalled();
     });
   });
 });
