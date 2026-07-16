@@ -18,12 +18,7 @@ describe('DexEvmService', () => {
     const evmService = mock<EvmService>();
     jest.spyOn(evmService, 'getDefaultClient').mockReturnValue(client);
 
-    service = new DexEvmServiceWrapper(
-      mock<LiquidityOrderRepository>(),
-      evmService,
-      'ETH',
-      Blockchain.ETHEREUM,
-    );
+    service = new DexEvmServiceWrapper(mock<LiquidityOrderRepository>(), evmService, 'ETH', Blockchain.ETHEREUM);
   });
 
   afterEach(() => {
