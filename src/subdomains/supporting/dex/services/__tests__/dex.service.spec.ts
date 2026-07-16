@@ -55,7 +55,7 @@ describe('DexService', () => {
         isComplete: false,
         created: LessThan(new Date('2026-07-16T11:45:00.000Z')),
       },
-      select: ['id', 'txId'],
+      select: { id: true, txId: true },
       loadEagerRelations: false,
     });
     expect(sendMailSpy).toHaveBeenCalledTimes(1);

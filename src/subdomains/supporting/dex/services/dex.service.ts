@@ -343,7 +343,7 @@ export class DexService {
         isComplete: false,
         created: LessThan(Util.minutesBefore(15)),
       },
-      select: ['id', 'txId'],
+      select: { id: true, txId: true },
       loadEagerRelations: false,
     });
 
@@ -357,7 +357,7 @@ export class DexService {
       .filter((order) => order.txId)
       .map((order) => order.id)
       .sort((a, b) => a - b);
-    const errors = [];
+    const errors: string[] = [];
 
     if (idsWithoutTxId.length > 0) {
       errors.push(
