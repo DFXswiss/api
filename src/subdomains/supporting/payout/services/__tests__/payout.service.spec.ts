@@ -111,7 +111,7 @@ describe('PayoutService', () => {
 
       expect(updateSpy).toHaveBeenCalledWith(
         { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
-        { status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+        { status: PayoutOrderStatus.PREPARATION_CONFIRMED, retryCount: 0 },
       );
       expect(infoSpy).toHaveBeenCalled();
     });

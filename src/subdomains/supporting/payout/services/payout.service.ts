@@ -149,15 +149,18 @@ export class PayoutService {
       throw new BadRequestException('On-chain absence must be verified and confirmed (noBroadcastVerified)');
 
     // Atomic conditional transition — a concurrent state change must not be overwritten.
+    // Restore the pre-broadcast retry budget: orders that escalated via the cap still carry
+    // retryCount = maxPreBroadcastRetries; without this reset the first transient pre-broadcast
+    // error on the manual retry would silently re-escalate to PayoutUncertain.
     const result = await this.payoutOrderRepo.update(
       { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
-      { status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+      { status: PayoutOrderStatus.PREPARATION_CONFIRMED, retryCount: 0 },
     );
     if (!result.affected) throw new ConflictException(`Payout order ${dto.id} changed state concurrently, not retried`);
 
-    // Audit trail (before → after): the order's failure history (retryCount/lastError) is
-    // deliberately NOT reset — the next successful broadcast resets it, and until then the
-    // history documents why the order was investigated.
+    // Audit trail (before → after): failure MESSAGE history (lastError/lastAttemptDate) is kept
+    // until the next broadcast attempt overwrites it; the retry BUDGET is restored above so a
+    // verified manual retry tolerates transient pre-broadcast errors instead of re-escalating.
     this.logger.info(
       `Manual payout retry authorized for order ${dto.id} by account ${accountId}: status ${PayoutOrderStatus.PAYOUT_UNCERTAIN} -> ${PayoutOrderStatus.PREPARATION_CONFIRMED}, retryCount ${order.retryCount}, lastError '${order.lastError}', reference: ${dto.verificationReference}`,
     );
