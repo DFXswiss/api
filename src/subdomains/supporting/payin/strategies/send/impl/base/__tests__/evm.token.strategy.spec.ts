@@ -67,9 +67,7 @@ describe('EvmTokenStrategy Delegation Integration', () => {
     it('persists Sending on every member before calling the delegation broadcast sink', async () => {
       const { group, payIns } = createGroup();
       const broadcastError = new TxBroadcastError('broadcast failed');
-      const transferSpy = jest
-        .spyOn(delegationService, 'transferTokenViaDelegation')
-        .mockRejectedValue(broadcastError);
+      const transferSpy = jest.spyOn(delegationService, 'transferTokenViaDelegation').mockRejectedValue(broadcastError);
 
       await expect(strategy['dispatchViaDelegation'](group, SendType.FORWARD)).rejects.toBe(broadcastError);
 

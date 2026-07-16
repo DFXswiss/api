@@ -37,33 +37,27 @@ describe('PayInService designate-before-broadcast safeguards', () => {
     );
   });
 
-  it(
-    'moves all stranded Sending entries to SendUncertain and sends one monitoring mail listing their IDs',
-    async () => {
-      const payIns = [
-        createCustomCryptoInput({ id: 41, status: PayInStatus.SENDING }),
-        createCustomCryptoInput({ id: 42, status: PayInStatus.SENDING }),
-      ];
-      jest.spyOn(payInRepository, 'findBy').mockResolvedValue(payIns);
-      const saveSpy = jest.spyOn(payInRepository, 'save').mockImplementation(async (payIn) => payIn);
-      const sendMailSpy = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
+  it('moves all stranded Sending entries to SendUncertain and sends one monitoring mail listing their IDs', async () => {
+    const payIns = [
+      createCustomCryptoInput({ id: 41, status: PayInStatus.SENDING }),
+      createCustomCryptoInput({ id: 42, status: PayInStatus.SENDING }),
+    ];
+    jest.spyOn(payInRepository, 'findBy').mockResolvedValue(payIns);
+    const saveSpy = jest.spyOn(payInRepository, 'save').mockImplementation(async (payIn) => payIn);
+    const sendMailSpy = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
 
-      await service['processStrandedSendingPayIns']();
+    await service['processStrandedSendingPayIns']();
 
-      expect(payInRepository.findBy).toHaveBeenCalledWith({ status: PayInStatus.SENDING });
-      expect(payIns.map((payIn) => payIn.status)).toEqual([
-        PayInStatus.SEND_UNCERTAIN,
-        PayInStatus.SEND_UNCERTAIN,
-      ]);
-      expect(saveSpy).toHaveBeenCalledTimes(2);
-      expect(sendMailSpy).toHaveBeenCalledTimes(1);
-      expect(sendMailSpy).toHaveBeenCalledWith(
-        expect.objectContaining({
-          input: expect.objectContaining({ errors: [expect.stringContaining('41, 42')] }),
-        }),
-      );
-    },
-  );
+    expect(payInRepository.findBy).toHaveBeenCalledWith({ status: PayInStatus.SENDING });
+    expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.SEND_UNCERTAIN, PayInStatus.SEND_UNCERTAIN]);
+    expect(saveSpy).toHaveBeenCalledTimes(2);
+    expect(sendMailSpy).toHaveBeenCalledTimes(1);
+    expect(sendMailSpy).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ errors: [expect.stringContaining('41, 42')] }),
+      }),
+    );
+  });
 
   it('keeps the forward query restricted to Acknowledged, Preparing and Prepared', async () => {
     const findSpy = jest.spyOn(payInRepository, 'find').mockResolvedValue([]);
