@@ -4,6 +4,7 @@ import { getRepositoryToken } from '@nestjs/typeorm';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { ExchangeTx } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { Util } from 'src/shared/utils/util';
@@ -295,6 +296,7 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
           { provide: LedgerBookingService, useValue: bookingService },
           { provide: LedgerAccountService, useValue: accountService },
           { provide: LedgerMarkService, useValue: markService },
+          { provide: getRepositoryToken(Asset), useValue: emptyRepo() },
           { provide: getRepositoryToken(BuyFiat), useValue: emptyRepo() },
           { provide: getRepositoryToken(BuyCrypto), useValue: emptyRepo() },
           { provide: getRepositoryToken(BankTx), useValue: emptyRepo() },
@@ -307,6 +309,7 @@ describe('Ledger staleness + cutover integration (§10.2)', () => {
           { provide: getRepositoryToken(LiquidityManagementOrder), useValue: emptyRepo() },
           { provide: getRepositoryToken(TradingOrder), useValue: emptyRepo() },
           { provide: getRepositoryToken(LiquidityOrder), useValue: emptyRepo() },
+          { provide: AssetService, useValue: createMock<AssetService>() },
         ],
       }).compile();
 

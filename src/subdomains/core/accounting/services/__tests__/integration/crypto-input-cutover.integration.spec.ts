@@ -1,6 +1,8 @@
 import { createMock } from '@golevelup/ts-jest';
 import { ConfigService } from 'src/config/config';
 import { ExchangeTx } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { LiquidityManagementOrder } from 'src/subdomains/core/liquidity-management/entities/liquidity-management-order.entity';
@@ -144,6 +146,7 @@ describe('Ledger crypto_input-funded cutover double-book (§10.2, MAJOR — G-a 
       ledger.bookingService,
       ledger.accountService,
       markService,
+      repoWith<Asset>([]),
       receivedOnly<BuyFiat>(opts.buyFiat),
       receivedOnly<BuyCrypto>(opts.buyCrypto),
       repoWith<BankTx>([]),
@@ -156,6 +159,7 @@ describe('Ledger crypto_input-funded cutover double-book (§10.2, MAJOR — G-a 
       repoWith<LiquidityManagementOrder>([]),
       repoWith<TradingOrder>([]),
       repoWith<LiquidityOrder>([]),
+      createMock<AssetService>(),
     );
 
     await service.run();

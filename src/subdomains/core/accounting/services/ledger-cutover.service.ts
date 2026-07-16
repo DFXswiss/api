@@ -3,6 +3,7 @@ import { CronExpression } from '@nestjs/schedule';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ExchangeTx } from 'src/integration/exchange/entities/exchange-tx.entity';
 import { Asset } from 'src/shared/models/asset/asset.entity';
+import { AssetService } from 'src/shared/models/asset/asset.service';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { Process } from 'src/shared/services/process.service';
@@ -71,6 +72,7 @@ export class LedgerCutoverService {
     private readonly bookingService: LedgerBookingService,
     private readonly accountService: LedgerAccountService,
     private readonly markService: LedgerMarkService,
+    @InjectRepository(Asset) private readonly assetRepo: Repository<Asset>,
     @InjectRepository(BuyFiat) private readonly buyFiatRepo: Repository<BuyFiat>,
     @InjectRepository(BuyCrypto) private readonly buyCryptoRepo: Repository<BuyCrypto>,
     @InjectRepository(BankTx) private readonly bankTxRepo: Repository<BankTx>,
@@ -86,6 +88,7 @@ export class LedgerCutoverService {
     private readonly liquidityManagementOrderRepo: Repository<LiquidityManagementOrder>,
     @InjectRepository(TradingOrder) private readonly tradingOrderRepo: Repository<TradingOrder>,
     @InjectRepository(LiquidityOrder) private readonly liquidityOrderRepo: Repository<LiquidityOrder>,
+    private readonly assetService: AssetService,
   ) {}
 
   /**
@@ -128,8 +131,17 @@ export class LedgerCutoverService {
 
     // (4) ASSET openings → LIABILITY openings → Manual openings (TRANSIT stays 0)
     await this.openAssets(finance, snapshot, snapshotDate, equity);
-    await this.openLiabilities(snapshot, snapshotDate, marks, equity);
-    await this.openManualDebt(finance, snapshot, snapshotDate, equity);
+    const assetBackedOpenings = [
+      ...(await this.openLiabilities(snapshot, snapshotDate, marks, equity)),
+      ...(await this.openManualDebt(finance, snapshot, snapshotDate, equity)),
+    ];
+
+    if (assetBackedOpenings.length) {
+      const assets = [...new Set(assetBackedOpenings.map((opening) => opening.assetUniqueName))];
+      this.logger.warn(
+        `Cutover booked ${assetBackedOpenings.length} asset-backed (unpriced) opening(s) needing a mark for asset(s): ${assets.join(', ')}`,
+      );
+    }
 
     // export the pinned snapshot date BEFORE the ready-marker, so any consumer that sees the cutover as done can
     // already classify a pre-cutover-settled row (covered by the aggregate opening). NOT the watermark's
@@ -255,7 +267,7 @@ export class LedgerCutoverService {
     snapshotDate: Date,
     marks: LedgerMarkCache,
     equity: LedgerAccount,
-  ): Promise<void> {
+  ): Promise<{ id: number; assetUniqueName: string }[]> {
     const lookback = Util.daysBefore(OPEN_ROW_LOOKBACK_DAYS, snapshotDate);
     // load every bank keyed by IBAN ONCE (§6.1) — openBankTxReturn/Repeat/Unattributed value each row's bank leg
     // against this map instead of a per-row bankRepo.findOne (N+1)
@@ -271,7 +283,7 @@ export class LedgerCutoverService {
     await this.pinUnpricedIds('buy_fiat', unpricedBuyFiat);
 
     const unpricedBuyCrypto = await this.openBuyCryptoReceived(snapshot, snapshotDate, lookback, equity);
-    await this.openBuyCryptoOwed(snapshot, snapshotDate, lookback, marks, equity);
+    const assetBacked = await this.openBuyCryptoOwed(snapshot, snapshotDate, lookback, marks, equity);
     await this.pinUnpricedIds('buy_crypto', unpricedBuyCrypto);
     // §6.1 (Major design-accounting): the BANK_TX_RETURN/REPEAT + unattributed liabilities. A pre-cutover open
     // return/repeat whose chargeback settles post-cutover (§4.2 BANK_TX_*_CHARGEBACK) finds its opening-CHF anchor
@@ -279,6 +291,8 @@ export class LedgerCutoverService {
     await this.openBankTxReturn(snapshot, snapshotDate, lookback, marks, equity, bankByIban);
     await this.openBankTxRepeat(snapshot, snapshotDate, lookback, marks, equity, bankByIban);
     await this.openUnattributed(snapshot, snapshotDate, lookback, marks, equity, bankByIban);
+
+    return assetBacked;
   }
 
   // buyFiat-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R3-6); per-row seq0-marker (R4-2).
@@ -384,7 +398,7 @@ export class LedgerCutoverService {
       }
 
       // outputAsset is a Fiat; CHF-output → mark 1, foreign-currency output → fiat-mark ≤ snapshot
-      const fiatMark = row.outputAsset?.name === CHF ? 1 : this.fiatMark(row.outputAsset?.id, date, marks);
+      const fiatMark = row.outputAsset?.name === CHF ? 1 : await this.fiatMark(row.outputAsset?.name, date, marks);
       const amountChf = fiatMark != null ? Util.round(row.outputAmount * fiatMark, 2) : undefined;
 
       // missing fiat-mark → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): the forward path can
@@ -392,6 +406,7 @@ export class LedgerCutoverService {
       // seq2/seq3 on exactly this opening, so a missing opening would gate-block the row in the content-change scan
       // forever. A missing mark must abort the cutover run (already-booked openings are skipped idempotently on the
       // retry once the mark feed is available), never a silent skip.
+      // BuyFiat.outputAsset is a Fiat entity with no Asset-table bridge, so no native asset-backed fallback exists.
       await this.bookReceivedOwedOpening(
         date,
         `${snapshot.id}:buy_fiat-owed:${row.id}`,
@@ -512,7 +527,7 @@ export class LedgerCutoverService {
     lookback: Date,
     marks: LedgerMarkCache,
     equity: LedgerAccount,
-  ): Promise<void> {
+  ): Promise<{ id: number; assetUniqueName: string }[]> {
     const rows = await this.buyCryptoRepo.find({
       where: { isComplete: false, created: Between(lookback, date) },
       // G-a: load cryptoInput to decide the owed opener — a crypto-funded row whose input is not covered by the pinned
@@ -522,6 +537,7 @@ export class LedgerCutoverService {
       relations: { outputAsset: true, cryptoInput: true },
     });
     const liability = await this.liability('buyCrypto-owed');
+    const assetBacked: { id: number; assetUniqueName: string }[] = [];
 
     for (const row of rows) {
       if (row.outputAmount == null) continue;
@@ -543,18 +559,25 @@ export class LedgerCutoverService {
       const mark = row.outputAsset?.id != null ? marks.getMarkAt(row.outputAsset.id, date) : undefined;
       const amountChf = mark != null ? Util.round(row.outputAmount * mark, 2) : undefined;
 
-      // feedless outputAsset → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): a CHF owed
-      // opening booked with native 0 can never be revalued, so a missing mark must roll back the cutover, not silently
-      // drop the value.
-      await this.bookReceivedOwedOpening(
+      const result = await this.bookReceivedOwedOpening(
         date,
         `${snapshot.id}:buy_crypto-owed:${row.id}`,
         `Opening buyCrypto-owed from open buy_crypto #${row.id}`,
         liability,
         amountChf,
         equity,
+        mark == null && row.outputAsset?.id != null
+          ? { asset: row.outputAsset, nativeAmount: row.outputAmount, qualifier: 'buyCrypto-owed' }
+          : undefined,
       );
+      if (result.assetBacked) {
+        if (result.assetUniqueName == null)
+          throw new Error(`Asset-backed cutover opening for buy_crypto ${row.id} has no asset name`);
+        assetBacked.push({ id: row.id, assetUniqueName: result.assetUniqueName });
+      }
     }
+
+    return assetBacked;
   }
 
   // --- BANK_TX_RETURN / BANK_TX_REPEAT / UNATTRIBUTED OPENINGS (§6.1, Major design-accounting) --- //
@@ -638,8 +661,8 @@ export class LedgerCutoverService {
     const { mark } = this.bankMark(bankTx, date, marks, bankByIban);
     const amountChf = mark != null ? Util.round(bankTx.amount * mark, 2) : undefined;
 
-    // feedless / no-bank-match → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): a CHF
-    // return/repeat opening booked with native 0 is never revalued, so a missing mark rolls back the cutover.
+    // Bank currencies are actively fed and do not carry the legacy-delisted risk; a missing bank mark signals a broken
+    // feed, so the CHF return/repeat opening stays fail-loud instead of using a native fallback.
     await this.bookReceivedOwedOpening(
       date,
       `${snapshot.id}:${marker}:${bankTx.id}`,
@@ -687,9 +710,8 @@ export class LedgerCutoverService {
     if (Math.abs(amountChf) <= 1e-8 && !needsMark) return; // no open unattributed credits → no opening
 
     const liability = await this.liability('unattributed');
-    // a feedless/unmatched credit leaves the aggregate unvaluable → amountChf undefined → bookReceivedOwedOpening
-    // throws (m6 fail-loud): the CHF unattributed bucket is booked with native 0 and can never be revalued, so a
-    // missing mark rolls back the cutover rather than dropping the value into a stale zero-opening.
+    // The aggregate can span multiple bank currencies, so there is no single native (assetId, amount) pair to back it;
+    // bank currencies are actively fed, and a missing mark correctly keeps this CHF opening fail-loud.
     await this.bookReceivedOwedOpening(
       date,
       `${snapshot.id}:unattributed`,
@@ -730,11 +752,14 @@ export class LedgerCutoverService {
     snapshot: Log,
     snapshotDate: Date,
     equity: LedgerAccount,
-  ): Promise<void> {
+  ): Promise<{ id: number; assetUniqueName: string }[]> {
     const debts = await this.settingService.getObj<ManualLogPosition[]>('balanceLogDebtPositions', []);
-    if (!debts?.length) return;
+    if (!debts?.length) return [];
 
     const manualDebt = await this.liability('manual-debt');
+    const assets = await this.assetRepo.find({ where: { id: In(debts.map((debt) => debt.assetId)) } });
+    const assetById = new Map(assets.map((asset) => [asset.id, asset]));
+    const assetBacked: { id: number; assetUniqueName: string }[] = [];
     for (const position of debts) {
       if (!position?.value) continue;
 
@@ -742,20 +767,24 @@ export class LedgerCutoverService {
       const priceChf = Number.isFinite(rawPrice) ? rawPrice : undefined;
       const amountChf = priceChf != null ? Util.round(priceChf * position.value, 2) : undefined;
 
-      // feedless asset (no priceChf in the snapshot) → amountChf undefined → bookReceivedOwedOpening throws (m6
-      // fail-loud): the manual-debt LIABILITY is CHF-denominated with NO assetId, so the mark-to-market job can NEVER
-      // revalue it — a missing price must abort the cutover run (already-booked openings are skipped idempotently on
-      // the retry once the price feed is available), not silently drop the CHF value or book native units on a CHF
-      // account.
-      await this.bookReceivedOwedOpening(
+      const asset = assetById.get(position.assetId);
+      const result = await this.bookReceivedOwedOpening(
         snapshotDate,
         `${snapshot.id}:manual-debt:${position.assetId}`,
         `Opening manual-debt for asset #${position.assetId} from FinancialDataLog #${snapshot.id}`,
         manualDebt,
         amountChf,
         equity,
+        amountChf == null && asset ? { asset, nativeAmount: position.value, qualifier: 'manual-debt' } : undefined,
       );
+      if (result.assetBacked) {
+        if (result.assetUniqueName == null)
+          throw new Error(`Asset-backed manual-debt opening for asset ${position.assetId} has no asset name`);
+        assetBacked.push({ id: position.assetId, assetUniqueName: result.assetUniqueName });
+      }
     }
+
+    return assetBacked;
   }
 
   // --- WATERMARK INIT (§6.3 step 3, Blocker R3-1) --- //
@@ -989,16 +1018,42 @@ export class LedgerCutoverService {
     liability: LedgerAccount,
     amountChf: number | undefined,
     equity: LedgerAccount,
-  ): Promise<void> {
-    // m6 fail-loud: a received/owed/unattributed/manual-debt opening lives on a CHF-denominated LIABILITY
-    // (assetId=NULL) and would be booked with native 0, so the mark-to-market job (assetId IS NOT NULL, native≠0) can
-    // NEVER revalue it. Booking it with amountChf=undefined would silently drop the liability's value forever. If the
-    // required mark is missing, throw: the whole cutover rolls back, the ledger-ready flag stays unset, and the next
-    // cron run retries once the mark feed is available. Never a stale zero-opening.
-    if (amountChf == null) {
+    nativeFallback?: { asset: Asset; nativeAmount: number; qualifier: string },
+  ): Promise<{ assetBacked: boolean; assetUniqueName?: string }> {
+    // m6 fail-loud: without a real native fallback, the opening remains on a CHF-denominated LIABILITY (assetId=NULL)
+    // with native 0, so mark-to-market can NEVER revalue it. Throw before booking a stale zero-opening; the ready flag
+    // stays unset and the next cron run retries once the missing mark or native asset information is available.
+    if (amountChf == null && !nativeFallback) {
       throw new Error(
         `Cutover opening ${sourceId} without a mark would silently drop the value (CHF liability, never revalued by mark-to-market) — retry when the mark feed is available`,
       );
+    }
+
+    if (amountChf == null) {
+      const account = await this.accountService.findOrCreate(
+        `LIABILITY/${nativeFallback.qualifier}/${nativeFallback.asset.uniqueName}`,
+        AccountType.LIABILITY,
+        nativeFallback.asset.dexName ?? nativeFallback.asset.name,
+        nativeFallback.asset.id,
+      );
+
+      // The native LIABILITY stays visible and is revalued when a mark returns. Forward completion remains keyed by
+      // the unchanged sourceId; consumers must not assume this opening leg already has a CHF value.
+      await this.bookOpening(
+        0,
+        sourceId,
+        description,
+        bookingDate,
+        {
+          account,
+          amount: -nativeFallback.nativeAmount,
+          amountChf: undefined,
+          priceChf: undefined,
+          needsMark: true,
+        },
+        equity,
+      );
+      return { assetBacked: true, assetUniqueName: nativeFallback.asset.uniqueName };
     }
 
     await this.bookOpening(
@@ -1009,15 +1064,30 @@ export class LedgerCutoverService {
       { account: liability, amount: -amountChf, priceChf: 1, amountChf: -amountChf, needsMark: false },
       equity,
     );
+    return { assetBacked: false };
   }
 
   private async alreadyBooked(sourceId: string, seq: number): Promise<boolean> {
     return (await this.bookingService.nextSeq(SOURCE_TYPE, sourceId)) > seq;
   }
 
-  // foreign-fiat mark from the asset mark cache (priceChf of the fiat asset ≤ snapshot)
-  private fiatMark(assetId: number | undefined, date: Date, marks: LedgerMarkCache): number | undefined {
-    return assetId != null ? marks.getMarkAt(assetId, date) : undefined;
+  // FinancialDataLog marks are keyed by Asset.id, while BuyFiat.outputAsset is a Fiat row whose Fiat.id belongs to a
+  // different table and cannot address the mark cache. Resolve the Fiat currency name to its currency Assets, then use
+  // the first candidate carrying a mark in this run's snapshot-consistent cache; no candidate mark stays fail-loud.
+  private async fiatMark(
+    fiatName: string | null | undefined,
+    date: Date,
+    marks: LedgerMarkCache,
+  ): Promise<number | undefined> {
+    if (fiatName == null) return undefined;
+
+    const assets = await this.assetService.getAssetsByName(fiatName);
+    for (const asset of assets) {
+      const mark = marks.getMarkAt(asset.id, date);
+      if (mark != null) return mark;
+    }
+
+    return undefined;
   }
 
   private liability(qualifier: string): Promise<LedgerAccount> {

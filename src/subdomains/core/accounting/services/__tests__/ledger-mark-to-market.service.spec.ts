@@ -171,6 +171,32 @@ describe('LedgerMarkToMarketService', () => {
     expect(booked[0].legs.find((l) => l.account.type === AccountType.ASSET).amountChf).toBe(-20);
   });
 
+  it('revalues an asset-backed unpriced LIABILITY opening when its asset mark becomes available', async () => {
+    const liability = createCustomLedgerAccount({
+      id: 1999,
+      name: 'LIABILITY/buyCrypto-owed/DeFiChain/DFI',
+      type: AccountType.LIABILITY,
+      assetId: 999,
+    });
+    // The opening leg is native -2 with amountChf undefined/needsMark=true, so its current CHF basis is 0.
+    legStub = { candidateIds: [1999], balance: { native: '-2', chf: '0' }, alreadyBookedCount: 0 };
+    jest.spyOn(ledgerAccountRepository, 'findBy').mockResolvedValue([liability]);
+    jest
+      .spyOn(markService, 'preload')
+      .mockResolvedValue(new LedgerMarkCache(new Map([[999, [{ created: new Date('2026-06-01'), priceChf: 10 }]]])));
+
+    await service.run();
+
+    expect(booked).toHaveLength(1);
+    const liabilityLeg = booked[0].legs.find((leg) => leg.account === liability);
+    expect(liabilityLeg.amount).toBe(0); // native balance stays -2
+    expect(liabilityLeg.priceChf).toBe(10);
+    expect(liabilityLeg.amountChf).toBe(-20); // mark 10 × native balance -2 moves the CHF basis from 0 to -20
+    expect(liabilityLeg.needsMark).toBe(false);
+    const fxLeg = booked[0].legs.find((leg) => leg.account.type === AccountType.EXPENSE);
+    expect(fxLeg.amountChf).toBe(20); // counter-leg keeps the revaluation tx CHF-balanced
+  });
+
   it('does not book when the account is still feedless (no mark → no phantom revaluation)', async () => {
     legStub = { candidateIds: [205], balance: { native: '100', chf: '0' }, alreadyBookedCount: 0 };
     jest.spyOn(ledgerAccountRepository, 'findBy').mockResolvedValue([markedAccount(5)]);
