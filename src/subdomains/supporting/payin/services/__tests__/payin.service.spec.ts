@@ -5,7 +5,7 @@ import { NotificationService } from 'src/subdomains/supporting/notification/serv
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { In, IsNull, Not } from 'typeorm';
 import { createCustomCryptoInput } from '../../entities/__mocks__/crypto-input.entity.mock';
-import { PayInAction, PayInStatus } from '../../entities/crypto-input.entity';
+import { CryptoInput, PayInAction, PayInStatus } from '../../entities/crypto-input.entity';
 import { PayInRepository } from '../../repositories/payin.repository';
 import { RegisterStrategyRegistry } from '../../strategies/register/impl/base/register.strategy-registry';
 import { SendStrategyRegistry } from '../../strategies/send/impl/base/send.strategy-registry';
@@ -43,7 +43,7 @@ describe('PayInService designate-before-broadcast safeguards', () => {
       createCustomCryptoInput({ id: 42, status: PayInStatus.SENDING }),
     ];
     jest.spyOn(payInRepository, 'findBy').mockResolvedValue(payIns);
-    const saveSpy = jest.spyOn(payInRepository, 'save').mockImplementation(async (payIn) => payIn);
+    const saveSpy = jest.spyOn(payInRepository, 'save').mockImplementation(async (payIn) => payIn as CryptoInput);
     const sendMailSpy = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
 
     await service['processStrandedSendingPayIns']();
