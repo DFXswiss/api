@@ -89,9 +89,9 @@ describe('PayoutService', () => {
       jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
       const updateSpy = jest.spyOn(payoutOrderRepo, 'update');
 
-      await expect(
-        service.retryUncertainPayout(accountId, { ...baseDto, noBroadcastVerified: false }),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.retryUncertainPayout(accountId, { ...baseDto, noBroadcastVerified: false })).rejects.toThrow(
+        BadRequestException,
+      );
       expect(updateSpy).not.toHaveBeenCalled();
     });
 
