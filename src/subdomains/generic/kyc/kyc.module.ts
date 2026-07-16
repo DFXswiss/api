@@ -1,6 +1,5 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { ArchiveModule } from 'src/integration/infrastructure/storage/anchoring/archive.module';
 import { ScorechainModule } from 'src/integration/scorechain/scorechain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
@@ -55,7 +54,6 @@ import { TfaService } from './services/tfa.service';
       KycFile,
     ]),
     SharedModule,
-    ArchiveModule,
     NotificationModule,
     ScorechainModule,
     forwardRef(() => UserModule),
