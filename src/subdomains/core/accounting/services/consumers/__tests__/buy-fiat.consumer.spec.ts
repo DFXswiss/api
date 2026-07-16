@@ -1363,4 +1363,182 @@ describe('BuyFiatConsumer', () => {
     expect(setSpy).toHaveBeenCalled(); // content-change cursor ADVANCED (skip, not wedge)
     expect(errorSpy.mock.calls.some((c) => /unpriced at the cutover/i.test(String(c[0])))).toBe(true); // F2 alarm
   });
+
+  // --- F2a: FRICK INLINE CHARGE (seq3 payout settlement) --- //
+
+  // §4.7 Frick inline charge: a seq3 payout whose matched bankTx carried a bank charge (chargeAmount set,
+  // chargeAmountChf null, chargeCurrency == output currency, mark present) books the GROSS bank movement
+  // (−(outputAmount + charge)) plus an explicit EXPENSE/bank-fee valued at mark × charge — the journal reconciles net
+  // of the charge instead of double-counting it. owedChf 9500 == mark × gross − fee → seq3 balances flat (Σ CHF = 0).
+  it('books a seq3 inline bank charge as gross bank + EXPENSE/bank-fee, balanced (§4.7 Frick inline charge)', async () => {
+    mockBatch([
+      buyFiat({
+        id: 40,
+        amountInChf: 9500,
+        totalFeeAmountChf: 0,
+        outputAmount: 10000, // EUR net merchant payout
+        outputReferenceAmount: 10000,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'EUR',
+          amount: 10000, // single payout: fiatOutput.amount == outputAmount → charge share 1
+          bank: { asset: { id: EUR_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN, chargeAmount: 10, chargeCurrency: 'EUR', chargeAmountChf: null },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s3 = seq(3);
+    // bank-ASSET leg books GROSS native = −(outputAmount + charge) = −(10000 + 10); CHF = −round(0.95 × 10010, 2)
+    const bank = leg(s3, 'Bank/EUR');
+    expect(bank.amount).toBe(-10010);
+    expect(bank.amountChf).toBe(-9509.5);
+    // the charge is reclassified into an explicit EXPENSE/bank-fee = +round(mark × charge, 2) = +round(0.95 × 10, 2)
+    expect(leg(s3, 'EXPENSE/bank-fee').amountChf).toBe(9.5);
+    // TRANSIT Dr = owedChf (9500); no fx residual → seq3 balances flat
+    expect(leg(s3, 'TRANSIT/payout/EUR').amountChf).toBe(9500);
+    expect(s3.legs.some((l) => /fx-revaluation/.test(l.account.name))).toBe(false);
+    expect(cents(s3.legs)).toBe(0); // Σ amountChf of the booked seq3 tx = 0 (balanced)
+  });
+
+  // §4.7 regression: a seq3 payout with NO inline charge (chargeAmount null) books EXACTLY the pre-change legs —
+  // bank-ASSET native == −outputAmount (gross == outputAmount) and NO EXPENSE/bank-fee leg.
+  it('books an unchanged seq3 when the bankTx carries no inline charge (regression, no bank-fee leg)', async () => {
+    mockBatch([
+      buyFiat({
+        id: 41,
+        amountInChf: 1000,
+        totalFeeAmountChf: 10,
+        outputAmount: 990,
+        outputReferenceAmount: 990,
+        outputAsset: { name: 'CHF' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'CHF',
+          bank: { asset: { id: CHF_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN, chargeAmount: null }, // no inline charge
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s3 = seq(3);
+    expect(leg(s3, 'Bank/CHF').amount).toBe(-990); // gross == outputAmount (charge 0)
+    expect(leg(s3, 'Bank/CHF').amountChf).toBe(-990);
+    expect(s3.legs.some((l) => l.account.name === 'EXPENSE/bank-fee')).toBe(false); // no fee leg
+    expect(s3.legs).toHaveLength(2); // TRANSIT + bank only, identical to pre-change
+    expect(cents(s3.legs)).toBe(0);
+  });
+
+  // §4.7 batch apportioning: a fiatOutput can aggregate N buy_fiats settled by ONE charged bankTx (fiatOutput.amount
+  // = Σ outputAmount_i; the matcher nets the single statement charge once). Each seq3 books only its PRO-RATA charge
+  // share (keyed on outputAmount), so Σ gross bank legs = bankTx.amount and Σ fee legs = the single charge — booking
+  // the full charge per row would expense it N times and over-credit the bank by (N−1) × charge.
+  it('apportions a batched fiatOutput inline charge pro-rata across the buy_fiats (Σ gross = bankTx.amount)', async () => {
+    const sharedOutput = {
+      isTransmittedDate: FRI,
+      currency: 'EUR',
+      amount: 100, // Σ outputAmount = 60 + 40
+      bank: { asset: { id: EUR_BANK_ASSET_ID } },
+      bankTx: { bookingDate: SUN, amount: 105, chargeAmount: 5, chargeCurrency: 'EUR', chargeAmountChf: null },
+    };
+    mockBatch([
+      // owedChf per row = mark × gross − fee share → each seq3 balances flat (no fx residual)
+      buyFiat({
+        id: 42,
+        amountInChf: 57, // 0.95 × 63 − 2.85
+        totalFeeAmountChf: 0,
+        outputAmount: 60,
+        outputReferenceAmount: 60,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: sharedOutput as any,
+      }),
+      buyFiat({
+        id: 43,
+        amountInChf: 38, // 0.95 × 42 − 1.9
+        totalFeeAmountChf: 0,
+        outputAmount: 40,
+        outputReferenceAmount: 40,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: sharedOutput as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s3of = (id: number) => booked.find((b) => b.seq === 3 && b.sourceId === `${id}`);
+    const s60 = s3of(42);
+    const s40 = s3of(43);
+    // 60-row: share 0.6 → charge 3 → gross −63 native, fee = round(0.95 × 3, 2) = 2.85 (NOT the full 5)
+    expect(leg(s60, 'Bank/EUR').amount).toBe(-63);
+    expect(leg(s60, 'EXPENSE/bank-fee').amountChf).toBe(2.85);
+    // 40-row: share 0.4 → charge 2 → gross −42 native, fee = round(0.95 × 2, 2) = 1.9
+    expect(leg(s40, 'Bank/EUR').amount).toBe(-42);
+    expect(leg(s40, 'EXPENSE/bank-fee').amountChf).toBe(1.9);
+    // Σ gross bank legs = bankTx.amount (105) and Σ fee legs = the single statement charge (0.95 × 5 = 4.75 CHF)
+    expect(leg(s60, 'Bank/EUR').amount + leg(s40, 'Bank/EUR').amount).toBe(-105);
+    expect(Math.round((leg(s60, 'EXPENSE/bank-fee').amountChf + leg(s40, 'EXPENSE/bank-fee').amountChf) * 100)).toBe(
+      475,
+    );
+    expect(cents(s60.legs)).toBe(0);
+    expect(cents(s40.legs)).toBe(0);
+  });
+
+  // §4.7 batch apportioning, CHF-priced charge: with chargeAmountChf SET the fee leg is scaled by the SAME batch
+  // share as the native charge — round(5.5 × 0.6, 2) = 3.3, NEVER the full 5.5 (that would expense it N times).
+  it('scales a CHF-priced charge (chargeAmountChf) by the batch share, never the full value', async () => {
+    mockBatch([
+      buyFiat({
+        id: 44,
+        amountInChf: 56.55, // 0.95 × 63 − 3.3 → seq3 balances flat
+        totalFeeAmountChf: 0,
+        outputAmount: 60,
+        outputReferenceAmount: 60,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'EUR',
+          amount: 100, // batch: this row's share = 60 / 100 = 0.6
+          bank: { asset: { id: EUR_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN, chargeAmount: 5, chargeCurrency: 'EUR', chargeAmountChf: 5.5 },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s3 = seq(3);
+    expect(leg(s3, 'Bank/EUR').amount).toBe(-63); // gross = 60 + pro-rata native charge 3
+    expect(leg(s3, 'EXPENSE/bank-fee').amountChf).toBe(3.3); // round(5.5 × 0.6, 2), NOT 5.5
+    expect(cents(s3.legs)).toBe(0);
+  });
+
+  // inlineChargeChf ladder end (fail-loud): a charge priced in neither CHF (chargeAmountChf null) nor the output
+  // currency cannot be valued mark-consistently → seq3 throws → failure-isolation (watermark stays, retry next run).
+  it('throws (failure-isolation) when an inline charge is priced in neither CHF nor the output currency', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    mockBatch([
+      buyFiat({
+        id: 45,
+        amountInChf: 95,
+        totalFeeAmountChf: 0,
+        outputAmount: 100, // EUR
+        outputReferenceAmount: 100,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'EUR',
+          amount: 100, // share 1 — the apportioning succeeds, the CHF valuation is what fails
+          bank: { asset: { id: EUR_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN, chargeAmount: 10, chargeCurrency: 'USD', chargeAmountChf: null }, // foreign ccy
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(seq(1)).toBeDefined(); // booked before the seq3 throw
+    expect(seq(2)).toBeDefined();
+    expect(seq(3)).toBeUndefined(); // inlineChargeChf ladder end threw → seq3 never booked
+    expect(setSpy).not.toHaveBeenCalled(); // failure-isolation: watermark NOT advanced
+  });
 });

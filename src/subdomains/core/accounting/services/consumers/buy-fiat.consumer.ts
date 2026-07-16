@@ -269,12 +269,23 @@ export class BuyFiatConsumer {
 
     const bookingDate = bf.fiatOutput.bankTx.bookingDate ?? bf.fiatOutput.bankTx.created;
     const owedChf = this.owedChf(bf, owedOpeningChf);
+    const mark = this.outputMark(bf, bookingDate, marks);
+
+    // §4.7 Frick inline charge: a booked debit that included a bank charge must reconcile net of it — the journal
+    // books the gross bank movement plus an explicit EXPENSE/bank-fee. A fiatOutput can aggregate N buy_fiats settled
+    // by ONE charged bankTx (fiatOutput.amount = Σ outputAmount_i): the single statement charge is expensed exactly
+    // once across the batch, apportioned pro-rata on outputAmount so Σ gross bank legs = bankTx.amount. charge == 0 →
+    // gross == outputAmount → byte-for-byte the pre-charge behaviour (no fee leg).
+    const charge = this.inlineChargeShare(bf);
 
     const transit = await this.transit(this.outputCurrency(bf));
-    const bankLeg = await this.bankCrLeg(bf, bookingDate, marks);
+    const bankLeg = await this.bankCrLeg(bf, mark, charge);
 
-    // §4.7a FX-P&L leg = −(Σ CHF) → INCOME/EXPENSE fx-revaluation (EUR drift between reclassification and booking)
+    // §4.7a FX-P&L leg = −(Σ CHF) → INCOME/EXPENSE fx-revaluation (EUR drift between reclassification and booking).
+    // The fee leg is pushed BEFORE appendFxResidual: a same-mark charge leaves the fx residual unchanged; a
+    // Pricing-vs-mark drift flows to fx-revaluation, as today.
     const legs: LedgerLegInput[] = [this.chfLeg(transit, owedChf), bankLeg];
+    if (charge !== 0) legs.push(this.chfLeg(await this.expense('bank-fee'), this.inlineChargeChf(bf, mark, charge)));
     await this.appendFxResidual(legs, `buy_fiat ${bf.id} seq3`);
 
     return {
@@ -366,8 +377,12 @@ export class BuyFiatConsumer {
 
   // --- SHARED HELPERS --- //
 
-  // the bank-ASSET Cr leg of seq3: −outputAmount native, CHF = mark × outputAmount (mark-consistent, §7)
-  private async bankCrLeg(bf: BuyFiat, bookingDate: Date, marks: LedgerMarkCache): Promise<LedgerLegInput> {
+  // the bank-ASSET Cr leg of seq3: −(outputAmount + charge) native, CHF = mark × gross (mark-consistent, §7). The
+  // resolved settlement `mark` is passed in (computed once in buildSettlementSeq3). §4.7 Frick inline charge: a booked
+  // debit that included a bank charge must reconcile net of it — the journal books the GROSS bank movement here and an
+  // explicit EXPENSE/bank-fee (buildSettlementSeq3); `charge` is this row's PRO-RATA share of the statement charge
+  // (inlineChargeShare). charge == 0 → gross == outputAmount → byte-for-byte prior behaviour.
+  private async bankCrLeg(bf: BuyFiat, mark: number | undefined, charge: number): Promise<LedgerLegInput> {
     const bankAsset = bf.fiatOutput?.bank?.asset;
     if (!bankAsset) throw new Error(`buy_fiat ${bf.id} fiatOutput has no bank.asset (untracked output bank)`);
     const account = await this.assetAccount(bankAsset.id);
@@ -377,17 +392,51 @@ export class BuyFiatConsumer {
     if (bf.outputAmount == null) {
       throw new Error(`buy_fiat ${bf.id} settlement without outputAmount — cannot value the bank-ASSET leg`);
     }
-    const outputAmount = bf.outputAmount;
-    const mark = this.outputMark(bf, bookingDate, marks);
-    const chf = mark != null ? Util.round(mark * outputAmount, 2) : undefined;
+    const gross = bf.outputAmount + charge;
+    const chf = mark != null ? Util.round(mark * gross, 2) : undefined;
 
     return {
       account,
-      amount: -outputAmount,
+      amount: -gross,
       priceChf: mark ?? null,
       amountChf: chf != null ? -chf : undefined,
       needsMark: chf == null,
     };
+  }
+
+  // §4.7 Frick inline charge — this row's PRO-RATA share of the statement charge (native, output currency). Returns 0
+  // when the bankTx carries no charge (chargeAmount null/0); N == 1 → fiatOutput.amount == outputAmount → share 1 →
+  // exactly the single-payout charge.
+  private inlineChargeShare(bf: BuyFiat): number {
+    const chargeTotal = bf.fiatOutput?.bankTx?.chargeAmount ?? 0;
+    if (chargeTotal === 0) return 0;
+    return Util.round(chargeTotal * this.outputShare(bf), 8);
+  }
+
+  // the buy_fiat's value share of its (possibly batched) fiatOutput = outputAmount / fiatOutput.amount. Fail-loud
+  // (§5.1 no silent fallback): a charged settlement whose share cannot be derived must not guess an apportioning —
+  // booking the full charge per row would expense it N times and over-credit the bank by (N−1) × charge.
+  private outputShare(bf: BuyFiat): number {
+    if (bf.outputAmount == null || bf.fiatOutput?.amount == null || bf.fiatOutput.amount === 0) {
+      throw new Error(
+        `buy_fiat ${bf.id} inline charge cannot be apportioned — outputAmount/fiatOutput.amount missing or 0`,
+      );
+    }
+    return bf.outputAmount / bf.fiatOutput.amount;
+  }
+
+  // §4.7 Frick inline charge — values this row's (pro-rata) bank charge in CHF (fail-loud, no silent fallback): a
+  // CHF-priced charge scales chargeAmountChf by the SAME batch share as the native charge; a same-currency native
+  // charge is valued via the settlement mark (the passed `charge` is already pro-rata); anything else cannot be valued
+  // mark-consistently and fails loud (the row retries). Reclassified into EXPENSE/bank-fee by buildSettlementSeq3.
+  private inlineChargeChf(bf: BuyFiat, mark: number | undefined, charge: number): number {
+    const bankTx = bf.fiatOutput?.bankTx;
+    if (bankTx?.chargeAmountChf != null) return Util.round(bankTx.chargeAmountChf * this.outputShare(bf), 2);
+    if (bankTx?.chargeCurrency === this.outputCurrency(bf) && mark != null) return Util.round(mark * charge, 2);
+    throw new Error(
+      `buy_fiat ${bf.id} inline charge (${charge} ${bankTx?.chargeCurrency}) cannot be valued in CHF — ` +
+        `no chargeAmountChf and no same-currency settlement mark`,
+    );
   }
 
   // §4.7a — appends the FX-P&L leg = −(Σ CHF) for the EUR/output drift; CHF output → drift 0 → no leg.

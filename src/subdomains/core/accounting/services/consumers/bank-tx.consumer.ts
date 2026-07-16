@@ -268,10 +268,16 @@ export class BankTxConsumer {
     const bank = this.bankAssetLeg(ctx, -tx.amount, bookingDate, marks, await this.bankAccount(ctx));
     const owedChf = await this.buyCryptoOwedChf(tx);
     const owed = this.namedLeg(await this.liability('buyCrypto-owed'), owedChf);
+    const legs: LedgerLegInput[] = [owed, bank];
+
+    // §4.2 Frick inline charge: reclassify the charge from the fx-revaluation plug into an explicit EXPENSE/bank-fee —
+    // the owed anchor is NOT reduced, so the plug simply shrinks by chargeChf (a null inline → unchanged legs).
+    const inline = this.inlineBankCharge(tx, ctx, bank);
+    if (inline) legs.push(this.namedLeg(await this.expense('bank-fee'), inline.chargeChf));
 
     // owed-Dr (completion/opening CHF) + bank-Cr (EUR-mark) → withFxPlug routes the mark/valuation drift to
     // EXPENSE/INCOME fx-revaluation, owed closes cent-exact to 0 (§4.2a). CHF account → drift 0 → 2-leg, no plug.
-    return this.withFxPlug([owed, bank], `bank_tx ${tx.id} buy_crypto_return`);
+    return this.withFxPlug(legs, `bank_tx ${tx.id} buy_crypto_return`);
   }
 
   // the CHF the buyCrypto-owed was opened with: §4.6 completion (amountInChf − totalFeeAmountChf), or — for a
@@ -336,18 +342,24 @@ export class BankTxConsumer {
       marks,
       await this.bankAccount(ctx),
     );
-    const counter = await this.accountService.findOrCreate(counterName, AccountType.TRANSIT, ctx.currency);
+    const counterAccount = await this.accountService.findOrCreate(counterName, AccountType.TRANSIT, ctx.currency);
+    const counter: LedgerLegInput = {
+      account: counterAccount,
+      amount: -bank.amount,
+      priceChf: bank.priceChf,
+      amountChf: bank.amountChf != null ? -bank.amountChf : undefined,
+      needsMark: bank.needsMark,
+    };
 
-    return [
-      bank,
-      {
-        account: counter,
-        amount: -bank.amount,
-        priceChf: bank.priceChf,
-        amountChf: bank.amountChf != null ? -bank.amountChf : undefined,
-        needsMark: bank.needsMark,
-      },
-    ];
+    // §4.2 Frick inline charge: a DEBIT's tx.amount is already gross → the bank leg stays gross; reclassify the charge
+    // out of the mirrored counter into an explicit EXPENSE/bank-fee (a null inline → EXACTLY the prior legs).
+    const inline = this.inlineBankCharge(tx, ctx, bank);
+    if (!inline) return [bank, counter]; // unchanged (incl. the markless needsMark-mirror case)
+
+    counter.amount = Util.round(counter.amount - inline.chargeNative, 8); // gross → net (native, account ccy)
+    counter.amountChf = Util.round((counter.amountChf ?? 0) - inline.chargeChf, 2); // (mark guaranteed present, so amountChf is set)
+    const legs = [bank, counter, this.namedLeg(await this.expense('bank-fee'), inline.chargeChf)];
+    return this.withFxPlug(legs, `bank_tx ${tx.id} transfer`);
   }
 
   // §4.2 BANK_ACCOUNT_FEE: Dr EXPENSE/bank-fee (chargeAmountChf Pricing) / Cr ASSET/bank (EUR-mark × chargeAmount)
@@ -376,7 +388,15 @@ export class BankTxConsumer {
     const bank = this.bankAssetLeg(ctx, -tx.amount, bookingDate, marks, await this.bankAccount(ctx));
     const expense = this.namedLeg(await this.expense(name), -(bank.amountChf ?? 0));
 
-    return [expense, bank];
+    // §4.2 Frick inline charge: split the charge portion out of the {name} expense into EXPENSE/bank-fee — the bank
+    // leg stays gross (a null inline → EXACTLY the prior legs).
+    const inline = this.inlineBankCharge(tx, ctx, bank);
+    if (!inline) return [expense, bank]; // unchanged
+
+    expense.amount = Util.round(expense.amount - inline.chargeChf, 2);
+    expense.amountChf = Util.round((expense.amountChf ?? 0) - inline.chargeChf, 2);
+    const legs = [expense, bank, this.namedLeg(await this.expense('bank-fee'), inline.chargeChf)];
+    return this.withFxPlug(legs, `bank_tx ${tx.id} ${name}`);
   }
 
   // §4.2 BANK_TX_RETURN/BANK_TX_REPEAT/unattributed CRDT: Dr ASSET/bank (EUR-mark) / Cr LIABILITY/{bucket}, 2-leg.
@@ -414,12 +434,21 @@ export class BankTxConsumer {
     bucket: string,
   ): Promise<LedgerLegInput[]> {
     const bank = this.bankAssetLeg(ctx, -tx.amount, bookingDate, marks, await this.bankAccount(ctx));
-    const liabilityChf = await this.chargebackOpeningChf(tx, bucket, [bank]);
+    const others: LedgerLegInput[] = [bank];
+
+    // §4.2 Frick inline charge: reclassify the charge from the fx-revaluation plug into an explicit EXPENSE/bank-fee.
+    // Joined into `others` BEFORE the opening lookup, so the no-opening fallback (liability = −Σ others) closes over
+    // the fee too — the charge stays expensed instead of being re-absorbed by the plug. With an opening found the
+    // anchored liability is NOT reduced, so the plug simply shrinks by chargeChf (a null inline → unchanged).
+    const inline = this.inlineBankCharge(tx, ctx, bank);
+    if (inline) others.push(this.namedLeg(await this.expense('bank-fee'), inline.chargeChf));
+
+    const liabilityChf = await this.chargebackOpeningChf(tx, bucket, others);
     const liability = this.namedLeg(await this.liability(bucket), liabilityChf);
 
     // opening-CHF Dr + EUR-mark bank Cr → withFxPlug routes the mark/valuation drift to fx-revaluation, liability
     // closes cent-exact to 0. CHF account / no opening found → drift 0 → 2-leg, no plug (no behaviour change).
-    return this.withFxPlug([liability, bank], `bank_tx ${tx.id} liability_debit`);
+    return this.withFxPlug([liability, ...others], `bank_tx ${tx.id} liability_debit`);
   }
 
   // §4.2 BANK_TX_RETURN_CHARGEBACK DBIT: Dr LIABILITY/{bucket} (opening CHF) / Cr ASSET/bank (EUR-mark)
@@ -440,6 +469,14 @@ export class BankTxConsumer {
 
     const feeChf = tx.chargeAmountChf;
     if (feeChf != null && feeChf !== 0) others.push(this.namedLeg(await this.expense('bank-fee'), feeChf)); // Pricing anchor
+
+    // §4.2 Frick inline charge: an inline charge (chargeAmountChf==null) is MUTUALLY EXCLUSIVE with the chargeAmountChf
+    // fee leg above (that requires chargeAmountChf!=null) → no double-book. Joined into `others` BEFORE the opening
+    // lookup, so the no-opening fallback (liability = −Σ others) closes over the fee too — the charge stays expensed
+    // instead of being re-absorbed by the plug. With an opening found the anchored liability is NOT reduced, so the
+    // plug simply shrinks by chargeChf (a null inline → unchanged).
+    const inline = this.inlineBankCharge(tx, ctx, bank);
+    if (inline) others.push(this.namedLeg(await this.expense('bank-fee'), inline.chargeChf));
 
     const liabilityChf = await this.chargebackOpeningChf(tx, bucket, others);
     const legs: LedgerLegInput[] = [this.namedLeg(await this.liability(bucket), liabilityChf), ...others];
@@ -602,18 +639,24 @@ export class BankTxConsumer {
       marks,
       await this.bankAccount(ctx),
     );
-    const suspense = await this.accountService.findOrCreate('SUSPENSE', AccountType.SUSPENSE, CHF);
+    const suspenseAccount = await this.accountService.findOrCreate('SUSPENSE', AccountType.SUSPENSE, CHF);
+    const suspense: LedgerLegInput = {
+      account: suspenseAccount,
+      amount: -bank.amount,
+      priceChf: bank.priceChf,
+      amountChf: bank.amountChf != null ? -bank.amountChf : undefined,
+      needsMark: bank.needsMark,
+    };
 
-    return [
-      bank,
-      {
-        account: suspense,
-        amount: -bank.amount,
-        priceChf: bank.priceChf,
-        amountChf: bank.amountChf != null ? -bank.amountChf : undefined,
-        needsMark: bank.needsMark,
-      },
-    ];
+    // §4.2 Frick inline charge: a DEBIT's tx.amount is already gross → the bank leg stays gross; reclassify the charge
+    // out of the mirrored SUSPENSE counter into an explicit EXPENSE/bank-fee (a null inline → EXACTLY the prior legs).
+    const inline = this.inlineBankCharge(tx, ctx, bank);
+    if (!inline) return [bank, suspense]; // unchanged (incl. the markless needsMark-mirror case)
+
+    suspense.amount = Util.round(suspense.amount - inline.chargeNative, 8); // gross → net (native, account ccy)
+    suspense.amountChf = Util.round((suspense.amountChf ?? 0) - inline.chargeChf, 2); // (mark guaranteed present, so amountChf is set)
+    const legs = [bank, suspense, this.namedLeg(await this.expense('bank-fee'), inline.chargeChf)];
+    return this.withFxPlug(legs, `bank_tx ${tx.id} suspense`);
   }
 
   // --- LEG/ACCOUNT HELPERS --- //
@@ -639,6 +682,28 @@ export class BankTxConsumer {
   // CHF-denominated counter leg (LIABILITY/INCOME/EXPENSE): native amount == CHF amount, priceChf = 1
   private namedLeg(account: LedgerAccount, amountChf: number): LedgerLegInput {
     return { account, amount: amountChf, priceChf: 1, amountChf };
+  }
+
+  // §4.2 Frick inline charge: a booked DEBIT already carries the bank charge inside tx.amount (gross); the counter/
+  // plug must reconcile net of it. Returns the charge to reclassify into an explicit EXPENSE/bank-fee leg, or null
+  // when there is no inline charge to book. Fires only for a DEBIT with chargeAmount≠0 AND chargeAmountChf==null
+  // (a CHF-priced charge keeps its existing path). Ladder analogous to checkoutLtdLegs: the inline charge is in the
+  // account currency, valued via the settlement mark; a missing mark fails loud (fail-closed; Frick assets are mark-fed).
+  private inlineBankCharge(
+    tx: BankTx,
+    ctx: BankContext,
+    bank: LedgerLegInput,
+  ): { chargeChf: number; chargeNative: number } | null {
+    // a CREDIT arrives net — the charge was deducted upstream and never moves through this account (the financial-log
+    // fee metric still counts it as an economic cost; deliberate metric↔ledger asymmetry)
+    if (tx.creditDebitIndicator !== BankTxIndicator.DEBIT) return null;
+    const chargeNative = tx.chargeAmount ?? 0;
+    if (chargeNative === 0 || tx.chargeAmountChf != null) return null;
+    if (!(tx.chargeCurrency === ctx.currency && bank.priceChf != null))
+      throw new Error(
+        `bank_tx ${tx.id} inline charge (${chargeNative} ${tx.chargeCurrency}) cannot be valued mark-consistently in ${ctx.currency} — no same-currency mark`,
+      );
+    return { chargeChf: Util.round(bank.priceChf * chargeNative, 2), chargeNative };
   }
 
   // appends an EXPENSE/INCOME fx-revaluation plug for a remaining CHF residual > tolerance (§4.2a); sub-cent →
