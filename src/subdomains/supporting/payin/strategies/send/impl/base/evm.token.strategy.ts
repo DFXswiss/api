@@ -87,12 +87,7 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
 
     let txHash: string | undefined;
     try {
-      txHash = await this.delegationService.transferTokenViaDelegation(
-        account,
-        asset,
-        destinationAddress,
-        amount,
-      );
+      txHash = await this.delegationService.transferTokenViaDelegation(account, asset, destinationAddress, amount);
 
       // Update pay-ins with transaction data (fee is paid by relayer, not deducted from amount)
       for (const payIn of payInGroup.payIns) {
