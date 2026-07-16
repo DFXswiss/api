@@ -51,12 +51,9 @@ describe('toBroadcastBoundaryError', () => {
     expect(toBroadcastBoundaryError(axiosError, [-6])).toBeInstanceOf(TxBroadcastError);
   });
 
-  it.each(['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED'])(
-    'keeps ambiguous transport code %s fail-closed',
-    (code) => {
-      const error = Object.assign(new Error(code), { code });
+  it.each(['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED'])('keeps ambiguous transport code %s fail-closed', (code) => {
+    const error = Object.assign(new Error(code), { code });
 
-      expect(toBroadcastBoundaryError(error)).toBeInstanceOf(TxBroadcastError);
-    },
-  );
+    expect(toBroadcastBoundaryError(error)).toBeInstanceOf(TxBroadcastError);
+  });
 });
