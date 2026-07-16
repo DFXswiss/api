@@ -382,7 +382,7 @@ export class LogJobService {
     const yapealChfBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'CHF');
     const eurBankIbans = [yapealEurBank.iban, olkyBank.iban];
     const eurBankAssets = assets.filter(
-      (a) => [Blockchain.OLKYPAY, Blockchain.YAPEAL].includes(a.blockchain) && a.dexName === 'EUR',
+      (a) => [Blockchain.OLKYPAY, Blockchain.YAPEAL, Blockchain.FRICK].includes(a.blockchain) && a.dexName === 'EUR',
     );
 
     // pending balances
@@ -607,7 +607,7 @@ export class LogJobService {
 
       // EUR Scrypt pending: aggregated under Scrypt/EUR instead of per-bank
       const isEurBankAsset =
-        [Blockchain.OLKYPAY, Blockchain.YAPEAL].includes(curr.blockchain) && curr.dexName === 'EUR';
+        [Blockchain.OLKYPAY, Blockchain.YAPEAL, Blockchain.FRICK].includes(curr.blockchain) && curr.dexName === 'EUR';
       const isScryptEurAsset = (curr.blockchain as string) === ExchangeName.SCRYPT && curr.dexName === 'EUR';
 
       // Olky to Yapeal //

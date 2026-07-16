@@ -64,6 +64,12 @@ describe('DashboardReconciliationService', () => {
 
       expect(service['categorizeAsset'](asset)).toBe('blockchain');
     });
+
+    it('classifies a Frick-blockchain asset without a bank relation as bank', () => {
+      const asset = { blockchain: Blockchain.FRICK } as Asset;
+
+      expect(service['categorizeAsset'](asset)).toBe('bank');
+    });
   });
 
   describe('getOverview', () => {

@@ -52,5 +52,6 @@ export class TestExchangeService extends ExchangeService {
     Checkout: undefined,
     Sumixx: undefined,
     Yapeal: undefined,
+    Frick: undefined,
   };
 }

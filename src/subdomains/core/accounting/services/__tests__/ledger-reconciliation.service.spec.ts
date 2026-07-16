@@ -741,6 +741,14 @@ describe('LedgerReconciliationService', () => {
       expect(result.status).toBe(FeedStatus.FRESH); // 50h < 96h
     });
 
+    it('classifies a Frick custody asset without a bank relation as BANK_ACTIVE (96h threshold)', () => {
+      const account = assetAccount(11, { blockchain: Blockchain.FRICK });
+      const result = service.classifyFeed(balance(11, 100, Util.hoursBefore(50, now)), account, now);
+      expect(result.custodyClass).toBe(CustodyClass.BANK_ACTIVE);
+      expect(result.thresholdHours).toBe(96);
+      expect(result.status).toBe(FeedStatus.FRESH); // 50h < 96h
+    });
+
     it('classifies a no-asset account as ON_CHAIN_INACTIVE (24h default)', () => {
       const account = createCustomLedgerAccount({ id: 1, name: 'x', type: AccountType.ASSET, assetId: 1 } as any);
       const result = service.classifyFeed(balance(1, 100, Util.hoursBefore(2, now)), account, now);
