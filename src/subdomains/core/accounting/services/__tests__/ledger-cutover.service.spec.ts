@@ -637,43 +637,6 @@ describe('LedgerCutoverService', () => {
       expect(liabilityLeg.amountChf).toBe(-950); // 1000 EUR × 0.95, NOT the raw 1000 (FX basis, R6-1)
     });
 
-    it('values buyFiat-owed through the currency map when outputAmount is priced but fiatOutput is absent', async () => {
-      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
-      jest
-        .spyOn(markService, 'preload')
-        .mockResolvedValue(
-          new LedgerMarkCache(new Map([[269, [{ created: new Date('2026-06-01'), priceChf: 0.95 }]]])),
-        );
-      jest.spyOn(bankRepo, 'find').mockResolvedValue([
-        Object.assign(new Bank(), {
-          id: 10,
-          iban: 'EUR-IBAN',
-          currency: 'EUR',
-          asset: Object.assign(new Asset(), { id: 269 }),
-        }),
-      ]);
-      jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
-        if (!where?.outputAmount) {
-          return Promise.resolve([
-            buyFiat({
-              id: 54,
-              outputAmount: 500,
-              outputAsset: Object.assign(new Fiat(), { id: 2, name: 'EUR' }),
-              fiatOutput: undefined,
-            }),
-          ]);
-        }
-        return Promise.resolve([]);
-      });
-
-      await service.run();
-
-      const owedTx = booked.find((b) => b.sourceId === '1557344:buy_fiat-owed:54');
-      expect(owedTx).toBeDefined();
-      const liabilityLeg = owedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
-      expect(liabilityLeg.amountChf).toBe(-475);
-    });
-
     it('opens buyFiat-owed at mark 1 for a CHF output', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
@@ -713,6 +676,82 @@ describe('LedgerCutoverService', () => {
 
       expect(booked.some((b) => b.sourceId === '1557344:buy_fiat:56')).toBe(false);
       expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:57')).toBe(false);
+    });
+
+    // §6.1 (B): paymentLink is a third opening namespace; mutable routing can move a row into/out of it across a
+    // fail-loud retry while the snapshot stays pinned. An existing paymentLink opening must block both an owed
+    // re-open and a received re-open (and must not re-book paymentLink itself).
+    it('does not re-open a buyFiat row after mutable routing moves it into paymentLink from a prior paymentLink opening', async () => {
+      stubCryptoInputBoundary({ boundaryId: 900, holeIds: [] }); // covered → paymentLink branch would otherwise book
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      nextSeqByKey.set('cutover:1557344:buy_fiat-paymentLink:58', 1); // prior run opened paymentLink
+      jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+        // owed query: outputAmount set + paymentLink → would book buy_fiat-owed or re-book paymentLink without the guard
+        if (!where?.outputAmount) {
+          return Promise.resolve([
+            buyFiat({
+              id: 58,
+              amountInChf: 1000,
+              outputAmount: 940,
+              outputAsset: Object.assign(new Fiat(), { id: 1, name: 'CHF' }),
+              cryptoInput: { id: 900, paymentLinkPayment: { id: 1 } } as any,
+            }),
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:58')).toBe(false);
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-paymentLink:58')).toBe(false);
+    });
+
+    it('does not re-open a buyFiat-received row when a prior paymentLink opening already exists', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      nextSeqByKey.set('cutover:1557344:buy_fiat-paymentLink:59', 1); // prior run opened paymentLink
+      jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+        // received query: no outputAmount → would book buy_fiat:59 without the cross-namespace guard
+        if (where?.outputAmount) {
+          return Promise.resolve([buyFiat({ id: 59, amountInChf: 1000, outputAmount: null })]);
+        }
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat:59')).toBe(false);
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-paymentLink:59')).toBe(false);
+    });
+
+    // §6.1 (B) buy_crypto: same cross-namespace double-open risk as buy_fiat when outputAmount appears/disappears
+    // between fail-loud retries while the snapshot stays pinned.
+    it('does not re-open a buyCrypto row after mutable routing moves it between received and owed', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      nextSeqByKey.set('cutover:1557344:buy_crypto:70', 1); // prior run opened received; retry now routes owed
+      nextSeqByKey.set('cutover:1557344:buy_crypto-owed:71', 1); // prior run opened owed; retry now routes received
+      jest.spyOn(buyCryptoRepo, 'find').mockImplementation(({ where }: any) => {
+        if (where?.outputAmount) {
+          // received query: row 71 has null outputAmount → would re-open buy_crypto without the guard
+          return Promise.resolve([buyCrypto({ id: 71, amountInChf: 1000, outputAmount: null })]);
+        }
+        // owed query: row 70 has outputAmount set → would re-open buy_crypto-owed without the guard
+        return Promise.resolve([
+          buyCrypto({
+            id: 70,
+            outputAmount: 1,
+            outputAsset: Object.assign(new Asset(), { id: 100 }),
+          }),
+        ]);
+      });
+      jest
+        .spyOn(markService, 'preload')
+        .mockResolvedValue(new LedgerMarkCache(new Map([[100, [{ created: new Date('2026-06-01'), priceChf: 1 }]]])));
+
+      await service.run();
+
+      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto-owed:70')).toBe(false);
+      expect(booked.some((b) => b.sourceId === '1557344:buy_crypto:71')).toBe(false);
     });
 
     // §4.7b/§6.1 (F1): a paymentLink-funded open buy_fiat (outputAmount NULL) whose financing crypto_input settled
@@ -1492,6 +1531,28 @@ describe('LedgerCutoverService', () => {
       const pin = setSpy.mock.calls.find((c) => c[0] === 'ledgerCutoverUnpricedIds.buy_fiat');
       expect(pin).toBeDefined();
       expect(JSON.parse(pin[1])).toEqual([42]); // F2: pinned → forward consumer skips+advances (alarm), never wedges
+    });
+
+    // §6.1 (B) + F2: a row already opened under another namespace must not be re-pinned as unpriced when the retry
+    // re-routes it into the received query with a null amountInChf (would make the forward consumer treat a real
+    // opening as missing → phantom unpriced state).
+    it('does not pin an already-opened buyFiat row as unpriced when amountInChf is null on retry', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      nextSeqByKey.set('cutover:1557344:buy_fiat-owed:72', 1); // prior run opened owed
+      const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+      jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+        // received query: null amountInChf would pin as unpriced without the early cross-namespace guard
+        if (where?.outputAmount) {
+          return Promise.resolve([buyFiat({ id: 72, amountInChf: null, outputAmount: null })]);
+        }
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat:72')).toBe(false);
+      const pin = setSpy.mock.calls.find((c) => c[0] === 'ledgerCutoverUnpricedIds.buy_fiat');
+      expect(pin).toBeUndefined(); // already opened → must not re-pin as unpriced
     });
 
     // F2: bank/crypto-funded AND Card open received rows with a NULL amountInChf are pinned as unpriced-at-cutover; a

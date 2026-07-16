@@ -56,9 +56,11 @@ const WATERMARK_KEY_PREFIX = 'ledgerWatermark.';
 const SOURCE_TYPE = 'cutover';
 const CHF = 'CHF';
 // §6.1 (B): the three per-row buy_fiat opening namespaces. Mutually exclusive by construction, but the routing
-// between them (outputAmount/fiatOutput) is mutable and re-evaluated on every fail-loud retry while the snapshot
-// stays pinned — so exclusivity must be derived from what is already booked, never from the live predicate.
+// between them is mutable and re-evaluated on every fail-loud retry while the snapshot stays pinned — received vs.
+// owed routes on outputAmount, paymentLink vs. the rest on cryptoInput.paymentLinkPayment — so exclusivity must be
+// derived from what is already booked, never from the live predicate.
 const BUY_FIAT_OPENING_QUALIFIERS = ['buy_fiat', 'buy_fiat-owed', 'buy_fiat-paymentLink'];
+const BUY_CRYPTO_OPENING_QUALIFIERS = ['buy_crypto', 'buy_crypto-owed'];
 const OPEN_ROW_LOOKBACK_DAYS = 90; // only targeted liabilities from rows created > cutover − 90d (§6.1)
 // §6.1: unattributed bank_tx credits the LogJob carries as a liability and the forward consumer routes to
 // LIABILITY/unattributed (bank-tx.consumer.ts GSHEET/PENDING CRDT). NULL-type credits fall in here too (default-unmapped).
@@ -315,6 +317,9 @@ export class LedgerCutoverService {
     const unpriced: number[] = [];
 
     for (const row of rows) {
+      // §6.1 (B): skip before the unpriced pin — a row already opened under any buy_fiat namespace must not be re-pinned
+      // as unpriced (the forward consumer would treat a real opening as missing).
+      if (await this.alreadyOpenedInAnyNamespace(snapshot.id, row.id, BUY_FIAT_OPENING_QUALIFIERS)) continue;
       if (row.amountInChf == null) {
         unpriced.push(row.id); // F2: no CHF anchor → pin; forward SKIPs+advances (alarm), value stays in the aggregate
         continue;
@@ -335,8 +340,9 @@ export class LedgerCutoverService {
     return unpriced;
   }
 
-  // buyFiat-owed: open rows with outputAmount NOT NULL → CHF = outputAmount × mark(outputAsset-Fiat ≤ snapshot) (R6-1).
-  // Returns the ids of paymentLink rows with a NULL amountInChf (no paymentLink anchor) so the caller pins them (F2).
+  // buyFiat-owed: open rows with outputAmount NOT NULL → CHF = outputAmount × mark of the currency's representative
+  // bank asset (≤ snapshot) (R6-1). Returns the ids of paymentLink rows with a NULL amountInChf (no paymentLink anchor)
+  // so the caller pins them (F2).
   private async openBuyFiatOwed(
     snapshot: Log,
     date: Date,
@@ -357,6 +363,8 @@ export class LedgerCutoverService {
 
     for (const row of rows) {
       if (row.outputAmount == null) continue;
+      // §6.1 (B): at most one opening per row across all buy_fiat namespaces (before paymentLink unpriced pin / booking).
+      if (await this.alreadyOpenedInAnyNamespace(snapshot.id, row.id, BUY_FIAT_OPENING_QUALIFIERS)) continue;
 
       // G-a: the per-row opening (paymentLink or owed) must be EXACTLY complementary to the forward crypto_input seq0
       // suppression — both key on the SAME pinned at-snapshot boundary (isCoveredByCutoverOpening), NEVER on the mutable
@@ -377,7 +385,6 @@ export class LedgerCutoverService {
           unpriced.push(row.id);
           continue;
         }
-        if (await this.buyFiatAlreadyOpened(snapshot.id, row.id)) continue;
         await this.bookReceivedOwedOpening(
           date,
           `${snapshot.id}:buy_fiat-paymentLink:${row.id}`,
@@ -390,15 +397,14 @@ export class LedgerCutoverService {
       }
 
       // outputAsset is a Fiat; value it through its currency's representative bank Asset mark, never the Fiat id
-      const fiatMark = this.currencyMark(row.outputAsset?.name, date, marks, markAssetByCurrency);
-      const amountChf = fiatMark != null ? Util.round(row.outputAmount * fiatMark, 2) : undefined;
+      const mark = this.currencyMark(row.outputAsset?.name, date, marks, markAssetByCurrency);
+      const amountChf = mark != null ? Util.round(row.outputAmount * mark, 2) : undefined;
 
       // missing currency-mark → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): the forward path can
       // NEVER supply this opening — buy-fiat bookRegular (§4.7a) skips seq1 for an owed-straddling row and anchors
       // seq2/seq3 on exactly this opening, so a missing opening would gate-block the row in the content-change scan
       // forever. A missing mark must abort the cutover run; already-booked openings remain committed and are skipped
       // idempotently on the retry, never silently dropped.
-      if (await this.buyFiatAlreadyOpened(snapshot.id, row.id)) continue;
       await this.bookReceivedOwedOpening(
         date,
         `${snapshot.id}:buy_fiat-owed:${row.id}`,
@@ -424,8 +430,8 @@ export class LedgerCutoverService {
     paymentLink: LedgerAccount,
     equity: LedgerAccount,
   ): Promise<void> {
+    // Guard lives in the callers (openBuyFiatReceived / openBuyFiatOwed) so it also covers the unpriced-pin path.
     const isPaymentLink = row.cryptoInput?.paymentLinkPayment != null;
-    if (await this.buyFiatAlreadyOpened(snapshot.id, row.id)) return;
     await this.bookReceivedOwedOpening(
       date,
       isPaymentLink ? `${snapshot.id}:buy_fiat-paymentLink:${row.id}` : `${snapshot.id}:buy_fiat:${row.id}`,
@@ -474,6 +480,9 @@ export class LedgerCutoverService {
     const unpriced: number[] = [];
 
     for (const row of rows) {
+      // §6.1 (B): skip before the unpriced pin — a row already opened under any buy_crypto namespace must not be re-pinned
+      // as unpriced (the forward consumer would treat a real opening as missing).
+      if (await this.alreadyOpenedInAnyNamespace(snapshot.id, row.id, BUY_CRYPTO_OPENING_QUALIFIERS)) continue;
       if (row.amountInChf == null) {
         // F2: no CHF anchor → pin; the forward buildCardInputSeq0 SKIPs (its gross is in the aggregate opening via the
         // Checkout collateral feed, re-booking would double-count) and the completion scan skips+advances (no wedge).
@@ -533,6 +542,8 @@ export class LedgerCutoverService {
 
     for (const row of rows) {
       if (row.outputAmount == null) continue;
+      // §6.1 (B): at most one opening per row across all buy_crypto namespaces (before owed booking).
+      if (await this.alreadyOpenedInAnyNamespace(snapshot.id, row.id, BUY_CRYPTO_OPENING_QUALIFIERS)) continue;
 
       // G-a: the per-row owed opening must be EXACTLY complementary to the forward crypto_input seq0/seq1 handling — key
       // on the SAME pinned at-snapshot boundary (isCoveredByCutoverOpening), NEVER on the mutable live status. In the
@@ -634,7 +645,7 @@ export class LedgerCutoverService {
   }
 
   // one per-row return/repeat opening: Cr LIABILITY/{bucket} / Dr EQUITY at CHF = amount × bankMark (≤ snapshot).
-  // CHF bank → mark 1; non-CHF (EUR) → EUR-mark; feedless/no-bank-match → needsMark (mark-to-market values later).
+  // CHF bank → mark 1; non-CHF → bank asset mark or same-currency representative (§4.2a); missing mark → fail-loud (m6).
   private async openOpenLiabilityRow(
     snapshot: Log,
     date: Date,
@@ -733,7 +744,7 @@ export class LedgerCutoverService {
 
   // the bank's currency asset + its CHF mark (≤ snapshot) for a bank_tx (via accountIban → Bank.asset, §4.2/§1.6).
   // CHF bank → mark 1; tracked bank → its own asset's mark; untracked bank / no IBAN match → the representative
-  // same-currency mark (§4.2a), mirroring the forward bank-tx consumer so both value the same row identically.
+  // same-currency mark (§4.2a), mirroring the forward bank-tx consumer's mark resolution (§4.2a).
   private bankMark(
     bankTx: BankTx,
     date: Date,
@@ -1047,13 +1058,13 @@ export class LedgerCutoverService {
     return (await this.bookingService.nextSeq(SOURCE_TYPE, sourceId)) > seq;
   }
 
-  // §6.1 (B): at most ONE opening per buy_fiat row across all three namespaces. The bucket routing (outputAmount /
-  // fiatOutput) is mutable and re-evaluated on every retry while the snapshot stays pinned, so a row that moved
-  // bucket between runs would get a second opening under the new sourceId — alreadyBooked only guards its own
-  // namespace, so the pair would silently double-count equity. Both directions are real paths (payout routing sets
-  // outputAmount; BuyFiat.resetSendingInfo clears it), hence the check is symmetric, not owed-only.
-  private async buyFiatAlreadyOpened(snapshotId: number, rowId: number): Promise<boolean> {
-    for (const qualifier of BUY_FIAT_OPENING_QUALIFIERS) {
+  // §6.1 (B): at most ONE opening per source row across its opening namespaces. The bucket routing (outputAmount) is
+  // mutable and re-evaluated on every fail-loud retry while the snapshot stays pinned, so a row that moved bucket
+  // between runs would get a second opening under the new sourceId — alreadyBooked only guards its own namespace, so
+  // the pair would silently double-count equity. Both directions are real paths (payout routing sets outputAmount;
+  // BuyFiat/BuyCrypto.resetAmlCheck clears it), hence the check spans every namespace, not just the current one.
+  private async alreadyOpenedInAnyNamespace(snapshotId: number, rowId: number, qualifiers: string[]): Promise<boolean> {
+    for (const qualifier of qualifiers) {
       if (await this.alreadyBooked(`${snapshotId}:${qualifier}:${rowId}`, 0)) return true;
     }
     return false;
