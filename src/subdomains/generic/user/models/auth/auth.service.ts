@@ -32,6 +32,7 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { MailKey, MailTranslationKey } from 'src/subdomains/supporting/notification/factories/mail.factory';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FeeService } from 'src/subdomains/supporting/payment/services/fee.service';
+import { CustodyProvider } from '../custody-provider/custody-provider.entity';
 import { CustodyProviderService } from '../custody-provider/custody-provider.service';
 import { RecommendationMethod, RecommendationType } from '../recommendation/recommendation.entity';
 import { RecommendationService } from '../recommendation/recommendation.service';
@@ -78,7 +79,7 @@ export class AuthService {
   private readonly challengeList = new Map<string, ChallengeData>();
   private readonly mailKeyList = new Map<string, MailKeyData>();
   private readonly userCache = new AsyncCache<User>(CacheItemResetPeriod.EVERY_10_SECONDS);
-  private readonly signUpCalls = new AsyncCache<AuthResponseDto>(CacheItemResetPeriod.ALWAYS);
+  private readonly signUpCalls = new AsyncCache<User>(CacheItemResetPeriod.ALWAYS);
 
   constructor(
     private readonly userService: UserService,
@@ -131,14 +132,37 @@ export class AuthService {
 
     return existingUser
       ? this.doSignIn(existingUser, dto, userIp, false)
-      : this.signUpCalls.get(dto.address, () =>
-          this.doSignUp(dto, userIp, false, userDataId, userId)
-            .catch((e) => {
-              if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
-              throw e;
-            })
-            .finally(() => this.userCache.invalidate(dto.address)),
-        );
+      : this.coalescedSignUp(dto, userIp, userDataId, userId);
+  }
+
+  // only the credential-neutral creation is coalesced per address; every request in the burst verifies
+  // its own credentials and mints its own token, so no caller can receive a response it never authenticated for
+  private async coalescedSignUp(
+    dto: SignUpDto,
+    userIp: string,
+    userDataId?: number,
+    userId?: number,
+  ): Promise<AuthResponseDto> {
+    const custodyProvider = await this.verifySignUpCredentials(dto, false);
+
+    let user: User;
+    try {
+      user = await this.signUpCalls.get(dto.address, () =>
+        this.createSignUpUser(dto, userIp, custodyProvider, userDataId, userId).finally(() =>
+          this.userCache.invalidate(dto.address),
+        ),
+      );
+    } catch (e) {
+      if (e.message?.includes('duplicate key')) return this.signIn(dto, userIp, false);
+      throw e;
+    }
+
+    if (userDataId && user.userData.id !== userDataId)
+      throw new ConflictException('Address already linked to another account');
+
+    await this.checkIpBlacklistFor(user.userData, userIp);
+
+    return { accessToken: this.generateUserToken(user, userIp) };
   }
 
   async signUp(dto: SignUpDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {
@@ -155,11 +179,16 @@ export class AuthService {
     userDataId?: number,
     userId?: number,
   ): Promise<AuthResponseDto> {
-    const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true, wallet: true }));
-    if (userData?.status === UserDataStatus.MERGED) throw new UnauthorizedException('User data is merged');
+    const custodyProvider = await this.verifySignUpCredentials(dto, isCustodial);
 
-    const primaryUser = userId && (await this.userService.getUser(userId));
+    const user = await this.createSignUpUser(dto, userIp, custodyProvider, userDataId, userId);
 
+    await this.checkIpBlacklistFor(user.userData, userIp);
+
+    return { accessToken: this.generateUserToken(user, userIp) };
+  }
+
+  private async verifySignUpCredentials(dto: SignUpDto, isCustodial: boolean): Promise<CustodyProvider | undefined> {
     const custodyProvider = await this.custodyProviderService.getWithMasterKey(dto.signature).catch(() => undefined);
     if (
       !custodyProvider &&
@@ -167,6 +196,21 @@ export class AuthService {
     ) {
       throw new BadRequestException('Invalid signature');
     }
+
+    return custodyProvider;
+  }
+
+  private async createSignUpUser(
+    dto: SignUpDto,
+    userIp: string,
+    custodyProvider?: CustodyProvider,
+    userDataId?: number,
+    userId?: number,
+  ): Promise<User> {
+    const userData = userDataId && (await this.userDataService.getUserData(userDataId, { users: true, wallet: true }));
+    if (userData?.status === UserDataStatus.MERGED) throw new UnauthorizedException('User data is merged');
+
+    const primaryUser = userId && (await this.userService.getUser(userId));
 
     const ref = await this.refService.get(userIp);
     if (ref) dto.usedRef ??= ref.ref;
@@ -211,9 +255,7 @@ export class AuthService {
       if (recommendation) await this.recommendationService.setRecommenderRefCode(recommendation);
     }
 
-    await this.checkIpBlacklistFor(user.userData, userIp);
-
-    return { accessToken: this.generateUserToken(user, userIp) };
+    return user;
   }
 
   async signIn(dto: SignInDto, userIp: string, isCustodial = false): Promise<AuthResponseDto> {

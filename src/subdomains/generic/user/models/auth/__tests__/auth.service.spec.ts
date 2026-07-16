@@ -32,6 +32,7 @@ describe('AuthService', () => {
   let service: AuthService;
 
   const jwtServiceMock = mock<JwtService>();
+  const cryptoServiceMock = mock<CryptoService>();
   const ipLogServiceMock = mock<IpLogService>();
   const userDataServiceMock = mock<UserDataService>();
   const settingServiceMock = mock<SettingService>();
@@ -51,7 +52,7 @@ describe('AuthService', () => {
         { provide: WalletService, useValue: walletServiceMock },
         { provide: CustodyProviderService, useValue: custodyProviderServiceMock },
         { provide: JwtService, useValue: jwtServiceMock },
-        { provide: CryptoService, useValue: mock<CryptoService>() },
+        { provide: CryptoService, useValue: cryptoServiceMock },
         { provide: RefService, useValue: mock<RefService>() },
         { provide: FeeService, useValue: mock<FeeService>() },
         { provide: UserDataService, useValue: userDataServiceMock },
@@ -365,7 +366,7 @@ describe('AuthService', () => {
       custodyProviderServiceMock.getWithMasterKey.mockResolvedValue(custodyProvider);
     });
 
-    it('coalesces concurrent sign-ups for the same address into one createUser call', async () => {
+    it('coalesces concurrent sign-ups into one createUser call but mints each token per request (own IP)', async () => {
       const wallet = createCustomWallet({ name: 'DFX Wallet' });
       const user = createCustomUser({ id: 21, userData: account(), wallet });
       const dto = { address: 'RACE_ADDR_1', signature: 'SIG' } as any;
@@ -377,10 +378,66 @@ describe('AuthService', () => {
         return user;
       });
 
-      const [first, second] = await Promise.all([service.authenticate(dto, ip), service.authenticate({ ...dto }, ip)]);
+      await Promise.all([service.authenticate(dto, ip), service.authenticate({ ...dto }, '5.6.7.8')]);
 
       expect(userServiceMock.createUser).toHaveBeenCalledTimes(1);
-      expect(first.accessToken).toEqual(second.accessToken);
+      expect(jwtServiceMock.sign).toHaveBeenCalledTimes(2);
+      const mintedIps = jwtServiceMock.sign.mock.calls.map((c) => (c[0] as any).ip);
+      expect(mintedIps.sort()).toEqual([ip, '5.6.7.8']);
+    });
+
+    it('rejects an invalid signature in the burst instead of handing it the coalesced response', async () => {
+      const wallet = createCustomWallet({ name: 'DFX Wallet' });
+      const user = createCustomUser({ id: 24, userData: account(), wallet });
+      const valid = { address: 'RACE_ADDR_4', signature: 'SIG' } as any;
+      const invalid = { address: 'RACE_ADDR_4', signature: 'BAD' } as any;
+
+      userServiceMock.getUserByAddress.mockResolvedValue(null);
+      walletServiceMock.getByIdOrName.mockResolvedValue(wallet);
+      custodyProviderServiceMock.getWithMasterKey.mockRejectedValue(new Error('not found'));
+      cryptoServiceMock.verifySignature.mockImplementation(async (_msg, _addr, signature) => signature === 'SIG');
+      userServiceMock.createUser.mockImplementation(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+        return user;
+      });
+
+      const [first, second] = await Promise.allSettled([
+        service.authenticate(valid, ip),
+        service.authenticate(invalid, ip),
+      ]);
+
+      expect(first.status).toEqual('fulfilled');
+      expect(second.status).toEqual('rejected');
+      expect((second as PromiseRejectedResult).reason.message).toEqual('Invalid signature');
+      expect(userServiceMock.createUser).toHaveBeenCalledTimes(1);
+      expect(jwtServiceMock.sign).toHaveBeenCalledTimes(1);
+    });
+
+    it('rejects a mismatching userDataId in the burst instead of handing it the coalesced response', async () => {
+      const wallet = createCustomWallet({ name: 'DFX Wallet' });
+      const user = createCustomUser({ id: 25, userData: account(), wallet });
+      const dto = { address: 'RACE_ADDR_5', signature: 'SIG' } as any;
+
+      userServiceMock.getUserByAddress.mockResolvedValue(null);
+      userDataServiceMock.getUserData.mockResolvedValue(account());
+      walletServiceMock.getByIdOrName.mockResolvedValue(wallet);
+      userServiceMock.createUser.mockImplementation(async () => {
+        await new Promise((r) => setTimeout(r, 20));
+        return user;
+      });
+
+      const [matching, mismatching] = await Promise.allSettled([
+        service.authenticate(dto, ip, 11),
+        service.authenticate({ ...dto }, ip, 99),
+      ]);
+
+      expect(matching.status).toEqual('fulfilled');
+      expect(mismatching.status).toEqual('rejected');
+      expect((mismatching as PromiseRejectedResult).reason.message).toEqual(
+        'Address already linked to another account',
+      );
+      expect(userServiceMock.createUser).toHaveBeenCalledTimes(1);
+      expect(jwtServiceMock.sign).toHaveBeenCalledTimes(1);
     });
 
     it('falls back to sign-in when the insert still hits the unique constraint', async () => {
