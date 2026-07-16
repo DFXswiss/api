@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -9,6 +9,7 @@ import { MailContext, MailType } from 'src/subdomains/supporting/notification/en
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { FindOptionsRelations, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { MailRequest } from '../../notification/interfaces';
+import { RetryPayoutDto } from '../dto/retry-payout.dto';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { FeeResult, PayoutRequest } from '../interfaces';
@@ -127,6 +128,39 @@ export class PayoutService {
       throw new BadRequestException(`Payout order ${id} does not support transaction speedup`);
 
     await strategy.doPayout([order]);
+  }
+
+  async retryUncertainPayout(accountId: number, dto: RetryPayoutDto): Promise<void> {
+    const order = await this.payoutOrderRepo.findOneBy({ id: dto.id });
+    if (!order) throw new NotFoundException('Payout order not found');
+
+    if (order.status !== PayoutOrderStatus.PAYOUT_UNCERTAIN)
+      throw new BadRequestException(
+        `Payout order ${dto.id} cannot be retried in status ${order.status}, expected ${PayoutOrderStatus.PAYOUT_UNCERTAIN}`,
+      );
+
+    // An order with a payoutTxId needs reconciliation against the chain, not a retry.
+    if (order.payoutTxId)
+      throw new BadRequestException(
+        `Payout order ${dto.id} has payoutTxId ${order.payoutTxId} and must be reconciled, not retried`,
+      );
+
+    if (dto.noBroadcastVerified !== true)
+      throw new BadRequestException('On-chain absence must be verified and confirmed (noBroadcastVerified)');
+
+    // Atomic conditional transition — a concurrent state change must not be overwritten.
+    const result = await this.payoutOrderRepo.update(
+      { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+      { status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+    );
+    if (!result.affected) throw new ConflictException(`Payout order ${dto.id} changed state concurrently, not retried`);
+
+    // Audit trail (before → after): the order's failure history (retryCount/lastError) is
+    // deliberately NOT reset — the next successful broadcast resets it, and until then the
+    // history documents why the order was investigated.
+    this.logger.info(
+      `Manual payout retry authorized for order ${dto.id} by account ${accountId}: status ${PayoutOrderStatus.PAYOUT_UNCERTAIN} -> ${PayoutOrderStatus.PREPARATION_CONFIRMED}, retryCount ${order.retryCount}, lastError '${order.lastError}', reference: ${dto.verificationReference}`,
+    );
   }
 
   //*** JOBS ***//

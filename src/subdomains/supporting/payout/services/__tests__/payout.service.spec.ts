@@ -1,10 +1,11 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { mock } from 'jest-mock-extended';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import * as processServiceModule from 'src/shared/services/process.service';
 import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, LessThan, MoreThan } from 'typeorm';
+import { RetryPayoutDto } from '../../dto/retry-payout.dto';
 import { createCustomPayoutOrder } from '../../entities/__mocks__/payout-order.entity.mock';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../../factories/payout-order.factory';
@@ -17,6 +18,117 @@ import { PayoutLogService } from '../payout-log.service';
 import { PayoutService } from '../payout.service';
 
 describe('PayoutService', () => {
+  describe('#retryUncertainPayout(...)', () => {
+    let service: PayoutService;
+    let payoutOrderRepo: PayoutOrderRepository;
+
+    const accountId = 42;
+    const baseDto: RetryPayoutDto = {
+      id: 1,
+      noBroadcastVerified: true,
+      verificationReference: 'explorer: no tx; ticket SUP-123',
+    };
+
+    beforeEach(() => {
+      payoutOrderRepo = mock<PayoutOrderRepository>();
+
+      service = new PayoutService(
+        mock<PayoutLogService>(),
+        mock<NotificationService>(),
+        payoutOrderRepo,
+        mock<PayoutOrderFactory>(),
+        mock<PayoutStrategyRegistry>(),
+        mock<PrepareStrategyRegistry>(),
+      );
+    });
+
+    afterEach(() => {
+      jest.restoreAllMocks();
+    });
+
+    it('throws NotFoundException when the order does not exist', async () => {
+      jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(null);
+      const updateSpy = jest.spyOn(payoutOrderRepo, 'update');
+
+      await expect(service.retryUncertainPayout(accountId, baseDto)).rejects.toThrow(NotFoundException);
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when status is not PAYOUT_UNCERTAIN', async () => {
+      const order = createCustomPayoutOrder({
+        id: 1,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: undefined,
+      });
+      jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
+      const updateSpy = jest.spyOn(payoutOrderRepo, 'update');
+
+      await expect(service.retryUncertainPayout(accountId, baseDto)).rejects.toThrow(BadRequestException);
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when payoutTxId is set (must be reconciled, not retried)', async () => {
+      const order = createCustomPayoutOrder({
+        id: 1,
+        status: PayoutOrderStatus.PAYOUT_UNCERTAIN,
+        payoutTxId: 'PTX_ALREADY_SET',
+      });
+      jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
+      const updateSpy = jest.spyOn(payoutOrderRepo, 'update');
+
+      await expect(service.retryUncertainPayout(accountId, baseDto)).rejects.toThrow(BadRequestException);
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when noBroadcastVerified is false and never updates', async () => {
+      const order = createCustomPayoutOrder({
+        id: 1,
+        status: PayoutOrderStatus.PAYOUT_UNCERTAIN,
+        payoutTxId: undefined,
+      });
+      jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
+      const updateSpy = jest.spyOn(payoutOrderRepo, 'update');
+
+      await expect(
+        service.retryUncertainPayout(accountId, { ...baseDto, noBroadcastVerified: false }),
+      ).rejects.toThrow(BadRequestException);
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it('resets status to PREPARATION_CONFIRMED with a conditional update on PAYOUT_UNCERTAIN', async () => {
+      const order = createCustomPayoutOrder({
+        id: 1,
+        status: PayoutOrderStatus.PAYOUT_UNCERTAIN,
+        payoutTxId: undefined,
+        retryCount: 3,
+      });
+      order.lastError = 'broadcast ambiguous';
+      jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
+      const updateSpy = jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+      const infoSpy = jest.spyOn(service['logger'], 'info');
+
+      await service.retryUncertainPayout(accountId, baseDto);
+
+      expect(updateSpy).toHaveBeenCalledWith(
+        { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+        { status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+      );
+      expect(infoSpy).toHaveBeenCalled();
+    });
+
+    it('throws ConflictException when the conditional update affects no rows (concurrent state change)', async () => {
+      const order = createCustomPayoutOrder({
+        id: 1,
+        status: PayoutOrderStatus.PAYOUT_UNCERTAIN,
+        payoutTxId: undefined,
+      });
+      jest.spyOn(payoutOrderRepo, 'findOneBy').mockResolvedValue(order);
+      jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 0 } as any);
+
+      await expect(service.retryUncertainPayout(accountId, baseDto)).rejects.toThrow(ConflictException);
+    });
+  });
+
   describe('#speedupTransaction(...)', () => {
     let service: PayoutService;
     let payoutOrderRepo: PayoutOrderRepository;
