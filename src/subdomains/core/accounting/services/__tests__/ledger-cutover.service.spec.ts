@@ -3,6 +3,8 @@ import { CronExpression } from '@nestjs/schedule';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ExchangeTx } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { Asset } from 'src/shared/models/asset/asset.entity';
+import { Fiat } from 'src/shared/models/fiat/fiat.entity';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { Process } from 'src/shared/services/process.service';
 import { DFX_CRONJOB_PARAMS, DfxCronParams } from 'src/shared/utils/cron';
@@ -601,11 +603,27 @@ describe('LedgerCutoverService', () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest
         .spyOn(markService, 'preload')
-        .mockResolvedValue(new LedgerMarkCache(new Map([[7, [{ created: new Date('2026-06-01'), priceChf: 0.95 }]]])));
+        .mockResolvedValue(
+          new LedgerMarkCache(new Map([[269, [{ created: new Date('2026-06-01'), priceChf: 0.95 }]]])),
+        );
+      jest.spyOn(bankRepo, 'find').mockResolvedValue([
+        Object.assign(new Bank(), {
+          id: 10,
+          iban: 'EUR-IBAN',
+          currency: 'EUR',
+          asset: Object.assign(new Asset(), { id: 269 }),
+        }),
+      ]);
       jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
         // owed query: isComplete false, no outputAmount filter → return the owed row
         if (!where?.outputAmount) {
-          return Promise.resolve([buyFiat({ id: 43, outputAmount: 1000, outputAsset: { id: 7, name: 'EUR' } as any })]);
+          return Promise.resolve([
+            buyFiat({
+              id: 43,
+              outputAmount: 1000,
+              outputAsset: Object.assign(new Fiat(), { id: 2, name: 'EUR' }),
+            }),
+          ]);
         }
         return Promise.resolve([]);
       });
@@ -617,6 +635,43 @@ describe('LedgerCutoverService', () => {
       const liabilityLeg = owedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
       expect(liabilityLeg.account.name).toBe('LIABILITY/buyFiat-owed');
       expect(liabilityLeg.amountChf).toBe(-950); // 1000 EUR × 0.95, NOT the raw 1000 (FX basis, R6-1)
+    });
+
+    it('values buyFiat-owed through the currency map when outputAmount is priced but fiatOutput is absent', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest
+        .spyOn(markService, 'preload')
+        .mockResolvedValue(
+          new LedgerMarkCache(new Map([[269, [{ created: new Date('2026-06-01'), priceChf: 0.95 }]]])),
+        );
+      jest.spyOn(bankRepo, 'find').mockResolvedValue([
+        Object.assign(new Bank(), {
+          id: 10,
+          iban: 'EUR-IBAN',
+          currency: 'EUR',
+          asset: Object.assign(new Asset(), { id: 269 }),
+        }),
+      ]);
+      jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+        if (!where?.outputAmount) {
+          return Promise.resolve([
+            buyFiat({
+              id: 54,
+              outputAmount: 500,
+              outputAsset: Object.assign(new Fiat(), { id: 2, name: 'EUR' }),
+              fiatOutput: undefined,
+            }),
+          ]);
+        }
+        return Promise.resolve([]);
+      });
+
+      await service.run();
+
+      const owedTx = booked.find((b) => b.sourceId === '1557344:buy_fiat-owed:54');
+      expect(owedTx).toBeDefined();
+      const liabilityLeg = owedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
+      expect(liabilityLeg.amountChf).toBe(-475);
     });
 
     it('opens buyFiat-owed at mark 1 for a CHF output', async () => {
@@ -635,6 +690,29 @@ describe('LedgerCutoverService', () => {
       const owedTx = booked.find((b) => b.sourceId === '1557344:buy_fiat-owed:44');
       const liabilityLeg = owedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
       expect(liabilityLeg.amountChf).toBe(-14851.5); // CHF output → mark 1
+    });
+
+    it('does not re-open a buyFiat row after mutable routing moves it between received and owed', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      nextSeqByKey.set('cutover:1557344:buy_fiat-owed:56', 1); // prior run opened owed; retry now routes received
+      nextSeqByKey.set('cutover:1557344:buy_fiat:57', 1); // prior run opened received; retry now routes owed
+      jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+        if (where?.outputAmount) {
+          return Promise.resolve([buyFiat({ id: 56, amountInChf: 1000, outputAmount: null })]);
+        }
+        return Promise.resolve([
+          buyFiat({
+            id: 57,
+            outputAmount: 1000,
+            outputAsset: Object.assign(new Fiat(), { id: 1, name: 'CHF' }),
+          }),
+        ]);
+      });
+
+      await service.run();
+
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat:56')).toBe(false);
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:57')).toBe(false);
     });
 
     // §4.7b/§6.1 (F1): a paymentLink-funded open buy_fiat (outputAmount NULL) whose financing crypto_input settled
@@ -930,6 +1008,37 @@ describe('LedgerCutoverService', () => {
       const liabilityLeg = unattributedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
       expect(liabilityLeg.account.name).toBe('LIABILITY/unattributed');
       expect(liabilityLeg.amountChf).toBe(-2850); // (1000 + 2000) × 0.95, aggregated, CHF-denominated
+    });
+
+    it('values an unattributed EUR credit on an untracked bank through the representative currency asset', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest
+        .spyOn(markService, 'preload')
+        .mockResolvedValue(
+          new LedgerMarkCache(new Map([[269, [{ created: new Date('2026-06-01'), priceChf: 0.95 }]]])),
+        );
+      jest.spyOn(bankRepo, 'find').mockResolvedValue([
+        Object.assign(new Bank(), { id: 10, iban: 'UNTRACKED-EUR', currency: 'EUR', asset: undefined }),
+        Object.assign(new Bank(), {
+          id: 20,
+          iban: 'TRACKED-EUR',
+          currency: 'EUR',
+          asset: Object.assign(new Asset(), { id: 269 }),
+        }),
+      ]);
+      jest
+        .spyOn(bankTxRepo, 'find')
+        .mockResolvedValueOnce([
+          Object.assign(new BankTx(), { id: 92, amount: 1000, accountIban: 'UNTRACKED-EUR', currency: 'EUR' }),
+        ])
+        .mockResolvedValueOnce([]);
+
+      await service.run();
+
+      const unattributedTx = booked.find((b) => b.sourceId === '1557344:unattributed');
+      expect(unattributedTx).toBeDefined();
+      const liabilityLeg = unattributedTx.legs.find((l) => l.account.type === AccountType.LIABILITY);
+      expect(liabilityLeg.amountChf).toBe(-950);
     });
   });
 
@@ -1527,6 +1636,35 @@ describe('LedgerCutoverService', () => {
       expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:50')).toBe(false);
     });
 
+    it('throws (m6) on a priced buyFiat-owed row without an output currency', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
+      jest
+        .spyOn(markService, 'preload')
+        .mockResolvedValue(
+          new LedgerMarkCache(new Map([[269, [{ created: new Date('2026-06-01'), priceChf: 0.95 }]]])),
+        );
+      jest.spyOn(bankRepo, 'find').mockResolvedValue([
+        Object.assign(new Bank(), {
+          id: 10,
+          iban: 'EUR-IBAN',
+          currency: 'EUR',
+          asset: Object.assign(new Asset(), { id: 269 }),
+        }),
+      ]);
+      jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
+        if (!where?.outputAmount) {
+          return Promise.resolve([buyFiat({ id: 58, outputAmount: 1000, outputAsset: undefined })]);
+        }
+        return Promise.resolve([]);
+      });
+
+      await expect(service.run()).rejects.toThrow(/without a mark/i);
+
+      const flagSet = (settingService.set as jest.Mock).mock.calls.find((c) => c[0] === 'ledgerCutoverLogId');
+      expect(flagSet).toBeUndefined();
+      expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:58')).toBe(false);
+    });
+
     // m6 fail-loud (F2): a foreign-currency (EUR) buyFiat-owed opening without a fiat-mark would silently skip an
     // opening the forward path can NEVER supply — buy-fiat bookRegular skips seq1 for an owed-straddling row and
     // anchors seq2/seq3 on this opening, so the row would gate-block the content-change scan forever. The cutover
@@ -1548,13 +1686,14 @@ describe('LedgerCutoverService', () => {
       expect(booked.some((b) => b.sourceId === '1557344:buy_fiat-owed:51')).toBe(false); // no zero-opening booked
     });
 
-    // fiatMark (`assetId != null` false side): a foreign-currency buyFiat-owed whose outputAsset has NO id →
-    // fiatMark(undefined, …) returns undefined → amountChf undefined → the same m6 fail-loud as the missing-mark case.
-    it('throws (m6) on a foreign-currency buyFiat-owed opening whose outputAsset has no id (fiatMark undefined)', async () => {
+    // currencyMark miss: a foreign-currency buyFiat-owed whose currency has NO tracked bank asset to supply the mark
+    // → undefined → amountChf undefined → the same m6 fail-loud as the missing-mark case. The Fiat's own id is
+    // irrelevant here (it never keys the asset mark cache) — only the currency name resolves a mark.
+    it('throws (m6) on a foreign-currency buyFiat-owed opening when no tracked bank supplies that currency mark', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshotLog({})]);
       jest.spyOn(buyFiatRepo, 'find').mockImplementation(({ where }: any) => {
         if (!where?.outputAmount) {
-          // outputAsset.name 'EUR' (not CHF) but id undefined → fiatMark(undefined) → undefined → throw
+          // outputAsset.name 'EUR' (not CHF), but no EUR bank asset is tracked → currencyMark undefined → throw
           return Promise.resolve([buyFiat({ id: 53, outputAmount: 1000, outputAsset: { name: 'EUR' } as any })]);
         }
         return Promise.resolve([]);

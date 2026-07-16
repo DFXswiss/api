@@ -55,6 +55,10 @@ const CUTOVER_SNAPSHOT_DATE_KEY = 'ledgerCutoverSnapshotDate';
 const WATERMARK_KEY_PREFIX = 'ledgerWatermark.';
 const SOURCE_TYPE = 'cutover';
 const CHF = 'CHF';
+// §6.1 (B): the three per-row buy_fiat opening namespaces. Mutually exclusive by construction, but the routing
+// between them (outputAmount/fiatOutput) is mutable and re-evaluated on every fail-loud retry while the snapshot
+// stays pinned — so exclusivity must be derived from what is already booked, never from the live predicate.
+const BUY_FIAT_OPENING_QUALIFIERS = ['buy_fiat', 'buy_fiat-owed', 'buy_fiat-paymentLink'];
 const OPEN_ROW_LOOKBACK_DAYS = 90; // only targeted liabilities from rows created > cutover − 90d (§6.1)
 // §6.1: unattributed bank_tx credits the LogJob carries as a liability and the forward consumer routes to
 // LIABILITY/unattributed (bank-tx.consumer.ts GSHEET/PENDING CRDT). NULL-type credits fall in here too (default-unmapped).
@@ -257,16 +261,16 @@ export class LedgerCutoverService {
     equity: LedgerAccount,
   ): Promise<void> {
     const lookback = Util.daysBefore(OPEN_ROW_LOOKBACK_DAYS, snapshotDate);
-    // load every bank keyed by IBAN ONCE (§6.1) — openBankTxReturn/Repeat/Unattributed value each row's bank leg
-    // against this map instead of a per-row bankRepo.findOne (N+1)
-    const bankByIban = await this.bankByIban();
+    // load every bank ONCE (§6.1) — the IBAN view values matched bank legs without N+1 reads, while the currency view
+    // supplies a representative asset mark for untracked/unmatched banks (§4.2a)
+    const { byIban: bankByIban, markAssetByCurrency } = await this.bankMaps();
 
     // F2: openBuyFiat/CryptoReceived+Owed return the ids of open rows they could NOT value into a per-row opening
     // (amountInChf NULL → no CHF anchor). Pin them per source (set-only-if-unset) so the forward consumer skips+advances
     // (with an alarm) instead of wedging, and the Card seq0 does not double-book the gross once the row is priced.
     const unpricedBuyFiat = [
       ...(await this.openBuyFiatReceived(snapshot, snapshotDate, lookback, equity)),
-      ...(await this.openBuyFiatOwed(snapshot, snapshotDate, lookback, marks, equity)),
+      ...(await this.openBuyFiatOwed(snapshot, snapshotDate, lookback, marks, equity, markAssetByCurrency)),
     ];
     await this.pinUnpricedIds('buy_fiat', unpricedBuyFiat);
 
@@ -276,9 +280,9 @@ export class LedgerCutoverService {
     // §6.1 (Major design-accounting): the BANK_TX_RETURN/REPEAT + unattributed liabilities. A pre-cutover open
     // return/repeat whose chargeback settles post-cutover (§4.2 BANK_TX_*_CHARGEBACK) finds its opening-CHF anchor
     // here; without it the chargeback's −Σ(other legs) fallback leaves the liability phantom-negative (never on 0).
-    await this.openBankTxReturn(snapshot, snapshotDate, lookback, marks, equity, bankByIban);
-    await this.openBankTxRepeat(snapshot, snapshotDate, lookback, marks, equity, bankByIban);
-    await this.openUnattributed(snapshot, snapshotDate, lookback, marks, equity, bankByIban);
+    await this.openBankTxReturn(snapshot, snapshotDate, lookback, marks, equity, bankByIban, markAssetByCurrency);
+    await this.openBankTxRepeat(snapshot, snapshotDate, lookback, marks, equity, bankByIban, markAssetByCurrency);
+    await this.openUnattributed(snapshot, snapshotDate, lookback, marks, equity, bankByIban, markAssetByCurrency);
   }
 
   // buyFiat-received: open rows with outputAmount NULL → CHF = amountInChf (Minor R3-6); per-row seq0-marker (R4-2).
@@ -339,6 +343,7 @@ export class LedgerCutoverService {
     lookback: Date,
     marks: LedgerMarkCache,
     equity: LedgerAccount,
+    markAssetByCurrency: Map<string, number>,
   ): Promise<number[]> {
     const rows = await this.buyFiatRepo.find({
       where: { isComplete: false, created: Between(lookback, date) },
@@ -372,6 +377,7 @@ export class LedgerCutoverService {
           unpriced.push(row.id);
           continue;
         }
+        if (await this.buyFiatAlreadyOpened(snapshot.id, row.id)) continue;
         await this.bookReceivedOwedOpening(
           date,
           `${snapshot.id}:buy_fiat-paymentLink:${row.id}`,
@@ -383,15 +389,16 @@ export class LedgerCutoverService {
         continue;
       }
 
-      // outputAsset is a Fiat; CHF-output → mark 1, foreign-currency output → fiat-mark ≤ snapshot
-      const fiatMark = row.outputAsset?.name === CHF ? 1 : this.fiatMark(row.outputAsset?.id, date, marks);
+      // outputAsset is a Fiat; value it through its currency's representative bank Asset mark, never the Fiat id
+      const fiatMark = this.currencyMark(row.outputAsset?.name, date, marks, markAssetByCurrency);
       const amountChf = fiatMark != null ? Util.round(row.outputAmount * fiatMark, 2) : undefined;
 
-      // missing fiat-mark → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): the forward path can
+      // missing currency-mark → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): the forward path can
       // NEVER supply this opening — buy-fiat bookRegular (§4.7a) skips seq1 for an owed-straddling row and anchors
       // seq2/seq3 on exactly this opening, so a missing opening would gate-block the row in the content-change scan
-      // forever. A missing mark must abort the cutover run (already-booked openings are skipped idempotently on the
-      // retry once the mark feed is available), never a silent skip.
+      // forever. A missing mark must abort the cutover run; already-booked openings remain committed and are skipped
+      // idempotently on the retry, never silently dropped.
+      if (await this.buyFiatAlreadyOpened(snapshot.id, row.id)) continue;
       await this.bookReceivedOwedOpening(
         date,
         `${snapshot.id}:buy_fiat-owed:${row.id}`,
@@ -418,6 +425,7 @@ export class LedgerCutoverService {
     equity: LedgerAccount,
   ): Promise<void> {
     const isPaymentLink = row.cryptoInput?.paymentLinkPayment != null;
+    if (await this.buyFiatAlreadyOpened(snapshot.id, row.id)) return;
     await this.bookReceivedOwedOpening(
       date,
       isPaymentLink ? `${snapshot.id}:buy_fiat-paymentLink:${row.id}` : `${snapshot.id}:buy_fiat:${row.id}`,
@@ -571,6 +579,7 @@ export class LedgerCutoverService {
     marks: LedgerMarkCache,
     equity: LedgerAccount,
     bankByIban: Map<string, Bank>,
+    markAssetByCurrency: Map<string, number>,
   ): Promise<void> {
     const rows = await this.bankTxReturnRepo.find({
       where: { chargebackBankTx: IsNull(), created: Between(lookback, date) },
@@ -588,6 +597,7 @@ export class LedgerCutoverService {
         'bank_tx-return',
         row.bankTx,
         bankByIban,
+        markAssetByCurrency,
       );
     }
   }
@@ -600,6 +610,7 @@ export class LedgerCutoverService {
     marks: LedgerMarkCache,
     equity: LedgerAccount,
     bankByIban: Map<string, Bank>,
+    markAssetByCurrency: Map<string, number>,
   ): Promise<void> {
     const rows = await this.bankTxRepeatRepo.find({
       where: { chargebackBankTx: IsNull(), created: Between(lookback, date) },
@@ -617,6 +628,7 @@ export class LedgerCutoverService {
         'bank_tx-repeat',
         row.bankTx,
         bankByIban,
+        markAssetByCurrency,
       );
     }
   }
@@ -632,10 +644,11 @@ export class LedgerCutoverService {
     marker: string,
     bankTx: BankTx | undefined,
     bankByIban: Map<string, Bank>,
+    markAssetByCurrency: Map<string, number>,
   ): Promise<void> {
     if (bankTx?.amount == null) return; // no underlying bank_tx amount → nothing to anchor
 
-    const { mark } = this.bankMark(bankTx, date, marks, bankByIban);
+    const { mark } = this.bankMark(bankTx, date, marks, bankByIban, markAssetByCurrency);
     const amountChf = mark != null ? Util.round(bankTx.amount * mark, 2) : undefined;
 
     // feedless / no-bank-match → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): a CHF
@@ -661,6 +674,7 @@ export class LedgerCutoverService {
     marks: LedgerMarkCache,
     equity: LedgerAccount,
     bankByIban: Map<string, Bank>,
+    markAssetByCurrency: Map<string, number>,
   ): Promise<void> {
     // §6.1: type NULL/Pending/Unknown/GSheet credits → the unattributed bucket (one query, two where-branches ORed
     // for the NULL type)
@@ -676,7 +690,7 @@ export class LedgerCutoverService {
     let needsMark = false;
     for (const row of rows) {
       if (row.amount == null) continue;
-      const { mark } = this.bankMark(row, date, marks, bankByIban);
+      const { mark } = this.bankMark(row, date, marks, bankByIban, markAssetByCurrency);
       if (mark == null) {
         needsMark = true; // a feedless/unmatched credit cannot be valued now → mark-to-market values the rest later
         continue;
@@ -700,25 +714,43 @@ export class LedgerCutoverService {
     );
   }
 
-  // every bank keyed by IBAN, loaded ONCE per cutover (§6.1) so the per-row bank leg is valued from an in-memory map
-  // instead of a per-row bankRepo.findOne (N+1). Banks without an IBAN are skipped (no accountIban can match them).
-  private async bankByIban(): Promise<Map<string, Bank>> {
-    const banks = await this.bankRepo.find({ relations: { asset: true } });
-    return new Map(banks.filter((b) => b.iban != null).map((b) => [b.iban, b]));
+  // every bank loaded ONCE per cutover (§6.1): the IBAN view values a matched bank_tx leg without a per-row findOne
+  // (N+1), the currency view supplies the mark for an untracked/unmatched one (§4.2a).
+  private async bankMaps(): Promise<{ byIban: Map<string, Bank>; markAssetByCurrency: Map<string, number> }> {
+    const banks = await this.bankRepo.find({ relations: { asset: true }, order: { id: 'ASC' } });
+    const byIban = new Map(banks.filter((b) => b.iban != null).map((b) => [b.iban, b]));
+
+    // §4.2a: the CHF mark of a bank asset is identical across all same-currency bank assets, so ANY tracked bank of
+    // that currency supplies it. Ascending bank id → deterministic representative → a re-run resolves the same asset.
+    const markAssetByCurrency = new Map<string, number>();
+    for (const bank of banks) {
+      if (bank.asset?.id != null && bank.currency != null && !markAssetByCurrency.has(bank.currency))
+        markAssetByCurrency.set(bank.currency, bank.asset.id);
+    }
+
+    return { byIban, markAssetByCurrency };
   }
 
   // the bank's currency asset + its CHF mark (≤ snapshot) for a bank_tx (via accountIban → Bank.asset, §4.2/§1.6).
-  // CHF bank → mark 1; EUR bank → EUR-mark from the cache; no bank match / feedless → mark undefined (caller needsMark).
+  // CHF bank → mark 1; tracked bank → its own asset's mark; untracked bank / no IBAN match → the representative
+  // same-currency mark (§4.2a), mirroring the forward bank-tx consumer so both value the same row identically.
   private bankMark(
     bankTx: BankTx,
     date: Date,
     marks: LedgerMarkCache,
     bankByIban: Map<string, Bank>,
+    markAssetByCurrency: Map<string, number>,
   ): { asset?: Asset; mark: number | undefined } {
     const bank = bankTx.accountIban ? bankByIban.get(bankTx.accountIban) : undefined;
     if (bank?.currency === CHF || bankTx.currency === CHF) return { asset: bank?.asset, mark: 1 };
+
     const asset = bank?.asset;
-    return { asset, mark: asset?.id != null ? marks.getMarkAt(asset.id, date) : undefined };
+    const mark =
+      asset?.id != null
+        ? marks.getMarkAt(asset.id, date)
+        : this.currencyMark(bank?.currency ?? bankTx.currency, date, marks, markAssetByCurrency);
+
+    return { asset, mark };
   }
 
   // --- MANUAL OPENING (§6.1 D15 C.f) --- //
@@ -993,11 +1025,11 @@ export class LedgerCutoverService {
     // m6 fail-loud: a received/owed/unattributed/manual-debt opening lives on a CHF-denominated LIABILITY
     // (assetId=NULL) and would be booked with native 0, so the mark-to-market job (assetId IS NOT NULL, native≠0) can
     // NEVER revalue it. Booking it with amountChf=undefined would silently drop the liability's value forever. If the
-    // required mark is missing, throw: the whole cutover rolls back, the ledger-ready flag stays unset, and the next
-    // cron run retries once the mark feed is available. Never a stale zero-opening.
+    // required mark is missing, abort the run: already-booked per-row openings stay committed, the ledger-ready flag
+    // stays unset, and the cron repeats. The pinned snapshot plus alreadyBooked keeps that partial retry idempotent.
     if (amountChf == null) {
       throw new Error(
-        `Cutover opening ${sourceId} without a mark would silently drop the value (CHF liability, never revalued by mark-to-market) — retry when the mark feed is available`,
+        `Cutover opening ${sourceId} without a mark would silently drop the value (CHF liability, never revalued by mark-to-market)`,
       );
     }
 
@@ -1015,9 +1047,33 @@ export class LedgerCutoverService {
     return (await this.bookingService.nextSeq(SOURCE_TYPE, sourceId)) > seq;
   }
 
-  // foreign-fiat mark from the asset mark cache (priceChf of the fiat asset ≤ snapshot)
-  private fiatMark(assetId: number | undefined, date: Date, marks: LedgerMarkCache): number | undefined {
-    return assetId != null ? marks.getMarkAt(assetId, date) : undefined;
+  // §6.1 (B): at most ONE opening per buy_fiat row across all three namespaces. The bucket routing (outputAmount /
+  // fiatOutput) is mutable and re-evaluated on every retry while the snapshot stays pinned, so a row that moved
+  // bucket between runs would get a second opening under the new sourceId — alreadyBooked only guards its own
+  // namespace, so the pair would silently double-count equity. Both directions are real paths (payout routing sets
+  // outputAmount; BuyFiat.resetSendingInfo clears it), hence the check is symmetric, not owed-only.
+  private async buyFiatAlreadyOpened(snapshotId: number, rowId: number): Promise<boolean> {
+    for (const qualifier of BUY_FIAT_OPENING_QUALIFIERS) {
+      if (await this.alreadyBooked(`${snapshotId}:${qualifier}:${rowId}`, 0)) return true;
+    }
+    return false;
+  }
+
+  // §4.2a: CHF is valued 1:1 (no feed). Any other currency is marked via a representative same-currency bank asset —
+  // NEVER via the fiat's own id: `Fiat` and `Asset` are separate tables whose ids collide (fiat 2 = EUR, asset 2 =
+  // DeFiChain/dBTC), and the mark cache is asset-keyed. An absent currency returns undefined so the caller fails loud:
+  // a priced row without a currency is a data anomaly and must never be booked 1:1.
+  private currencyMark(
+    currency: string | undefined,
+    date: Date,
+    marks: LedgerMarkCache,
+    markAssetByCurrency: Map<string, number>,
+  ): number | undefined {
+    if (currency === CHF) return 1;
+    if (currency == null) return undefined;
+
+    const markAssetId = markAssetByCurrency.get(currency);
+    return markAssetId != null ? marks.getMarkAt(markAssetId, date) : undefined;
   }
 
   private liability(qualifier: string): Promise<LedgerAccount> {
