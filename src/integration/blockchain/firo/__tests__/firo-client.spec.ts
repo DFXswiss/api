@@ -4,8 +4,8 @@
  * Firo has no atomic Bitcoin Core `send` RPC, so the client builds+signs locally
  * (createrawtransaction/signrawtransaction - pre-broadcast, plain Error) and only broadcasts via a
  * final sendrawtransaction call (mintspark is the exception: it builds+signs+broadcasts atomically
- * in one node-side call, like Bitcoin Core's `send`). Only a failure at/after that final call is
- * ambiguous and must surface as TxBroadcastError.
+ * in one node-side call, like Bitcoin Core's `send`). At those boundaries only connection setup and
+ * allowlisted pre-funding errors remain plain; ambiguous failures stay TxBroadcastError.
  */
 
 import { HttpService } from 'src/shared/services/http.service';
@@ -80,6 +80,25 @@ describe('FiroClient - broadcast boundary', () => {
     client = new FiroClient(mockHttpService, 'http://localhost:8000');
   });
 
+  function mockSendRawResponse(response: () => Promise<unknown>): void {
+    mockRpcPost.mockImplementation((_url, body) => {
+      const parsed = JSON.parse(body);
+      if (parsed.method === 'sendrawtransaction') return response();
+      if (parsed.method === 'walletpassphrase') return Promise.resolve({ result: null, error: null, id: 'test' });
+      if (parsed.method === 'listunspent')
+        return Promise.resolve({
+          result: [{ txid: 'utxo-1', vout: 0, address: 'tLiquidityAddr', amount: 5, confirmations: 6 }],
+          error: null,
+          id: 'test',
+        });
+      if (parsed.method === 'createrawtransaction')
+        return Promise.resolve({ result: 'rawtxhex', error: null, id: 'test' });
+      if (parsed.method === 'signrawtransaction')
+        return Promise.resolve({ result: { hex: 'signedtxhex', complete: true }, error: null, id: 'test' });
+      return Promise.resolve({ result: null, error: null, id: 'test' });
+    });
+  }
+
   describe('sendMany(...) -> buildSignAndBroadcast(...)', () => {
     it('returns the txid on a successful sendrawtransaction call', async () => {
       const result = await client.sendMany([{ addressTo: 'tDestAddr', amount: 1 }], 10);
@@ -117,6 +136,46 @@ describe('FiroClient - broadcast boundary', () => {
 
       expect(error).toBeInstanceOf(TxBroadcastError);
       expect((error as TxBroadcastError).message).toBe('Bitcoin RPC sendrawtransaction failed: tx-fee-not-met');
+    });
+
+    it('keeps an ECONNREFUSED sendrawtransaction failure plain', async () => {
+      const connectionError = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+      mockSendRawResponse(() => Promise.reject(connectionError));
+
+      await expect(client.sendMany([{ addressTo: 'tDestAddr', amount: 1 }], 10)).rejects.not.toBeInstanceOf(
+        TxBroadcastError,
+      );
+    });
+
+    it.each([
+      [-6, 'RPC_WALLET_INSUFFICIENT_FUNDS'],
+      [-13, 'RPC_WALLET_UNLOCK_NEEDED'],
+    ])('keeps allowlisted RPC code %i (%s) plain', async (code) => {
+      mockSendRawResponse(() =>
+        Promise.resolve({ result: null, error: { code, message: 'deterministic wallet failure' }, id: 'test' }),
+      );
+
+      await expect(client.sendMany([{ addressTo: 'tDestAddr', amount: 1 }], 10)).rejects.not.toBeInstanceOf(
+        TxBroadcastError,
+      );
+    });
+
+    it('keeps a non-allowlisted RPC code fail-closed', async () => {
+      mockSendRawResponse(() =>
+        Promise.resolve({ result: null, error: { code: -25, message: 'missing inputs' }, id: 'test' }),
+      );
+
+      await expect(client.sendMany([{ addressTo: 'tDestAddr', amount: 1 }], 10)).rejects.toBeInstanceOf(
+        TxBroadcastError,
+      );
+    });
+
+    it.each(['ECONNRESET', 'ETIMEDOUT'])('keeps an ambiguous %s failure fail-closed', async (code) => {
+      mockSendRawResponse(() => Promise.reject(Object.assign(new Error(code), { code })));
+
+      await expect(client.sendMany([{ addressTo: 'tDestAddr', amount: 1 }], 10)).rejects.toBeInstanceOf(
+        TxBroadcastError,
+      );
     });
 
     it('does not wrap a pre-broadcast signing failure (plain Error propagates unchanged)', async () => {
@@ -201,7 +260,7 @@ describe('FiroClient - broadcast boundary', () => {
       expect((error as TxBroadcastError).message).toBe('Bitcoin RPC mintspark failed: insufficient funds');
     });
 
-    it('does not wrap an RPC-successful-but-empty mintspark result (deterministic negative ack, plain Error)', async () => {
+    it('keeps an RPC-successful-but-empty mintspark result fail-closed', async () => {
       mockRpcPost.mockImplementation((_url, body) => {
         const parsed = JSON.parse(body);
         if (parsed.method === 'mintspark') return Promise.resolve({ result: [], error: null, id: 'test' });
@@ -222,7 +281,7 @@ describe('FiroClient - broadcast boundary', () => {
         error = e;
       }
 
-      expect(error).not.toBeInstanceOf(TxBroadcastError);
+      expect(error).toBeInstanceOf(TxBroadcastError);
       expect((error as Error).message).toBe('mintspark returned no transaction IDs');
     });
 

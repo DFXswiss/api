@@ -163,7 +163,23 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
       // pre-broadcast and safe to roll back for auto-retry.
       if (e instanceof PayoutBroadcastException) throw e;
 
-      await this.rollbackPayoutDesignation(designated);
+      // trackPayoutFailure increments before this check, hence <= mirrors handleBroadcastError's
+      // pre-increment < cap check. With the default cap (3) below the recurring-alert threshold
+      // (5), processFailedOrders escalation supersedes that alert; when configured above 5, the
+      // recurring alert still fires before an order eventually exceeds this cap. Partition the
+      // claim-owned `designated` subset (not the full input) so a claim-race loser is never touched.
+      const retryableOrders = designated.filter((order) => order.retryCount <= Config.payout.maxPreBroadcastRetries);
+      const cappedOrders = designated.filter((order) => order.retryCount > Config.payout.maxPreBroadcastRetries);
+
+      if (cappedOrders.length) {
+        this.logger.warn(
+          `Pre-broadcast payout retry cap ${Config.payout.maxPreBroadcastRetries} exceeded for order(s) ${cappedOrders
+            .map((order) => order.id)
+            .join(', ')}; keeping PAYOUT_DESIGNATED for escalation`,
+        );
+      }
+
+      await this.rollbackPayoutDesignation(retryableOrders);
 
       return;
     }

@@ -1,11 +1,9 @@
 /**
  * Unit tests for MoneroClient's broadcast boundary.
  *
- * The wallet RPC's 'transfer' method builds, signs and relays a Monero transaction atomically in
- * one call - there is no separate pre-broadcast step to exclude. A failure of the HTTP call
- * itself, an RPC-level error field, or a missing result are all ambiguous (the wallet may have
- * already relayed before the response was lost/rejected) and must surface as TxBroadcastError,
- * mirroring the Solana sendTransaction boundary (result.error / empty hash -> TxBroadcastError).
+ * The wallet RPC's 'transfer' method builds, signs and relays a Monero transaction atomically.
+ * Connection-establishment failures and the two official pre-funding wallet codes remain plain;
+ * timeouts, resets, malformed responses and every other RPC code stay fail-closed.
  */
 
 import { HttpService } from 'src/shared/services/http.service';
@@ -74,6 +72,30 @@ describe('MoneroClient - broadcast boundary', () => {
       expect((error as TxBroadcastError).cause).toBe(httpError);
     });
 
+    it('keeps an ECONNREFUSED HTTP failure plain because the request never reached the wallet', async () => {
+      const connectionError = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+      mockPost.mockRejectedValueOnce(connectionError);
+
+      let error: unknown;
+      try {
+        await client.sendTransfers(payout);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBe(connectionError);
+      expect(error).not.toBeInstanceOf(TxBroadcastError);
+    });
+
+    it.each([
+      [-17, 'WALLET_RPC_ERROR_CODE_NOT_ENOUGH_MONEY'],
+      [-37, 'WALLET_RPC_ERROR_CODE_NOT_ENOUGH_UNLOCKED_MONEY'],
+    ])('keeps allowlisted RPC code %i (%s) plain', async (code) => {
+      mockPost.mockResolvedValueOnce({ error: { code, message: 'deterministic pre-funding failure' } });
+
+      await expect(client.sendTransfers(payout)).rejects.not.toBeInstanceOf(TxBroadcastError);
+    });
+
     it('wraps a non-Error rejection into a TxBroadcastError via String(e)', async () => {
       mockPost.mockRejectedValueOnce('gateway timeout');
 
@@ -102,6 +124,12 @@ describe('MoneroClient - broadcast boundary', () => {
       expect((error as TxBroadcastError).message).toBe('Failed to send tx');
     });
 
+    it.each(['ECONNRESET', 'ETIMEDOUT'])('keeps an ambiguous %s HTTP failure fail-closed', async (code) => {
+      mockPost.mockRejectedValueOnce(Object.assign(new Error(code), { code }));
+
+      await expect(client.sendTransfers(payout)).rejects.toBeInstanceOf(TxBroadcastError);
+    });
+
     it('wraps a response with neither result nor error into a TxBroadcastError', async () => {
       mockPost.mockResolvedValueOnce({});
 
@@ -114,6 +142,12 @@ describe('MoneroClient - broadcast boundary', () => {
 
       expect(error).toBeInstanceOf(TxBroadcastError);
       expect((error as TxBroadcastError).message).toBe('No result after send transfer');
+    });
+
+    it('wraps a response with an empty transaction hash into a TxBroadcastError', async () => {
+      mockPost.mockResolvedValueOnce({ result: { amount: 1, fee: 1, tx_hash: '' } });
+
+      await expect(client.sendTransfers(payout)).rejects.toBeInstanceOf(TxBroadcastError);
     });
 
     it('wraps a malformed null body (throwing while reading result.error) into a TxBroadcastError, staying fail-closed', async () => {
