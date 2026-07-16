@@ -28,6 +28,7 @@ import { SepoliaModule } from './sepolia/sepolia.module';
 import { Eip7702DelegationModule } from './shared/evm/delegation/eip7702-delegation.module';
 import { EvmDecimalsService } from './shared/evm/evm-decimals.service';
 import { PimlicoPaymasterModule } from './shared/evm/paymaster/pimlico-paymaster.module';
+import { BlockchainConfigCheckService } from './shared/services/blockchain-config-check.service';
 import { BlockchainRegistryService } from './shared/services/blockchain-registry.service';
 import { CryptoService } from './shared/services/crypto.service';
 import { TxValidationService } from './shared/services/tx-validation.service';
@@ -39,7 +40,13 @@ import { InternetComputerModule } from './icp/icp.module';
 import { ZanoModule } from './zano/zano.module';
 
 @Module({
-  providers: [EvmDecimalsService, CryptoService, BlockchainRegistryService, TxValidationService],
+  providers: [
+    EvmDecimalsService,
+    CryptoService,
+    BlockchainRegistryService,
+    TxValidationService,
+    BlockchainConfigCheckService,
+  ],
   imports: [
     SharedModule,
     BitcoinModule,
