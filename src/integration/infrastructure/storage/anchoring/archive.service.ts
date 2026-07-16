@@ -3,8 +3,9 @@ import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { IsNull } from 'typeorm';
 import { ArchiveBatch, ArchiveBatchStatus } from './archive-batch.entity';
 import { ArchiveBatchRepository } from './archive-batch.repository';
+import { ArchiveFile } from './archive-file.entity';
 import { ArchiveFileRepository } from './archive-file.repository';
-import { deserializeMerkleProof, serializeMerkleProof } from './merkle-proof-codec';
+import { serializeMerkleProof } from './merkle-proof-codec';
 import { buildMerkleRoot, merkleInclusionProof, sha256, verifyMerkleProof } from './merkle';
 import { OpenTimestampsService } from './opentimestamps.service';
 
@@ -58,28 +59,29 @@ export class ArchiveService {
   /**
    * Idempotently record the SHA-256 of an archived object identified by `(bucket, name)`.
    *
-   * Only UNANCHORED records may be updated in place (their hash refreshed, kept unanchored);
-   * a new record is created unanchored (`batch` null). Anchoring happens later via
-   * {@link anchorPending}.
+   * A new `(bucket, name)` is inserted as a fresh, unanchored row. An EXISTING row's `sha256` is
+   * NEVER mutated in place, whether or not it has been assigned to a Merkle batch: an identical
+   * hash is a no-op (idempotent), a differing hash is refused — logged (before → after, for audit)
+   * and rejected with a hard error — rather than silently applied. This is a deliberate
+   * "auditable mutation, no destructive overwrite" design (CONTRIBUTING.md): a re-upload/re-hash
+   * of the same `(bucket, name)` must never silently replace what was previously recorded, whether
+   * that record is already Merkle-anchored (where it would falsify {@link verifyDocument}) or not
+   * yet anchored (where it would erase evidence of the earlier, differing content without a
+   * trace).
    *
-   * Once a record has been assigned to a Merkle batch its leaf hash is immutable: it is part
-   * of a (possibly already Bitcoin-anchored) proof. Because KYC blob names are deterministic,
-   * a re-upload to the same `(bucket, name)` would otherwise silently overwrite the anchored
-   * leaf hash and make {@link verifyDocument} report bogus tampering. Therefore, for an
-   * already-anchored record: an identical hash is a no-op, and a differing hash is a hard
-   * error (the existing anchored hash is never overwritten).
-   *
-   * When the row looks unanchored at read time, the update is conditional on `batch` still
-   * being null at write time, so a concurrent {@link anchorPending} that claims the row
-   * cannot be overwritten by a stale write (TOCTOU).
+   * Because recordHash never writes to an existing row, there is nothing left for a concurrent
+   * {@link anchorPending} to race against here: anchorPending's own per-file conditional update
+   * likewise never touches `sha256` (see there). TOCTOU-safety therefore falls out of both
+   * functions simply never overwriting this column on an existing row, rather than out of a
+   * conditional-write/reload dance.
    */
   async recordHash(bucket: string, name: string, sha256Hex: string): Promise<void> {
-    const existing = await this.archiveFileRepo.findOne({ where: { bucket, name }, relations: ['batch'] });
+    const existing = await this.archiveFileRepo.findOne({ where: { bucket, name }, relations: { batch: true } });
 
     if (existing) {
-      if (existing.batch != null) {
-        if (existing.sha256 === sha256Hex) return;
+      if (existing.sha256 === sha256Hex) return;
 
+      if (existing.batch != null) {
         const message =
           `Refusing to overwrite anchored hash for ${bucket}/${name} (file ${existing.id}, batch ` +
           `${existing.batch.id}): stored ${existing.sha256} differs from new ${sha256Hex}`;
@@ -87,35 +89,10 @@ export class ArchiveService {
         throw new Error(message);
       }
 
-      // Conditional update: only write if still unanchored (closes TOCTOU with anchorPending).
-      const result = await this.archiveFileRepo.update({ id: existing.id, batch: IsNull() }, { sha256: sha256Hex });
-      if (result.affected !== 0) return;
-
-      // Lost the race: a concurrent anchorPending claimed this row between read and write.
-      const reloaded = await this.archiveFileRepo.findOne({ where: { id: existing.id }, relations: ['batch'] });
-      if (!reloaded) {
-        const message = `Archive file ${existing.id} (${bucket}/${name}) disappeared during concurrent update`;
-        this.logger.error(message);
-        throw new Error(message);
-      }
-
-      if (reloaded.sha256 === sha256Hex) return;
-
-      if (reloaded.batch != null) {
-        const message =
-          `Refusing to overwrite anchored hash for ${bucket}/${name} (file ${reloaded.id}, batch ` +
-          `${reloaded.batch.id}): concurrent anchor claimed the row; stored ${reloaded.sha256} ` +
-          `differs from new ${sha256Hex}`;
-        this.logger.error(message);
-        throw new Error(message);
-      }
-
-      // batch still null but conditional update matched nothing — data-integrity inconsistency.
       const message =
-        `Unexpected data-integrity inconsistency for ${bucket}/${name} (file ${reloaded.id}): ` +
-        `conditional update affected 0 rows but file is still unanchored with differing hash ` +
-        `(stored ${reloaded.sha256}, new ${sha256Hex})`;
-      this.logger.error(message);
+        `Refusing to overwrite unanchored hash for ${bucket}/${name} (file ${existing.id}): ` +
+        `stored ${existing.sha256} differs from new ${sha256Hex}`;
+      this.logger.warn(message);
       throw new Error(message);
     }
 
@@ -131,7 +108,7 @@ export class ArchiveService {
    * find it.
    */
   async recordedNames(bucket: string): Promise<Set<string>> {
-    const files = await this.archiveFileRepo.find({ where: { bucket }, select: ['name'] });
+    const files = await this.archiveFileRepo.find({ where: { bucket }, select: { name: true } });
     return new Set(files.map((file) => file.name));
   }
 
@@ -139,6 +116,15 @@ export class ArchiveService {
    * Batch all currently unanchored files (ordered by id) into one Merkle tree, timestamp its
    * root via OpenTimestamps, and persist batch + per-file assignment (including each file's
    * inclusion proof) in a single transaction.
+   *
+   * Each file's assignment is written via a conditional UPDATE keyed on `id`, `batch IS NULL`,
+   * AND the exact `sha256` read when the files were selected above (T0). If a concurrent
+   * {@link recordHash} call is refused in between (or, more generally, if the row no longer
+   * matches its T0 snapshot for any reason), the conditional update simply affects 0 rows for
+   * that file: it is skipped (left `batch IS NULL`, picked up again on the next anchoring cycle)
+   * rather than being claimed into a batch whose committed leaf may no longer correspond to the
+   * row's current content. This update only ever sets `batch` / `leafIndex` / `merkleProof` — it
+   * never writes `sha256`, so it can never destructively race against recordHash either.
    *
    * Returns the created batch, or `undefined` if there is nothing to anchor.
    */
@@ -157,19 +143,31 @@ export class ArchiveService {
       status: ArchiveBatchStatus.PENDING_BTC,
     });
 
+    let anchoredCount = 0;
+
     await this.archiveBatchRepo.manager.transaction(async (manager) => {
       const savedBatch = await manager.save(batch);
 
-      files.forEach((file, index) => {
-        file.batch = savedBatch;
-        file.leafIndex = index;
-        file.merkleProof = serializeMerkleProof(merkleInclusionProof(leaves, index));
-      });
+      for (const [index, file] of files.entries()) {
+        const result = await manager.update(
+          ArchiveFile,
+          { id: file.id, batch: IsNull(), sha256: file.sha256 },
+          { batch: savedBatch, leafIndex: index, merkleProof: serializeMerkleProof(merkleInclusionProof(leaves, index)) },
+        );
 
-      await manager.save(files);
+        if (result.affected) {
+          anchoredCount++;
+        } else {
+          this.logger.warn(
+            `Skipped anchoring archive file ${file.id} (${file.bucket}/${file.name}) into batch ${savedBatch.id}: ` +
+              `its hash changed or it was reassigned between batching and commit (TOCTOU). It remains unanchored ` +
+              `and will be picked up by the next anchoring cycle.`,
+          );
+        }
+      }
     });
 
-    this.logger.info(`Anchored batch ${batch.id} over ${files.length} file(s), root ${batch.merkleRoot}`);
+    this.logger.info(`Anchored batch ${batch.id} over ${anchoredCount}/${files.length} file(s), root ${batch.merkleRoot}`);
 
     return batch;
   }
@@ -222,7 +220,7 @@ export class ArchiveService {
    * the leaf, and check the OpenTimestamps attestation status.
    */
   async verifyDocument(bucket: string, name: string, data: Buffer): Promise<ArchiveVerification> {
-    const file = await this.archiveFileRepo.findOne({ where: { bucket, name }, relations: ['batch'] });
+    const file = await this.archiveFileRepo.findOne({ where: { bucket, name }, relations: { batch: true } });
     if (!file) return { found: false, verified: false };
 
     const computedDigest = sha256(data);
@@ -241,7 +239,7 @@ export class ArchiveService {
     }
 
     const rootBuffer = Buffer.from(batch.merkleRoot, 'hex');
-    const proof = deserializeMerkleProof(file.merkleProof);
+    const proof = file.merkleProofSteps;
     // Leaf must be the digest of the SUPPLIED bytes — never the stored hash — so a
     // tampered document yields proofValid: false.
     const proofValid = verifyMerkleProof(computedDigest, proof, rootBuffer);

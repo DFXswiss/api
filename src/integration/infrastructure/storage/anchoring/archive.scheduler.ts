@@ -73,7 +73,7 @@ export class ArchiveScheduler {
   private async reconciliationBuckets(): Promise<string[]> {
     const userDatas = await this.repos.userData.find({
       where: { paymentLinksConfig: Not(IsNull()) },
-      select: ['id', 'paymentLinksConfig'],
+      select: { id: true, paymentLinksConfig: true },
     });
 
     const ep2Containers: string[] = [];

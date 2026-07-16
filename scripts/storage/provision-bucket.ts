@@ -43,8 +43,15 @@ import * as dotenv from 'dotenv';
 
 dotenv.config();
 
-// Loaded after dotenv so Config.s3 / Config.s3Admin read the populated env.
-import { Config } from '../../src/config/config';
+// Loaded after dotenv so Config.s3 / Config.s3Admin read the populated env. `Config` (the
+// module-level `export let Config`) is only ever set as a side effect of `new ConfigService()`,
+// which this standalone script never instantiates — importing the raw `Config` binding would be
+// permanently `undefined` here. Build a local instance directly via `GetConfig()` instead.
+import { GetConfig } from '../../src/config/config';
+
+const Config = GetConfig();
+
+import { GEBUEV_RETENTION_FLOOR_YEARS } from '../../src/integration/infrastructure/storage/worm-retention.const';
 
 function getBucketName(): string {
   const bucket = process.env.BUCKET ?? process.argv[2];
@@ -52,10 +59,7 @@ function getBucketName(): string {
   return bucket;
 }
 
-// Swiss GeBüV requires business records to be retained for 10 years. COMPLIANCE-mode Object
-// Lock retention is extend-only and irreversible, so a value provisioned too low can never be
-// corrected on the objects it protects — it must therefore fail closed, never silently under-retain.
-export const GEBUEV_RETENTION_FLOOR_YEARS = 10;
+export { GEBUEV_RETENTION_FLOOR_YEARS };
 
 export function getRetentionYears(): number {
   const raw = process.env.RETENTION_YEARS ?? process.argv[3];

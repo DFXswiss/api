@@ -49,7 +49,7 @@ function asKycFileBlobs(docs: KycFileDoc[]): KycFileBlob[] {
   return docs as unknown as KycFileBlob[];
 }
 
-// A storage blob as returned by AzureStorageService.listBlobs (fed into the real listFilesByPrefix).
+// A storage blob as returned by StorageService.listBlobs (fed into the real listFilesByPrefix).
 function storageBlob(name: string, created: Date): Blob {
   return {
     name,

@@ -46,9 +46,37 @@ function fakeStore() {
     return entity;
   };
 
+  // TypeORM-style criteria update: evaluate conditions against current row state and return
+  // `{ affected }`. Shared between the repo-level and transactional-manager-level `update`
+  // entrypoints (the service uses both) so a conditional update — e.g. WHERE id = ... AND
+  // batch IS NULL AND sha256 = <T0 snapshot> — is exercised identically through either one.
+  const updateFile = (
+    criteria: { id: number; batch?: any; sha256?: string },
+    partial: Partial<ArchiveFile>,
+  ): { affected: number } => {
+    const file = files.find((f) => f.id === criteria.id);
+    if (!file) return { affected: 0 };
+
+    if (criteria.batch !== undefined) {
+      const wantsNull = criteria.batch?._type === 'isNull' || criteria.batch === null;
+      if (wantsNull) {
+        if (file.batch != null) return { affected: 0 };
+      } else if (criteria.batch?.id != null) {
+        if (file.batch?.id !== criteria.batch.id) return { affected: 0 };
+      }
+    }
+
+    if (criteria.sha256 !== undefined && file.sha256 !== criteria.sha256) return { affected: 0 };
+
+    Object.assign(file, partial);
+    return { affected: 1 };
+  };
+
   const manager = {
     save: async (entity: any) => saveEntity(entity),
     transaction: async (run: (manager: any) => Promise<void>) => run(manager),
+    update: async (_entityClass: any, criteria: { id: number; batch?: any; sha256?: string }, partial: Partial<ArchiveFile>) =>
+      updateFile(criteria, partial),
   };
 
   const fileRepo: any = {
@@ -56,28 +84,12 @@ function fakeStore() {
     manager,
     create: (data: Partial<ArchiveFile>) => Object.assign(new ArchiveFile(), data),
     save: async (entity: ArchiveFile | ArchiveFile[]) => saveEntity(entity),
-    // TypeORM-style criteria update: evaluate conditions against current row state and
-    // return `{ affected }` so conditional updates (e.g. batch: IsNull()) are testable.
-    update: async (criteria: { id: number; batch?: any }, partial: Partial<ArchiveFile>) => {
-      const file = files.find((f) => f.id === criteria.id);
-      if (!file) return { affected: 0 };
-
-      if (criteria.batch !== undefined) {
-        const wantsNull = criteria.batch?._type === 'isNull' || criteria.batch === null;
-        if (wantsNull) {
-          if (file.batch != null) return { affected: 0 };
-        } else if (criteria.batch?.id != null) {
-          if (file.batch?.id !== criteria.batch.id) return { affected: 0 };
-        }
-      }
-
-      Object.assign(file, partial);
-      return { affected: 1 };
-    },
+    update: async (criteria: { id: number; batch?: any; sha256?: string }, partial: Partial<ArchiveFile>) =>
+      updateFile(criteria, partial),
     findOneBy: async (where: Partial<ArchiveFile>) =>
       files.find((f) => f.bucket === where.bucket && f.name === where.name) ?? undefined,
     // supports lookup by id or by (bucket, name). Faithful to TypeORM: the `batch` relation is
-    // ONLY hydrated when the caller explicitly asks for it via `relations: ['batch']`. Without
+    // ONLY hydrated when the caller explicitly asks for it via `relations: { batch: true }`. Without
     // that, `batch` is left undefined on the returned row, so a caller that drops the relation
     // would see `existing.batch === undefined` here too (and the anchored-hash guard would fail
     // its test) instead of silently passing on the in-memory reference.
@@ -170,12 +182,25 @@ describe('ArchiveService', () => {
       expect(fileRepo.files.every((f: ArchiveFile) => f.batch == null)).toBe(true);
     });
 
-    it('upserts idempotently on (bucket, name)', async () => {
-      await service.recordHash('archive', 'doc-a.pdf', sha256(Buffer.from('updated A')).toString('hex'));
+    it('is a no-op when recording the identical hash again on an unanchored file', async () => {
+      await service.recordHash('archive', 'doc-a.pdf', sha256(docs[0].data).toString('hex'));
 
       expect(fileRepo.files).toHaveLength(3);
       const fileA = fileRepo.files.find((f: ArchiveFile) => f.name === 'doc-a.pdf');
-      expect(fileA.sha256).toBe(sha256(Buffer.from('updated A')).toString('hex'));
+      expect(fileA.sha256).toBe(sha256(docs[0].data).toString('hex'));
+    });
+
+    it('refuses to silently overwrite an unanchored file whose hash differs (auditable, no destructive overwrite)', async () => {
+      const fileA = fileRepo.files.find((f: ArchiveFile) => f.name === 'doc-a.pdf');
+      const originalHash = fileA.sha256;
+
+      await expect(
+        service.recordHash('archive', 'doc-a.pdf', sha256(Buffer.from('updated A')).toString('hex')),
+      ).rejects.toThrow(/Refusing to overwrite unanchored hash/);
+
+      // the original hash must be untouched — no silent overwrite
+      expect(fileA.sha256).toBe(originalHash);
+      expect(fileRepo.files).toHaveLength(3);
     });
 
     it('anchors pending files into a batch and stamps the root', async () => {
@@ -183,7 +208,7 @@ describe('ArchiveService', () => {
 
       expect(batch).toBeDefined();
       expect(batch.merkleRoot).toMatch(/^[0-9a-f]{64}$/);
-      expect(batch.status).toBe('pendingBtc');
+      expect(batch.status).toBe('PendingBtc');
       expect(batch.otsProof).toBeDefined();
       expect(ots.stamp).toHaveBeenCalledTimes(1);
 
@@ -253,14 +278,14 @@ describe('ArchiveService', () => {
 
       await service.upgradeBatches();
 
-      expect(batchRepo.batches[0].status).toBe('confirmed');
+      expect(batchRepo.batches[0].status).toBe('Confirmed');
       expect(batchRepo.batches[0].bitcoinHeight).toBe(840000);
     });
 
     it('loads the batch relation when recording and verifying (guards the anchored-hash check)', async () => {
       // The anchored-hash guard in recordHash and the anchored-branch in verifyDocument both
       // depend on `existing.batch`/`file.batch` being populated, which only happens when the
-      // query explicitly requests `relations: ['batch']`. Assert the option is actually passed,
+      // query explicitly requests `relations: { batch: true }`. Assert the option is actually passed,
       // so dropping it in production (which would let an anchored leaf be silently overwritten)
       // breaks this test rather than passing unnoticed.
       const findOneSpy = jest.spyOn(fileRepo, 'findOne');
@@ -270,7 +295,7 @@ describe('ArchiveService', () => {
 
       expect(findOneSpy).toHaveBeenCalled();
       for (const call of findOneSpy.mock.calls) {
-        expect(call[0]).toMatchObject({ relations: ['batch'] });
+        expect(call[0]).toMatchObject({ relations: { batch: true } });
       }
     });
 
@@ -315,7 +340,7 @@ describe('ArchiveService', () => {
       expect(batch.otsProof).toBe(Buffer.from('UPGRADED-BUT-PENDING').toString('base64'));
       expect(batch.otsProof).not.toBe(originalProof);
       // still not confirmed
-      expect(batch.status).toBe('pendingBtc');
+      expect(batch.status).toBe('PendingBtc');
       expect(batch.bitcoinHeight).toBeUndefined();
     });
 
@@ -329,7 +354,7 @@ describe('ArchiveService', () => {
       await service.upgradeBatches();
 
       expect(saveSpy).not.toHaveBeenCalled();
-      expect(batch.status).toBe('pendingBtc');
+      expect(batch.status).toBe('PendingBtc');
     });
 
     it('skips a pending batch that carries no OTS proof (never touches the library)', async () => {
@@ -346,7 +371,7 @@ describe('ArchiveService', () => {
       expect(saveSpy).not.toHaveBeenCalled();
       expect(ots.upgrade).not.toHaveBeenCalled();
       expect(ots.verify).not.toHaveBeenCalled();
-      expect(batch.status).toBe('pendingBtc');
+      expect(batch.status).toBe('PendingBtc');
     });
 
     it('reports the Bitcoin height when verifying a document whose batch is confirmed on-chain', async () => {
@@ -406,7 +431,7 @@ describe('ArchiveService', () => {
 
       const newHash = sha256(Buffer.from('concurrent re-upload')).toString('hex');
       await expect(service.recordHash('archive', 'race.pdf', newHash)).rejects.toThrow(
-        /Refusing to overwrite anchored hash.*concurrent anchor/,
+        /Refusing to overwrite unanchored hash/,
       );
 
       // Leaf committed by anchorPending must be untouched.
