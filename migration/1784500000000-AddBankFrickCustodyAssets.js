@@ -18,8 +18,15 @@
  * unlinked from any bank row and without an LM rule — matching the dormant seed Bank Frick
  * rows (receive=FALSE, send=FALSE).
  *
- * Fully idempotent and additive-only on prod: never overwrites a non-null assetId, never
- * deletes pre-existing rows.
+ * Per `docs/bank-frick-operations.md` §3.3 step 1, a Frick bank row must be linked to its
+ * custody/liquidity asset - and that asset's balance refresh verified - BEFORE `send=true` is set.
+ * The already-merged `ActivateBankFrick1784400000000` set `receive=TRUE, send=TRUE` directly
+ * without performing that link. Because this migration's timestamp is strictly later, it always
+ * runs after `ActivateBankFrick` and is the one that retroactively performs the runbook §3.3
+ * step-1 link for the rows that migration activated.
+ *
+ * up() is fully idempotent and additive-only on prod: never overwrites a non-null assetId,
+ * never deletes pre-existing rows. down() is not idempotent in that sense - see below.
  *
  * up():
  *   1. prod guard (no-op elsewhere)

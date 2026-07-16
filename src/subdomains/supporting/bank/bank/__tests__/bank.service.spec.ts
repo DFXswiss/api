@@ -1,5 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -22,8 +24,6 @@ import {
 } from '../__mocks__/bank.entity.mock';
 import { Bank } from '../bank.entity';
 import { BankRepository } from '../bank.repository';
-import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { BankSelectorInput, BankService } from '../bank.service';
 import { IbanBankName } from '../dto/bank.dto';
 

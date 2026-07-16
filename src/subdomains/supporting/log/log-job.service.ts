@@ -380,7 +380,8 @@ export class LogJobService {
     const olkyBank = await this.bankService.getBankInternal(IbanBankName.OLKY, 'EUR');
     const yapealEurBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'EUR');
     const yapealChfBank = await this.bankService.getBankInternal(IbanBankName.YAPEAL, 'CHF');
-    const eurBankIbans = [yapealEurBank.iban, olkyBank.iban];
+    const frickEurBank = await this.bankService.getBankInternal(IbanBankName.FRICK, 'EUR');
+    const eurBankIbans = [yapealEurBank.iban, olkyBank.iban, frickEurBank.iban];
     const eurBankAssets = assets.filter(
       (a) => [Blockchain.OLKYPAY, Blockchain.YAPEAL, Blockchain.FRICK].includes(a.blockchain) && a.dexName === 'EUR',
     );

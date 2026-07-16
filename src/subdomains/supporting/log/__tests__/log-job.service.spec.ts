@@ -1,5 +1,6 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { createCustomExchangeTx } from 'src/integration/exchange/dto/__mocks__/exchange-tx.entity.mock';
 import { ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
@@ -29,9 +30,10 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { BankTxRepeatService } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return.service';
 import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
+import { BankTxIndicator, BankTxType } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { Bank } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
-import { olkyEUR, yapealCHF } from '../../bank/bank/__mocks__/bank.entity.mock';
+import { frickEUR, olkyEUR, yapealCHF } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { createCustomFiatOutput } from '../../fiat-output/__mocks__/fiat-output.entity.mock';
 import { PayInService } from '../../payin/services/payin.service';
@@ -1208,6 +1210,83 @@ describe('LogJobService', () => {
       await service['getAssetLog']([asset]);
 
       expect(errorSpy).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('Frick EUR bank <-> Scrypt reconciliation (eurBankIbans completeness)', () => {
+    beforeEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.FRICK}-EUR`,
+        frickEUR.iban,
+      );
+    });
+
+    afterEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+    });
+
+    it('captures a Frick EUR -> Scrypt bank_tx in the Scrypt/EUR pending aggregate (was silently dropped before eurBankIbans included Frick)', async () => {
+      // sellable=true keeps both assets active so they are not skipped by the asset-log reduce guard
+      const frickEurAsset = createCustomAsset({
+        id: 7001,
+        blockchain: Blockchain.FRICK,
+        dexName: 'EUR',
+        sellable: true,
+      });
+      const scryptEurAsset = createCustomAsset({
+        id: 7002,
+        blockchain: ExchangeName.SCRYPT as unknown as Blockchain,
+        dexName: 'EUR',
+        sellable: true,
+      });
+      const assets = [frickEurAsset, scryptEurAsset];
+
+      jest.spyOn(settingService, 'getCustomBalanceSettings').mockResolvedValue({ assets: [], addresses: [] });
+      jest.spyOn(settingService, 'getObj').mockImplementation(async (_key, defaultValue) => defaultValue as never);
+      jest.spyOn(paymentBalanceService, 'getPaymentBalances').mockResolvedValue(new Map());
+
+      const bankFor = (name: IbanBankName, currency: string): Bank =>
+        name === IbanBankName.FRICK && currency === 'EUR'
+          ? frickEUR
+          : Object.assign(new Bank(), { name, currency, iban: `IBAN_${name}_${currency}`, bic: 'BICTEST' });
+      jest.spyOn(bankService, 'getBankInternal').mockImplementation(async (name, currency) => bankFor(name, currency));
+
+      jest.spyOn(liquidityManagementPipelineService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(payInService, 'getPendingPayIns').mockResolvedValue([]);
+      jest.spyOn(buyFiatService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(buyCryptoService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(payoutService, 'getRecentPayoutSentCorrelationIds').mockResolvedValue(new Set());
+      jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+
+      // an unmatched (still-pending) debit from Frick's EUR IBAN into Scrypt
+      const frickToScryptTx = createCustomBankTx({
+        id: 90001,
+        created: Util.hoursBefore(1),
+        accountIban: frickEUR.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'EUR',
+        instructedAmount: 10000,
+        amount: 10000,
+        remittanceInfo: undefined,
+      });
+      jest
+        .spyOn(bankTxService, 'getRecentExchangeTx')
+        .mockImplementation(async (_minId, type) => (type === BankTxType.SCRYPT ? [frickToScryptTx] : []));
+      jest.spyOn(exchangeTxService, 'getRecentExchangeTx').mockResolvedValue([]);
+
+      const assetLog = await service['getAssetLog'](assets);
+
+      // the Frick/EUR row itself stays zeroed (by design — aggregated under Scrypt/EUR instead),
+      // so it has no pending plus-balance at all
+      expect(assetLog[frickEurAsset.id].plusBalance.pending).toBeUndefined();
+
+      // the Scrypt/EUR row now captures the Frick-sourced pending amount — before the fix this was 0
+      // because eurBankIbans excluded Frick's IBAN, so the tx never entered recentEurBankToScryptTx
+      expect(assetLog[scryptEurAsset.id].plusBalance.pending.toScrypt).toBe(10000);
     });
   });
 });
