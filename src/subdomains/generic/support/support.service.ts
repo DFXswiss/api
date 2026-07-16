@@ -416,9 +416,7 @@ export class SupportService {
         // user, which were never screened anyway — resolving to undefined skips them instead of 500-ing the
         // whole list. Keep this fallback order in sync with the entity getter.
         const withdrawalAddress =
-          buyCrypto.buy?.deposit?.address ??
-          buyCrypto.cryptoRoute?.targetDeposit?.address ??
-          buyCrypto.user?.address;
+          buyCrypto.buy?.deposit?.address ?? buyCrypto.cryptoRoute?.targetDeposit?.address ?? buyCrypto.user?.address;
         const [blockchain, objectId] = buyCrypto.cryptoInput
           ? [buyCrypto.cryptoInput.asset?.blockchain, buyCrypto.cryptoInput.inTxId]
           : [buyCrypto.outputAsset?.blockchain, withdrawalAddress];
