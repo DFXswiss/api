@@ -1,7 +1,7 @@
 import { mock } from 'jest-mock-extended';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
 import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
+import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
@@ -10,6 +10,12 @@ import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/pa
 import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
 import { EvmTokenStrategy } from '../evm.token.strategy';
 import { SendGroup, SendType } from '../send.strategy';
+
+/**
+ * EvmTokenStrategy delegation tests: the designate-before-broadcast barrier of
+ * dispatchViaDelegation (using the real CryptoInput entity and its mocks) plus the
+ * integration surface between EvmTokenStrategy and Eip7702DelegationService.
+ */
 
 class TestEvmTokenStrategy extends EvmTokenStrategy {
   get blockchain(): Blockchain {
@@ -24,14 +30,6 @@ class TestEvmTokenStrategy extends EvmTokenStrategy {
     return BlockchainAddress.create('0x0000000000000000000000000000000000000001', this.blockchain);
   }
 }
-
-/**
- * Integration tests for EvmTokenStrategy delegation flow
- *
- * These tests verify the correct integration between EvmTokenStrategy and Eip7702DelegationService.
- * Since the CryptoInput entity has deep import chains, we test the key integration points
- * by directly testing the protected methods with minimal mocking.
- */
 
 describe('EvmTokenStrategy Delegation Integration', () => {
   describe('dispatchViaDelegation designate-before-broadcast', () => {

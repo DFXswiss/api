@@ -1,5 +1,5 @@
-import { mock } from 'jest-mock-extended';
 import { BadRequestException } from '@nestjs/common';
+import { mock } from 'jest-mock-extended';
 import { ConfigService } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
@@ -117,7 +117,7 @@ describe('PayInService designate-before-broadcast safeguards', () => {
       });
 
       await expect(service.returnPayIn(payIn, '0x0000000000000000000000000000000000000001', 0.1)).rejects.toThrow(
-        new BadRequestException('Pay-in send is in flight or uncertain — investigate before returning'),
+        new BadRequestException('CryptoInput send in flight or uncertain'),
       );
 
       expect(payInRepository.save).not.toHaveBeenCalled();

@@ -13,17 +13,6 @@ describe('CryptoInput', () => {
     });
   });
 
-  describe('#sendUncertain(...)', () => {
-    it('sets status to PayInStatus.SEND_UNCERTAIN', () => {
-      const entity = createCustomCryptoInput({ id: 1, status: PayInStatus.SENDING });
-
-      const result = entity.sendUncertain();
-
-      expect(result).toBe(entity);
-      expect(entity.status).toBe(PayInStatus.SEND_UNCERTAIN);
-    });
-  });
-
   describe('#fail(...)', () => {
     it('sets status to PayInStatus.FAILED', () => {
       const entity = createCustomCryptoInput({ id: 1, status: PayInStatus.ACKNOWLEDGED });

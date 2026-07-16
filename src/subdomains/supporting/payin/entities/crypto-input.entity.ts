@@ -251,12 +251,6 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
-  sendUncertain(): this {
-    this.status = PayInStatus.SEND_UNCERTAIN;
-
-    return this;
-  }
-
   forward(outTxId: string, forwardFeeAmount?: number, feeAmountChf?: number): this {
     this.outTxId = outTxId;
 
@@ -381,3 +375,6 @@ export class CryptoInput extends IEntity {
 }
 
 export const CryptoInputSettledStatus = [PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED];
+
+// Send in flight or unresolved — a return must not re-arm it.
+export const CryptoInputInFlightSendStatus = [PayInStatus.SENDING, PayInStatus.SEND_UNCERTAIN];

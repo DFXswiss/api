@@ -199,7 +199,7 @@ describe('BuyFiatService', () => {
       const cryptoInput = createCustomCryptoInput({ status, returnTxId: null });
 
       await expect(service['triggerBuyFiatReturn'](buyFiat, cryptoInput)).rejects.toThrow(
-        new BadRequestException('Pay-in send is in flight or uncertain — investigate before returning'),
+        new BadRequestException('CryptoInput send in flight or uncertain'),
       );
 
       expect(payInService.returnPayIn).not.toHaveBeenCalled();

@@ -21,6 +21,7 @@ import { TransactionSourceType, TransactionTypeInternal } from '../../payment/en
 import { TransactionService } from '../../payment/services/transaction.service';
 import {
   CryptoInput,
+  CryptoInputInFlightSendStatus,
   PayInAction,
   PayInConfirmationType,
   PayInPurpose,
@@ -230,8 +231,8 @@ export class PayInService {
 
   async returnPayIn(payIn: CryptoInput, returnAddress: string, chargebackAmount: number): Promise<void> {
     if (payIn.action === PayInAction.FORWARD) throw new BadRequestException('CryptoInput already forwarded');
-    if ([PayInStatus.SENDING, PayInStatus.SEND_UNCERTAIN].includes(payIn.status))
-      throw new BadRequestException('Pay-in send is in flight or uncertain — investigate before returning');
+    if (CryptoInputInFlightSendStatus.includes(payIn.status))
+      throw new BadRequestException('CryptoInput send in flight or uncertain');
     if ([PayInStatus.RETURN_CONFIRMED, PayInStatus.RETURNED].includes(payIn.status) || payIn.returnTxId)
       throw new BadRequestException('CryptoInput already returned');
 

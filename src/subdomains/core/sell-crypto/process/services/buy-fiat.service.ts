@@ -21,7 +21,12 @@ import { UserDataService } from 'src/subdomains/generic/user/models/user-data/us
 import { UserService } from 'src/subdomains/generic/user/models/user/user.service';
 import { WebhookService } from 'src/subdomains/generic/user/services/webhook/webhook.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
-import { CryptoInput, PayInAction, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import {
+  CryptoInput,
+  CryptoInputInFlightSendStatus,
+  PayInAction,
+  PayInStatus,
+} from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { TransactionRequest } from 'src/subdomains/supporting/payment/entities/transaction-request.entity';
 import { TransactionTypeInternal } from 'src/subdomains/supporting/payment/entities/transaction.entity';
@@ -296,8 +301,8 @@ export class BuyFiatService implements OnModuleInit {
     const { chargebackAddress, chargebackAmount } = buyFiat;
 
     if (!chargebackAddress || !chargebackAmount || !cryptoInput?.asset) return;
-    if ([PayInStatus.SENDING, PayInStatus.SEND_UNCERTAIN].includes(cryptoInput.status))
-      throw new BadRequestException('Pay-in send is in flight or uncertain — investigate before returning');
+    if (CryptoInputInFlightSendStatus.includes(cryptoInput.status))
+      throw new BadRequestException('CryptoInput send in flight or uncertain');
 
     // Skip if a return is already in progress or completed.
     if (
