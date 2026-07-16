@@ -53,6 +53,7 @@ describe('DexService', () => {
       where: {
         type: LiquidityOrderType.PURCHASE,
         isComplete: false,
+        isReady: false,
         created: LessThan(new Date('2026-07-16T11:45:00.000Z')),
       },
       select: { id: true, txId: true },

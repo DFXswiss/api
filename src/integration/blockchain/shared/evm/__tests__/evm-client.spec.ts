@@ -265,7 +265,10 @@ describe('EvmClient - broadcast boundary', () => {
 
     it('leaves a pre-broadcast slippage estimation failure unchanged', async () => {
       const client = createClientStub();
-      const slippageError = { error: { reason: 'execution reverted: Too little received' } };
+      const slippageError = {
+        reason: 'execution reverted: Too little received',
+        error: { reason: 'processing response error' },
+      };
       client.provider.estimateGas.mockRejectedValue(slippageError);
 
       let error: unknown;

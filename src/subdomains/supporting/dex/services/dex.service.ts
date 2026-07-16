@@ -337,10 +337,12 @@ export class DexService {
   // *** HELPER METHODS *** //
 
   private async alertStrandedPurchaseOrders(): Promise<void> {
+    // Only not-yet-ready in-flight purchases are stranded; ready orders are progressing toward batch completion.
     const orders = await this.liquidityOrderRepo.find({
       where: {
         type: LiquidityOrderType.PURCHASE,
         isComplete: false,
+        isReady: false,
         created: LessThan(Util.minutesBefore(15)),
       },
       select: { id: true, txId: true },
