@@ -2,7 +2,16 @@ import { BadRequestException, Inject, Injectable, NotFoundException, forwardRef 
 import { isIP } from 'class-validator';
 import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { addressExplorerUrl, txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import {
+  ScorechainScreeningDto,
+  ScorechainScreeningDtoExtras,
+  ScorechainScreeningDtoMapper,
+} from 'src/integration/scorechain/dto/scorechain-screening.dto';
+import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
+import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
+import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { UserRole } from 'src/shared/auth/user-role.enum';
 import { IpLog } from 'src/shared/models/ip-log/ip-log.entity';
 import { IpLogService } from 'src/shared/models/ip-log/ip-log.service';
@@ -183,6 +192,7 @@ export class SupportService {
     private readonly supportPdfService: SupportPdfService,
     private readonly recallService: RecallService,
     private readonly supportNoteService: SupportNoteService,
+    private readonly scorechainScreeningService: ScorechainScreeningService,
   ) {}
 
   async generateIpLogPdf(userDataId: number): Promise<string> {
@@ -356,6 +366,96 @@ export class SupportService {
       notes: notes.map((n) => this.supportNoteService.toDto(n, role, jwtAccount)),
       permissions,
     };
+  }
+
+  // Read-only, compliance-gated forensic view of ALL persisted Scorechain screenings for a userData.
+  // Never re-runs or bills a screening: it derives each of the user's txs' screening object keys
+  // (`${blockchain}:${objectId}`) exactly as the AML gate does, loads the persisted rows for those
+  // objectIds, and keeps only those whose (blockchain, objectId) the user actually produced.
+  async getScorechainScreenings(userDataId: number): Promise<ScorechainScreeningDto[]> {
+    const transactions = await this.transactionService.getAllTransactionsForUserData(userDataId, {
+      buyCrypto: {
+        cryptoInput: { asset: true },
+        outputAsset: true,
+        buy: { deposit: true },
+        cryptoRoute: { targetDeposit: true },
+        transaction: { user: true }, // BuyCrypto.targetAddress falls back to this.user.address (= transaction.user)
+      },
+      buyFiat: {
+        cryptoInput: { asset: true },
+      },
+    });
+
+    // `${blockchain}:${objectId}` -> the user's tx ids that derived it (one objectId can back several txs).
+    const relatedByKey = new Map<string, { buyCryptoIds: number[]; buyFiatIds: number[] }>();
+    const objectIds = new Set<string>();
+
+    const addDerived = (
+      blockchain: Blockchain | undefined,
+      objectId: string | undefined,
+      ref: { buyCryptoId?: number; buyFiatId?: number },
+    ): void => {
+      // No object to screen, or a chain Scorechain does not cover (no screening can exist) — never a default.
+      if (!objectId || !blockchain || !toScorechainBlockchain(blockchain)) return;
+
+      const key = `${blockchain}:${objectId}`;
+      const related = relatedByKey.get(key) ?? { buyCryptoIds: [], buyFiatIds: [] };
+      if (ref.buyCryptoId != null) related.buyCryptoIds.push(ref.buyCryptoId);
+      if (ref.buyFiatId != null) related.buyFiatIds.push(ref.buyFiatId);
+      relatedByKey.set(key, related);
+      objectIds.add(objectId);
+    };
+
+    for (const tx of transactions) {
+      const buyCrypto = tx.buyCrypto;
+      if (buyCrypto) {
+        // Mirror BuyCryptoPreparationService.screenScorechain: a crypto-in screens the incoming tx hash on
+        // its asset chain; a fiat-funded withdrawal screens the target address on the output asset chain.
+        // Null-safe mirror of the BuyCrypto.targetAddress getter (which throws on this.user.address when the
+        // tx has no user): fanning out over ALL of a userData's txs can include userData-level txs without a
+        // user, which were never screened anyway — resolving to undefined skips them instead of 500-ing the
+        // whole list. Keep this fallback order in sync with the entity getter.
+        const withdrawalAddress =
+          buyCrypto.buy?.deposit?.address ??
+          buyCrypto.cryptoRoute?.targetDeposit?.address ??
+          buyCrypto.user?.address;
+        const [blockchain, objectId] = buyCrypto.cryptoInput
+          ? [buyCrypto.cryptoInput.asset?.blockchain, buyCrypto.cryptoInput.inTxId]
+          : [buyCrypto.outputAsset?.blockchain, withdrawalAddress];
+        addDerived(blockchain, objectId, { buyCryptoId: buyCrypto.id });
+      }
+
+      const buyFiat = tx.buyFiat;
+      // Mirror BuyFiatPreparationService.screenScorechain: screen the incoming crypto deposit tx.
+      if (buyFiat)
+        addDerived(buyFiat.cryptoInput?.asset?.blockchain, buyFiat.cryptoInput?.inTxId, { buyFiatId: buyFiat.id });
+    }
+
+    if (!objectIds.size) return [];
+
+    const screenings = await this.scorechainScreeningService.getByObjectIds([...objectIds]);
+
+    // Keep only screenings the user actually produced (guards against an address string colliding across
+    // chains): match (blockchain, objectId) exactly — the screening's objectId shares the derived one's
+    // provenance, so no case normalization.
+    const items: { screening: ScorechainScreening; extras: ScorechainScreeningDtoExtras }[] = [];
+    for (const screening of screenings) {
+      const related = relatedByKey.get(`${screening.blockchain}:${screening.objectId}`);
+      if (!related) continue;
+
+      items.push({
+        screening,
+        extras: {
+          isHighRisk: this.scorechainScreeningService.isHighRisk(screening),
+          relatedBuyCryptoIds: related.buyCryptoIds.length ? related.buyCryptoIds : undefined,
+          relatedBuyFiatIds: related.buyFiatIds.length ? related.buyFiatIds : undefined,
+        },
+      });
+    }
+
+    items.sort((a, b) => b.screening.created.getTime() - a.screening.created.getTime());
+
+    return ScorechainScreeningDtoMapper.toDtoList(items);
   }
 
   async getKycFileList(): Promise<KycFileListEntry[]> {

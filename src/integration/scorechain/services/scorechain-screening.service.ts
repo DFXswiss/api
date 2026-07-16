@@ -144,6 +144,14 @@ export class ScorechainScreeningService {
     return screening.riskScore < threshold;
   }
 
+  // --- READ (forensic / compliance view) --- //
+
+  // All persisted screenings for the given objectIds (deposit tx hashes / withdrawal addresses), newest
+  // first. Read-only: never re-runs or bills a screening. Empty input yields [] without a DB hit.
+  async getByObjectIds(objectIds: string[]): Promise<ScorechainScreening[]> {
+    return this.repo.getByObjectIds(objectIds);
+  }
+
   // --- CORE --- //
 
   private async screen(params: ScreenParams): Promise<ScorechainScreening> {

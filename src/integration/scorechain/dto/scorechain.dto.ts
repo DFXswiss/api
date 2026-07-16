@@ -102,3 +102,30 @@ export interface ScoringAnalysisResponse {
 export interface ScorechainPublicKey {
   key: string;
 }
+
+// --- PARSED ANALYSIS SHAPE (ScorechainScreening.riskIndicatorData getter) --- //
+
+// Parsed shape of the persisted provider `analysis` object (stored via ScorechainScreening.riskIndicatorData).
+// Permissive by design — this payload is only ever read for display/forensics, never for business logic —
+// and shared by the PDF renderer and the compliance forensic DTO so the shape is defined exactly once.
+export interface ScorechainAnalysisDetail {
+  name?: string;
+  type?: string;
+  countries?: string[];
+  percentage?: number;
+  amountUsd?: number;
+  score?: number;
+  severity?: string;
+}
+
+export interface ScorechainAnalysisSection {
+  hasResult?: boolean;
+  result?: {
+    score?: number;
+    severity?: string;
+    details?: ScorechainAnalysisDetail[];
+  } | null;
+}
+
+export type ScorechainAnalysisKey = 'assigned' | 'incoming' | 'outgoing' | 'full';
+export type ScorechainAnalysisData = Partial<Record<ScorechainAnalysisKey, ScorechainAnalysisSection>>;
