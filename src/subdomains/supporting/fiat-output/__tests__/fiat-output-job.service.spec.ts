@@ -15,12 +15,15 @@ import * as processServiceModule from 'src/shared/services/process.service';
 import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { createCustomBuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/__mocks__/buy-crypto.entity.mock';
+import { BuyCryptoRepository } from 'src/subdomains/core/buy-crypto/process/repositories/buy-crypto.repository';
 import { createCustomLiquidityBalance } from 'src/subdomains/core/liquidity-management/__mocks__/liquidity-balance.entity.mock';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { createCustomBuyFiat } from 'src/subdomains/core/sell-crypto/process/__mocks__/buy-fiat.entity.mock';
 import { createCustomSell } from 'src/subdomains/core/sell-crypto/route/__mocks__/sell.entity.mock';
+import { SellRepository } from 'src/subdomains/core/sell-crypto/route/sell.repository';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { BankTxOutgoingMatchService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx-outgoing-match.service';
+import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { BankTxRepeatService } from '../../bank-tx/bank-tx-repeat/bank-tx-repeat.service';
 import { BankTxReturnService } from '../../bank-tx/bank-tx-return/bank-tx-return.service';
 import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
@@ -84,8 +87,13 @@ describe('FiatOutputJobService', () => {
       imports: [TestSharedModule],
       providers: [
         FiatOutputJobService,
+        // Real FiatOutputService instance so getPayoutAccount exercises the shared payout-bank selector
+        // used by fee prediction instead of a hand-duplicated mock.
+        FiatOutputService,
         { provide: FiatOutputRepository, useValue: fiatOutputRepo },
         { provide: BuyFiatRepository, useValue: createMock<BuyFiatRepository>() },
+        { provide: BuyCryptoRepository, useValue: createMock<BuyCryptoRepository>() },
+        { provide: SellRepository, useValue: createMock<SellRepository>() },
         { provide: BankTxService, useValue: bankTxService },
         { provide: BankTxOutgoingMatchService, useValue: bankTxOutgoingMatchService },
         { provide: Ep2ReportService, useValue: ep2ReportService },
