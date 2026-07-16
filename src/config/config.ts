@@ -1296,13 +1296,6 @@ export class Configuration {
     publicUrl: process.env.S3_PUBLIC_URL,
   };
 
-  // Provisioning-only S3 credentials (broader admin policy), distinct from the policy-restricted
-  // app credentials in `s3`. Used only by scripts/storage/provision-bucket.ts. secrets -> .env.
-  s3Admin = {
-    accessKey: process.env.S3_ADMIN_ACCESS_KEY,
-    secretKey: process.env.S3_ADMIN_SECRET_KEY,
-  };
-
   alby = {
     clientId: process.env.ALBY_CLIENT_ID,
     clientSecret: process.env.ALBY_CLIENT_SECRET,
