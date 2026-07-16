@@ -309,7 +309,9 @@ describe('PayoutService', () => {
           }),
         );
         expect(sendMailSpy).not.toHaveBeenCalledWith(
-          expect.objectContaining({ correlationId: expect.stringContaining(`|${movedOrder.id}&${movedOrder.context}|`) }),
+          expect.objectContaining({
+            correlationId: expect.stringContaining(`|${movedOrder.id}&${movedOrder.context}|`),
+          }),
         );
         expect(saveSpy).not.toHaveBeenCalled();
       });

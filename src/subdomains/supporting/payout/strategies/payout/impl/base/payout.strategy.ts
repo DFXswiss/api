@@ -63,9 +63,7 @@ export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
         { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
       );
       if (!result.affected) {
-        this.designationLogger.warn(
-          `Skipping payout order ${order.id}: designation lost to a concurrent payout run`,
-        );
+        this.designationLogger.warn(`Skipping payout order ${order.id}: designation lost to a concurrent payout run`);
         return false;
       }
 
