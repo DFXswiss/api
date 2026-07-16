@@ -14,26 +14,18 @@ const PRE_BROADCAST_SYSCALL_CODES = ['ECONNREFUSED', 'ENOTFOUND', 'EHOSTUNREACH'
 type ErrorShape = {
   cause?: unknown;
   code?: unknown;
-  data?: unknown;
   error?: unknown;
   message?: unknown;
-  response?: unknown;
-  status?: unknown;
 };
 
 // Send-boundary classification is deliberately fail-closed:
 // - Class A: connection-establishment failures are plain errors because the request never reached the node.
-// - Class B: only client-provided, numeric RPC codes that prove funding failed before tx creation are plain.
-// - Class C: timeouts, resets, HTTP errors and every unknown/ambiguous shape stay TxBroadcastError.
-export function toBroadcastBoundaryError(e: unknown, preBroadcastRpcCodes: number[] = []): Error {
+// - Class B: only parsed numeric RPC codes that prove funding failed before tx creation are plain. Bitcoin Core
+//   delivers JSON-RPC errors over HTTP 500, but a client-parsed error body is still a deterministic node answer.
+// - Class C: bare transport errors carry no parsed numeric RPC code; timeouts, resets and every unknown/ambiguous
+//   shape therefore stay TxBroadcastError.
+export function toBroadcastBoundaryError(e: unknown, preBroadcastRpcCodes: number[]): Error {
   if (e instanceof TxBroadcastError) return e;
-
-  // An HTTP error response proves the request reached a server. Even when its body contains an
-  // allowlisted RPC code, the transport outcome is ambiguous and therefore remains fail-closed.
-  const hasHttpErrorResponse = walkErrorShape(e, (value) => {
-    const status = value.status;
-    return typeof status === 'number' && status >= 400;
-  });
 
   const isPreBroadcastSyscall = walkErrorShape(
     e,
@@ -44,7 +36,7 @@ export function toBroadcastBoundaryError(e: unknown, preBroadcastRpcCodes: numbe
     (value) => typeof value.code === 'number' && preBroadcastRpcCodes.includes(value.code),
   );
 
-  if (!hasHttpErrorResponse && (isPreBroadcastSyscall || isPreBroadcastRpcError)) return asError(e);
+  if (isPreBroadcastSyscall || isPreBroadcastRpcError) return asError(e);
 
   const error = asError(e);
   return new TxBroadcastError(error.message, { cause: e });
@@ -56,7 +48,9 @@ function walkErrorShape(value: unknown, matches: (value: ErrorShape) => boolean,
   seen.add(value);
   if (matches(value)) return true;
 
-  return [value.cause, value.error, value.response, value.data].some((nested) => walkErrorShape(nested, matches, seen));
+  // Only follow links explicitly attached by a client/RPC layer or an in-band error object. Raw
+  // response/data payloads are transport details and must never introduce a classifiable RPC code.
+  return [value.cause, value.error].some((nested) => walkErrorShape(nested, matches, seen));
 }
 
 function isErrorShape(value: unknown): value is ErrorShape {

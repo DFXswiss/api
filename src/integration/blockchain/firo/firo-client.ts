@@ -3,7 +3,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { BitcoinBasedClient, TestMempoolResult } from '../bitcoin/node/bitcoin-based-client';
 import { UTXO } from '../bitcoin/node/dto/bitcoin-transaction.dto';
 import { Block, NodeClientConfig } from '../bitcoin/node/node-client';
-import { toBroadcastBoundaryError } from '../shared/errors/tx-broadcast.error';
+import { TxBroadcastError, toBroadcastBoundaryError } from '../shared/errors/tx-broadcast.error';
 import { FiroRawTransaction } from './rpc';
 
 const FIRO_PRE_BROADCAST_RPC_CODES = [
@@ -257,9 +257,9 @@ export class FiroClient extends BitcoinBasedClient {
 
     // Broadcast boundary: mintspark builds, signs and broadcasts atomically in one node-side call.
     // Only connection-establishment and allowlisted pre-funding failures are safe to retry.
-    let mintTxIds: string[];
+    let result: string[];
     try {
-      mintTxIds = await this.callNode(
+      result = await this.callNode(
         () => this.rpc.call<string[]>('mintspark', [sparkAddresses, false, fromAddresses]),
         true,
       );
@@ -268,15 +268,15 @@ export class FiroClient extends BitcoinBasedClient {
     }
 
     // A missing txid is an ambiguous/malformed response and therefore remains fail-closed.
-    if (!mintTxIds?.length) {
-      throw toBroadcastBoundaryError(new Error('mintspark returned no transaction IDs'));
+    if (!result?.length) {
+      throw new TxBroadcastError('Firo mintspark returned no transaction IDs', { cause: result });
     }
 
-    if (mintTxIds.length > 1) {
-      this.logger.warn(`mintspark returned ${mintTxIds.length} TXIDs, only tracking first: ${mintTxIds[0]}`);
+    if (result.length > 1) {
+      this.logger.warn(`mintspark returned ${result.length} TXIDs, only tracking first: ${result[0]}`);
     }
 
-    return mintTxIds[0];
+    return result[0];
   }
 
   private async getNonDepositAddresses(): Promise<string[]> {

@@ -25,7 +25,7 @@ describe('toBroadcastBoundaryError', () => {
     (code) => {
       const error = Object.assign(new Error(code), { code });
 
-      expect(toBroadcastBoundaryError(error)).toBe(error);
+      expect(toBroadcastBoundaryError(error, [])).toBe(error);
     },
   );
 
@@ -33,27 +33,45 @@ describe('toBroadcastBoundaryError', () => {
     const connectionError = Object.assign(new Error('connect failed'), { code: 'ECONNREFUSED' });
     const outerError = new Error('request failed', { cause: connectionError });
 
-    expect(toBroadcastBoundaryError(outerError)).toBe(outerError);
+    expect(toBroadcastBoundaryError(outerError, [])).toBe(outerError);
   });
 
   it('keeps a numeric RPC code plain only when the client allowlists it', () => {
     const rpcError = Object.assign(new Error('insufficient funds'), { code: -6 });
 
     expect(toBroadcastBoundaryError(rpcError, [-6])).toBe(rpcError);
-    expect(toBroadcastBoundaryError(rpcError)).toBeInstanceOf(TxBroadcastError);
+    expect(toBroadcastBoundaryError(rpcError, [])).toBeInstanceOf(TxBroadcastError);
   });
 
-  it('keeps HTTP error responses fail-closed even when their RPC body contains an allowlisted code', () => {
-    const axiosError = Object.assign(new Error('HTTP 500'), {
+  it('keeps an allowlisted parsed RPC error plain when Bitcoin Core delivered it over HTTP 500', () => {
+    const axiosError = Object.assign(new Error('Request failed with status code 500'), {
+      response: { status: 500, data: { error: { code: -6, message: 'insufficient funds' } } },
+    });
+    const parsedRpcError = Object.assign(new Error('Bitcoin RPC send failed: insufficient funds', { cause: axiosError }), {
+      code: -6,
+    });
+
+    expect(toBroadcastBoundaryError(parsedRpcError, [-6])).toBe(parsedRpcError);
+  });
+
+  it('does not classify an RPC-looking code found only in a raw transport response', () => {
+    const axiosError = Object.assign(new Error('Request failed with status code 500'), {
       response: { status: 500, data: { error: { code: -6, message: 'insufficient funds' } } },
     });
 
     expect(toBroadcastBoundaryError(axiosError, [-6])).toBeInstanceOf(TxBroadcastError);
   });
 
+  it('handles a cyclic cause chain without recursing forever', () => {
+    const cyclicError = new Error('cyclic transport error') as Error & { cause?: unknown };
+    cyclicError.cause = cyclicError;
+
+    expect(toBroadcastBoundaryError(cyclicError, [])).toBeInstanceOf(TxBroadcastError);
+  });
+
   it.each(['ECONNRESET', 'ETIMEDOUT', 'ECONNABORTED'])('keeps ambiguous transport code %s fail-closed', (code) => {
     const error = Object.assign(new Error(code), { code });
 
-    expect(toBroadcastBoundaryError(error)).toBeInstanceOf(TxBroadcastError);
+    expect(toBroadcastBoundaryError(error, [])).toBeInstanceOf(TxBroadcastError);
   });
 });

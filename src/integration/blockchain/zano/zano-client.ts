@@ -24,6 +24,10 @@ import {
 } from './dto/zano.dto';
 import { ZanoHelper } from './zano-helper';
 
+// Numeric pre-broadcast codes could not be confirmed from an authoritative Zano source, so every
+// numeric RPC error is deliberately fail-closed.
+const ZANO_PRE_BROADCAST_RPC_CODES: number[] = [];
+
 export class ZanoClient extends BlockchainClient {
   private readonly tokens = new AsyncCache<BlockchainToken>();
 
@@ -285,12 +289,12 @@ export class ZanoClient extends BlockchainClient {
       // response.result would otherwise be a plain error and self-heal a possibly-relayed transfer.
       return this.createSendTransferResult(payoutAmount, response);
     } catch (e) {
-      throw toBroadcastBoundaryError(e);
+      throw toBroadcastBoundaryError(e, ZANO_PRE_BROADCAST_RPC_CODES);
     }
   }
 
   private createSendTransferResult(payoutAmount: number, response?: any): ZanoSendTransferResultDto {
-    if (response?.error) throw toBroadcastBoundaryError(response.error);
+    if (response?.error) throw toBroadcastBoundaryError(response.error, ZANO_PRE_BROADCAST_RPC_CODES);
     if (!response.result?.tx_details?.tx_hash)
       throw new TxBroadcastError(`Transfer not sent: response was ${JSON.stringify(response)}`);
     // Empty tx_hash after a resolved transfer is ambiguous (wallet may already have relayed).

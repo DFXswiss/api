@@ -138,6 +138,49 @@ describe('FiroClient - broadcast boundary', () => {
       expect((error as TxBroadcastError).message).toBe('Bitcoin RPC sendrawtransaction failed: tx-fee-not-met');
     });
 
+    it.each([
+      [-6, 'RPC_WALLET_INSUFFICIENT_FUNDS'],
+      [-13, 'RPC_WALLET_UNLOCK_NEEDED'],
+    ])('keeps allowlisted RPC code %i (%s) plain when delivered over HTTP 500', async (code) => {
+      mockSendRawResponse(() =>
+        Promise.reject({
+          response: { status: 500, data: { error: { code, message: 'deterministic wallet failure' } } },
+          message: 'Request failed with status code 500',
+        }),
+      );
+
+      await expect(client.sendMany([{ addressTo: 'tDestAddr', amount: 1 }], 10)).rejects.not.toBeInstanceOf(
+        TxBroadcastError,
+      );
+    });
+
+    it('keeps a non-allowlisted RPC code delivered over HTTP 500 fail-closed', async () => {
+      mockSendRawResponse(() =>
+        Promise.reject({
+          response: { status: 500, data: { error: { code: -4, message: 'Wallet error' } } },
+          message: 'Request failed with status code 500',
+        }),
+      );
+
+      await expect(client.sendMany([{ addressTo: 'tDestAddr', amount: 1 }], 10)).rejects.toBeInstanceOf(
+        TxBroadcastError,
+      );
+    });
+
+    it('keeps a bare HTTP 500 without a parsed RPC error fail-closed', async () => {
+      mockSendRawResponse(() =>
+        Promise.reject({
+          response: { status: 500, data: 'Internal Server Error' },
+          code: 'ERR_BAD_RESPONSE',
+          message: 'Request failed with status code 500',
+        }),
+      );
+
+      await expect(client.sendMany([{ addressTo: 'tDestAddr', amount: 1 }], 10)).rejects.toBeInstanceOf(
+        TxBroadcastError,
+      );
+    });
+
     it('keeps an ECONNREFUSED sendrawtransaction failure plain', async () => {
       const connectionError = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
       mockSendRawResponse(() => Promise.reject(connectionError));
@@ -147,31 +190,9 @@ describe('FiroClient - broadcast boundary', () => {
       );
     });
 
-    it.each([
-      [-6, 'RPC_WALLET_INSUFFICIENT_FUNDS'],
-      [-13, 'RPC_WALLET_UNLOCK_NEEDED'],
-    ])('keeps allowlisted RPC code %i (%s) plain', async (code) => {
-      mockSendRawResponse(() =>
-        Promise.resolve({ result: null, error: { code, message: 'deterministic wallet failure' }, id: 'test' }),
-      );
-
-      await expect(client.sendMany([{ addressTo: 'tDestAddr', amount: 1 }], 10)).rejects.not.toBeInstanceOf(
-        TxBroadcastError,
-      );
-    });
-
-    it('keeps a non-allowlisted RPC code fail-closed', async () => {
-      mockSendRawResponse(() =>
-        Promise.resolve({ result: null, error: { code: -25, message: 'missing inputs' }, id: 'test' }),
-      );
-
-      await expect(client.sendMany([{ addressTo: 'tDestAddr', amount: 1 }], 10)).rejects.toBeInstanceOf(
-        TxBroadcastError,
-      );
-    });
-
-    it.each(['ECONNRESET', 'ETIMEDOUT'])('keeps an ambiguous %s failure fail-closed', async (code) => {
-      mockSendRawResponse(() => Promise.reject(Object.assign(new Error(code), { code })));
+    it('keeps an ECONNABORTED timeout fail-closed', async () => {
+      const timeoutError = Object.assign(new Error('timeout exceeded'), { code: 'ECONNABORTED' });
+      mockSendRawResponse(() => Promise.reject(timeoutError));
 
       await expect(client.sendMany([{ addressTo: 'tDestAddr', amount: 1 }], 10)).rejects.toBeInstanceOf(
         TxBroadcastError,
@@ -282,7 +303,7 @@ describe('FiroClient - broadcast boundary', () => {
       }
 
       expect(error).toBeInstanceOf(TxBroadcastError);
-      expect((error as Error).message).toBe('mintspark returned no transaction IDs');
+      expect((error as Error).message).toBe('Firo mintspark returned no transaction IDs');
     });
 
     it('does not wrap a pre-broadcast no-UTXO failure (plain Error propagates unchanged)', async () => {
