@@ -11,6 +11,7 @@ import { Test } from '@nestjs/testing';
 import { mockClient } from 'aws-sdk-client-mock';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { S3StorageService } from '../s3-storage.service';
+import { GEBUEV_RETENTION_FLOOR_YEARS } from '../worm-retention.const';
 
 const validS3 = {
   endpoint: 'https://s3.test.local',
@@ -278,6 +279,57 @@ describe('S3StorageService', () => {
 
       expect(s3Mock.commandCalls(GetObjectLockConfigurationCommand)).toHaveLength(1);
       expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(3);
+    });
+
+    it('fails closed when the default retention mode is GOVERNANCE instead of COMPLIANCE', async () => {
+      const container = 'ep2-worm-governance';
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({
+        ObjectLockConfiguration: {
+          ObjectLockEnabled: 'Enabled',
+          Rule: { DefaultRetention: { Mode: 'GOVERNANCE', Years: 11 } },
+        },
+      });
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await expect(
+        new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
+      ).rejects.toThrow('Object Lock is not enabled');
+
+      expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+    });
+
+    it('fails closed when Object Lock is enabled but no default retention rule is configured', async () => {
+      const container = 'ep2-worm-no-default-retention';
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({
+        ObjectLockConfiguration: {
+          ObjectLockEnabled: 'Enabled',
+          Rule: {},
+        },
+      });
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await expect(
+        new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
+      ).rejects.toThrow('Object Lock is not enabled');
+
+      expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
+    });
+
+    it('fails closed when the COMPLIANCE retention Years is below the GeBüV floor', async () => {
+      const container = 'ep2-worm-under-floor';
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({
+        ObjectLockConfiguration: {
+          ObjectLockEnabled: 'Enabled',
+          Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: GEBUEV_RETENTION_FLOOR_YEARS - 1 } },
+        },
+      });
+      s3Mock.on(PutObjectCommand).resolves({});
+
+      await expect(
+        new S3StorageService(container).uploadWormBlob('settlement.ep2', Buffer.from('<ep2/>'), 'text/xml'),
+      ).rejects.toThrow('Object Lock is not enabled');
+
+      expect(s3Mock.commandCalls(PutObjectCommand)).toHaveLength(0);
     });
   });
 
