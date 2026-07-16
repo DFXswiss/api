@@ -60,29 +60,31 @@ module.exports = class ActivateBankFrick1784400000000 {
       `SELECT setval('bank_id_seq', GREATEST((SELECT COALESCE(MAX(id), 1) FROM "bank"), (SELECT last_value FROM bank_id_seq)))`,
     );
 
-    // sendPriority=500 makes Frick the primary sender for EUR+CHF (a full cutover from Olkypay/Yapeal,
-    // whose backfilled priority is 1000); set 2000 to keep Frick fallback-only. Never 1000 - a
-    // top-priority tie that includes Frick is treated as misconfiguration and throws in getPayoutAccount.
-    // Self-correcting via ON CONFLICT on the unique (iban, bic) index: whether the row is new or was
-    // pre-created inactive by the manual runbook §3.1 procedure (receive/send=false, sendPriority=2000),
-    // it converges to the intended ACTIVE state instead of silently no-op'ing. receive=true AND send=true
-    // (send-only would deadlock reconciliation, see Bank.isReconcilable); sctInst=false, amlEnabled=true.
-    // Re-runnable: a re-run re-applies the same active state.
+    // sendPriority=2000 keeps Frick a FALLBACK sender (runbook §3.1 default): it sits above the
+    // incumbents' backfilled 1000 (Olkypay for EUR, Yapeal for CHF), so Frick coexists with them but
+    // loses the tie and carries no live traffic - the incumbents stay primary. Making Frick primary is
+    // a separate, deliberate Ops cutover (lower its priority below 1000, runbook §3.3), NOT part of this
+    // activation. Never set 1000 - a top-priority tie including Frick is a misconfiguration and throws
+    // in getPayoutAccount. Self-correcting via ON CONFLICT on the unique (iban, bic) index: whether the
+    // row is new or was pre-created by the manual runbook §3.1 procedure (receive/send=false,
+    // sendPriority=2000), it converges to the intended state instead of silently no-op'ing. receive=true
+    // AND send=true (send-only would deadlock reconciliation, see Bank.isReconcilable; Frick is a live
+    // payout option, just not the default sender); sctInst=false, amlEnabled=true. Re-runnable.
     await queryRunner.query(`
       INSERT INTO "bank"
         ("updated", "created", "name", "iban", "bic", "currency", "receive", "send", "sctInst", "amlEnabled", "sendPriority")
-      VALUES (NOW(), NOW(), 'Bank Frick', 'LI75088110105923K000E', 'BFRILI22', 'EUR', TRUE, TRUE, FALSE, TRUE, 500)
+      VALUES (NOW(), NOW(), 'Bank Frick', 'LI75088110105923K000E', 'BFRILI22', 'EUR', TRUE, TRUE, FALSE, TRUE, 2000)
       ON CONFLICT ("iban", "bic") DO UPDATE SET
         "name" = 'Bank Frick', "receive" = TRUE, "send" = TRUE, "sctInst" = FALSE,
-        "amlEnabled" = TRUE, "sendPriority" = 500, "updated" = NOW()
+        "amlEnabled" = TRUE, "sendPriority" = 2000, "updated" = NOW()
     `);
     await queryRunner.query(`
       INSERT INTO "bank"
         ("updated", "created", "name", "iban", "bic", "currency", "receive", "send", "sctInst", "amlEnabled", "sendPriority")
-      VALUES (NOW(), NOW(), 'Bank Frick', 'LI32088110105923K000C', 'BFRILI22', 'CHF', TRUE, TRUE, FALSE, TRUE, 500)
+      VALUES (NOW(), NOW(), 'Bank Frick', 'LI32088110105923K000C', 'BFRILI22', 'CHF', TRUE, TRUE, FALSE, TRUE, 2000)
       ON CONFLICT ("iban", "bic") DO UPDATE SET
         "name" = 'Bank Frick', "receive" = TRUE, "send" = TRUE, "sctInst" = FALSE,
-        "amlEnabled" = TRUE, "sendPriority" = 500, "updated" = NOW()
+        "amlEnabled" = TRUE, "sendPriority" = 2000, "updated" = NOW()
     `);
 
     // Retire the dormant legacy Bank Frick rows so a (name, currency) lookup no longer collides
