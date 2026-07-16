@@ -4,11 +4,13 @@ import {
   GetObjectLockConfigurationCommand,
   HeadObjectCommand,
   ListObjectsV2Command,
+  ObjectLockRetentionMode,
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
 import { Config } from 'src/config/config';
 import { Blob, BlobContent, BlobMetaData, StorageService } from './storage.service';
+import { GEBUEV_RETENTION_FLOOR_YEARS } from './worm-retention.const';
 
 /**
  * S3-protocol storage implementation. Talks to the configured S3-compatible
@@ -80,10 +82,10 @@ export class S3StorageService extends StorageService {
   private async assertObjectLockEnabled(): Promise<void> {
     if (S3StorageService.objectLockVerified.has(this.container)) return;
 
-    let enabled: string | undefined;
+    let cfg: { ObjectLockEnabled?: string; Rule?: { DefaultRetention?: { Mode?: string; Years?: number } } } | undefined;
     try {
       const res = await this.client.send(new GetObjectLockConfigurationCommand({ Bucket: this.container }));
-      enabled = res.ObjectLockConfiguration?.ObjectLockEnabled;
+      cfg = res.ObjectLockConfiguration;
     } catch (e) {
       // A bucket without Object Lock returns ObjectLockConfigurationNotFoundError; any other error
       // (missing bucket, transport, auth) is equally unverifiable. Either way, fail closed.
@@ -94,9 +96,18 @@ export class S3StorageService extends StorageService {
       );
     }
 
-    if (enabled !== 'Enabled')
+    const retention = cfg?.Rule?.DefaultRetention;
+    const isValid =
+      cfg?.ObjectLockEnabled === 'Enabled' &&
+      retention?.Mode === ObjectLockRetentionMode.COMPLIANCE &&
+      retention?.Years != null &&
+      retention.Years >= GEBUEV_RETENTION_FLOOR_YEARS;
+
+    if (!isValid)
       throw new Error(
-        `Refusing WORM write into bucket "${this.container}": Object Lock is not enabled. GeBüV compliance ` +
+        `Refusing WORM write into bucket "${this.container}": Object Lock is not enabled with a COMPLIANCE-mode ` +
+          `default retention of at least ${GEBUEV_RETENTION_FLOOR_YEARS} year(s) (got ObjectLockEnabled=` +
+          `${cfg?.ObjectLockEnabled}, Mode=${retention?.Mode}, Years=${retention?.Years}). GeBüV compliance ` +
           `records must be WORM-protected and Object Lock cannot be retro-fitted onto an existing bucket. ` +
           `Provision it first (scripts/storage/provision-bucket.ts).`,
       );

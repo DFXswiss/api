@@ -117,7 +117,7 @@ export class FiatOutputJobService {
         const report = this.ep2ReportService.generateReport(entity);
         const container = buyFiat.userData.paymentLinksConfigObj.ep2ReportContainer;
         const routeId = buyFiat.paymentLinkPayment.link.linkConfigObj?.payoutRouteId ?? buyFiat.sell.id;
-        const fileName = `settlement_${Util.isoDateTime(entity.created)}_${routeId}.ep2`;
+        const fileName = `settlement_${Util.isoDateTime(entity.created)}_${entity.id}_${routeId}.ep2`;
         const reportBuffer = Buffer.from(report);
 
         // WORM sink: uploadWormBlob fails closed if the (runtime-resolved, per-merchant) EP2

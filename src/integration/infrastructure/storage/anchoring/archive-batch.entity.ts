@@ -4,8 +4,8 @@ import { ArchiveFile } from './archive-file.entity';
 
 /** Lifecycle of an anchoring batch on the way to a Bitcoin attestation. */
 export enum ArchiveBatchStatus {
-  PENDING_BTC = 'pendingBtc',
-  CONFIRMED = 'confirmed',
+  PENDING_BTC = 'PendingBtc',
+  CONFIRMED = 'Confirmed',
 }
 
 /**
