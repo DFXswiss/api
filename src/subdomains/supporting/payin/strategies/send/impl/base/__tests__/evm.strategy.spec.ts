@@ -173,8 +173,8 @@ describe('EvmStrategy', () => {
       const { group, payIns } = createGroup();
       const statusesAtSave: Array<PayInStatus | undefined> = [];
       const saveSpy = jest.spyOn(payInRepo, 'save').mockImplementation(async (payIn) => {
-        statusesAtSave.push(payIn.status);
-        return payIn;
+        statusesAtSave.push(payIn.status as PayInStatus);
+        return payIn as CryptoInput;
       });
       const broadcastError = new TxBroadcastError('broadcast failed');
       const dispatchSpy = jest.spyOn(strategy as any, 'dispatchSend').mockRejectedValue(broadcastError);
