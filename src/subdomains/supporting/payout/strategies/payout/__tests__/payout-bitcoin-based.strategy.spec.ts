@@ -491,9 +491,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
       expect(orders.every((order) => order.status === PayoutOrderStatus.PAYOUT_DESIGNATED)).toBe(true);
       for (const spy of rollbackSpies) expect(spy).not.toHaveBeenCalled();
       expect(repoSaveSpy).toHaveBeenCalledTimes(4); // designation + failure tracking only (2 each)
-      expect(loggerWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('retry cap NaN exceeded for order(s) 60, 61'),
-      );
+      expect(loggerWarnSpy).toHaveBeenCalledWith(expect.stringContaining('retry cap NaN exceeded for order(s) 60, 61'));
     });
 
     it('still fires the recurring-failure alert at its threshold when the retry cap is configured above it', async () => {
