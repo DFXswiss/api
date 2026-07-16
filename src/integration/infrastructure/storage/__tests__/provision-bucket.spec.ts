@@ -1,4 +1,8 @@
-import { GEBUEV_RETENTION_FLOOR_YEARS, getRetentionYears } from '../../../../../scripts/storage/provision-bucket';
+import {
+  DEFAULT_RETENTION_YEARS,
+  GEBUEV_RETENTION_FLOOR_YEARS,
+  getRetentionYears,
+} from '../../../../../scripts/storage/provision-bucket';
 
 // Proves the GeBüV retention-floor guard in the WORM bucket provisioning script: COMPLIANCE-mode
 // Object Lock retention is extend-only/irreversible, so a value below the 10-year floor must fail
@@ -27,7 +31,7 @@ describe('provision-bucket getRetentionYears (GeBüV retention floor)', () => {
   });
 
   it('defaults to 11 years (GeBüV 10y + safety margin) when unset', () => {
-    expect(getRetentionYears()).toBe(11);
+    expect(getRetentionYears()).toBe(DEFAULT_RETENTION_YEARS);
   });
 
   it('rejects RETENTION_YEARS=9 with a GeBüV-floor error and does not fall back to a value', () => {
@@ -48,8 +52,8 @@ describe('provision-bucket getRetentionYears (GeBüV retention floor)', () => {
   });
 
   it('accepts 11 years (the default, above the floor)', () => {
-    process.env[RETENTION_ENV] = '11';
-    expect(getRetentionYears()).toBe(11);
+    process.env[RETENTION_ENV] = String(DEFAULT_RETENTION_YEARS);
+    expect(getRetentionYears()).toBe(DEFAULT_RETENTION_YEARS);
   });
 
   it('still rejects non-positive / non-integer values before the floor check', () => {

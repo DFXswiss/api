@@ -8,13 +8,13 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { Config } from 'src/config/config';
+import { GetConfig } from 'src/config/config';
 import { Blob, BlobContent, BlobMetaData, StorageService } from './storage.service';
 import { GEBUEV_RETENTION_FLOOR_YEARS } from './worm-retention.const';
 
 /**
  * S3-protocol storage implementation. Talks to the configured S3-compatible
- * endpoint (on-prem MinIO today; any S3 store via `Config.s3.endpoint`) — this is a
+ * endpoint (on-prem MinIO today; any S3 store via `GetConfig().s3.endpoint`) — this is a
  * protocol client, not the AWS cloud: no AWS account, no data leaves to AWS.
  *
  * Replaces AzureStorageService. The blob URL shape is kept identical so `blobName()`
@@ -37,7 +37,7 @@ export class S3StorageService extends StorageService {
   constructor(container: string) {
     super(container);
 
-    const { endpoint, region, accessKey, secretKey, publicUrl } = Config.s3;
+    const { endpoint, region, accessKey, secretKey, publicUrl } = GetConfig().s3;
     if (!endpoint || !region || !accessKey || !secretKey || !publicUrl)
       throw new Error('Incomplete S3 config: endpoint, region, accessKey, secretKey and publicUrl are required');
     if (!publicUrl.endsWith('/')) throw new Error('S3 publicUrl must end with a trailing slash');

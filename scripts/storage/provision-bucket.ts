@@ -1,10 +1,11 @@
 /**
- * WORM bucket provisioning for the GeBüV anchoring pipeline (Stage 3).
+ * Standalone WORM bucket provisioning for S3-compatible storage (Object Lock + Versioning).
  *
- * Creates (or reconciles) an S3-compatible bucket with Object Lock enabled and a default
- * COMPLIANCE-mode retention, so archived compliance objects (KYC documents, EP2 settlement
- * reports) become immutable for the legally required retention period (Swiss GeBüV: 10 years
- * of business records; we provision a safety margin, default 11 years).
+ * Creates (or reconciles) a bucket with Object Lock enabled and a default COMPLIANCE-mode
+ * retention, so compliance objects (KYC documents, support files, EP2 settlement reports)
+ * become immutable for the legally required retention period (Swiss GeBüV: 10 years of
+ * business records; we provision a safety margin, default 11 years). Used both for the
+ * app's own KYC/support buckets and ahead-of-time for dynamic per-merchant EP2 containers.
  *
  * IMPORTANT — dynamic EP2 containers:
  *   EP2 settlement reports are written to a per-merchant container resolved at runtime
@@ -45,6 +46,9 @@ dotenv.config();
 
 import { GEBUEV_RETENTION_FLOOR_YEARS } from '../../src/integration/infrastructure/storage/worm-retention.const';
 
+/** GeBüV floor + 1-year safety margin; single source for the script's default retention. */
+export const DEFAULT_RETENTION_YEARS = GEBUEV_RETENTION_FLOOR_YEARS + 1;
+
 function getBucketName(): string {
   const bucket = process.env.BUCKET ?? process.argv[2];
   if (!bucket) throw new Error('Missing bucket name. Provide via BUCKET env var or as the first CLI argument.');
@@ -55,7 +59,7 @@ export { GEBUEV_RETENTION_FLOOR_YEARS };
 
 export function getRetentionYears(): number {
   const raw = process.env.RETENTION_YEARS ?? process.argv[3];
-  if (raw == null) return 11; // GeBüV 10y + safety margin; explicit, not a silent credential default.
+  if (raw == null) return DEFAULT_RETENTION_YEARS; // explicit default, not a silent credential fallback
 
   const years = Number(raw);
   if (!Number.isInteger(years) || years <= 0)
@@ -64,7 +68,7 @@ export function getRetentionYears(): number {
     throw new Error(
       `RETENTION_YEARS=${years} is below the GeBüV ${GEBUEV_RETENTION_FLOOR_YEARS}-year retention floor. ` +
         `COMPLIANCE-mode WORM retention is extend-only and irreversible, so refusing to provision an ` +
-        `under-retained bucket. Set RETENTION_YEARS to at least ${GEBUEV_RETENTION_FLOOR_YEARS} (default 11).`,
+        `under-retained bucket. Set RETENTION_YEARS to at least ${GEBUEV_RETENTION_FLOOR_YEARS} (default ${DEFAULT_RETENTION_YEARS}).`,
     );
   return years;
 }
