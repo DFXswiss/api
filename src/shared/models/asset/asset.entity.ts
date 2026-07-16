@@ -128,8 +128,16 @@ export class Asset extends IEntity {
   @ManyToOne(() => PriceRule)
   priceRule: PriceRule;
 
+  // prices outside these rails are corrupted data (e.g. from a degenerate DEX quote), not real prices
+  static readonly MIN_SANE_PRICE = 1e-12;
+  static readonly MAX_SANE_PRICE = 1e15;
+
+  static isSanePrice(price?: number): boolean {
+    return price != null && Number.isFinite(price) && price > Asset.MIN_SANE_PRICE && price < Asset.MAX_SANE_PRICE;
+  }
+
   get minimalPriceReferenceAmount() {
-    return this.approxPriceChf ? 1 / this.approxPriceChf : 1;
+    return Asset.isSanePrice(this.approxPriceChf) ? 1 / this.approxPriceChf : 1;
   }
 
   get evmChainId(): number | undefined {

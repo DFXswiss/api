@@ -36,7 +36,16 @@ export class AssetPricesJobService {
         const chfPrice = await this.pricingService.getPrice(asset, PriceCurrency.CHF, PriceValidity.VALID_ONLY);
         const eurPrice = await this.pricingService.getPrice(asset, PriceCurrency.EUR, PriceValidity.VALID_ONLY);
 
-        updates.push(asset.updatePrice(usdPrice.convert(1), chfPrice.convert(1), eurPrice.convert(1)));
+        const [usd, chf, eur] = [usdPrice, chfPrice, eurPrice].map((p) => p.convert(1));
+
+        if (![usd, chf, eur].every((p) => Asset.isSanePrice(p))) {
+          this.logger.warn(
+            `Skipping price update of asset ${asset.uniqueName}: degenerate price (USD ${usd}, CHF ${chf}, EUR ${eur})`,
+          );
+          continue;
+        }
+
+        updates.push(asset.updatePrice(usd, chf, eur));
 
         if ([AssetType.COIN, AssetType.TOKEN, AssetType.CUSTODY].includes(asset.type))
           await this.saveAssetPrices(asset);
