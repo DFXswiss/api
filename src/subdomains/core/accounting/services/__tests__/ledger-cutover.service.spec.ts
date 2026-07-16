@@ -297,7 +297,12 @@ describe('LedgerCutoverService', () => {
           priceChf: 2,
           plusBalance: {
             total: 9999, // must be ignored (pending phantoms)
-            liquidity: { total: 0, liquidityBalance: { total: 10 }, paymentDepositBalance: 3, manualLiqPosition: 1 },
+            liquidity: {
+              total: 0,
+              liquidityBalance: { total: 10 },
+              paymentDepositBalance: { total: 3 },
+              manualLiqPosition: { total: 1 },
+            },
             custom: { total: 1 },
           },
           minusBalance: { total: 0 },
@@ -316,6 +321,38 @@ describe('LedgerCutoverService', () => {
       // 2-leg: EQUITY counter = −ASSET CHF → Σ CHF 0 (§6.2)
       const equityLeg = assetTx.legs.find((l) => l.account.type === AccountType.EQUITY);
       expect(equityLeg.amountChf).toBe(-30);
+    });
+
+    // Prod feed shape: paymentDepositBalance / manualLiqPosition are `{ total }`, not bare numbers. Object addition
+    // would yield NaN and crash Postgres (`invalid input syntax for type bigint: "NaN"`); .total must be read.
+    it('opens ASSET from the real prod { total } shape of paymentDepositBalance and manualLiqPosition', async () => {
+      const snapshot = snapshotLog({
+        '100': {
+          priceChf: 2,
+          plusBalance: {
+            total: 14.5,
+            liquidity: {
+              total: 14,
+              liquidityBalance: { total: 10 },
+              paymentDepositBalance: { total: 2.5 },
+              manualLiqPosition: { total: 1.5 },
+            },
+            custom: { total: 0.5 },
+          },
+          minusBalance: { total: 0 },
+          error: '',
+        },
+      });
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([snapshot]);
+
+      await service.run();
+
+      const assetTx = booked.find((b) => b.legs.some((l) => l.account.type === AccountType.ASSET));
+      expect(assetTx).toBeDefined();
+      const assetLeg = assetTx.legs.find((l) => l.account.type === AccountType.ASSET);
+      expect(assetLeg.amount).toBe(14.5); // 10 + 2.5 + 1.5 + 0.5
+      expect(Number.isFinite(assetLeg.amountChf)).toBe(true);
+      expect(assetLeg.amountChf).toBe(29); // 14.5 × priceChf 2
     });
 
     it('treats a 1.0 placeholder feed as opening 0 (no ASSET leg)', async () => {

@@ -562,7 +562,7 @@ export class LogJobService {
     const recentEurScryptToBankTx = this.getUnmatchedSenders(eurSenderScryptExchangeTx, eurReceiverScryptBankTx);
 
     // assetLog
-    return assets.reduce((prev, curr) => {
+    return assets.reduce<AssetLog>((prev, curr) => {
       if ((curr.balance?.amount == null && !curr.isActive) || (curr.balance && !curr.balance.isDfxOwned)) return prev;
 
       const liqAddress = liqAddresses?.get(curr.blockchain);
