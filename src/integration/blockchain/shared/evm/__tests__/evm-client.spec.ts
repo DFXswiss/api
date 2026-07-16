@@ -1,20 +1,18 @@
 /**
- * Focused unit tests for the EvmClient broadcast boundary: the two try/catch blocks around the
- * actual on-chain send calls in `sendNativeCoin` (wallet.sendTransaction) and `sendToken`
+ * Focused unit tests for the EvmClient broadcast boundary: the try/catch blocks around the actual
+ * on-chain send calls in `sendNativeCoin` and `doSwap` (wallet.sendTransaction) and `sendToken`
  * (contract.transfer), which translate any failure at/after the broadcast call into a
- * TxBroadcastError.
+ * TxBroadcastError while leaving explicit pre-broadcast gas estimation failures unchanged.
  *
  * EvmClient is a large abstract class whose constructor wires up real ethers.js collaborators
  * (StaticJsonRpcProvider, Wallet, AlphaRouter, ...) and pulls in the rest of its considerable
  * surface (Uniswap swaps, Alchemy history, ...). None of that is relevant here and constructing a
- * real instance would need live network config. To isolate JUST the two changed methods, we call
+ * real instance would need live network config. To isolate JUST the changed methods, we call
  * the (protected/private) prototype methods directly via Function.prototype.call against a minimal
  * stub `this`: a plain object created with `Object.create(EvmClient.prototype)` (so it still has
- * EvmClient's prototype chain) with only the handful of collaborator methods the two methods under
- * test depend on (getCurrentGasForCoinTransaction, getTokenGasLimitForContact,
- * getRecommendedGasPrice, getNonce, setNonce, getTokenByContract) stubbed as own properties, which
- * shadow the real prototype implementations. This exercises the real, unmodified method bodies
- * without needing a live provider/wallet/router.
+ * EvmClient's prototype chain) with only the handful of collaborators the methods under test
+ * depend on stubbed as own properties, which shadow the real prototype implementations. This
+ * exercises the real, unmodified method bodies without needing a live provider/wallet/router.
  */
 
 import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
@@ -23,6 +21,9 @@ import { EvmClient } from '../evm-client';
 const proto = EvmClient.prototype as any;
 
 interface ClientStub {
+  provider: { estimateGas: jest.Mock };
+  wallet: { address: string; sendTransaction: jest.Mock };
+  swapContractAddress: string;
   getCurrentGasForCoinTransaction: jest.Mock;
   getTokenGasLimitForContact: jest.Mock;
   getRecommendedGasPrice: jest.Mock;
@@ -34,6 +35,9 @@ interface ClientStub {
 function createClientStub(): ClientStub {
   const client = Object.create(EvmClient.prototype) as ClientStub;
 
+  client.provider = { estimateGas: jest.fn().mockResolvedValue(120000) };
+  client.wallet = { address: 'FROM_ADDR', sendTransaction: jest.fn() };
+  client.swapContractAddress = 'SWAP_CONTRACT_ADDR';
   client.getCurrentGasForCoinTransaction = jest.fn().mockResolvedValue(21000);
   client.getTokenGasLimitForContact = jest.fn().mockResolvedValue(65000);
   client.getRecommendedGasPrice = jest.fn().mockResolvedValue(1_000_000_000);
@@ -210,6 +214,71 @@ describe('EvmClient - broadcast boundary', () => {
       expect(error).toBeInstanceOf(TxBroadcastError);
       expect((error as TxBroadcastError).message).toBe('Broadcast returned an empty tx hash');
       expect(client.setNonce).not.toHaveBeenCalled(); // never advance the nonce on an unconfirmed broadcast
+    });
+  });
+
+  describe('doSwap(...)', () => {
+    const parameters = { calldata: '0x1234', value: '100' };
+
+    it('wraps a wallet.sendTransaction failure in a TxBroadcastError', async () => {
+      const client = createClientStub();
+      const rpcError = new Error('replacement transaction underpriced');
+      client.wallet.sendTransaction.mockRejectedValue(rpcError);
+
+      let error: unknown;
+      try {
+        await proto.doSwap.call(client, parameters);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('replacement transaction underpriced');
+      expect((error as TxBroadcastError).cause).toBe(rpcError);
+      expect(client.provider.estimateGas).toHaveBeenCalledWith({
+        data: '0x1234',
+        to: 'SWAP_CONTRACT_ADDR',
+        value: '100',
+        from: 'FROM_ADDR',
+        gasPrice: 1_000_000_000,
+        nonce: 5,
+      });
+      expect(client.wallet.sendTransaction).toHaveBeenCalledWith(expect.objectContaining({ gasLimit: 120000 }));
+      expect(client.setNonce).not.toHaveBeenCalled();
+    });
+
+    it('wraps an empty transaction hash in a TxBroadcastError', async () => {
+      const client = createClientStub();
+      client.wallet.sendTransaction.mockResolvedValue({ hash: '' });
+
+      let error: unknown;
+      try {
+        await proto.doSwap.call(client, parameters);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('Broadcast returned an empty tx hash');
+      expect(client.setNonce).not.toHaveBeenCalled();
+    });
+
+    it('leaves a pre-broadcast slippage estimation failure unchanged', async () => {
+      const client = createClientStub();
+      const slippageError = { error: { reason: 'execution reverted: Too little received' } };
+      client.provider.estimateGas.mockRejectedValue(slippageError);
+
+      let error: unknown;
+      try {
+        await proto.doSwap.call(client, parameters);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBe(slippageError);
+      expect(error).not.toBeInstanceOf(TxBroadcastError);
+      expect(client.wallet.sendTransaction).not.toHaveBeenCalled();
+      expect(client.setNonce).not.toHaveBeenCalled();
     });
   });
 });
