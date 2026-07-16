@@ -266,7 +266,7 @@ export class LedgerCutoverService {
     // (with an alarm) instead of wedging, and the Card seq0 does not double-book the gross once the row is priced.
     const unpricedBuyFiat = [
       ...(await this.openBuyFiatReceived(snapshot, snapshotDate, lookback, equity)),
-      ...(await this.openBuyFiatOwed(snapshot, snapshotDate, lookback, marks, equity)),
+      ...(await this.openBuyFiatOwed(snapshot, snapshotDate, lookback, marks, equity, bankByIban)),
     ];
     await this.pinUnpricedIds('buy_fiat', unpricedBuyFiat);
 
@@ -331,7 +331,7 @@ export class LedgerCutoverService {
     return unpriced;
   }
 
-  // buyFiat-owed: open rows with outputAmount NOT NULL → CHF = outputAmount × mark(outputAsset-Fiat ≤ snapshot) (R6-1).
+  // buyFiat-owed: open rows with outputAmount NOT NULL → CHF = outputAmount × output-currency mark ≤ snapshot (R6-1).
   // Returns the ids of paymentLink rows with a NULL amountInChf (no paymentLink anchor) so the caller pins them (F2).
   private async openBuyFiatOwed(
     snapshot: Log,
@@ -339,12 +339,18 @@ export class LedgerCutoverService {
     lookback: Date,
     marks: LedgerMarkCache,
     equity: LedgerAccount,
+    bankByIban: Map<string, Bank>,
   ): Promise<number[]> {
     const rows = await this.buyFiatRepo.find({
       where: { isComplete: false, created: Between(lookback, date) },
       // F1: load paymentLinkPayment to detect a paymentLink row (its opening goes to LIABILITY/paymentLink, not -owed).
       // cryptoInput.id is read below (G-a) to check coverage against the pinned cutover boundary (isCoveredByCutoverOpening).
-      relations: { outputAsset: true, cryptoInput: { paymentLinkPayment: true } },
+      // fiatOutput.bank.asset keys the output-currency mark (buyFiatOutputMark), same shape the forward consumer loads.
+      relations: {
+        outputAsset: true,
+        cryptoInput: { paymentLinkPayment: true },
+        fiatOutput: { bank: { asset: true } },
+      },
     });
     const owed = await this.liability('buyFiat-owed');
     const paymentLink = await this.liability('paymentLink');
@@ -383,8 +389,8 @@ export class LedgerCutoverService {
         continue;
       }
 
-      // outputAsset is a Fiat; CHF-output → mark 1, foreign-currency output → fiat-mark ≤ snapshot
-      const fiatMark = row.outputAsset?.name === CHF ? 1 : this.fiatMark(row.outputAsset?.id, date, marks);
+      // outputAsset is a Fiat; CHF-output → mark 1, foreign-currency output → bank-asset mark ≤ snapshot
+      const fiatMark = row.outputAsset?.name === CHF ? 1 : this.buyFiatOutputMark(row, date, marks, bankByIban);
       const amountChf = fiatMark != null ? Util.round(row.outputAmount * fiatMark, 2) : undefined;
 
       // missing fiat-mark → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): the forward path can
@@ -1015,9 +1021,27 @@ export class LedgerCutoverService {
     return (await this.bookingService.nextSeq(SOURCE_TYPE, sourceId)) > seq;
   }
 
-  // foreign-fiat mark from the asset mark cache (priceChf of the fiat asset ≤ snapshot)
-  private fiatMark(assetId: number | undefined, date: Date, marks: LedgerMarkCache): number | undefined {
-    return assetId != null ? marks.getMarkAt(assetId, date) : undefined;
+  // the output-currency mark for an owed opening. The cache is keyed by ASSET-table ids (FinanceLog.assets) — a Fiat
+  // id is a different keyspace and NEVER matches (fiat 2/EUR reads asset 2/dBTC: feedless → permanent fail-loud wedge).
+  // Resolve via the payout bank's currency Asset instead, exactly like the forward outputMark (buy-fiat.consumer
+  // §4.7): the row's assigned fiatOutput bank first, else any bank in the output currency.
+  private buyFiatOutputMark(
+    row: BuyFiat,
+    date: Date,
+    marks: LedgerMarkCache,
+    bankByIban: Map<string, Bank>,
+  ): number | undefined {
+    const assignedAssetId = row.fiatOutput?.bank?.asset?.id;
+    const assignedMark = assignedAssetId != null ? marks.getMarkAt(assignedAssetId, date) : undefined;
+    if (assignedMark != null) return assignedMark;
+
+    const currency = row.outputAsset?.name;
+    for (const bank of bankByIban.values()) {
+      if (bank.currency !== currency || bank.asset?.id == null) continue;
+      const mark = marks.getMarkAt(bank.asset.id, date);
+      if (mark != null) return mark;
+    }
+    return undefined;
   }
 
   private liability(qualifier: string): Promise<LedgerAccount> {
