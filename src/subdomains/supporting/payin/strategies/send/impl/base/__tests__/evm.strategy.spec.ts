@@ -11,6 +11,7 @@ import { TestSharedModule } from 'src/shared/utils/test.shared.module';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
 import {
+  CryptoInput,
   PayInConfirmationType,
   PayInPurpose,
   PayInStatus,
@@ -188,7 +189,7 @@ describe('EvmStrategy', () => {
     it('restores each captured status and rethrows a plain pre-broadcast error', async () => {
       const { group, payIns } = createGroup();
       const preBroadcastError = new Error('fee lookup failed');
-      jest.spyOn(payInRepo, 'save').mockImplementation(async (payIn) => payIn);
+      jest.spyOn(payInRepo, 'save').mockImplementation(async (payIn) => payIn as CryptoInput);
       jest.spyOn(strategy as any, 'dispatchSend').mockRejectedValue(preBroadcastError);
 
       await expect(strategy['dispatch'](group, SendType.FORWARD, 0.01)).rejects.toBe(preBroadcastError);
@@ -200,7 +201,7 @@ describe('EvmStrategy', () => {
     it('keeps every member Sending and rethrows an ambiguous TxBroadcastError', async () => {
       const { group, payIns } = createGroup();
       const broadcastError = new TxBroadcastError('RPC timeout');
-      jest.spyOn(payInRepo, 'save').mockImplementation(async (payIn) => payIn);
+      jest.spyOn(payInRepo, 'save').mockImplementation(async (payIn) => payIn as CryptoInput);
       jest.spyOn(strategy as any, 'dispatchSend').mockRejectedValue(broadcastError);
 
       await expect(strategy['dispatch'](group, SendType.FORWARD, 0.01)).rejects.toBe(broadcastError);
