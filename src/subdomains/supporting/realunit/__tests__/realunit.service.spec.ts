@@ -528,8 +528,18 @@ describe('RealUnitService', () => {
       userData: { mail, kycLevel: KycLevel.LEVEL_30 },
     });
 
+    const buildRegistration = (overrides: Partial<AktionariatRegistration> = {}): AktionariatRegistration =>
+      ({
+        requiresEmailConfirmation: false,
+        confirmedDate: undefined,
+        ...overrides,
+      }) as AktionariatRegistration;
+
     beforeEach(() => {
-      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
+      jest.spyOn(service as any, 'findRegistration').mockResolvedValue({
+        registration: buildRegistration(),
+        isForCurrentWallet: true,
+      });
       jest.spyOn(service, 'getRealuAsset').mockResolvedValue(realuAsset);
       jest.spyOn(service as any, 'generatePaymentRequest').mockReturnValue('MOCK-QR');
       fiatService.getFiatByName.mockResolvedValue({ name: 'CHF' } as any);
@@ -547,7 +557,26 @@ describe('RealUnitService', () => {
       expect((service as any).generatePaymentRequest).not.toHaveBeenCalled();
     });
 
-    it('leaves a valid quote untouched when the user has a primary email', async () => {
+    it('prefers PrimaryEmailRequired over PrimaryEmailNotConfirmed when the email is missing AND unconfirmed', async () => {
+      (service as any).findRegistration.mockResolvedValue({
+        registration: buildRegistration({ requiresEmailConfirmation: true, confirmedDate: undefined }),
+        isForCurrentWallet: true,
+      });
+      buyService.toPaymentInfoDto.mockResolvedValue(buildBuyPaymentInfo({ isValid: true, error: undefined }));
+
+      const result = await service.getPaymentInfo(buildUser(undefined), { amount: 100 });
+
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.PRIMARY_EMAIL_REQUIRED);
+      expect(result.paymentRequest).toBeUndefined();
+    });
+
+    it('returns a valid quote when an email-confirmation registration has a confirmedDate', async () => {
+      const confirmedDate = new Date('2026-06-01T00:00:00.000Z');
+      (service as any).findRegistration.mockResolvedValue({
+        registration: buildRegistration({ requiresEmailConfirmation: true, confirmedDate }),
+        isForCurrentWallet: true,
+      });
       buyService.toPaymentInfoDto.mockResolvedValue(buildBuyPaymentInfo({ isValid: true, error: undefined }));
 
       const result = await service.getPaymentInfo(buildUser('max@example.com'), { amount: 100 });
@@ -555,6 +584,34 @@ describe('RealUnitService', () => {
       expect(result.isValid).toBe(true);
       expect(result.error).toBeUndefined();
       expect(result.paymentRequest).toBe('MOCK-QR');
+    });
+
+    it('returns a valid quote for a grandfathered registration without a confirmedDate', async () => {
+      (service as any).findRegistration.mockResolvedValue({
+        registration: buildRegistration({ requiresEmailConfirmation: false, confirmedDate: undefined }),
+        isForCurrentWallet: true,
+      });
+      buyService.toPaymentInfoDto.mockResolvedValue(buildBuyPaymentInfo({ isValid: true, error: undefined }));
+
+      const result = await service.getPaymentInfo(buildUser('max@example.com'), { amount: 100 });
+
+      expect(result.isValid).toBe(true);
+      expect(result.error).toBeUndefined();
+    });
+
+    it('surfaces an unconfirmed registration email and withholds the payment request', async () => {
+      (service as any).findRegistration.mockResolvedValue({
+        registration: buildRegistration({ requiresEmailConfirmation: true, confirmedDate: undefined }),
+        isForCurrentWallet: true,
+      });
+      buyService.toPaymentInfoDto.mockResolvedValue(buildBuyPaymentInfo({ isValid: true, error: undefined }));
+
+      const result = await service.getPaymentInfo(buildUser('max@example.com'), { amount: 100 });
+
+      expect(result.isValid).toBe(false);
+      expect(result.error).toBe(QuoteError.PRIMARY_EMAIL_NOT_CONFIRMED);
+      expect(result.paymentRequest).toBeUndefined();
+      expect((service as any).generatePaymentRequest).not.toHaveBeenCalled();
     });
 
     it('passes a pre-existing quote error through unchanged when the user has a primary email', async () => {
@@ -570,6 +627,10 @@ describe('RealUnitService', () => {
     });
 
     it('prefers a harder pre-existing quote error over the missing-primary-email signal', async () => {
+      (service as any).findRegistration.mockResolvedValue({
+        registration: buildRegistration({ requiresEmailConfirmation: true, confirmedDate: undefined }),
+        isForCurrentWallet: true,
+      });
       buyService.toPaymentInfoDto.mockResolvedValue(
         buildBuyPaymentInfo({ isValid: false, error: QuoteError.AMOUNT_TOO_LOW }),
       );
@@ -582,7 +643,7 @@ describe('RealUnitService', () => {
     });
 
     it('rejects the buy with RegistrationRequiredException when the wallet is not RealUnit-registered', async () => {
-      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(false);
+      (service as any).findRegistration.mockResolvedValue({ registration: undefined, isForCurrentWallet: false });
 
       await expect(service.getPaymentInfo(buildUser('max@example.com'), { amount: 100 })).rejects.toBeInstanceOf(
         RegistrationRequiredException,
@@ -2553,6 +2614,8 @@ describe('RealUnitService', () => {
       expect(result.confirmedAddresses).toEqual([walletA]);
       expect(result.confirmedDate).toBeInstanceOf(Date);
       expect(httpService.getRaw).not.toHaveBeenCalled();
+      const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
+      expect(audit.severity).toBe(LogSeverity.INFO);
       // the latch is set on the active registration row and saved through the transactional manager
       expect(aktionariatTxManager.save).toHaveBeenCalledWith(
         expect.objectContaining({ active: true, confirmedDate: expect.any(Date) }),
@@ -2620,8 +2683,8 @@ describe('RealUnitService', () => {
 
       const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
 
-      // the call still resolves (the code was valid at Aktionariat) and returns an empty confirmed list
-      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
+      // the call still resolves, but reports that no local registration could be confirmed
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED_NO_REGISTRATION);
       expect(result.confirmedAddresses).toEqual([]);
       expect(result.confirmedDate).toBeUndefined();
       // NO registration was touched — no latch transaction ran
@@ -2636,7 +2699,9 @@ describe('RealUnitService', () => {
       expect(msg.walletAddresses).toEqual([]);
       expect(msg.email).toBe(email);
       expect(msg.user).toBe(user);
-      expect((service as any).logger.warn).toHaveBeenCalled();
+      const audit = (logService.create as jest.Mock).mock.calls.find((c) => c[0].category === 'ServerCall')[0];
+      expect(audit.severity).toBe(LogSeverity.ERROR);
+      expect((service as any).logger.error).toHaveBeenCalled();
     });
 
     it('masks an email without an @ sign without crashing', async () => {
@@ -2644,7 +2709,7 @@ describe('RealUnitService', () => {
 
       const result = await service.confirmAktionariat({ email: 'no-at-sign', code, user }, rawRequest);
 
-      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED);
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.CONFIRMED_NO_REGISTRATION);
     });
 
     it('calls the real Aktionariat endpoint and maps a 2xx to confirmed', async () => {
@@ -2678,7 +2743,25 @@ describe('RealUnitService', () => {
       // a non-confirming call never touches a registration (the latch is only set on a 2xx)
       expect(aktionariatManager.transaction).not.toHaveBeenCalled();
       expect(aktionariatTxManager.save).not.toHaveBeenCalled();
+      // a 4xx is a handled rejection (mapped to INVALID above), not a fault — logged at warn
+      expect((service as any).logger.warn).toHaveBeenCalled();
+      expect((service as any).logger.error).not.toHaveBeenCalled();
+    });
+
+    it('keeps a 429 (throttling) at error — a systemic fault, not a rejected link', async () => {
+      mockEnvironment = 'prd';
+      mockRegisteredWallets([walletA]);
+      httpService.getRaw.mockRejectedValue({
+        response: { status: 429, data: { status: 429, message: 'Too many requests' } },
+      });
+
+      const result = await service.confirmAktionariat({ email, code, user }, rawRequest);
+
+      // the client-facing mapping still buckets it as INVALID (4xx), only the log level differs
+      expect(result.status).toBe(RealUnitAktionariatConfirmationStatus.INVALID);
       expect((service as any).logger.error).toHaveBeenCalled();
+      const warnText = (service as any).logger.warn.mock.calls.flat().join(' ');
+      expect(warnText).not.toContain('Aktionariat confirmation call');
     });
 
     it('keeps the FIRST confirmedDate on a re-confirm and returns the stored (not transient) date', async () => {
@@ -2842,8 +2925,8 @@ describe('RealUnitService', () => {
       expect(msg.response).toBeUndefined();
       expect(audit.message).toContain(leakedEmail);
 
-      // Loki stays PII-free: the leaked email must never reach this.logger.error
-      const lokiText = (service as any).logger.error.mock.calls.flat().join(' ');
+      // Loki stays PII-free: the leaked email must never reach this.logger.warn (a 4xx logs at warn, not error)
+      const lokiText = (service as any).logger.warn.mock.calls.flat().join(' ');
       expect(lokiText).toContain('status=403');
       expect(lokiText).not.toContain(leakedEmail);
     });

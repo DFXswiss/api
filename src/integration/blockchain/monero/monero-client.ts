@@ -273,6 +273,10 @@ export class MoneroClient extends BlockchainClient implements CoinOnly {
     if (sendTransferResult.error)
       throw new TxBroadcastError(sendTransferResult.error.message, { cause: sendTransferResult.error });
     if (!sendTransferResult.result) throw new TxBroadcastError('No result after send transfer');
+    // Empty tx_hash after a resolved transfer is ambiguous (wallet may already have relayed).
+    if (!sendTransferResult.result.tx_hash) {
+      throw new TxBroadcastError('Monero broadcast returned an empty tx hash', { cause: sendTransferResult });
+    }
 
     return this.convertTransferAuToXmr({
       amount: sendTransferResult.result.amount,

@@ -89,6 +89,16 @@ export class DashboardFinancialService {
             withdraw: changes.minus?.binance?.withdraw ?? 0,
             trading: changes.minus?.binance?.trading ?? 0,
           },
+          scrypt: {
+            total: changes.minus?.scrypt?.total ?? 0,
+            withdraw: changes.minus?.scrypt?.withdraw ?? 0,
+            trading: changes.minus?.scrypt?.trading ?? 0,
+          },
+          mexc: {
+            total: changes.minus?.mexc?.total ?? 0,
+            withdraw: changes.minus?.mexc?.withdraw ?? 0,
+            trading: changes.minus?.mexc?.trading ?? 0,
+          },
           blockchain: {
             total: changes.minus?.blockchain?.total ?? 0,
             txIn: changes.minus?.blockchain?.tx?.in ?? 0,
@@ -245,6 +255,7 @@ export class DashboardFinancialService {
         totalBalanceChf: financeLog.balancesTotal?.totalBalanceChf ?? 0,
         plusBalanceChf: financeLog.balancesTotal?.plusBalanceChf ?? 0,
         minusBalanceChf: financeLog.balancesTotal?.minusBalanceChf ?? 0,
+        fxPnlChf: financeLog.balancesTotal?.fxPnlChf ?? 0,
         btcPriceChf,
         balancesByType,
       };

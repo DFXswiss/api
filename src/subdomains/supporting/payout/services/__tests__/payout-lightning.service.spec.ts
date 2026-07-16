@@ -7,9 +7,10 @@
  * LightningService#sendTransfer throws for an in-band LND payment_error ("no route" etc., see
  * lightning.service.ts) - must propagate unchanged so the order self-heals.
  *
- * One exception: a keysend (LN_NID) payment carries no invoice payment_hash, so LND cannot
- * deduplicate a re-broadcast. Every keysend failure is therefore wrapped fail-closed (as a
- * PayoutBroadcastException), even a plain in-band error, to prevent a double-pay on retry.
+ * Empty/missing payment hashes after the send are fail-closed for ALL address types (invoice
+ * retries fetch a NEW invoice, so LND payment_hash dedup does not protect a re-broadcast).
+ * Keysend (LN_NID) additionally wraps every non-success outcome fail-closed (no payment_hash
+ * for LND dedup at all).
  */
 
 import { mock } from 'jest-mock-extended';
@@ -141,13 +142,35 @@ describe('PayoutLightningService', () => {
       }
 
       expect(error).toBeInstanceOf(PayoutBroadcastException);
-      expect((error as PayoutBroadcastException).message).toBe('Lightning keysend returned an empty payment hash');
+      expect((error as PayoutBroadcastException).message).toBe('Lightning payment returned an empty payment hash');
     });
 
-    it('returns an empty payment hash unchanged for a non-keysend (invoice payment_hash dedup covers a retry)', async () => {
+    it('wraps an empty payment hash for invoice (LN_URL) fail-closed - invoice retries use a new payment_hash so LND dedup does not protect a re-broadcast', async () => {
       sendTransferSpy.mockResolvedValue('');
 
-      await expect(service.sendPayment('ADDR_01', 0.001)).resolves.toBe('');
+      let error: unknown;
+      try {
+        await service.sendPayment('LNURL1dp68gurn8ghj7...', 0.001);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(PayoutBroadcastException);
+      expect((error as PayoutBroadcastException).message).toBe('Lightning payment returned an empty payment hash');
+    });
+
+    it('wraps an empty payment hash for LND_HUB fail-closed (same new-invoice-on-retry risk as LN_URL)', async () => {
+      sendTransferSpy.mockResolvedValue('');
+
+      let error: unknown;
+      try {
+        await service.sendPayment('LNDHUB1dp68gurn8ghj7...', 0.001);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(PayoutBroadcastException);
+      expect((error as PayoutBroadcastException).message).toBe('Lightning payment returned an empty payment hash');
     });
   });
 

@@ -6,6 +6,10 @@ import { Util } from 'src/shared/utils/util';
 export enum RealUnitAktionariatConfirmationStatus {
   // Aktionariat accepted the confirmation (HTTP 2xx).
   CONFIRMED = 'confirmed',
+  // Aktionariat accepted the confirmation (HTTP 2xx) but no local RealUnit registration matched the
+  // confirmed email — nothing could be unlocked on this side. The client should treat this as a hard
+  // failure, not a retry candidate.
+  CONFIRMED_NO_REGISTRATION = 'confirmed_no_registration',
   // The link is invalid or expired — Aktionariat rejected the code (HTTP 4xx).
   INVALID = 'invalid',
   // Aktionariat could not be reached or errored (HTTP 5xx / network / timeout). The client should

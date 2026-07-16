@@ -510,9 +510,11 @@ export class RealUnitService {
     const currencyName = dto.currency ?? 'CHF';
 
     // 1. Registration required
-    if (!(await this.hasRegistrationForWallet(userData, user.address))) {
+    const { registration, isForCurrentWallet } = await this.findRegistration(userData, user.address);
+    if (!isForCurrentWallet || !registration) {
       throw new RegistrationRequiredException(undefined, KycContext.REALUNIT_BUY);
     }
+    const { emailConfirmed } = this.resolveEmailConfirmation(registration);
 
     // 2. KYC Level check - Level 30 required for all RealUnit purchases
     const currency = await this.fiatService.getFiatByName(currencyName);
@@ -542,15 +544,22 @@ export class RealUnitService {
       }),
     );
 
-    // 5. Primary-email pre-tap gate: Aktionariat rejects the buy confirm when the user has no primary
-    // email. Surface it here as a pre-tap signal (isValid/error) so the client can route to the mail
-    // capture before tapping confirm, instead of bouncing off the reactive 400 in confirmBuy (which
-    // stays as a fail-closed backstop for the case the email disappears after this call). An existing
-    // quote error takes precedence — it may be a harder block (country/nationality/AML/limit) that no
-    // amount of email capture can resolve, so the mail gate only fills the error when none is present.
+    // 5. Primary-email and confirmation pre-tap gate: Aktionariat rejects the buy confirm when the user has
+    // no primary email or the registration email is still unconfirmed. Surface both here as pre-tap signals
+    // (isValid/error) so the client can route to mail capture or confirmation before tapping confirm, instead
+    // of bouncing off the reactive 400 in confirmBuy (which stays as a fail-closed backstop for the case the
+    // email disappears after this call). An existing quote error takes precedence — it may be a harder block
+    // (country/nationality/AML/limit) that no amount of email capture or confirmation can resolve, so the
+    // email gates only fill the error when none is present.
     const hasPrimaryEmail = !!userData.mail;
-    const isValid = buyPaymentInfo.isValid && hasPrimaryEmail;
-    const error = buyPaymentInfo.error ?? (hasPrimaryEmail ? undefined : QuoteError.PRIMARY_EMAIL_REQUIRED);
+    const isValid = buyPaymentInfo.isValid && hasPrimaryEmail && emailConfirmed;
+    const error =
+      buyPaymentInfo.error ??
+      (!hasPrimaryEmail
+        ? QuoteError.PRIMARY_EMAIL_REQUIRED
+        : !emailConfirmed
+          ? QuoteError.PRIMARY_EMAIL_NOT_CONFIRMED
+          : undefined);
 
     // 6. Override recipient info with RealUnit company address
     const { bank: realunitBank, address: realunitAddress } = GetConfig().blockchain.realunit;
@@ -2138,8 +2147,8 @@ export class RealUnitService {
   /**
    * Confirms an Aktionariat email connection from the public confirm-aktionariat endpoint. The
    * `code` is the authentication token; no api-key is sent. The Aktionariat response is mapped to
-   * three states (confirmed / invalid / unavailable) and the outcome is documented per registered
-   * wallet address.
+   * four states (confirmed / confirmed_no_registration / invalid / unavailable) and the outcome is
+   * documented per registered wallet address.
    *
    * ASSUMPTION: the Aktionariat confirmation is keyed on the email and therefore applies to ALL
    * wallets that were RealUnit-registered under that email (the aktionariat_registration rows resolved by
@@ -2160,12 +2169,22 @@ export class RealUnitService {
       this.logger.info(
         `Resolved ${walletAddresses.length} RealUnit wallet(s) for ${maskedEmail}: ${walletAddresses.join(', ')}`,
       );
-    } else {
-      this.logger.warn(`No RealUnit registration wallet found for ${maskedEmail}`);
     }
 
     const { httpStatus, responseBody, error } = await this.callAktionariatConfirm(email, code, user);
-    const status = this.mapConfirmationStatus(httpStatus);
+    const mappedStatus = this.mapConfirmationStatus(httpStatus);
+    const noRegistrationMatch =
+      !walletAddresses.length && mappedStatus === RealUnitAktionariatConfirmationStatus.CONFIRMED;
+    const status = noRegistrationMatch ? RealUnitAktionariatConfirmationStatus.CONFIRMED_NO_REGISTRATION : mappedStatus;
+
+    if (!walletAddresses.length) {
+      const message = `No RealUnit registration wallet found for ${maskedEmail}`;
+      if (noRegistrationMatch) {
+        this.logger.error(message);
+      } else {
+        this.logger.warn(message);
+      }
+    }
 
     this.logger.info(
       `Aktionariat confirmation for ${maskedEmail} mapped to '${status}' (httpStatus: ${httpStatus ?? 'none'})`,
@@ -2173,7 +2192,7 @@ export class RealUnitService {
 
     const confirmed = status === RealUnitAktionariatConfirmationStatus.CONFIRMED;
     // Severity of the DB audit row: a confirmed call is INFO, an invalid/expired link is a benign WARNING,
-    // an unavailable Aktionariat is an ERROR (a system fault to alert on).
+    // and every other outcome is an ERROR.
     const logSeverity =
       status === RealUnitAktionariatConfirmationStatus.CONFIRMED
         ? LogSeverity.INFO
@@ -2273,11 +2292,20 @@ export class RealUnitService {
       // Loki is the PII-free channel: log only the redacted status/type summary here (an Aktionariat error
       // body may echo the submitted email). The FULL body still reaches the DB `log` audit store, via the
       // returned raw error passed through describeError.
-      this.logger.error(
-        `Aktionariat confirmation call to ${endpoint} failed (httpStatus: ${httpStatus ?? 'none'}): ${this.summarizeError(
-          error,
-        )}`,
-      );
+      const logMessage = `Aktionariat confirmation call to ${endpoint} failed (httpStatus: ${httpStatus ?? 'none'}): ${this.summarizeError(
+        error,
+      )}`;
+      // A rejected confirm link (expired code, unknown email, ...) is the handled INVALID outcome of
+      // mapConfirmationStatus — there is no API key on this call (the code is the credential), so a 4xx
+      // cannot mean broken credentials. 429 is carved back out: throttling is a systemic fault. Anything
+      // else (5xx, timeout, no status) is genuinely unavailable; both stay at error.
+      const isRejectedLink =
+        this.mapConfirmationStatus(httpStatus) === RealUnitAktionariatConfirmationStatus.INVALID && httpStatus !== 429;
+      if (isRejectedLink) {
+        this.logger.warn(logMessage);
+      } else {
+        this.logger.error(logMessage);
+      }
       return { httpStatus, responseBody, error };
     }
   }

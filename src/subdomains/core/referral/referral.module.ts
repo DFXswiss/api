@@ -33,7 +33,7 @@ import { RefRewardService } from './reward/services/ref-reward.service';
     NotificationModule,
     PricingModule,
     forwardRef(() => TransactionModule),
-    LiquidityManagementModule,
+    forwardRef(() => LiquidityManagementModule),
   ],
   controllers: [RefController, RefRewardController],
   providers: [

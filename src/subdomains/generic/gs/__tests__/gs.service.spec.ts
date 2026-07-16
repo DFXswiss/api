@@ -122,6 +122,20 @@ describe('GsService', () => {
         expect(params).toEqual([]);
       });
 
+      it('runs a basic SELECT against an allowed table (aktionariat_registration)', async () => {
+        const q = spyQuery([{ id: 1 }]);
+        const dto: DebugQueryDto = {
+          table: 'aktionariat_registration',
+          select: [{ kind: 'column', column: 'id' }],
+          limit: 10,
+        };
+
+        await service.executeDebugQuery(dto, 'tester');
+
+        expect(q).toHaveBeenCalledTimes(1);
+        expect(q.mock.calls[0][0]).toContain('FROM "aktionariat_registration"');
+      });
+
       it('rejects an unknown table', async () => {
         const dto = {
           table: 'pg_catalog_pg_roles',
@@ -390,6 +404,12 @@ describe('GsService', () => {
         // rejects any query (this it.each row covers a future re-add of just `userDataId`
         // because we also assert the table itself is rejected — see the test below).
         ['mros', 'userDataId'],
+        // aktionariat_registration — email is PII; signature/signedPayload/kycData are
+        // secrets / free-form JSON carrying personal data
+        ['aktionariat_registration', 'email'],
+        ['aktionariat_registration', 'signature'],
+        ['aktionariat_registration', 'signedPayload'],
+        ['aktionariat_registration', 'kycData'],
       ])('rejects sensitive column %s.%s', async (table, column) => {
         const dto = { table, select: [{ kind: 'column' as const, column }], limit: 10 };
         await expect(service.executeDebugQuery(dto, 'tester')).rejects.toThrow(BadRequestException);

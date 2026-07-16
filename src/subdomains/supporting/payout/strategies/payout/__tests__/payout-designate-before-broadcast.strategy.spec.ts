@@ -301,6 +301,45 @@ describe('Payout designate-before-broadcast', () => {
       expect(order.payoutTxId).toBeNull();
     });
   });
+
+  // Regression for #4194: empty/missing tx ids after the send must stay fail-closed (no rollback,
+  // no second broadcast). Invoice Lightning retries would otherwise fetch a new invoice; Cardano
+  // would re-submit a second tx after a successful empty-hash response.
+  describe('empty post-broadcast tx id — fail-closed regression (#4194)', () => {
+    beforeAll(() => {
+      new ConfigService();
+    });
+
+    it('LightningStrategy: empty-payment-hash PayoutBroadcastException leaves PAYOUT_DESIGNATED (no rollback, no rebroadcast)', async () => {
+      const { doPayout, dispatchSpy, repoSaveSpy } = setupLightning();
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
+      const rollbackSpy = jest.spyOn(order, 'rollbackPayoutDesignation');
+      dispatchSpy.mockRejectedValue(new PayoutBroadcastException('Lightning payment returned an empty payment hash'));
+
+      await doPayout([order]);
+
+      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+      expect(order.payoutTxId).toBeNull();
+      expect(dispatchSpy).toHaveBeenCalledTimes(1);
+      expect(rollbackSpy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1);
+    });
+
+    it('CardanoStrategy: empty-tx-hash PayoutBroadcastException leaves PAYOUT_DESIGNATED (no rollback, no rebroadcast)', async () => {
+      const { doPayout, dispatchSpy, repoSaveSpy } = setupCardano();
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null });
+      const rollbackSpy = jest.spyOn(order, 'rollbackPayoutDesignation');
+      dispatchSpy.mockRejectedValue(new PayoutBroadcastException('Cardano broadcast returned an empty tx hash'));
+
+      await doPayout([order]);
+
+      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+      expect(order.payoutTxId).toBeNull();
+      expect(dispatchSpy).toHaveBeenCalledTimes(1);
+      expect(rollbackSpy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1);
+    });
+  });
 });
 
 class EvmStrategyWrapper extends EvmStrategy {

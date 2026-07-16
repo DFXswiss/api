@@ -2,6 +2,8 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { BlockchainRegistryService } from 'src/integration/blockchain/shared/services/blockchain-registry.service';
 import { createCustomExchangeTx } from 'src/integration/exchange/dto/__mocks__/exchange-tx.entity.mock';
+import { ExchangeTxType } from 'src/integration/exchange/entities/exchange-tx.entity';
+import { ExchangeName } from 'src/integration/exchange/enums/exchange.enum';
 import { ExchangeTxService } from 'src/integration/exchange/services/exchange-tx.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -118,6 +120,101 @@ describe('LogJobService', () => {
     expect(service).toBeDefined();
   });
 
+  describe('getChangeLog (Scrypt & MEXC exchange fees)', () => {
+    function setupEmpty() {
+      jest.spyOn(buyFiatService, 'getBuyFiat').mockResolvedValue([] as any);
+      jest.spyOn(buyCryptoService, 'getBuyCrypto').mockResolvedValue([] as any);
+      jest.spyOn(tradingOrderService, 'getTradingOrderYield').mockResolvedValue({ fee: 0, profit: 0 } as any);
+      jest.spyOn(payoutService, 'getPayoutOrders').mockResolvedValue([] as any);
+      jest.spyOn(bankTxService, 'getBankTxFee').mockResolvedValue(0 as any);
+      jest.spyOn(payInService, 'getPayInFee').mockResolvedValue(0 as any);
+      jest.spyOn(refRewardService, 'getRefRewardVolume').mockResolvedValue(0 as any);
+    }
+
+    it('sums Scrypt and MEXC trade+withdrawal fees (sign-aware, incl. rebates) into minus and total', async () => {
+      setupEmpty();
+      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([
+        // Scrypt: trade 240 minus a 20 rebate = 220 net trading, plus a 10 withdrawal -> total 230
+        createCustomExchangeTx({ exchange: ExchangeName.SCRYPT, type: ExchangeTxType.TRADE, feeAmountChf: 240 }),
+        createCustomExchangeTx({ exchange: ExchangeName.SCRYPT, type: ExchangeTxType.TRADE, feeAmountChf: -20 }),
+        createCustomExchangeTx({ exchange: ExchangeName.SCRYPT, type: ExchangeTxType.WITHDRAWAL, feeAmountChf: 10 }),
+        // MEXC: trade 18 + withdrawal 5 -> total 23
+        createCustomExchangeTx({ exchange: ExchangeName.MEXC, type: ExchangeTxType.TRADE, feeAmountChf: 18 }),
+        createCustomExchangeTx({ exchange: ExchangeName.MEXC, type: ExchangeTxType.WITHDRAWAL, feeAmountChf: 5 }),
+      ] as any);
+
+      const result = await (service as any).getChangeLog();
+
+      expect(result.minus.scrypt).toEqual({ total: 230, withdraw: 10, trading: 220 });
+      expect(result.minus.mexc).toEqual({ total: 23, withdraw: 5, trading: 18 });
+      expect(result.minus.total).toBe(253);
+      expect(result.total).toBe(-253);
+    });
+
+    it('omits the Scrypt and MEXC blocks when there are no such exchange fees', async () => {
+      setupEmpty();
+      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([] as any);
+
+      const result = await (service as any).getChangeLog();
+
+      expect(result.minus.scrypt).toBeUndefined();
+      expect(result.minus.mexc).toBeUndefined();
+    });
+
+    it('flows the bank tx fee into minus.bank and the totals', async () => {
+      setupEmpty();
+      jest.spyOn(exchangeTxService, 'getExchangeTx').mockResolvedValue([] as any);
+      jest.spyOn(bankTxService, 'getBankTxFee').mockResolvedValue(4196 as any);
+
+      const result = await (service as any).getChangeLog();
+
+      expect(result.minus.bank).toBe(4196);
+      expect(result.minus.total).toBe(4196);
+      expect(result.total).toBe(-4196);
+    });
+  });
+
+  describe('FinancialChangesLog isolation (reporting failure must not arm the equity safety mode)', () => {
+    // a healthy, finite book comfortably above the minimum -> the equity path leaves safety mode off
+    function setup() {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue({});
+      jest
+        .spyOn(service as any, 'getBalancesByFinancialType')
+        .mockReturnValue({ EUR: { plusBalance: 5000, plusBalanceChf: 5000, minusBalance: 0, minusBalanceChf: 0 } });
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue([] as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(100 as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      jest
+        .spyOn(logService, 'maxEntity')
+        .mockResolvedValue({ message: JSON.stringify({ balancesTotal: { totalBalanceChf: 5000 } }) } as any);
+      return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    it('writes the FinancialDataLog, keeps safety mode off, logs the error and omits the changes entry when getChangeLog throws', async () => {
+      const errorSpy = jest.spyOn(service['logger'], 'error');
+      const createSpy = setup();
+      // a transient reporting-price failure while building the changes log
+      jest.spyOn(service as any, 'getChangeLog').mockRejectedValue(new Error('No valid price'));
+
+      await service.saveTradingLog();
+
+      // the equity path ran and still persisted the FinancialDataLog entry for this minute
+      const dataLog = createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog');
+      expect(dataLog).toBeDefined();
+
+      // the reporting-price failure did NOT arm the equity safety mode: the healthy book set it to false
+      // (and the outer catch, which would set it true, never ran)
+      expect(processService.setSafetyModeActive).toHaveBeenCalledWith(false);
+      expect(processService.setSafetyModeActive).not.toHaveBeenCalledWith(true);
+
+      // the failure is logged and this minute's changes entry is omitted (absence, not a wrong value)
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining('financial changes log'), expect.any(Error));
+      const changesLog = createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialChangesLog');
+      expect(changesLog).toBeUndefined();
+    });
+  });
+
   describe('saveTradingLog (referral-credit liability)', () => {
     // a positive base book so the referral-credit assertions work on round numbers
     const baseBuckets = () => ({
@@ -222,6 +319,142 @@ describe('LogJobService', () => {
       expect(result.EUR.plusBalance).toBe(-5000);
       expect(result.EUR.plusBalanceChf).toBe(-5000);
       expect(result.EUR.plusBalance).not.toBeUndefined();
+    });
+  });
+
+  describe('getFxPnlChf (per-interval price effect of open positions)', () => {
+    // a short BTC leg and a long USD leg, priced up and down respectively, plus a non-financialType asset
+    // whose price also moves and must therefore be excluded from the FX total.
+    const assets = [
+      createCustomAsset({ id: 1, financialType: 'BTC' }),
+      createCustomAsset({ id: 2, financialType: 'USD' }),
+      createCustomAsset({ id: 3 }), // no financialType -> excluded
+    ];
+
+    it('sums previous net position times the CHF price change, only over financialType assets', () => {
+      const prev = {
+        assets: {
+          1: { plusBalance: { total: 0 }, minusBalance: { total: 1.7 }, priceChf: 50000 }, // net short 1.7 BTC
+          2: { plusBalance: { total: 250000 }, minusBalance: { total: 0 }, priceChf: 0.9 }, // net long 250k USD
+          3: { plusBalance: { total: 1000 }, minusBalance: { total: 0 }, priceChf: 10 }, // excluded (no financialType)
+        },
+      } as any;
+      const assetLog = {
+        1: { priceChf: 51000 }, // +1000 -> short leg marks down -1700
+        2: { priceChf: 0.88 }, // -0.02 -> long leg marks down -5000
+        3: { priceChf: 1000 }, // large move, but must not count
+      } as any;
+
+      // -1.7 * (51000 - 50000) + 250000 * (0.88 - 0.90) = -1700 + -5000 = -6700; asset 3 filtered out
+      expect(service['getFxPnlChf'](prev, assetLog, assets)).toBeCloseTo(-6700, 4);
+    });
+
+    it('returns undefined when there is no predecessor snapshot to diff against (first entry)', () => {
+      expect(service['getFxPnlChf'](undefined, {} as any, assets)).toBeUndefined();
+      // a predecessor log without an assets map is equally unusable as a reference point
+      expect(service['getFxPnlChf']({ balancesTotal: {} } as any, {} as any, assets)).toBeUndefined();
+    });
+
+    it('ignores positions absent from either snapshot (new and closed positions carry no price effect)', () => {
+      const prev = {
+        assets: {
+          1: { plusBalance: { total: 2 }, minusBalance: { total: 0 }, priceChf: 50000 }, // present both sides
+          2: { plusBalance: { total: 100 }, minusBalance: { total: 0 }, priceChf: 10 }, // closed: gone from current
+        },
+      } as any;
+      const assetLog = {
+        1: { priceChf: 50100 }, // +100 -> 2 * 100 = 200
+        4: { priceChf: 999 }, // new position: not in prev -> ignored
+      } as any;
+      const withNewAndClosed = [
+        createCustomAsset({ id: 1, financialType: 'BTC' }),
+        createCustomAsset({ id: 2, financialType: 'BTC' }), // closed since the previous snapshot
+        createCustomAsset({ id: 4, financialType: 'BTC' }), // newly entered
+      ];
+
+      // only asset 1 is in both snapshots: 2 * (50100 - 50000) = 200
+      expect(service['getFxPnlChf'](prev, assetLog, withNewAndClosed)).toBeCloseTo(200, 4);
+    });
+
+    it('skips an asset without a usable price on either side', () => {
+      const prev = {
+        assets: {
+          1: { plusBalance: { total: 2 }, minusBalance: { total: 0 }, priceChf: undefined }, // no previous price
+          2: { plusBalance: { total: 2 }, minusBalance: { total: 0 }, priceChf: 100 },
+        },
+      } as any;
+      const assetLog = {
+        1: { priceChf: 100 },
+        2: { priceChf: undefined }, // no current price
+      } as any;
+      const twoAssets = [
+        createCustomAsset({ id: 1, financialType: 'BTC' }),
+        createCustomAsset({ id: 2, financialType: 'BTC' }),
+      ];
+
+      expect(service['getFxPnlChf'](prev, assetLog, twoAssets)).toBe(0);
+    });
+  });
+
+  describe('saveTradingLog (FX P&L component)', () => {
+    function setupFxPnl(params: { assets: Asset[]; assetLog: Record<number, unknown>; lastMessage: object }) {
+      jest.spyOn(service as any, 'getTradingLog').mockResolvedValue({});
+      jest.spyOn(service as any, 'getAssetLog').mockResolvedValue(params.assetLog);
+      // mock the bucket aggregation so the FX assertion is isolated from balance summation; a healthy
+      // finite total keeps safety mode and the valid flag out of the way.
+      jest.spyOn(service as any, 'getBalancesByFinancialType').mockReturnValue({
+        BTC: { plusBalance: 0, plusBalanceChf: 200000, minusBalance: 0, minusBalanceChf: 0 },
+      });
+      jest.spyOn(service as any, 'getChangeLog').mockResolvedValue({});
+      jest.spyOn(assetService, 'getAssetsWith').mockResolvedValue(params.assets as any);
+      jest.spyOn(settingService, 'getObj').mockResolvedValue(100 as any);
+      jest.spyOn(refRewardService, 'getOpenRefCreditLiability').mockResolvedValue({ amountEur: 0, amountChf: 0 });
+      jest
+        .spyOn(logService, 'maxEntity')
+        .mockResolvedValue({ created: new Date(), message: JSON.stringify(params.lastMessage) } as any);
+      return jest.spyOn(logService, 'create').mockResolvedValue({} as any);
+    }
+
+    function financialLog(createSpy: jest.SpyInstance) {
+      const call = createSpy.mock.calls.find(([dto]) => dto.subsystem === 'FinancialDataLog');
+      return JSON.parse(call[0].message);
+    }
+
+    it('writes the price effect of the open positions since the previous snapshot into balancesTotal', async () => {
+      const createSpy = setupFxPnl({
+        assets: [
+          createCustomAsset({ id: 1, financialType: 'BTC' }),
+          createCustomAsset({ id: 2, financialType: 'USD' }),
+        ],
+        assetLog: {
+          1: { priceChf: 51000, plusBalance: { total: 0 }, minusBalance: { total: 1.7 } },
+          2: { priceChf: 0.88, plusBalance: { total: 250000 }, minusBalance: { total: 0 } },
+        },
+        lastMessage: {
+          balancesTotal: { totalBalanceChf: 200000 },
+          assets: {
+            1: { plusBalance: { total: 0 }, minusBalance: { total: 1.7 }, priceChf: 50000 },
+            2: { plusBalance: { total: 250000 }, minusBalance: { total: 0 }, priceChf: 0.9 },
+          },
+        },
+      });
+
+      await service.saveTradingLog();
+
+      // -1.7*(51000-50000) + 250000*(0.88-0.90) = -1700 + -5000 = -6700 (rounded to 2 dp, negative preserved)
+      expect(financialLog(createSpy).balancesTotal.fxPnlChf).toBe(-6700);
+    });
+
+    it('omits fxPnlChf when the previous snapshot has no assets to diff against (first entry)', async () => {
+      const createSpy = setupFxPnl({
+        assets: [createCustomAsset({ id: 1, financialType: 'BTC' })],
+        assetLog: { 1: { priceChf: 51000, plusBalance: { total: 1 }, minusBalance: { total: 0 } } },
+        lastMessage: { balancesTotal: { totalBalanceChf: 200000 } }, // no assets map -> no reference point
+      });
+
+      await service.saveTradingLog();
+
+      expect(financialLog(createSpy).balancesTotal).not.toHaveProperty('fxPnlChf');
     });
   });
 
