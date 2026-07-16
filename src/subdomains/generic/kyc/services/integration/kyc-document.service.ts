@@ -1,10 +1,7 @@
 import { Injectable, UnsupportedMediaTypeException } from '@nestjs/common';
 import { Config } from 'src/config/config';
-import { ArchiveService } from 'src/integration/infrastructure/storage/anchoring/archive.service';
-import { sha256 } from 'src/integration/infrastructure/storage/anchoring/merkle';
 import { createStorageService } from 'src/integration/infrastructure/storage/storage.factory';
 import { BlobContent, StorageService } from 'src/integration/infrastructure/storage/storage.service';
-import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { FileSubType, FileType, KycFileBlob } from '../../dto/kyc-file.dto';
@@ -18,14 +15,9 @@ const KYC_CONTAINER = 'kyc';
 
 @Injectable()
 export class KycDocumentService {
-  private readonly logger = new DfxLogger(KycDocumentService);
-
   private readonly storageService: StorageService;
 
-  constructor(
-    private readonly kycFileService: KycFileService,
-    private readonly archiveService: ArchiveService,
-  ) {
+  constructor(private readonly kycFileService: KycFileService) {
     this.storageService = createStorageService(KYC_CONTAINER);
   }
 
@@ -123,17 +115,6 @@ export class KycDocumentService {
 
     const url = await this.storageService.uploadWormBlob(blobName, data, contentType, metadata);
 
-    // GeBüV anchoring (Stage 3): record the content hash of the just-uploaded KYC document
-    // (a retention-relevant compliance bucket) so it can later be Merkle-batched and anchored.
-    // This is a best-effort side-booking: the upload above has already succeeded and must not
-    // be rolled back if hash recording fails, so failures are logged (never silently swallowed)
-    // but not rethrown.
-    try {
-      await this.archiveService.recordHash(KYC_CONTAINER, blobName, sha256(data).toString('hex'));
-    } catch (e) {
-      this.logger.error(`GeBüV anchoring failed to record hash for ${KYC_CONTAINER}/${blobName}:`, e);
-    }
-
     return { file, url };
   }
 
@@ -142,26 +123,12 @@ export class KycDocumentService {
   }
 
   async copyFiles(sourceUserDataId: number, targetUserDataId: number): Promise<void> {
-    await this.copyAndAnchor(`spider/${sourceUserDataId}/`, `spider/${targetUserDataId}/`);
-    await this.copyAndAnchor(`spider/${sourceUserDataId}-organization/`, `spider/${targetUserDataId}-organization/`);
-    await this.copyAndAnchor(`user/${sourceUserDataId}/`, `user/${targetUserDataId}/`);
-  }
-
-  // GeBüV anchoring (Stage 3): a copy made by copyBlobs is a fresh WORM write just like an
-  // upload, so it must be recorded the same way uploadFile does — otherwise a merged account's
-  // copied documents would never get a time anchor. Best-effort per file, same as uploadFile:
-  // failures are logged (never silently swallowed) but never abort the remaining copies.
-  private async copyAndAnchor(sourcePrefix: string, targetPrefix: string): Promise<void> {
-    const targetKeys = await this.storageService.copyBlobs(sourcePrefix, targetPrefix);
-
-    for (const targetKey of targetKeys) {
-      try {
-        const blob = await this.storageService.getBlob(targetKey);
-        await this.archiveService.recordHash(KYC_CONTAINER, targetKey, sha256(blob.data).toString('hex'));
-      } catch (e) {
-        this.logger.error(`GeBüV anchoring failed to record hash for ${KYC_CONTAINER}/${targetKey}:`, e);
-      }
-    }
+    await this.storageService.copyBlobs(`spider/${sourceUserDataId}/`, `spider/${targetUserDataId}/`);
+    await this.storageService.copyBlobs(
+      `spider/${sourceUserDataId}-organization/`,
+      `spider/${targetUserDataId}-organization/`,
+    );
+    await this.storageService.copyBlobs(`user/${sourceUserDataId}/`, `user/${targetUserDataId}/`);
   }
 
   // --- HELPER METHODS --- //

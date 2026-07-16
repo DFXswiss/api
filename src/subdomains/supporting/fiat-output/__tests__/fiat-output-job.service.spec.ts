@@ -1,7 +1,3 @@
-// Stub the heavy `opentimestamps` library (pulled in transitively via ArchiveService) so its
-// eager network/`request` deps never load at jest runtime; ArchiveService is mocked in this spec.
-jest.mock('opentimestamps', () => ({}));
-
 // generateReports resolves a per-merchant EP2 container at runtime via createStorageService();
 // mock the factory so the WORM sink (uploadWormBlob) is a spy and no real storage backend is touched.
 const ep2UploadBlobMock = jest.fn();
@@ -19,8 +15,6 @@ import { IbanService } from 'src/integration/bank/services/iban.service';
 import { OlkypayService } from 'src/integration/bank/services/olkypay.service';
 import { YapealService } from 'src/integration/bank/services/yapeal.service';
 import { ScryptService } from 'src/integration/exchange/services/scrypt.service';
-import { ArchiveService } from 'src/integration/infrastructure/storage/anchoring/archive.service';
-import { sha256 } from 'src/integration/infrastructure/storage/anchoring/merkle';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -72,7 +66,6 @@ describe('FiatOutputJobService', () => {
   let virtualIbanService: VirtualIbanService;
   let scryptService: ScryptService;
   let frickPayoutService: FiatOutputFrickService;
-  let archiveService: ArchiveService;
 
   beforeEach(async () => {
     ep2UploadBlobMock.mockReset();
@@ -90,7 +83,6 @@ describe('FiatOutputJobService', () => {
     olkypayService = createMock<OlkypayService>();
     virtualIbanService = createMock<VirtualIbanService>();
     scryptService = createMock<ScryptService>();
-    archiveService = createMock<ArchiveService>();
     jest.spyOn(processServiceModule, 'DisabledProcess').mockReturnValue(false);
 
     // Default mock: no virtual IBANs
@@ -122,7 +114,6 @@ describe('FiatOutputJobService', () => {
         { provide: IbanService, useValue: createMock<IbanService>() },
         { provide: VirtualIbanService, useValue: virtualIbanService },
         { provide: ScryptService, useValue: scryptService },
-        { provide: ArchiveService, useValue: archiveService },
 
         TestUtil.provideConfig(),
       ],
@@ -900,7 +891,7 @@ describe('FiatOutputJobService', () => {
     });
   });
 
-  describe('generateReports - GeBüV hash recording', () => {
+  describe('generateReports', () => {
     // A FiatOutput whose buyFiat resolves the container, route id and userData the method needs.
     // The getter chain (paymentLinkPayment.link.linkConfigObj, paymentLinksConfigObj) is stubbed
     // directly on plain objects so we don't have to assemble the full entity graph.
@@ -923,7 +914,7 @@ describe('FiatOutputJobService', () => {
       (ep2ReportService.generateReport as jest.Mock).mockReturnValue('<ep2/>');
     });
 
-    it('uploads the report, then sets reportCreated and records the report hash', async () => {
+    it('uploads the report, then sets reportCreated', async () => {
       jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([reportableEntity()]);
 
       await service['generateReports']();
@@ -932,35 +923,15 @@ describe('FiatOutputJobService', () => {
       expect(ep2UploadBlobMock).toHaveBeenCalledTimes(1);
       expect(fileName).toMatch(/^settlement_.*_777\.ep2$/);
 
-      // reportCreated is flipped before the best-effort anchoring runs
       expect(fiatOutputRepo.update).toHaveBeenCalledWith(1, { reportCreated: true });
 
-      // the recorded hash is the sha256 of the uploaded report buffer
-      const expectedHash = sha256(Buffer.from('<ep2/>')).toString('hex');
-      expect(archiveService.recordHash).toHaveBeenCalledWith('ep2-merchant-bucket', fileName, expectedHash);
-
-      // Load-bearing ordering: uploadBlob (WORM PUT) < update(reportCreated=true) < recordHash.
-      // reportCreated MUST be persisted before the best-effort recordHash, otherwise a recordHash
-      // failure would leave reportCreated=false and the next run would re-PUT the same fileName
-      // into the immutable WORM bucket and deadlock. Asserting the call order makes the test break
-      // if someone reorders recordHash ahead of the reportCreated update.
+      // Load-bearing ordering: uploadBlob (WORM PUT) < update(reportCreated=true).
+      // reportCreated MUST be persisted after a successful upload, otherwise a later failure
+      // would leave reportCreated=false and the next run would re-PUT the same fileName
+      // into the immutable WORM bucket and deadlock.
       const uploadOrder = ep2UploadBlobMock.mock.invocationCallOrder[0];
       const updateOrder = (fiatOutputRepo.update as jest.Mock).mock.invocationCallOrder[0];
-      const recordHashOrder = (archiveService.recordHash as jest.Mock).mock.invocationCallOrder[0];
       expect(uploadOrder).toBeLessThan(updateOrder);
-      expect(updateOrder).toBeLessThan(recordHashOrder);
-    });
-
-    it('does NOT prevent reportCreated when hash recording fails (best-effort, runs after the flag)', async () => {
-      jest.spyOn(fiatOutputRepo, 'find').mockResolvedValue([reportableEntity()]);
-      (archiveService.recordHash as jest.Mock).mockRejectedValue(new Error('archive db down'));
-
-      await service['generateReports']();
-
-      // upload + reportCreated still happened despite the recordHash failure
-      expect(ep2UploadBlobMock).toHaveBeenCalledTimes(1);
-      expect(fiatOutputRepo.update).toHaveBeenCalledWith(1, { reportCreated: true });
-      expect(archiveService.recordHash).toHaveBeenCalledTimes(1);
     });
 
     it('does not set reportCreated when the upload itself fails', async () => {
@@ -970,7 +941,6 @@ describe('FiatOutputJobService', () => {
       await service['generateReports']();
 
       expect(fiatOutputRepo.update).not.toHaveBeenCalled();
-      expect(archiveService.recordHash).not.toHaveBeenCalled();
     });
 
     it('falls back to the sell route id for the file name when no payoutRouteId is configured', async () => {
@@ -984,9 +954,6 @@ describe('FiatOutputJobService', () => {
 
       const fileName = ep2UploadBlobMock.mock.calls[0][0];
       expect(fileName).toMatch(/^settlement_.*_555\.ep2$/);
-
-      const expectedHash = sha256(Buffer.from('<ep2/>')).toString('hex');
-      expect(archiveService.recordHash).toHaveBeenCalledWith('ep2-merchant-bucket', fileName, expectedHash);
     });
   });
 });

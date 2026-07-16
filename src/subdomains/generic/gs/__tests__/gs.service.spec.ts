@@ -1,7 +1,3 @@
-// Stub the heavy `opentimestamps` library (pulled in transitively via KycDocumentService ->
-// ArchiveService) so its eager network/`request` deps never load at jest runtime.
-jest.mock('opentimestamps', () => ({}));
-
 import { BadRequestException } from '@nestjs/common';
 import { createMock } from '@golevelup/ts-jest';
 import { DataSource } from 'typeorm';
@@ -32,7 +28,6 @@ import { KycFileService } from 'src/subdomains/generic/kyc/services/kyc-file.ser
 import { KycFileBlob } from 'src/subdomains/generic/kyc/dto/kyc-file.dto';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { AccountType } from 'src/subdomains/generic/user/models/user-data/account-type.enum';
-import { ArchiveService } from 'src/integration/infrastructure/storage/anchoring/archive.service';
 import { Blob } from 'src/integration/infrastructure/storage/storage.service';
 import { ConfigService, Environment } from 'src/config/config';
 import { DebugAggregate, DebugQueryDto, DebugWhereNode, DebugWhereOp } from '../dto/debug-query.dto';
@@ -2242,7 +2237,7 @@ describe('GsService', () => {
     // Asserts both the host-stability and the path-preserving consumer invariant on the real output.
     it('produces a host-stable, path-preserving URL through the real KycDocumentService (round-trip)', async () => {
       const kycFileService = createMock<KycFileService>();
-      const realKycDocumentService = new KycDocumentService(kycFileService, createMock<ArchiveService>());
+      const realKycDocumentService = new KycDocumentService(kycFileService);
 
       const userBlob = storageBlob('user/1/Identification/passport.pdf', new Date('2024-01-01'));
       const spiderBlob = storageBlob('spider/1/Identification/old-passport.pdf', new Date('2024-01-02'));
