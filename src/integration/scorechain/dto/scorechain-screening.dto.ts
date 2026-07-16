@@ -6,11 +6,7 @@ import {
   ScorechainObjectType,
   ScoringAnalysisResponse,
 } from './scorechain.dto';
-import {
-  ScorechainScreening,
-  ScorechainScreeningContext,
-  ScorechainScreeningTriggerType,
-} from '../entities/scorechain-screening.entity';
+import { ScorechainScreeningContext, ScorechainScreeningTriggerType } from '../entities/scorechain-screening.entity';
 
 // Precomputed, per-screening annotations the (service-less, static) mapper cannot derive on its own:
 // the advisory high-risk verdict comes from ScorechainScreeningService.isHighRisk, and the related tx
@@ -86,33 +82,4 @@ export class ScorechainScreeningDto {
     description: "BuyFiat ids of the user's txs backing this screening",
   })
   relatedBuyFiatIds?: number[];
-}
-
-export class ScorechainScreeningDtoMapper {
-  static toDto(screening: ScorechainScreening, extras: ScorechainScreeningDtoExtras): ScorechainScreeningDto {
-    return {
-      id: screening.id,
-      created: screening.created,
-      objectType: screening.objectType,
-      objectId: screening.objectId,
-      blockchain: screening.blockchain as Blockchain,
-      analysisType: screening.analysisType,
-      context: screening.context,
-      triggerType: screening.triggerType,
-      riskScore: screening.riskScore,
-      severity: screening.severity,
-      signatureValid: screening.signatureValid,
-      isHighRisk: extras.isHighRisk,
-      riskIndicatorData: screening.riskIndicatorData as ScorechainAnalysisData | undefined,
-      rawResponseData: screening.rawResponseData as ScoringAnalysisResponse | undefined,
-      relatedBuyCryptoIds: extras.relatedBuyCryptoIds,
-      relatedBuyFiatIds: extras.relatedBuyFiatIds,
-    };
-  }
-
-  static toDtoList(
-    items: { screening: ScorechainScreening; extras: ScorechainScreeningDtoExtras }[],
-  ): ScorechainScreeningDto[] {
-    return items.map((item) => ScorechainScreeningDtoMapper.toDto(item.screening, item.extras));
-  }
 }

@@ -4,10 +4,10 @@ import * as IbanTools from 'ibantools';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { addressExplorerUrl, txExplorerUrl } from 'src/integration/blockchain/shared/util/blockchain.util';
+import { ScorechainScreeningDtoMapper } from 'src/integration/scorechain/dto/scorechain-screening-dto.mapper';
 import {
   ScorechainScreeningDto,
   ScorechainScreeningDtoExtras,
-  ScorechainScreeningDtoMapper,
 } from 'src/integration/scorechain/dto/scorechain-screening.dto';
 import { toScorechainBlockchain } from 'src/integration/scorechain/dto/scorechain.dto';
 import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
