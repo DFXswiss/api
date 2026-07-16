@@ -50,6 +50,11 @@ export class SolanaClient extends BlockchainClient {
     return this.wallet.address;
   }
 
+  // without a Tatum API key the gateway serves the anonymous tier, which rejects getBalance
+  get isConfigured(): boolean {
+    return !!Config.blockchain.solana.solanaApiKey;
+  }
+
   async getBlockHeight(): Promise<number> {
     return this.connection.getBlockHeight();
   }
