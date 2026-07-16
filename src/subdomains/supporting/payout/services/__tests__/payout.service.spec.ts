@@ -287,8 +287,6 @@ describe('PayoutService', () => {
         });
         expect(updateSpy).not.toHaveBeenCalled();
         expect(sendMailSpy).not.toHaveBeenCalled();
-        // exactly the two escalation attempts - a revert after a successful mail would add calls
-        expect(updateSpy).toHaveBeenCalledTimes(2);
         expect(saveSpy).not.toHaveBeenCalled();
       });
 
@@ -320,6 +318,8 @@ describe('PayoutService', () => {
             correlationId: expect.stringContaining(`|${movedOrder.id}&${movedOrder.context}|`),
           }),
         );
+        // exactly the two escalation attempts - a revert after a successful mail would add calls
+        expect(updateSpy).toHaveBeenCalledTimes(2);
         expect(saveSpy).not.toHaveBeenCalled();
       });
 
