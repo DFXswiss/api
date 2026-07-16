@@ -662,9 +662,10 @@ export class LedgerCutoverService {
     const { mark } = this.bankMark(bankTx, date, marks, bankByIban, markAssetByCurrency);
     const amountChf = mark != null ? Util.round(bankTx.amount * mark, 2) : undefined;
 
-    // no tracked bank for the currency / currency unknown → amountChf undefined → bookReceivedOwedOpening throws
-    // (m6 fail-loud): a CHF return/repeat opening booked with native 0 is never revalued, so a missing mark must abort
-    // the run (already-booked openings stay committed, the ready flag stays unset, the cron retries).
+    // no mark for the bank's asset at the snapshot date / no tracked bank of that currency / currency unknown →
+    // amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): a CHF return/repeat opening booked with
+    // native 0 is never revalued, so a missing mark must abort the run (already-booked openings stay committed, the
+    // ready flag stays unset, the cron retries).
     await this.bookReceivedOwedOpening(
       date,
       `${snapshot.id}:${marker}:${bankTx.id}`,
@@ -704,7 +705,7 @@ export class LedgerCutoverService {
       if (row.amount == null) continue;
       const { mark } = this.bankMark(row, date, marks, bankByIban, markAssetByCurrency);
       if (mark == null) {
-        needsMark = true; // no tracked bank supplies that currency's mark → mark-to-market values the rest later
+        needsMark = true; // one unvaluable credit makes the whole aggregate unvaluable → the booking below throws (m6)
         continue;
       }
       amountChf += Util.round(row.amount * mark, 2);
@@ -713,10 +714,11 @@ export class LedgerCutoverService {
     if (Math.abs(amountChf) <= 1e-8 && !needsMark) return; // no open unattributed credits → no opening
 
     const liability = await this.liability('unattributed');
-    // a credit whose currency no tracked bank marks leaves the aggregate unvaluable → amountChf undefined →
-    // bookReceivedOwedOpening throws (m6 fail-loud): the CHF unattributed bucket is booked with native 0 and can never
-    // be revalued, so a missing mark must abort the run (already-booked openings stay committed, the ready flag stays
-    // unset, the cron retries) rather than drop the value into a stale zero-opening.
+    // a credit with no mark (bank asset unmarked at the snapshot date / no tracked bank of that currency / currency
+    // unknown) leaves the aggregate unvaluable → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud):
+    // the CHF unattributed bucket is booked with native 0 and can never be revalued, so a missing mark must abort the
+    // run (already-booked openings stay committed, the ready flag stays unset, the cron retries) rather than drop the
+    // value into a stale zero-opening.
     await this.bookReceivedOwedOpening(
       date,
       `${snapshot.id}:unattributed`,
