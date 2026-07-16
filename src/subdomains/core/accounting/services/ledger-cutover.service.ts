@@ -563,8 +563,8 @@ export class LedgerCutoverService {
       const amountChf = mark != null ? Util.round(row.outputAmount * mark, 2) : undefined;
 
       // feedless outputAsset → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): a CHF owed
-      // opening booked with native 0 can never be revalued, so a missing mark must roll back the cutover, not silently
-      // drop the value.
+      // opening booked with native 0 can never be revalued, so a missing mark must abort the cutover run (already-booked
+      // openings stay committed, the ready flag stays unset, the cron retries), not silently drop the value.
       await this.bookReceivedOwedOpening(
         date,
         `${snapshot.id}:buy_crypto-owed:${row.id}`,
@@ -662,8 +662,9 @@ export class LedgerCutoverService {
     const { mark } = this.bankMark(bankTx, date, marks, bankByIban, markAssetByCurrency);
     const amountChf = mark != null ? Util.round(bankTx.amount * mark, 2) : undefined;
 
-    // feedless / no-bank-match → amountChf undefined → bookReceivedOwedOpening throws (m6 fail-loud): a CHF
-    // return/repeat opening booked with native 0 is never revalued, so a missing mark rolls back the cutover.
+    // no tracked bank for the currency / currency unknown → amountChf undefined → bookReceivedOwedOpening throws
+    // (m6 fail-loud): a CHF return/repeat opening booked with native 0 is never revalued, so a missing mark must abort
+    // the run (already-booked openings stay committed, the ready flag stays unset, the cron retries).
     await this.bookReceivedOwedOpening(
       date,
       `${snapshot.id}:${marker}:${bankTx.id}`,
@@ -703,7 +704,7 @@ export class LedgerCutoverService {
       if (row.amount == null) continue;
       const { mark } = this.bankMark(row, date, marks, bankByIban, markAssetByCurrency);
       if (mark == null) {
-        needsMark = true; // a feedless/unmatched credit cannot be valued now → mark-to-market values the rest later
+        needsMark = true; // no tracked bank supplies that currency's mark → mark-to-market values the rest later
         continue;
       }
       amountChf += Util.round(row.amount * mark, 2);
@@ -712,9 +713,10 @@ export class LedgerCutoverService {
     if (Math.abs(amountChf) <= 1e-8 && !needsMark) return; // no open unattributed credits → no opening
 
     const liability = await this.liability('unattributed');
-    // a feedless/unmatched credit leaves the aggregate unvaluable → amountChf undefined → bookReceivedOwedOpening
-    // throws (m6 fail-loud): the CHF unattributed bucket is booked with native 0 and can never be revalued, so a
-    // missing mark rolls back the cutover rather than dropping the value into a stale zero-opening.
+    // a credit whose currency no tracked bank marks leaves the aggregate unvaluable → amountChf undefined →
+    // bookReceivedOwedOpening throws (m6 fail-loud): the CHF unattributed bucket is booked with native 0 and can never
+    // be revalued, so a missing mark must abort the run (already-booked openings stay committed, the ready flag stays
+    // unset, the cron retries) rather than drop the value into a stale zero-opening.
     await this.bookReceivedOwedOpening(
       date,
       `${snapshot.id}:unattributed`,
