@@ -43,6 +43,14 @@ export class BankAccountService {
     }
   }
 
+  @DfxCron(CronExpression.EVERY_HOUR, { process: Process.BANK_ACCOUNT, timeout: 3600 })
+  async reloadErrorBankAccounts(): Promise<void> {
+    const bankAccounts = await this.bankAccountRepo.findBy({ result: 'Error: AggregateError' });
+    for (const bankAccount of bankAccounts) {
+      await this.reloadBankAccount(bankAccount);
+    }
+  }
+
   @DfxCron(CronExpression.EVERY_10_MINUTES, { process: Process.BANK_ACCOUNT, timeout: 3600 })
   async reloadUncheckedBankAccounts(): Promise<void> {
     const bankAccounts = await this.bankAccountRepo.findBy({ result: IsNull(), iban: Not(IsNull()) });
