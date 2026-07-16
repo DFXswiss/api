@@ -25,10 +25,12 @@ import { GEBUEV_RETENTION_FLOOR_YEARS } from './worm-retention.const';
  * intentionally not applied per request here.
  */
 export class S3StorageService extends StorageService {
-  // Containers verified to have Object Lock enabled. Static so the check is amortized across the
-  // short-lived per-container instances the EP2 sink creates (createStorageService per report),
-  // keeping the GetObjectLockConfiguration probe off the per-PUT hot path (verify once per bucket).
-  private static readonly objectLockVerified = new Set<string>();
+  // Containers verified to have Object Lock enabled, with timestamp of last successful probe.
+  // Static so the check is amortized across the short-lived per-container instances the EP2 sink
+  // creates (createStorageService per report). Re-verified after TTL so a later bucket-side
+  // retention weakening is not masked for the rest of the process lifetime.
+  private static readonly objectLockVerifiedAt = new Map<string, number>();
+  private static readonly OBJECT_LOCK_VERIFY_TTL_MS = 5 * 60 * 1000;
 
   private readonly client: S3Client;
 
@@ -73,14 +75,15 @@ export class S3StorageService extends StorageService {
   // WORM sink (GeBüV): fail closed unless the target bucket enforces Object Lock. Object Lock
   // cannot be retro-fitted onto an existing bucket, so writing a compliance record into a
   // non-locked (or unverifiable) bucket would leave it mutable/deletable forever — we refuse
-  // rather than under-protect. Verified once per container; subsequent PUTs skip the probe.
+  // rather than under-protect. Verified per container with a short TTL; hot-path PUTs skip the probe.
   async uploadWormBlob(name: string, data: Buffer, type: string, metadata?: Record<string, string>): Promise<string> {
     await this.assertObjectLockEnabled();
     return this.uploadBlob(name, data, type, metadata);
   }
 
   private async assertObjectLockEnabled(): Promise<void> {
-    if (S3StorageService.objectLockVerified.has(this.container)) return;
+    const verifiedAt = S3StorageService.objectLockVerifiedAt.get(this.container);
+    if (verifiedAt != null && Date.now() - verifiedAt < S3StorageService.OBJECT_LOCK_VERIFY_TTL_MS) return;
 
     let cfg:
       | { ObjectLockEnabled?: string; Rule?: { DefaultRetention?: { Mode?: string; Years?: number } } }
@@ -114,7 +117,7 @@ export class S3StorageService extends StorageService {
           `Provision it first (scripts/storage/provision-bucket.ts).`,
       );
 
-    S3StorageService.objectLockVerified.add(this.container);
+    S3StorageService.objectLockVerifiedAt.set(this.container, Date.now());
   }
 
   async copyBlobs(sourcePrefix: string, targetPrefix: string): Promise<string[]> {

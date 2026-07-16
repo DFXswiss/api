@@ -18,11 +18,11 @@
  * default-retention configuration is (re)applied.
  *
  * Configuration (no silent defaults for credentials — fails fast if incomplete):
- *   - S3 endpoint/region from Config.s3 (S3_ENDPOINT / S3_REGION — shared with the app).
- *   - Auth from Config.s3Admin (S3_ADMIN_ACCESS_KEY / S3_ADMIN_SECRET_KEY) — dedicated
- *     provisioning credentials with CreateBucket/Object-Lock rights. The app's policy-
- *     restricted S3_ACCESS_KEY/S3_SECRET_KEY are intentionally NOT used and NOT fallen
- *     back to: they cannot create buckets or apply Object Lock.
+ *   - S3 endpoint/region from S3_ENDPOINT / S3_REGION (shared with the app).
+ *   - Auth from S3_ADMIN_ACCESS_KEY / S3_ADMIN_SECRET_KEY — dedicated provisioning
+ *     credentials with CreateBucket/Object-Lock rights. The app's policy-restricted
+ *     S3_ACCESS_KEY/S3_SECRET_KEY are intentionally NOT used and NOT fallen back to:
+ *     they cannot create buckets or apply Object Lock.
  *
  * Run with (bucket name required, retention years optional, default 11):
  *   BUCKET=kyc RETENTION_YEARS=11 npx ts-node scripts/storage/provision-bucket.ts
@@ -42,14 +42,6 @@ import {
 import * as dotenv from 'dotenv';
 
 dotenv.config();
-
-// Loaded after dotenv so Config.s3 / Config.s3Admin read the populated env. `Config` (the
-// module-level `export let Config`) is only ever set as a side effect of `new ConfigService()`,
-// which this standalone script never instantiates — importing the raw `Config` binding would be
-// permanently `undefined` here. Build a local instance directly via `GetConfig()` instead.
-import { GetConfig } from '../../src/config/config';
-
-const Config = GetConfig();
 
 import { GEBUEV_RETENTION_FLOOR_YEARS } from '../../src/integration/infrastructure/storage/worm-retention.const';
 
@@ -78,8 +70,10 @@ export function getRetentionYears(): number {
 }
 
 function buildClient(): S3Client {
-  const { endpoint, region } = Config.s3;
-  const { accessKey, secretKey } = Config.s3Admin;
+  const endpoint = process.env.S3_ENDPOINT;
+  const region = process.env.S3_REGION;
+  const accessKey = process.env.S3_ADMIN_ACCESS_KEY;
+  const secretKey = process.env.S3_ADMIN_SECRET_KEY;
   if (!endpoint || !region || !accessKey || !secretKey)
     throw new Error(
       'Incomplete S3 admin config: S3_ENDPOINT, S3_REGION, S3_ADMIN_ACCESS_KEY and S3_ADMIN_SECRET_KEY are required',
@@ -165,7 +159,7 @@ async function main(): Promise<void> {
   const years = getRetentionYears();
   const client = buildClient();
 
-  console.log(`Provisioning WORM bucket "${bucket}" (endpoint ${Config.s3.endpoint})`);
+  console.log(`Provisioning WORM bucket "${bucket}" (endpoint ${process.env.S3_ENDPOINT})`);
 
   if (await bucketExists(client, bucket)) {
     console.log('  Bucket: already exists -> reconciling lock configuration only');
