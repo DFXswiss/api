@@ -429,7 +429,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
       expect(rollbackSpy).toHaveBeenCalledWith(winners);
       expect(loser.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
       expect(loser.retryCount).toBe(0);
-      expect(loser.lastError).toBeNull();
+      expect(loser.lastError).toBeUndefined();
       expect(repoSaveSpy).not.toHaveBeenCalledWith(loser);
     });
 
