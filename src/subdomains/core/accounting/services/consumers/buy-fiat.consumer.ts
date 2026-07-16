@@ -285,7 +285,8 @@ export class BuyFiatConsumer {
     // The fee leg is pushed BEFORE appendFxResidual: a same-mark charge leaves the fx residual unchanged; a
     // Pricing-vs-mark drift flows to fx-revaluation, as today.
     const legs: LedgerLegInput[] = [this.chfLeg(transit, owedChf), bankLeg];
-    if (charge !== 0) legs.push(this.chfLeg(await this.expense('bank-fee'), this.inlineChargeChf(bf, mark, charge)));
+    if (charge !== 0)
+      legs.push(this.chfLeg(await this.expense('bank-fee'), await this.inlineChargeChf(bf, mark, charge)));
     await this.appendFxResidual(legs, `buy_fiat ${bf.id} seq3`);
 
     return {
@@ -429,14 +430,41 @@ export class BuyFiatConsumer {
   // CHF-priced charge scales chargeAmountChf by the SAME batch share as the native charge; a same-currency native
   // charge is valued via the settlement mark (the passed `charge` is already pro-rata); anything else cannot be valued
   // mark-consistently and fails loud (the row retries). Reclassified into EXPENSE/bank-fee by buildSettlementSeq3.
-  private inlineChargeChf(bf: BuyFiat, mark: number | undefined, charge: number): number {
+  private async inlineChargeChf(bf: BuyFiat, mark: number | undefined, charge: number): Promise<number> {
     const bankTx = bf.fiatOutput?.bankTx;
     if (bankTx?.chargeAmountChf != null) return Util.round(bankTx.chargeAmountChf * this.outputShare(bf), 2);
-    if (bankTx?.chargeCurrency === this.outputCurrency(bf) && mark != null) return Util.round(mark * charge, 2);
+
+    // a same-currency native charge is valued via the settlement mark. F1: a missing HISTORICAL settlement mark is a
+    // price-timing gap, not feedless — bridge with the youngest available mark (getLatestMark, the SAME bridge
+    // resolveLegsOrDefer applies to the bank-ASSET leg) so the fee-EXPENSE leg stays CHF-consistent and the mixed tx
+    // balances instead of throwing PRE-bridge and wedging the head-of-line (needsMark stays true on the bank leg).
+    if (bankTx?.chargeCurrency === this.outputCurrency(bf)) {
+      const rate = mark ?? (await this.bridgedOutputMark(bf));
+      if (rate != null) return Util.round(rate * charge, 2);
+    }
+
     throw new Error(
       `buy_fiat ${bf.id} inline charge (${charge} ${bankTx?.chargeCurrency}) cannot be valued in CHF — ` +
-        `no chargeAmountChf and no same-currency settlement mark`,
+        `no chargeAmountChf and no same-currency settlement mark (historical or bridged)`,
     );
+  }
+
+  // F1 — the youngest available output-bank mark (getLatestMark), the SAME bridge resolveLegsOrDefer applies to the
+  // bank-ASSET leg. Used to value the inline charge when the historical settlement mark is missing (a price-timing gap):
+  // the fee-EXPENSE leg then stays CHF-consistent with the bridged bank leg. Returns undefined for a feedless output
+  // asset (no latest mark) → the caller fails loud (the row retries).
+  private async bridgedOutputMark(bf: BuyFiat): Promise<number | undefined> {
+    const bankAssetId = bf.fiatOutput?.bank?.asset?.id;
+    if (bankAssetId == null) return undefined;
+
+    const bridge = await this.markService.getLatestMark(bankAssetId);
+    if (bridge != null) {
+      this.logger.warn(
+        `buy_fiat ${bf.id} seq3 inline charge: no settlement mark at the booking date — bridged the charge with the ` +
+          `latest available mark ${bridge} (needsMark stays true on the bank leg; the mark-to-market job corrects the basis)`,
+      );
+    }
+    return bridge;
   }
 
   // §4.7a — appends the FX-P&L leg = −(Σ CHF) for the EUR/output drift; CHF output → drift 0 → no leg.

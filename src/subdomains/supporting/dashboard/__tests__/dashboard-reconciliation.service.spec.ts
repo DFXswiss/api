@@ -67,7 +67,7 @@ describe('DashboardReconciliationService', () => {
   });
 
   describe('getOverview', () => {
-    // Asset.bank is NOT eager: getReconciliation loads relations ['bank'] on its asset fetch, and the overview asset
+    // Asset.bank is NOT eager: getReconciliation loads relations { bank: true } on its asset fetch, and the overview asset
     // fetch must too — otherwise the bank-relation check in categorizeAsset is dead on every overview position
     // (precedent: the m3 relations assertion in ledger-reconciliation.service.spec.ts).
     it('loads the bank relation on the overview asset fetch and categorizes a bank-custody asset as bank', async () => {
@@ -92,7 +92,7 @@ describe('DashboardReconciliationService', () => {
       const overview = await service.getOverview({ from: new Date('2026-07-01'), to: new Date('2026-07-10') });
 
       // the relation on the find IS the fix — without it asset.bank is undefined on every overview asset
-      expect(findSpy).toHaveBeenCalledWith(expect.objectContaining({ relations: ['bank'] }));
+      expect(findSpy).toHaveBeenCalledWith(expect.objectContaining({ relations: { bank: true } }));
       // and the full run proves it drives the categorization (bank flows queried via the loaded bank.iban)
       expect(overview.positions).toHaveLength(1);
       expect(overview.positions[0].category).toBe('bank');

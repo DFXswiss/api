@@ -70,7 +70,7 @@ export class DashboardReconciliationService {
   ) {}
 
   async getReconciliation(query: ReconciliationQuery): Promise<ReconciliationDto> {
-    const asset = await this.assetRepo.findOne({ where: { id: query.assetId }, relations: ['bank'] });
+    const asset = await this.assetRepo.findOne({ where: { id: query.assetId }, relations: { bank: true } });
     if (!asset) throw new NotFoundException('Asset not found');
 
     const category = this.categorizeAsset(asset);
@@ -142,7 +142,7 @@ export class DashboardReconciliationService {
       };
 
     // Load asset metadata (bank relation is non-eager and drives categorizeAsset — same as getReconciliation)
-    const assets = await this.assetRepo.find({ where: { id: In(allAssetIds) }, relations: ['bank'] });
+    const assets = await this.assetRepo.find({ where: { id: In(allAssetIds) }, relations: { bank: true } });
     const assetMap = new Map(assets.map((a) => [a.id, a]));
 
     // Build positions with full reconciliation for each asset

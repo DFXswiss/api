@@ -1695,4 +1695,117 @@ describe('BankTxConsumer', () => {
     expect(plug.amountChf).toBe(40.5); // +50 without the charge (test above) → shrank by exactly chargeChf (9.5)
     expect(cents(legs)).toBe(0);
   });
+
+  // --- F1: INLINE CHARGE + MISSING HISTORICAL MARK (bridge, not a pre-bridge throw-wedge) --- //
+
+  // F1 (a): a DBIT inline charge on a row with NO historical mark at the bookingDate but a CURRENT mark (getLatestMark).
+  // Pre-fix inlineBankCharge threw on the missing historical mark BEFORE the withFxPlug/resolveLegsOrDefer bridge stage
+  // and wedged the head-of-line. Now the charge is valued with the SAME bridge the bank-ASSET leg gets, so the tx books
+  // balanced (bank bridged, needsMark stays true → the mark-to-market job re-marks later); no throw.
+  it('bridges a no-historical-mark BUY_CRYPTO_RETURN inline charge via the current mark and books balanced (F1a)', async () => {
+    jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no historical mark anywhere
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(0.95); // but a current mark exists → bridgeable
+    const buyCrypto = { id: 80, amountInChf: 9480, totalFeeAmountChf: 30 } as any;
+    mockBatch([
+      bankTx({
+        id: 207,
+        type: BankTxType.BUY_CRYPTO_RETURN,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 10000,
+        buyCrypto,
+        chargeAmount: 10,
+        chargeCurrency: 'EUR',
+        chargeAmountChf: null, // inline
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(1); // booked, NOT a throw-wedge
+    const legs = booked[0].legs;
+    const bank = legs.find((l) => l.account === eurBankAccount);
+    expect(bank.amountChf).toBe(-9500); // bridged 0.95 × −10000
+    expect(bank.needsMark).toBe(true); // provisional basis → re-marked later
+    expect(legs.find((l) => l.account.name === 'LIABILITY/buyCrypto-owed').amountChf).toBe(9450); // anchor unchanged
+    expect(legs.find((l) => l.account.name === 'EXPENSE/bank-fee').amountChf).toBe(9.5); // bridged 0.95 × 10
+    const plug = legs.find((l) => l.account.name.endsWith('/fx-revaluation'));
+    expect(plug.account.name).toBe('INCOME/fx-revaluation');
+    expect(plug.amountChf).toBe(40.5); // +9450 − 9500 + 9.5 → sum −40.5 → plug +40.5
+    expect(cents(legs)).toBe(0); // balances (was a throw-wedge pre-fix)
+  });
+
+  // F1 (b): a DBIT inline charge with NO mark anywhere (no historical, no current) is genuinely feedless → the helper
+  // fails loud and the row DEFERS via failure-isolation (watermark stays put, retry) instead of booking a wrong value.
+  it('throws (defers) on a no-mark BUY_CRYPTO_RETURN inline charge when there is no current mark either (F1b feedless)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no historical mark
+    // getLatestMark stays the default undefined → no bridge anywhere
+    const buyCrypto = { id: 81, amountInChf: 9480, totalFeeAmountChf: 30 } as any;
+    mockBatch([
+      bankTx({
+        id: 208,
+        type: BankTxType.BUY_CRYPTO_RETURN,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 10000,
+        buyCrypto,
+        chargeAmount: 10,
+        chargeCurrency: 'EUR',
+        chargeAmountChf: null,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // feedless → inlineBankCharge threw → nothing booked
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced (retry next run)
+  });
+
+  // F1 (c): a foreign-currency inline charge still fails loud even when a bridge mark IS available — the currency
+  // mismatch is checked BEFORE any bridge (there is no same-currency mark to value a USD charge in an EUR account).
+  it('throws on a foreign-currency inline charge even when a current bridge mark exists (F1c mismatch regression)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(0.95); // a bridge exists — but the currency mismatch wins
+    mockBatch([
+      bankTx({
+        id: 209,
+        type: BankTxType.GSHEET,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100,
+        chargeAmount: 10,
+        chargeCurrency: 'USD', // != account currency EUR → no same-currency mark, bridge or not → fail loud
+        chargeAmountChf: null,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled();
+  });
+
+  // F1 needsMark-consistency guard: a no-historical-mark GSHEET DBIT inline charge whose mirror is a SUSPENSE leg (no
+  // assetId to bridge). The bank leg bridges via getLatestMark, but the SUSPENSE mirror cannot → the mixed tx DEFERS
+  // (fail-closed). The guard prevents the pre-fix `(suspense.amountChf ?? 0) − chargeChf` from force-valuing the
+  // needsMark SUSPENSE leg at −chargeChf, which would have skipped the bridge and booked a full-value phantom fx plug.
+  it('defers (no phantom plug) a no-historical-mark suspense DBIT inline charge — SUSPENSE mirror not bridgeable (F1 guard)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no historical mark
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(0.95); // bridges the bank leg only (SUSPENSE has no assetId)
+    mockBatch([
+      bankTx({
+        id: 210,
+        type: BankTxType.GSHEET,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100,
+        chargeAmount: 10,
+        chargeCurrency: 'EUR',
+        chargeAmountChf: null,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // deferred: the SUSPENSE mirror stays needsMark, the mixed tx cannot balance
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced — NOT a silent phantom-plug booking
+  });
 });

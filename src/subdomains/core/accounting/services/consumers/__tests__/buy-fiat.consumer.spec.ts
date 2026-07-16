@@ -1541,4 +1541,103 @@ describe('BuyFiatConsumer', () => {
     expect(seq(3)).toBeUndefined(); // inlineChargeChf ladder end threw → seq3 never booked
     expect(setSpy).not.toHaveBeenCalled(); // failure-isolation: watermark NOT advanced
   });
+
+  // --- F1: SEQ3 INLINE CHARGE + MISSING HISTORICAL SETTLEMENT MARK (bridge, not a pre-bridge throw-wedge) --- //
+
+  // F1 (a): a seq3 inline charge on a settlement with NO historical mark at the bookingDate but a CURRENT mark
+  // (getLatestMark). Pre-fix inlineChargeChf threw on the missing historical mark BEFORE the appendFxResidual bridge
+  // stage and wedged the head-of-line. Now the charge is valued with the SAME bridge the bank-ASSET leg gets, so seq3
+  // books balanced (bank bridged, needsMark stays true → the mark-to-market job re-marks later); no throw.
+  it('bridges a no-historical-mark seq3 inline charge via the current mark and books balanced (F1a)', async () => {
+    jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no historical mark anywhere
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(0.95); // but a current mark exists → bridgeable
+    mockBatch([
+      buyFiat({
+        id: 46,
+        amountInChf: 9500,
+        totalFeeAmountChf: 0,
+        outputAmount: 10000, // EUR
+        outputReferenceAmount: 10000,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'EUR',
+          amount: 10000, // single payout → charge share 1
+          bank: { asset: { id: EUR_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN, chargeAmount: 10, chargeCurrency: 'EUR', chargeAmountChf: null },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    const s3 = seq(3);
+    expect(s3).toBeDefined(); // booked, NOT a throw-wedge
+    const bank = leg(s3, 'Bank/EUR');
+    expect(bank.amount).toBe(-10010); // gross native = −(outputAmount + charge)
+    expect(bank.amountChf).toBe(-9509.5); // bridged 0.95 × −10010
+    expect(bank.needsMark).toBe(true); // provisional basis → re-marked later
+    expect(leg(s3, 'EXPENSE/bank-fee').amountChf).toBe(9.5); // bridged 0.95 × 10 (SAME rate as the bank leg)
+    expect(leg(s3, 'TRANSIT/payout/EUR').amountChf).toBe(9500); // owedChf
+    expect(s3.legs.some((l) => /fx-revaluation/.test(l.account.name))).toBe(false); // 9500 − 9509.5 + 9.5 = 0 → flat
+    expect(cents(s3.legs)).toBe(0); // balances (was a throw-wedge pre-fix)
+  });
+
+  // F1 (b): a seq3 inline charge with NO mark anywhere (no historical, no current) is genuinely feedless → the helper
+  // fails loud and seq3 DEFERS via failure-isolation (watermark stays put, retry) instead of booking a wrong value.
+  it('throws (defers) on a no-mark seq3 inline charge when there is no current mark either (F1b feedless)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no historical mark
+    // getLatestMark stays the default undefined → no bridge anywhere
+    mockBatch([
+      buyFiat({
+        id: 47,
+        amountInChf: 9500,
+        totalFeeAmountChf: 0,
+        outputAmount: 10000,
+        outputReferenceAmount: 10000,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'EUR',
+          amount: 10000,
+          bank: { asset: { id: EUR_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN, chargeAmount: 10, chargeCurrency: 'EUR', chargeAmountChf: null },
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(seq(1)).toBeDefined(); // booked before the seq3 throw
+    expect(seq(2)).toBeDefined();
+    expect(seq(3)).toBeUndefined(); // feedless → inlineChargeChf threw → seq3 never booked
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced (retry next run)
+  });
+
+  // F1 (c): a foreign-currency inline charge still fails loud even when a bridge mark IS available — the currency
+  // mismatch is checked BEFORE any bridge (there is no same-currency settlement mark to value a USD charge in CHF).
+  it('throws on a foreign-currency seq3 inline charge even when a current bridge mark exists (F1c mismatch regression)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(0.95); // a bridge exists — but the currency mismatch wins
+    mockBatch([
+      buyFiat({
+        id: 48,
+        amountInChf: 95,
+        totalFeeAmountChf: 0,
+        outputAmount: 100, // EUR
+        outputReferenceAmount: 100,
+        outputAsset: { name: 'EUR' },
+        fiatOutput: {
+          isTransmittedDate: FRI,
+          currency: 'EUR',
+          amount: 100,
+          bank: { asset: { id: EUR_BANK_ASSET_ID } },
+          bankTx: { bookingDate: SUN, chargeAmount: 10, chargeCurrency: 'USD', chargeAmountChf: null }, // foreign ccy
+        } as any,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(seq(3)).toBeUndefined(); // chargeCurrency USD != output EUR → throws even though a bridge mark exists
+    expect(setSpy).not.toHaveBeenCalled();
+  });
 });
