@@ -10,6 +10,7 @@ import { NodeClient, NodeClientConfig } from './node-client';
 const BITCOIN_PRE_BROADCAST_RPC_CODES = [
   -6, // RPC_WALLET_INSUFFICIENT_FUNDS (Bitcoin Core src/rpc/protocol.h)
   -13, // RPC_WALLET_UNLOCK_NEEDED (Bitcoin Core src/rpc/protocol.h)
+  -28, // RPC_IN_WARMUP (Bitcoin Core src/rpc/protocol.h) — NodeNotReadyError carries this code; request never executes
 ];
 
 export interface TransactionHistory {

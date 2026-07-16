@@ -402,6 +402,20 @@ describe('BitcoinClient', () => {
       await expect(client.sendMany(payload, 10)).rejects.not.toBeInstanceOf(TxBroadcastError);
     });
 
+    it('should keep a node warm-up (RPC_IN_WARMUP / -28) plain so restarts self-heal', async () => {
+      const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
+
+      mockRpcPost.mockImplementationOnce(() => Promise.resolve({ result: null, error: null, id: 'test' }));
+      mockRpcPost.mockImplementationOnce(() =>
+        Promise.reject({
+          response: { status: 500, data: { error: { code: -28, message: 'Verifying blocks...' } } },
+          message: 'Request failed with status code 500',
+        }),
+      );
+
+      await expect(client.sendMany(payload, 10)).rejects.not.toBeInstanceOf(TxBroadcastError);
+    });
+
     it('should keep an ECONNABORTED timeout fail-closed', async () => {
       const payload = [{ addressTo: 'bc1qaddr1', amount: 0.1 }];
       const timeoutError = Object.assign(new Error('timeout exceeded'), { code: 'ECONNABORTED' });

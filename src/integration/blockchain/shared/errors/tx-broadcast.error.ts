@@ -8,14 +8,21 @@ export class TxBroadcastError extends Error {
   }
 }
 
-// Connection-establishment failures where the request provably never reached the node.
-const PRE_BROADCAST_SYSCALL_CODES = ['ECONNREFUSED', 'ENOTFOUND', 'EHOSTUNREACH', 'ENETUNREACH', 'EAI_AGAIN'];
+// Connection-establishment / name-resolution failures that only occur before the request is sent.
+const PRE_BROADCAST_CONNECT_CODES = ['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'];
+
+// Same codes can surface after the request may already have been delivered: on Linux, ICMP
+// unreachable on an ESTABLISHED connection is stored as a socket soft-error and surfaces at the
+// retransmission timeout on read/write with EHOSTUNREACH/ENETUNREACH. Only the connect-phase
+// variant (syscall === 'connect' on the same error object) is provably pre-broadcast.
+const PRE_BROADCAST_CONNECT_ONLY_UNREACHABLE_CODES = ['EHOSTUNREACH', 'ENETUNREACH'];
 
 type ErrorShape = {
   cause?: unknown;
   code?: unknown;
   error?: unknown;
   message?: unknown;
+  syscall?: unknown;
 };
 
 // Send-boundary classification is deliberately fail-closed:
@@ -27,19 +34,32 @@ type ErrorShape = {
 export function toBroadcastBoundaryError(e: unknown, preBroadcastRpcCodes: number[]): Error {
   if (e instanceof TxBroadcastError) return e;
 
-  const isPreBroadcastSyscall = walkErrorShape(
-    e,
-    (value) => typeof value.code === 'string' && PRE_BROADCAST_SYSCALL_CODES.includes(value.code),
-  );
-  const isPreBroadcastRpcError = walkErrorShape(
-    e,
-    (value) => typeof value.code === 'number' && preBroadcastRpcCodes.includes(value.code),
-  );
+  // A soundness classifier defaults closed: if walking/normalizing the error itself throws
+  // (throwing getters, null-prototype objects breaking String(value)), do not let the classifier's
+  // own failure escape as a plain (retryable) error.
+  try {
+    const isPreBroadcastSyscall = walkErrorShape(e, (value) => {
+      if (typeof value.code !== 'string') return false;
+      if (PRE_BROADCAST_CONNECT_CODES.includes(value.code)) return true;
+      // ICMP unreachable on an established connection surfaces at the retransmission timeout with the
+      // same code (syscall 'read'/'write') — only the connect-phase variant is provably pre-broadcast.
+      if (PRE_BROADCAST_CONNECT_ONLY_UNREACHABLE_CODES.includes(value.code)) {
+        return value.syscall === 'connect';
+      }
+      return false;
+    });
+    const isPreBroadcastRpcError = walkErrorShape(
+      e,
+      (value) => typeof value.code === 'number' && preBroadcastRpcCodes.includes(value.code),
+    );
 
-  if (isPreBroadcastSyscall || isPreBroadcastRpcError) return asError(e);
+    if (isPreBroadcastSyscall || isPreBroadcastRpcError) return asError(e);
 
-  const error = asError(e);
-  return new TxBroadcastError(error.message, { cause: e });
+    const error = asError(e);
+    return new TxBroadcastError(error.message, { cause: e });
+  } catch {
+    return new TxBroadcastError('Unclassifiable send error', { cause: e });
+  }
 }
 
 function walkErrorShape(value: unknown, matches: (value: ErrorShape) => boolean, seen = new Set<object>()): boolean {

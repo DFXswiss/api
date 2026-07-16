@@ -20,14 +20,32 @@ describe('TxBroadcastError', () => {
 });
 
 describe('toBroadcastBoundaryError', () => {
-  it.each(['ECONNREFUSED', 'ENOTFOUND', 'EHOSTUNREACH', 'ENETUNREACH', 'EAI_AGAIN'])(
-    'returns the original Error for pre-broadcast syscall code %s',
+  it.each(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN'])(
+    'returns the original Error for unconditional pre-broadcast syscall code %s',
     (code) => {
       const error = Object.assign(new Error(code), { code });
 
       expect(toBroadcastBoundaryError(error, [])).toBe(error);
     },
   );
+
+  it('keeps EHOSTUNREACH with syscall connect plain (connect-phase only)', () => {
+    const error = Object.assign(new Error('connect EHOSTUNREACH'), {
+      code: 'EHOSTUNREACH',
+      syscall: 'connect',
+    });
+
+    expect(toBroadcastBoundaryError(error, [])).toBe(error);
+  });
+
+  it('keeps EHOSTUNREACH with syscall read fail-closed (soft-error after possible delivery)', () => {
+    const error = Object.assign(new Error('read EHOSTUNREACH'), {
+      code: 'EHOSTUNREACH',
+      syscall: 'read',
+    });
+
+    expect(toBroadcastBoundaryError(error, [])).toBeInstanceOf(TxBroadcastError);
+  });
 
   it('finds a pre-broadcast syscall code through an Error cause', () => {
     const connectionError = Object.assign(new Error('connect failed'), { code: 'ECONNREFUSED' });
@@ -76,5 +94,20 @@ describe('toBroadcastBoundaryError', () => {
     const error = Object.assign(new Error(code), { code });
 
     expect(toBroadcastBoundaryError(error, [])).toBeInstanceOf(TxBroadcastError);
+  });
+
+  it('keeps a throwing-getter error fail-closed (classifier defaults closed on its own failures)', () => {
+    const error = {};
+    Object.defineProperty(error, 'code', {
+      get() {
+        throw new Error('getter boom');
+      },
+    });
+
+    const result = toBroadcastBoundaryError(error, []);
+
+    expect(result).toBeInstanceOf(TxBroadcastError);
+    expect(result.message).toBe('Unclassifiable send error');
+    expect(result.cause).toBe(error);
   });
 });

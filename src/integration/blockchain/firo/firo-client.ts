@@ -9,6 +9,7 @@ import { FiroRawTransaction } from './rpc';
 const FIRO_PRE_BROADCAST_RPC_CODES = [
   -6, // RPC_WALLET_INSUFFICIENT_FUNDS (Firo's Bitcoin-derived RPC protocol constants)
   -13, // RPC_WALLET_UNLOCK_NEEDED (Firo's Bitcoin-derived RPC protocol constants)
+  -28, // RPC_IN_WARMUP (Bitcoin Core src/rpc/protocol.h) — NodeNotReadyError carries this code; request never executes
 ];
 
 /**
@@ -259,9 +260,9 @@ export class FiroClient extends BitcoinBasedClient {
 
     // Broadcast boundary: mintspark builds, signs and broadcasts atomically in one node-side call.
     // Only connection-establishment and allowlisted pre-funding failures are safe to retry.
-    let result: string[];
+    let mintTxIds: string[];
     try {
-      result = await this.callNode(
+      mintTxIds = await this.callNode(
         () => this.rpc.call<string[]>('mintspark', [sparkAddresses, false, fromAddresses]),
         true,
       );
@@ -270,15 +271,15 @@ export class FiroClient extends BitcoinBasedClient {
     }
 
     // A missing txid is an ambiguous/malformed response and therefore remains fail-closed.
-    if (!result?.length) {
-      throw new TxBroadcastError('Firo mintspark returned no transaction IDs', { cause: result });
+    if (!mintTxIds?.length) {
+      throw new TxBroadcastError('Firo mintspark returned no transaction IDs', { cause: mintTxIds });
     }
 
-    if (result.length > 1) {
-      this.logger.warn(`mintspark returned ${result.length} TXIDs, only tracking first: ${result[0]}`);
+    if (mintTxIds.length > 1) {
+      this.logger.warn(`mintspark returned ${mintTxIds.length} TXIDs, only tracking first: ${mintTxIds[0]}`);
     }
 
-    return result[0];
+    return mintTxIds[0];
   }
 
   private async getNonDepositAddresses(): Promise<string[]> {
