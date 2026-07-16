@@ -74,10 +74,16 @@ export abstract class BitcoinBasedClient extends NodeClient implements CoinOnly 
     // node-side call - there is no separate pre-broadcast step to exclude. Any failure surfacing
     // from this call (including an HTTP-level timeout) is ambiguous: the node may already have
     // relayed the tx before the response was lost, so it is treated as at-or-after-send.
+    // An empty/missing txid on a resolved response is equally ambiguous and must stay fail-closed
+    // (not return '' which would later roll the payout order back for re-broadcast).
     try {
       const result = await this.callNode(() => this.rpc.send(outputs, null, null, feeRate, options), true);
-      return result?.txid ?? '';
+      if (!result?.txid) {
+        throw new TxBroadcastError('Bitcoin broadcast returned an empty txid', { cause: result });
+      }
+      return result.txid;
     } catch (e) {
+      if (e instanceof TxBroadcastError) throw e;
       throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
     }
   }

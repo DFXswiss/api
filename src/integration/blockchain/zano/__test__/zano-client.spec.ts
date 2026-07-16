@@ -99,6 +99,24 @@ describe('ZanoClient - broadcast boundary', () => {
       expect((error as TxBroadcastError).message).toBe('gateway timeout');
     });
 
+    it('wraps a transfer response with an empty tx_hash into a TxBroadcastError (fail-closed)', async () => {
+      mockPost.mockImplementation((_url, params) => {
+        if (params.method === 'getbalance')
+          return Promise.resolve({ result: { balance: 100e12, unlocked_balance: 100e12, balances: [] } });
+        return Promise.resolve({ result: { tx_details: { tx_hash: '' } } });
+      });
+
+      let error: unknown;
+      try {
+        await client.sendCoins(payout);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBeInstanceOf(TxBroadcastError);
+      expect((error as TxBroadcastError).message).toBe('Zano broadcast returned an empty tx hash');
+    });
+
     it('wraps a transfer response missing tx_details into a TxBroadcastError', async () => {
       mockPost.mockImplementation((_url, params) => {
         if (params.method === 'getbalance')
