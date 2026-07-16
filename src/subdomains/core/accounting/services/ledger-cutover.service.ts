@@ -232,7 +232,7 @@ export class LedgerCutoverService {
     }
   }
 
-  // §6.1: liquidityBalance.total + paymentDepositBalance + manualLiqPosition + custom.total — never plusBalance.total
+  // §6.1: liquidityBalance.total + paymentDepositBalance.total + manualLiqPosition.total + custom.total — never plusBalance.total
   private assetOpeningAmount(assetLog: FinanceLog['assets'][string]): number {
     const liquidity = assetLog.plusBalance?.liquidity;
     const liquidityBalance = liquidity?.liquidityBalance?.total ?? 0;
@@ -242,8 +242,8 @@ export class LedgerCutoverService {
 
     return (
       liquidityBalance +
-      (liquidity?.paymentDepositBalance ?? 0) +
-      (liquidity?.manualLiqPosition ?? 0) +
+      (liquidity?.paymentDepositBalance?.total ?? 0) +
+      (liquidity?.manualLiqPosition?.total ?? 0) +
       (assetLog.plusBalance?.custom?.total ?? 0)
     );
   }

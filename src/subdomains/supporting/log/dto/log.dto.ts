@@ -126,8 +126,8 @@ type AssetLogPlusBalance = {
 type AssetLogLiquidity = {
   total: number;
   liquidityBalance?: AssetLogPlusCustom;
-  paymentDepositBalance?: number;
-  manualLiqPosition?: number;
+  paymentDepositBalance?: { total: number };
+  manualLiqPosition?: { total: number };
 };
 
 type AssetLogMinusBalance = {

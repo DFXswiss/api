@@ -162,6 +162,26 @@ describe('LedgerBookingService', () => {
     expect(savedLegs).toHaveLength(0); // tx not booked
   });
 
+  // A non-finite leg must fail in prepareLeg before any persist — never surface as Postgres bigint "NaN".
+  it('throws refuse-to-book for a non-finite amountChf and does not persist', async () => {
+    const legs: LedgerLegInput[] = [
+      { account: walletAsset, amount: 1, priceChf: 50000, amountChf: NaN },
+      { account: liability, amount: -50000, amountChf: -50000 },
+    ];
+
+    await expect(
+      service.bookTx({
+        sourceType: 'crypto_input',
+        sourceId: 'nan',
+        seq: 0,
+        bookingDate: new Date('2026-06-01'),
+        legs,
+      }),
+    ).rejects.toThrow(/refusing to book/);
+
+    expect(savedLegs).toHaveLength(0); // nothing persisted
+  });
+
   it('does NOT apply a native balance check on value-boundary tx (asset ↔ liability)', async () => {
     const logSpy = jest.spyOn((service as any).logger, 'error');
     const legs: LedgerLegInput[] = [
