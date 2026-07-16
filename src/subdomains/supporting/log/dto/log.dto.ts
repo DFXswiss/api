@@ -91,7 +91,9 @@ export interface AssetLog {
     priceChf: number;
     plusBalance: AssetLogPlusBalance;
     minusBalance: AssetLogMinusBalance;
-    error: string;
+    // the writer's error line is currently disabled (log-job.service.ts getAssetLog) — serialized entries carry no
+    // error field, so the type must not promise one
+    error?: string;
   };
 }
 
