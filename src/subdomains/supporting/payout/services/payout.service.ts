@@ -267,8 +267,10 @@ export class PayoutService {
     const mailRequest = this.createMailRequest(logMessage, escalatedOrders);
 
     // Escalation-then-mail keeps the alert truthful by listing only orders this run actually escalated.
-    // Reverting after a mail failure keeps the alert retryable. The residual loss window is a process crash
-    // between escalation and mail; operators can find those orders by querying PAYOUT_UNCERTAIN.
+    // Reverting after a mail failure keeps the alert retryable for errors up to the notification
+    // persistence; transport-level delivery is owned by the notification subsystem. Residuals (a crash
+    // between escalation and mail, a delivery failure after persistence): the orders stay findable by
+    // querying PAYOUT_UNCERTAIN.
     try {
       await this.notificationService.sendMail(mailRequest);
     } catch (e) {

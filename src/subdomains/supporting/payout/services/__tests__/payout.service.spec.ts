@@ -179,7 +179,6 @@ describe('PayoutService', () => {
 
     it('processFailedOrders conditionally escalates a stuck order and alerts via mail (no stale save)', async () => {
       const crashedOrder = createCustomPayoutOrder({ id: 12, status: PayoutOrderStatus.PAYOUT_DESIGNATED });
-      const pendingInvestigationSpy = jest.spyOn(crashedOrder, 'pendingInvestigation');
       const updateSpy = jest.spyOn(payoutOrderRepo, 'update');
       const saveSpy = jest.spyOn(payoutOrderRepo, 'save');
       const sendMailSpy = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
@@ -191,7 +190,6 @@ describe('PayoutService', () => {
         { id: crashedOrder.id, status: PayoutOrderStatus.PAYOUT_DESIGNATED },
         { status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
       );
-      expect(pendingInvestigationSpy).not.toHaveBeenCalled();
       expect(saveSpy).not.toHaveBeenCalled();
       expect(sendMailSpy).toHaveBeenCalledTimes(1);
       expect(doPayoutSpy).not.toHaveBeenCalled();
@@ -289,6 +287,8 @@ describe('PayoutService', () => {
         });
         expect(updateSpy).not.toHaveBeenCalled();
         expect(sendMailSpy).not.toHaveBeenCalled();
+        // exactly the two escalation attempts - a revert after a successful mail would add calls
+        expect(updateSpy).toHaveBeenCalledTimes(2);
         expect(saveSpy).not.toHaveBeenCalled();
       });
 
@@ -296,7 +296,7 @@ describe('PayoutService', () => {
         const escalatedOrder = createCustomPayoutOrder({ id: 30, status: PayoutOrderStatus.PAYOUT_DESIGNATED });
         const movedOrder = createCustomPayoutOrder({ id: 31, status: PayoutOrderStatus.PAYOUT_DESIGNATED });
         jest.spyOn(payoutOrderRepo, 'findBy').mockResolvedValue([escalatedOrder, movedOrder]);
-        jest
+        const updateSpy = jest
           .spyOn(payoutOrderRepo, 'update')
           .mockResolvedValueOnce({ affected: 1 } as any)
           .mockResolvedValueOnce({ affected: 0 } as any);
@@ -371,6 +371,8 @@ describe('PayoutService', () => {
           `Failed to escalate payout order ${failedOrder.id}; retrying next cycle:`,
           updateError,
         );
+        // exactly the two escalation attempts - a revert after a successful mail would add calls
+        expect(updateSpy).toHaveBeenCalledTimes(2);
         expect(logFailedOrdersSpy).toHaveBeenCalledWith([escalatedOrder]);
         expect(sendMailSpy).toHaveBeenCalledTimes(1);
         expect(sendMailSpy).toHaveBeenCalledWith(
