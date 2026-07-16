@@ -296,8 +296,10 @@ export class BuyFiatService implements OnModuleInit {
     const { chargebackAddress, chargebackAmount } = buyFiat;
 
     if (!chargebackAddress || !chargebackAmount || !cryptoInput?.asset) return;
+    if ([PayInStatus.SENDING, PayInStatus.SEND_UNCERTAIN].includes(cryptoInput.status))
+      throw new BadRequestException('Pay-in send is in flight or uncertain — investigate before returning');
 
-    // Skip if return already in progress or completed
+    // Skip if a return is already in progress or completed.
     if (
       [PayInStatus.TO_RETURN, PayInStatus.RETURNED, PayInStatus.RETURN_CONFIRMED].includes(cryptoInput.status) ||
       cryptoInput.returnTxId

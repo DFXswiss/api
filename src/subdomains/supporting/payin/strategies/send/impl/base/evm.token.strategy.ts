@@ -85,8 +85,9 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
       await this.payInRepo.save(payIn);
     }
 
+    let txHash: string | undefined;
     try {
-      const txHash = await this.delegationService.transferTokenViaDelegation(
+      txHash = await this.delegationService.transferTokenViaDelegation(
         account,
         asset,
         destinationAddress,
@@ -101,13 +102,21 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
         }
       }
     } catch (e) {
-      if (e instanceof TxBroadcastError) {
+      if (e instanceof TxBroadcastError || txHash !== undefined) {
         // The relayer send may have succeeded despite the error. Keep the non-reselectable marker
         // and let the cron escalate it instead of risking a second delegated transfer.
+        if (txHash !== undefined) {
+          this.logger.error(
+            `Failed to persist delegated EVM send transaction ${txHash} for pay-ins ${payInGroup.payIns
+              .map((payIn) => payIn.id)
+              .join(', ')}:`,
+            e,
+          );
+        }
         throw e;
       }
 
-      // Errors before the delegation service's explicit broadcast boundary are safe to retry.
+      // A plain error before a transaction hash was obtained is provably pre-broadcast and safe to retry.
       for (const payIn of payInGroup.payIns) {
         payIn.status = previousStatuses.get(payIn.id);
         await this.payInRepo.save(payIn);

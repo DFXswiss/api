@@ -158,7 +158,7 @@ describe('EvmStrategy', () => {
     function createGroup() {
       const payIns = [
         createCustomCryptoInput({ id: 1, status: PayInStatus.PREPARED }),
-        createCustomCryptoInput({ id: 2, status: PayInStatus.TO_RETURN }),
+        createCustomCryptoInput({ id: 2, status: PayInStatus.PREPARED }),
       ];
       const group = {
         payIns,
@@ -194,7 +194,7 @@ describe('EvmStrategy', () => {
 
       await expect(strategy['dispatch'](group, SendType.FORWARD, 0.01)).rejects.toBe(preBroadcastError);
 
-      expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.PREPARED, PayInStatus.TO_RETURN]);
+      expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.PREPARED, PayInStatus.PREPARED]);
       expect(payInRepo.save).toHaveBeenCalledTimes(4);
     });
 
@@ -208,6 +208,23 @@ describe('EvmStrategy', () => {
 
       expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.SENDING, PayInStatus.SENDING]);
       expect(payInRepo.save).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps every member Sending and logs the tx id when persistence fails after dispatch', async () => {
+      const { group, payIns } = createGroup();
+      const outTxId = '0xdispatched';
+      const persistenceError = new Error('query timeout');
+      jest.spyOn(payInRepo, 'save').mockImplementation(async (payIn) => payIn as CryptoInput);
+      jest.spyOn(strategy as any, 'dispatchSend').mockResolvedValue(outTxId);
+      jest.spyOn(strategy as any, 'updatePayInsWithSendData').mockRejectedValue(persistenceError);
+      const logSpy = jest.spyOn(strategy['logger'], 'error').mockImplementation();
+
+      await expect(strategy['dispatch'](group, SendType.FORWARD, 0.01)).rejects.toBe(persistenceError);
+
+      expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.SENDING, PayInStatus.SENDING]);
+      expect(payInRepo.save).toHaveBeenCalledTimes(2);
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining(outTxId), persistenceError);
+      expect(logSpy.mock.calls[0][0]).toContain('1, 2');
     });
   });
 });

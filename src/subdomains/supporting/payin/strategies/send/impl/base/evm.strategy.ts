@@ -204,21 +204,30 @@ export abstract class EvmStrategy extends SendStrategy {
       await this.payInRepo.save(payIn);
     }
 
+    let outTxId: string | undefined;
     try {
-      const outTxId = await this.dispatchSend(payInGroup, type, estimatedNativeFee);
+      outTxId = await this.dispatchSend(payInGroup, type, estimatedNativeFee);
 
       const updatedPayIns = await this.updatePayInsWithSendData(payInGroup, outTxId, type);
 
       await this.saveUpdatedPayIns(updatedPayIns);
     } catch (e) {
-      if (e instanceof TxBroadcastError) {
+      if (e instanceof TxBroadcastError || outTxId !== undefined) {
         // The broadcast boundary was reached and the transaction may be in flight. Fail closed by
         // keeping SENDING; the cron escalation moves the group to SEND_UNCERTAIN for investigation.
+        if (outTxId !== undefined) {
+          this.logger.error(
+            `Failed to persist EVM send transaction ${outTxId} for pay-ins ${payInGroup.payIns
+              .map((payIn) => payIn.id)
+              .join(', ')}:`,
+            e,
+          );
+        }
         throw e;
       }
 
-      // A plain error is provably pre-broadcast, so restore every member's captured status and let
-      // the next cron run retry it. Do not collapse mixed forward/return group state to one default.
+      // A plain error before a transaction ID was obtained is provably pre-broadcast. Restore each
+      // member's captured status so the next cron run can retry it.
       for (const payIn of payInGroup.payIns) {
         payIn.status = previousStatuses.get(payIn.id);
         await this.payInRepo.save(payIn);

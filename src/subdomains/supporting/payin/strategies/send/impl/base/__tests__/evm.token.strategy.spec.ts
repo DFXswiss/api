@@ -43,7 +43,7 @@ describe('EvmTokenStrategy Delegation Integration', () => {
     function createGroup() {
       const payIns = [
         createCustomCryptoInput({ id: 1, status: PayInStatus.ACKNOWLEDGED, amount: 1 }),
-        createCustomCryptoInput({ id: 2, status: PayInStatus.TO_RETURN, amount: 2 }),
+        createCustomCryptoInput({ id: 2, status: PayInStatus.ACKNOWLEDGED, amount: 2 }),
       ];
       const group = {
         account: {} as SendGroup['account'],
@@ -82,7 +82,7 @@ describe('EvmTokenStrategy Delegation Integration', () => {
 
       await expect(strategy['dispatchViaDelegation'](group, SendType.FORWARD)).rejects.toBe(preBroadcastError);
 
-      expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.ACKNOWLEDGED, PayInStatus.TO_RETURN]);
+      expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.ACKNOWLEDGED, PayInStatus.ACKNOWLEDGED]);
       expect(payInRepo.save).toHaveBeenCalledTimes(4);
     });
 
@@ -95,6 +95,22 @@ describe('EvmTokenStrategy Delegation Integration', () => {
 
       expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.SENDING, PayInStatus.SENDING]);
       expect(payInRepo.save).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps every member Sending and logs the tx hash when persistence fails after dispatch', async () => {
+      const { group, payIns } = createGroup();
+      const txHash = '0xdelegated';
+      const persistenceError = new Error('deadlock');
+      jest.spyOn(delegationService, 'transferTokenViaDelegation').mockResolvedValue(txHash);
+      jest.spyOn(strategy as any, 'updatePayInWithSendData').mockRejectedValue(persistenceError);
+      const logSpy = jest.spyOn(strategy['logger'], 'error').mockImplementation();
+
+      await expect(strategy['dispatchViaDelegation'](group, SendType.FORWARD)).rejects.toBe(persistenceError);
+
+      expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.SENDING, PayInStatus.SENDING]);
+      expect(payInRepo.save).toHaveBeenCalledTimes(2);
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining(txHash), persistenceError);
+      expect(logSpy.mock.calls[0][0]).toContain('1, 2');
     });
   });
 

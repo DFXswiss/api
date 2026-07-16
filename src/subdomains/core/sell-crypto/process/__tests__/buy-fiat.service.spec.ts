@@ -22,6 +22,7 @@ import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/service
 import { createCustomFiatOutput } from 'src/subdomains/supporting/fiat-output/__mocks__/fiat-output.entity.mock';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
@@ -186,6 +187,24 @@ describe('BuyFiatService', () => {
   it('should be defined', () => {
     expect(service).toBeDefined();
   });
+
+  it.each([PayInStatus.SENDING, PayInStatus.SEND_UNCERTAIN])(
+    'does not re-arm a buy-fiat return while the pay-in send status is %s',
+    async (status) => {
+      const buyFiat = createCustomBuyFiat({
+        id: 71,
+        chargebackAddress: '0x0000000000000000000000000000000000000001',
+        chargebackAmount: 0.1,
+      });
+      const cryptoInput = createCustomCryptoInput({ status, returnTxId: null });
+
+      await expect(service['triggerBuyFiatReturn'](buyFiat, cryptoInput)).rejects.toThrow(
+        new BadRequestException('Pay-in send is in flight or uncertain — investigate before returning'),
+      );
+
+      expect(payInService.returnPayIn).not.toHaveBeenCalled();
+    },
+  );
 
   it('should return an empty array, if sell route has no history', async () => {
     setup(MockBuyData.BUY_HISTORY_EMPTY);
