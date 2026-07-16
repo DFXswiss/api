@@ -47,9 +47,12 @@ describe('toBroadcastBoundaryError', () => {
     const axiosError = Object.assign(new Error('Request failed with status code 500'), {
       response: { status: 500, data: { error: { code: -6, message: 'insufficient funds' } } },
     });
-    const parsedRpcError = Object.assign(new Error('Bitcoin RPC send failed: insufficient funds', { cause: axiosError }), {
-      code: -6,
-    });
+    const parsedRpcError = Object.assign(
+      new Error('Bitcoin RPC send failed: insufficient funds', { cause: axiosError }),
+      {
+        code: -6,
+      },
+    );
 
     expect(toBroadcastBoundaryError(parsedRpcError, [-6])).toBe(parsedRpcError);
   });
