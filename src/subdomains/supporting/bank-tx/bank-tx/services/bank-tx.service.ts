@@ -439,7 +439,8 @@ export class BankTxService implements OnModuleInit {
     ]);
   }
 
-  // Bank fees come from two sources: legacy per-tx charges (chargeAmountChf) plus dedicated BankAccountFee rows.
+  // Bank fees come from three sources: (1) legacy per-tx charges (chargeAmountChf); (2) dedicated BankAccountFee
+  // rows; (3) statement-inline charges (e.g. Bank Frick camt) that carry chargeAmount without a CHF conversion.
   // Charge fields ceased with the bank migration in Dec 2025; fees arrive as dedicated BankAccountFee rows since,
   // carrying the amount in the account currency (no amountChf column), so they are aggregated per currency and
   // converted to CHF.
@@ -492,6 +493,29 @@ export class BankTxService implements OnModuleInit {
       const fiat = await this.fiatService.getFiatByName(currency);
       const price = await this.pricingService.getPrice(fiat, PriceCurrency.CHF, PriceValidity.ANY);
       totalFeeChf += price.convert(amount, Config.defaultVolumeDecimal);
+    }
+
+    // source 3 = statement-inline charges (e.g. Bank Frick camt) that carry chargeAmount without a CHF conversion.
+    // They set chargeAmount + chargeCurrency but never chargeAmountChf, and their type is null (or later a non-fee
+    // type), so they fall through sources 1 and 2. The `type IS NULL OR type != :feeType` form is required because
+    // Postgres evaluates `NULL != 'x'` to UNKNOWN, which would silently drop exactly the type=null inline charges
+    // this must capture. Column references use the alias.property form so TypeORM quotes the camelCase identifiers
+    // correctly for Postgres.
+    const inlineChargeAggregates = await this.bankTxRepo
+      .createQueryBuilder('bankTx')
+      .select('bankTx.chargeCurrency', 'currency')
+      .addSelect('SUM(bankTx.chargeAmount)', 'amount')
+      .where('bankTx.chargeAmount != 0')
+      .andWhere('bankTx.chargeAmountChf IS NULL')
+      .andWhere('(bankTx.type IS NULL OR bankTx.type != :feeType)', { feeType: BankTxType.BANK_ACCOUNT_FEE })
+      .andWhere('bankTx.created >= :from', { from })
+      .groupBy('bankTx.chargeCurrency')
+      .getRawMany<{ currency: string; amount: string }>();
+
+    for (const row of inlineChargeAggregates) {
+      const fiat = await this.fiatService.getFiatByName(row.currency);
+      const price = await this.pricingService.getPrice(fiat, PriceCurrency.CHF, PriceValidity.ANY);
+      totalFeeChf += price.convert(Number(row.amount), Config.defaultVolumeDecimal);
     }
 
     return Util.round(totalFeeChf, Config.defaultVolumeDecimal);

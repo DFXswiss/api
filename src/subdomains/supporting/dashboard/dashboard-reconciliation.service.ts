@@ -70,7 +70,7 @@ export class DashboardReconciliationService {
   ) {}
 
   async getReconciliation(query: ReconciliationQuery): Promise<ReconciliationDto> {
-    const asset = await this.assetRepo.findOne({ where: { id: query.assetId }, relations: ['bank'] });
+    const asset = await this.assetRepo.findOne({ where: { id: query.assetId }, relations: { bank: true } });
     if (!asset) throw new NotFoundException('Asset not found');
 
     const category = this.categorizeAsset(asset);
@@ -141,8 +141,8 @@ export class DashboardReconciliationService {
         positions: [],
       };
 
-    // Load asset metadata
-    const assets = await this.assetRepo.find({ where: { id: In(allAssetIds) } });
+    // Load asset metadata (bank relation is non-eager and drives categorizeAsset — same as getReconciliation)
+    const assets = await this.assetRepo.find({ where: { id: In(allAssetIds) }, relations: { bank: true } });
     const assetMap = new Map(assets.map((a) => [a.id, a]));
 
     // Build positions with full reconciliation for each asset
@@ -225,6 +225,9 @@ export class DashboardReconciliationService {
   }
 
   private categorizeAsset(asset: Asset): AssetCategory {
+    // A set bank relation classifies as bank regardless of blockchain — mirrors the bank-relation check in
+    // classifyCustody (ledger-reconciliation.service.ts), which the shared blockchain lists are kept in sync with.
+    if (asset.bank) return 'bank';
     if (EXCHANGE_BLOCKCHAINS.includes(asset.blockchain)) return 'exchange';
     if (BANK_BLOCKCHAINS.includes(asset.blockchain)) return 'bank';
     return 'blockchain';

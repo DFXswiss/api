@@ -278,6 +278,7 @@ describe('BankTxConsumer', () => {
     expect(plug).toBeDefined(); // the 50-CHF drift IS plugged (would be 0 with the old −(bank) owed value)
     expect(plug.account.name).toBe('INCOME/fx-revaluation');
     expect(plug.amountChf).toBe(50);
+    expect(legs.some((l) => l.account.name === 'EXPENSE/bank-fee')).toBe(false); // charge-null regression: no fee leg
     expect(cents(legs)).toBe(0);
   });
 
@@ -1486,5 +1487,325 @@ describe('BankTxConsumer', () => {
     expect(bank.amountChf).toBe(100); // CHF → mark 1
     expect(bank.needsMark).toBe(false);
     expect(cents(legs)).toBe(0);
+  });
+
+  // --- F2b: FRICK INLINE CHARGE (DBIT branches) --- //
+
+  // §4.2 Frick inline charge: a DBIT whose tx.amount is already gross (chargeAmount set, chargeAmountChf null,
+  // chargeCurrency == account currency, mark present) keeps the bank leg GROSS and reclassifies the charge into an
+  // explicit EXPENSE/bank-fee — the SUSPENSE counter is reduced to NET, not lumped with the charge (GSHEET DBIT).
+  it('suspenseLegs books a DBIT inline charge as gross bank + net SUSPENSE + EXPENSE/bank-fee (§4.2 Frick inline charge)', async () => {
+    mockBatch([
+      bankTx({
+        id: 200,
+        type: BankTxType.GSHEET,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100, // gross (charge-inclusive)
+        chargeAmount: 10,
+        chargeCurrency: 'EUR',
+        chargeAmountChf: null,
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    const bank = legs.find((l) => l.account === eurBankAccount);
+    const suspense = legs.find((l) => l.account.name === 'SUSPENSE');
+    const fee = legs.find((l) => l.account.name === 'EXPENSE/bank-fee');
+    expect(bank.amount).toBe(-100); // bank stays GROSS (−tx.amount), NOT re-grossed
+    expect(bank.amountChf).toBe(-95); // 0.95 × 100
+    // the SUSPENSE counter is NET: native 100 − 10 = 90, CHF 95 − 9.5 = 85.5 (charge NOT lumped in)
+    expect(suspense.amount).toBe(90);
+    expect(suspense.amountChf).toBe(85.5);
+    // the charge is the explicit EXPENSE/bank-fee = round(0.95 × 10, 2)
+    expect(fee.amountChf).toBe(9.5);
+    expect(legs.some((l) => l.account.name.endsWith('/fx-revaluation'))).toBe(false); // balances → no plug
+    expect(cents(legs)).toBe(0);
+  });
+
+  // §4.2 Frick inline charge (chargeback): the opening-anchored liability is NOT reduced; the inline charge is
+  // reclassified into EXPENSE/bank-fee so the fx-revaluation plug SHRINKS by exactly chargeChf (charge not lumped
+  // into the plug). Opening 80, bank −95, fee +9.5 → sum −5.5 → plug +5.5 (was +15 without the fee), Σ CHF = 0.
+  it('chargebackLegs books a DBIT inline charge to EXPENSE/bank-fee and shrinks the fx plug by chargeChf', async () => {
+    jest
+      .spyOn(bankTxReturnRepo, 'findOne')
+      .mockResolvedValue(Object.assign(new BankTxReturn(), { bankTx: { id: 50 } }) as any);
+    const openingLeg = { account: { name: 'LIABILITY/bankTx-return' }, amountChf: -80 } as any;
+    jest
+      .spyOn(ledgerTxRepo, 'findOne')
+      .mockImplementation(({ where }: any) =>
+        where?.sourceType === 'bank_tx' && where?.sourceId === '50'
+          ? Promise.resolve(Object.assign(new LedgerTx(), { legs: [openingLeg] }) as any)
+          : Promise.resolve(null),
+      );
+
+    mockBatch([
+      bankTx({
+        id: 201,
+        type: BankTxType.BANK_TX_RETURN_CHARGEBACK,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100, // EUR, gross
+        chargeAmount: 10,
+        chargeCurrency: 'EUR',
+        chargeAmountChf: null, // inline (mutually exclusive with the chargeAmountChf fee path)
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    const liability = legs.find((l) => l.account.name === 'LIABILITY/bankTx-return');
+    const fee = legs.find((l) => l.account.name === 'EXPENSE/bank-fee');
+    const plug = legs.find((l) => l.account.name.endsWith('/fx-revaluation'));
+    expect(liability.amountChf).toBe(80); // opening anchor, NOT reduced by the charge
+    expect(legs.find((l) => l.account.name === 'Olkypay/EUR').amountChf).toBe(-95); // EUR-mark × amount (gross)
+    expect(fee.amountChf).toBe(9.5); // round(0.95 × 10, 2) — the charge, reclassified out of the plug
+    expect(plug.account.name).toBe('INCOME/fx-revaluation');
+    expect(plug.amountChf).toBe(5.5); // +80 − 95 + 9.5 → sum −5.5 → plug +5.5 (was +15 without the fee → shrank by 9.5)
+    expect(cents(legs)).toBe(0);
+  });
+
+  // §4.2 Frick inline charge: with chargeAmountChf SET (a CHF-priced charge) the inline helper does NOT fire — the
+  // existing chargeAmountChf EXPENSE/bank-fee path books exactly ONE bank-fee leg (no double-book), even when
+  // chargeAmount is also set.
+  it('chargebackLegs does NOT add a second bank-fee leg when chargeAmountChf is set (no double-book)', async () => {
+    mockBatch([
+      bankTx({
+        id: 202,
+        type: BankTxType.BANK_TX_RETURN_CHARGEBACK,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'CHF-IBAN',
+        amount: 100,
+        chargeAmount: 10, // set, but chargeAmountChf is also set → NOT inline
+        chargeCurrency: 'CHF',
+        chargeAmountChf: 5, // CHF-priced charge → existing path
+      }),
+    ]);
+    await consumer.process();
+
+    const feeLegs = booked[0].legs.filter((l) => l.account.name === 'EXPENSE/bank-fee');
+    expect(feeLegs).toHaveLength(1); // exactly one (the chargeAmountChf path); the inline helper added none
+    expect(feeLegs[0].amountChf).toBe(5); // the chargeAmountChf value, NOT an inline mark × charge
+    expect(cents(booked[0].legs)).toBe(0);
+  });
+
+  // §4.2 regression: a DBIT branch with NO inline charge (chargeAmount null) books EXACTLY the pre-change legs —
+  // 2-leg SUSPENSE mirror, no EXPENSE/bank-fee, no withFxPlug alteration.
+  it('books an unchanged DBIT (suspenseLegs) when there is no inline charge (regression)', async () => {
+    mockBatch([
+      bankTx({
+        id: 203,
+        type: BankTxType.GSHEET,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100,
+        chargeAmount: null, // no inline charge
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    expect(legs).toHaveLength(2); // bank + SUSPENSE only, identical to pre-change
+    expect(legs.some((l) => l.account.name === 'EXPENSE/bank-fee')).toBe(false);
+    const suspense = legs.find((l) => l.account.name === 'SUSPENSE');
+    expect(suspense.amount).toBe(100); // full gross mirror (−bank.amount), not reduced
+    expect(suspense.amountChf).toBe(95);
+    expect(cents(legs)).toBe(0);
+  });
+
+  // inlineBankCharge fail-loud: a DBIT inline charge priced in a FOREIGN currency (chargeCurrency != account currency)
+  // cannot be valued mark-consistently → the leg builder throws → failure-isolation (nothing booked, watermark stays
+  // put, retried next run).
+  it('throws (failure-isolation) on a DBIT inline charge priced in a foreign currency (no same-currency mark)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    mockBatch([
+      bankTx({
+        id: 204,
+        type: BankTxType.GSHEET,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100,
+        chargeAmount: 10,
+        chargeCurrency: 'USD', // != account currency EUR → no same-currency mark → fail-loud
+        chargeAmountChf: null,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // inlineBankCharge threw → bookTx never called for the row
+    expect(setSpy).not.toHaveBeenCalled(); // throw → watermark not advanced (row retried next run)
+  });
+
+  // §4.2 Frick inline charge, NO opening found: the fee leg joins `others` BEFORE the opening lookup, so the fallback
+  // (liability = −Σ others) closes over the fee too — liability −(bankChf + feeChf), the charge stays expensed, and
+  // NO plug re-absorbs it (pre-fix the liability was over-debited by chargeChf and the plug netted the fee to 0 P&L).
+  it('chargebackLegs joins the inline fee into the no-opening fallback (liability closes exactly, no plug)', async () => {
+    // default mocks: no BankTxReturn/BankTxRepeat opening row + no cutover → chargebackOpeningChf falls back to −Σ others
+    mockBatch([
+      bankTx({
+        id: 205,
+        type: BankTxType.BANK_TX_RETURN_CHARGEBACK,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100, // EUR, gross
+        chargeAmount: 10,
+        chargeCurrency: 'EUR',
+        chargeAmountChf: null, // inline
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    const liability = legs.find((l) => l.account.name === 'LIABILITY/bankTx-return');
+    const fee = legs.find((l) => l.account.name === 'EXPENSE/bank-fee');
+    expect(legs.find((l) => l.account.name === 'Olkypay/EUR').amountChf).toBe(-95); // EUR-mark × amount (gross)
+    expect(fee.amountChf).toBe(9.5); // round(0.95 × 10, 2) — expensed, not plugged away
+    expect(liability.amountChf).toBe(85.5); // fallback = −(bank −95 + fee 9.5) = −(bankChf + feeChf)
+    expect(legs.some((l) => l.account.name.endsWith('/fx-revaluation'))).toBe(false); // exact close → no plug
+    expect(cents(legs)).toBe(0);
+  });
+
+  // §4.2 Frick inline charge on BUY_CRYPTO_RETURN DBIT: the charge is reclassified from the fx-revaluation plug into
+  // an explicit EXPENSE/bank-fee — the owed anchor is NOT reduced, so vs. the no-charge case (plug +50, test above)
+  // the plug shrinks by exactly chargeChf (9.5) and the tx still sums to 0.
+  it('BUY_CRYPTO_RETURN books a DBIT inline charge to EXPENSE/bank-fee — the fx plug shrinks by exactly chargeChf', async () => {
+    const buyCrypto = { id: 79, amountInChf: 9480, totalFeeAmountChf: 30 } as any;
+    mockBatch([
+      bankTx({
+        id: 206,
+        type: BankTxType.BUY_CRYPTO_RETURN,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 10000,
+        buyCrypto,
+        chargeAmount: 10,
+        chargeCurrency: 'EUR',
+        chargeAmountChf: null, // inline
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    expect(legs.find((l) => l.account.name === 'LIABILITY/buyCrypto-owed').amountChf).toBe(9450); // anchor NOT reduced
+    expect(legs.find((l) => l.account === eurBankAccount).amountChf).toBe(-9500); // gross, mark-consistent
+    expect(legs.find((l) => l.account.name === 'EXPENSE/bank-fee').amountChf).toBe(9.5); // round(0.95 × 10, 2)
+    const plug = legs.find((l) => l.account.name.endsWith('/fx-revaluation'));
+    expect(plug.account.name).toBe('INCOME/fx-revaluation');
+    expect(plug.amountChf).toBe(40.5); // +50 without the charge (test above) → shrank by exactly chargeChf (9.5)
+    expect(cents(legs)).toBe(0);
+  });
+
+  // --- F1: INLINE CHARGE + MISSING HISTORICAL MARK (bridge, not a pre-bridge throw-wedge) --- //
+
+  // F1 (a): a DBIT inline charge on a row with NO historical mark at the bookingDate but a CURRENT mark (getLatestMark).
+  // Pre-fix inlineBankCharge threw on the missing historical mark BEFORE the withFxPlug/resolveLegsOrDefer bridge stage
+  // and wedged the head-of-line. Now the charge is valued with the SAME bridge the bank-ASSET leg gets, so the tx books
+  // balanced (bank bridged, needsMark stays true → the mark-to-market job re-marks later); no throw.
+  it('bridges a no-historical-mark BUY_CRYPTO_RETURN inline charge via the current mark and books balanced (F1a)', async () => {
+    jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no historical mark anywhere
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(0.95); // but a current mark exists → bridgeable
+    const buyCrypto = { id: 80, amountInChf: 9480, totalFeeAmountChf: 30 } as any;
+    mockBatch([
+      bankTx({
+        id: 207,
+        type: BankTxType.BUY_CRYPTO_RETURN,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 10000,
+        buyCrypto,
+        chargeAmount: 10,
+        chargeCurrency: 'EUR',
+        chargeAmountChf: null, // inline
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(1); // booked, NOT a throw-wedge
+    const legs = booked[0].legs;
+    const bank = legs.find((l) => l.account === eurBankAccount);
+    expect(bank.amountChf).toBe(-9500); // bridged 0.95 × −10000
+    expect(bank.needsMark).toBe(true); // provisional basis → re-marked later
+    expect(legs.find((l) => l.account.name === 'LIABILITY/buyCrypto-owed').amountChf).toBe(9450); // anchor unchanged
+    expect(legs.find((l) => l.account.name === 'EXPENSE/bank-fee').amountChf).toBe(9.5); // bridged 0.95 × 10
+    const plug = legs.find((l) => l.account.name.endsWith('/fx-revaluation'));
+    expect(plug.account.name).toBe('INCOME/fx-revaluation');
+    expect(plug.amountChf).toBe(40.5); // +9450 − 9500 + 9.5 → sum −40.5 → plug +40.5
+    expect(cents(legs)).toBe(0); // balances (was a throw-wedge pre-fix)
+  });
+
+  // F1 (b): a DBIT inline charge with NO mark anywhere (no historical, no current) is genuinely feedless → the helper
+  // fails loud and the row DEFERS via failure-isolation (watermark stays put, retry) instead of booking a wrong value.
+  it('throws (defers) on a no-mark BUY_CRYPTO_RETURN inline charge when there is no current mark either (F1b feedless)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no historical mark
+    // getLatestMark stays the default undefined → no bridge anywhere
+    const buyCrypto = { id: 81, amountInChf: 9480, totalFeeAmountChf: 30 } as any;
+    mockBatch([
+      bankTx({
+        id: 208,
+        type: BankTxType.BUY_CRYPTO_RETURN,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 10000,
+        buyCrypto,
+        chargeAmount: 10,
+        chargeCurrency: 'EUR',
+        chargeAmountChf: null,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // feedless → inlineBankCharge threw → nothing booked
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced (retry next run)
+  });
+
+  // F1 (c): a foreign-currency inline charge still fails loud even when a bridge mark IS available — the currency
+  // mismatch is checked BEFORE any bridge (there is no same-currency mark to value a USD charge in an EUR account).
+  it('throws on a foreign-currency inline charge even when a current bridge mark exists (F1c mismatch regression)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(0.95); // a bridge exists — but the currency mismatch wins
+    mockBatch([
+      bankTx({
+        id: 209,
+        type: BankTxType.GSHEET,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100,
+        chargeAmount: 10,
+        chargeCurrency: 'USD', // != account currency EUR → no same-currency mark, bridge or not → fail loud
+        chargeAmountChf: null,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0);
+    expect(setSpy).not.toHaveBeenCalled();
+  });
+
+  // F1 needsMark-consistency guard: a no-historical-mark GSHEET DBIT inline charge whose mirror is a SUSPENSE leg (no
+  // assetId to bridge). The bank leg bridges via getLatestMark, but the SUSPENSE mirror cannot → the mixed tx DEFERS
+  // (fail-closed). The guard prevents the pre-fix `(suspense.amountChf ?? 0) − chargeChf` from force-valuing the
+  // needsMark SUSPENSE leg at −chargeChf, which would have skipped the bridge and booked a full-value phantom fx plug.
+  it('defers (no phantom plug) a no-historical-mark suspense DBIT inline charge — SUSPENSE mirror not bridgeable (F1 guard)', async () => {
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    jest.spyOn(markService, 'preload').mockResolvedValue(new LedgerMarkCache(new Map())); // no historical mark
+    jest.spyOn(markService, 'getLatestMark').mockResolvedValue(0.95); // bridges the bank leg only (SUSPENSE has no assetId)
+    mockBatch([
+      bankTx({
+        id: 210,
+        type: BankTxType.GSHEET,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'EUR-IBAN',
+        amount: 100,
+        chargeAmount: 10,
+        chargeCurrency: 'EUR',
+        chargeAmountChf: null,
+      }),
+    ]);
+    await consumer.process();
+
+    expect(booked).toHaveLength(0); // deferred: the SUSPENSE mirror stays needsMark, the mixed tx cannot balance
+    expect(setSpy).not.toHaveBeenCalled(); // watermark NOT advanced — NOT a silent phantom-plug booking
   });
 });
