@@ -78,6 +78,7 @@ interface LeafConfig {
 }
 
 function repoSaveEcho(payoutOrderRepo: PayoutOrderRepository): void {
+  jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
   jest.spyOn(payoutOrderRepo, 'save').mockImplementation(async (o) => o as PayoutOrder);
 }
 

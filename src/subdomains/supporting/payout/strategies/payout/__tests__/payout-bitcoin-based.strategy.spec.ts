@@ -29,6 +29,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
   let payoutOrderRepo: PayoutOrderRepository;
   let bitcoinService: PayoutBitcoinBasedService;
 
+  let repoUpdateSpy: jest.SpyInstance;
   let repoSaveSpy: jest.SpyInstance;
   let sendErrorMailSpy: jest.SpyInstance;
 
@@ -37,6 +38,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
     payoutOrderRepo = mock<PayoutOrderRepository>();
     bitcoinService = mock<PayoutBitcoinBasedService>();
 
+    repoUpdateSpy = jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
     repoSaveSpy = jest.spyOn(payoutOrderRepo, 'save');
     sendErrorMailSpy = jest.spyOn(notificationService, 'sendMail');
 
@@ -44,6 +46,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
   });
 
   afterEach(() => {
+    repoUpdateSpy.mockClear();
     repoSaveSpy.mockClear();
     sendErrorMailSpy.mockClear();
   });
@@ -189,28 +192,30 @@ describe('PayoutBitcoinBasedStrategy', () => {
   });
 
   describe('#designatePayout(...)', () => {
-    it('sets every order a PAYOUT_DESIGNATED status', async () => {
+    it('returns and designates every order whose conditional update succeeds', async () => {
       const orders = [
         createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED }),
         createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED }),
         createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED }),
       ];
 
-      await strategy.designatePayoutWrapper(orders);
+      const designated = await strategy.designatePayoutWrapper(orders);
 
-      expect(orders.every((order) => order.status === PayoutOrderStatus.PAYOUT_DESIGNATED));
+      expect(designated).toEqual(orders);
+      expect(orders.every((order) => order.status === PayoutOrderStatus.PAYOUT_DESIGNATED)).toBe(true);
+      expect(repoUpdateSpy).toHaveBeenCalledTimes(3);
     });
 
-    it('saves updated order to repo', async () => {
-      const orders = [
-        createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED }),
-        createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED }),
-        createCustomPayoutOrder({ status: PayoutOrderStatus.PREPARATION_CONFIRMED }),
-      ];
+    it('uses the exact conditional status transition without saving a stale entity', async () => {
+      const order = createCustomPayoutOrder({ id: 42, status: PayoutOrderStatus.PREPARATION_CONFIRMED });
 
-      await strategy.designatePayoutWrapper(orders);
+      await strategy.designatePayoutWrapper([order]);
 
-      expect(repoSaveSpy).toBeCalledTimes(3);
+      expect(repoUpdateSpy).toHaveBeenCalledWith(
+        { id: order.id, status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+        { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+      );
+      expect(repoSaveSpy).not.toHaveBeenCalled();
     });
   });
 
@@ -252,6 +257,77 @@ describe('PayoutBitcoinBasedStrategy', () => {
       expect(orders[0].status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
       expect(orders[0].payoutTxId).toBe('CHAIN_TX_ID');
       expect(orders[0].retryCount).toBe(0);
+    });
+
+    it('dispatches only winners when one order loses the designation race', async () => {
+      const asset = createCustomAsset({ name: 'BTC' });
+      const orders = [
+        createCustomPayoutOrder({
+          id: 50,
+          asset,
+          status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+          destinationAddress: 'WINNER_1',
+          amount: 1,
+        }),
+        createCustomPayoutOrder({
+          id: 51,
+          asset,
+          status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+          destinationAddress: 'LOSER',
+          amount: 2,
+        }),
+        createCustomPayoutOrder({
+          id: 52,
+          asset,
+          status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+          destinationAddress: 'WINNER_2',
+          amount: 3,
+        }),
+      ];
+      repoUpdateSpy
+        .mockResolvedValueOnce({ affected: 1 } as any)
+        .mockResolvedValueOnce({ affected: 0 } as any)
+        .mockResolvedValueOnce({ affected: 1 } as any);
+      const dispatchSpy = jest.fn().mockResolvedValue('CHAIN_TX_ID');
+      strategy.dispatchPayoutImpl = dispatchSpy;
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders);
+
+      expect(dispatchSpy).toHaveBeenCalledWith(
+        PayoutOrderContext.BUY_CRYPTO,
+        [
+          { addressTo: 'WINNER_1', amount: 1 },
+          { addressTo: 'WINNER_2', amount: 3 },
+        ],
+        asset,
+      );
+      expect(dispatchSpy).not.toHaveBeenCalledWith(
+        expect.anything(),
+        expect.arrayContaining([{ addressTo: 'LOSER', amount: 2 }]),
+        expect.anything(),
+      );
+      expect(orders[0].status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(orders[1].status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+      expect(orders[2].status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(repoSaveSpy).toHaveBeenCalledTimes(2);
+      expect(repoSaveSpy).not.toHaveBeenCalledWith(orders[1]);
+    });
+
+    it('does not dispatch or save when every order loses the designation race', async () => {
+      const orders = [
+        createCustomPayoutOrder({ id: 60, status: PayoutOrderStatus.PREPARATION_CONFIRMED }),
+        createCustomPayoutOrder({ id: 61, status: PayoutOrderStatus.PREPARATION_CONFIRMED }),
+      ];
+      repoUpdateSpy.mockResolvedValue({ affected: 0 } as any);
+      const dispatchSpy = jest.fn().mockResolvedValue('CHAIN_TX_ID');
+      strategy.dispatchPayoutImpl = dispatchSpy;
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders);
+
+      expect(repoUpdateSpy).toHaveBeenCalledTimes(2);
+      expect(dispatchSpy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+      expect(orders.every((order) => order.status === PayoutOrderStatus.PREPARATION_CONFIRMED)).toBe(true);
     });
 
     // The structural fix under test: only a PayoutBroadcastException (client reached the actual
@@ -366,7 +442,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
         payoutTxId: null,
       });
       strategy.dispatchPayoutImpl = () => Promise.resolve('CHAIN_TX_ID');
-      // designatePayout persists PAYOUT_DESIGNATED fine; only the final PAYOUT_PENDING save fails.
+      // Designation uses the conditional update; the final PAYOUT_PENDING save fails.
       repoSaveSpy.mockImplementation(async (o: PayoutOrder) => {
         if (o.status === PayoutOrderStatus.PAYOUT_PENDING) throw new Error('db down');
         return o;

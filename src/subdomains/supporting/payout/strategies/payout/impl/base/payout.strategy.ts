@@ -4,7 +4,7 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { PayoutOrder } from '../../../../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderStatus } from '../../../../entities/payout-order.entity';
 import { PayoutBroadcastException } from '../../../../exceptions/payout-broadcast.exception';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutStrategyRegistry } from './payout.strategy-registry';
@@ -49,15 +49,21 @@ export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
     return false;
   }
 
-  // Persist PAYOUT_DESIGNATED BEFORE broadcasting (fail-closed, mirrors the Bitcoin path):
-  // a reboot between broadcast and save must not leave the order re-selectable by the payout
-  // cron, which would double-pay. Only designates on the first attempt; a re-entry with
-  // payoutTxId already set (EVM speedup/expired-retry) keeps its status so nonce reuse stays intact.
-  protected async designateBeforeBroadcast(order: PayoutOrder, repo: PayoutOrderRepository): Promise<void> {
-    if (!order.payoutTxId) {
-      order.designatePayout();
-      await repo.save(order);
-    }
+  // The payout cron lock expires after 1800 seconds, so payout runs can overlap. An atomic
+  // conditional transition prevents a stale run from broadcasting an order already claimed by
+  // another run or overwriting its newer payout state; a plain entity save cannot enforce this.
+  // A re-entry with payoutTxId already set (EVM speedup/expired-retry) keeps its existing status.
+  protected async designateBeforeBroadcast(order: PayoutOrder, repo: PayoutOrderRepository): Promise<boolean> {
+    if (order.payoutTxId) return true;
+
+    const result = await repo.update(
+      { id: order.id, status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+      { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+    );
+    if (!result.affected) return false;
+
+    order.designatePayout();
+    return true;
   }
 
   // Broadcast-boundary error handling shared by all non-Bitcoin strategies. A PayoutBroadcastException

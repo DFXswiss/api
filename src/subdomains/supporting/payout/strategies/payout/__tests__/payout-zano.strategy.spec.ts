@@ -25,6 +25,7 @@ describe('ZanoStrategy', () => {
   beforeEach(() => {
     notificationService = mock<NotificationService>();
     payoutOrderRepo = mock<PayoutOrderRepository>();
+    jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
     payoutZanoService = mock<PayoutZanoService>();
     assetService = mock<AssetService>();
 

@@ -37,7 +37,10 @@ export abstract class InternetComputerStrategy extends PayoutStrategy {
   async doPayout(orders: PayoutOrder[]): Promise<void> {
     for (const order of orders) {
       try {
-        await this.designateBeforeBroadcast(order, this.payoutOrderRepo);
+        if (!(await this.designateBeforeBroadcast(order, this.payoutOrderRepo))) {
+          this.logger.warn(`Skipping payout order ${order.id}: designation lost to a concurrent payout run`);
+          continue;
+        }
 
         const txId = await this.dispatchPayout(order);
         order.pendingPayout(txId);

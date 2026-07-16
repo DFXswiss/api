@@ -12,7 +12,7 @@ import {
   PayoutGroup,
 } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { PriceCurrency, PriceValidity } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { PayoutOrder, PayoutOrderContext } from '../../../../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../../../entities/payout-order.entity';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutStrategy } from './payout.strategy';
 
@@ -141,18 +141,20 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
     if (orders.some((o) => o.payoutTxId) && !DisabledProcess(Process.TX_SPEEDUP))
       throw new Error(`Transaction speedup is not implemented for ${this.blockchain}`);
 
-    try {
-      const payout = this.aggregatePayout(orders);
+    const designated = await this.designatePayout(orders);
+    if (!designated.length) return;
 
-      await this.designatePayout(orders);
-      payoutTxId = await this.dispatchPayout(context, payout, orders[0].asset);
+    try {
+      const payout = this.aggregatePayout(designated);
+
+      payoutTxId = await this.dispatchPayout(context, payout, designated[0].asset);
     } catch (e) {
       this.logger.error(
-        `Error on sending ${orders[0].asset.name} for payout. Order ID(s): ${orders.map((o) => o.id)}:`,
+        `Error on sending ${designated[0].asset.name} for payout. Order ID(s): ${designated.map((o) => o.id)}:`,
         e,
       );
 
-      await this.trackPayoutFailure(orders, e);
+      await this.trackPayoutFailure(designated, e);
 
       // A PayoutBroadcastException means the underlying client reached the actual on-chain
       // broadcast call (tx may already be in-flight) - fail-closed, keep PAYOUT_DESIGNATED so
@@ -161,12 +163,12 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
       // pre-broadcast and safe to roll back for auto-retry.
       if (e instanceof PayoutBroadcastException) throw e;
 
-      await this.rollbackPayoutDesignation(orders);
+      await this.rollbackPayoutDesignation(designated);
 
       return;
     }
 
-    for (const order of orders) {
+    for (const order of designated) {
       try {
         order.resetPayoutRetry();
         const paidOrder = order.pendingPayout(payoutTxId);
@@ -196,11 +198,21 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
     return Util.fixRoundingMismatch(roundedPayouts, 'amount', payoutTotal);
   }
 
-  protected async designatePayout(orders: PayoutOrder[]): Promise<void> {
+  protected async designatePayout(orders: PayoutOrder[]): Promise<PayoutOrder[]> {
+    const designated: PayoutOrder[] = [];
     for (const order of orders) {
+      const result = await this.payoutOrderRepo.update(
+        { id: order.id, status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+        { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+      );
+      if (!result.affected) {
+        this.logger.warn(`Skipping payout order ${order.id}: designation lost to a concurrent payout run`);
+        continue;
+      }
       order.designatePayout();
-      await this.payoutOrderRepo.save(order);
+      designated.push(order);
     }
+    return designated;
   }
 
   protected async rollbackPayoutDesignation(orders: PayoutOrder[]): Promise<void> {
