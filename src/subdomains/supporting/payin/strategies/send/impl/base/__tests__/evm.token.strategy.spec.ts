@@ -61,7 +61,7 @@ describe('EvmTokenStrategy Delegation Integration', () => {
       payInRepo = mock<PayInRepository>();
       delegationService = mock<Eip7702DelegationService>();
       strategy = new TestEvmTokenStrategy(mock<PayInEvmService>(), payInRepo, delegationService);
-      saveSpy = jest.spyOn(payInRepo, 'save').mockImplementation(async (payIn) => payIn);
+      saveSpy = jest.spyOn(payInRepo, 'save').mockImplementation(async (payIn) => payIn as CryptoInput);
     });
 
     it('persists Sending on every member before calling the delegation broadcast sink', async () => {
