@@ -152,7 +152,11 @@ export class ArchiveService {
         const result = await manager.update(
           ArchiveFile,
           { id: file.id, batch: IsNull(), sha256: file.sha256 },
-          { batch: savedBatch, leafIndex: index, merkleProof: serializeMerkleProof(merkleInclusionProof(leaves, index)) },
+          {
+            batch: savedBatch,
+            leafIndex: index,
+            merkleProof: serializeMerkleProof(merkleInclusionProof(leaves, index)),
+          },
         );
 
         if (result.affected) {
@@ -167,7 +171,9 @@ export class ArchiveService {
       }
     });
 
-    this.logger.info(`Anchored batch ${batch.id} over ${anchoredCount}/${files.length} file(s), root ${batch.merkleRoot}`);
+    this.logger.info(
+      `Anchored batch ${batch.id} over ${anchoredCount}/${files.length} file(s), root ${batch.merkleRoot}`,
+    );
 
     return batch;
   }

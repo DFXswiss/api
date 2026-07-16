@@ -82,7 +82,9 @@ export class S3StorageService extends StorageService {
   private async assertObjectLockEnabled(): Promise<void> {
     if (S3StorageService.objectLockVerified.has(this.container)) return;
 
-    let cfg: { ObjectLockEnabled?: string; Rule?: { DefaultRetention?: { Mode?: string; Years?: number } } } | undefined;
+    let cfg:
+      | { ObjectLockEnabled?: string; Rule?: { DefaultRetention?: { Mode?: string; Years?: number } } }
+      | undefined;
     try {
       const res = await this.client.send(new GetObjectLockConfigurationCommand({ Bucket: this.container }));
       cfg = res.ObjectLockConfiguration;
