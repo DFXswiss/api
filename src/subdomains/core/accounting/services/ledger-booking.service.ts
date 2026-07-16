@@ -334,6 +334,18 @@ export class LedgerBookingService {
     const amountChf = leg.amountChf != null ? Util.round(leg.amountChf, 2) : undefined;
     const amountChfCents = Math.round(Util.round(amountChf ?? 0, 2) * 100);
 
+    // A non-finite amount would surface only as an opaque Postgres bigint/double error (prod incident:
+    // `invalid input syntax for type bigint: "NaN"`); fail loud here with the account context instead.
+    if (
+      !Number.isFinite(amount) ||
+      !Number.isSafeInteger(amountChfCents) ||
+      (leg.priceChf != null && !Number.isFinite(leg.priceChf))
+    ) {
+      throw new Error(
+        `Ledger leg for account ${leg.account?.name} is not finite (amount ${leg.amount}, priceChf ${leg.priceChf}, amountChf ${leg.amountChf}) — refusing to book`,
+      );
+    }
+
     return Object.assign(new LedgerLeg(), {
       account: leg.account,
       amount,
