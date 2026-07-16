@@ -3,6 +3,7 @@ import { Injectable } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { ethers } from 'ethers';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
 import { BlockchainAddress } from 'src/shared/models/blockchain-address';
@@ -20,6 +21,7 @@ import { TransactionHelper } from 'src/subdomains/supporting/payment/services/tr
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
 import { EvmStrategy } from '../evm.strategy';
+import { SendGroup, SendType } from '../send.strategy';
 import { SendStrategyRegistry } from '../send.strategy-registry';
 
 @Injectable()
@@ -148,6 +150,63 @@ describe('EvmStrategy', () => {
 
       expect(payIn.isConfirmed).toBe(true);
       expect(payInRepo.update).toHaveBeenCalledWith(1, { isConfirmed: true, status: undefined });
+    });
+  });
+
+  describe('dispatch designate-before-broadcast', () => {
+    function createGroup() {
+      const payIns = [
+        createCustomCryptoInput({ id: 1, status: PayInStatus.PREPARED }),
+        createCustomCryptoInput({ id: 2, status: PayInStatus.TO_RETURN }),
+      ];
+      const group = {
+        payIns,
+        status: PayInStatus.PREPARED,
+        asset: payIns[0].asset,
+      } as SendGroup;
+
+      return { group, payIns };
+    }
+
+    it('persists Sending on every group member before calling the broadcast sink', async () => {
+      const { group, payIns } = createGroup();
+      const statusesAtSave: Array<PayInStatus | undefined> = [];
+      const saveSpy = jest.spyOn(payInRepo, 'save').mockImplementation(async (payIn) => {
+        statusesAtSave.push(payIn.status);
+        return payIn;
+      });
+      const broadcastError = new TxBroadcastError('broadcast failed');
+      const dispatchSpy = jest.spyOn(strategy as any, 'dispatchSend').mockRejectedValue(broadcastError);
+
+      await expect(strategy['dispatch'](group, SendType.FORWARD, 0.01)).rejects.toBe(broadcastError);
+
+      expect(statusesAtSave).toEqual([PayInStatus.SENDING, PayInStatus.SENDING]);
+      expect(payIns.every((payIn) => payIn.status === PayInStatus.SENDING)).toBe(true);
+      expect(saveSpy.mock.invocationCallOrder[1]).toBeLessThan(dispatchSpy.mock.invocationCallOrder[0]);
+    });
+
+    it('restores each captured status and rethrows a plain pre-broadcast error', async () => {
+      const { group, payIns } = createGroup();
+      const preBroadcastError = new Error('fee lookup failed');
+      jest.spyOn(payInRepo, 'save').mockImplementation(async (payIn) => payIn);
+      jest.spyOn(strategy as any, 'dispatchSend').mockRejectedValue(preBroadcastError);
+
+      await expect(strategy['dispatch'](group, SendType.FORWARD, 0.01)).rejects.toBe(preBroadcastError);
+
+      expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.PREPARED, PayInStatus.TO_RETURN]);
+      expect(payInRepo.save).toHaveBeenCalledTimes(4);
+    });
+
+    it('keeps every member Sending and rethrows an ambiguous TxBroadcastError', async () => {
+      const { group, payIns } = createGroup();
+      const broadcastError = new TxBroadcastError('RPC timeout');
+      jest.spyOn(payInRepo, 'save').mockImplementation(async (payIn) => payIn);
+      jest.spyOn(strategy as any, 'dispatchSend').mockRejectedValue(broadcastError);
+
+      await expect(strategy['dispatch'](group, SendType.FORWARD, 0.01)).rejects.toBe(broadcastError);
+
+      expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.SENDING, PayInStatus.SENDING]);
+      expect(payInRepo.save).toHaveBeenCalledTimes(2);
     });
   });
 });

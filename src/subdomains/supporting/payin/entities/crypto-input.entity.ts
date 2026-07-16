@@ -44,6 +44,8 @@ export enum PayInStatus {
   FORWARD_CONFIRMED = 'ForwardConfirmed',
   PREPARING = 'Preparing',
   PREPARED = 'Prepared',
+  SENDING = 'Sending',
+  SEND_UNCERTAIN = 'SendUncertain',
   COMPLETED = 'Completed',
 }
 
@@ -239,6 +241,18 @@ export class CryptoInput extends IEntity {
 
   designateForward(forwardAddress: BlockchainAddress): this {
     this.destinationAddress = forwardAddress;
+
+    return this;
+  }
+
+  designateSending(): this {
+    this.status = PayInStatus.SENDING;
+
+    return this;
+  }
+
+  sendUncertain(): this {
+    this.status = PayInStatus.SEND_UNCERTAIN;
 
     return this;
   }

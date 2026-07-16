@@ -13,6 +13,8 @@ import { Swap } from 'src/subdomains/core/buy-crypto/routes/swap/swap.entity';
 import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { Sell } from 'src/subdomains/core/sell-crypto/route/sell.entity';
 import { Staking } from 'src/subdomains/core/staking/entities/staking.entity';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { In, IsNull, MoreThan, Not } from 'typeorm';
 import { DepositRoute } from '../../address-pool/route/deposit-route.entity';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
@@ -45,6 +47,7 @@ export class PayInService {
     private readonly paymentLinkPaymentService: PaymentLinkPaymentService,
     private readonly payInBitcoinService: PayInBitcoinService,
     private readonly payInFiroService: PayInFiroService,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // --- PUBLIC API --- //
@@ -246,11 +249,13 @@ export class PayInService {
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async forwardPayInEntries(): Promise<void> {
     await this.forwardPayIns();
+    await this.processStrandedSendingPayIns();
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
   async returnPayInEntries(): Promise<void> {
     await this.returnPayIns();
+    await this.processStrandedSendingPayIns();
   }
 
   @DfxCron(CronExpression.EVERY_MINUTE, { process: Process.PAY_IN, timeout: 7200 })
@@ -444,6 +449,31 @@ export class PayInService {
         this.logger.info(`Failed to return ${strategy.assetType ?? ''} inputs on ${strategy.blockchain}:`, e);
         continue;
       }
+    }
+  }
+
+  private async processStrandedSendingPayIns(): Promise<void> {
+    // The awaited dispatch loop either completes, restores a provably pre-broadcast failure, or
+    // leaves SENDING after an ambiguous broadcast. Anything still here is unsafe to auto-retry.
+    const payIns = await this.payInRepository.findBy({ status: PayInStatus.SENDING });
+
+    if (payIns.length === 0) return;
+
+    const ids = payIns.map((payIn) => payIn.id);
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      context: MailContext.MONITORING,
+      input: {
+        subject: 'Pay-in send uncertain',
+        errors: [`Pay-ins left in Sending require manual investigation: ${ids.join(', ')}`],
+      },
+      correlationId: ids.map((id) => `|${id}|`).join(''),
+      options: { suppressRecurring: true },
+    });
+
+    for (const payIn of payIns) {
+      payIn.sendUncertain();
+      await this.payInRepository.save(payIn);
     }
   }
 
