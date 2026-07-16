@@ -24,6 +24,9 @@ export type ChainSwapId = string;
 export type TargetAmount = number;
 
 @Entity()
+// The migration-owned IDX_liquidity_order_inflight_purchase is also unique on
+// (context, correlationId) for incomplete Purchase rows only. TypeORM cannot express this partial
+// index declaratively, so schema synchronization must not be used to remove or replace it.
 @Index((order: LiquidityOrder) => [order.context, order.correlationId])
 export class LiquidityOrder extends IEntity {
   @Column({ length: 256 })

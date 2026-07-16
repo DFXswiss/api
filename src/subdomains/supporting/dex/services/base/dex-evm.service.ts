@@ -79,6 +79,8 @@ export abstract class DexEvmService implements PurchaseDexService {
 
   async swap(swapAsset: Asset, swapAmount: number, targetAsset: Asset, maxSlippage: number): Promise<string> {
     try {
+      // EvmClient owns the exact TxBroadcastError boundary around doSwap's wallet.sendTransaction;
+      // route and preflight failures from client.swap remain plain errors and are safe to retry.
       return await this.#client.swap(swapAsset, swapAmount, targetAsset, maxSlippage);
     } catch (e) {
       if (e.error?.reason?.includes('Too little received')) {

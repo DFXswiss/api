@@ -704,18 +704,27 @@ export abstract class EvmClient extends BlockchainClient {
     return route;
   }
 
-  private async doSwap(parameters: MethodParameters) {
+  private async doSwap(parameters: MethodParameters): Promise<string> {
     const gasPrice = await this.getRecommendedGasPrice();
     const nonce = await this.getNonce(this.walletAddress);
 
-    const tx = await this.wallet.sendTransaction({
-      data: parameters.calldata,
-      to: this.swapContractAddress,
-      value: parameters.value,
-      from: this.walletAddress,
-      gasPrice,
-      nonce,
-    });
+    // This try begins at the exact broadcast boundary. Route calculation, gas lookup and nonce
+    // lookup above are provably pre-broadcast; only send failures are ambiguous and must fail closed.
+    let tx: ethers.providers.TransactionResponse;
+    try {
+      tx = await this.wallet.sendTransaction({
+        data: parameters.calldata,
+        to: this.swapContractAddress,
+        value: parameters.value,
+        from: this.walletAddress,
+        gasPrice,
+        nonce,
+      });
+
+      if (!tx?.hash) throw new Error('Broadcast returned an empty tx hash');
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
 
     this.setNonce(this.walletAddress, nonce + 1);
 

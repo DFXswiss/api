@@ -5,7 +5,10 @@ import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.e
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { DfxCron } from 'src/shared/utils/cron';
-import { IsNull, Not } from 'typeorm';
+import { Util } from 'src/shared/utils/util';
+import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
+import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
+import { IsNull, LessThan, Not } from 'typeorm';
 import { LiquidityOrder, LiquidityOrderContext, LiquidityOrderType } from '../entities/liquidity-order.entity';
 import { LiquidityOrderNotReadyException } from '../exceptions/liquidity-order-not-ready.exception';
 import { NotEnoughLiquidityException } from '../exceptions/not-enough-liquidity.exception';
@@ -41,6 +44,7 @@ export class DexService {
 
     private readonly liquidityOrderRepo: LiquidityOrderRepository,
     private readonly liquidityOrderFactory: LiquidityOrderFactory,
+    private readonly notificationService: NotificationService,
   ) {}
 
   // *** MAIN PUBLIC API *** //
@@ -310,6 +314,8 @@ export class DexService {
   //*** JOBS ***//
   @DfxCron(CronExpression.EVERY_30_SECONDS, { timeout: 1800 })
   async finalizePurchaseOrders(): Promise<void> {
+    await this.alertStrandedPurchaseOrders();
+
     const standingOrders = await this.liquidityOrderRepo.findBy({
       isReady: false,
       txId: Not(IsNull()),
@@ -319,6 +325,33 @@ export class DexService {
   }
 
   // *** HELPER METHODS *** //
+
+  private async alertStrandedPurchaseOrders(): Promise<void> {
+    const orders = await this.liquidityOrderRepo.findBy({
+      type: LiquidityOrderType.PURCHASE,
+      isComplete: false,
+      txId: IsNull(),
+      created: LessThan(Util.minutesBefore(15)),
+    });
+
+    if (orders.length === 0) return;
+
+    const ids = orders.map((order) => order.id).sort((a, b) => a - b);
+
+    await this.notificationService.sendMail({
+      type: MailType.ERROR_MONITORING,
+      context: MailContext.DEX,
+      input: {
+        subject: 'Stranded In-Flight Liquidity Purchases',
+        errors: [`Purchase liquidity orders have no transaction ID after 15 minutes: ${ids.join(', ')}`],
+        isLiqMail: true,
+      },
+      correlationId: 'StrandedInflightLiquidityPurchases',
+      // Debounce only: the operator gets a recurring hourly signal while the incident remains open,
+      // without receiving one mail on every 30-second cron run.
+      options: { debounce: 3600000 },
+    });
+  }
 
   private handleCheckLiquidityResult(liquidity: CheckLiquidityResult): void {
     const { metadata, target } = liquidity;
