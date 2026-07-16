@@ -90,7 +90,7 @@ export class ScorechainScreeningDto {
 
 export class ScorechainScreeningDtoMapper {
   static toDto(screening: ScorechainScreening, extras: ScorechainScreeningDtoExtras): ScorechainScreeningDto {
-    const dto: ScorechainScreeningDto = {
+    return {
       id: screening.id,
       created: screening.created,
       objectType: screening.objectType,
@@ -108,8 +108,6 @@ export class ScorechainScreeningDtoMapper {
       relatedBuyCryptoIds: extras.relatedBuyCryptoIds,
       relatedBuyFiatIds: extras.relatedBuyFiatIds,
     };
-
-    return dto;
   }
 
   static toDtoList(
