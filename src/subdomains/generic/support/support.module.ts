@@ -1,5 +1,6 @@
 import { Module, forwardRef } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { ScorechainModule } from 'src/integration/scorechain/scorechain.module';
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { ReferralModule } from 'src/subdomains/core/referral/referral.module';
@@ -28,6 +29,7 @@ import { SupportService } from './support.service';
   imports: [
     TypeOrmModule.forFeature([SupportNote, SupportIssueTemplate]),
     SharedModule,
+    ScorechainModule,
     UserModule,
     BuyCryptoModule,
     SellCryptoModule,
