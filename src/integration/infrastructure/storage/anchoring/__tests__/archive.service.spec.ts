@@ -75,8 +75,11 @@ function fakeStore() {
   const manager = {
     save: async (entity: any) => saveEntity(entity),
     transaction: async (run: (manager: any) => Promise<void>) => run(manager),
-    update: async (_entityClass: any, criteria: { id: number; batch?: any; sha256?: string }, partial: Partial<ArchiveFile>) =>
-      updateFile(criteria, partial),
+    update: async (
+      _entityClass: any,
+      criteria: { id: number; batch?: any; sha256?: string },
+      partial: Partial<ArchiveFile>,
+    ) => updateFile(criteria, partial),
   };
 
   const fileRepo: any = {

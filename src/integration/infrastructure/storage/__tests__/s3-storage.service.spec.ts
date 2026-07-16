@@ -209,14 +209,12 @@ describe('S3StorageService', () => {
     // a name would let one test's verification leak into the next.
     it('PUTs into a bucket whose Object Lock is enabled', async () => {
       const container = 'ep2-worm-locked';
-      s3Mock
-        .on(GetObjectLockConfigurationCommand, { Bucket: container })
-        .resolves({
-          ObjectLockConfiguration: {
-            ObjectLockEnabled: 'Enabled',
-            Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: 11 } },
-          },
-        });
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({
+        ObjectLockConfiguration: {
+          ObjectLockEnabled: 'Enabled',
+          Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: 11 } },
+        },
+      });
       s3Mock.on(PutObjectCommand).resolves({});
 
       const url = await new S3StorageService(container).uploadWormBlob(
@@ -264,14 +262,12 @@ describe('S3StorageService', () => {
 
     it('verifies Object Lock once per container, then skips the probe on subsequent WORM writes', async () => {
       const container = 'ep2-worm-cache';
-      s3Mock
-        .on(GetObjectLockConfigurationCommand, { Bucket: container })
-        .resolves({
-          ObjectLockConfiguration: {
-            ObjectLockEnabled: 'Enabled',
-            Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: 11 } },
-          },
-        });
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: container }).resolves({
+        ObjectLockConfiguration: {
+          ObjectLockEnabled: 'Enabled',
+          Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: 11 } },
+        },
+      });
       s3Mock.on(PutObjectCommand).resolves({});
 
       const service = new S3StorageService(container);
@@ -287,14 +283,12 @@ describe('S3StorageService', () => {
 
   describe('copyBlobs', () => {
     beforeEach(() => {
-      s3Mock
-        .on(GetObjectLockConfigurationCommand, { Bucket: CONTAINER })
-        .resolves({
-          ObjectLockConfiguration: {
-            ObjectLockEnabled: 'Enabled',
-            Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: 11 } },
-          },
-        });
+      s3Mock.on(GetObjectLockConfigurationCommand, { Bucket: CONTAINER }).resolves({
+        ObjectLockConfiguration: {
+          ObjectLockEnabled: 'Enabled',
+          Rule: { DefaultRetention: { Mode: 'COMPLIANCE', Years: 11 } },
+        },
+      });
     });
 
     it('URL-encodes keys with spaces / special chars and rewrites the prefix', async () => {
