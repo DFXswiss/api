@@ -13,6 +13,7 @@ import {
   PayInConfirmationType,
   PayInStatus,
 } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import {
@@ -20,7 +21,6 @@ import {
   PriceValidity,
   PricingService,
 } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { SendStrategyRegistry } from './send.strategy-registry';
 
 export type SendGroupKey = string;

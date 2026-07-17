@@ -47,10 +47,9 @@ export abstract class TronStrategy extends SendStrategy {
         }
 
         if (payIn.status === PayInStatus.PREPARED) {
-          const outTxId = await this.sendTransfer(payIn, type);
-          await this.updatePayInWithSendData(payIn, type, outTxId, payIn.forwardFeeAmount);
-
-          await this.payInRepo.save(payIn);
+          await this.sendWithBroadcastBoundary(this.payInRepo, payIn, type, () =>
+            this.sendTransfer(payIn, type).then((outTxId) => ({ outTxId, feeAmount: payIn.forwardFeeAmount })),
+          );
         }
       } catch (e) {
         if (e.message.includes('No maximum fee provided')) continue;
