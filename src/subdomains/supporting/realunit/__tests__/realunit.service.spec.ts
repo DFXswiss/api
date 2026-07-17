@@ -988,7 +988,12 @@ describe('RealUnitService', () => {
     it('should default REALU decimals to 18 when the asset has no decimals set', async () => {
       // decimals null/undefined exercises the `?? 18` fallback in buildSwapUnsignedTransaction
       transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
-      const noDecimalsAsset = createCustomAsset({ id: realuTxAsset.id, name: 'REALU', chainId: realuContract, decimals: undefined } as any);
+      const noDecimalsAsset = createCustomAsset({
+        id: realuTxAsset.id,
+        name: 'REALU',
+        chainId: realuContract,
+        decimals: undefined,
+      } as any);
       assetService.getAssetByQuery.mockResolvedValueOnce(noDecimalsAsset).mockResolvedValueOnce(zchfTxAsset);
 
       const result = await service.createSwapUnsignedTransaction(42, 1);
