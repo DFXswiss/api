@@ -29,6 +29,7 @@ jest.mock('viem', () => ({
   parseAbi: jest.fn().mockReturnValue([]),
   http: jest.fn(),
   recoverTypedDataAddress: jest.fn().mockResolvedValue(VALID_USER_ADDRESS),
+  keccak256: jest.fn().mockReturnValue('0xbrokerbottxhash'),
 }));
 
 jest.mock('viem/utils', () => ({
