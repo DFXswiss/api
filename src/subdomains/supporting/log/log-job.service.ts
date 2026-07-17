@@ -541,7 +541,7 @@ export class LogJobService {
     );
 
     // CHF: Scrypt -> Bank (Yapeal/Frick) — receiver list is matching-only; pending attribution stays Yapeal-targeted
-    // (ExchangeTx has no bank destination field, so a per-curr target would double-count across CHF bank assets)
+    // (ExchangeTx has no bank destination field, so a per-currency target would double-count across CHF bank assets)
     const chfSenderScryptExchangeTx = recentScryptExchangeTx.filter(
       (k) => k.type === ExchangeTxType.WITHDRAWAL && k.status !== 'failed' && k.currency === 'CHF',
     );
