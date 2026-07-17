@@ -51,6 +51,7 @@ const BANK_BLOCKCHAINS: Blockchain[] = [
   Blockchain.CHECKOUT,
   Blockchain.SUMIXX,
   Blockchain.YAPEAL,
+  Blockchain.FRICK,
 ];
 
 type AssetCategory = 'blockchain' | 'exchange' | 'bank';

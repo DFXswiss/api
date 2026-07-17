@@ -44,4 +44,5 @@ export enum Blockchain {
   CHECKOUT = 'Checkout',
   SUMIXX = 'Sumixx',
   YAPEAL = 'Yapeal',
+  FRICK = 'Frick',
 }

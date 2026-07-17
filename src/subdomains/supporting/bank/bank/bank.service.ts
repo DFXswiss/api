@@ -127,6 +127,8 @@ export class BankService implements OnModuleInit {
         return IbanBankName.OLKY;
       case Blockchain.YAPEAL:
         return IbanBankName.YAPEAL;
+      case Blockchain.FRICK:
+        return IbanBankName.FRICK;
       default:
         return undefined;
     }

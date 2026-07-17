@@ -49,6 +49,7 @@ export class BinanceService extends ExchangeService {
     Checkout: undefined,
     Sumixx: undefined,
     Yapeal: undefined,
+    Frick: undefined,
   };
 
   constructor() {
