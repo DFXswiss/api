@@ -3,7 +3,7 @@ import { ConfigService } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FindOperator, Repository } from 'typeorm';
-import { LedgerGateBlockedError } from '../ledger-gate-blocked.exception';
+import { LedgerGateBlockedException } from '../ledger-gate-blocked.exception';
 import { getCutoverBoundary, LedgerWatermark, runContentChangeScan } from '../ledger-watermark.helper';
 
 interface Row {
@@ -130,7 +130,7 @@ describe('runContentChangeScan combined (updated, id) cursor', () => {
     const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
 
     await runContentChangeScan(settingService, 'test', wm, repo, {}, async () => {
-      throw new LedgerGateBlockedError('row 1 content-change scan gate-blocked — retry next run (§4.7 G-a)');
+      throw new LedgerGateBlockedException('row 1 content-change scan gate-blocked — retry next run (§4.7 G-a)');
     });
 
     // expected self-healing gate-block → verbose, never error; cursor held so the row is re-scanned next run

@@ -365,7 +365,7 @@ describe('AuthService', () => {
 
         const result = await service.signUp({ address: 'ADDR_RACE', signature: 'SIG' } as any, ip);
 
-        expect(result).toBeDefined(); // winner signed in — not a 500
+        expect(result.accessToken).toBeDefined(); // winner signed in — a real token, not a 500
         expect(userServiceMock.createUser).toHaveBeenCalledTimes(1);
       });
 
@@ -376,6 +376,19 @@ describe('AuthService', () => {
         userServiceMock.createUser.mockRejectedValue(new Error('db exploded'));
 
         await expect(service.signUp({ address: 'ADDR_X', signature: 'SIG' } as any, ip)).rejects.toThrow('db exploded');
+      });
+
+      it('rethrows a 23505 on a non-address constraint (no winner at the address)', async () => {
+        custodyProviderServiceMock.getWithMasterKey.mockResolvedValue(custodyProvider);
+        walletServiceMock.getByIdOrName.mockResolvedValue(createCustomWallet({ name: 'DFX Wallet' }));
+        userServiceMock.getUserByAddress.mockResolvedValue(null); // address NOT taken → not the address race
+        userServiceMock.createUser.mockRejectedValue(
+          Object.assign(new Error('duplicate key value'), { code: '23505' }),
+        );
+
+        await expect(service.signUp({ address: 'ADDR_Y', signature: 'SIG' } as any, ip)).rejects.toThrow(
+          'duplicate key value',
+        );
       });
     });
   });

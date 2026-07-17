@@ -2,7 +2,7 @@ import { Config } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
 import { DfxLogger, LogLevel } from 'src/shared/services/dfx-logger';
 import { FindOptionsOrder, FindOptionsRelations, FindOptionsWhere, Raw, Repository } from 'typeorm';
-import { LedgerGateBlockedError } from './ledger-gate-blocked.exception';
+import { LedgerGateBlockedException } from './ledger-gate-blocked.exception';
 
 // per-source checkpoint (§11.3): id-watermark + content-change scan cursor.
 // The content-change cursor is the COMBINED (updated, id) pair (§4.12): `lastReversalScan` alone cannot paginate
@@ -247,7 +247,7 @@ export async function runContentChangeScan<T extends { id: number; updated: Date
       // A gate-block (§4.7 G-a) is the DESIGNED self-healing retry signal — the row's opening is not yet booked, so
       // leave it for the next run. Expected transient state, NOT a failure → log at verbose. Every OTHER throw is a
       // genuine scan error and stays at error (never swallowed).
-      const gateBlocked = e instanceof LedgerGateBlockedError;
+      const gateBlocked = e instanceof LedgerGateBlockedException;
       contentChangeLogger.log(
         gateBlocked ? LogLevel.VERBOSE : LogLevel.ERROR,
         `Content-change scan ${gateBlocked ? 'gate-blocked' : 'failed'} on ${source} ${row.id}:`,

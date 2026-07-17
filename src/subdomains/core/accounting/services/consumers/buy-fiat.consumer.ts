@@ -12,7 +12,7 @@ import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
 import { LedgerMarkCache, LedgerMarkService } from '../ledger-mark.service';
-import { LedgerGateBlockedError } from './ledger-gate-blocked.exception';
+import { LedgerGateBlockedException } from './ledger-gate-blocked.exception';
 import { resolveLegsOrDefer } from './ledger-mark-bridge.helper';
 import {
   getLedgerWatermark,
@@ -92,7 +92,7 @@ export class BuyFiatConsumer {
             );
             return;
           }
-          throw new LedgerGateBlockedError(
+          throw new LedgerGateBlockedException(
             `buy_fiat ${bf.id} content-change scan gate-blocked — retry next run (§4.7 G-a)`,
           );
         }
