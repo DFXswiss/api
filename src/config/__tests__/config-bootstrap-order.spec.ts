@@ -37,32 +37,9 @@ describe('Config bootstrap ordering', () => {
 
   // Separate from the providers[] array above: KycDocumentService / SupportDocumentService
   // eagerly call createStorageService(container) in their constructors, which (outside LOC)
-  // constructs S3StorageService and validates that endpoint/region/accessKey/secretKey/publicUrl
-  // are all present. Jest does not load .env / S3_* vars, so compiling those providers in the
-  // array style would throw "Incomplete S3 config" — a real failure unrelated to the bootstrap
-  // ordering bug this file guards. Stub S3_* only for this test, then restore.
+  // constructs S3StorageService. Construction must stay boot-safe even when Config is still
+  // undefined (S3 config is read lazily on first client use, not in the constructor).
   describe('createStorageService (KYC/support eager path)', () => {
-    const s3EnvKeys = ['S3_ENDPOINT', 'S3_REGION', 'S3_ACCESS_KEY', 'S3_SECRET_KEY', 'S3_PUBLIC_URL'] as const;
-    const saved: Partial<Record<(typeof s3EnvKeys)[number], string | undefined>> = {};
-
-    beforeEach(() => {
-      for (const key of s3EnvKeys) {
-        saved[key] = process.env[key];
-      }
-      process.env.S3_ENDPOINT = 'https://s3.test.local';
-      process.env.S3_REGION = 'us-east-1';
-      process.env.S3_ACCESS_KEY = 'access-key';
-      process.env.S3_SECRET_KEY = 'secret-key';
-      process.env.S3_PUBLIC_URL = 'https://files.test.local/'; // trailing slash required
-    });
-
-    afterEach(() => {
-      for (const key of s3EnvKeys) {
-        if (saved[key] === undefined) delete process.env[key];
-        else process.env[key] = saved[key];
-      }
-    });
-
     it('constructs without reading the uninitialized Config singleton', () => {
       expect(Config).toBeUndefined();
       expect(() => createStorageService('kyc')).not.toThrow();

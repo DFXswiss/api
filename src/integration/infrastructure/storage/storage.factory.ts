@@ -10,11 +10,14 @@ import { StorageService } from './storage.service';
  * per-container and some containers are resolved at runtime (e.g. the per-merchant
  * EP2 settlement container in fiat-output), which a singleton provider can't express.
  * Drop-in replacement for `new AzureStorageService(container)` at the call sites:
- *   - kyc-document.service.ts   (constructed at boot — eager config validation / fail-fast)
- *   - support-document.service.ts (constructed at boot — eager config validation / fail-fast)
+ *   - kyc-document.service.ts   (constructed at boot, before ConfigService has run)
+ *   - support-document.service.ts (constructed at boot, before ConfigService has run)
  *   - fiat-output-job.service.ts (per-job, runtime EP2 container)
- * Because the KYC/support providers are eagerly instantiated, an incomplete S3 config
- * fails the application boot, not just the first storage call.
+ * The KYC/support providers construct their S3StorageService eagerly in their own
+ * constructors, which happens before ConfigService has initialized the `Config` singleton.
+ * S3StorageService therefore validates its S3 config lazily, on the first storage call,
+ * rather than at construction — validating eagerly would crash application boot. An
+ * incomplete S3 config consequently fails on the first storage call, not at app boot.
  */
 export function createStorageService(container: string): StorageService {
   return GetConfig().environment === Environment.LOC

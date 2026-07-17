@@ -43,38 +43,41 @@ describe('S3StorageService', () => {
   });
 
   describe('constructor', () => {
-    it('builds with a complete config', () => {
-      expect(new S3StorageService(CONTAINER)).toBeInstanceOf(S3StorageService);
+    it('builds with a complete config', async () => {
+      s3Mock.on(ListObjectsV2Command).resolves({ IsTruncated: false });
+      const service = new S3StorageService(CONTAINER);
+      expect(service).toBeInstanceOf(S3StorageService);
+      await expect(service.listBlobs()).resolves.toEqual([]);
     });
 
     it('throws when endpoint is missing', async () => {
       await provideConfig({ ...validS3, endpoint: undefined });
-      expect(() => new S3StorageService(CONTAINER)).toThrow('Incomplete S3 config');
+      await expect(new S3StorageService(CONTAINER).getBlob('x')).rejects.toThrow('Incomplete S3 config');
     });
 
     it('throws when region is missing', async () => {
       await provideConfig({ ...validS3, region: undefined });
-      expect(() => new S3StorageService(CONTAINER)).toThrow('Incomplete S3 config');
+      await expect(new S3StorageService(CONTAINER).getBlob('x')).rejects.toThrow('Incomplete S3 config');
     });
 
     it('throws when accessKey is missing', async () => {
       await provideConfig({ ...validS3, accessKey: undefined });
-      expect(() => new S3StorageService(CONTAINER)).toThrow('Incomplete S3 config');
+      await expect(new S3StorageService(CONTAINER).getBlob('x')).rejects.toThrow('Incomplete S3 config');
     });
 
     it('throws when secretKey is missing', async () => {
       await provideConfig({ ...validS3, secretKey: undefined });
-      expect(() => new S3StorageService(CONTAINER)).toThrow('Incomplete S3 config');
+      await expect(new S3StorageService(CONTAINER).getBlob('x')).rejects.toThrow('Incomplete S3 config');
     });
 
     it('throws when publicUrl is missing', async () => {
       await provideConfig({ ...validS3, publicUrl: undefined });
-      expect(() => new S3StorageService(CONTAINER)).toThrow('Incomplete S3 config');
+      await expect(new S3StorageService(CONTAINER).getBlob('x')).rejects.toThrow('Incomplete S3 config');
     });
 
     it('throws when publicUrl has no trailing slash', async () => {
       await provideConfig({ ...validS3, publicUrl: 'https://files.test.local' });
-      expect(() => new S3StorageService(CONTAINER)).toThrow('must end with a trailing slash');
+      await expect(new S3StorageService(CONTAINER).getBlob('x')).rejects.toThrow('must end with a trailing slash');
     });
   });
 
