@@ -304,6 +304,28 @@ describe('BankTxConsumer', () => {
     expect(cents(legs)).toBe(0);
   });
 
+  // prod reality: a return bank_tx is linked from buy_crypto.chargebackBankTx — its buyCrypto (inbound-payment
+  // inverse) is null. The owed anchor must come from buyCryptoChargeback (bank_tx 206858/206864 regression).
+  it('books BUY_CRYPTO_RETURN linked only via buyCryptoChargeback (buyCrypto is null on returns)', async () => {
+    const buyCryptoChargeback = { id: 128422, amountInChf: 9226.11, totalFeeAmountChf: 0 } as any;
+    mockBatch([
+      bankTx({
+        type: BankTxType.BUY_CRYPTO_RETURN,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        accountIban: 'CHF-IBAN',
+        amount: 9226.11,
+        buyCrypto: undefined,
+        buyCryptoChargeback,
+      }),
+    ]);
+    await consumer.process();
+
+    const legs = booked[0].legs;
+    const owed = legs.find((l) => l.account.name === 'LIABILITY/buyCrypto-owed');
+    expect(owed.amountChf).toBe(9226.11); // completion CHF from the chargeback relation, no throw
+    expect(cents(legs)).toBe(0);
+  });
+
   it('books KRAKEN DBIT as Dr TRANSIT/bank↔Kraken / Cr ASSET/bank (CHF, route nets to 0)', async () => {
     mockBatch([
       bankTx({

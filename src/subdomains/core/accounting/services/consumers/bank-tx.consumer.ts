@@ -88,7 +88,7 @@ export class BankTxConsumer {
       SOURCE_TYPE,
       afterForward,
       this.bankTxRepo,
-      { buyCrypto: true },
+      { buyCrypto: true, buyCryptoChargeback: true },
       async (tx: BankTx) => {
         const t = tx.bookingDate ?? tx.created;
         await this.reconcileBooking(
@@ -104,7 +104,7 @@ export class BankTxConsumer {
     // DBIT only after 5 min (analog assignTransactions); settlement = bookingDate ?? created (§4.2)
     const batch = await this.bankTxRepo.find({
       where: { id: MoreThan(watermark.lastProcessedId), created: LessThan(Util.minutesBefore(5)) },
-      relations: { buyCrypto: true },
+      relations: { buyCrypto: true, buyCryptoChargeback: true },
       order: { id: 'ASC' },
       take: Config.ledger.backfillBatchSize,
     });
@@ -283,12 +283,15 @@ export class BankTxConsumer {
   // the CHF the buyCrypto-owed was opened with: §4.6 completion (amountInChf − totalFeeAmountChf), or — for a
   // cutover-straddling buy_crypto whose owed was opened by the cutover (§6.1 per-row marker) — the opening CHF.
   private async buyCryptoOwedChf(tx: BankTx): Promise<number> {
-    const openingChf = await this.cutoverOwedOpeningChf(tx.buyCrypto?.id);
+    // a return bank_tx is linked from buy_crypto.chargebackBankTx — tx.buyCrypto is the inbound-payment
+    // inverse and is null on returns
+    const buyCrypto = tx.buyCryptoChargeback ?? tx.buyCrypto;
+    const openingChf = await this.cutoverOwedOpeningChf(buyCrypto?.id);
     if (openingChf != null) return openingChf; // cutover-straddling: debit the exact opening CHF anchor
 
-    const amountInChf = tx.buyCrypto?.amountInChf;
+    const amountInChf = buyCrypto?.amountInChf;
     if (amountInChf == null) throw new Error(`bank_tx ${tx.id} BUY_CRYPTO_RETURN without buyCrypto.amountInChf`);
-    return Util.round(amountInChf - (tx.buyCrypto?.totalFeeAmountChf ?? 0), 2); // completion CHF (additive null-strategy)
+    return Util.round(amountInChf - (buyCrypto?.totalFeeAmountChf ?? 0), 2); // completion CHF (additive null-strategy)
   }
 
   // looks up the cutover per-row owed-opening leg CHF (§6.1 marker `${snapshotLogId}:buy_crypto-owed:${id}`); the
