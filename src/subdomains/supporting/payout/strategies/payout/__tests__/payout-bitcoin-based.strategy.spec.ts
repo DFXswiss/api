@@ -34,6 +34,9 @@ describe('PayoutBitcoinBasedStrategy', () => {
   let sendErrorMailSpy: jest.SpyInstance;
 
   beforeEach(() => {
+    new ConfigService();
+    Config.payout.maxPreBroadcastRetries = 3;
+
     notificationService = mock<NotificationService>();
     payoutOrderRepo = mock<PayoutOrderRepository>();
     bitcoinService = mock<PayoutBitcoinBasedService>();
@@ -431,6 +434,83 @@ describe('PayoutBitcoinBasedStrategy', () => {
       expect(loser.retryCount).toBe(0);
       expect(loser.lastError).toBeUndefined();
       expect(repoSaveSpy).not.toHaveBeenCalledWith(loser);
+    });
+
+    it('rolls back and saves a pre-broadcast failure at the configured retry cap', async () => {
+      const order = createCustomPayoutOrder({
+        id: 50,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+        retryCount: Config.payout.maxPreBroadcastRetries - 1,
+      });
+      const rollbackSpy = jest.spyOn(order, 'rollbackPayoutDesignation');
+      strategy.dispatchPayoutImpl = () => Promise.reject(new Error('deterministic pre-broadcast failure'));
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, [order]);
+
+      expect(order.retryCount).toBe(Config.payout.maxPreBroadcastRetries);
+      expect(order.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+      expect(rollbackSpy).toHaveBeenCalledTimes(1);
+      expect(repoSaveSpy).toHaveBeenCalledTimes(2); // failure tracking, rollback (designation is a conditional update)
+    });
+
+    it('does not roll back above the pre-broadcast retry cap and warns before escalation', async () => {
+      const order = createCustomPayoutOrder({
+        id: 51,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+        retryCount: Config.payout.maxPreBroadcastRetries,
+      });
+      const rollbackSpy = jest.spyOn(order, 'rollbackPayoutDesignation');
+      const loggerWarnSpy = jest.spyOn((strategy as any).logger, 'warn');
+      strategy.dispatchPayoutImpl = () => Promise.reject(new Error('deterministic pre-broadcast failure'));
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, [order]);
+
+      expect(order.retryCount).toBe(Config.payout.maxPreBroadcastRetries + 1);
+      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
+      expect(rollbackSpy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // failure tracking only (designation is a conditional update)
+      expect(loggerWarnSpy).toHaveBeenCalledWith(expect.stringContaining('retry cap 3 exceeded for order(s) 51'));
+    });
+
+    // A misconfigured NaN cap makes every `retryCount <= cap` comparison false, so the negated
+    // partition routes all orders into the fail-closed branch (no silent self-heal under bad config).
+    it('does not roll back when the retry cap is NaN and warns for all orders', async () => {
+      Config.payout.maxPreBroadcastRetries = NaN;
+      const orders = [
+        createCustomPayoutOrder({ id: 60, status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null }),
+        createCustomPayoutOrder({ id: 61, status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null }),
+      ];
+      const rollbackSpies = orders.map((order) => jest.spyOn(order, 'rollbackPayoutDesignation'));
+      const loggerWarnSpy = jest.spyOn((strategy as any).logger, 'warn');
+      strategy.dispatchPayoutImpl = () => Promise.reject(new Error('deterministic pre-broadcast failure'));
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, orders);
+
+      expect(orders.every((order) => order.status === PayoutOrderStatus.PAYOUT_DESIGNATED)).toBe(true);
+      for (const spy of rollbackSpies) expect(spy).not.toHaveBeenCalled();
+      expect(repoSaveSpy).toHaveBeenCalledTimes(2); // failure tracking only, one save each (designation is a conditional update)
+      expect(loggerWarnSpy).toHaveBeenCalledWith(expect.stringContaining('retry cap NaN exceeded for order(s) 60, 61'));
+    });
+
+    it('still fires the recurring-failure alert at its threshold when the retry cap is configured above it', async () => {
+      Config.payout.maxPreBroadcastRetries = 6;
+      const order = createCustomPayoutOrder({
+        id: 52,
+        status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+        payoutTxId: null,
+        retryCount: 4,
+      });
+      strategy.dispatchPayoutImpl = () => Promise.reject(new Error('deterministic pre-broadcast failure'));
+
+      await strategy.sendWrapper(PayoutOrderContext.BUY_CRYPTO, [order]);
+
+      expect(order.retryCount).toBe(5);
+      expect(order.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
+      expect(sendErrorMailSpy).toHaveBeenCalledWith(
+        expect.objectContaining({ correlationId: expect.stringContaining('PayoutOrderRecurringFailure') }),
+      );
     });
 
     // Regression test for the removed heuristic: a pre-broadcast RPC timeout (e.g. fee

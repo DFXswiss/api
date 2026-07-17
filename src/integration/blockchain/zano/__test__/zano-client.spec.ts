@@ -1,12 +1,9 @@
 /**
  * Unit tests for ZanoClient's broadcast boundary.
  *
- * The wallet RPC's 'transfer' method builds, signs and relays a Zano transaction atomically in
- * one call - there is no separate pre-broadcast step to exclude (the pre-broadcast balance checks
- * in sendCoins/sendTokens are separate 'getbalance' RPC calls). A failure of the HTTP call itself
- * or a response missing tx_details are both ambiguous (the wallet may have already relayed before
- * the response was lost/rejected) and must surface as TxBroadcastError, mirroring the Solana
- * sendTransaction boundary (result.error / empty hash -> TxBroadcastError).
+ * The wallet RPC's 'transfer' method builds, signs and relays a Zano transaction atomically.
+ * Connection-establishment failures remain plain. Without verified numeric pre-funding constants,
+ * every coded RPC error, timeout, reset and malformed response stays fail-closed.
  */
 
 import { HttpService } from 'src/shared/services/http.service';
@@ -79,6 +76,45 @@ describe('ZanoClient - broadcast boundary', () => {
       expect(error).toBeInstanceOf(TxBroadcastError);
       expect((error as TxBroadcastError).message).toBe('socket hang up');
       expect((error as TxBroadcastError).cause).toBe(httpError);
+    });
+
+    it('keeps an ECONNREFUSED transfer failure plain because the request never reached the wallet', async () => {
+      const connectionError = Object.assign(new Error('connect ECONNREFUSED'), { code: 'ECONNREFUSED' });
+      mockPost.mockImplementation((_url, params) => {
+        if (params.method === 'getbalance')
+          return Promise.resolve({ result: { balance: 100e12, unlocked_balance: 100e12, balances: [] } });
+        return Promise.reject(connectionError);
+      });
+
+      let error: unknown;
+      try {
+        await client.sendCoins(payout);
+      } catch (e) {
+        error = e;
+      }
+
+      expect(error).toBe(connectionError);
+      expect(error).not.toBeInstanceOf(TxBroadcastError);
+    });
+
+    it('keeps an in-band RPC error fail-closed because Zano has no verified numeric allowlist', async () => {
+      mockPost.mockImplementation((_url, params) => {
+        if (params.method === 'getbalance')
+          return Promise.resolve({ result: { balance: 100e12, unlocked_balance: 100e12, balances: [] } });
+        return Promise.resolve({ error: { code: -17, message: 'not enough money' } });
+      });
+
+      await expect(client.sendCoins(payout)).rejects.toBeInstanceOf(TxBroadcastError);
+    });
+
+    it.each(['ECONNRESET', 'ETIMEDOUT'])('keeps an ambiguous %s transfer failure fail-closed', async (code) => {
+      mockPost.mockImplementation((_url, params) => {
+        if (params.method === 'getbalance')
+          return Promise.resolve({ result: { balance: 100e12, unlocked_balance: 100e12, balances: [] } });
+        return Promise.reject(Object.assign(new Error(code), { code }));
+      });
+
+      await expect(client.sendCoins(payout)).rejects.toBeInstanceOf(TxBroadcastError);
     });
 
     it('wraps a non-Error rejection of the transfer call into a TxBroadcastError via String(e)', async () => {
