@@ -15,8 +15,9 @@ const validS3 = {
 
 // The factory branches on `GetConfig().environment`, which reads process.env.ENVIRONMENT
 // directly (a fresh Configuration), so the environment is driven via the env var here.
-// The injected ConfigService still supplies the global `Config` (s3 block) used by the
-// S3StorageService constructor.
+// The injected ConfigService still supplies the global `Config` (s3 block); S3StorageService's
+// constructor is side-effect-free and does not read it — `Config.s3` is only read lazily, by
+// the memoized client getter, on the first storage I/O call.
 async function provideConfig(environment: Environment, s3 = validS3): Promise<void> {
   process.env.ENVIRONMENT = environment;
   await Test.createTestingModule({
