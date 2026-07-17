@@ -19,6 +19,7 @@ export function createCustomPayoutOrder(customValues: Partial<PayoutOrder>): Pay
     transferTxId,
     payoutTxId,
     retryCount,
+    releasedPayoutTxIds,
   } = customValues;
 
   const keys = Object.keys(customValues);
@@ -35,6 +36,7 @@ export function createCustomPayoutOrder(customValues: Partial<PayoutOrder>): Pay
   entity.transferTxId = keys.includes('transferTxId') ? transferTxId : 'TTX_01';
   entity.payoutTxId = keys.includes('payoutTxId') ? payoutTxId : 'PTX_01';
   entity.retryCount = keys.includes('retryCount') ? retryCount : 0;
+  entity.releasedPayoutTxIds = keys.includes('releasedPayoutTxIds') ? releasedPayoutTxIds : undefined;
 
   return entity;
 }

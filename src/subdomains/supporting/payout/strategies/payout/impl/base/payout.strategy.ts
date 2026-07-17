@@ -81,7 +81,7 @@ export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
   // The payout cron lock expires after 1800 seconds, so payout runs can overlap. An atomic
   // conditional transition prevents a stale run from broadcasting an order already claimed by
   // another run or overwriting its newer payout state; a plain entity save cannot enforce this.
-  // A re-entry with payoutTxId already set (EVM speedup/expired-retry) keeps its existing status.
+  // A re-entry with payoutTxId already set (EVM manual speedup) keeps its existing status.
   protected async designateBeforeBroadcast(order: PayoutOrder, repo: PayoutOrderRepository): Promise<boolean> {
     if (order.payoutTxId) return true;
     return this.claimForBroadcast(order, repo);
@@ -93,15 +93,23 @@ export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
   // and re-open the order for a second broadcast).
   protected async rollbackBroadcastForRetry(order: PayoutOrder, repo: PayoutOrderRepository): Promise<boolean> {
     try {
+      // Append the released hash within the pinned update so the replaced tx stays reconstructable
+      // from the DB. slice keeps the newest entries; ~30 hashes fit, so overflow is pathological.
+      const releasedTxIds = [order.releasedPayoutTxIds, order.payoutTxId].filter((id) => id).join(';');
       const result = await repo.update(
         { id: order.id, status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: order.payoutTxId },
-        { status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null },
+        {
+          status: PayoutOrderStatus.PREPARATION_CONFIRMED,
+          payoutTxId: null,
+          releasedPayoutTxIds: releasedTxIds.slice(-2048),
+        },
       );
       if (!result.affected) {
         this.designationLogger.warn(`Skipping payout retry for order ${order.id}: state changed concurrently`);
         return false;
       }
 
+      order.releasedPayoutTxIds = releasedTxIds.slice(-2048);
       order.rollbackPayout();
       return true;
     } catch (e) {
@@ -114,7 +122,7 @@ export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
   // means the send was reached (tx may be in-flight) → fail-closed: leave PAYOUT_DESIGNATED for
   // processFailedOrders → PAYOUT_UNCERTAIN. A plain error means the tx provably never left → roll back
   // to PREPARATION_CONFIRMED for auto-retry, but only on the first attempt (payoutTxId unset — never
-  // break speedup/expired-retry nonce reuse) and capped by retryCount to escalate a permanent failure.
+  // break manual speedup nonce reuse) and capped by retryCount to escalate a permanent failure.
   protected async handleBroadcastError(order: PayoutOrder, e: unknown, repo: PayoutOrderRepository): Promise<void> {
     const preBroadcast = !(e instanceof PayoutBroadcastException);
     if (preBroadcast && !order.payoutTxId && order.retryCount < Config.payout.maxPreBroadcastRetries) {
