@@ -24,6 +24,8 @@ export type ChainSwapId = string;
 export type TargetAmount = number;
 
 @Entity()
+// IDX_liquidity_order_inflight_purchase is deliberately migration-owned for stable schema management.
+// Do not re-declare it here or let schema generation remove the partial unique index.
 @Index((order: LiquidityOrder) => [order.context, order.correlationId])
 export class LiquidityOrder extends IEntity {
   @Column({ length: 256 })
