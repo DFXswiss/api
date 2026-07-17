@@ -2,6 +2,7 @@ import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { Util } from 'src/shared/utils/util';
 import { CryptoInput, PayInStatus, PayInType } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -337,6 +338,8 @@ describe('CryptoInputConsumer', () => {
   // undefined → no seq0 tx (the watermark still advances; it is a skip, not a failure)
   it('skips seq0 for a crypto_input with no buyFiat/buyCrypto anchor and not isPayment', async () => {
     const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
     mockBatch([
       cryptoInput({ id: 20, amount: 1, asset: { id: BTC_ASSET_ID, uniqueName: 'Bitcoin/BTC' } }), // no anchor
     ]);
@@ -344,6 +347,11 @@ describe('CryptoInputConsumer', () => {
 
     expect(booked).toHaveLength(0); // no anchor → no seq0 tx at all
     expect(JSON.parse(setSpy.mock.calls[0][1]).lastProcessedId).toBe(20); // skip → watermark advances
+    // the skip is expected/by-design state → logged at verbose, NOT error (no ERROR-dashboard spam every cycle)
+    expect(verboseSpy).toHaveBeenCalledWith(expect.stringMatching(/has neither buyFiat\/buyCrypto nor isPayment/));
+    expect(errorSpy).not.toHaveBeenCalledWith(expect.stringMatching(/has neither buyFiat\/buyCrypto nor isPayment/));
+    verboseSpy.mockRestore();
+    errorSpy.mockRestore();
   });
 
   // §4.4 walletAsset throw: a crypto_input with no asset throws → failure-isolation: watermark NOT advanced
@@ -354,6 +362,24 @@ describe('CryptoInputConsumer', () => {
 
     expect(booked).toHaveLength(0);
     expect(setSpy).not.toHaveBeenCalled(); // throw → break before advancing
+  });
+
+  // §4.4 skip-guard: a NON-settled asset-less crypto_input (a FAILED pay-in) surfaced only by the content-change scan
+  // is skipped (buildSeq0Input → undefined) instead of throwing "has no asset" every cycle → the cursor advances past
+  // it (no more spam). A SETTLED asset-less row still fails loud (the failure-isolation test above).
+  it('skips a non-settled asset-less crypto_input in the content-change scan (cursor advances, no throw)', async () => {
+    const rebookSpy = jest.spyOn(bookingService, 'reverseAndRebookIfChanged').mockResolvedValue(true);
+    const setSpy = jest.spyOn(settingService, 'set').mockResolvedValue();
+    const failed = cryptoInput({ id: 40, amount: 1, asset: null, status: PayInStatus.CREATED }); // not settled
+    // forward id-scan empty; content-change scan (where.updated) surfaces the asset-less non-settled row
+    jest
+      .spyOn(cryptoInputRepo, 'find')
+      .mockImplementation(({ where }: any) => Promise.resolve(where?.updated != null ? [failed] : []));
+
+    await consumer.process();
+
+    expect(rebookSpy).not.toHaveBeenCalled(); // buildSeq0Input returned undefined → no reverse/rebook
+    expect(setSpy).toHaveBeenCalled(); // cursor advanced past the skipped row (it did NOT throw)
   });
 
   // §4.4 forward-fee idempotency: seq1 already active → bookForwardFee no-ops (only seq0 books)

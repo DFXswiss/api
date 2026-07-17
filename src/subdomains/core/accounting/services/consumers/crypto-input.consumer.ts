@@ -138,6 +138,11 @@ export class CryptoInputConsumer {
     bookingDate: Date,
     marks: LedgerMarkCache,
   ): Promise<LedgerTxInput | undefined> {
+    // §4.4 skip-guard: an asset-less crypto_input is a FAILED pay-in (crypto-input.entity: no asset → status FAILED),
+    // therefore never settled → permanently unbookable. The content-change scan re-selects it every cycle (no status
+    // filter, §4.12), so skip it quietly (defer) instead of throwing "has no asset" every scan. A SETTLED asset-less row
+    // would be a genuine anomaly → fall through to walletAsset() and fail loud.
+    if (!ci.asset && !ci.isSettled) return undefined;
     const wallet = await this.walletAsset(ci);
     const mark = wallet.assetId != null ? marks.getMarkAt(wallet.assetId, bookingDate) : undefined;
     const assetChf = mark != null ? Util.round(mark * ci.amount, 2) : undefined;
@@ -181,7 +186,7 @@ export class CryptoInputConsumer {
     // buyFiat / buyCrypto-swap: 3-leg, amountInChf-anchored received-Cr leg + fx-revaluation plug (§4.4a)
     const product = this.productAnchor(ci);
     if (!product) {
-      this.logger.error(`crypto_input ${ci.id} has neither buyFiat/buyCrypto nor isPayment — skip seq0`);
+      this.logger.verbose(`crypto_input ${ci.id} has neither buyFiat/buyCrypto nor isPayment — skip seq0`);
       return undefined;
     }
 
