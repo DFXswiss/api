@@ -63,7 +63,7 @@ export class LedgerBookingService {
     const legs = input.legs.map((leg) => this.prepareLeg(leg));
 
     await this.appendRoundingLeg(legs);
-    this.checkNativeBalance(legs);
+    this.checkNativeBalance(legs, input);
 
     const amountChfSum = legs.reduce((sum, leg) => sum + leg.amountChfCents, 0);
 
@@ -388,7 +388,7 @@ export class LedgerBookingService {
    * per currency must be 0. A leg on any non-ASSET/TRANSIT account makes the native one-sidedness correct
    * (value-boundary booking) → no native check (§2.3 Major R9-2).
    */
-  private checkNativeBalance(legs: LedgerLeg[]): void {
+  private checkNativeBalance(legs: LedgerLeg[], input: LedgerTxInput): void {
     const onlyAssetTransit = legs.every(
       (leg) => leg.account.type === AccountType.ASSET || leg.account.type === AccountType.TRANSIT,
     );
@@ -398,8 +398,10 @@ export class LedgerBookingService {
     for (const [currency, currencyLegs] of byCurrency.entries()) {
       const nativeSum = currencyLegs.reduce((acc, leg) => acc + leg.amount, 0);
       if (Math.abs(nativeSum) > NATIVE_BALANCE_TOLERANCE) {
+        const accounts = currencyLegs.map((leg) => `${leg.account.name} ${leg.amount}`).join(', ');
         this.logger.error(
-          `Ledger same-asset transfer native imbalance for currency ${currency}: ${nativeSum} (programming error)`,
+          `Ledger same-asset transfer native imbalance for currency ${currency}: ${nativeSum} ` +
+            `(source ${input.sourceType} ${input.sourceId} seq ${input.seq}; legs: ${accounts}) (programming error)`,
         );
       }
     }
