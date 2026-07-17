@@ -41,7 +41,7 @@ describe('RealUnitController (W2W transfer)', () => {
       const dto = { delegation: {}, authorization: {} } as any;
       realunitService.confirmTransfer.mockResolvedValue({ txHash: '0xhash' });
 
-      const result = await controller.confirmTransfer(jwt, '99', dto);
+      const result = await controller.confirmTransfer(jwt, 99, dto);
 
       expect(realunitService.confirmTransfer).toHaveBeenCalledWith(42, 99, dto);
       expect(result).toEqual({ txHash: '0xhash' });

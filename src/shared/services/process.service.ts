@@ -76,6 +76,7 @@ export enum Process {
   TX_REQUEST = 'TxRequest',
   TX_REQUEST_WAITING_EXPIRY = 'TxRequestWaitingExpiry',
   REALUNIT_QUOTE_COMPLETION = 'RealUnitQuoteCompletion',
+  REALUNIT_TRANSFER_RECONCILIATION = 'RealUnitTransferReconciliation',
   ORGANIZATION_SYNC = 'OrganizationSync',
   BANK_TX_RETURN = 'BankTxReturn',
   BANK_TX_RETURN_MAIL = 'BankTxReturnMail',

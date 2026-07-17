@@ -1103,7 +1103,13 @@ export class Configuration {
       // fund with ETH) and sets the three env vars below.
       w2wGasWalletPrivateKey: process.env.REALUNIT_W2W_GAS_WALLET_PRIVATE_KEY?.split('<br>').join('\n'),
       w2wGasWalletAddress: process.env.REALUNIT_W2W_GAS_WALLET_ADDRESS,
-      w2wGasLowBalanceThreshold: +(process.env.REALUNIT_W2W_GAS_LOW_BALANCE_THRESHOLD ?? 0.05), // ETH
+      w2wGasLowBalanceThreshold: (() => {
+        const raw = process.env.REALUNIT_W2W_GAS_LOW_BALANCE_THRESHOLD;
+        if (raw === undefined) return 0.05;
+        const n = Number(raw);
+        if (!Number.isFinite(n) || n <= 0) throw new Error(`Invalid REALUNIT_W2W_GAS_LOW_BALANCE_THRESHOLD: ${raw}`);
+        return n;
+      })(), // ETH
       bank: {
         recipient: process.env.REALUNIT_BANK_RECIPIENT ?? 'RealUnit Schweiz AG',
         iban: process.env.REALUNIT_BANK_IBAN ?? 'CH22 0830 7000 5609 4630 9',

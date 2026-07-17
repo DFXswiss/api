@@ -12,6 +12,7 @@ import {
   encodePacked,
   Hex,
   http,
+  keccak256,
   parseAbi,
   recoverTypedDataAddress,
 } from 'viem';
@@ -28,6 +29,13 @@ interface Eip7702Authorization {
   r: string;
   s: string;
   yParity: number;
+}
+
+export class TransactionRevertedException extends Error {
+  constructor(public readonly txHash: string) {
+    super(`Transaction reverted on-chain: ${txHash}`);
+    this.name = 'TransactionRevertedException';
+  }
 }
 
 // Contract addresses (same on all EVM chains via CREATE2)
@@ -90,16 +98,18 @@ export class Eip7702DelegationService {
   private readonly logger = new DfxLogger(Eip7702DelegationService);
   private readonly config = GetConfig().blockchain;
 
-  // Sequential lock for relayer nonce management (prevents concurrent nonce collisions)
-  private nonceLock: Promise<void> = Promise.resolve();
+  // Sequential lock for relayer nonce management, keyed per relayer account address (prevents
+  // concurrent nonce collisions per account) — unrelated relayer accounts run in parallel, e.g.
+  // the RealUnit W2W gas wallet must never block the Sell/OTC per-chain relayer or vice versa.
+  private readonly nonceLocks = new Map<string, Promise<void>>();
 
-  private async withNonceLock<T>(fn: () => Promise<T>): Promise<T> {
+  private async withNonceLock<T>(lockKey: string, fn: () => Promise<T>): Promise<T> {
     let release: () => void;
     const lock = new Promise<void>((resolve) => {
       release = resolve;
     });
-    const previousLock = this.nonceLock;
-    this.nonceLock = lock;
+    const previousLock = this.nonceLocks.get(lockKey) ?? Promise.resolve();
+    this.nonceLocks.set(lockKey, lock);
     await previousLock;
     try {
       return await fn();
@@ -288,6 +298,7 @@ export class Eip7702DelegationService {
     },
     authorization: Eip7702Authorization,
     relayerPrivateKeyOverride?: Hex,
+    onBroadcast?: (txHash: string) => Promise<void>,
   ): Promise<string> {
     if (!this.isDelegationSupported(token.blockchain) && !this.isDelegationSupportedForRealUnit(token.blockchain)) {
       throw new Error(`EIP-7702 delegation not supported for ${token.blockchain}`);
@@ -300,6 +311,7 @@ export class Eip7702DelegationService {
       signedDelegation,
       authorization,
       relayerPrivateKeyOverride,
+      onBroadcast,
     );
   }
 
@@ -493,7 +505,7 @@ export class Eip7702DelegationService {
     };
 
     // Sign, broadcast and confirm within nonce lock to prevent concurrent nonce collisions
-    return this.withNonceLock(async () => {
+    return this.withNonceLock(relayerAccount.address, async () => {
       const nonce = await publicClient.getTransactionCount({
         address: relayerAccount.address,
         blockTag: 'pending',
@@ -552,6 +564,7 @@ export class Eip7702DelegationService {
     },
     authorization: Eip7702Authorization,
     relayerPrivateKeyOverride?: Hex,
+    onBroadcast?: (txHash: string) => Promise<void>,
   ): Promise<string> {
     const blockchain = token.blockchain;
 
@@ -665,7 +678,7 @@ export class Eip7702DelegationService {
     };
 
     // Sign, broadcast and confirm within nonce lock to prevent concurrent nonce collisions
-    return this.withNonceLock(async () => {
+    return this.withNonceLock(relayerAccount.address, async () => {
       const nonce = await publicClient.getTransactionCount({
         address: relayerAccount.address,
         blockTag: 'pending',
@@ -687,7 +700,20 @@ export class Eip7702DelegationService {
       };
 
       const signedTx = await walletClient.signTransaction(transaction as any);
+      const computedTxHash = keccak256(signedTx as `0x${string}`);
+
+      // Persist the tx hash BEFORE it is sent to the node: a crash/restart between signing and mining
+      // must never lose track of an already-signed tx. With this ordering, "PROCESSING without a
+      // persisted txHash" strictly means "never signed/broadcast, safe to mark FAILED" (see
+      // RealUnitService.reconcilePendingTransfers).
+      if (onBroadcast) await onBroadcast(computedTxHash);
+
       const txHash = await walletClient.sendRawTransaction({ serializedTransaction: signedTx as `0x${string}` });
+      if (txHash !== computedTxHash) {
+        throw new Error(
+          `Broadcast tx hash ${txHash} does not match locally computed hash ${computedTxHash} for user delegation transfer`,
+        );
+      }
 
       this.logger.info(
         `User delegation transfer broadcast on ${blockchain}: ` +
@@ -698,7 +724,7 @@ export class Eip7702DelegationService {
       const receipt = await publicClient.waitForTransactionReceipt({ hash: txHash, timeout: 60_000 });
 
       if (receipt.status === 'reverted') {
-        throw new Error(`Transaction reverted on-chain: ${txHash}`);
+        throw new TransactionRevertedException(txHash);
       }
 
       this.logger.info(

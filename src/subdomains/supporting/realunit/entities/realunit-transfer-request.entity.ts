@@ -6,7 +6,9 @@ import { Column, Entity, Index, ManyToOne } from 'typeorm';
 
 export enum RealUnitTransferRequestStatus {
   CREATED = 'Created',
+  PROCESSING = 'Processing',
   COMPLETED = 'Completed',
+  FAILED = 'Failed',
 }
 
 /**
@@ -45,8 +47,26 @@ export class RealUnitTransferRequest extends IEntity {
     return this.status === RealUnitTransferRequestStatus.COMPLETED;
   }
 
+  processing(): this {
+    this.status = RealUnitTransferRequestStatus.PROCESSING;
+
+    return this;
+  }
+
   complete(txHash: string): this {
     this.status = RealUnitTransferRequestStatus.COMPLETED;
+    this.txHash = txHash;
+
+    return this;
+  }
+
+  fail(): this {
+    this.status = RealUnitTransferRequestStatus.FAILED;
+
+    return this;
+  }
+
+  setTxHash(txHash: string): this {
     this.txHash = txHash;
 
     return this;

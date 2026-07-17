@@ -715,10 +715,10 @@ export class RealUnitController {
   @ApiNotFoundResponse({ description: 'Transfer request not found' })
   async confirmTransfer(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: RealUnitTransferConfirmDto,
   ): Promise<{ txHash: string }> {
-    return this.realunitService.confirmTransfer(jwt.user, +id, dto);
+    return this.realunitService.confirmTransfer(jwt.user, id, dto);
   }
 
   // --- Registration Info Endpoint ---

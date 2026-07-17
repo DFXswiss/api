@@ -8,7 +8,10 @@ import { BrokerbotCurrency } from 'src/integration/blockchain/realunit/dto/realu
 import { RealUnitBlockchainService } from 'src/integration/blockchain/realunit/realunit-blockchain.service';
 import { SepoliaService } from 'src/integration/blockchain/sepolia/sepolia.service';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
-import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import {
+  Eip7702DelegationService,
+  TransactionRevertedException,
+} from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
 import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -72,7 +75,7 @@ const mockW2wGasWalletKeyDefault = '0x' + '1'.repeat(64);
 // Address derived from mockW2wGasWalletKeyDefault via ethers.Wallet(key).address (delegate == redeemer).
 const mockW2wGasWalletAddressDerived = '0x19E7E376E7C213B7E7e7e46cc70A5dD086DAff2A';
 let mockW2wGasWalletPrivateKey: string | undefined = mockW2wGasWalletKeyDefault;
-let mockW2wGasWalletAddress: string | undefined = '0xW2wGasWalletAddress';
+let mockW2wGasWalletAddress: string | undefined = mockW2wGasWalletAddressDerived;
 
 jest.mock('src/config/config', () => ({
   get Config() {
@@ -191,7 +194,7 @@ describe('RealUnitService', () => {
   let buyService: jest.Mocked<BuyService>;
   let supportIssueService: jest.Mocked<SupportIssueService>;
   let transferRequestRepo: jest.Mocked<RealUnitTransferRequestRepository>;
-  let sepoliaClient: { getNativeCoinBalanceForAddress: jest.Mock };
+  let sepoliaClient: { getNativeCoinBalanceForAddress: jest.Mock; getTokenBalance: jest.Mock };
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -224,7 +227,7 @@ describe('RealUnitService', () => {
     aktionariatManager = {
       transaction: jest.fn(async (cb: any) => cb(aktionariatTxManager)),
     };
-    sepoliaClient = { getNativeCoinBalanceForAddress: jest.fn() };
+    sepoliaClient = { getNativeCoinBalanceForAddress: jest.fn(), getTokenBalance: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -325,6 +328,7 @@ describe('RealUnitService', () => {
             create: jest.fn((e) => e),
             save: jest.fn((e) => Promise.resolve({ id: 99, ...e })),
             findOne: jest.fn(),
+            update: jest.fn().mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] }),
           },
         },
       ],
@@ -928,7 +932,8 @@ describe('RealUnitService', () => {
       jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
       // reset mutable W2W gas-wallet config to the funded defaults
       mockW2wGasWalletPrivateKey = mockW2wGasWalletKeyDefault;
-      mockW2wGasWalletAddress = '0xW2wGasWalletAddress';
+      mockW2wGasWalletAddress = mockW2wGasWalletAddressDerived;
+      sepoliaClient.getTokenBalance.mockResolvedValue(999);
     });
 
     describe('prepareTransfer', () => {
@@ -1000,7 +1005,9 @@ describe('RealUnitService', () => {
       it('throws when KYC level is below 30', async () => {
         const user = buildRegisteredUser(20);
 
-        await expect(service.prepareTransfer(user, { toAddress: recipientAddress, amount: 1 })).rejects.toBeDefined();
+        await expect(service.prepareTransfer(user, { toAddress: recipientAddress, amount: 1 })).rejects.toBeInstanceOf(
+          KycLevelRequiredException,
+        );
         expect(transferRequestRepo.save).not.toHaveBeenCalled();
       });
 
@@ -1090,7 +1097,7 @@ describe('RealUnitService', () => {
       const confirmDto: any = {
         delegation: {
           delegator: senderAddress,
-          delegate: '0xRelayer',
+          delegate: mockW2wGasWalletAddressDerived,
           authority: '0xRoot',
           salt: '1',
           signature: '0xSig',
@@ -1099,21 +1106,31 @@ describe('RealUnitService', () => {
       };
 
       function buildStoredRequest(overrides: any = {}): any {
-        return {
+        const request: any = {
           id: 99,
           uid: 'RTabc',
           toAddress: recipientAddress,
           amount: 5,
           status: RealUnitTransferRequestStatus.CREATED,
-          isComplete: false,
           user: { id: 42, address: senderAddress, userData: {} },
           complete: jest.fn(function (this: any, txHash: string) {
             this.status = RealUnitTransferRequestStatus.COMPLETED;
             this.txHash = txHash;
             return this;
           }),
+          fail: jest.fn(function (this: any) {
+            this.status = RealUnitTransferRequestStatus.FAILED;
+            return this;
+          }),
           ...overrides,
         };
+        Object.defineProperty(request, 'isComplete', {
+          get() {
+            return request.status === RealUnitTransferRequestStatus.COMPLETED;
+          },
+          configurable: true,
+        });
+        return request;
       }
 
       it('relays the stored recipient/amount via the dedicated W2W key (NOT getRelayerPrivateKey)', async () => {
@@ -1132,6 +1149,7 @@ describe('RealUnitService', () => {
           confirmDto.delegation,
           confirmDto.authorization,
           mockW2wGasWalletKeyDefault, // dedicated W2W relayer key override
+          expect.any(Function), // onBroadcast callback that persists txHash before the receipt wait
         );
       });
 
@@ -1148,11 +1166,17 @@ describe('RealUnitService', () => {
         await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(NotFoundException);
       });
 
-      it('throws Conflict when the request is already completed', async () => {
-        transferRequestRepo.findOne.mockResolvedValue(buildStoredRequest({ isComplete: true }));
-        assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
+      it('returns the stored txHash immediately for an already-completed request, without any balance/relay calls', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(
+          buildStoredRequest({ status: RealUnitTransferRequestStatus.COMPLETED, txHash: w2wTxHash }),
+        );
 
-        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(ConflictException);
+        const result = await service.confirmTransfer(42, 99, confirmDto);
+
+        expect(result.txHash).toBe(w2wTxHash);
+        expect(assetService.getAssetByQuery).not.toHaveBeenCalled();
+        expect(sepoliaClient.getTokenBalance).not.toHaveBeenCalled();
+        expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
       });
 
       it('throws BadRequest when the delegator does not match the request owner', async () => {
@@ -1163,6 +1187,36 @@ describe('RealUnitService', () => {
 
         await expect(service.confirmTransfer(42, 99, wrongDto)).rejects.toThrow(BadRequestException);
         expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
+      });
+
+      it('throws BadRequest when the delegate does not match the W2W gas wallet', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(buildStoredRequest());
+        assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
+        sepoliaClient.getTokenBalance.mockResolvedValue(999);
+
+        const wrongDto = { ...confirmDto, delegation: { ...confirmDto.delegation, delegate: '0xWrongDelegate' } };
+
+        await expect(service.confirmTransfer(42, 99, wrongDto)).rejects.toThrow(BadRequestException);
+        expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
+      });
+
+      it('throws Conflict when the sender does not hold enough REALU', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(buildStoredRequest());
+        assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
+        sepoliaClient.getTokenBalance.mockResolvedValue(4); // stored request amount is 5
+
+        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(ConflictException);
+        expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
+      });
+
+      it('throws when the configured W2W gas wallet address does not match the key-derived address', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(buildStoredRequest());
+        assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
+        mockW2wGasWalletAddress = '0xSomeOtherAddressThatDoesNotMatch';
+
+        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(
+          'REALUNIT_W2W_GAS_WALLET_ADDRESS does not match the address derived from REALUNIT_W2W_GAS_WALLET_PRIVATE_KEY',
+        );
       });
 
       it('throws NotFound when the REALU asset is not found', async () => {
@@ -1198,7 +1252,82 @@ describe('RealUnitService', () => {
           confirmDto.delegation,
           confirmDto.authorization,
           '0x' + '1'.repeat(64), // 0x-normalized key
+          expect.any(Function),
         );
+      });
+
+      it('is idempotent: a second confirm on an already-broadcast request returns the same txHash without relaying again or re-checking balance', async () => {
+        const storedRequest = buildStoredRequest();
+        transferRequestRepo.findOne.mockResolvedValue(storedRequest);
+        assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
+        eip7702DelegationService.transferTokenWithUserDelegation.mockImplementation(async (...args: any[]) => {
+          const onBroadcast = args[args.length - 1];
+          if (typeof onBroadcast === 'function') await onBroadcast(w2wTxHash);
+          return w2wTxHash;
+        });
+
+        const firstResult = await service.confirmTransfer(42, 99, confirmDto);
+        expect(firstResult.txHash).toBe(w2wTxHash);
+        expect(eip7702DelegationService.transferTokenWithUserDelegation).toHaveBeenCalledTimes(1);
+        expect(sepoliaClient.getTokenBalance).toHaveBeenCalledTimes(1);
+
+        // Model the persisted state after the first call: the onBroadcast callback already persisted
+        // txHash via transferRequestRepo.update before the receipt wait, and the request completed.
+        storedRequest.txHash = w2wTxHash;
+        storedRequest.status = RealUnitTransferRequestStatus.COMPLETED;
+
+        // Drain the balance to below the transfer amount, as a real successful transfer would leave it —
+        // proves the retry short-circuits BEFORE the balance check (the old, buggy code would 409 here
+        // instead of returning the hash, because 0 < amount).
+        sepoliaClient.getTokenBalance.mockResolvedValue(0);
+
+        const secondResult = await service.confirmTransfer(42, 99, confirmDto);
+
+        expect(secondResult.txHash).toBe(w2wTxHash);
+        // still 1 — the second call short-circuits on the idempotency shortcut, no second relay
+        expect(eip7702DelegationService.transferTokenWithUserDelegation).toHaveBeenCalledTimes(1);
+        // still 1 — the shortcut returns before the balance check is ever reached again
+        expect(sepoliaClient.getTokenBalance).toHaveBeenCalledTimes(1);
+      });
+
+      it('marks the request FAILED when the relay reverts on-chain, and a retry does not return the reverted hash as success', async () => {
+        const storedRequest = buildStoredRequest();
+        transferRequestRepo.findOne.mockResolvedValueOnce(storedRequest);
+        assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
+        eip7702DelegationService.transferTokenWithUserDelegation.mockImplementation(async (...args: any[]) => {
+          const onBroadcast = args[args.length - 1];
+          if (typeof onBroadcast === 'function') await onBroadcast(w2wTxHash);
+          throw new TransactionRevertedException(w2wTxHash);
+        });
+
+        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(TransactionRevertedException);
+
+        expect(transferRequestRepo.update).toHaveBeenCalledWith(99, {
+          status: RealUnitTransferRequestStatus.FAILED,
+        });
+
+        // Retry after the revert: model the persisted FAILED+txHash state. The idempotency shortcut
+        // excludes FAILED, so this falls through into the atomic claim (WHERE status=CREATED), which
+        // matches nothing -> Conflict, instead of returning the reverted hash as a false success.
+        transferRequestRepo.findOne.mockResolvedValueOnce({
+          ...storedRequest,
+          txHash: w2wTxHash,
+          status: RealUnitTransferRequestStatus.FAILED,
+        });
+        transferRequestRepo.update.mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] });
+
+        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(ConflictException);
+      });
+
+      it('throws Conflict when the request is stuck in PROCESSING without a txHash (no retry after a non-terminal state)', async () => {
+        transferRequestRepo.findOne.mockResolvedValue(
+          buildStoredRequest({ status: RealUnitTransferRequestStatus.PROCESSING }),
+        );
+        assetService.getAssetByQuery.mockResolvedValue(transferRealuAsset);
+        transferRequestRepo.update.mockResolvedValueOnce({ affected: 0, raw: [], generatedMaps: [] }); // WHERE status=CREATED matches nothing
+
+        await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(ConflictException);
+        expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
       });
     });
   });

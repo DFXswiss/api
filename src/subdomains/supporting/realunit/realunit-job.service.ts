@@ -75,4 +75,12 @@ export class RealUnitJobService {
       }
     }
   }
+
+  // Resolves RealUnit W2W transfer requests stuck in PROCESSING after a crash/restart between the
+  // atomic claim and the broadcast/callback in confirmTransfer — see
+  // RealUnitService.reconcilePendingTransfers for the actual reconciliation logic.
+  @DfxCron(CronExpression.EVERY_5_MINUTES, { process: Process.REALUNIT_TRANSFER_RECONCILIATION, timeout: 1800 })
+  async reconcilePendingTransfers(): Promise<void> {
+    await this.realunitService.reconcilePendingTransfers();
+  }
 }
