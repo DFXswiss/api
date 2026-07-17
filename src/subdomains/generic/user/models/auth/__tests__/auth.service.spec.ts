@@ -349,5 +349,34 @@ describe('AuthService', () => {
         expect(userDataServiceMock.addServiceProvider).not.toHaveBeenCalled();
       });
     });
+
+    describe('concurrent sign-up race (user.address UNIQUE 23505)', () => {
+      // two tabs sign up the same brand-new address at once: the loser's createUser hits SQLSTATE 23505 on
+      // user.address. doSignUp signs the winner's (now-committed) account in instead of surfacing a raw 500.
+      it('signs the winner in when createUser hits a 23505', async () => {
+        const winner = createCustomUser({ id: 21, userData: account(), custodyProvider });
+        custodyProviderServiceMock.getWithMasterKey.mockResolvedValue(custodyProvider);
+        walletServiceMock.getByIdOrName.mockResolvedValue(createCustomWallet({ name: 'DFX Wallet' }));
+        userServiceMock.getUserByAddress.mockResolvedValueOnce(null); // pre-create check: address still free
+        userServiceMock.getUserByAddress.mockResolvedValue(winner); // signIn reload: the winner committed
+        userServiceMock.createUser.mockRejectedValue(
+          Object.assign(new Error('duplicate key value'), { code: '23505' }),
+        );
+
+        const result = await service.signUp({ address: 'ADDR_RACE', signature: 'SIG' } as any, ip);
+
+        expect(result).toBeDefined(); // winner signed in — not a 500
+        expect(userServiceMock.createUser).toHaveBeenCalledTimes(1);
+      });
+
+      it('rethrows a non-23505 createUser error (never swallowed)', async () => {
+        custodyProviderServiceMock.getWithMasterKey.mockResolvedValue(custodyProvider);
+        walletServiceMock.getByIdOrName.mockResolvedValue(createCustomWallet({ name: 'DFX Wallet' }));
+        userServiceMock.getUserByAddress.mockResolvedValue(null);
+        userServiceMock.createUser.mockRejectedValue(new Error('db exploded'));
+
+        await expect(service.signUp({ address: 'ADDR_X', signature: 'SIG' } as any, ip)).rejects.toThrow('db exploded');
+      });
+    });
   });
 });
