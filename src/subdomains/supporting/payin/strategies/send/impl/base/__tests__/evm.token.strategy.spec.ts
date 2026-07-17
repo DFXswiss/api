@@ -1,12 +1,117 @@
+import { mock } from 'jest-mock-extended';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
+import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import { AssetType } from 'src/shared/models/asset/asset.entity';
+import { BlockchainAddress } from 'src/shared/models/blockchain-address';
+import { createCustomCryptoInput } from 'src/subdomains/supporting/payin/entities/__mocks__/crypto-input.entity.mock';
+import { CryptoInput, PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
+import { PayInEvmService } from 'src/subdomains/supporting/payin/services/base/payin-evm.service';
+import { EvmTokenStrategy } from '../evm.token.strategy';
+import { SendGroup, SendType } from '../send.strategy';
+
 /**
- * Integration tests for EvmTokenStrategy delegation flow
- *
- * These tests verify the correct integration between EvmTokenStrategy and Eip7702DelegationService.
- * Since the CryptoInput entity has deep import chains, we test the key integration points
- * by directly testing the protected methods with minimal mocking.
+ * EvmTokenStrategy delegation tests: the designate-before-broadcast barrier of
+ * dispatchViaDelegation (using the real CryptoInput entity and its mocks) plus the
+ * integration surface between EvmTokenStrategy and Eip7702DelegationService.
  */
 
+class TestEvmTokenStrategy extends EvmTokenStrategy {
+  get blockchain(): Blockchain {
+    return Blockchain.ETHEREUM;
+  }
+
+  get assetType(): AssetType {
+    return AssetType.TOKEN;
+  }
+
+  protected getForwardAddress(): BlockchainAddress {
+    return BlockchainAddress.create('0x0000000000000000000000000000000000000001', this.blockchain);
+  }
+}
+
 describe('EvmTokenStrategy Delegation Integration', () => {
+  describe('dispatchViaDelegation designate-before-broadcast', () => {
+    let strategy: TestEvmTokenStrategy;
+    let payInRepo: PayInRepository;
+    let delegationService: Eip7702DelegationService;
+    let saveSpy: jest.SpyInstance;
+
+    function createGroup() {
+      const payIns = [
+        createCustomCryptoInput({ id: 1, status: PayInStatus.ACKNOWLEDGED, amount: 1 }),
+        createCustomCryptoInput({ id: 2, status: PayInStatus.ACKNOWLEDGED, amount: 2 }),
+      ];
+      const group = {
+        account: {} as SendGroup['account'],
+        sourceAddress: '0x0000000000000000000000000000000000000002',
+        destinationAddress: '0x0000000000000000000000000000000000000003',
+        asset: payIns[0].asset,
+        status: PayInStatus.ACKNOWLEDGED,
+        payIns,
+      } as SendGroup;
+
+      return { group, payIns };
+    }
+
+    beforeEach(() => {
+      payInRepo = mock<PayInRepository>();
+      delegationService = mock<Eip7702DelegationService>();
+      strategy = new TestEvmTokenStrategy(mock<PayInEvmService>(), payInRepo, delegationService);
+      saveSpy = jest.spyOn(payInRepo, 'save').mockImplementation(async (payIn) => payIn as CryptoInput);
+    });
+
+    it('persists Sending on every member before calling the delegation broadcast sink', async () => {
+      const { group, payIns } = createGroup();
+      const broadcastError = new TxBroadcastError('broadcast failed');
+      const transferSpy = jest.spyOn(delegationService, 'transferTokenViaDelegation').mockRejectedValue(broadcastError);
+
+      await expect(strategy['dispatchViaDelegation'](group, SendType.FORWARD)).rejects.toBe(broadcastError);
+
+      expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.SENDING, PayInStatus.SENDING]);
+      expect(saveSpy.mock.invocationCallOrder[1]).toBeLessThan(transferSpy.mock.invocationCallOrder[0]);
+    });
+
+    it('restores captured statuses when delegation fails before its broadcast boundary', async () => {
+      const { group, payIns } = createGroup();
+      const preBroadcastError = new Error('gas estimation failed');
+      jest.spyOn(delegationService, 'transferTokenViaDelegation').mockRejectedValue(preBroadcastError);
+
+      await expect(strategy['dispatchViaDelegation'](group, SendType.FORWARD)).rejects.toBe(preBroadcastError);
+
+      expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.ACKNOWLEDGED, PayInStatus.ACKNOWLEDGED]);
+      expect(payInRepo.save).toHaveBeenCalledTimes(4);
+    });
+
+    it('keeps Sending when the delegation broadcast boundary throws TxBroadcastError', async () => {
+      const { group, payIns } = createGroup();
+      const broadcastError = new TxBroadcastError('relayer timeout');
+      jest.spyOn(delegationService, 'transferTokenViaDelegation').mockRejectedValue(broadcastError);
+
+      await expect(strategy['dispatchViaDelegation'](group, SendType.FORWARD)).rejects.toBe(broadcastError);
+
+      expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.SENDING, PayInStatus.SENDING]);
+      expect(payInRepo.save).toHaveBeenCalledTimes(2);
+    });
+
+    it('keeps every member Sending and logs the tx hash when persistence fails after dispatch', async () => {
+      const { group, payIns } = createGroup();
+      const txHash = '0xdelegated';
+      const persistenceError = new Error('deadlock');
+      jest.spyOn(delegationService, 'transferTokenViaDelegation').mockResolvedValue(txHash);
+      jest.spyOn(strategy as any, 'updatePayInWithSendData').mockRejectedValue(persistenceError);
+      const logSpy = jest.spyOn(strategy['logger'], 'error').mockImplementation();
+
+      await expect(strategy['dispatchViaDelegation'](group, SendType.FORWARD)).rejects.toBe(persistenceError);
+
+      expect(payIns.map((payIn) => payIn.status)).toEqual([PayInStatus.SENDING, PayInStatus.SENDING]);
+      expect(payInRepo.save).toHaveBeenCalledTimes(2);
+      expect(logSpy).toHaveBeenCalledWith(expect.stringContaining(txHash), persistenceError);
+      expect(logSpy.mock.calls[0][0]).toContain('1, 2');
+    });
+  });
+
   describe('isDelegationSupported wrapper', () => {
     it('should correctly delegate to the delegation service', () => {
       // This is tested by the delegation service tests

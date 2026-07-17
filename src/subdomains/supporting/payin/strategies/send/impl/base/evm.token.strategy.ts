@@ -1,4 +1,5 @@
 import { Config } from 'src/config/config';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { Eip7702DelegationService } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
 import { LogLevel } from 'src/shared/services/dfx-logger';
 import { Util } from 'src/shared/utils/util';
@@ -76,14 +77,47 @@ export abstract class EvmTokenStrategy extends EvmStrategy {
       `Sending ${amount} ${asset.name} from ${payInGroup.sourceAddress} to ${destinationAddress} via EIP-7702 delegation`,
     );
 
-    const txHash = await this.delegationService.transferTokenViaDelegation(account, asset, destinationAddress, amount);
-
-    // Update pay-ins with transaction data (fee is paid by relayer, not deducted from amount)
+    // The delegation path bypasses EvmStrategy.dispatch, so it needs the same persisted crash
+    // barrier before its own broadcast boundary.
+    const previousStatuses = new Map(payInGroup.payIns.map((payIn) => [payIn.id, payIn.status]));
     for (const payIn of payInGroup.payIns) {
-      const updatedPayIn = await this.updatePayInWithSendData(payIn, type, txHash);
-      if (updatedPayIn) {
-        await this.payInRepo.save(updatedPayIn);
+      payIn.designateSending();
+      await this.payInRepo.save(payIn);
+    }
+
+    let txHash: string | undefined;
+    try {
+      txHash = await this.delegationService.transferTokenViaDelegation(account, asset, destinationAddress, amount);
+
+      // Update pay-ins with transaction data (fee is paid by relayer, not deducted from amount)
+      for (const payIn of payInGroup.payIns) {
+        const updatedPayIn = await this.updatePayInWithSendData(payIn, type, txHash);
+        if (updatedPayIn) {
+          await this.payInRepo.save(updatedPayIn);
+        }
       }
+    } catch (e) {
+      if (e instanceof TxBroadcastError || txHash !== undefined) {
+        // The relayer send may have succeeded despite the error. Keep the non-reselectable marker
+        // and let the cron escalate it instead of risking a second delegated transfer.
+        if (txHash !== undefined) {
+          this.logger.error(
+            `Failed to persist delegated EVM send transaction ${txHash} for pay-ins ${payInGroup.payIns
+              .map((payIn) => payIn.id)
+              .join(', ')}:`,
+            e,
+          );
+        }
+        throw e;
+      }
+
+      // A plain error before a transaction hash was obtained is provably pre-broadcast and safe to retry.
+      for (const payIn of payInGroup.payIns) {
+        payIn.status = previousStatuses.get(payIn.id);
+        await this.payInRepo.save(payIn);
+      }
+
+      throw e;
     }
   }
 
