@@ -11,6 +11,7 @@ import { LedgerLeg } from '../../entities/ledger-leg.entity';
 import { LedgerTx } from '../../entities/ledger-tx.entity';
 import { LedgerAccountService } from '../ledger-account.service';
 import { LedgerBookingService, LedgerLegInput, LedgerTxInput } from '../ledger-booking.service';
+import { LedgerGateBlockedError } from './ledger-gate-blocked.exception';
 import {
   getLedgerWatermark,
   isUnpricedAtCutover,
@@ -86,7 +87,9 @@ export class BuyCryptoConsumer {
             );
             return;
           }
-          throw new Error(`buy_crypto ${bc.id} content-change scan gate-blocked — retry next run (§4.7 G-a)`);
+          throw new LedgerGateBlockedError(
+            `buy_crypto ${bc.id} content-change scan gate-blocked — retry next run (§4.7 G-a)`,
+          );
         }
 
         // §6.1 owed-straddling: this consumer booked NOTHING for such a row (the reclassification is anchored in the
