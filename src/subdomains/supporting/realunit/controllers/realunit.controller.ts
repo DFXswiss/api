@@ -769,9 +769,9 @@ export class RealUnitController {
   @ApiBadRequestResponse({ description: 'Invalid request or insufficient ETH for gas' })
   async getSwapUnsignedTransaction(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
   ): Promise<RealUnitSwapUnsignedTransactionDto> {
-    return this.realunitService.createSwapUnsignedTransaction(jwt.user, +id);
+    return this.realunitService.createSwapUnsignedTransaction(jwt.user, id);
   }
 
   @Put('swap/:id/broadcast')
@@ -787,10 +787,10 @@ export class RealUnitController {
   @ApiBadRequestResponse({ description: 'Invalid signed transaction or broadcast failure' })
   async broadcastSwapTransaction(
     @GetJwt() jwt: JwtPayload,
-    @Param('id') id: string,
+    @Param('id', ParseIntPipe) id: number,
     @Body() dto: RealUnitSellBroadcastDto,
   ): Promise<{ txHash: string }> {
-    return this.realunitService.broadcastSwapTransaction(jwt.user, +id, dto);
+    return this.realunitService.broadcastSwapTransaction(jwt.user, id, dto);
   }
 
   @Put('pay/unsigned-transaction')
@@ -803,6 +803,7 @@ export class RealUnitController {
   })
   @ApiOkResponse({ type: RealUnitOcpPayUnsignedTransactionDto })
   @ApiBadRequestResponse({ description: 'Invalid payment-link/quote reference or insufficient ETH for gas' })
+  @ApiConflictResponse({ description: 'Insufficient ZCHF balance — swap not yet settled' })
   @ApiNotFoundResponse({ description: 'Unknown or expired payment-link/quote id' })
   async getOcpPayUnsignedTransaction(
     @GetJwt() jwt: JwtPayload,
@@ -821,6 +822,7 @@ export class RealUnitController {
   })
   @ApiOkResponse({ type: RealUnitOcpPayResultDto })
   @ApiBadRequestResponse({ description: 'Invalid signed transaction or settlement failure' })
+  @ApiConflictResponse({ description: 'Insufficient ZCHF balance — swap not yet settled' })
   @ApiNotFoundResponse({ description: 'Unknown or expired payment-link/quote id' })
   async submitOcpPay(@Body() dto: RealUnitOcpPaySubmitDto): Promise<RealUnitOcpPayResultDto> {
     return this.realunitService.submitOcpPay(dto);

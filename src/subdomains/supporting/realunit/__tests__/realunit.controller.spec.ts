@@ -92,7 +92,7 @@ describe('RealUnitController (OCP pay flow)', () => {
     it('delegates to the service with the parsed numeric id', async () => {
       realunitService.createSwapUnsignedTransaction.mockResolvedValue({ swap: '0xabc' });
 
-      const result = await controller.getSwapUnsignedTransaction(jwt, '7');
+      const result = await controller.getSwapUnsignedTransaction(jwt, 7);
 
       expect(realunitService.createSwapUnsignedTransaction).toHaveBeenCalledWith(42, 7);
       expect(result).toEqual({ swap: '0xabc' });
@@ -104,7 +104,7 @@ describe('RealUnitController (OCP pay flow)', () => {
       const dto = { unsignedTx: '0x', r: '0x', s: '0x', v: 27 } as any;
       realunitService.broadcastSwapTransaction.mockResolvedValue({ txHash: '0xhash' });
 
-      const result = await controller.broadcastSwapTransaction(jwt, '7', dto);
+      const result = await controller.broadcastSwapTransaction(jwt, 7, dto);
 
       expect(realunitService.broadcastSwapTransaction).toHaveBeenCalledWith(42, 7, dto);
       expect(result).toEqual({ txHash: '0xhash' });

@@ -12,6 +12,7 @@ import {
   Eip7702DelegationService,
   TransactionRevertedException,
 } from 'src/integration/blockchain/shared/evm/delegation/eip7702-delegation.service';
+import { EvmUtil } from 'src/integration/blockchain/shared/evm/evm.util';
 import { FaucetRequestService } from 'src/subdomains/core/faucet-request/services/faucet-request.service';
 import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { AssetType } from 'src/shared/models/asset/asset.entity';
@@ -23,6 +24,7 @@ import { HttpService } from 'src/shared/services/http.service';
 import { BuyService } from 'src/subdomains/core/buy-crypto/routes/buy/buy.service';
 import { SwapService } from 'src/subdomains/core/buy-crypto/routes/swap/swap.service';
 import { PaymentLinkPaymentStatus } from 'src/subdomains/core/payment-link/enums';
+import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/services/payment-link-payment.service';
 import { SellService } from 'src/subdomains/core/sell-crypto/route/sell.service';
 import { LnUrlForwardService } from 'src/subdomains/generic/forwarding/services/lnurl-forward.service';
 import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enum';
@@ -211,6 +213,7 @@ describe('RealUnitService', () => {
   let evmClient: typeof sepoliaClient;
   let kycService: jest.Mocked<KycService>;
   let lnUrlForwardService: jest.Mocked<LnUrlForwardService>;
+  let paymentLinkPaymentService: jest.Mocked<PaymentLinkPaymentService>;
   let faucetRequestService: jest.Mocked<FaucetRequestService>;
 
   const realuAsset = createCustomAsset({
@@ -250,7 +253,7 @@ describe('RealUnitService', () => {
       getRecommendedGasPrice: jest.fn(),
       getNativeCoinBalanceForAddress: jest.fn(),
       sendSignedTransaction: jest.fn(),
-      getTokenBalance: jest.fn(),
+      getTokenBalance: jest.fn().mockResolvedValue(1_000_000),
       getTxReceipt: jest.fn(),
     };
     evmClient = sepoliaClient;
@@ -373,6 +376,12 @@ describe('RealUnitService', () => {
             waitForPayment: jest.fn(),
           },
         },
+        {
+          provide: PaymentLinkPaymentService,
+          useValue: {
+            getMostRecentPayment: jest.fn(),
+          },
+        },
       ],
     }).compile();
 
@@ -394,6 +403,7 @@ describe('RealUnitService', () => {
     transferRequestRepo = module.get(RealUnitTransferRequestRepository);
     kycService = module.get(KycService);
     lnUrlForwardService = module.get(LnUrlForwardService);
+    paymentLinkPaymentService = module.get(PaymentLinkPaymentService);
     faucetRequestService = module.get(FaucetRequestService);
   });
 
@@ -919,17 +929,27 @@ describe('RealUnitService', () => {
   });
 
   describe('createSwapUnsignedTransaction', () => {
-    const mockRequest = { id: 1, isValid: true, amount: 10, routeId: 5, user: { address: userAddress } };
+    const mockRequest = {
+      id: 1,
+      isValid: true,
+      amount: 10,
+      routeId: 5,
+      type: TransactionRequestType.SWAP,
+      sourceId: realuTxAsset.id,
+      targetId: zchfTxAsset.id,
+      user: { address: userAddress, userData: { kycLevel: KycLevel.LEVEL_30 } },
+    };
 
     beforeEach(() => {
       evmClient.getTransactionCount.mockResolvedValue(7);
       evmClient.getRecommendedGasPrice.mockResolvedValue(ethers.BigNumber.from(1_000_000_000));
       evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(1);
+      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
     });
 
     it('should build the swap tx without a deposit leg', async () => {
       transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
-      assetService.getAssetByQuery.mockResolvedValue(realuTxAsset);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
 
       const result = await service.createSwapUnsignedTransaction(42, 1);
 
@@ -943,13 +963,14 @@ describe('RealUnitService', () => {
 
     it('should throw BadRequestException if request is not valid', async () => {
       transactionRequestService.getOrThrow.mockResolvedValue({ ...mockRequest, isValid: false } as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
 
       await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(BadRequestException);
     });
 
     it('should throw BadRequestException if ETH balance is insufficient for gas', async () => {
       transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
-      assetService.getAssetByQuery.mockResolvedValue(realuTxAsset);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
       evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(0);
 
       await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(BadRequestException);
@@ -957,7 +978,9 @@ describe('RealUnitService', () => {
 
     it('should throw BadRequestException if the REALU asset has no contract address', async () => {
       transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
-      assetService.getAssetByQuery.mockResolvedValue(createCustomAsset({ name: 'REALU', chainId: undefined } as any));
+      assetService.getAssetByQuery
+        .mockResolvedValueOnce(createCustomAsset({ id: realuTxAsset.id, name: 'REALU', chainId: undefined } as any))
+        .mockResolvedValueOnce(zchfTxAsset);
 
       await expect(service.createSwapUnsignedTransaction(42, 1)).rejects.toThrow(BadRequestException);
     });
@@ -965,8 +988,8 @@ describe('RealUnitService', () => {
     it('should default REALU decimals to 18 when the asset has no decimals set', async () => {
       // decimals null/undefined exercises the `?? 18` fallback in buildSwapUnsignedTransaction
       transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
-      const noDecimalsAsset = createCustomAsset({ name: 'REALU', chainId: realuContract, decimals: undefined } as any);
-      assetService.getAssetByQuery.mockResolvedValue(noDecimalsAsset);
+      const noDecimalsAsset = createCustomAsset({ id: realuTxAsset.id, name: 'REALU', chainId: realuContract, decimals: undefined } as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(noDecimalsAsset).mockResolvedValueOnce(zchfTxAsset);
 
       const result = await service.createSwapUnsignedTransaction(42, 1);
 
@@ -1102,14 +1125,13 @@ describe('RealUnitService', () => {
       expect(transactionRequestService.updateEstimatedAmount).not.toHaveBeenCalled();
     });
 
-    it('should fall back to the SwapService estimate when the brokerbot price query fails', async () => {
-      // the brokerbot lookup rejects -> .catch(() => null) -> estimate is not re-anchored
+    it('should throw PriceSourceUnavailableException when the brokerbot price query fails', async () => {
       swapService.createSwapPaymentInfo.mockResolvedValue(swapInfo as any);
       blockchainService.getBrokerbotSellPrice.mockRejectedValue(new Error('rpc down'));
 
-      const result = await service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any);
-
-      expect(result.estimatedAmount).toBe(950);
+      await expect(service.getSwapPaymentInfo(buildUser(), { amount: 10 } as any)).rejects.toBeInstanceOf(
+        PriceSourceUnavailableException,
+      );
       expect(transactionRequestService.updateEstimatedAmount).not.toHaveBeenCalled();
     });
 
@@ -1125,7 +1147,16 @@ describe('RealUnitService', () => {
   });
 
   describe('broadcastSwapTransaction', () => {
-    const mockRequest = { id: 1, isValid: true, amount: 10, routeId: 7, user: { address: userAddress } };
+    const mockRequest = {
+      id: 1,
+      isValid: true,
+      amount: 10,
+      routeId: 7,
+      type: TransactionRequestType.SWAP,
+      sourceId: realuTxAsset.id,
+      targetId: zchfTxAsset.id,
+      user: { address: userAddress, userData: { kycLevel: KycLevel.LEVEL_30 } },
+    };
 
     const unsignedTx = ethers.utils.serializeTransaction({
       type: 2,
@@ -1147,8 +1178,13 @@ describe('RealUnitService', () => {
       v: 27,
     };
 
+    beforeEach(() => {
+      jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
+    });
+
     it('should reconstruct the signed hex, broadcast it and return the txHash', async () => {
       transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
       evmClient.sendSignedTransaction.mockResolvedValue({ response: { hash: '0xSwapTxHash' } });
 
       const result = await service.broadcastSwapTransaction(42, 1, broadcastDto);
@@ -1160,6 +1196,7 @@ describe('RealUnitService', () => {
 
     it('should throw BadRequestException if the request is not valid', async () => {
       transactionRequestService.getOrThrow.mockResolvedValue({ ...mockRequest, isValid: false } as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
 
       await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(BadRequestException);
       expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
@@ -1167,6 +1204,7 @@ describe('RealUnitService', () => {
 
     it('should throw BadRequestException when the broadcast returns an error', async () => {
       transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
       evmClient.sendSignedTransaction.mockResolvedValue({ error: { message: 'nonce too low' } });
 
       await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(BadRequestException);
@@ -1175,6 +1213,7 @@ describe('RealUnitService', () => {
 
     it('should throw BadRequestException when the broadcast returns no transaction hash', async () => {
       transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
       evmClient.sendSignedTransaction.mockResolvedValue({ response: {} });
 
       await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(BadRequestException);
@@ -1329,6 +1368,21 @@ describe('RealUnitService', () => {
         BadRequestException,
       );
     });
+
+    it('should throw ConflictException if ZCHF balance is insufficient (swap not yet settled)', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.ETHEREUM,
+        uri: `ethereum:${zchfTxAsset.chainId}@1/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+      evmClient.getTokenBalance.mockResolvedValueOnce(0);
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        ConflictException,
+      );
+    });
   });
 
   describe('confirmPaymentReceived (REALU scoping)', () => {
@@ -1436,7 +1490,9 @@ describe('RealUnitService', () => {
       assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
       lnUrlForwardService.txHexForward.mockResolvedValue({ txId: '0xTxId' });
 
-      const unsignedTx = ethers.utils.serializeTransaction({
+      const signerWallet = new ethers.Wallet('0x' + '11'.repeat(32));
+      const payAmountWei = ethers.BigNumber.from('5000000000000000000');
+      const txFields = {
         type: 2,
         chainId: 1,
         nonce: 1,
@@ -1445,17 +1501,20 @@ describe('RealUnitService', () => {
         gasLimit: ethers.BigNumber.from(100_000),
         to: zchfTxAsset.chainId,
         value: ethers.BigNumber.from(0),
-        data: '0x',
+        data: EvmUtil.encodeErc20Transfer(dfxDepositAddress, payAmountWei),
         accessList: [],
-      });
+      };
+      const unsignedTx = ethers.utils.serializeTransaction(txFields);
+      const fullySignedTx = await signerWallet.signTransaction(txFields);
+      const { r, s, v } = ethers.utils.parseTransaction(fullySignedTx);
 
       const result = await service.submitOcpPay({
         paymentLinkId: 'pl_abc',
         quoteId: 'quote_xyz',
         unsignedTx,
-        r: '0x' + '1'.repeat(64),
-        s: '0x' + '2'.repeat(64),
-        v: 27,
+        r,
+        s,
+        v,
       });
 
       expect(result.txId).toBe('0xTxId');
@@ -1998,13 +2057,15 @@ describe('RealUnitService', () => {
   });
 
   describe('getOcpPayStatus', () => {
-    it('should map the lnurlp wait status', async () => {
-      lnUrlForwardService.waitForPayment.mockResolvedValue({ status: PaymentLinkPaymentStatus.COMPLETED });
+    it('should map the most recent payment status', async () => {
+      paymentLinkPaymentService.getMostRecentPayment.mockResolvedValue({
+        status: PaymentLinkPaymentStatus.COMPLETED,
+      } as any);
 
       const result = await service.getOcpPayStatus('pl_abc');
 
       expect(result).toEqual({ status: PaymentLinkPaymentStatus.COMPLETED });
-      expect(lnUrlForwardService.waitForPayment).toHaveBeenCalledWith('pl_abc');
+      expect(paymentLinkPaymentService.getMostRecentPayment).toHaveBeenCalledWith('pl_abc');
     });
   });
 
@@ -2044,7 +2105,9 @@ describe('RealUnitService', () => {
       assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
       lnUrlForwardService.txHexForward.mockResolvedValue({ txId: '0xTxId' });
 
-      const unsignedTx = ethers.utils.serializeTransaction({
+      const signerWallet = new ethers.Wallet('0x' + '11'.repeat(32));
+      const payAmountWei = ethers.BigNumber.from('5000000000000000000');
+      const txFields = {
         type: 2,
         chainId: 11155111,
         nonce: 1,
@@ -2053,17 +2116,20 @@ describe('RealUnitService', () => {
         gasLimit: ethers.BigNumber.from(100_000),
         to: zchfTxAsset.chainId,
         value: ethers.BigNumber.from(0),
-        data: '0x',
+        data: EvmUtil.encodeErc20Transfer(dfxDepositAddress, payAmountWei),
         accessList: [],
-      });
+      };
+      const unsignedTx = ethers.utils.serializeTransaction(txFields);
+      const fullySignedTx = await signerWallet.signTransaction(txFields);
+      const { r, s, v } = ethers.utils.parseTransaction(fullySignedTx);
 
       const result = await service.submitOcpPay({
         paymentLinkId: 'pl_abc',
         quoteId: 'quote_xyz',
         unsignedTx,
-        r: '0x' + '1'.repeat(64),
-        s: '0x' + '2'.repeat(64),
-        v: 27,
+        r,
+        s,
+        v,
       });
 
       expect(result.txId).toBe('0xTxId');

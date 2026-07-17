@@ -7,6 +7,7 @@ import { Eip7702DelegationModule } from 'src/integration/blockchain/shared/evm/d
 import { SharedModule } from 'src/shared/shared.module';
 import { BuyCryptoModule } from 'src/subdomains/core/buy-crypto/buy-crypto.module';
 import { FaucetRequestModule } from 'src/subdomains/core/faucet-request/faucet-request.module';
+import { PaymentLinkPaymentModule } from 'src/subdomains/core/payment-link/payment-link-payment.module';
 import { SellCryptoModule } from 'src/subdomains/core/sell-crypto/sell-crypto.module';
 import { ForwardingModule } from 'src/subdomains/generic/forwarding/forwarding.module';
 import { KycModule } from 'src/subdomains/generic/kyc/kyc.module';
@@ -52,6 +53,7 @@ import { RealUnitTransferRequestRepository } from './repositories/realunit-trans
     BankTxModule,
     PaymentModule,
     TransactionModule,
+    PaymentLinkPaymentModule,
     Eip7702DelegationModule,
     ForwardingModule,
     forwardRef(() => BuyCryptoModule),
