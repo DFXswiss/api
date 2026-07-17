@@ -451,7 +451,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
       expect(order.retryCount).toBe(Config.payout.maxPreBroadcastRetries);
       expect(order.status).toBe(PayoutOrderStatus.PREPARATION_CONFIRMED);
       expect(rollbackSpy).toHaveBeenCalledTimes(1);
-      expect(repoSaveSpy).toHaveBeenCalledTimes(3); // designation, failure tracking, rollback
+      expect(repoSaveSpy).toHaveBeenCalledTimes(2); // failure tracking, rollback (designation is a conditional update)
     });
 
     it('does not roll back above the pre-broadcast retry cap and warns before escalation', async () => {
@@ -470,7 +470,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
       expect(order.retryCount).toBe(Config.payout.maxPreBroadcastRetries + 1);
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
       expect(rollbackSpy).not.toHaveBeenCalled();
-      expect(repoSaveSpy).toHaveBeenCalledTimes(2); // designation and failure tracking only
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // failure tracking only (designation is a conditional update)
       expect(loggerWarnSpy).toHaveBeenCalledWith(expect.stringContaining('retry cap 3 exceeded for order(s) 51'));
     });
 
@@ -490,7 +490,7 @@ describe('PayoutBitcoinBasedStrategy', () => {
 
       expect(orders.every((order) => order.status === PayoutOrderStatus.PAYOUT_DESIGNATED)).toBe(true);
       for (const spy of rollbackSpies) expect(spy).not.toHaveBeenCalled();
-      expect(repoSaveSpy).toHaveBeenCalledTimes(4); // designation + failure tracking only (2 each)
+      expect(repoSaveSpy).toHaveBeenCalledTimes(2); // failure tracking only, one save each (designation is a conditional update)
       expect(loggerWarnSpy).toHaveBeenCalledWith(expect.stringContaining('retry cap NaN exceeded for order(s) 60, 61'));
     });
 
