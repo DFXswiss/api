@@ -83,11 +83,17 @@ export abstract class EvmStrategy extends PayoutStrategy {
             this.logger.warn(
               `Payout order ${order.id} failed with out-of-gas (tx ${order.payoutTxId}), retrying with fresh nonce`,
             );
-            if (!(await this.rollbackBroadcastForRetry(order, this.payoutOrderRepo))) continue;
           } else {
-            // TX expired (not on-chain, not in mempool) - retry immediately, no gas costs incurred
-            this.logger.info(`Payout order ${order.id} has expired TX (${order.payoutTxId}), retrying immediately`);
+            // Expired (vanished from the mempool): getTxNonce on the vanished hash resolves undefined,
+            // so a re-entry with payoutTxId set would broadcast an INDEPENDENT tx with a fresh nonce,
+            // outside the designate-before-broadcast protection. Roll back like the OOG path so the
+            // retry re-enters the regular protected flow (designation persisted before dispatch,
+            // ambiguous failures escalate instead of silently looping).
+            this.logger.warn(
+              `Payout order ${order.id} has expired TX (${order.payoutTxId}), retrying with fresh designation`,
+            );
           }
+          if (!(await this.rollbackBroadcastForRetry(order, this.payoutOrderRepo))) continue;
           await this.doPayout([order]);
         }
       } catch (e) {

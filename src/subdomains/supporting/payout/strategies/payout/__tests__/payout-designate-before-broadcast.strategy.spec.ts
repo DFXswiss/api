@@ -93,7 +93,7 @@ function runDesignateBeforeBroadcastSuite(
       expect(repoSaveSpy).not.toHaveBeenCalled();
     });
 
-    it('does NOT re-designate when payoutTxId is already set (speedup/expired-retry path)', async () => {
+    it('does NOT re-designate when payoutTxId is already set (manual speedup path)', async () => {
       const { doPayout, dispatchSpy, repoUpdateSpy, repoSaveSpy } = setup();
       const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'OLD_TX' });
       const designateSpy = jest.spyOn(order, 'designatePayout');
