@@ -2,9 +2,12 @@ import { Body, Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiTags } from '@nestjs/swagger';
 import { Config, Environment } from 'src/config/config';
+import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
+import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
 import { UserActiveGuard } from 'src/shared/auth/user-active.guard';
 import { UserRole } from 'src/shared/auth/user-role.enum';
+import { RetryPayoutDto } from './dto/retry-payout.dto';
 import { PayoutOrderContext } from './entities/payout-order.entity';
 import { PayoutRequest } from './interfaces';
 import { PayoutService } from './services/payout.service';
@@ -43,5 +46,13 @@ export class PayoutController {
   @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
   async speedupTransaction(@Query('id') id: string): Promise<void> {
     return this.payoutService.speedupTransaction(+id);
+  }
+
+  @Post('retry')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.ADMIN), UserActiveGuard())
+  async retryUncertainPayout(@GetJwt() jwt: JwtPayload, @Body() dto: RetryPayoutDto): Promise<void> {
+    return this.payoutService.retryUncertainPayout(jwt.account, dto);
   }
 }
