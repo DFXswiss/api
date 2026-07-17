@@ -53,10 +53,9 @@ export class LightningStrategy extends SendStrategy {
 
           CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
 
-          const { outTxId, feeAmount } = await this.lightningService.sendTransfer(payIn);
-          await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
-
-          await this.payInRepo.save(payIn);
+          await this.sendWithBroadcastBoundary(this.payInRepo, payIn, type, () =>
+            this.lightningService.sendTransfer(payIn),
+          );
         } catch (e) {
           if (e.message.includes('No maximum fee provided')) continue;
 
