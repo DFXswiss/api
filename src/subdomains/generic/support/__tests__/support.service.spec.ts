@@ -2,11 +2,18 @@ import { createMock } from '@golevelup/ts-jest';
 import { NotFoundException } from '@nestjs/common';
 import { Test } from '@nestjs/testing';
 import { Config } from 'src/config/config';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { ScorechainScreening } from 'src/integration/scorechain/entities/scorechain-screening.entity';
+import { ScorechainScreeningService } from 'src/integration/scorechain/services/scorechain-screening.service';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { BuyCrypto } from 'src/subdomains/core/buy-crypto/process/entities/buy-crypto.entity';
 import { BuyCryptoService } from 'src/subdomains/core/buy-crypto/process/services/buy-crypto.service';
+import { BuyFiat } from 'src/subdomains/core/sell-crypto/process/buy-fiat.entity';
 import { BuyFiatService } from 'src/subdomains/core/sell-crypto/process/services/buy-fiat.service';
 import { BankTxService } from 'src/subdomains/supporting/bank-tx/bank-tx/services/bank-tx.service';
 import { PayInService } from 'src/subdomains/supporting/payin/services/payin.service';
+import { Transaction } from 'src/subdomains/supporting/payment/entities/transaction.entity';
+import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { RecallService } from 'src/subdomains/supporting/recall/recall.service';
 import { KycService } from '../../kyc/services/kyc.service';
 import { Recommendation } from '../../user/models/recommendation/recommendation.entity';
@@ -70,6 +77,8 @@ describe('SupportService', () => {
   let buyCryptoService: BuyCryptoService;
   let buyFiatService: BuyFiatService;
   let payInService: PayInService;
+  let transactionService: TransactionService;
+  let scorechainScreeningService: ScorechainScreeningService;
 
   beforeEach(async () => {
     const module = await Test.createTestingModule({
@@ -88,6 +97,8 @@ describe('SupportService', () => {
     buyCryptoService = module.get(BuyCryptoService);
     buyFiatService = module.get(BuyFiatService);
     payInService = module.get(PayInService);
+    transactionService = module.get(TransactionService);
+    scorechainScreeningService = module.get(ScorechainScreeningService);
   });
 
   // by default a node returns a UserData entity from getUserDataByIds for every requested id
@@ -613,6 +624,113 @@ describe('SupportService', () => {
       await expect(service.searchUserDataByKey({ key: '99999999999' })).rejects.toBeInstanceOf(NotFoundException);
 
       expect(userDataService.getUserData).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getScorechainScreenings', () => {
+    const userDataId = 500;
+
+    // BuyCrypto withdrawal: fiat-funded (no cryptoInput) -> screens the target address on the output chain.
+    // targetAddress falls back to this.transaction.user.address, so the tx's user must be wired.
+    function withdrawalBuyCryptoTx(
+      txId: number,
+      buyCryptoId: number,
+      address: string,
+      blockchain: Blockchain,
+    ): Transaction {
+      const tx = Object.assign(new Transaction(), { id: txId, created: new Date('2024-03-01') });
+      tx.user = Object.assign(new User(), { address });
+      tx.buyCrypto = Object.assign(new BuyCrypto(), { id: buyCryptoId, outputAsset: { blockchain }, transaction: tx });
+      return tx;
+    }
+
+    // BuyCrypto swap/deposit: crypto-in -> screens the incoming tx hash on the input asset chain.
+    function depositBuyCryptoTx(
+      txId: number,
+      buyCryptoId: number,
+      inTxId: string,
+      blockchain: Blockchain,
+    ): Transaction {
+      const tx = Object.assign(new Transaction(), { id: txId, created: new Date('2024-01-01') });
+      tx.buyCrypto = Object.assign(new BuyCrypto(), {
+        id: buyCryptoId,
+        cryptoInput: { asset: { blockchain }, inTxId },
+        transaction: tx,
+      });
+      return tx;
+    }
+
+    // BuyFiat: crypto-in -> screens the incoming deposit tx hash on the input asset chain.
+    function buyFiatTx(txId: number, buyFiatId: number, inTxId: string, blockchain: Blockchain): Transaction {
+      const tx = Object.assign(new Transaction(), { id: txId, created: new Date('2024-02-01') });
+      tx.buyFiat = Object.assign(new BuyFiat(), {
+        id: buyFiatId,
+        cryptoInput: { asset: { blockchain }, inTxId },
+        transaction: tx,
+      });
+      return tx;
+    }
+
+    function screening(id: number, blockchain: Blockchain, objectId: string, created: Date): ScorechainScreening {
+      return Object.assign(new ScorechainScreening(), { id, blockchain, objectId, created, signatureValid: true });
+    }
+
+    it('derives per-tx keys, skips unsupported chains & cross-chain collisions, annotates related ids, orders DESC', async () => {
+      const withdrawalAddress = '0xWithdrawAddr';
+      const depositTxHash = 'deposit-tx-hash';
+      const fiatTxHash = 'fiat-tx-hash';
+
+      jest.spyOn(transactionService, 'getAllTransactionsForUserData').mockResolvedValue([
+        withdrawalBuyCryptoTx(1, 11, withdrawalAddress, Blockchain.ETHEREUM),
+        depositBuyCryptoTx(2, 12, depositTxHash, Blockchain.BITCOIN),
+        buyFiatTx(3, 21, fiatTxHash, Blockchain.ETHEREUM),
+        // unsupported chain (Lightning) -> derivation skipped, its objectId never queried
+        buyFiatTx(4, 22, 'ln-tx-hash', Blockchain.LIGHTNING),
+      ]);
+
+      const getByObjectIdsSpy = jest.spyOn(scorechainScreeningService, 'getByObjectIds').mockResolvedValue([
+        screening(101, Blockchain.ETHEREUM, withdrawalAddress, new Date('2024-03-01')),
+        screening(102, Blockchain.BITCOIN, depositTxHash, new Date('2024-01-01')),
+        screening(103, Blockchain.ETHEREUM, fiatTxHash, new Date('2024-02-01')),
+        // objectId matches the Bitcoin deposit hash but on the wrong chain -> dropped by the (blockchain, objectId) key
+        screening(104, Blockchain.ETHEREUM, depositTxHash, new Date('2024-04-01')),
+      ]);
+
+      jest.spyOn(scorechainScreeningService, 'isHighRisk').mockImplementation((s) => s.objectId === withdrawalAddress);
+
+      const result = await service.getScorechainScreenings(userDataId);
+
+      // the unsupported-chain objectId is never sent to the screening lookup
+      const queriedObjectIds = getByObjectIdsSpy.mock.calls[0][0];
+      expect(queriedObjectIds).toEqual(expect.arrayContaining([withdrawalAddress, depositTxHash, fiatTxHash]));
+      expect(queriedObjectIds).not.toContain('ln-tx-hash');
+
+      // collision row (104, newest) dropped; three kept, newest first
+      expect(result.map((r) => r.id)).toEqual([101, 103, 102]);
+
+      const byObjectId = new Map(result.map((r) => [r.objectId, r]));
+      expect(byObjectId.get(withdrawalAddress)!.blockchain).toBe(Blockchain.ETHEREUM);
+      expect(byObjectId.get(withdrawalAddress)!.relatedBuyCryptoIds).toEqual([11]);
+      expect(byObjectId.get(withdrawalAddress)!.relatedBuyFiatIds).toBeUndefined();
+      expect(byObjectId.get(withdrawalAddress)!.isHighRisk).toBe(true);
+
+      expect(byObjectId.get(depositTxHash)!.relatedBuyCryptoIds).toEqual([12]);
+      expect(byObjectId.get(depositTxHash)!.isHighRisk).toBe(false);
+
+      expect(byObjectId.get(fiatTxHash)!.relatedBuyFiatIds).toEqual([21]);
+      expect(byObjectId.get(fiatTxHash)!.relatedBuyCryptoIds).toBeUndefined();
+    });
+
+    it('returns [] and never queries screenings when no tx yields a supported screening object', async () => {
+      const getByObjectIdsSpy = jest.spyOn(scorechainScreeningService, 'getByObjectIds').mockResolvedValue([]);
+      jest
+        .spyOn(transactionService, 'getAllTransactionsForUserData')
+        .mockResolvedValue([buyFiatTx(4, 22, 'ln-tx-hash', Blockchain.LIGHTNING)]);
+
+      const result = await service.getScorechainScreenings(userDataId);
+
+      expect(result).toEqual([]);
+      expect(getByObjectIdsSpy).not.toHaveBeenCalled();
     });
   });
 });

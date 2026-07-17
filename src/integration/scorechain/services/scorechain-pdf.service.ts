@@ -1,32 +1,14 @@
 import { Injectable } from '@nestjs/common';
 import PDFDocument from 'pdfkit';
 import { LogoSize, PdfBrand, PdfUtil } from 'src/shared/utils/pdf.util';
-import { ScorechainObjectType } from '../dto/scorechain.dto';
+import {
+  ScorechainAnalysisData,
+  ScorechainAnalysisDetail,
+  ScorechainAnalysisKey,
+  ScorechainAnalysisSection,
+  ScorechainObjectType,
+} from '../dto/scorechain.dto';
 import { ScorechainScreening } from '../entities/scorechain-screening.entity';
-
-// Parsed shape of ScorechainScreening.riskIndicatorData (the persisted `analysis` object). Kept
-// permissive/local to the renderer — the provider payload is only ever read here for display.
-interface ScorechainAnalysisDetail {
-  name?: string;
-  type?: string;
-  countries?: string[];
-  percentage?: number;
-  amountUsd?: number;
-  score?: number;
-  severity?: string;
-}
-
-interface ScorechainAnalysisSection {
-  hasResult?: boolean;
-  result?: {
-    score?: number;
-    severity?: string;
-    details?: ScorechainAnalysisDetail[];
-  } | null;
-}
-
-type ScorechainAnalysisKey = 'assigned' | 'incoming' | 'outgoing' | 'full';
-type ScorechainAnalysisData = Partial<Record<ScorechainAnalysisKey, ScorechainAnalysisSection>>;
 
 const SECTION_LABELS: Record<ScorechainAnalysisKey, string> = {
   assigned: 'Assigned exposure',
