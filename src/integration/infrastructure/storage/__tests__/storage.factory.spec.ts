@@ -49,9 +49,9 @@ describe('createStorageService', () => {
     expect(createStorageService('kyc')).toBeInstanceOf(S3StorageService);
   });
 
-  it('fails fast on an incomplete S3 config in a non-LOC environment', async () => {
+  it('fails on the first storage call when the S3 config is incomplete', async () => {
     await provideConfig(Environment.DEV, { ...validS3, endpoint: undefined });
 
-    expect(() => createStorageService('kyc')).toThrow('Incomplete S3 config');
+    await expect(createStorageService('kyc').getBlob('x')).rejects.toThrow('Incomplete S3 config');
   });
 });

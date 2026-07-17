@@ -8,13 +8,13 @@ import {
   PutObjectCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { GetConfig } from 'src/config/config';
+import { Config } from 'src/config/config';
 import { Blob, BlobContent, BlobMetaData, StorageService } from './storage.service';
 import { GEBUEV_RETENTION_FLOOR_YEARS } from './worm-retention.const';
 
 /**
  * S3-protocol storage implementation. Talks to the configured S3-compatible
- * endpoint (on-prem MinIO today; any S3 store via `GetConfig().s3.endpoint`) — this is a
+ * endpoint (on-prem MinIO today; any S3 store via `Config.s3.endpoint`) — this is a
  * protocol client, not the AWS cloud: no AWS account, no data leaves to AWS.
  *
  * Replaces AzureStorageService. The blob URL shape is kept identical so `blobName()`
@@ -32,22 +32,27 @@ export class S3StorageService extends StorageService {
   private static readonly objectLockVerifiedAt = new Map<string, number>();
   private static readonly OBJECT_LOCK_VERIFY_TTL_MS = 5 * 60 * 1000;
 
-  private readonly client: S3Client;
+  private _client?: S3Client;
 
   constructor(container: string) {
     super(container);
+  }
 
-    const { endpoint, region, accessKey, secretKey, publicUrl } = GetConfig().s3;
-    if (!endpoint || !region || !accessKey || !secretKey || !publicUrl)
-      throw new Error('Incomplete S3 config: endpoint, region, accessKey, secretKey and publicUrl are required');
-    if (!publicUrl.endsWith('/')) throw new Error('S3 publicUrl must end with a trailing slash');
+  private get client(): S3Client {
+    if (!this._client) {
+      const { endpoint, region, accessKey, secretKey, publicUrl } = Config.s3;
+      if (!endpoint || !region || !accessKey || !secretKey || !publicUrl)
+        throw new Error('Incomplete S3 config: endpoint, region, accessKey, secretKey and publicUrl are required');
+      if (!publicUrl.endsWith('/')) throw new Error('S3 publicUrl must end with a trailing slash');
 
-    this.client = new S3Client({
-      endpoint,
-      region,
-      forcePathStyle: true, // MinIO requires path-style addressing
-      credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
-    });
+      this._client = new S3Client({
+        endpoint,
+        region,
+        forcePathStyle: true, // MinIO requires path-style addressing
+        credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
+      });
+    }
+    return this._client;
   }
 
   async listBlobs(prefix?: string): Promise<Blob[]> {
