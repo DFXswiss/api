@@ -2,8 +2,9 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { mock } from 'jest-mock-extended';
 import { createCustomAsset, createDefaultAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import * as processServiceModule from 'src/shared/services/process.service';
+import { Util } from 'src/shared/utils/util';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { In, MoreThan } from 'typeorm';
+import { In, LessThan, MoreThan } from 'typeorm';
 import { createCustomPayoutOrder } from '../../entities/__mocks__/payout-order.entity.mock';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../../factories/payout-order.factory';
@@ -137,6 +138,7 @@ describe('PayoutService', () => {
       // elapsed: prepareNewOrders() returns early and never queries findBy({status: CREATED}),
       // which is irrelevant to the reboot guarantee under test here.
       jest.spyOn(payoutOrderRepo, 'findOne').mockResolvedValue({ created: new Date() } as PayoutOrder);
+      jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
       jest.spyOn(payoutOrderRepo, 'save').mockImplementation(async (o) => o as PayoutOrder);
 
       doPayoutSpy = jest.fn();
@@ -175,16 +177,20 @@ describe('PayoutService', () => {
       expect(doPayoutSpy).not.toHaveBeenCalledWith(expect.arrayContaining([crashedOrder]));
     });
 
-    it('processFailedOrders marks a stuck order PAYOUT_UNCERTAIN, persists it and alerts via mail (no doPayout)', async () => {
+    it('processFailedOrders conditionally escalates a stuck order and alerts via mail (no stale save)', async () => {
       const crashedOrder = createCustomPayoutOrder({ id: 12, status: PayoutOrderStatus.PAYOUT_DESIGNATED });
+      const updateSpy = jest.spyOn(payoutOrderRepo, 'update');
       const saveSpy = jest.spyOn(payoutOrderRepo, 'save');
       const sendMailSpy = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
       jest.spyOn(payoutOrderRepo, 'findBy').mockResolvedValue([crashedOrder]);
 
       await service['processFailedOrders']();
 
-      expect(crashedOrder.status).toBe(PayoutOrderStatus.PAYOUT_UNCERTAIN);
-      expect(saveSpy).toHaveBeenCalledWith(crashedOrder);
+      expect(updateSpy).toHaveBeenCalledWith(
+        { id: crashedOrder.id, status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+        { status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+      );
+      expect(saveSpy).not.toHaveBeenCalled();
       expect(sendMailSpy).toHaveBeenCalledTimes(1);
       expect(doPayoutSpy).not.toHaveBeenCalled();
     });
@@ -264,16 +270,145 @@ describe('PayoutService', () => {
     });
 
     describe('#processFailedOrders(...)', () => {
-      it('does nothing when there is no PAYOUT_DESIGNATED order (no mail, no save)', async () => {
+      it('does nothing when there is no PAYOUT_DESIGNATED order (no update, mail or save)', async () => {
+        const cutoff = new Date('2026-07-16T12:00:00.000Z');
+        const minutesBeforeSpy = jest.spyOn(Util, 'minutesBefore').mockReturnValue(cutoff);
         const findBySpy = jest.spyOn(payoutOrderRepo, 'findBy').mockResolvedValue([]);
+        const updateSpy = jest.spyOn(payoutOrderRepo, 'update');
         const saveSpy = jest.spyOn(payoutOrderRepo, 'save');
         const sendMailSpy = jest.spyOn(notificationService, 'sendMail');
 
         await service['processFailedOrders']();
 
-        expect(findBySpy).toHaveBeenCalledWith({ status: PayoutOrderStatus.PAYOUT_DESIGNATED });
+        expect(minutesBeforeSpy).toHaveBeenCalledWith(1);
+        expect(findBySpy).toHaveBeenCalledWith({
+          status: PayoutOrderStatus.PAYOUT_DESIGNATED,
+          updated: LessThan(cutoff),
+        });
+        expect(updateSpy).not.toHaveBeenCalled();
         expect(sendMailSpy).not.toHaveBeenCalled();
         expect(saveSpy).not.toHaveBeenCalled();
+      });
+
+      it('mails and logs only orders whose conditional escalation succeeds', async () => {
+        const escalatedOrder = createCustomPayoutOrder({ id: 30, status: PayoutOrderStatus.PAYOUT_DESIGNATED });
+        const movedOrder = createCustomPayoutOrder({ id: 31, status: PayoutOrderStatus.PAYOUT_DESIGNATED });
+        jest.spyOn(payoutOrderRepo, 'findBy').mockResolvedValue([escalatedOrder, movedOrder]);
+        const updateSpy = jest
+          .spyOn(payoutOrderRepo, 'update')
+          .mockResolvedValueOnce({ affected: 1 } as any)
+          .mockResolvedValueOnce({ affected: 0 } as any);
+        const logFailedOrdersSpy = jest
+          .spyOn(service['logs'], 'logFailedOrders')
+          .mockReturnValue('Escalated payout order');
+        const sendMailSpy = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
+        const saveSpy = jest.spyOn(payoutOrderRepo, 'save');
+
+        await service['processFailedOrders']();
+
+        expect(logFailedOrdersSpy).toHaveBeenCalledWith([escalatedOrder]);
+        expect(sendMailSpy).toHaveBeenCalledTimes(1);
+        expect(sendMailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            correlationId: expect.stringContaining(`|${escalatedOrder.id}&${escalatedOrder.context}|`),
+          }),
+        );
+        expect(sendMailSpy).not.toHaveBeenCalledWith(
+          expect.objectContaining({
+            correlationId: expect.stringContaining(`|${movedOrder.id}&${movedOrder.context}|`),
+          }),
+        );
+        // exactly the two escalation attempts - a revert after a successful mail would add calls
+        expect(updateSpy).toHaveBeenCalledTimes(2);
+        expect(saveSpy).not.toHaveBeenCalled();
+      });
+
+      it('does not mail when every conditional escalation loses to a concurrent state change', async () => {
+        const movedOrder = createCustomPayoutOrder({ id: 32, status: PayoutOrderStatus.PAYOUT_DESIGNATED });
+        jest.spyOn(payoutOrderRepo, 'findBy').mockResolvedValue([movedOrder]);
+        jest.spyOn(payoutOrderRepo, 'update').mockResolvedValueOnce({ affected: 0 } as any);
+        const logFailedOrdersSpy = jest.spyOn(service['logs'], 'logFailedOrders');
+        const sendMailSpy = jest.spyOn(notificationService, 'sendMail');
+        const infoSpy = jest.spyOn(service['logger'], 'info');
+
+        await service['processFailedOrders']();
+
+        expect(infoSpy).toHaveBeenCalledWith(
+          `Skipping failed payout order ${movedOrder.id}: state changed concurrently`,
+        );
+        expect(logFailedOrdersSpy).not.toHaveBeenCalled();
+        expect(sendMailSpy).not.toHaveBeenCalled();
+      });
+
+      it('continues escalating and mails successful orders when one conditional update throws', async () => {
+        const failedOrder = createCustomPayoutOrder({ id: 33, status: PayoutOrderStatus.PAYOUT_DESIGNATED });
+        const escalatedOrder = createCustomPayoutOrder({ id: 34, status: PayoutOrderStatus.PAYOUT_DESIGNATED });
+        jest.spyOn(payoutOrderRepo, 'findBy').mockResolvedValue([failedOrder, escalatedOrder]);
+        const updateError = new Error('database unavailable');
+        const updateSpy = jest
+          .spyOn(payoutOrderRepo, 'update')
+          .mockRejectedValueOnce(updateError)
+          .mockResolvedValueOnce({ affected: 1 } as any);
+        const logFailedOrdersSpy = jest
+          .spyOn(service['logs'], 'logFailedOrders')
+          .mockReturnValue('Escalated payout order');
+        const sendMailSpy = jest.spyOn(notificationService, 'sendMail').mockResolvedValue(undefined);
+        const warnSpy = jest.spyOn(service['logger'], 'warn');
+
+        await expect(service['processFailedOrders']()).resolves.toBeUndefined();
+
+        expect(updateSpy).toHaveBeenNthCalledWith(
+          1,
+          { id: failedOrder.id, status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+          { status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+        );
+        expect(updateSpy).toHaveBeenNthCalledWith(
+          2,
+          { id: escalatedOrder.id, status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+          { status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+        );
+        expect(warnSpy).toHaveBeenCalledWith(
+          `Failed to escalate payout order ${failedOrder.id}; retrying next cycle:`,
+          updateError,
+        );
+        // exactly the two escalation attempts - a revert after a successful mail would add calls
+        expect(updateSpy).toHaveBeenCalledTimes(2);
+        expect(logFailedOrdersSpy).toHaveBeenCalledWith([escalatedOrder]);
+        expect(sendMailSpy).toHaveBeenCalledTimes(1);
+        expect(sendMailSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            correlationId: expect.stringContaining(`|${escalatedOrder.id}&${escalatedOrder.context}|`),
+          }),
+        );
+      });
+
+      it('reverts every escalation conditionally and logs the error when sending the alert fails', async () => {
+        const firstOrder = createCustomPayoutOrder({ id: 35, status: PayoutOrderStatus.PAYOUT_DESIGNATED });
+        const secondOrder = createCustomPayoutOrder({ id: 36, status: PayoutOrderStatus.PAYOUT_DESIGNATED });
+        jest.spyOn(payoutOrderRepo, 'findBy').mockResolvedValue([firstOrder, secondOrder]);
+        const updateSpy = jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
+        jest.spyOn(service['logs'], 'logFailedOrders').mockReturnValue('Escalated payout orders');
+        const mailError = new Error('mail unavailable');
+        jest.spyOn(notificationService, 'sendMail').mockRejectedValue(mailError);
+        const errorSpy = jest.spyOn(service['logger'], 'error');
+
+        await expect(service['processFailedOrders']()).resolves.toBeUndefined();
+
+        expect(errorSpy).toHaveBeenCalledWith(
+          `Failed to send payout failure alert for orders ${firstOrder.id},${secondOrder.id}:`,
+          mailError,
+        );
+        expect(updateSpy).toHaveBeenCalledTimes(4);
+        expect(updateSpy).toHaveBeenNthCalledWith(
+          3,
+          { id: firstOrder.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+          { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+        );
+        expect(updateSpy).toHaveBeenNthCalledWith(
+          4,
+          { id: secondOrder.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+          { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+        );
       });
     });
   });

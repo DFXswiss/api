@@ -2,15 +2,17 @@ import { Inject, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FeeResult } from 'src/subdomains/supporting/payout/interfaces';
 import { PricingService } from 'src/subdomains/supporting/pricing/services/pricing.service';
-import { PayoutOrder } from '../../../../entities/payout-order.entity';
+import { PayoutOrder, PayoutOrderStatus } from '../../../../entities/payout-order.entity';
 import { PayoutBroadcastException } from '../../../../exceptions/payout-broadcast.exception';
 import { PayoutOrderRepository } from '../../../../repositories/payout-order.repository';
 import { PayoutStrategyRegistry } from './payout.strategy-registry';
 
 export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
   private _feeAsset: Asset;
+  private readonly designationLogger = new DfxLogger(PayoutStrategy);
 
   @Inject() protected readonly pricingService: PricingService;
   @Inject() private readonly registry: PayoutStrategyRegistry;
@@ -49,14 +51,62 @@ export abstract class PayoutStrategy implements OnModuleInit, OnModuleDestroy {
     return false;
   }
 
-  // Persist PAYOUT_DESIGNATED BEFORE broadcasting (fail-closed, mirrors the Bitcoin path):
-  // a reboot between broadcast and save must not leave the order re-selectable by the payout
-  // cron, which would double-pay. Only designates on the first attempt; a re-entry with
-  // payoutTxId already set (EVM speedup/expired-retry) keeps its status so nonce reuse stays intact.
-  protected async designateBeforeBroadcast(order: PayoutOrder, repo: PayoutOrderRepository): Promise<void> {
-    if (!order.payoutTxId) {
+  // Atomically claim the order for this run (see designateBeforeBroadcast). A claim that fails —
+  // lost race (affected = 0) or a DB error on the UPDATE itself — leaves the order unclaimed and
+  // therefore re-selectable by the next cron run: skipping it here is the self-healing direction,
+  // while letting the error escape would run rollback/failure handling on an order this run does
+  // not own and stale-overwrite a concurrent run's state.
+  protected async claimForBroadcast(order: PayoutOrder, repo: PayoutOrderRepository): Promise<boolean> {
+    try {
+      const result = await repo.update(
+        { id: order.id, status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+        { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+      );
+      if (!result.affected) {
+        this.designationLogger.warn(`Skipping payout order ${order.id}: designation lost to a concurrent payout run`);
+        return false;
+      }
+
       order.designatePayout();
-      await repo.save(order);
+      return true;
+    } catch (e) {
+      this.designationLogger.warn(
+        `Skipping payout order ${order.id}: designation claim failed, order stays re-selectable`,
+        e,
+      );
+      return false;
+    }
+  }
+
+  // The payout cron lock expires after 1800 seconds, so payout runs can overlap. An atomic
+  // conditional transition prevents a stale run from broadcasting an order already claimed by
+  // another run or overwriting its newer payout state; a plain entity save cannot enforce this.
+  // A re-entry with payoutTxId already set (EVM speedup/expired-retry) keeps its existing status.
+  protected async designateBeforeBroadcast(order: PayoutOrder, repo: PayoutOrderRepository): Promise<boolean> {
+    if (order.payoutTxId) return true;
+    return this.claimForBroadcast(order, repo);
+  }
+
+  // Conditionally releases a broadcast order for a fresh protected retry. The WHERE clause pins
+  // both status and the exact payoutTxId this run saw, so a stale run cannot roll back an order a
+  // concurrent run has already re-claimed or re-broadcast (that would null the fresh payoutTxId
+  // and re-open the order for a second broadcast).
+  protected async rollbackBroadcastForRetry(order: PayoutOrder, repo: PayoutOrderRepository): Promise<boolean> {
+    try {
+      const result = await repo.update(
+        { id: order.id, status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: order.payoutTxId },
+        { status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null },
+      );
+      if (!result.affected) {
+        this.designationLogger.warn(`Skipping payout retry for order ${order.id}: state changed concurrently`);
+        return false;
+      }
+
+      order.rollbackPayout();
+      return true;
+    } catch (e) {
+      this.designationLogger.warn(`Skipping payout retry for order ${order.id}: rollback claim failed`, e);
+      return false;
     }
   }
 

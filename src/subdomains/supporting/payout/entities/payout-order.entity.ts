@@ -116,12 +116,6 @@ export class PayoutOrder extends IEntity {
     return this;
   }
 
-  pendingInvestigation(): this {
-    this.status = PayoutOrderStatus.PAYOUT_UNCERTAIN;
-
-    return this;
-  }
-
   pendingPayout(payoutTxId: string) {
     if (!payoutTxId) throw new Error('No payoutTxId provided to PayoutOrder #pendingPayout(...)');
 

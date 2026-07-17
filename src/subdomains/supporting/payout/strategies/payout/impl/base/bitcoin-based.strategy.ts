@@ -141,18 +141,20 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
     if (orders.some((o) => o.payoutTxId) && !DisabledProcess(Process.TX_SPEEDUP))
       throw new Error(`Transaction speedup is not implemented for ${this.blockchain}`);
 
-    try {
-      const payout = this.aggregatePayout(orders);
+    const designated = await this.designatePayout(orders);
+    if (!designated.length) return;
 
-      await this.designatePayout(orders);
-      payoutTxId = await this.dispatchPayout(context, payout, orders[0].asset);
+    try {
+      const payout = this.aggregatePayout(designated);
+
+      payoutTxId = await this.dispatchPayout(context, payout, designated[0].asset);
     } catch (e) {
       this.logger.error(
-        `Error on sending ${orders[0].asset.name} for payout. Order ID(s): ${orders.map((o) => o.id)}:`,
+        `Error on sending ${designated[0].asset.name} for payout. Order ID(s): ${designated.map((o) => o.id)}:`,
         e,
       );
 
-      await this.trackPayoutFailure(orders, e);
+      await this.trackPayoutFailure(designated, e);
 
       // A PayoutBroadcastException means the underlying client reached the actual on-chain
       // broadcast call (tx may already be in-flight) - fail-closed, keep PAYOUT_DESIGNATED so
@@ -161,12 +163,12 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
       // pre-broadcast and safe to roll back for auto-retry.
       if (e instanceof PayoutBroadcastException) throw e;
 
-      await this.rollbackPayoutDesignation(orders);
+      await this.rollbackPayoutDesignation(designated);
 
       return;
     }
 
-    for (const order of orders) {
+    for (const order of designated) {
       try {
         order.resetPayoutRetry();
         const paidOrder = order.pendingPayout(payoutTxId);
@@ -196,11 +198,12 @@ export abstract class BitcoinBasedStrategy extends PayoutStrategy {
     return Util.fixRoundingMismatch(roundedPayouts, 'amount', payoutTotal);
   }
 
-  protected async designatePayout(orders: PayoutOrder[]): Promise<void> {
+  protected async designatePayout(orders: PayoutOrder[]): Promise<PayoutOrder[]> {
+    const designated: PayoutOrder[] = [];
     for (const order of orders) {
-      order.designatePayout();
-      await this.payoutOrderRepo.save(order);
+      if (await this.claimForBroadcast(order, this.payoutOrderRepo)) designated.push(order);
     }
+    return designated;
   }
 
   protected async rollbackPayoutDesignation(orders: PayoutOrder[]): Promise<void> {

@@ -33,6 +33,7 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       payoutOrderRepo = mock<PayoutOrderRepository>();
       pricingService = mock<PricingService>();
       dispatchFn = jest.fn();
+      jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
       repoSaveSpy = jest.spyOn(payoutOrderRepo, 'save').mockImplementation(async (o) => o as PayoutOrder);
 
       // TX_SPEEDUP is fail-closed (disabled) by default in tests; enable it so nonce reuse/fresh-nonce
@@ -116,7 +117,53 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       expect(payoutEvmService.getTxNonce).not.toHaveBeenCalled(); // fresh nonce, no reuse
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
       expect(order.payoutTxId).toBe('TX_NEW_OOG');
-      expect(repoSaveSpy).toHaveBeenCalledTimes(3); // rollback save + designate save + pending save
+      expect(payoutOrderRepo.update).toHaveBeenNthCalledWith(
+        1,
+        { id: order.id, status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'TX_OOG' },
+        { status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null },
+      );
+      expect(payoutOrderRepo.update).toHaveBeenNthCalledWith(
+        2,
+        { id: order.id, status: PayoutOrderStatus.PREPARATION_CONFIRMED },
+        { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+      );
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // pending only; rollback and designation use UPDATE
+    });
+
+    it('failed, out-of-gas + stale rollback: skips retry when the exact pending transaction changed', async () => {
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'TX_OOG' });
+      const status: PayoutTxStatus = { state: 'failed', isOutOfGas: true };
+      jest.spyOn(payoutEvmService, 'getPayoutCompletionData').mockResolvedValue(status);
+      jest.spyOn(payoutOrderRepo, 'update').mockResolvedValueOnce({ affected: 0 } as any);
+      const rollbackSpy = jest.spyOn(order, 'rollbackPayout');
+
+      await strategy.checkPayoutCompletionData([order]);
+
+      expect(payoutOrderRepo.update).toHaveBeenCalledWith(
+        { id: order.id, status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'TX_OOG' },
+        { status: PayoutOrderStatus.PREPARATION_CONFIRMED, payoutTxId: null },
+      );
+      expect(rollbackSpy).not.toHaveBeenCalled();
+      expect(dispatchFn).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(order.payoutTxId).toBe('TX_OOG');
+    });
+
+    it('failed, out-of-gas + rollback update error: skips retry and leaves the order unchanged', async () => {
+      const order = createCustomPayoutOrder({ status: PayoutOrderStatus.PAYOUT_PENDING, payoutTxId: 'TX_OOG' });
+      const status: PayoutTxStatus = { state: 'failed', isOutOfGas: true };
+      jest.spyOn(payoutEvmService, 'getPayoutCompletionData').mockResolvedValue(status);
+      jest.spyOn(payoutOrderRepo, 'update').mockRejectedValueOnce(new Error('database unavailable'));
+      const rollbackSpy = jest.spyOn(order, 'rollbackPayout');
+
+      await expect(strategy.checkPayoutCompletionData([order])).resolves.toBeUndefined();
+
+      expect(rollbackSpy).not.toHaveBeenCalled();
+      expect(dispatchFn).not.toHaveBeenCalled();
+      expect(repoSaveSpy).not.toHaveBeenCalled();
+      expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
+      expect(order.payoutTxId).toBe('TX_OOG');
     });
 
     it('(d) expired in mempool + retryable: keeps payoutTxId, skips re-designation and reuses the nonce', async () => {
@@ -136,6 +183,7 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       expect(payoutEvmService.isTxExpired).toHaveBeenCalledWith('TX_OLD');
       // Guard: payoutTxId was never cleared, so designateBeforeBroadcast skips re-designation.
       expect(designateSpy).not.toHaveBeenCalled();
+      expect(payoutOrderRepo.update).not.toHaveBeenCalled();
       expect(rollbackSpy).not.toHaveBeenCalled();
       expect(completeSpy).not.toHaveBeenCalled();
       expect(payoutEvmService.getTxNonce).toHaveBeenCalledWith('TX_OLD'); // nonce reuse
@@ -143,7 +191,7 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       expect(dispatchFn).toHaveBeenCalledWith(order, 7);
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_PENDING);
       expect(order.payoutTxId).toBe('TX_NEW_EXPIRED');
-      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // only the final pending save, no pre-broadcast designate save
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // only the final pending save; no designation update on re-entry
     });
 
     it('(e) pending: no status change, no completion, no designation, no rollback, no dispatch', async () => {
@@ -200,6 +248,7 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       const payoutEvmService = mock<PayoutEvmService>();
       payoutOrderRepo = mock<PayoutOrderRepository>();
       dispatchFn = jest.fn();
+      jest.spyOn(payoutOrderRepo, 'update').mockResolvedValue({ affected: 1 } as any);
       repoSaveSpy = jest.spyOn(payoutOrderRepo, 'save').mockImplementation(async (o) => o as PayoutOrder);
 
       strategy = new EvmStrategyWrapper(payoutEvmService, payoutOrderRepo, dispatchFn);
@@ -221,7 +270,7 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       expect(order.lastError).toBe('nonce could not be fetched');
       expect(rollbackSpy).toHaveBeenCalledTimes(1);
       expect(dispatchFn).toHaveBeenCalledTimes(1); // no second broadcast in the same run
-      expect(repoSaveSpy).toHaveBeenCalledTimes(2); // pre-broadcast designate save + rollback save
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // rollback save; designation uses UPDATE
     });
 
     it('broadcast-boundary error (PayoutBroadcastException): stays PAYOUT_DESIGNATED, no rollback, no retryCount increment', async () => {
@@ -234,7 +283,7 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED);
       expect(order.retryCount).toBe(0);
       expect(rollbackSpy).not.toHaveBeenCalled();
-      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // only the pre-broadcast designate save
+      expect(repoSaveSpy).not.toHaveBeenCalled();
     });
 
     it('re-entry (payoutTxId already set) + plain error: never rolls back, preserving nonce reuse', async () => {
@@ -270,7 +319,7 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       expect(order.retryCount).toBe(1);
       expect(order.lastError).toBe('rpc failure string');
       expect(rollbackSpy).toHaveBeenCalledTimes(1);
-      expect(repoSaveSpy).toHaveBeenCalledTimes(2); // pre-broadcast designate save + rollback save
+      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // rollback save; designation uses UPDATE
     });
 
     it('pre-broadcast error at the retry cap: stops rolling back so the order escalates to PAYOUT_UNCERTAIN', async () => {
@@ -287,7 +336,7 @@ describe('Payout EVM retry x designate-before-broadcast guard', () => {
       expect(rollbackSpy).not.toHaveBeenCalled();
       expect(order.status).toBe(PayoutOrderStatus.PAYOUT_DESIGNATED); // left for processFailedOrders -> PAYOUT_UNCERTAIN
       expect(order.retryCount).toBe(Config.payout.maxPreBroadcastRetries); // not incremented further
-      expect(repoSaveSpy).toHaveBeenCalledTimes(1); // only the pre-broadcast designate save
+      expect(repoSaveSpy).not.toHaveBeenCalled();
     });
 
     it('successful payout resets a previously tracked retry count', async () => {
