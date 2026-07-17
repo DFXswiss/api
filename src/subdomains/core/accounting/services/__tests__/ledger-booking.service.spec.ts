@@ -232,6 +232,7 @@ describe('LedgerBookingService', () => {
     });
 
     expect(logSpy).toHaveBeenCalled(); // pure same-asset transfer with native imbalance → logged
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('source exchange_tx 6 seq 0')); // names the producer
   });
 
   it('reverses a tx with inverted legs and the next free seq', async () => {
