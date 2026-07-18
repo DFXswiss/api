@@ -74,7 +74,7 @@ import { Department } from 'src/subdomains/supporting/support-issue/enums/depart
 import { SupportIssueReason, SupportIssueType } from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
 import { transliterate } from 'transliteration';
-import { EntityManager, FindOptionsRelations, In, LessThan, Not, Raw } from 'typeorm';
+import { EntityManager, FindOptionsRelations, In, IsNull, LessThan, Not, Raw } from 'typeorm';
 import { AssetPricesService } from '../pricing/services/asset-prices.service';
 import { PriceCurrency, PriceValidity, PricingService } from '../pricing/services/pricing.service';
 import {
@@ -2419,9 +2419,15 @@ export class RealUnitService {
     for (const request of staleRequests) {
       try {
         if (!request.txHash) {
-          // No broadcast happened (txHash is persisted before sendRawTransaction) — safe to fail.
-          await this.transferRequestRepo.save(request.fail());
-          this.logger.info(`RealUnit W2W transfer request ${request.id} reconciled: no broadcast, marked FAILED`);
+          // Conditional update: only fail if still PROCESSING with no txHash. Concurrent onBroadcast
+          // may have set txHash between our find and this write — then affected=0 and we skip.
+          const res = await this.transferRequestRepo.update(
+            { id: request.id, status: RealUnitTransferRequestStatus.PROCESSING, txHash: IsNull() },
+            { status: RealUnitTransferRequestStatus.FAILED },
+          );
+          if (res.affected) {
+            this.logger.info(`RealUnit W2W transfer request ${request.id} reconciled: no broadcast, marked FAILED`);
+          }
           continue;
         }
 
@@ -2429,11 +2435,23 @@ export class RealUnitService {
         if (!receipt) continue; // not yet mined / not found — leave PROCESSING for the next run
 
         if (receipt.status === 1) {
-          await this.transferRequestRepo.save(request.complete(request.txHash));
-          this.logger.info(`RealUnit W2W transfer request ${request.id} reconciled: confirmed on-chain`);
+          const res = await this.transferRequestRepo.update(
+            { id: request.id, status: RealUnitTransferRequestStatus.PROCESSING },
+            { status: RealUnitTransferRequestStatus.COMPLETED, txHash: request.txHash },
+          );
+          if (res.affected) {
+            this.logger.info(`RealUnit W2W transfer request ${request.id} reconciled: confirmed on-chain`);
+          }
         } else {
-          await this.transferRequestRepo.save(request.fail());
-          this.logger.info(`RealUnit W2W transfer request ${request.id} reconciled: reverted on-chain, marked FAILED`);
+          const res = await this.transferRequestRepo.update(
+            { id: request.id, status: RealUnitTransferRequestStatus.PROCESSING },
+            { status: RealUnitTransferRequestStatus.FAILED },
+          );
+          if (res.affected) {
+            this.logger.info(
+              `RealUnit W2W transfer request ${request.id} reconciled: reverted on-chain, marked FAILED`,
+            );
+          }
         }
       } catch (e) {
         this.logger.error(`Failed to reconcile RealUnit W2W transfer request ${request.id}:`, e);

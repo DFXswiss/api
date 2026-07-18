@@ -42,7 +42,7 @@ import { LogSeverity } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
 import { SupportIssueReason, SupportIssueType } from 'src/subdomains/supporting/support-issue/enums/support-issue.enum';
 import { SupportIssueService } from 'src/subdomains/supporting/support-issue/services/support-issue.service';
-import { FindOperator } from 'typeorm';
+import { FindOperator, IsNull } from 'typeorm';
 import { AssetPricesService } from '../../pricing/services/asset-prices.service';
 import { PricingService } from '../../pricing/services/pricing.service';
 import { RealUnitAktionariatConfirmationStatus } from '../dto/realunit-confirm-aktionariat.dto';
@@ -161,6 +161,7 @@ jest.mock('src/shared/utils/util', () => ({
     isoDate: (date: Date) => date.toISOString().split('T')[0],
     daysBefore: (days: number, from?: Date) => new Date((from ?? new Date()).getTime() - days * 86_400_000),
     daysDiff: jest.fn().mockReturnValue(0),
+    minutesBefore: (minutes: number, from?: Date) => new Date((from ?? new Date()).getTime() - minutes * 60_000),
     // The service stamps a per-write uniqueness nonce into every audit message; return a distinct value on
     // each call so two byte-identical events serialise to different messages (mirrors the real randomness).
     randomString: (() => {
@@ -194,7 +195,7 @@ describe('RealUnitService', () => {
   let buyService: jest.Mocked<BuyService>;
   let supportIssueService: jest.Mocked<SupportIssueService>;
   let transferRequestRepo: jest.Mocked<RealUnitTransferRequestRepository>;
-  let sepoliaClient: { getNativeCoinBalanceForAddress: jest.Mock; getTokenBalance: jest.Mock };
+  let sepoliaClient: { getNativeCoinBalanceForAddress: jest.Mock; getTokenBalance: jest.Mock; getTxReceipt: jest.Mock };
 
   const realuAsset = createCustomAsset({
     id: 1,
@@ -227,7 +228,7 @@ describe('RealUnitService', () => {
     aktionariatManager = {
       transaction: jest.fn(async (cb: any) => cb(aktionariatTxManager)),
     };
-    sepoliaClient = { getNativeCoinBalanceForAddress: jest.fn(), getTokenBalance: jest.fn() };
+    sepoliaClient = { getNativeCoinBalanceForAddress: jest.fn(), getTokenBalance: jest.fn(), getTxReceipt: jest.fn() };
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -328,6 +329,7 @@ describe('RealUnitService', () => {
             create: jest.fn((e) => e),
             save: jest.fn((e) => Promise.resolve({ id: 99, ...e })),
             findOne: jest.fn(),
+            find: jest.fn(),
             update: jest.fn().mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] }),
           },
         },
@@ -1328,6 +1330,80 @@ describe('RealUnitService', () => {
 
         await expect(service.confirmTransfer(42, 99, confirmDto)).rejects.toThrow(ConflictException);
         expect(eip7702DelegationService.transferTokenWithUserDelegation).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('reconcilePendingTransfers', () => {
+      function buildStaleTransferRequest(overrides: any = {}): any {
+        return {
+          id: 1,
+          uid: 'RTstale',
+          toAddress: '0x0000000000000000000000000000000000dEaD',
+          amount: 1,
+          status: RealUnitTransferRequestStatus.PROCESSING,
+          user: { id: 1 },
+          txHash: null,
+          ...overrides,
+        };
+      }
+
+      it('marks a stale PROCESSING request with no txHash FAILED via conditional update (not save)', async () => {
+        transferRequestRepo.find.mockResolvedValue([buildStaleTransferRequest({ id: 5, txHash: null })]);
+        transferRequestRepo.update.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+
+        await service.reconcilePendingTransfers();
+
+        expect(transferRequestRepo.update).toHaveBeenCalledWith(
+          { id: 5, status: RealUnitTransferRequestStatus.PROCESSING, txHash: IsNull() },
+          { status: RealUnitTransferRequestStatus.FAILED },
+        );
+        expect(transferRequestRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('does not mark FAILED when a concurrent broadcast already set txHash (affected=0 skip)', async () => {
+        transferRequestRepo.find.mockResolvedValue([buildStaleTransferRequest({ id: 6, txHash: null })]);
+        transferRequestRepo.update.mockResolvedValue({ affected: 0, raw: [], generatedMaps: [] });
+
+        await service.reconcilePendingTransfers();
+
+        expect(transferRequestRepo.update).toHaveBeenCalledTimes(1);
+        expect(transferRequestRepo.update).toHaveBeenCalledWith(
+          { id: 6, status: RealUnitTransferRequestStatus.PROCESSING, txHash: IsNull() },
+          { status: RealUnitTransferRequestStatus.FAILED },
+        );
+        expect(transferRequestRepo.save).not.toHaveBeenCalled();
+        // No second corrective update — silent skip when affected=0
+        expect(transferRequestRepo.update).toHaveBeenCalledTimes(1);
+      });
+
+      it('marks COMPLETED via conditional update when on-chain receipt status is 1', async () => {
+        transferRequestRepo.find.mockResolvedValue([buildStaleTransferRequest({ id: 7, txHash: '0xabc' })]);
+        sepoliaClient.getTxReceipt.mockResolvedValue({ status: 1 });
+        transferRequestRepo.update.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+
+        await service.reconcilePendingTransfers();
+
+        expect(sepoliaClient.getTxReceipt).toHaveBeenCalledWith('0xabc');
+        expect(transferRequestRepo.update).toHaveBeenCalledWith(
+          { id: 7, status: RealUnitTransferRequestStatus.PROCESSING },
+          { status: RealUnitTransferRequestStatus.COMPLETED, txHash: '0xabc' },
+        );
+        expect(transferRequestRepo.save).not.toHaveBeenCalled();
+      });
+
+      it('marks FAILED via conditional update when on-chain receipt is reverted (status !== 1)', async () => {
+        transferRequestRepo.find.mockResolvedValue([buildStaleTransferRequest({ id: 8, txHash: '0xdef' })]);
+        sepoliaClient.getTxReceipt.mockResolvedValue({ status: 0 });
+        transferRequestRepo.update.mockResolvedValue({ affected: 1, raw: [], generatedMaps: [] });
+
+        await service.reconcilePendingTransfers();
+
+        expect(sepoliaClient.getTxReceipt).toHaveBeenCalledWith('0xdef');
+        expect(transferRequestRepo.update).toHaveBeenCalledWith(
+          { id: 8, status: RealUnitTransferRequestStatus.PROCESSING },
+          { status: RealUnitTransferRequestStatus.FAILED },
+        );
+        expect(transferRequestRepo.save).not.toHaveBeenCalled();
       });
     });
   });
