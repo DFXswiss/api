@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { Config, Environment, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
 import { Asset } from 'src/shared/models/asset/asset.entity';
@@ -400,10 +400,12 @@ export class Eip7702DelegationService {
 
     // Validate authorization fields
     if (Number(authorization.chainId) !== expectedChainId) {
-      throw new Error(`Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`);
+      throw new BadRequestException(
+        `Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`,
+      );
     }
     if (authorization.address.toLowerCase() !== DELEGATOR_ADDRESS.toLowerCase()) {
-      throw new Error(
+      throw new BadRequestException(
         `Authorization contract address mismatch: expected ${DELEGATOR_ADDRESS}, got ${authorization.address}`,
       );
     }
@@ -588,10 +590,12 @@ export class Eip7702DelegationService {
 
     // Validate authorization fields
     if (Number(authorization.chainId) !== expectedChainId) {
-      throw new Error(`Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`);
+      throw new BadRequestException(
+        `Authorization chainId mismatch: expected ${expectedChainId}, got ${authorization.chainId}`,
+      );
     }
     if (authorization.address.toLowerCase() !== DELEGATOR_ADDRESS.toLowerCase()) {
-      throw new Error(
+      throw new BadRequestException(
         `Authorization contract address mismatch: expected ${DELEGATOR_ADDRESS}, got ${authorization.address}`,
       );
     }
@@ -974,7 +978,9 @@ export class Eip7702DelegationService {
     });
 
     if (recoveredAddress.toLowerCase() !== expectedSigner.toLowerCase()) {
-      throw new Error(`Invalid delegation signature: recovered ${recoveredAddress}, expected ${expectedSigner}`);
+      throw new BadRequestException(
+        `Invalid delegation signature: recovered ${recoveredAddress}, expected ${expectedSigner}`,
+      );
     }
   }
 
@@ -997,7 +1003,9 @@ export class Eip7702DelegationService {
     });
 
     if (recoveredAddress.toLowerCase() !== expectedSigner.toLowerCase()) {
-      throw new Error(`Invalid authorization signature: recovered ${recoveredAddress}, expected ${expectedSigner}`);
+      throw new BadRequestException(
+        `Invalid authorization signature: recovered ${recoveredAddress}, expected ${expectedSigner}`,
+      );
     }
   }
 

@@ -7,8 +7,8 @@
  * @class
  * @implements {MigrationInterface}
  */
-module.exports = class AddRealUnitTransferRequest1780560119568 {
-  name = 'AddRealUnitTransferRequest1780560119568';
+module.exports = class AddRealUnitTransferRequest1783900100000 {
+  name = 'AddRealUnitTransferRequest1783900100000';
 
   /**
    * @param {QueryRunner} queryRunner

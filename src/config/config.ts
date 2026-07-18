@@ -1105,7 +1105,7 @@ export class Configuration {
       w2wGasWalletAddress: process.env.REALUNIT_W2W_GAS_WALLET_ADDRESS,
       w2wGasLowBalanceThreshold: (() => {
         const raw = process.env.REALUNIT_W2W_GAS_LOW_BALANCE_THRESHOLD;
-        if (raw === undefined) return 0.05;
+        if (raw === undefined) throw new Error('Missing REALUNIT_W2W_GAS_LOW_BALANCE_THRESHOLD');
         const n = Number(raw);
         if (!Number.isFinite(n) || n <= 0) throw new Error(`Invalid REALUNIT_W2W_GAS_LOW_BALANCE_THRESHOLD: ${raw}`);
         return n;
