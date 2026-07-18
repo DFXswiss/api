@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException, NotFoundException } from '@nestjs/common';
 import { mock } from 'jest-mock-extended';
 import { ConfigService } from 'src/config/config';
 import { Util } from 'src/shared/utils/util';
@@ -6,6 +6,7 @@ import { PaymentLinkPaymentService } from 'src/subdomains/core/payment-link/serv
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
 import { TransactionService } from 'src/subdomains/supporting/payment/services/transaction.service';
 import { In, IsNull, LessThan, Not } from 'typeorm';
+import { RetryPayInSendDto } from '../../dto/retry-payin-send.dto';
 import { createCustomCryptoInput } from '../../entities/__mocks__/crypto-input.entity.mock';
 import { PayInAction, PayInStatus, PayInType } from '../../entities/crypto-input.entity';
 import { PayInRepository } from '../../repositories/payin.repository';
@@ -175,6 +176,140 @@ describe('PayInService designate-before-broadcast safeguards', () => {
         isConfirmed: true,
       },
       relations: { buyCrypto: true, buyFiat: true },
+    });
+  });
+
+  describe('#retryUncertainSend(...)', () => {
+    const accountId = 42;
+    const baseDto: RetryPayInSendDto = {
+      id: 1,
+      noBroadcastVerified: true,
+      verificationReference: 'explorer: no tx; ticket SUP-123',
+    };
+
+    it('throws NotFoundException when the pay-in does not exist', async () => {
+      jest.spyOn(payInRepository, 'findOneBy').mockResolvedValue(null);
+      const updateSpy = jest.spyOn(payInRepository, 'update');
+
+      await expect(service.retryUncertainSend(accountId, baseDto)).rejects.toThrow(NotFoundException);
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when the status is not SendUncertain', async () => {
+      const payIn = createCustomCryptoInput({
+        id: 1,
+        status: PayInStatus.SENDING,
+        action: PayInAction.FORWARD,
+        outTxId: null,
+        returnTxId: null,
+      });
+      jest.spyOn(payInRepository, 'findOneBy').mockResolvedValue(payIn);
+      const updateSpy = jest.spyOn(payInRepository, 'update');
+
+      await expect(service.retryUncertainSend(accountId, baseDto)).rejects.toThrow(BadRequestException);
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when outTxId is set (must be reconciled, not retried)', async () => {
+      const payIn = createCustomCryptoInput({
+        id: 1,
+        status: PayInStatus.SEND_UNCERTAIN,
+        action: PayInAction.FORWARD,
+        outTxId: 'OUT_TX_ALREADY_SET',
+        returnTxId: null,
+      });
+      jest.spyOn(payInRepository, 'findOneBy').mockResolvedValue(payIn);
+      const updateSpy = jest.spyOn(payInRepository, 'update');
+
+      await expect(service.retryUncertainSend(accountId, baseDto)).rejects.toThrow(BadRequestException);
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when returnTxId is set (must be reconciled, not retried)', async () => {
+      const payIn = createCustomCryptoInput({
+        id: 1,
+        status: PayInStatus.SEND_UNCERTAIN,
+        action: PayInAction.RETURN,
+        outTxId: null,
+        returnTxId: 'RETURN_TX_ALREADY_SET',
+      });
+      jest.spyOn(payInRepository, 'findOneBy').mockResolvedValue(payIn);
+      const updateSpy = jest.spyOn(payInRepository, 'update');
+
+      await expect(service.retryUncertainSend(accountId, baseDto)).rejects.toThrow(BadRequestException);
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when noBroadcastVerified is not true and never updates', async () => {
+      const payIn = createCustomCryptoInput({
+        id: 1,
+        status: PayInStatus.SEND_UNCERTAIN,
+        action: PayInAction.FORWARD,
+        outTxId: null,
+        returnTxId: null,
+      });
+      jest.spyOn(payInRepository, 'findOneBy').mockResolvedValue(payIn);
+      const updateSpy = jest.spyOn(payInRepository, 'update');
+
+      await expect(service.retryUncertainSend(accountId, { ...baseDto, noBroadcastVerified: false })).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(updateSpy).not.toHaveBeenCalled();
+    });
+
+    it('resets a FORWARD pay-in to Acknowledged with a conditional update on SendUncertain', async () => {
+      const payIn = createCustomCryptoInput({
+        id: 1,
+        status: PayInStatus.SEND_UNCERTAIN,
+        action: PayInAction.FORWARD,
+        outTxId: null,
+        returnTxId: null,
+      });
+      jest.spyOn(payInRepository, 'findOneBy').mockResolvedValue(payIn);
+      const updateSpy = jest.spyOn(payInRepository, 'update').mockResolvedValue({ affected: 1 } as any);
+      const infoSpy = jest.spyOn(service['logger'], 'info').mockImplementation();
+
+      await service.retryUncertainSend(accountId, baseDto);
+
+      expect(updateSpy).toHaveBeenCalledWith(
+        { id: payIn.id, status: PayInStatus.SEND_UNCERTAIN },
+        { status: PayInStatus.ACKNOWLEDGED },
+      );
+      expect(infoSpy).toHaveBeenCalled();
+    });
+
+    it('resets a RETURN pay-in to ToReturn with a conditional update on SendUncertain', async () => {
+      const payIn = createCustomCryptoInput({
+        id: 1,
+        status: PayInStatus.SEND_UNCERTAIN,
+        action: PayInAction.RETURN,
+        outTxId: null,
+        returnTxId: null,
+      });
+      jest.spyOn(payInRepository, 'findOneBy').mockResolvedValue(payIn);
+      const updateSpy = jest.spyOn(payInRepository, 'update').mockResolvedValue({ affected: 1 } as any);
+      jest.spyOn(service['logger'], 'info').mockImplementation();
+
+      await service.retryUncertainSend(accountId, baseDto);
+
+      expect(updateSpy).toHaveBeenCalledWith(
+        { id: payIn.id, status: PayInStatus.SEND_UNCERTAIN },
+        { status: PayInStatus.TO_RETURN },
+      );
+    });
+
+    it('throws ConflictException when the conditional update affects no rows (concurrent state change)', async () => {
+      const payIn = createCustomCryptoInput({
+        id: 1,
+        status: PayInStatus.SEND_UNCERTAIN,
+        action: PayInAction.FORWARD,
+        outTxId: null,
+        returnTxId: null,
+      });
+      jest.spyOn(payInRepository, 'findOneBy').mockResolvedValue(payIn);
+      jest.spyOn(payInRepository, 'update').mockResolvedValue({ affected: 0 } as any);
+
+      await expect(service.retryUncertainSend(accountId, baseDto)).rejects.toThrow(ConflictException);
     });
   });
 });

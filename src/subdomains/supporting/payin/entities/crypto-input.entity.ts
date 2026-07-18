@@ -274,6 +274,22 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
+  // Recover an operator-verified not-broadcast SendUncertain pay-in: return it to its direction's
+  // initial send status so the send cron re-selects it and re-runs the full designate-before-broadcast
+  // flow. Staged chains rebuild a fresh preparation, overwriting any prior preparation artifacts.
+  resetSend(): UpdateResult<CryptoInput> {
+    if (![PayInAction.FORWARD, PayInAction.RETURN].includes(this.action))
+      throw new Error(`Cannot reset send for pay-in ${this.id} with action ${this.action}`);
+
+    const update: Partial<CryptoInput> = {
+      status: this.action === PayInAction.RETURN ? PayInStatus.TO_RETURN : PayInStatus.ACKNOWLEDGED,
+    };
+
+    Object.assign(this, update);
+
+    return [this.id, update];
+  }
+
   confirm(direction: PayInConfirmationType, forwardRequired: boolean): UpdateResult<CryptoInput> {
     let update: Partial<CryptoInput> = {};
 

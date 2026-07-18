@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
@@ -19,6 +19,7 @@ import { In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { DepositRoute } from '../../address-pool/route/deposit-route.entity';
 import { TransactionSourceType, TransactionTypeInternal } from '../../payment/entities/transaction.entity';
 import { TransactionService } from '../../payment/services/transaction.service';
+import { RetryPayInSendDto } from '../dto/retry-payin-send.dto';
 import {
   CryptoInput,
   CryptoInputInFlightSendStatus,
@@ -253,6 +254,36 @@ export class PayInService {
     _payIn.ignore(purpose, route);
 
     await this.payInRepository.save(_payIn);
+  }
+
+  async retryUncertainSend(accountId: number, dto: RetryPayInSendDto): Promise<void> {
+    const payIn = await this.payInRepository.findOneBy({ id: dto.id });
+    if (!payIn) throw new NotFoundException('CryptoInput not found');
+
+    if (payIn.status !== PayInStatus.SEND_UNCERTAIN)
+      throw new BadRequestException(
+        `CryptoInput ${dto.id} cannot be retried in status ${payIn.status}, expected ${PayInStatus.SEND_UNCERTAIN}`,
+      );
+
+    // A pay-in that already carries an out/return tx id did broadcast — reconcile against the chain, never re-send.
+    if (payIn.outTxId || payIn.returnTxId)
+      throw new BadRequestException(
+        `CryptoInput ${dto.id} has ${
+          payIn.outTxId ? `outTxId ${payIn.outTxId}` : `returnTxId ${payIn.returnTxId}`
+        } and must be reconciled, not retried`,
+      );
+
+    if (dto.noBroadcastVerified !== true)
+      throw new BadRequestException('On-chain absence must be verified and confirmed (noBroadcastVerified)');
+
+    // Atomic conditional transition — a concurrent state change (e.g. late confirmation) must not be resurrected.
+    const [, update] = payIn.resetSend();
+    const result = await this.payInRepository.update({ id: payIn.id, status: PayInStatus.SEND_UNCERTAIN }, update);
+    if (!result.affected) throw new ConflictException(`CryptoInput ${dto.id} changed state concurrently, not retried`);
+
+    this.logger.info(
+      `Manual pay-in send retry authorized for input ${dto.id} by account ${accountId}: status ${PayInStatus.SEND_UNCERTAIN} -> ${update.status}, reference: ${dto.verificationReference}`,
+    );
   }
 
   // --- JOBS --- //
