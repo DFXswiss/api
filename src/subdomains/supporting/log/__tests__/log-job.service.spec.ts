@@ -33,7 +33,7 @@ import { createCustomBankTx } from '../../bank-tx/bank-tx/__mocks__/bank-tx.enti
 import { BankTxIndicator, BankTxType } from '../../bank-tx/bank-tx/entities/bank-tx.entity';
 import { Bank } from '../../bank/bank/bank.entity';
 import { BankService } from '../../bank/bank/bank.service';
-import { frickEUR, olkyEUR, yapealCHF } from '../../bank/bank/__mocks__/bank.entity.mock';
+import { frickCHF, frickEUR, olkyEUR, yapealCHF } from '../../bank/bank/__mocks__/bank.entity.mock';
 import { IbanBankName } from '../../bank/bank/dto/bank.dto';
 import { createCustomFiatOutput } from '../../fiat-output/__mocks__/fiat-output.entity.mock';
 import { PayInService } from '../../payin/services/payin.service';
@@ -1287,6 +1287,117 @@ describe('LogJobService', () => {
       // the Scrypt/EUR row now captures the Frick-sourced pending amount — before the fix this was 0
       // because eurBankIbans excluded Frick's IBAN, so the tx never entered recentEurBankToScryptTx
       expect(assetLog[scryptEurAsset.id].plusBalance.pending.toScrypt).toBe(10000);
+    });
+  });
+
+  describe('Frick CHF bank <-> Scrypt reconciliation (chfBankIbans completeness)', () => {
+    beforeEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.YAPEAL}-CHF`,
+        yapealCHF.iban,
+      );
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.FRICK}-CHF`,
+        frickCHF.iban,
+      );
+    });
+
+    afterEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+    });
+
+    function setupChfScryptAssetLog(scryptBankTx: ReturnType<typeof createCustomBankTx>[]) {
+      jest.spyOn(settingService, 'getCustomBalanceSettings').mockResolvedValue({ assets: [], addresses: [] });
+      jest.spyOn(settingService, 'getObj').mockImplementation(async (_key, defaultValue) => defaultValue as never);
+      jest.spyOn(paymentBalanceService, 'getPaymentBalances').mockResolvedValue(new Map());
+
+      const bankFor = (name: IbanBankName, currency: string): Bank => {
+        if (name === IbanBankName.YAPEAL && currency === 'CHF') return yapealCHF;
+        if (name === IbanBankName.FRICK && currency === 'CHF') return frickCHF;
+        return Object.assign(new Bank(), { name, currency, iban: `IBAN_${name}_${currency}`, bic: 'BICTEST' });
+      };
+      jest.spyOn(bankService, 'getBankInternal').mockImplementation(async (name, currency) => bankFor(name, currency));
+
+      jest.spyOn(liquidityManagementPipelineService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(payInService, 'getPendingPayIns').mockResolvedValue([]);
+      jest.spyOn(buyFiatService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(buyCryptoService, 'getPendingTransactions').mockResolvedValue([]);
+      jest.spyOn(payoutService, 'getRecentPayoutSentCorrelationIds').mockResolvedValue(new Set());
+      jest.spyOn(bankTxService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxRepeatService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxReturnService, 'getPendingTx').mockResolvedValue([]);
+      jest.spyOn(bankTxService, 'getRecentBankToBankTx').mockResolvedValue([]);
+      jest
+        .spyOn(bankTxService, 'getRecentExchangeTx')
+        .mockImplementation(async (_minId, type) => (type === BankTxType.SCRYPT ? scryptBankTx : []));
+      jest.spyOn(exchangeTxService, 'getRecentExchangeTx').mockResolvedValue([]);
+    }
+
+    // sellable=true keeps assets active so they are not skipped by the asset-log reduce guard
+    const yapealChfCustodyAsset = (): Asset =>
+      createCustomAsset({
+        id: 8001,
+        blockchain: Blockchain.YAPEAL,
+        dexName: 'CHF',
+        sellable: true,
+      });
+    const frickChfCustodyAsset = (): Asset =>
+      createCustomAsset({
+        id: 8002,
+        blockchain: Blockchain.FRICK,
+        dexName: 'CHF',
+        sellable: true,
+      });
+
+    it('keeps Yapeal/CHF Bank->Scrypt pending bit-identical when there is no Frick CHF activity', async () => {
+      const yapealAsset = yapealChfCustodyAsset();
+      const frickAsset = frickChfCustodyAsset();
+
+      // unmatched debit from Yapeal CHF only — same rows as before chfBankIbans generalization
+      const yapealToScryptTx = createCustomBankTx({
+        id: 91001,
+        created: Util.hoursBefore(1),
+        accountIban: yapealCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 5000,
+        amount: 5000,
+        remittanceInfo: undefined,
+      });
+      setupChfScryptAssetLog([yapealToScryptTx]);
+
+      const assetLog = await service['getAssetLog']([yapealAsset, frickAsset]);
+
+      // Yapeal/CHF still owns the pending Bank->Scrypt amount (accountIban fallback matches Yapeal only)
+      expect(assetLog[yapealAsset.id].plusBalance.pending.toScrypt).toBe(5000);
+      // Frick/CHF has no matching BankTx — must stay at zero / undefined pending
+      expect(assetLog[frickAsset.id].plusBalance.pending?.toScrypt ?? 0).toBe(0);
+    });
+
+    it('attributes Frick CHF -> Scrypt bank_tx to Frick/CHF and not to Yapeal/CHF (no double-count)', async () => {
+      const yapealAsset = yapealChfCustodyAsset();
+      const frickAsset = frickChfCustodyAsset();
+
+      // unmatched debit from Frick's CHF IBAN into Scrypt
+      const frickToScryptTx = createCustomBankTx({
+        id: 91002,
+        created: Util.hoursBefore(1),
+        accountIban: frickCHF.iban,
+        creditDebitIndicator: BankTxIndicator.DEBIT,
+        instructedCurrency: 'CHF',
+        instructedAmount: 7500,
+        amount: 7500,
+        remittanceInfo: undefined,
+      });
+      setupChfScryptAssetLog([frickToScryptTx]);
+
+      const assetLog = await service['getAssetLog']([yapealAsset, frickAsset]);
+
+      // Frick/CHF custody asset receives the pending Bank->Scrypt amount via accountIban fallback
+      expect(assetLog[frickAsset.id].plusBalance.pending.toScrypt).toBe(7500);
+      // Yapeal/CHF must not pick up the Frick debit (no double-count; baseline stays empty)
+      expect(assetLog[yapealAsset.id].plusBalance.pending?.toScrypt ?? 0).toBe(0);
     });
   });
 });
