@@ -19,7 +19,6 @@ import { ReviewStatus } from 'src/subdomains/generic/kyc/enums/review-status.enu
 import { ScorechainDocumentService } from 'src/subdomains/generic/kyc/services/scorechain-document.service';
 import { KycStatus, RiskStatus, UserDataStatus } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
-import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { FiatOutputType } from 'src/subdomains/supporting/fiat-output/fiat-output.entity';
 import { FiatOutputService } from 'src/subdomains/supporting/fiat-output/fiat-output.service';
 import { PayInStatus } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
@@ -275,6 +274,14 @@ export class BuyFiatPreparationService {
         const chfPrice = await this.pricingService.getPrice(inputCurrency, PriceCurrency.CHF, PriceValidity.VALID_ONLY);
 
         const amountInChf = chfPrice.convert(entity.inputAmount, 2);
+        const country = await this.countryService.getCountryWithSymbol(entity.sell.iban.substring(0, 2));
+        const { bank: payoutBank } = await this.fiatOutputService.selectPayoutBank(
+          entity.outputAsset.name,
+          FiatOutputType.BUY_FIAT,
+          entity.userData,
+          false,
+          country,
+        );
 
         const fee = await this.transactionHelper.getTxFeeInfos(
           entity.inputAmount,
@@ -285,7 +292,17 @@ export class BuyFiatPreparationService {
           CryptoPaymentMethod.CRYPTO,
           FiatPaymentMethod.BANK,
           undefined,
-          IbanBankName.YAPEAL,
+          // This prediction and the later FiatOutput bank assignment share the single source of truth,
+          // FiatOutputService.selectPayoutBank, and agree while the underlying state is unchanged. Active
+          // virtual IBANs, sender-bank send/sendPriority, and Bank Frick availability are live and mutable;
+          // because this prediction is neither persisted nor reconciled, bankOut is best-effort and can
+          // differ if, for example, a virtual IBAN activates or a bank's send/priority changes between calls.
+          // Fee.verifyForTx in fee.entity.ts matches bank-scoped Fees against its banks array, so an unknown
+          // or mismatched bankOut can only under-match, never apply a Fee for a bank not actually paying out.
+          // This is no worse than the previous hardcoded Yapeal failure mode and is strictly better when the
+          // state is unchanged. Persisting the prediction and reconciling/recomputing the bank-scoped fee
+          // after real assignment would fix this residual, but is intentionally out of scope given zero exposure.
+          payoutBank?.name,
           entity.user,
         );
 

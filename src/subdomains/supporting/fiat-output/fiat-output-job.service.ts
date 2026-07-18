@@ -22,19 +22,18 @@ import { BankTxReturnService } from '../bank-tx/bank-tx-return/bank-tx-return.se
 import { BankTx, BankTxType, BankTxTypeUnassigned } from '../bank-tx/bank-tx/entities/bank-tx.entity';
 import { BankTxService } from '../bank-tx/bank-tx/services/bank-tx.service';
 import { BankTxOutgoingMatchService } from '../bank-tx/bank-tx/services/bank-tx-outgoing-match.service';
-import { Bank } from '../bank/bank/bank.entity';
-import { BankService } from '../bank/bank/bank.service';
 import { IbanBankName } from '../bank/bank/dto/bank.dto';
-import { VirtualIbanService } from '../bank/virtual-iban/virtual-iban.service';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { BuyFiatRepository } from 'src/subdomains/core/sell-crypto/process/buy-fiat.repository';
 import { UserStatus } from 'src/subdomains/generic/user/models/user/user.enum';
+import { Bank } from 'src/subdomains/supporting/bank/bank/bank.entity';
 import { LogService } from '../log/log.service';
 import { Ep2ReportService } from './ep2-report.service';
 import { FiatOutputFrickService } from './fiat-output-frick.service';
 import { FiatOutput, FiatOutputType } from './fiat-output.entity';
 import { FiatOutputRepository } from './fiat-output.repository';
+import { FiatOutputService } from './fiat-output.service';
 
 @Injectable()
 export class FiatOutputJobService {
@@ -47,7 +46,6 @@ export class FiatOutputJobService {
     private readonly bankTxService: BankTxService,
     private readonly bankTxOutgoingMatchService: BankTxOutgoingMatchService,
     private readonly ep2ReportService: Ep2ReportService,
-    private readonly bankService: BankService,
     private readonly countryService: CountryService,
     private readonly assetService: AssetService,
     private readonly logService: LogService,
@@ -56,7 +54,7 @@ export class FiatOutputJobService {
     private readonly yapealService: YapealService,
     private readonly olkypayService: OlkypayService,
     private readonly frickPayoutService: FiatOutputFrickService,
-    private readonly virtualIbanService: VirtualIbanService,
+    private readonly fiatOutputService: FiatOutputService,
     private readonly scryptService: ScryptService,
   ) {}
 
@@ -141,50 +139,12 @@ export class FiatOutputJobService {
     });
   }
 
-  private async getPayoutAccount(entity: FiatOutput, country: Country): Promise<{ accountIban: string; bank: Bank }> {
+  private async getPayoutAccount(
+    entity: FiatOutput,
+    country: Country,
+  ): Promise<{ accountIban: string | undefined; bank: Bank | undefined }> {
     const currency = entity.currency ?? entity.bankAccountCurrency;
-
-    // A Frick instant payout is only ever supported for EUR (Bank Frick rejects instant CHF/FOREIGN
-    // orders outright) - gate on both the capability flag and the currency so an instant CHF output can
-    // never be assigned to Frick in the first place, rather than failing on every transmit retry.
-    const isEligibleFrickCandidate = (bank: Bank): boolean =>
-      bank.name !== IbanBankName.FRICK || !entity.isInstant || (bank.sctInst && currency === 'EUR');
-
-    // use virtual IBAN if existing
-    if (entity.userData && [FiatOutputType.BUY_FIAT, FiatOutputType.BUY_CRYPTO_FAIL].includes(entity.type)) {
-      const virtualIban = await this.virtualIbanService.getActiveForUserAndCurrency(entity.userData, currency);
-
-      if (
-        virtualIban?.bank?.send &&
-        isEligibleFrickCandidate(virtualIban.bank) &&
-        virtualIban.bank.isCountryEnabled(country) &&
-        (virtualIban.bank.name !== IbanBankName.FRICK || this.frickPayoutService.canCreatePayments())
-      )
-        return { accountIban: virtualIban.iban, bank: virtualIban.bank };
-    }
-
-    // fallback to standard bank account selection
-    const banks = await this.bankService.getSenderBanks(currency);
-    const eligibleBanks = banks.filter(
-      (candidate) =>
-        isEligibleFrickCandidate(candidate) &&
-        candidate.isCountryEnabled(country) &&
-        (candidate.name !== IbanBankName.FRICK || this.frickPayoutService.canCreatePayments()),
-    );
-
-    // Sender priority (lower wins) is the deterministic tie-breaker between multiple eligible senders for
-    // the same currency - an operational input (Bank.sendPriority), not a hardcoded bank-name preference.
-    // A throw is reserved for a genuine priority tie that involves Frick itself, never for a tie between
-    // two non-Frick incumbents (e.g. Olkypay EUR and Yapeal EUR both send=true at the shared default
-    // priority): Array.prototype.sort is stable, so when every candidate shares the same priority, the
-    // pre-existing first-match order is used instead of throwing away an otherwise-workable route.
-    const sortedBanks = [...eligibleBanks].sort((a, b) => a.sendPriority - b.sendPriority);
-    const tiedForTop = sortedBanks.filter((candidate) => candidate.sendPriority === sortedBanks[0]?.sendPriority);
-    if (tiedForTop.length > 1 && tiedForTop.some((candidate) => candidate.name === IbanBankName.FRICK))
-      throw new Error(`Ambiguous sender bank priority for ${currency}`);
-
-    const bank = sortedBanks[0];
-    return bank ? { accountIban: bank.iban, bank } : { accountIban: undefined, bank: undefined };
+    return this.fiatOutputService.selectPayoutBank(currency, entity.type, entity.userData, entity.isInstant, country);
   }
 
   private async assignBankAccount(): Promise<void> {
