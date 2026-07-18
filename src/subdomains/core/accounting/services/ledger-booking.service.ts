@@ -411,10 +411,11 @@ export class LedgerBookingService {
     const imbalanceChf = Util.round(Math.abs(nativeSum) * mark, 2);
     if (mark > 0 && imbalanceChf <= Config.ledger.roundingToleranceCents / 100) return; // sub-cent rounding noise
 
+    const valuation = mark > 0 ? `${imbalanceChf} CHF @ mark ${mark}` : `unvalued (mark 0)`;
     const accounts = currencyLegs.map((leg) => `${leg.account.name} ${leg.amount}`).join(', ');
     this.logger.error(
-      `Ledger same-asset transfer native imbalance for currency ${currency}: ${nativeSum} (${imbalanceChf} CHF ` +
-        `@ mark ${mark}; source ${input.sourceType} ${input.sourceId} seq ${input.seq}; legs: ${accounts}) (programming error)`,
+      `Ledger same-asset transfer native imbalance for currency ${currency}: ${nativeSum} ` +
+        `(${valuation}; source ${input.sourceType} ${input.sourceId} seq ${input.seq}; legs: ${accounts}) (programming error)`,
     );
   }
 }
