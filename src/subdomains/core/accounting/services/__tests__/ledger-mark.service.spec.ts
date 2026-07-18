@@ -1,6 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
 import { TestUtil } from 'src/shared/utils/test.util';
+import { Util } from 'src/shared/utils/util';
 import { createCustomLog } from 'src/subdomains/supporting/log/__mocks__/log.entity.mock';
 import { Log } from 'src/subdomains/supporting/log/log.entity';
 import { LogService } from 'src/subdomains/supporting/log/log.service';
@@ -64,6 +65,58 @@ describe('LedgerMarkService', () => {
       ]);
 
       expect(await service.getLatestMark(7)).toBe(110);
+    });
+  });
+
+  // §5.2 — widened last-mark fallback: recovers a delisted/feedless asset's last finite mark ≤ asOf over a window wider
+  // than the 2d preload and 5d getLatestMark bridge, memoized per (from, to) so several feedless rows share one read.
+  describe('getMarkAtWidened (widened last-mark fallback)', () => {
+    const asOf = new Date('2026-07-16');
+
+    it('returns the last finite mark ≤ asOf even when it predates the 2d/5d windows (delisted asset)', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([
+        financialLog(new Date('2026-05-01'), { '5': { priceChf: 3 } }), // ~76d before asOf: outside 2d/5d, inside 90d
+        financialLog(new Date('2026-05-10'), { '5': { priceChf: 4 } }), // last finite ≤ asOf
+      ]);
+
+      expect(await service.getMarkAtWidened(5, asOf, 90)).toBe(4);
+    });
+
+    it('reads over the widened lookback window (from = asOf − lookbackDays, dailySample)', async () => {
+      const spy = jest
+        .spyOn(logService, 'getFinancialLogs')
+        .mockResolvedValue([financialLog(new Date('2026-05-10'), { '5': { priceChf: 4 } })]);
+
+      await service.getMarkAtWidened(5, asOf, 90);
+
+      expect(spy).toHaveBeenCalledWith(Util.daysBefore(90, asOf), true); // 90d span > threshold → dailySample
+    });
+
+    it('never returns a mark created after asOf', async () => {
+      jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([
+        financialLog(new Date('2026-05-10'), { '5': { priceChf: 4 } }),
+        financialLog(new Date('2026-07-18'), { '5': { priceChf: 9 } }), // after asOf → excluded
+      ]);
+
+      expect(await service.getMarkAtWidened(5, asOf, 90)).toBe(4);
+    });
+
+    it('returns undefined for a truly-unpriced asset in the window (caller stays fail-closed)', async () => {
+      jest
+        .spyOn(logService, 'getFinancialLogs')
+        .mockResolvedValue([financialLog(new Date('2026-05-10'), { '5': { priceChf: 4 } })]);
+
+      expect(await service.getMarkAtWidened(999, asOf, 90)).toBeUndefined();
+    });
+
+    it('memoizes per window: several assets over the same (asOf, lookbackDays) trigger a single read', async () => {
+      const spy = jest
+        .spyOn(logService, 'getFinancialLogs')
+        .mockResolvedValue([financialLog(new Date('2026-05-10'), { '5': { priceChf: 4 }, '6': { priceChf: 7 } })]);
+
+      expect(await service.getMarkAtWidened(5, asOf, 90)).toBe(4);
+      expect(await service.getMarkAtWidened(6, asOf, 90)).toBe(7); // same window → memoized cache, no re-read
+      expect(spy).toHaveBeenCalledTimes(1);
     });
   });
 
