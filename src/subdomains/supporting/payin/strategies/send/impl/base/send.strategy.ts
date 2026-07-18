@@ -1,6 +1,7 @@
 import { Inject, OnModuleDestroy, OnModuleInit, forwardRef } from '@nestjs/common';
 import { Config } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { WalletAccount } from 'src/integration/blockchain/shared/evm/domain/wallet-account';
 import { Asset, AssetType } from 'src/shared/models/asset/asset.entity';
 import { AssetService } from 'src/shared/models/asset/asset.service';
@@ -12,6 +13,7 @@ import {
   PayInConfirmationType,
   PayInStatus,
 } from 'src/subdomains/supporting/payin/entities/crypto-input.entity';
+import { PayInRepository } from 'src/subdomains/supporting/payin/repositories/payin.repository';
 import { TransactionHelper } from 'src/subdomains/supporting/payment/services/transaction-helper';
 import { PayoutService } from 'src/subdomains/supporting/payout/services/payout.service';
 import {
@@ -39,6 +41,44 @@ export enum SendType {
 
 export abstract class SendStrategy implements OnModuleInit, OnModuleDestroy {
   protected abstract readonly logger: DfxLogger;
+
+  // Persist the in-flight marker BEFORE broadcasting, then classify failures at the broadcast boundary:
+  //  - a plain error before a tx id was obtained is provably pre-broadcast -> restore the captured status
+  //    so the next cron run retries it;
+  //  - a TxBroadcastError, an empty tx id, or a persistence failure AFTER the broadcast is ambiguous
+  //    (the tx may be in flight) -> fail closed by keeping SENDING; processStrandedSendingPayIns escalates
+  //    it to SEND_UNCERTAIN. Mirrors EvmStrategy.dispatch / EvmTokenStrategy.dispatchViaDelegation.
+  protected async sendWithBroadcastBoundary(
+    payInRepo: PayInRepository,
+    payIn: CryptoInput,
+    type: SendType,
+    broadcast: () => Promise<{ outTxId: string; feeAmount?: number }>,
+  ): Promise<void> {
+    const previousStatus = payIn.status;
+
+    payIn.designateSending();
+    await payInRepo.save(payIn);
+
+    let broadcasted = false;
+    try {
+      const { outTxId, feeAmount } = await broadcast();
+      if (!outTxId) throw new TxBroadcastError(`${this.blockchain} broadcast returned an empty tx id`);
+      broadcasted = true;
+
+      await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
+      await payInRepo.save(payIn);
+    } catch (e) {
+      if (e instanceof TxBroadcastError || broadcasted) {
+        if (broadcasted)
+          this.logger.error(`Failed to persist ${this.blockchain} send for pay-in ${payIn.id} after broadcast:`, e);
+        throw e;
+      }
+
+      payIn.status = previousStatus;
+      await payInRepo.save(payIn);
+      throw e;
+    }
+  }
 
   @Inject() private readonly priceProvider: PricingService;
   @Inject() private readonly payoutService: PayoutService;

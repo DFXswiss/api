@@ -40,10 +40,9 @@ export abstract class ZanoStrategy extends BitcoinBasedStrategy {
 
           CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
 
-          const { outTxId, feeAmount } = await this.payInZanoService.sendTransfer(payIn);
-          await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
-
-          await this.payInRepo.save(payIn);
+          await this.sendWithBroadcastBoundary(this.payInRepo, payIn, type, () =>
+            this.payInZanoService.sendTransfer(payIn),
+          );
         } catch (e) {
           if (e.message.includes('No maximum fee provided')) continue;
 
