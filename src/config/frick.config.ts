@@ -6,6 +6,7 @@ export interface FrickConfig {
   customer: string;
   payoutEnabled: boolean;
   approveWithoutTan: boolean;
+  vbanBaseUrl: string;
 }
 
 export function buildFrickConfig(env: NodeJS.ProcessEnv): FrickConfig {
@@ -17,5 +18,6 @@ export function buildFrickConfig(env: NodeJS.ProcessEnv): FrickConfig {
     customer: env.FRICK_CUSTOMER,
     payoutEnabled: env.FRICK_PAYOUT_ENABLED === 'true',
     approveWithoutTan: env.FRICK_APPROVE_WITHOUT_TAN === 'true',
+    vbanBaseUrl: env.FRICK_VBAN_BASE_URL,
   };
 }

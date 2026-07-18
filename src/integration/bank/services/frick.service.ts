@@ -6,6 +6,13 @@ import { HttpService } from 'src/shared/services/http.service';
 import { Util } from 'src/shared/utils/util';
 import { BankTx, BankTxIndicator } from 'src/subdomains/supporting/bank-tx/bank-tx/entities/bank-tx.entity';
 import {
+  FrickApproveVirtualIbanActivationRequest,
+  FrickCreateVirtualIbanRequest,
+  FrickVirtualIban,
+  FrickVirtualIbanState,
+  FrickVirtualIbansResponse,
+} from '../dto/frick-vban.dto';
+import {
   FrickAccountsResponse,
   FrickApproveWithoutTanRequest,
   FrickAuthorizeRequest,
@@ -152,6 +159,52 @@ export class BankFrickService {
       : { customIds: [customId] };
     const response = await this.callApi<FrickTransactionsResponse>('signTransactionWithoutTan', 'POST', request);
     return this.getSinglePayment(response, customId);
+  }
+
+  isVibanAvailable(): boolean {
+    return this.isAvailable() && !!Config.bank.frick.vbanBaseUrl;
+  }
+
+  async createViban(referenceAccountIban: string): Promise<FrickVirtualIban> {
+    this.assertVibanAvailable();
+    const iban = this.normalizeAndValidateIban(referenceAccountIban, 'reference account IBAN');
+    const request: FrickCreateVirtualIbanRequest = { referenceAccountIban: iban };
+    const response = await this.callVbanApi<FrickVirtualIban>('virtual-ibans', 'POST', request);
+    this.validateVirtualIbanResponse(response);
+    return response;
+  }
+
+  async approveVibanActivation(vban: string): Promise<FrickVirtualIban> {
+    this.assertVibanAvailable();
+    this.validateString(vban, 'vban', 34, true);
+    const request: FrickApproveVirtualIbanActivationRequest = { vban };
+    const response = await this.callVbanApi<FrickVirtualIban>('virtual-ibans/activations/approvals', 'PUT', request);
+    this.validateVirtualIbanResponse(response);
+    return response;
+  }
+
+  async getViban(vban: string): Promise<FrickVirtualIban> {
+    this.assertVibanAvailable();
+    this.validateString(vban, 'vban', 34, true);
+    const response = await this.callVbanApi<FrickVirtualIban>(`virtual-ibans/${encodeURIComponent(vban)}`);
+    this.validateVirtualIbanResponse(response);
+    return response;
+  }
+
+  async listVibans(
+    referenceAccountIban?: string,
+    states?: FrickVirtualIbanState[],
+  ): Promise<FrickVirtualIbansResponse> {
+    this.assertVibanAvailable();
+    const params = new URLSearchParams();
+    if (referenceAccountIban)
+      params.append('account', this.normalizeAndValidateIban(referenceAccountIban, 'reference account IBAN filter'));
+    if (states) for (const state of states) params.append('state', state);
+    const query = params.toString();
+
+    const response = await this.callVbanApi<FrickVirtualIbansResponse>(`virtual-ibans${query ? `?${query}` : ''}`);
+    this.validateVirtualIbansResponse(response);
+    return response;
   }
 
   getSafeOrderId(payment: FrickPaymentOrder): string | undefined {
@@ -469,7 +522,8 @@ export class BankFrickService {
     return amount;
   }
 
-  private async callApi<T>(
+  private async requestSigned<T>(
+    url: string,
     path: string,
     method: Method = 'GET',
     body?: unknown,
@@ -483,7 +537,7 @@ export class BankFrickService {
 
     try {
       return await this.http.request<T>({
-        url: this.createUrl(path),
+        url,
         method,
         data: bodyString,
         responseType,
@@ -504,11 +558,51 @@ export class BankFrickService {
 
       if (allowUnauthorizedRetry && error?.response?.status === 401) {
         await this.refreshAfterUnauthorized(token);
-        return this.callApi(path, method, body, accept, responseType, false);
+        return this.requestSigned(url, path, method, body, accept, responseType, false);
       }
 
       throw new Error(`Bank Frick API request failed (${method} ${path}): ${this.getHttpFailureReason(error)}`);
     }
+  }
+
+  private async callApi<T>(
+    path: string,
+    method: Method = 'GET',
+    body?: unknown,
+    accept = 'application/json',
+    responseType: FrickResponseType = 'json',
+    allowUnauthorizedRetry = true,
+  ): Promise<T> {
+    this.assertAvailable();
+    return this.requestSigned<T>(
+      this.createUrl(path),
+      path,
+      method,
+      body,
+      accept,
+      responseType,
+      allowUnauthorizedRetry,
+    );
+  }
+
+  private async callVbanApi<T>(
+    path: string,
+    method: Method = 'GET',
+    body?: unknown,
+    accept = 'application/json',
+    responseType: FrickResponseType = 'json',
+    allowUnauthorizedRetry = true,
+  ): Promise<T> {
+    this.assertVibanAvailable();
+    return this.requestSigned<T>(
+      this.createVbanUrl(path),
+      path,
+      method,
+      body,
+      accept,
+      responseType,
+      allowUnauthorizedRetry,
+    );
   }
 
   private async getAccessToken(): Promise<string> {
@@ -615,6 +709,10 @@ export class BankFrickService {
     return `${Config.bank.frick.baseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
   }
 
+  private createVbanUrl(path: string): string {
+    return `${Config.bank.frick.vbanBaseUrl.replace(/\/+$/, '')}/${path.replace(/^\/+/, '')}`;
+  }
+
   private getHttpFailureReason(error: any): string {
     const status = error?.response?.status;
     if (Number.isInteger(status) && status >= 100 && status <= 599) return `HTTP ${status}`;
@@ -637,6 +735,40 @@ export class BankFrickService {
 
   private assertAvailable(): void {
     if (!this.isAvailable()) throw new Error('Bank Frick is not configured');
+  }
+
+  private assertVibanAvailable(): void {
+    if (!this.isVibanAvailable()) throw new Error('Bank Frick virtual IBAN is not configured');
+  }
+
+  private validateVirtualIbanResponse(r: FrickVirtualIban): void {
+    if (
+      !r ||
+      typeof r !== 'object' ||
+      typeof r.vban !== 'string' ||
+      !r.vban.trim() ||
+      !Object.values(FrickVirtualIbanState).includes(r.state) ||
+      typeof r.referenceAccountIban !== 'string' ||
+      !Array.isArray(r.activationApprovals) ||
+      !Array.isArray(r.deactivationApprovals)
+    )
+      throw new Error('Invalid Bank Frick virtual IBAN response');
+  }
+
+  private validateVirtualIbansResponse(r: FrickVirtualIbansResponse): void {
+    if (
+      !r ||
+      typeof r !== 'object' ||
+      !r.pagination ||
+      typeof r.pagination.hasMore !== 'boolean' ||
+      !Number.isInteger(r.pagination.pageIndex) ||
+      !Number.isInteger(r.pagination.pageSize) ||
+      !Number.isInteger(r.pagination.totalCount) ||
+      !Array.isArray(r.virtualIbans)
+    )
+      throw new Error('Invalid Bank Frick virtual IBANs response');
+
+    for (const virtualIban of r.virtualIbans) this.validateVirtualIbanResponse(virtualIban);
   }
 
   private assertPayoutEnabled(): void {

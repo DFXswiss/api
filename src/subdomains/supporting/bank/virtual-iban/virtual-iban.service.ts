@@ -1,29 +1,32 @@
-import { BadRequestException, ConflictException, Injectable, ServiceUnavailableException } from '@nestjs/common';
-import { YapealService } from 'src/integration/bank/services/yapeal.service';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
 import { Buy } from 'src/subdomains/core/buy-crypto/routes/buy/buy.entity';
 import { UserData } from 'src/subdomains/generic/user/models/user-data/user-data.entity';
 import { KycLevel } from 'src/subdomains/generic/user/models/user-data/user-data.enum';
 import { BankService } from '../bank/bank.service';
-import { IbanBankName } from '../bank/dto/bank.dto';
+import { FrickVibanProvider } from './providers/frick-viban.provider';
+import { VibanProvider } from './providers/viban-provider.interface';
+import { YapealVibanProvider } from './providers/yapeal-viban.provider';
 import { VirtualIban, VirtualIbanStatus } from './virtual-iban.entity';
 import { VirtualIbanRepository } from './virtual-iban.repository';
 
 @Injectable()
 export class VirtualIbanService {
-  static readonly bankName = IbanBankName.YAPEAL;
-  static readonly currencies = ['CHF'];
-
-  static isUserEligible(currencyName: string, userData: UserData): boolean {
-    return VirtualIbanService.currencies.includes(currencyName) && userData.kycLevel >= KycLevel.LEVEL_50;
-  }
+  private readonly providers: VibanProvider[];
 
   constructor(
     private readonly virtualIbanRepo: VirtualIbanRepository,
     private readonly bankService: BankService,
     private readonly fiatService: FiatService,
-    private readonly yapealService: YapealService,
-  ) {}
+    private readonly yapealVibanProvider: YapealVibanProvider,
+    private readonly frickVibanProvider: FrickVibanProvider,
+  ) {
+    this.providers = [this.yapealVibanProvider, this.frickVibanProvider];
+  }
+
+  isUserEligible(currencyName: string, userData: UserData): boolean {
+    return this.hasProviderForCurrency(currencyName) && userData.kycLevel >= KycLevel.LEVEL_50;
+  }
 
   async getActiveForUserAndCurrency(userData: UserData, currencyName: string): Promise<VirtualIban | null> {
     return this.virtualIbanRepo.findOneCachedBy(`${userData.id}-${currencyName}`, {
@@ -52,10 +55,11 @@ export class VirtualIbanService {
     const currency = await this.fiatService.getFiatByName(currencyName);
     if (!currency) throw new BadRequestException('Currency not found');
 
-    const bank = await this.bankService.getBankInternal(VirtualIbanService.bankName, currencyName);
+    const provider = this.getProvider(currencyName);
+    const bank = await this.bankService.getBankInternal(provider.bankName, currencyName);
     if (!bank?.receive) throw new BadRequestException('No bank available for this currency');
 
-    const { iban, bban, accountUid } = await this.reserveVibanFromYapeal(bank.iban);
+    const { iban, bban, providerAccountRef } = await provider.reserveViban(bank.iban);
 
     const virtualIban = this.virtualIbanRepo.create({
       userData,
@@ -63,7 +67,7 @@ export class VirtualIbanService {
       currency,
       iban,
       bban,
-      yapealAccountUid: accountUid,
+      providerAccountRef,
       status: VirtualIbanStatus.ACTIVE,
       active: true,
       activatedAt: new Date(),
@@ -126,23 +130,19 @@ export class VirtualIbanService {
       .getOne();
   }
 
-  private async reserveVibanFromYapeal(
-    accountIban: string,
-  ): Promise<{ iban: string; bban?: string; accountUid?: string }> {
-    if (!this.yapealService.isAvailable()) {
-      throw new ServiceUnavailableException('Yapeal service is not available');
-    }
-
-    const result = await this.yapealService.createViban(accountIban);
-
-    return {
-      iban: result.iban,
-      bban: result.bban,
-      accountUid: result.accountUid,
-    };
-  }
-
   async getVirtualIbansForAccount(userDataId: number): Promise<VirtualIban[]> {
     return this.virtualIbanRepo.findCachedBy(`user-${userDataId}`, { userData: { id: userDataId } });
+  }
+
+  private hasProviderForCurrency(currencyName: string): boolean {
+    return this.providers.some((provider) => provider.isAvailable() && provider.currencies.includes(currencyName));
+  }
+
+  private getProvider(currencyName: string): VibanProvider {
+    const provider = this.providers.find(
+      (candidate) => candidate.isAvailable() && candidate.currencies.includes(currencyName),
+    );
+    if (!provider) throw new BadRequestException('No personal IBAN provider available for this currency');
+    return provider;
   }
 }
