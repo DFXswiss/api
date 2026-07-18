@@ -118,6 +118,17 @@ describe('LedgerMarkService', () => {
       expect(await service.getMarkAtWidened(6, asOf, 90)).toBe(7); // same window → memoized cache, no re-read
       expect(spy).toHaveBeenCalledTimes(1);
     });
+
+    it('does not memoize a rejected load — the next call re-reads (transient-failure recovery, not a permanent wedge)', async () => {
+      const spy = jest
+        .spyOn(logService, 'getFinancialLogs')
+        .mockRejectedValueOnce(new Error('transient DB blip'))
+        .mockResolvedValueOnce([financialLog(new Date('2026-05-10'), { '5': { priceChf: 4 } })]);
+
+      await expect(service.getMarkAtWidened(5, asOf, 90)).rejects.toThrow('transient DB blip');
+      expect(await service.getMarkAtWidened(5, asOf, 90)).toBe(4); // rejected promise evicted → re-read, not re-thrown
+      expect(spy).toHaveBeenCalledTimes(2);
+    });
   });
 
   it('returns the priceChf of the latest mark ≤ bookingDate (stage 2)', async () => {

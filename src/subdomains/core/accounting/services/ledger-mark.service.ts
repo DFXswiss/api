@@ -108,7 +108,12 @@ export class LedgerMarkService {
     const key = `${from.getTime()}:${asOf.getTime()}`;
     let cache = this.widenedCaches.get(key);
     if (!cache) {
-      cache = this.preload(from, asOf);
+      // do NOT memoize a transient failure: a rejected preload is evicted so the next cron retry re-reads (the widened
+      // read is a larger, possibly-paginated query than the 2d preload — a blip must not permanently wedge the cutover)
+      cache = this.preload(from, asOf).catch((e) => {
+        this.widenedCaches.delete(key);
+        throw e;
+      });
       this.widenedCaches.set(key, cache);
     }
     return (await cache).getMarkAt(assetId, asOf);
