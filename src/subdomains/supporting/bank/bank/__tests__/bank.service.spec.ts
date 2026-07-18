@@ -1,5 +1,7 @@
 import { createMock } from '@golevelup/ts-jest';
 import { Test, TestingModule } from '@nestjs/testing';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { createCustomCountry } from 'src/shared/models/country/__mocks__/country.entity.mock';
 import { CountryService } from 'src/shared/models/country/country.service';
 import { FiatService } from 'src/shared/models/fiat/fiat.service';
@@ -17,6 +19,8 @@ import {
   yapealCHF,
   yapealEUR,
   olkyEUR,
+  frickEUR,
+  frickCHF,
 } from '../__mocks__/bank.entity.mock';
 import { Bank } from '../bank.entity';
 import { BankRepository } from '../bank.repository';
@@ -131,6 +135,25 @@ describe('BankService', () => {
     expect(result.iban).toBe(yapealEUR.iban);
     expect(result.bic).toBe(yapealEUR.bic);
   });
+
+  it('never offers Bank Frick as a deposit bank, even when it is the first receive bank for the currency', async () => {
+    // Frick is placed first so a missing exclusion guard would wrongly select it; the customer must still
+    // be shown the incumbent bank for each currency.
+    // A preceding test disables the shared olkyEUR mock in place (createDefaultDisabledBanks mutates it),
+    // so restore its natural receive state here to exercise Frick exclusion rather than that leaked state.
+    olkyEUR.receive = true;
+    const frickFirst = [frickEUR, frickCHF, olkyEUR, yapealEUR, yapealCHF];
+    jest.spyOn(bankRepo, 'findCachedBy').mockImplementation(async (_key: string, filter?: any) => {
+      if (filter?.receive !== undefined) return frickFirst.filter((b) => b.receive === filter.receive);
+      return frickFirst;
+    });
+
+    const eur = await service.getBank(createBankSelectorInput('EUR'));
+    expect(eur.name).toBe(IbanBankName.OLKY);
+
+    const chf = await service.getBank(createBankSelectorInput('CHF', 10000));
+    expect(chf.name).toBe(IbanBankName.YAPEAL);
+  });
 });
 
 describe('Bank Frick country routing', () => {
@@ -139,6 +162,27 @@ describe('Bank Frick country routing', () => {
   it('uses the existing automated-bank country allowlist', () => {
     expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: true }))).toBe(true);
     expect(bank.isCountryEnabled(createCustomCountry({ yapealEnable: false }))).toBe(false);
+  });
+});
+
+describe('BankService blockchainToBankName / isBankMatching (Frick)', () => {
+  beforeEach(() => {
+    (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+  });
+
+  it('maps Blockchain.FRICK to IbanBankName.FRICK', () => {
+    expect(BankService['blockchainToBankName'](Blockchain.FRICK)).toBe(IbanBankName.FRICK);
+  });
+
+  it('matches a Frick custody asset against the cached Frick IBAN', () => {
+    (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+      `${IbanBankName.FRICK}-EUR`,
+      'LI75088110105923K000E',
+    );
+    const asset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR' });
+
+    expect(BankService.isBankMatching(asset, 'LI75088110105923K000E')).toBe(true);
+    expect(BankService.isBankMatching(asset, 'OTHER-IBAN')).toBe(false);
   });
 });
 

@@ -46,6 +46,7 @@ const BANK_BLOCKCHAINS: Blockchain[] = [
   Blockchain.CHECKOUT,
   Blockchain.SUMIXX,
   Blockchain.YAPEAL,
+  Blockchain.FRICK,
 ];
 
 // §7.1 custody classification → staleness threshold (hours)

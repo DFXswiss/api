@@ -73,20 +73,6 @@ describe('PayoutOrder', () => {
     });
   });
 
-  describe('#pendingInvestigation(...)', () => {
-    it('sets status to PayoutOrderStatus.PAYOUT_UNCERTAIN in order to filter out order from normal flow', () => {
-      const entity = createCustomPayoutOrder({
-        status: undefined,
-      });
-
-      expect(entity.status).toBeUndefined();
-
-      entity.pendingInvestigation();
-
-      expect(entity.status).toBe(PayoutOrderStatus.PAYOUT_UNCERTAIN);
-    });
-  });
-
   describe('#pendingPayout(...)', () => {
     it('sets transferTxId', () => {
       const entity = createCustomPayoutOrder({

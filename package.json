@@ -204,6 +204,7 @@
     "semver": "^7.6.0",
     "fast-xml-parser": "$fast-xml-parser",
     "axios": "$axios",
-    "protobufjs": ">=7.5.5"
+    "protobufjs": ">=7.5.5",
+    "websocket-driver": "^0.7.5"
   }
 }

@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { Config, Environment, GetConfig } from 'src/config/config';
 import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
 import {
@@ -805,15 +806,23 @@ export class Eip7702DelegationService {
         `from ${depositAddress} to ${recipient} (gasLimit: ${gasLimit}, estimatedCost: ~${estimatedGasCost} native)`,
     );
 
-    // Send transaction to DelegationManager with authorization
-    const txHash = await walletClient.sendTransaction({
-      to: DELEGATION_MANAGER_ADDRESS,
-      data: redeemData,
-      authorizationList: [authorization],
-      gas: gasLimit,
-      maxFeePerGas,
-      maxPriorityFeePerGas,
-    } as any);
+    // Keep validation, signing and fee estimation errors distinguishable as pre-broadcast. Only
+    // failures at the actual send boundary are ambiguous and must make the pay-in fail closed.
+    let txHash: Hex;
+    try {
+      txHash = await walletClient.sendTransaction({
+        to: DELEGATION_MANAGER_ADDRESS,
+        data: redeemData,
+        authorizationList: [authorization],
+        gas: gasLimit,
+        maxFeePerGas,
+        maxPriorityFeePerGas,
+      } as any);
+
+      if (!txHash) throw new Error('Broadcast returned an empty tx hash');
+    } catch (e) {
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
 
     this.logger.info(
       `Delegation transfer via DelegationManager successful on ${blockchain}: ` +

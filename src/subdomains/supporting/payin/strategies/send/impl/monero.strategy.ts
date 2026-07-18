@@ -54,10 +54,9 @@ export class MoneroStrategy extends BitcoinBasedStrategy {
 
           CryptoInput.verifyForwardFee(fee, payIn.maxForwardFee, maxFee, payIn.amount);
 
-          const { outTxId, feeAmount } = await this.moneroService.sendTransfer(payIn);
-          await this.updatePayInWithSendData(payIn, type, outTxId, feeAmount);
-
-          await this.payInRepo.save(payIn);
+          await this.sendWithBroadcastBoundary(this.payInRepo, payIn, type, () =>
+            this.moneroService.sendTransfer(payIn),
+          );
         } catch (e) {
           if (e.message.includes('No maximum fee provided')) continue;
 

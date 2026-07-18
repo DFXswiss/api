@@ -35,6 +35,22 @@ export const yapealCHF = createCustomBank({
   receive: true,
 });
 
+export const frickEUR = createCustomBank({
+  name: IbanBankName.FRICK,
+  currency: 'EUR',
+  iban: 'LI75088110105923K000E',
+  bic: 'BFRILI22',
+  receive: true,
+});
+
+export const frickCHF = createCustomBank({
+  name: IbanBankName.FRICK,
+  currency: 'CHF',
+  iban: 'LI32088110105923K000C',
+  bic: 'BFRILI22',
+  receive: true,
+});
+
 export function createDefaultBank(): Bank {
   return createCustomBank({});
 }

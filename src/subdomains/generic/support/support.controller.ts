@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { ApiBearerAuth, ApiExcludeEndpoint, ApiOkResponse } from '@nestjs/swagger';
+import { ScorechainScreeningDto } from 'src/integration/scorechain/dto/scorechain-screening.dto';
 import { GetJwt } from 'src/shared/auth/get-jwt.decorator';
 import { JwtPayload } from 'src/shared/auth/jwt-payload.interface';
 import { RoleGuard } from 'src/shared/auth/role.guard';
@@ -176,6 +177,15 @@ export class SupportController {
   async getTransactionPdf(@Param('id') id: string): Promise<{ pdfData: string }> {
     const pdfData = await this.supportService.generateTransactionPdf(+id);
     return { pdfData };
+  }
+
+  @Get(':id/scorechain')
+  @ApiBearerAuth()
+  @ApiExcludeEndpoint()
+  @ApiOkResponse({ type: ScorechainScreeningDto, isArray: true })
+  @UseGuards(AuthGuard(), RoleGuard(UserRole.COMPLIANCE, UserRole.DEBUG), UserActiveGuard())
+  async getScorechainScreenings(@Param('id') id: string): Promise<ScorechainScreeningDto[]> {
+    return this.supportService.getScorechainScreenings(+id);
   }
 
   @Post(':id/onboarding-pdf')

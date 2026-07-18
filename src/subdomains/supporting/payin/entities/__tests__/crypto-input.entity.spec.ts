@@ -2,6 +2,17 @@ import { createCustomCryptoInput } from '../__mocks__/crypto-input.entity.mock';
 import { PayInStatus } from '../crypto-input.entity';
 
 describe('CryptoInput', () => {
+  describe('#designateSending(...)', () => {
+    it('sets status to PayInStatus.SENDING', () => {
+      const entity = createCustomCryptoInput({ id: 1, status: PayInStatus.PREPARED });
+
+      const result = entity.designateSending();
+
+      expect(result).toBe(entity);
+      expect(entity.status).toBe(PayInStatus.SENDING);
+    });
+  });
+
   describe('#fail(...)', () => {
     it('sets status to PayInStatus.FAILED', () => {
       const entity = createCustomCryptoInput({ id: 1, status: PayInStatus.ACKNOWLEDGED });

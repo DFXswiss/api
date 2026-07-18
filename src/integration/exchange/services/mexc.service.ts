@@ -65,6 +65,7 @@ export class MexcService extends ExchangeService {
     Checkout: undefined,
     Sumixx: undefined,
     Yapeal: undefined,
+    Frick: undefined,
   };
 
   constructor(private readonly http: HttpService) {

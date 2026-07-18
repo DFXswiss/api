@@ -1,10 +1,15 @@
 import { Test } from '@nestjs/testing';
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
 import { TestUtil } from 'src/shared/utils/test.util';
 import { AmlReason } from 'src/subdomains/core/aml/enums/aml-reason.enum';
 import { CheckStatus } from 'src/subdomains/core/aml/enums/check-status.enum';
 import { ScorechainOutcome } from 'src/subdomains/core/aml/enums/scorechain-outcome.enum';
 import { AmlHelperService } from 'src/subdomains/core/aml/services/aml-helper.service';
 import { LiquidityManagementPipelineStatus } from 'src/subdomains/core/liquidity-management/enums';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
+import { createCustomBankTx } from 'src/subdomains/supporting/bank-tx/bank-tx/__mocks__/bank-tx.entity.mock';
 import { Price, PriceStep } from 'src/subdomains/supporting/pricing/domain/entities/price';
 import { createCustomBuyCrypto, createDefaultBuyCrypto } from '../__mocks__/buy-crypto.entity.mock';
 import { BuyCrypto } from '../buy-crypto.entity';
@@ -596,6 +601,40 @@ describe('BuyCrypto', () => {
       const updatedEntity = entity.confirmSentMail();
 
       expect(updatedEntity).toBeInstanceOf(Array);
+    });
+  });
+
+  describe('#pendingInputAmount', () => {
+    const frickIban = 'LI75088110105923K000E';
+
+    beforeEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.FRICK}-EUR`,
+        frickIban,
+      );
+    });
+
+    it('returns inputReferenceAmount for a matching Frick custody asset when output is not yet set', () => {
+      const entity = createCustomBuyCrypto({
+        outputAmount: undefined,
+        inputReferenceAmount: 150,
+        bankTx: createCustomBankTx({ accountIban: frickIban }),
+      });
+      const asset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR' });
+
+      expect(entity.pendingInputAmount(asset)).toBe(150);
+    });
+
+    it('returns 0 for a Frick asset when the bankTx IBAN does not match', () => {
+      const entity = createCustomBuyCrypto({
+        outputAmount: undefined,
+        inputReferenceAmount: 150,
+        bankTx: createCustomBankTx({ accountIban: 'OTHER-IBAN' }),
+      });
+      const asset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR' });
+
+      expect(entity.pendingInputAmount(asset)).toBe(0);
     });
   });
 

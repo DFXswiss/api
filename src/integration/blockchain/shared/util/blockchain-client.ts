@@ -20,6 +20,11 @@ export interface CoinOnly {
 }
 
 export abstract class BlockchainClient {
+  // clients whose provider needs optional config (e.g. an API key) override this
+  get isConfigured(): boolean {
+    return true;
+  }
+
   abstract get walletAddress(): string;
   abstract getNativeCoinBalance(): Promise<number>;
   abstract getNativeCoinBalanceForAddress(address: string): Promise<number>;

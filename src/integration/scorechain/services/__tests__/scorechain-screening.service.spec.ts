@@ -25,6 +25,8 @@ describe('ScorechainScreeningService', () => {
     countBy: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
+    find: jest.Mock;
+    getByObjectIds: (objectIds: string[]) => Promise<ScorechainScreening[]>;
   };
 
   beforeAll(() => {
@@ -45,6 +47,9 @@ describe('ScorechainScreeningService', () => {
       countBy: jest.fn().mockResolvedValue(0),
       create: jest.fn((e) => Object.assign(new ScorechainScreening(), e)),
       save: jest.fn((e) => Promise.resolve(e)),
+      find: jest.fn().mockResolvedValue([]),
+      // Exercise the REAL repository method (its empty-input guard + SQL query shape) against a mocked `find`.
+      getByObjectIds: ScorechainScreeningRepository.prototype.getByObjectIds,
     };
     service = new ScorechainScreeningService(
       scorechain as unknown as ScorechainService,
@@ -300,6 +305,29 @@ describe('ScorechainScreeningService', () => {
 
       delete process.env.SCORECHAIN_MONTHLY_CHECK_LIMIT;
       new ConfigService();
+    });
+  });
+
+  describe('getByObjectIds', () => {
+    it('returns [] for empty input without hitting the DB', async () => {
+      const result = await service.getByObjectIds([]);
+
+      expect(result).toEqual([]);
+      expect(repo.find).not.toHaveBeenCalled();
+    });
+
+    it('delegates to the repo, filtering by objectId and ordering by created DESC', async () => {
+      const rows = [Object.assign(new ScorechainScreening(), { id: 1 })];
+      repo.find.mockResolvedValue(rows);
+
+      const result = await service.getByObjectIds(['0xabc', 'txhash']);
+
+      expect(result).toBe(rows);
+      expect(repo.find).toHaveBeenCalledTimes(1);
+      const options = repo.find.mock.calls[0][0];
+      expect(options.order).toEqual({ created: 'DESC' });
+      // In(['0xabc', 'txhash']) -> a FindOperator carrying exactly the requested ids
+      expect(options.where.objectId.value).toEqual(['0xabc', 'txhash']);
     });
   });
 

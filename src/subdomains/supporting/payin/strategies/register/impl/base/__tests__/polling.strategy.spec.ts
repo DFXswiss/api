@@ -105,4 +105,85 @@ describe('PollingStrategy', () => {
     await expect(strategy.checkPayInEntries()).rejects.toBe(realError);
     expect(strategy.processNewPayInEntries).not.toHaveBeenCalled();
   });
+
+  // A wedged/restarting node produces one connection failure per polling cycle for the
+  // whole outage; the strategy must log the outage edges, not every cycle.
+  describe('node outage (connection failures)', () => {
+    let info: jest.SpyInstance;
+    let verbose: jest.SpyInstance;
+
+    const refused = () => new Error('Bitcoin RPC getblockcount failed: connect ECONNREFUSED 192.168.107.4:8888');
+
+    beforeEach(() => {
+      info = jest.spyOn(DfxLogger.prototype, 'info').mockImplementation();
+      verbose = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
+    });
+
+    it('logs a single error for consecutive connection failures', async () => {
+      strategy.getBlockHeight.mockRejectedValue(refused());
+
+      await expect(strategy.checkPayInEntries()).resolves.toBeUndefined();
+      await strategy.checkPayInEntries();
+      await strategy.checkPayInEntries();
+
+      expect(error).toHaveBeenCalledTimes(1);
+      expect(error.mock.calls[0][0]).toContain('suppressing repeats until recovery');
+      expect(verbose).toHaveBeenCalledTimes(2);
+    });
+
+    it('logs recovery with failure count once the node is back', async () => {
+      strategy.getBlockHeight.mockRejectedValueOnce(refused()).mockRejectedValueOnce(refused());
+      await strategy.checkPayInEntries();
+      await strategy.checkPayInEntries();
+
+      strategy.getBlockHeight.mockResolvedValue(100);
+      await strategy.checkPayInEntries();
+
+      expect(info).toHaveBeenCalledTimes(1);
+      expect(info.mock.calls[0][0]).toMatch(/recovered after \d+ min \(2 failed checks\)/);
+    });
+
+    it('re-arms the outage error after a recovery', async () => {
+      strategy.getBlockHeight.mockRejectedValueOnce(refused());
+      await strategy.checkPayInEntries();
+
+      strategy.getBlockHeight.mockResolvedValueOnce(100);
+      await strategy.checkPayInEntries();
+
+      strategy.getBlockHeight.mockRejectedValueOnce(refused());
+      await strategy.checkPayInEntries();
+
+      expect(error).toHaveBeenCalledTimes(2);
+    });
+
+    it('stays silent on success when there was no outage', async () => {
+      strategy.getBlockHeight.mockResolvedValue(100);
+
+      await strategy.checkPayInEntries();
+
+      expect(info).not.toHaveBeenCalled();
+      expect(error).not.toHaveBeenCalled();
+    });
+
+    it('covers DNS loss during a container restart (ENOTFOUND)', async () => {
+      strategy.getBlockHeight.mockRejectedValue(
+        new Error('Bitcoin RPC getblockcount failed: getaddrinfo ENOTFOUND firod'),
+      );
+
+      await expect(strategy.checkPayInEntries()).resolves.toBeUndefined();
+      expect(error).toHaveBeenCalledTimes(1);
+    });
+
+    it('rethrows processNewPayInEntries failures instead of misattributing them to a node outage', async () => {
+      // The node itself is healthy (getBlockHeight succeeds) — this is a DB write failure
+      // inside processNewPayInEntries, which happens to have a connection-shaped message.
+      strategy.getBlockHeight.mockResolvedValue(100);
+      const dbError = new Error('insert into pay_in failed: Connection terminated unexpectedly ECONNRESET');
+      strategy.processNewPayInEntries.mockRejectedValueOnce(dbError);
+
+      await expect(strategy.checkPayInEntries()).rejects.toBe(dbError);
+      expect(error).not.toHaveBeenCalled();
+      expect(verbose).not.toHaveBeenCalled();
+    });
+  });
 });

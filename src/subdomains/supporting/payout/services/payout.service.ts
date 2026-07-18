@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { CronExpression } from '@nestjs/schedule';
 import { Asset } from 'src/shared/models/asset/asset.entity';
 import { DfxLogger } from 'src/shared/services/dfx-logger';
@@ -7,8 +7,9 @@ import { DfxCron } from 'src/shared/utils/cron';
 import { Util } from 'src/shared/utils/util';
 import { MailContext, MailType } from 'src/subdomains/supporting/notification/enums';
 import { NotificationService } from 'src/subdomains/supporting/notification/services/notification.service';
-import { FindOptionsRelations, In, IsNull, MoreThan, Not } from 'typeorm';
+import { FindOptionsRelations, In, IsNull, LessThan, MoreThan, Not } from 'typeorm';
 import { MailRequest } from '../../notification/interfaces';
+import { RetryPayoutDto } from '../dto/retry-payout.dto';
 import { PayoutOrder, PayoutOrderContext, PayoutOrderStatus } from '../entities/payout-order.entity';
 import { PayoutOrderFactory } from '../factories/payout-order.factory';
 import { FeeResult, PayoutRequest } from '../interfaces';
@@ -129,6 +130,42 @@ export class PayoutService {
     await strategy.doPayout([order]);
   }
 
+  async retryUncertainPayout(accountId: number, dto: RetryPayoutDto): Promise<void> {
+    const order = await this.payoutOrderRepo.findOneBy({ id: dto.id });
+    if (!order) throw new NotFoundException('Payout order not found');
+
+    if (order.status !== PayoutOrderStatus.PAYOUT_UNCERTAIN)
+      throw new BadRequestException(
+        `Payout order ${dto.id} cannot be retried in status ${order.status}, expected ${PayoutOrderStatus.PAYOUT_UNCERTAIN}`,
+      );
+
+    // An order with a payoutTxId needs reconciliation against the chain, not a retry.
+    if (order.payoutTxId)
+      throw new BadRequestException(
+        `Payout order ${dto.id} has payoutTxId ${order.payoutTxId} and must be reconciled, not retried`,
+      );
+
+    if (dto.noBroadcastVerified !== true)
+      throw new BadRequestException('On-chain absence must be verified and confirmed (noBroadcastVerified)');
+
+    // Atomic conditional transition — a concurrent state change must not be overwritten.
+    // Restore the pre-broadcast retry budget: orders that escalated via the cap still carry
+    // retryCount = maxPreBroadcastRetries; without this reset the first transient pre-broadcast
+    // error on the manual retry would silently re-escalate to PayoutUncertain.
+    const result = await this.payoutOrderRepo.update(
+      { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+      { status: PayoutOrderStatus.PREPARATION_CONFIRMED, retryCount: 0 },
+    );
+    if (!result.affected) throw new ConflictException(`Payout order ${dto.id} changed state concurrently, not retried`);
+
+    // Audit trail (before → after): failure MESSAGE history (lastError/lastAttemptDate) is kept
+    // until the next broadcast attempt overwrites it; the retry BUDGET is restored above so a
+    // verified manual retry tolerates transient pre-broadcast errors instead of re-escalating.
+    this.logger.info(
+      `Manual payout retry authorized for order ${dto.id} by account ${accountId}: status ${PayoutOrderStatus.PAYOUT_UNCERTAIN} -> ${PayoutOrderStatus.PREPARATION_CONFIRMED}, retryCount ${order.retryCount}, lastError '${order.lastError}', reference: ${dto.verificationReference}`,
+    );
+  }
+
   //*** JOBS ***//
   @DfxCron(CronExpression.EVERY_30_SECONDS, { process: Process.PAY_OUT, timeout: 1800 })
   async processOrders(): Promise<void> {
@@ -235,18 +272,61 @@ export class PayoutService {
   }
 
   private async processFailedOrders(): Promise<void> {
-    const orders = await this.payoutOrderRepo.findBy({ status: PayoutOrderStatus.PAYOUT_DESIGNATED });
-
-    if (orders.length === 0) return;
-
-    const logMessage = this.logs.logFailedOrders(orders);
-    const mailRequest = this.createMailRequest(logMessage, orders);
-
-    await this.notificationService.sendMail(mailRequest);
+    // A freshly designated order is being broadcast now and its run will resolve it; a crash leftover will still
+    // be DESIGNATED one cycle later. Waiting two cron periods avoids false positives and delays escalation once.
+    const orders = await this.payoutOrderRepo.findBy({
+      status: PayoutOrderStatus.PAYOUT_DESIGNATED,
+      updated: LessThan(Util.minutesBefore(1)),
+    });
+    const escalatedOrders: PayoutOrder[] = [];
 
     for (const order of orders) {
-      order.pendingInvestigation();
-      await this.payoutOrderRepo.save(order);
+      try {
+        const result = await this.payoutOrderRepo.update(
+          { id: order.id, status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+          { status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+        );
+        if (!result.affected) {
+          this.logger.info(`Skipping failed payout order ${order.id}: state changed concurrently`);
+          continue;
+        }
+
+        escalatedOrders.push(order);
+      } catch (e) {
+        this.logger.warn(`Failed to escalate payout order ${order.id}; retrying next cycle:`, e);
+        continue;
+      }
+    }
+
+    if (escalatedOrders.length === 0) return;
+
+    const logMessage = this.logs.logFailedOrders(escalatedOrders);
+    const mailRequest = this.createMailRequest(logMessage, escalatedOrders);
+
+    // Escalation-then-mail keeps the alert truthful by listing only orders this run actually escalated.
+    // Reverting after a mail failure keeps the alert retryable for errors up to the notification
+    // persistence; transport-level delivery is owned by the notification subsystem. Residuals (a crash
+    // between escalation and mail, a delivery failure after persistence): the orders stay findable by
+    // querying PAYOUT_UNCERTAIN.
+    try {
+      await this.notificationService.sendMail(mailRequest);
+    } catch (e) {
+      this.logger.error(`Failed to send payout failure alert for orders ${escalatedOrders.map((o) => o.id)}:`, e);
+
+      for (const order of escalatedOrders) {
+        try {
+          const result = await this.payoutOrderRepo.update(
+            { id: order.id, status: PayoutOrderStatus.PAYOUT_UNCERTAIN },
+            { status: PayoutOrderStatus.PAYOUT_DESIGNATED },
+          );
+          if (!result.affected)
+            this.logger.warn(
+              `Failed to revert payout order ${order.id} after alert failure: state changed concurrently`,
+            );
+        } catch (revertError) {
+          this.logger.warn(`Failed to revert payout order ${order.id} after alert failure:`, revertError);
+        }
+      }
     }
   }
 

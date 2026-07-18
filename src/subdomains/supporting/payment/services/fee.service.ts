@@ -238,7 +238,7 @@ export class FeeService {
         request.paymentMethodIn,
       );
     } catch (e) {
-      this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
+      this.logger.error(`Fee exception, request: ${this.describeFeeRequest(request)}`);
       throw e;
     }
   }
@@ -256,7 +256,7 @@ export class FeeService {
         request.user.userData?.id,
       );
     } catch (e) {
-      this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
+      this.logger.error(`Fee exception, request: ${this.describeFeeRequest(request)}`);
       throw e;
     }
   }
@@ -273,7 +273,7 @@ export class FeeService {
         request.paymentMethodIn,
       );
     } catch (e) {
-      this.logger.error(`Fee exception, request: ${JSON.stringify(request)}`);
+      this.logger.error(`Fee exception, request: ${this.describeFeeRequest(request)}`);
       throw e;
     }
   }
@@ -308,6 +308,23 @@ export class FeeService {
   }
 
   // --- HELPER METHODS --- //
+
+  private describeFeeRequest(request: OptionalFeeRequest): string {
+    return JSON.stringify({
+      user: request.user?.id,
+      userData: request.userData?.id ?? request.user?.userData?.id,
+      wallet: request.wallet?.id,
+      accountType: request.accountType,
+      paymentMethodIn: request.paymentMethodIn,
+      paymentMethodOut: request.paymentMethodOut,
+      bankIn: request.bankIn,
+      bankOut: request.bankOut,
+      from: request.from && (isAsset(request.from) ? request.from.uniqueName : request.from.name),
+      to: request.to && (isAsset(request.to) ? request.to.uniqueName : request.to.name),
+      txVolume: request.txVolume,
+      specialCodes: request.specialCodes,
+    });
+  }
 
   private async getFee(id: number): Promise<Fee> {
     return this.getAllFees().then((fees) => fees.find((f) => f.id === id));

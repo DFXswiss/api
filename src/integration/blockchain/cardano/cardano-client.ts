@@ -158,9 +158,15 @@ export class CardanoClient extends BlockchainClient {
 
     const blockFrostApi = this.getBlockFrostAPI();
 
+    // Broadcast boundary: once txSubmit is reached the tx may already be accepted by the network.
+    // An empty/missing hash on a resolved response is ambiguous and must stay fail-closed (not a
+    // plain Error that would roll the payout order back for re-broadcast).
     try {
-      return await blockFrostApi.txSubmit(signedTransactionHex);
+      const txHash = await blockFrostApi.txSubmit(signedTransactionHex);
+      if (!txHash) throw new TxBroadcastError('Cardano broadcast returned an empty tx hash');
+      return txHash;
     } catch (e) {
+      if (e instanceof TxBroadcastError) throw e;
       throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
     }
   }

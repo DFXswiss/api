@@ -44,6 +44,8 @@ export enum PayInStatus {
   FORWARD_CONFIRMED = 'ForwardConfirmed',
   PREPARING = 'Preparing',
   PREPARED = 'Prepared',
+  SENDING = 'Sending',
+  SEND_UNCERTAIN = 'SendUncertain',
   COMPLETED = 'Completed',
 }
 
@@ -243,6 +245,12 @@ export class CryptoInput extends IEntity {
     return this;
   }
 
+  designateSending(): this {
+    this.status = PayInStatus.SENDING;
+
+    return this;
+  }
+
   forward(outTxId: string, forwardFeeAmount?: number, feeAmountChf?: number): this {
     this.outTxId = outTxId;
 
@@ -367,3 +375,6 @@ export class CryptoInput extends IEntity {
 }
 
 export const CryptoInputSettledStatus = [PayInStatus.FORWARD_CONFIRMED, PayInStatus.COMPLETED];
+
+// Send in flight or unresolved — a return must not re-arm it.
+export const CryptoInputInFlightSendStatus = [PayInStatus.SENDING, PayInStatus.SEND_UNCERTAIN];

@@ -1,7 +1,9 @@
 import { createMock } from '@golevelup/ts-jest';
 import { ConfigService } from 'src/config/config';
 import { SettingService } from 'src/shared/models/setting/setting.service';
+import { DfxLogger } from 'src/shared/services/dfx-logger';
 import { FindOperator, Repository } from 'typeorm';
+import { LedgerGateBlockedException } from '../ledger-gate-blocked.exception';
 import { getCutoverBoundary, LedgerWatermark, runContentChangeScan } from '../ledger-watermark.helper';
 
 interface Row {
@@ -58,6 +60,7 @@ describe('runContentChangeScan combined (updated, id) cursor', () => {
   });
 
   afterEach(() => {
+    jest.restoreAllMocks();
     delete process.env.LEDGER_BACKFILL_BATCH_SIZE;
     new ConfigService(); // restore default batchSize
   });
@@ -117,6 +120,42 @@ describe('runContentChangeScan combined (updated, id) cursor', () => {
     expect(written).toHaveLength(1);
     expect(written[0].lastReversalScan.getTime()).toBe(t1.getTime());
     expect(written[0].lastReversalScanId).toBe(1);
+  });
+
+  it('logs an expected gate-block (§4.7 G-a) at verbose, not error, and holds the cursor for retry', async () => {
+    const t = new Date('2026-06-01T00:00:00.000Z');
+    const repo = repoOver([{ id: 1, updated: t }], 2);
+    const wm: LedgerWatermark = { lastProcessedId: 0, lastReversalScan: new Date(0), lastReversalScanId: 0 };
+    const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+
+    await runContentChangeScan(settingService, 'test', wm, repo, {}, async () => {
+      throw new LedgerGateBlockedException('row 1 content-change scan gate-blocked — retry next run (§4.7 G-a)');
+    });
+
+    // expected self-healing gate-block → verbose, never error; cursor held so the row is re-scanned next run
+    expect(verboseSpy).toHaveBeenCalledWith(expect.stringMatching(/gate-blocked on test 1/), expect.anything());
+    expect(errorSpy).not.toHaveBeenCalled();
+    expect(written).toHaveLength(0);
+  });
+
+  it('logs a genuine scan failure at error (never downgraded or swallowed)', async () => {
+    const t = new Date('2026-06-01T00:00:00.000Z');
+    const repo = repoOver([{ id: 1, updated: t }], 2);
+    const wm: LedgerWatermark = { lastProcessedId: 0, lastReversalScan: new Date(0), lastReversalScanId: 0 };
+    const verboseSpy = jest.spyOn(DfxLogger.prototype, 'verbose').mockImplementation();
+    const errorSpy = jest.spyOn(DfxLogger.prototype, 'error').mockImplementation();
+
+    await runContentChangeScan(settingService, 'test', wm, repo, {}, async () => {
+      throw new Error('db down');
+    });
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      expect.stringMatching(/Content-change scan failed on test 1/),
+      expect.anything(),
+    );
+    expect(verboseSpy).not.toHaveBeenCalled();
+    expect(written).toHaveLength(0);
   });
 });
 

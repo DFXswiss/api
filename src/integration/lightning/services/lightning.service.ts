@@ -1,4 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
+import { TxBroadcastError } from 'src/integration/blockchain/shared/errors/tx-broadcast.error';
 import { HttpService } from 'src/shared/services/http.service';
 import { AsyncCache, CacheItemResetPeriod } from 'src/shared/utils/async-cache';
 import { Util } from 'src/shared/utils/util';
@@ -141,11 +142,35 @@ export class LightningService {
         throw new Error(`Unknown address type ${addressType} in send payment`);
     }
 
+    // In-band payment_error: LND reports the payment was not routed - provably no funds moved.
+    // Keep this a plain Error so invoice payouts can self-heal (retry with a fresh invoice is safe).
     if (paymentResponse.payment_error) {
       throw new Error(`Error while sending payment by LNURL ${address}: ${paymentResponse.payment_error}`);
     }
 
-    return Buffer.from(paymentResponse.payment_hash, 'base64').toString('hex');
+    // Post-send response mapping: the LND send call has already been reached. A missing, empty or
+    // unparseable payment_hash is ambiguous (payment may have succeeded) and must NOT surface as a
+    // plain Error - that would roll the payout order back and re-broadcast. Invoice retries also
+    // fetch a NEW invoice (different payment_hash), so LND dedup cannot protect a second send.
+    try {
+      if (!paymentResponse.payment_hash) {
+        throw new TxBroadcastError('Lightning broadcast returned an empty payment hash', {
+          cause: paymentResponse,
+        });
+      }
+
+      const txId = Buffer.from(paymentResponse.payment_hash, 'base64').toString('hex');
+      if (!txId) {
+        throw new TxBroadcastError('Lightning broadcast returned an empty payment hash', {
+          cause: paymentResponse,
+        });
+      }
+
+      return txId;
+    } catch (e) {
+      if (e instanceof TxBroadcastError) throw e;
+      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+    }
   }
 
   async getTransferCompletionData(txId: string, maxHours = 24): Promise<[boolean, number]> {

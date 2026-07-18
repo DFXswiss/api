@@ -1,8 +1,47 @@
+import { Blockchain } from 'src/integration/blockchain/shared/enums/blockchain.enum';
+import { createCustomAsset } from 'src/shared/models/asset/__mocks__/asset.entity.mock';
+import { BankService } from 'src/subdomains/supporting/bank/bank/bank.service';
+import { IbanBankName } from 'src/subdomains/supporting/bank/bank/dto/bank.dto';
 import { createCustomSpecialExternalAccount } from 'src/subdomains/supporting/payment/__mocks__/special-external-account.entity.mock';
-import { BankTx } from '../entities/bank-tx.entity';
+import { createCustomBankTx } from '../__mocks__/bank-tx.entity.mock';
+import { BankTx, BankTxType } from '../entities/bank-tx.entity';
 
 describe('BankTx', () => {
   const multiAccount = createCustomSpecialExternalAccount({ value: 'MULTI-ACCOUNT-IBAN', name: 'MULTI-ACCOUNT-IBAN' });
+
+  describe('#pendingInputAmount(...)', () => {
+    const frickIban = 'LI75088110105923K000E';
+
+    beforeEach(() => {
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.clear();
+      (BankService as unknown as { ibanCache: Map<string, string> }).ibanCache.set(
+        `${IbanBankName.FRICK}-EUR`,
+        frickIban,
+      );
+    });
+
+    it('returns the credit amount for a matching Frick custody asset', () => {
+      const entity = createCustomBankTx({
+        type: BankTxType.PENDING,
+        amount: 250,
+        accountIban: frickIban,
+      });
+      const asset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR' });
+
+      expect(entity.pendingInputAmount(asset)).toBe(250);
+    });
+
+    it('returns 0 for a Frick asset when the account IBAN does not match', () => {
+      const entity = createCustomBankTx({
+        type: BankTxType.PENDING,
+        amount: 250,
+        accountIban: 'OTHER-IBAN',
+      });
+      const asset = createCustomAsset({ blockchain: Blockchain.FRICK, dexName: 'EUR' });
+
+      expect(entity.pendingInputAmount(asset)).toBe(0);
+    });
+  });
 
   describe('#senderAccount(...)', () => {
     it('should return the IBAN', () => {

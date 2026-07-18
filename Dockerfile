@@ -28,6 +28,12 @@ RUN echo "$GIT_COMMIT" > dist/version.txt
 
 FROM node:20-alpine
 
+# tini as PID 1: forwards SIGTERM to node so stops behave exactly as they did
+# under npm (immediate exit), without npm's 5-line error block on every stop.
+# Bare node as PID 1 would IGNORE SIGTERM (no handler + PID-1 semantics) and
+# get SIGKILLed after the grace period instead.
+RUN apk add --no-cache tini
+
 USER node
 WORKDIR /home/node
 
@@ -45,4 +51,6 @@ COPY --from=builder /home/node/assets ./assets
 
 EXPOSE 3000
 
-CMD ["npm", "run", "start:prod"]
+ENTRYPOINT ["/sbin/tini", "--"]
+# Mirrors package.json start:prod — keep the two in sync.
+CMD ["node", "--max-old-space-size=6144", "dist/src/main"]

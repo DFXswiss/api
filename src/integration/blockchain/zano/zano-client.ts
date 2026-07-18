@@ -7,7 +7,7 @@ import { Util } from 'src/shared/utils/util';
 import { PayoutGroup } from 'src/subdomains/supporting/payout/services/base/payout-bitcoin-based.service';
 import { BlockchainTokenBalance } from '../shared/dto/blockchain-token-balance.dto';
 import { SignedTransactionResponse } from '../shared/dto/signed-transaction-reponse.dto';
-import { TxBroadcastError } from '../shared/errors/tx-broadcast.error';
+import { TxBroadcastError, toBroadcastBoundaryError } from '../shared/errors/tx-broadcast.error';
 import { BlockchainClient, BlockchainToken } from '../shared/util/blockchain-client';
 import {
   ZanoAddressDto,
@@ -23,6 +23,10 @@ import {
   ZanoTransferReceiveDto,
 } from './dto/zano.dto';
 import { ZanoHelper } from './zano-helper';
+
+// Numeric pre-broadcast codes could not be confirmed from an authoritative Zano source, so every
+// numeric RPC error is deliberately fail-closed.
+const ZANO_PRE_BROADCAST_RPC_CODES: number[] = [];
 
 export class ZanoClient extends BlockchainClient {
   private readonly tokens = new AsyncCache<BlockchainToken>();
@@ -252,11 +256,9 @@ export class ZanoClient extends BlockchainClient {
     return this.doSendTransfer(payout, payoutAmount, token.decimals, token.chainId);
   }
 
-  // Broadcast boundary: the wallet RPC's 'transfer' method builds, signs and relays the tx
-  // atomically in one call - there is no separate pre-broadcast step. A failure of the HTTP call
-  // itself or a response missing tx_details are both ambiguous (the wallet may have already
-  // relayed before the response was lost/rejected), mirroring the Solana sendTransaction boundary
-  // (result.error / empty hash -> TxBroadcastError).
+  // Broadcast boundary: the wallet RPC's 'transfer' method builds, signs and relays atomically.
+  // Connection-establishment failures are provably pre-broadcast. Zano has no verified numeric
+  // pre-funding allowlist here, so RPC errors, timeouts, resets and malformed responses fail closed.
   private async doSendTransfer(
     payout: PayoutGroup,
     payoutAmount: number,
@@ -279,21 +281,26 @@ export class ZanoClient extends BlockchainClient {
 
     try {
       const response = await this.http.post<{
-        result: { tx_details: { tx_hash: string } };
+        result?: { tx_details: { tx_hash: string } };
+        error?: { code: number; message: string };
       }>(`${Config.blockchain.zano.wallet.url}/json_rpc`, transferParams);
 
       // Response mapping stays inside the boundary: a malformed/empty body throwing while reading
       // response.result would otherwise be a plain error and self-heal a possibly-relayed transfer.
       return this.createSendTransferResult(payoutAmount, response);
     } catch (e) {
-      if (e instanceof TxBroadcastError) throw e;
-      throw new TxBroadcastError(e instanceof Error ? e.message : String(e), { cause: e });
+      throw toBroadcastBoundaryError(e, ZANO_PRE_BROADCAST_RPC_CODES);
     }
   }
 
   private createSendTransferResult(payoutAmount: number, response?: any): ZanoSendTransferResultDto {
+    if (response?.error) throw toBroadcastBoundaryError(response.error, ZANO_PRE_BROADCAST_RPC_CODES);
     if (!response.result?.tx_details)
       throw new TxBroadcastError(`Transfer not sent: response was ${JSON.stringify(response)}`);
+    // Empty tx_hash after a resolved transfer is ambiguous (wallet may already have relayed).
+    if (!response.result.tx_details.tx_hash) {
+      throw new TxBroadcastError('Zano broadcast returned an empty tx hash', { cause: response });
+    }
 
     return {
       txId: response.result.tx_details.tx_hash,
