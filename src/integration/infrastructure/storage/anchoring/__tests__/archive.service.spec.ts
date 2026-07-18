@@ -15,10 +15,10 @@ import { OpenTimestampsService } from '../opentimestamps.service';
 /**
  * A shared in-memory store backing both fake repositories. It reproduces just enough TypeORM
  * behaviour (auto-increment ids, `(bucket, name)` upsert, batch-null filtering, ordering,
- * conditional `update` with criteria, and `manager.transaction`) for the round-trip the
- * service performs, so that saves inside the transaction the service runs on the batch
- * repo's manager land in the same `files`/`batches` arrays the assertions inspect. The
- * Merkle math is the REAL Stage-1 module; only OpenTimestamps is mocked so no network is
+ * conditional `update` with criteria, and rollback-capable `manager.transaction`) for the
+ * round-trip the service performs, so that saves inside the transaction the service runs on
+ * the batch repo's manager land in the same `files`/`batches` arrays the assertions inspect.
+ * The Merkle math is the REAL Stage-1 module; only OpenTimestamps is mocked so no network is
  * touched.
  */
 function fakeStore() {
@@ -48,8 +48,7 @@ function fakeStore() {
 
   // TypeORM-style criteria update: evaluate conditions against current row state and return
   // `{ affected }`. Shared between the repo-level and transactional-manager-level `update`
-  // entrypoints (the service uses both) so a conditional update — e.g. WHERE id = ... AND
-  // batch IS NULL AND sha256 = <T0 snapshot> — is exercised identically through either one.
+  // entrypoints so conditional criteria are exercised identically through either one.
   const updateFile = (
     criteria: { id: number; batch?: any; sha256?: string },
     partial: Partial<ArchiveFile>,
@@ -72,9 +71,48 @@ function fakeStore() {
     return { affected: 1 };
   };
 
+  const findFiles = ({ where, order }: any): ArchiveFile[] => {
+    let result = [...files];
+
+    if (where?.batch !== undefined) {
+      // TypeORM IsNull() carries `_type === 'isNull'`; otherwise we match a batch id.
+      const wantsNull = where.batch?._type === 'isNull' || where.batch === null;
+      if (wantsNull) result = result.filter((f) => f.batch == null);
+      else if (where.batch?.id != null) result = result.filter((f) => f.batch?.id === where.batch.id);
+    }
+
+    if (order?.id === 'ASC') result.sort((a, b) => a.id - b.id);
+    if (order?.leafIndex === 'ASC') result.sort((a, b) => a.leafIndex - b.leafIndex);
+
+    // Query results are snapshots, not aliases of the rows in the fake persisted store.
+    return result.map((file) => Object.assign(new ArchiveFile(), file));
+  };
+
   const manager = {
     save: async (entity: any) => saveEntity(entity),
-    transaction: async (run: (manager: any) => Promise<void>) => run(manager),
+    transaction: async (run: (manager: any) => Promise<any>) => {
+      const fileSnapshot = files.map((entity) => ({ entity, state: { ...entity } }));
+      const batchSnapshot = batches.map((entity) => ({ entity, state: { ...entity } }));
+      const fileSeqSnapshot = fileSeq;
+      const batchSeqSnapshot = batchSeq;
+
+      try {
+        return await run(manager);
+      } catch (error) {
+        const restore = <T extends object>(snapshot: Array<{ entity: T; state: Partial<T> }>): T[] =>
+          snapshot.map(({ entity, state }) => {
+            for (const key of Object.keys(entity)) delete (entity as any)[key];
+            return Object.assign(entity, state);
+          });
+
+        files.splice(0, files.length, ...restore(fileSnapshot));
+        batches.splice(0, batches.length, ...restore(batchSnapshot));
+        fileSeq = fileSeqSnapshot;
+        batchSeq = batchSeqSnapshot;
+        throw error;
+      }
+    },
+    query: async (_sql: string, _parameters: unknown[]) => undefined,
     update: async (
       _entityClass: any,
       criteria: { id: number; batch?: any; sha256?: string },
@@ -108,21 +146,7 @@ function fakeStore() {
       if (!wantsBatch) result.batch = undefined;
       return result;
     },
-    find: async ({ where, order }: any) => {
-      let result = [...files];
-
-      if (where?.batch !== undefined) {
-        // TypeORM IsNull() carries `_type === 'isNull'`; otherwise we match a batch id.
-        const wantsNull = where.batch?._type === 'isNull' || where.batch === null;
-        if (wantsNull) result = result.filter((f) => f.batch == null);
-        else if (where.batch?.id != null) result = result.filter((f) => f.batch?.id === where.batch.id);
-      }
-
-      if (order?.id === 'ASC') result.sort((a, b) => a.id - b.id);
-      if (order?.leafIndex === 'ASC') result.sort((a, b) => a.leafIndex - b.leafIndex);
-
-      return result;
-    },
+    find: async (options: any) => findFiles(options),
   };
 
   const batchRepo: any = {
@@ -221,6 +245,26 @@ describe('ArchiveService', () => {
       expect(
         fileRepo.files.every((f: ArchiveFile) => typeof f.merkleProof === 'string' && f.merkleProof.length > 0),
       ).toBe(true);
+    });
+
+    it('aborts and rolls back the entire batch when one conditional file assignment loses a race', async () => {
+      const racedFile = fileRepo.files.find((f: ArchiveFile) => f.name === 'doc-b.pdf');
+
+      // stamp runs after the repo-level find has captured T0, but before the transaction opens.
+      // Change the persisted row there so the later conditional update uses a stale snapshot.
+      (ots.stamp as jest.Mock).mockImplementationOnce(async (digest: Buffer) => {
+        racedFile.sha256 = sha256(Buffer.from('concurrent replacement')).toString('hex');
+        return Buffer.concat([Buffer.from('OTS'), digest]);
+      });
+
+      await expect(service.anchorPending()).rejects.toThrow(
+        `Failed to anchor archive file ${racedFile.id} (${racedFile.bucket}/${racedFile.name}) into batch 1: ` +
+          `conditional update affected no rows; aborting the entire batch`,
+      );
+
+      expect(batchRepo.batches).toEqual([]);
+      expect(fileRepo.files.every((f: ArchiveFile) => f.batch == null)).toBe(true);
+      expect(fileRepo.files.every((f: ArchiveFile) => f.leafIndex == null && f.merkleProof == null)).toBe(true);
     });
 
     it('returns undefined when there is nothing to anchor', async () => {

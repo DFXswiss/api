@@ -9,6 +9,9 @@ import { serializeMerkleProof } from './merkle-proof-codec';
 import { buildMerkleRoot, merkleInclusionProof, sha256, verifyMerkleProof } from './merkle';
 import { OpenTimestampsService } from './opentimestamps.service';
 
+// Serializes the pending archive-file claim across application instances.
+const ARCHIVE_ANCHOR_LOCK_KEY = 'archive-anchor-pending';
+
 /** Result of verifying an archived document against its anchored Merkle batch. */
 export interface ArchiveVerification {
   /** false if no archive record exists for the given `(bucket, name)`. */
@@ -117,14 +120,16 @@ export class ArchiveService {
    * root via OpenTimestamps, and persist batch + per-file assignment (including each file's
    * inclusion proof) in a single transaction.
    *
-   * Each file's assignment is written via a conditional UPDATE keyed on `id`, `batch IS NULL`,
-   * AND the exact `sha256` read when the files were selected above (T0). If a concurrent
-   * {@link recordHash} call is refused in between (or, more generally, if the row no longer
-   * matches its T0 snapshot for any reason), the conditional update simply affects 0 rows for
-   * that file: it is skipped (left `batch IS NULL`, picked up again on the next anchoring cycle)
-   * rather than being claimed into a batch whose committed leaf may no longer correspond to the
-   * row's current content. This update only ever sets `batch` / `leafIndex` / `merkleProof` — it
-   * never writes `sha256`, so it can never destructively race against recordHash either.
+   * The pending-file snapshot, Merkle work, and external timestamp request happen before opening
+   * the transaction. A transaction-scoped Postgres advisory lock then serializes the claim phase
+   * across application instances. A run that read before another instance committed may therefore
+   * reach the lock with a stale snapshot; each conditional UPDATE guards against that with `id`,
+   * `batch IS NULL`, and the snapshot's exact `sha256`. If any row no longer matches, throwing
+   * rolls back the batch row and every earlier assignment, so every committed batch remains fully
+   * reconstructable from its member rows. The timestamp request wasted in that race is harmless:
+   * stamping is idempotently retryable and a later cron cycle will stamp the remaining pending
+   * files. Within one instance, the scheduler's existing lock already prevents overlapping runs.
+   * The update never writes `sha256`, so it cannot destructively race against recordHash.
    *
    * Returns the created batch, or `undefined` if there is nothing to anchor.
    */
@@ -134,7 +139,6 @@ export class ArchiveService {
 
     const leaves = files.map((file) => Buffer.from(file.sha256, 'hex'));
     const root = buildMerkleRoot(leaves);
-
     const otsBytes = await this.ots.stamp(root);
 
     const batch = this.archiveBatchRepo.create({
@@ -143,9 +147,9 @@ export class ArchiveService {
       status: ArchiveBatchStatus.PENDING_BTC,
     });
 
-    let anchoredCount = 0;
+    const savedBatch = await this.archiveBatchRepo.manager.transaction(async (manager) => {
+      await manager.query('SELECT pg_advisory_xact_lock(hashtext($1))', [ARCHIVE_ANCHOR_LOCK_KEY]);
 
-    await this.archiveBatchRepo.manager.transaction(async (manager) => {
       const savedBatch = await manager.save(batch);
 
       for (const [index, file] of files.entries()) {
@@ -159,23 +163,20 @@ export class ArchiveService {
           },
         );
 
-        if (result.affected) {
-          anchoredCount++;
-        } else {
-          this.logger.warn(
-            `Skipped anchoring archive file ${file.id} (${file.bucket}/${file.name}) into batch ${savedBatch.id}: ` +
-              `its hash changed or it was reassigned between batching and commit (TOCTOU). It remains unanchored ` +
-              `and will be picked up by the next anchoring cycle.`,
+        if (!result.affected) {
+          throw new Error(
+            `Failed to anchor archive file ${file.id} (${file.bucket}/${file.name}) into batch ${savedBatch.id}: ` +
+              `conditional update affected no rows; aborting the entire batch`,
           );
         }
       }
+
+      return savedBatch;
     });
 
-    this.logger.info(
-      `Anchored batch ${batch.id} over ${anchoredCount}/${files.length} file(s), root ${batch.merkleRoot}`,
-    );
+    this.logger.info(`Anchored batch ${savedBatch.id} over all ${files.length} file(s), root ${savedBatch.merkleRoot}`);
 
-    return batch;
+    return savedBatch;
   }
 
   /**

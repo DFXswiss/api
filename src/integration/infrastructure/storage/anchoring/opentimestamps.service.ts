@@ -16,16 +16,6 @@ export interface OtsVerifyResult {
 }
 
 /**
- * Minimal shape of the `opentimestamps` library's DetachedTimestampFile actually used here.
- * The library ships no TypeScript types (no `@types/opentimestamps` dependency either), so the
- * `OpenTimestamps` namespace import is untyped; this local interface replaces `any` with the
- * concrete surface this service relies on.
- */
-interface DetachedTimestampFile {
-  serializeToBytes(): Uint8Array;
-}
-
-/**
  * Thin async/await wrapper around the `opentimestamps` npm library for the GeBüV
  * anchoring pipeline. It deliberately knows nothing about Merkle trees, storage or
  * scheduling — callers feed it a single 32-byte SHA-256 digest (typically a daily
@@ -95,7 +85,7 @@ export class OpenTimestampsService {
   }
 
   /** Build a DetachedTimestampFile that commits directly to an already-computed SHA-256 digest. */
-  private detachedFromDigest(digest: Buffer): DetachedTimestampFile {
+  private detachedFromDigest(digest: Buffer): OpenTimestamps.DetachedTimestampFile {
     return OpenTimestamps.DetachedTimestampFile.fromHash(new OpenTimestamps.Ops.OpSHA256(), digest);
   }
 }
