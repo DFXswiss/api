@@ -43,6 +43,24 @@ describe('LedgerBookingService', () => {
     type: AccountType.ROUNDING,
     currency: 'CHF',
   });
+  const usdtAsset = createCustomLedgerAccount({
+    id: 12,
+    name: 'Binance/USDT',
+    type: AccountType.ASSET,
+    currency: 'USDT',
+  });
+  const chfBank = createCustomLedgerAccount({
+    id: 30,
+    name: 'Bank/CHF',
+    type: AccountType.ASSET,
+    currency: 'CHF',
+  });
+  const chfPayout = createCustomLedgerAccount({
+    id: 31,
+    name: 'TRANSIT/payout/CHF',
+    type: AccountType.TRANSIT,
+    currency: 'CHF',
+  });
 
   beforeEach(async () => {
     savedLegs = [];
@@ -233,6 +251,69 @@ describe('LedgerBookingService', () => {
 
     expect(logSpy).toHaveBeenCalled(); // pure same-asset transfer with native imbalance → logged
     expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('source exchange_tx 6 seq 0')); // names the producer
+  });
+
+  // #4267: a fee-less cross-asset micro-fill (feeAmountChf rounds to 0 and the base↔quote CHF mark residual is
+  // within tolerance → no spread/fee leg) collapses to a bare 2-leg all-ASSET tx. Its per-currency native delta
+  // IS the trade (0.00008 BTC vs 5 USDT), never 0; the old per-currency loop flagged BOTH currencies (44 of the
+  // 46 post-cutover lines). The single-currency gate restores the docstring scope.
+  it('does NOT flag a fee-less cross-asset trade (two currencies)', async () => {
+    const logSpy = jest.spyOn((service as any).logger, 'error');
+    const legs: LedgerLegInput[] = [
+      { account: walletAsset, amount: 0.00008, priceChf: 50000, amountChf: 4 },
+      { account: usdtAsset, amount: -5, priceChf: 0.8, amountChf: -4 }, // different currency → outside scope
+    ];
+
+    await service.bookTx({
+      sourceType: 'exchange_tx',
+      sourceId: '7',
+      seq: 0,
+      bookingDate: new Date('2026-07-17'),
+      legs,
+    });
+
+    expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  // #4267: buy_fiat seq3 — the bank ASSET leg carries the unrounded fiat output (>2 dp) while the payout TRANSIT
+  // leg is the 2-dp owed amount → a sub-rappen native residual. The CHF value balances (amountChfSum = 0); only
+  // the native amount has sub-cent noise. Valued at mark 1 the residual is 0.00 CHF ≤ the rounding tolerance.
+  it('does NOT flag sub-rappen fiat rounding on a single-currency CHF settlement', async () => {
+    const logSpy = jest.spyOn((service as any).logger, 'error');
+    const legs: LedgerLegInput[] = [
+      { account: chfPayout, amount: 3303.62, priceChf: 1, amountChf: 3303.62 },
+      { account: chfBank, amount: -3303.6168978, priceChf: 1, amountChf: -3303.62 }, // unrounded native output
+    ];
+
+    await service.bookTx({
+      sourceType: 'buy_fiat',
+      sourceId: '8',
+      seq: 3,
+      bookingDate: new Date('2026-07-17'),
+      legs,
+    });
+
+    expect(logSpy).not.toHaveBeenCalled();
+  });
+
+  // #4267: a genuine single-currency native imbalance (CHF nets to 0 via divergent marks, but native does not)
+  // is still flagged — and the residual is now reported valued in CHF at the group mark (§7 unit-fix).
+  it('flags a material single-currency native imbalance and reports its CHF value', async () => {
+    const logSpy = jest.spyOn((service as any).logger, 'error');
+    const legs: LedgerLegInput[] = [
+      { account: exchangeAsset, amount: 2, priceChf: 25000, amountChf: 50000 },
+      { account: walletAsset, amount: -1, priceChf: 50000, amountChf: -50000 }, // CHF balances, native = +1 BTC
+    ];
+
+    await service.bookTx({
+      sourceType: 'exchange_tx',
+      sourceId: '9',
+      seq: 0,
+      bookingDate: new Date('2026-07-17'),
+      legs,
+    });
+
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining('50000 CHF @ mark 50000'));
   });
 
   it('reverses a tx with inverted legs and the next free seq', async () => {
