@@ -2147,13 +2147,17 @@ export class RealUnitService {
 
     // Fail-closed: the signed tx the client broadcasts must match what the server built for THIS request —
     // recipient contract, chain, value and calldata are all re-derived server-side rather than trusted from
-    // the client-supplied unsignedTx, so a mismatched/forged payload never reaches the network.
+    // the client-supplied unsignedTx, so a mismatched/forged payload never reaches the network. The recovered
+    // signer must also match the request's user address, so an attacker cannot relay a transaction signed
+    // by a different wallet than the KYC'd requester.
     const payloadMatches =
       parsedTx.to != null &&
       Util.equalsIgnoreCase(parsedTx.to, realuAsset.chainId) &&
       parsedTx.chainId === client.chainId &&
       parsedTx.value.isZero() &&
-      Util.equalsIgnoreCase(parsedTx.data, expectedData);
+      Util.equalsIgnoreCase(parsedTx.data, expectedData) &&
+      parsedTx.from != null &&
+      Util.equalsIgnoreCase(parsedTx.from, request.user.address);
 
     if (!payloadMatches) {
       throw new BadRequestException('Signed swap transaction does not match the expected request payload');

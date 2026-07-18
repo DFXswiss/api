@@ -1154,6 +1154,8 @@ describe('RealUnitService', () => {
   });
 
   describe('broadcastSwapTransaction', () => {
+    const signerWallet = new ethers.Wallet('0x' + '11'.repeat(32));
+
     const mockRequest = {
       id: 1,
       isValid: true,
@@ -1162,7 +1164,7 @@ describe('RealUnitService', () => {
       type: TransactionRequestType.SWAP,
       sourceId: realuTxAsset.id,
       targetId: zchfTxAsset.id,
-      user: { address: userAddress, userData: { kycLevel: KycLevel.LEVEL_30 } },
+      user: { address: signerWallet.address, userData: { kycLevel: KycLevel.LEVEL_30 } },
     };
 
     const erc677Interface = new ethers.utils.Interface([
@@ -1174,25 +1176,28 @@ describe('RealUnitService', () => {
       '0x',
     ]);
 
-    const unsignedTx = ethers.utils.serializeTransaction({
-      type: 2,
-      chainId: 11155111,
-      nonce: 7,
-      maxPriorityFeePerGas: ethers.BigNumber.from(1),
-      maxFeePerGas: ethers.BigNumber.from(1),
-      gasLimit: ethers.BigNumber.from(350_000),
-      to: realuContract,
-      value: ethers.BigNumber.from(0),
-      data: swapData,
-      accessList: [],
-    });
+    let txFields: any;
+    let unsignedTx: string;
+    let broadcastDto: { unsignedTx: string; r: string; s: string; v: number };
 
-    const broadcastDto = {
-      unsignedTx,
-      r: '0x' + '1'.repeat(64),
-      s: '0x' + '2'.repeat(64),
-      v: 27,
-    };
+    beforeAll(async () => {
+      txFields = {
+        type: 2,
+        chainId: 11155111,
+        nonce: 7,
+        maxPriorityFeePerGas: ethers.BigNumber.from(1),
+        maxFeePerGas: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(350_000),
+        to: realuContract,
+        value: ethers.BigNumber.from(0),
+        data: swapData,
+        accessList: [],
+      };
+      unsignedTx = ethers.utils.serializeTransaction(txFields);
+      const fullySignedTx = await signerWallet.signTransaction(txFields);
+      const { r, s, v } = ethers.utils.parseTransaction(fullySignedTx);
+      broadcastDto = { unsignedTx, r: r!, s: s!, v: v! };
+    });
 
     beforeEach(() => {
       jest.spyOn(service, 'hasRegistrationForWallet').mockResolvedValue(true);
@@ -1319,6 +1324,20 @@ describe('RealUnitService', () => {
       await expect(
         service.broadcastSwapTransaction(42, 1, { ...broadcastDto, unsignedTx: '0xdeadbeef' }),
       ).rejects.toThrow(BadRequestException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when the signed swap tx sender does not match the request user address (foreign wallet)', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      const foreignWallet = new ethers.Wallet('0x' + '22'.repeat(32));
+      const foreignSignedTx = await foreignWallet.signTransaction(txFields);
+      const { r, s, v } = ethers.utils.parseTransaction(foreignSignedTx);
+
+      await expect(service.broadcastSwapTransaction(42, 1, { unsignedTx, r, s, v })).rejects.toThrow(
+        BadRequestException,
+      );
       expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
     });
   });
