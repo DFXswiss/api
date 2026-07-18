@@ -208,6 +208,7 @@ describe('RealUnitService', () => {
     getNativeCoinBalanceForAddress: jest.Mock;
     sendSignedTransaction: jest.Mock;
     getTokenBalance: jest.Mock;
+    getTokenBalanceWei: jest.Mock;
     getTxReceipt: jest.Mock;
   };
   let evmClient: typeof sepoliaClient;
@@ -254,6 +255,7 @@ describe('RealUnitService', () => {
       getNativeCoinBalanceForAddress: jest.fn(),
       sendSignedTransaction: jest.fn(),
       getTokenBalance: jest.fn().mockResolvedValue(1_000_000),
+      getTokenBalanceWei: jest.fn().mockResolvedValue(ethers.BigNumber.from('1000000000000000000000000')),
       getTxReceipt: jest.fn(),
     };
     evmClient = sepoliaClient;
@@ -1163,6 +1165,15 @@ describe('RealUnitService', () => {
       user: { address: userAddress, userData: { kycLevel: KycLevel.LEVEL_30 } },
     };
 
+    const erc677Interface = new ethers.utils.Interface([
+      'function transferAndCall(address to, uint256 value, bytes data) returns (bool)',
+    ]);
+    const swapData = erc677Interface.encodeFunctionData('transferAndCall', [
+      '0x71C7656EC7ab88b098defB751B7401B5f6d8976F', // brokerbotAddress from the GetConfig mock
+      ethers.BigNumber.from(10), // mockRequest.amount = 10 shares, realuTxAsset.decimals = 0
+      '0x',
+    ]);
+
     const unsignedTx = ethers.utils.serializeTransaction({
       type: 2,
       chainId: 11155111,
@@ -1172,7 +1183,7 @@ describe('RealUnitService', () => {
       gasLimit: ethers.BigNumber.from(350_000),
       to: realuContract,
       value: ethers.BigNumber.from(0),
-      data: '0x',
+      data: swapData,
       accessList: [],
     });
 
@@ -1197,6 +1208,7 @@ describe('RealUnitService', () => {
       expect(result.txHash).toBe('0xSwapTxHash');
       expect(evmClient.sendSignedTransaction).toHaveBeenCalledTimes(1);
       expect(evmClient.sendSignedTransaction.mock.calls[0][0]).toMatch(/^0x/);
+      expect(transactionRequestService.complete).toHaveBeenCalledWith(1);
     });
 
     it('should throw BadRequestException if the request is not valid', async () => {
@@ -1223,6 +1235,91 @@ describe('RealUnitService', () => {
 
       await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(BadRequestException);
       expect(faucetRequestService.resetFaucet).not.toHaveBeenCalled();
+    });
+
+    it('rejects a second swap broadcast for the same request after the first one completed it (replay guard)', async () => {
+      assetService.getAssetByQuery.mockImplementation((query: any) =>
+        Promise.resolve(query.name === 'ZCHF' ? zchfTxAsset : realuTxAsset),
+      );
+      evmClient.sendSignedTransaction.mockResolvedValue({ response: { hash: '0xSwapTxHash' } });
+
+      const requestFixture = { ...mockRequest, isComplete: false };
+      transactionRequestService.complete.mockImplementation(async (id: number) => {
+        if (id === requestFixture.id) requestFixture.isComplete = true;
+      });
+      transactionRequestService.getOrThrow.mockImplementation(async () => ({ ...requestFixture }) as any);
+
+      // 1st broadcast: request not yet complete -> succeeds and marks it complete via complete()
+      const first = await service.broadcastSwapTransaction(42, 1, broadcastDto);
+      expect(first.txHash).toBe('0xSwapTxHash');
+      expect(transactionRequestService.complete).toHaveBeenCalledWith(requestFixture.id);
+      expect(requestFixture.isComplete).toBe(true);
+
+      // 2nd broadcast: getOrThrow now reflects isComplete=true BECAUSE complete() set it on the fixture
+      await expect(service.broadcastSwapTransaction(42, 1, broadcastDto)).rejects.toThrow(ConflictException);
+      expect(evmClient.sendSignedTransaction).toHaveBeenCalledTimes(1); // not called again on the replay
+    });
+
+    it('throws BadRequestException when the signed swap tx targets an unexpected contract/calldata', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      const badUnsignedTx = ethers.utils.serializeTransaction({
+        type: 2,
+        chainId: 11155111,
+        nonce: 7,
+        maxPriorityFeePerGas: ethers.BigNumber.from(1),
+        maxFeePerGas: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(350_000),
+        to: '0x000000000000000000000000000000000000dEaD', // wrong recipient contract
+        value: ethers.BigNumber.from(0),
+        data: '0x12345678',
+        accessList: [],
+      });
+
+      await expect(
+        service.broadcastSwapTransaction(42, 1, { ...broadcastDto, unsignedTx: badUnsignedTx }),
+      ).rejects.toThrow(BadRequestException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException when the signed swap tx has correct to/chainId/value but mismatched calldata', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      // Correct to/chainId/value, but different transferAndCall amount so expectedData mismatches
+      const mismatchedData = erc677Interface.encodeFunctionData('transferAndCall', [
+        '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+        ethers.BigNumber.from(99), // wrong shares amount vs mockRequest.amount = 10
+        '0x',
+      ]);
+      const mismatchedCalldataTx = ethers.utils.serializeTransaction({
+        type: 2,
+        chainId: 11155111,
+        nonce: 7,
+        maxPriorityFeePerGas: ethers.BigNumber.from(1),
+        maxFeePerGas: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(350_000),
+        to: realuContract,
+        value: ethers.BigNumber.from(0),
+        data: mismatchedData,
+        accessList: [],
+      });
+
+      await expect(
+        service.broadcastSwapTransaction(42, 1, { ...broadcastDto, unsignedTx: mismatchedCalldataTx }),
+      ).rejects.toThrow(BadRequestException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
+    });
+
+    it('throws BadRequestException (not a raw 500) when unsignedTx is syntactically malformed', async () => {
+      transactionRequestService.getOrThrow.mockResolvedValue(mockRequest as any);
+      assetService.getAssetByQuery.mockResolvedValueOnce(realuTxAsset).mockResolvedValueOnce(zchfTxAsset);
+
+      await expect(
+        service.broadcastSwapTransaction(42, 1, { ...broadcastDto, unsignedTx: '0xdeadbeef' }),
+      ).rejects.toThrow(BadRequestException);
+      expect(evmClient.sendSignedTransaction).not.toHaveBeenCalled();
     });
   });
 
@@ -1382,11 +1479,45 @@ describe('RealUnitService', () => {
         uri: `ethereum:${zchfTxAsset.chainId}@1/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
         hint: '',
       });
-      evmClient.getTokenBalance.mockResolvedValueOnce(0);
+      evmClient.getTokenBalanceWei.mockResolvedValueOnce(ethers.BigNumber.from(0));
 
       await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
         ConflictException,
       );
+    });
+
+    it('should reject a wallet whose ETH balance covers the base gas cost but not the buffered maxFeePerGas (F5)', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.ETHEREUM,
+        uri: `ethereum:${zchfTxAsset.chainId}@1/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+      // gasPrice=1e9, gasLimit=100_000 -> base requirement 0.0001 ETH, buffered (x1.2) requirement 0.00012 ETH
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(0.00011);
+
+      await expect(service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz')).rejects.toThrow(
+        BadRequestException,
+      );
+    });
+
+    it('should build the pay tx when ETH balance is just above the buffered maxFeePerGas requirement (F5) and the tx carries the buffered fee', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+      lnUrlForwardService.lnurlpCallbackForward.mockResolvedValue({
+        expiryDate: new Date(),
+        blockchain: Blockchain.ETHEREUM,
+        uri: `ethereum:${zchfTxAsset.chainId}@1/transfer?address=${dfxDepositAddress}&uint256=${amountWei}`,
+        hint: '',
+      });
+      // gasPrice=1e9, gasLimit=100_000 -> buffered (x1.2) requirement 0.00012 ETH; use a balance just above it
+      evmClient.getNativeCoinBalanceForAddress.mockResolvedValue(0.000121);
+
+      const result = await service.createOcpPayUnsignedTransaction(userAddress, 'pl_abc', 'quote_xyz');
+
+      const parsed = ethers.utils.parseTransaction(result.unsignedTx);
+      const expectedBufferedMaxFeePerGas = ethers.BigNumber.from(1_000_000_000).mul(120).div(100);
+      expect(parsed.maxFeePerGas?.toString()).toBe(expectedBufferedMaxFeePerGas.toString());
     });
   });
 
@@ -1528,6 +1659,32 @@ describe('RealUnitService', () => {
         expect.objectContaining({ method: Blockchain.ETHEREUM, asset: 'ZCHF', quote: 'quote_xyz' }),
       );
       expect(lnUrlForwardService.txHexForward.mock.calls[0][1].hex).toMatch(/^0x/);
+    });
+
+    it('should throw BadRequestException (not a raw 500) when the signed tx data is not a valid ERC-20 transfer', async () => {
+      assetService.getAssetByQuery.mockResolvedValue(zchfTxAsset);
+
+      const signerWallet = new ethers.Wallet('0x' + '11'.repeat(32));
+      const txFields = {
+        type: 2,
+        chainId: 1,
+        nonce: 1,
+        maxPriorityFeePerGas: ethers.BigNumber.from(1),
+        maxFeePerGas: ethers.BigNumber.from(1),
+        gasLimit: ethers.BigNumber.from(100_000),
+        to: zchfTxAsset.chainId,
+        value: ethers.BigNumber.from(0),
+        data: '0x12345678', // garbage selector — not the ERC-20 transfer() selector
+        accessList: [],
+      };
+      const unsignedTx = ethers.utils.serializeTransaction(txFields);
+      const fullySignedTx = await signerWallet.signTransaction(txFields);
+      const { r, s, v } = ethers.utils.parseTransaction(fullySignedTx);
+
+      await expect(
+        service.submitOcpPay({ paymentLinkId: 'pl_abc', quoteId: 'quote_xyz', unsignedTx, r, s, v }),
+      ).rejects.toThrow(BadRequestException);
+      expect(lnUrlForwardService.txHexForward).not.toHaveBeenCalled();
     });
   });
 

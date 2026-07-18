@@ -144,6 +144,12 @@ export abstract class EvmClient extends BlockchainClient {
     return evmTokenBalances[0]?.balance ?? 0;
   }
 
+  async getTokenBalanceWei(asset: Asset, address?: string): Promise<EthersNumber> {
+    const owner = address ?? this.walletAddress;
+    const contract = this.getERC20ContractForDex(asset.chainId);
+    return contract.balanceOf(owner);
+  }
+
   async getTokenBalances(assets: Asset[], address?: string): Promise<BlockchainTokenBalance[]> {
     const owner = address ?? this.walletAddress;
     const evmTokenBalances: BlockchainTokenBalance[] = [];
