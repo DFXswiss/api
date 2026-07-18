@@ -525,11 +525,11 @@ export class BankFrickService {
   private async requestSigned<T>(
     url: string,
     path: string,
-    method: Method = 'GET',
-    body?: unknown,
-    accept = 'application/json',
-    responseType: FrickResponseType = 'json',
-    allowUnauthorizedRetry = true,
+    method: Method,
+    body: unknown,
+    accept: string,
+    responseType: FrickResponseType,
+    allowUnauthorizedRetry: boolean,
   ): Promise<T> {
     this.assertAvailable();
     const token = await this.getAccessToken();
@@ -749,10 +749,14 @@ export class BankFrickService {
       !r.vban.trim() ||
       !Object.values(FrickVirtualIbanState).includes(r.state) ||
       typeof r.referenceAccountIban !== 'string' ||
+      typeof r.createdAt !== 'string' ||
+      typeof r.createdBy !== 'string' ||
       !Array.isArray(r.activationApprovals) ||
       !Array.isArray(r.deactivationApprovals)
     )
       throw new Error('Invalid Bank Frick virtual IBAN response');
+
+    r.vban = this.normalizeAndValidateIban(r.vban, 'virtual IBAN');
   }
 
   private validateVirtualIbansResponse(r: FrickVirtualIbansResponse): void {

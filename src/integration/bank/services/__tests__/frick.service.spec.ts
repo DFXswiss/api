@@ -812,6 +812,26 @@ describe('BankFrickService', () => {
     expect(createRequest.headers.algorithm).toBe('rsa-sha512');
   });
 
+  it('canonicalizes a non-canonical response vban on create and approve', async () => {
+    const nonCanonical = `${debtorIban.slice(0, 6).toLowerCase()} ${debtorIban.slice(6).toLowerCase()}`;
+    const createResponse = { ...virtualIbanResponse(), vban: nonCanonical };
+    http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(createResponse);
+
+    const created = await service.createViban(debtorIban);
+    expect(created.vban).toBe(debtorIban);
+    expect(created.vban).not.toBe(nonCanonical);
+
+    const approveResponse = {
+      ...virtualIbanResponse({ state: FrickVirtualIbanState.ACTIVE }),
+      vban: nonCanonical,
+    };
+    http.request.mockResolvedValueOnce(approveResponse);
+
+    const approved = await service.approveVibanActivation(debtorIban);
+    expect(approved.vban).toBe(debtorIban);
+    expect(approved.vban).not.toBe(nonCanonical);
+  });
+
   it('rejects an invalid reference IBAN before any HTTP call when creating a virtual IBAN', async () => {
     await expect(service.createViban('not-an-iban')).rejects.toThrow('Invalid Bank Frick reference account IBAN');
     expect(http.request).not.toHaveBeenCalled();
@@ -844,6 +864,46 @@ describe('BankFrickService', () => {
     await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
   });
 
+  it('rejects virtual IBAN responses with a too-long or non-IBAN vban via create and approve', async () => {
+    const tooLongVban = 'LI' + '0'.repeat(39);
+    const notIbanVban = 'NOTANIBAN000000000000000000000000';
+
+    // First call authorizes; subsequent calls reuse the cached JWT (one http.request each).
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce({ ...virtualIbanResponse(), vban: tooLongVban });
+    await expect(service.createViban(debtorIban)).rejects.toThrow(/^Invalid Bank Frick virtual IBAN$/);
+    expect(http.request).toHaveBeenCalledTimes(2);
+
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), vban: notIbanVban });
+    await expect(service.createViban(debtorIban)).rejects.toThrow(/^Invalid Bank Frick virtual IBAN$/);
+    expect(http.request).toHaveBeenCalledTimes(3);
+
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), vban: tooLongVban });
+    await expect(service.approveVibanActivation(debtorIban)).rejects.toThrow(/^Invalid Bank Frick virtual IBAN$/);
+    expect(http.request).toHaveBeenCalledTimes(4);
+
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), vban: notIbanVban });
+    await expect(service.approveVibanActivation(debtorIban)).rejects.toThrow(/^Invalid Bank Frick virtual IBAN$/);
+    expect(http.request).toHaveBeenCalledTimes(5);
+  });
+
+  it('rejects virtual IBAN responses with missing or wrong-typed createdAt/createdBy', async () => {
+    http.request
+      .mockResolvedValueOnce({ token: jwt() })
+      .mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: undefined });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdAt: 123 });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdBy: undefined });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+
+    http.request.mockResolvedValueOnce({ ...virtualIbanResponse(), createdBy: 456 });
+    await expect(service.createViban(debtorIban)).rejects.toThrow('Invalid Bank Frick virtual IBAN response');
+  });
+
   it('approves a virtual IBAN activation with a signed PUT', async () => {
     const response = virtualIbanResponse({ state: FrickVirtualIbanState.ACTIVE });
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);
@@ -865,8 +925,9 @@ describe('BankFrickService', () => {
   });
 
   it('gets a virtual IBAN with encodeURIComponent applied to the path segment', async () => {
+    // Path segment may contain reserved characters; response vban must still be a valid IBAN.
     const vbanWithSlash = 'LI/TEST VBAN';
-    const response = virtualIbanResponse({ vban: vbanWithSlash, state: FrickVirtualIbanState.ACTIVE });
+    const response = virtualIbanResponse({ state: FrickVirtualIbanState.ACTIVE });
     http.request.mockResolvedValueOnce({ token: jwt() }).mockResolvedValueOnce(response);
 
     await expect(service.getViban(vbanWithSlash)).resolves.toEqual(response);
