@@ -360,10 +360,12 @@ export class LedgerBookingService {
     });
   }
 
-  // §2.3 native-first exactness (phase 1): set the EXACT integer base-unit quantity from each account's asset decimals.
-  // Resolved by assetId via the cached AssetService (one lookup per tx); an account without an asset (fiat / TRANSIT /
-  // EQUITY / EXPENSE) or an asset without decimals leaves amountBaseUnits null — those are CHF-denominated and already
-  // exact via amountChfCents (native-crypto TRANSIT legs are a later phase). Additive: never affects the CHF close.
+  // §2.3 native-first exactness (phase 1): set the EXACT integer base-unit quantity from each account's asset decimals,
+  // resolved by assetId via the cached AssetService (one lookup per tx). The rule is precise: amountBaseUnits is null
+  // UNLESS the account's asset defines decimals — it is NOT a crypto-vs-fiat test. Today the fiat/bank Custody assets
+  // carry no decimals (→ null, already CHF-exact via amountChfCents), as do TRANSIT/EQUITY/EXPENSE (no assetId); a
+  // later phase covering those must therefore key per-asset, not assume "non-null ⟺ crypto". Additive: never affects
+  // the CHF close.
   private async populateBaseUnits(legs: LedgerLeg[]): Promise<void> {
     const assetIds = [...new Set(legs.map((leg) => leg.account.assetId).filter((id): id is number => id != null))];
     const decimalsById = new Map<number, number>();

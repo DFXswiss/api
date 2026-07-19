@@ -20,6 +20,12 @@ export const baseUnitsTransformer: ValueTransformer = {
 // units of a `decimals`-decimal asset. String-based so it never overflows JS number's 2^53 (18-decimal wei of a
 // large balance is ~10^21) and never amplifies float binary error beyond the 8-dp source precision.
 export function toBaseUnits(amount: number, decimals: number): bigint {
+  // |amount| ≥ 1e21 makes toFixed emit exponential notation that BigInt() cannot parse; such a magnitude is also
+  // beyond a float's exact-integer range (2^53) and far beyond any real asset supply — fail loud with a clear ledger
+  // error instead of an opaque BigInt SyntaxError inside the booking transaction.
+  if (!Number.isFinite(amount) || Math.abs(amount) >= 1e21)
+    throw new Error(`Ledger native amount ${amount} is out of the base-unit conversion domain (|amount| < 1e21)`);
+
   const p = Math.min(decimals, 8); // amount carries at most 8 native decimals (§2.3)
   const fixed = amount.toFixed(p); // exact decimal string of the ≤8-dp value, e.g. "-0.00010000"
   const negative = fixed.startsWith('-');

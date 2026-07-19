@@ -21,6 +21,11 @@ describe('ledger base units', () => {
     it('does not amplify float binary error beyond the 8-dp source precision', () => {
       expect(toBaseUnits(0.1, 18)).toBe(100000000000000000n); // exactly 1e17 wei, NOT 100000000000000006
     });
+
+    it('fails loud for an out-of-domain magnitude instead of an opaque BigInt error', () => {
+      expect(() => toBaseUnits(1e21, 18)).toThrow(/out of the base-unit conversion domain/);
+      expect(() => toBaseUnits(Infinity, 8)).toThrow(/out of the base-unit conversion domain/);
+    });
   });
 
   describe('baseUnitsTransformer', () => {
