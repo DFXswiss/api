@@ -55,6 +55,10 @@ export class LedgerMarkService {
   // memoized youngest-mark-per-asset map (≤ now) for the B5 bridge; refreshed at most once per LATEST_MARK_TTL_MS
   private latestMarks?: { map: Map<number, number>; loadedAt: number };
 
+  // §5.2 — per-window LedgerMarkCache memo for the widened last-mark fallback (getMarkAtWidened), keyed `${from}:${to}`;
+  // dedupes the preload when several feedless cutover rows share a window (one pinned snapshot → 1-2 keys, negligible)
+  private readonly widenedCaches = new Map<string, Promise<LedgerMarkCache>>();
+
   /**
    * §5.2 Major B5 bridge — the youngest available mark for an asset (latest FinancialDataLog priceChf ≤ now), from a
    * bounded recent-log read. Used ONLY as the documented fallback when the per-batch cache has no mark AT a historical
@@ -88,6 +92,31 @@ export class LedgerMarkService {
 
     this.latestMarks = { map, loadedAt: now };
     return map;
+  }
+
+  /**
+   * §5.2 — the last finite mark ≤ `asOf` for one asset, over a window WIDENED past the ~2-day preload cache and the
+   * 5-day getLatestMark bridge. A cutover owed / manual-debt opening whose asset is delisted carries no mark in those
+   * short windows and would fail loud and wedge the run — yet the (≤90d-old) owed row's asset was necessarily priced
+   * when it was created, so its last finite priceChf sits within `lookbackDays`. Reuses the canonical preload →
+   * getMarkAt (binary-search "latest finite priceChf ≤ asOf") path; the per-window cache is memoized so several
+   * feedless rows sharing a window trigger a single read. Returns undefined ONLY for a truly-unpriced asset → the
+   * caller stays fail-closed (never a silent native-0).
+   */
+  async getMarkAtWidened(assetId: number, asOf: Date, lookbackDays: number): Promise<number | undefined> {
+    const from = Util.daysBefore(lookbackDays, asOf);
+    const key = `${from.getTime()}:${asOf.getTime()}`;
+    let cache = this.widenedCaches.get(key);
+    if (!cache) {
+      // do NOT memoize a transient failure: a rejected preload is evicted so the next cron retry re-reads (the widened
+      // read is a larger, possibly-paginated query than the 2d preload — a blip must not permanently wedge the cutover)
+      cache = this.preload(from, asOf).catch((e) => {
+        this.widenedCaches.delete(key);
+        throw e;
+      });
+      this.widenedCaches.set(key, cache);
+    }
+    return (await cache).getMarkAt(assetId, asOf);
   }
 
   /**
