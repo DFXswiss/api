@@ -327,7 +327,9 @@ export class PayoutOrderConsumer {
    * §4.5 network fee (D14 A.2, Major R2-5 null-strategy + Major R7-1 fee-asset disambiguation). Adds the
    * EXPENSE/network-fee CHF leg = (preparationFeeAmountChf ?? 0) + (payoutFeeAmountChf ?? 0) (additive, NOT the
    * NaN-prone feeAmountChf getter) + one native Cr leg per DISTINCT fee asset (≠ payout asset; the payout-asset
-   * fee was already folded into the wallet leg). networkFeeChf === 0 → no fee leg at all.
+   * fee was already folded into the wallet leg). networkFeeChf === 0 suppresses only the CHF EXPENSE leg — distinct
+   * (non-payout) fee-asset native legs are still booked so a sub-cent gas fee keeps its native outflow (#4277), skipped
+   * only when that fee asset is unvaluable (no mark) or unbootstrapped (no account), which falls back to today's no-leg.
    */
   private async appendDistinctFeeLegs(
     order: PayoutOrder,
@@ -336,9 +338,10 @@ export class PayoutOrderConsumer {
     legs: LedgerLegInput[],
   ): Promise<void> {
     const feeChf = this.networkFeeChf(order);
-    if (feeChf === 0) return; // LN (Fee=0) or both null → no fee leg (null strategy §5.1)
-
-    legs.push(this.namedLeg(await this.expense('network-fee'), feeChf));
+    // #4277: gate ONLY the CHF EXPENSE/network-fee leg on feeChf — still book the per-distinct-asset NATIVE fee legs
+    // below, so a sub-cent gas fee whose persisted CHF sum rounds to 0.00 keeps its native outflow (matching the
+    // exchange-tx appendCcxtFeeLeg fix). A 0-CHF EXPENSE leg would be pointless, so it is suppressed.
+    if (feeChf !== 0) legs.push(this.namedLeg(await this.expense('network-fee'), feeChf));
 
     const feeByAsset = new Map<number, { asset: Asset; amount: number }>();
     this.addFeeNative(feeByAsset, order.preparationFeeAsset, order.preparationFeeAmount);
@@ -347,6 +350,23 @@ export class PayoutOrderConsumer {
     for (const { asset, amount } of feeByAsset.values()) {
       if (asset.id === order.asset.id) continue; // payout-asset fee already folded into the wallet leg
       const mark = marks.getMarkAt(asset.id, bookingDate);
+
+      // #4277 conservatism for the newly-reached feeChf===0 case: add the native leg only when the fee asset is valuable
+      // AND has a ledger account (non-throwing) — else fall back to today's no-leg, so no payout that books today starts
+      // deferring or fail-stopping. The feeChf!==0 path is unchanged (throwing assetAccount + needsMark/bridge/defer).
+      if (feeChf === 0) {
+        const account = await this.accountService.findByAssetId(asset.id);
+        if (mark == null || !account) continue;
+        legs.push({
+          account,
+          amount: -amount,
+          priceChf: mark,
+          amountChf: -Util.round(mark * amount, 2),
+          needsMark: false,
+        });
+        continue;
+      }
+
       const chf = mark != null ? Util.round(mark * amount, 2) : undefined;
       legs.push({
         account: await this.assetAccount(asset),
