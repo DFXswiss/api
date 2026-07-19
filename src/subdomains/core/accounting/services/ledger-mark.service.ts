@@ -123,12 +123,14 @@ export class LedgerMarkService {
     if (!entry || now - entry.loadedAt >= WIDENED_MARK_TTL_MS) {
       // do NOT memoize a transient failure either: a rejected preload is evicted immediately so the next cron retry
       // re-reads (the widened read is a larger, possibly-paginated query than the 2d preload — a blip must not wedge).
+      // Guard the eviction by loadedAt so a late-rejecting stale load never deletes a fresher entry a retry installed.
+      const loadedAt = now;
       entry = {
         cache: this.preload(from, asOf).catch((e) => {
-          this.widenedCaches.delete(key);
+          if (this.widenedCaches.get(key)?.loadedAt === loadedAt) this.widenedCaches.delete(key);
           throw e;
         }),
-        loadedAt: now,
+        loadedAt,
       };
       this.widenedCaches.set(key, entry);
     }

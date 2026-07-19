@@ -73,6 +73,8 @@ describe('LedgerMarkService', () => {
   describe('getMarkAtWidened (widened last-mark fallback)', () => {
     const asOf = new Date('2026-07-16');
 
+    afterEach(() => jest.restoreAllMocks()); // fail-safe restore (esp. the Date.now spy in the TTL test) even on failure
+
     it('returns the last finite mark ≤ asOf even when it predates the 2d/5d windows (delisted asset)', async () => {
       jest.spyOn(logService, 'getFinancialLogs').mockResolvedValue([
         financialLog(new Date('2026-05-01'), { '5': { priceChf: 3 } }), // ~76d before asOf: outside 2d/5d, inside 90d
